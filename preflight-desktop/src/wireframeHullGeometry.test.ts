@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WireframeHull } from "./types";
+import type { HullSegment, HullVertex } from "./wireframeHullGeometry";
 import { DEFAULT_WIREFRAME_TUNING, buildHullSegments, projectHull } from "./wireframeHullGeometry";
 
 const hull: WireframeHull = {
@@ -248,6 +249,53 @@ describe("wireframe hull geometry", () => {
     expect(outline(0)).toBe(96);
     expect(outline(0.012)).toBeLessThan(96);
     expect(outline(0.06)).toBeGreaterThanOrEqual(12);
+  });
+
+  it("lands every facet endpoint on the deck and keel segments the truss is drawn from", () => {
+    // Four long edges and no vertices to spare along them, which is where halfHeight and a
+    // straight ring segment disagree most: the stations fall in the middle of each run.
+    const sparse: WireframeHull = {
+      ...hull,
+      id: "sparse-diamond",
+      bounds: [
+        { x: 120, y: 0 },
+        { x: 0, y: 80 },
+        { x: -120, y: 0 },
+        { x: 0, y: -80 },
+      ],
+      trace: { holes: [], inner: [] },
+    };
+
+    const segments = buildHullSegments(sparse, "showcase");
+    const deck = segments.filter((segment) => segment.kind === "deck");
+    const keel = segments.filter((segment) => segment.kind === "keel");
+    const facets = segments.filter((segment) => segment.kind === "structure");
+    expect(deck).toHaveLength(4);
+    expect(keel).toHaveLength(4);
+    expect(facets.length).toBeGreaterThan(20);
+
+    /** Distance from a point to the nearest of these segments, measured in 3D. */
+    const offRing = (point: HullVertex, ring: HullSegment[]) => Math.min(...ring.map((segment) => {
+      const dx = segment.to.x - segment.from.x;
+      const dy = segment.to.y - segment.from.y;
+      const dz = segment.to.z - segment.from.z;
+      const length = dx * dx + dy * dy + dz * dz;
+      if (length < 1e-9) return Infinity;
+      const along = Math.min(1, Math.max(0,
+        ((point.x - segment.from.x) * dx + (point.y - segment.from.y) * dy + (point.z - segment.from.z) * dz) / length));
+      return Math.hypot(
+        point.x - (segment.from.x + dx * along),
+        point.y - (segment.from.y + dy * along),
+        point.z - (segment.from.z + dz * along),
+      );
+    }));
+
+    const checked = facets.flatMap((facet) => [facet.from, facet.to])
+      .filter((vertex) => Math.abs(vertex.z) > 1e-4);
+    expect(checked.length).toBeGreaterThan(20);
+    for (const vertex of checked) {
+      expect(offRing(vertex, vertex.z > 0 ? deck : keel)).toBeLessThan(1e-6);
+    }
   });
 
   it("keeps the collision-bound fallback for hulls without a readable sprite trace", () => {
