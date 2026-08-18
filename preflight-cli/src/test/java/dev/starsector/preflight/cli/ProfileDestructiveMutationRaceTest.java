@@ -192,6 +192,36 @@ final class ProfileDestructiveMutationRaceTest {
     }
 
     @Test
+    void restartWithExternalDestinationRestoresSourceAndPreservesExternalWinner() throws Exception {
+        Fixture fixture = fixture();
+        save(fixture, "Source");
+        Path source = profile(fixture, "Source");
+        Path target = profile(fixture, "Renamed");
+        String token = renamePreviewToken(fixture, "Source", "Renamed");
+        byte[] externalTarget = renamedBytes(source, "Source", "Renamed");
+        externalTarget = replaceFingerprint(externalTarget, "d".repeat(64));
+
+        assertThrows(SimulatedInterruption.class, () -> ProfileCommand.rename(
+                fixture.home(), fixture.game(), "Source", "Renamed", token, true, true,
+                stream(new ByteArrayOutputStream()), new ProfileMutationTransaction.Hook() {
+                    @Override
+                    public void afterSourceCapture(Path captured) {
+                        throw new SimulatedInterruption();
+                    }
+                }));
+        Files.write(target, externalTarget);
+
+        IOException recovery = assertThrows(IOException.class, () -> save(fixture, "Other"));
+
+        assertTrue(recovery.getMessage().contains("external destination"));
+        assertTrue(recovery.getMessage().contains("source was restored"));
+        assertTrue(Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS));
+        assertArrayEquals(externalTarget, Files.readAllBytes(target));
+        assertEquals(List.of("Renamed", "Source"), names(fixture));
+        assertNoTransactions(fixture);
+    }
+
+    @Test
     void restartAfterRenameCommitFinishesCleanupWithoutRestoringOldName() throws Exception {
         Fixture fixture = fixture();
         save(fixture, "Source");
