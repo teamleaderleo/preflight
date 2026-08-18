@@ -47,8 +47,24 @@ test("journey overrides keep first settings reachable and put actionable Home fa
   expect(getComputedStyle(errorViewport).display).toBe("flex");
   expect(getComputedStyle(error).order).toBe("-1");
 
+  const preparationLaunch = document.createElement("section");
+  preparationLaunch.className = "launch-console launch-console--ready";
+  const playtime = document.createElement("div");
+  playtime.className = "home-playtime";
+  const identity = document.createElement("div");
+  identity.className = "home-launch-identity";
+  const note = document.createElement("div");
+  note.className = "launch-console__note";
+  preparationLaunch.append(playtime, identity, note);
+  document.body.append(preparationLaunch);
+  expect(preparationLaunch.matches(".launch-console--ready:has(.launch-console__note)")).toBe(true);
+  expect(getComputedStyle(playtime).display).toBe("none");
+  expect(getComputedStyle(identity).top).toBe("64px");
+  expect(getComputedStyle(identity).textAlign).toBe("left");
+
   viewport.remove();
   errorViewport.remove();
+  preparationLaunch.remove();
   style.remove();
 });
 
