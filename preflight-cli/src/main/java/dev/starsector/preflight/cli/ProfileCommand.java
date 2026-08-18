@@ -179,7 +179,6 @@ final class ProfileCommand {
             throw existingProfile(name);
         }
         SavedProfile profile = currentProfile(layout, name, target);
-        publicationHook.beforePublication(target);
         try {
             atomicCreate(
                     target,
@@ -635,7 +634,6 @@ final class ProfileCommand {
         if (Files.exists(target)) {
             throw new IOException("A named profile already exists: " + targetName);
         }
-        publicationHook.beforePublication(target);
         SavedProfile duplicated = new SavedProfile(
                 targetName,
                 profile.installRoot(),
@@ -1136,6 +1134,7 @@ final class ProfileCommand {
         Throwable failure = null;
         try {
             Files.writeString(staged, value, StandardCharsets.UTF_8);
+            publicationHook.beforePublication(absolute);
             try {
                 Files.createLink(absolute, staged);
                 published = true;
