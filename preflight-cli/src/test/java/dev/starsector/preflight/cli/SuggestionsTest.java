@@ -31,9 +31,11 @@ class SuggestionsTest {
     }
 
     @Test
-    void veryShortPrefixesStayQuiet() {
+    void shortCommandPrefixesStayQuietWithoutChangingExistingOptionHints() {
         assertNull(Suggestions.closest("st", List.of("stop", "run")));
-        assertNull(Suggestions.closest("--ga", List.of("--game", "--launcher")));
+        assertEquals(
+                "--game",
+                Suggestions.closest("--ga", List.of("--game", "--launcher")));
     }
 
     @Test
