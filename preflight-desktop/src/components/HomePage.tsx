@@ -5,6 +5,7 @@ import type { ThemePreference } from "../useTheme";
 import { QuickGameSettings } from "./QuickGameSettings";
 import { NoticeBanner } from "./NoticeBanner";
 import { storagePlanApplies, type usePreparation } from "../usePreparation";
+import { lastRunForCurrentProfile } from "../lastRunApplicability";
 import type { useProfiles } from "../useProfiles";
 import { formatBytes, formatPlaytime, formatSavedAt, friendlyPlatform, shortPath } from "../uiFormat";
 import type {
@@ -149,7 +150,11 @@ export function HomePage({
     .filter((diagnostic) => !diagnostic.startsWith("Searched "))
     .filter((diagnostic) => !diagnostic.includes("--game") && !diagnostic.includes("--launcher"));
   const playtime = snapshot?.playtime;
-  const lastAdapterHealth = snapshot?.lastRun?.adapterHealth ?? null;
+  const lastAdapterHealth = lastRunForCurrentProfile(
+    snapshot?.lastRun,
+    snapshot?.selected?.installRoot,
+    cache?.currentProfileFingerprint,
+  )?.adapterHealth ?? null;
   const hasPlaytime = Boolean(playtime?.readable && playtime.launches > 0 && playtime.totalMillis > 0);
   const statusLabel = status === "launching"
     ? "Opening Starsector"

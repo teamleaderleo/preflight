@@ -358,6 +358,8 @@ test("home surfaces the latest compatibility verdict without exposing the raw re
     lastRun: {
       directory: "~/.starsector-preflight/runs/latest",
       modifiedAt: "2026-08-17T00:00:00Z",
+      installRoot: base.selected?.installRoot,
+      profileFingerprint: "preview-profile",
       adapterHealth: {
         format: "starsector-preflight-adapter-health-v1",
         status: "PARTIAL",
@@ -378,6 +380,41 @@ test("home surfaces the latest compatibility verdict without exposing the raw re
   expect(await screen.findByText("Last run: acceleration active, with safe fallback"))
     .toHaveAttribute("title", "Keep playing if the game is otherwise healthy.");
   expect(screen.queryByText("VERSION_OR_TARGET_MISMATCH")).not.toBeInTheDocument();
+  snapshot.mockRestore();
+});
+
+test("home and speed omit launch evidence from another profile", async () => {
+  const user = userEvent.setup();
+  const base = await bridge.getSnapshot();
+  const snapshot = vi.spyOn(bridge, "getBootstrapSnapshot").mockResolvedValue({
+    ...base,
+    lastRun: {
+      directory: "~/.starsector-preflight/runs/latest",
+      modifiedAt: "2026-08-17T00:00:00Z",
+      installRoot: base.selected?.installRoot,
+      profileFingerprint: "different-profile",
+      adapterHealth: {
+        format: "starsector-preflight-adapter-health-v1",
+        status: "ACTIVE",
+        accelerationsActive: true,
+        originalCodeRetained: true,
+        reviewRecommended: false,
+        transformationsApplied: 32,
+        registryTargets: 32,
+        containedFailures: 0,
+        evidenceKinds: [],
+        suggestedActions: [],
+      },
+      startupMillis: 15_250,
+    },
+  });
+
+  render(<App />);
+
+  await screen.findByText("Ready");
+  expect(screen.queryByText("Last run: acceleration active")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Speed" }));
+  expect(screen.queryByText("Last fast launch: 15.3s to the menu.")).not.toBeInTheDocument();
   snapshot.mockRestore();
 });
 
@@ -1308,6 +1345,8 @@ test("an unmeasured scoreboard labels the exact last process-to-menu time", asyn
     lastRun: {
       directory: "~/.starsector-preflight/runs/latest",
       modifiedAt: "2026-08-17T00:00:00Z",
+      installRoot: base.selected?.installRoot,
+      profileFingerprint: "preview-profile",
       adapterHealth: null,
       started: "2026-08-17T00:00:00Z",
       ended: "2026-08-17T02:00:00Z",
