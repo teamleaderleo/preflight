@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { applyRemoval, getRemovalPlan } from "./bridge";
 import { clearPreflightLocalStorage } from "./desktopStorage";
+import { getReportState } from "./reportBridge";
 import type { Announce, DesktopSnapshot, RemovalPlan, RemovalScope } from "./types";
 import { errorMessage } from "./uiFormat";
 
@@ -46,6 +47,14 @@ export function useRemoval(
     busyRef.current = true;
     setBusy(true);
     try {
+      if (scope === "all-data") {
+        const reportState = await getReportState();
+        if (reportState.backgroundUploadId !== null || reportState.reports.length > 0) {
+          throw new Error(
+            "Delete each uploaded report, or explicitly dismiss its saved deletion authorization, before removing all Preflight data. Stop any automatic report upload first.",
+          );
+        }
+      }
       const result = await applyRemoval(scope);
       if (currentRequest !== request.current) return;
       let localStorageFailures: string[] = [];
