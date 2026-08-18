@@ -37,6 +37,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - name: prepared-blob-format
+            module: preflight-core
+            tests: PreparedTextureIOTest,PreparedTexturePersistencePropertyTest,ManifestTextureCacheLookupTest
           - name: manifest-format
             module: preflight-core
             tests: TextureManifestIOTest
