@@ -12,7 +12,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Atomic process identity for PID-addressed desktop smoke drivers. */
+/** Staged same-directory process identity for PID-addressed desktop smoke drivers. */
 final class RuntimeProcessReport {
     static final String FORMAT = "starsector-preflight-runtime-process-v1";
 
