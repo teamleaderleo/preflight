@@ -58,7 +58,7 @@ class PreparedTexturePackUtf8CanonicalTest {
         int slash = indexOf(encoded, new byte[] {'/'});
         assertEquals(true, slash >= 0);
 
-        changed[pathOffset + slash] = '\\';
+        changed[pathOffset + slash] = (byte) '\\';
         resignPackIndex(changed);
 
         Path candidate = temporaryDirectory.resolve("noncanonical-path.spfp");
