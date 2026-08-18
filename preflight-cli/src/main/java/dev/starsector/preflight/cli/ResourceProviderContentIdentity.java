@@ -18,6 +18,8 @@ import java.util.Objects;
 
 /** Exact byte-identity sources for resource-provider comparison. */
 final class ResourceProviderContentIdentity {
+    static final String PROOF_DIRECTORY_PREFIX = ".preflight-provider-proof-";
+
     private final ResourceIndex index;
     private final ProfileIdentityContext profileContext;
     private final DirectHasher directHasher;
@@ -61,7 +63,7 @@ final class ResourceProviderContentIdentity {
     private ResourceProviderComparison.ContentObservation observeDirect(
             String logicalPath, ResourceIndex.Provider provider) {
         try {
-            Path proofLink = null;
+            ProofLink proof = null;
             try {
                 Path file = index.resolveExisting(provider).toAbsolutePath().normalize();
                 BasicFileAttributes before = Files.readAttributes(file, BasicFileAttributes.class);
@@ -84,16 +86,22 @@ final class ResourceProviderContentIdentity {
 
                 /*
                  * The portable Java 17 channel APIs expose no identity for an already-open handle.
-                 * Anchor the selected entry under a second name instead: a hard link keeps naming
-                 * the same file if the provider pathname is replaced, and isSameFile ties that
-                 * anchored file back to the provider pathname before and after the read. If the
-                 * provider and temporary directory cannot support that proof, exact evidence is
-                 * unavailable and the caller gets conservative stale evidence.
+                 * Anchor the selected entry under a second name instead. The proof namespace is
+                 * created beside the provider, so the hard link necessarily lives on the same
+                 * filesystem/FileStore even when the process temp directory is on another volume.
+                 * isSameFile then ties that anchored file back to the provider pathname before and
+                 * after the read. If any part of that proof is unavailable, exact evidence fails
+                 * closed as stale.
                  */
-                proofLink = createProofLink(file);
-                if (proofLink == null) {
+                Path proofDirectory = file.getParent();
+                if (proofDirectory == null) {
                     return ResourceProviderComparison.ContentObservation.stale();
                 }
+                proof = createProofLink(file, proofDirectory);
+                if (proof == null) {
+                    return ResourceProviderComparison.ContentObservation.stale();
+                }
+                Path proofLink = proof.path();
 
                 BasicFileAttributes proofBefore = Files.readAttributes(proofLink, BasicFileAttributes.class);
                 FileIdentity proofIdentity = FileIdentity.from(proofBefore);
@@ -135,8 +143,8 @@ final class ResourceProviderContentIdentity {
                 }
                 return ResourceProviderComparison.ContentObservation.hashed(digest);
             } finally {
-                if (proofLink != null) {
-                    Files.deleteIfExists(proofLink);
+                if (proof != null) {
+                    proof.close();
                 }
             }
         } catch (NoSuchFileException missing) {
@@ -163,21 +171,39 @@ final class ResourceProviderContentIdentity {
         }
     }
 
-    private static Path createProofLink(Path file) throws IOException {
-        Path candidate = null;
-        boolean linked = false;
+    /**
+     * Creates an owned random proof namespace in {@code directory}, then hard-links the provider
+     * inside it. Production passes the provider's parent directory; the directory parameter is kept
+     * explicit so tests can deterministically exercise a foreign/default-temp filesystem.
+     */
+    static ProofLink createProofLink(Path file, Path directory) throws IOException {
+        Path ownedDirectory = null;
         try {
-            candidate = Files.createTempFile("preflight-provider-proof-", ".link");
-            Files.delete(candidate);
-            Files.createLink(candidate, file);
-            linked = true;
-            return candidate;
-        } catch (UnsupportedOperationException | SecurityException | ProviderMismatchException | IOException unavailable) {
-            return null;
-        } finally {
-            if (!linked && candidate != null) {
-                Files.deleteIfExists(candidate);
+            ownedDirectory = Files.createTempDirectory(directory, PROOF_DIRECTORY_PREFIX);
+            Path link = ownedDirectory.resolve("provider.link");
+            Files.createLink(link, file);
+            return new ProofLink(link, ownedDirectory);
+        } catch (UnsupportedOperationException
+                | SecurityException
+                | ProviderMismatchException
+                | IOException unavailable) {
+            if (ownedDirectory != null) {
+                cleanupProofDirectory(ownedDirectory);
             }
+            return null;
+        }
+    }
+
+    private static void cleanupProofDirectory(Path directory) {
+        try {
+            Files.deleteIfExists(directory.resolve("provider.link"));
+        } catch (IOException ignored) {
+            // Best effort after proof creation failed; the directory is private to this attempt.
+        }
+        try {
+            Files.deleteIfExists(directory);
+        } catch (IOException ignored) {
+            // Best effort after proof creation failed; no evidence is published from this attempt.
         }
     }
 
@@ -191,6 +217,30 @@ final class ResourceProviderContentIdentity {
     @FunctionalInterface
     interface DirectHasher {
         String sha256(InputStream bytes) throws IOException;
+    }
+
+    record ProofLink(Path path, Path directory) implements AutoCloseable {
+        @Override
+        public void close() throws IOException {
+            IOException failure = null;
+            try {
+                Files.deleteIfExists(path);
+            } catch (IOException cleanupFailure) {
+                failure = cleanupFailure;
+            }
+            try {
+                Files.deleteIfExists(directory);
+            } catch (IOException cleanupFailure) {
+                if (failure == null) {
+                    failure = cleanupFailure;
+                } else {
+                    failure.addSuppressed(cleanupFailure);
+                }
+            }
+            if (failure != null) {
+                throw failure;
+            }
+        }
     }
 
     private record DirectHash(String sha256, FileIdentity identity) {
