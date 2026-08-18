@@ -5,6 +5,7 @@ import {
   DEFAULT_HOME_PRESENTATION,
   initializeHomePresentation,
   readHomePresentation,
+  resetHomePresentation,
   useHomePresentation,
 } from "./useHomePresentation";
 
@@ -53,6 +54,22 @@ test("presentation changes persist and synchronize mounted consumers", () => {
   expect(document.documentElement.dataset.homePlaytime).toBe("hidden");
   expect(JSON.parse(window.localStorage.getItem(HOME_PRESENTATION_STORAGE_KEY) ?? "null"))
     .toEqual({ mode: "compact", showPlaytime: false });
+});
+
+test("all-data reset retires live presentation state without recreating persistence", () => {
+  const first = renderHook(() => useHomePresentation());
+  const second = renderHook(() => useHomePresentation());
+
+  act(() => first.result.current.setMode("compact"));
+  act(() => first.result.current.setShowPlaytime(false));
+  window.localStorage.removeItem(HOME_PRESENTATION_STORAGE_KEY);
+  act(() => resetHomePresentation());
+
+  expect(first.result.current).toMatchObject(DEFAULT_HOME_PRESENTATION);
+  expect(second.result.current).toMatchObject(DEFAULT_HOME_PRESENTATION);
+  expect(document.documentElement.dataset.homeMode).toBe("hangar");
+  expect(document.documentElement.dataset.homePlaytime).toBe("shown");
+  expect(window.localStorage.getItem(HOME_PRESENTATION_STORAGE_KEY)).toBeNull();
 });
 
 test("denied persistence still changes every mounted consumer for this session", () => {
