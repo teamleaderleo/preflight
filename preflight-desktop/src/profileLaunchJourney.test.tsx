@@ -8,6 +8,16 @@ import type { CacheSnapshot, NamedProfile, ProfileActivationPlan, ProfileList } 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 function profile(name: string, fingerprint: string, active: boolean): NamedProfile {
   return {
     name,
@@ -125,14 +135,56 @@ test("Home reflects the switched profile when its new mod set needs preparation"
   }
 });
 
-test("refocusing Home revalidates an externally changed mod set before launch", async () => {
+test("refocus on another page invalidates stale launch identity before returning Home", async () => {
+  window.localStorage.clear();
+  const profileRefresh = deferred<ProfileList>();
+  const cacheRefresh = deferred<CacheSnapshot>();
+  const getProfiles = vi.spyOn(bridge, "getProfiles")
+    .mockResolvedValueOnce(profiles(true))
+    .mockReturnValueOnce(profileRefresh.promise);
+  const getCache = vi.spyOn(bridge, "getCache")
+    .mockResolvedValueOnce(cache("old-fingerprint", true))
+    .mockReturnValueOnce(cacheRefresh.promise);
+
+  try {
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(await screen.findByLabelText("Launches profile Main campaign from /Applications/Starsector"))
+      .toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+
+    window.dispatchEvent(new Event("focus"));
+    await waitFor(() => expect(getProfiles).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(getCache).toHaveBeenCalledTimes(2));
+
+    await user.click(screen.getByRole("button", { name: "Home" }));
+    expect(screen.queryByLabelText("Launches profile Main campaign from /Applications/Starsector"))
+      .not.toBeInTheDocument();
+    expect(await screen.findByLabelText("Launches the current mod setup from /Applications/Starsector"))
+      .toBeInTheDocument();
+    expect(getProfiles).toHaveBeenCalledTimes(2);
+
+    profileRefresh.resolve(externalProfiles());
+    cacheRefresh.resolve(cache("external-fingerprint", false));
+
+    await waitFor(() => expect(screen.getByText("Preparation needed")).toBeInTheDocument());
+    expect(getProfiles).toHaveBeenCalledTimes(2);
+    expect(getCache).toHaveBeenCalledTimes(2);
+  } finally {
+    getProfiles.mockRestore();
+    getCache.mockRestore();
+  }
+});
+
+test("failed refocus revalidation never restores the old saved profile name", async () => {
   window.localStorage.clear();
   const getProfiles = vi.spyOn(bridge, "getProfiles")
     .mockResolvedValueOnce(profiles(true))
-    .mockResolvedValueOnce(externalProfiles());
+    .mockRejectedValueOnce(new Error("synthetic profile refresh failure"));
   const getCache = vi.spyOn(bridge, "getCache")
     .mockResolvedValueOnce(cache("old-fingerprint", true))
-    .mockResolvedValueOnce(cache("external-fingerprint", false));
+    .mockRejectedValueOnce(new Error("synthetic cache refresh failure"));
 
   try {
     render(<App />);
@@ -144,9 +196,10 @@ test("refocusing Home revalidates an externally changed mod set before launch", 
 
     expect(await screen.findByLabelText("Launches the current mod setup from /Applications/Starsector"))
       .toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText("Preparation needed")).toBeInTheDocument());
-    expect(getProfiles).toHaveBeenCalledTimes(2);
-    expect(getCache).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(getProfiles).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(getCache).toHaveBeenCalledTimes(2));
+    expect(screen.queryByLabelText("Launches profile Main campaign from /Applications/Starsector"))
+      .not.toBeInTheDocument();
   } finally {
     getProfiles.mockRestore();
     getCache.mockRestore();
