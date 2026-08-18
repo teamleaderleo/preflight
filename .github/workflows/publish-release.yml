@@ -29,20 +29,29 @@ jobs:
       RELEASE_TAG: ${{ inputs.tag }}
       DISTRIBUTION_RUN_ID: ${{ inputs.distribution_run_id }}
     steps:
+      - name: Validate release inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || {
+            echo "::error::Publication requires an exact v-prefixed SemVer release tag"
+            exit 1
+          }
+          [[ "$DISTRIBUTION_RUN_ID" =~ ^[0-9]+$ ]] || {
+            echo "::error::Distribution run ID must be numeric"
+            exit 1
+          }
+
       - name: Check out exact release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.tag }}
+          ref: refs/tags/${{ inputs.tag }}
           fetch-depth: 0
 
       - name: Validate tag and successful Distribution run
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$RELEASE_TAG" == v* ]] || { echo "::error::Publication requires an exact v* release tag"; exit 1; }
-          [[ "$DISTRIBUTION_RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::Distribution run ID must be numeric"; exit 1; }
-          node preflight-desktop/scripts/validate-release-version.mjs "$RELEASE_TAG"
-
           tag_sha="$(git rev-parse "${RELEASE_TAG}^{}")"
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$DISTRIBUTION_RUN_ID" \
             > "$RUNNER_TEMP/distribution-run.json"
@@ -68,6 +77,8 @@ jobs:
           if errors:
               raise SystemExit("Refusing publication: " + "; ".join(errors))
           PY
+
+          node preflight-desktop/scripts/validate-release-version.mjs "$RELEASE_TAG"
 
       - name: Read and validate draft release
         shell: bash
