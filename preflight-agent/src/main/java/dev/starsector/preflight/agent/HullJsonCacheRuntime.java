@@ -16,6 +16,9 @@ import java.util.concurrent.atomic.AtomicLong;
 /** Learns merged hull JSON once and reconstructs fresh JSON objects on an exact-profile hit. */
 public final class HullJsonCacheRuntime {
     public static final String PLAN_ID = "vanilla-hull-merged-json-cache-v1";
+    static final int MAX_LEARNED_ENTRY_BYTES = 8 * 1024 * 1024;
+    static final long MAX_LEARNED_BYTES = 16L * 1024 * 1024;
+    static final int MAX_LEARNED_ENTRIES = 100_000;
 
     private static volatile State state = State.disabled();
     /**
@@ -128,16 +131,7 @@ public final class HullJsonCacheRuntime {
                 // Dropping the install prefix from an absolute key means two different files could
                 // in principle claim it. Nothing observed does, so this refuses the key rather than
                 // picking a winner: a collision that is never served cannot serve the wrong spec.
-                byte[] previous = current.learned.putIfAbsent(path, encoded);
-                if (previous != null && !java.util.Arrays.equals(previous, encoded)) {
-                    current.learned.remove(path);
-                    current.collidingKeys.add(path);
-                    current.badEntries.add(path);
-                    current.collisions.incrementAndGet();
-                    current.diagnose("two different merged values claim the cache key " + path);
-                    return;
-                }
-                current.captures.incrementAndGet();
+                current.capture(path, encoded);
             }
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
@@ -150,7 +144,7 @@ public final class HullJsonCacheRuntime {
     /** Publishes only after vanilla finishes the entire hull loader normally. */
     public static void complete() {
         State current = state;
-        if (current.artifact == null || current.learned.isEmpty()
+        if (current.artifact == null || current.learningRejected.get() || current.learned.isEmpty()
                 || !current.completed.compareAndSet(false, true)) {
             return;
         }
@@ -181,6 +175,8 @@ public final class HullJsonCacheRuntime {
         values.put("captures", current.captures.get());
         values.put("writes", current.writes.get());
         values.put("keyCollisions", current.collisions.get());
+        values.put("learnedBytes", current.learnedBytes);
+        values.put("learningRejected", current.learningRejected.get());
         values.put("absoluteEntries", current.entries.keySet().stream()
                 .filter(key -> key.startsWith(SpecCacheKey.ABSOLUTE_PREFIX)).count());
         values.putAll(REHYDRATE_CLOCK.snapshot("rehydrate"));
@@ -209,6 +205,7 @@ public final class HullJsonCacheRuntime {
         private final Map<String, byte[]> learned = new ConcurrentHashMap<>();
         private final Set<String> badEntries = ConcurrentHashMap.newKeySet();
         private final AtomicBoolean completed = new AtomicBoolean();
+        private final AtomicBoolean learningRejected = new AtomicBoolean();
         private final AtomicBoolean diagnosed = new AtomicBoolean();
         private final AtomicLong hits = new AtomicLong();
         private final AtomicLong misses = new AtomicLong();
@@ -216,6 +213,7 @@ public final class HullJsonCacheRuntime {
         private final AtomicLong writes = new AtomicLong();
         private final AtomicLong collisions = new AtomicLong();
         private final Set<String> collidingKeys = ConcurrentHashMap.newKeySet();
+        private long learnedBytes;
 
         private State(Path artifact, String profileIdentity, Map<String, byte[]> entries,
                 String diagnostic) {
@@ -227,6 +225,38 @@ public final class HullJsonCacheRuntime {
 
         private static State disabled() {
             return new State(null, "", Map.of(), "disabled");
+        }
+
+        private synchronized void capture(String path, byte[] encoded) {
+            if (learningRejected.get() || collidingKeys.contains(path)) {
+                return;
+            }
+            byte[] previous = learned.get(path);
+            if (previous != null) {
+                if (!java.util.Arrays.equals(previous, encoded)) {
+                    learned.remove(path);
+                    learnedBytes -= previous.length;
+                    collidingKeys.add(path);
+                    badEntries.add(path);
+                    collisions.incrementAndGet();
+                    diagnose("two different merged values claim the cache key " + path);
+                } else {
+                    captures.incrementAndGet();
+                }
+                return;
+            }
+            if (encoded.length > MAX_LEARNED_ENTRY_BYTES
+                    || learned.size() >= MAX_LEARNED_ENTRIES
+                    || learnedBytes + encoded.length > MAX_LEARNED_BYTES) {
+                learningRejected.set(true);
+                learned.clear();
+                learnedBytes = 0;
+                diagnose("merged hull JSON exceeded the in-memory learning limit");
+                return;
+            }
+            learned.put(path, encoded);
+            learnedBytes += encoded.length;
+            captures.incrementAndGet();
         }
 
         private void diagnose(String problem) {

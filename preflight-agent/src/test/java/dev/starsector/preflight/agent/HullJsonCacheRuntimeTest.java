@@ -78,6 +78,25 @@ class HullJsonCacheRuntimeTest {
         assertNull(HullJsonCacheRuntime.cached("data/hulls/example.ship"));
     }
 
+    @Test
+    void abandonsLearningBeforeCapturedTreesCanExhaustMemory() {
+        String profile = "f".repeat(64);
+        Path artifact = temporaryDirectory.resolve(profile + ".sphj");
+        HullJsonCacheRuntime.configure(artifact);
+        String value = "x".repeat(1024 * 1024);
+
+        for (int index = 0; index < 17; index++) {
+            HullJsonCacheRuntime.capture(
+                    new org.json.JSONObject().put("value", value),
+                    "data/hulls/example-" + index + ".ship");
+        }
+        HullJsonCacheRuntime.complete();
+
+        assertEquals(true, HullJsonCacheRuntime.telemetry().get("learningRejected"));
+        assertEquals(0L, HullJsonCacheRuntime.telemetry().get("learnedBytes"));
+        assertTrue(java.nio.file.Files.notExists(artifact));
+    }
+
     private static org.json.JSONObject object(String id) {
         return new org.json.JSONObject().put("id", id);
     }
