@@ -142,7 +142,7 @@ class ResourceProviderContentIdentityTest {
             List<ResourceIndex.Provider> providers = index.providers("shared.bin");
             List<Path> sources = context.resolveAll(providers);
             context.sha256All(sources);
-            Files.writeString(mod.resolve("shared.bin"), "diff");
+            Files.writeString(mod.resolve("shared.bin"), "different-bytes");
 
             ResourceProviderComparison.Result reused = ResourceProviderComparison.analyze(
                     index, ResourceProviderContentIdentity.cached(context));
@@ -150,9 +150,12 @@ class ResourceProviderContentIdentityTest {
                     "comparison inside one preparation must reuse the content digest already cached");
         }
 
-        try (ProfileIdentityContext nextPreparation = ProfileIdentityContext.of(game, index)) {
+        ResourceIndex refreshedIndex = index(core, mod, Map.of("shared.bin", List.of(
+                provider(0, core, "shared.bin"),
+                provider(1, mod, "shared.bin"))));
+        try (ProfileIdentityContext nextPreparation = ProfileIdentityContext.of(game, refreshedIndex)) {
             ResourceProviderComparison.Result refreshed = ResourceProviderComparison.analyze(
-                    index, ResourceProviderContentIdentity.cached(nextPreparation));
+                    refreshedIndex, ResourceProviderContentIdentity.cached(nextPreparation));
             assertEquals(1, refreshed.differingOverrides(),
                     "a fresh preparation must read the changed bytes");
         }
