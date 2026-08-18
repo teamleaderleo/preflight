@@ -1,0 +1,44 @@
+name: Refresh profile source lock
+
+on:
+  push:
+    branches:
+      - codex/673-profile-save-update-authority
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: github.actor == github.repository_owner
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: codex/673-profile-save-update-authority
+          fetch-depth: 0
+          token: ${{ github.token }}
+      - name: Merge current main and refresh capability lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name preflight-agent
+          git config user.email preflight-agent@users.noreply.github.com
+          git fetch origin main
+          git merge --no-edit origin/main
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+          lock_path = Path('preflight-desktop/capabilities/release-receipt-source-lock.json')
+          lock = json.loads(lock_path.read_text())
+          for source in lock['sources']:
+              path = Path(source)
+              if not path.is_file():
+                  raise SystemExit(f'missing capability source: {source}')
+              lock['sources'][source] = hashlib.sha256(path.read_bytes()).hexdigest()
+          lock_path.write_text(json.dumps(lock, indent=2) + '\n')
+          PY
+          rm .github/workflows/profile-725-source-lock.yml
+          git add preflight-desktop/capabilities/release-receipt-source-lock.json .github/workflows/profile-725-source-lock.yml
+          git commit -m "chore(profile): refresh capability source lock"
+          git push origin HEAD:codex/673-profile-save-update-authority
