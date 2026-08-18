@@ -1,0 +1,120 @@
+name: JFR execution-sample coverage
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/jfr-sample-coverage/**'
+      - '.github/workflows/jfr-sample-coverage.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  JFR_COVERAGE_DURATION_SECONDS: '65'
+  JFR_COVERAGE_SAMPLE_PERIOD_MS: '10'
+
+jobs:
+  current-temurin-x64:
+    name: Current Temurin 17 / macOS x86_64
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-build-jdk
+      - name: Run fixed-duration coverage probe
+        shell: bash
+        run: scripts/jfr-sample-coverage/run-probe.sh target/jfr-sample-coverage-current-x64
+      - name: Upload coverage evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: jfr-sample-coverage-current-temurin-x64
+          path: target/jfr-sample-coverage-current-x64
+          if-no-files-found: warn
+          retention-days: 7
+
+  current-temurin-rosetta:
+    name: Current Temurin 17 x86_64 / Rosetta control
+    runs-on: macos-15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Ensure x86_64 translation is available
+        shell: bash
+        run: |
+          if /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null; then
+            echo 'x86_64 translation already available'
+          else
+            sudo /usr/sbin/softwareupdate --install-rosetta --agree-to-license
+          fi
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: '17'
+          architecture: x64
+      - name: Confirm translated runtime
+        shell: bash
+        run: |
+          test "$(uname -m)" = 'arm64'
+          file "$JAVA_HOME/bin/java"
+          java -XshowSettings:properties -version 2>&1 | tee translated-runtime.txt
+          grep -Eq 'os.arch = (x86_64|amd64)' translated-runtime.txt
+      - name: Run fixed-duration coverage probe
+        shell: bash
+        run: scripts/jfr-sample-coverage/run-probe.sh target/jfr-sample-coverage-current-rosetta
+      - name: Upload coverage evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: jfr-sample-coverage-current-temurin-rosetta
+          path: |
+            target/jfr-sample-coverage-current-rosetta
+            translated-runtime.txt
+          if-no-files-found: warn
+          retention-days: 7
+
+  historical-zulu-rosetta:
+    name: Historical Zulu 17.0.10 x86_64 / Rosetta
+    runs-on: macos-15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Ensure x86_64 translation is available
+        shell: bash
+        run: |
+          if /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null; then
+            echo 'x86_64 translation already available'
+          else
+            sudo /usr/sbin/softwareupdate --install-rosetta --agree-to-license
+          fi
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: zulu
+          java-version: '17.0.10'
+          architecture: x64
+      - name: Confirm historical runtime identity
+        shell: bash
+        run: |
+          test "$(uname -m)" = 'arm64'
+          file "$JAVA_HOME/bin/java"
+          java -XshowSettings:properties -version 2>&1 | tee historical-runtime.txt
+          grep -q 'java.version = 17.0.10' historical-runtime.txt
+          grep -Eq 'os.arch = (x86_64|amd64)' historical-runtime.txt
+          grep -qi 'Zulu' historical-runtime.txt
+      - name: Run fixed-duration coverage probe
+        shell: bash
+        run: scripts/jfr-sample-coverage/run-probe.sh target/jfr-sample-coverage-zulu-17.0.10-rosetta
+      - name: Upload coverage evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: jfr-sample-coverage-zulu-17.0.10-rosetta
+          path: |
+            target/jfr-sample-coverage-zulu-17.0.10-rosetta
+            historical-runtime.txt
+          if-no-files-found: warn
+          retention-days: 7
