@@ -309,11 +309,14 @@ final class ProfileMutationTransaction {
                 cleanupAbortedRename(transaction, reviewed, snapshot, replacement);
                 throw staleRecovery(descriptor);
             }
-            Path preserved = preserveConflict(captured, backups, descriptor);
+            Path sourceConflict = restoreCapturedOrPreserve(captured, source, backups, descriptor);
             cleanupAbortedRename(transaction, reviewed, snapshot, replacement);
+            String sourceResult = sourceConflict == null
+                    ? "The reviewed source was restored under its original name."
+                    : "A newer source also exists; the reviewed source bytes were preserved at " + sourceConflict + ".";
             throw new IOException(
-                    "Interrupted profile rename has newer external destination state; reviewed source bytes are at "
-                            + preserved + ". Review the current profiles before trying again.");
+                    "Interrupted profile rename found newer external destination state. " + sourceResult
+                            + " Review the current profiles before trying again.");
         }
 
         Path backup = descriptor.backup(backups);
@@ -341,11 +344,14 @@ final class ProfileMutationTransaction {
             cleanupAbortedDelete(transaction, reviewed, snapshot);
             throw staleRecovery(descriptor);
         }
-        Path preserved = preserveConflict(captured, backups, descriptor);
+        Path sourceConflict = restoreCapturedOrPreserve(captured, source, backups, descriptor);
         cleanupAbortedDelete(transaction, reviewed, snapshot);
+        String sourceResult = sourceConflict == null
+                ? "The reviewed source was restored under its original name."
+                : "A newer source also exists; the reviewed source bytes were preserved at " + sourceConflict + ".";
         throw new IOException(
-                "Interrupted profile delete found newer external backup state; reviewed source bytes are at "
-                        + preserved + ". Review the current profiles before trying again.");
+                "Interrupted profile delete found newer external backup state. " + sourceResult
+                        + " Review the current profiles before trying again.");
     }
 
     private static byte[] anchorReviewedSource(
