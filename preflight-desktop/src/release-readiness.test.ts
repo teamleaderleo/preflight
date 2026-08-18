@@ -80,7 +80,7 @@ test("journey overrides keep first settings reachable and put actionable Home fa
   expect(normalShipStyle.overflow).toBe("hidden");
   expect(normalShipStyle.textOverflow).toBe("ellipsis");
   expect(normalShipStyle.whiteSpace).toBe("nowrap");
-  expect(normalShipStyle.maxWidth).toContain("50% - 190px");
+  expect(normalShipStyle.maxWidth).toContain("50% - 210px");
 
   const preparationLaunch = document.createElement("section");
   preparationLaunch.className = "launch-console launch-console--ready launch-console--options-open";
