@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -38,7 +39,7 @@ final class ProfileCommandTest {
         assertTrue(listJson.contains("\"missingMods\":[]"));
         String fingerprint = JsonText.string(savedJson, "profileFingerprint");
         assertEquals(
-                java.util.Set.of(fingerprint),
+                Set.of(fingerprint),
                 ProfileCommand.retainedFingerprints(fixture.home()).fingerprints());
     }
 
@@ -100,8 +101,6 @@ final class ProfileCommandTest {
         assertFalse(refreshedState.equals(reviewedState));
         assertFalse(Files.exists(fixture.home().profileBackups()));
 
-        // The refusal is the fresh plan now in front of the caller. Confirming that exact updated
-        // plan can proceed, proving the conflict is recoverable instead of leaving a poisoned token.
         ByteArrayOutputStream retried = new ByteArrayOutputStream();
         assertEquals(0, ProfileCommand.activate(
                 fixture.home(), fixture.game(), "alpha only", true, true, stream(retried)));
@@ -169,37 +168,38 @@ final class ProfileCommandTest {
         ByteArrayOutputStream saved = new ByteArrayOutputStream();
         assertEquals(0, ProfileCommand.save(
                 fixture.home(), fixture.game(), "Old name", true, stream(saved)));
-        String fingerprint = JsonText.string(saved.toString(StandardCharsets.UTF_8), "profileFingerprint");
+        String intendedFingerprint = JsonText.string(saved.toString(StandardCharsets.UTF_8), "profileFingerprint");
 
         ByteArrayOutputStream preview = new ByteArrayOutputStream();
         assertEquals(0, ProfileCommand.rename(
                 fixture.home(), fixture.game(), "Old name", "New name", null,
                 false, true, stream(preview)));
-        assertTrue(preview.toString(StandardCharsets.UTF_8).contains("\"applied\":false"));
+        String previewJson = preview.toString(StandardCharsets.UTF_8);
+        String reviewToken = JsonText.string(previewJson, "profileFingerprint");
+        assertTrue(previewJson.contains("\"applied\":false"));
+        assertEquals(intendedFingerprint, JsonText.string(previewJson, "sourceProfileFingerprint"));
         assertTrue(list(fixture).contains("\"name\":\"Old name\""));
 
         ByteArrayOutputStream applied = new ByteArrayOutputStream();
         assertEquals(0, ProfileCommand.rename(
-                fixture.home(), fixture.game(), "Old name", "New name", fingerprint,
+                fixture.home(), fixture.game(), "Old name", "New name", reviewToken,
                 true, true, stream(applied)));
         assertTrue(applied.toString(StandardCharsets.UTF_8).contains("\"applied\":true"));
         String listed = list(fixture);
         assertTrue(listed.contains("\"name\":\"New name\""));
         assertFalse(listed.contains("\"name\":\"Old name\""));
         assertEquals(
-                java.util.Set.of(fingerprint),
+                Set.of(intendedFingerprint),
                 ProfileCommand.retainedFingerprints(fixture.home()).fingerprints());
     }
 
     @Test
     void renameRefusesAnExistingNameAndDeleteKeepsARecoverableBackup() throws Exception {
         Fixture fixture = fixture(List.of("alpha"));
-        ByteArrayOutputStream first = new ByteArrayOutputStream();
         assertEquals(0, ProfileCommand.save(
-                fixture.home(), fixture.game(), "First", true, stream(first)));
+                fixture.home(), fixture.game(), "First", false, stream(new ByteArrayOutputStream())));
         assertEquals(0, ProfileCommand.save(
                 fixture.home(), fixture.game(), "Second", false, stream(new ByteArrayOutputStream())));
-        String fingerprint = JsonText.string(first.toString(StandardCharsets.UTF_8), "profileFingerprint");
 
         boolean collision = false;
         try {
@@ -215,12 +215,14 @@ final class ProfileCommandTest {
         assertEquals(0, ProfileCommand.delete(
                 fixture.home(), fixture.game(), "First", null,
                 false, true, stream(preview)));
-        assertTrue(preview.toString(StandardCharsets.UTF_8).contains("\"preparedDataKept\":true"));
+        String previewJson = preview.toString(StandardCharsets.UTF_8);
+        String reviewToken = JsonText.string(previewJson, "profileFingerprint");
+        assertTrue(previewJson.contains("\"preparedDataKept\":true"));
         assertTrue(list(fixture).contains("\"name\":\"First\""));
 
         ByteArrayOutputStream deleted = new ByteArrayOutputStream();
         assertEquals(0, ProfileCommand.delete(
-                fixture.home(), fixture.game(), "First", fingerprint,
+                fixture.home(), fixture.game(), "First", reviewToken,
                 true, true, stream(deleted)));
         assertFalse(list(fixture).contains("\"name\":\"First\""));
         assertTrue(deleted.toString(StandardCharsets.UTF_8).contains("\"backup\":"));
@@ -247,9 +249,187 @@ final class ProfileCommandTest {
         assertTrue(list(fixture).contains("\"name\":\"Campaign\""));
     }
 
+    @Test
+    void saveSharesTheOperationLeaseWithProfileMutations() throws Exception {
+        Fixture fixture = fixture(List.of("alpha"));
+        OperationLease.Acquisition mutation =
+                OperationLease.acquire(fixture.home(), "duplicating-profile", fixture.game());
+        try (OperationLease ignored = mutation.lease()) {
+            boolean refused = false;
+            try {
+                ProfileCommand.save(
+                        fixture.home(), fixture.game(), "Concurrent", false,
+                        stream(new ByteArrayOutputStream()));
+            } catch (OperationLease.BusyException expected) {
+                refused = true;
+            }
+            assertTrue(refused);
+        }
+        assertFalse(list(fixture).contains("\"name\":\"Concurrent\""));
+    }
+
+    @Test
+    void duplicateRefusesSourceRecordChangedAfterReviewEvenWhenIntendedFingerprintIsReused()
+            throws Exception {
+        Fixture fixture = fixture(List.of("alpha"));
+        assertEquals(0, ProfileCommand.save(
+                fixture.home(), fixture.game(), "Original", false, stream(new ByteArrayOutputStream())));
+
+        ByteArrayOutputStream preview = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.duplicate(
+                fixture.home(), fixture.game(), "Original", "Experiment", null,
+                false, true, stream(preview)));
+        String reviewToken = JsonText.string(
+                preview.toString(StandardCharsets.UTF_8), "profileFingerprint");
+
+        Path sourceFile = onlyProfileFile(fixture);
+        String original = Files.readString(sourceFile, StandardCharsets.UTF_8);
+        String externallyChanged = original.replace(
+                "\"enabledMods\":[\"alpha\"]", "\"enabledMods\":[\"beta\"]");
+        assertFalse(original.equals(externallyChanged));
+        Files.writeString(sourceFile, externallyChanged, StandardCharsets.UTF_8);
+
+        boolean refused = false;
+        try {
+            ProfileCommand.duplicate(
+                    fixture.home(), fixture.game(), "Original", "Experiment", reviewToken,
+                    true, true, stream(new ByteArrayOutputStream()));
+        } catch (java.io.IOException expected) {
+            refused = expected.getMessage().contains("changed since review");
+        }
+        assertTrue(refused);
+        String listed = list(fixture);
+        assertTrue(listed.contains("\"name\":\"Original\""));
+        assertFalse(listed.contains("\"name\":\"Experiment\""));
+    }
+
+    @Test
+    void duplicateCreatesIndependentPersistentIdentityWithoutChangingTheActiveModFile() throws Exception {
+        Fixture fixture = fixture(List.of("alpha"));
+        byte[] activeBefore = Files.readAllBytes(fixture.enabled());
+        ByteArrayOutputStream saved = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.save(
+                fixture.home(), fixture.game(), "Original", true, stream(saved)));
+        String originalFingerprint = JsonText.string(
+                saved.toString(StandardCharsets.UTF_8), "profileFingerprint");
+
+        ByteArrayOutputStream preview = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.duplicate(
+                fixture.home(), fixture.game(), "Original", "Experiment", null,
+                false, true, stream(preview)));
+        String previewJson = preview.toString(StandardCharsets.UTF_8);
+        String reviewToken = JsonText.string(previewJson, "profileFingerprint");
+        assertEquals(originalFingerprint, JsonText.string(previewJson, "sourceProfileFingerprint"));
+        assertTrue(previewJson.contains("\"operation\":\"duplicate\""));
+        assertTrue(previewJson.contains("\"name\":\"Original\""));
+        assertTrue(previewJson.contains("\"targetName\":\"Experiment\""));
+        assertTrue(previewJson.contains("\"applied\":false"));
+        assertFalse(list(fixture).contains("\"name\":\"Experiment\""));
+
+        ByteArrayOutputStream applied = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.duplicate(
+                fixture.home(), fixture.game(), "Original", "Experiment", reviewToken,
+                true, true, stream(applied)));
+        assertTrue(applied.toString(StandardCharsets.UTF_8).contains("\"applied\":true"));
+        assertArrayEquals(activeBefore, Files.readAllBytes(fixture.enabled()));
+
+        PreflightHome restarted = new PreflightHome(fixture.home().root(), List.of());
+        ByteArrayOutputStream afterRestart = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.list(restarted, fixture.game(), true, stream(afterRestart)));
+        String listed = afterRestart.toString(StandardCharsets.UTF_8);
+        assertTrue(listed.contains("\"name\":\"Original\""));
+        assertTrue(listed.contains("\"name\":\"Experiment\""));
+        assertEquals(Set.of(originalFingerprint),
+                ProfileCommand.retainedFingerprints(restarted).fingerprints());
+
+        Files.writeString(fixture.enabled(), "{\"enabledMods\":[\"beta\"]}");
+        ByteArrayOutputStream resaved = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.save(
+                restarted, fixture.game(), "Original", true, stream(resaved)));
+        String changedFingerprint = JsonText.string(
+                resaved.toString(StandardCharsets.UTF_8), "profileFingerprint");
+        assertFalse(originalFingerprint.equals(changedFingerprint));
+        assertEquals(Set.of(originalFingerprint, changedFingerprint),
+                ProfileCommand.retainedFingerprints(restarted).fingerprints());
+
+        String originalDeleteToken = deletePreviewToken(restarted, fixture, "Original");
+        assertEquals(0, ProfileCommand.delete(
+                restarted, fixture.game(), "Original", originalDeleteToken,
+                true, true, stream(new ByteArrayOutputStream())));
+        assertEquals(Set.of(originalFingerprint),
+                ProfileCommand.retainedFingerprints(restarted).fingerprints());
+        assertTrue(list(restarted, fixture).contains("\"name\":\"Experiment\""));
+
+        boolean collision = false;
+        try {
+            ProfileCommand.duplicate(
+                    restarted, fixture.game(), "Experiment", "Experiment", null,
+                    false, true, stream(new ByteArrayOutputStream()));
+        } catch (IllegalArgumentException expected) {
+            collision = expected.getMessage().contains("different");
+        }
+        assertTrue(collision);
+    }
+
+    @Test
+    void duplicateRejectsInvalidNamesAndDestinationCollisions() throws Exception {
+        Fixture fixture = fixture(List.of("alpha"));
+        assertEquals(0, ProfileCommand.save(
+                fixture.home(), fixture.game(), "Original", false, stream(new ByteArrayOutputStream())));
+        assertEquals(0, ProfileCommand.save(
+                fixture.home(), fixture.game(), "Existing", false, stream(new ByteArrayOutputStream())));
+
+        boolean collision = false;
+        try {
+            ProfileCommand.duplicate(
+                    fixture.home(), fixture.game(), "Original", "Existing", null,
+                    false, true, stream(new ByteArrayOutputStream()));
+        } catch (java.io.IOException expected) {
+            collision = expected.getMessage().contains("already exists");
+        }
+        assertTrue(collision);
+
+        for (String invalid : List.of("   ", "bad\nname", "x".repeat(101))) {
+            boolean rejected = false;
+            try {
+                ProfileCommand.duplicate(
+                        fixture.home(), fixture.game(), "Original", invalid, null,
+                        false, true, stream(new ByteArrayOutputStream()));
+            } catch (IllegalArgumentException expected) {
+                rejected = true;
+            }
+            assertTrue(rejected);
+        }
+        assertEquals(2, profileFileCount(fixture.home()));
+    }
+
+    private static String deletePreviewToken(PreflightHome home, Fixture fixture, String name)
+            throws Exception {
+        ByteArrayOutputStream preview = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.delete(
+                home, fixture.game(), name, null, false, true, stream(preview)));
+        return JsonText.string(preview.toString(StandardCharsets.UTF_8), "profileFingerprint");
+    }
+
+    private static Path onlyProfileFile(Fixture fixture) throws Exception {
+        try (var files = Files.list(fixture.home().profiles())) {
+            return files.filter(Files::isRegularFile).findFirst().orElseThrow();
+        }
+    }
+
+    private static long profileFileCount(PreflightHome home) throws Exception {
+        try (var files = Files.list(home.profiles())) {
+            return files.filter(Files::isRegularFile).count();
+        }
+    }
+
     private static String list(Fixture fixture) throws Exception {
+        return list(fixture.home(), fixture);
+    }
+
+    private static String list(PreflightHome home, Fixture fixture) throws Exception {
         ByteArrayOutputStream listed = new ByteArrayOutputStream();
-        assertEquals(0, ProfileCommand.list(fixture.home(), fixture.game(), true, stream(listed)));
+        assertEquals(0, ProfileCommand.list(home, fixture.game(), true, stream(listed)));
         return listed.toString(StandardCharsets.UTF_8);
     }
 

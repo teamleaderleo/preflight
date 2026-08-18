@@ -568,7 +568,7 @@ export interface ProfileActivationPlan {
 
 export interface ProfileMutationPlan {
   format: "starsector-preflight-profile-mutation-v1";
-  operation: "rename" | "delete";
+  operation: "rename" | "duplicate" | "delete";
   name: string;
   targetName: string | null;
   profileFingerprint: string;

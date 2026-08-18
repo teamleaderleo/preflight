@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   deleteProfile,
+  duplicateProfile,
   getProfiles,
   renameProfile,
   saveProfile,
@@ -35,6 +36,8 @@ export function useProfiles(
   // so the home card can open it on the way over.
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
+  const [duplicateTarget, setDuplicateTarget] = useState<string | null>(null);
+  const [duplicateDraft, setDuplicateDraft] = useState("");
   const profilesRequest = useRef(0);
   const actionRequest = useRef(0);
   const busyRef = useRef(false);
@@ -75,6 +78,8 @@ export function useProfiles(
     setMutationPlanGame(null);
     setRenameTarget(null);
     setRenameDraft("");
+    setDuplicateTarget(null);
+    setDuplicateDraft("");
   }, [game]);
 
   useEffect(() => {
@@ -137,7 +142,7 @@ export function useProfiles(
   };
 
   const reviewProfileMutation = async (
-    operation: "rename" | "delete",
+    operation: "rename" | "duplicate" | "delete",
     name: string,
     targetName?: string,
   ) => {
@@ -149,7 +154,9 @@ export function useProfiles(
     try {
       const plan = operation === "rename"
         ? await renameProfile(expectedGame, name, targetName ?? "", null, false)
-        : await deleteProfile(expectedGame, name, null, false);
+        : operation === "duplicate"
+          ? await duplicateProfile(expectedGame, name, targetName ?? "", null, false)
+          : await deleteProfile(expectedGame, name, null, false);
       if (request !== actionRequest.current || currentGame.current !== expectedGame) return;
       setActivationPlan(null);
       setActivationPlanGame(null);
@@ -181,12 +188,20 @@ export function useProfiles(
           reviewedPlan.profileFingerprint,
           true,
         )
-        : await deleteProfile(
-          expectedGame,
-          reviewedPlan.name,
-          reviewedPlan.profileFingerprint,
-          true,
-        );
+        : reviewedPlan.operation === "duplicate"
+          ? await duplicateProfile(
+            expectedGame,
+            reviewedPlan.name,
+            reviewedPlan.targetName ?? "",
+            reviewedPlan.profileFingerprint,
+            true,
+          )
+          : await deleteProfile(
+            expectedGame,
+            reviewedPlan.name,
+            reviewedPlan.profileFingerprint,
+            true,
+          );
       if (request !== actionRequest.current || currentGame.current !== expectedGame) return;
       await refreshProfiles();
       if (request !== actionRequest.current || currentGame.current !== expectedGame) return;
@@ -194,9 +209,16 @@ export function useProfiles(
       setMutationPlanGame(null);
       announce(result.operation === "rename"
         ? `Renamed “${result.name}” to “${result.targetName}”.`
-        : `Deleted “${result.name}”. Its prepared data was kept.`, "success");
+        : result.operation === "duplicate"
+          ? `Duplicated “${result.name}” as “${result.targetName}”.`
+          : `Deleted “${result.name}”. Its prepared data was kept.`, "success");
     } catch (error) {
-      if (request === actionRequest.current && currentGame.current === expectedGame) announce(errorMessage(error), "error");
+      if (request === actionRequest.current && currentGame.current === expectedGame) {
+        setMutationPlan(null);
+        setMutationPlanGame(null);
+        announce(errorMessage(error), "error");
+        await refreshProfiles();
+      }
     } finally {
       if (request === actionRequest.current) {
         busyRef.current = false;
@@ -252,6 +274,8 @@ export function useProfiles(
   };
 
   const beginRename = (name: string) => {
+    setDuplicateTarget(null);
+    setDuplicateDraft("");
     setRenameTarget(name);
     setRenameDraft(name);
   };
@@ -267,6 +291,24 @@ export function useProfiles(
     cancelRename();
   };
 
+  const beginDuplicate = (name: string) => {
+    setRenameTarget(null);
+    setRenameDraft("");
+    setDuplicateTarget(name);
+    setDuplicateDraft(`${name} (Copy)`);
+  };
+  const cancelDuplicate = () => {
+    setDuplicateTarget(null);
+    setDuplicateDraft("");
+  };
+  const submitDuplicate = () => {
+    const target = duplicateTarget;
+    const wanted = duplicateDraft.trim();
+    if (!target || !wanted || wanted === target) return;
+    void reviewProfileMutation("duplicate", target, wanted);
+    cancelDuplicate();
+  };
+
   const clearProfiles = () => {
     profilesRequest.current += 1;
     actionRequest.current += 1;
@@ -280,6 +322,8 @@ export function useProfiles(
     setMutationPlanGame(null);
     setRenameTarget(null);
     setRenameDraft("");
+    setDuplicateTarget(null);
+    setDuplicateDraft("");
   };
   const changeProfileName = (name: string) => {
     profileNameRevision.current += 1;
@@ -312,18 +356,26 @@ export function useProfiles(
     profilesLoading,
     renameDraft,
     renameTarget,
+    duplicateDraft,
+    duplicateTarget,
     applyProfile,
     applyProfileMutation,
     beginRename,
     cancelRename,
+    beginDuplicate,
+    cancelDuplicate,
     clearProfiles,
     refreshProfiles,
     reviewProfile,
     setRenameDraft,
     submitRename,
+    setDuplicateDraft,
+    submitDuplicate,
     reviewDeleteProfile: (name: string) => reviewProfileMutation("delete", name),
     reviewRenameProfile: (name: string, targetName: string) =>
       reviewProfileMutation("rename", name, targetName),
+    reviewDuplicateProfile: (name: string, targetName: string) =>
+      reviewProfileMutation("duplicate", name, targetName),
     saveCurrentProfile,
     dismissActivationPlan,
     dismissMutationPlan,
