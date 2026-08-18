@@ -20,7 +20,7 @@ jobs:
       - uses: ./.github/actions/setup-build-jdk
         with:
           java-version: '17'
-      - name: Publish reviewed macOS descriptor correction
+      - name: Publish reviewed activation corrections
         shell: bash
         run: |
           set -euo pipefail
@@ -35,9 +35,17 @@ jobs:
                   raise SystemExit(f"{label}: expected one anchor, found {count}")
               return text.replace(old, new)
 
+          def replace_if_old(text: str, old: str, new: str, label: str) -> str:
+              if old in text:
+                  return replace_once(text, old, new, label)
+              if new not in text:
+                  raise SystemExit(f"{label}: neither old nor reviewed form found")
+              return text
+
+          # The macOS descriptor buffer must be native memory for fcntl(F_GETPATH).
           path = Path('preflight-cli/src/main/java/dev/starsector/preflight/cli/ParentBoundDirectory.java')
           text = path.read_text()
-          text = replace_once(
+          text = replace_if_old(
               text,
               '''            byte[] path = new byte[MAXPATHLEN];
             if (PosixLibC.INSTANCE.fcntl(descriptor, F_GETPATH, path) != 0) {
@@ -61,12 +69,146 @@ jobs:
 ''',
               'macOS F_GETPATH native buffer',
           )
-          text = replace_once(
+          text = replace_if_old(
               text,
               '        int fcntl(int fd, int command, byte[] buffer);\n',
               '        int fcntl(int fd, int command, Pointer buffer);\n',
               'macOS fcntl JNA signature',
           )
+          path.write_text(text)
+
+          # Keep every transaction evidence file a direct child of the already pinned mods parent.
+          # Multi-component *at paths would still follow an aliased intermediate transaction dir.
+          path = Path('preflight-cli/src/main/java/dev/starsector/preflight/cli/EnabledModsActivationTransaction.java')
+          text = path.read_text()
+          text = replace_if_old(
+              text,
+              '''            try (var entries = Files.list(parent)) {
+                transactions = entries
+                        .map(path -> path.getFileName().toString())
+                        .filter(name -> name.startsWith(PREFIX))
+                        .sorted()
+                        .toList();
+            }
+''',
+              '''            try (var entries = Files.list(parent)) {
+                transactions = entries
+                        .filter(path -> Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS))
+                        .map(path -> path.getFileName().toString())
+                        .filter(name -> name.startsWith(PREFIX))
+                        .sorted()
+                        .toList();
+            }
+''',
+              'transaction marker enumeration',
+          )
+          text = replace_if_old(
+              text,
+              '''        restoreCapturedOrLeaveExternal(directory, captured, sourceName);
+        cleanupAborted(directory, transaction);
+        if (!exact) {
+            throw new StaleGenerationException(
+                    "Recovered an interrupted profile switch after the current mod selection changed; review it again");
+        }
+        throw new StaleGenerationException(
+                "Recovered an interrupted profile switch before commit; review the current mod selection again");
+''',
+              '''        if (!exact) {
+            // The public name is absent and the captured residue is the only possible copy of the
+            // pre-commit generation. Preserve ambiguous evidence, but never publish it after its
+            // reviewed hard-link + byte-snapshot proof failed.
+            throw new StaleGenerationException(
+                    "Recovered an interrupted profile switch with unproven captured state; review or recover it before retrying");
+        }
+        restoreCapturedOrLeaveExternal(directory, captured, sourceName);
+        cleanupAborted(directory, transaction);
+        throw new StaleGenerationException(
+                "Recovered an interrupted profile switch before commit; review the current mod selection again");
+''',
+              'unproven captured recovery',
+          )
+          text = replace_if_old(
+              text,
+              '''    private static String child(String transaction, String name) {
+        return transaction + "/" + name;
+    }
+''',
+              '''    private static String child(String transaction, String name) {
+        // Evidence is deliberately flat under the pinned parent. A nested transaction path would
+        // give an external same-user writer an intermediate symlink/junction component to swap.
+        return transaction + "-" + name;
+    }
+''',
+              'flat transaction evidence names',
+          )
+          path.write_text(text)
+
+          # The adversarial helper must identify the marker directory, not one of the new flat files.
+          path = Path('preflight-cli/src/test/java/dev/starsector/preflight/cli/EnabledModsActivationParentSwapTest.java')
+          text = path.read_text()
+          text = replace_if_old(
+              text,
+              '''            return entries
+                    .filter(path -> path.getFileName().toString().startsWith(TRANSACTION_PREFIX))
+                    .findFirst()
+''',
+              '''            return entries
+                    .filter(path -> Files.isDirectory(path, java.nio.file.LinkOption.NOFOLLOW_LINKS))
+                    .filter(path -> path.getFileName().toString().startsWith(TRANSACTION_PREFIX))
+                    .findFirst()
+''',
+              'transaction marker helper',
+          )
+          path.write_text(text)
+
+          # Pin crash recovery: corrupted transaction residue can never become public state.
+          path = Path('preflight-cli/src/test/java/dev/starsector/preflight/cli/EnabledModsActivationTransactionTest.java')
+          text = path.read_text()
+          marker = '''    @Test
+    void restartKeepsAReplacementPublishedBeforeCleanup() throws Exception {
+'''
+          regression = '''    @Test
+    void restartNeverPublishesAnUnprovenCapturedGeneration() throws Exception {
+        Path source = source("beta");
+        byte[] reviewed = Files.readAllBytes(source);
+
+        assertThrows(SimulatedCrash.class, () ->
+                EnabledModsActivationTransaction.replace(source, reviewed, json("alpha"),
+                        new EnabledModsActivationTransaction.Hook() {
+                            @Override
+                            public void afterSourceCapture(Path captured) {
+                                throw new SimulatedCrash();
+                            }
+                        }));
+        assertFalse(Files.exists(source));
+
+        Path captured;
+        try (var entries = Files.list(temporaryDirectory)) {
+            captured = entries
+                    .filter(path -> path.getFileName().toString().startsWith(".preflight-enabled-mods-txn-"))
+                    .filter(path -> path.getFileName().toString().endsWith("-captured"))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("captured activation generation is missing"));
+        }
+        byte[] corrupted = json("zeta");
+        Files.write(captured, corrupted);
+
+        assertThrows(EnabledModsActivationTransaction.StaleGenerationException.class,
+                () -> EnabledModsActivationTransaction.recover(source));
+
+        assertFalse(Files.exists(source), "unproven transaction residue must never become public state");
+        assertArrayEquals(corrupted, Files.readAllBytes(captured),
+                "ambiguous captured evidence must be preserved for inspection/recovery");
+        try (var entries = Files.list(temporaryDirectory)) {
+            assertTrue(entries.anyMatch(path ->
+                    path.getFileName().toString().startsWith(".preflight-enabled-mods-txn-")),
+                    "ambiguous transaction evidence must remain available");
+        }
+    }
+
+'''
+          if regression not in text:
+              text = replace_once(text, marker, regression + marker, 'corrupted captured recovery regression')
           path.write_text(text)
           PY
           ./mvnw -pl preflight-cli -am \
@@ -76,8 +218,12 @@ jobs:
           rm -f .github/workflows/rc-770-parent-generation.yml
           git add -A
           git diff --cached --check
-          git commit -m "fix(cli): pass macOS F_GETPATH a native buffer"
-          git push origin HEAD:agent/rc-enabled-mods-cas-670
+          if git diff --cached --quiet; then
+            echo "Reviewed activation corrections are already present."
+          else
+            git commit -m "fix(cli): bind activation residue and fail closed on corrupt recovery"
+            git push origin HEAD:agent/rc-enabled-mods-cas-670
+          fi
 
   activation-parent-generation:
     needs: repair
