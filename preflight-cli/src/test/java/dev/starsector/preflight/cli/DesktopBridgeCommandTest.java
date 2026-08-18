@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.starsector.preflight.core.Json;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -79,6 +80,9 @@ class DesktopBridgeCommandTest {
         Path game = Files.createDirectories(temporaryDirectory.resolve("health-game"));
         Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
         Path run = Files.createDirectories(home.resolve(".starsector-preflight/runs/run-1"));
+        Files.writeString(run.resolve("run.json"), Json.object(Map.of(
+                "installRoot", game,
+                "textureProfileFingerprint", "a".repeat(64))));
         Files.writeString(run.resolve("adapter-health.json"), Json.object(Map.ofEntries(
                 Map.entry("format", AdapterHealthReport.FORMAT),
                 Map.entry("status", "PARTIAL"),
@@ -119,7 +123,9 @@ class DesktopBridgeCommandTest {
                 "started", "2026-08-16T12:00:00Z",
                 "ended", "2026-08-16T12:00:15.300Z",
                 "outcome", "COMPLETED",
-                "exitCode", 0)));
+                "exitCode", 0,
+                "installRoot", game,
+                "textureProfileFingerprint", "b".repeat(64))));
         Files.writeString(run.resolve("runtime-state.json"), Json.object(Map.of(
                 "format", "starsector-preflight-runtime-state-v1",
                 "pid", 42,
@@ -142,6 +148,55 @@ class DesktopBridgeCommandTest {
         assertFalse(lastRun.containsKey("durationMillis"), lastRun.toString());
         assertEquals("COMPLETED", lastRun.get("outcome"));
         assertEquals(0L, lastRun.get("exitCode"));
+        assertEquals(game.toAbsolutePath().normalize(), lastRun.get("installRoot"));
+        assertEquals("b".repeat(64), lastRun.get("profileFingerprint"));
+    }
+
+    @Test
+    void snapshotUsesTheNewestRunBoundToTheSelectedInstallation() throws Exception {
+        Path home = Files.createDirectories(temporaryDirectory.resolve("two-install-home"));
+        Path selectedGame = Files.createDirectories(temporaryDirectory.resolve("selected-game"));
+        Path otherGame = Files.createDirectories(temporaryDirectory.resolve("other-game"));
+        Files.writeString(selectedGame.resolve("starsector.command"), "#!/bin/sh\n");
+        Files.writeString(otherGame.resolve("starsector.command"), "#!/bin/sh\n");
+        Path runs = Files.createDirectories(home.resolve(".starsector-preflight/runs"));
+        Path selectedRun = Files.createDirectories(runs.resolve("selected-run"));
+        Files.writeString(selectedRun.resolve("run.json"), Json.object(Map.of(
+                "installRoot", selectedGame,
+                "textureProfileFingerprint", "c".repeat(64),
+                "started", "2026-08-16T12:00:00Z")));
+        Files.setLastModifiedTime(selectedRun, FileTime.from(Instant.parse("2026-08-16T12:00:00Z")));
+        Path foreignRun = Files.createDirectories(runs.resolve("foreign-run"));
+        Files.writeString(foreignRun.resolve("run.json"), Json.object(Map.of(
+                "installRoot", otherGame,
+                "textureProfileFingerprint", "d".repeat(64),
+                "started", "2026-08-17T12:00:00Z")));
+        Files.setLastModifiedTime(foreignRun, FileTime.from(Instant.parse("2026-08-17T12:00:00Z")));
+
+        Map<String, Object> snapshot = DesktopBridgeCommand.snapshot(
+                Platform.MAC, home, temporaryDirectory, Map.of(), selectedGame, null);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> lastRun = (Map<String, Object>) snapshot.get("lastRun");
+
+        assertNotNull(lastRun);
+        assertEquals(selectedRun.toAbsolutePath().normalize(), lastRun.get("directory"));
+        assertEquals("c".repeat(64), lastRun.get("profileFingerprint"));
+    }
+
+    @Test
+    void snapshotDoesNotGuessTheInstallationOfLegacyRunMetadata() throws Exception {
+        Path home = Files.createDirectories(temporaryDirectory.resolve("legacy-run-home"));
+        Path game = Files.createDirectories(temporaryDirectory.resolve("legacy-run-game"));
+        Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
+        Path run = Files.createDirectories(home.resolve(".starsector-preflight/runs/run-1"));
+        Files.writeString(run.resolve("run.json"), Json.object(Map.of(
+                "started", "2026-08-16T12:00:00Z",
+                "textureProfileFingerprint", "e".repeat(64))));
+
+        Map<String, Object> snapshot = DesktopBridgeCommand.snapshot(
+                Platform.MAC, home, temporaryDirectory, Map.of(), game, null);
+
+        assertNull(snapshot.get("lastRun"));
     }
 
     @Test
@@ -150,6 +205,9 @@ class DesktopBridgeCommandTest {
         Path game = Files.createDirectories(temporaryDirectory.resolve("unknown-health-game"));
         Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
         Path run = Files.createDirectories(home.resolve(".starsector-preflight/runs/run-1"));
+        Files.writeString(run.resolve("run.json"), Json.object(Map.of(
+                "installRoot", game,
+                "textureProfileFingerprint", "f".repeat(64))));
         Files.writeString(run.resolve("adapter-health.json"),
                 "{\"format\":\"future-format\",\"status\":\"ACTIVE\"}");
 

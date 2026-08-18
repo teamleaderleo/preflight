@@ -24,6 +24,7 @@ import { WorkflowLockNotice } from "./components/WorkflowLockNotice";
 import { useDesktopAutomation } from "./useDesktopAutomation";
 import { useAutomaticMaintenance } from "./useAutomaticMaintenance";
 import { useAfterLaunchBehavior } from "./useAfterLaunchBehavior";
+import { lastRunForCurrentProfile } from "./lastRunApplicability";
 import { useCacheCleanup } from "./useCacheCleanup";
 import { useDiagnosticsReport } from "./useDiagnosticsReport";
 import { useLauncherSettings } from "./useLauncherSettings";
@@ -239,6 +240,11 @@ export default function App() {
     refreshCache,
   } = preparation;
   currentProfileFingerprint.current = preparation.cache?.currentProfileFingerprint ?? null;
+  const applicableLastRun = lastRunForCurrentProfile(
+    snapshot?.lastRun,
+    snapshot?.selected?.installRoot,
+    preparation.cache?.currentProfileFingerprint,
+  );
   const profilesState = useProfiles(
     snapshot?.selected?.installRoot,
     page === "home" || page === "mods",
@@ -654,7 +660,7 @@ export default function App() {
             operationBlocked={operationBlocked}
             speedStanding={speedStanding}
             playtime={snapshot?.playtime}
-            lastRun={snapshot?.lastRun}
+            lastRun={applicableLastRun}
             instrumentHull={instrumentHull.selected}
             onOptimizationPresetChange={setOptimizationPreset}
             onOptimizationDomainChange={setOptimizationDomainEnabled}

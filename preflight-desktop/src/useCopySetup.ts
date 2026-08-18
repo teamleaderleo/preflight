@@ -7,6 +7,7 @@ import {
 } from "./bridge";
 import { createCopySetupText } from "./copySetup";
 import { readLastInstallRoot } from "./desktopStorage";
+import { lastRunForCurrentProfile } from "./lastRunApplicability";
 import type { OptimizationPreset } from "./types";
 
 export type CopySetupState = "idle" | "copying" | "copied" | "error";
@@ -28,14 +29,16 @@ export function useCopySetup(optimizationPreset: OptimizationPreset) {
         game ? optionalRead(getCacheInspection(game)) : Promise.resolve(null),
       ]);
       const activeProfile = profiles?.profiles.find((profile) => profile.active && profile.sameInstall) ?? null;
+      const profileFingerprint = activeProfile?.profileFingerprint
+        ?? cacheInspection?.cache.currentProfileFingerprint
+        ?? null;
+      const latestLaunch = lastRunForCurrentProfile(snapshot.lastRun, game, profileFingerprint);
 
       const generated = createCopySetupText({
         preflightVersion: snapshot.engineVersion,
         platform: snapshot.platform,
         starsectorReady: snapshot.ready,
-        profileFingerprint: activeProfile?.profileFingerprint
-          ?? cacheInspection?.cache.currentProfileFingerprint
-          ?? null,
+        profileFingerprint,
         // A null profile read means the enabled-mod list was unavailable. Preserve [] exclusively
         // for a successfully observed vanilla/empty profile so public support text cannot confuse
         // missing evidence with an established zero-mod setup.
@@ -56,9 +59,13 @@ export function useCopySetup(optimizationPreset: OptimizationPreset) {
               profileFingerprint: cacheInspection.health.profileFingerprint,
             }
           : null,
-        // DesktopSnapshot.lastRun is the newest global run directory today. It has no selected-install
-        // or profile fingerprint, so Copy setup leaves launch evidence out until it can be correlated.
-        latestLaunch: null,
+        latestLaunch: latestLaunch
+          ? {
+              outcome: latestLaunch.outcome,
+              startupMillis: latestLaunch.startupMillis,
+              exitCode: latestLaunch.exitCode,
+            }
+          : null,
       });
       // Retain the exact public-safe bytes before touching the clipboard. A denied clipboard write
       // must never force another observation pass or make the already-generated summary disappear.

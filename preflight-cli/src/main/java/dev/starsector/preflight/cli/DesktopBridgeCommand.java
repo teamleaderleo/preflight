@@ -378,7 +378,7 @@ final class DesktopBridgeCommand {
         result.put("diagnostics", discovery.diagnostics());
         result.put("preflightHome", preflightHome);
         result.put("cachePresent", Files.isDirectory(preflightHome.resolve("cache")));
-        result.put("lastRun", lastRun(preflightHome.resolve("runs")));
+        result.put("lastRun", lastRun(preflightHome.resolve("runs"), discovery.selected()));
         result.put("playtime", playtime(desktopHome));
         return result;
     }
@@ -422,34 +422,55 @@ final class DesktopBridgeCommand {
         return result;
     }
 
-    private static Map<String, Object> lastRun(Path runsDirectory) {
-        if (!Files.isDirectory(runsDirectory)) {
+    private static Map<String, Object> lastRun(Path runsDirectory, LaunchTarget selected) {
+        if (selected == null || !Files.isDirectory(runsDirectory)) {
             return null;
         }
         try (Stream<Path> runs = Files.list(runsDirectory)) {
-            Path latest = runs.filter(path -> Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS))
-                    .max(Comparator.comparing(DesktopBridgeCommand::modifiedAt))
+            RunCandidate latest = runs
+                    .filter(path -> Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS))
+                    .map(DesktopBridgeCommand::runCandidate)
+                    .filter(candidate -> candidate != null
+                            && sameInstall(candidate.installRoot(), selected.installRoot()))
+                    .max(Comparator.comparing(candidate -> modifiedAt(candidate.directory())))
                     .orElse(null);
             if (latest == null) {
                 return null;
             }
             Map<String, Object> result = new LinkedHashMap<>();
-            result.put("directory", latest.toAbsolutePath().normalize());
-            result.put("modifiedAt", modifiedAt(latest).toInstant());
-            result.put("adapterHealth", adapterHealth(latest.resolve("adapter-health.json")));
-            Map<String, Object> run = runSummary(latest.resolve("run.json"));
-            if (run != null) {
-                result.put("started", run.get("started"));
-                result.put("ended", run.get("ended"));
-                result.put("wrapperPid", run.get("wrapperPid"));
-                result.put("wrapperStartedAt", run.get("wrapperStartedAt"));
-                result.put("outcome", run.get("outcome"));
-                result.put("exitCode", run.get("exitCode"));
-            }
-            result.put("startupMillis", startupMillis(latest.resolve("runtime-state.json")));
+            result.put("directory", latest.directory().toAbsolutePath().normalize());
+            result.put("modifiedAt", modifiedAt(latest.directory()).toInstant());
+            // The run's path was proved with isSameFile above. Publish the selected spelling so
+            // renderer consumers can bind it without reimplementing platform path semantics.
+            result.put("installRoot", selected.installRoot());
+            result.put("profileFingerprint", latest.run().get("profileFingerprint"));
+            result.put("adapterHealth", adapterHealth(latest.directory().resolve("adapter-health.json")));
+            result.put("started", latest.run().get("started"));
+            result.put("ended", latest.run().get("ended"));
+            result.put("wrapperPid", latest.run().get("wrapperPid"));
+            result.put("wrapperStartedAt", latest.run().get("wrapperStartedAt"));
+            result.put("outcome", latest.run().get("outcome"));
+            result.put("exitCode", latest.run().get("exitCode"));
+            result.put("startupMillis", startupMillis(latest.directory().resolve("runtime-state.json")));
             return result;
         } catch (IOException ignored) {
             return null;
+        }
+    }
+
+    private static RunCandidate runCandidate(Path directory) {
+        Map<String, Object> run = runSummary(directory.resolve("run.json"));
+        if (run == null || !(run.get("installRoot") instanceof Path installRoot)) {
+            return null;
+        }
+        return new RunCandidate(directory, installRoot, run);
+    }
+
+    private static boolean sameInstall(Path observed, Path selected) {
+        try {
+            return Files.isSameFile(observed, selected);
+        } catch (IOException | RuntimeException unavailable) {
+            return false;
         }
     }
 
@@ -512,6 +533,13 @@ final class DesktopBridgeCommand {
             String wrapperStartedAt = validInstant(run.get("wrapperStartedAt"));
             String outcome = run.get("outcome") instanceof String value ? value : null;
             Long exitCode = run.get("exitCode") instanceof Number value ? value.longValue() : null;
+            Path installRoot = run.get("installRoot") instanceof String value && !value.isBlank()
+                    ? Path.of(value).toAbsolutePath().normalize()
+                    : null;
+            String profileFingerprint = run.get("textureProfileFingerprint") instanceof String value
+                    && value.matches("[0-9a-fA-F]{64}")
+                            ? value.toLowerCase(Locale.ROOT)
+                            : null;
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("started", started);
@@ -520,6 +548,8 @@ final class DesktopBridgeCommand {
             result.put("wrapperStartedAt", wrapperStartedAt);
             result.put("outcome", outcome);
             result.put("exitCode", exitCode);
+            result.put("installRoot", installRoot);
+            result.put("profileFingerprint", profileFingerprint);
             return result;
         } catch (IOException | RuntimeException unreadable) {
             return null;
@@ -581,6 +611,9 @@ final class DesktopBridgeCommand {
     private static String engineVersion() {
         String version = PreflightCli.class.getPackage().getImplementationVersion();
         return version == null || version.isBlank() ? "development" : version;
+    }
+
+    private record RunCandidate(Path directory, Path installRoot, Map<String, Object> run) {
     }
 
     private record Options(Path game, Path launcher) {

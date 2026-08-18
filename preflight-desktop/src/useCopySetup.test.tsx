@@ -115,6 +115,48 @@ test("successful empty profile read remains an observed zero-mod setup", async (
   expect(result.current.text).not.toContain("Enabled mods: unavailable\n");
 });
 
+test("public setup includes launch evidence only when its install and profile match", async () => {
+  const base = await getSnapshot();
+  vi.mocked(getSnapshot).mockResolvedValue({
+    ...base,
+    lastRun: {
+      directory: "/evidence/run",
+      modifiedAt: "2026-08-17T00:00:00Z",
+      installRoot: "/Applications/Starsector",
+      profileFingerprint: "profile-abc",
+      adapterHealth: null,
+      outcome: "COMPLETED",
+      startupMillis: 15_250,
+      exitCode: 0,
+    },
+  });
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  installClipboard(writeText);
+
+  const matching = renderHook(() => useCopySetup("recommended"));
+  await act(async () => {
+    await matching.result.current.copySetup();
+  });
+  expect(matching.result.current.text).toContain("Latest launch startup: 15250 ms\n");
+
+  vi.mocked(getSnapshot).mockResolvedValue({
+    ...(await getSnapshot()),
+    lastRun: {
+      directory: "/evidence/run",
+      modifiedAt: "2026-08-17T00:00:00Z",
+      installRoot: "/Applications/Starsector",
+      profileFingerprint: "different-profile",
+      adapterHealth: null,
+      startupMillis: 15_250,
+    },
+  });
+  const mismatching = renderHook(() => useCopySetup("recommended"));
+  await act(async () => {
+    await mismatching.result.current.copySetup();
+  });
+  expect(mismatching.result.current.text).not.toContain("Latest launch");
+});
+
 function installClipboard(writeText: ReturnType<typeof vi.fn>) {
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,

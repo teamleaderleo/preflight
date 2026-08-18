@@ -9,6 +9,8 @@ export interface LaunchTarget {
 export interface LastRun {
   directory: string;
   modifiedAt: string;
+  installRoot?: string | null;
+  profileFingerprint?: string | null;
   adapterHealth: AdapterHealthSummary | null;
   started?: string | null;
   ended?: string | null;
