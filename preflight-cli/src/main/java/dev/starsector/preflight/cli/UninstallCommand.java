@@ -4,6 +4,7 @@ import dev.starsector.preflight.core.Json;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -16,12 +17,50 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 /** Preview-first removal of Preflight-owned launch files or all Preflight-owned data. */
 final class UninstallCommand {
     static final String FORMAT = "preflight-removal-v1";
+    private static final LinkOption[] NOFOLLOW = {LinkOption.NOFOLLOW_LINKS};
+    private static volatile RemovalTestHook removalTestHook = RemovalTestHook.NOOP;
 
     private UninstallCommand() {}
+
+    enum RemovalEvent {
+        AFTER_REVIEW,
+        AFTER_QUARANTINE,
+        BEFORE_DELETE
+    }
+
+    @FunctionalInterface
+    interface RemovalTestHook {
+        RemovalTestHook NOOP = (event, integration, path) -> {};
+        void on(RemovalEvent event, PreflightHome.Integration integration, Path path) throws IOException;
+    }
+
+    static final class RemovalTestHookScope implements AutoCloseable {
+        private final RemovalTestHook previous;
+        private boolean closed;
+
+        private RemovalTestHookScope(RemovalTestHook previous) {
+            this.previous = previous;
+        }
+
+        @Override
+        public void close() {
+            if (!closed) {
+                removalTestHook = previous;
+                closed = true;
+            }
+        }
+    }
+
+    static RemovalTestHookScope installRemovalTestHook(RemovalTestHook hook) {
+        RemovalTestHook previous = removalTestHook;
+        removalTestHook = Objects.requireNonNull(hook);
+        return new RemovalTestHookScope(previous);
+    }
 
     static int execute(String[] args, int from) throws Exception {
         Scope scope = Scope.LAUNCHER;
@@ -63,7 +102,7 @@ final class UninstallCommand {
             return 0;
         }
         if (preview.targets().isEmpty()) {
-            Plan empty = new Plan(scope, true, true, 0, 0, List.of(), List.of());
+            Plan empty = new Plan(scope, true, true, 0, 0, List.of(), preview.refusals());
             print(empty, json, out);
             return 0;
         }
@@ -77,9 +116,19 @@ final class UninstallCommand {
                 return 1;
             }
             if (scope == Scope.ALL_DATA) markRemoval(home);
-            int failures = remove(current.targets(), scope, home);
-            applied = new Plan(scope, failures == 0, true, current.bytes(), current.files(),
-                    current.targets(), failures == 0 ? List.of() : List.of("One or more paths could not be removed."));
+            RemovalOutcome outcome = remove(current.targets(), scope, home);
+            List<String> refusals = new ArrayList<>(current.refusals());
+            refusals.addAll(outcome.failures());
+            long removedBytes = outcome.removed().stream().mapToLong(Target::bytes).sum();
+            long removedFiles = outcome.removed().stream().mapToLong(Target::files).sum();
+            applied = new Plan(
+                    scope,
+                    outcome.failures().isEmpty(),
+                    true,
+                    removedBytes,
+                    removedFiles,
+                    outcome.removed(),
+                    List.copyOf(refusals));
         }
 
         if (scope == Scope.ALL_DATA && applied.safe()) {
@@ -176,21 +225,39 @@ final class UninstallCommand {
         return new CacheFootprint.Usage(totals[0], totals[1]);
     }
 
-    private static int remove(List<Target> targets, Scope scope, PreflightHome home) {
-        int failures = 0;
+    private static RemovalOutcome remove(List<Target> targets, Scope scope, PreflightHome home) {
+        List<Target> removed = new ArrayList<>();
+        List<String> failures = new ArrayList<>();
         for (Target target : targets) {
             try {
-                if (scope == Scope.ALL_DATA && target.path().equals(home.root())) {
+                if ("launch-integration".equals(target.kind())) {
+                    PreflightHome.Integration integration = integrationAt(home, target.path());
+                    if (integration == null) {
+                        throw new IOException("No launcher integration authority matches this path");
+                    }
+                    removeIntegration(integration);
+                } else if (scope == Scope.ALL_DATA && target.path().equals(home.root())) {
                     removeRootContentsExceptState(home);
                 } else {
                     deleteRecursively(target.path());
                 }
+                removed.add(target);
             } catch (IOException failure) {
-                failures++;
-                System.err.println("Could not remove " + target.path() + ": " + failure.getMessage());
+                String detail = "Could not remove " + target.label() + " at " + target.path()
+                        + ": " + failure.getMessage();
+                failures.add(detail);
+                System.err.println(detail);
             }
         }
-        return failures;
+        return new RemovalOutcome(List.copyOf(removed), List.copyOf(failures));
+    }
+
+    private static PreflightHome.Integration integrationAt(PreflightHome home, Path path) {
+        Path expected = path.toAbsolutePath().normalize();
+        return home.integrations().stream()
+                .filter(integration -> integration.path().toAbsolutePath().normalize().equals(expected))
+                .findFirst()
+                .orElse(null);
     }
 
     private static void removeRootContentsExceptState(PreflightHome home) throws IOException {
@@ -209,8 +276,20 @@ final class UninstallCommand {
             return;
         }
         if (!plan.safe()) {
-            out.println(plan.applied() ? "Removal failed:" : "Preview refused:");
+            if (!plan.applied()) {
+                out.println("Preview refused:");
+                plan.refusals().forEach(refusal -> out.println("  " + refusal));
+                return;
+            }
+            out.println("Removal incomplete:");
+            if (!plan.targets().isEmpty()) {
+                out.println("Removed before the refusal:");
+                for (Target target : plan.targets()) {
+                    out.printf(Locale.ROOT, "  %-24s %s%n", target.label(), target.path());
+                }
+            }
             plan.refusals().forEach(refusal -> out.println("  " + refusal));
+            out.println("Starsector, mods, saves, and game-owned settings remain outside this operation.");
             return;
         }
         if (!plan.refusals().isEmpty()) {
@@ -255,9 +334,66 @@ final class UninstallCommand {
     }
 
     static void removeIntegration(PreflightHome.Integration integration) throws IOException {
-        if (integration.isOwned()) {
-            deleteRecursively(integration.path());
+        Path target = integration.path().toAbsolutePath().normalize();
+        IntegrationMutation.Snapshot reviewed = IntegrationMutation.Snapshot.capture(target);
+        if (!reviewed.present()) return;
+        if (!integration.isOwned()) {
+            throw new IOException("Launcher integration is no longer proven Preflight-owned: " + target);
         }
+        fireRemoval(RemovalEvent.AFTER_REVIEW, integration, target);
+
+        Path quarantined = anchorIntegration(target);
+        fireRemoval(RemovalEvent.AFTER_QUARANTINE, integration, quarantined);
+        PreflightHome.Integration anchoredIntegration = relocated(integration, quarantined);
+        if (!reviewed.sameAs(IntegrationMutation.Snapshot.capture(quarantined))
+                || !anchoredIntegration.isOwned()) {
+            restoreOrPreserve(quarantined, target);
+            throw new IOException("Preserved launcher integration because its reviewed owned generation changed before deletion: "
+                    + target + "; anchored generation at " + quarantined);
+        }
+
+        fireRemoval(RemovalEvent.BEFORE_DELETE, integration, quarantined);
+        try {
+            reviewed.deleteExact(quarantined);
+        } catch (IOException failure) {
+            throw new IOException("Preserved launcher removal residue after an exact-generation deletion refusal at "
+                    + quarantined + ": " + failure.getMessage(), failure);
+        }
+    }
+
+    private static Path anchorIntegration(Path target) throws IOException {
+        String name = target.getFileName() == null ? "integration" : target.getFileName().toString();
+        for (int attempt = 0; attempt < 16; attempt++) {
+            Path quarantine = target.resolveSibling(name + ".preflight-remove-"
+                    + ProcessHandle.current().pid() + "-" + System.nanoTime());
+            try {
+                ExclusiveMove.move(target, quarantine);
+                return quarantine;
+            } catch (FileAlreadyExistsException collision) {
+                // Preserve the colliding sibling and choose another unique quarantine name.
+            }
+        }
+        throw new IOException("Could not reserve launcher removal quarantine beside " + target);
+    }
+
+    private static void restoreOrPreserve(Path quarantine, Path target) throws IOException {
+        if (!Files.exists(quarantine, NOFOLLOW) || Files.exists(target, NOFOLLOW)) return;
+        try {
+            ExclusiveMove.move(quarantine, target);
+        } catch (FileAlreadyExistsException externalWon) {
+            // A newer public generation wins; preserve both it and the quarantined generation.
+        }
+    }
+
+    private static PreflightHome.Integration relocated(
+            PreflightHome.Integration integration, Path path) {
+        return new PreflightHome.Integration(
+                integration.id(), integration.label(), path, integration.directory(), integration.legacy());
+    }
+
+    private static void fireRemoval(
+            RemovalEvent event, PreflightHome.Integration integration, Path path) throws IOException {
+        removalTestHook.on(event, integration, path);
     }
 
     private static String requireValue(String[] args, int index, String option) {
@@ -284,6 +420,8 @@ final class UninstallCommand {
             return value;
         }
     }
+
+    private record RemovalOutcome(List<Target> removed, List<String> failures) {}
 
     record Plan(Scope scope, boolean safe, boolean applied, long bytes, long files,
                 List<Target> targets, List<String> refusals) {
