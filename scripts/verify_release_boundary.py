@@ -39,8 +39,13 @@ SBOM_FILES = frozenset(name for name in CORE_FILES if name.endswith(".cdx.json")
 JAR_EXACT_FILES = frozenset(
     {
         "META-INF/MANIFEST.MF",
+        "META-INF/AL2.0",
+        "META-INF/LGPL2.1",
+        "META-INF/LICENSE",
+        "META-INF/NOTICE",
         "META-INF/services/javax.imageio.spi.ImageInputStreamSpi",
         "META-INF/services/javax.imageio.spi.ImageReaderSpi",
+        "META-INF/versions/9/module-info.class",
         "profiles/ClayRGB1998.icc",
         "dev/starsector/preflight/agent/graphicslib-texture-data-1.12.1.class.b64",
     }
@@ -52,6 +57,7 @@ JAR_CLASS_PREFIXES = (
     "dev/starsector/preflight/core/",
     "dev/starsector/preflight/internal/",
     "com/twelvemonkeys/",
+    "com/sun/jna/",
     "io/airlift/compress/",
 )
 
@@ -76,6 +82,7 @@ MAVEN_COORDINATES = frozenset(
         "dev.starsector.preflight/preflight-cli",
         "dev.starsector.preflight/preflight-core",
         "io.airlift/aircompressor",
+        "net.java.dev.jna/jna",
     }
 )
 
@@ -92,6 +99,9 @@ FORBIDDEN_PATH_SEGMENTS = frozenset(
 )
 
 CHECKSUM_LINE = re.compile(r"^([0-9a-f]{64})  ([^\r\n]+)$")
+JNA_DISPATCH_FILE = re.compile(
+    r"^com/sun/jna/[^/]+/(?:lib)?jnidispatch\.(?:a|dll|jnilib|so)$"
+)
 
 
 class BoundaryError(ValueError):
@@ -158,6 +168,10 @@ def allowed_jar_file(name: str) -> bool:
         )
     if name.endswith(".class") and name.startswith(JAR_CLASS_PREFIXES):
         return True
+    if JNA_DISPATCH_FILE.fullmatch(name):
+        return True
+    if name.startswith("META-INF/native-image/com.sun.jna/"):
+        return name.endswith((".json", ".properties"))
     if name.startswith("META-INF/maven/"):
         relative = name.removeprefix("META-INF/maven/")
         coordinate, separator, filename = relative.rpartition("/")

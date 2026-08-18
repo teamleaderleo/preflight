@@ -216,7 +216,7 @@ record PreflightHome(Path root, List<Integration> integrations) {
             Path receipt = root.resolve("integrations.json");
             List<Map<String, Object>> list = new ArrayList<>();
             for (Integration integration : integrations) {
-                if (!integration.present()) {
+                if (!integration.present() || !integration.isOwned()) {
                     continue;
                 }
                 Map<String, Object> entry = new LinkedHashMap<>();

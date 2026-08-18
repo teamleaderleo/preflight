@@ -40,3 +40,11 @@ artifact. The source changes are based on GraphicsLib commits `7434a75` and `abb
 lossless balanced prepared-texture format. Aircompressor is copyright The Airlift Project and is
 licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). Source:
 [airlift/aircompressor](https://github.com/airlift/aircompressor).
+
+## Java Native Access (JNA)
+
+`preflight-cli` uses JNA 5.18.1 to call the operating system's exclusive rename primitive at the
+launcher ownership commit boundary. JNA includes its `jnidispatch` native bridge in the Java
+artifact. JNA is dual-licensed under LGPL 2.1 or later and Apache License 2.0; Preflight distributes
+it under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). Source:
+[java-native-access/jna](https://github.com/java-native-access/jna).
