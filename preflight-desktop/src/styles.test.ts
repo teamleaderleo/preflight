@@ -16,11 +16,10 @@ test("the drafting surface supports explicit themes while motion preferences rem
   expect(styles).toMatch(/prefers-reduced-motion:[\s\S]*?\.flight-instrument__drift\s*\{[^}]*animation:\s*none;/);
 });
 
-test("navigation motion stays brief and the home illustration is structural", () => {
+test("navigation motion stays brief and the home instrument cannot intercept input", () => {
   expect(styles).toMatch(/\.page-viewport--entering\s*\{[^}]*animation:\s*workspace-enter 80ms/s);
   expect(styles).toContain("@keyframes workspace-enter");
-  expect(styles).toContain("@keyframes flight-plot-in");
-  expect(styles).toMatch(/\.flight-plot\s*\{[^}]*pointer-events:\s*none;[^}]*animation:\s*flight-plot-in 520ms/s);
+  expect(styles).toMatch(/\.home-flight-instrument\s*\{[^}]*pointer-events:\s*none;/s);
 });
 
 test("the Hangar reference colors are locked by exact value", () => {
@@ -40,8 +39,8 @@ test("every palette has an explicit swatch and structural accent", () => {
 
 test("the wireframe instrument follows every palette in both themes", () => {
   for (const name of ["blueprint", "hangar", "ultraviolet", "airglow", "phosphor"]) {
-    expect(styles).toMatch(new RegExp(`:root\\[data-palette="${name}"\\] :is\\(\\.scoreboard, \\.hangar-stage\\)\\s*\\{[^}]*--instrument-accent:`, "s"));
-    expect(styles).toMatch(new RegExp(`:root\\[data-theme="dark"\\]\\[data-palette="${name}"\\] :is\\(\\.scoreboard, \\.hangar-stage\\)\\s*\\{[^}]*--instrument-accent:`, "s"));
+    expect(styles).toMatch(new RegExp(`:root\\[data-palette="${name}"\\] :is\\(\\.scoreboard, \\.hangar-stage, \\.launch-console\\)\\s*\\{[^}]*--instrument-accent:`, "s"));
+    expect(styles).toMatch(new RegExp(`:root\\[data-theme="dark"\\]\\[data-palette="${name}"\\] :is\\(\\.scoreboard, \\.hangar-stage, \\.launch-console\\)\\s*\\{[^}]*--instrument-accent:`, "s"));
   }
 });
 
@@ -78,10 +77,8 @@ test("active controls look active without relying on gradients", () => {
 
 test("wide, narrow, and short windows keep content inside the desktop shell", () => {
   expect(styles).toMatch(/\.main\s*\{[^}]*min-width:\s*0;/s);
-  expect(styles).toMatch(/@media \(min-width: 721px\)[\s\S]*?\.launch-console--configured\s*\{[^}]*grid-template-areas:[^}]*"battle memory antialiasing ui-scale"[^}]*grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\);/);
-  expect(styles).toMatch(/@media \(min-width: 721px\)[\s\S]*?\.launch-console--configured \.quick-settings,[\s\S]*?display:\s*contents;/);
   expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.launch-console\s*\{[^}]*grid-template-columns:\s*1fr;/);
-  expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.home-overview\s*\{[^}]*grid-template-columns:\s*1fr;/);
+  expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.launch-console--options-open \.quick-settings\s*\{[^}]*width:\s*calc\(100% - 16px\);/);
   expect(styles).toMatch(/@media \(max-width: 780px\)[\s\S]*?\.brand,[\s\S]*?\.nav,[\s\S]*?\.sidebar__footer\s*\{[^}]*flex-shrink:\s*0;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.main\s*\{[^}]*padding-top:\s*20px;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.prepare-page\s*\{[^}]*gap:\s*10px;/);
@@ -91,17 +88,30 @@ test("wide, narrow, and short windows keep content inside the desktop shell", ()
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.prepare-page \.scoreboard\s*\{[^}]*padding:\s*14px 22px;/);
   expect(styles).toMatch(/\.preferences-card > \.preference-block:only-child\s*\{[^}]*grid-column:\s*1 \/ -1;[^}]*grid-template-columns:\s*minmax\(220px, 0\.7fr\) minmax\(320px, 1\.3fr\);/s);
   expect(styles).toMatch(/@media \(max-width: 760px\)[\s\S]*?\.preferences-card,[\s\S]*?grid-template-columns:\s*1fr;/);
-  expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.home-fact > small\s*\{[^}]*display:\s*none;/);
-  expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.page-viewport--home\s*\{[^}]*overflow-y:\s*auto;/);
-  expect(styles).toMatch(/@media \(max-height: 760px\) and \(min-width: 761px\)[\s\S]*?\.hangar-display\s*\{[^}]*min-height:\s*560px;/);
+  expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.page-viewport--home:not\(:has\(\.launch-console--ready\)\)\s*\{[^}]*overflow-y:\s*auto;/);
+  expect(styles).toMatch(/\.hangar-display\s*\{[^}]*height:\s*auto;[^}]*min-height:\s*100%;/s);
   expect(styles).toMatch(/\.app-shell--sidebar-collapsed\s*\{[^}]*grid-template-columns:\s*76px minmax\(0, 1fr\);/s);
 });
 
 test("the Hangar keeps its instrument and controls available at every layout", () => {
-  expect(styles).toMatch(/\.hangar-display\s*\{[^}]*grid-template-rows:\s*minmax\(300px, 1fr\) auto;/s);
-  expect(styles).toMatch(/\.hangar-console\s*\{[^}]*grid-template-columns:\s*minmax\(320px, \.8fr\) minmax\(520px, 1\.4fr\);/s);
+  expect(styles).toMatch(/\.hangar-display--minimal\s*\{[^}]*grid-template-rows:\s*minmax\(300px, 1fr\) auto;/s);
+  expect(styles).toMatch(/\.hangar-identity h2\s*\{[^}]*overflow-wrap:\s*anywhere;/s);
+  expect(styles).toMatch(/\.hangar-dock\s*\{[^}]*grid-template-columns:\s*minmax\(180px, 260px\) minmax\(0, 1fr\) auto;[^}]*min-height:\s*72px;/s);
+  expect(styles).toMatch(/@container \(max-width: 600px\)[\s\S]*?\.hangar-dock\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;/);
+  expect(styles).toMatch(/@container \(max-width: 420px\)[\s\S]*?\.hangar-stage\s*\{[^}]*min-height:\s*270px;/);
+  expect(styles).not.toMatch(/\.page-viewport--hangar\s*\{[^}]*overflow-y:\s*hidden;/s);
+  expect(styles).not.toContain(".hangar-console");
+  expect(styles).not.toContain(".hangar-readout");
+  expect(styles).not.toContain(".hangar-featured");
   expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.scoreboard \.flight-instrument\s*\{[^}]*display:\s*none;/);
   expect(styles).not.toMatch(/@media \(max-width: 720px\)[\s\S]*?\n\s*\.flight-instrument\s*\{[^}]*display:\s*none;/);
+});
+
+test("the ready Home defaults to the ship display and reveals controls on demand", () => {
+  expect(styles).toMatch(/\.launch-console--ready\s*\{[^}]*height:\s*100%;[^}]*border:\s*0;[^}]*background:\s*transparent;/s);
+  expect(styles).toMatch(/\.launch-console--options-open \.quick-settings\s*\{[^}]*position:\s*absolute;[^}]*overflow-y:\s*auto;/s);
+  expect(styles).toMatch(/\.page-viewport--home:has\(\.launch-console--ready\)\s*\{[^}]*overflow-y:\s*hidden;[^}]*padding-right:\s*0;/s);
+  expect(styles).not.toContain("launch-console--configured");
 });
 
 test("optimization presets stay readable at the default desktop width", () => {

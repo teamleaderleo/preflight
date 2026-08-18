@@ -4,10 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -106,6 +110,67 @@ class StopCommandTest {
                         .toList());
         assertEquals(List.of(), StopCommand.selectPid(records, 999999L));
         assertEquals(records, StopCommand.selectPid(records, null));
+    }
+
+    @Test
+    void previewOutputLabelsEveryProspectiveAction() {
+        String rendered = render(
+                List.of(outcome(424246, "would-stop", null)),
+                List.of(outcome(424247, "skipped", "PID may have been reused")),
+                true);
+
+        assertEquals(
+                """
+                Preview: would stop PID 424246.
+                Preview: would leave PID 424247 alone: PID may have been reused.
+                """,
+                rendered);
+    }
+
+    @Test
+    void emptyPreviewStillSaysItIsAPreview() {
+        assertEquals(
+                "Preview: no Preflight-started Starsector process is running.\n",
+                render(List.of(), List.of(), true));
+    }
+
+    @Test
+    void appliedOutputUsesDirectPastTenseAndReadableReasons() {
+        String rendered = render(
+                List.of(
+                        outcome(424248, "stopped", null),
+                        outcome(424249, "already-exited", null),
+                        outcome(424250, "still-running", "still alive after 20s; re-run with --force to end it")),
+                List.of(outcome(424251, "skipped", "PID may have been reused")),
+                false);
+
+        assertEquals(
+                """
+                Stopped PID 424248.
+                PID 424249 already exited.
+                Could not stop PID 424250: still alive after 20s; re-run with --force to end it.
+                Left PID 424251 alone: PID may have been reused.
+                """,
+                rendered);
+    }
+
+    private static String render(
+            List<Map<String, Object>> stopped,
+            List<Map<String, Object>> skipped,
+            boolean dryRun) {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (PrintStream output = new PrintStream(bytes, true, StandardCharsets.UTF_8)) {
+            StopCommand.print(output, stopped, skipped, dryRun);
+        }
+        return bytes.toString(StandardCharsets.UTF_8);
+    }
+
+    private static Map<String, Object> outcome(long pid, String result, String reason) {
+        Map<String, Object> entry = new LinkedHashMap<>();
+        entry.put("pid", pid);
+        entry.put("result", result);
+        entry.put("reason", reason);
+        return entry;
     }
 
     private void writeRecord(String directory, long pid, Instant startedAt, String state)

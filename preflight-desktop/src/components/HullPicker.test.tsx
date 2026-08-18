@@ -54,9 +54,6 @@ test("says so rather than showing an empty list when nothing matches", async () 
 });
 
 test("caps how much of a large catalog it renders and says how much is left", () => {
-  // A stock installation carries about two hundred hulls and a modded one carries more. Rendering
-  // every one of them is both a long scroll and a long tab order, so the list is capped and the
-  // filter is the way through it.
   const many = Array.from({ length: 220 }, (_, index) => hull(`hull-${index}`, `Hull ${index}`));
   render(<HullPicker hulls={many} selectedId="hull-0" onChoose={vi.fn()} />);
 

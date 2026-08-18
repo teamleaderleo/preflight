@@ -15,7 +15,7 @@ the blob-checksum diagnostic deliberately bypasses the trusted pack.
 
 For profile `59b01dc050f39a9f07053bd168cc8c1ecd55086b429b2d732456f87ca217a702`,
 the pack contains 30,638 distinct blobs for 32,919 manifest entries. It is 2,204,050,670 bytes and
-took 1.16--1.28s to write atomically from an already-valid loose cache. An unchanged pack validates
+took 1.16--1.28s to stage and publish from an already-valid loose cache. An unchanged pack validates
 as a hit in 67ms and is not copied again.
 
 The final learned-order diagnostic was:

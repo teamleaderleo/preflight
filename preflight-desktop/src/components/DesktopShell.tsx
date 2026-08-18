@@ -137,7 +137,18 @@ export function DesktopShell({
       onPointerMove={moveGridHighlight}
       onPointerLeave={hideGridHighlight}
     >
-      <a className="skip-link" href="#main-content">Skip to workspace</a>
+      <a
+        className="skip-link"
+        href="#page-workspace"
+        onClick={(event) => {
+          event.preventDefault();
+          const workspace = pageViewport.current;
+          const recoveryAction = workspace?.querySelector<HTMLElement>("[role='alert'] button:not([disabled])");
+          (recoveryAction ?? workspace)?.focus({ preventScroll: true });
+        }}
+      >
+        Skip to workspace
+      </a>
       <aside className="sidebar">
         <div className="sidebar__masthead">
           <Logo compact={sidebarCollapsed} />
@@ -205,7 +216,9 @@ export function DesktopShell({
         </header>
         <div
           key={page}
+          id="page-workspace"
           ref={pageViewport}
+          tabIndex={-1}
           className={`page-viewport page-viewport--${page}${pageChanged ? " page-viewport--entering" : ""}`}
         >
           {children}
