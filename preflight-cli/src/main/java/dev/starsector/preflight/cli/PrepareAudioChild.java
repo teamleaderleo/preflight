@@ -7,6 +7,7 @@ import dev.starsector.preflight.core.PreparedAudioCache;
 import dev.starsector.preflight.core.PreparedAudioIO;
 import dev.starsector.preflight.core.PreparedAudioManifest;
 import dev.starsector.preflight.core.PreparedAudioManifestIO;
+import java.io.InputStream;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
@@ -87,7 +88,11 @@ public final class PrepareAudioChild {
         Map<String, PreparedAudioManifest.Entry> manifestEntries = new TreeMap<>();
         long start = System.nanoTime();
 
-        for (String line : Files.readAllLines(work, StandardCharsets.UTF_8)) {
+        List<String> workItems = Files.readAllLines(work, StandardCharsets.UTF_8);
+        if (workItems.size() > PrepareAudioCommand.MAX_SOUND_COUNT) {
+            throw new java.io.IOException("Prepared-audio work list exceeds the safe sound count");
+        }
+        for (String line : workItems) {
             if (line.isBlank()) {
                 continue;
             }
@@ -96,11 +101,14 @@ public final class PrepareAudioChild {
             Path file = Path.of(tab < 0 ? line : line.substring(tab + 1));
             byte[] encoded;
             try {
-                encoded = Files.readAllBytes(file);
+                encoded = readEncoded(file);
             } catch (java.io.IOException unreadable) {
                 undecodable++;
                 record(skipped, logicalPath);
                 continue;
+            }
+            if (encodedBytes > PrepareAudioCommand.MAX_TOTAL_ENCODED_BYTES - encoded.length) {
+                throw new IllegalArgumentException("Prepared audio exceeds the encoded-byte budget");
             }
             encodedBytes += encoded.length;
 
@@ -111,6 +119,10 @@ public final class PrepareAudioChild {
                 continue;
             }
             byte[] samples = decoded.samples();
+            if (samples.length > PreparedAudio.MAX_PCM_BYTES
+                    || pcmBytes > PrepareAudioCommand.MAX_TOTAL_PCM_BYTES - samples.length) {
+                throw new java.io.IOException("Prepared audio exceeds the decoded-byte budget");
+            }
 
             String sourceSha256 = Hashes.sha256(encoded);
             PreparedAudio audio = new PreparedAudio(
@@ -165,6 +177,20 @@ public final class PrepareAudioChild {
     private static void record(List<String> skipped, String logicalPath) {
         if (skipped.size() < 20) {
             skipped.add(logicalPath);
+        }
+    }
+
+    /** Reads one untrusted asset without allowing it to grow past the per-file budget mid-read. */
+    static byte[] readEncoded(Path file) throws java.io.IOException {
+        if (Files.size(file) > PrepareAudioCommand.MAX_ENCODED_FILE_BYTES) {
+            throw new IllegalArgumentException("Prepared audio exceeds the encoded-file budget");
+        }
+        try (InputStream input = Files.newInputStream(file)) {
+            byte[] encoded = input.readNBytes((int) PrepareAudioCommand.MAX_ENCODED_FILE_BYTES + 1);
+            if (encoded.length > PrepareAudioCommand.MAX_ENCODED_FILE_BYTES) {
+                throw new IllegalArgumentException("Prepared audio exceeds the encoded-file budget");
+            }
+            return encoded;
         }
     }
 }

@@ -3,6 +3,7 @@ package dev.starsector.preflight.cli;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.IOException;
 import java.net.URLClassLoader;
@@ -90,6 +91,18 @@ class PrepareAudioChildTest {
         assertEquals(sent.length, received.length);
         assertEquals(jar.toString(), received[FROM]);
         assertEquals("manifest", received[FROM - 1]);
+    }
+
+    @Test
+    void rejectsAnEncodedAssetBeforeReadingItPastThePerFileBudget() throws Exception {
+        Path oversized = directory.resolve("oversized.ogg");
+        try (var channel = java.nio.channels.FileChannel.open(
+                oversized, java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.WRITE)) {
+            channel.position(PrepareAudioCommand.MAX_ENCODED_FILE_BYTES);
+            channel.write(java.nio.ByteBuffer.wrap(new byte[]{0}));
+        }
+
+        assertThrows(IllegalArgumentException.class, () -> PrepareAudioChild.readEncoded(oversized));
     }
 
     private String[] withJars(Path... jars) {

@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.Hashes;
+import dev.starsector.preflight.core.PreparedAudio;
 import dev.starsector.preflight.core.PreparedAudioCache;
 import dev.starsector.preflight.core.ResourceIndex;
 import java.io.IOException;
@@ -38,11 +39,17 @@ public final class PrepareAudioCommand {
      */
     static final List<String> CHILD_JVM_OPTIONS = List.of(
             "-noverify",
+            "-Xmx256m",
+            "-XX:MaxDirectMemorySize=128m",
             "-XX:+UnlockDiagnosticVMOptions",
             "-XX:-BytecodeVerificationLocal",
             "-XX:-BytecodeVerificationRemote");
     private static final long CHILD_TIMEOUT_MINUTES = 30;
     private static final int MAX_CHILD_OUTPUT_BYTES = 256 * 1024;
+    static final long MAX_ENCODED_FILE_BYTES = 64L * 1024 * 1024;
+    static final long MAX_TOTAL_ENCODED_BYTES = 512L * 1024 * 1024;
+    static final long MAX_TOTAL_PCM_BYTES = 2L * 1024 * 1024 * 1024;
+    static final int MAX_SOUND_COUNT = 10_000;
 
     private PrepareAudioCommand() {
     }
@@ -76,6 +83,7 @@ public final class PrepareAudioCommand {
 
         List<String> work = new ArrayList<>();
         long encodedBytes = 0;
+        long predictedPcmBytes = 0;
         for (AudioCensus.Sound sound : census.sounds()) {
             if (sound.kind() != AudioCensus.Kind.EFFECT || !sound.decodable()) {
                 continue;
@@ -84,8 +92,20 @@ public final class PrepareAudioCommand {
             if (file.isEmpty()) {
                 continue;
             }
+            if (sound.encodedBytes() > MAX_ENCODED_FILE_BYTES
+                    || sound.decodedBytes() > PreparedAudio.MAX_PCM_BYTES) {
+                throw new IOException("Refusing to prepare oversized sound effect "
+                        + sound.logicalPath());
+            }
+            if (work.size() >= MAX_SOUND_COUNT
+                    || encodedBytes > MAX_TOTAL_ENCODED_BYTES - sound.encodedBytes()
+                    || predictedPcmBytes > MAX_TOTAL_PCM_BYTES - sound.decodedBytes()) {
+                throw new IOException("Refusing to prepare audio: the profile exceeds the safe "
+                        + "sound count or aggregate size budget");
+            }
             work.add(sound.logicalPath() + "\t" + file.get());
             encodedBytes += sound.encodedBytes();
+            predictedPcmBytes += sound.decodedBytes();
         }
         if (work.isEmpty()) {
             System.out.println("No declared sound effects to prepare.");
