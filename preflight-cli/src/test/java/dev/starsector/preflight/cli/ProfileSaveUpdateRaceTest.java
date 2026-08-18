@@ -107,8 +107,8 @@ final class ProfileSaveUpdateRaceTest {
         enable(fixture, "beta");
         Tokens tokens = previewUpdate(fixture, "Campaign");
         Path target = profile(fixture, "Campaign");
-        byte[] external = profileBytes(fixture.game(), "Campaign", List.of("alpha"), "e".repeat(64));
-        Files.write(target, external);
+        rewriteSavedAt(target, "2026-08-18T00:00:00Z");
+        byte[] external = Files.readAllBytes(target);
         byte[] enabledBefore = Files.readAllBytes(enabledFile(fixture));
 
         IOException failure = assertThrows(IOException.class, () -> ProfileCommand.update(
@@ -302,6 +302,18 @@ final class ProfileSaveUpdateRaceTest {
         Files.writeString(
                 enabledFile(fixture),
                 Json.object(Map.of("enabledMods", List.of(mod))),
+                StandardCharsets.UTF_8);
+    }
+
+    private static void rewriteSavedAt(Path profile, String savedAt) throws IOException {
+        String json = Files.readString(profile, StandardCharsets.UTF_8);
+        String previous = JsonText.string(json, "savedAt");
+        if (previous == null) {
+            throw new IOException("Profile fixture has no savedAt: " + profile);
+        }
+        Files.writeString(
+                profile,
+                json.replace("\"savedAt\":\"" + previous + "\"", "\"savedAt\":\"" + savedAt + "\""),
                 StandardCharsets.UTF_8);
     }
 
