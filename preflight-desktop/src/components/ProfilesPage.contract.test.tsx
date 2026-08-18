@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import type { useProfiles } from "../useProfiles";
 import { ProfilesPage } from "./ProfilesPage";
@@ -73,4 +73,47 @@ test("the existing saved-profile empty state remains intact", () => {
   expect(container.querySelector(".profile-empty")).toHaveTextContent(
     "Save your current mod list, then switch profiles without toggling every mod by hand.",
   );
+});
+
+test("profile creation names its create-only boundary before the player clicks", () => {
+  render(
+    <ProfilesPage
+      message=""
+      messageTone="info"
+      profilesState={profilesState({ profileName: "Campaign" })}
+      operationBlocked={false}
+    />,
+  );
+
+  expect(screen.getByRole("heading", { name: "Save as new profile" })).toBeInTheDocument();
+  expect(screen.getByText("“Campaign” is already a saved profile. Choose a new name to save this mod setup.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Create profile" })).toBeDisabled();
+});
+
+test("profile creation waits for the saved-name list and the current app-wide operation", () => {
+  const { rerender } = render(
+    <ProfilesPage
+      message=""
+      messageTone="info"
+      profilesState={profilesState({
+        profileName: "Experiment",
+        profilesLoading: true,
+      })}
+      operationBlocked={false}
+    />,
+  );
+
+  expect(screen.getByText("Checking saved profile names…")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Create profile" })).toBeDisabled();
+
+  rerender(
+    <ProfilesPage
+      message=""
+      messageTone="info"
+      profilesState={profilesState({ profileName: "Experiment" })}
+      operationBlocked
+    />,
+  );
+
+  expect(screen.getByRole("button", { name: "Create profile" })).toBeDisabled();
 });
