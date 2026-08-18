@@ -46,7 +46,7 @@ jobs:
         run: >-
           ./mvnw --batch-mode --no-transfer-progress
           -pl preflight-cli -am
-          -Dtest=ExclusiveMoveTest,UninstallOwnershipCommitBoundaryTest
+          -Dtest=ExclusiveMoveTest,UninstallOwnershipCommitBoundaryTest,UninstallExternalWinnerTest
           -Dsurefire.failIfNoSpecifiedTests=false
           test
 
