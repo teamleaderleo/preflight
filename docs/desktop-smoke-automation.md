@@ -24,21 +24,24 @@ Screenshots are visual evidence, not the sole proof that the game reached a stat
 key action is followed by a fresh observation before the next action. The runner owns exactly one
 game process and refuses an already-running or second instance.
 
-The injected JVM also atomically publishes `runtime-state.json`. Its PID and process start instant
-bind it to the same lifetime as `runtime-process.json`; its state advances through `starting`,
-`main-menu-ready`, `campaign-ready`, `combat-ready`, and `stopped`. The main-menu marker is the exact
-reviewed resource-initialization return already used by startup measurement. Campaign and combat
-come from exact reviewed game-loop entry points. Only transitions touch disk; an unchanged campaign
-or combat frame performs one volatile comparison. Unknown class bytes leave the game untouched and
-the state absent, so semantic automation becomes unavailable instead of guessing from pixels.
+The injected JVM also publishes `runtime-state.json` through a complete same-directory staged write.
+Replacement is atomic when the filesystem supports it and falls back to ordinary staged replacement
+otherwise. Its PID and process start instant bind it to the same lifetime as
+`runtime-process.json`; its state advances through `starting`, `main-menu-ready`, `campaign-ready`,
+`combat-ready`, and `stopped`. The main-menu marker is the exact reviewed resource-initialization
+return already used by startup measurement. Campaign and combat come from exact reviewed game-loop
+entry points. Only transitions touch disk; an unchanged campaign or combat frame performs one
+volatile comparison. Unknown class bytes leave the game untouched and the state absent, so semantic
+automation becomes unavailable instead of guessing from pixels.
 
-Every injected game JVM atomically publishes `runtime-process.json` in its run directory before
-normal game initialization. The versioned record contains the JVM's PID, parent PID, available
-process start instant, observation instant, and `running|stopped` state. A driver attaches only by
-that PID after confirming the live process start instant matches the record. It never resolves an
-application by display name, and a PID without a matching start instant isn't attachable. Orderly
-shutdown changes the state to `stopped`; a crash can leave `running`, so liveness still comes from
-the operating system.
+Every injected game JVM publishes `runtime-process.json` in its run directory before normal game
+initialization through the same complete same-directory staged-write contract: atomic replacement
+when supported, staged replacement fallback otherwise. The versioned record contains the JVM's PID,
+parent PID, available process start instant, observation instant, and `running|stopped` state. A
+driver attaches only by that PID after confirming the live process start instant matches the record.
+It never resolves an application by display name, and a PID without a matching start instant isn't
+attachable. Orderly shutdown changes the state to `stopped`; a crash can leave `running`, so
+liveness still comes from the operating system.
 Drivers use the same strict check immediately before attachment or input:
 
 ```bash
@@ -103,11 +106,12 @@ shape. Additive fields are allowed; existing fields do not change meaning.
 }
 ```
 
-The runner writes this document atomically inside its run directory. `failed` means an assertion or
-action failed; `skipped` means a required driver capability or OS permission was unavailable. A
-driver failure must not be reported as a game regression. Audio and visual comparisons record their
-thresholds and reference identities in additive artifact fields rather than hiding them in driver
-code.
+The runner publishes this document inside its run directory through a complete same-directory
+staged write, using atomic replacement when supported and staged replacement fallback otherwise.
+`failed` means an assertion or action failed; `skipped` means a required driver capability or OS
+permission was unavailable. A driver failure must not be reported as a game regression. Audio and
+visual comparisons record their thresholds and reference identities in additive artifact fields
+rather than hiding them in driver code.
 
 Drivers don't write the accepted evidence document directly. They write a bounded
 `starsector-preflight-smoke-driver-result-v1` request containing the same driver, outcome, step, and
@@ -125,8 +129,9 @@ Collection requires an exact scenario-order prefix, monotonic timestamps, a term
 agrees with the last step, and every step for a pass. A driver lacking a required capability can
 only report `skipped`. Each artifact must resolve to a regular file inside the real run directory;
 the collector caps individual and total bytes, rejects duplicates and changing files, calculates
-SHA-256 itself, and atomically publishes the final document. The output filename is fixed so a
-driver can't redirect the write onto unrelated run evidence.
+SHA-256 itself, and publishes the final document through complete same-directory staging with atomic
+replacement when supported and staged replacement fallback otherwise. The output filename is fixed
+so a driver can't redirect the write onto unrelated run evidence.
 
 The driver-neutral runner now owns the state machine that produces this request. It probes
 capabilities before attachment, reloads and validates `runtime-process.json` before every step,
@@ -242,6 +247,6 @@ replacement.
 
 Every native install exercise also validates the packaged `campaign-roam` scenario and seals an
 intentional no-game driver result through `desktop evidence collect`. That evidence must say
-`skipped`, contain no fabricated steps or artifacts, and match the atomically written document.
-This proves the packaged parser and sealer while leaving live input, visuals, audio, and gameplay
-claims for the licensed-installation gate.
+`skipped`, contain no fabricated steps or artifacts, and match the staged published document. This
+proves the packaged parser and sealer while leaving live input, visuals, audio, and gameplay claims
+for the licensed-installation gate.
