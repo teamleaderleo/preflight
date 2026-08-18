@@ -79,9 +79,9 @@ final class LaunchSettingsMutation {
                 throw stale;
             } catch (GameLaunchPreferences.PreferencePublicationException failed) {
                 GameLaunchPreferences.AppliedChange observed = failed.observedChange();
-                if (observed != null && observed.publishedAsRequested()) {
+                if (observed != null) {
                     try {
-                        GameLaunchPreferences.restoreIfStillPublished(store, observed);
+                        restoreStillOwnedKeys(store, observed);
                     } catch (Exception rollbackRefused) {
                         failed.addSuppressed(rollbackRefused);
                     }
@@ -90,9 +90,16 @@ final class LaunchSettingsMutation {
             }
 
             if (!preferencePublication.publishedAsRequested()) {
-                throw new GameLaunchPreferences.PreferenceStateChangedException(
-                        "The launch settings changed while Preflight was publishing them; the current values were kept."
-                                + " Review the current settings and try again.");
+                GameLaunchPreferences.PreferenceStateChangedException stale =
+                        new GameLaunchPreferences.PreferenceStateChangedException(
+                                "The launch settings changed while Preflight was publishing them;"
+                                        + " the newer values were kept. Review the current settings and try again.");
+                try {
+                    restoreStillOwnedKeys(store, preferencePublication);
+                } catch (Exception rollbackRefused) {
+                    stale.addSuppressed(rollbackRefused);
+                }
+                throw stale;
             }
         }
 
@@ -103,12 +110,46 @@ final class LaunchSettingsMutation {
         } catch (Exception failed) {
             if (preferencePublication != null) {
                 try {
-                    GameLaunchPreferences.restoreIfStillPublished(store, preferencePublication);
+                    restoreStillOwnedKeys(store, preferencePublication);
                 } catch (Exception rollbackRefused) {
                     failed.addSuppressed(rollbackRefused);
                 }
             }
             throw failed;
+        }
+    }
+
+    /**
+     * Compensates each touched key independently. A key is eligible only if Preflight observed its
+     * requested value immediately after publication and the current raw value still equals that
+     * publication. Touched keys that changed externally are preserved; unrelated keys are never
+     * written. The method reports that preservation after flushing any keys Preflight still owns.
+     */
+    private static void restoreStillOwnedKeys(
+            GameLaunchPreferences.Store store,
+            GameLaunchPreferences.AppliedChange change) throws Exception {
+        GameLaunchPreferences.Generation current = GameLaunchPreferences.generation(store);
+        boolean restored = false;
+        boolean preservedNewerValue = false;
+        for (String key : change.touchedKeys()) {
+            boolean observedAsPreflight = Objects.equals(
+                    change.observedAfter().get(key), change.expectedAfter().get(key));
+            boolean stillPreflight = Objects.equals(
+                    current.get(key), change.expectedAfter().get(key));
+            if (!observedAsPreflight || !stillPreflight) {
+                preservedNewerValue = true;
+                continue;
+            }
+            String before = change.before().get(key);
+            if (before == null) store.remove(key);
+            else store.put(key, before);
+            restored = true;
+        }
+        if (restored) store.flush();
+        if (preservedNewerValue) {
+            throw new GameLaunchPreferences.PreferenceStateChangedException(
+                    "The launch settings changed after Preflight updated them; the newer values were kept."
+                            + " Review the current settings before applying another change.");
         }
     }
 
