@@ -74,7 +74,6 @@ final class LaunchSettingsCommand {
         Path installRoot = InstallRoot.resolve(game);
         Limits limits = Limits.read(installRoot);
         GameLaunchPreferences.Store store = GameLaunchPreferences.installed();
-        GameLaunchPreferences.Snapshot existing = GameLaunchPreferences.read(store);
         Path backup = null;
         JvmMemorySettings.UpdateResult memoryUpdate = null;
         if (set) {
@@ -85,15 +84,21 @@ final class LaunchSettingsCommand {
             if (!preferenceChange && memoryMiB == null) {
                 throw new IllegalArgumentException("Name at least one launch setting to change");
             }
-            if (preferenceChange) {
-                GameLaunchPreferences.validate(update);
-                limits.validate(update, existing);
-            }
+            // Shape validation can happen before the lease. Validation that depends on unedited
+            // current values is intentionally deferred until the in-lease generation is re-read.
+            if (preferenceChange) GameLaunchPreferences.validate(update);
+
             OperationLease.Acquisition ownership = OperationLease.acquire(
                     PreflightHome.current(), "changing-launch-settings", installRoot);
             try (OperationLease ignored = ownership.lease()) {
-                UpdateOutcome outcome = applyUpdate(
-                        store, update, preferenceChange, installRoot, memoryMiB);
+                LaunchSettingsMutation.Outcome outcome = LaunchSettingsMutation.apply(
+                        store,
+                        update,
+                        preferenceChange,
+                        limits,
+                        installRoot,
+                        memoryMiB,
+                        LaunchSettingsCommand::writeBackup);
                 backup = outcome.preferenceBackup();
                 memoryUpdate = outcome.memoryUpdate();
             }
@@ -113,31 +118,6 @@ final class LaunchSettingsCommand {
         // accepting the flag explicitly for desktop callers and shell consistency.
         if (json || !report.isEmpty()) System.out.println(Json.object(report));
         return 0;
-    }
-
-    private static UpdateOutcome applyUpdate(
-            GameLaunchPreferences.Store store,
-            GameLaunchPreferences.Update update,
-            boolean preferenceChange,
-            Path installRoot,
-            Integer memoryMiB) throws Exception {
-        GameLaunchPreferences.Backup before = preferenceChange ? GameLaunchPreferences.backup(store) : null;
-        Path backup = before == null ? null : writeBackup(before);
-        try {
-            if (preferenceChange) GameLaunchPreferences.apply(store, update);
-            JvmMemorySettings.UpdateResult memoryUpdate = memoryMiB == null
-                    ? null : JvmMemorySettings.update(installRoot, memoryMiB);
-            return new UpdateOutcome(backup, memoryUpdate);
-        } catch (Exception failed) {
-            if (before != null) {
-                try {
-                    GameLaunchPreferences.restore(store, before);
-                } catch (Exception rollbackFailed) {
-                    failed.addSuppressed(rollbackFailed);
-                }
-            }
-            throw failed;
-        }
     }
 
     static Map<String, Object> describe(DirectLaunchSettings.Availability availability) {
@@ -187,11 +167,6 @@ final class LaunchSettingsCommand {
         document.put("changed", changed);
         document.put("backup", backup);
         return document;
-    }
-
-    private record UpdateOutcome(
-            Path preferenceBackup,
-            JvmMemorySettings.UpdateResult memoryUpdate) {
     }
 
     private static DirectLaunchSettings.Availability directAvailability() {
