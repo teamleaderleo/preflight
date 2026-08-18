@@ -19,6 +19,15 @@ const REPORT_PROTOCOL_VERSION: u32 = 1;
 const REPORT_RESPONSE_LIMIT: usize = 64 * 1024;
 const REPORT_UPLOAD_LIMIT: u64 = 6 * 1024 * 1024;
 
+pub(crate) struct ReportUploadAttempt {
+    pub(crate) client: Client,
+    pub(crate) origin: Url,
+    pub(crate) archive: Vec<u8>,
+    pub(crate) report: ReportUploadInput,
+    pub(crate) id: u64,
+    pub(crate) cancel: watch::Receiver<bool>,
+}
+
 /// Reads the exact disclosed ZIP once, verifies that opened file handle, and returns immutable
 /// bytes for the upload. The network path never reopens the filesystem path after this boundary.
 pub(crate) fn validated_report_archive_bytes(
@@ -83,15 +92,19 @@ pub(crate) fn validated_report_archive_bytes(
 }
 
 pub(crate) async fn perform_report_upload_with_authority(
-    client: Client,
-    origin: Url,
-    archive: Vec<u8>,
-    report: ReportUploadInput,
-    id: u64,
-    mut cancel: watch::Receiver<bool>,
+    upload: ReportUploadAttempt,
     lifecycle: &NativeReportAuthorityLifecycle,
     emit: impl Fn(ReportUploadStateEvent) + Clone + Send + Sync + 'static,
 ) -> Result<ReportReceipt, ReportUploadError> {
+    let ReportUploadAttempt {
+        client,
+        origin,
+        archive,
+        report,
+        id,
+        cancel,
+    } = upload;
+    let mut cancel = cancel;
     if archive.len() as u64 != report.bytes {
         return Err(ReportUploadError::Failed(
             "The verified diagnostics bytes no longer match their disclosed size.".to_string(),

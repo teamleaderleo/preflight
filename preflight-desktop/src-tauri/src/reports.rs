@@ -12,7 +12,9 @@ use crate::report_transport::{
 };
 use crate::take_deferred_exit;
 use report_authority::{ReportAuthorityStore, ReportCaseView, claim_automatic_report};
-use report_transport_v2::{perform_report_upload_with_authority, validated_report_archive_bytes};
+use report_transport_v2::{
+    ReportUploadAttempt, perform_report_upload_with_authority, validated_report_archive_bytes,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -371,12 +373,14 @@ pub(crate) async fn send_run_report(
     );
     let upload_app = app.clone();
     let outcome = perform_report_upload_with_authority(
-        client,
-        origin,
-        archive,
-        report.clone(),
-        id,
-        cancel_receiver,
+        ReportUploadAttempt {
+            client,
+            origin,
+            archive,
+            report: report.clone(),
+            id,
+            cancel: cancel_receiver,
+        },
         &lifecycle,
         move |event| emit_report_state(&upload_app, event.with_kind(kind.as_str())),
     )

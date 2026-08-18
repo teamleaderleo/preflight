@@ -18,12 +18,14 @@
     "preflight-desktop/src-tauri/src/engine.rs": "3d69bccb164c4e305eaad329ee2882eb45344b7d2737f5cb1764d907b041c4bb",
     "preflight-desktop/src-tauri/src/hull_sprite_tracer.rs": "c0e59c78e29062518707a97a5c8b05ae4c8ff65535db316bc27106ca693e5cbe",
     "preflight-desktop/src-tauri/src/hulls.rs": "f016398509a1d1237da0a98dd7255787eebd56a278ddc9ec0bc0df6306ce27c4",
-    "preflight-desktop/src-tauri/src/lib.rs": "5417969cd924841c5e0412691503eaea5645e057b354fa1f778dd07c30306a72",
+    "preflight-desktop/src-tauri/src/lib.rs": "403a02e804f0e7f338570f64f972656db2c2f0446f15a897a01f589876850b72",
     "preflight-desktop/src-tauri/src/main.rs": "d0dda62951f0b3474d4862ba2db2cfb104f596030d45e66fec4521491c34e351",
     "preflight-desktop/src-tauri/src/operations.rs": "7ccdd61dbd0ddffe0e5e5eef6eea7171d928a7b13e908908a754bdce9d9d7d32",
     "preflight-desktop/src-tauri/src/preparation.rs": "d6aac6c856cf810709bce2ea09043863d8aff8c73ebab3a3fe6a7a2a9e0aaf00",
+    "preflight-desktop/src-tauri/src/report_authority.rs": "fdb06a9ba2da06bc5ce25b6296903538f7b77d75669d837a0272b92fb580fb83",
     "preflight-desktop/src-tauri/src/report_transport.rs": "4ce1ace2b2ccfdca1a48bfd147faa110a94d1c6b3b9e1516d925cf9f6da50b16",
-    "preflight-desktop/src-tauri/src/reports.rs": "cd3ac2f37fbf2d40eab596ad324d1b735804495d838ddd4a4cd4336e427e89f6",
+    "preflight-desktop/src-tauri/src/report_transport_v2.rs": "38c545435727ee0df2bea77ca55248894424559ae35808423933411fe9b7ca19",
+    "preflight-desktop/src-tauri/src/reports.rs": "945db9760e3c3152e3014053d828775da03274baddea62d0788cb4f81c5737ac",
     "preflight-desktop/src-tauri/src/updates.rs": "9b3dacd8d4e5702544a32864fb7dbb795d9fa499c8f7e74f8fcaf9f22bf1de81"
   }
 }

@@ -14,6 +14,9 @@ mod hull_sprite_tracer;
 pub mod hulls;
 mod operations;
 mod preparation;
+// The legacy path stays compiled for compatibility helpers while production uploads use
+// report_transport_v2 through the native authority lifecycle.
+#[allow(dead_code)]
 mod report_transport;
 mod reports;
 mod updates;
