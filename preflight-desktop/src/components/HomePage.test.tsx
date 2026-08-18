@@ -267,7 +267,7 @@ test("switching to another profile retires the old Home recovery card", async ()
   expect(screen.getByLabelText("Launches profile Utilities only from /Applications/Starsector")).toBeInTheDocument();
 });
 
-test("changing installations retires the old Home recovery card once the new setup is identified", async () => {
+test("changing installations retires the old Home recovery card before the new profile identity settles", async () => {
   const dismiss = vi.fn();
   render(<HomePage {...props({
     snapshot: {
@@ -278,12 +278,13 @@ test("changing installations retires the old Home recovery card once the new set
         launcher: "/Games/Starsector/starsector.exe",
       },
     },
-    preparation: preparationForProfile("profile-fingerprint"),
+    preparation: preparationForProfile("profile-fingerprint", true),
     runFailure: failedRunFailure(),
     onDismissRunFailure: dismiss,
   })} />);
 
   expect(screen.queryByText("Run needs attention")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Relaunch" })).not.toBeInTheDocument();
   await waitFor(() => expect(dismiss).toHaveBeenCalledOnce());
 });
 
