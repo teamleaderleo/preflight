@@ -1,12 +1,18 @@
 package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceProviderComparison;
+import java.io.IOException;
+import java.net.URI;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.ProviderMismatchException;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
@@ -116,13 +122,20 @@ class ResourceProviderContentIdentityStabilityTest {
                 ResourceProviderComparison.ContentEvidence.HASHED,
                 identities.observe("shared.bin", provider).evidence());
         Object originalKey = Files.readAttributes(file, BasicFileAttributes.class).fileKey();
+        if (originalKey == null) {
+            return; // This filesystem cannot safely support the replacement memo check.
+        }
+        assertEquals(
+                ResourceProviderComparison.ContentEvidence.HASHED,
+                identities.observe("shared.bin", provider).evidence());
+        assertEquals(1, hashCalls.get(), "an unchanged provider with a file identity must reuse the memo");
 
         Path replacement = Files.writeString(root.resolve("replacement.tmp"), "BBBB");
         Files.setLastModifiedTime(replacement, FileTime.fromMillis(provider.modifiedMillis()));
         Files.move(replacement, file, StandardCopyOption.REPLACE_EXISTING);
         Files.setLastModifiedTime(file, FileTime.fromMillis(provider.modifiedMillis()));
         Object replacementKey = Files.readAttributes(file, BasicFileAttributes.class).fileKey();
-        if (originalKey == null || replacementKey == null || Objects.equals(originalKey, replacementKey)) {
+        if (replacementKey == null || Objects.equals(originalKey, replacementKey)) {
             return; // This filesystem exposes no replacement identity stronger than size/mtime.
         }
 
@@ -136,18 +149,18 @@ class ResourceProviderContentIdentityStabilityTest {
     void sameSizeReplacementDuringTheFirstHashNeverPublishesTheReplacementDigest() throws Exception {
         Path root = Files.createDirectories(temporaryDirectory.resolve("aba/root"));
         Path file = Files.writeString(root.resolve("shared.bin"), "AAAA");
+        assumeTrue(hardLinkProofAvailable(file), "requires the production hard-link proof primitive");
         ResourceIndex.Provider provider = provider(root, "shared.bin");
         ResourceIndex index = index(root, provider);
         String originalDigest = Hashes.sha256(file);
-        Object originalKey = Files.readAttributes(file, BasicFileAttributes.class).fileKey();
         FileTime originalModified = Files.getLastModifiedTime(file);
 
         Path parked = root.resolve("parked.tmp");
         Path impostor = Files.writeString(root.resolve("impostor.tmp"), "BBBB");
         Files.setLastModifiedTime(impostor, FileTime.fromMillis(provider.modifiedMillis()));
 
-        // A -> B -> A entirely inside the read, with B the same size and mtime as A. Both pathname
-        // observations therefore see A, and A keeps its identity because a rename preserves it.
+        // A -> B -> A entirely inside the read, with B the same size and mtime as A. A pathname
+        // hasher sees B while endpoint pathname observations can both see A.
         ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
                 index,
                 bytes -> {
@@ -163,16 +176,53 @@ class ResourceProviderContentIdentityStabilityTest {
 
         ResourceProviderComparison.ContentObservation observed = identities.observe("shared.bin", provider);
 
-        Object restoredKey = Files.readAttributes(file, BasicFileAttributes.class).fileKey();
-        if (originalKey == null || !Objects.equals(originalKey, restoredKey)) {
-            return; // Without a stable identity across the rename there is nothing to prove here.
-        }
         assertEquals("AAAA", Files.readString(file), "the file on disk is the original again");
-        if (observed.evidence() == ResourceProviderComparison.ContentEvidence.HASHED) {
-            assertEquals(
-                    originalDigest,
-                    observed.sha256(),
-                    "a digest published as exact evidence must belong to the observed file");
+        assertEquals(ResourceProviderComparison.ContentEvidence.HASHED, observed.evidence());
+        assertEquals(
+                originalDigest,
+                observed.sha256(),
+                "a digest published as exact evidence must belong to the anchored provider file");
+    }
+
+    @Test
+    void providerWithoutTheHardLinkProofPrimitiveIsConservativelyStale() throws Exception {
+        Path archive = temporaryDirectory.resolve("unsupported-proof.zip");
+        URI uri = URI.create("jar:" + archive.toUri());
+        try (FileSystem filesystem = FileSystems.newFileSystem(uri, Map.of("create", "true"))) {
+            Path root = Files.createDirectories(filesystem.getPath("/root"));
+            Files.writeString(root.resolve("shared.bin"), "AAAA");
+            ResourceIndex.Provider provider = provider(root, "shared.bin");
+            ResourceIndex index = index(root, provider);
+            AtomicInteger hashCalls = new AtomicInteger();
+            ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
+                    index,
+                    bytes -> {
+                        hashCalls.incrementAndGet();
+                        return Hashes.sha256(bytes);
+                    });
+
+            ResourceProviderComparison.ContentObservation observed = identities.observe("shared.bin", provider);
+
+            assertEquals(ResourceProviderComparison.ContentEvidence.STALE, observed.evidence());
+            assertEquals(0, hashCalls.get(), "bytes without an exact file-identity proof must not be published");
+        }
+    }
+
+    private static boolean hardLinkProofAvailable(Path file) throws IOException {
+        Path candidate = null;
+        boolean linked = false;
+        try {
+            candidate = Files.createTempFile("preflight-provider-proof-test-", ".link");
+            Files.delete(candidate);
+            Files.createLink(candidate, file);
+            linked = true;
+            return Files.isSameFile(candidate, file);
+        } catch (UnsupportedOperationException | SecurityException | ProviderMismatchException | IOException unavailable) {
+            return false;
+        } finally {
+            if (candidate != null) {
+                Files.deleteIfExists(candidate);
+            }
         }
     }
 
