@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import { DesktopShell } from "./DesktopShell";
 
-test("Skip to workspace bypasses topbar appearance controls", async () => {
+test("Skip to workspace bypasses appearance controls for actionable recovery", async () => {
   const user = userEvent.setup();
   render(
     <DesktopShell
@@ -19,7 +19,10 @@ test("Skip to workspace bypasses topbar appearance controls", async () => {
       onThemeChange={vi.fn()}
       onPaletteChange={vi.fn()}
     >
-      <button type="button">Relaunch</button>
+      <section role="alert">
+        <details><summary>Technical details</summary><p>failure detail</p></details>
+        <button type="button">Relaunch</button>
+      </section>
     </DesktopShell>,
   );
 
@@ -29,6 +32,7 @@ test("Skip to workspace bypasses topbar appearance controls", async () => {
   expect(skip).toHaveAttribute("href", "#page-workspace");
 
   await user.keyboard("{Enter}");
-  expect(document.querySelector("#page-workspace")).toHaveFocus();
+  expect(screen.getByRole("button", { name: "Relaunch" })).toHaveFocus();
+  expect(screen.getByText("Technical details")).not.toHaveFocus();
   expect(screen.getByRole("button", { name: "Use Blueprint palette" })).not.toHaveFocus();
 });
