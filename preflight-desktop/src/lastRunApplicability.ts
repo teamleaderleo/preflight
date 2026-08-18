@@ -1,13 +1,38 @@
 import type { LastRun } from "./types";
 
+export interface LaunchSetupIdentity {
+  installRoot?: string | null;
+  profileFingerprint?: string | null;
+}
+
+export type LaunchSetupApplicability = "applies" | "foreign" | "unknown";
+
+/**
+ * Compares durable launch identity with the setup Home would launch now.
+ *
+ * An installation mismatch is authoritative on its own. Profile applicability stays unknown until
+ * the current fingerprint is available, so ordinary identity refreshes do not retire valid evidence.
+ */
+export function launchSetupApplicability(
+  identity: LaunchSetupIdentity | null | undefined,
+  installRoot: string | null | undefined,
+  profileFingerprint: string | null | undefined,
+): LaunchSetupApplicability {
+  if (!identity?.installRoot || !identity.profileFingerprint || !installRoot) return "unknown";
+  if (identity.installRoot !== installRoot) return "foreign";
+  if (!profileFingerprint) return "unknown";
+  return identity.profileFingerprint.toLowerCase() === profileFingerprint.toLowerCase()
+    ? "applies"
+    : "foreign";
+}
+
 /** Returns launch evidence only when the native bridge bound it to this exact setup. */
 export function lastRunForCurrentProfile(
   lastRun: LastRun | null | undefined,
   installRoot: string | null | undefined,
   profileFingerprint: string | null | undefined,
 ): LastRun | null {
-  if (!lastRun || !installRoot || !profileFingerprint) return null;
-  if (lastRun.installRoot !== installRoot) return null;
-  if (lastRun.profileFingerprint?.toLowerCase() !== profileFingerprint.toLowerCase()) return null;
-  return lastRun;
+  return launchSetupApplicability(lastRun, installRoot, profileFingerprint) === "applies"
+    ? lastRun ?? null
+    : null;
 }
