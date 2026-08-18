@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -30,7 +31,7 @@ class JvmMemorySettingsTest {
         assertTrue(snapshot.editable());
         assertEquals(6144, snapshot.maxHeapMiB());
         assertEquals(2048, snapshot.initialHeapMiB());
-        assertEquals(launcher, snapshot.source());
+        assertEquals(launcher.toRealPath(), snapshot.source());
     }
 
     @Test
@@ -45,8 +46,79 @@ class JvmMemorySettingsTest {
         JvmMemorySettings.Snapshot snapshot = JvmMemorySettings.inspect(root, target(root, launcher));
 
         assertEquals(6144, snapshot.maxHeapMiB());
-        assertEquals(parameters, snapshot.source());
+        assertEquals(parameters.toRealPath(), snapshot.source());
         assertEquals("launcher response file", snapshot.sourceKind());
+    }
+
+    @Test
+    void rejectsLauncherSymlinkOutsideBeforeReadingTargetBytes() throws Exception {
+        Path root = temporary.resolve("launcher-link/game");
+        Path launcher = root.resolve("starsector.sh");
+        Path outside = temporary.resolve("launcher-link/outside.sh");
+        Files.createDirectories(root);
+        Files.createDirectories(outside.getParent());
+        Files.writeString(outside, "#!/bin/sh\njava -Xmx31g game.Main\n");
+        if (!symlink(launcher, outside)) return;
+        List<Path> opened = new ArrayList<>();
+
+        JvmMemorySettings.Snapshot snapshot = JvmMemorySettings.inspect(
+                root,
+                target(root, launcher),
+                path -> {
+                    opened.add(path);
+                    return Files.readString(path);
+                });
+
+        assertFalse(snapshot.available());
+        assertTrue(opened.isEmpty(), "an outside launcher target must never reach the content reader");
+    }
+
+    @Test
+    void rejectsLexicalResponseFileEscapeBeforeReadingTargetBytes() throws Exception {
+        Path root = temporary.resolve("response-escape/game");
+        Path launcher = root.resolve("starsector.sh");
+        Path outside = temporary.resolve("outside.vmparams");
+        Files.createDirectories(root);
+        Files.writeString(launcher, "#!/bin/sh\njava @../../outside.vmparams game.Main\n");
+        Files.writeString(outside, "-Xmx31g\n");
+        List<Path> opened = new ArrayList<>();
+
+        JvmMemorySettings.Snapshot snapshot = JvmMemorySettings.inspect(
+                root,
+                target(root, launcher),
+                path -> {
+                    opened.add(path);
+                    return Files.readString(path);
+                });
+
+        assertFalse(snapshot.available());
+        assertEquals(List.of(launcher.toRealPath()), opened);
+        assertTrue(snapshot.diagnostics().stream().anyMatch(value -> value.contains("outside")));
+    }
+
+    @Test
+    void rejectsVmparamsSymlinkOutsideBeforeReadingTargetBytes() throws Exception {
+        Path root = temporary.resolve("vmparams-link/game");
+        Path launcher = root.resolve("starsector.exe");
+        Path parameters = root.resolve("starsector-core/starsector.vmparams");
+        Path outside = temporary.resolve("vmparams-link/outside.vmparams");
+        Files.createDirectories(parameters.getParent());
+        Files.createDirectories(outside.getParent());
+        Files.write(launcher, new byte[] {0x4d, 0x5a});
+        Files.writeString(outside, "-Xmx31g\n");
+        if (!symlink(parameters, outside)) return;
+        List<Path> opened = new ArrayList<>();
+
+        JvmMemorySettings.Snapshot snapshot = JvmMemorySettings.inspect(
+                root,
+                target(root, launcher),
+                path -> {
+                    opened.add(path);
+                    return Files.readString(path);
+                });
+
+        assertFalse(snapshot.available());
+        assertTrue(opened.isEmpty(), "an outside vmparams target must never reach the content reader");
     }
 
     @Test
@@ -63,7 +135,7 @@ class JvmMemorySettingsTest {
         assertTrue(snapshot.available());
         assertTrue(snapshot.editable());
         assertEquals(8192, snapshot.maxHeapMiB());
-        assertEquals(parameters, snapshot.source());
+        assertEquals(parameters.toRealPath(), snapshot.source());
         assertEquals("VM-parameter file", snapshot.sourceKind());
     }
 
@@ -262,6 +334,15 @@ class JvmMemorySettingsTest {
             List<Path> found = files.toList();
             assertEquals(1, found.size());
             return found.get(0);
+        }
+    }
+
+    private static boolean symlink(Path link, Path target) {
+        try {
+            Files.createSymbolicLink(link, target);
+            return true;
+        } catch (UnsupportedOperationException | IOException unsupported) {
+            return false;
         }
     }
 
