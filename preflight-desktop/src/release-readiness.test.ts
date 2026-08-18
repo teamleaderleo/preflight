@@ -31,7 +31,9 @@ test("journey overrides keep first settings reachable and put actionable Home fa
   options.className = "home-options-toggle";
   const actions = document.createElement("div");
   actions.className = "launch-console__actions";
-  launch.append(quickSettings, options, actions);
+  const retryIdentity = document.createElement("div");
+  retryIdentity.className = "home-launch-identity";
+  launch.append(quickSettings, options, actions, retryIdentity);
   viewport.append(launch, recovery);
   document.body.append(viewport);
 
@@ -41,6 +43,8 @@ test("journey overrides keep first settings reachable and put actionable Home fa
   expect(getComputedStyle(quickSettings).justifyContent).toBe("safe center");
   expect(getComputedStyle(options).display).toBe("none");
   expect(getComputedStyle(actions).display).toBe("none");
+  expect(getComputedStyle(retryIdentity).top).toBe("64px");
+  expect(getComputedStyle(retryIdentity).textAlign).toBe("left");
 
   const errorViewport = document.createElement("div");
   errorViewport.className = "page-viewport--home";
@@ -50,7 +54,9 @@ test("journey overrides keep first settings reachable and put actionable Home fa
   errorOptions.className = "home-options-toggle";
   const errorActions = document.createElement("div");
   errorActions.className = "launch-console__actions";
-  errorLaunch.append(errorOptions, errorActions);
+  const errorIdentity = document.createElement("div");
+  errorIdentity.className = "home-launch-identity";
+  errorLaunch.append(errorOptions, errorActions, errorIdentity);
   const error = document.createElement("div");
   error.className = "notice notice--error";
   errorViewport.append(errorLaunch, error);
@@ -60,6 +66,8 @@ test("journey overrides keep first settings reachable and put actionable Home fa
   expect(getComputedStyle(error).order).toBe("-1");
   expect(getComputedStyle(errorOptions).display).toBe("none");
   expect(getComputedStyle(errorActions).display).toBe("none");
+  expect(getComputedStyle(errorIdentity).top).toBe("64px");
+  expect(getComputedStyle(errorIdentity).textAlign).toBe("left");
 
   const preparationLaunch = document.createElement("section");
   preparationLaunch.className = "launch-console launch-console--ready";
