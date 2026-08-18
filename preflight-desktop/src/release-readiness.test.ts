@@ -69,6 +69,19 @@ test("journey overrides keep first settings reachable and put actionable Home fa
   expect(getComputedStyle(errorIdentity).top).toBe("64px");
   expect(getComputedStyle(errorIdentity).textAlign).toBe("left");
 
+  const normalLaunch = document.createElement("section");
+  normalLaunch.className = "launch-console launch-console--ready";
+  const normalShipName = document.createElement("span");
+  normalShipName.className = "home-ship-name";
+  normalShipName.textContent = "Extremely Long Experimental Modded Capital Ship Variant Mark XXVII";
+  normalLaunch.append(normalShipName);
+  document.body.append(normalLaunch);
+  const normalShipStyle = getComputedStyle(normalShipName);
+  expect(normalShipStyle.overflow).toBe("hidden");
+  expect(normalShipStyle.textOverflow).toBe("ellipsis");
+  expect(normalShipStyle.whiteSpace).toBe("nowrap");
+  expect(normalShipStyle.maxWidth).toContain("50% - 190px");
+
   const preparationLaunch = document.createElement("section");
   preparationLaunch.className = "launch-console launch-console--ready launch-console--options-open";
   const playtime = document.createElement("div");
@@ -97,6 +110,7 @@ test("journey overrides keep first settings reachable and put actionable Home fa
 
   viewport.remove();
   errorViewport.remove();
+  normalLaunch.remove();
   preparationLaunch.remove();
   style.remove();
 });
