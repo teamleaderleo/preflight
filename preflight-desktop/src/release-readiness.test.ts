@@ -70,19 +70,22 @@ test("journey overrides keep first settings reachable and put actionable Home fa
   expect(getComputedStyle(errorIdentity).textAlign).toBe("left");
 
   const preparationLaunch = document.createElement("section");
-  preparationLaunch.className = "launch-console launch-console--ready";
+  preparationLaunch.className = "launch-console launch-console--ready launch-console--options-open";
   const playtime = document.createElement("div");
   playtime.className = "home-playtime";
   const identity = document.createElement("div");
   identity.className = "home-launch-identity";
   const note = document.createElement("div");
   note.className = "launch-console__note";
-  preparationLaunch.append(playtime, identity, note);
+  const preparationOptions = document.createElement("div");
+  preparationOptions.className = "quick-settings";
+  preparationLaunch.append(playtime, identity, note, preparationOptions);
   document.body.append(preparationLaunch);
   expect(preparationLaunch.matches(".launch-console--ready:has(.launch-console__note)")).toBe(true);
   expect(getComputedStyle(playtime).display).toBe("none");
   expect(getComputedStyle(identity).top).toBe("64px");
   expect(getComputedStyle(identity).textAlign).toBe("left");
+  expect(getComputedStyle(preparationOptions).top).toBe("108px");
 
   viewport.remove();
   errorViewport.remove();
