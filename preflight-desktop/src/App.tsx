@@ -129,7 +129,7 @@ export default function App() {
   const speedStanding = useSpeedRecord();
   const instrumentHull = useInstrumentHull(
     snapshot?.selected?.installRoot,
-    page === "speed" || page === "hangar",
+    page === "home" || page === "speed" || page === "hangar",
   );
   const { countFastLaunch, rememberBenchmark } = speedStanding;
   const currentProfileFingerprint = useRef<string | null>(null);
@@ -600,7 +600,6 @@ export default function App() {
             isReady={isReady}
             needsPreparation={needsPreparation}
             preparation={preparation}
-            profilesState={profilesState}
             updateStatus={updateStatus}
             launcherSettings={launcher.settings}
             launcherDraft={launcher.draft}
@@ -625,11 +624,8 @@ export default function App() {
             onRetry={retryFailedOperation}
             runFailure={runFailure}
             onDismissRunFailure={() => setRunFailure(null)}
-            onOpenStorage={() => {
-              setPage("speed");
-              void cleanup.review();
-            }}
             onNavigate={setPage}
+            instrumentHull={instrumentHull.selected}
           />
         ) : page === "launch" ? (
           <>
@@ -672,7 +668,7 @@ export default function App() {
         ) : page === "mods" ? (
           <ProfilesPage message={profilesNotice?.message ?? ""} messageTone={profilesNotice?.tone ?? "info"} profilesState={profilesState} operationBlocked={operationBlocked} />
         ) : page === "hangar" ? (
-          <HangarPage instrumentHull={instrumentHull} playtime={snapshot?.playtime} />
+          <HangarPage instrumentHull={instrumentHull} />
         ) : page === "benchmark" ? (
           <BenchmarkPage
             message={benchmarkNotice?.message ?? ""}

@@ -1,13 +1,15 @@
+import { useState } from "react";
 import { ArrowIcon, CheckIcon, FolderIcon, PlayIcon, SparklesIcon } from "../icons";
 import { adapterHealthLine } from "../adapterHealthText";
+import { HOME_OPTIONS_STORAGE_KEY } from "../desktopStorage";
 import type { Page } from "./DesktopShell";
 import type { ThemePreference } from "../useTheme";
 import { QuickGameSettings } from "./QuickGameSettings";
 import { NoticeBanner } from "./NoticeBanner";
 import { storagePlanApplies, type usePreparation } from "../usePreparation";
 import { lastRunForCurrentProfile } from "../lastRunApplicability";
-import type { useProfiles } from "../useProfiles";
-import { formatBytes, formatPlaytime, formatSavedAt, friendlyPlatform, shortPath } from "../uiFormat";
+import { formatBytes, formatPlaytime, splitPlaytime } from "../uiFormat";
+import { FlightInstrument } from "./FlightInstrument";
 import type {
   AppStatus,
   DesktopSnapshot,
@@ -16,23 +18,10 @@ import type {
   NoticeTone,
   OptimizationPreset,
   UpdateStatus,
+  WireframeHull,
 } from "../types";
 
 type PreparationState = ReturnType<typeof usePreparation>;
-type ProfilesState = ReturnType<typeof useProfiles>;
-
-const flightPlot = (
-  <div className="flight-plot" aria-hidden="true">
-    <svg viewBox="0 0 480 250" role="presentation">
-      <path className="flight-plot__guide" d="M20 205H458M72 18V232M382 18V232" />
-      <path className="flight-plot__route" d="M28 203C105 31 286 18 449 155" />
-      <circle cx="28" cy="203" r="4" />
-      <circle cx="242" cy="52" r="4" />
-      <circle cx="449" cy="155" r="5" />
-      <path className="flight-plot__craft" d="m431 139 21 16-18 2-8 14 1-19-12-9Z" />
-    </svg>
-  </div>
-);
 
 interface HomePageProps {
   snapshot: DesktopSnapshot | null;
@@ -43,7 +32,6 @@ interface HomePageProps {
   needsPreparation: boolean;
   optimizationPreset: OptimizationPreset;
   preparation: PreparationState;
-  profilesState: ProfilesState;
   updateStatus: UpdateStatus | null;
   launcherSettings: LaunchSettings | null;
   launcherDraft: LaunchSettingsUpdate | null;
@@ -67,8 +55,8 @@ interface HomePageProps {
   onRetry: () => void;
   runFailure: { summary: string; detail?: string } | null;
   onDismissRunFailure: () => void;
-  onOpenStorage: () => void;
   onNavigate: (page: Page) => void;
+  instrumentHull: WireframeHull;
 }
 
 export function HomePage({
@@ -80,7 +68,6 @@ export function HomePage({
   needsPreparation,
   optimizationPreset,
   preparation,
-  profilesState,
   updateStatus,
   launcherSettings,
   launcherDraft,
@@ -104,9 +91,16 @@ export function HomePage({
   onRetry,
   runFailure,
   onDismissRunFailure,
-  onOpenStorage,
   onNavigate,
+  instrumentHull,
 }: HomePageProps) {
+  const [optionsOpen, setOptionsOpen] = useState(() => {
+    try {
+      return window.localStorage.getItem(HOME_OPTIONS_STORAGE_KEY) === "open";
+    } catch {
+      return false;
+    }
+  });
   const {
     cache,
     cacheHealth,
@@ -127,11 +121,6 @@ export function HomePage({
   // the launch button stays disabled forever on the one setting a short-of-space user would pick.
   const awaitingStoragePlan = storagePlanApplies(textureStorage)
     && (preparationPlanLoading || !preparationPlan);
-  const { profiles, profilesLoading, profileBusy, reviewProfile } = profilesState;
-  const activeProfile = profiles?.profiles.find((profile) => profile.active) ?? null;
-  const accelerationBytes = cache?.groups.find((group) => group.id === "acceleration")?.bytes ?? 0;
-  // Nothing to pick between until there is somewhere to switch to, so the card stays plain text.
-  const switchable = (profiles?.profiles ?? []).filter((profile) => !profile.active && profile.canActivate);
   const firstSetup = needsPreparation && (cache?.profiles.length ?? 0) === 0 && !snapshot?.lastRun;
   const storageBlocked = needsPreparation
     && !preparationPlanLoading
@@ -156,6 +145,19 @@ export function HomePage({
     cache?.currentProfileFingerprint,
   )?.adapterHealth ?? null;
   const hasPlaytime = Boolean(playtime?.readable && playtime.launches > 0 && playtime.totalMillis > 0);
+  const playtimeTotal = hasPlaytime && playtime ? splitPlaytime(playtime.totalMillis) : null;
+  const toggleOptions = () => {
+    setOptionsOpen((current) => {
+      const next = !current;
+      try {
+        if (next) window.localStorage.setItem(HOME_OPTIONS_STORAGE_KEY, "open");
+        else window.localStorage.removeItem(HOME_OPTIONS_STORAGE_KEY);
+      } catch {
+        // The view still toggles for this session if the WebView store is unavailable.
+      }
+      return next;
+    });
+  };
   const statusLabel = status === "launching"
     ? "Opening Starsector"
     : status === "running"
@@ -184,30 +186,44 @@ export function HomePage({
 
   return (
     <>
-      <section className={`launch-console card launch-console--${status} ${isReady ? "launch-console--ready" : "launch-console--setup"} ${isReady && launcherDraft && launcherSettings ? "launch-console--configured" : ""} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""}`}>
+      <section className={`launch-console ${isReady ? "launch-console--ready" : "card launch-console--setup"} launch-console--${status} ${isReady && optionsOpen ? "launch-console--options-open" : "launch-console--minimal"} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""}`}>
         <div className="launch-console__primary">
-          {isReady ? flightPlot : null}
+          {isReady ? (
+            <div className="home-flight-instrument">
+              <FlightInstrument hull={instrumentHull} variant="stage" />
+            </div>
+          ) : null}
           {/*
             * Before an installation is chosen the heading below already says "Installation
             * required" in longer words, and the chip said it again directly above it. A chip is
             * worth a line when it carries something the heading does not; here it only made the
             * screen look busier than the one decision it asks for.
             */}
-          {isReady && status !== "running" && status !== "launching" ? (
+          {isReady ? (
             <div className="launch-console__status-line">
-              <div className={`status-chip ${isReady && !needsPreparation ? "status-chip--ready" : ""}`}>
-                {isReady && !needsPreparation && optimizationPreset !== "off" ? <CheckIcon /> : <SparklesIcon />}
-                {statusLabel}
-              </div>
-              {hasPlaytime && playtime ? (
-                <span
-                  className="playtime-readout"
-                  aria-label={`${formatPlaytime(playtime.totalMillis)} played across ${playtime.launches} recorded sessions`}
-                  title={`Time Starsector was open across ${playtime.launches.toLocaleString()} recorded sessions`}
-                >
-                  <strong>{formatPlaytime(playtime.totalMillis)}</strong> played
-                </span>
+              {status !== "running" && status !== "launching" ? (
+                <div className={`status-chip ${isReady && !needsPreparation ? "status-chip--ready" : ""}`}>
+                  {isReady && !needsPreparation && optimizationPreset !== "off" ? <CheckIcon /> : <SparklesIcon />}
+                  {statusLabel}
+                </div>
               ) : null}
+              <button
+                className="home-options-toggle"
+                type="button"
+                aria-expanded={optionsOpen}
+                onClick={toggleOptions}
+              >
+                {optionsOpen ? "Hide options" : "Options"}
+                <ArrowIcon />
+              </button>
+            </div>
+          ) : null}
+          {isReady ? (
+            <div className={playtimeTotal ? "home-playtime" : "home-playtime home-playtime--empty"} aria-label={playtime && hasPlaytime
+              ? `${formatPlaytime(playtime.totalMillis)} played across ${playtime.launches.toLocaleString()} recorded sessions`
+              : "No recorded playtime yet"}>
+              <strong>{playtimeTotal?.value ?? "0"}<i>{playtimeTotal?.unit ?? "h"}</i></strong>
+              <span>{playtime && hasPlaytime ? `${playtime.launches.toLocaleString()} sessions` : "played"}</span>
             </div>
           ) : null}
           {isReady && lastAdapterHealth && status !== "running" && status !== "launching" ? (
@@ -284,6 +300,7 @@ export function HomePage({
               <button className="button button--primary" type="button" onClick={onChooseInstall} disabled={status === "loading" || operationBlocked}><FolderIcon />Choose game folder</button>
             )}
           </div>
+          {isReady ? <span className="home-ship-name">{instrumentHull.name}</span> : null}
           {isReady && (preparing || needsPreparation || !profilePrepared) ? (
             <div className="launch-console__note">
               <span>{preparing
@@ -305,7 +322,7 @@ export function HomePage({
             </div>
           ) : null}
         </div>
-        {isReady && launcherDraft && launcherSettings ? (
+        {isReady && optionsOpen && launcherDraft && launcherSettings ? (
           <QuickGameSettings
             settings={launcherSettings}
             draft={launcherDraft}
@@ -318,7 +335,7 @@ export function HomePage({
             onOpenAll={() => onNavigate("launch")}
             onSave={onSaveLauncherSettings}
           />
-        ) : isReady ? <div className="quick-settings quick-settings--loading">{launcherSettingsLoading ? "Reading game settings…" : "Game settings unavailable"}</div> : null}
+        ) : isReady && optionsOpen ? <div className="quick-settings quick-settings--loading">{launcherSettingsLoading ? "Reading game settings…" : "Game settings unavailable"}</div> : null}
       </section>
 
       {updateStatus?.available ? (
@@ -368,53 +385,6 @@ export function HomePage({
         </section>
       ) : null}
 
-      {isReady && !needsPreparation && !cacheInspectionBlocked ? <section className="card home-overview" aria-label="Current Preflight setup">
-        <div className="home-fact">
-          <span>Mod profile</span>
-          {switchable.length > 0 ? (
-            <select
-              className="home-profile-select"
-              aria-label="Mod profile"
-              value={activeProfile?.name ?? ""}
-              disabled={profileBusy || operationBlocked}
-              onChange={(event) => {
-                const name = event.target.value;
-                if (!name || name === activeProfile?.name) return;
-                void reviewProfile(name);
-                onNavigate("mods");
-              }}
-            >
-              {activeProfile ? null : <option value="">{`Not saved · ${profiles?.enabledMods.length.toLocaleString() ?? 0} enabled mods`}</option>}
-              {(profiles?.profiles ?? []).map((profile) => (
-                <option value={profile.name} key={profile.name} disabled={!profile.active && !profile.canActivate}>{profile.name}</option>
-              ))}
-            </select>
-          ) : (
-            <strong>{profilesLoading ? "Reading…" : activeProfile?.name ?? (profiles ? `${profiles.enabledMods.length} enabled mods` : "Unavailable")}</strong>
-          )}
-          <small>{profilesLoading
-            ? "Checking the current mod list"
-            : activeProfile
-              ? `${activeProfile.modCount.toLocaleString()} mod${activeProfile.modCount === 1 ? "" : "s"} · saved ${formatSavedAt(activeProfile.savedAt)}`
-              : profiles
-                ? "Current list isn't saved as a profile"
-                : "The current mod list couldn’t be read"}</small>
-          <div className="home-fact__links">
-            <button className="text-button" type="button" onClick={() => onNavigate("mods")} disabled={!isReady}>Profiles <ArrowIcon /></button>
-          </div>
-        </div>
-        <div className="home-fact">
-          <span>Prepared data</span>
-          <strong>{cacheLoading ? "Reading…" : cache ? formatBytes(accelerationBytes) : "Unavailable"}</strong>
-          <button className="text-button" type="button" onClick={onOpenStorage} disabled={!isReady}>Free space <ArrowIcon /></button>
-        </div>
-        <div className="home-fact home-fact--installation">
-          <span>Installation</span>
-          <strong>{isReady && snapshot?.selected ? shortPath(snapshot.selected.installRoot) : "Not selected"}</strong>
-          <small>{isReady && snapshot ? `${friendlyPlatform(snapshot.platform)} · ${snapshot.selected?.kind.replace("-", " ")}${snapshot.candidates.length > 1 ? ` · ${snapshot.candidates.length} detected candidates` : " · found automatically"}` : "Choose the game folder to begin."}</small>
-          <button type="button" className="text-button" onClick={onChooseInstall} aria-label="Change Starsector installation" disabled={operationBlocked}>Change <ArrowIcon /></button>
-        </div>
-      </section> : null}
       {/*
         * The engine reports where it looked as well as that it failed. Both belong here: the reason
         * anyone opens this is to work out whether their own install is somewhere unusual, and that
