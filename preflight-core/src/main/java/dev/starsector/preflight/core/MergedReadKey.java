@@ -69,6 +69,13 @@ public final class MergedReadKey {
 
     /** The key for one unrestricted single-file JSON read after resource initialization. */
     public static String singleJson(String rawPath) {
+        // The prepared artifact identity covers logical paths from the enabled resource roots, but
+        // this layer does not know those roots and therefore cannot prove an absolute path belongs
+        // to one of them. Let vanilla handle absolute single-file reads rather than persisting
+        // out-of-profile content under a key made only from its data/ suffix.
+        if (rawPath != null && !rawPath.isEmpty() && absolute(rawPath)) {
+            return null;
+        }
         String path = path(rawPath);
         if (path == null || DYNAMIC_SETTINGS.equals(path)) {
             return null;
