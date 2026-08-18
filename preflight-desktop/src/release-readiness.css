@@ -13,6 +13,42 @@
   max-height: none;
 }
 
+.home-launch-identity {
+  position: absolute !important;
+  z-index: 3 !important;
+  bottom: 82px;
+  left: 50%;
+  display: grid;
+  gap: 2px;
+  width: min(520px, calc(100% - 48px));
+  min-width: 0;
+  color: var(--console-soft);
+  text-align: center;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.home-launch-identity span,
+.home-launch-identity strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-launch-identity span {
+  font-family: var(--font-data);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.home-launch-identity strong {
+  color: var(--console-ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+
 .hangar-dock--catalog {
   align-items: start;
   grid-template-columns: minmax(240px, .85fr) minmax(0, 1.15fr) auto;
@@ -184,5 +220,10 @@
     bottom: auto;
     max-width: 46%;
     text-align: right;
+  }
+
+  .home-launch-identity {
+    bottom: 88px;
+    width: calc(100% - 32px);
   }
 }
