@@ -626,6 +626,7 @@ export default function App() {
             onDismissRunFailure={() => setRunFailure(null)}
             onNavigate={setPage}
             instrumentHull={instrumentHull.selected}
+            launchProfileName={profilesState.profiles?.profiles.find((profile) => profile.active)?.name ?? null}
           />
         ) : page === "launch" ? (
           <>
@@ -707,9 +708,10 @@ export default function App() {
             removalBusy={removal.busy}
             afterLaunchBehavior={afterLaunchBehavior}
             automaticRunReports={diagnostics.automaticRunReports}
+            installation={snapshot?.selected?.installRoot ?? null}
             onAutomaticRunReportsChange={diagnostics.setAutomaticRunReports}
             onAfterLaunchBehaviorChange={setAfterLaunchBehavior}
-
+            onChooseInstall={() => void chooseInstall()}
             onReviewRemoval={(scope) => void removal.review(scope)}
             onDismissRemoval={removal.dismiss}
             onRemove={() => void removal.remove()}
