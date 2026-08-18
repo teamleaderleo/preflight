@@ -245,7 +245,7 @@ export function HomePage({
             * look for before handing an unsigned program their game folder.
             */}
           {!isReady && status !== "loading" ? <p className="setup-next">Preflight prepares your mods once, then opens Starsector. It never moves the game, mods, or saves.</p> : null}
-          {isReady && status === "ready" && !needsPreparation && snapshot?.selected ? (
+          {isReady && status === "ready" && snapshot?.selected ? (
             <div
               className="home-launch-identity"
               aria-label={`Launches ${launchProfileName ? `profile ${launchProfileName}` : "the current mod setup"} from ${snapshot.selected.installRoot}`}
