@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -33,6 +34,8 @@ final class ProfileCommand {
     private static final Pattern PROFILE_BACKUP_FILE = Pattern.compile(
             "(?:enabled_mods|deleted-profile)-\\d+-.*\\.json");
     private static final Pattern ACTIVATION_REVIEW_FILE = Pattern.compile("[0-9a-f]{64}\\.json");
+    private static final DuplicatePublicationHook NO_DUPLICATE_PUBLICATION_HOOK = target -> {
+    };
 
     private ProfileCommand() {
     }
@@ -290,17 +293,41 @@ final class ProfileCommand {
             boolean confirmed,
             boolean json,
             PrintStream out) throws Exception {
+        return duplicate(
+                home,
+                installRoot,
+                name,
+                targetName,
+                expectedProfile,
+                confirmed,
+                json,
+                out,
+                NO_DUPLICATE_PUBLICATION_HOOK);
+    }
+
+    static int duplicate(
+            PreflightHome home,
+            Path installRoot,
+            String name,
+            String targetName,
+            String expectedProfile,
+            boolean confirmed,
+            boolean json,
+            PrintStream out,
+            DuplicatePublicationHook publicationHook) throws Exception {
         name = validateName(name);
         targetName = validateName(targetName);
         if (name.equals(targetName)) {
             throw new IllegalArgumentException("The new profile name must be different");
         }
         if (!confirmed) {
-            return duplicateOwned(home, installRoot, name, targetName, null, false, json, out);
+            return duplicateOwned(
+                    home, installRoot, name, targetName, null, false, json, out, publicationHook);
         }
         OperationLease.Acquisition ownership = OperationLease.acquire(home, "duplicating-profile", installRoot);
         try (OperationLease ignored = ownership.lease()) {
-            return duplicateOwned(home, installRoot, name, targetName, expectedProfile, true, json, out);
+            return duplicateOwned(
+                    home, installRoot, name, targetName, expectedProfile, true, json, out, publicationHook);
         }
     }
 
@@ -312,7 +339,8 @@ final class ProfileCommand {
             String expectedProfile,
             boolean confirmed,
             boolean json,
-            PrintStream out) throws Exception {
+            PrintStream out,
+            DuplicatePublicationHook publicationHook) throws Exception {
         GameLayout layout = GameLayout.locate(installRoot);
         SavedProfile profile = readProfile(profilePath(home, name));
         requireProfileName(profile, name);
@@ -329,6 +357,7 @@ final class ProfileCommand {
         if (Files.exists(target)) {
             throw new IOException("A named profile already exists: " + targetName);
         }
+        publicationHook.beforePublication(target);
         SavedProfile duplicated = new SavedProfile(
                 targetName,
                 profile.installRoot(),
@@ -336,7 +365,11 @@ final class ProfileCommand {
                 profile.profileFingerprint(),
                 Instant.now().toString(),
                 target);
-        atomicWrite(target, Json.object(duplicated.persisted()) + System.lineSeparator());
+        try {
+            atomicCreate(target, Json.object(duplicated.persisted()) + System.lineSeparator());
+        } catch (FileAlreadyExistsException collision) {
+            throw new IOException("A named profile already exists: " + targetName, collision);
+        }
         plan.put("applied", true);
         plan.put("file", target.toString());
         emitMutation(plan, json, out);
@@ -755,6 +788,32 @@ final class ProfileCommand {
         }
     }
 
+    /**
+     * Publishes a completed profile only if its final pathname is still absent.
+     *
+     * The staged inode lives beside the destination, so a hard link is a single same-filesystem
+     * directory operation: the final name can appear only after every byte is written, and an
+     * independently-created final name is never replaced. A filesystem without hard-link support
+     * fails closed instead of falling back to a copying publication that could expose partial data.
+     */
+    private static void atomicCreate(Path target, String value) throws IOException {
+        Path absolute = target.toAbsolutePath().normalize();
+        Path parent = SafetyArtifactRetention.requireRealDirectory(absolute.getParent());
+        Path staged = Files.createTempFile(parent, ".preflight-profile-create-", ".tmp");
+        try {
+            Files.writeString(staged, value, StandardCharsets.UTF_8);
+            try {
+                Files.createLink(absolute, staged);
+            } catch (UnsupportedOperationException unsupported) {
+                throw new IOException(
+                        "Filesystem cannot publish a duplicate profile safely: " + absolute,
+                        unsupported);
+            }
+        } finally {
+            Files.deleteIfExists(staged);
+        }
+    }
+
     private static boolean moveReplace(Path source, Path target) throws IOException {
         try {
             Files.move(source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
@@ -937,6 +996,11 @@ final class ProfileCommand {
             }
             return args[index];
         }
+    }
+
+    @FunctionalInterface
+    interface DuplicatePublicationHook {
+        void beforePublication(Path target) throws IOException;
     }
 
     private record LoadedProfiles(List<SavedProfile> profiles, List<String> diagnostics) {

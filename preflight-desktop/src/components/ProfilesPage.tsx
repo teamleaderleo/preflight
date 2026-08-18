@@ -54,10 +54,10 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
             <span className="field-note">{profilesLoading ? "Checking…" : `${profiles?.profiles.length ?? 0} saved`}</span>
           </div>
           <div className="profile-list">
-            {profiles?.profiles.length === 0 ? <p className="field-note">No profiles saved yet. Save your current mod selection below.</p> : null}
-            {profiles?.profiles.map((profile) => (
-              <article key={profile.name} className={`profile-card ${profile.active ? "profile-card--active" : ""}`}>
-                <div className="profile-card__content">
+            {!profilesLoading && profiles?.profiles.length === 0 ? <div className="profile-empty"><span>Save your current mod list, then switch profiles without toggling every mod by hand.</span></div> : null}
+            {(profiles?.profiles ?? []).map((profile) => (
+              <article className={`profile-card ${profile.active ? "profile-card--active" : ""}`} key={profile.name}>
+                <div className="profile-card__copy">
                   <div><strong>{profile.name}</strong>{profile.active ? <b>Active</b> : null}</div>
                   <span>{profile.modCount.toLocaleString()} mod{profile.modCount === 1 ? "" : "s"} · saved {formatSavedAt(profile.savedAt)}</span>
                   {!profile.sameInstall ? <small>Saved for a different installation</small> : null}
