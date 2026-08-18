@@ -52,7 +52,7 @@ test("Settings owns ordinary installation changes", async () => {
   const onChooseInstall = vi.fn();
   render(<SettingsPage {...props({ onChooseInstall })} />);
 
-  expect(screen.getByText("Starsector")).toHaveAttribute("title", "/Applications/Starsector");
+  expect(screen.getByText("/Applications/Starsector")).toHaveAttribute("title", "/Applications/Starsector");
   await user.click(screen.getByRole("button", { name: "Change folder" }));
   expect(onChooseInstall).toHaveBeenCalledOnce();
 });
