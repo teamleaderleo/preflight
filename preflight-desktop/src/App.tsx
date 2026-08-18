@@ -25,6 +25,7 @@ import { useDesktopAutomation } from "./useDesktopAutomation";
 import { useAutomaticMaintenance } from "./useAutomaticMaintenance";
 import { useAfterLaunchBehavior } from "./useAfterLaunchBehavior";
 import { lastRunForCurrentProfile } from "./lastRunApplicability";
+import { launchProfileNameFor } from "./launchProfileIdentity";
 import { useCacheCleanup } from "./useCacheCleanup";
 import { useDiagnosticsReport } from "./useDiagnosticsReport";
 import { useLauncherSettings } from "./useLauncherSettings";
@@ -129,7 +130,7 @@ export default function App() {
   const speedStanding = useSpeedRecord();
   const instrumentHull = useInstrumentHull(
     snapshot?.selected?.installRoot,
-    page === "speed" || page === "hangar",
+    page === "home" || page === "speed" || page === "hangar",
   );
   const { countFastLaunch, rememberBenchmark } = speedStanding;
   const currentProfileFingerprint = useRef<string | null>(null);
@@ -251,6 +252,10 @@ export default function App() {
     refresh,
     refreshCache,
     announceProfiles,
+  );
+  const launchProfileName = launchProfileNameFor(
+    profilesState.profiles,
+    preparation.cache?.currentProfileFingerprint ?? null,
   );
   const { clearProfiles } = profilesState;
   const cleanup = useCacheCleanup(
@@ -600,7 +605,6 @@ export default function App() {
             isReady={isReady}
             needsPreparation={needsPreparation}
             preparation={preparation}
-            profilesState={profilesState}
             updateStatus={updateStatus}
             launcherSettings={launcher.settings}
             launcherDraft={launcher.draft}
@@ -625,11 +629,9 @@ export default function App() {
             onRetry={retryFailedOperation}
             runFailure={runFailure}
             onDismissRunFailure={() => setRunFailure(null)}
-            onOpenStorage={() => {
-              setPage("speed");
-              void cleanup.review();
-            }}
             onNavigate={setPage}
+            instrumentHull={instrumentHull.selected}
+            launchProfileName={launchProfileName}
           />
         ) : page === "launch" ? (
           <>
@@ -672,7 +674,7 @@ export default function App() {
         ) : page === "mods" ? (
           <ProfilesPage message={profilesNotice?.message ?? ""} messageTone={profilesNotice?.tone ?? "info"} profilesState={profilesState} operationBlocked={operationBlocked} />
         ) : page === "hangar" ? (
-          <HangarPage instrumentHull={instrumentHull} playtime={snapshot?.playtime} />
+          <HangarPage instrumentHull={instrumentHull} />
         ) : page === "benchmark" ? (
           <BenchmarkPage
             message={benchmarkNotice?.message ?? ""}
@@ -711,9 +713,11 @@ export default function App() {
             removalBusy={removal.busy}
             afterLaunchBehavior={afterLaunchBehavior}
             automaticRunReports={diagnostics.automaticRunReports}
+            installation={snapshot?.selected?.installRoot ?? null}
+            installationChangeBlockedReason={activeOperation?.reason ?? null}
             onAutomaticRunReportsChange={diagnostics.setAutomaticRunReports}
             onAfterLaunchBehaviorChange={setAfterLaunchBehavior}
-
+            onChooseInstall={() => void chooseInstall()}
             onReviewRemoval={(scope) => void removal.review(scope)}
             onDismissRemoval={removal.dismiss}
             onRemove={() => void removal.remove()}

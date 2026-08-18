@@ -1,0 +1,329 @@
+/* Release-convergence overrides for the Home/Hangar ownership pass. */
+
+/* A ready Home can still grow recovery/update content below the launch display. Keep it reachable. */
+.page-viewport--home:has(.launch-console--ready) {
+  overflow-y: auto;
+  padding-right: 5px;
+}
+
+/*
+ * A previous run failure or current blocking error is the player's current job. Put its recovery
+ * before the idle launch display so the next useful action is visible on entry instead of living
+ * one viewport below "Ready" / "Needs attention".
+ */
+.page-viewport--home:has(.run-recovery),
+.page-viewport--home:has(.notice--error) {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.page-viewport--home:has(.run-recovery) > *,
+.page-viewport--home:has(.notice--error) > * {
+  flex: 0 0 auto;
+}
+
+.page-viewport--home:has(.run-recovery) .run-recovery,
+.page-viewport--home:has(.notice--error) .notice--error {
+  order: -1;
+}
+
+/*
+ * Visual ordering alone does not change keyboard order. A prior-run recovery card already owns the
+ * Relaunch action, so remove the duplicate idle controls until that card is dismissed. An immediate
+ * launch error gets the same treatment only while the console itself is in its error state; a plain
+ * settings error can keep the controls needed to correct it.
+ */
+.page-viewport--home:has(.run-recovery[role="alert"]) .launch-console .status-chip,
+.page-viewport--home:has(.run-recovery[role="alert"]) .launch-console .home-options-toggle,
+.page-viewport--home:has(.run-recovery[role="alert"]) .launch-console .home-playtime,
+.page-viewport--home:has(.run-recovery[role="alert"]) .launch-console .last-run-health,
+.page-viewport--home:has(.run-recovery[role="alert"]) .launch-console .launch-console__actions,
+.page-viewport--home:has(.notice--error) .launch-console--error .home-options-toggle,
+.page-viewport--home:has(.notice--error) .launch-console--error .launch-console__actions {
+  display: none;
+}
+
+/* The launch-settings disclosure stays clear of the primary launch/recovery actions. */
+.launch-console--options-open .quick-settings {
+  top: 72px;
+  bottom: 118px;
+  max-height: none;
+}
+
+/* Preparation/recovery moves identity to the top, so options begin below that context. */
+.launch-console--options-open:has(.launch-console__note) .quick-settings {
+  top: 108px;
+}
+
+/*
+ * Quick settings is vertically centred when the disclosure has room. On a short/narrow disclosure,
+ * ordinary centre alignment creates negative overflow above scrollTop=0, making Resolution and the
+ * first controls impossible to reach. Safe centring falls back to the scroll origin when needed.
+ */
+.quick-settings {
+  justify-content: safe center;
+}
+
+.home-launch-identity {
+  position: absolute !important;
+  z-index: 3 !important;
+  bottom: 82px;
+  left: 50%;
+  display: grid;
+  gap: 2px;
+  width: min(520px, calc(100% - 48px));
+  min-width: 0;
+  color: var(--console-soft);
+  text-align: center;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.home-launch-identity span,
+.home-launch-identity strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-launch-identity span {
+  font-family: var(--font-data);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.home-launch-identity strong {
+  color: var(--console-ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+/* Keep even a deliberately long decorative hull label clear of the centered launch button. */
+.home-ship-name {
+  max-width: max(0px, calc(50% - 210px));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * When preparation/recovery is the current job, setup identity is more useful than playtime or the
+ * previous run's health line. Reuse that quiet upper-left space instead of making the player carry
+ * a profile choice from Mods back to Home in memory.
+ */
+.launch-console--ready:has(.launch-console__note) .home-playtime,
+.launch-console--ready:has(.launch-console__note) .last-run-health {
+  display: none;
+}
+
+.launch-console--ready:has(.launch-console__note) .home-launch-identity,
+.page-viewport--home:has(.run-recovery[role="alert"]) .launch-console .home-launch-identity,
+.page-viewport--home:has(.notice--error) .launch-console--error .home-launch-identity {
+  top: 64px;
+  right: auto;
+  bottom: auto;
+  left: 18px;
+  width: min(520px, calc(100% - 36px));
+  text-align: left;
+  transform: none;
+}
+
+/* Exceptional actions own this space; the decorative hull caption yields to them. */
+.launch-console--ready:has(.launch-console__actions .launch-console__stop) .home-ship-name {
+  display: none;
+}
+
+.hangar-dock--catalog {
+  align-items: start;
+  grid-template-columns: minmax(240px, .85fr) minmax(0, 1.15fr) auto;
+}
+
+.hangar-selection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hangar-catalog-status {
+  color: var(--ink-faint);
+  font-family: var(--font-data);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.hangar-dock--catalog .hangar-dials {
+  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+  align-self: center;
+}
+
+.hangar-dock--catalog .hangar-dial {
+  grid-template-columns: auto minmax(44px, 1fr) auto;
+}
+
+.hangar-dock--catalog .hangar-dial output {
+  min-width: 38px;
+  color: var(--accent-strong);
+  font-family: var(--font-data);
+  font-size: 9px;
+  text-align: right;
+}
+
+.hull-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.hull-picker__search {
+  display: grid;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.hull-picker__search input {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--ink);
+  background: var(--paper-solid);
+  font-family: var(--font-data);
+  font-size: 12px;
+}
+
+.hull-picker__search input:focus-visible {
+  border-color: var(--accent-strong);
+  outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  outline-offset: 1px;
+}
+
+.hull-picker__search small {
+  color: var(--ink-faint);
+  font-family: var(--font-data);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hull-picker__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(126px, 1fr));
+  gap: 4px;
+  max-height: 152px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.hull-picker__hull {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hull-picker__hull > span {
+  overflow: hidden;
+  width: 100%;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hull-picker__hull > small {
+  color: var(--ink-faint);
+  font-family: var(--font-data);
+  font-size: 9px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.hull-picker__hull:hover,
+.hull-picker__hull:focus-visible {
+  border-color: var(--line-strong);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  outline: none;
+}
+
+.hull-picker__hull--selected {
+  border-color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.hull-picker__hull--selected > small {
+  color: var(--accent-strong);
+}
+
+.hull-picker__empty,
+.hull-picker__more {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+@container (max-width: 760px) {
+  .hangar-dock--catalog {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .hangar-dock--catalog .hangar-selection,
+  .hangar-dock--catalog .hangar-dials {
+    grid-column: 1 / -1;
+  }
+
+  .hangar-dock--catalog .hangar-dials {
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 720px) {
+  .launch-console--options-open .quick-settings {
+    top: 58px;
+    bottom: 124px;
+    max-height: none;
+  }
+
+  /*
+   * Repair, low-disk recovery, preparation cancellation, and running state add a second action.
+   * Reserve that extra row before placing the note or the settings disclosure so neither can sit
+   * over the consequential action the player is trying to take.
+   */
+  .launch-console--ready:has(.launch-console__actions .launch-console__stop) .launch-console__note {
+    bottom: 132px;
+  }
+
+  .launch-console--options-open:has(.launch-console__actions .launch-console__stop) .quick-settings {
+    bottom: 200px;
+  }
+
+  .launch-console--ready .last-run-health {
+    top: 64px;
+    right: 10px;
+    bottom: auto;
+    max-width: 46%;
+    text-align: right;
+  }
+
+  .home-launch-identity {
+    bottom: 88px;
+    width: calc(100% - 32px);
+  }
+}
