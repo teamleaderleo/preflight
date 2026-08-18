@@ -1,8 +1,8 @@
 import { ArrowIcon, GaugeIcon } from "../icons";
 import type { LastRun, PlaytimeSnapshot, WireframeHull } from "../types";
-import type { SpeedStanding } from "../useSpeedRecord";
+import type { SpeedMeasurement, SpeedStanding } from "../useSpeedRecord";
 import { formatDuration, formatPlaytime } from "../uiFormat";
-import { formatSavedTotal } from "../speedScoreboardFormat";
+import { startupComparisonPresentation } from "../speedScoreboardFormat";
 import { FlightInstrument } from "./FlightInstrument";
 
 interface SpeedScoreboardProps {
@@ -30,21 +30,26 @@ function RecordedPlaytime({ playtime }: { playtime?: PlaytimeSnapshot }) {
   );
 }
 
-/*
- * The page named Speed used to hold a switch, a disk figure and an accordion, and not one number
- * that was a speed. Measuring costs several minutes of the machine to itself, and the result was
- * kept only until the app closed.
- *
- * So this is the scoreboard for that effort, and it is deliberately the loudest thing on the
- * page. The multiplier is the headline because "5.5x" is the shape of the claim people repeat;
- * the two raw timings sit under it because a multiplier with nothing behind it is a marketing
- * number. The running total is frankly a vanity figure and is labelled as an estimate: it is
- * launches counted since the measurement, times the measured saving, and it says so.
- */
-export function SpeedScoreboard({ standing, isReady, playtime, lastRun, hull, onOpenBenchmark }: SpeedScoreboardProps) {
-  const { record, multiplier, totalSavedMs } = standing;
+function ResultFigure({ measurement }: { measurement: SpeedMeasurement }) {
+  const result = startupComparisonPresentation(
+    measurement.measurementOnlyMs,
+    measurement.optimizedMs,
+  );
+  if (result.kind === "similar") {
+    return <><span aria-hidden="true">≈</span><span>about the same</span></>;
+  }
+  return (
+    <>
+      {Math.abs(result.improvementPercent).toFixed(0)}%
+      <span>{result.kind === "faster" ? "less startup time" : "more startup time"}</span>
+    </>
+  );
+}
 
-  if (!record || multiplier === null) {
+export function SpeedScoreboard({ standing, isReady, playtime, lastRun, hull, onOpenBenchmark }: SpeedScoreboardProps) {
+  const { record } = standing;
+
+  if (!record) {
     return (
       <section className="card scoreboard scoreboard--unmeasured" aria-label="Startup speed">
         <FlightInstrument hull={hull} />
@@ -55,7 +60,7 @@ export function SpeedScoreboard({ standing, isReady, playtime, lastRun, hull, on
         </div>
         <div className="scoreboard__body">
           <strong>Measure your startup time.</strong>
-          {typeof lastRun?.startupMillis === "number" ? <p className="scoreboard__last-launch">Last fast launch: {formatDuration(lastRun.startupMillis)} to the menu.</p> : null}
+          {typeof lastRun?.startupMillis === "number" ? <p className="scoreboard__last-launch">Last Preflight launch: {formatDuration(lastRun.startupMillis)} to the menu.</p> : null}
           <p className="scoreboard__prompt">Starsector opens twice so Preflight can compare launch times.</p>
           <button className="button button--primary" type="button" onClick={onOpenBenchmark} disabled={!isReady}><GaugeIcon />Measure speed<ArrowIcon /></button>
         </div>
@@ -63,41 +68,34 @@ export function SpeedScoreboard({ standing, isReady, playtime, lastRun, hull, on
     );
   }
 
-  const measuredOn = new Date(record.recordedAt);
-  const totalLaunches = record.bankedLaunches + record.fastLaunches;
+  const best = record.personalBest;
+  const latest = record.latest;
+  const bestResult = startupComparisonPresentation(best.measurementOnlyMs, best.optimizedMs);
+  const latestResult = startupComparisonPresentation(latest.measurementOnlyMs, latest.optimizedMs);
+  const bestMeasuredOn = new Date(best.recordedAt);
+  const latestMeasuredOn = new Date(latest.recordedAt);
   return (
     <section className="card scoreboard" aria-label="Startup speed">
       <FlightInstrument hull={hull} />
       <div className="scoreboard__headline">
-        <p className="eyebrow">Measured on this computer</p>
-        <strong className="scoreboard__figure">
-          {multiplier.toFixed(1)}<span>× faster</span>
-        </strong>
+        <p className="eyebrow">Personal best</p>
+        <strong className="scoreboard__figure"><ResultFigure measurement={best} /></strong>
         <div className="scoreboard__split">
-          <span><small>Normal</small>{formatDuration(record.measurementOnlyMs)}</span>
+          <span><small>Normal</small>{formatDuration(best.measurementOnlyMs)}</span>
           <ArrowIcon aria-hidden="true" />
-          <span className="scoreboard__split--won"><small>Preflight</small>{formatDuration(record.optimizedMs)}</span>
+          <span className={bestResult.kind === "faster" ? "scoreboard__split--won" : undefined}><small>Preflight</small>{formatDuration(best.optimizedMs)}</span>
         </div>
         <RecordedPlaytime playtime={playtime} />
       </div>
       <div className="scoreboard__body">
         <div className="scoreboard__total">
-          {totalLaunches > 0 ? (
-            <>
-              <strong>{formatSavedTotal(totalSavedMs)}</strong>
-              <span>saved across {totalLaunches.toLocaleString()} matching launch{totalLaunches === 1 ? "" : "es"}.</span>
-              <small>Estimated from the measured saving above.</small>
-            </>
-          ) : (
-            <>
-              <strong>{formatDuration(record.measurementOnlyMs - record.optimizedMs)} saved per launch</strong>
-              <span>Based on this benchmark.</span>
-            </>
-          )}
+          <strong>Latest benchmark: {latestResult.headline}</strong>
+          <span>{formatDuration(latest.measurementOnlyMs)} normal → {formatDuration(latest.optimizedMs)} Preflight · {latestResult.detail}.</span>
+          <small>Controlled comparison recorded {latestMeasuredOn.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}.</small>
         </div>
         <div className="scoreboard__actions">
-          <button className="button button--quiet button--compact" type="button" onClick={onOpenBenchmark} disabled={!isReady}><GaugeIcon />Measure again</button>
-          <small>Measured {measuredOn.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</small>
+          <button className="button button--quiet button--compact" type="button" onClick={onOpenBenchmark} disabled={!isReady}><GaugeIcon />Measure current setup</button>
+          <small>Personal best recorded {bestMeasuredOn.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</small>
         </div>
       </div>
     </section>
