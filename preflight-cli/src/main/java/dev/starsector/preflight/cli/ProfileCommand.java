@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -33,6 +34,8 @@ final class ProfileCommand {
     private static final Pattern PROFILE_BACKUP_FILE = Pattern.compile(
             "(?:enabled_mods|deleted-profile)-\\d+-.*\\.json");
     private static final Pattern ACTIVATION_REVIEW_FILE = Pattern.compile("[0-9a-f]{64}\\.json");
+    private static final DuplicatePublicationHook NO_DUPLICATE_PUBLICATION_HOOK = target -> {
+    };
 
     private ProfileCommand() {
     }
@@ -51,25 +54,25 @@ final class ProfileCommand {
                 throw new IllegalArgumentException("profile " + operation + " requires a name");
             }
             name = validateName(args[optionsAt++]);
-        } else if ("rename".equals(operation)) {
+        } else if ("rename".equals(operation) || "duplicate".equals(operation)) {
             if (optionsAt + 1 >= args.length
                     || args[optionsAt].startsWith("--")
                     || args[optionsAt + 1].startsWith("--")) {
-                throw new IllegalArgumentException("profile rename requires the current and new names");
+                throw new IllegalArgumentException("profile " + operation + " requires the current and new names");
             }
             name = validateName(args[optionsAt++]);
             targetName = validateName(args[optionsAt++]);
         } else if (!"list".equals(operation)) {
-            throw new IllegalArgumentException("Expected: profile <list|save|activate|rename|delete> ...");
+            throw new IllegalArgumentException("Expected: profile <list|save|activate|rename|duplicate|delete> ...");
         }
 
         Options options = Options.parse(args, optionsAt);
-        boolean mutation = "rename".equals(operation) || "delete".equals(operation);
+        boolean mutation = "rename".equals(operation) || "duplicate".equals(operation) || "delete".equals(operation);
         if (options.confirmed() && !("activate".equals(operation) || mutation)) {
-            throw new IllegalArgumentException("--yes is only valid for profile activate, rename, or delete");
+            throw new IllegalArgumentException("--yes is only valid for profile activate, rename, duplicate, or delete");
         }
         if (options.expectedProfile() != null && !mutation) {
-            throw new IllegalArgumentException("--expected-profile is only valid for profile rename or delete");
+            throw new IllegalArgumentException("--expected-profile is only valid for profile rename, duplicate, or delete");
         }
         if (mutation && options.confirmed() && options.expectedProfile() == null) {
             throw new IllegalArgumentException(
@@ -83,6 +86,15 @@ final class ProfileCommand {
             case "activate" -> activate(
                     home, target.installRoot(), name, options.confirmed(), options.json(), System.out);
             case "rename" -> rename(
+                    home,
+                    target.installRoot(),
+                    name,
+                    targetName,
+                    options.expectedProfile(),
+                    options.confirmed(),
+                    options.json(),
+                    System.out);
+            case "duplicate" -> duplicate(
                     home,
                     target.installRoot(),
                     name,
@@ -106,6 +118,14 @@ final class ProfileCommand {
     static int save(PreflightHome home, Path installRoot, String name, boolean json, PrintStream out)
             throws Exception {
         name = validateName(name);
+        OperationLease.Acquisition ownership = OperationLease.acquire(home, "saving-profile", installRoot);
+        try (OperationLease ignored = ownership.lease()) {
+            return saveOwned(home, installRoot, name, json, out);
+        }
+    }
+
+    private static int saveOwned(
+            PreflightHome home, Path installRoot, String name, boolean json, PrintStream out) throws Exception {
         GameLayout layout = GameLayout.locate(installRoot);
         List<String> enabled = readEnabled(layout.enabledModsFile());
         Set<String> installed = installedModIds(layout.modsDirectory());
@@ -241,7 +261,10 @@ final class ProfileCommand {
             emitMutation(plan, json, out);
             return 0;
         }
-        requireExpectedProfile(profile, expectedProfile);
+        profile = requireReviewedProfile(profile, name, expectedProfile);
+        if (Files.exists(target)) {
+            throw new IOException("A named profile already exists: " + targetName);
+        }
         SavedProfile renamed = new SavedProfile(
                 targetName,
                 profile.installRoot(),
@@ -257,6 +280,101 @@ final class ProfileCommand {
             throw deleteFailure;
         }
         plan.put("applied", true);
+        emitMutation(plan, json, out);
+        return 0;
+    }
+
+    static int duplicate(
+            PreflightHome home,
+            Path installRoot,
+            String name,
+            String targetName,
+            String expectedProfile,
+            boolean confirmed,
+            boolean json,
+            PrintStream out) throws Exception {
+        return duplicate(
+                home,
+                installRoot,
+                name,
+                targetName,
+                expectedProfile,
+                confirmed,
+                json,
+                out,
+                NO_DUPLICATE_PUBLICATION_HOOK);
+    }
+
+    static int duplicate(
+            PreflightHome home,
+            Path installRoot,
+            String name,
+            String targetName,
+            String expectedProfile,
+            boolean confirmed,
+            boolean json,
+            PrintStream out,
+            DuplicatePublicationHook publicationHook) throws Exception {
+        name = validateName(name);
+        targetName = validateName(targetName);
+        if (name.equals(targetName)) {
+            throw new IllegalArgumentException("The new profile name must be different");
+        }
+        if (!confirmed) {
+            return duplicateOwned(
+                    home, installRoot, name, targetName, null, false, json, out, publicationHook);
+        }
+        OperationLease.Acquisition ownership = OperationLease.acquire(home, "duplicating-profile", installRoot);
+        try (OperationLease ignored = ownership.lease()) {
+            return duplicateOwned(
+                    home, installRoot, name, targetName, expectedProfile, true, json, out, publicationHook);
+        }
+    }
+
+    private static int duplicateOwned(
+            PreflightHome home,
+            Path installRoot,
+            String name,
+            String targetName,
+            String expectedProfile,
+            boolean confirmed,
+            boolean json,
+            PrintStream out,
+            DuplicatePublicationHook publicationHook) throws Exception {
+        GameLayout layout = GameLayout.locate(installRoot);
+        SavedProfile profile = readProfile(profilePath(home, name));
+        requireProfileName(profile, name);
+        Path target = profilePath(home, targetName);
+        if (Files.exists(target)) {
+            throw new IOException("A named profile already exists: " + targetName);
+        }
+        Map<String, Object> plan = mutationPlan("duplicate", profile, layout, targetName);
+        if (!confirmed) {
+            emitMutation(plan, json, out);
+            return 0;
+        }
+        profile = requireReviewedProfile(profile, name, expectedProfile);
+        if (Files.exists(target)) {
+            throw new IOException("A named profile already exists: " + targetName);
+        }
+        publicationHook.beforePublication(target);
+        SavedProfile duplicated = new SavedProfile(
+                targetName,
+                profile.installRoot(),
+                profile.enabledMods(),
+                profile.profileFingerprint(),
+                Instant.now().toString(),
+                target);
+        try {
+            atomicCreate(
+                    target,
+                    Json.object(duplicated.persisted()) + System.lineSeparator(),
+                    publicationHook);
+        } catch (FileAlreadyExistsException collision) {
+            throw new IOException("A named profile already exists: " + targetName, collision);
+        }
+        plan.put("applied", true);
+        plan.put("file", target.toString());
         emitMutation(plan, json, out);
         return 0;
     }
@@ -295,7 +413,7 @@ final class ProfileCommand {
             emitMutation(plan, json, out);
             return 0;
         }
-        requireExpectedProfile(profile, expectedProfile);
+        profile = requireReviewedProfile(profile, name, expectedProfile);
         Path backup = backupProfile(home, profile);
         Files.delete(profile.file());
         plan.put("applied", true);
@@ -312,13 +430,19 @@ final class ProfileCommand {
         plan.put("operation", operation);
         plan.put("name", profile.name());
         plan.put("targetName", targetName);
-        plan.put("profileFingerprint", profile.profileFingerprint());
+        plan.put("profileFingerprint", mutationFingerprint(profile));
+        plan.put("sourceProfileFingerprint", profile.profileFingerprint());
         plan.put("active", profile.installRoot().equals(layout.installRoot())
                 && profile.enabledMods().equals(current));
         plan.put("modCount", profile.enabledMods().size());
         plan.put("applied", false);
         plan.put("preparedDataKept", true);
         return plan;
+    }
+
+    private static String mutationFingerprint(SavedProfile profile) {
+        String persisted = Json.object(profile.persisted()) + System.lineSeparator();
+        return Hashes.sha256(persisted.getBytes(StandardCharsets.UTF_8));
     }
 
     private static void requireProfileName(SavedProfile profile, String requestedName) throws IOException {
@@ -330,9 +454,18 @@ final class ProfileCommand {
     private static void requireExpectedProfile(SavedProfile profile, String expectedProfile)
             throws IOException {
         if (expectedProfile == null
-                || !profile.profileFingerprint().equals(expectedProfile.toLowerCase(Locale.ROOT))) {
+                || !mutationFingerprint(profile).equals(expectedProfile.toLowerCase(Locale.ROOT))) {
             throw new IOException("Named profile changed since review; review it again");
         }
+    }
+
+    private static SavedProfile requireReviewedProfile(
+            SavedProfile profile, String requestedName, String expectedProfile) throws IOException {
+        requireExpectedProfile(profile, expectedProfile);
+        SavedProfile current = readProfile(profile.file());
+        requireProfileName(current, requestedName);
+        requireExpectedProfile(current, expectedProfile);
+        return current;
     }
 
     private static Path backupProfile(PreflightHome home, SavedProfile profile) throws IOException {
@@ -354,6 +487,10 @@ final class ProfileCommand {
         String operation = String.valueOf(plan.get("operation"));
         if ("rename".equals(operation)) {
             out.printf(Locale.ROOT, "Rename profile '%s' to '%s': %s%n",
+                    plan.get("name"), plan.get("targetName"),
+                    Boolean.TRUE.equals(plan.get("applied")) ? "applied" : "preview only");
+        } else if ("duplicate".equals(operation)) {
+            out.printf(Locale.ROOT, "Duplicate profile '%s' to '%s': %s%n",
                     plan.get("name"), plan.get("targetName"),
                     Boolean.TRUE.equals(plan.get("applied")) ? "applied" : "preview only");
         } else {
@@ -654,6 +791,49 @@ final class ProfileCommand {
         }
     }
 
+    /**
+     * Publishes a completed profile only if its final pathname is still absent.
+     *
+     * The staged inode lives beside the destination, so a hard link is a single same-filesystem
+     * directory operation: the final name can appear only after every byte is written, and an
+     * independently-created final name is never replaced. A filesystem without hard-link support
+     * fails closed instead of falling back to a copying publication that could expose partial data.
+     */
+    private static void atomicCreate(
+            Path target, String value, DuplicatePublicationHook publicationHook) throws IOException {
+        Path absolute = target.toAbsolutePath().normalize();
+        Path parent = SafetyArtifactRetention.requireRealDirectory(absolute.getParent());
+        Path staged = Files.createTempFile(parent, ".preflight-profile-create-", ".tmp");
+        boolean published = false;
+        Throwable failure = null;
+        try {
+            Files.writeString(staged, value, StandardCharsets.UTF_8);
+            try {
+                Files.createLink(absolute, staged);
+                published = true;
+            } catch (UnsupportedOperationException unsupported) {
+                throw new IOException(
+                        "Filesystem cannot publish a duplicate profile safely: " + absolute,
+                        unsupported);
+            }
+        } catch (IOException | RuntimeException error) {
+            failure = error;
+            throw error;
+        } finally {
+            try {
+                publicationHook.cleanupStagedProfile(staged);
+            } catch (IOException cleanupFailure) {
+                if (!published) {
+                    if (failure != null) {
+                        failure.addSuppressed(cleanupFailure);
+                    } else {
+                        throw cleanupFailure;
+                    }
+                }
+            }
+        }
+    }
+
     private static boolean moveReplace(Path source, Path target) throws IOException {
         try {
             Files.move(source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
@@ -835,6 +1015,15 @@ final class ProfileCommand {
                 throw new IllegalArgumentException(option + " requires a value");
             }
             return args[index];
+        }
+    }
+
+    @FunctionalInterface
+    interface DuplicatePublicationHook {
+        void beforePublication(Path target) throws IOException;
+
+        default void cleanupStagedProfile(Path staged) throws IOException {
+            Files.deleteIfExists(staged);
         }
     }
 

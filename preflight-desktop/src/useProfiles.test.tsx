@@ -24,6 +24,28 @@ function plan(overrides: Partial<profileActivation.ReviewedProfileActivationPlan
   };
 }
 
+function profileList() {
+  return {
+    format: "starsector-preflight-profile-list-v1" as const,
+    installRoot: "/Applications/Starsector",
+    enabledMods: ["alpha"],
+    profiles: [{
+      name: "Main",
+      installRoot: "/Applications/Starsector",
+      enabledMods: ["alpha"],
+      modCount: 1,
+      profileFingerprint: "a".repeat(64),
+      savedAt: new Date().toISOString(),
+      sameInstall: true,
+      active: true,
+      canActivate: true,
+      missingMods: [],
+      file: "/home/profiles/a.json",
+    }],
+    diagnostics: [],
+  };
+}
+
 test("reuses the current installation list across ordinary page navigation", async () => {
   const profiles = vi.spyOn(bridge, "getProfiles");
   const refreshInstallation = vi.fn().mockResolvedValue(true);
@@ -87,4 +109,141 @@ test("a stale activation becomes a fresh review instead of reporting success", a
   expect(announce).not.toHaveBeenCalledWith(expect.stringContaining("Switched to"), expect.anything());
 
   activate.mockRestore();
+});
+
+test("duplicate profile workflow reviews then applies duplicate mutation", async () => {
+  const getProfilesSpy = vi.spyOn(bridge, "getProfiles").mockResolvedValue(profileList());
+
+  const duplicateSpy = vi.spyOn(bridge, "duplicateProfile")
+    .mockResolvedValueOnce({
+      format: "starsector-preflight-profile-mutation-v1",
+      operation: "duplicate",
+      name: "Main",
+      targetName: "Experiment",
+      profileFingerprint: "c".repeat(64),
+      active: false,
+      modCount: 1,
+      applied: false,
+      preparedDataKept: true,
+    })
+    .mockResolvedValueOnce({
+      format: "starsector-preflight-profile-mutation-v1",
+      operation: "duplicate",
+      name: "Main",
+      targetName: "Experiment",
+      profileFingerprint: "c".repeat(64),
+      active: false,
+      modCount: 1,
+      applied: true,
+      preparedDataKept: true,
+    });
+
+  const refreshInstallation = vi.fn().mockResolvedValue(true);
+  const refreshCache = vi.fn().mockResolvedValue(undefined);
+  const announce = vi.fn();
+  const { result } = renderHook(() => useProfiles(
+    "/Applications/Starsector",
+    false,
+    refreshInstallation,
+    refreshCache,
+    announce,
+  ));
+
+  act(() => {
+    result.current.beginDuplicate("Main");
+  });
+  expect(result.current.duplicateTarget).toBe("Main");
+  expect(result.current.duplicateDraft).toBe("Main (Copy)");
+
+  act(() => {
+    result.current.setDuplicateDraft("Experiment");
+  });
+  expect(result.current.duplicateDraft).toBe("Experiment");
+
+  await act(async () => {
+    result.current.submitDuplicate();
+  });
+
+  expect(duplicateSpy).toHaveBeenNthCalledWith(
+    1,
+    "/Applications/Starsector",
+    "Main",
+    "Experiment",
+    null,
+    false,
+  );
+  expect(result.current.duplicateTarget).toBeNull();
+  expect(result.current.mutationPlan).toMatchObject({
+    operation: "duplicate",
+    name: "Main",
+    targetName: "Experiment",
+    profileFingerprint: "c".repeat(64),
+    applied: false,
+  });
+
+  await act(async () => {
+    await result.current.applyProfileMutation();
+  });
+
+  expect(duplicateSpy).toHaveBeenNthCalledWith(
+    2,
+    "/Applications/Starsector",
+    "Main",
+    "Experiment",
+    "c".repeat(64),
+    true,
+  );
+  expect(result.current.mutationPlan).toBeNull();
+  expect(announce).toHaveBeenCalledWith("Duplicated “Main” as “Experiment”.", "success");
+
+  getProfilesSpy.mockRestore();
+  duplicateSpy.mockRestore();
+});
+
+test("failed duplicate confirmation discards the stale review and refreshes profiles", async () => {
+  const getProfilesSpy = vi.spyOn(bridge, "getProfiles").mockResolvedValue(profileList());
+  const duplicateSpy = vi.spyOn(bridge, "duplicateProfile")
+    .mockResolvedValueOnce({
+      format: "starsector-preflight-profile-mutation-v1",
+      operation: "duplicate",
+      name: "Main",
+      targetName: "Experiment",
+      profileFingerprint: "c".repeat(64),
+      active: false,
+      modCount: 1,
+      applied: false,
+      preparedDataKept: true,
+    })
+    .mockRejectedValueOnce(new Error("Named profile changed since review; review it again"));
+  const announce = vi.fn();
+  const { result } = renderHook(() => useProfiles(
+    "/Applications/Starsector",
+    false,
+    vi.fn().mockResolvedValue(true),
+    vi.fn().mockResolvedValue(undefined),
+    announce,
+  ));
+
+  await act(async () => result.current.reviewDuplicateProfile("Main", "Experiment"));
+  expect(result.current.mutationPlan?.profileFingerprint).toBe("c".repeat(64));
+
+  await act(async () => result.current.applyProfileMutation());
+
+  expect(duplicateSpy).toHaveBeenNthCalledWith(
+    2,
+    "/Applications/Starsector",
+    "Main",
+    "Experiment",
+    "c".repeat(64),
+    true,
+  );
+  expect(result.current.mutationPlan).toBeNull();
+  expect(getProfilesSpy).toHaveBeenCalledTimes(1);
+  expect(announce).toHaveBeenCalledWith(
+    "Named profile changed since review; review it again",
+    "error",
+  );
+
+  getProfilesSpy.mockRestore();
+  duplicateSpy.mockRestore();
 });

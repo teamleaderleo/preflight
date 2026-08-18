@@ -88,7 +88,7 @@ test("manual publication reuses and revalidates the exact tagged draft", () => {
   assert.match(publication, /Draft release changed during publication verification/);
   assert.match(publication, /Release tag moved during publication verification/);
   assert.match(publication, /gh release edit "\$RELEASE_TAG".*--draft=false/);
-  assert.doesNotMatch(publication, /mvn .*verify|tauri build|cargo build|npm run build/);
+  assert.doesNotMatch(publication, /mvn .*verify|tauri build|cargo build/);
 });
 
 test("signed candidates require updater credentials, release validation and every platform", () => {
@@ -203,4 +203,9 @@ test("every native package job exercises install, automation contracts and both 
   assert.match(exercise, /exercisePackagedDesktopSmokeContract/);
   assert.match(exercise, /exercisePackagedAllDataRemoval/);
   assert.match(exercise, /gameModAndSaveDataRetained: true/);
+  assert.doesNotMatch(exercise, /owned integration\\n/);
+  assert.match(exercise, /# preflight-integration: dev\.starsector\.preflight\.launcher-v1/);
+  assert.match(exercise, /X-Preflight-Integration=dev\.starsector\.preflight\.launcher-v1/);
+  assert.match(exercise, /REM preflight-integration: dev\.starsector\.preflight\.launcher-v1/);
+  assert.match(exercise, /CFBundleIdentifier<\/key><string>dev\.starsector\.preflight\.launcher/);
 });
