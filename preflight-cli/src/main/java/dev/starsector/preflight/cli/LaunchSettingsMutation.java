@@ -77,6 +77,16 @@ final class LaunchSettingsMutation {
             } catch (GameLaunchPreferences.PreferenceStateChangedException stale) {
                 deleteUnusedBackup(preferenceBackup, stale);
                 throw stale;
+            } catch (GameLaunchPreferences.PreferencePublicationException failed) {
+                GameLaunchPreferences.AppliedChange observed = failed.observedChange();
+                if (observed != null && observed.publishedAsRequested()) {
+                    try {
+                        GameLaunchPreferences.restoreIfStillPublished(store, observed);
+                    } catch (Exception rollbackRefused) {
+                        failed.addSuppressed(rollbackRefused);
+                    }
+                }
+                throw failed;
             }
 
             if (!preferencePublication.publishedAsRequested()) {
