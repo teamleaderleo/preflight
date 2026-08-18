@@ -183,15 +183,19 @@ final class InstallCommand {
         Path stagedDesktop = null;
         IntegrationMutation.Publication commandPublication = null;
         IntegrationMutation.Publication desktopPublication = null;
+        boolean desktopCommitted = false;
+        boolean commandCommitted = false;
         try {
             stagedDesktop = stageFile(desktop, desktopFile, false);
             commandPublication = IntegrationMutation.publish(commandReview, stagedCommand);
             desktopPublication = IntegrationMutation.publish(desktopReview, stagedDesktop);
 
             // Prove both public generations before retiring either predecessor. The desktop entry
-            // depends on the command, so a late command loss can still restore the reviewed desktop.
+            // depends on the command, so a late command loss can still withdraw the desktop safely.
             desktopPublication.commit();
+            desktopCommitted = true;
             commandPublication.commit();
+            commandCommitted = true;
 
             // Cleanup is post-commit maintenance. A changed quarantine is preserved as residue and
             // cannot turn an already committed public pair into a misleading install failure.
@@ -204,7 +208,14 @@ final class InstallCommand {
             IOException result = failure;
             if (desktopPublication != null) {
                 try {
-                    desktopPublication.rollback();
+                    if (desktopCommitted && !commandCommitted) {
+                        // Restoring the old desktop here would point it at a command generation
+                        // whose exact ownership proof just failed. Withdraw the desired desktop and
+                        // retain its reviewed predecessor in quarantine for recovery instead.
+                        desktopPublication.rollbackWithoutRestore();
+                    } else {
+                        desktopPublication.rollback();
+                    }
                 } catch (IOException rollbackFailure) {
                     result.addSuppressed(rollbackFailure);
                 }
