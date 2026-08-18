@@ -42,6 +42,7 @@ export function useProfiles(
   const actionRequest = useRef(0);
   const busyRef = useRef(false);
   const profileNameRevision = useRef(0);
+  const launchIdentityRefreshing = useRef(false);
   const currentGame = useRef(game);
   currentGame.current = game;
 
@@ -68,6 +69,7 @@ export function useProfiles(
     actionRequest.current += 1;
     busyRef.current = false;
     profileNameRevision.current += 1;
+    launchIdentityRefreshing.current = false;
     setProfiles(null);
     setProfilesLoading(false);
     setProfileBusy(false);
@@ -84,8 +86,10 @@ export function useProfiles(
 
   useEffect(() => {
     // Page navigation is not a filesystem change. Keep the last list for this exact installation
-    // instead of starting another JVM every time Home or Mods becomes visible again.
-    if (visible && profiles?.installRoot !== game) {
+    // instead of starting another JVM every time Home or Mods becomes visible again. If a refocus
+    // revalidation is already supplying that read, Home consumes it instead of launching a second
+    // engine request merely because the retained list was deliberately invalidated.
+    if (visible && profiles?.installRoot !== game && !launchIdentityRefreshing.current) {
       void refreshProfiles();
     } else if (!game) {
       profilesRequest.current += 1;
@@ -102,8 +106,12 @@ export function useProfiles(
     // a saved name while freshness is unproven, and a failed profile refresh cannot restore stale
     // certainty merely because the previous profile/cache snapshots happened to agree.
     const refreshLaunchIdentity = () => {
+      if (launchIdentityRefreshing.current) return;
+      launchIdentityRefreshing.current = true;
       setProfiles(null);
-      void Promise.all([refreshProfiles(), refreshCache()]);
+      void Promise.all([refreshProfiles(), refreshCache()]).finally(() => {
+        launchIdentityRefreshing.current = false;
+      });
     };
     window.addEventListener("focus", refreshLaunchIdentity);
     return () => window.removeEventListener("focus", refreshLaunchIdentity);
@@ -344,6 +352,7 @@ export function useProfiles(
     profilesRequest.current += 1;
     actionRequest.current += 1;
     busyRef.current = false;
+    launchIdentityRefreshing.current = false;
     setProfiles(null);
     setProfilesLoading(false);
     setProfileBusy(false);
