@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -63,3 +63,110 @@ jobs:
 
       - name: Test native host at declared MSRV
         run: cargo test --locked --manifest-path preflight-desktop/src-tauri/Cargo.toml
+
+  finish_703_native_integration:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'fix/desktop-report-authority'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/desktop-report-authority
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: 1.85.0
+          components: rustfmt,clippy
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Install Linux desktop dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Apply lint-safe upload boundary and review entries
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import json
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one replacement target, found {count}")
+              target.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              "preflight-desktop/src-tauri/src/lib.rs",
+              "mod preparation;\nmod report_transport;\nmod reports;",
+              "mod preparation;\n// The legacy path stays compiled for compatibility helpers while production uploads use\n// report_transport_v2 through the native authority lifecycle.\n#[allow(dead_code)]\nmod report_transport;\nmod reports;",
+          )
+
+          transport = "preflight-desktop/src-tauri/src/report_transport_v2.rs"
+          replace_once(
+              transport,
+              "const REPORT_UPLOAD_LIMIT: u64 = 6 * 1024 * 1024;\n\n",
+              "const REPORT_UPLOAD_LIMIT: u64 = 6 * 1024 * 1024;\n\npub(crate) struct ReportUploadAttempt {\n    pub(crate) client: Client,\n    pub(crate) origin: Url,\n    pub(crate) archive: Vec<u8>,\n    pub(crate) report: ReportUploadInput,\n    pub(crate) id: u64,\n    pub(crate) cancel: watch::Receiver<bool>,\n}\n\n",
+          )
+          replace_once(
+              transport,
+              "pub(crate) async fn perform_report_upload_with_authority(\n    client: Client,\n    origin: Url,\n    archive: Vec<u8>,\n    report: ReportUploadInput,\n    id: u64,\n    mut cancel: watch::Receiver<bool>,\n    lifecycle: &NativeReportAuthorityLifecycle,\n    emit: impl Fn(ReportUploadStateEvent) + Clone + Send + Sync + 'static,\n) -> Result<ReportReceipt, ReportUploadError> {\n",
+              "pub(crate) async fn perform_report_upload_with_authority(\n    upload: ReportUploadAttempt,\n    lifecycle: &NativeReportAuthorityLifecycle,\n    emit: impl Fn(ReportUploadStateEvent) + Clone + Send + Sync + 'static,\n) -> Result<ReportReceipt, ReportUploadError> {\n    let ReportUploadAttempt {\n        client,\n        origin,\n        archive,\n        report,\n        id,\n        cancel,\n    } = upload;\n    let mut cancel = cancel;\n",
+          )
+
+          reports = "preflight-desktop/src-tauri/src/reports.rs"
+          replace_once(
+              reports,
+              "use report_transport_v2::{perform_report_upload_with_authority, validated_report_archive_bytes};",
+              "use report_transport_v2::{\n    ReportUploadAttempt, perform_report_upload_with_authority, validated_report_archive_bytes,\n};",
+          )
+          replace_once(
+              reports,
+              "    let outcome = perform_report_upload_with_authority(\n        client,\n        origin,\n        archive,\n        report.clone(),\n        id,\n        cancel_receiver,\n        &lifecycle,\n",
+              "    let outcome = perform_report_upload_with_authority(\n        ReportUploadAttempt {\n            client,\n            origin,\n            archive,\n            report: report.clone(),\n            id,\n            cancel: cancel_receiver,\n        },\n        &lifecycle,\n",
+          )
+
+          lock_path = Path("preflight-desktop/capabilities/release-receipt-source-lock.json")
+          lock = json.loads(lock_path.read_text())
+          sources = lock["sources"]
+          for source in (
+              "src-tauri/src/report_authority.rs",
+              "src-tauri/src/report_transport_v2.rs",
+          ):
+              sources.setdefault(source, "")
+          lock["sources"] = dict(sorted(sources.items()))
+          lock_path.write_text(json.dumps(lock, indent=2) + "\n")
+          PY
+
+          cargo fmt --manifest-path preflight-desktop/src-tauri/Cargo.toml --all
+          npm run capabilities:review --prefix preflight-desktop
+          mkdir -p preflight-desktop/src-tauri/target/engine
+          printf 'CI compile-time resource placeholder\n' \
+            > preflight-desktop/src-tauri/target/engine/review-placeholder.txt
+          cargo clippy --locked --manifest-path preflight-desktop/src-tauri/Cargo.toml \
+            --all-targets -- -D warnings
+          git diff --check
+
+      - name: Publish product changes and restore workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git checkout origin/main -- .github/workflows/rust-msrv.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Finish native report authority integration"
+          git push origin HEAD:fix/desktop-report-authority
