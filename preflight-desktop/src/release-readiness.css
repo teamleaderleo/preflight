@@ -7,20 +7,24 @@
 }
 
 /*
- * A previous run failure is the player's current job. Put its recovery before the idle launch
- * display so Relaunch / Help are visible on entry instead of living one viewport below "Ready".
+ * A previous run failure or current blocking error is the player's current job. Put its recovery
+ * before the idle launch display so the next useful action is visible on entry instead of living
+ * one viewport below "Ready" / "Needs attention".
  */
-.page-viewport--home:has(.run-recovery) {
+.page-viewport--home:has(.run-recovery),
+.page-viewport--home:has(.notice--error) {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.page-viewport--home:has(.run-recovery) > * {
+.page-viewport--home:has(.run-recovery) > *,
+.page-viewport--home:has(.notice--error) > * {
   flex: 0 0 auto;
 }
 
-.page-viewport--home:has(.run-recovery) .run-recovery {
+.page-viewport--home:has(.run-recovery) .run-recovery,
+.page-viewport--home:has(.notice--error) .notice--error {
   order: -1;
 }
 
