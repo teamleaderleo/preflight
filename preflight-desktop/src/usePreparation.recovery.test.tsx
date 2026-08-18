@@ -83,12 +83,13 @@ test("reconnected preparation keeps cooperative stop available", async () => {
   const cancel = vi.spyOn(bridge, "cancelPreparation").mockResolvedValue(true);
   vi.spyOn(tauriEvents, "listenWhileMounted").mockImplementation((() => () => undefined) as typeof tauriEvents.listenWhileMounted);
   const announce = vi.fn();
+  const launch = vi.fn().mockResolvedValue(undefined);
 
   const { result, unmount } = renderHook(() => usePreparation(
     "/Applications/Starsector",
     false,
     "off",
-    vi.fn().mockResolvedValue(undefined),
+    launch,
     announce,
   ));
 
