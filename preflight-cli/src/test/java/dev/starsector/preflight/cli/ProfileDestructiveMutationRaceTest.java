@@ -16,8 +16,10 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -25,6 +27,36 @@ import org.junit.jupiter.api.io.TempDir;
 final class ProfileDestructiveMutationRaceTest {
     @TempDir
     Path temporaryDirectory;
+
+    @Test
+    void renamedProfileIsOwnerPrivateOnPosix() throws Exception {
+        Fixture fixture = fixture();
+        save(fixture, "Source");
+        String token = renamePreviewToken(fixture, "Source", "Renamed");
+
+        assertEquals(0, ProfileCommand.rename(
+                fixture.home(), fixture.game(), "Source", "Renamed", token, true, true,
+                stream(new ByteArrayOutputStream()), new ProfileMutationTransaction.Hook() {}));
+
+        assertOwnerPrivateWhenPosix(profile(fixture, "Renamed"));
+    }
+
+    @Test
+    void deletedProfileBackupIsOwnerPrivateOnPosix() throws Exception {
+        Fixture fixture = fixture();
+        save(fixture, "Source");
+        String token = deletePreviewToken(fixture, "Source");
+
+        assertEquals(0, ProfileCommand.delete(
+                fixture.home(), fixture.game(), "Source", token, true, true,
+                stream(new ByteArrayOutputStream()), new ProfileMutationTransaction.Hook() {}));
+
+        Path backup = backupFiles(fixture).stream()
+                .filter(path -> path.getFileName().toString().startsWith("deleted-profile-"))
+                .findFirst()
+                .orElseThrow();
+        assertOwnerPrivateWhenPosix(backup);
+    }
 
     @Test
     void renameDestinationCreatedAtFinalPublicationWinsWithoutLosingSource() throws Exception {
@@ -376,6 +408,14 @@ final class ProfileDestructiveMutationRaceTest {
 
     private static void assertNoTransactions(Fixture fixture) throws IOException {
         assertFalse(hasTransaction(fixture));
+    }
+
+    private static void assertOwnerPrivateWhenPosix(Path path) throws IOException {
+        if (!Files.getFileStore(path).supportsFileAttributeView("posix")) return;
+        Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(path);
+        assertEquals(
+                Set.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE),
+                permissions);
     }
 
     private static PrintStream stream(ByteArrayOutputStream output) {

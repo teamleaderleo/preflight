@@ -9,8 +9,11 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -78,7 +81,7 @@ final class ProfileMutationTransaction {
         IOException pendingAfterCommit = null;
         try {
             byte[] reviewedBytes = anchorReviewedSource(source, reviewed, snapshot, verifier);
-            Files.write(stagedReplacement, replacement, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+            writeOwnerPrivate(stagedReplacement, replacement);
 
             hook.beforeSourceCapture(source);
             atomicCapture(source, captured);
@@ -370,8 +373,19 @@ final class ProfileMutationTransaction {
         }
         byte[] bytes = Files.readAllBytes(reviewed);
         verifier.verify(bytes);
-        Files.write(snapshot, bytes, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+        writeOwnerPrivate(snapshot, bytes);
         return bytes;
+    }
+
+    private static void writeOwnerPrivate(Path path, byte[] bytes) throws IOException {
+        try {
+            Files.createFile(path, PosixFilePermissions.asFileAttribute(EnumSet.of(
+                    PosixFilePermission.OWNER_READ,
+                    PosixFilePermission.OWNER_WRITE)));
+        } catch (UnsupportedOperationException unsupported) {
+            Files.createFile(path);
+        }
+        Files.write(path, bytes, StandardOpenOption.WRITE);
     }
 
     private static boolean exactCapture(
