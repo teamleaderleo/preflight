@@ -3,6 +3,7 @@ import { applyRemoval, getRemovalPlan } from "./bridge";
 import { clearPreflightLocalStorage } from "./desktopStorage";
 import type { Announce, DesktopSnapshot, RemovalPlan, RemovalScope } from "./types";
 import { errorMessage } from "./uiFormat";
+import { resetInstrumentMotion } from "./useInstrumentMotion";
 
 export function useRemoval(
   platform: DesktopSnapshot["platform"] | undefined,
@@ -51,6 +52,7 @@ export function useRemoval(
       let localStorageFailures: string[] = [];
       if (scope === "all-data") {
         localStorageFailures = clearPreflightLocalStorage();
+        resetInstrumentMotion();
         clearCache();
         clearProfiles();
         clearReportReceipt();
