@@ -247,23 +247,35 @@ final class ProfileMutationTransaction {
 
     /** Finishes or safely aborts every interrupted profile transaction before a new writer starts. */
     static void recover(Path profileDirectory, Path backupDirectory) throws IOException {
-        Path profiles = SafetyArtifactRetention.requireRealDirectory(profileDirectory);
-        Path backups = SafetyArtifactRetention.requireRealDirectory(backupDirectory);
+        Path profiles = profileDirectory.toAbsolutePath().normalize();
+        if (!Files.exists(profiles, LinkOption.NOFOLLOW_LINKS)) {
+            return;
+        }
+        if (Files.isSymbolicLink(profiles)
+                || !Files.isDirectory(profiles, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("Named-profile directory is not a real directory: " + profiles);
+        }
+        List<Path> transactions;
         try (var entries = Files.list(profiles)) {
-            for (Path transaction : entries
+            transactions = entries
                     .filter(path -> path.getFileName().toString().startsWith(PREFIX))
                     .sorted()
-                    .toList()) {
-                if (Files.isSymbolicLink(transaction)
-                        || !Files.isDirectory(transaction, LinkOption.NOFOLLOW_LINKS)) {
-                    throw new IOException("Interrupted profile transaction is not a real directory: " + transaction);
-                }
-                Descriptor descriptor = Descriptor.parse(profiles, transaction);
-                if (descriptor == null) {
-                    throw new IOException("Unrecognized interrupted profile transaction: " + transaction);
-                }
-                recoverOne(descriptor, backups);
+                    .toList();
+        }
+        if (transactions.isEmpty()) {
+            return;
+        }
+        Path backups = SafetyArtifactRetention.requireRealDirectory(backupDirectory);
+        for (Path transaction : transactions) {
+            if (Files.isSymbolicLink(transaction)
+                    || !Files.isDirectory(transaction, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IOException("Interrupted profile transaction is not a real directory: " + transaction);
             }
+            Descriptor descriptor = Descriptor.parse(profiles, transaction);
+            if (descriptor == null) {
+                throw new IOException("Unrecognized interrupted profile transaction: " + transaction);
+            }
+            recoverOne(descriptor, backups);
         }
     }
 
