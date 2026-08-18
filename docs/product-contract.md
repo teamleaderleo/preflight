@@ -1,7 +1,7 @@
 # Product, compatibility, and support-upload contract
 
 **Status:** executable product boundary for the desktop beta
-**Updated:** 2026-08-07
+**Updated:** 2026-08-18
 
 Public distribution hasn't started. The product is named **Preflight**; Fractal Softworks has been
 asked for guidance on descriptive use of the Starsector name, the disclaimer, and the integration
@@ -42,12 +42,18 @@ There are three distinct kinds of change:
 3. **Explicit preferences.** A confirmed named-profile switch backs up only
    `mods/enabled_mods.json`, stages the complete replacement beside it, rechecks the reviewed source,
    and requests an atomic move; filesystems without atomic-move support use a staged same-directory
-   replacement. The launch-settings surface writes only Starsector's existing `resolution`,
-   `fullscreen`, `sound`, `numAASamples`, `screenScale`, and `gameplaySettings` preferences after
-   backing up the prior selected values. The registration serial is never read into that backup or
-   exposed to the desktop interface. An explicit memory change can update the heap flag in one
-   unambiguous launcher-owned `vmparams` file inside the selected installation; Preflight saves the
-   exact original file and refuses ambiguous layouts.
+   replacement. The launch-settings surface keeps Starsector's settings global and writes only its
+   existing `resolution`, `fullscreen`, `sound`, `numAASamples`, `screenScale`, and
+   `gameplaySettings` preferences after the player confirms that Starsector, launchers, settings
+   editors, and mod managers are closed for the Apply commit. Under the Preflight-only operation
+   lease, the engine rereads raw preferences and the selected launcher file, revalidates effective
+   coupled values, preserves unrelated values, publishes, and rereads the resulting state. Drift
+   causes refusal and review; compensation restores only values still equal to Preflight's
+   publication. The lease coordinates Preflight processes only, so external programs remain
+   independent. The registration serial is never read into the backup or exposed to the desktop
+   interface. An explicit memory change can update the heap flag in one unambiguous launcher-owned
+   `vmparams` file inside the selected installation; Preflight saves the exact original file and
+   refuses ambiguous layouts.
 
 Each desktop package includes a
 [machine-checked capability receipt](capability-receipt.md) for this boundary. It names the exact
@@ -96,6 +102,17 @@ the game. Preflight offers a bounded extended range up to 2,000 deployment point
 `maxBattleSize` only defines the vanilla settings slider. It doesn't rewrite base `settings.json`;
 opening the vanilla slider can reset a value above that slider's installed maximum.
 
+For the release candidate, these values remain global Starsector settings shared by vanilla and
+Preflight launches. Apply has an explicit quiescent boundary: the player confirms Starsector, its
+launcher, settings editors, and mod managers are closed until the commit finishes. The engine performs
+the strongest available content-and-identity reread immediately before each publication attempt,
+verifies the resulting state afterward, preserves unrelated preference values, and asks for review
+whenever the reviewed state has changed.
+
+Preflight's cross-process operation lease coordinates Preflight commands. It does not lock Starsector,
+launchers, settings editors, mod managers, or other external programs. Per-launch and profile-scoped
+setting overrides stay outside the release-candidate lane.
+
 ## Cache controls UX
 
 The primary control is a preset, not a wall of bytecode-plan names. The CLI, desktop host, and agent
@@ -113,9 +130,9 @@ audio, merged/spec JSON, generated scripts, vanilla gameplay indexes, GraphicsLi
 exact-version mod adapters. The engine must own the dependency graph. The GUI may request
 “prepared textures off”; it must not assemble an internally inconsistent set of raw agent flags.
 
-Settings belong to a named Preflight launch preset and can optionally be associated with a mod
-profile. Cache contents remain shareable by content identity; toggling a reader off doesn't delete
-its data. Cleanup and storage policy stay separate, preview-first actions.
+Launch settings remain global Starsector preferences for the release candidate. Cache contents
+remain shareable by content identity; toggling a reader off doesn't delete their data. Cleanup and
+storage policy stay separate, preview-first actions.
 
 ## Voluntary support upload
 
@@ -192,9 +209,11 @@ before/after result. Advanced controls remain available without becoming prerequ
 ## Operation lifecycle
 
 Preparation, launch, confirmed profile activation, launch-setting changes, and confirmed cache
-pruning use one cross-process operation lease. The CLI owns the lease, so the rule applies equally
-to the desktop application, terminal use, and installed launch shortcuts. Read-only previews don't
-take it.
+pruning use one cross-process operation lease between Preflight processes. The CLI owns the lease, so
+the rule applies equally to the desktop application, terminal use, and installed launch shortcuts.
+Read-only previews don't take it. The lease provides no exclusion against Starsector, launchers,
+settings editors, mod managers, or other external programs; launch-setting Apply therefore also
+requires the explicit quiescent confirmation described above.
 
 The operating system releases the lease if its owner exits or crashes. A small JSON owner record
 identifies the operation and installation for diagnostics. When a later operation finds an

@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -195,6 +197,128 @@ class JvmMemorySettingsTest {
         assertTrue(failure.getMessage().contains("changed while they were being reviewed"), failure::getMessage);
         assertEquals(external, Files.readString(launcher));
         assertFalse(Files.exists(backups), "a refused pre-publication update should not retain a backup");
+    }
+
+    @Test
+    void finalRereadRefusesAContentChangeWithTheSameSizeAndTimestamp() throws Exception {
+        Path root = temporary.resolve("final-reread/game");
+        Path launcher = root.resolve("starsector.sh");
+        Path backups = temporary.resolve("final-reread/backups");
+        Files.createDirectories(root);
+        String original = "#!/bin/sh\nexec java -Xmx4g game.Main\n";
+        String external = "#!/bin/sh\nexec java -Xmx5g game.Main\n";
+        assertEquals(original.length(), external.length());
+        Files.writeString(launcher, original);
+        FileTime originalTime = Files.getLastModifiedTime(launcher);
+
+        IOException failure = assertThrows(IOException.class, () -> JvmMemorySettings.update(
+                root,
+                target(root, launcher),
+                6144,
+                backups,
+                source -> {},
+                source -> {
+                    Files.delete(source);
+                    Files.writeString(source, external);
+                    Files.setLastModifiedTime(source, originalTime);
+                },
+                source -> {},
+                false));
+
+        assertTrue(failure.getMessage().contains("changed while they were being reviewed"), failure::getMessage);
+        assertEquals(external, Files.readString(launcher));
+        try (var files = Files.list(backups)) {
+            assertEquals(0, files.count(), "a final-check refusal should delete its unused backup");
+        }
+    }
+
+    @Test
+    void fallbackRereadsAgainImmediatelyBeforeReplacement() throws Exception {
+        Path root = temporary.resolve("fallback-reread/game");
+        Path launcher = root.resolve("starsector.sh");
+        Path backups = temporary.resolve("fallback-reread/backups");
+        Files.createDirectories(root);
+        String original = String.join(System.lineSeparator(),
+                "#!/bin/sh", "exec java -Xmx4g game.Main", "");
+        String external = String.join(System.lineSeparator(),
+                "#!/bin/sh", "exec java -Xmx5g game.Main", "");
+        Files.writeString(launcher, original);
+        AtomicInteger checks = new AtomicInteger();
+
+        IOException failure = assertThrows(IOException.class, () -> JvmMemorySettings.update(
+                root,
+                target(root, launcher),
+                6144,
+                backups,
+                source -> {},
+                source -> {
+                    if (checks.incrementAndGet() == 2) {
+                        Files.writeString(source, external);
+                    }
+                },
+                source -> {},
+                true));
+
+        assertEquals(2, checks.get());
+        assertTrue(
+                failure.getMessage().contains("changed while they were being reviewed"),
+                failure::getMessage);
+        assertEquals(external, Files.readString(launcher));
+        try (var files = Files.list(backups)) {
+            assertEquals(0, files.count(),
+                    "a fallback-check refusal should delete its unused backup");
+        }
+    }
+    @Test
+    void publishesAndVerifiesThroughTheReplaceFallback() throws Exception {
+        Path root = temporary.resolve("replace-fallback/game");
+        Path launcher = root.resolve("starsector.sh");
+        Path backups = temporary.resolve("replace-fallback/backups");
+        Files.createDirectories(root);
+        String original = "#!/bin/sh\nexec java -Xms4g -Xmx4g game.Main\n";
+        Files.writeString(launcher, original);
+
+        JvmMemorySettings.UpdateResult result = JvmMemorySettings.update(
+                root,
+                target(root, launcher),
+                6144,
+                backups,
+                source -> {},
+                source -> {},
+                source -> {},
+                true);
+
+        assertTrue(result.changed());
+        assertEquals(6144, result.snapshot().maxHeapMiB());
+        assertEquals(6144, result.snapshot().initialHeapMiB());
+        assertTrue(Files.readString(launcher).contains("-Xms6144m -Xmx6144m"));
+        assertEquals(original, Files.readString(result.backup()));
+    }
+
+    @Test
+    void resultingStateVerificationPreservesAnExternalPostPublicationEdit() throws Exception {
+        Path root = temporary.resolve("verify-result/game");
+        Path launcher = root.resolve("starsector.sh");
+        Path backups = temporary.resolve("verify-result/backups");
+        Files.createDirectories(root);
+        String original = "#!/bin/sh\nexec java -Xms4g -Xmx4g game.Main\n";
+        String external = "#!/bin/sh\nexec java -Xms7g -Xmx7g game.Main\n";
+        Files.writeString(launcher, original);
+
+        IOException failure = assertThrows(IOException.class, () -> JvmMemorySettings.update(
+                root,
+                target(root, launcher),
+                6144,
+                backups,
+                source -> {},
+                source -> {},
+                source -> Files.writeString(source, external),
+                false));
+
+        assertTrue(failure.getMessage().contains("didn't report the requested heap"), failure::getMessage);
+        assertTrue(failure.getSuppressed().length >= 1, "guarded rollback should record its refusal");
+        assertEquals(external, Files.readString(launcher));
+        assertEquals(original, Files.readString(onlyFile(backups)));
     }
 
     @Test

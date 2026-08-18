@@ -50,7 +50,7 @@ interface HomePageProps {
   stoppingGame: boolean;
   forceStopAvailable: boolean;
   onStopGame: () => void;
-  onSaveLauncherSettings: () => void;
+  onSaveLauncherSettings: (settingsToolsClosed: boolean) => void;
   retryLabel: string;
   onRetry: () => void;
   runFailure: { summary: string; detail?: string } | null;

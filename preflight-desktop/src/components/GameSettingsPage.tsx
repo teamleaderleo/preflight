@@ -1,9 +1,10 @@
-import { CheckIcon, RefreshIcon } from "../icons";
+import { RefreshIcon } from "../icons";
 import type { LaunchSettings, LaunchSettingsUpdate } from "../types";
 import { shortPath } from "../uiFormat";
 import { GameMemorySelect } from "./GameMemorySelect";
 import { battleSizePresets, battleSizeUpperBound, uiScaleMaximum } from "../gameSettingOptions";
 import { ResolutionSelect, UiScaleSelect } from "./GameSettingSelects";
+import { LaunchSettingsApplyBoundary } from "./LaunchSettingsApplyBoundary";
 
 interface GameSettingsPageProps {
   settings: LaunchSettings | null;
@@ -15,7 +16,7 @@ interface GameSettingsPageProps {
   saveBlockReason?: string;
   onChange: (change: Partial<LaunchSettingsUpdate>) => void;
   onRefresh: () => void;
-  onSave: () => void;
+  onSave: (settingsToolsClosed: boolean) => void;
 }
 
 export function GameSettingsPage({
@@ -104,13 +105,16 @@ export function GameSettingsPage({
 
       {dirty || saving ? (
         <section className="card launch-save">
-          <div>
+          <div className="launch-save__backup">
             <span>{settings.backup ? `Previous values: ${shortPath(settings.backup)}` : "The original launcher values are backed up before a change."}</span>
-            {saveBlocked && saveBlockReason ? <small>{saveBlockReason}</small> : null}
           </div>
-          <button className="button button--primary" type="button" onClick={onSave} disabled={loading || saving || saveBlocked}>
-            <CheckIcon />{saving ? "Saving…" : "Save changes"}
-          </button>
+          <LaunchSettingsApplyBoundary
+            boundary={settings.applyBoundary}
+            saving={saving}
+            disabled={loading || saveBlocked}
+            blockReason={saveBlocked ? saveBlockReason : undefined}
+            onApply={onSave}
+          />
         </section>
       ) : null}
     </div>

@@ -19,6 +19,15 @@ import java.util.regex.Pattern;
 /** Reports and explicitly updates the same settings Starsector's own launcher persists. */
 final class LaunchSettingsCommand {
     private static final String FORMAT = "starsector-preflight-launch-settings-v1";
+    static final String APPLY_CONFIRMATION_OPTION = "--confirm-settings-tools-closed";
+    static final String APPLY_INSTRUCTION =
+            "Close Starsector, its launcher, and every settings editor or mod manager before Apply."
+                    + " Keep them closed until Apply finishes.";
+    static final String APPLY_CONFIRMATION_LABEL =
+            "I closed Starsector, its launcher, settings editors, and mod managers.";
+    static final String APPLY_LEASE_SCOPE =
+            "Preflight's operation lease coordinates Preflight processes only."
+                    + " External programs can still change these global settings.";
     /**
      * Starsector's maxBattleSize controls its settings slider, while the battleSize preference is
      * the value consumed by the game. Keep an explicit, bounded extended range without rewriting
@@ -42,6 +51,7 @@ final class LaunchSettingsCommand {
         int index = set ? offset + 1 : offset;
         Path game = null;
         boolean json = false;
+        boolean settingsToolsClosed = false;
         String resolution = null;
         Boolean fullscreen = null;
         Boolean sound = null;
@@ -54,6 +64,7 @@ final class LaunchSettingsCommand {
             switch (argument) {
                 case "--game" -> game = Path.of(requireValue(args, index++, argument));
                 case "--json" -> json = true;
+                case APPLY_CONFIRMATION_OPTION -> settingsToolsClosed = true;
                 case "--resolution" -> resolution = requireValue(args, index++, argument);
                 case "--fullscreen" -> fullscreen = strictBoolean(requireValue(args, index++, argument), argument);
                 case "--sound" -> sound = strictBoolean(requireValue(args, index++, argument), argument);
@@ -67,6 +78,10 @@ final class LaunchSettingsCommand {
         if (!set && (resolution != null || fullscreen != null || sound != null
                 || antialiasing != null || uiScale != null || battleSize != null || memoryMiB != null)) {
             throw new IllegalArgumentException("Use `launch-settings set` to change settings");
+        }
+        if (!set && settingsToolsClosed) {
+            throw new IllegalArgumentException(
+                    APPLY_CONFIRMATION_OPTION + " is used only with `launch-settings set`");
         }
         // Without --game this used to give up rather than look, so `preflight launch-settings` on a
         // machine with a perfectly discoverable installation reported every battle-size limit as
@@ -84,6 +99,7 @@ final class LaunchSettingsCommand {
             if (!preferenceChange && memoryMiB == null) {
                 throw new IllegalArgumentException("Name at least one launch setting to change");
             }
+            requireQuiescentApply(settingsToolsClosed);
             // Shape validation can happen before the lease. Validation that depends on unedited
             // current values is intentionally deferred until the in-lease generation is re-read.
             if (preferenceChange) GameLaunchPreferences.validate(update);
@@ -159,6 +175,7 @@ final class LaunchSettingsCommand {
         // direct-launch properties are complete. The broader editable surface is separate.
         document.put("settings", availability.settings() == null
                 ? null : availability.settings().toReportValues());
+        document.put("applyBoundary", applyBoundary());
         document.put("preferences", preferences.toMap());
         document.put("limits", limits.toMap());
         Map<String, Object> memoryValues = memory.toMap();
@@ -167,6 +184,24 @@ final class LaunchSettingsCommand {
         document.put("changed", changed);
         document.put("backup", backup);
         return document;
+    }
+
+    static void requireQuiescentApply(boolean confirmed) {
+        if (confirmed) return;
+        throw new IllegalArgumentException(
+                APPLY_INSTRUCTION + " Repeat the command with `" + APPLY_CONFIRMATION_OPTION
+                        + "` after closing them. " + APPLY_LEASE_SCOPE);
+    }
+
+    static Map<String, Object> applyBoundary() {
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("kind", "quiescent-apply-v1");
+        values.put("scope", "global-starsector-settings");
+        values.put("instruction", APPLY_INSTRUCTION);
+        values.put("confirmationLabel", APPLY_CONFIRMATION_LABEL);
+        values.put("confirmationOption", APPLY_CONFIRMATION_OPTION);
+        values.put("leaseScope", APPLY_LEASE_SCOPE);
+        return values;
     }
 
     private static DirectLaunchSettings.Availability directAvailability() {
