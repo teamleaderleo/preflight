@@ -506,7 +506,7 @@ final class SaveProfileObservation {
             boolean caseInsensitivePaths,
             BooleanSupplier stillOwned) throws IOException {
         Path saves = installRoot.resolve("saves");
-        if (!Files.isDirectory(saves)) return new Snapshot(Map.of(), true);
+        if (!Files.isDirectory(saves, LinkOption.NOFOLLOW_LINKS)) return new Snapshot(Map.of(), true);
         if (!stillOwned.getAsBoolean()) return Snapshot.unavailable();
         Map<String, SaveState> states = new HashMap<>();
         int[] aggregateWork = {0};

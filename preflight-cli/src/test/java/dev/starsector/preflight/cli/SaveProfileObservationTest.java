@@ -6,7 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
@@ -478,6 +480,32 @@ final class SaveProfileObservationTest {
         assertNull(prepared.context());
         assertNull(prepared.identity());
         assertTrue(bytes.toString(UTF_8).contains("exact launch profile fingerprint is unavailable"));
+    }
+
+    @Test
+    void symlinkedSavesRootIsNotObserved() throws Exception {
+        PreflightHome home = new PreflightHome(temp.resolve("preflight-home"), List.of());
+        Path install = temp.resolve("starsector");
+        Path outsideSaves = temp.resolve("outside-saves");
+        Path outsideSave = outsideSaves.resolve("manual");
+        Files.createDirectories(outsideSave);
+        Path outsideFile = outsideSave.resolve("save.dat");
+        Files.writeString(outsideFile, "before");
+        Files.createDirectories(install);
+        try {
+            Files.createSymbolicLink(install.resolve("saves"), outsideSaves);
+        } catch (UnsupportedOperationException | IOException error) {
+            assumeTrue(false, "Symbolic links aren't available in this test environment: " + error);
+        }
+
+        Instant end = futureEnd();
+        SaveProfileObservation.Session session = SaveProfileObservation.testSession(
+                home, install, heavy(), end.minusSeconds(10), false);
+        Files.writeString(outsideFile, "after-longer");
+        session.scanWhileOwned();
+        session.finish(end);
+
+        assertTrue(SaveProfileObservation.observations(home).isEmpty());
     }
 
     @Test
