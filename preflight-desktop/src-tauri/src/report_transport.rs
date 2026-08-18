@@ -19,6 +19,7 @@ use url::Url;
 const REPORT_INTAKE_ORIGIN: Option<&str> = option_env!("PREFLIGHT_REPORT_INTAKE_ORIGIN");
 const REPORT_PROTOCOL_VERSION: u32 = 1;
 const REPORT_RESPONSE_LIMIT: usize = 64 * 1024;
+#[allow(dead_code)]
 const REPORT_UPLOAD_LIMIT: u64 = 6 * 1024 * 1024;
 
 pub(crate) async fn perform_report_deletion(
@@ -48,6 +49,7 @@ pub(crate) async fn perform_report_deletion(
     Ok(true)
 }
 
+#[allow(dead_code)]
 pub(crate) async fn perform_report_upload(
     client: Client,
     origin: Url,
@@ -251,6 +253,7 @@ pub(crate) async fn perform_report_upload(
     Ok(receipt)
 }
 
+#[allow(dead_code)]
 async fn cleanup_granted_failure(
     client: &Client,
     origin: &Url,
@@ -268,6 +271,7 @@ async fn cleanup_granted_failure(
     }
 }
 
+#[allow(dead_code)]
 async fn delete_granted_case(
     client: &Client,
     origin: &Url,
@@ -348,6 +352,7 @@ pub(crate) fn report_client() -> Result<Client, String> {
         .map_err(|error| format!("Could not configure the report client: {error}"))
 }
 
+#[allow(dead_code)]
 pub(crate) fn validated_report_archive(report: &ReportUploadInput) -> Result<PathBuf, String> {
     if report.bytes == 0 || report.bytes > REPORT_UPLOAD_LIMIT {
         return Err("The diagnostics ZIP is outside the 6 MiB upload limit.".to_string());
@@ -412,6 +417,7 @@ pub(crate) fn validated_report_archive(report: &ReportUploadInput) -> Result<Pat
     Ok(archive)
 }
 
+#[allow(dead_code)]
 fn validate_case_grant(
     origin: &Url,
     grant: &CreateReportCaseResponse,
@@ -434,6 +440,7 @@ fn validate_case_grant(
     Ok(())
 }
 
+#[allow(dead_code)]
 fn validate_grant_endpoint(
     origin: &Url,
     endpoint: &ReportGrantEndpoint,
@@ -556,6 +563,7 @@ fn is_case_id(value: &str) -> bool {
         })
 }
 
+#[allow(dead_code)]
 fn is_lower_sha256(value: &str) -> bool {
     value.len() == 64
         && value
@@ -563,6 +571,7 @@ fn is_lower_sha256(value: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
+#[allow(dead_code)]
 async fn response_json<T: DeserializeOwned>(
     response: Response,
     context: &str,
