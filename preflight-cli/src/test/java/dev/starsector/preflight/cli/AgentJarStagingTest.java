@@ -3,6 +3,7 @@ package dev.starsector.preflight.cli;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -12,10 +13,15 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.AclEntryType;
+import java.nio.file.attribute.AclFileAttributeView;
+import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -55,6 +61,49 @@ class AgentJarStagingTest {
         assertArrayEqualsContent(jar, injected);
         assertTrue(injected.getParent().getFileName().toString().startsWith(AgentJarStaging.DIRECTORY_NAME + "-"));
         assertOwnerPrivateWhenPosix(injected.getParent());
+    }
+
+    @Test
+    void aclOnlyDirectoryIsPrivateAtItsCreationBoundary() throws IOException {
+        Path root = Files.createDirectory(directory.resolve("acl-root"));
+        PosixFileAttributeView posix = Files.getFileAttributeView(
+                root, PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
+        AclFileAttributeView rootAcl = Files.getFileAttributeView(
+                root, AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
+        assumeTrue(posix == null && rootAcl != null,
+                "this regression exercises the ACL-only creation path");
+
+        AtomicBoolean observed = new AtomicBoolean();
+        Path created = AgentJarStaging.createPrivateDirectory(root, fresh -> {
+            AclFileAttributeView acl = Files.getFileAttributeView(
+                    fresh, AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
+            assertNotNull(acl);
+            var owner = Files.getOwner(fresh, LinkOption.NOFOLLOW_LINKS);
+            var entries = acl.getAcl();
+            assertFalse(entries.isEmpty(), "creation must install a real owner ACL");
+            assertTrue(entries.stream().allMatch(entry -> entry.principal().equals(owner)),
+                    "no inherited shared-root principal may observe the fresh staging directory");
+            assertTrue(entries.stream().anyMatch(entry -> entry.type() == AclEntryType.ALLOW),
+                    "the current owner needs an allow entry at creation");
+            observed.set(true);
+        });
+
+        assertTrue(observed.get());
+        Files.delete(created);
+    }
+
+    @Test
+    void wrapperCleanupRemovesChildBeforeItsPrivateDirectory() throws IOException {
+        Path jar = jarUnder(OUTSIDE_THE_CODE_PAGE);
+        Path root = Files.createDirectory(directory.resolve("cleanup-root"));
+        Path injected = AgentJarStaging.readableByTheChildJvm(
+                jar, StandardCharsets.US_ASCII, List.of(root));
+        Path privateDirectory = injected.getParent();
+
+        AgentJarStaging.cleanupStagedCopy(injected, privateDirectory);
+
+        assertFalse(Files.exists(injected, LinkOption.NOFOLLOW_LINKS));
+        assertFalse(Files.exists(privateDirectory, LinkOption.NOFOLLOW_LINKS));
     }
 
     @Test
