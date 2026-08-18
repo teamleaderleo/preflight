@@ -271,7 +271,7 @@ test("changing installations retires the old Home recovery card before the new p
   const dismiss = vi.fn();
   render(<HomePage {...props({
     snapshot: {
-      ...failedSnapshot(),
+      ...snapshot,
       selected: {
         ...snapshot.selected!,
         installRoot: "/Games/Starsector",
