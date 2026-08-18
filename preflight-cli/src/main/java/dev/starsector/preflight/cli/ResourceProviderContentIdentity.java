@@ -4,9 +4,11 @@ import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceProviderComparison;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.ProviderMismatchException;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.HashMap;
@@ -16,6 +18,8 @@ import java.util.Objects;
 
 /** Exact byte-identity sources for resource-provider comparison. */
 final class ResourceProviderContentIdentity {
+    static final String PROOF_DIRECTORY_PREFIX = ".preflight-provider-proof-";
+
     private final ResourceIndex index;
     private final ProfileIdentityContext profileContext;
     private final DirectHasher directHasher;
@@ -59,41 +63,90 @@ final class ResourceProviderContentIdentity {
     private ResourceProviderComparison.ContentObservation observeDirect(
             String logicalPath, ResourceIndex.Provider provider) {
         try {
-            Path file = index.resolveExisting(provider).toAbsolutePath().normalize();
-            BasicFileAttributes before = Files.readAttributes(file, BasicFileAttributes.class);
-            if (!before.isRegularFile()) {
-                return ResourceProviderComparison.ContentObservation.unreadable();
-            }
-            if (!matchesIndexedMetadata(provider, before)) {
-                return ResourceProviderComparison.ContentObservation.stale();
-            }
-
-            FileIdentity beforeIdentity = FileIdentity.from(before);
-            DirectHash cached = directHashes.get(file);
-            if (cached != null) {
-                if (!cached.identity().equals(beforeIdentity)) {
-                    directHashes.remove(file);
+            ProofLink proof = null;
+            try {
+                Path file = index.resolveExisting(provider).toAbsolutePath().normalize();
+                BasicFileAttributes before = Files.readAttributes(file, BasicFileAttributes.class);
+                if (!before.isRegularFile()) {
+                    return ResourceProviderComparison.ContentObservation.unreadable();
+                }
+                if (!matchesIndexedMetadata(provider, before)) {
                     return ResourceProviderComparison.ContentObservation.stale();
                 }
-                return ResourceProviderComparison.ContentObservation.hashed(cached.sha256());
-            }
 
-            String digest = directHasher.sha256(file);
-            Path afterFile = index.resolveExisting(provider).toAbsolutePath().normalize();
-            if (!file.equals(afterFile)) {
-                return ResourceProviderComparison.ContentObservation.stale();
-            }
-            BasicFileAttributes after = Files.readAttributes(afterFile, BasicFileAttributes.class);
-            if (!after.isRegularFile()
-                    || !matchesIndexedMetadata(provider, after)
-                    || !beforeIdentity.equals(FileIdentity.from(after))) {
-                return ResourceProviderComparison.ContentObservation.stale();
-            }
+                FileIdentity beforeIdentity = FileIdentity.from(before);
+                DirectHash cached = directHashes.get(file);
+                if (cached != null) {
+                    if (!cached.identity().equals(beforeIdentity)) {
+                        directHashes.remove(file);
+                        return ResourceProviderComparison.ContentObservation.stale();
+                    }
+                    return ResourceProviderComparison.ContentObservation.hashed(cached.sha256());
+                }
 
-            // Publish to the memo only after the pathname, indexed metadata, and filesystem identity
-            // are stable across the complete read. A raced digest must never become reusable evidence.
-            directHashes.put(file, new DirectHash(digest, FileIdentity.from(after)));
-            return ResourceProviderComparison.ContentObservation.hashed(digest);
+                /*
+                 * The portable Java 17 channel APIs expose no identity for an already-open handle.
+                 * Anchor the selected entry under a second name instead. The proof namespace is
+                 * created beside the provider, so the hard link necessarily lives on the same
+                 * filesystem/FileStore even when the process temp directory is on another volume.
+                 * isSameFile then ties that anchored file back to the provider pathname before and
+                 * after the read. If any part of that proof is unavailable, exact evidence fails
+                 * closed as stale.
+                 */
+                Path proofDirectory = file.getParent();
+                if (proofDirectory == null) {
+                    return ResourceProviderComparison.ContentObservation.stale();
+                }
+                proof = createProofLink(file, proofDirectory);
+                if (proof == null) {
+                    return ResourceProviderComparison.ContentObservation.stale();
+                }
+                Path proofLink = proof.path();
+
+                BasicFileAttributes proofBefore = Files.readAttributes(proofLink, BasicFileAttributes.class);
+                FileIdentity proofIdentity = FileIdentity.from(proofBefore);
+                if (!proofBefore.isRegularFile()
+                        || !matchesIndexedMetadata(provider, proofBefore)
+                        || !beforeIdentity.equals(proofIdentity)
+                        || !Files.isSameFile(file, proofLink)) {
+                    return ResourceProviderComparison.ContentObservation.stale();
+                }
+
+                String digest;
+                try (InputStream bytes = Files.newInputStream(proofLink)) {
+                    digest = directHasher.sha256(bytes);
+                }
+
+                Path afterFile = index.resolveExisting(provider).toAbsolutePath().normalize();
+                if (!file.equals(afterFile)) {
+                    return ResourceProviderComparison.ContentObservation.stale();
+                }
+
+                BasicFileAttributes proofAfter = Files.readAttributes(proofLink, BasicFileAttributes.class);
+                BasicFileAttributes after = Files.readAttributes(afterFile, BasicFileAttributes.class);
+                FileIdentity proofAfterIdentity = FileIdentity.from(proofAfter);
+                FileIdentity afterIdentity = FileIdentity.from(after);
+                if (!proofAfter.isRegularFile()
+                        || !after.isRegularFile()
+                        || !matchesIndexedMetadata(provider, proofAfter)
+                        || !matchesIndexedMetadata(provider, after)
+                        || !proofIdentity.equals(proofAfterIdentity)
+                        || !proofAfterIdentity.equals(afterIdentity)
+                        || !Files.isSameFile(afterFile, proofLink)) {
+                    return ResourceProviderComparison.ContentObservation.stale();
+                }
+
+                // A null file key cannot safely distinguish a later same-metadata replacement, so
+                // exact evidence can still be returned for this read but must not enter the memo.
+                if (afterIdentity.fileKey() != null) {
+                    directHashes.put(file, new DirectHash(digest, afterIdentity));
+                }
+                return ResourceProviderComparison.ContentObservation.hashed(digest);
+            } finally {
+                if (proof != null) {
+                    proof.close();
+                }
+            }
         } catch (NoSuchFileException missing) {
             return ResourceProviderComparison.ContentObservation.missing();
         } catch (IllegalArgumentException invalidPath) {
@@ -118,15 +171,76 @@ final class ResourceProviderContentIdentity {
         }
     }
 
+    /**
+     * Creates an owned random proof namespace in {@code directory}, then hard-links the provider
+     * inside it. Production passes the provider's parent directory; the directory parameter is kept
+     * explicit so tests can deterministically exercise a foreign/default-temp filesystem.
+     */
+    static ProofLink createProofLink(Path file, Path directory) throws IOException {
+        Path ownedDirectory = null;
+        try {
+            ownedDirectory = Files.createTempDirectory(directory, PROOF_DIRECTORY_PREFIX);
+            Path link = ownedDirectory.resolve("provider.link");
+            Files.createLink(link, file);
+            return new ProofLink(link, ownedDirectory);
+        } catch (UnsupportedOperationException
+                | SecurityException
+                | ProviderMismatchException
+                | IOException unavailable) {
+            if (ownedDirectory != null) {
+                cleanupProofDirectory(ownedDirectory);
+            }
+            return null;
+        }
+    }
+
+    private static void cleanupProofDirectory(Path directory) {
+        try {
+            Files.deleteIfExists(directory.resolve("provider.link"));
+        } catch (IOException ignored) {
+            // Best effort after proof creation failed; the directory is private to this attempt.
+        }
+        try {
+            Files.deleteIfExists(directory);
+        } catch (IOException ignored) {
+            // Best effort after proof creation failed; no evidence is published from this attempt.
+        }
+    }
+
     private static boolean matchesIndexedMetadata(
             ResourceIndex.Provider provider, BasicFileAttributes attributes) {
         long modifiedMillis = Math.max(0, attributes.lastModifiedTime().toMillis());
         return attributes.size() == provider.size() && modifiedMillis == provider.modifiedMillis();
     }
 
+    /** Digests an already-open stream supplied by the exact-evidence observer. */
     @FunctionalInterface
     interface DirectHasher {
-        String sha256(Path file) throws IOException;
+        String sha256(InputStream bytes) throws IOException;
+    }
+
+    record ProofLink(Path path, Path directory) implements AutoCloseable {
+        @Override
+        public void close() throws IOException {
+            IOException failure = null;
+            try {
+                Files.deleteIfExists(path);
+            } catch (IOException cleanupFailure) {
+                failure = cleanupFailure;
+            }
+            try {
+                Files.deleteIfExists(directory);
+            } catch (IOException cleanupFailure) {
+                if (failure == null) {
+                    failure = cleanupFailure;
+                } else {
+                    failure.addSuppressed(cleanupFailure);
+                }
+            }
+            if (failure != null) {
+                throw failure;
+            }
+        }
     }
 
     private record DirectHash(String sha256, FileIdentity identity) {
