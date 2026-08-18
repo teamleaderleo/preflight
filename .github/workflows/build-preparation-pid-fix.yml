@@ -1,0 +1,551 @@
+name: Build preparation PID ownership repair
+
+on:
+  push:
+    branches: [hardening/preparation-pid-ownership]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: hardening/preparation-pid-ownership
+          fetch-depth: 0
+          token: ${{ github.token }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6.1.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: preflight-desktop/package-lock.json
+      - name: Apply exact-PID preparation ownership state machine
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name preflight-agent
+          git config user.email preflight-agent@users.noreply.github.com
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one anchor, found {count}")
+              return text.replace(old, new)
+
+          def replace_between(text: str, start: str, end: str, new: str, label: str) -> str:
+              left = text.find(start)
+              if left < 0:
+                  raise SystemExit(f"{label}: start anchor missing")
+              right = text.find(end, left)
+              if right < 0:
+                  raise SystemExit(f"{label}: end anchor missing")
+              return text[:left] + new + text[right:]
+
+          path = Path('preflight-desktop/src/usePreparation.ts')
+          text = path.read_text()
+          text = replace_once(text, '''  const completedPreparationPhases = useRef(new Set<string>());
+  const recoveredPreparation = useRef(false);
+  const localPreparationStarting = useRef(false);
+  const localPreparationPid = useRef<number | null>(null);
+  const [preparationPlanEnvelope, setPreparationPlanEnvelope] = useState<PreparationPlanEnvelope | null>(null);
+  const [preparationPlanLoading, setPreparationPlanLoading] = useState(false);
+  const launchAfterPreparation = useRef(false);
+''', '''  const completedPreparationPhases = useRef(new Set<string>());
+  const recoveredPreparationPid = useRef<number | null>(null);
+  const provisionalPreparationPid = useRef<number | null>(null);
+  const localPreparationStarting = useRef(false);
+  const localPreparationPid = useRef<number | null>(null);
+  const observedWhileStarting = useRef(new Set<number>());
+  const pendingTerminalPreparation = useRef(new Map<number, PreparationStateEvent>());
+  const pendingStartLaunch = useRef(false);
+  const launchAfterPreparationPid = useRef<number | null>(null);
+  const [preparationPlanEnvelope, setPreparationPlanEnvelope] = useState<PreparationPlanEnvelope | null>(null);
+  const [preparationPlanLoading, setPreparationPlanLoading] = useState(false);
+''', 'preparation authority refs')
+
+          settle = '''  const settlePreparation = useCallback((payload: PreparationStateEvent): boolean => {
+    const local = localPreparationPid.current === payload.pid;
+    const recovered = recoveredPreparationPid.current === payload.pid;
+    if (!local && !recovered) {
+      if (localPreparationStarting.current) {
+        pendingTerminalPreparation.current.set(payload.pid, { ...payload });
+      }
+      return false;
+    }
+
+    if (local) localPreparationPid.current = null;
+    if (recovered) recoveredPreparationPid.current = null;
+    observedWhileStarting.current.delete(payload.pid);
+    const shouldLaunch = local
+      && payload.success === true
+      && launchAfterPreparationPid.current === payload.pid;
+    if (launchAfterPreparationPid.current === payload.pid) launchAfterPreparationPid.current = null;
+
+    const remainingPid = localPreparationPid.current
+      ?? recoveredPreparationPid.current
+      ?? provisionalPreparationPid.current;
+    const stillPreparing = localPreparationStarting.current || remainingPid !== null;
+    setPreparing(stillPreparing);
+    setPreparationCancelling(false);
+    if (!stillPreparing) {
+      completedPreparationPhases.current.clear();
+      setPreparationProgress(null);
+      setPreparationProgressKnown(true);
+    } else if (localPreparationPid.current === null
+      || observedWhileStarting.current.has(localPreparationPid.current)) {
+      setPreparationProgressKnown(false);
+    }
+
+    if (stillPreparing) {
+      void refreshCache();
+      return true;
+    }
+    if (!payload.success) {
+      announce(payload.detail ?? "Preparation stopped before it completed.", "warning");
+      void refreshCache();
+      return true;
+    }
+    announce(shouldLaunch
+      ? "Preparation is complete. Opening Starsector…"
+      : "Preparation is complete. The current profile is ready.", "success");
+    void (async () => {
+      await refreshCache();
+      if (shouldLaunch) await launch();
+    })();
+    return true;
+  }, [announce, launch, refreshCache]);
+
+'''
+          text = replace_once(text, '  const runPreparation = async (\n', settle + '  const runPreparation = async (\n', 'settlement helper')
+
+          run = '''  const runPreparation = async (
+    launchWhenReady = false,
+    forcePlan = false,
+    requestedStorage: TextureStorage = textureStorage,
+  ) => {
+    if (!game) return;
+    try {
+      if (requestedStorage !== textureStorage) {
+        setTextureStorage(requestedStorage);
+        setPreparationPlanEnvelope(null);
+      }
+      let plan = forcePlan || !storagePlanApplies(requestedStorage) ? null : preparationPlan;
+      if (!plan && storagePlanApplies(requestedStorage)) {
+        setPreparationPlanLoading(true);
+        plan = await getPreparationPlan(game, requestedStorage, resources.workers);
+        setPreparationPlanEnvelope({
+          game,
+          profileFingerprint: plan.profileFingerprint,
+          textureStorage: requestedStorage,
+          workers: resources.workers,
+          plan,
+        });
+      }
+      if (plan && !plan.safeToPrepare) {
+        announce(plan.refusalReason ?? "Preparation was refused because its storage requirement could not be bounded safely.", "warning");
+        return;
+      }
+
+      setPreparationProgressKnown(true);
+      pendingStartLaunch.current = launchWhenReady;
+      launchAfterPreparationPid.current = null;
+      provisionalPreparationPid.current = null;
+      observedWhileStarting.current.clear();
+      pendingTerminalPreparation.current.clear();
+      completedPreparationPhases.current.clear();
+      setPreparationProgress(null);
+      setPreparationCancelling(false);
+      setPreparing(true);
+      announce(launchWhenReady
+        ? "Preparing the exact current profile. Starsector will open when it’s ready."
+        : "Preparing the exact current profile… You can leave this window open.");
+
+      localPreparationStarting.current = true;
+      const started = await startPreparation(game, requestedStorage, resources.workers, resources.memoryMib);
+      localPreparationPid.current = started.pid;
+      localPreparationStarting.current = false;
+      launchAfterPreparationPid.current = pendingStartLaunch.current ? started.pid : null;
+      pendingStartLaunch.current = false;
+
+      const provisional = provisionalPreparationPid.current;
+      provisionalPreparationPid.current = null;
+      if (observedWhileStarting.current.has(started.pid)) {
+        setPreparationProgressKnown(false);
+        completedPreparationPhases.current.clear();
+        setPreparationProgress(null);
+      }
+      if (provisional !== null && provisional !== started.pid) {
+        recoveredPreparationPid.current = provisional;
+        const recoveredTerminal = pendingTerminalPreparation.current.get(provisional);
+        if (recoveredTerminal) {
+          pendingTerminalPreparation.current.delete(provisional);
+          settlePreparation(recoveredTerminal);
+        }
+      }
+      const localTerminal = pendingTerminalPreparation.current.get(started.pid);
+      if (localTerminal) {
+        pendingTerminalPreparation.current.delete(started.pid);
+        settlePreparation(localTerminal);
+      }
+
+      if (!isDesktopHost()) {
+        localPreparationPid.current = null;
+        setPreparing(false);
+        announce("Preview preparation complete.", "success");
+        await refreshCache();
+        const shouldLaunch = launchAfterPreparationPid.current === started.pid;
+        launchAfterPreparationPid.current = null;
+        if (shouldLaunch) await launch();
+      }
+    } catch (error) {
+      const provisional = provisionalPreparationPid.current;
+      localPreparationStarting.current = false;
+      localPreparationPid.current = null;
+      pendingStartLaunch.current = false;
+      launchAfterPreparationPid.current = null;
+      provisionalPreparationPid.current = null;
+      if (provisional !== null) recoveredPreparationPid.current = provisional;
+      const recoveredTerminal = provisional === null
+        ? undefined
+        : pendingTerminalPreparation.current.get(provisional);
+      if (recoveredTerminal) {
+        pendingTerminalPreparation.current.delete(provisional);
+        settlePreparation(recoveredTerminal);
+      }
+      const recoveredActive = recoveredPreparationPid.current !== null;
+      setPreparationProgressKnown(!recoveredActive);
+      setPreparing(recoveredActive);
+      setPreparationCancelling(false);
+      if (!recoveredActive) setPreparationProgress(null);
+      pendingTerminalPreparation.current.clear();
+      announce(errorMessage(error), "error");
+    } finally {
+      setPreparationPlanLoading(false);
+    }
+  };
+
+'''
+          text = replace_between(text, '  const runPreparation = async (\n', '  const prepare = async (\n', run, 'runPreparation')
+
+          reconciliation = '''  useEffect(() => {
+    if (!isDesktopHost()) return;
+    let stopReconciliation: () => void = () => undefined;
+    let previousPid: number | null | undefined;
+
+    const startReconciliation = () => {
+      stopReconciliation();
+      previousPid = undefined;
+      stopReconciliation = startOperationReconciliation({
+        apply: (operation) => {
+          if (operation.preparationPid !== null) {
+            const pid = operation.preparationPid;
+            const changed = previousPid !== pid;
+            previousPid = pid;
+            setPreparing(true);
+            if (localPreparationPid.current === pid) return;
+
+            if (localPreparationStarting.current) {
+              provisionalPreparationPid.current = pid;
+              observedWhileStarting.current.add(pid);
+              setPreparationProgressKnown(false);
+              completedPreparationPhases.current.clear();
+              setPreparationProgress(null);
+              setPreparationCancelling(false);
+              return;
+            }
+
+            if (recoveredPreparationPid.current !== pid) {
+              recoveredPreparationPid.current = pid;
+              setPreparationProgressKnown(false);
+              completedPreparationPhases.current.clear();
+              setPreparationProgress(null);
+              setPreparationCancelling(false);
+              if (changed) {
+                announce("Reconnected to profile preparation. Starsector stays closed when it finishes; launch from Home when you’re ready.");
+              }
+            }
+            return;
+          }
+
+          if (previousPid !== null && previousPid !== undefined) {
+            const disappeared = previousPid;
+            previousPid = null;
+            if (provisionalPreparationPid.current === disappeared && localPreparationStarting.current) {
+              provisionalPreparationPid.current = null;
+              setPreparing(true);
+              return;
+            }
+            const wasLocal = localPreparationPid.current === disappeared;
+            const wasRecovered = recoveredPreparationPid.current === disappeared;
+            if (!wasLocal && !wasRecovered) return;
+            if (wasLocal) localPreparationPid.current = null;
+            if (wasRecovered) recoveredPreparationPid.current = null;
+            if (launchAfterPreparationPid.current === disappeared) launchAfterPreparationPid.current = null;
+            observedWhileStarting.current.delete(disappeared);
+            const stillPreparing = localPreparationStarting.current
+              || localPreparationPid.current !== null
+              || recoveredPreparationPid.current !== null
+              || provisionalPreparationPid.current !== null;
+            setPreparationProgressKnown(!stillPreparing);
+            setPreparing(stillPreparing);
+            setPreparationCancelling(false);
+            if (!stillPreparing) setPreparationProgress(null);
+            announce(wasRecovered
+              ? "Preparation finished while Preflight was reopening. Checking the current profile before launch."
+              : "Preparation stopped. Live completion details were unavailable, so Preflight refreshed the current cache state.",
+            wasRecovered ? "info" : "warning");
+            void refreshCache();
+          } else {
+            previousPid = null;
+          }
+        },
+        isActive: () => previousPid !== null,
+        onError: (pollError) => announce(`Could not refresh native preparation state: ${pollError}`, "error"),
+      });
+    };
+
+    startReconciliation();
+    const stopListening = listenWhileMounted<PreparationStateEvent>("prepare-state", ({ payload }) => {
+      if (payload.state === "cancelling") {
+        if (payload.pid === localPreparationPid.current
+          || payload.pid === recoveredPreparationPid.current
+          || payload.pid === provisionalPreparationPid.current) {
+          setPreparationCancelling(true);
+          announce("Stopping preparation safely…");
+        }
+        return;
+      }
+      if (payload.state !== "finished" && payload.state !== "cancelled") return;
+      if (previousPid === payload.pid) previousPid = null;
+      settlePreparation(payload);
+    }, (error) => {
+      announce(`Live preparation updates were interrupted: ${error}. Preflight is checking native state directly.`, "warning");
+      startReconciliation();
+    });
+    return () => {
+      stopListening();
+      stopReconciliation();
+    };
+  }, [announce, settlePreparation]);
+
+'''
+          text = replace_between(
+              text,
+              '  useEffect(() => {\n    if (!isDesktopHost()) return;\n    let stopReconciliation: () => void = () => undefined;\n',
+              '  useEffect(() => {\n    if (!isDesktopHost()) return;\n    return listenWhileMounted<PreparationProgressEvent>',
+              reconciliation,
+              'reconciliation effect',
+          )
+
+          progress = '''  useEffect(() => {
+    if (!isDesktopHost()) return;
+    return listenWhileMounted<PreparationProgressEvent>("prepare-progress", ({ payload }) => {
+      if (payload.pid === localPreparationPid.current) {
+        if (payload.state === "completed") completedPreparationPhases.current.add(payload.phase);
+        setPreparationProgress({ ...payload });
+        return;
+      }
+      if (localPreparationStarting.current) {
+        if (provisionalPreparationPid.current === null) provisionalPreparationPid.current = payload.pid;
+        if (provisionalPreparationPid.current === payload.pid) {
+          observedWhileStarting.current.add(payload.pid);
+          setPreparationProgressKnown(false);
+          completedPreparationPhases.current.clear();
+          setPreparationProgress({ ...payload });
+        }
+        return;
+      }
+      if (localPreparationPid.current === null && payload.pid === recoveredPreparationPid.current) {
+        setPreparationProgressKnown(false);
+        setPreparationProgress({ ...payload });
+      }
+    }, (error) => announce(`Could not observe preparation progress: ${error}`, "error"));
+  }, [announce]);
+
+'''
+          text = replace_between(
+              text,
+              '  useEffect(() => {\n    if (!isDesktopHost()) return;\n    return listenWhileMounted<PreparationProgressEvent>',
+              '  const stopPreparation = async () => {\n',
+              progress,
+              'progress effect',
+          )
+
+          stop = '''  const stopPreparation = async () => {
+    if (!preparing || preparationCancelling) return;
+    setPreparationCancelling(true);
+    pendingStartLaunch.current = false;
+    launchAfterPreparationPid.current = null;
+    announce("Stopping preparation safely…");
+    try {
+      const requested = await cancelPreparation();
+      if (!requested) {
+        localPreparationPid.current = null;
+        recoveredPreparationPid.current = null;
+        provisionalPreparationPid.current = null;
+        pendingTerminalPreparation.current.clear();
+        observedWhileStarting.current.clear();
+        setPreparationProgressKnown(true);
+        setPreparing(localPreparationStarting.current);
+        setPreparationCancelling(false);
+        setPreparationProgress(null);
+        announce("Preparation had already finished.");
+      }
+    } catch (error) {
+      setPreparationCancelling(false);
+      announce(errorMessage(error), "error");
+    }
+  };
+
+'''
+          text = replace_between(text, '  const stopPreparation = async () => {\n', '  const clearCache = () => {\n', stop, 'stopPreparation')
+          path.write_text(text)
+
+          test = Path('preflight-desktop/src/usePreparation.recovery.test.tsx')
+          tests = test.read_text()
+          tests = tests.replace(
+              'import type { PreparationStateEvent } from "./types";',
+              'import type { PreparationProgressEvent, PreparationStateEvent } from "./types";',
+          )
+          tests = tests.replace('function activePreparation() {\n', 'function activePreparation(pid = 77) {\n')
+          tests = tests.replace('    preparationPid: 77,\n', '    preparationPid: pid,\n')
+          helper = '''
+function inactivePreparation() {
+  return { ...activePreparation(), preparationPid: null };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((onResolve, onReject) => {
+    resolve = onResolve;
+    reject = onReject;
+  });
+  return { promise, resolve, reject };
+}
+'''
+          anchor = 'test("restart reconnects active preparation without inventing progress or auto-launching", async () => {'
+          if helper not in tests:
+              tests = tests.replace(anchor, helper + '\n' + anchor)
+
+          extra = r'''
+
+test("a recovered PID cannot consume launch intent from an unresolved local start", async () => {
+  let preparationStateListener: ((event: { payload: PreparationStateEvent }) => void) | null = null;
+  let preparationProgressListener: ((event: { payload: PreparationProgressEvent }) => void) | null = null;
+  const operation = deferred<ReturnType<typeof activePreparation>>();
+  const start = deferred<{ pid: number }>();
+  vi.spyOn(bridge, "isDesktopHost").mockReturnValue(true);
+  vi.spyOn(bridge, "getOperationState").mockReturnValue(operation.promise);
+  vi.spyOn(bridge, "startPreparation").mockReturnValue(start.promise);
+  vi.spyOn(bridge, "getCacheInspection").mockResolvedValue({
+    format: "starsector-preflight-cache-inspection-v1",
+    cache: null,
+    health: null,
+  } as never);
+  vi.spyOn(tauriEvents, "listenWhileMounted").mockImplementation(((channel: string, onEvent: (event: unknown) => void) => {
+    if (channel === "prepare-state") preparationStateListener = onEvent as typeof preparationStateListener;
+    if (channel === "prepare-progress") preparationProgressListener = onEvent as typeof preparationProgressListener;
+    return () => undefined;
+  }) as typeof tauriEvents.listenWhileMounted);
+  const announce = vi.fn();
+  const launch = vi.fn().mockResolvedValue(undefined);
+  const { result, unmount } = renderHook(() => usePreparation(
+    "/Applications/Starsector", false, "off", launch, announce,
+  ));
+
+  let pendingStart: Promise<void> | undefined;
+  act(() => {
+    pendingStart = result.current.prepare(true);
+  });
+  await act(async () => {
+    operation.resolve(activePreparation(77));
+    await Promise.resolve();
+  });
+  await waitFor(() => expect(result.current.preparationPercent).toBeNull());
+
+  act(() => preparationProgressListener?.({
+    payload: { pid: 77, format: "preflight-preparation-progress-v1", phase: "textures", state: "completed", totalPhases: 2, metrics: {} },
+  }));
+  expect(result.current.preparationPercent).toBeNull();
+  act(() => preparationStateListener?.({ payload: { state: "finished", pid: 77, success: true, detail: undefined } }));
+  expect(launch).not.toHaveBeenCalled();
+  expect(result.current.preparing).toBe(true);
+
+  await act(async () => {
+    start.resolve({ pid: 88 });
+    await pendingStart;
+  });
+  expect(result.current.preparing).toBe(true);
+  expect(launch).not.toHaveBeenCalled();
+
+  await act(async () => {
+    preparationStateListener?.({ payload: { state: "finished", pid: 88, success: true, detail: undefined } });
+  });
+  await waitFor(() => expect(launch).toHaveBeenCalledOnce());
+  expect(result.current.preparing).toBe(false);
+  unmount();
+});
+
+test("progress and terminal events only control the exact local preparation PID", async () => {
+  let preparationStateListener: ((event: { payload: PreparationStateEvent }) => void) | null = null;
+  let preparationProgressListener: ((event: { payload: PreparationProgressEvent }) => void) | null = null;
+  vi.spyOn(bridge, "isDesktopHost").mockReturnValue(true);
+  vi.spyOn(bridge, "getOperationState").mockResolvedValue(inactivePreparation());
+  vi.spyOn(bridge, "startPreparation").mockResolvedValue({ pid: 88 });
+  vi.spyOn(bridge, "getCacheInspection").mockResolvedValue({
+    format: "starsector-preflight-cache-inspection-v1",
+    cache: null,
+    health: null,
+  } as never);
+  vi.spyOn(tauriEvents, "listenWhileMounted").mockImplementation(((channel: string, onEvent: (event: unknown) => void) => {
+    if (channel === "prepare-state") preparationStateListener = onEvent as typeof preparationStateListener;
+    if (channel === "prepare-progress") preparationProgressListener = onEvent as typeof preparationProgressListener;
+    return () => undefined;
+  }) as typeof tauriEvents.listenWhileMounted);
+  const announce = vi.fn();
+  const launch = vi.fn().mockResolvedValue(undefined);
+  const { result, unmount } = renderHook(() => usePreparation(
+    "/Applications/Starsector", false, "off", launch, announce,
+  ));
+
+  await act(async () => result.current.prepare(true));
+  act(() => preparationProgressListener?.({
+    payload: { pid: 77, format: "preflight-preparation-progress-v1", phase: "wrong", state: "completed", totalPhases: 2, metrics: {} },
+  }));
+  expect(result.current.preparationPercent).toBe(0);
+  act(() => preparationProgressListener?.({
+    payload: { pid: 88, format: "preflight-preparation-progress-v1", phase: "textures", state: "completed", totalPhases: 2, metrics: {} },
+  }));
+  expect(result.current.preparationPercent).toBe(50);
+
+  act(() => preparationStateListener?.({ payload: { state: "finished", pid: 77, success: true, detail: undefined } }));
+  expect(result.current.preparing).toBe(true);
+  expect(launch).not.toHaveBeenCalled();
+  await act(async () => {
+    preparationStateListener?.({ payload: { state: "finished", pid: 88, success: true, detail: undefined } });
+  });
+  await waitFor(() => expect(launch).toHaveBeenCalledOnce());
+  expect(result.current.preparing).toBe(false);
+  unmount();
+});
+'''
+          if 'a recovered PID cannot consume launch intent from an unresolved local start' not in tests:
+              tests += extra
+          test.write_text(tests)
+          PY
+
+          cd preflight-desktop
+          npm ci
+          npm test -- --run src/usePreparation.recovery.test.tsx
+          npm run build
+          cd ..
+          rm .github/workflows/build-preparation-pid-fix.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(desktop): bind preparation state to exact PID"
+          git push origin HEAD:hardening/preparation-pid-ownership
