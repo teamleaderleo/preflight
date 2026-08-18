@@ -26,9 +26,10 @@ class UninstallOwnershipCommitBoundaryTest {
         long size = Files.size(command);
         FileTime modified = Files.getLastModifiedTime(command);
         String original = Files.readString(command);
-        String replacement = original.replace(IntegrationOwnership.POSIX_MARKER,
-                "# external-integration: dev.starsector.preflight.launcher-v1");
-        replacement = padToBytes(replacement, size);
+        String replacement = padToBytes(
+                original.replace(IntegrationOwnership.POSIX_MARKER,
+                        "# external-integration: dev.starsector.preflight.launcher-v1"),
+                size);
 
         try (UninstallCommand.RemovalTestHookScope ignored = UninstallCommand.installRemovalTestHook(
                 (event, integration, path) -> {
