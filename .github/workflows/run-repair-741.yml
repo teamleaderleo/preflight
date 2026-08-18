@@ -1,0 +1,53 @@
+name: Run reviewed preparation recovery repair
+
+on:
+  push:
+    branches:
+      - agent/rc-recover-preparation-restart
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/rc-recover-preparation-restart
+          fetch-depth: 0
+          token: ${{ github.token }}
+      - name: Integrate current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name preflight-agent
+          git config user.email preflight-agent@users.noreply.github.com
+          git fetch origin main
+          git merge --no-edit origin/main
+      - name: Execute reviewed exact-PID repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('.github/workflows/repair-741-preparation-recovery.yml').read_text()
+          marker = "      - name: Apply exact-PID ownership repair\n        shell: bash\n        run: |\n"
+          if text.count(marker) != 1:
+              raise SystemExit('reviewed preparation repair boundary changed')
+          body = text.split(marker, 1)[1]
+          lines = body.splitlines()
+          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines) + '\n'
+          Path('/tmp/preflight-741-repair.sh').write_text(script)
+          PY
+          bash /tmp/preflight-741-repair.sh
+      - name: Remove temporary driver
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name preflight-agent
+          git config user.email preflight-agent@users.noreply.github.com
+          rm .github/workflows/run-repair-741.yml
+          git add .github/workflows/run-repair-741.yml
+          git commit -m "chore: remove preparation repair driver"
+          git push origin HEAD:agent/rc-recover-preparation-restart
