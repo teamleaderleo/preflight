@@ -35,6 +35,8 @@ final class CacheFootprint {
                     "prepared texture payloads, shared across profiles by content hash")),
             Map.entry(relative(PreparedTexturePackIO.directory(Path.of("cache"))),
                     acceleration("profile texture packs and learned read order")),
+            Map.entry("cache/packs", acceleration(
+                    "legacy profile texture packs retained for release rollback")),
             Map.entry(relative(ResourceIndexIO.directory(Path.of("cache"))),
                     acceleration("one per prepared profile")),
             Map.entry(relative(TextureManifestIO.directory(Path.of("cache"))),
