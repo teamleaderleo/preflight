@@ -7,16 +7,21 @@ import dev.starsector.preflight.core.PreparedAudioCache;
 import dev.starsector.preflight.core.PreparedAudioIO;
 import dev.starsector.preflight.core.PreparedAudioManifest;
 import dev.starsector.preflight.core.PreparedAudioManifestIO;
+import java.io.InputStream;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.channels.Channels;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -39,25 +44,6 @@ public final class PrepareAudioChild {
     /** Arguments before the game's own jars begin. */
     private static final int FIXED_ARGUMENTS = 7;
 
-    /**
-     * Loads the installation's jars from arguments rather than from {@code -cp}.
-     *
-     * <p>The launcher consumes a class path itself, before any Preflight code exists to decode one,
-     * and Windows converts that value to the system code page on the way in — so an installation
-     * whose path falls outside that page arrives as question marks and its classes are simply not
-     * found. Arguments can be carried as Base64 and a class path cannot, so the jars travel as
-     * arguments and are opened here, where the strings have already been decoded.
-     *
-     * <p>Delegation stays parent-first. On the flat class path this replaces, the game's jars came
-     * before Preflight's, so the game won any name they shared; parent-first would reverse that.
-     * It is safe because they share none — verified against the reviewed installation, whose jars
-     * have no class in common with the shipped one — and the decode this exists to perform must be
-     * the game's own.
-     *
-     * <p>Returned as the closeable type it is. Nothing closes it here, because the child exits when
-     * the decode does and the handles go with it, but a caller that outlives its loader has to be
-     * able to let the jars go: Windows refuses to delete a file something still holds open.
-     */
     static URLClassLoader gameClassLoader(String[] args, int from) throws java.net.MalformedURLException {
         URL[] jars = new URL[args.length - from];
         for (int index = from; index < args.length; index++) {
@@ -87,7 +73,8 @@ public final class PrepareAudioChild {
         Map<String, PreparedAudioManifest.Entry> manifestEntries = new TreeMap<>();
         long start = System.nanoTime();
 
-        for (String line : Files.readAllLines(work, StandardCharsets.UTF_8)) {
+        List<String> workItems = readWorkItems(work);
+        for (String line : workItems) {
             if (line.isBlank()) {
                 continue;
             }
@@ -96,11 +83,14 @@ public final class PrepareAudioChild {
             Path file = Path.of(tab < 0 ? line : line.substring(tab + 1));
             byte[] encoded;
             try {
-                encoded = Files.readAllBytes(file);
+                encoded = readEncoded(file);
             } catch (java.io.IOException unreadable) {
                 undecodable++;
                 record(skipped, logicalPath);
                 continue;
+            }
+            if (encodedBytes > PrepareAudioCommand.MAX_TOTAL_ENCODED_BYTES - encoded.length) {
+                throw new IllegalArgumentException("Prepared audio exceeds the encoded-byte budget");
             }
             encodedBytes += encoded.length;
 
@@ -111,6 +101,10 @@ public final class PrepareAudioChild {
                 continue;
             }
             byte[] samples = decoded.samples();
+            if (samples.length > PreparedAudio.MAX_PCM_BYTES
+                    || pcmBytes > PrepareAudioCommand.MAX_TOTAL_PCM_BYTES - samples.length) {
+                throw new java.io.IOException("Prepared audio exceeds the decoded-byte budget");
+            }
 
             String sourceSha256 = Hashes.sha256(encoded);
             PreparedAudio audio = new PreparedAudio(
@@ -165,6 +159,49 @@ public final class PrepareAudioChild {
     private static void record(List<String> skipped, String logicalPath) {
         if (skipped.size() < 20) {
             skipped.add(logicalPath);
+        }
+    }
+
+    /** Reads the parent-generated work list without allowing replacement/growth to bypass the cap. */
+    static List<String> readWorkItems(Path work) throws java.io.IOException {
+        BasicFileAttributes attributes = Files.readAttributes(
+                work, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        if (!attributes.isRegularFile() || attributes.isSymbolicLink()
+                || attributes.size() > PrepareAudioCommand.MAX_WORK_FILE_BYTES) {
+            throw new java.io.IOException("Prepared-audio work list exceeds the safe byte budget");
+        }
+        byte[] bytes;
+        try (var channel = Files.newByteChannel(
+                work, Set.of(StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS));
+             InputStream input = Channels.newInputStream(channel)) {
+            bytes = input.readNBytes(PrepareAudioCommand.MAX_WORK_FILE_BYTES + 1);
+        }
+        if (bytes.length > PrepareAudioCommand.MAX_WORK_FILE_BYTES) {
+            throw new java.io.IOException("Prepared-audio work list exceeds the safe byte budget");
+        }
+        List<String> items = new String(bytes, StandardCharsets.UTF_8).lines().toList();
+        if (items.size() > PrepareAudioCommand.MAX_SOUND_COUNT) {
+            throw new java.io.IOException("Prepared-audio work list exceeds the safe sound count");
+        }
+        return items;
+    }
+
+    /** Reads one untrusted asset without allowing it to grow past the per-file budget mid-read. */
+    static byte[] readEncoded(Path file) throws java.io.IOException {
+        BasicFileAttributes attributes = Files.readAttributes(
+                file, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        if (!attributes.isRegularFile() || attributes.isSymbolicLink()
+                || attributes.size() > PrepareAudioCommand.MAX_ENCODED_FILE_BYTES) {
+            throw new IllegalArgumentException("Prepared audio exceeds the encoded-file budget");
+        }
+        try (var channel = Files.newByteChannel(
+                file, Set.of(StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS));
+             InputStream input = Channels.newInputStream(channel)) {
+            byte[] encoded = input.readNBytes((int) PrepareAudioCommand.MAX_ENCODED_FILE_BYTES + 1);
+            if (encoded.length > PrepareAudioCommand.MAX_ENCODED_FILE_BYTES) {
+                throw new IllegalArgumentException("Prepared audio exceeds the encoded-file budget");
+            }
+            return encoded;
         }
     }
 }
