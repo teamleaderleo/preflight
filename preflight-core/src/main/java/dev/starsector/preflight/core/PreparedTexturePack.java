@@ -74,8 +74,12 @@ public final class PreparedTexturePack implements AutoCloseable {
             throw new IOException("Prepared texture pack has no entry for " + normalized);
         }
         long absolute = Math.addExact(payloadOffset, range.offset());
-        return PreparedTextureIO.readTrusted(
-                channel, absolute, range.length(), path + "!" + normalized);
+        return PreparedTexturePackIntegrity.readTrusted(
+                channel,
+                absolute,
+                range.length(),
+                range.crc32c(),
+                path + "!" + normalized);
     }
 
     @Override
@@ -85,7 +89,7 @@ public final class PreparedTexturePack implements AutoCloseable {
         }
     }
 
-    record Range(long offset, int length) {
+    record Range(long offset, int length, int crc32c) {
         Range {
             if (offset < 0 || length <= 0) {
                 throw new IllegalArgumentException("Prepared texture pack range is invalid");
