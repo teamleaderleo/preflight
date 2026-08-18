@@ -50,6 +50,7 @@ function props(overrides: Partial<ComponentProps<typeof SettingsPage>> = {}): Co
 
 beforeEach(() => {
   window.localStorage.clear();
+  delete document.documentElement.dataset.homeMode;
   delete document.documentElement.dataset.homePlaytime;
 });
 
@@ -77,6 +78,22 @@ test("installation changes follow the app-wide workflow lock", () => {
   expect(screen.getByRole("button", { name: "Change folder" })).toHaveAttribute("title", "Updating the saved mod profile");
 });
 
+test("Home presentation switches immediately between Hangar and Compact", async () => {
+  const user = userEvent.setup();
+  render(<SettingsPage {...props()} />);
+
+  const select = screen.getByRole("combobox", { name: "Home presentation" });
+  expect(select).toHaveValue("hangar");
+  expect(screen.getByText("Hull-led Home with the full settled display.")).toBeInTheDocument();
+
+  await user.selectOptions(select, "compact");
+  expect(select).toHaveValue("compact");
+  expect(document.documentElement.dataset.homeMode).toBe("compact");
+  expect(screen.getByText("Launch-first Home without the decorative hull and history readouts.")).toBeInTheDocument();
+  expect(JSON.parse(window.localStorage.getItem(HOME_PRESENTATION_STORAGE_KEY) ?? "null"))
+    .toEqual({ mode: "compact", showPlaytime: true });
+});
+
 test("Home playtime visibility is an immediate display-only preference", async () => {
   const user = userEvent.setup();
   render(<SettingsPage {...props()} />);
@@ -89,7 +106,7 @@ test("Home playtime visibility is an immediate display-only preference", async (
   expect(select).toHaveValue("hide");
   expect(document.documentElement.dataset.homePlaytime).toBe("hidden");
   expect(JSON.parse(window.localStorage.getItem(HOME_PRESENTATION_STORAGE_KEY) ?? "null"))
-    .toEqual({ showPlaytime: false });
+    .toEqual({ mode: "hangar", showPlaytime: false });
 
   await user.selectOptions(select, "show");
   expect(document.documentElement.dataset.homePlaytime).toBe("shown");
