@@ -97,8 +97,7 @@ class UninstallCommandTest {
     void theDefaultScopeAlsoRemovesTheLegacyBrandedLauncher() throws Exception {
         PreflightHome preflight = macHome();
         Path legacyApp = preflight.pathOf(PreflightHome.Id.LEGACY_MAC_APP);
-        Files.createDirectories(legacyApp.resolve("Contents/MacOS"));
-        Files.writeString(legacyApp.resolve("Contents/MacOS/starsector-preflight"), "#!/bin/sh\n");
+        installLegacyMacIntegration(legacyApp);
 
         assertEquals(0, UninstallCommand.run(preflight, false, true, quiet()));
         assertFalse(Files.exists(legacyApp), "the old branded launcher should be gone");
@@ -110,8 +109,7 @@ class UninstallCommandTest {
         installIntegration(preflight);
         Path currentApp = preflight.pathOf(PreflightHome.Id.MAC_APP);
         Path legacyApp = preflight.pathOf(PreflightHome.Id.LEGACY_MAC_APP);
-        Files.createDirectories(legacyApp.resolve("Contents/MacOS"));
-        Files.writeString(legacyApp.resolve("Contents/MacOS/starsector-preflight"), "#!/bin/sh\n");
+        installLegacyMacIntegration(legacyApp);
 
         InstallCommand.retireLegacyLaunchers(preflight);
 
@@ -312,15 +310,54 @@ class UninstallCommandTest {
         assertTrue(json.contains("symlink or alias"), json);
     }
 
+    @Test
+    void genericFilesAtLauncherPathsArePreserved() throws Exception {
+        PreflightHome mac = macHome();
+        Path app = mac.pathOf(PreflightHome.Id.MAC_APP);
+        Files.createDirectories(app.resolve("Contents/MacOS"));
+        Path executable = app.resolve("Contents/MacOS/preflight");
+        Files.writeString(executable, "#!/bin/sh\nexec /games/starsector \"$@\"\n");
+        Files.writeString(
+                app.resolve("Contents/Info.plist"),
+                "<plist><dict><key>CFBundleExecutable</key><string>preflight</string></dict></plist>");
+
+        assertEquals(0, UninstallCommand.run(mac, false, true, quiet()));
+        assertTrue(Files.isRegularFile(executable));
+
+        PreflightHome linux = PreflightHome.resolve(Platform.LINUX, home.resolve("linux"), Map.of());
+        Path command = linux.pathOf(PreflightHome.Id.LINUX_COMMAND);
+        Path desktop = linux.pathOf(PreflightHome.Id.LINUX_DESKTOP_ENTRY);
+        Files.createDirectories(command.getParent());
+        Files.createDirectories(desktop.getParent());
+        Files.writeString(command, "#!/bin/sh\nexec /games/starsector \"$@\"\n");
+        Files.writeString(desktop, "[Desktop Entry]\nName=Preflight\nExec=/games/starsector\n");
+
+        assertEquals(0, UninstallCommand.run(linux, false, true, quiet()));
+        assertTrue(Files.isRegularFile(command));
+        assertTrue(Files.isRegularFile(desktop));
+    }
+
     private PreflightHome macHome() {
         return PreflightHome.resolve(Platform.MAC, home, Map.of());
     }
 
     private static void installIntegration(PreflightHome preflight) throws Exception {
-        Path app = preflight.integrations().get(0).path();
+        InstallCommand.installMac(preflight, preflight.installedJar(), Path.of("/Starsector.app"));
+    }
+
+    private static void installLegacyMacIntegration(Path app) throws Exception {
         Files.createDirectories(app.resolve("Contents/MacOS"));
-        Files.writeString(app.resolve("Contents/MacOS/preflight"), "#!/bin/sh\n");
-        Files.writeString(app.resolve("Contents/Info.plist"), "<plist/>");
+        Files.writeString(
+                app.resolve("Contents/MacOS/starsector-preflight"),
+                "#!/bin/sh\n"
+                        + IntegrationOwnership.POSIX_MARKER
+                        + "\nexec java -jar '/tmp/preflight.jar' run --fast --game '/Starsector.app' \"$@\"\n");
+        Files.writeString(
+                app.resolve("Contents/Info.plist"),
+                "<plist><dict>"
+                        + "<key>CFBundleIdentifier</key><string>dev.starsector.preflight.launcher</string>"
+                        + "<key>CFBundleExecutable</key><string>starsector-preflight</string>"
+                        + "</dict></plist>");
     }
 
     private static String run(PreflightHome preflight, boolean purge, boolean confirmed)
