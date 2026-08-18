@@ -17,6 +17,7 @@ import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /** Binary persistence for {@link TextureManifest}. */
@@ -151,11 +152,11 @@ public final class TextureManifestIO {
             Map<String, TextureManifest.Entry> entries = new LinkedHashMap<>(
                     Math.max(16, Math.min(entryCount, MAX_EAGER_CAPACITY)));
             for (int i = 0; i < entryCount; i++) {
-                String logicalPath = readString(input);
+                String logicalPath = readCanonicalLogicalPath(input);
                 TextureManifest.Entry entry = new TextureManifest.Entry(
-                        readString(input),
+                        readCanonicalSha256(input),
                         PreparedTexture.Transformation.fromId(input.readInt()),
-                        readString(input),
+                        readCanonicalRelativePath(input),
                         input.readInt(),
                         input.readInt(),
                         input.readInt(),
@@ -186,6 +187,33 @@ public final class TextureManifestIO {
         }
         output.writeInt(bytes.length);
         output.write(bytes);
+    }
+
+    private static String readCanonicalLogicalPath(DataInputStream input) throws IOException {
+        String value = readString(input);
+        String canonical = ResourceIndex.normalizeLogicalPath(value);
+        if (!value.equals(canonical)) {
+            throw new IOException("Texture manifest logical path is not canonical: " + value);
+        }
+        return value;
+    }
+
+    private static String readCanonicalRelativePath(DataInputStream input) throws IOException {
+        String value = readString(input);
+        String canonical = ResourceIndex.normalizeRelativePath(value);
+        if (!value.equals(canonical)) {
+            throw new IOException("Texture manifest blob path is not canonical: " + value);
+        }
+        return value;
+    }
+
+    private static String readCanonicalSha256(DataInputStream input) throws IOException {
+        String value = readString(input);
+        if (!value.equals(value.toLowerCase(Locale.ROOT))) {
+            throw new IOException("Texture manifest source SHA-256 is not canonical lowercase hex");
+        }
+        Hashes.decodeSha256(value);
+        return value;
     }
 
     private static String readString(DataInputStream input) throws IOException {
