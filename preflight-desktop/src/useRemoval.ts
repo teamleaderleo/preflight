@@ -1,9 +1,20 @@
 import { useRef, useState } from "react";
 import { applyRemoval, getRemovalPlan } from "./bridge";
 import { clearPreflightLocalStorage } from "./desktopStorage";
-import { getReportState } from "./reportBridge";
+import { getReportState, type ReportState } from "./reportBridge";
 import type { Announce, DesktopSnapshot, RemovalPlan, RemovalScope } from "./types";
 import { errorMessage } from "./uiFormat";
+
+export async function requireClearReportAuthorityBeforeAllDataRemoval(
+  readReportState: () => Promise<ReportState> = () => getReportState(),
+): Promise<void> {
+  const reportState = await readReportState();
+  if (reportState.backgroundUploadId !== null || reportState.reports.length > 0) {
+    throw new Error(
+      "Delete each uploaded report, or explicitly dismiss its saved deletion authorization, before removing all Preflight data. Stop any automatic report upload first.",
+    );
+  }
+}
 
 export function useRemoval(
   platform: DesktopSnapshot["platform"] | undefined,
@@ -48,12 +59,7 @@ export function useRemoval(
     setBusy(true);
     try {
       if (scope === "all-data") {
-        const reportState = await getReportState();
-        if (reportState.backgroundUploadId !== null || reportState.reports.length > 0) {
-          throw new Error(
-            "Delete each uploaded report, or explicitly dismiss its saved deletion authorization, before removing all Preflight data. Stop any automatic report upload first.",
-          );
-        }
+        await requireClearReportAuthorityBeforeAllDataRemoval();
       }
       const result = await applyRemoval(scope);
       if (currentRequest !== request.current) return;
