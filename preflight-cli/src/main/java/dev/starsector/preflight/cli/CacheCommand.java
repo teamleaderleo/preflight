@@ -81,7 +81,10 @@ final class CacheCommand {
                     json,
                     System.out);
         }
-        CurrentProfile currentProfile = currentProfile(game, launcher);
+        boolean fullIdentity = requiresFullIdentity(inspect, health, repair);
+        CurrentProfile currentProfile = fullIdentity
+                ? currentProfile(game, launcher)
+                : currentFingerprintOnly(game, launcher);
         String current = currentProfile.fingerprint();
         if (inspect) {
             if (confirmed || keepNamed || expectedProfile != null) {
@@ -691,15 +694,28 @@ final class CacheCommand {
     }
 
     private static String currentFingerprint(Path game, Path launcher) {
-        return currentProfile(game, launcher).fingerprint();
+        return currentFingerprintOnly(game, launcher).fingerprint();
+    }
+
+    static boolean requiresFullIdentity(boolean inspect, boolean health, boolean repair) {
+        return inspect || health || repair;
+    }
+
+    static CurrentProfile currentFingerprintOnly(Path game, Path launcher) {
+        return currentProfile(game, launcher, ResourceIndexBuilder.DEFAULT_SCAN_WORKERS, false);
     }
 
     static CurrentProfile currentProfile(Path game, Path launcher) {
-        return currentProfile(game, launcher, ResourceIndexBuilder.DEFAULT_SCAN_WORKERS);
+        return currentProfile(game, launcher, ResourceIndexBuilder.DEFAULT_SCAN_WORKERS, true);
     }
 
     /** Lets an interactive caller bound transient load without changing the resulting identity. */
     static CurrentProfile currentProfile(Path game, Path launcher, int scanWorkers) {
+        return currentProfile(game, launcher, scanWorkers, true);
+    }
+
+    private static CurrentProfile currentProfile(
+            Path game, Path launcher, int scanWorkers, boolean includeAudioIdentity) {
         try {
             DiscoveryResult discovery = StarsectorDiscovery.discover(
                     Platform.current(),
@@ -719,6 +735,9 @@ final class CacheCommand {
             ResourceIndexBuilder.BuildResult resourceIndex =
                     ResourceIndexBuilder.build(target.installRoot(), scanWorkers);
             String fingerprint = resourceIndex.index().profileFingerprint();
+            if (!includeAudioIdentity) {
+                return new CurrentProfile(fingerprint, null, null, null);
+            }
             try {
                 List<Path> gameJars = PrepareAudioCommand.jars(target.installRoot());
                 return new CurrentProfile(
