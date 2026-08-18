@@ -92,9 +92,9 @@ export function verifySourceLock(lock, root = repositoryRoot) {
     const data = normalizedSourceBytes(join(root, name));
     const actual = sha256(data);
     if (actual !== expected) {
+      // The gate is the point; leaving the reader to hand-compute the replacement digest was not.
       throw new Error(
         `Capability boundary changed without review: ${name}\n`
-        + `Reviewed source SHA-256 candidate: ${actual}\n`
         + "Read the diff, then accept it with: npm run capabilities:review --prefix preflight-desktop",
       );
     }
