@@ -1,7 +1,8 @@
 import type { ComponentProps } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
+import { HOME_PRESENTATION_STORAGE_KEY } from "../desktopStorage";
 import type { useSignedUpdates } from "../useSignedUpdates";
 import { SettingsPage } from "./SettingsPage";
 
@@ -47,6 +48,11 @@ function props(overrides: Partial<ComponentProps<typeof SettingsPage>> = {}): Co
   };
 }
 
+beforeEach(() => {
+  window.localStorage.clear();
+  delete document.documentElement.dataset.homePlaytime;
+});
+
 test("Settings owns ordinary installation changes", async () => {
   const user = userEvent.setup();
   const onChooseInstall = vi.fn();
@@ -69,4 +75,22 @@ test("installation changes follow the app-wide workflow lock", () => {
 
   expect(screen.getByRole("button", { name: "Change folder" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Change folder" })).toHaveAttribute("title", "Updating the saved mod profile");
+});
+
+test("Home playtime visibility is an immediate display-only preference", async () => {
+  const user = userEvent.setup();
+  render(<SettingsPage {...props()} />);
+
+  const select = screen.getByRole("combobox", { name: "Home playtime" });
+  expect(select).toHaveValue("show");
+  expect(screen.getByText("Display only. Launch history and playtime recording continue either way.")).toBeInTheDocument();
+
+  await user.selectOptions(select, "hide");
+  expect(select).toHaveValue("hide");
+  expect(document.documentElement.dataset.homePlaytime).toBe("hidden");
+  expect(JSON.parse(window.localStorage.getItem(HOME_PRESENTATION_STORAGE_KEY) ?? "null"))
+    .toEqual({ showPlaytime: false });
+
+  await user.selectOptions(select, "show");
+  expect(document.documentElement.dataset.homePlaytime).toBe("shown");
 });
