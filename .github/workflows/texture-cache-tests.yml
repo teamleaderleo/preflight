@@ -40,6 +40,9 @@ jobs:
           - name: prepared-blob-format
             module: preflight-core
             tests: PreparedTextureIOTest,PreparedTexturePersistencePropertyTest,ManifestTextureCacheLookupTest
+          - name: prepared-pack-format
+            module: preflight-core
+            tests: PreparedTexturePackIOTest,PreparedTexturePackPersistencePropertyTest
           - name: manifest-format
             module: preflight-core
             tests: TextureManifestIOTest

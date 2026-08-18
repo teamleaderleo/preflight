@@ -42,6 +42,7 @@ export function useProfiles(
   const actionRequest = useRef(0);
   const busyRef = useRef(false);
   const profileNameRevision = useRef(0);
+  const launchIdentityRefreshing = useRef(false);
   const currentGame = useRef(game);
   currentGame.current = game;
 
@@ -68,6 +69,7 @@ export function useProfiles(
     actionRequest.current += 1;
     busyRef.current = false;
     profileNameRevision.current += 1;
+    launchIdentityRefreshing.current = false;
     setProfiles(null);
     setProfilesLoading(false);
     setProfileBusy(false);
@@ -84,8 +86,10 @@ export function useProfiles(
 
   useEffect(() => {
     // Page navigation is not a filesystem change. Keep the last list for this exact installation
-    // instead of starting another JVM every time Home or Mods becomes visible again.
-    if (visible && profiles?.installRoot !== game) {
+    // instead of starting another JVM every time Home or Mods becomes visible again. If a refocus
+    // revalidation is already supplying that read, Home consumes it instead of launching a second
+    // engine request merely because the retained list was deliberately invalidated.
+    if (visible && profiles?.installRoot !== game && !launchIdentityRefreshing.current) {
       void refreshProfiles();
     } else if (!game) {
       profilesRequest.current += 1;
@@ -93,6 +97,25 @@ export function useProfiles(
       setProfilesLoading(false);
     }
   }, [game, profiles?.installRoot, refreshProfiles, visible]);
+
+  useEffect(() => {
+    if (!game) return;
+    // Another mod manager can change enabled_mods.json while Preflight is open. Refocus is the
+    // launch-facing freshness boundary regardless of which Preflight page is currently visible.
+    // Drop the retained profile list before the asynchronous reread so Home cannot keep projecting
+    // a saved name while freshness is unproven, and a failed profile refresh cannot restore stale
+    // certainty merely because the previous profile/cache snapshots happened to agree.
+    const refreshLaunchIdentity = () => {
+      if (launchIdentityRefreshing.current) return;
+      launchIdentityRefreshing.current = true;
+      setProfiles(null);
+      void Promise.all([refreshProfiles(), refreshCache()]).finally(() => {
+        launchIdentityRefreshing.current = false;
+      });
+    };
+    window.addEventListener("focus", refreshLaunchIdentity);
+    return () => window.removeEventListener("focus", refreshLaunchIdentity);
+  }, [game, refreshCache, refreshProfiles]);
 
   const saveCurrentProfile = async () => {
     const name = profileName.trim();
@@ -237,6 +260,22 @@ export function useProfiles(
     try {
       const result = await activateReviewedProfile(expectedGame, reviewedPlan.name, true);
       if (request !== actionRequest.current || currentGame.current !== expectedGame) return;
+      if (result.applied && !result.reviewChanged && result.canActivate) {
+        // The enabled-mods file changed before the refreshes below. Update the cached list by the
+        // target fingerprint now, including equivalent duplicate profiles, so a failed refresh can
+        // never leave Home naming the profile that was active before this successful switch.
+        setProfiles((current) => {
+          if (!current || current.installRoot !== expectedGame) return current;
+          const target = current.profiles.find((profile) => profile.name === result.name);
+          return {
+            ...current,
+            profiles: current.profiles.map((profile) => ({
+              ...profile,
+              active: target ? profile.profileFingerprint === target.profileFingerprint : false,
+            })),
+          };
+        });
+      }
       await Promise.all([refreshInstallation(expectedGame), refreshProfiles(), refreshCache()]);
       if (request !== actionRequest.current || currentGame.current !== expectedGame) return;
       if (result.reviewChanged) {
@@ -313,6 +352,7 @@ export function useProfiles(
     profilesRequest.current += 1;
     actionRequest.current += 1;
     busyRef.current = false;
+    launchIdentityRefreshing.current = false;
     setProfiles(null);
     setProfilesLoading(false);
     setProfileBusy(false);
