@@ -3,13 +3,20 @@ package dev.starsector.preflight.cli;
 import dev.starsector.preflight.core.Hashes;
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.AclEntry;
+import java.nio.file.attribute.AclEntryFlag;
+import java.nio.file.attribute.AclEntryPermission;
+import java.nio.file.attribute.AclEntryType;
+import java.nio.file.attribute.AclFileAttributeView;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.nio.file.attribute.UserPrincipal;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -32,9 +39,10 @@ import java.util.Set;
  * <p>Code pages cover their own language, so an ordinary localized account name is representable and
  * nothing here does any work: {@link #readableByTheChildJvm} returns the JAR untouched and copies
  * nothing. It is mixed scripts that fall outside — a Greek account name on a cp1252 system, say.
- * Those are staged: the JAR is copied once to a directory whose own path survives the encoding, and
- * that copy's path is what {@code JAVA_TOOL_OPTIONS} carries. The copy is named for its SHA-256, so a
- * changed JAR stages under a new name and a stale one is never mistaken for the current build.
+ * Those are staged into a fresh private directory below a path the child can spell. A shared staging
+ * root is never trusted to contain an existing agent: Preflight creates an unpredictable directory,
+ * restricts that directory to the current owner, creates a new file inside it, and verifies the full
+ * SHA-256 before handing the path to the child. The copy is removed when the wrapper JVM exits.
  *
  * <p>The encoding consulted is the wrapper's own {@code sun.jnu.encoding}. The wrapper and the game
  * share an environment and a system locale, so the wrapper's value is what the child will use.
@@ -42,7 +50,7 @@ import java.util.Set;
  * {@code -D}, which is why the JAR moves instead of the encoding.
  */
 final class AgentJarStaging {
-    /** Directory created under a staging root. Deliberately ASCII. */
+    /** Prefix for private staging directories. Deliberately ASCII. */
     static final String DIRECTORY_NAME = "preflight-agent";
 
     private AgentJarStaging() {
@@ -51,8 +59,8 @@ final class AgentJarStaging {
     /**
      * Returns {@code agentJar} when the child JVM can read its path, otherwise a staged copy.
      *
-     * @throws IOException when the path needs staging and no candidate root can hold it, which is
-     *     reported rather than left to surface as a JVM that will not initialize
+     * @throws IOException when the path needs staging and no candidate root can hold a private copy,
+     *     which is reported rather than left to surface as a JVM that will not initialize
      */
     static Path readableByTheChildJvm(Path agentJar) throws IOException {
         return readableByTheChildJvm(agentJar, nativeEncoding(), stagingRoots());
@@ -65,24 +73,24 @@ final class AgentJarStaging {
         if (survives(jar.toString(), encoding)) {
             return jar;
         }
-        String name = "preflight-" + Hashes.sha256(jar).substring(0, 16) + ".jar";
+        String digest = Hashes.sha256(jar);
+        String name = "preflight-" + digest + ".jar";
         List<String> refusals = new ArrayList<>();
         for (Path root : stagingRoots) {
-            Path directory = root.resolve(DIRECTORY_NAME);
-            Path staged = directory.resolve(name);
-            if (!survives(staged.toString(), encoding)) {
+            Path spellingProbe = root.resolve(DIRECTORY_NAME + "-0000000000000000").resolve(name);
+            if (!survives(spellingProbe.toString(), encoding)) {
                 refusals.add(root + " (also outside " + encoding.name() + ")");
                 continue;
             }
             try {
-                return copyInto(jar, directory, staged);
-            } catch (IOException error) {
+                return copyIntoPrivateDirectory(jar, digest, root, name);
+            } catch (IOException | RuntimeException error) {
                 refusals.add(root + " (" + error + ")");
             }
         }
         throw new IOException(
                 "The Preflight JAR sits at a path the game's JVM cannot read under "
-                        + encoding.name() + ", and no staging directory was usable: " + jar
+                        + encoding.name() + ", and no private staging directory was usable: " + jar
                         + "; tried " + refusals);
     }
 
@@ -114,14 +122,14 @@ final class AgentJarStaging {
      * Directories that might hold a staged copy, best first.
      *
      * <p>The temporary directory is preferred because it is already the place for regenerable files.
-     * On the systems this exists for it usually sits under the same unrepresentable user folder as
-     * the JAR, so Windows contributes {@code %PUBLIC%} and {@code %ProgramData%}, both fixed ASCII
-     * paths that ordinary users may write to.
+     * On Windows it can live under the same unrepresentable user folder as the JAR, so ProgramData is
+     * the fail-closed ASCII fallback. A broadly shared Public directory is intentionally not used for
+     * executable staging. Unix contributes its conventional temporary roots; every actual copy still
+     * lives below a newly created owner-private directory.
      */
     static List<Path> stagingRoots() {
         Set<Path> roots = new LinkedHashSet<>();
         addRoot(roots, System.getProperty("java.io.tmpdir"));
-        addRoot(roots, System.getenv("PUBLIC"));
         addRoot(roots, System.getenv("ProgramData"));
         addRoot(roots, "/tmp");
         addRoot(roots, "/var/tmp");
@@ -134,7 +142,8 @@ final class AgentJarStaging {
         }
         try {
             Path root = Path.of(value).toAbsolutePath().normalize();
-            if (Files.isDirectory(root)) {
+            if (!Files.isSymbolicLink(root)
+                    && Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) {
                 roots.add(root);
             }
         } catch (InvalidPathException unusable) {
@@ -142,52 +151,86 @@ final class AgentJarStaging {
         }
     }
 
-    private static Path copyInto(Path jar, Path directory, Path staged) throws IOException {
-        Files.createDirectories(directory);
-        if (isAlready(jar, staged)) {
+    private static Path copyIntoPrivateDirectory(
+            Path jar, String expectedSha256, Path root, String name) throws IOException {
+        Path ownedRoot = root.toAbsolutePath().normalize();
+        if (Files.isSymbolicLink(ownedRoot)
+                || !Files.isDirectory(ownedRoot, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("staging root is not a real directory: " + ownedRoot);
+        }
+
+        Path directory = createPrivateDirectory(ownedRoot);
+        Path staged = directory.resolve(name);
+        boolean keep = false;
+        try {
+            Files.copy(jar, staged);
+            if (Files.isSymbolicLink(staged)
+                    || !Files.isRegularFile(staged, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IOException("staged agent is not a real regular file: " + staged);
+            }
+            String actualSha256 = Hashes.sha256(staged);
+            if (!expectedSha256.equals(actualSha256)) {
+                throw new IOException("staged agent checksum changed while copying: " + staged);
+            }
+            staged.toFile().deleteOnExit();
+            directory.toFile().deleteOnExit();
+            keep = true;
             return staged;
-        }
-        Path scratch = Files.createTempFile(directory, "preflight-", ".jar.tmp");
-        try {
-            Files.copy(jar, scratch, StandardCopyOption.REPLACE_EXISTING);
-            move(scratch, staged);
         } finally {
-            Files.deleteIfExists(scratch);
+            if (!keep) {
+                Files.deleteIfExists(staged);
+                Files.deleteIfExists(directory);
+            }
         }
-        return staged;
     }
 
-    /**
-     * Publishes the scratch copy under its final name.
-     *
-     * <p>Atomic first, so a concurrent launch never sees a partly written JAR. Two things can refuse
-     * it: a filesystem that has no atomic replace, and Windows, which will not replace a file another
-     * launch already has open. The name carries the content hash, so a file of the right size sitting
-     * there is this same JAR, and the loser of that race has nothing left to do.
-     */
-    private static void move(Path scratch, Path staged) throws IOException {
+    private static Path createPrivateDirectory(Path root) throws IOException {
+        PosixFileAttributeView posix = Files.getFileAttributeView(
+                root, PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
+        Path directory = posix == null
+                ? Files.createTempDirectory(root, DIRECTORY_NAME + "-")
+                : Files.createTempDirectory(
+                        root,
+                        DIRECTORY_NAME + "-",
+                        PosixFilePermissions.asFileAttribute(
+                                PosixFilePermissions.fromString("rwx------")));
+        boolean keep = false;
         try {
-            Files.move(scratch, staged,
-                    StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            if (Files.isSymbolicLink(directory)
+                    || !Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IOException("private staging path is not a real directory: " + directory);
+            }
+            restrictToCurrentOwner(directory);
+            keep = true;
+            return directory;
+        } finally {
+            if (!keep) {
+                Files.deleteIfExists(directory);
+            }
+        }
+    }
+
+    private static void restrictToCurrentOwner(Path directory) throws IOException {
+        PosixFileAttributeView posix = Files.getFileAttributeView(
+                directory, PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
+        if (posix != null) {
+            posix.setPermissions(PosixFilePermissions.fromString("rwx------"));
             return;
-        } catch (AtomicMoveNotSupportedException unsupported) {
-            // Fall through and take the plain replace this filesystem does support.
-        } catch (FileSystemException contended) {
-            if (isAlready(scratch, staged)) {
-                return;
-            }
-            throw contended;
         }
-        try {
-            Files.move(scratch, staged, StandardCopyOption.REPLACE_EXISTING);
-        } catch (FileSystemException contended) {
-            if (!isAlready(scratch, staged)) {
-                throw contended;
-            }
-        }
-    }
 
-    private static boolean isAlready(Path source, Path staged) throws IOException {
-        return Files.isRegularFile(staged) && Files.size(staged) == Files.size(source);
+        AclFileAttributeView acl = Files.getFileAttributeView(
+                directory, AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
+        if (acl == null) {
+            throw new IOException("staging filesystem cannot enforce owner-private permissions: "
+                    + directory);
+        }
+        UserPrincipal owner = Files.getOwner(directory, LinkOption.NOFOLLOW_LINKS);
+        AclEntry ownerOnly = AclEntry.newBuilder()
+                .setType(AclEntryType.ALLOW)
+                .setPrincipal(owner)
+                .setPermissions(EnumSet.allOf(AclEntryPermission.class))
+                .setFlags(AclEntryFlag.FILE_INHERIT, AclEntryFlag.DIRECTORY_INHERIT)
+                .build();
+        acl.setAcl(List.of(ownerOnly));
     }
 }
