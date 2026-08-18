@@ -8,7 +8,10 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.CharBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -262,7 +265,7 @@ public final class PreparedTexturePackIO {
             Map<String, PreparedTexturePack.Range> entries = new LinkedHashMap<>();
             long expectedOffset = 0;
             for (int index = 0; index < count; index++) {
-                String path = ResourceIndex.normalizeRelativePath(readString(input));
+                String path = readCanonicalRelativePath(input);
                 long offset = input.readLong();
                 int length = input.readInt();
                 int crc32c = input.readInt();
@@ -309,18 +312,38 @@ public final class PreparedTexturePackIO {
 
     private static void validateProfile(String profile) {
         if (profile == null || profile.isEmpty()
+                || !StandardCharsets.UTF_8.newEncoder().canEncode(profile)
                 || profile.getBytes(StandardCharsets.UTF_8).length > MAX_STRING_BYTES) {
             throw new IllegalArgumentException("Prepared texture pack profile identity is invalid");
         }
     }
 
     private static void writeString(DataOutputStream output, String value) throws IOException {
-        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes;
+        try {
+            ByteBuffer encoded = StandardCharsets.UTF_8.newEncoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .encode(CharBuffer.wrap(value));
+            bytes = new byte[encoded.remaining()];
+            encoded.get(bytes);
+        } catch (CharacterCodingException error) {
+            throw new IOException("Prepared texture pack string cannot be encoded as UTF-8", error);
+        }
         if (bytes.length > MAX_STRING_BYTES) {
             throw new IOException("Prepared texture pack string exceeds its safety limit");
         }
         output.writeInt(bytes.length);
         output.write(bytes);
+    }
+
+    private static String readCanonicalRelativePath(DataInputStream input) throws IOException {
+        String value = readString(input);
+        String canonical = ResourceIndex.normalizeRelativePath(value);
+        if (!value.equals(canonical)) {
+            throw new IOException("Prepared texture pack path is not canonical: " + value);
+        }
+        return value;
     }
 
     private static String readString(DataInputStream input) throws IOException {
@@ -332,7 +355,15 @@ public final class PreparedTexturePackIO {
         if (bytes.length != length) {
             throw new EOFException("Prepared texture pack ended inside a string");
         }
-        return new String(bytes, StandardCharsets.UTF_8);
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
+        } catch (CharacterCodingException error) {
+            throw new IOException("Prepared texture pack string is not valid UTF-8", error);
+        }
     }
 
     private static void readFully(
