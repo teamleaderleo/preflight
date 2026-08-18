@@ -5,7 +5,9 @@ and includes them in the standalone ZIP and tar archive. They describe the code 
 standalone Java launcher and the supported native desktop packages:
 
 - `preflight-java.cdx.json` covers the Java launcher, agent, and their compile/runtime dependency
-  graph. Test fixtures and the synthetic-startup test module are excluded.
+  graph. Test fixtures and the synthetic-startup test module are excluded. The launcher includes
+  JNA and its packaged `jnidispatch` bridge so launcher publication/removal can use each operating
+  system's exclusive rename primitive instead of a pathname check followed by a replacing rename.
 - `preflight-desktop-web.cdx.json` covers the production web-interface graph locked by
   `preflight-desktop/package-lock.json`. Development and test packages are excluded.
 - `preflight-desktop-native-aarch64-apple-darwin.cdx.json` covers the Rust host used by the macOS
@@ -23,8 +25,10 @@ an expected inventory is missing or empty. `SBOM-SHA256SUMS.txt` records their c
 The distribution job also runs `scripts/verify_release_boundary.py` after assembly. It requires the
 exact documented core file set, validates every checksum and CycloneDX document, compares each ZIP
 and tar member byte-for-byte with the staged file, rejects links and unsafe paths, and only accepts
-reviewed project and third-party namespaces inside `preflight.jar`. An accidental copy from a game
-installation, save folder, diagnostics directory, or workspace therefore stops the release job.
+reviewed project and third-party namespaces inside `preflight.jar`. The reviewed JNA namespace,
+its native `jnidispatch` resources, and its legal metadata are explicitly admitted by that verifier.
+An accidental copy from a game installation, save folder, diagnostics directory, or workspace
+therefore stops the release job.
 
 Desktop builds consume the already-verified runnable JAR from the core release job instead of
 building a second copy. The generated engine has an exact top-level manifest; its legal documents

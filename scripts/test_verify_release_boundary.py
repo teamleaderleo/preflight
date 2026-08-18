@@ -105,6 +105,28 @@ class ReleaseBoundaryTest(unittest.TestCase):
             with self.assertRaisesRegex(module.BoundaryError, "unexpected JAR entry"):
                 module.validate_dist(directory)
 
+    def test_accepts_only_jna_dispatch_native_entries(self):
+        names = (
+            "com/sun/jna/aix-ppc/libjnidispatch.a",
+            "com/sun/jna/darwin-aarch64/libjnidispatch.jnilib",
+            "com/sun/jna/linux-x86-64/libjnidispatch.so",
+            "com/sun/jna/win32-x86-64/jnidispatch.dll",
+        )
+        for name in names:
+            with self.subTest(name=name):
+                module.validate_jar_bytes(fake_jar(name))
+
+    def test_rejects_other_jna_native_entries(self):
+        names = (
+            "com/sun/jna/linux-x86-64/evil.so",
+            "com/sun/jna/linux-x86-64/sub/libjnidispatch.so",
+            "com/sun/jna/linux-x86-64/libjnidispatch.so.backup",
+        )
+        for name in names:
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(module.BoundaryError, "unexpected JAR entry"):
+                    module.validate_jar_bytes(fake_jar(name))
+
     def test_rejects_empty_unreviewed_jar_namespace(self):
         with self.assertRaisesRegex(module.BoundaryError, "unexpected JAR directory"):
             module.validate_jar_bytes(fake_jar_with_empty_directory())
