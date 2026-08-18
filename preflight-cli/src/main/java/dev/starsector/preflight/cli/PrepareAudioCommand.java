@@ -97,9 +97,6 @@ public final class PrepareAudioCommand {
             }
             Path file;
             try {
-                // The census inspected this provider through the same contained real-path boundary.
-                // Re-resolve it before publishing work so a replaced symlink is not handed to the
-                // game-JVM decoder merely because it occupies the old lexical provider pathname.
                 file = index.resolveExisting(winner);
             } catch (IOException | RuntimeException changed) {
                 continue;
@@ -144,8 +141,6 @@ public final class PrepareAudioCommand {
 
         Path workFile = Files.createTempFile("preflight-prepared-audio", ".tsv");
         try {
-            // Files.write iterates the bounded lines; avoid constructing a second joined work-list
-            // String that can temporarily double the parent's memory cost.
             Files.write(workFile, work, StandardCharsets.UTF_8);
             System.out.printf("Preparing %,d declared sound effects (%.1f MB of encoded audio)...%n",
                     work.size(), encodedBytes / 1e6);
@@ -156,11 +151,6 @@ public final class PrepareAudioCommand {
             command.add(javaExecutable.toString());
             command.addAll(CHILD_JVM_OPTIONS);
             command.add("-cp");
-            // Preflight's jar alone, staged where the launcher can read it. The game's jars follow as
-            // arguments instead: the launcher consumes -cp itself, before any Preflight code exists to
-            // decode it, and Windows converts that value to the system code page on the way in. A path
-            // outside the page arrives as question marks and the class simply is not found. Arguments
-            // can be carried as Base64; a class path cannot, so nothing that might need it goes there.
             command.add(AgentJarStaging.readableByTheChildJvm(SelfJar.locate()).toString());
             command.add(PrepareAudioChild.class.getName());
             List<String> childArguments = new ArrayList<>(List.of(
@@ -179,9 +169,11 @@ public final class PrepareAudioCommand {
             Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
             ChildOutputDrain drain = new ChildOutputDrain(process.getInputStream());
             drain.start();
-            boolean finished;
+            boolean finished = false;
+            boolean waitCompleted = false;
             try {
                 finished = process.waitFor(CHILD_TIMEOUT_MINUTES, TimeUnit.MINUTES);
+                waitCompleted = true;
                 if (!finished) {
                     process.destroyForcibly();
                     process.waitFor();
@@ -190,7 +182,10 @@ public final class PrepareAudioCommand {
                 if (process.isAlive()) {
                     process.destroyForcibly();
                 }
-                drain.await();
+                // A forced close can make the drain see a broken pipe. Preserve timeout or
+                // interruption as the authoritative outcome; only a normal child exit turns a
+                // drain failure into the command failure.
+                drain.await(waitCompleted && finished);
             }
             String childOutput = drain.text();
             if (!finished) {
@@ -239,18 +234,16 @@ public final class PrepareAudioCommand {
                     if (room > 0) {
                         retained.write(buffer, 0, Math.min(room, count));
                     }
-                    // Keep draining after the retained prefix is full. Otherwise a noisy child can
-                    // block on its stdout pipe and never reach the timeout/exit path above.
                 }
             } catch (IOException error) {
                 failure.set(error);
             }
         }
 
-        private void await() throws InterruptedException, IOException {
+        private void await(boolean requireCleanDrain) throws InterruptedException, IOException {
             thread.join();
             IOException error = failure.get();
-            if (error != null) {
+            if (requireCleanDrain && error != null) {
                 throw error;
             }
         }
@@ -260,12 +253,6 @@ public final class PrepareAudioCommand {
         }
     }
 
-    /**
-     * What a blob has to have been baked by to be served.
-     *
-     * <p>Every jar that contributes to the decode, hashed in a fixed order. Change any of them and
-     * the key changes, so prepared audio from before the change is simply never found.
-     */
     static String decoderPolicyIdentity(List<Path> gameJars) throws IOException {
         StringBuilder canonical = new StringBuilder(KEY_SCHEMA).append('\n');
         for (Path jar : gameJars) {
