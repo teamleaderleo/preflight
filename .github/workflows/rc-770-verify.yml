@@ -1,0 +1,102 @@
+name: Verify generation-bound profile activation
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.event.pull_request.head.ref == 'agent/rc-enabled-mods-cas-670'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/rc-enabled-mods-cas-670
+          fetch-depth: 0
+          token: ${{ github.token }}
+      - uses: ./.github/actions/setup-build-jdk
+        with:
+          java-version: '17'
+      - name: Publish reviewed macOS descriptor correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name preflight-agent
+          git config user.email preflight-agent@users.noreply.github.com
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one anchor, found {count}")
+              return text.replace(old, new)
+
+          path = Path('preflight-cli/src/main/java/dev/starsector/preflight/cli/ParentBoundDirectory.java')
+          text = path.read_text()
+          text = replace_once(
+              text,
+              '''            byte[] path = new byte[MAXPATHLEN];
+            if (PosixLibC.INSTANCE.fcntl(descriptor, F_GETPATH, path) != 0) {
+                throw failure("resolve reviewed mutation descriptor", Native.getLastError());
+            }
+            int length = 0;
+            while (length < path.length && path[length] != 0) length++;
+            if (length == 0) throw new IOException("Reviewed mutation descriptor has no filesystem path.");
+            return Path.of(new String(path, 0, length, StandardCharsets.UTF_8));
+''',
+              '''            Memory path = new Memory(MAXPATHLEN);
+            path.clear();
+            if (PosixLibC.INSTANCE.fcntl(descriptor, F_GETPATH, path) != 0) {
+                throw failure("resolve reviewed mutation descriptor", Native.getLastError());
+            }
+            byte[] bytes = path.getByteArray(0, MAXPATHLEN);
+            int length = 0;
+            while (length < bytes.length && bytes[length] != 0) length++;
+            if (length == 0) throw new IOException("Reviewed mutation descriptor has no filesystem path.");
+            return Path.of(new String(bytes, 0, length, StandardCharsets.UTF_8));
+''',
+              'macOS F_GETPATH native buffer',
+          )
+          text = replace_once(
+              text,
+              '        int fcntl(int fd, int command, byte[] buffer);\n',
+              '        int fcntl(int fd, int command, Pointer buffer);\n',
+              'macOS fcntl JNA signature',
+          )
+          path.write_text(text)
+          PY
+          ./mvnw -pl preflight-cli -am \
+            -Dtest=ParentBoundDirectoryTest,EnabledModsActivationTransactionTest,EnabledModsActivationParentSwapTest,ProfileActivationPublicationRaceTest,GameLayoutTest,ProfileCommandTest \
+            -Dsurefire.failIfNoSpecifiedTests=false test
+          rm -f .github/workflows/repair-770-macos-fgetpath.yml
+          rm -f .github/workflows/rc-770-parent-generation.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(cli): pass macOS F_GETPATH a native buffer"
+          git push origin HEAD:agent/rc-enabled-mods-cas-670
+
+  activation-parent-generation:
+    needs: repair
+    if: github.event.pull_request.head.ref == 'agent/rc-enabled-mods-cas-670'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/rc-enabled-mods-cas-670
+      - uses: ./.github/actions/setup-build-jdk
+        with:
+          java-version: '17'
+      - name: Run exact activation publication regressions
+        shell: bash
+        run: |
+          ./mvnw -pl preflight-cli -am \
+            -Dtest=ParentBoundDirectoryTest,EnabledModsActivationTransactionTest,EnabledModsActivationParentSwapTest,ProfileActivationPublicationRaceTest,GameLayoutTest,ProfileCommandTest \
+            -Dsurefire.failIfNoSpecifiedTests=false test
