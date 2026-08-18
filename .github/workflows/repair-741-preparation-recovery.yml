@@ -1,3 +1,4 @@
+# Triggered once to apply the exact-PID RC repair; this workflow deletes itself after success.
 name: Repair preparation restart ownership
 
 on:
