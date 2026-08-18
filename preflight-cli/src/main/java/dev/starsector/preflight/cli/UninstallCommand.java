@@ -222,7 +222,7 @@ final class UninstallCommand {
                     : "Preview: nothing to remove for the selected scope.");
             return;
         }
-        out.println(plan.applied() ? "Removed:" : "Preview: would remove:");
+        out.println(plan.applied() ? "Removed:" : "Preview: Would remove:");
         for (Target target : plan.targets()) {
             out.printf(Locale.ROOT, "  %-24s %s%n", target.label(), target.path());
         }
