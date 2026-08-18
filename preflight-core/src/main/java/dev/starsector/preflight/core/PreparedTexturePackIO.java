@@ -30,8 +30,6 @@ public final class PreparedTexturePackIO {
     private static final byte[] MAGIC = {'S', 'P', 'F', 'P'};
     private static final int CHECKSUM_BYTES = 32;
     private static final int FIXED_HEADER_BYTES = MAGIC.length + Integer.BYTES * 2
-            + Long.BYTES + CHECKSUM_BYTES * 2;
-    private static final int PAYLOAD_CHECKSUM_OFFSET = MAGIC.length + Integer.BYTES * 2
             + Long.BYTES + CHECKSUM_BYTES;
     private static final int COPY_BUFFER_BYTES = 64 * 1024;
     private static final int MAX_INDEX_BYTES = 256 * 1024 * 1024;
@@ -90,7 +88,9 @@ public final class PreparedTexturePackIO {
         if (indexBytes > MAX_INDEX_BYTES) {
             throw new IllegalArgumentException("Prepared texture pack index exceeds its safety limit");
         }
-        return Math.addExact(FIXED_HEADER_BYTES, Math.addExact(indexBytes, payloadBytes));
+        return Math.addExact(
+                CHECKSUM_BYTES,
+                Math.addExact(FIXED_HEADER_BYTES, Math.addExact(indexBytes, payloadBytes)));
     }
 
     public static PreparedTexturePack open(
@@ -102,7 +102,7 @@ public final class PreparedTexturePackIO {
         boolean success = false;
         try {
             long fileSize = channel.size();
-            if (fileSize < FIXED_HEADER_BYTES) {
+            if (fileSize < FIXED_HEADER_BYTES + CHECKSUM_BYTES) {
                 throw new IOException("Prepared texture pack is too small: " + source);
             }
             ByteBuffer header = ByteBuffer.allocate(FIXED_HEADER_BYTES).order(ByteOrder.BIG_ENDIAN);
@@ -121,11 +121,11 @@ public final class PreparedTexturePackIO {
             long payloadLength = header.getLong();
             byte[] expectedIndexChecksum = new byte[CHECKSUM_BYTES];
             header.get(expectedIndexChecksum);
-            byte[] expectedPayloadChecksum = new byte[CHECKSUM_BYTES];
-            header.get(expectedPayloadChecksum);
             if (indexLength <= 0 || indexLength > MAX_INDEX_BYTES || payloadLength < 0
-                    || FIXED_HEADER_BYTES + (long) indexLength > Long.MAX_VALUE - payloadLength
-                    || FIXED_HEADER_BYTES + (long) indexLength + payloadLength != fileSize) {
+                    || payloadLength > Long.MAX_VALUE
+                            - FIXED_HEADER_BYTES - (long) indexLength - CHECKSUM_BYTES
+                    || FIXED_HEADER_BYTES + (long) indexLength + payloadLength + CHECKSUM_BYTES
+                            != fileSize) {
                 throw new IOException("Prepared texture pack lengths are invalid");
             }
             ByteBuffer indexBuffer = ByteBuffer.allocate(indexLength);
@@ -143,6 +143,11 @@ public final class PreparedTexturePackIO {
                 throw new IOException("Prepared texture pack entries do not match its manifest");
             }
             long payloadOffset = FIXED_HEADER_BYTES + (long) indexLength;
+            long checksumOffset = payloadOffset + payloadLength;
+            ByteBuffer checksumBuffer = ByteBuffer.allocate(CHECKSUM_BYTES);
+            readFully(channel, checksumOffset, checksumBuffer,
+                    "Prepared texture pack ended inside its payload checksum");
+            byte[] expectedPayloadChecksum = checksumBuffer.array();
             byte[] actualPayloadChecksum = sha256Range(channel, payloadOffset, payloadLength);
             if (!MessageDigest.isEqual(expectedPayloadChecksum, actualPayloadChecksum)) {
                 throw new IOException("Prepared texture pack payload checksum mismatch");
@@ -207,7 +212,6 @@ public final class PreparedTexturePackIO {
                 header.putInt(index.length);
                 header.putLong(payloadLength);
                 header.put(Hashes.sha256Bytes(index));
-                header.put(new byte[CHECKSUM_BYTES]);
                 header.flip();
                 writeFully(output, header);
                 writeFully(output, ByteBuffer.wrap(index));
@@ -237,8 +241,7 @@ public final class PreparedTexturePackIO {
                         }
                     }
                 }
-                writeFully(output, PAYLOAD_CHECKSUM_OFFSET,
-                        ByteBuffer.wrap(payloadDigest.digest()));
+                writeFully(output, ByteBuffer.wrap(payloadDigest.digest()));
                 output.force(true);
             }
             AtomicPublish.replace(temporary, absolute);
@@ -395,18 +398,6 @@ public final class PreparedTexturePackIO {
             if (channel.write(source) <= 0) {
                 throw new IOException("Prepared texture pack write made no progress");
             }
-        }
-    }
-
-    private static void writeFully(FileChannel channel, long offset, ByteBuffer source)
-            throws IOException {
-        long position = offset;
-        while (source.hasRemaining()) {
-            int written = channel.write(source, position);
-            if (written <= 0) {
-                throw new IOException("Prepared texture pack positional write made no progress");
-            }
-            position += written;
         }
     }
 
