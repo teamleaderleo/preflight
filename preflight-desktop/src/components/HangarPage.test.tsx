@@ -66,17 +66,22 @@ test("installed hulls stay in the searchable picker while featured selection rem
   expect(screen.getByRole("button", { name: /Modded Hull/ })).toBeInTheDocument();
 });
 
-test("motion toggles immediately and persists without an Apply step", () => {
+test("motion and direction change immediately without an Apply step", () => {
   render(<HangarPage instrumentHull={state()} />);
+
+  const clockwise = screen.getByRole("button", { name: "Direction: Clockwise" });
+  fireEvent.click(clockwise);
+  expect(screen.getByRole("button", { name: "Direction: Counter-clockwise" })).toBeEnabled();
 
   const rotate = screen.getByRole("button", { name: "Motion: Rotate" });
   expect(rotate).toHaveAttribute("title", "Stop decorative hull rotation");
-  expect(rotate).not.toHaveAttribute("aria-pressed");
   fireEvent.click(rotate);
 
   const still = screen.getByRole("button", { name: "Motion: Still" });
   expect(still).toHaveAttribute("title", "Resume decorative hull rotation");
-  expect(window.localStorage.getItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY)).toBe("still");
+  expect(screen.getByRole("button", { name: "Direction: Counter-clockwise" })).toBeDisabled();
+  expect(JSON.parse(window.localStorage.getItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY) ?? "null"))
+    .toEqual({ motion: "still", direction: "counter-clockwise" });
 });
 
 test("interior tuning remains independently editable after the shared appearance dials", () => {
