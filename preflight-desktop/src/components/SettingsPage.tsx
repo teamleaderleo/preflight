@@ -110,6 +110,20 @@ export function SettingsPage({
             <h2>Home</h2>
           </div>
           <label className="setting-field preference-field">
+            <span>Presentation</span>
+            <select
+              aria-label="Home presentation"
+              value={homePresentation.mode}
+              onChange={(event) => homePresentation.setMode(event.target.value === "compact" ? "compact" : "hangar")}
+            >
+              <option value="hangar">Hangar</option>
+              <option value="compact">Compact</option>
+            </select>
+            <small>{homePresentation.mode === "compact"
+              ? "Launch-first Home without the decorative hull and history readouts."
+              : "Hull-led Home with the full settled display."}</small>
+          </label>
+          <label className="setting-field preference-field">
             <span>Recorded playtime</span>
             <select
               aria-label="Home playtime"
