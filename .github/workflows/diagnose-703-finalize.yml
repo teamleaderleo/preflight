@@ -1,0 +1,58 @@
+name: Diagnose #703 finalizer
+
+on:
+  push:
+    branches:
+      - fix/desktop-report-authority
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/desktop-report-authority
+          fetch-depth: 0
+          token: ${{ github.token }}
+      - name: Run reviewed finalizer or publish bounded failure
+        shell: bash
+        run: |
+          set -uo pipefail
+          git config user.name preflight-agent
+          git config user.email preflight-agent@users.noreply.github.com
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('.github/workflows/rc-703-finalize.yml').read_text()
+          marker = "      - name: Integrate live main and apply bounded correction\n        shell: bash\n        run: |\n"
+          if text.count(marker) != 1:
+              raise SystemExit('reviewed #703 finalizer boundary changed')
+          body = text.split(marker, 1)[1]
+          lines = body.splitlines()
+          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines) + '\n'
+          Path('/tmp/preflight-703-finalize.sh').write_text(script)
+          PY
+          set +e
+          bash /tmp/preflight-703-finalize.sh > /tmp/preflight-703-finalize.log 2>&1
+          status=$?
+          set -e
+          if [[ $status -eq 0 ]]; then
+            rm -f .github/workflows/diagnose-703-finalize.yml
+            rm -f .github/workflows/run-rc-703-boundary-fix.yml
+            rm -f .github/workflows/rc-703-boundary-fix.yml
+            rm -f .github/703-finalize-failure.txt
+            git add -A
+            if ! git diff --cached --quiet; then
+              git commit -m "chore: remove #703 correction helpers"
+              git push origin HEAD:fix/desktop-report-authority
+            fi
+            exit 0
+          fi
+          tail -n 160 /tmp/preflight-703-finalize.log > .github/703-finalize-failure.txt
+          rm -f .github/workflows/diagnose-703-finalize.yml
+          git add .github/703-finalize-failure.txt .github/workflows/diagnose-703-finalize.yml
+          git commit -m "chore: retain bounded #703 finalizer failure"
+          git push origin HEAD:fix/desktop-report-authority
+          exit 0
