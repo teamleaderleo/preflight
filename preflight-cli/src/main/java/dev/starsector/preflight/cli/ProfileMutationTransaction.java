@@ -111,9 +111,6 @@ final class ProfileMutationTransaction {
                 throw failure;
             }
 
-            // The target create-if-absent is the public rename commit: the exact reviewed source is
-            // already outside the authoritative namespace, and no later path operation may roll it
-            // back over an external writer.
             committed = true;
             try {
                 writeCommitMarker(transaction);
@@ -191,9 +188,6 @@ final class ProfileMutationTransaction {
                 throw staleSource();
             }
 
-            // The independent snapshot is already complete before the source leaves its public
-            // pathname. Linking it into the backup namespace publishes exactly the bytes proved at
-            // capture; a collision cannot replace somebody else's artifact.
             try {
                 Files.createLink(backup, snapshot);
             } catch (UnsupportedOperationException unsupported) {
@@ -245,7 +239,6 @@ final class ProfileMutationTransaction {
         }
     }
 
-    /** Finishes or safely aborts every interrupted profile transaction before a new writer starts. */
     static void recover(Path profileDirectory, Path backupDirectory) throws IOException {
         Path profiles = profileDirectory.toAbsolutePath().normalize();
         if (!Files.exists(profiles, LinkOption.NOFOLLOW_LINKS)) {
@@ -316,9 +309,6 @@ final class ProfileMutationTransaction {
                 cleanupAbortedRename(transaction, reviewed, snapshot, replacement);
                 throw staleRecovery(descriptor);
             }
-            // The exact source was captured, but the destination is now a different external
-            // generation and no durable commit marker proves whether that happened before or after
-            // Preflight's publication. Preserve both generations and require a fresh review.
             Path preserved = preserveConflict(captured, backups, descriptor);
             cleanupAbortedRename(transaction, reviewed, snapshot, replacement);
             throw new IOException(
@@ -398,11 +388,6 @@ final class ProfileMutationTransaction {
         }
     }
 
-    /**
-     * Restores a captured pathname only with create-if-absent semantics. If another writer already
-     * recreated the source, its generation wins and the displaced bytes move to the recovery-backup
-     * namespace instead of overwriting that writer.
-     */
     private static Path restoreCapturedOrPreserve(
             Path captured, Path source, Path backups, Descriptor descriptor) throws IOException {
         if (!Files.exists(captured, LinkOption.NOFOLLOW_LINKS)) return null;
@@ -435,8 +420,6 @@ final class ProfileMutationTransaction {
             Files.deleteIfExists(quarantine);
             return;
         }
-        // An external writer replaced the provisional target. Put that exact generation back if the
-        // pathname is still free; if another external writer won again, preserve the displaced one.
         restoreCapturedOrPreserve(quarantine, target, backups, descriptor);
     }
 
@@ -538,7 +521,7 @@ final class ProfileMutationTransaction {
 
     private static IOException staleRecovery(Descriptor descriptor) {
         return new IOException(
-                "Recovered an interrupted " + descriptor.operation().name().toLowerCase()
+                "Recovered an interrupted " + descriptor.operation().name().toLowerCase(java.util.Locale.ROOT)
                         + " after the source profile changed; review the current profile again");
     }
 
