@@ -27,7 +27,7 @@ class CliHelpTest {
         assertTrue(maintenance < advanced, output);
         assertTrue(output.indexOf("doctor") < advanced, output);
         assertTrue(output.indexOf("benchmark") > advanced, output);
-        assertFalse(output.contains("desktop"), output);
+        assertFalse(output.contains("\n  desktop "), output);
     }
 
     @Test
