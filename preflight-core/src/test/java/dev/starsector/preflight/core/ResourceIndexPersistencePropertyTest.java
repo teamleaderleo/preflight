@@ -166,6 +166,19 @@ class ResourceIndexPersistencePropertyTest {
     }
 
     @Test
+    void authenticatedMalformedUtf8NeverBecomesAnIndex() throws Exception {
+        byte[] valid = ResourceIndexIO.toBytes(fixtureIndex());
+        Layout layout = layout(valid);
+        byte[] malformed = valid.clone();
+        int firstRootIdOffset = layout.firstRootIdLengthOffset() + Integer.BYTES;
+        malformed[firstRootIdOffset] = (byte) 0xc3;
+        malformed[firstRootIdOffset + 1] = 0x28;
+        resignPayload(malformed);
+
+        assertRejected(malformed);
+    }
+
+    @Test
     void diskReaderRejectsOversizedFileBeforeWholeFileRead() throws Exception {
         Path oversized = temporaryDirectory.resolve("oversized.spfi");
         try (FileChannel channel = FileChannel.open(
