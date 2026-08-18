@@ -166,29 +166,44 @@ final class StopCommand {
         return entry;
     }
 
-    private static void print(
+    static void print(
             PrintStream output,
             List<Map<String, Object>> stopped,
             List<Map<String, Object>> skipped,
             boolean dryRun) {
         if (stopped.isEmpty() && skipped.isEmpty()) {
-            output.println("No Starsector process started by Preflight is running.");
+            output.println(dryRun
+                    ? "Preview: no Preflight-started Starsector process is running."
+                    : "No Preflight-started Starsector process is running.");
             return;
         }
         for (Map<String, Object> entry : stopped) {
             String result = String.valueOf(entry.get("result"));
-            String reason = entry.get("reason") == null ? "" : ". " + entry.get("reason");
-            output.printf("%s PID %s%s%n", switch (result) {
-                case "stopped" -> "Stopped";
-                case "forced" -> "Force-stopped";
-                case "would-stop" -> "Would stop";
-                case "already-exited" -> "Already exited:";
-                default -> "Could not stop";
-            }, entry.get("pid"), reason);
+            String pid = String.valueOf(entry.get("pid"));
+            String reason = entry.get("reason") == null ? null : String.valueOf(entry.get("reason"));
+            switch (result) {
+                case "stopped" -> output.printf("Stopped PID %s.%n", pid);
+                case "forced" -> output.printf("Force-stopped PID %s.%n", pid);
+                case "would-stop" -> output.printf("Preview: would stop PID %s.%n", pid);
+                case "already-exited" -> output.printf("PID %s already exited.%n", pid);
+                default -> output.printf("Could not stop PID %s%s%n", pid, reasonSuffix(reason));
+            }
         }
         for (Map<String, Object> entry : skipped) {
-            output.printf("Left PID %s alone: %s%n", entry.get("pid"), entry.get("reason"));
+            String prefix = dryRun ? "Preview: would leave" : "Left";
+            output.printf(
+                    "%s PID %s alone%s%n",
+                    prefix,
+                    entry.get("pid"),
+                    reasonSuffix(entry.get("reason") == null ? null : String.valueOf(entry.get("reason"))));
         }
+    }
+
+    private static String reasonSuffix(String reason) {
+        if (reason == null || reason.isBlank()) {
+            return ".";
+        }
+        return ": " + reason + ".";
     }
 
     private static String requireValue(String[] args, int index, String option) {
