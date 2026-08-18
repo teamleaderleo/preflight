@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   apply:
-    if: github.actor == github.repository_owner
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -32,7 +31,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
+          python3 <<'PY'
           from pathlib import Path
           text = Path('.github/workflows/rc-703-boundary-fix.yml').read_text()
           start_marker = "      - name: Apply bounded source correction\n        shell: bash\n        run: |\n"
@@ -68,6 +67,7 @@ jobs:
         run: |
           set -euo pipefail
           rm .github/workflows/rc-703-boundary-fix.yml
+          rm .github/workflows/rc-703-finalize.yml
           rm .github/workflows/run-rc-703-boundary-fix.yml
           git add -A
           git diff --cached --check
