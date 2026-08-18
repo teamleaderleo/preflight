@@ -72,6 +72,42 @@ class SourceArchiveHashesTest {
     }
 
     @Test
+    void sameSizeArchiveWithRestoredTimestampIsReverifiedWithinOneSession() throws Exception {
+        Path cache = Files.createDirectory(temporary.resolve("cache"));
+        Path archive = temporary.resolve("source.jar");
+        Files.writeString(archive, "original archive");
+        FileTime modified = Files.getLastModifiedTime(archive);
+
+        SourceArchiveHashes.beginSession();
+        SourceArchiveHashes.configure(cache);
+        String originalHash = SourceArchiveHashes.sha256(archive).sha256();
+
+        Files.writeString(archive, "modified archive");
+        Files.setLastModifiedTime(archive, modified);
+        String modifiedHash = sha256(archive);
+
+        assertEquals(modifiedHash, SourceArchiveHashes.sha256(archive).sha256());
+        assertTrue(!originalHash.equals(modifiedHash));
+        assertEquals(0L, SourceArchiveHashes.telemetry().get("sessionHits"));
+        assertEquals(2L, SourceArchiveHashes.telemetry().get("hashes"));
+    }
+
+    @Test
+    void unchangedArchiveSessionMatchIsAdvisoryAfterRehash() throws Exception {
+        Path cache = Files.createDirectory(temporary.resolve("cache"));
+        Path archive = temporary.resolve("source.jar");
+        Files.writeString(archive, "archive contents");
+
+        SourceArchiveHashes.beginSession();
+        SourceArchiveHashes.configure(cache);
+        String hash = SourceArchiveHashes.sha256(archive).sha256();
+        assertEquals(hash, SourceArchiveHashes.sha256(archive).sha256());
+
+        assertEquals(1L, SourceArchiveHashes.telemetry().get("sessionHits"));
+        assertEquals(2L, SourceArchiveHashes.telemetry().get("hashes"));
+    }
+
+    @Test
     void malformedJournalFallsBackToContentHashing() throws Exception {
         Path cache = Files.createDirectory(temporary.resolve("cache"));
         Path archive = temporary.resolve("source.jar");
