@@ -271,6 +271,56 @@ class ResourceProviderContentIdentityStabilityTest {
         assertNoProofArtifacts(root);
     }
 
+    @Test
+    void cleanupFailureCannotLeaveAnUnreadableDigestMemoized() throws Exception {
+        Path root = Files.createDirectories(temporaryDirectory.resolve("cleanup-failure/root"));
+        Path file = Files.writeString(root.resolve("shared.bin"), "AAAA");
+        assumeTrue(hardLinkProofAvailable(file), "requires the production hard-link proof primitive");
+        assumeTrue(
+                Files.readAttributes(file, BasicFileAttributes.class).fileKey() != null,
+                "requires a filesystem identity strong enough to exercise the memo");
+        ResourceIndex.Provider provider = provider(root, "shared.bin");
+        ResourceIndex index = index(root, provider);
+        AtomicInteger hashCalls = new AtomicInteger();
+        AtomicInteger proofAttempts = new AtomicInteger();
+        ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
+                index,
+                bytes -> {
+                    hashCalls.incrementAndGet();
+                    return Hashes.sha256(bytes);
+                },
+                (candidate, directory) -> {
+                    ResourceProviderContentIdentity.ProofLink real =
+                            ResourceProviderContentIdentity.createProofLink(candidate, directory);
+                    if (real == null || proofAttempts.incrementAndGet() != 1) {
+                        return real;
+                    }
+                    return new ResourceProviderContentIdentity.ProofLink(
+                            real.path(),
+                            real.directory(),
+                            (path, ownedDirectory) -> {
+                                real.close();
+                                throw new IOException("synthetic proof cleanup failure");
+                            });
+                });
+
+        ResourceProviderComparison.ContentObservation cleanupFailed =
+                identities.observe("shared.bin", provider);
+
+        assertEquals(ResourceProviderComparison.ContentEvidence.UNREADABLE, cleanupFailed.evidence());
+        assertEquals(1, hashCalls.get());
+        assertNoProofArtifacts(root);
+
+        ResourceProviderComparison.ContentObservation retried = identities.observe("shared.bin", provider);
+        assertEquals(ResourceProviderComparison.ContentEvidence.HASHED, retried.evidence());
+        assertEquals(2, hashCalls.get(), "the cleanup-failed digest must not enter the memo");
+
+        ResourceProviderComparison.ContentObservation memoHit = identities.observe("shared.bin", provider);
+        assertEquals(ResourceProviderComparison.ContentEvidence.HASHED, memoHit.evidence());
+        assertEquals(2, hashCalls.get(), "a successfully cleaned stable digest should retain memo semantics");
+        assertNoProofArtifacts(root);
+    }
+
     private static boolean hardLinkProofAvailable(Path file) throws IOException {
         Path parent = file.getParent();
         if (parent == null) {
