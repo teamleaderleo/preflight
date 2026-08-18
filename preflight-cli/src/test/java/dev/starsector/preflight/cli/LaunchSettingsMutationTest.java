@@ -108,12 +108,12 @@ final class LaunchSettingsMutationTest {
     }
 
     @Test
-    void memoryFailureDoesNotRollbackANewerExternalEditToThePublishedPreference() throws Exception {
+    void memoryFailurePreservesANewerTouchedValueAndRollsBackOtherStillOwnedKeys() throws Exception {
         MemoryStore store = store(
                 GameLaunchPreferences.RESOLUTION, "1920x1080",
                 GameLaunchPreferences.SCREEN_SCALE, "1.0");
         GameLaunchPreferences.Update update = new GameLaunchPreferences.Update(
-                null, null, null, null, 1.25, null);
+                null, false, null, null, 1.25, null);
 
         IOException failure = assertThrows(IOException.class, () -> LaunchSettingsMutation.apply(
                 store,
@@ -132,6 +132,8 @@ final class LaunchSettingsMutationTest {
 
         assertEquals("synthetic memory failure", failure.getMessage());
         assertEquals("1.3", store.get(GameLaunchPreferences.SCREEN_SCALE));
+        assertNull(store.get(GameLaunchPreferences.FULLSCREEN),
+                "the other touched key is still Preflight-owned and should be compensated");
         assertEquals(1, failure.getSuppressed().length);
         assertInstanceOf(GameLaunchPreferences.PreferenceStateChangedException.class, failure.getSuppressed()[0]);
         assertTrue(failure.getSuppressed()[0].getMessage().contains("newer values were kept"));
