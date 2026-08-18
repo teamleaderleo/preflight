@@ -62,6 +62,17 @@ class CombatJvmSafeguardTest {
     }
 
     @Test
+    void oversizedCombatClassFailsClosedWithoutReadingItUnbounded() throws Exception {
+        Path app = fixture(true, new byte[CombatJvmSafeguard.MAX_SHIP_CLASS_BYTES + 1]);
+
+        CombatJvmSafeguard.Resolution result = CombatJvmSafeguard.resolve(
+                Platform.MAC, target(app), Map.of());
+
+        assertFalse(result.active());
+        assertTrue(result.reason().contains("refusing oversized combat class"), result.reason());
+    }
+
+    @Test
     void existingDiagnosticModeIsPreserved() {
         var active = new CombatJvmSafeguard.Resolution(true, "test", null, null);
         String existing = CombatJvmSafeguard.COMPILE_EXCLUSION
@@ -74,6 +85,10 @@ class CombatJvmSafeguardTest {
     }
 
     private Path fixture(boolean riskyLauncher) throws IOException {
+        return fixture(riskyLauncher, new byte[] {0x01, 0x23, 0x45});
+    }
+
+    private Path fixture(boolean riskyLauncher, byte[] shipClass) throws IOException {
         Path app = temporaryDirectory.resolve("Starsector.app");
         Path mac = Files.createDirectories(app.resolve("Contents/MacOS"));
         Path java = Files.createDirectories(app.resolve("Contents/Resources/Java"));
@@ -99,7 +114,7 @@ class CombatJvmSafeguardTest {
         try (ZipOutputStream zip = new ZipOutputStream(
                 Files.newOutputStream(java.resolve("starfarer_obf.jar")))) {
             zip.putNextEntry(new ZipEntry(CombatJvmSafeguard.SHIP_CLASS));
-            zip.write(new byte[] {0x01, 0x23, 0x45});
+            zip.write(shipClass);
             zip.closeEntry();
         }
         return app;

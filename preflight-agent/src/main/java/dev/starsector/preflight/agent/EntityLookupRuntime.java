@@ -69,8 +69,8 @@ public final class EntityLookupRuntime {
             try {
                 Method setter = type.getMethod("setId", String.class);
                 return BASE_ENTITY.equals(setter.getDeclaringClass().getName());
-            } catch (NoSuchMethodException immutable) {
-                return true;
+            } catch (NoSuchMethodException untracked) {
+                return false;
             } catch (ThreadDeath | VirtualMachineError fatal) {
                 throw fatal;
             } catch (Throwable uncertainty) {

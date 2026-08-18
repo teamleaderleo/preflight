@@ -21,10 +21,10 @@ import java.util.Objects;
 /**
  * Commit-boundary ownership primitive for launcher integrations.
  *
- * <p>An earlier ownership check is only a review. Replacement first moves the pathname's current
- * generation to a unique sibling quarantine without replacing anything, then proves the moved
- * object is the exact reviewed owned generation. Publication into the now-vacant pathname also
- * uses no-replace semantics. An external writer that wins either pathname race is preserved.
+ * <p>An earlier ownership check is only a review. Replacement and removal first move the pathname's
+ * current generation to a unique sibling quarantine without replacing anything, then prove the
+ * moved object is the exact reviewed owned generation. Publication into a vacant pathname also
+ * uses no-replace semantics. An external writer that wins a pathname race is preserved.
  */
 final class IntegrationMutation {
     private static final LinkOption[] NOFOLLOW = {LinkOption.NOFOLLOW_LINKS};
@@ -40,7 +40,10 @@ final class IntegrationMutation {
         AFTER_COMMIT,
         BEFORE_ROLLBACK,
         BEFORE_QUARANTINE_CLEANUP,
-        BEFORE_STAGING_CLEANUP
+        BEFORE_STAGING_CLEANUP,
+        AFTER_REMOVAL_REVIEW,
+        AFTER_REMOVE_QUARANTINE,
+        BEFORE_REMOVE_CLEANUP
     }
 
     @FunctionalInterface
@@ -88,6 +91,52 @@ final class IntegrationMutation {
         }
         fire(Event.AFTER_REVIEW, integration, target);
         return new Review(integration, reviewed);
+    }
+
+    static Review reviewForRemoval(PreflightHome.Integration integration) throws IOException {
+        Path target = normalized(integration.path());
+        Snapshot reviewed = Snapshot.capture(target);
+        if (!reviewed.present()) return new Review(integration, reviewed);
+        if (!integration.isOwned()) {
+            throw new IOException("Existing " + integration.label() + " at " + target
+                    + " is not proven Preflight-owned and is preserved untouched.");
+        }
+        fire(Event.AFTER_REMOVAL_REVIEW, integration, target);
+        return new Review(integration, reviewed);
+    }
+
+    /**
+     * Anchors and proves the exact reviewed integration generation away from its public pathname.
+     * A successful return is the semantic removal commit; cleanup of that private quarantine is a
+     * separate maintenance step so a newcomer can never turn into deletion collateral.
+     */
+    static Removal remove(Review review) throws IOException {
+        if (!review.snapshot().present()) return new Removal(review, null, false);
+        PreflightHome.Integration integration = review.integration();
+        Path target = normalized(integration.path());
+        Path anchored = quarantine(target);
+        try {
+            moveNoReplace(target, anchored);
+        } catch (IOException failure) {
+            throw new IOException("Refusing to remove launcher integration because its reviewed generation"
+                    + " could not be anchored at the commit boundary: " + target, failure);
+        }
+        fire(Event.AFTER_REMOVE_QUARANTINE, integration, anchored);
+
+        try {
+            if (!review.snapshot().sameAs(Snapshot.capture(anchored))
+                    || !relocated(integration, anchored).isOwned()) {
+                throw changed("remove", target, anchored);
+            }
+        } catch (IOException verificationFailure) {
+            try {
+                restoreOrPreserve(anchored, target);
+            } catch (IOException restoreFailure) {
+                verificationFailure.addSuppressed(restoreFailure);
+            }
+            throw verificationFailure;
+        }
+        return new Removal(review, anchored, true);
     }
 
     static Publication publish(Review review, Path staged) throws IOException {
@@ -216,6 +265,34 @@ final class IntegrationMutation {
                 if (children.iterator().hasNext()) return;
             }
             Files.delete(path);
+        }
+    }
+
+    static final class Removal {
+        private final Review review;
+        private Path quarantine;
+        private final boolean removed;
+
+        private Removal(Review review, Path quarantine, boolean removed) {
+            this.review = review;
+            this.quarantine = quarantine;
+            this.removed = removed;
+        }
+
+        boolean removed() {
+            return removed;
+        }
+
+        Path quarantine() {
+            return quarantine;
+        }
+
+        void cleanupCommitted() throws IOException {
+            if (!removed || quarantine == null) return;
+            Path anchored = quarantine;
+            fire(Event.BEFORE_REMOVE_CLEANUP, review.integration(), anchored);
+            review.snapshot().deleteExact(anchored);
+            quarantine = null;
         }
     }
 

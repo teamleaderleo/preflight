@@ -43,6 +43,16 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
     setDuplicateDraft,
     submitDuplicate,
   } = profilesState;
+  const trimmedProfileName = profileName.trim();
+  const profileNameAlreadySaved = Boolean(
+    trimmedProfileName
+      && profiles?.profiles.some((profile) => profile.name === trimmedProfileName),
+  );
+  const profileCreateHelp = profilesLoading
+    ? "Checking saved profile names…"
+    : profileNameAlreadySaved
+      ? `“${trimmedProfileName}” is already a saved profile. Choose a new name to save this mod setup.`
+      : "Creates a new saved profile from the current enabled-mod order.";
 
   return (
     <div className="profiles-page">
@@ -110,10 +120,18 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
         </section>
 
         <section className="card profile-save-card">
-          <div className="heading-with-info"><h2>Save current mods</h2><InfoTip label="What saving a profile does">Only the enabled-mod list and load order are saved. Mod files stay where they are.</InfoTip></div>
+          <div className="heading-with-info"><h2>Save as new profile</h2><InfoTip label="What saving a profile does">Creates a new saved profile containing the enabled-mod list and load order. Existing profiles and mod files stay unchanged.</InfoTip></div>
           <label htmlFor="profile-name">Profile name</label>
-          <input id="profile-name" value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="e.g. Main campaign" maxLength={96} />
-          <button className="button button--primary" type="button" disabled={!profileName.trim() || profileBusy} onClick={() => void saveCurrentProfile()}>Save profile</button>
+          <input id="profile-name" value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="e.g. Main campaign" maxLength={96} aria-describedby="profile-create-help" />
+          <small id="profile-create-help" className="field-note">{profileCreateHelp}</small>
+          <button
+            className="button button--primary"
+            type="button"
+            disabled={!trimmedProfileName || profileBusy || profilesLoading || profileNameAlreadySaved || operationBlocked}
+            onClick={() => void saveCurrentProfile()}
+          >
+            Create profile
+          </button>
         </section>
       </div>
 

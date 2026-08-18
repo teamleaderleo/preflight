@@ -7,7 +7,10 @@ import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -132,7 +135,8 @@ public final class PreparedTexturePackOrderIO {
             }
             LinkedHashSet<String> paths = new LinkedHashSet<>();
             for (int index = 0; index < count; index++) {
-                if (!paths.add(ResourceIndex.normalizeRelativePath(readString(input)))) {
+                String path = readCanonicalRelativePath(input);
+                if (!paths.add(path)) {
                     throw new IOException("Prepared texture pack order contains a duplicate path");
                 }
             }
@@ -146,12 +150,31 @@ public final class PreparedTexturePackOrderIO {
     }
 
     private static void writeString(DataOutputStream output, String value) throws IOException {
-        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes;
+        try {
+            ByteBuffer encoded = StandardCharsets.UTF_8.newEncoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .encode(CharBuffer.wrap(value));
+            bytes = new byte[encoded.remaining()];
+            encoded.get(bytes);
+        } catch (CharacterCodingException error) {
+            throw new IOException("Prepared texture pack order string cannot be encoded as UTF-8", error);
+        }
         if (bytes.length > MAX_STRING_BYTES) {
             throw new IOException("Prepared texture pack order string exceeds its safety limit");
         }
         output.writeInt(bytes.length);
         output.write(bytes);
+    }
+
+    private static String readCanonicalRelativePath(DataInputStream input) throws IOException {
+        String value = readString(input);
+        String canonical = ResourceIndex.normalizeRelativePath(value);
+        if (!value.equals(canonical)) {
+            throw new IOException("Prepared texture pack order path is not canonical: " + value);
+        }
+        return value;
     }
 
     private static String readString(DataInputStream input) throws IOException {
@@ -163,6 +186,14 @@ public final class PreparedTexturePackOrderIO {
         if (bytes.length != length) {
             throw new EOFException("Prepared texture pack order ended inside a string");
         }
-        return new String(bytes, StandardCharsets.UTF_8);
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
+        } catch (CharacterCodingException error) {
+            throw new IOException("Prepared texture pack order string is not valid UTF-8", error);
+        }
     }
 }

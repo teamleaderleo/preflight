@@ -34,6 +34,7 @@ final class CombatJvmSafeguard {
     static final String MODE_PROPERTY =
             "-Dpreflight.combatIntegrity.jvmMode=auto-ship-cast-sites-interpreted";
     static final String SHIP_CLASS = "com/fs/starfarer/combat/entities/Ship.class";
+    static final int MAX_SHIP_CLASS_BYTES = 1024 * 1024;
     static final String REVIEWED_SHIP_SHA256 =
             "71997384a879ba6b0897b9f9e8cbf6d91449f2e767b81576dffed7fdd5b29926";
 
@@ -130,8 +131,16 @@ final class CombatJvmSafeguard {
         try (ZipFile zip = new ZipFile(archive.toFile())) {
             ZipEntry entry = zip.getEntry(name);
             if (entry == null || entry.isDirectory()) return null;
+            if (entry.getSize() > MAX_SHIP_CLASS_BYTES) {
+                throw new IOException("refusing oversized combat class " + name
+                        + " (" + entry.getSize() + " bytes)");
+            }
             try (var input = zip.getInputStream(entry)) {
-                return Hashes.sha256(input.readAllBytes());
+                byte[] bytes = input.readNBytes(MAX_SHIP_CLASS_BYTES + 1);
+                if (bytes.length > MAX_SHIP_CLASS_BYTES) {
+                    throw new IOException("refusing oversized combat class " + name);
+                }
+                return Hashes.sha256(bytes);
             }
         }
     }

@@ -78,6 +78,41 @@ export function useSignedUpdates(
   useEffect(() => {
     if (!isDesktopHost()) return;
     let stopReconciliation: () => void = () => undefined;
+    let previousInstalling: boolean | undefined;
+
+    const startReconciliation = () => {
+      stopReconciliation();
+      previousInstalling = undefined;
+      stopReconciliation = startOperationReconciliation({
+        apply: (operation) => {
+          if (operation.updateInstalling) {
+            const firstRead = previousInstalling === undefined;
+            previousInstalling = true;
+            setUpdateInstalling(true);
+            if (firstRead) {
+              setUpdateProgress(null);
+              announce("Reconnected to the verified Preflight update installation. Other actions stay paused until it finishes.");
+            }
+            return;
+          }
+          if (previousInstalling) {
+            previousInstalling = false;
+            setUpdateInstalling(false);
+            announce("The update operation stopped. Check the current version before retrying.", "warning");
+          } else {
+            previousInstalling = false;
+          }
+        },
+        // Undefined means the first authoritative read has not succeeded yet. Retry transient read
+        // failures, poll while installation owns the native coordinator, then retire when idle.
+        isActive: () => previousInstalling !== false,
+        onError: (pollError) => announce(`Could not refresh native update state: ${pollError}`, "error"),
+      });
+    };
+
+    // The native coordinator outlives a renderer. Restore its ownership immediately so a reopened
+    // Home cannot present launch or mutation actions while the verified update is still installing.
+    startReconciliation();
     const stopListening = listenWhileMounted<UpdateProgressEvent>("update-progress", ({ payload }) => {
       setUpdateProgress(payload);
       if (payload.state === "installed") {
@@ -85,24 +120,7 @@ export function useSignedUpdates(
       }
     }, (error) => {
       announce(`Live update progress was interrupted: ${error}. Preflight is checking native state directly.`, "warning");
-      let wasInstalling = false;
-      stopReconciliation();
-      stopReconciliation = startOperationReconciliation({
-        apply: (operation) => {
-          if (operation.updateInstalling) {
-            wasInstalling = true;
-            setUpdateInstalling(true);
-            return;
-          }
-          if (wasInstalling) {
-            wasInstalling = false;
-            setUpdateInstalling(false);
-            announce("The update operation stopped. Check the current version before retrying.", "warning");
-          }
-        },
-        isActive: () => true,
-        onError: (pollError) => announce(`Could not refresh native update state: ${pollError}`, "error"),
-      });
+      startReconciliation();
     });
     return () => {
       stopListening();

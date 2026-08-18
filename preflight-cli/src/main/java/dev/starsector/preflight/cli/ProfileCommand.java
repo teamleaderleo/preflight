@@ -51,7 +51,10 @@ final class ProfileCommand {
         String name = null;
         String targetName = null;
         int optionsAt = offset + 1;
-        if ("save".equals(operation) || "activate".equals(operation) || "delete".equals(operation)) {
+        if ("save".equals(operation)
+                || "update".equals(operation)
+                || "activate".equals(operation)
+                || "delete".equals(operation)) {
             if (optionsAt >= args.length || args[optionsAt].startsWith("--")) {
                 throw new IllegalArgumentException("profile " + operation + " requires a name");
             }
@@ -65,18 +68,35 @@ final class ProfileCommand {
             name = validateName(args[optionsAt++]);
             targetName = validateName(args[optionsAt++]);
         } else if (!"list".equals(operation)) {
-            throw new IllegalArgumentException("Expected: profile <list|save|activate|rename|duplicate|delete> ...");
+            throw new IllegalArgumentException(
+                    "Expected: profile <list|save|update|activate|rename|duplicate|delete> ...");
         }
 
         Options options = Options.parse(args, optionsAt);
-        boolean mutation = "rename".equals(operation) || "duplicate".equals(operation) || "delete".equals(operation);
+        boolean mutation = "update".equals(operation)
+                || "rename".equals(operation)
+                || "duplicate".equals(operation)
+                || "delete".equals(operation);
         if (options.confirmed() && !("activate".equals(operation) || mutation)) {
-            throw new IllegalArgumentException("--yes is only valid for profile activate, rename, duplicate, or delete");
+            throw new IllegalArgumentException(
+                    "--yes is only valid for profile update, activate, rename, duplicate, or delete");
         }
         if (options.expectedProfile() != null && !mutation) {
-            throw new IllegalArgumentException("--expected-profile is only valid for profile rename, duplicate, or delete");
+            throw new IllegalArgumentException(
+                    "--expected-profile is only valid for profile update, rename, duplicate, or delete");
         }
-        if (mutation && options.confirmed() && options.expectedProfile() == null) {
+        if (options.expectedReplacement() != null && !"update".equals(operation)) {
+            throw new IllegalArgumentException("--expected-replacement is only valid for profile update");
+        }
+        if ("update".equals(operation) && options.confirmed()
+                && (options.expectedProfile() == null || options.expectedReplacement() == null)) {
+            throw new IllegalArgumentException(
+                    "profile update --yes requires --expected-profile and --expected-replacement from its preview");
+        }
+        if (!"update".equals(operation)
+                && mutation
+                && options.confirmed()
+                && options.expectedProfile() == null) {
             throw new IllegalArgumentException(
                     "profile " + operation + " --yes requires --expected-profile from its preview");
         }
@@ -85,6 +105,15 @@ final class ProfileCommand {
         return switch (operation) {
             case "list" -> list(home, target.installRoot(), options.json(), System.out);
             case "save" -> save(home, target.installRoot(), name, options.json(), System.out);
+            case "update" -> update(
+                    home,
+                    target.installRoot(),
+                    name,
+                    options.expectedProfile(),
+                    options.expectedReplacement(),
+                    options.confirmed(),
+                    options.json(),
+                    System.out);
             case "activate" -> activate(
                     home, target.installRoot(), name, options.confirmed(), options.json(), System.out);
             case "rename" -> rename(
@@ -119,17 +148,160 @@ final class ProfileCommand {
 
     static int save(PreflightHome home, Path installRoot, String name, boolean json, PrintStream out)
             throws Exception {
+        return save(home, installRoot, name, json, out, NO_DUPLICATE_PUBLICATION_HOOK);
+    }
+
+    static int save(
+            PreflightHome home,
+            Path installRoot,
+            String name,
+            boolean json,
+            PrintStream out,
+            DuplicatePublicationHook publicationHook) throws Exception {
         name = validateName(name);
         OperationLease.Acquisition ownership = OperationLease.acquire(home, "saving-profile", installRoot);
         try (OperationLease ignored = ownership.lease()) {
             recoverProfileTransactions(home);
-            return saveOwned(home, installRoot, name, json, out);
+            return saveOwned(home, installRoot, name, json, out, publicationHook);
         }
     }
 
     private static int saveOwned(
-            PreflightHome home, Path installRoot, String name, boolean json, PrintStream out) throws Exception {
+            PreflightHome home,
+            Path installRoot,
+            String name,
+            boolean json,
+            PrintStream out,
+            DuplicatePublicationHook publicationHook) throws Exception {
         GameLayout layout = GameLayout.locate(installRoot);
+        Path target = profilePath(home, name);
+        if (Files.exists(target)) {
+            throw existingProfile(name);
+        }
+        SavedProfile profile = currentProfile(layout, name, target);
+        try {
+            atomicCreate(
+                    target,
+                    Json.object(profile.persisted()) + System.lineSeparator(),
+                    publicationHook);
+        } catch (FileAlreadyExistsException collision) {
+            throw existingProfile(name, collision);
+        }
+        if (json) {
+            Map<String, Object> result = new LinkedHashMap<>(profile.view(
+                    layout.installRoot(), profile.enabledMods(), installedModIds(layout.modsDirectory())));
+            result.put("writeAction", "created");
+            out.println(Json.object(result));
+        } else {
+            out.printf(Locale.ROOT, "Created profile '%s' with %,d enabled mods.%n", name, profile.enabledMods().size());
+            out.println("  fingerprint: " + profile.profileFingerprint());
+            out.println("  file:        " + profile.file());
+        }
+        return 0;
+    }
+
+    static int update(
+            PreflightHome home,
+            Path installRoot,
+            String name,
+            String expectedProfile,
+            String expectedReplacement,
+            boolean confirmed,
+            boolean json,
+            PrintStream out) throws Exception {
+        return update(
+                home,
+                installRoot,
+                name,
+                expectedProfile,
+                expectedReplacement,
+                confirmed,
+                json,
+                out,
+                NO_PROFILE_MUTATION_HOOK);
+    }
+
+    static int update(
+            PreflightHome home,
+            Path installRoot,
+            String name,
+            String expectedProfile,
+            String expectedReplacement,
+            boolean confirmed,
+            boolean json,
+            PrintStream out,
+            ProfileMutationTransaction.Hook mutationHook) throws Exception {
+        name = validateName(name);
+        if (!confirmed) {
+            return updateOwned(
+                    home, installRoot, name, null, null, false, json, out, mutationHook);
+        }
+        OperationLease.Acquisition ownership = OperationLease.acquire(home, "updating-profile", installRoot);
+        try (OperationLease ignored = ownership.lease()) {
+            recoverProfileTransactions(home);
+            return updateOwned(
+                    home,
+                    installRoot,
+                    name,
+                    expectedProfile,
+                    expectedReplacement,
+                    true,
+                    json,
+                    out,
+                    mutationHook);
+        }
+    }
+
+    private static int updateOwned(
+            PreflightHome home,
+            Path installRoot,
+            String name,
+            String expectedProfile,
+            String expectedReplacement,
+            boolean confirmed,
+            boolean json,
+            PrintStream out,
+            ProfileMutationTransaction.Hook mutationHook) throws Exception {
+        GameLayout layout = GameLayout.locate(installRoot);
+        Path source = profilePath(home, name);
+        ProfileRecordFiles.requireRegularRecord(source);
+        byte[] existingBytes = Files.readAllBytes(source);
+        SavedProfile existing = readProfile(source, existingBytes);
+        requireProfileName(existing, name);
+        String existingToken = Hashes.sha256(existingBytes);
+        SavedProfile proposed = currentProfile(layout, name, source);
+        String replacementToken = updateProposalFingerprint(proposed);
+        Map<String, Object> plan = updatePlan(existing, proposed, layout, existingToken, replacementToken);
+
+        if (!confirmed) {
+            emitUpdate(plan, json, out);
+            return 0;
+        }
+        if (expectedProfile == null || !existingToken.equals(expectedProfile.toLowerCase(Locale.ROOT))) {
+            throw new IOException("Named profile changed since review; review it again");
+        }
+        if (expectedReplacement == null
+                || !replacementToken.equals(expectedReplacement.toLowerCase(Locale.ROOT))) {
+            throw new IOException("The current mod selection changed since review; review the update again");
+        }
+
+        byte[] replacement = (Json.object(proposed.persisted()) + System.lineSeparator())
+                .getBytes(StandardCharsets.UTF_8);
+        ProfileMutationTransaction.UpdateResult result = ProfileMutationTransaction.update(
+                home.profiles(),
+                home.profileBackups(),
+                source,
+                replacement,
+                bytes -> requireReviewedUpdateGeneration(source, name, expectedProfile, bytes),
+                mutationHook);
+        plan.put("applied", true);
+        plan.put("cleanupPending", result.cleanupPending());
+        plan.put("savedAt", proposed.savedAt());
+        emitUpdate(plan, json, out);
+        return 0;
+    }
+
+    private static SavedProfile currentProfile(GameLayout layout, String name, Path target) throws Exception {
         List<String> enabled = readEnabled(layout.enabledModsFile());
         Set<String> installed = installedModIds(layout.modsDirectory());
         List<String> missing = enabled.stream().filter(id -> !installed.contains(id)).toList();
@@ -138,22 +310,83 @@ final class ProfileCommand {
                     + String.join(", ", missing));
         }
         String fingerprint = ResourceIndexBuilder.build(layout.installRoot()).index().profileFingerprint();
-        SavedProfile profile = new SavedProfile(
+        return new SavedProfile(
                 name,
                 layout.installRoot(),
                 enabled,
                 fingerprint,
                 Instant.now().toString(),
-                profilePath(home, name));
-        atomicWrite(profile.file(), Json.object(profile.persisted()) + System.lineSeparator());
+                target);
+    }
+
+    private static Map<String, Object> updatePlan(
+            SavedProfile existing,
+            SavedProfile proposed,
+            GameLayout layout,
+            String existingToken,
+            String replacementToken) throws IOException {
+        List<String> current = readEnabled(layout.enabledModsFile());
+        Map<String, Object> plan = new LinkedHashMap<>();
+        plan.put("format", "starsector-preflight-profile-update-v1");
+        plan.put("operation", "update");
+        plan.put("name", existing.name());
+        plan.put("profileFingerprint", existingToken);
+        plan.put("replacementFingerprint", replacementToken);
+        plan.put("existingInstallRoot", existing.installRoot());
+        plan.put("existingModCount", existing.enabledMods().size());
+        plan.put("existingProfileFingerprint", existing.profileFingerprint());
+        plan.put("existingSavedAt", existing.savedAt());
+        plan.put("proposedInstallRoot", proposed.installRoot());
+        plan.put("proposedModCount", proposed.enabledMods().size());
+        plan.put("proposedProfileFingerprint", proposed.profileFingerprint());
+        plan.put("active", existing.installRoot().equals(layout.installRoot())
+                && existing.enabledMods().equals(current));
+        plan.put("applied", false);
+        plan.put("preparedDataKept", true);
+        plan.put("file", existing.file());
+        return plan;
+    }
+
+    private static String updateProposalFingerprint(SavedProfile proposed) {
+        Map<String, Object> reviewed = new LinkedHashMap<>();
+        reviewed.put("name", proposed.name());
+        reviewed.put("installRoot", proposed.installRoot());
+        reviewed.put("enabledMods", proposed.enabledMods());
+        reviewed.put("profileFingerprint", proposed.profileFingerprint());
+        return Hashes.sha256(Json.object(reviewed).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static void emitUpdate(Map<String, Object> plan, boolean json, PrintStream out) {
         if (json) {
-            out.println(Json.object(profile.view(layout.installRoot(), enabled, installed)));
-        } else {
-            out.printf(Locale.ROOT, "Saved profile '%s' with %,d enabled mods.%n", name, enabled.size());
-            out.println("  fingerprint: " + fingerprint);
-            out.println("  file:        " + profile.file());
+            out.println(Json.object(plan));
+            return;
         }
-        return 0;
+        out.printf(Locale.ROOT, "Update profile '%s': %s%n",
+                plan.get("name"), Boolean.TRUE.equals(plan.get("applied")) ? "applied" : "preview only");
+        out.printf(Locale.ROOT, "  existing: %,d mods from %s%n",
+                plan.get("existingModCount"), plan.get("existingInstallRoot"));
+        out.printf(Locale.ROOT, "  proposed: %,d mods from %s%n",
+                plan.get("proposedModCount"), plan.get("proposedInstallRoot"));
+        out.println("  prepared data is kept");
+        if (Boolean.TRUE.equals(plan.get("cleanupPending"))) {
+            out.println("  profile update committed; interrupted cleanup will resume before the next profile write.");
+        }
+        if (!Boolean.TRUE.equals(plan.get("applied"))) {
+            out.println("  apply with: --expected-profile " + plan.get("profileFingerprint")
+                    + " --expected-replacement " + plan.get("replacementFingerprint") + " --yes");
+        }
+    }
+
+    private static IOException existingProfile(String name) {
+        return new IOException(
+                "A named profile already exists: " + name + ". Review `preflight profile update " + name
+                        + "` before replacing it.");
+    }
+
+    private static IOException existingProfile(String name, Throwable cause) {
+        IOException failure = existingProfile(name);
+        failure.initCause(cause);
+        return failure;
     }
 
     static int list(PreflightHome home, Path installRoot, boolean json, PrintStream out) throws Exception {
@@ -401,7 +634,6 @@ final class ProfileCommand {
         if (Files.exists(target)) {
             throw new IOException("A named profile already exists: " + targetName);
         }
-        publicationHook.beforePublication(target);
         SavedProfile duplicated = new SavedProfile(
                 targetName,
                 profile.installRoot(),
@@ -555,6 +787,19 @@ final class ProfileCommand {
         SavedProfile current = readProfile(canonicalFile, bytes);
         requireProfileName(current, requestedName);
         requireExpectedProfile(current, expectedProfile);
+    }
+
+    private static void requireReviewedUpdateGeneration(
+            Path canonicalFile,
+            String requestedName,
+            String expectedProfile,
+            byte[] bytes) throws IOException {
+        SavedProfile current = readProfile(canonicalFile, bytes);
+        requireProfileName(current, requestedName);
+        if (expectedProfile == null
+                || !Hashes.sha256(bytes).equals(expectedProfile.toLowerCase(Locale.ROOT))) {
+            throw new IOException("Named profile changed since review; review it again");
+        }
     }
 
     private static void emitMutation(Map<String, Object> plan, boolean json, PrintStream out) {
@@ -889,12 +1134,13 @@ final class ProfileCommand {
         Throwable failure = null;
         try {
             Files.writeString(staged, value, StandardCharsets.UTF_8);
+            publicationHook.beforePublication(absolute);
             try {
                 Files.createLink(absolute, staged);
                 published = true;
             } catch (UnsupportedOperationException unsupported) {
                 throw new IOException(
-                        "Filesystem cannot publish a duplicate profile safely: " + absolute,
+                        "Filesystem cannot publish a named profile safely: " + absolute,
                         unsupported);
             }
         } catch (IOException | RuntimeException error) {
@@ -1076,11 +1322,17 @@ final class ProfileCommand {
     }
 
     private record Options(
-            Path game, Path launcher, String expectedProfile, boolean confirmed, boolean json) {
+            Path game,
+            Path launcher,
+            String expectedProfile,
+            String expectedReplacement,
+            boolean confirmed,
+            boolean json) {
         static Options parse(String[] args, int offset) {
             Path game = null;
             Path launcher = null;
             String expectedProfile = null;
+            String expectedReplacement = null;
             boolean confirmed = false;
             boolean json = false;
             for (int index = offset; index < args.length; index++) {
@@ -1089,6 +1341,8 @@ final class ProfileCommand {
                     case "--launcher" -> launcher = Path.of(requireValue(args, ++index, "--launcher"));
                     case "--expected-profile" -> expectedProfile =
                             requireValue(args, ++index, "--expected-profile").toLowerCase(Locale.ROOT);
+                    case "--expected-replacement" -> expectedReplacement =
+                            requireValue(args, ++index, "--expected-replacement").toLowerCase(Locale.ROOT);
                     case "--yes" -> confirmed = true;
                     case "--json" -> json = true;
                     default -> throw new IllegalArgumentException("Unknown profile option: " + args[index]);
@@ -1097,7 +1351,10 @@ final class ProfileCommand {
             if (expectedProfile != null && !expectedProfile.matches("[0-9a-f]{64}")) {
                 throw new IllegalArgumentException("--expected-profile must be a 64-character SHA-256");
             }
-            return new Options(game, launcher, expectedProfile, confirmed, json);
+            if (expectedReplacement != null && !expectedReplacement.matches("[0-9a-f]{64}")) {
+                throw new IllegalArgumentException("--expected-replacement must be a 64-character SHA-256");
+            }
+            return new Options(game, launcher, expectedProfile, expectedReplacement, confirmed, json);
         }
 
         private static String requireValue(String[] args, int index, String option) {
