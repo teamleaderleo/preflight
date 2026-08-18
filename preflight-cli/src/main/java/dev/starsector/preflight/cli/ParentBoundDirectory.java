@@ -133,27 +133,16 @@ final class ParentBoundDirectory implements AutoCloseable {
 
     private interface Backend extends AutoCloseable {
         void requireCurrent() throws IOException;
-
         void createDirectory(String relative) throws IOException;
-
         void createFile(String relative, byte[] bytes, int mode) throws IOException;
-
         byte[] readFile(String relative) throws IOException;
-
         void link(String existing, String link) throws IOException;
-
         void capture(String source, String captured) throws IOException;
-
         boolean sameFile(String left, String right) throws IOException;
-
         boolean existsFile(String relative) throws IOException;
-
         void deleteFile(String relative) throws IOException;
-
         void deleteDirectory(String relative) throws IOException;
-
-        @Override
-        void close() throws IOException;
+        @Override void close() throws IOException;
     }
 
     private static final class PosixBackend implements Backend {
@@ -348,7 +337,10 @@ final class ParentBoundDirectory implements AutoCloseable {
             if (!mac) return Path.of("/proc/self/fd", Integer.toString(descriptor));
             Memory buffer = new Memory(MAXPATHLEN);
             buffer.clear();
-            if (PosixLibC.INSTANCE.fcntl(descriptor, F_GETPATH, buffer) != 0) {
+            if (PosixLibC.INSTANCE.fcntl(
+                    descriptor,
+                    F_GETPATH,
+                    new NativeLong(Pointer.nativeValue(buffer))) != 0) {
                 throw failure("resolve reviewed mutation descriptor", Native.getLastError());
             }
             byte[] bytes = buffer.getByteArray(0, MAXPATHLEN);
@@ -774,7 +766,6 @@ final class ParentBoundDirectory implements AutoCloseable {
 
     private interface PosixLibC extends Library {
         PosixLibC INSTANCE = Native.load("c", PosixLibC.class);
-
         int open(String path, int flags);
         int openat(int dirfd, String path, int flags, int mode);
         int mkdirat(int dirfd, String path, int mode);
@@ -786,12 +777,11 @@ final class ParentBoundDirectory implements AutoCloseable {
         int fchmod(int fd, int mode);
         int fsync(int fd);
         int close(int fd);
-        int fcntl(int fd, int command, Pointer buffer);
+        int fcntl(int fd, int command, NativeLong argument);
     }
 
     private interface Kernel32 extends StdCallLibrary {
         Kernel32 INSTANCE = Native.load("kernel32", Kernel32.class);
-
         Pointer CreateFileW(
                 WString fileName,
                 int desiredAccess,
@@ -809,7 +799,6 @@ final class ParentBoundDirectory implements AutoCloseable {
 
     private interface Ntdll extends StdCallLibrary {
         Ntdll INSTANCE = Native.load("ntdll", Ntdll.class);
-
         int NtCreateFile(
                 PointerByReference fileHandle,
                 int desiredAccess,
