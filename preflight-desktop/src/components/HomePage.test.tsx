@@ -158,3 +158,11 @@ test("Home keeps the new profile and installation visible when that setup needs 
   expect(screen.getByRole("button", { name: "Prepare and launch" })).toBeDisabled();
   expect(screen.getByText("Storage must be calculated before preparation.")).toBeInTheDocument();
 });
+
+test("a launch error keeps the retry target visible beside its recovery action", () => {
+  render(<HomePage {...props({ status: "error", message: "Launch failed", messageTone: "error", retryLabel: "Try launch again" })} />);
+
+  expect(screen.getByRole("alert")).toHaveTextContent("Launch failed");
+  expect(screen.getByRole("button", { name: "Try launch again" })).toBeEnabled();
+  expect(screen.getByLabelText("Launches profile Exploration from /Applications/Starsector")).toBeInTheDocument();
+});
