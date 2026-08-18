@@ -16,6 +16,9 @@ import java.util.concurrent.atomic.AtomicLong;
 /** Shares identical successful version-check responses within one game process. */
 public final class VersionCheckResponseDedupRuntime {
     static final String PLAN_ID = "version-check-response-dedup-v1";
+    static final int MAX_RESPONSE_BYTES = 256 * 1024;
+    static final int MAX_CACHED_URLS = 256;
+    static final long MAX_CACHED_BYTES = 8L * 1024 * 1024;
 
     private static final ConcurrentHashMap<String, CompletableFuture<byte[]>> RESPONSES =
             new ConcurrentHashMap<>();
@@ -35,13 +38,14 @@ public final class VersionCheckResponseDedupRuntime {
     }
 
     /**
-     * Opens a fresh stream while sharing a successful HTTP response with identical callers.
+     * Opens a fresh stream while sharing a bounded successful HTTP response with identical callers.
      *
      * <p>The map lives only for this JVM. Failed requests are removed before their exception is
      * exposed, and a caller that happened to wait on a failed request retries the URL itself. This
      * preserves the two version checkers' independent failure behavior while removing their
-     * duplicate successful downloads. Development {@code file:} URLs and every other protocol
-     * always retain {@link URL#openStream()} unchanged.
+     * duplicate successful downloads. Responses larger than {@link #MAX_RESPONSE_BYTES} are
+     * rejected, and responses beyond the cache's URL or byte budget are not retained. Development
+     * {@code file:} URLs and every other protocol always retain {@link URL#openStream()} unchanged.
      */
     public static InputStream openStream(URL url) throws IOException {
         Objects.requireNonNull(url, "url");
@@ -53,12 +57,23 @@ public final class VersionCheckResponseDedupRuntime {
 
         String key = url.toExternalForm();
         CompletableFuture<byte[]> created = new CompletableFuture<>();
-        CompletableFuture<byte[]> existing = RESPONSES.putIfAbsent(key, created);
+        CompletableFuture<byte[]> existing;
+        synchronized (RESPONSES) {
+            existing = RESPONSES.get(key);
+            if (existing == null) {
+                if (RESPONSES.size() >= MAX_CACHED_URLS) return url.openStream();
+                RESPONSES.put(key, created);
+            }
+        }
         if (existing == null) {
             NETWORK_FETCHES.incrementAndGet();
             try (InputStream input = url.openStream()) {
-                byte[] bytes = input.readAllBytes();
-                CACHED_BYTES.addAndGet(bytes.length);
+                byte[] bytes = input.readNBytes(MAX_RESPONSE_BYTES + 1);
+                if (bytes.length > MAX_RESPONSE_BYTES) {
+                    throw new IOException("Version-check response exceeds "
+                            + MAX_RESPONSE_BYTES + " bytes");
+                }
+                if (!reserveCacheBytes(bytes.length)) RESPONSES.remove(key, created);
                 created.complete(bytes);
                 return new ByteArrayInputStream(bytes);
             } catch (ThreadDeath | VirtualMachineError fatal) {
@@ -87,6 +102,15 @@ public final class VersionCheckResponseDedupRuntime {
             RETRY_FETCHES.incrementAndGet();
             return url.openStream();
         }
+    }
+
+    private static boolean reserveCacheBytes(int bytes) {
+        long current = CACHED_BYTES.get();
+        while (current <= MAX_CACHED_BYTES - bytes) {
+            if (CACHED_BYTES.compareAndSet(current, current + bytes)) return true;
+            current = CACHED_BYTES.get();
+        }
+        return false;
     }
 
     private static void throwAsOriginal(Throwable failure) throws IOException {
