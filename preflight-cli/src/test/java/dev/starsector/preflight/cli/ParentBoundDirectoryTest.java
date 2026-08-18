@@ -17,7 +17,7 @@ final class ParentBoundDirectoryTest {
     Path temporaryDirectory;
 
     @Test
-    void operationsStayBoundToTheOpenedParentGeneration() throws Exception {
+    void detectsWhenThePublicParentStopsNamingTheOpenedGeneration() throws Exception {
         Path parent = Files.createDirectory(temporaryDirectory.resolve("mods"));
         Path parked = temporaryDirectory.resolve("mods-reviewed-generation");
         byte[] reviewed = "reviewed".getBytes(StandardCharsets.UTF_8);
@@ -33,11 +33,13 @@ final class ParentBoundDirectoryTest {
 
             Files.move(parent, parked);
             Files.createDirectory(parent);
-            assertThrows(IOException.class, directory::requireCurrent);
 
-            directory.createFile("still-reviewed-parent", reviewed, 0600);
-            assertTrue(Files.exists(parked.resolve("still-reviewed-parent")));
-            assertFalse(Files.exists(parent.resolve("still-reviewed-parent")));
+            // Callers stop or roll back through the pinned handle once this proof fails. The
+            // end-to-end activation parent-swap regression separately proves that the replacement
+            // public directory is never modified during that rollback.
+            assertThrows(IOException.class, directory::requireCurrent);
+            assertTrue(Files.exists(parked.resolve("reviewed")));
+            assertFalse(Files.exists(parent.resolve("reviewed")));
         }
     }
 
