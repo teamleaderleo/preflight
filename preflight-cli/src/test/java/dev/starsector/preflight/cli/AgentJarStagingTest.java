@@ -5,14 +5,17 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import dev.starsector.preflight.core.Hashes;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -34,8 +37,9 @@ class AgentJarStagingTest {
         Path injected = AgentJarStaging.readableByTheChildJvm(jar, StandardCharsets.US_ASCII, List.of(root));
 
         assertEquals(jar, injected);
-        assertFalse(Files.exists(root.resolve(AgentJarStaging.DIRECTORY_NAME)),
-                "an installation the JVM can already read is not worth copying");
+        try (var entries = Files.list(root)) {
+            assertEquals(0, entries.count(), "an installation the JVM can already read is not worth copying");
+        }
     }
 
     @Test
@@ -49,25 +53,44 @@ class AgentJarStagingTest {
         assertTrue(AgentJarStaging.survives(injected.toString(), StandardCharsets.US_ASCII),
                 "the whole point is a path that reaches the JVM as itself");
         assertArrayEqualsContent(jar, injected);
+        assertTrue(injected.getParent().getFileName().toString().startsWith(AgentJarStaging.DIRECTORY_NAME + "-"));
+        assertOwnerPrivateWhenPosix(injected.getParent());
     }
 
     @Test
-    void theSameJarStagesOnceAndIsReusedAfterwards() throws IOException {
+    void aPreexistingSameSizeSharedAgentIsNeverTrusted() throws IOException {
+        Path jar = jarUnder(OUTSIDE_THE_CODE_PAGE);
+        Path root = Files.createDirectory(directory.resolve("root"));
+        Path attackerDirectory = Files.createDirectory(root.resolve(AgentJarStaging.DIRECTORY_NAME));
+        String oldPredictableName = "preflight-" + Hashes.sha256(jar).substring(0, 16) + ".jar";
+        Path attackerJar = attackerDirectory.resolve(oldPredictableName);
+        byte[] poison = CONTENT.clone();
+        poison[0] ^= 1;
+        Files.write(attackerJar, poison);
+        assertEquals(Files.size(jar), Files.size(attackerJar));
+
+        Path injected = AgentJarStaging.readableByTheChildJvm(jar, StandardCharsets.US_ASCII, List.of(root));
+
+        assertNotEquals(attackerJar, injected,
+                "a predictable same-size file in shared temp must never become -javaagent");
+        assertArrayEqualsContent(jar, injected);
+        assertEquals(-1L, Files.mismatch(attackerJar, injected) == 0 ? 0 : -1,
+                "the attacker-controlled file remains distinct from the trusted copy");
+    }
+
+    @Test
+    void repeatedStagingUsesIndependentPrivateDirectories() throws IOException {
         Path jar = jarUnder(OUTSIDE_THE_CODE_PAGE);
         Path root = Files.createDirectory(directory.resolve("root"));
 
         Path first = AgentJarStaging.readableByTheChildJvm(jar, StandardCharsets.US_ASCII, List.of(root));
-        // A stamp no copy would reproduce, so a second write is visible on every platform.
-        FileTime staged = FileTime.fromMillis(1_000_000_000L);
-        Files.setLastModifiedTime(first, staged);
         Path second = AgentJarStaging.readableByTheChildJvm(jar, StandardCharsets.US_ASCII, List.of(root));
 
-        assertEquals(first, second);
-        assertEquals(staged, Files.getLastModifiedTime(second),
-                "a launch that finds its copy already there must not rewrite it");
-        try (var listing = Files.list(first.getParent())) {
-            assertEquals(1, listing.count(), "and must leave no scratch file behind");
-        }
+        assertNotEquals(first, second,
+                "shared staging must not depend on a predictable persistent executable path");
+        assertNotEquals(first.getParent(), second.getParent());
+        assertArrayEqualsContent(jar, first);
+        assertArrayEqualsContent(jar, second);
     }
 
     @Test
@@ -81,7 +104,7 @@ class AgentJarStagingTest {
         Path second = AgentJarStaging.readableByTheChildJvm(rebuilt, StandardCharsets.US_ASCII, List.of(root));
 
         assertNotEquals(first.getFileName(), second.getFileName(),
-                "the name carries the content, so an update can never be served a stale copy");
+                "the filename carries the full content identity");
         assertArrayEqualsContent(rebuilt, second);
     }
 
@@ -95,6 +118,27 @@ class AgentJarStagingTest {
                 jar, StandardCharsets.US_ASCII, List.of(unusable, usable));
 
         assertTrue(injected.startsWith(usable), "staging into an unreadable folder would fix nothing");
+    }
+
+    @Test
+    void aSymlinkedStagingRootIsSkipped() throws IOException {
+        Path jar = jarUnder(OUTSIDE_THE_CODE_PAGE);
+        Path outside = Files.createDirectory(directory.resolve("outside"));
+        Path link = directory.resolve("shared-link");
+        try {
+            Files.createSymbolicLink(link, outside);
+        } catch (UnsupportedOperationException | SecurityException | IOException unavailable) {
+            assumeTrue(false, "Symbolic links are unavailable in this test environment: " + unavailable);
+        }
+        Path usable = Files.createDirectory(directory.resolve("root-plain"));
+
+        Path injected = AgentJarStaging.readableByTheChildJvm(
+                jar, StandardCharsets.US_ASCII, List.of(link, usable));
+
+        assertTrue(injected.startsWith(usable));
+        try (var entries = Files.list(outside)) {
+            assertEquals(0, entries.count(), "a symlinked shared root must remain untouched");
+        }
     }
 
     @Test
@@ -133,5 +177,17 @@ class AgentJarStagingTest {
 
     private static void assertArrayEqualsContent(Path expected, Path actual) throws IOException {
         assertEquals(-1L, Files.mismatch(expected, actual), "the staged copy must be the same JAR");
+    }
+
+    private static void assertOwnerPrivateWhenPosix(Path path) throws IOException {
+        try {
+            Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(path);
+            assertFalse(permissions.contains(PosixFilePermission.GROUP_WRITE));
+            assertFalse(permissions.contains(PosixFilePermission.OTHERS_WRITE));
+            assertFalse(permissions.contains(PosixFilePermission.GROUP_READ));
+            assertFalse(permissions.contains(PosixFilePermission.OTHERS_READ));
+        } catch (UnsupportedOperationException ignored) {
+            // Windows uses an owner-only ACL instead of POSIX mode bits.
+        }
     }
 }
