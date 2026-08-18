@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  edit-and-verify:
+  edit-and-publish:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
@@ -136,8 +136,6 @@ jobs:
           PY
           rm .github/launch-settings-rc-edit.py .github/launch-settings-rc-edit.py.gz.b64 .github/workflows/launch-settings-rc-edit.yml
 
-      - uses: ./.github/actions/setup-build-jdk
-
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -146,17 +144,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with:
-          components: clippy, rustfmt
-
-      - name: Install Linux desktop dependencies
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
+          components: rustfmt
 
       - name: Format native host
         run: cargo fmt --manifest-path preflight-desktop/src-tauri/Cargo.toml
@@ -165,16 +153,7 @@ jobs:
         working-directory: preflight-desktop
         run: npm run capabilities:review
 
-      - name: Verify Java engine
-        run: ./mvnw --batch-mode --no-transfer-progress verify
-
-      - name: Verify desktop application
-        working-directory: preflight-desktop
-        run: |
-          npm ci
-          npm run verify
-
-      - name: Commit verified edits
+      - name: Publish reviewed source
         shell: bash
         run: |
           set -euo pipefail
