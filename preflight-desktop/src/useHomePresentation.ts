@@ -41,11 +41,23 @@ function applyHomePresentation(preference: HomePresentationPreference): void {
   document.documentElement.dataset.homePlaytime = preference.showPlaytime ? "shown" : "hidden";
 }
 
+function publishHomePresentation(preference: HomePresentationPreference): void {
+  applyHomePresentation(preference);
+  window.dispatchEvent(new CustomEvent<HomePresentationPreference>(HOME_PRESENTATION_EVENT, { detail: preference }));
+}
+
 /** Applies persisted display preferences before React paints Home. */
 export function initializeHomePresentation(): HomePresentationPreference {
   const preference = readHomePresentation();
   applyHomePresentation(preference);
   return preference;
+}
+
+/**
+ * Retires the live renderer preference after all-data cleanup without recreating the removed key.
+ */
+export function resetHomePresentation(): void {
+  publishHomePresentation(DEFAULT_HOME_PRESENTATION);
 }
 
 function persistHomePresentation(preference: HomePresentationPreference): void {
@@ -83,9 +95,8 @@ export function useHomePresentation() {
 
   const commit = (next: HomePresentationPreference) => {
     persistHomePresentation(next);
-    applyHomePresentation(next);
+    publishHomePresentation(next);
     setPreference(next);
-    window.dispatchEvent(new CustomEvent<HomePresentationPreference>(HOME_PRESENTATION_EVENT, { detail: next }));
   };
 
   const setMode = (mode: HomePresentationMode) => commit({ ...preference, mode });
