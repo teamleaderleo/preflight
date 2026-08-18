@@ -88,8 +88,18 @@ final class CachePrune {
 
         removals.addAll(byFingerprint(ResourceIndexIO.directory(cache), ".spfi", survivors));
         removals.addAll(byFingerprint(TextureManifestIO.directory(cache), ".spfm", survivors));
-        removals.addAll(byFingerprint(PreparedTexturePackIO.directory(cache), ".spfp", survivors));
-        removals.addAll(byFingerprint(PreparedTexturePackIO.directory(cache), ".spfo", survivors));
+        Path currentPacks = PreparedTexturePackIO.directory(cache);
+        removals.addAll(byFingerprint(currentPacks, ".spfp", survivors));
+        removals.addAll(byFingerprint(currentPacks, ".spfo", survivors));
+        Path establishedPacks = cache.resolve("packs");
+        if (!establishedPacks.equals(currentPacks)) {
+            // Incompatible cache formats deliberately coexist so an older release can still use
+            // its own packs after rollback. Their profile fingerprints are format-independent,
+            // though, so artifacts for discarded profiles can be pruned without touching a
+            // surviving profile's rollback cache.
+            removals.addAll(byFingerprint(establishedPacks, ".spfp", survivors));
+            removals.addAll(byFingerprint(establishedPacks, ".spfo", survivors));
+        }
         removals.addAll(byFingerprint(
                 PreparedAudioCache.manifestDirectory(cache), ".spam", survivors));
         removals.addAll(byFingerprint(
