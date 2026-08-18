@@ -215,7 +215,7 @@ export function HomePage({
                 aria-expanded={optionsOpen}
                 onClick={toggleOptions}
               >
-                {optionsOpen ? "Hide options" : "Options"}
+                {optionsOpen ? "Hide options" : launchSettingsDirty ? "Options · changed" : "Options"}
                 <ArrowIcon />
               </button>
             </div>
