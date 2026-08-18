@@ -159,6 +159,13 @@ test("Home keeps the new profile and installation visible when that setup needs 
   expect(screen.getByText("Storage must be calculated before preparation.")).toBeInTheDocument();
 });
 
+test("closed Options keeps pending launch-setting changes visible", () => {
+  window.localStorage.clear();
+  render(<HomePage {...props({ launchSettingsDirty: true })} />);
+
+  expect(screen.getByRole("button", { name: "Options · changed" })).toHaveAttribute("aria-expanded", "false");
+});
+
 test("a launch error keeps the retry target visible beside its recovery action", () => {
   render(<HomePage {...props({ status: "error", message: "Launch failed", messageTone: "error", retryLabel: "Try launch again" })} />);
 
