@@ -1,6 +1,7 @@
 from pathlib import Path
 import re
 
+# This branch-local script is removed by its workflow after the focused tests pass.
 path = Path('preflight-cli/src/main/java/dev/starsector/preflight/cli/PreflightCli.java')
 text = path.read_text(encoding='utf-8')
 
