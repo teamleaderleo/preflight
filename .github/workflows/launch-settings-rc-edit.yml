@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - fix/launch-settings-quiescent-apply
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -14,12 +17,15 @@ concurrency:
 
 jobs:
   edit-and-publish:
-    if: github.actor != 'github-actions[bot]'
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      (github.event_name == 'push' || github.head_ref == 'fix/launch-settings-quiescent-apply')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          ref: fix/launch-settings-quiescent-apply
 
       - name: Apply reviewed source edits
         shell: bash
