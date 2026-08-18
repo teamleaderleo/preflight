@@ -136,14 +136,13 @@ Prepared-pixels-v2 accepts either three direct non-static `java.awt.Color` field
 
 Before serving anything, the texture runtime verifies that the cache artifacts remain inside the supplied cache root, the manifest and resource index share an identity, counts are bounded, and the complete resource index still matches the installation.
 
-Normal product launches do **not** re-hash every source file and every prepared pixel payload on the loading thread. That policy was removed after it became a dominant Rosetta CPU cost.
+Normal product launches verify every source file against the manifest's SHA-256 before serving its prepared texture. Prepared pixel payload hashing remains optional because their identity is independently bound to the verified manifest entry.
 
-- Recommended/`--fast` includes `--trust-validated-texture-index`, treating the complete configure-time provider validation as the immutable source snapshot for that launch.
-- `--recheck-texture-sources` restores a per-hit filesystem staleness check using the same size/mtime contract as `ResourceIndexValidator`.
-- `-Dpreflight.texture.verifySourceHash=true` additionally restores a full source SHA-256 on those per-hit checks.
+- Recommended/`--fast` includes `--trust-validated-texture-index` for compatibility, but source verification is not bypassed by this option.
+- `--recheck-texture-sources` is retained for command-line compatibility; per-hit source verification is always performed.
 - `-Dpreflight.texture.verifyBlobChecksum=true` restores strict SPFT payload checksum verification on every prepared-blob read.
 
-Without the diagnostic hash switches, runtime serving still checks the manifest entry, winning provider identity, transformation, dimensions, channels, payload length, path containment, and cache format/identity needed by the selected serving path. Missing or malformed data, identity mismatches, unsupported textures, direct-memory pressure, bridge failures, and contained runtime errors return to the preserved original path. Strict `texture verify` remains available for an explicit integrity pass.
+Runtime serving also checks the manifest entry, winning provider identity, transformation, dimensions, channels, payload length, path containment, and cache format/identity needed by the selected serving path. Missing or malformed data, identity mismatches, unsupported textures, direct-memory pressure, bridge failures, and contained runtime errors return to the preserved original path. Strict `texture verify` remains available for an explicit integrity pass.
 
 ## NPOT and padding policy
 
