@@ -4,6 +4,7 @@ import { INSTRUMENT_HULL_MOTION_STORAGE_KEY } from "./desktopStorage";
 import {
   DEFAULT_INSTRUMENT_MOTION,
   readInstrumentMotion,
+  resetInstrumentMotion,
   useInstrumentMotion,
   validateInstrumentMotion,
 } from "./useInstrumentMotion";
@@ -59,4 +60,20 @@ test("denied persistence still changes the complete preference for this session"
   expect(first.result.current.direction).toBe("counter-clockwise");
   expect(second.result.current.motion).toBe("still");
   expect(second.result.current.direction).toBe("counter-clockwise");
+});
+
+test("all-data reset retires live motion without recreating cleared storage", () => {
+  const first = renderHook(() => useInstrumentMotion());
+  const second = renderHook(() => useInstrumentMotion());
+
+  act(() => first.result.current.setDirection("counter-clockwise"));
+  act(() => first.result.current.setMotion("still"));
+  window.localStorage.removeItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY);
+  act(() => resetInstrumentMotion());
+
+  expect(first.result.current.motion).toBe("rotate");
+  expect(first.result.current.direction).toBe("clockwise");
+  expect(second.result.current.motion).toBe("rotate");
+  expect(second.result.current.direction).toBe("clockwise");
+  expect(window.localStorage.getItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY)).toBeNull();
 });
