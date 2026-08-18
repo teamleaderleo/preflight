@@ -77,6 +77,69 @@ class VersionCheckResponseDedupRuntimeTest {
         assertEquals(0L, VersionCheckResponseDedupRuntime.telemetry().get("cachedUrls"));
     }
 
+    @Test
+    void rejectsOversizedResponsesWithoutCachingThem() throws Exception {
+        AtomicInteger opens = new AtomicInteger();
+        byte[] oversized = new byte[VersionCheckResponseDedupRuntime.MAX_RESPONSE_BYTES + 1];
+        URL url = url("https://version.test/oversized.version", () -> {
+            opens.incrementAndGet();
+            return new ByteArrayInputStream(oversized);
+        });
+
+        assertThrows(IOException.class, () -> VersionCheckResponseDedupRuntime.openStream(url));
+        assertThrows(IOException.class, () -> VersionCheckResponseDedupRuntime.openStream(url));
+
+        assertEquals(2, opens.get());
+        assertEquals(0L, VersionCheckResponseDedupRuntime.telemetry().get("cachedUrls"));
+        assertEquals(0L, VersionCheckResponseDedupRuntime.telemetry().get("cachedBytes"));
+    }
+
+    @Test
+    void bypassesCachingAfterTheUrlLimit() throws Exception {
+        for (int index = 0; index < VersionCheckResponseDedupRuntime.MAX_CACHED_URLS; index++) {
+            URL cached = url("https://version.test/" + index, InputStream::nullInputStream);
+            VersionCheckResponseDedupRuntime.openStream(cached).close();
+        }
+        AtomicInteger opens = new AtomicInteger();
+        URL uncached = url("https://version.test/uncached", () -> {
+            opens.incrementAndGet();
+            return InputStream.nullInputStream();
+        });
+
+        VersionCheckResponseDedupRuntime.openStream(uncached).close();
+        VersionCheckResponseDedupRuntime.openStream(uncached).close();
+
+        assertEquals(2, opens.get());
+        assertEquals((long) VersionCheckResponseDedupRuntime.MAX_CACHED_URLS,
+                VersionCheckResponseDedupRuntime.telemetry().get("cachedUrls"));
+    }
+
+    @Test
+    void stopsRetainingResponsesAtTheByteLimit() throws Exception {
+        byte[] maximumResponse = new byte[VersionCheckResponseDedupRuntime.MAX_RESPONSE_BYTES];
+        int cachedResponses = Math.toIntExact(VersionCheckResponseDedupRuntime.MAX_CACHED_BYTES
+                / VersionCheckResponseDedupRuntime.MAX_RESPONSE_BYTES);
+        for (int index = 0; index < cachedResponses; index++) {
+            URL cached = url("https://version.test/large/" + index,
+                    () -> new ByteArrayInputStream(maximumResponse));
+            VersionCheckResponseDedupRuntime.openStream(cached).close();
+        }
+        AtomicInteger opens = new AtomicInteger();
+        URL uncached = url("https://version.test/over-byte-budget", () -> {
+            opens.incrementAndGet();
+            return new ByteArrayInputStream(new byte[] {1});
+        });
+
+        VersionCheckResponseDedupRuntime.openStream(uncached).close();
+        VersionCheckResponseDedupRuntime.openStream(uncached).close();
+
+        assertEquals(2, opens.get());
+        assertEquals(VersionCheckResponseDedupRuntime.MAX_CACHED_BYTES,
+                VersionCheckResponseDedupRuntime.telemetry().get("cachedBytes"));
+        assertEquals((long) cachedResponses,
+                VersionCheckResponseDedupRuntime.telemetry().get("cachedUrls"));
+    }
+
     private static URL url(String spec, Opener opener) throws Exception {
         return new URL(null, spec, new URLStreamHandler() {
             @Override
