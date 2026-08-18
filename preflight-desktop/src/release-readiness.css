@@ -123,6 +123,11 @@
   transform: none;
 }
 
+/* Exceptional actions own this space; the decorative hull caption yields to them. */
+.launch-console--ready:has(.launch-console__actions .launch-console__stop) .home-ship-name {
+  display: none;
+}
+
 .hangar-dock--catalog {
   align-items: start;
   grid-template-columns: minmax(240px, .85fr) minmax(0, 1.15fr) auto;
