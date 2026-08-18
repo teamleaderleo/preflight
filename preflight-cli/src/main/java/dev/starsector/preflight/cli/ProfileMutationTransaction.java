@@ -17,14 +17,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Recoverable exact-generation transactions for destructive named-profile mutations.
+ * Recoverable exact-generation transactions for named-profile mutations.
  *
  * <p>The transaction directory lives below the profile directory in the reserved
  * {@code .preflight-profile*} namespace, so none of its files can enumerate as a profile. A hard
  * link anchors the source inode and an independent byte snapshot anchors its reviewed contents.
  * The public source pathname is moved into the transaction atomically and then proved against both
- * anchors. This makes the destructive boundary independent of mtime/size and of Preflight's
- * process-local operation lease.
+ * anchors. This makes the commit boundary independent of mtime/size and of Preflight's process-local
+ * operation lease.
  */
 final class ProfileMutationTransaction {
     private static final String PREFIX = ".preflight-profile-txn-";
@@ -36,6 +36,8 @@ final class ProfileMutationTransaction {
     private static final Pattern RECORD_NAME = Pattern.compile("([0-9a-f]{64})\\.json");
     private static final String UUID_PATTERN =
             "([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})";
+    private static final Pattern UPDATE = Pattern.compile(
+            "\\.preflight-profile-txn-update-(\\d{10,17})-([0-9a-f]{64})-" + UUID_PATTERN);
     private static final Pattern RENAME = Pattern.compile(
             "\\.preflight-profile-txn-rename-(\\d{10,17})-([0-9a-f]{64})-([0-9a-f]{64})-"
                     + UUID_PATTERN);
@@ -44,6 +46,108 @@ final class ProfileMutationTransaction {
     private static final Hook NOOP = new Hook() {};
 
     private ProfileMutationTransaction() {
+    }
+
+    static UpdateResult update(
+            Path profileDirectory,
+            Path backupDirectory,
+            Path source,
+            byte[] replacement,
+            GenerationVerifier verifier) throws IOException {
+        return update(profileDirectory, backupDirectory, source, replacement, verifier, NOOP);
+    }
+
+    static UpdateResult update(
+            Path profileDirectory,
+            Path backupDirectory,
+            Path source,
+            byte[] replacement,
+            GenerationVerifier verifier,
+            Hook hook) throws IOException {
+        requireArguments(verifier, hook);
+        Path profiles = SafetyArtifactRetention.requireRealDirectory(profileDirectory);
+        Path backups = SafetyArtifactRetention.requireRealDirectory(backupDirectory);
+        Descriptor descriptor = Descriptor.update(profiles, source);
+        Path transaction = createTransaction(descriptor);
+        Path reviewed = transaction.resolve(REVIEWED);
+        Path snapshot = transaction.resolve(SNAPSHOT);
+        Path stagedReplacement = transaction.resolve(REPLACEMENT);
+        Path captured = transaction.resolve(CAPTURED);
+        boolean sourceCaptured = false;
+        boolean committed = false;
+        IOException pendingAfterCommit = null;
+        try {
+            byte[] reviewedBytes = anchorReviewedSource(source, reviewed, snapshot, verifier);
+            Files.write(stagedReplacement, replacement, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+
+            hook.beforeSourceCapture(source);
+            atomicCapture(source, captured);
+            sourceCaptured = true;
+            hook.afterSourceCapture(captured);
+            if (!exactCapture(reviewed, snapshot, captured, reviewedBytes)) {
+                restoreCapturedOrPreserve(captured, source, backups, descriptor);
+                sourceCaptured = false;
+                cleanupAbortedUpdate(transaction, reviewed, snapshot, stagedReplacement);
+                throw staleUpdate();
+            }
+
+            hook.beforeTargetPublication(source);
+            try {
+                Files.createLink(source, stagedReplacement);
+            } catch (UnsupportedOperationException unsupported) {
+                restoreCapturedOrPreserve(captured, source, backups, descriptor);
+                sourceCaptured = false;
+                cleanupAbortedUpdate(transaction, reviewed, snapshot, stagedReplacement);
+                throw new IOException("Filesystem cannot publish an updated profile safely: " + source, unsupported);
+            } catch (FileAlreadyExistsException collision) {
+                Path conflict = restoreCapturedOrPreserve(captured, source, backups, descriptor);
+                sourceCaptured = false;
+                cleanupAbortedUpdate(transaction, reviewed, snapshot, stagedReplacement);
+                IOException failure = new IOException(
+                        "Named profile changed at the update commit boundary; review it again", collision);
+                if (conflict != null) {
+                    failure.addSuppressed(new IOException(
+                            "The reviewed generation was preserved at " + conflict
+                                    + " because a newer external profile won the public name."));
+                }
+                throw failure;
+            }
+
+            committed = true;
+            try {
+                writeCommitMarker(transaction);
+            } catch (IOException markerFailure) {
+                pendingAfterCommit = markerFailure;
+            }
+            try {
+                hook.afterCommit(source);
+            } catch (IOException | RuntimeException ancillaryFailure) {
+                if (pendingAfterCommit == null) {
+                    pendingAfterCommit = asIOException("Post-commit profile hook failed", ancillaryFailure);
+                } else {
+                    pendingAfterCommit.addSuppressed(ancillaryFailure);
+                }
+            }
+            boolean cleanupPending = !cleanupCommittedUpdate(transaction, hook);
+            if (pendingAfterCommit != null) cleanupPending = true;
+            return new UpdateResult(cleanupPending);
+        } catch (IOException | RuntimeException failure) {
+            if (!committed && sourceCaptured) {
+                try {
+                    restoreCapturedOrPreserve(captured, source, backups, descriptor);
+                } catch (IOException rollbackFailure) {
+                    failure.addSuppressed(rollbackFailure);
+                }
+            }
+            if (!committed) {
+                try {
+                    cleanupAbortedUpdate(transaction, reviewed, snapshot, stagedReplacement);
+                } catch (IOException cleanupFailure) {
+                    failure.addSuppressed(cleanupFailure);
+                }
+            }
+            throw failure;
+        }
     }
 
     static RenameResult rename(
@@ -281,6 +385,42 @@ final class ProfileMutationTransaction {
         Path commit = transaction.resolve(COMMITTED);
         boolean committedMarker = Files.isRegularFile(commit, LinkOption.NOFOLLOW_LINKS);
 
+        if (descriptor.operation() == Operation.UPDATE) {
+            Path replacement = transaction.resolve(REPLACEMENT);
+            boolean sourceIsPublished = sameRegularFile(source, replacement);
+            if (!Files.exists(captured, LinkOption.NOFOLLOW_LINKS)) {
+                if (committedMarker || sourceIsPublished) {
+                    cleanupCommittedUpdate(transaction, NOOP);
+                } else {
+                    cleanupAbortedUpdate(transaction, reviewed, snapshot, replacement);
+                }
+                return;
+            }
+            boolean exact = exactCapture(reviewed, snapshot, captured, null);
+            if (!exact) {
+                restoreCapturedOrPreserve(captured, source, backups, descriptor);
+                cleanupAbortedUpdate(transaction, reviewed, snapshot, replacement);
+                throw staleRecovery(descriptor);
+            }
+            if (committedMarker || sourceIsPublished) {
+                cleanupCommittedUpdate(transaction, NOOP);
+                return;
+            }
+            if (!Files.exists(source, LinkOption.NOFOLLOW_LINKS)) {
+                restoreCapturedOrPreserve(captured, source, backups, descriptor);
+                cleanupAbortedUpdate(transaction, reviewed, snapshot, replacement);
+                throw staleRecovery(descriptor);
+            }
+            Path sourceConflict = restoreCapturedOrPreserve(captured, source, backups, descriptor);
+            cleanupAbortedUpdate(transaction, reviewed, snapshot, replacement);
+            String sourceResult = sourceConflict == null
+                    ? "The reviewed profile was restored under its canonical name."
+                    : "A newer profile exists; the reviewed bytes were preserved at " + sourceConflict + ".";
+            throw new IOException(
+                    "Interrupted profile update found newer external profile state. " + sourceResult
+                            + " Review the current profile before trying again.");
+        }
+
         if (descriptor.operation() == Operation.RENAME) {
             Path replacement = transaction.resolve(REPLACEMENT);
             Path target = descriptor.target();
@@ -461,6 +601,15 @@ final class ProfileMutationTransaction {
                 StandardOpenOption.WRITE);
     }
 
+    private static boolean cleanupCommittedUpdate(Path transaction, Hook hook) {
+        return deleteForCleanup(hook, transaction.resolve(CAPTURED))
+                && deleteForCleanup(hook, transaction.resolve(REVIEWED))
+                && deleteForCleanup(hook, transaction.resolve(SNAPSHOT))
+                && deleteForCleanup(hook, transaction.resolve(REPLACEMENT))
+                && deleteForCleanup(hook, transaction.resolve(COMMITTED))
+                && deleteForCleanup(hook, transaction);
+    }
+
     private static boolean cleanupCommittedRename(Path transaction, Hook hook) {
         return deleteForCleanup(hook, transaction.resolve(CAPTURED))
                 && deleteForCleanup(hook, transaction.resolve(REVIEWED))
@@ -485,6 +634,16 @@ final class ProfileMutationTransaction {
         } catch (IOException | RuntimeException ignored) {
             return false;
         }
+    }
+
+    private static void cleanupAbortedUpdate(
+            Path transaction, Path reviewed, Path snapshot, Path replacement) throws IOException {
+        Files.deleteIfExists(transaction.resolve(CAPTURED));
+        Files.deleteIfExists(reviewed);
+        Files.deleteIfExists(snapshot);
+        Files.deleteIfExists(replacement);
+        Files.deleteIfExists(transaction.resolve(COMMITTED));
+        Files.deleteIfExists(transaction);
     }
 
     private static void cleanupAbortedRename(
@@ -519,6 +678,10 @@ final class ProfileMutationTransaction {
         } catch (IOException | RuntimeException unavailable) {
             return false;
         }
+    }
+
+    private static IOException staleUpdate() {
+        return new IOException("Named profile changed at the update commit boundary; review it again");
     }
 
     private static IOException staleSource() {
@@ -565,6 +728,9 @@ final class ProfileMutationTransaction {
         }
     }
 
+    record UpdateResult(boolean cleanupPending) {
+    }
+
     record RenameResult(boolean cleanupPending) {
     }
 
@@ -572,6 +738,7 @@ final class ProfileMutationTransaction {
     }
 
     private enum Operation {
+        UPDATE,
         RENAME,
         DELETE
     }
@@ -585,6 +752,16 @@ final class ProfileMutationTransaction {
             Path transaction,
             Path source,
             Path target) {
+        static Descriptor update(Path profiles, Path source) throws IOException {
+            String sourceHash = recordHash(source);
+            long timestamp = Instant.now().toEpochMilli();
+            String id = UUID.randomUUID().toString();
+            Path transaction = profiles.resolve(PREFIX + "update-" + timestamp + "-" + sourceHash + "-" + id);
+            Path canonical = profiles.resolve(sourceHash + ".json");
+            return new Descriptor(Operation.UPDATE, timestamp, sourceHash, sourceHash, id,
+                    transaction, canonical, canonical);
+        }
+
         static Descriptor rename(Path profiles, Path source, Path target) throws IOException {
             String sourceHash = recordHash(source);
             String targetHash = recordHash(target);
@@ -607,6 +784,15 @@ final class ProfileMutationTransaction {
 
         static Descriptor parse(Path profiles, Path transaction) {
             String name = transaction.getFileName().toString();
+            Matcher update = UPDATE.matcher(name);
+            if (update.matches()) {
+                long timestamp = Long.parseLong(update.group(1));
+                String source = update.group(2);
+                String id = update.group(3);
+                Path canonical = profiles.resolve(source + ".json");
+                return new Descriptor(Operation.UPDATE, timestamp, source, source, id,
+                        transaction, canonical, canonical);
+            }
             Matcher rename = RENAME.matcher(name);
             if (rename.matches()) {
                 long timestamp = Long.parseLong(rename.group(1));
