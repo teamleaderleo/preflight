@@ -26,7 +26,7 @@ class UninstallHumanOutputTest {
 
         String output = render(plan, false);
 
-        assertTrue(output.startsWith("Preview: would remove:\n"), output);
+        assertTrue(output.startsWith("Preview: Would remove:\n"), output);
         assertTrue(output.contains("Preview only; nothing was removed."), output);
         assertTrue(output.contains("Re-run with --yes to apply this exact scope."), output);
         assertFalse(output.contains("\u001b["), output);
