@@ -178,7 +178,8 @@ final class EvidenceCommand {
             out.println(Json.object(report));
             return 0;
         }
-        out.printf(Locale.ROOT, "Saved diagnostics to %s (%s, %,d files).%n",
+        out.printf(Locale.ROOT, "%s to %s (%s, %,d files).%n",
+                TerminalStyle.semantic(out, TerminalStyle.Tone.SUCCESS, "Saved diagnostics"),
                 result.output(), CacheFootprint.humanBytes(result.bytes()), result.files());
         out.printf(Locale.ROOT, "  %,d launch runs and %,d benchmark sessions included%n",
                 result.runs(), result.benchmarks());
@@ -205,7 +206,8 @@ final class EvidenceCommand {
             out.println(Json.object(report));
             return 0;
         }
-        out.printf(Locale.ROOT, "Diagnostic evidence: %s across %,d files%n",
+        out.printf(Locale.ROOT, "%s %s across %,d files%n",
+                TerminalStyle.semantic(out, TerminalStyle.Tone.EMPHASIS, "Diagnostic evidence:"),
                 CacheFootprint.humanBytes(inventory.bytes()), inventory.files());
         out.printf(Locale.ROOT, "  %,d launch runs%n", inventory.runs().size());
         out.printf(Locale.ROOT, "  %,d benchmark sessions%n", inventory.benchmarks().size());
@@ -309,13 +311,17 @@ final class EvidenceCommand {
             out.println(Json.object(report));
             return 0;
         }
+        String action = confirmed
+                ? TerminalStyle.semantic(out, TerminalStyle.Tone.SUCCESS, "Removed")
+                : TerminalStyle.semantic(out, TerminalStyle.Tone.PREVIEW, "Preview:") + " would remove";
         out.printf(Locale.ROOT, "%s %,d evidence sessions (%,d files), freeing %s.%n",
-                confirmed ? "Removed" : "Preview: would remove",
+                action,
                 plan.removals().size(),
                 plan.files(),
                 CacheFootprint.humanBytes(plan.bytes()));
         if (!confirmed) {
-            out.println("Preview only; nothing was removed. Re-run the same command with --yes to apply it.");
+            out.println(TerminalStyle.semantic(out, TerminalStyle.Tone.PREVIEW, "Preview only;")
+                    + " nothing was removed. Re-run the same command with --yes to apply it.");
         }
         return 0;
     }
