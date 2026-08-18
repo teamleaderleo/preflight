@@ -31,12 +31,12 @@ class ResourceProviderContentIdentityStabilityTest {
         AtomicInteger hashCalls = new AtomicInteger();
         ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
                 index,
-                path -> {
+                bytes -> {
                     int call = hashCalls.incrementAndGet();
                     if (call == 1) {
-                        Files.writeString(path, "changed-during-hash");
+                        Files.writeString(file, "changed-during-hash");
                     }
-                    return Hashes.sha256(path);
+                    return Hashes.sha256(bytes);
                 });
 
         ResourceProviderComparison.ContentObservation raced = identities.observe("shared.bin", provider);
@@ -76,13 +76,13 @@ class ResourceProviderContentIdentityStabilityTest {
         AtomicInteger hashCalls = new AtomicInteger();
         ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
                 index,
-                path -> {
+                bytes -> {
                     int call = hashCalls.incrementAndGet();
                     if (call == 1) {
-                        Files.writeString(path, "BBBB");
-                        Files.setLastModifiedTime(path, observedAfter);
+                        Files.writeString(file, "BBBB");
+                        Files.setLastModifiedTime(file, observedAfter);
                     }
-                    return Hashes.sha256(path);
+                    return Hashes.sha256(bytes);
                 });
 
         ResourceProviderComparison.ContentObservation raced = identities.observe("shared.bin", provider);
@@ -107,9 +107,9 @@ class ResourceProviderContentIdentityStabilityTest {
         AtomicInteger hashCalls = new AtomicInteger();
         ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
                 index,
-                path -> {
+                bytes -> {
                     hashCalls.incrementAndGet();
-                    return Hashes.sha256(path);
+                    return Hashes.sha256(bytes);
                 });
 
         assertEquals(
@@ -130,6 +130,50 @@ class ResourceProviderContentIdentityStabilityTest {
 
         assertEquals(ResourceProviderComparison.ContentEvidence.STALE, replaced.evidence());
         assertEquals(1, hashCalls.get(), "a changed file identity must invalidate rather than reuse the memo");
+    }
+
+    @Test
+    void sameSizeReplacementDuringTheFirstHashNeverPublishesTheReplacementDigest() throws Exception {
+        Path root = Files.createDirectories(temporaryDirectory.resolve("aba/root"));
+        Path file = Files.writeString(root.resolve("shared.bin"), "AAAA");
+        ResourceIndex.Provider provider = provider(root, "shared.bin");
+        ResourceIndex index = index(root, provider);
+        String originalDigest = Hashes.sha256(file);
+        Object originalKey = Files.readAttributes(file, BasicFileAttributes.class).fileKey();
+        FileTime originalModified = Files.getLastModifiedTime(file);
+
+        Path parked = root.resolve("parked.tmp");
+        Path impostor = Files.writeString(root.resolve("impostor.tmp"), "BBBB");
+        Files.setLastModifiedTime(impostor, FileTime.fromMillis(provider.modifiedMillis()));
+
+        // A -> B -> A entirely inside the read, with B the same size and mtime as A. Both pathname
+        // observations therefore see A, and A keeps its identity because a rename preserves it.
+        ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
+                index,
+                bytes -> {
+                    Files.move(file, parked, StandardCopyOption.REPLACE_EXISTING);
+                    Files.move(impostor, file, StandardCopyOption.REPLACE_EXISTING);
+                    Files.setLastModifiedTime(file, FileTime.fromMillis(provider.modifiedMillis()));
+                    String read = Hashes.sha256(bytes);
+                    Files.move(file, impostor, StandardCopyOption.REPLACE_EXISTING);
+                    Files.move(parked, file, StandardCopyOption.REPLACE_EXISTING);
+                    Files.setLastModifiedTime(file, originalModified);
+                    return read;
+                });
+
+        ResourceProviderComparison.ContentObservation observed = identities.observe("shared.bin", provider);
+
+        Object restoredKey = Files.readAttributes(file, BasicFileAttributes.class).fileKey();
+        if (originalKey == null || !Objects.equals(originalKey, restoredKey)) {
+            return; // Without a stable identity across the rename there is nothing to prove here.
+        }
+        assertEquals("AAAA", Files.readString(file), "the file on disk is the original again");
+        if (observed.evidence() == ResourceProviderComparison.ContentEvidence.HASHED) {
+            assertEquals(
+                    originalDigest,
+                    observed.sha256(),
+                    "a digest published as exact evidence must belong to the observed file");
+        }
     }
 
     private static ResourceIndex index(Path root, ResourceIndex.Provider provider) {

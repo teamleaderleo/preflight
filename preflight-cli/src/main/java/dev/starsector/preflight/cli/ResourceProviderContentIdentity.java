@@ -4,6 +4,7 @@ import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceProviderComparison;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -60,40 +61,55 @@ final class ResourceProviderContentIdentity {
             String logicalPath, ResourceIndex.Provider provider) {
         try {
             Path file = index.resolveExisting(provider).toAbsolutePath().normalize();
-            BasicFileAttributes before = Files.readAttributes(file, BasicFileAttributes.class);
-            if (!before.isRegularFile()) {
-                return ResourceProviderComparison.ContentObservation.unreadable();
-            }
-            if (!matchesIndexedMetadata(provider, before)) {
-                return ResourceProviderComparison.ContentObservation.stale();
-            }
-
-            FileIdentity beforeIdentity = FileIdentity.from(before);
-            DirectHash cached = directHashes.get(file);
-            if (cached != null) {
-                if (!cached.identity().equals(beforeIdentity)) {
-                    directHashes.remove(file);
+            /*
+             * Opened before anything is observed about it, and never re-opened by name.
+             *
+             * Two pathname stats around a read prove only that the name pointed at the same entry
+             * at two instants. They cannot see a same-size, same-timestamp file moved over the name
+             * for the duration of the read and moved away again: both stats observe the original,
+             * the original keeps its identity because a rename preserves it, and the digest that
+             * gets published belongs to bytes that were never there before or after. Holding one
+             * handle open across the whole observation is what closes that window -- a rename over
+             * the name does not move an open handle, so the bytes hashed here are the bytes of the
+             * entry this stream was opened on.
+             */
+            try (InputStream bytes = Files.newInputStream(file)) {
+                BasicFileAttributes before = Files.readAttributes(file, BasicFileAttributes.class);
+                if (!before.isRegularFile()) {
+                    return ResourceProviderComparison.ContentObservation.unreadable();
+                }
+                if (!matchesIndexedMetadata(provider, before)) {
                     return ResourceProviderComparison.ContentObservation.stale();
                 }
-                return ResourceProviderComparison.ContentObservation.hashed(cached.sha256());
-            }
 
-            String digest = directHasher.sha256(file);
-            Path afterFile = index.resolveExisting(provider).toAbsolutePath().normalize();
-            if (!file.equals(afterFile)) {
-                return ResourceProviderComparison.ContentObservation.stale();
-            }
-            BasicFileAttributes after = Files.readAttributes(afterFile, BasicFileAttributes.class);
-            if (!after.isRegularFile()
-                    || !matchesIndexedMetadata(provider, after)
-                    || !beforeIdentity.equals(FileIdentity.from(after))) {
-                return ResourceProviderComparison.ContentObservation.stale();
-            }
+                FileIdentity beforeIdentity = FileIdentity.from(before);
+                DirectHash cached = directHashes.get(file);
+                if (cached != null) {
+                    if (!cached.identity().equals(beforeIdentity)) {
+                        directHashes.remove(file);
+                        return ResourceProviderComparison.ContentObservation.stale();
+                    }
+                    return ResourceProviderComparison.ContentObservation.hashed(cached.sha256());
+                }
 
-            // Publish to the memo only after the pathname, indexed metadata, and filesystem identity
-            // are stable across the complete read. A raced digest must never become reusable evidence.
-            directHashes.put(file, new DirectHash(digest, FileIdentity.from(after)));
-            return ResourceProviderComparison.ContentObservation.hashed(digest);
+                String digest = directHasher.sha256(bytes);
+                Path afterFile = index.resolveExisting(provider).toAbsolutePath().normalize();
+                if (!file.equals(afterFile)) {
+                    return ResourceProviderComparison.ContentObservation.stale();
+                }
+                BasicFileAttributes after = Files.readAttributes(afterFile, BasicFileAttributes.class);
+                if (!after.isRegularFile()
+                        || !matchesIndexedMetadata(provider, after)
+                        || !beforeIdentity.equals(FileIdentity.from(after))) {
+                    return ResourceProviderComparison.ContentObservation.stale();
+                }
+
+                // Publish to the memo only after the pathname, indexed metadata, and filesystem
+                // identity are stable across the complete read. A raced digest must never become
+                // reusable evidence.
+                directHashes.put(file, new DirectHash(digest, FileIdentity.from(after)));
+                return ResourceProviderComparison.ContentObservation.hashed(digest);
+            }
         } catch (NoSuchFileException missing) {
             return ResourceProviderComparison.ContentObservation.missing();
         } catch (IllegalArgumentException invalidPath) {
@@ -124,9 +140,10 @@ final class ResourceProviderContentIdentity {
         return attributes.size() == provider.size() && modifiedMillis == provider.modifiedMillis();
     }
 
+    /** Digests an already-open handle, so no implementation can re-open the provider by name. */
     @FunctionalInterface
     interface DirectHasher {
-        String sha256(Path file) throws IOException;
+        String sha256(InputStream bytes) throws IOException;
     }
 
     private record DirectHash(String sha256, FileIdentity identity) {
