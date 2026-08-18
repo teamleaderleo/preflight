@@ -70,11 +70,12 @@ test("motion toggles immediately and persists without an Apply step", () => {
   render(<HangarPage instrumentHull={state()} />);
 
   const rotate = screen.getByRole("button", { name: "Motion: Rotate" });
-  expect(rotate).toHaveAttribute("aria-pressed", "false");
+  expect(rotate).toHaveAttribute("title", "Stop decorative hull rotation");
+  expect(rotate).not.toHaveAttribute("aria-pressed");
   fireEvent.click(rotate);
 
   const still = screen.getByRole("button", { name: "Motion: Still" });
-  expect(still).toHaveAttribute("aria-pressed", "true");
+  expect(still).toHaveAttribute("title", "Resume decorative hull rotation");
   expect(window.localStorage.getItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY)).toBe("still");
 });
 
