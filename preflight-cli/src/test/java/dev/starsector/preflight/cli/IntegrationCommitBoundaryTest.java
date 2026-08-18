@@ -15,16 +15,19 @@ import org.junit.jupiter.api.io.TempDir;
 
 class IntegrationCommitBoundaryTest {
     @Test
-    void linuxCommandLossAfterDesktopPublicationWithdrawsCommittedDesktop(@TempDir Path tempDir) throws Exception {
+    void linuxCommandLossAfterDesktopCommitWithdrawsDesktopAndRetainsReviewedPair(@TempDir Path tempDir)
+            throws Exception {
         PreflightHome home = PreflightHome.resolve(Platform.LINUX, tempDir.resolve("home"), Map.of());
         Path jar = jar(tempDir);
         assertEquals(0, InstallCommand.installLinux(home, jar, tempDir.resolve("old-game")));
         Path command = home.pathOf(PreflightHome.Id.LINUX_COMMAND);
         Path desktop = home.pathOf(PreflightHome.Id.LINUX_DESKTOP_ENTRY);
+        String oldCommand = Files.readString(command);
+        String oldDesktop = Files.readString(desktop);
         AtomicBoolean replaced = new AtomicBoolean();
 
         try (IntegrationMutation.TestHookScope ignored = IntegrationMutation.installTestHook((event, integration, path) -> {
-            if (event == IntegrationMutation.Event.AFTER_PUBLISH
+            if (event == IntegrationMutation.Event.AFTER_COMMIT
                     && integration.id() == PreflightHome.Id.LINUX_DESKTOP_ENTRY
                     && replaced.compareAndSet(false, true)) {
                 Files.delete(command);
@@ -40,6 +43,8 @@ class IntegrationCommitBoundaryTest {
         assertFalse(home.integration(PreflightHome.Id.LINUX_COMMAND).isOwned());
         assertFalse(Files.exists(desktop));
         assertFalse(home.integration(PreflightHome.Id.LINUX_DESKTOP_ENTRY).isOwned());
+        assertTrue(quarantineContains(command, oldCommand), "reviewed command predecessor should be retained");
+        assertTrue(quarantineContains(desktop, oldDesktop), "reviewed desktop predecessor should be retained");
 
         home.recordInstalledIntegrations();
         String receipt = Files.readString(home.root().resolve("integrations.json"));
@@ -127,6 +132,20 @@ class IntegrationCommitBoundaryTest {
                     return false;
                 }
             }));
+        }
+    }
+
+    private static boolean quarantineContains(Path target, String expected) throws IOException {
+        String prefix = target.getFileName() + ".preflight-quarantine-";
+        try (var siblings = Files.list(target.getParent())) {
+            return siblings.anyMatch(candidate -> {
+                if (!candidate.getFileName().toString().startsWith(prefix)) return false;
+                try {
+                    return Files.readString(candidate).equals(expected);
+                } catch (IOException ignored) {
+                    return false;
+                }
+            });
         }
     }
 
