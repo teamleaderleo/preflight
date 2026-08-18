@@ -1,9 +1,13 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.Json;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.channels.Channels;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
@@ -19,6 +23,7 @@ import java.util.regex.Pattern;
 /** Reports and explicitly updates the same settings Starsector's own launcher persists. */
 final class LaunchSettingsCommand {
     private static final String FORMAT = "starsector-preflight-launch-settings-v1";
+    static final int MAX_INSTALL_SETTINGS_BYTES = 1024 * 1024;
     static final String APPLY_CONFIRMATION_OPTION = "--confirm-settings-tools-closed";
     static final String APPLY_INSTRUCTION =
             "Close Starsector, its launcher, and every settings editor or mod manager before Apply."
@@ -273,9 +278,14 @@ final class LaunchSettingsCommand {
         static Limits read(Path installRoot) {
             if (installRoot == null) return unknown();
             for (Path settings : settingsCandidates(installRoot)) {
-                if (!Files.isRegularFile(settings)) continue;
+                if (!Files.isRegularFile(settings, LinkOption.NOFOLLOW_LINKS)) continue;
                 try {
-                    String text = Files.readString(settings, StandardCharsets.UTF_8);
+                    String text = boundedSettingsText(settings);
+                    if (text == null) {
+                        return new Limits(null, null, null, null,
+                                List.of("Could not read battle-size bounds: " + settings
+                                        + " exceeds " + MAX_INSTALL_SETTINGS_BYTES + " bytes"));
+                    }
                     Map<String, Integer> found = new LinkedHashMap<>();
                     Matcher matcher = INTEGER_SETTING.matcher(text);
                     while (matcher.find()) found.putIfAbsent(matcher.group(1), Integer.valueOf(matcher.group(2)));
@@ -297,6 +307,23 @@ final class LaunchSettingsCommand {
             }
             return new Limits(null, null, null, null,
                     List.of("Could not locate data/config/settings.json under " + installRoot));
+        }
+
+        private static String boundedSettingsText(Path settings) throws IOException {
+            try (InputStream input = Channels.newInputStream(Files.newByteChannel(
+                         settings, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS));
+                 ByteArrayOutputStream output = new ByteArrayOutputStream(32 * 1024)) {
+                byte[] buffer = new byte[16 * 1024];
+                int total = 0;
+                int read;
+                while ((read = input.read(buffer)) >= 0) {
+                    if (read == 0) continue;
+                    total = Math.addExact(total, read);
+                    if (total > MAX_INSTALL_SETTINGS_BYTES) return null;
+                    output.write(buffer, 0, read);
+                }
+                return output.toString(StandardCharsets.UTF_8);
+            }
         }
 
         void validate(GameLaunchPreferences.Update update) {
