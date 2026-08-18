@@ -6,12 +6,17 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -123,10 +128,10 @@ public final class BlockCacheManifestIO {
             Map<String, BlockCacheManifest.Entry> entries = new LinkedHashMap<>(
                     Math.max(16, Math.min(entryCount, MAX_EAGER_CAPACITY)));
             for (int i = 0; i < entryCount; i++) {
-                String logicalPath = readString(input);
+                String logicalPath = readCanonicalLogicalPath(input);
                 BlockCacheManifest.Entry entry = new BlockCacheManifest.Entry(
-                        readString(input),
-                        readString(input),
+                        readCanonicalSha256(input),
+                        readCanonicalRelativePath(input),
                         BlockTexture.Format.fromId(input.readInt()),
                         input.readInt(),
                         input.readInt(),
@@ -154,12 +159,49 @@ public final class BlockCacheManifestIO {
     }
 
     private static void writeString(DataOutputStream output, String value) throws IOException {
-        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes;
+        try {
+            ByteBuffer encoded = StandardCharsets.UTF_8.newEncoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .encode(CharBuffer.wrap(value));
+            bytes = new byte[encoded.remaining()];
+            encoded.get(bytes);
+        } catch (CharacterCodingException error) {
+            throw new IOException("Block cache manifest string cannot be encoded as UTF-8", error);
+        }
         if (bytes.length > MAX_STRING_BYTES) {
             throw new IOException("Block cache manifest string exceeds the safety limit");
         }
         output.writeInt(bytes.length);
         output.write(bytes);
+    }
+
+    private static String readCanonicalLogicalPath(DataInputStream input) throws IOException {
+        String value = readString(input);
+        String canonical = ResourceIndex.normalizeLogicalPath(value);
+        if (!value.equals(canonical)) {
+            throw new IOException("Block cache manifest logical path is not canonical: " + value);
+        }
+        return value;
+    }
+
+    private static String readCanonicalRelativePath(DataInputStream input) throws IOException {
+        String value = readString(input);
+        String canonical = ResourceIndex.normalizeRelativePath(value);
+        if (!value.equals(canonical)) {
+            throw new IOException("Block cache manifest blob path is not canonical: " + value);
+        }
+        return value;
+    }
+
+    private static String readCanonicalSha256(DataInputStream input) throws IOException {
+        String value = readString(input);
+        if (!value.equals(value.toLowerCase(Locale.ROOT))) {
+            throw new IOException("Block cache manifest source SHA-256 is not canonical lowercase hex");
+        }
+        Hashes.decodeSha256(value);
+        return value;
     }
 
     private static String readString(DataInputStream input) throws IOException {
@@ -171,7 +213,15 @@ public final class BlockCacheManifestIO {
         if (bytes.length != length) {
             throw new EOFException("Block cache manifest ended inside a string");
         }
-        return new String(bytes, StandardCharsets.UTF_8);
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
+        } catch (CharacterCodingException error) {
+            throw new IOException("Block cache manifest string is not valid UTF-8", error);
+        }
     }
 
     private static long minimumFileBytes() {
