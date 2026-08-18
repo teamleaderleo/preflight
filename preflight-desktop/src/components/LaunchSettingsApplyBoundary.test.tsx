@@ -77,6 +77,7 @@ describe("launch settings Apply boundary", () => {
         onApply={onApply}
       />,
     );
+    expect(screen.queryByText("Changes can be applied after Starsector closes.")).not.toBeInTheDocument();
     expect(confirmation).toBeEnabled();
     expect(confirmation).not.toBeChecked();
     expect(apply).toBeDisabled();
