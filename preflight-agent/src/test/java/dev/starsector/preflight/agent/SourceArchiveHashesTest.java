@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import org.junit.jupiter.api.AfterEach;
@@ -21,7 +22,7 @@ class SourceArchiveHashesTest {
     }
 
     @Test
-    void unchangedArchiveUsesPersistentHashAndChangedArchiveIsRehashed() throws Exception {
+    void persistentHashIsVerifiedAndChangedArchiveIsRehashed() throws Exception {
         Path cache = Files.createDirectory(temporary.resolve("cache"));
         Path archive = temporary.resolve("source.jar");
         Files.writeString(archive, "first archive contents");
@@ -36,12 +37,36 @@ class SourceArchiveHashesTest {
         SourceArchiveHashes.configure(cache);
         assertEquals(sha256(archive), SourceArchiveHashes.sha256(archive).sha256());
         assertEquals(1L, SourceArchiveHashes.telemetry().get("journalHits"));
-        assertEquals(0L, SourceArchiveHashes.telemetry().get("hashes"));
+        assertEquals(1L, SourceArchiveHashes.telemetry().get("hashes"));
 
         Files.writeString(archive, "different archive contents with another size");
         SourceArchiveHashes.beginSession();
         SourceArchiveHashes.configure(cache);
         assertEquals(sha256(archive), SourceArchiveHashes.sha256(archive).sha256());
+        assertEquals(0L, SourceArchiveHashes.telemetry().get("journalHits"));
+        assertEquals(1L, SourceArchiveHashes.telemetry().get("hashes"));
+    }
+
+    @Test
+    void sameSizeArchiveWithRestoredTimestampDoesNotReusePersistentHash() throws Exception {
+        Path cache = Files.createDirectory(temporary.resolve("cache"));
+        Path archive = temporary.resolve("source.jar");
+        Files.writeString(archive, "original archive");
+        FileTime modified = Files.getLastModifiedTime(archive);
+
+        SourceArchiveHashes.beginSession();
+        SourceArchiveHashes.configure(cache);
+        String originalHash = SourceArchiveHashes.sha256(archive).sha256();
+        SourceArchiveHashes.flushJournalForTest();
+
+        Files.writeString(archive, "modified archive");
+        Files.setLastModifiedTime(archive, modified);
+        String modifiedHash = sha256(archive);
+
+        SourceArchiveHashes.beginSession();
+        SourceArchiveHashes.configure(cache);
+        assertEquals(modifiedHash, SourceArchiveHashes.sha256(archive).sha256());
+        assertTrue(!originalHash.equals(modifiedHash));
         assertEquals(0L, SourceArchiveHashes.telemetry().get("journalHits"));
         assertEquals(1L, SourceArchiveHashes.telemetry().get("hashes"));
     }

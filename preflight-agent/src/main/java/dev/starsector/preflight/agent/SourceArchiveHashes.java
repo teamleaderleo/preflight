@@ -25,10 +25,9 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Content fingerprints for explicitly constrained local code-source archives.
  *
- * <p>A persistent advisory journal avoids re-reading unchanged archives in the game's x86 JVM.
- * Entries are accepted only for the same real path, non-symlink regular-file identity, byte size,
- * and nanosecond modification time. Any mismatch or malformed journal performs the complete
- * SHA-256 again; the target's independent class hash, source kind/suffix, and loader gates remain.
+ * <p>A persistent advisory journal records hashes for diagnostics, but every JVM session verifies
+ * archive contents before using a recorded hash. Filesystem identity, size, and modification time
+ * are not sufficient evidence that an archive's contents are unchanged.
  */
 final class SourceArchiveHashes {
     private static final long MAX_ARCHIVE_BYTES = 4L * 1024 * 1024 * 1024;
@@ -119,15 +118,13 @@ final class SourceArchiveHashes {
         }
         ensureJournalLoaded();
         JournalEntry stored = JOURNAL.get(real);
-        if (stored != null && before.equals(stored.stamp())) {
-            Result hit = Result.success(stored.sha256());
-            Result raced = CACHE.putIfAbsent(key, hit);
-            JOURNAL_HITS.incrementAndGet();
-            return raced == null ? hit : raced;
-        }
         Result hashed = hash(real, before);
         CACHE.putIfAbsent(key, hashed);
         if (hashed.successful()) {
+            if (stored != null && before.equals(stored.stamp())
+                    && hashed.sha256().equals(stored.sha256())) {
+                JOURNAL_HITS.incrementAndGet();
+            }
             JOURNAL.put(real, new JournalEntry(before, hashed.sha256()));
             journalDirty = true;
         }
