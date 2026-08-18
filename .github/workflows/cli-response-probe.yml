@@ -3,27 +3,22 @@ name: CLI response probe
 on:
   pull_request:
     paths:
+      - 'probe-kits/cli-response/**'
+      - '.github/workflows/cli-response-probe.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'probe-kits/cli-response/**'
       - '.github/workflows/cli-response-probe.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  integrate-current-main:
-    if: github.head_ref == 'fix/launch-settings-quiescent-apply'
+  self-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: fix/launch-settings-quiescent-apply
-          fetch-depth: 0
-      - name: Merge current main and restore probe workflow
-        run: |
-          git config user.name 'preflight-agent'
-          git config user.email 'preflight-agent@users.noreply.github.com'
-          git fetch origin main
-          git merge --no-edit origin/main
-          git checkout origin/main -- .github/workflows/cli-response-probe.yml
-          git add .github/workflows/cli-response-probe.yml
-          git commit --amend --no-edit
-          git push origin HEAD:fix/launch-settings-quiescent-apply
+      - name: Run response probe self-test
+        run: python3 probe-kits/cli-response/test_cli_response_probe.py

@@ -76,6 +76,8 @@ function pageTitle(page: Page, status: AppStatus, preparing: boolean, isReady: b
 interface RunFailure {
   summary: string;
   detail?: string;
+  installRoot?: string;
+  profileFingerprint?: string;
 }
 
 export default function App() {
@@ -115,15 +117,6 @@ export default function App() {
   } = useOptimizationPolicy();
   const { afterLaunchBehavior, setAfterLaunchBehavior } = useAfterLaunchBehavior();
   const refreshRequest = useRef(0);
-  /**
-   * Whether the installation is usable and whether a game is running are two different facts
-   * sharing one `status`. A refresh only learns the first, so it must not publish over the second.
-   *
-   * <p>The authority for "launching" and "running" is the native process stream, which clears them
-   * when Starsector exits. Letting a refresh overwrite them reported "ready" mid-game and released
-   * the shared operation lock with it -- re-enabling Launch, Apply changes, profile switching,
-   * cache cleanup, and Remove Preflight while the game was still running.
-   */
   const setInstallationStatus = useCallback((next: AppStatus) => {
     setStatus((current) => (current === "running" || current === "launching" ? current : next));
   }, []);
@@ -135,6 +128,11 @@ export default function App() {
   const { countFastLaunch, rememberBenchmark } = speedStanding;
   const currentProfileFingerprint = useRef<string | null>(null);
   const countWhenFinished = useRef<{ pid: number; profileFingerprint: string } | null>(null);
+  const launchTargetWhenFinished = useRef<{
+    pid: number;
+    installRoot: string;
+    profileFingerprint: string | null;
+  } | null>(null);
   const refresh = useCallback(async (
     game?: string,
     options?: { bootstrap?: boolean; fallbackDiscovery?: boolean },
@@ -183,12 +181,13 @@ export default function App() {
         afterLaunchBehavior,
       );
       setForceStopAvailable(false);
-      // The desktop backend waits for an exact live game-JVM identity before publishing running.
-      // Browser previews have no native event stream, so they settle immediately.
       if (!isDesktopHost()) setStatus("running");
       const fingerprint = currentProfileFingerprint.current;
-      // The benchmark's optimized half uses the complete recommended path. Other presets still
-      // launch safely, but they do not inherit a number they did not measure.
+      launchTargetWhenFinished.current = {
+        pid: started.pid,
+        installRoot: game,
+        profileFingerprint: fingerprint,
+      };
       countWhenFinished.current = optimizationPreset === "recommended"
         && disabledOptimizationDomains.length === 0
         && fingerprint
@@ -196,6 +195,7 @@ export default function App() {
         : null;
       announceGame(isDesktopHost() ? "Waiting for Starsector…" : "Starsector is running.", "success");
     } catch (error) {
+      launchTargetWhenFinished.current = null;
       countWhenFinished.current = null;
       setStatus("error");
       setRetryIntent({ kind: "launch" });
@@ -273,8 +273,6 @@ export default function App() {
     refreshInstallation: refresh,
     setStatus,
   });
-  // Settings states what this build sends, and that sentence depends on whether an intake origin
-  // was compiled in, so the status is fetched for either page rather than only where it is sent.
   const diagnostics = useDiagnosticsReport(page === "help" || page === "settings", announceSupport);
   const launcher = useLauncherSettings(
     snapshot?.selected?.installRoot,
@@ -296,9 +294,6 @@ export default function App() {
       ? preparation.repairAndPrepare(true)
       : needsPreparation ? prepare(true) : launch());
   };
-  // The one outcome a launcher cannot have is refusing to launch. Preparation can be refused --
-  // no disk, an unverifiable cache boundary -- and the game still has to start, so this skips
-  // preparation and launches: missing artifacts fall back to the game's own loader by design.
   const launchWithoutPreparing = async () => {
     if (!requireAppliedLauncherSettings()) return;
     await launch();
@@ -312,8 +307,6 @@ export default function App() {
   );
   const updates = useSignedUpdates(status === "ready", preparing || status === "launching" || status === "running", announceUpdates);
   const { updateStatus } = updates;
-  // A measurement that costs several minutes of the machine to itself is written down the moment
-  // it lands, rather than living only in the event that delivered it.
   const { desktopBenchmarkComparison } = automation;
   useEffect(() => {
     rememberBenchmark(desktopBenchmarkComparison);
@@ -345,8 +338,6 @@ export default function App() {
       if (benchmarkReason !== null || removalReason !== null || updateInstallReason !== null) {
         backgroundOperationActive = true;
         stopBackgroundOperationReconciliation = startOperationReconciliation({
-          // These owners live in the current Tauri process. Avoid the durable game probe here;
-          // it starts the CLI and is only needed by the separate recovered-game path below.
           read: () => getOperationState(false),
           apply: (current) => {
             const bReason = benchmarkOperationReason(current);
@@ -422,16 +413,25 @@ export default function App() {
         if (payload.success && pendingCount?.pid === payload.pid) {
           countFastLaunch(pendingCount.profileFingerprint);
         }
+        const target = launchTargetWhenFinished.current?.pid === payload.pid
+          ? launchTargetWhenFinished.current
+          : null;
+        launchTargetWhenFinished.current = null;
         setStatus(snapshot?.ready ? "ready" : "setup");
         const outcome = payload.success
           ? "Starsector closed normally. The run report is ready."
           : failedRunSummary(payload.detail);
-        setRunFailure(payload.success ? null : { summary: outcome, detail: payload.detail });
-        const game = snapshot?.selected?.installRoot;
+        setRunFailure(payload.success ? null : {
+          summary: outcome,
+          detail: payload.detail,
+          installRoot: target?.installRoot,
+          profileFingerprint: target?.profileFingerprint ?? undefined,
+        });
+        const game = target?.installRoot ?? snapshot?.selected?.installRoot;
         if (!payload.success && game) {
           void diagnostics.submitAutomaticFailedRunReport({ game, wrapperPid: payload.pid });
         }
-        void refresh(snapshot?.selected?.installRoot).then((refreshed) => {
+        void refresh(game).then((refreshed) => {
           if (refreshed) announceGame(outcome, payload.success ? "success" : "error");
         });
       }
@@ -540,7 +540,7 @@ export default function App() {
   const launchSettingsSaveBlocked = launchSettingsEditingBlocked
     || status === "launching"
     || status === "running"
-    || automation.desktopSmokeRunning
+    || automation.desktopSmokeRunning;
   const launchSettingsSaveBlockReason = status === "launching" || status === "running"
     ? "Changes can be applied after Starsector closes."
     : automation.desktopSmokeRunning

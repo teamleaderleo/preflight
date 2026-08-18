@@ -3,6 +3,7 @@ import type { useDesktopAutomation } from "../useDesktopAutomation";
 import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
 import { formatBytes, shortPath } from "../uiFormat";
+import { startupComparisonPresentation } from "../speedScoreboardFormat";
 import type { AppStatus, DesktopBenchmarkMeasurementOverhead, NoticeTone } from "../types";
 
 type AutomationState = ReturnType<typeof useDesktopAutomation>;
@@ -60,11 +61,6 @@ export function BenchmarkPage({
             <h2>Startup benchmark</h2>
             <InfoTip label="About the benchmark">Opens Starsector twice and times each launch at the main menu: first without Preflight optimizations, then with them. Preflight closes only the exact process it started.</InfoTip>
           </div>
-          {/*
-            * What this does used to live only in the tooltip beside the heading, so the one sentence
-            * that explains why the game is about to open by itself was reachable by hover alone. A
-            * benchmark that drives the machine unattended for minutes says so before it is started.
-            */}
           <p>{isReady
             ? "Runs Starsector twice, once normally and once with Preflight, then compares the launch times."
             : "Choose Starsector on Home before running the benchmark."}</p>
@@ -135,7 +131,7 @@ function compactNumber(value: number): string {
   }).format(value);
 }
 
-function BenchmarkResult({
+export function BenchmarkResult({
   label,
   metric,
   unit,
@@ -148,11 +144,17 @@ function BenchmarkResult({
   const format = (value: number) => unit === "time"
     ? `${(value / 1_000).toFixed(2)}s`
     : value.toFixed(1);
+  const comparison = unit === "time"
+    ? startupComparisonPresentation(metric.measurementOnly, metric.optimized)
+    : null;
   return (
     <div>
       <span>{label}</span>
       <strong>{format(metric.optimized)}</strong>
-      <small>{format(metric.measurementOnly)} before{metric.improvementPercent === null ? "" : ` · ${metric.improvementPercent.toFixed(1)}% better`}</small>
+      <small>
+        {format(metric.measurementOnly)} before
+        {comparison ? ` · ${comparison.headline} · ${comparison.detail}` : metric.improvementPercent === null ? "" : ` · ${metric.improvementPercent.toFixed(1)}% change`}
+      </small>
     </div>
   );
 }
