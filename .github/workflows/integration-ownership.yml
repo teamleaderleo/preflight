@@ -49,3 +49,13 @@ jobs:
           -Dtest=ExclusiveMoveTest
           -Dsurefire.failIfNoSpecifiedTests=false
           test
+
+      - name: Report reviewed launcher capability digests
+        if: runner.os == 'Linux'
+        shell: bash
+        run: >-
+          ./mvnw --batch-mode --no-transfer-progress
+          -pl preflight-cli -am
+          -Dtest=CapabilityHashProbeTest
+          -Dsurefire.failIfNoSpecifiedTests=false
+          test
