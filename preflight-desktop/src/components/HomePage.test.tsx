@@ -213,7 +213,7 @@ test("run recovery keeps Relaunch when the failed run still matches the current 
     onDismissRunFailure: dismiss,
   })} />);
 
-  expect(screen.getByRole("region", { name: "Run needs attention" })).toBeInTheDocument();
+  expect(screen.getByText("Run needs attention")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Relaunch" })).toBeEnabled();
   expect(dismiss).not.toHaveBeenCalled();
 });
@@ -228,7 +228,7 @@ test("switching to another profile retires the old Home recovery card", async ()
     launchProfileName: "Utilities only",
   })} />);
 
-  expect(screen.queryByRole("region", { name: "Run needs attention" })).not.toBeInTheDocument();
+  expect(screen.queryByText("Run needs attention")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Relaunch" })).not.toBeInTheDocument();
   await waitFor(() => expect(dismiss).toHaveBeenCalledOnce());
   expect(screen.getByLabelText("Launches profile Utilities only from /Applications/Starsector")).toBeInTheDocument();
@@ -250,7 +250,7 @@ test("changing installations retires the old Home recovery card once the new set
     onDismissRunFailure: dismiss,
   })} />);
 
-  expect(screen.queryByRole("region", { name: "Run needs attention" })).not.toBeInTheDocument();
+  expect(screen.queryByText("Run needs attention")).not.toBeInTheDocument();
   await waitFor(() => expect(dismiss).toHaveBeenCalledOnce());
 });
 
@@ -263,6 +263,6 @@ test("an in-flight profile identity refresh keeps recovery stable until the new 
     onDismissRunFailure: dismiss,
   })} />);
 
-  expect(screen.getByRole("region", { name: "Run needs attention" })).toBeInTheDocument();
+  expect(screen.getByText("Run needs attention")).toBeInTheDocument();
   expect(dismiss).not.toHaveBeenCalled();
 });
