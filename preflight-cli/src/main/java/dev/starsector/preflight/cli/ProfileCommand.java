@@ -366,7 +366,10 @@ final class ProfileCommand {
                 Instant.now().toString(),
                 target);
         try {
-            atomicCreate(target, Json.object(duplicated.persisted()) + System.lineSeparator());
+            atomicCreate(
+                    target,
+                    Json.object(duplicated.persisted()) + System.lineSeparator(),
+                    publicationHook);
         } catch (FileAlreadyExistsException collision) {
             throw new IOException("A named profile already exists: " + targetName, collision);
         }
@@ -796,21 +799,38 @@ final class ProfileCommand {
      * independently-created final name is never replaced. A filesystem without hard-link support
      * fails closed instead of falling back to a copying publication that could expose partial data.
      */
-    private static void atomicCreate(Path target, String value) throws IOException {
+    private static void atomicCreate(
+            Path target, String value, DuplicatePublicationHook publicationHook) throws IOException {
         Path absolute = target.toAbsolutePath().normalize();
         Path parent = SafetyArtifactRetention.requireRealDirectory(absolute.getParent());
         Path staged = Files.createTempFile(parent, ".preflight-profile-create-", ".tmp");
+        boolean published = false;
+        Throwable failure = null;
         try {
             Files.writeString(staged, value, StandardCharsets.UTF_8);
             try {
                 Files.createLink(absolute, staged);
+                published = true;
             } catch (UnsupportedOperationException unsupported) {
                 throw new IOException(
                         "Filesystem cannot publish a duplicate profile safely: " + absolute,
                         unsupported);
             }
+        } catch (IOException | RuntimeException error) {
+            failure = error;
+            throw error;
         } finally {
-            Files.deleteIfExists(staged);
+            try {
+                publicationHook.cleanupStagedProfile(staged);
+            } catch (IOException cleanupFailure) {
+                if (!published) {
+                    if (failure != null) {
+                        failure.addSuppressed(cleanupFailure);
+                    } else {
+                        throw cleanupFailure;
+                    }
+                }
+            }
         }
     }
 
@@ -1001,6 +1021,10 @@ final class ProfileCommand {
     @FunctionalInterface
     interface DuplicatePublicationHook {
         void beforePublication(Path target) throws IOException;
+
+        default void cleanupStagedProfile(Path staged) throws IOException {
+            Files.deleteIfExists(staged);
+        }
     }
 
     private record LoadedProfiles(List<SavedProfile> profiles, List<String> diagnostics) {
