@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.starsector.preflight.core.PreparedTextureIO;
 import dev.starsector.preflight.core.ResourceIndex;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
@@ -63,6 +64,24 @@ class PreparationStoragePlannerTest {
         assertNotNull(plan.refusalReason());
         assertTrue(plan.requiredFreeBytes() > plan.usableBytes());
         assertFalse(Files.exists(cache));
+    }
+
+    @Test
+    void balancedUpperBoundIncludesRawFallbackWhenHeuristicPredictsEffectiveCompression() throws Exception {
+        Path root = temporaryDirectory.resolve("root-balanced");
+        Path image = root.resolve("graphics/image.png");
+        Files.createDirectories(image.getParent());
+        assertTrue(ImageIO.write(new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB),
+                "png", image.toFile()));
+        ResourceIndex index = index(root, "de".repeat(32), List.of("graphics/image.png"));
+
+        PreparationStoragePlanner.Plan plan = PreparationStoragePlanner.plan(
+                index, temporaryDirectory.resolve("balanced-cache"),
+                TextureStoragePolicy.BALANCED, 1, () -> 20 * GIB);
+
+        long rawFileBytes = PreparedTextureIO.rawFileBytes(plan.uniquePixelBytes());
+        assertTrue(plan.predictedLooseBytes() < rawFileBytes);
+        assertTrue(plan.upperLooseBytes() >= 2 * rawFileBytes);
     }
 
     @Test
