@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowIcon, CheckIcon, FolderIcon, PlayIcon, SparklesIcon } from "../icons";
 import { adapterHealthLine } from "../adapterHealthText";
 import { HOME_OPTIONS_STORAGE_KEY } from "../desktopStorage";
@@ -141,11 +141,23 @@ export function HomePage({
     .filter((diagnostic) => !diagnostic.startsWith("Searched "))
     .filter((diagnostic) => !diagnostic.includes("--game") && !diagnostic.includes("--launcher"));
   const playtime = snapshot?.playtime;
-  const lastAdapterHealth = lastRunForCurrentProfile(
+  const applicableLastRun = lastRunForCurrentProfile(
     snapshot?.lastRun,
     snapshot?.selected?.installRoot,
     cache?.currentProfileFingerprint,
-  )?.adapterHealth ?? null;
+  );
+  const lastAdapterHealth = applicableLastRun?.adapterHealth ?? null;
+  const runFailureStale = Boolean(
+    runFailure
+    && snapshot?.lastRun
+    && !cacheLoading
+    && cache?.currentProfileFingerprint
+    && !applicableLastRun,
+  );
+  useEffect(() => {
+    if (runFailureStale) onDismissRunFailure();
+  }, [onDismissRunFailure, runFailureStale]);
+  const visibleRunFailure = runFailureStale ? null : runFailure;
   const hasPlaytime = Boolean(playtime?.readable && playtime.launches > 0 && playtime.totalMillis > 0);
   const playtimeTotal = hasPlaytime && playtime ? splitPlaytime(playtime.totalMillis) : null;
   const toggleOptions = () => {
@@ -357,7 +369,7 @@ export function HomePage({
       ) : null}
 
       <NoticeBanner
-        message={runFailure?.summary === message ? "" : message}
+        message={visibleRunFailure?.summary === message ? "" : message}
         tone={status === "error" ? "error" : messageTone}
         actionLabel={status === "error" ? retryLabel : undefined}
         onAction={status === "error" ? onRetry : undefined}
@@ -376,15 +388,15 @@ export function HomePage({
         </section>
       ) : null}
 
-      {runFailure ? (
+      {visibleRunFailure ? (
         <section className="card run-recovery" aria-label="Run needs attention" role="alert">
           <div>
             <strong>Run needs attention</strong>
-            <p>{runFailure.summary}</p>
-            {runFailure.detail ? (
+            <p>{visibleRunFailure.summary}</p>
+            {visibleRunFailure.detail ? (
               <details className="run-recovery__details">
                 <summary>Technical details</summary>
-                <pre>{runFailure.detail}</pre>
+                <pre>{visibleRunFailure.detail}</pre>
               </details>
             ) : null}
           </div>
