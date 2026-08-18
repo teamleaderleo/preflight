@@ -1,0 +1,152 @@
+import type { ComponentProps } from "react";
+import { render, screen, within } from "@testing-library/react";
+import { expect, test, vi } from "vitest";
+import type { usePreparation } from "../usePreparation";
+import type { DesktopSnapshot, WireframeHull } from "../types";
+import { HomePage } from "./HomePage";
+
+vi.mock("./FlightInstrument", () => ({
+  FlightInstrument: ({ hull }: { hull: WireframeHull }) => <div data-testid="instrument">{hull.name}</div>,
+}));
+
+const instrumentHull: WireframeHull = {
+  id: "odyssey",
+  name: "Odyssey",
+  hullSize: "CAPITAL_SHIP",
+  style: "HIGH_TECH",
+  featured: true,
+  bounds: [{ x: 1, y: 0 }, { x: -1, y: 1 }, { x: -1, y: -1 }],
+  engines: [],
+  mounts: [],
+};
+
+const snapshot: DesktopSnapshot = {
+  protocol: 1,
+  engineVersion: "test",
+  platform: "mac",
+  ready: true,
+  selected: {
+    installRoot: "/Applications/Starsector",
+    launcher: "/Applications/Starsector/Starsector.app",
+    kind: "app",
+    score: 100,
+    source: "test",
+  },
+  candidates: [],
+  diagnostics: [],
+  preflightHome: "/tmp/preflight",
+  cachePresent: true,
+  lastRun: null,
+  playtime: {
+    readable: true,
+    totalMillis: 3_600_000,
+    longestSessionMillis: 3_600_000,
+    averageMillis: 3_600_000,
+    launches: 1,
+    sessionsWithoutDuration: 0,
+    first: null,
+    last: null,
+  },
+};
+
+const preparation = {
+  cache: {
+    format: "starsector-preflight-cache-v1",
+    root: "/tmp/preflight/cache",
+    present: true,
+    total: { bytes: 1, files: 1 },
+    groups: [],
+    uncategorizedBytes: 0,
+    currentProfileFingerprint: "profile-fingerprint",
+    profiles: [{
+      fingerprint: "profile-fingerprint",
+      current: true,
+      bytes: 1,
+      indexBytes: 1,
+      manifestBytes: 1,
+      lastModifiedMillis: 1,
+    }],
+  },
+  cacheHealth: {
+    format: "starsector-preflight-cache-health-v1",
+    status: "ready",
+    profileFingerprint: "profile-fingerprint",
+    issues: [],
+    repairBytes: 0,
+    repairFiles: 0,
+  },
+  cacheLoading: false,
+  cacheRepairing: false,
+  preparationCancelling: false,
+  preparationPercent: 0,
+  preparationPhaseLabel: undefined,
+  preparationPlan: null,
+  preparationPlanLoading: false,
+  preparing: false,
+  profilePrepared: true,
+  resourcePreset: "balanced",
+  textureStorage: "balanced",
+  clearCache: vi.fn(),
+  invalidatePreparationPlan: vi.fn(),
+  prepare: vi.fn(),
+  repairAndPrepare: vi.fn(),
+  refreshCache: vi.fn(),
+  setResourcePreset: vi.fn(),
+  setTextureStorage: vi.fn(),
+  stopPreparation: vi.fn(),
+} as unknown as ReturnType<typeof usePreparation>;
+
+function props(overrides: Partial<ComponentProps<typeof HomePage>> = {}): ComponentProps<typeof HomePage> {
+  return {
+    snapshot,
+    status: "ready",
+    message: "",
+    messageTone: "info",
+    isReady: true,
+    needsPreparation: false,
+    optimizationPreset: "recommended",
+    preparation,
+    updateStatus: null,
+    launcherSettings: null,
+    launcherDraft: null,
+    launcherSettingsLoading: false,
+    launcherSettingsSaving: false,
+    launchSettingsDirty: false,
+    operationBlocked: false,
+    launchSettingsEditingBlocked: false,
+    launchSettingsSaveBlocked: false,
+    theme: "light",
+    onLauncherChange: vi.fn(),
+    onChooseInstall: vi.fn(),
+    onPrimaryLaunch: vi.fn(),
+    onLaunchWithoutPreparing: vi.fn(),
+    stoppingGame: false,
+    forceStopAvailable: false,
+    onStopGame: vi.fn(),
+    onSaveLauncherSettings: vi.fn(),
+    retryLabel: "Try again",
+    onRetry: vi.fn(),
+    runFailure: null,
+    onDismissRunFailure: vi.fn(),
+    onNavigate: vi.fn(),
+    instrumentHull,
+    launchProfileName: "Exploration",
+    ...overrides,
+  };
+}
+
+test("settled Home shows the installation and active named profile beside the launch action", () => {
+  render(<HomePage {...props()} />);
+
+  const identity = screen.getByLabelText("Launches profile Exploration from /Applications/Starsector");
+  expect(within(identity).getByText("Starsector")).toBeInTheDocument();
+  expect(within(identity).getByText("Exploration")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Launch Starsector" })).toBeEnabled();
+});
+
+test("settled Home labels an unsaved active mod set without inventing a profile name", () => {
+  render(<HomePage {...props({ launchProfileName: null })} />);
+
+  const identity = screen.getByLabelText("Launches the current mod setup from /Applications/Starsector");
+  expect(within(identity).getByText("Current mod setup")).toBeInTheDocument();
+});
