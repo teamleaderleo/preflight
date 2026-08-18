@@ -27,7 +27,7 @@ jobs:
       - uses: ./.github/actions/setup-build-jdk
       - name: Run fixed-duration coverage probe
         shell: bash
-        run: scripts/jfr-sample-coverage/run-probe.sh target/jfr-sample-coverage-current-x64
+        run: bash scripts/jfr-sample-coverage/run-probe.sh target/jfr-sample-coverage-current-x64
       - name: Upload coverage evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -65,7 +65,7 @@ jobs:
           grep -Eq 'os.arch = (x86_64|amd64)' translated-runtime.txt
       - name: Run fixed-duration coverage probe
         shell: bash
-        run: scripts/jfr-sample-coverage/run-probe.sh target/jfr-sample-coverage-current-rosetta
+        run: bash scripts/jfr-sample-coverage/run-probe.sh target/jfr-sample-coverage-current-rosetta
       - name: Upload coverage evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -107,7 +107,7 @@ jobs:
           grep -qi 'Zulu' historical-runtime.txt
       - name: Run fixed-duration coverage probe
         shell: bash
-        run: scripts/jfr-sample-coverage/run-probe.sh target/jfr-sample-coverage-zulu-17.0.10-rosetta
+        run: bash scripts/jfr-sample-coverage/run-probe.sh target/jfr-sample-coverage-zulu-17.0.10-rosetta
       - name: Upload coverage evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
