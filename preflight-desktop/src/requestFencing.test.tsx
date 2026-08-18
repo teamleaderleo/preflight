@@ -368,9 +368,13 @@ test("a completed settings save preserves edits made while it was in flight", as
 
   act(() => result.current.changeDraft({ battleSize: 300 }));
   act(() => {
-    void result.current.save();
+    void result.current.save(true);
   });
-  await waitFor(() => expect(update).toHaveBeenCalledWith("/game-a", expect.objectContaining({ battleSize: 300 })));
+  await waitFor(() => expect(update).toHaveBeenCalledWith(
+    "/game-a",
+    expect.objectContaining({ battleSize: 300 }),
+    true,
+  ));
   act(() => result.current.changeDraft({ resolution: "1920x1080" }));
   await act(async () => saved.resolve({
     ...baseline,
@@ -381,7 +385,10 @@ test("a completed settings save preserves edits made while it was in flight", as
   expect(result.current.draft?.resolution).toBe("1920x1080");
   expect(result.current.settings?.preferences.battleSize).toBe(300);
   expect(result.current.dirty).toBe(true);
-  expect(announce).toHaveBeenLastCalledWith("Game settings saved. Vanilla and Preflight launches will use the same values.", "success");
+  expect(announce).toHaveBeenLastCalledWith(
+    "Global game settings applied and verified. Vanilla and Preflight launches will use the same values.",
+    "success",
+  );
   settings.mockRestore();
   update.mockRestore();
 });

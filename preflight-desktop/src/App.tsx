@@ -280,14 +280,22 @@ export default function App() {
     announceGameSettings,
   );
   const needsPreparation = optimizationPreset !== "off" && !profilePrepared;
+  const requireAppliedLauncherSettings = () => {
+    if (!launcher.dirty) return true;
+    const instruction = launcher.settings?.applyBoundary.instruction
+      ?? "Close Starsector, its launcher, settings editors, and mod managers before Apply.";
+    announceGameSettings(`Apply your changed global game settings before launching. ${instruction}`, "warning");
+    setPage("launch");
+    return false;
+  };
   const primaryLaunch = async () => {
-    if (launcher.dirty && !(await launcher.save())) return;
+    if (!requireAppliedLauncherSettings()) return;
     await (preparation.cacheHealth?.status === "repair-needed"
       ? preparation.repairAndPrepare(true)
       : needsPreparation ? prepare(true) : launch());
   };
   const launchWithoutPreparing = async () => {
-    if (launcher.dirty && !(await launcher.save())) return;
+    if (!requireAppliedLauncherSettings()) return;
     await launch();
   };
   const removal = useRemoval(
@@ -624,7 +632,7 @@ export default function App() {
             stoppingGame={stoppingGame}
             forceStopAvailable={forceStopAvailable}
             onStopGame={() => void stopRunningGame()}
-            onSaveLauncherSettings={() => void launcher.save()}
+            onSaveLauncherSettings={(settingsToolsClosed) => void launcher.save(settingsToolsClosed)}
             retryLabel={retryLabel}
             onRetry={retryFailedOperation}
             runFailure={runFailure}
@@ -646,7 +654,7 @@ export default function App() {
               saveBlockReason={launchSettingsSaveBlockReason}
               onChange={launcher.changeDraft}
               onRefresh={() => void launcher.refresh()}
-              onSave={() => void launcher.save()}
+              onSave={(settingsToolsClosed) => void launcher.save(settingsToolsClosed)}
             />
           </>
         ) : page === "speed" ? (

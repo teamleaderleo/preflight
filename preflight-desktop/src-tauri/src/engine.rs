@@ -413,9 +413,18 @@ pub(crate) fn update_launch_settings(
     tracker: State<'_, OperationCoordinator>,
     game: String,
     settings: LaunchSettingsInput,
+    settings_tools_closed: bool,
 ) -> Result<Value, String> {
     let directory = canonical_game_directory(&game)?;
     validate_launch_settings(&settings)?;
+    if !settings_tools_closed {
+        return Err(
+            "Close Starsector, its launcher, settings editors, and mod managers before Apply."
+                .to_string(),
+        );
+    }
+    // The tracker covers a game process Preflight started. The explicit acknowledgment covers
+    // the independent launcher and settings tools that Preflight cannot lock or close.
     let running = tracker
         .0
         .lock()
@@ -445,6 +454,7 @@ fn launch_settings_json(
     if let Some(settings) = settings {
         command
             .arg("set")
+            .arg("--confirm-settings-tools-closed")
             .arg("--resolution")
             .arg(&settings.resolution)
             .arg("--fullscreen")

@@ -1,0 +1,61 @@
+name: Launcher ownership boundary
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '.github/actions/setup-build-jdk/**'
+      - '.github/workflows/integration-ownership.yml'
+      - 'pom.xml'
+      - 'preflight-agent/**'
+      - 'preflight-cli/**'
+      - 'preflight-core/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/actions/setup-build-jdk/**'
+      - '.github/workflows/integration-ownership.yml'
+      - 'pom.xml'
+      - 'preflight-agent/**'
+      - 'preflight-cli/**'
+      - 'preflight-core/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  exclusive-move:
+    name: Exclusive move / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-build-jdk
+
+      - name: Exercise native no-replace ownership primitive
+        shell: bash
+        run: >-
+          ./mvnw --batch-mode --no-transfer-progress
+          -pl preflight-cli -am
+          -Dtest=ExclusiveMoveTest
+          -Dsurefire.failIfNoSpecifiedTests=false
+          test
+
+      - name: Report reviewed launcher capability digests
+        if: runner.os == 'Linux'
+        shell: bash
+        run: >-
+          ./mvnw --batch-mode --no-transfer-progress
+          -pl preflight-cli -am
+          -Dtest=CapabilityHashProbeTest
+          -Dsurefire.failIfNoSpecifiedTests=false
+          test

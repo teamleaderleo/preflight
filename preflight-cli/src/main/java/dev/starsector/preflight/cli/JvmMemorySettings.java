@@ -185,7 +185,9 @@ final class JvmMemorySettings {
                 memoryMiB,
                 backupDirectory,
                 ignored -> {},
-                ignored -> {});
+                ignored -> {},
+                ignored -> {},
+                false);
     }
 
     /** Test seam for deterministic external-edit races around publication; production uses no-op hooks. */
@@ -196,7 +198,31 @@ final class JvmMemorySettings {
             Path backupDirectory,
             UpdateHook beforePublish,
             UpdateHook afterPublish) throws IOException {
-        if (beforePublish == null || afterPublish == null) {
+        return update(
+                installRoot,
+                target,
+                memoryMiB,
+                backupDirectory,
+                beforePublish,
+                ignored -> {},
+                afterPublish,
+                false);
+    }
+
+    /**
+     * Test seam at the last content-and-identity reread, plus the non-atomic replacement fallback.
+     * Production supplies no-op hooks and uses the platform's ordinary atomic-move attempt.
+     */
+    static UpdateResult update(
+            Path installRoot,
+            LaunchTarget target,
+            int memoryMiB,
+            Path backupDirectory,
+            UpdateHook beforePublish,
+            UpdateHook beforeCommitCheck,
+            UpdateHook afterPublish,
+            boolean forceReplaceFallback) throws IOException {
+        if (beforePublish == null || beforeCommitCheck == null || afterPublish == null) {
             throw new IllegalArgumentException("Heap update hooks are required");
         }
         if (memoryMiB < MIN_HEAP_MIB || memoryMiB > MAX_HEAP_MIB || memoryMiB % 256 != 0) {
@@ -236,7 +262,8 @@ final class JvmMemorySettings {
         boolean published = false;
         SourceState publishedState = null;
         try {
-            publishIfUnchanged(source, original, replacementBytes);
+            publishIfUnchanged(
+                    source, original, replacementBytes, beforeCommitCheck, forceReplaceFallback);
             published = true;
             publishedState = readStableSource(source);
             if (!Arrays.equals(replacementBytes, publishedState.bytes())) {
@@ -258,7 +285,8 @@ final class JvmMemorySettings {
                         throw new IOException(
                                 "Preflight could not prove its published heap settings were unchanged; backup retained");
                     }
-                    publishIfUnchanged(source, publishedState, original.bytes());
+                    publishIfUnchanged(
+                            source, publishedState, original.bytes(), ignored -> {}, false);
                 } catch (Exception rollbackFailed) {
                     failed.addSuppressed(rollbackFailed);
                 }
@@ -411,8 +439,12 @@ final class JvmMemorySettings {
         }
     }
 
-    private static void publishIfUnchanged(Path destination, SourceState expected, byte[] bytes)
-            throws IOException {
+    private static void publishIfUnchanged(
+            Path destination,
+            SourceState expected,
+            byte[] bytes,
+            UpdateHook beforeCommitCheck,
+            boolean forceReplaceFallback) throws IOException {
         Path absolute = destination.toAbsolutePath().normalize();
         Path temporary = Files.createTempFile(absolute.getParent(), ".preflight-heap-", ".tmp");
         try {
@@ -423,14 +455,26 @@ final class JvmMemorySettings {
             } catch (UnsupportedOperationException ignored) {
                 // Windows has no POSIX permissions; replacing a vmparams file needs none.
             }
-            // This is intentionally the final source read before publication. An external editor,
-            // launcher, or mod manager cannot silently lose changes made after the review read.
+            beforeCommitCheck.run(absolute);
+            // Explicit Apply keeps outside settings tools quiescent across this final interval. A
+            // stable content-and-identity reread is Java 17's strongest available pre-publication
+            // check. Preflight's lease coordinates Preflight processes only; the pathname move has
+            // no compare-and-swap primitive against an independent external writer.
             requireUnchanged(absolute, expected);
-            try {
-                Files.move(temporary, absolute,
-                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            } catch (AtomicMoveNotSupportedException unsupported) {
+            if (forceReplaceFallback) {
+                // Model the second publication attempt reached after an atomic move is rejected.
+                beforeCommitCheck.run(absolute);
+                requireUnchanged(absolute, expected);
                 Files.move(temporary, absolute, StandardCopyOption.REPLACE_EXISTING);
+            } else {
+                try {
+                    Files.move(temporary, absolute,
+                            StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                } catch (AtomicMoveNotSupportedException unsupported) {
+                    beforeCommitCheck.run(absolute);
+                    requireUnchanged(absolute, expected);
+                    Files.move(temporary, absolute, StandardCopyOption.REPLACE_EXISTING);
+                }
             }
         } finally {
             Files.deleteIfExists(temporary);

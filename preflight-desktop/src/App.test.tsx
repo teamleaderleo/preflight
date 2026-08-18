@@ -629,17 +629,22 @@ test("common game settings are editable beside launch", async () => {
   await user.clear(screen.getByLabelText("Home battle size"));
   await user.type(screen.getByLabelText("Home battle size"), "1200");
   expect(screen.getByText(/vanilla settings slider ends at 400/)).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Apply changes" })).toBeEnabled();
-  await user.click(screen.getByRole("button", { name: "Apply changes" }));
+  const apply = screen.getByRole("button", { name: "Apply changes" });
+  expect(apply).toBeDisabled();
+  await user.click(screen.getByRole("checkbox", { name: /I closed Starsector/ }));
+  expect(apply).toBeEnabled();
+  await user.click(apply);
 
-  expect(await screen.findByText(/Game settings saved/)).toBeInTheDocument();
+  expect(await screen.findByText(/Global game settings applied and verified/)).toBeInTheDocument();
 });
 
-test("the primary action saves edited game settings before launching", async () => {
+test("the primary action requires an explicit Apply before launching edited global settings", async () => {
   const user = userEvent.setup();
   const baseline = await bridge.getLaunchSettings("/Applications/Starsector");
-  const pending = deferred<LaunchSettings>();
-  const update = vi.spyOn(bridge, "updateLaunchSettings").mockImplementation(() => pending.promise);
+  const update = vi.spyOn(bridge, "updateLaunchSettings").mockResolvedValue({
+    ...baseline,
+    preferences: { ...baseline.preferences, battleSize: 300 },
+  });
   const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 4242 });
   render(<App />);
 
@@ -649,18 +654,37 @@ test("the primary action saves edited game settings before launching", async () 
   await user.type(screen.getByLabelText("Home battle size"), "300");
   await user.click(screen.getByRole("button", { name: "Launch Starsector" }));
 
-  expect(update).toHaveBeenCalledWith("/Applications/Starsector", expect.objectContaining({ battleSize: 300 }));
+  expect(update).not.toHaveBeenCalled();
   expect(game).not.toHaveBeenCalled();
-  pending.resolve({
-    ...baseline,
-    preferences: { ...baseline.preferences, battleSize: 300 },
-  });
-  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize"));
+  expect(await screen.findByRole("heading", { name: "Game settings", level: 1 })).toBeInTheDocument();
+  expect(screen.getByText(/Apply your changed global game settings before launching/)).toBeInTheDocument();
+
+  const apply = screen.getByRole("button", { name: "Apply changes" });
+  expect(apply).toBeDisabled();
+  await user.click(screen.getByRole("checkbox", { name: /I closed Starsector/ }));
+  await user.click(apply);
+
+  await waitFor(() => expect(update).toHaveBeenCalledWith(
+    "/Applications/Starsector",
+    expect.objectContaining({ battleSize: 300 }),
+    true,
+  ));
+  expect(await screen.findByText(/Global game settings applied and verified/)).toBeInTheDocument();
+  expect(game).not.toHaveBeenCalled();
+
+  await user.click(screen.getByRole("button", { name: "Home" }));
+  await user.click(await screen.findByRole("button", { name: "Launch Starsector" }));
+  await waitFor(() => expect(game).toHaveBeenCalledWith(
+    "/Applications/Starsector",
+    "recommended",
+    [],
+    "minimize",
+  ));
   update.mockRestore();
   game.mockRestore();
 });
 
-test("the primary action does not launch when edited game settings fail to save", async () => {
+test("a refused explicit Apply keeps launch blocked", async () => {
   const user = userEvent.setup();
   const update = vi.spyOn(bridge, "updateLaunchSettings").mockRejectedValue(new Error("settings write refused"));
   const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 4242 });
@@ -672,8 +696,18 @@ test("the primary action does not launch when edited game settings fail to save"
   await user.type(screen.getByLabelText("Home battle size"), "300");
   await user.click(screen.getByRole("button", { name: "Launch Starsector" }));
 
+  expect(update).not.toHaveBeenCalled();
+  expect(game).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("checkbox", { name: /I closed Starsector/ }));
+  await user.click(screen.getByRole("button", { name: "Apply changes" }));
+
   expect(await screen.findByText("settings write refused")).toBeInTheDocument();
   expect(screen.getByRole("alert")).toHaveTextContent("settings write refused");
+  expect(update).toHaveBeenCalledWith(
+    "/Applications/Starsector",
+    expect.objectContaining({ battleSize: 300 }),
+    true,
+  );
   expect(game).not.toHaveBeenCalled();
   update.mockRestore();
   game.mockRestore();
@@ -698,6 +732,7 @@ test("an unrelated update check does not erase a game-settings failure", async (
   await user.click(screen.getByRole("button", { name: "Options" }));
   await user.clear(screen.getByLabelText("Home battle size"));
   await user.type(screen.getByLabelText("Home battle size"), "300");
+  await user.click(screen.getByRole("checkbox", { name: /I closed Starsector/ }));
   await user.click(screen.getByRole("button", { name: "Apply changes" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("settings write refused");
 
@@ -958,8 +993,11 @@ test("launch settings mirror vanilla display and battle controls", async () => {
   expect(screen.getByLabelText("Battle size")).toHaveAttribute("max", "2000");
   expect(screen.getByLabelText("Game memory")).toHaveValue("6144");
   await user.selectOptions(screen.getByLabelText("Game memory"), "8192");
-  await user.click(screen.getByRole("button", { name: "Save changes" }));
-  expect(await screen.findByText(/Game settings saved/)).toBeInTheDocument();
+  const apply = screen.getByRole("button", { name: "Apply changes" });
+  expect(apply).toBeDisabled();
+  await user.click(screen.getByRole("checkbox", { name: /I closed Starsector/ }));
+  await user.click(apply);
+  expect(await screen.findByText(/Global game settings applied and verified/)).toBeInTheDocument();
 });
 
 test("profiles are preview-first and show the exact switch before applying", async () => {

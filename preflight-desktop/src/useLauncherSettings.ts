@@ -79,23 +79,31 @@ export function useLauncherSettings(
     setDraft((current) => current ? { ...current, ...change } : current);
   }, []);
 
-  const save = async () => {
+  const save = async (settingsToolsClosed: boolean) => {
     const expectedGame = game;
     const submittedDraft = draft;
     if (!expectedGame || !submittedDraft || savingRef.current) return false;
+    if (!settingsToolsClosed) {
+      announce(
+        settings?.applyBoundary.instruction
+          ?? "Close Starsector, its launcher, settings editors, and mod managers before Apply.",
+        "warning",
+      );
+      return false;
+    }
     const currentRequest = ++request.current;
     const submittedRevision = draftRevision.current;
     savingRef.current = true;
     setLoading(false);
     setSaving(true);
-    announce("Saving game settings…");
+    announce("Applying global game settings…");
     try {
-      const result = await updateLaunchSettings(expectedGame, submittedDraft);
+      const result = await updateLaunchSettings(expectedGame, submittedDraft, true);
       if (currentRequest !== request.current || currentGame.current !== expectedGame) return;
       setSettings(result);
       setLoadedGame(expectedGame);
       if (draftRevision.current === submittedRevision) setDraft(draftFromSettings(result));
-      announce("Game settings saved. Vanilla and Preflight launches will use the same values.", "success");
+      announce("Global game settings applied and verified. Vanilla and Preflight launches will use the same values.", "success");
       return true;
     } catch (error) {
       if (currentRequest === request.current && currentGame.current === expectedGame) announce(errorMessage(error), "error");
