@@ -436,10 +436,7 @@ public final class PreflightCli {
     }
 
     static void commandUsage(String command, java.io.PrintStream output) {
-        output.println("Usage:");
-        for (String line : USAGE.get(command)) {
-            output.println("  " + line);
-        }
+        CliHelp.commandUsage(command, USAGE.get(command), output);
     }
 
     private static int unknownCommand(String command) {
@@ -454,20 +451,7 @@ public final class PreflightCli {
     }
 
     private static void globalUsage(java.io.PrintStream output) {
-        output.println("Usage:");
-        output.println("  preflight <command> [options]");
-        output.println("  preflight help <command>");
-        output.println();
-        output.println("Commands:");
-        // Widened to whatever the longest command actually is, so adding one that outgrows the
-        // column cannot quietly leave a single ragged row in the first thing anyone sees.
-        int width = USAGE.keySet().stream().mapToInt(String::length).max().orElse(12);
-        for (String command : USAGE.keySet()) {
-            output.printf("  %-" + width + "s  %s%n", command, commandSummary(command));
-        }
-        output.println();
-        output.println("Run `preflight <command> --help` for detailed usage.");
-        output.println("Set PREFLIGHT_DEBUG=1 to include stack traces for unexpected failures.");
+        CliHelp.globalUsage(output, USAGE, PreflightCli::commandSummary);
     }
 
     private static String commandSummary(String command) {
