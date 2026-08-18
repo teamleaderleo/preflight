@@ -42,6 +42,7 @@ jobs:
 
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           rust_path = Path("preflight-desktop/src-tauri/src/report_authority.rs")
           text = rust_path.read_text()
@@ -50,7 +51,7 @@ jobs:
               global text
               count = text.count(old)
               if count != 1:
-                  raise SystemExit(f"expected one Rust match, found {count}: {old[:80]!r}")
+                  raise SystemExit(f"expected one Rust match, found {count}: {old[:100]!r}")
               text = text.replace(old, new, 1)
 
           replace_once(
@@ -68,35 +69,14 @@ jobs:
               '        self.ensure_generation()?;\n',
           )
 
-          old_clear = '''    pub(crate) fn clear_all(app: &AppHandle) -> Result<(), String> {
-              let authority = authority_root(app)?;
-              if authority.symlink_metadata().is_ok() {
-                  verify_protected_directory_chain(&authority)?;
-                  if !list_report_views_at(&authority)?.is_empty() {
-                      return Err("Delete uploaded reports, or explicitly dismiss their saved deletion authorization, before clearing report authority.".to_string());
-                  }
-              }
-              for root in [authority, claim_root(app)?] {
-                  let metadata = match root.symlink_metadata() {
-                      Ok(metadata) => metadata,
-                      Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-                      Err(error) => {
-                          return Err(format!("Could not inspect saved report authority: {error}"));
-                      }
-                  };
-                  if metadata_is_alias(&metadata) || !metadata.is_dir() {
-                      return Err(
-                          "Refusing to clear report authority through an aliased or non-directory path."
-                              .to_string(),
-                      );
-                  }
-                  verify_protected_directory_chain(&root)?;
-                  fs::remove_dir_all(&root)
-                      .map_err(|error| format!("Could not clear saved report authority: {error}"))?;
-              }
-              Ok(())
-          }
-          '''
+          clear_pattern = re.compile(
+              r'^    pub\(crate\) fn clear_all\(app: &AppHandle\) -> Result<\(\), String> \{\n.*?'
+              r'^    \}\n\n    fn ensure_generation',
+              re.MULTILINE | re.DOTALL,
+          )
+          clear_matches = list(clear_pattern.finditer(text))
+          if len(clear_matches) != 1:
+              raise SystemExit(f"expected one clear_all method region, found {len(clear_matches)}")
           new_clear = '''    pub(crate) fn clear_all(app: &AppHandle) -> Result<(), String> {
               let authority = authority_root(app)?;
               if authority.symlink_metadata().is_ok() {
@@ -138,16 +118,32 @@ jobs:
               }
               Ok(())
           }
+
+          fn ensure_generation'''
+          text = clear_pattern.sub(new_clear, text, count=1)
+
+          lifecycle_anchor = '''impl NativeReportAuthorityLifecycle {
+              pub(crate) fn granted(
+                  &self,
+                  grant: &CreateReportCaseResponse,
+                  report: &ReportUploadInput,
+              ) -> Result<(), String> {
+                  self.ensure_generation()?;
           '''
-          replace_once(old_clear, new_clear)
+          replace_once(
+              lifecycle_anchor,
+              lifecycle_anchor.replace(
+                  '        self.ensure_generation()?;\n',
+                  '        refuse_if_removal_pending(&self.root)?;\n        self.ensure_generation()?;\n',
+              ),
+          )
 
           replace_once(
-              '    ) -> Result<(), String> {\n        self.ensure_generation()?;\n        prune_expired_accepted_at(&self.root, now_millis()?)?;\n',
-              '    ) -> Result<(), String> {\n        refuse_if_removal_pending(&self.root)?;\n        self.ensure_generation()?;\n        prune_expired_accepted_at(&self.root, now_millis()?)?;\n',
-          )
-          replace_once(
-              '    pub(crate) fn accepted(&self, receipt: &ReportReceipt) -> Result<(), String> {\n        self.ensure_generation()?;\n',
-              '    pub(crate) fn accepted(&self, receipt: &ReportReceipt) -> Result<(), String> {\n        refuse_if_removal_pending(&self.root)?;\n        self.ensure_generation()?;\n',
+              '    pub(crate) fn accepted(&self, receipt: &ReportReceipt) -> Result<(), String> {\n'
+              '        self.ensure_generation()?;\n',
+              '    pub(crate) fn accepted(&self, receipt: &ReportReceipt) -> Result<(), String> {\n'
+              '        refuse_if_removal_pending(&self.root)?;\n'
+              '        self.ensure_generation()?;\n',
           )
 
           replace_once(
@@ -168,8 +164,7 @@ jobs:
               '    if let Err(error) = write_result {\n        let _ = remove_file_if_regular(path);\n        return Err(error);\n    }\n    if let Err(error) = refuse_if_removal_pending(parent) {\n        let _ = remove_file_if_regular(path);\n        return Err(error);\n    }\n    verify_protected_directory_chain(parent)?;\n',
           )
 
-          helper_anchor = '''fn protected_owned_chain(root: &Path) -> Vec<PathBuf> {
-          '''
+          helper_anchor = 'fn protected_owned_chain(root: &Path) -> Vec<PathBuf> {\n'
           helpers = '''#[derive(Clone, Debug)]
           struct RemovalFence {
               path: Option<PathBuf>,
@@ -178,7 +173,11 @@ jobs:
 
           fn preflight_root_for_owned_path(path: &Path) -> Option<PathBuf> {
               path.ancestors()
-                  .find(|candidate| candidate.file_name().is_some_and(|name| name == PREFLIGHT_HOME_DIRECTORY))
+                  .find(|candidate| {
+                      candidate
+                          .file_name()
+                          .is_some_and(|name| name == PREFLIGHT_HOME_DIRECTORY)
+                  })
                   .map(Path::to_path_buf)
           }
 
@@ -196,7 +195,10 @@ jobs:
                       "Preflight data removal is in progress. Finish all-data removal before creating or publishing report authority."
                           .to_string(),
                   ),
-                  Ok(_) => Err("Refusing report authority while the all-data removal marker is aliased or malformed.".to_string()),
+                  Ok(_) => Err(
+                      "Refusing report authority while the all-data removal marker is aliased or malformed."
+                          .to_string(),
+                  ),
                   Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
                   Err(error) => Err(format!("Could not inspect the all-data removal marker: {error}")),
               }
@@ -212,11 +214,23 @@ jobs:
               ensure_protected_directory_chain(state)?;
               match OpenOptions::new().write(true).create_new(true).open(&marker) {
                   Ok(mut file) => {
-                      make_private_file(&file)?;
-                      file.write_all(b"Preflight data removal is in progress. Re-run uninstall --purge --yes if interrupted.\n")
-                          .map_err(|error| format!("Could not write the all-data removal marker: {error}"))?;
-                      file.sync_all()
-                          .map_err(|error| format!("Could not save the all-data removal marker: {error}"))?;
+                      if let Err(error) = make_private_file(&file) {
+                          drop(file);
+                          let _ = remove_file_if_regular(&marker);
+                          return Err(error);
+                      }
+                      let saved = file
+                          .write_all(b"Preflight data removal is in progress. Re-run uninstall --purge --yes if interrupted.\n")
+                          .map_err(|error| format!("Could not write the all-data removal marker: {error}"))
+                          .and_then(|()| {
+                              file.sync_all()
+                                  .map_err(|error| format!("Could not save the all-data removal marker: {error}"))
+                          });
+                      drop(file);
+                      if let Err(error) = saved {
+                          let _ = remove_file_if_regular(&marker);
+                          return Err(error);
+                      }
                       verify_protected_directory_chain(state)?;
                       sync_directory(state)?;
                       Ok(RemovalFence { path: Some(marker), created: true })
@@ -226,7 +240,10 @@ jobs:
                           .symlink_metadata()
                           .map_err(|error| format!("Could not inspect the all-data removal marker: {error}"))?;
                       if metadata_is_alias(&metadata) || !metadata.is_file() {
-                          return Err("Refusing all-data removal through an aliased or malformed removal marker.".to_string());
+                          return Err(
+                              "Refusing all-data removal through an aliased or malformed removal marker."
+                                  .to_string(),
+                          );
                       }
                       Ok(RemovalFence { path: Some(marker), created: false })
                   }
@@ -251,11 +268,13 @@ jobs:
           fn protected_owned_chain(root: &Path) -> Vec<PathBuf> {
           '''
           replace_once(helper_anchor, helpers)
-          text = text.replace('name == ".starsector-preflight"', 'name == PREFLIGHT_HOME_DIRECTORY')
 
-          test_anchor = '''    #[test]
-              fn automatic_claim_is_atomic_across_threads() {
-          '''
+          marker_literal = 'name == ".starsector-preflight"'
+          if text.count(marker_literal) != 1:
+              raise SystemExit(f"expected one protected-root literal, found {text.count(marker_literal)}")
+          text = text.replace(marker_literal, 'name == PREFLIGHT_HOME_DIRECTORY', 1)
+
+          test_anchor = '    #[test]\n    fn automatic_claim_is_atomic_across_threads() {\n'
           test = '''    #[test]
               fn removal_fence_blocks_new_credentials_and_automatic_claims() {
                   let base = temp_root("removal-fence");
@@ -289,7 +308,6 @@ jobs:
               fn automatic_claim_is_atomic_across_threads() {
           '''
           replace_once(test_anchor, test)
-
           rust_path.write_text(text)
 
           ts_path = Path("preflight-desktop/src/useDiagnosticsReport.ts")
@@ -312,7 +330,6 @@ jobs:
 
           cargo fmt --manifest-path preflight-desktop/src-tauri/Cargo.toml
           git diff --check -- "$RUST" "$TS"
-
           changed="$(git diff --name-only | sort)"
           expected="$(printf '%s\n%s\n' "$RUST" "$TS" | sort)"
           test "$changed" = "$expected"
