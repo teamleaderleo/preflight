@@ -195,12 +195,6 @@ export function HomePage({
               <FlightInstrument hull={instrumentHull} variant="stage" />
             </div>
           ) : null}
-          {/*
-            * Before an installation is chosen the heading below already says "Installation
-            * required" in longer words, and the chip said it again directly above it. A chip is
-            * worth a line when it carries something the heading does not; here it only made the
-            * screen look busier than the one decision it asks for.
-            */}
           {isReady ? (
             <div className="launch-console__status-line">
               {status !== "running" && status !== "launching" ? (
@@ -238,14 +232,8 @@ export function HomePage({
           ) : null}
           {!isReady ? <h2>{status === "loading" ? "Finding Starsector…" : "Choose your Starsector installation"}</h2> : null}
           {!isReady ? <p>{status === "loading" ? "Checking the usual installation locations." : "Select the folder containing Starsector.app, starsector.exe, or starsector.sh."}</p> : null}
-          {/*
-            * Nothing on this screen used to say what happens after the folder is chosen, so the
-            * first thing Preflight ever asks of somebody is a decision with no stated consequence.
-            * The one-off cost and the fact that the game is left alone are both answers people
-            * look for before handing an unsigned program their game folder.
-            */}
           {!isReady && status !== "loading" ? <p className="setup-next">Preflight prepares your mods once, then opens Starsector. It never moves the game, mods, or saves.</p> : null}
-          {isReady && status === "ready" && snapshot?.selected ? (
+          {isReady && (status === "ready" || status === "error") && snapshot?.selected ? (
             <div
               className="home-launch-identity"
               aria-label={`Launches ${launchProfileName ? `profile ${launchProfileName}` : "the current mod setup"} from ${snapshot.selected.installRoot}`}
@@ -289,13 +277,6 @@ export function HomePage({
                 {cacheNeedsRepair && !preparing && !cacheRepairing ? (
                   <button className="button button--quiet launch-console__stop" type="button" onClick={() => onNavigate("speed")}>Repair details</button>
                 ) : null}
-                {/*
-                  * Preflight is a launcher first. A refused preparation used to leave the game with no
-                  * way to start from here at all, which is the one outcome a launcher cannot have: the
-                  * user goes and finds the original shortcut instead. Launching unprepared is already
-                  * a supported path -- every missing artifact falls back to the game's own loader --
-                  * so the escape hatch is the ordinary launch, offered where it is needed.
-                  */}
                 {(storageBlocked || cacheInspectionBlocked) && !preparing && !cacheRepairing ? (
                   <button
                     className="button button--quiet launch-console__stop"
@@ -396,11 +377,6 @@ export function HomePage({
         </section>
       ) : null}
 
-      {/*
-        * The engine reports where it looked as well as that it failed. Both belong here: the reason
-        * anyone opens this is to work out whether their own install is somewhere unusual, and that
-        * cannot be answered without the list of places that were already ruled out.
-        */}
       {!isReady && snapshot?.diagnostics.length ? (
         <details className="setup-diagnostics">
           <summary>Why wasn’t Starsector found?</summary>
