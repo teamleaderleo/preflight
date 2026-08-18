@@ -73,7 +73,7 @@ was **23.08s median**, so the observed 0.07s difference is below launch noise an
 claimed. Evidence is retained under benchmark runs `20260806-003317` and `20260806-003416`; the
 preparation report is `preparation-balanced-lz4.json`.
 
-Switching policies updates the current manifest atomically. Both representations may coexist until
+Switching policies stages and publishes the current manifest. Both representations may coexist until
 the user runs `preflight cache prune`; its normal dry run derives reachability from that manifest,
 and `--yes` removes only the superseded representation after the plan is readable and complete.
 
