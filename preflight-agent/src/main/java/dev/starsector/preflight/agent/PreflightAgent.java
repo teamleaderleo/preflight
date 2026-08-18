@@ -35,8 +35,11 @@ public final class PreflightAgent {
                 "Adapter initialization",
                 () -> AdapterRuntime.start(options, instrumentation));
         Recording recording = startRecording(options);
+        RecordingFinalizer recordingFinalizer = recording == null
+                ? null
+                : new RecordingFinalizer(recording, options.destination());
         contain("Recording stop controller", () -> RecordingStopController.start(
-                recording, options.destination().toAbsolutePath().normalize()));
+                recordingFinalizer, options.destination().toAbsolutePath().normalize()));
         RecordingFlusher flusher = contain(
                 "Recording flusher",
                 () -> RecordingFlusher.start(
@@ -48,7 +51,7 @@ public final class PreflightAgent {
             Runtime.getRuntime().addShutdownHook(new Thread(
                     () -> {
                         if (manualRecordingClose) {
-                            stopRecording(recording, options.destination());
+                            recordingFinalizer.finish();
                         } else {
                             markStopping(recording);
                         }
@@ -62,7 +65,9 @@ public final class PreflightAgent {
         } catch (Throwable error) {
             log("Could not register shutdown hook: " + message(error));
             closeFlusher(flusher);
-            stopRecording(recording, options.destination());
+            if (recordingFinalizer != null) {
+                recordingFinalizer.finish();
+            }
             closeAdapter(adapterSession);
             closeQuietLogs(options.quietLogs());
         }

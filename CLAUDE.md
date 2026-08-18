@@ -60,6 +60,11 @@ check that it is even the same condition and the same clock as what it is being 
 ships on Windows and Linux; dispatch the three-OS matrix when a change plausibly touches
 platform behaviour, read the result, and continue.
 
+Packaged child-JVM tests such as `AdapterAgentIT` run under Failsafe after the shaded
+`preflight-cli/target/preflight.jar` exists. Focus them with `-Dit.test=Class#method` and the
+`verify` goal. Using `-Dtest` runs the class under Surefire before packaging and produces a
+misleading missing or stale `preflight.jar` failure.
+
 Do not stack redundant evidence on a result that is already established. A green matrix is a
 green matrix — re-running it to raise confidence, adding a second check that can only agree with
 the first, or chasing a flake that has stopped reproducing all cost real time and tell you

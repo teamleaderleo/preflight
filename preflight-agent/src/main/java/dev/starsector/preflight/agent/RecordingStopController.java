@@ -7,8 +7,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
-import jdk.jfr.Recording;
-import jdk.jfr.RecordingState;
 
 /** File-signalled recording stop used to finish evidence before an external harness exits the JVM. */
 final class RecordingStopController {
@@ -19,8 +17,8 @@ final class RecordingStopController {
     private RecordingStopController() {
     }
 
-    static Thread start(Recording recording, Path destination) throws Exception {
-        if (recording == null) {
+    static Thread start(RecordingFinalizer finalizer, Path destination) throws Exception {
+        if (finalizer == null) {
             return null;
         }
         Path request = requestFor(destination);
@@ -28,7 +26,7 @@ final class RecordingStopController {
         Files.deleteIfExists(request);
         Files.deleteIfExists(complete);
         Thread thread = new Thread(
-                () -> watch(recording, destination, request, complete),
+                () -> watch(finalizer, request, complete),
                 "Preflight-Recording-Stop");
         thread.setDaemon(true);
         thread.setPriority(Thread.MIN_PRIORITY);
@@ -52,18 +50,17 @@ final class RecordingStopController {
     }
 
     private static void watch(
-            Recording recording,
-            Path destination,
+            RecordingFinalizer finalizer,
             Path request,
             Path complete) {
         try {
-            while (recording.getState() == RecordingState.RUNNING && !Files.isRegularFile(request)) {
+            while (finalizer.isRunning() && !Files.isRegularFile(request)) {
                 Thread.sleep(POLL_INTERVAL.toMillis());
             }
             if (!Files.isRegularFile(request)) {
                 return;
             }
-            boolean written = PreflightAgent.stopRecording(recording, destination);
+            boolean written = finalizer.finish();
             publish(complete, written ? "ok\n" : "recording-stop-failed\n");
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
