@@ -293,11 +293,17 @@ public final class PreflightCli {
                 "preflight launch-settings set [--game <path>] [--resolution WIDTHxHEIGHT]"
                         + " [--fullscreen true|false] [--sound true|false]"
                         + " [--antialiasing 0|2|4|8|12|16|24|32] [--ui-scale 1.00..3.00]"
-                        + " [--battle-size <points>] [--memory-mb <MiB>] [--json]",
-                "  Reports and updates Starsector's own launcher/gameplay preferences. A set writes"
-                        + " only the named keys, snapshots their previous values under Preflight's"
+                        + " [--battle-size <points>] [--memory-mb <MiB>]"
+                        + " --confirm-settings-tools-closed [--json]",
+                "  Reports and updates Starsector's own global launcher/gameplay preferences. Apply"
+                        + " writes only the named keys, snapshots their previous values under Preflight's"
                         + " home first, and preserves unrelated gameplay settings. Battle size is"
                         + " checked against the selected installation's current settings.json bounds.",
+                "  Apply is a quiescent boundary. Close Starsector, its launcher, settings editors,"
+                        + " and mod managers; keep them closed until Apply finishes, then pass"
+                        + " --confirm-settings-tools-closed.",
+                "  Preflight's operation lease coordinates Preflight processes only. External"
+                        + " programs can still change these global settings.",
                 "  Heap memory follows the launcher that will actually run, including fr.vmparams."
                         + " Preflight refuses ambiguous layouts, keeps an exact file backup, and"
                         + " updates both -Xms and -Xmx when the launcher defines both.",

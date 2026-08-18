@@ -54,40 +54,48 @@ final class IntegrationOwnership {
             return false;
         }
         try {
+            try (Stream<Path> stream = Files.list(app)) {
+                for (Path child : stream.toList()) {
+                    String name = child.getFileName().toString();
+                    if (name.equals("Contents")) continue;
+                    if (name.equals(".DS_Store") && isBenignMetadataFile(child)) continue;
+                    return false;
+                }
+            }
             String plist = readBounded(infoPlist);
             if (!plist.contains(MAC_BUNDLE_ID)
                     || !plist.contains(MAC_EXECUTABLE.formatted(executableName))) {
                 return false;
             }
+            boolean foundExecutable = false;
             try (Stream<Path> stream = Files.list(macos)) {
                 List<Path> execs = stream.toList();
-                if (execs.isEmpty()) {
-                    return false;
-                }
                 for (Path exec : execs) {
                     String name = exec.getFileName().toString();
                     if (name.equals(".DS_Store")) {
+                        if (!isBenignMetadataFile(exec)) return false;
                         continue;
                     }
                     if (!name.equals(executableName)) {
                         return false;
                     }
-                    if (!Files.isRegularFile(exec, LinkOption.NOFOLLOW_LINKS)) {
+                    if (!Files.isRegularFile(exec, LinkOption.NOFOLLOW_LINKS)
+                            || Files.isSymbolicLink(exec)) {
                         return false;
                     }
                     if (!isPreflightLauncherScript(readBounded(exec))) {
                         return false;
                     }
+                    foundExecutable = true;
                 }
             }
+            if (!foundExecutable) return false;
             try (Stream<Path> stream = Files.list(contents)) {
                 for (Path child : stream.toList()) {
                     String name = child.getFileName().toString();
-                    if (!name.equals("MacOS")
-                            && !name.equals("Info.plist")
-                            && !name.equals(".DS_Store")) {
-                        return false;
-                    }
+                    if (name.equals("MacOS") || name.equals("Info.plist")) continue;
+                    if (name.equals(".DS_Store") && isBenignMetadataFile(child)) continue;
+                    return false;
                 }
             }
             return true;
@@ -97,7 +105,7 @@ final class IntegrationOwnership {
     }
 
     static boolean isOwnedLinuxCommand(Path file) {
-        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(file)) {
             return false;
         }
         try {
@@ -108,7 +116,7 @@ final class IntegrationOwnership {
     }
 
     static boolean isOwnedLinuxDesktop(Path file) {
-        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(file)) {
             return false;
         }
         try {
@@ -122,7 +130,7 @@ final class IntegrationOwnership {
     }
 
     static boolean isOwnedWindowsCommand(Path file) {
-        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(file)) {
             return false;
         }
         try {
@@ -133,28 +141,26 @@ final class IntegrationOwnership {
     }
 
     static boolean isOwnedWindowsDirectory(Path dir) {
-        if (!Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS)) {
+        if (!Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(dir)) {
             return false;
         }
+        boolean foundLauncher = false;
         try (Stream<Path> stream = Files.list(dir)) {
             List<Path> entries = stream.toList();
-            if (entries.isEmpty()) {
-                // Empty directory at the conventional path is not strong ownership proof.
-                return false;
-            }
             for (Path entry : entries) {
                 String name = entry.getFileName().toString();
                 if (name.equals("Preflight.cmd") || name.equals("Starsector Preflight.cmd")) {
                     if (!isOwnedWindowsCommand(entry)) {
                         return false;
                     }
+                    foundLauncher = true;
                 } else if (name.equals("desktop.ini") || name.equals(".DS_Store")) {
-                    // Benign platform metadata
+                    if (!isBenignMetadataFile(entry)) return false;
                 } else {
                     return false;
                 }
             }
-            return true;
+            return foundLauncher;
         } catch (IOException unreadable) {
             return false;
         }
@@ -173,6 +179,10 @@ final class IntegrationOwnership {
                 && script.lines().anyMatch(WINDOWS_MARKER::equals)
                 && script.contains(" run --fast --game ")
                 && script.endsWith(" %*\r\n");
+    }
+
+    private static boolean isBenignMetadataFile(Path file) {
+        return Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) && !Files.isSymbolicLink(file);
     }
 
     private static String readBounded(Path file) throws IOException {

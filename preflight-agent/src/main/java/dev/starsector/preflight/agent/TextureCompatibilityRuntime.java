@@ -316,7 +316,7 @@ public final class TextureCompatibilityRuntime {
 
             PreparedTexture texture;
             try {
-                texture = current.verifyBlobChecksum
+                texture = current.verifyBlobChecksum || current.packDisabled.get()
                         ? PreparedTextureIO.read(blob)
                         : PreparedTextureIO.readTrusted(blob);
             } catch (IOException error) {

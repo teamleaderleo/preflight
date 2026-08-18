@@ -28,6 +28,14 @@
       <artifactId>imageio-webp</artifactId>
       <version>${twelvemonkeys.version}</version>
     </dependency>
+    <!-- The JDK 17 Unix provider implements no-option Files.move with a check/rename sequence that
+         cannot supply no-replace commit semantics. JNA calls the OS exclusive-rename primitive
+         directly on Linux/macOS and MoveFileExW without replacement on Windows. -->
+    <dependency>
+      <groupId>net.java.dev.jna</groupId>
+      <artifactId>jna</artifactId>
+      <version>5.18.1</version>
+    </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>

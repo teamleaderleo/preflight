@@ -16,6 +16,7 @@ PACKAGE_EXACT = {
 }
 PACKAGE_PREFIXES = (
     ".github/actions/setup-build-jdk/",
+    "preflight-cli/",
     "preflight-desktop/scripts/",
     "preflight-desktop/src-tauri/",
 )

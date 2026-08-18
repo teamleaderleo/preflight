@@ -93,12 +93,7 @@ final class ProfileMutationTransaction {
 
             hook.beforeTargetPublication(source);
             try {
-                Files.createLink(source, stagedReplacement);
-            } catch (UnsupportedOperationException unsupported) {
-                restoreCapturedOrPreserve(captured, source, backups, descriptor);
-                sourceCaptured = false;
-                cleanupAbortedUpdate(transaction, reviewed, snapshot, stagedReplacement);
-                throw new IOException("Filesystem cannot publish an updated profile safely: " + source, unsupported);
+                ExclusiveMove.move(stagedReplacement, source);
             } catch (FileAlreadyExistsException collision) {
                 Path conflict = restoreCapturedOrPreserve(captured, source, backups, descriptor);
                 sourceCaptured = false;
@@ -111,9 +106,17 @@ final class ProfileMutationTransaction {
                                     + " because a newer external profile won the public name."));
                 }
                 throw failure;
+            } catch (IOException publicationFailure) {
+                restoreCapturedOrPreserve(captured, source, backups, descriptor);
+                sourceCaptured = false;
+                cleanupAbortedUpdate(transaction, reviewed, snapshot, stagedReplacement);
+                throw new IOException(
+                        "Filesystem cannot publish an updated profile safely: " + source,
+                        publicationFailure);
             }
 
             committed = true;
+            hook.afterTargetPublicationBeforeCommit(source);
             try {
                 writeCommitMarker(transaction);
             } catch (IOException markerFailure) {
@@ -197,12 +200,7 @@ final class ProfileMutationTransaction {
 
             hook.beforeTargetPublication(target);
             try {
-                Files.createLink(target, stagedReplacement);
-            } catch (UnsupportedOperationException unsupported) {
-                restoreCapturedOrPreserve(captured, source, backups, descriptor);
-                sourceCaptured = false;
-                cleanupAbortedRename(transaction, reviewed, snapshot, stagedReplacement);
-                throw new IOException("Filesystem cannot publish a renamed profile safely: " + target, unsupported);
+                ExclusiveMove.move(stagedReplacement, target);
             } catch (FileAlreadyExistsException collision) {
                 Path conflict = restoreCapturedOrPreserve(captured, source, backups, descriptor);
                 sourceCaptured = false;
@@ -213,9 +211,17 @@ final class ProfileMutationTransaction {
                             "A newer source also won the rollback race; reviewed bytes were preserved at " + conflict));
                 }
                 throw failure;
+            } catch (IOException publicationFailure) {
+                restoreCapturedOrPreserve(captured, source, backups, descriptor);
+                sourceCaptured = false;
+                cleanupAbortedRename(transaction, reviewed, snapshot, stagedReplacement);
+                throw new IOException(
+                        "Filesystem cannot publish a renamed profile safely: " + target,
+                        publicationFailure);
             }
 
             committed = true;
+            hook.afterTargetPublicationBeforeCommit(target);
             try {
                 writeCommitMarker(transaction);
             } catch (IOException markerFailure) {
@@ -387,9 +393,9 @@ final class ProfileMutationTransaction {
 
         if (descriptor.operation() == Operation.UPDATE) {
             Path replacement = transaction.resolve(REPLACEMENT);
-            boolean sourceIsPublished = sameRegularFile(source, replacement);
+            boolean publicationCompleted = !Files.exists(replacement, LinkOption.NOFOLLOW_LINKS);
             if (!Files.exists(captured, LinkOption.NOFOLLOW_LINKS)) {
-                if (committedMarker || sourceIsPublished) {
+                if (committedMarker || publicationCompleted) {
                     cleanupCommittedUpdate(transaction, NOOP);
                 } else {
                     cleanupAbortedUpdate(transaction, reviewed, snapshot, replacement);
@@ -402,7 +408,7 @@ final class ProfileMutationTransaction {
                 cleanupAbortedUpdate(transaction, reviewed, snapshot, replacement);
                 throw staleRecovery(descriptor);
             }
-            if (committedMarker || sourceIsPublished) {
+            if (committedMarker || publicationCompleted) {
                 cleanupCommittedUpdate(transaction, NOOP);
                 return;
             }
@@ -424,9 +430,9 @@ final class ProfileMutationTransaction {
         if (descriptor.operation() == Operation.RENAME) {
             Path replacement = transaction.resolve(REPLACEMENT);
             Path target = descriptor.target();
-            boolean targetIsPublished = sameRegularFile(target, replacement);
+            boolean publicationCompleted = !Files.exists(replacement, LinkOption.NOFOLLOW_LINKS);
             if (!Files.exists(captured, LinkOption.NOFOLLOW_LINKS)) {
-                if (committedMarker || targetIsPublished) {
+                if (committedMarker || publicationCompleted) {
                     cleanupCommittedRename(transaction, NOOP);
                 } else {
                     cleanupAbortedRename(transaction, reviewed, snapshot, replacement);
@@ -440,7 +446,7 @@ final class ProfileMutationTransaction {
                 cleanupAbortedRename(transaction, reviewed, snapshot, replacement);
                 throw staleRecovery(descriptor);
             }
-            if (committedMarker || targetIsPublished) {
+            if (committedMarker || publicationCompleted) {
                 cleanupCommittedRename(transaction, NOOP);
                 return;
             }
@@ -718,6 +724,9 @@ final class ProfileMutationTransaction {
         }
 
         default void beforeTargetPublication(Path target) throws IOException {
+        }
+
+        default void afterTargetPublicationBeforeCommit(Path publicArtifact) throws IOException {
         }
 
         default void afterCommit(Path publicArtifact) throws IOException {
