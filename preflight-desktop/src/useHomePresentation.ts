@@ -45,7 +45,12 @@ export function useHomePresentation() {
   const [preference, setPreference] = useState(readHomePresentation);
 
   useEffect(() => {
-    const sync = () => setPreference(readHomePresentation());
+    const sync = (event: Event) => {
+      const detail = (event as CustomEvent<HomePresentationPreference>).detail;
+      const next = detail ?? readHomePresentation();
+      applyHomePresentation(next);
+      setPreference(next);
+    };
     const syncStorage = (event: StorageEvent) => {
       if (event.key === HOME_PRESENTATION_STORAGE_KEY) {
         const next = readHomePresentation();
@@ -70,7 +75,7 @@ export function useHomePresentation() {
     }
     applyHomePresentation(next);
     setPreference(next);
-    window.dispatchEvent(new Event(HOME_PRESENTATION_EVENT));
+    window.dispatchEvent(new CustomEvent<HomePresentationPreference>(HOME_PRESENTATION_EVENT, { detail: next }));
   };
 
   return {
