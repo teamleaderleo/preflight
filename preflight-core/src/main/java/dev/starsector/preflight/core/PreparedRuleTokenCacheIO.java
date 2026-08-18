@@ -165,7 +165,11 @@ public final class PreparedRuleTokenCacheIO {
                 }
                 List<PreparedRuleTokenCache.Token> tokens = new ArrayList<>(tokenCount);
                 for (int token = 0; token < tokenCount; token++) {
-                    String string = input.readBoolean()
+                    int hasString = input.readUnsignedByte();
+                    if (hasString > 1) {
+                        throw new IOException("Prepared rule-token nullable-string flag is invalid: " + hasString);
+                    }
+                    String string = hasString == 1
                             ? readString(input, PreparedRuleTokenCache.MAX_STRING_BYTES) : null;
                     String type = readString(input, PreparedRuleTokenCache.MAX_TYPE_BYTES);
                     tokens.add(new PreparedRuleTokenCache.Token(string, type));
