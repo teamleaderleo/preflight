@@ -32,10 +32,12 @@ final class ProfileCommand {
     private static final String ACTIVATION_REVIEW_FORMAT = "starsector-preflight-profile-activation-review-v1";
     private static final Duration ACTIVATION_REVIEW_MAX_AGE = Duration.ofMinutes(30);
     private static final Pattern PROFILE_BACKUP_FILE = Pattern.compile(
-            "(?:enabled_mods|deleted-profile)-\\d+-.*\\.json");
+            "(?:enabled_mods|deleted-profile|conflicted-profile)-\\d+-.*\\.json");
     private static final Pattern ACTIVATION_REVIEW_FILE = Pattern.compile("[0-9a-f]{64}\\.json");
     private static final DuplicatePublicationHook NO_DUPLICATE_PUBLICATION_HOOK = target -> {
     };
+    private static final ProfileMutationTransaction.Hook NO_PROFILE_MUTATION_HOOK =
+            new ProfileMutationTransaction.Hook() {};
 
     private ProfileCommand() {
     }
@@ -120,6 +122,7 @@ final class ProfileCommand {
         name = validateName(name);
         OperationLease.Acquisition ownership = OperationLease.acquire(home, "saving-profile", installRoot);
         try (OperationLease ignored = ownership.lease()) {
+            recoverProfileTransactions(home);
             return saveOwned(home, installRoot, name, json, out);
         }
     }
@@ -213,6 +216,7 @@ final class ProfileCommand {
         }
         OperationLease.Acquisition ownership = OperationLease.acquire(home, "switching-profile", installRoot);
         try (OperationLease ignored = ownership.lease()) {
+            recoverProfileTransactions(home);
             return activateOwned(home, installRoot, name, true, json, out);
         }
     }
@@ -226,17 +230,42 @@ final class ProfileCommand {
             boolean confirmed,
             boolean json,
             PrintStream out) throws Exception {
+        return rename(
+                home,
+                installRoot,
+                name,
+                targetName,
+                expectedProfile,
+                confirmed,
+                json,
+                out,
+                NO_PROFILE_MUTATION_HOOK);
+    }
+
+    static int rename(
+            PreflightHome home,
+            Path installRoot,
+            String name,
+            String targetName,
+            String expectedProfile,
+            boolean confirmed,
+            boolean json,
+            PrintStream out,
+            ProfileMutationTransaction.Hook mutationHook) throws Exception {
         name = validateName(name);
         targetName = validateName(targetName);
         if (name.equals(targetName)) {
             throw new IllegalArgumentException("The new profile name must be different");
         }
         if (!confirmed) {
-            return renameOwned(home, installRoot, name, targetName, null, false, json, out);
+            return renameOwned(
+                    home, installRoot, name, targetName, null, false, json, out, mutationHook);
         }
         OperationLease.Acquisition ownership = OperationLease.acquire(home, "renaming-profile", installRoot);
         try (OperationLease ignored = ownership.lease()) {
-            return renameOwned(home, installRoot, name, targetName, expectedProfile, true, json, out);
+            recoverProfileTransactions(home);
+            return renameOwned(
+                    home, installRoot, name, targetName, expectedProfile, true, json, out, mutationHook);
         }
     }
 
@@ -248,7 +277,8 @@ final class ProfileCommand {
             String expectedProfile,
             boolean confirmed,
             boolean json,
-            PrintStream out) throws Exception {
+            PrintStream out,
+            ProfileMutationTransaction.Hook mutationHook) throws Exception {
         GameLayout layout = GameLayout.locate(installRoot);
         SavedProfile profile = readProfile(profilePath(home, name));
         requireProfileName(profile, name);
@@ -265,6 +295,7 @@ final class ProfileCommand {
         if (Files.exists(target)) {
             throw new IOException("A named profile already exists: " + targetName);
         }
+        Path source = profile.file();
         SavedProfile renamed = new SavedProfile(
                 targetName,
                 profile.installRoot(),
@@ -272,14 +303,26 @@ final class ProfileCommand {
                 profile.profileFingerprint(),
                 profile.savedAt(),
                 target);
-        atomicWrite(target, Json.object(renamed.persisted()) + System.lineSeparator());
+        byte[] replacement = (Json.object(renamed.persisted()) + System.lineSeparator())
+                .getBytes(StandardCharsets.UTF_8);
+        ProfileMutationTransaction.RenameResult result;
         try {
-            Files.delete(profile.file());
-        } catch (IOException deleteFailure) {
-            Files.deleteIfExists(target);
-            throw deleteFailure;
+            result = ProfileMutationTransaction.rename(
+                    home.profiles(),
+                    home.profileBackups(),
+                    source,
+                    target,
+                    replacement,
+                    bytes -> requireReviewedGeneration(source, name, expectedProfile, bytes),
+                    mutationHook);
+        } catch (IOException failure) {
+            if (failure.getMessage() != null && failure.getMessage().startsWith("A named profile already exists:")) {
+                throw new IOException("A named profile already exists: " + targetName, failure);
+            }
+            throw failure;
         }
         plan.put("applied", true);
+        plan.put("cleanupPending", result.cleanupPending());
         emitMutation(plan, json, out);
         return 0;
     }
@@ -326,6 +369,7 @@ final class ProfileCommand {
         }
         OperationLease.Acquisition ownership = OperationLease.acquire(home, "duplicating-profile", installRoot);
         try (OperationLease ignored = ownership.lease()) {
+            recoverProfileTransactions(home);
             return duplicateOwned(
                     home, installRoot, name, targetName, expectedProfile, true, json, out, publicationHook);
         }
@@ -387,13 +431,34 @@ final class ProfileCommand {
             boolean confirmed,
             boolean json,
             PrintStream out) throws Exception {
+        return delete(
+                home,
+                installRoot,
+                name,
+                expectedProfile,
+                confirmed,
+                json,
+                out,
+                NO_PROFILE_MUTATION_HOOK);
+    }
+
+    static int delete(
+            PreflightHome home,
+            Path installRoot,
+            String name,
+            String expectedProfile,
+            boolean confirmed,
+            boolean json,
+            PrintStream out,
+            ProfileMutationTransaction.Hook mutationHook) throws Exception {
         name = validateName(name);
         if (!confirmed) {
-            return deleteOwned(home, installRoot, name, null, false, json, out);
+            return deleteOwned(home, installRoot, name, null, false, json, out, mutationHook);
         }
         OperationLease.Acquisition ownership = OperationLease.acquire(home, "deleting-profile", installRoot);
         try (OperationLease ignored = ownership.lease()) {
-            return deleteOwned(home, installRoot, name, expectedProfile, true, json, out);
+            recoverProfileTransactions(home);
+            return deleteOwned(home, installRoot, name, expectedProfile, true, json, out, mutationHook);
         }
     }
 
@@ -404,7 +469,8 @@ final class ProfileCommand {
             String expectedProfile,
             boolean confirmed,
             boolean json,
-            PrintStream out) throws Exception {
+            PrintStream out,
+            ProfileMutationTransaction.Hook mutationHook) throws Exception {
         GameLayout layout = GameLayout.locate(installRoot);
         SavedProfile profile = readProfile(profilePath(home, name));
         requireProfileName(profile, name);
@@ -414,10 +480,23 @@ final class ProfileCommand {
             return 0;
         }
         profile = requireReviewedProfile(profile, name, expectedProfile);
-        Path backup = backupProfile(home, profile);
-        Files.delete(profile.file());
+        Path source = profile.file();
+        ProfileMutationTransaction.DeleteResult result = ProfileMutationTransaction.delete(
+                home.profiles(),
+                home.profileBackups(),
+                source,
+                bytes -> requireReviewedGeneration(source, name, expectedProfile, bytes),
+                mutationHook);
+        boolean cleanupPending = result.cleanupPending();
+        try {
+            retainProfileBackups(home);
+        } catch (IOException retentionFailure) {
+            cleanupPending = true;
+            plan.put("cleanupWarning", message(retentionFailure));
+        }
         plan.put("applied", true);
-        plan.put("backup", backup);
+        plan.put("backup", result.backup());
+        plan.put("cleanupPending", cleanupPending);
         emitMutation(plan, json, out);
         return 0;
     }
@@ -468,15 +547,14 @@ final class ProfileCommand {
         return current;
     }
 
-    private static Path backupProfile(PreflightHome home, SavedProfile profile) throws IOException {
-        Path directory = SafetyArtifactRetention.requireRealDirectory(home.profileBackups());
-        Path backup = Files.createTempFile(
-                directory,
-                "deleted-profile-" + Instant.now().toEpochMilli() + "-",
-                ".json");
-        Files.copy(profile.file(), backup, StandardCopyOption.REPLACE_EXISTING);
-        retainProfileBackups(home);
-        return backup.toAbsolutePath().normalize();
+    private static void requireReviewedGeneration(
+            Path canonicalFile,
+            String requestedName,
+            String expectedProfile,
+            byte[] bytes) throws IOException {
+        SavedProfile current = readProfile(canonicalFile, bytes);
+        requireProfileName(current, requestedName);
+        requireExpectedProfile(current, expectedProfile);
     }
 
     private static void emitMutation(Map<String, Object> plan, boolean json, PrintStream out) {
@@ -501,6 +579,9 @@ final class ProfileCommand {
         out.println("  prepared data is kept");
         if (plan.get("backup") != null) {
             out.println("  backup: " + plan.get("backup"));
+        }
+        if (Boolean.TRUE.equals(plan.get("cleanupPending"))) {
+            out.println("  profile change committed; interrupted cleanup will resume before the next profile write.");
         }
     }
 
@@ -873,18 +954,22 @@ final class ProfileCommand {
 
     private static SavedProfile readProfile(Path file) throws IOException {
         ProfileRecordFiles.requireRegularRecord(file);
-        String json = Files.readString(file, StandardCharsets.UTF_8);
+        return readProfile(file, Files.readAllBytes(file));
+    }
+
+    private static SavedProfile readProfile(Path canonicalFile, byte[] bytes) throws IOException {
+        String json = new String(bytes, StandardCharsets.UTF_8);
         if (!FORMAT.equals(JsonText.string(json, "format"))) {
-            throw new IOException("Unsupported named profile format in " + file);
+            throw new IOException("Unsupported named profile format in " + canonicalFile);
         }
         String name = validateName(JsonText.string(json, "name"));
-        ProfileRecordFiles.requireNameMatchesFilename(file, name);
+        ProfileRecordFiles.requireNameMatchesFilename(canonicalFile, name);
         String install = JsonText.string(json, "installRoot");
         String fingerprint = JsonText.string(json, "profileFingerprint");
         String savedAt = JsonText.string(json, "savedAt");
         if (install == null || fingerprint == null || savedAt == null
                 || !fingerprint.matches("[0-9a-fA-F]{64}")) {
-            throw new IOException("Incomplete named profile in " + file);
+            throw new IOException("Incomplete named profile in " + canonicalFile);
         }
         List<String> enabled = JsonText.stringArray(json, "enabledMods");
         rejectDuplicateMods(enabled);
@@ -894,7 +979,7 @@ final class ProfileCommand {
                 enabled,
                 fingerprint.toLowerCase(Locale.ROOT),
                 savedAt,
-                file.toAbsolutePath().normalize());
+                canonicalFile.toAbsolutePath().normalize());
     }
 
     private static Path profilePath(PreflightHome home, String name) {
@@ -902,6 +987,10 @@ final class ProfileCommand {
                 .resolve(ProfileRecordFiles.canonicalFileName(name))
                 .toAbsolutePath()
                 .normalize();
+    }
+
+    private static void recoverProfileTransactions(PreflightHome home) throws IOException {
+        ProfileMutationTransaction.recover(home.profiles(), home.profileBackups());
     }
 
     private static List<String> readEnabled(Path file) throws IOException {
@@ -979,6 +1068,11 @@ final class ProfileCommand {
             throw new IOException("Could not discover Starsector. Use --game or --launcher.");
         }
         return discovery.selected();
+    }
+
+    private static String message(Throwable error) {
+        String value = error.getMessage();
+        return value == null || value.isBlank() ? error.getClass().getSimpleName() : value;
     }
 
     private record Options(

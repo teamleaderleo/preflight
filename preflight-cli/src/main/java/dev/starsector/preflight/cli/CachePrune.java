@@ -15,6 +15,7 @@ import dev.starsector.preflight.core.SpecStoreCacheDirectories;
 import dev.starsector.preflight.core.TextureManifest;
 import dev.starsector.preflight.core.TextureManifestIO;
 import java.io.IOException;
+import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -75,9 +76,15 @@ final class CachePrune {
             Set<String> survivors,
             Set<String> keepIdentities,
             Set<String> keepJaninoContexts) throws IOException {
-        Path cache = home.cache();
+        Path cache = home.cache().toAbsolutePath().normalize();
         List<Removal> removals = new ArrayList<>();
         List<String> refusals = new ArrayList<>();
+        try {
+            CacheDeletionBoundary.requireSafeTree(cache);
+        } catch (IOException unsafe) {
+            refusals.add("cache deletion boundary could not be verified (" + message(unsafe) + ")");
+            return new Plan(cache, List.of(), List.copyOf(refusals), 0, 0);
+        }
 
         removals.addAll(byFingerprint(ResourceIndexIO.directory(cache), ".spfi", survivors));
         removals.addAll(byFingerprint(TextureManifestIO.directory(cache), ".spfm", survivors));
@@ -91,7 +98,7 @@ final class CachePrune {
         Set<String> reachable = new HashSet<>();
         for (String survivor : survivors) {
             Path manifest = TextureManifestIO.directory(cache).resolve(survivor + ".spfm");
-            if (!Files.isRegularFile(manifest)) {
+            if (!Files.isRegularFile(manifest, LinkOption.NOFOLLOW_LINKS)) {
                 // A survivor with no manifest simply contributes no blobs; it is not an error,
                 // because a profile can be indexed without having had its textures prepared.
                 continue;
@@ -117,7 +124,7 @@ final class CachePrune {
         for (String survivor : survivors) {
             Path manifest = PreparedAudioCache.manifestDirectory(cache)
                     .resolve(survivor + ".spam");
-            if (!Files.isRegularFile(manifest)) {
+            if (!Files.isRegularFile(manifest, LinkOption.NOFOLLOW_LINKS)) {
                 continue;
             }
             try {
@@ -150,6 +157,7 @@ final class CachePrune {
 
         removals.sort(Comparator.comparingLong(Removal::bytes).reversed());
         return new Plan(
+                cache,
                 List.copyOf(removals),
                 List.copyOf(refusals),
                 reachable.size(),
@@ -159,11 +167,12 @@ final class CachePrune {
     private static List<Removal> byFingerprint(Path directory, String extension, Set<String> keep)
             throws IOException {
         List<Removal> removals = new ArrayList<>();
-        if (!Files.isDirectory(directory)) {
+        if (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
             return removals;
         }
         try (var stream = Files.list(directory)) {
-            for (Path file : stream.filter(Files::isRegularFile).toList()) {
+            for (Path file : stream
+                    .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)).toList()) {
                 String name = file.getFileName().toString();
                 if (!name.endsWith(extension)) {
                     continue;
@@ -185,7 +194,7 @@ final class CachePrune {
             throws IOException {
         Path root = GeneratedBytecodeCache.root(cache);
         List<Removal> removals = new ArrayList<>();
-        if (!Files.isDirectory(root)) return removals;
+        if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) return removals;
 
         try (var shards = Files.list(root)) {
             for (Path shard : shards
@@ -255,7 +264,7 @@ final class CachePrune {
             throws IOException {
         Path blobs = PreparedTextureIO.cacheDirectory(cache);
         List<Removal> removals = new ArrayList<>();
-        if (!Files.isDirectory(blobs)) {
+        if (!Files.isDirectory(blobs, LinkOption.NOFOLLOW_LINKS)) {
             return removals;
         }
         Files.walkFileTree(blobs, new SimpleFileVisitor<>() {
@@ -278,7 +287,7 @@ final class CachePrune {
             throws IOException {
         Path root = PreparedAudioCache.root(cache);
         List<Removal> removals = new ArrayList<>();
-        if (!Files.isDirectory(root)) {
+        if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) {
             return removals;
         }
         Files.walkFileTree(root, new SimpleFileVisitor<>() {
@@ -314,11 +323,12 @@ final class CachePrune {
                 SpecStoreCacheDirectories.ruleCommandClasses(cache),
                 SpecStoreCacheDirectories.mergedReads(cache));
         for (Path corpus : activeStores) {
-            if (!Files.isDirectory(corpus)) {
+            if (!Files.isDirectory(corpus, LinkOption.NOFOLLOW_LINKS)) {
                 continue;
             }
             try (var files = Files.list(corpus)) {
-                for (Path file : files.filter(Files::isRegularFile).toList()) {
+                for (Path file : files
+                        .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)).toList()) {
                     String name = file.getFileName().toString();
                     String identity = SPEC_STORE_EXTENSIONS.stream()
                             .filter(name::endsWith)
@@ -342,10 +352,15 @@ final class CachePrune {
         if (!plan.safe()) {
             throw new IOException("Refusing to apply an unsafe cache-prune plan");
         }
+        Path cache = plan.cacheRoot();
+        if (cache == null) {
+            throw new IOException("Refusing to apply a cache-prune plan without an owned cache root");
+        }
+        CacheDeletionBoundary.requireSafeTree(cache);
         long freed = 0;
         Set<Path> parents = new LinkedHashSet<>();
         for (Removal removal : plan.removals()) {
-            if (Files.deleteIfExists(removal.path())) {
+            if (CacheDeletionBoundary.deleteOwnedRegularFile(cache, removal.path())) {
                 freed = Math.addExact(freed, removal.bytes());
             }
             Path parent = removal.path().getParent();
@@ -355,10 +370,10 @@ final class CachePrune {
         }
         for (Path parent : parents) {
             // A blob shard that emptied out is noise, not cache. Non-empty directories throw and
-            // are left alone, which is exactly the wanted behaviour.
+            // are left alone, while every other failure remains visible to the caller.
             try {
-                Files.deleteIfExists(parent);
-            } catch (IOException stillPopulated) {
+                CacheDeletionBoundary.deleteOwnedEmptyDirectory(cache, parent);
+            } catch (DirectoryNotEmptyException stillPopulated) {
                 // Intentionally ignored.
             }
         }
@@ -378,10 +393,19 @@ final class CachePrune {
     }
 
     record Plan(
+            Path cacheRoot,
             List<Removal> removals,
             List<String> refusals,
             int reachableBlobs,
             int reachableAudioBlobs) {
+        Plan(
+                List<Removal> removals,
+                List<String> refusals,
+                int reachableBlobs,
+                int reachableAudioBlobs) {
+            this(null, removals, refusals, reachableBlobs, reachableAudioBlobs);
+        }
+
         long bytes() {
             return removals.stream().mapToLong(Removal::bytes).sum();
         }
