@@ -1,7 +1,11 @@
 import type { useInstrumentHull } from "../useInstrumentHull";
+import { FEATURED_HULL_IDS } from "../useInstrumentHull";
 import { FlightInstrument } from "./FlightInstrument";
+import { HullPicker } from "./HullPicker";
 
 type InstrumentHullState = ReturnType<typeof useInstrumentHull>;
+
+const FEATURED_IDS = new Set<string>(FEATURED_HULL_IDS);
 
 interface HangarDialProps {
   label: string;
@@ -27,6 +31,7 @@ function HangarDial({ label, value, valueText, minimum, maximum, step, onChange 
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
       />
+      <output>{valueText}</output>
     </label>
   );
 }
@@ -36,6 +41,13 @@ interface HangarPageProps {
 }
 
 export function HangarPage({ instrumentHull }: HangarPageProps) {
+  const featured = instrumentHull.hulls.filter((hull) => FEATURED_IDS.has(hull.id));
+  const additional = instrumentHull.hulls.filter((hull) => !FEATURED_IDS.has(hull.id));
+  const selectedIsFeatured = FEATURED_IDS.has(instrumentHull.selectedId);
+  const quickHulls = selectedIsFeatured
+    ? featured
+    : [...featured, instrumentHull.selected];
+
   return (
     <div className="hangar-page">
       <section className="hangar-display hangar-display--minimal" aria-label="Selected display ship">
@@ -48,20 +60,33 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
             <h2>{instrumentHull.selected.name}</h2>
             <p>{instrumentHull.selected.hullSize.replaceAll("_", " ").toLowerCase()}</p>
           </div>
-
         </div>
 
-        <div className="hangar-dock">
-          <select
-            className="hangar-hull-select"
-            aria-label="Display ship"
-            value={instrumentHull.selectedId}
-            onChange={(event) => instrumentHull.choose(event.target.value)}
-          >
-            {instrumentHull.hulls.map((hull) => (
-              <option key={hull.id} value={hull.id}>{hull.name}</option>
-            ))}
-          </select>
+        <div className="hangar-dock hangar-dock--catalog">
+          <div className="hangar-selection">
+            <select
+              className="hangar-hull-select"
+              aria-label="Display ship"
+              value={instrumentHull.selectedId}
+              onChange={(event) => instrumentHull.choose(event.target.value)}
+            >
+              {quickHulls.map((hull) => (
+                <option key={hull.id} value={hull.id}>{hull.name}</option>
+              ))}
+            </select>
+            <span className="hangar-catalog-status" aria-live="polite">
+              {instrumentHull.catalog
+                ? `${instrumentHull.catalog.hulls.length.toLocaleString()} installed`
+                : instrumentHull.catalogLoaded ? "Included ships" : "Finding installed ships…"}
+            </span>
+            {additional.length > 0 ? (
+              <HullPicker
+                hulls={additional}
+                selectedId={instrumentHull.selectedId}
+                onChoose={instrumentHull.choose}
+              />
+            ) : null}
+          </div>
 
           <div className="hangar-dials" aria-label="Wireframe appearance">
             <HangarDial
@@ -81,6 +106,24 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
               maximum={0.06}
               step={0.001}
               onChange={(value) => instrumentHull.customize({ outerDetail: value, innerDetail: value })}
+            />
+            <HangarDial
+              label="Interior smooth"
+              value={instrumentHull.tuning.innerSmooth}
+              valueText={instrumentHull.tuning.innerSmooth === 0 ? "None" : instrumentHull.tuning.innerSmooth.toFixed(2)}
+              minimum={0}
+              maximum={0.9}
+              step={0.02}
+              onChange={(value) => instrumentHull.customize({ innerSmooth: value })}
+            />
+            <HangarDial
+              label="Interior detail"
+              value={instrumentHull.tuning.innerDetail}
+              valueText={instrumentHull.tuning.innerDetail === 0 ? "Full" : instrumentHull.tuning.innerDetail.toFixed(3)}
+              minimum={0}
+              maximum={0.06}
+              step={0.001}
+              onChange={(value) => instrumentHull.customize({ innerDetail: value })}
             />
             <HangarDial
               label="Depth"
