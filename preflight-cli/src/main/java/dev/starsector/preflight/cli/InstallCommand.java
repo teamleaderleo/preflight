@@ -143,6 +143,7 @@ final class InstallCommand {
                     staged,
                     (previous, replacement) -> preserveMacMetadata(previous, replacement));
             publication.commit();
+            cleanupCommittedPublication(publication, "macOS launcher");
             System.out.println("Installed macOS launcher: " + app);
             return 0;
         } finally {
@@ -186,8 +187,16 @@ final class InstallCommand {
             stagedDesktop = stageFile(desktop, desktopFile, false);
             commandPublication = IntegrationMutation.publish(commandReview, stagedCommand);
             desktopPublication = IntegrationMutation.publish(desktopReview, stagedDesktop);
+
+            // Prove both public generations before retiring either predecessor. The desktop entry
+            // depends on the command, so a late command loss can still restore the reviewed desktop.
             desktopPublication.commit();
             commandPublication.commit();
+
+            // Cleanup is post-commit maintenance. A changed quarantine is preserved as residue and
+            // cannot turn an already committed public pair into a misleading install failure.
+            cleanupCommittedPublication(commandPublication, "Linux command");
+            cleanupCommittedPublication(desktopPublication, "Linux desktop entry");
             System.out.println("Installed command: " + launcher);
             System.out.println("Installed desktop entry: " + desktop);
             return 0;
@@ -241,10 +250,22 @@ final class InstallCommand {
                     staged,
                     (previous, replacement) -> preserveWindowsMetadata(previous, replacement));
             publication.commit();
+            cleanupCommittedPublication(publication, "Windows launcher");
             System.out.println("Installed Windows launcher: " + directory.resolve("Preflight.cmd"));
             return 0;
         } finally {
             IntegrationMutation.deleteStaging(staged);
+        }
+    }
+
+    private static void cleanupCommittedPublication(
+            IntegrationMutation.Publication publication, String description) {
+        try {
+            publication.cleanupCommitted();
+        } catch (IOException cleanupFailure) {
+            System.err.println("Installed " + description
+                    + "; preserved a changed predecessor quarantine for recovery: "
+                    + cleanupFailure.getMessage());
         }
     }
 
