@@ -3,6 +3,7 @@ package dev.starsector.preflight.cli;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import dev.starsector.preflight.core.Json;
 import java.io.ByteArrayOutputStream;
@@ -83,6 +84,29 @@ final class ProfileRecordNamespaceTest {
         assertTrue(diagnostics(report).stream().anyMatch(message ->
                 message.contains(otherDigest + ".json") && message.contains("embedded profile name")));
         assertEquals(1, ProfileCommand.retainedFingerprints(fixture.home()).fingerprints().size());
+    }
+
+    @Test
+    void canonicalLookingSymlinkNeverBecomesAProfileRecord() throws Exception {
+        Fixture fixture = fixture();
+        save(fixture, "Original");
+        Path canonical = onlyCanonicalProfile(fixture.home());
+        Path outside = temporaryDirectory.resolve("outside-profile.json");
+        Files.copy(canonical, outside);
+        Files.delete(canonical);
+        try {
+            Files.createSymbolicLink(canonical, outside);
+        } catch (UnsupportedOperationException | SecurityException | java.io.IOException unavailable) {
+            assumeTrue(false, "Symbolic links are unavailable in this test environment: " + unavailable);
+        }
+
+        Map<String, Object> report = ProfileCommand.describeList(fixture.home(), fixture.game());
+
+        assertEquals(List.of(), profiles(report));
+        assertTrue(diagnostics(report).stream().anyMatch(message ->
+                message.contains(canonical.getFileName().toString()) && message.contains("Named profile not found")));
+        assertEquals(0, ProfileCommand.retainedFingerprints(fixture.home()).fingerprints().size());
+        assertTrue(Files.isRegularFile(outside));
     }
 
     @Test
