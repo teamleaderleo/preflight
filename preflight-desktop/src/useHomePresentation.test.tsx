@@ -10,37 +10,49 @@ import {
 
 beforeEach(() => {
   window.localStorage.clear();
+  delete document.documentElement.dataset.homeMode;
   delete document.documentElement.dataset.homePlaytime;
 });
 
-test("missing and malformed stored preferences fall back to showing playtime", () => {
+test("missing and malformed stored preferences fall back to Hangar with playtime shown", () => {
   expect(readHomePresentation()).toEqual(DEFAULT_HOME_PRESENTATION);
 
-  window.localStorage.setItem(HOME_PRESENTATION_STORAGE_KEY, JSON.stringify({ showPlaytime: "no" }));
+  window.localStorage.setItem(HOME_PRESENTATION_STORAGE_KEY, JSON.stringify({ mode: "unknown", showPlaytime: "no" }));
   expect(readHomePresentation()).toEqual(DEFAULT_HOME_PRESENTATION);
 
   window.localStorage.setItem(HOME_PRESENTATION_STORAGE_KEY, "{");
   expect(readHomePresentation()).toEqual(DEFAULT_HOME_PRESENTATION);
 });
 
-test("startup applies the stored preference before Home renders", () => {
+test("the earlier playtime-only record remains a valid Hangar preference", () => {
   window.localStorage.setItem(HOME_PRESENTATION_STORAGE_KEY, JSON.stringify({ showPlaytime: false }));
 
-  expect(initializeHomePresentation()).toEqual({ showPlaytime: false });
+  expect(readHomePresentation()).toEqual({ mode: "hangar", showPlaytime: false });
+});
+
+test("startup applies the stored presentation before Home renders", () => {
+  window.localStorage.setItem(HOME_PRESENTATION_STORAGE_KEY, JSON.stringify({ mode: "compact", showPlaytime: false }));
+
+  expect(initializeHomePresentation()).toEqual({ mode: "compact", showPlaytime: false });
+  expect(document.documentElement.dataset.homeMode).toBe("compact");
   expect(document.documentElement.dataset.homePlaytime).toBe("hidden");
 });
 
-test("changing visibility persists and synchronizes mounted consumers", () => {
+test("presentation changes persist and synchronize mounted consumers", () => {
   const first = renderHook(() => useHomePresentation());
   const second = renderHook(() => useHomePresentation());
 
+  act(() => first.result.current.setMode("compact"));
   act(() => first.result.current.setShowPlaytime(false));
 
+  expect(first.result.current.mode).toBe("compact");
+  expect(second.result.current.mode).toBe("compact");
   expect(first.result.current.showPlaytime).toBe(false);
   expect(second.result.current.showPlaytime).toBe(false);
+  expect(document.documentElement.dataset.homeMode).toBe("compact");
   expect(document.documentElement.dataset.homePlaytime).toBe("hidden");
   expect(JSON.parse(window.localStorage.getItem(HOME_PRESENTATION_STORAGE_KEY) ?? "null"))
-    .toEqual({ showPlaytime: false });
+    .toEqual({ mode: "compact", showPlaytime: false });
 });
 
 test("denied persistence still changes every mounted consumer for this session", () => {
@@ -50,10 +62,14 @@ test("denied persistence still changes every mounted consumer for this session",
     throw new Error("denied");
   });
 
+  act(() => first.result.current.setMode("compact"));
   act(() => first.result.current.setShowPlaytime(false));
 
+  expect(first.result.current.mode).toBe("compact");
+  expect(second.result.current.mode).toBe("compact");
   expect(first.result.current.showPlaytime).toBe(false);
   expect(second.result.current.showPlaytime).toBe(false);
+  expect(document.documentElement.dataset.homeMode).toBe("compact");
   expect(document.documentElement.dataset.homePlaytime).toBe("hidden");
   setItem.mockRestore();
 });
