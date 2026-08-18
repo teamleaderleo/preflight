@@ -12,6 +12,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
@@ -47,20 +49,7 @@ final class ResourceProviderProofCleanupIsolationTest {
                     hashCalls.incrementAndGet();
                     return Hashes.sha256(bytes);
                 },
-                (candidate, directory) -> {
-                    ResourceProviderContentIdentity.ProofLink real =
-                            ResourceProviderContentIdentity.createProofLink(candidate, directory);
-                    if (real == null || proofAttempts.incrementAndGet() != 1) {
-                        return real;
-                    }
-                    leakedProof.set(real);
-                    return new ResourceProviderContentIdentity.ProofLink(
-                            real.path(),
-                            real.directory(),
-                            (path, ownedDirectory) -> {
-                                throw new IOException("synthetic delete failure before any proof artifact is removed");
-                            });
-                });
+                leakFirstProof(proofAttempts, leakedProof));
 
         ResourceProviderComparison.ContentObservation cleanupFailed = identities.observe("shared.bin", provider);
 
@@ -77,14 +66,7 @@ final class ResourceProviderProofCleanupIsolationTest {
                 "proof residue must stay outside the indexed resource root");
 
         ResourceIndexBuilder.BuildResult rescanned = ResourceIndexBuilder.buildStandalone(root, "mod");
-        assertEquals(
-                baseline.index().profileFingerprint(),
-                rescanned.index().profileFingerprint(),
-                "a leaked proof namespace must not perturb the resource/profile fingerprint");
-        assertEquals(
-                baseline.index().entries(),
-                rescanned.index().entries(),
-                "a leaked provider hard link must never become an indexed logical resource");
+        assertSameIndex(baseline, rescanned, "single resource root");
 
         leaked.close();
         assertNoProofArtifacts(outsideRoot);
@@ -99,6 +81,88 @@ final class ResourceProviderProofCleanupIsolationTest {
         assertNoProofArtifacts(outsideRoot);
     }
 
+    @Test
+    void actualCleanupFailureWithNestedRootsStaysOutsideEveryIndexedRoot() throws Exception {
+        Path outerRoot = Files.createDirectories(temporaryDirectory.resolve("nested-roots/work/mod-a"));
+        Path innerRoot = Files.createDirectories(outerRoot.resolve("submod"));
+        Path file = Files.writeString(innerRoot.resolve("shared.bin"), "AAAA");
+        BasicFileAttributes attributes = Files.readAttributes(file, BasicFileAttributes.class);
+        ResourceIndex.Provider provider = new ResourceIndex.Provider(
+                1,
+                "shared.bin",
+                attributes.size(),
+                Math.max(0, attributes.lastModifiedTime().toMillis()));
+        ResourceIndex index = new ResourceIndex(
+                "0".repeat(64),
+                List.of(
+                        new ResourceIndex.Root("outer", outerRoot, false),
+                        new ResourceIndex.Root("inner", innerRoot, false)),
+                Map.of("shared.bin", List.of(provider)));
+
+        Path outsideEveryRoot = outerRoot.toRealPath().getParent();
+        assumeTrue(outsideEveryRoot != null, "requires an ancestor outside both resource roots");
+        assumeTrue(
+                Files.getFileStore(file).equals(Files.getFileStore(outsideEveryRoot)),
+                "requires an all-roots-safe directory on the provider FileStore");
+        assumeTrue(
+                hardLinkProofAvailable(file, outsideEveryRoot),
+                "requires the production hard-link proof primitive");
+
+        ResourceIndexBuilder.BuildResult outerBefore = ResourceIndexBuilder.buildStandalone(outerRoot, "outer");
+        ResourceIndexBuilder.BuildResult innerBefore = ResourceIndexBuilder.buildStandalone(innerRoot, "inner");
+        AtomicInteger proofAttempts = new AtomicInteger();
+        AtomicReference<ResourceProviderContentIdentity.ProofLink> leakedProof = new AtomicReference<>();
+        ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
+                index,
+                Hashes::sha256,
+                leakFirstProof(proofAttempts, leakedProof));
+
+        ResourceProviderComparison.ContentObservation cleanupFailed = identities.observe("shared.bin", provider);
+
+        assertEquals(ResourceProviderComparison.ContentEvidence.UNREADABLE, cleanupFailed.evidence());
+        ResourceProviderContentIdentity.ProofLink leaked = leakedProof.get();
+        assertTrue(leaked != null, "the injected failure must leave the nested-root proof behind");
+        assertEquals(outsideEveryRoot, leaked.directory().getParent());
+        assertTrue(Files.exists(leaked.path()));
+        assertTrue(Files.isSameFile(leaked.path(), file));
+        for (ResourceIndex.Root root : index.roots()) {
+            assertFalse(
+                    leaked.directory().startsWith(root.path().toRealPath()),
+                    "proof residue must stay outside every indexed root: " + root.id());
+        }
+
+        ResourceIndexBuilder.BuildResult outerAfter = ResourceIndexBuilder.buildStandalone(outerRoot, "outer");
+        ResourceIndexBuilder.BuildResult innerAfter = ResourceIndexBuilder.buildStandalone(innerRoot, "inner");
+        assertSameIndex(outerBefore, outerAfter, "outer nested resource root");
+        assertSameIndex(innerBefore, innerAfter, "inner nested resource root");
+
+        leaked.close();
+        assertNoProofArtifacts(outsideEveryRoot);
+
+        ResourceProviderComparison.ContentObservation retried = identities.observe("shared.bin", provider);
+        assertEquals(ResourceProviderComparison.ContentEvidence.HASHED, retried.evidence());
+        assertNoProofArtifacts(outsideEveryRoot);
+    }
+
+    private static ResourceProviderContentIdentity.ProofLinkFactory leakFirstProof(
+            AtomicInteger proofAttempts,
+            AtomicReference<ResourceProviderContentIdentity.ProofLink> leakedProof) {
+        return (candidate, directory) -> {
+            ResourceProviderContentIdentity.ProofLink real =
+                    ResourceProviderContentIdentity.createProofLink(candidate, directory);
+            if (real == null || proofAttempts.incrementAndGet() != 1) {
+                return real;
+            }
+            leakedProof.set(real);
+            return new ResourceProviderContentIdentity.ProofLink(
+                    real.path(),
+                    real.directory(),
+                    (path, ownedDirectory) -> {
+                        throw new IOException("synthetic delete failure before any proof artifact is removed");
+                    });
+        };
+    }
+
     private static boolean hardLinkProofAvailable(Path file, Path directory) throws IOException {
         ResourceProviderContentIdentity.ProofLink proof =
                 ResourceProviderContentIdentity.createProofLink(file, directory);
@@ -108,6 +172,20 @@ final class ResourceProviderProofCleanupIsolationTest {
         try (proof) {
             return Files.isSameFile(proof.path(), file);
         }
+    }
+
+    private static void assertSameIndex(
+            ResourceIndexBuilder.BuildResult expected,
+            ResourceIndexBuilder.BuildResult actual,
+            String description) {
+        assertEquals(
+                expected.index().profileFingerprint(),
+                actual.index().profileFingerprint(),
+                "a leaked proof namespace must not perturb the " + description + " fingerprint");
+        assertEquals(
+                expected.index().entries(),
+                actual.index().entries(),
+                "a leaked provider hard link must not enter the " + description);
     }
 
     private static void assertNoProofArtifacts(Path directory) throws IOException {
