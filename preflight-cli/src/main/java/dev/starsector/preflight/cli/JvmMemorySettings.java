@@ -70,12 +70,33 @@ final class JvmMemorySettings {
     }
 
     static Snapshot inspect(Path installRoot, LaunchTarget target) {
+        return inspect(installRoot, target, path -> Files.readString(path, StandardCharsets.UTF_8));
+    }
+
+    /** Test seam proving containment is established before a candidate is opened. */
+    static Snapshot inspect(Path installRoot, LaunchTarget target, TextReader reader) {
         Path root = installRoot.toAbsolutePath().normalize();
         Path launcher = target.launcher().toAbsolutePath().normalize();
         List<String> diagnostics = new ArrayList<>();
+        Path realRoot;
+        try {
+            realRoot = root.toRealPath();
+        } catch (IOException | RuntimeException unavailable) {
+            return Snapshot.unavailable(
+                    "Preflight couldn't establish the selected installation directory",
+                    diagnostics);
+        }
+        Path realLauncher = containedFile(realRoot, launcher, diagnostics, "selected launcher");
+        if (realLauncher == null) {
+            return Snapshot.unavailable(
+                    "The selected launcher isn't a regular file inside the selected installation",
+                    diagnostics);
+        }
 
-        String launcherText = textLauncher(launcher) ? boundedText(launcher, diagnostics) : null;
-        Snapshot direct = snapshot(root, launcher, launcherText, "launcher", diagnostics);
+        String launcherText = textLauncher(realLauncher)
+                ? boundedText(realLauncher, diagnostics, reader)
+                : null;
+        Snapshot direct = snapshot(realLauncher, launcherText, "launcher", diagnostics);
         if (direct != null) return direct;
 
         if (launcherText != null) {
@@ -83,9 +104,18 @@ final class JvmMemorySettings {
             Matcher references = RESPONSE_FILE.matcher(launcherText);
             while (references.find()) {
                 String name = firstNonNull(references.group(1), references.group(2), references.group(3));
-                Path candidate = launcher.getParent().resolve(name).normalize();
-                Snapshot found = snapshot(root, candidate, boundedText(candidate, diagnostics),
-                        "launcher response file", diagnostics);
+                Path candidate = realLauncher.getParent().resolve(name).normalize();
+                if (!candidate.startsWith(realRoot)) {
+                    diagnostics.add("Skipped a launcher response file outside the selected installation");
+                    continue;
+                }
+                Path contained = containedFile(
+                        realRoot, candidate, diagnostics, "launcher response file");
+                Snapshot found = contained == null ? null : snapshot(
+                        contained,
+                        boundedText(contained, diagnostics, reader),
+                        "launcher response file",
+                        diagnostics);
                 if (found != null) referenced.add(found);
             }
             Snapshot selected = unique(referenced, diagnostics, "referenced VM-parameter files");
@@ -93,21 +123,26 @@ final class JvmMemorySettings {
         }
 
         LinkedHashSet<Path> known = new LinkedHashSet<>();
-        known.add(launcher.resolveSibling("fr.vmparams"));
-        known.add(launcher.resolveSibling("starsector.vmparams"));
-        known.add(launcher.resolveSibling("vmparams"));
-        known.add(root.resolve("starsector-core/starsector.vmparams"));
-        known.add(root.resolve("starsector-core/vmparams"));
-        known.add(root.resolve("starsector.vmparams"));
-        known.add(root.resolve("vmparams"));
-        known.add(root.resolve("Contents/MacOS/starsector_mac.sh"));
+        known.add(realLauncher.resolveSibling("fr.vmparams"));
+        known.add(realLauncher.resolveSibling("starsector.vmparams"));
+        known.add(realLauncher.resolveSibling("vmparams"));
+        known.add(realRoot.resolve("starsector-core/starsector.vmparams"));
+        known.add(realRoot.resolve("starsector-core/vmparams"));
+        known.add(realRoot.resolve("starsector.vmparams"));
+        known.add(realRoot.resolve("vmparams"));
+        known.add(realRoot.resolve("Contents/MacOS/starsector_mac.sh"));
 
         List<Snapshot> discovered = new ArrayList<>();
         for (Path candidate : known) {
             Path normalized = candidate.toAbsolutePath().normalize();
-            if (normalized.equals(launcher)) continue;
-            Snapshot found = snapshot(root, normalized, boundedText(normalized, diagnostics),
-                    "VM-parameter file", diagnostics);
+            if (normalized.equals(realLauncher)) continue;
+            Path contained = containedFile(
+                    realRoot, normalized, diagnostics, "VM-parameter file");
+            Snapshot found = contained == null ? null : snapshot(
+                    contained,
+                    boundedText(contained, diagnostics, reader),
+                    "VM-parameter file",
+                    diagnostics);
             if (found != null) discovered.add(found);
         }
         Snapshot selected = unique(discovered, diagnostics, "candidate VM-parameter files");
@@ -240,7 +275,6 @@ final class JvmMemorySettings {
     }
 
     private static Snapshot snapshot(
-            Path root,
             Path source,
             String text,
             String sourceKind,
@@ -249,12 +283,10 @@ final class JvmMemorySettings {
         List<Integer> maximums = values(MAX_HEAP.matcher(text));
         if (maximums.isEmpty()) return null;
         List<Integer> initials = values(INITIAL_HEAP.matcher(text));
-        boolean contained = containedByRealPath(root, source);
-        boolean editable = maximums.size() == 1 && initials.size() <= 1 && contained && Files.isWritable(source);
+        boolean editable = maximums.size() == 1 && initials.size() <= 1 && Files.isWritable(source);
         String reason = null;
         if (maximums.size() != 1) reason = "The selected file contains more than one -Xmx setting";
         else if (initials.size() > 1) reason = "The selected file contains more than one -Xms setting";
-        else if (!contained) reason = "The heap setting is outside the selected installation";
         else if (!Files.isWritable(source)) reason = "The heap settings file isn't writable";
         return new Snapshot(
                 true,
@@ -297,26 +329,36 @@ final class JvmMemorySettings {
         return (int) mib;
     }
 
-    private static String boundedText(Path path, List<String> diagnostics) {
+    private static String boundedText(
+            Path path, List<String> diagnostics, TextReader reader) {
         try {
-            if (!Files.isRegularFile(path)) return null;
+            if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) return null;
             long bytes = Files.size(path);
             if (bytes > MAX_SETTINGS_BYTES) {
                 diagnostics.add("Skipped oversized heap settings file: " + path);
                 return null;
             }
-            return Files.readString(path, StandardCharsets.UTF_8);
+            return reader.read(path);
         } catch (IOException | RuntimeException unreadable) {
             diagnostics.add("Could not read heap settings from " + path + ": " + unreadable.getMessage());
             return null;
         }
     }
 
-    private static boolean containedByRealPath(Path root, Path source) {
+    private static Path containedFile(
+            Path realRoot, Path candidate, List<String> diagnostics, String label) {
         try {
-            return source.toRealPath().startsWith(root.toRealPath());
+            Path real = candidate.toRealPath();
+            if (!real.startsWith(realRoot)) {
+                diagnostics.add("Skipped " + label + " outside the selected installation");
+                return null;
+            }
+            if (!Files.isRegularFile(real, LinkOption.NOFOLLOW_LINKS)) {
+                return null;
+            }
+            return real;
         } catch (IOException | RuntimeException unreadable) {
-            return false;
+            return null;
         }
     }
 
@@ -329,6 +371,11 @@ final class JvmMemorySettings {
     private static String firstNonNull(String... values) {
         for (String value : values) if (value != null) return value;
         throw new IllegalArgumentException("Response file reference has no path");
+    }
+
+    @FunctionalInterface
+    interface TextReader {
+        String read(Path path) throws IOException;
     }
 
     private static Path writeBackup(Path directory, Path source, byte[] original) throws IOException {
