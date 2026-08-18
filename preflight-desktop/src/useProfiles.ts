@@ -95,16 +95,19 @@ export function useProfiles(
   }, [game, profiles?.installRoot, refreshProfiles, visible]);
 
   useEffect(() => {
-    if (!visible || !game) return;
-    // Another mod manager can change enabled_mods.json while Preflight is open. The retained
-    // profile list and cache fingerprint can then agree while both are stale. Refocus is the
-    // launch-facing freshness boundary: reread both identities without rediscovering the install.
+    if (!game) return;
+    // Another mod manager can change enabled_mods.json while Preflight is open. Refocus is the
+    // launch-facing freshness boundary regardless of which Preflight page is currently visible.
+    // Drop the retained profile list before the asynchronous reread so Home cannot keep projecting
+    // a saved name while freshness is unproven, and a failed profile refresh cannot restore stale
+    // certainty merely because the previous profile/cache snapshots happened to agree.
     const refreshLaunchIdentity = () => {
+      setProfiles(null);
       void Promise.all([refreshProfiles(), refreshCache()]);
     };
     window.addEventListener("focus", refreshLaunchIdentity);
     return () => window.removeEventListener("focus", refreshLaunchIdentity);
-  }, [game, refreshCache, refreshProfiles, visible]);
+  }, [game, refreshCache, refreshProfiles]);
 
   const saveCurrentProfile = async () => {
     const name = profileName.trim();
