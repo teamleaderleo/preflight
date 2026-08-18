@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { INSTRUMENT_APPEARANCE_ATTRIBUTES } from "../flightInstrumentAppearance";
+import { useInstrumentMotion } from "../useInstrumentMotion";
 import type { HullSegmentKind } from "../wireframeHullGeometry";
 import type { WireframeHull, WireframePoint } from "../types";
 import { BUNDLED_DEFAULT_HULL } from "../bundledWireframeHulls";
@@ -217,6 +218,7 @@ function drawHull(
 /** Draws bounded hull geometry derived locally from the user's Starsector installation. */
 export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge" }: FlightInstrumentProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { motion } = useInstrumentMotion();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -233,17 +235,19 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
      * the ship looks stuck rather than displayed, and half the hull is never shown at all.
      */
     const RATE = 0.34;
-    /* The angle a still frame is parked at, for reduced motion and the first paint. */
+    /* The angle a still frame is parked at, for reduced motion, Still, and the first paint. */
     const RESTING = variant === "stage" ? 0.52 : 0.38;
     let yaw = RESTING;
     const drawStill = () => drawHull(canvas, hull, yaw, palette, variant);
     const schedule = () => {
-      if (frame === null && visible && !reducedMotion.matches) frame = window.requestAnimationFrame(render);
+      if (frame === null && visible && motion === "rotate" && !reducedMotion.matches) {
+        frame = window.requestAnimationFrame(render);
+      }
     };
 
     const render = (time: number) => {
       frame = null;
-      if (!visible || reducedMotion.matches) return;
+      if (!visible || motion !== "rotate" || reducedMotion.matches) return;
       if (previous === 0) previous = time;
       if (time - previous >= 1000 / 24) {
         // Advance by elapsed time rather than per frame, so a dropped frame or a background tab
@@ -290,10 +294,10 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       theme.disconnect();
       reducedMotion.removeEventListener("change", updateMotion);
     };
-  }, [hull, variant]);
+  }, [hull, motion, variant]);
 
   return (
-    <div className={`flight-instrument flight-instrument--${variant}`} aria-hidden="true">
+    <div className={`flight-instrument flight-instrument--${variant}`} data-motion={motion} aria-hidden="true">
       <div className="flight-instrument__drift">
         {variant === "badge" ? (
           <svg viewBox="0 0 240 150" focusable="false">
