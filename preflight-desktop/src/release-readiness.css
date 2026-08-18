@@ -51,6 +51,11 @@
   max-height: none;
 }
 
+/* Preparation/recovery moves identity to the top, so options begin below that context. */
+.launch-console--options-open:has(.launch-console__note) .quick-settings {
+  top: 108px;
+}
+
 /*
  * Quick settings is vertically centred when the disclosure has room. On a short/narrow disclosure,
  * ordinary centre alignment creates negative overflow above scrollTop=0, making Resolution and the
