@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -25,11 +26,14 @@ import java.util.TreeSet;
 
 /** Indexed single-file persistence for a profile's existing SPFT blobs. */
 public final class PreparedTexturePackIO {
-    public static final int FORMAT_VERSION = 2;
+    public static final int FORMAT_VERSION = 3;
     private static final byte[] MAGIC = {'S', 'P', 'F', 'P'};
     private static final int CHECKSUM_BYTES = 32;
     private static final int FIXED_HEADER_BYTES = MAGIC.length + Integer.BYTES * 2
+            + Long.BYTES + CHECKSUM_BYTES * 2;
+    private static final int PAYLOAD_CHECKSUM_OFFSET = MAGIC.length + Integer.BYTES * 2
             + Long.BYTES + CHECKSUM_BYTES;
+    private static final int COPY_BUFFER_BYTES = 64 * 1024;
     private static final int MAX_INDEX_BYTES = 256 * 1024 * 1024;
     private static final int MAX_ENTRIES = 100_000;
     private static final int MAX_STRING_BYTES = 16 * 1024 * 1024;
@@ -115,8 +119,10 @@ public final class PreparedTexturePackIO {
             }
             int indexLength = header.getInt();
             long payloadLength = header.getLong();
-            byte[] expectedChecksum = new byte[CHECKSUM_BYTES];
-            header.get(expectedChecksum);
+            byte[] expectedIndexChecksum = new byte[CHECKSUM_BYTES];
+            header.get(expectedIndexChecksum);
+            byte[] expectedPayloadChecksum = new byte[CHECKSUM_BYTES];
+            header.get(expectedPayloadChecksum);
             if (indexLength <= 0 || indexLength > MAX_INDEX_BYTES || payloadLength < 0
                     || FIXED_HEADER_BYTES + (long) indexLength > Long.MAX_VALUE - payloadLength
                     || FIXED_HEADER_BYTES + (long) indexLength + payloadLength != fileSize) {
@@ -126,7 +132,7 @@ public final class PreparedTexturePackIO {
             readFully(channel, FIXED_HEADER_BYTES, indexBuffer,
                     "Prepared texture pack ended inside its index");
             byte[] indexBytes = indexBuffer.array();
-            if (!MessageDigest.isEqual(expectedChecksum, Hashes.sha256Bytes(indexBytes))) {
+            if (!MessageDigest.isEqual(expectedIndexChecksum, Hashes.sha256Bytes(indexBytes))) {
                 throw new IOException("Prepared texture pack index checksum mismatch");
             }
             Decoded decoded = decodeIndex(indexBytes, payloadLength);
@@ -136,12 +142,17 @@ public final class PreparedTexturePackIO {
             if (!expected.equals(decoded.entries().keySet())) {
                 throw new IOException("Prepared texture pack entries do not match its manifest");
             }
+            long payloadOffset = FIXED_HEADER_BYTES + (long) indexLength;
+            byte[] actualPayloadChecksum = sha256Range(channel, payloadOffset, payloadLength);
+            if (!MessageDigest.isEqual(expectedPayloadChecksum, actualPayloadChecksum)) {
+                throw new IOException("Prepared texture pack payload checksum mismatch");
+            }
             PreparedTexturePack pack = new PreparedTexturePack(
                     source.toAbsolutePath().normalize(),
                     decoded.profileFingerprint(),
                     channel,
                     fileSize,
-                    FIXED_HEADER_BYTES + (long) indexLength,
+                    payloadOffset,
                     decoded.entries());
             success = true;
             return pack;
@@ -196,22 +207,38 @@ public final class PreparedTexturePackIO {
                 header.putInt(index.length);
                 header.putLong(payloadLength);
                 header.put(Hashes.sha256Bytes(index));
+                header.put(new byte[CHECKSUM_BYTES]);
                 header.flip();
                 writeFully(output, header);
                 writeFully(output, ByteBuffer.wrap(index));
+
+                MessageDigest payloadDigest = newSha256();
+                ByteBuffer copyBuffer = ByteBuffer.allocate(COPY_BUFFER_BYTES);
                 for (Source source : sources) {
                     try (FileChannel input = FileChannel.open(source.path(), StandardOpenOption.READ)) {
                         long copied = 0;
                         while (copied < source.length()) {
-                            long count = input.transferTo(copied, source.length() - copied, output);
-                            if (count <= 0) {
+                            copyBuffer.clear();
+                            copyBuffer.limit((int) Math.min(
+                                    copyBuffer.capacity(), source.length() - copied));
+                            int read = input.read(copyBuffer, copied);
+                            if (read < 0) {
                                 throw new EOFException(
                                         "Prepared texture blob changed while packing: " + source.relativePath());
                             }
-                            copied += count;
+                            if (read == 0) {
+                                throw new IOException(
+                                        "Prepared texture blob read made no progress: " + source.relativePath());
+                            }
+                            copied += read;
+                            copyBuffer.flip();
+                            payloadDigest.update(copyBuffer.asReadOnlyBuffer());
+                            writeFully(output, copyBuffer);
                         }
                     }
                 }
+                writeFully(output, PAYLOAD_CHECKSUM_OFFSET,
+                        ByteBuffer.wrap(payloadDigest.digest()));
                 output.force(true);
             }
             AtomicPublish.replace(temporary, absolute);
@@ -320,6 +347,38 @@ public final class PreparedTexturePackIO {
         return new String(bytes, StandardCharsets.UTF_8);
     }
 
+    private static byte[] sha256Range(FileChannel channel, long offset, long length)
+            throws IOException {
+        MessageDigest digest = newSha256();
+        ByteBuffer buffer = ByteBuffer.allocate(COPY_BUFFER_BYTES);
+        long position = offset;
+        long remaining = length;
+        while (remaining > 0) {
+            buffer.clear();
+            buffer.limit((int) Math.min(buffer.capacity(), remaining));
+            int read = channel.read(buffer, position);
+            if (read < 0) {
+                throw new EOFException("Prepared texture pack ended inside its payload");
+            }
+            if (read == 0) {
+                throw new IOException("Prepared texture pack payload read made no progress");
+            }
+            position += read;
+            remaining -= read;
+            buffer.flip();
+            digest.update(buffer);
+        }
+        return digest.digest();
+    }
+
+    private static MessageDigest newSha256() {
+        try {
+            return MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 is unavailable", impossible);
+        }
+    }
+
     private static void readFully(
             FileChannel channel, long offset, ByteBuffer target, String eofMessage) throws IOException {
         long position = offset;
@@ -336,6 +395,18 @@ public final class PreparedTexturePackIO {
             if (channel.write(source) <= 0) {
                 throw new IOException("Prepared texture pack write made no progress");
             }
+        }
+    }
+
+    private static void writeFully(FileChannel channel, long offset, ByteBuffer source)
+            throws IOException {
+        long position = offset;
+        while (source.hasRemaining()) {
+            int written = channel.write(source, position);
+            if (written <= 0) {
+                throw new IOException("Prepared texture pack positional write made no progress");
+            }
+            position += written;
         }
     }
 
