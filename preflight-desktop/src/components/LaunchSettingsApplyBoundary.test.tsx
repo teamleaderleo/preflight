@@ -36,4 +36,47 @@ describe("launch settings Apply boundary", () => {
     expect(onApply).toHaveBeenCalledWith(true);
     expect(apply).toBeDisabled();
   });
+
+  it("requires a fresh acknowledgment after a blocked state", async () => {
+    const user = userEvent.setup();
+    const onApply = vi.fn();
+    const { rerender } = render(
+      <LaunchSettingsApplyBoundary
+        boundary={boundary}
+        saving={false}
+        disabled={false}
+        onApply={onApply}
+      />,
+    );
+
+    const confirmation = screen.getByRole("checkbox", { name: /I closed every settings tool/ });
+    const apply = screen.getByRole("button", { name: "Apply changes" });
+    await user.click(confirmation);
+    expect(apply).toBeEnabled();
+
+    rerender(
+      <LaunchSettingsApplyBoundary
+        boundary={boundary}
+        saving={false}
+        disabled={true}
+        blockReason="Changes can be applied after Starsector closes."
+        onApply={onApply}
+      />,
+    );
+    expect(confirmation).toBeDisabled();
+    expect(confirmation).not.toBeChecked();
+    expect(apply).toBeDisabled();
+
+    rerender(
+      <LaunchSettingsApplyBoundary
+        boundary={boundary}
+        saving={false}
+        disabled={false}
+        onApply={onApply}
+      />,
+    );
+    expect(confirmation).toBeEnabled();
+    expect(confirmation).not.toBeChecked();
+    expect(apply).toBeDisabled();
+  });
 });
