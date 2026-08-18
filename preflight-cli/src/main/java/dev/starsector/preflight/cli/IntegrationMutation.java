@@ -255,13 +255,26 @@ final class IntegrationMutation {
         }
 
         void rollback() throws IOException {
+            rollback(true);
+        }
+
+        /**
+         * Withdraws the desired public generation while deliberately retaining the reviewed
+         * predecessor in quarantine. This is used when restoring a dependent launcher would make
+         * it point at a peer pathname that an external writer now owns.
+         */
+        void rollbackWithoutRestore() throws IOException {
+            rollback(false);
+        }
+
+        private void rollback(boolean restorePrevious) throws IOException {
             if (rolledBack) return;
             PreflightHome.Integration integration = review.integration();
             Path target = normalized(integration.path());
             fire(Event.BEFORE_ROLLBACK, integration, target);
 
             if (!Files.exists(target, NOFOLLOW)) {
-                if (previous != null) {
+                if (restorePrevious && previous != null) {
                     if (!review.snapshot().sameAs(Snapshot.capture(previous))
                             || !relocated(integration, previous).isOwned()) {
                         throw changed("restore previous", target, previous);
@@ -281,7 +294,7 @@ final class IntegrationMutation {
                 throw changed("roll back", target, published);
             }
 
-            if (previous != null) {
+            if (restorePrevious && previous != null) {
                 if (!review.snapshot().sameAs(Snapshot.capture(previous))
                         || !relocated(integration, previous).isOwned()) {
                     restoreOrPreserve(published, target);
