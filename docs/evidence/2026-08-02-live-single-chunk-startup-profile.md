@@ -1,9 +1,17 @@
-# The single-chunk startup profile works live — and confirms the sampling hole
+# The single-chunk startup profile works live — and reproduces the raw JFR clock ratio
 
 **Date:** 2026-08-02
 **Install:** Starsector 0.98a-RC8, Zulu 17.0.10 x86_64 under Rosetta, current 77-mod profile
 **Session:** `~/.starsector-preflight/benchmarks/20260802-090059`
 **Status:** main-menu run accepted; one-chunk policy and finalized wrapper receipt verified live
+
+> **2026-08-18 correction (#254):** the 26.060/65-second ratio below was reproduced on the exact
+> Zulu 17.0.10 x86_64/Rosetta runtime with an independent monotonic wall clock and JFR start/end
+> markers. The JFR timestamp clock itself advances at about 0.4x wall time in that runtime context,
+> while execution samples span about 99.9% of the JFR marker interval. The original "sampling hole"
+> interpretation is superseded. The remaining JDK 17 limitation is sparse successful-sample density,
+> and execution-sample percentages remain proportions of observed samples. See
+> [the #254 measurement](2026-08-18-jfr-execution-sample-coverage.md).
 
 ## Run
 
@@ -44,14 +52,17 @@ The prepared-texture runtime remained healthy: 21,653 hits, three ordinary fallb
 corruptions, zero quarantines, zero internal errors, and no disable reason. Runtime blob checksum
 verification was off, confirming that the trusted prepared-blob read path was live.
 
-## The actual game reproduces the sampling-coverage hole
+## The actual game reproduces the raw timestamp-scale observation
 
-The physical JFR chunk covers 65 seconds, but recorded events span only 26.060 seconds and contain
-4,047 execution samples — 40.1% of the chunk window. This closely reproduces the roughly 40%
-coverage measured by the synthetic workload. One chunk repairs timestamp comparability; it does not
-make execution sampling cover the rest of the window.
+The physical JFR chunk covers 65 wall-clock seconds, while the first/last recorded event timestamps
+span 26.060 JFR timestamp seconds and contain 4,047 execution samples — a raw 40.1% timestamp-span /
+wall-time ratio. The #254 marker probe later reproduced that ratio on the exact runtime and showed
+that the JFR marker clock itself advances at about 0.4x monotonic wall time. The raw 40.1% ratio is
+therefore a clock-scale observation, not evidence that execution sampling stopped for the remaining
+wall interval.
 
-The samples that do exist attribute 39.6% to audio decode, 14.3% to texture image work, 12.4% to
-Janino, 7.2% to other Starsector loading, and 6.3% to JSON. These are proportions of the available
-samples, not wall-clock durations. Until the coverage hole is explained, they are useful for
-prioritization and call-path discovery but cannot say what consumed the unsampled 38.3 seconds.
+The samples attribute 39.6% to audio decode, 14.3% to texture image work, 12.4% to Janino, 7.2% to
+other Starsector loading, and 6.3% to JSON. These are proportions of the observed samples, not
+wall-clock durations. They remain useful for prioritization and call-path discovery; elapsed seconds
+require independent timing evidence, and time between successful sample observations remains
+unknown/unobserved.

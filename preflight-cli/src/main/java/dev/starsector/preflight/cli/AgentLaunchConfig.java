@@ -90,45 +90,45 @@ final class AgentLaunchConfig {
     }
 
     String appendTo(String existing) {
-        return AgentInjection.append(
-                existing,
-                agentJar,
-                destination,
-                adapterMode,
-                adapterReport,
-                adapterTargets,
-                textureCacheDirectory,
-                textureManifest,
-                textureIndex,
-                textureAdapterMode,
-                exhaustiveFileReads,
-                recordingMode,
-                npotDirect,
-                unpadded,
-                singleChunkRecording,
-                campaignEntityIndex,
-                startupPhaseProbe,
-                variantJsonCache,
-                weaponJsonCache,
-                projectileJsonCache,
-                hullJsonCache,
-                rulesCsvCache,
-                ruleTokenCache,
-                ruleCommandClassCache,
-                resourceProbeCache,
-                loadJsonMemo,
-                preparedAudioCache,
-                audioDecoderIdentity,
-                preparedAudioManifest,
-                preparedAudioManifestIdentity,
-                mergedReadCache,
-                quietLogs,
-                graphicsLibCompactReplay,
-                janinoBytecodeCache,
-                janinoBytecodeContext,
-                graphicsLibInsigniaManagerCache,
-                adapterPlanScope);
+        return AgentInjection.append(existing, this);
     }
+
+    Path agentJar() { return agentJar; }
+    Path destination() { return destination; }
+    AdapterMode adapterMode() { return adapterMode; }
+    Path adapterReport() { return adapterReport; }
+    Path adapterTargets() { return adapterTargets; }
+    Path textureCacheDirectory() { return textureCacheDirectory; }
+    Path textureManifest() { return textureManifest; }
+    Path textureIndex() { return textureIndex; }
+    TextureAdapterMode textureAdapterMode() { return textureAdapterMode; }
+    boolean exhaustiveFileReads() { return exhaustiveFileReads; }
+    RecordingMode recordingMode() { return recordingMode; }
+    boolean npotDirect() { return npotDirect; }
+    boolean unpadded() { return unpadded; }
+    boolean singleChunkRecording() { return singleChunkRecording; }
+    boolean campaignEntityIndex() { return campaignEntityIndex; }
+    boolean startupPhaseProbe() { return startupPhaseProbe; }
+    Path variantJsonCache() { return variantJsonCache; }
+    Path weaponJsonCache() { return weaponJsonCache; }
+    Path projectileJsonCache() { return projectileJsonCache; }
+    Path hullJsonCache() { return hullJsonCache; }
+    Path rulesCsvCache() { return rulesCsvCache; }
+    boolean ruleTokenCache() { return ruleTokenCache; }
+    Path ruleCommandClassCache() { return ruleCommandClassCache; }
+    boolean resourceProbeCache() { return resourceProbeCache; }
+    boolean loadJsonMemo() { return loadJsonMemo; }
+    Path preparedAudioCache() { return preparedAudioCache; }
+    String audioDecoderIdentity() { return audioDecoderIdentity; }
+    Path preparedAudioManifest() { return preparedAudioManifest; }
+    String preparedAudioManifestIdentity() { return preparedAudioManifestIdentity; }
+    Path mergedReadCache() { return mergedReadCache; }
+    boolean quietLogs() { return quietLogs; }
+    boolean graphicsLibCompactReplay() { return graphicsLibCompactReplay; }
+    Path janinoBytecodeCache() { return janinoBytecodeCache; }
+    String janinoBytecodeContext() { return janinoBytecodeContext; }
+    boolean graphicsLibInsigniaManagerCache() { return graphicsLibInsigniaManagerCache; }
+    AdapterPlanScope adapterPlanScope() { return adapterPlanScope; }
 
     static final class Builder {
         private final Path agentJar;

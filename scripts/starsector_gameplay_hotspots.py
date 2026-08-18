@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Rank sampled gameplay stacks separately for campaign and combat.
+"""Rank observed gameplay execution samples separately for campaign and combat.
 
 Whole-session sample rankings mix startup, campaign, menus, and combat. This tool uses the reviewed
-game-loop roots already present in every sampled stack to separate the two gameplay states, then
-ranks both leaf work and inclusive methods. Counts are statistical CPU evidence, not wall time.
+game-loop roots already present in sampled stacks to separate the two gameplay states, then ranks
+both leaf work and inclusive methods. Counts and percentages describe the observed ExecutionSample
+population. Absolute wall-clock time requires an independent elapsed-time measurement.
 """
 import argparse
 import collections
@@ -101,6 +102,7 @@ def report(path, top=30, depth=96, contains=None):
         states[gameplay_state(methods)].append(methods)
 
     print(f"recording: {path}")
+    print("interpretation: percentages are shares of observed ExecutionSample events")
     print("classification: " + ", ".join(
         f"{name}={len(states[name])}" for name in ("campaign", "combat", "other")))
     for name in ("campaign", "combat"):
