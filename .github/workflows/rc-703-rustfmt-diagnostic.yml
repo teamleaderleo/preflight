@@ -1,0 +1,35 @@
+name: Diagnose #703 rustfmt
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rc-703-rustfmt-diagnostic.yml'
+      - 'preflight-desktop/src-tauri/src/**/*.rs'
+      - 'preflight-desktop/src-tauri/Cargo.toml'
+
+permissions:
+  contents: read
+
+jobs:
+  rustfmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          components: rustfmt
+      - name: Produce formatter diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --manifest-path preflight-desktop/src-tauri/Cargo.toml
+          git diff -- preflight-desktop/src-tauri/src > rustfmt.patch
+          cat rustfmt.patch
+      - name: Upload formatter diff
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rc-703-rustfmt-${{ github.run_id }}
+          path: rustfmt.patch
+          if-no-files-found: error
+          retention-days: 1
