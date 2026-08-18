@@ -27,6 +27,8 @@ enum TestPersistMutation {
 
 #[cfg(test)]
 static TEST_PERSIST_MUTATION: Mutex<Option<TestPersistMutation>> = Mutex::new(None);
+#[cfg(test)]
+static TEST_PERSIST_TEST_SERIAL: Mutex<()> = Mutex::new(());
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -1237,6 +1239,7 @@ mod tests {
 
     #[test]
     fn clear_after_generation_check_cannot_recreate_authority_storage() {
+        let _serial = TEST_PERSIST_TEST_SERIAL.lock().unwrap();
         let root = temp_root("late-clear");
         let store = ReportAuthorityStore::create_at(root.clone()).unwrap();
         let receipt = test_receipt("44444444-4444-4444-4444-444444444444", "dd");
@@ -1308,6 +1311,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn root_swap_before_credential_publication_is_refused_without_external_write() {
+        let _serial = TEST_PERSIST_TEST_SERIAL.lock().unwrap();
         use std::os::unix::fs::PermissionsExt;
         let root = temp_root("publish-swap");
         let external = temp_root("publish-external");
