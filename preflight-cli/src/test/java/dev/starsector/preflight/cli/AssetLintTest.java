@@ -410,6 +410,20 @@ class AssetLintTest {
         assertEquals(AssetLint.Severity.ERROR, finding.severity());
     }
 
+    @Test
+    void skipsConfigFilesBeyondTheMemorySafetyLimit() throws Exception {
+        Path core = profile();
+        Files.createDirectories(core.resolve("data/hulls"));
+        Files.writeString(core.resolve("data/hulls/huge.ship"),
+                " ".repeat(AssetLint.MAX_CONFIG_BYTES + 1));
+
+        AssetLint.Result result = AssetLint.scan(temporaryDirectory, null);
+
+        assertTrue(result.findings().stream().noneMatch(finding -> finding.rule().startsWith("config-")));
+        assertTrue(result.diagnostics().stream().anyMatch(message -> message.contains("byte safety limit")),
+                result.diagnostics().toString());
+    }
+
     /**
      * The dialect check that matters most in practice. These four shapes are all normal in shipping
      * mods, and a rule that fires on any of them would be reporting working files as broken.
