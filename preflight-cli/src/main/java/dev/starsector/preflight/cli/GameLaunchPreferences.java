@@ -115,7 +115,7 @@ final class GameLaunchPreferences {
     /**
      * One observed Preflight publication. {@code expectedAfter} names the raw values Preflight
      * intended to own for the keys it touched; {@code observedAfter} is the actual readback after
-     * the preference backend flushed.
+     * the preference backend flushed or reported a publication failure.
      */
     record AppliedChange(
             Generation before,
@@ -141,6 +141,21 @@ final class GameLaunchPreferences {
 
         PreferenceStateChangedException(String message) {
             super(message);
+        }
+    }
+
+    /** A backend failure after one or more requested preference values may already be visible. */
+    static final class PreferencePublicationException extends BackingStoreException {
+        private final AppliedChange observedChange;
+
+        PreferencePublicationException(String message, AppliedChange observedChange, Exception cause) {
+            super(message);
+            this.observedChange = observedChange;
+            initCause(cause);
+        }
+
+        AppliedChange observedChange() {
+            return observedChange;
         }
     }
 
@@ -230,8 +245,22 @@ final class GameLaunchPreferences {
 
         Set<String> touched = touchedKeys(update);
         Generation expectedAfter = expectedAfter(expected, update);
-        applyValues(store, update);
-        store.flush();
+        try {
+            applyExpectedValues(store, expectedAfter, touched);
+            store.flush();
+        } catch (BackingStoreException | RuntimeException failed) {
+            AppliedChange observed = null;
+            try {
+                observed = new AppliedChange(expected, expectedAfter, generation(store), touched);
+            } catch (RuntimeException observationFailed) {
+                failed.addSuppressed(observationFailed);
+            }
+            throw new PreferencePublicationException(
+                    "The launch settings backend failed while publishing the requested values;"
+                            + " review the current settings before retrying.",
+                    observed,
+                    failed);
+        }
         Generation observedAfter = generation(store);
         return new AppliedChange(expected, expectedAfter, observedAfter, touched);
     }
@@ -312,6 +341,14 @@ final class GameLaunchPreferences {
             Map<String, Object> gameplay = gameplayObject(store.get(GAMEPLAY_SETTINGS));
             gameplay.put(BATTLE_SIZE, update.battleSize());
             store.put(GAMEPLAY_SETTINGS, Json.object(gameplay));
+        }
+    }
+
+    private static void applyExpectedValues(Store store, Generation expectedAfter, Set<String> touched) {
+        for (String key : touched) {
+            String value = expectedAfter.get(key);
+            if (value == null) store.remove(key);
+            else store.put(key, value);
         }
     }
 
