@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,6 +50,52 @@ class ResourceProviderContentIdentityStabilityTest {
 
         assertEquals(ResourceProviderComparison.ContentEvidence.HASHED, stable.evidence());
         assertEquals(2, hashCalls.get(), "the raced digest must not enter the direct-hash memo");
+    }
+
+    @Test
+    void subMillisecondMtimeChangeDuringHashIsStaleWhenFilesystemPreservesPrecision() throws Exception {
+        Path root = Files.createDirectories(temporaryDirectory.resolve("submillisecond/root"));
+        Path file = Files.writeString(root.resolve("shared.bin"), "AAAA");
+        FileTime requestedBefore = FileTime.from(Instant.ofEpochSecond(1_700_000_000L, 100_000));
+        FileTime requestedAfter = FileTime.from(Instant.ofEpochSecond(1_700_000_000L, 900_000));
+
+        Files.setLastModifiedTime(file, requestedBefore);
+        FileTime observedBefore = Files.getLastModifiedTime(file);
+        Files.setLastModifiedTime(file, requestedAfter);
+        FileTime observedAfter = Files.getLastModifiedTime(file);
+        if (observedBefore.equals(observedAfter) || observedBefore.toMillis() != observedAfter.toMillis()) {
+            return; // This filesystem cannot expose the precision this regression exercises.
+        }
+        Files.setLastModifiedTime(file, observedBefore);
+        if (!observedBefore.equals(Files.getLastModifiedTime(file))) {
+            return; // The first precise timestamp cannot be restored reliably on this filesystem.
+        }
+
+        ResourceIndex.Provider provider = provider(root, "shared.bin");
+        ResourceIndex index = index(root, provider);
+        AtomicInteger hashCalls = new AtomicInteger();
+        ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
+                index,
+                path -> {
+                    int call = hashCalls.incrementAndGet();
+                    if (call == 1) {
+                        Files.writeString(path, "BBBB");
+                        Files.setLastModifiedTime(path, observedAfter);
+                    }
+                    return Hashes.sha256(path);
+                });
+
+        ResourceProviderComparison.ContentObservation raced = identities.observe("shared.bin", provider);
+
+        assertEquals(ResourceProviderComparison.ContentEvidence.STALE, raced.evidence());
+        assertEquals(1, hashCalls.get());
+
+        Files.writeString(file, "AAAA");
+        Files.setLastModifiedTime(file, observedBefore);
+        ResourceProviderComparison.ContentObservation stable = identities.observe("shared.bin", provider);
+
+        assertEquals(ResourceProviderComparison.ContentEvidence.HASHED, stable.evidence());
+        assertEquals(2, hashCalls.get(), "the precision-raced digest must not enter the direct-hash memo");
     }
 
     @Test
