@@ -575,6 +575,28 @@ pub(crate) fn rename_profile(
 }
 
 #[tauri::command]
+pub(crate) fn duplicate_profile(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+    game: String,
+    name: String,
+    new_name: String,
+    expected_profile: Option<String>,
+    confirmed: bool,
+) -> Result<Value, String> {
+    mutate_profile_json(
+        &app,
+        &tracker,
+        &game,
+        "duplicate",
+        &name,
+        Some(&new_name),
+        expected_profile.as_deref(),
+        confirmed,
+    )
+}
+
+#[tauri::command]
 pub(crate) fn delete_profile(
     app: AppHandle,
     tracker: State<'_, OperationCoordinator>,

@@ -688,6 +688,36 @@ export async function renameProfile(
   });
 }
 
+export async function duplicateProfile(
+  game: string,
+  name: string,
+  newName: string,
+  expectedProfile: string | null,
+  confirmed: boolean,
+): Promise<ProfileMutationPlan> {
+  if (!isDesktopHost()) {
+    const profile = previewProfiles.find((candidate) => candidate.name === name) ?? previewProfiles[0];
+    return {
+      format: "starsector-preflight-profile-mutation-v1",
+      operation: "duplicate",
+      name: profile.name,
+      targetName: newName,
+      profileFingerprint: profile.profileFingerprint,
+      active: false,
+      modCount: profile.modCount,
+      applied: confirmed && expectedProfile === profile.profileFingerprint,
+      preparedDataKept: true,
+    };
+  }
+  return invoke<ProfileMutationPlan>("duplicate_profile", {
+    game,
+    name,
+    newName,
+    expectedProfile,
+    confirmed,
+  });
+}
+
 export async function deleteProfile(
   game: string,
   name: string,

@@ -247,6 +247,48 @@ final class ProfileCommandTest {
         assertTrue(list(fixture).contains("\"name\":\"Campaign\""));
     }
 
+    @Test
+    void duplicateCreatesAnIndependentProfileWithMatchingFingerprint() throws Exception {
+        Fixture fixture = fixture(List.of("alpha", "beta"));
+        ByteArrayOutputStream saved = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.save(
+                fixture.home(), fixture.game(), "Original", true, stream(saved)));
+        String originalFingerprint = JsonText.string(saved.toString(StandardCharsets.UTF_8), "profileFingerprint");
+
+        ByteArrayOutputStream preview = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.duplicate(
+                fixture.home(), fixture.game(), "Original", "Experiment", null,
+                false, true, stream(preview)));
+        String previewJson = preview.toString(StandardCharsets.UTF_8);
+        assertTrue(previewJson.contains("\"operation\":\"duplicate\""));
+        assertTrue(previewJson.contains("\"name\":\"Original\""));
+        assertTrue(previewJson.contains("\"targetName\":\"Experiment\""));
+        assertTrue(previewJson.contains("\"applied\":false"));
+        assertFalse(list(fixture).contains("\"name\":\"Experiment\""));
+
+        ByteArrayOutputStream applied = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.duplicate(
+                fixture.home(), fixture.game(), "Original", "Experiment", originalFingerprint,
+                true, true, stream(applied)));
+        String appliedJson = applied.toString(StandardCharsets.UTF_8);
+        assertTrue(appliedJson.contains("\"applied\":true"));
+
+        String listJson = list(fixture);
+        assertTrue(listJson.contains("\"name\":\"Original\""));
+        assertTrue(listJson.contains("\"name\":\"Experiment\""));
+
+        // Name collision check
+        boolean collision = false;
+        try {
+            ProfileCommand.duplicate(
+                    fixture.home(), fixture.game(), "Original", "Experiment", null,
+                    false, true, stream(new ByteArrayOutputStream()));
+        } catch (java.io.IOException expected) {
+            collision = expected.getMessage().contains("already exists");
+        }
+        assertTrue(collision);
+    }
+
     private static String list(Fixture fixture) throws Exception {
         ByteArrayOutputStream listed = new ByteArrayOutputStream();
         assertEquals(0, ProfileCommand.list(fixture.home(), fixture.game(), true, stream(listed)));

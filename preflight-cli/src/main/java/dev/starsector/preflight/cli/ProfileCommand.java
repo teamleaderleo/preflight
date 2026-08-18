@@ -51,25 +51,25 @@ final class ProfileCommand {
                 throw new IllegalArgumentException("profile " + operation + " requires a name");
             }
             name = validateName(args[optionsAt++]);
-        } else if ("rename".equals(operation)) {
+        } else if ("rename".equals(operation) || "duplicate".equals(operation)) {
             if (optionsAt + 1 >= args.length
                     || args[optionsAt].startsWith("--")
                     || args[optionsAt + 1].startsWith("--")) {
-                throw new IllegalArgumentException("profile rename requires the current and new names");
+                throw new IllegalArgumentException("profile " + operation + " requires the current and new names");
             }
             name = validateName(args[optionsAt++]);
             targetName = validateName(args[optionsAt++]);
         } else if (!"list".equals(operation)) {
-            throw new IllegalArgumentException("Expected: profile <list|save|activate|rename|delete> ...");
+            throw new IllegalArgumentException("Expected: profile <list|save|activate|rename|duplicate|delete> ...");
         }
 
         Options options = Options.parse(args, optionsAt);
-        boolean mutation = "rename".equals(operation) || "delete".equals(operation);
+        boolean mutation = "rename".equals(operation) || "duplicate".equals(operation) || "delete".equals(operation);
         if (options.confirmed() && !("activate".equals(operation) || mutation)) {
-            throw new IllegalArgumentException("--yes is only valid for profile activate, rename, or delete");
+            throw new IllegalArgumentException("--yes is only valid for profile activate, rename, duplicate, or delete");
         }
         if (options.expectedProfile() != null && !mutation) {
-            throw new IllegalArgumentException("--expected-profile is only valid for profile rename or delete");
+            throw new IllegalArgumentException("--expected-profile is only valid for profile rename, duplicate, or delete");
         }
         if (mutation && options.confirmed() && options.expectedProfile() == null) {
             throw new IllegalArgumentException(
@@ -83,6 +83,15 @@ final class ProfileCommand {
             case "activate" -> activate(
                     home, target.installRoot(), name, options.confirmed(), options.json(), System.out);
             case "rename" -> rename(
+                    home,
+                    target.installRoot(),
+                    name,
+                    targetName,
+                    options.expectedProfile(),
+                    options.confirmed(),
+                    options.json(),
+                    System.out);
+            case "duplicate" -> duplicate(
                     home,
                     target.installRoot(),
                     name,
@@ -261,6 +270,65 @@ final class ProfileCommand {
         return 0;
     }
 
+    static int duplicate(
+            PreflightHome home,
+            Path installRoot,
+            String name,
+            String targetName,
+            String expectedProfile,
+            boolean confirmed,
+            boolean json,
+            PrintStream out) throws Exception {
+        name = validateName(name);
+        targetName = validateName(targetName);
+        if (name.equals(targetName)) {
+            throw new IllegalArgumentException("The new profile name must be different");
+        }
+        if (!confirmed) {
+            return duplicateOwned(home, installRoot, name, targetName, null, false, json, out);
+        }
+        OperationLease.Acquisition ownership = OperationLease.acquire(home, "duplicating-profile", installRoot);
+        try (OperationLease ignored = ownership.lease()) {
+            return duplicateOwned(home, installRoot, name, targetName, expectedProfile, true, json, out);
+        }
+    }
+
+    private static int duplicateOwned(
+            PreflightHome home,
+            Path installRoot,
+            String name,
+            String targetName,
+            String expectedProfile,
+            boolean confirmed,
+            boolean json,
+            PrintStream out) throws Exception {
+        GameLayout layout = GameLayout.locate(installRoot);
+        SavedProfile profile = readProfile(profilePath(home, name));
+        requireProfileName(profile, name);
+        Path target = profilePath(home, targetName);
+        if (Files.exists(target)) {
+            throw new IOException("A named profile already exists: " + targetName);
+        }
+        Map<String, Object> plan = mutationPlan("duplicate", profile, layout, targetName);
+        if (!confirmed) {
+            emitMutation(plan, json, out);
+            return 0;
+        }
+        requireExpectedProfile(profile, expectedProfile);
+        SavedProfile duplicated = new SavedProfile(
+                targetName,
+                profile.installRoot(),
+                profile.enabledMods(),
+                profile.profileFingerprint(),
+                Instant.now().toString(),
+                target);
+        atomicWrite(target, Json.object(duplicated.persisted()) + System.lineSeparator());
+        plan.put("applied", true);
+        plan.put("file", target.toString());
+        emitMutation(plan, json, out);
+        return 0;
+    }
+
     static int delete(
             PreflightHome home,
             Path installRoot,
@@ -354,6 +422,10 @@ final class ProfileCommand {
         String operation = String.valueOf(plan.get("operation"));
         if ("rename".equals(operation)) {
             out.printf(Locale.ROOT, "Rename profile '%s' to '%s': %s%n",
+                    plan.get("name"), plan.get("targetName"),
+                    Boolean.TRUE.equals(plan.get("applied")) ? "applied" : "preview only");
+        } else if ("duplicate".equals(operation)) {
+            out.printf(Locale.ROOT, "Duplicate profile '%s' to '%s': %s%n",
                     plan.get("name"), plan.get("targetName"),
                     Boolean.TRUE.equals(plan.get("applied")) ? "applied" : "preview only");
         } else {

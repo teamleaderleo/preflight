@@ -88,3 +88,109 @@ test("a stale activation becomes a fresh review instead of reporting success", a
 
   activate.mockRestore();
 });
+
+test("duplicate profile workflow reviews then applies duplicate mutation", async () => {
+  const getProfilesSpy = vi.spyOn(bridge, "getProfiles").mockResolvedValue({
+    format: "starsector-preflight-profile-list-v1",
+    installRoot: "/Applications/Starsector",
+    enabledMods: ["alpha"],
+    profiles: [{
+      name: "Main",
+      installRoot: "/Applications/Starsector",
+      enabledMods: ["alpha"],
+      modCount: 1,
+      profileFingerprint: "a".repeat(64),
+      savedAt: new Date().toISOString(),
+      sameInstall: true,
+      active: true,
+      canActivate: true,
+      missingMods: [],
+      file: "/home/profiles/a.json",
+    }],
+    diagnostics: [],
+  });
+
+  const duplicateSpy = vi.spyOn(bridge, "duplicateProfile")
+    .mockResolvedValueOnce({
+      format: "starsector-preflight-profile-mutation-v1",
+      operation: "duplicate",
+      name: "Main",
+      targetName: "Experiment",
+      profileFingerprint: "a".repeat(64),
+      active: false,
+      modCount: 1,
+      applied: false,
+      preparedDataKept: true,
+    })
+    .mockResolvedValueOnce({
+      format: "starsector-preflight-profile-mutation-v1",
+      operation: "duplicate",
+      name: "Main",
+      targetName: "Experiment",
+      profileFingerprint: "a".repeat(64),
+      active: false,
+      modCount: 1,
+      applied: true,
+      preparedDataKept: true,
+    });
+
+  const refreshInstallation = vi.fn().mockResolvedValue(true);
+  const refreshCache = vi.fn().mockResolvedValue(undefined);
+  const announce = vi.fn();
+  const { result } = renderHook(() => useProfiles(
+    "/Applications/Starsector",
+    false,
+    refreshInstallation,
+    refreshCache,
+    announce,
+  ));
+
+  act(() => {
+    result.current.beginDuplicate("Main");
+  });
+  expect(result.current.duplicateTarget).toBe("Main");
+  expect(result.current.duplicateDraft).toBe("Main (Copy)");
+
+  act(() => {
+    result.current.setDuplicateDraft("Experiment");
+  });
+  expect(result.current.duplicateDraft).toBe("Experiment");
+
+  await act(async () => {
+    result.current.submitDuplicate();
+  });
+
+  expect(duplicateSpy).toHaveBeenNthCalledWith(
+    1,
+    "/Applications/Starsector",
+    "Main",
+    "Experiment",
+    null,
+    false,
+  );
+  expect(result.current.duplicateTarget).toBeNull();
+  expect(result.current.mutationPlan).toMatchObject({
+    operation: "duplicate",
+    name: "Main",
+    targetName: "Experiment",
+    applied: false,
+  });
+
+  await act(async () => {
+    await result.current.applyProfileMutation();
+  });
+
+  expect(duplicateSpy).toHaveBeenNthCalledWith(
+    2,
+    "/Applications/Starsector",
+    "Main",
+    "Experiment",
+    "a".repeat(64),
+    true,
+  );
+  expect(result.current.mutationPlan).toBeNull();
+  expect(announce).toHaveBeenCalledWith("Duplicated “Main” as “Experiment”.", "success");
+
+  getProfilesSpy.mockRestore();
+  duplicateSpy.mockRestore();
+});

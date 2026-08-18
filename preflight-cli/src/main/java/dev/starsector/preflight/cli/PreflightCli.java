@@ -349,12 +349,13 @@ public final class PreflightCli {
                 "preflight profile list [--game <path>] [--launcher <path>] [--json]",
                 "preflight profile save <name> [--game <path>] [--launcher <path>] [--json]",
                 "preflight profile activate <name> [--game <path>] [--launcher <path>] [--json] [--yes]",
+                "preflight profile duplicate <name> <new-name> [--game <path>] [--launcher <path>] [--expected-profile <sha256>] [--json] [--yes]",
                 "preflight profile rename <name> <new-name> [--game <path>] [--launcher <path>] [--expected-profile <sha256>] [--json] [--yes]",
                 "preflight profile delete <name> [--game <path>] [--launcher <path>] [--expected-profile <sha256>] [--json] [--yes]",
                 "  Saves and restores ordered enabled-mod sets. Activation prints the exact plan",
                 "  by default; --yes stages and replaces mods/enabled_mods.json after backing it up.",
-                "  Rename and delete also preview by default. Applying them requires the exact profile",
-                "  fingerprint from that preview; delete keeps prepared data and writes a profile backup.",
+                "  Duplicate, rename, and delete also preview by default. Applying them requires the exact",
+                "  profile fingerprint from that preview; delete keeps prepared data and writes a profile backup.",
                 "  Missing mods or a profile saved for another installation are refused."));
         usage.put("scan", List.of(
                 "preflight scan [--game <path>] [--launcher <path>] [--json <profile.json>] [--vram-budget <size>] [--max-texture-size <pixels>]",
