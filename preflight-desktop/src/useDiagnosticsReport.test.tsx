@@ -50,7 +50,7 @@ test("automatic failed-run reporting uses the native atomic claim and sends an e
   const claimed = new Set<string>();
   vi.spyOn(reportBridge, "getReportState").mockImplementation(async (_legacyReceipt, automaticRunIdentity) => {
     let automaticClaimed: boolean | null = null;
-    if (automaticRunIdentity !== null) {
+    if (typeof automaticRunIdentity === "string") {
       automaticClaimed = !claimed.has(automaticRunIdentity);
       claimed.add(automaticRunIdentity);
     }
