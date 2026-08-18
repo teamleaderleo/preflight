@@ -8,7 +8,7 @@ export interface BlockingWorkflow {
 
 export interface WorkflowState {
   preparing: boolean;
-  preparationPercent: number;
+  preparationPercent: number | null;
   cacheRepairing: boolean;
   choosingInstall: boolean;
   restoringOperation: boolean;
@@ -36,7 +36,9 @@ export interface WorkflowState {
 export function blockingWorkflow(state: WorkflowState): BlockingWorkflow | null {
   if (state.preparing) {
     return {
-      reason: `Preparing this mod setup · ${state.preparationPercent}% complete`,
+      reason: state.preparationPercent === null
+        ? "Preparing this mod setup"
+        : `Preparing this mod setup · ${state.preparationPercent}% complete`,
       owner: "home",
     };
   }
