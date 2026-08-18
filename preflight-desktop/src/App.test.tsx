@@ -5,6 +5,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import App from "./App";
 import { failedRunSummary } from "./uiFormat";
 import { adapterHealthLine } from "./adapterHealthText";
+import { HOME_OPTIONS_STORAGE_KEY } from "./desktopStorage";
 import { isCurrentProfilePrepared } from "./usePreparation";
 import * as bridge from "./bridge";
 import type { CacheHealth, CacheSnapshot, LaunchSettings } from "./types";
@@ -300,6 +301,7 @@ test("the Preflight page offers the same direct minimal-disk recovery", async ()
 });
 
 test("shows a useful ready-state home screen in browser preview", async () => {
+  const user = userEvent.setup();
   render(<App />);
 
   expect(await screen.findByText("Ready")).toBeInTheDocument();
@@ -309,8 +311,13 @@ test("shows a useful ready-state home screen in browser preview", async () => {
   expect(screen.queryByLabelText("Active profile")).not.toBeInTheDocument();
   // The card names the profile and says when it was saved. It used to add "Named by you", which
   // explained the difference between a chosen name and a generated one and told you nothing else.
-  expect(screen.getByLabelText("Mod profile")).toHaveValue("Main campaign");
-  expect(screen.getByText(/^83 mods · saved /)).toBeInTheDocument();
+  expect(screen.getByLabelText("186h played across 78 recorded sessions")).toBeInTheDocument();
+  expect(screen.queryByLabelText("Mod profile")).not.toBeInTheDocument();
+  expect(window.localStorage.getItem(HOME_OPTIONS_STORAGE_KEY)).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Options" }));
+  expect(window.localStorage.getItem(HOME_OPTIONS_STORAGE_KEY)).toBe("open");
+  expect(screen.getByLabelText("Home resolution")).toHaveValue("1440x932");
+  expect(screen.queryByLabelText("Mod profile")).not.toBeInTheDocument();
   expect(screen.queryByText(/Named by you/)).not.toBeInTheDocument();
   expect(screen.queryByText("Recommended")).not.toBeInTheDocument();
   expect(screen.queryByText(/Recommended optimizations/)).not.toBeInTheDocument();
@@ -480,14 +487,13 @@ test("a failed launch offers help, and help is one click away from making the fi
   expect(screen.queryByRole("heading", { name: "Benchmark", level: 1 })).not.toBeInTheDocument();
 });
 
-test("blocks installation and preparation mutations while the game is running", async () => {
+test("blocks preparation mutations while the game is running", async () => {
   const user = userEvent.setup();
   const game = vi.spyOn(bridge, "startGame").mockImplementation(() => new Promise(() => undefined));
   render(<App />);
 
   await user.click(await screen.findByRole("button", { name: "Launch Starsector" }));
   await waitFor(() => expect(game).toHaveBeenCalled());
-  expect(screen.getByRole("button", { name: "Change Starsector installation" })).toBeDisabled();
 
   await user.click(screen.getByRole("button", { name: "Speed" }));
   expect(await screen.findByText("Opening Starsector. Other changes wait until it finishes.")).toBeInTheDocument();
@@ -517,7 +523,7 @@ test("does not rediscover a stable installation when the window regains focus", 
   snapshot.mockRestore();
 });
 
-test("keeps launch-route drafting lines off the installation picker", async () => {
+test("keeps the ship display off the installation picker", async () => {
   const snapshot = vi.spyOn(bridge, "getBootstrapSnapshot").mockResolvedValue({
     ...(await bridge.getSnapshot()),
     ready: false,
@@ -527,12 +533,14 @@ test("keeps launch-route drafting lines off the installation picker", async () =
   const { container } = render(<App />);
   await screen.findByRole("button", { name: "Choose game folder" });
 
-  expect(container.querySelector(".flight-plot")).not.toBeInTheDocument();
+  expect(container.querySelector(".home-flight-instrument")).not.toBeInTheDocument();
   snapshot.mockRestore();
 });
 
 test("window focus never changes the quick game controls", async () => {
+  const user = userEvent.setup();
   render(<App />);
+  await user.click(await screen.findByRole("button", { name: "Options" }));
   const sound = await screen.findByRole("checkbox", { name: "Home sound" });
   expect(sound).toBeEnabled();
   expect(sound).toBeChecked();
@@ -633,6 +641,7 @@ test("common game settings are editable beside launch", async () => {
   render(<App />);
 
   await screen.findByText("Ready");
+  await user.click(screen.getByRole("button", { name: "Options" }));
   expect(await screen.findByLabelText("Home resolution")).toHaveValue("1440x932");
   expect(screen.getByLabelText("Home antialiasing")).toHaveValue("0");
   expect(screen.getByLabelText("Home UI size")).toHaveValue("1");
@@ -657,6 +666,7 @@ test("the primary action saves edited game settings before launching", async () 
   render(<App />);
 
   await screen.findByText("Ready");
+  await user.click(screen.getByRole("button", { name: "Options" }));
   await user.clear(await screen.findByLabelText("Home battle size"));
   await user.type(screen.getByLabelText("Home battle size"), "300");
   await user.click(screen.getByRole("button", { name: "Launch Starsector" }));
@@ -679,6 +689,7 @@ test("the primary action does not launch when edited game settings fail to save"
   render(<App />);
 
   await screen.findByText("Ready");
+  await user.click(screen.getByRole("button", { name: "Options" }));
   await user.clear(await screen.findByLabelText("Home battle size"));
   await user.type(screen.getByLabelText("Home battle size"), "300");
   await user.click(screen.getByRole("button", { name: "Launch Starsector" }));
@@ -706,6 +717,7 @@ test("an unrelated update check does not erase a game-settings failure", async (
   render(<App />);
 
   await screen.findByText("Ready");
+  await user.click(screen.getByRole("button", { name: "Options" }));
   await user.clear(await screen.findByLabelText("Home battle size"));
   await user.type(screen.getByLabelText("Home battle size"), "300");
   await user.click(screen.getByRole("button", { name: "Apply changes" }));
@@ -811,47 +823,39 @@ test("after-launch behavior defaults to minimize and remains an explicit setting
   game.mockRestore();
 });
 
-test("the Hangar ships featured wireframes and keeps customization local to the selected hull", async () => {
+test("the Hangar keeps the ship central and its compact customization local to that hull", async () => {
   const user = userEvent.setup();
   render(<App />);
 
   await user.click(await screen.findByRole("button", { name: "Hangar" }));
-  expect(screen.getByLabelText("186h recorded playtime across 78 sessions")).toBeInTheDocument();
-  expect(screen.getByText("Longest")).toBeInTheDocument();
-  expect(screen.getByText("Typical")).toBeInTheDocument();
-  // The six are chips, not a dropdown. There is no select on this page at all: the installed
-  // catalog behind the featured six gets a filter rather than two hundred <option> elements.
-  const fleet = await screen.findByRole("group", { name: "Featured ships" });
+  expect(screen.queryByLabelText("186h played across 78 recorded sessions")).not.toBeInTheDocument();
+  expect(screen.queryByText("Longest")).not.toBeInTheDocument();
+  expect(screen.queryByText("Featured hulls")).not.toBeInTheDocument();
+  const ship = screen.getByRole("combobox", { name: "Display ship" });
   for (const name of ["Odyssey", "Onslaught", "Conquest", "Paragon", "Astral", "Hammerhead"]) {
-    expect(within(fleet).getByRole("button", { name })).toBeInTheDocument();
+    expect(within(ship).getByRole("option", { name })).toBeInTheDocument();
   }
-  expect(within(fleet).queryByRole("button", { name: "Preflight courier" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
-  await waitFor(() => expect(within(fleet).getByRole("button", { name: "Odyssey" })).toHaveAttribute("aria-pressed", "true"));
-  expect(await screen.findByText("6 installed")).toBeInTheDocument();
-  expect(screen.queryByText("Adjust wireframe")).not.toBeInTheDocument();
+  expect(within(ship).queryByRole("option", { name: "Preflight courier" })).not.toBeInTheDocument();
+  expect(ship).toHaveValue("odyssey");
 
-  const height = screen.getByRole("slider", { name: "Model height" });
+  const height = screen.getByRole("slider", { name: "Depth" });
   fireEvent.change(height, { target: { value: "1.35" } });
   expect(screen.getByRole("button", { name: "Reset" })).toBeEnabled();
   await waitFor(() => expect(JSON.parse(window.localStorage.getItem("preflight.instrumentHullTuning.v1") ?? "{}")["/Applications/Starsector::odyssey"].height).toBe(1.35));
 
-  // Each loop family has its own dials, and they are independent: moving the interior tolerance
-  // has to leave the outline's alone, or the two groups are one dial wearing two labels.
-  const interior = screen.getByRole("slider", { name: "Interior simplification" });
-  expect(screen.getByRole("slider", { name: "Interior smoothing" })).toBeInTheDocument();
-  fireEvent.change(interior, { target: { value: "0.04" } });
+  const detail = screen.getByRole("slider", { name: "Detail" });
+  fireEvent.change(detail, { target: { value: "0.04" } });
   await waitFor(() => {
     const saved = JSON.parse(window.localStorage.getItem("preflight.instrumentHullTuning.v1") ?? "{}");
+    expect(saved["/Applications/Starsector::odyssey"].outerDetail).toBe(0.04);
     expect(saved["/Applications/Starsector::odyssey"].innerDetail).toBe(0.04);
   });
-  expect(screen.getByRole("slider", { name: "Outline simplification" })).toHaveValue("0.012");
 
-  await user.click(within(fleet).getByRole("button", { name: "Onslaught" }));
+  await user.selectOptions(ship, "onslaught");
   expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled();
-  await user.click(within(fleet).getByRole("button", { name: "Odyssey" }));
-  expect(screen.getByRole("slider", { name: "Model height" })).toHaveValue("1.35");
-  expect(screen.getByRole("slider", { name: "Interior simplification" })).toHaveValue("0.04");
+  await user.selectOptions(ship, "odyssey");
+  expect(screen.getByRole("slider", { name: "Depth" })).toHaveValue("1.35");
+  expect(screen.getByRole("slider", { name: "Detail" })).toHaveValue("0.04");
 });
 
 test("the desktop sidebar collapses to icon navigation without losing its destinations", async () => {
@@ -891,6 +895,7 @@ test("the running preview keeps next-launch drafts editable while blocking the w
   render(<App />);
 
   expect(await screen.findByRole("button", { name: "Stop Starsector" })).toBeEnabled();
+  await user.click(screen.getByRole("button", { name: "Options" }));
   expect(await screen.findByRole("combobox", { name: "Home resolution" })).toBeEnabled();
   expect(screen.getByRole("spinbutton", { name: "Home battle size" })).toBeEnabled();
   expect(screen.getByRole("combobox", { name: "Home game memory" })).toBeEnabled();
@@ -915,9 +920,7 @@ test("storage totals disclose data outside the active cache categories", async (
 
   render(<App />);
   await screen.findByText("Ready");
-  expect(screen.getByText("Prepared data")).toBeInTheDocument();
-  expect(screen.queryByText("Disk used")).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Free space" }));
+  await user.click(screen.getByRole("button", { name: "Speed" }));
   await user.click(await screen.findByText("Storage details"));
 
   expect(await screen.findByText("Other Preflight data")).toBeInTheDocument();
@@ -931,7 +934,8 @@ test("cache cleanup is previewed before unused artifacts are removed", async () 
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Free space" }));
+  await user.click(screen.getByRole("button", { name: "Speed" }));
+  await user.click(await screen.findByRole("button", { name: "Review cleanup" }));
 
   expect(await screen.findByRole("heading", { name: "Free 4.72 GB?" })).toBeInTheDocument();
   expect(screen.getByText("Cleanup review")).toBeInTheDocument();
@@ -948,7 +952,7 @@ test("a benchmark cannot be queued behind an active cleanup", async () => {
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Free space" }));
+  await user.click(screen.getByRole("button", { name: "Speed" }));
   await user.click(await screen.findByRole("button", { name: "Review cleanup" }));
   await user.click(await screen.findByRole("button", { name: "Free 4.72 GB" }));
   await user.click(screen.getByRole("button", { name: "Speed" }));
@@ -963,6 +967,7 @@ test("launch settings mirror vanilla display and battle controls", async () => {
   render(<App />);
 
   await screen.findByText("Ready");
+  await user.click(screen.getByRole("button", { name: "Options" }));
   await user.click(screen.getByRole("button", { name: "All settings" }));
 
   expect(await screen.findByRole("heading", { name: "Game settings", level: 1 })).toBeInTheDocument();
@@ -984,8 +989,7 @@ test("profiles are preview-first and show the exact switch before applying", asy
   render(<App />);
 
   await screen.findByText("Ready");
-  expect(await screen.findByLabelText("Mod profile")).toHaveValue("Main campaign");
-  await user.click(screen.getByRole("button", { name: "Profiles" }));
+  await user.click(screen.getByRole("button", { name: "Mods" }));
 
   expect(await screen.findByRole("heading", { name: "Mods", level: 1 })).toBeInTheDocument();
   expect(screen.getByText("Main campaign")).toBeInTheDocument();
@@ -1012,9 +1016,11 @@ test("profile work does not dim unrelated launcher settings", async () => {
   ));
 
   render(<App />);
-  await user.selectOptions(await screen.findByLabelText("Mod profile"), "Utilities only");
+  await user.click(await screen.findByRole("button", { name: "Mods" }));
+  await user.click(await screen.findByRole("button", { name: "Switch…" }));
   await user.click(await screen.findByRole("button", { name: "Apply switch" }));
   await user.click(screen.getByRole("button", { name: "Home" }));
+  await user.click(await screen.findByRole("button", { name: "Options" }));
 
   expect(await screen.findByRole("checkbox", { name: "Home sound" })).toBeEnabled();
   expect(screen.getByRole("combobox", { name: "Home resolution" })).toBeEnabled();
@@ -1027,24 +1033,6 @@ test("profile work does not dim unrelated launcher settings", async () => {
     true,
   ));
   activate.mockRestore();
-});
-
-/**
- * The home card is where a player already is when they think about profiles, so switching and
- * renaming start there. Both still land in the same reviewed flow -- home opens the review, it
- * never applies anything on its own.
- */
-test("the home card can start a switch, and it is still reviewed before anything changes", async () => {
-  const user = userEvent.setup();
-  const activate = vi.spyOn(bridge, "activateProfile");
-  render(<App />);
-
-  await screen.findByText("Ready");
-  await user.selectOptions(await screen.findByLabelText("Mod profile"), "Utilities only");
-
-  expect(await screen.findByRole("heading", { name: "Switch to Utilities only?" })).toBeInTheDocument();
-  expect(activate).toHaveBeenCalledWith("/Applications/Starsector", "Utilities only", false);
-  expect(activate).not.toHaveBeenCalledWith(expect.anything(), expect.anything(), true);
 });
 
 test("a profile with missing mods explains the problem without showing a dead switch action", async () => {

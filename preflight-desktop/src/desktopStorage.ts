@@ -12,6 +12,7 @@ export const INSTRUMENT_HULL_STORAGE_KEY = "preflight.instrumentHull";
 export const INSTRUMENT_HULL_TUNING_STORAGE_KEY = "preflight.instrumentHullTuning.v1";
 export const LAST_INSTALL_ROOT_STORAGE_KEY = "preflight.lastInstallRoot";
 export const SIDEBAR_STORAGE_KEY = "preflight.sidebar";
+export const HOME_OPTIONS_STORAGE_KEY = "preflight.homeOptions";
 
 /** Every Preflight-owned value persisted in the desktop renderer/WebView localStorage. */
 export const PREFLIGHT_LOCAL_STORAGE_KEYS = Object.freeze([
@@ -29,6 +30,7 @@ export const PREFLIGHT_LOCAL_STORAGE_KEYS = Object.freeze([
   INSTRUMENT_HULL_TUNING_STORAGE_KEY,
   LAST_INSTALL_ROOT_STORAGE_KEY,
   SIDEBAR_STORAGE_KEY,
+  HOME_OPTIONS_STORAGE_KEY,
 ] as const);
 
 const MAX_INSTALL_ROOT_CHARACTERS = 32_768;

@@ -2,12 +2,8 @@ import { useMemo, useState } from "react";
 import type { WireframeHull } from "../types";
 
 /**
- * A dropdown is the wrong control for this list.
- *
- * The featured six are chips because there are six of them. Behind those sits every hull the
- * installation has, which is 200 on a stock copy and considerably more with mods, and a native
- * select gives that no filtering, no size beside the name, and a popup list nothing in the app can
- * style. Typing two letters is how anyone actually finds a hull in a list that long.
+ * Installed and modded catalogs are too large for one native dropdown. Keep the visible list
+ * bounded and make filtering the normal way to reach deep entries.
  */
 interface HullPickerProps {
   hulls: WireframeHull[];
