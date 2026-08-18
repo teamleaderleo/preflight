@@ -8,6 +8,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.ProviderMismatchException;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.HashMap;
@@ -60,20 +61,9 @@ final class ResourceProviderContentIdentity {
     private ResourceProviderComparison.ContentObservation observeDirect(
             String logicalPath, ResourceIndex.Provider provider) {
         try {
-            Path file = index.resolveExisting(provider).toAbsolutePath().normalize();
-            /*
-             * Opened before anything is observed about it, and never re-opened by name.
-             *
-             * Two pathname stats around a read prove only that the name pointed at the same entry
-             * at two instants. They cannot see a same-size, same-timestamp file moved over the name
-             * for the duration of the read and moved away again: both stats observe the original,
-             * the original keeps its identity because a rename preserves it, and the digest that
-             * gets published belongs to bytes that were never there before or after. Holding one
-             * handle open across the whole observation is what closes that window -- a rename over
-             * the name does not move an open handle, so the bytes hashed here are the bytes of the
-             * entry this stream was opened on.
-             */
-            try (InputStream bytes = Files.newInputStream(file)) {
+            Path proofLink = null;
+            try {
+                Path file = index.resolveExisting(provider).toAbsolutePath().normalize();
                 BasicFileAttributes before = Files.readAttributes(file, BasicFileAttributes.class);
                 if (!before.isRegularFile()) {
                     return ResourceProviderComparison.ContentObservation.unreadable();
@@ -92,23 +82,62 @@ final class ResourceProviderContentIdentity {
                     return ResourceProviderComparison.ContentObservation.hashed(cached.sha256());
                 }
 
-                String digest = directHasher.sha256(bytes);
+                /*
+                 * The portable Java 17 channel APIs expose no identity for an already-open handle.
+                 * Anchor the selected entry under a second name instead: a hard link keeps naming
+                 * the same file if the provider pathname is replaced, and isSameFile ties that
+                 * anchored file back to the provider pathname before and after the read. If the
+                 * provider and temporary directory cannot support that proof, exact evidence is
+                 * unavailable and the caller gets conservative stale evidence.
+                 */
+                proofLink = createProofLink(file);
+                if (proofLink == null) {
+                    return ResourceProviderComparison.ContentObservation.stale();
+                }
+
+                BasicFileAttributes proofBefore = Files.readAttributes(proofLink, BasicFileAttributes.class);
+                FileIdentity proofIdentity = FileIdentity.from(proofBefore);
+                if (!proofBefore.isRegularFile()
+                        || !matchesIndexedMetadata(provider, proofBefore)
+                        || !beforeIdentity.equals(proofIdentity)
+                        || !Files.isSameFile(file, proofLink)) {
+                    return ResourceProviderComparison.ContentObservation.stale();
+                }
+
+                String digest;
+                try (InputStream bytes = Files.newInputStream(proofLink)) {
+                    digest = directHasher.sha256(bytes);
+                }
+
                 Path afterFile = index.resolveExisting(provider).toAbsolutePath().normalize();
                 if (!file.equals(afterFile)) {
                     return ResourceProviderComparison.ContentObservation.stale();
                 }
+
+                BasicFileAttributes proofAfter = Files.readAttributes(proofLink, BasicFileAttributes.class);
                 BasicFileAttributes after = Files.readAttributes(afterFile, BasicFileAttributes.class);
-                if (!after.isRegularFile()
+                FileIdentity proofAfterIdentity = FileIdentity.from(proofAfter);
+                FileIdentity afterIdentity = FileIdentity.from(after);
+                if (!proofAfter.isRegularFile()
+                        || !after.isRegularFile()
+                        || !matchesIndexedMetadata(provider, proofAfter)
                         || !matchesIndexedMetadata(provider, after)
-                        || !beforeIdentity.equals(FileIdentity.from(after))) {
+                        || !proofIdentity.equals(proofAfterIdentity)
+                        || !proofAfterIdentity.equals(afterIdentity)
+                        || !Files.isSameFile(afterFile, proofLink)) {
                     return ResourceProviderComparison.ContentObservation.stale();
                 }
 
-                // Publish to the memo only after the pathname, indexed metadata, and filesystem
-                // identity are stable across the complete read. A raced digest must never become
-                // reusable evidence.
-                directHashes.put(file, new DirectHash(digest, FileIdentity.from(after)));
+                // A null file key cannot safely distinguish a later same-metadata replacement, so
+                // exact evidence can still be returned for this read but must not enter the memo.
+                if (afterIdentity.fileKey() != null) {
+                    directHashes.put(file, new DirectHash(digest, afterIdentity));
+                }
                 return ResourceProviderComparison.ContentObservation.hashed(digest);
+            } finally {
+                if (proofLink != null) {
+                    Files.deleteIfExists(proofLink);
+                }
             }
         } catch (NoSuchFileException missing) {
             return ResourceProviderComparison.ContentObservation.missing();
@@ -134,13 +163,31 @@ final class ResourceProviderContentIdentity {
         }
     }
 
+    private static Path createProofLink(Path file) throws IOException {
+        Path candidate = null;
+        boolean linked = false;
+        try {
+            candidate = Files.createTempFile("preflight-provider-proof-", ".link");
+            Files.delete(candidate);
+            Files.createLink(candidate, file);
+            linked = true;
+            return candidate;
+        } catch (UnsupportedOperationException | SecurityException | ProviderMismatchException | IOException unavailable) {
+            return null;
+        } finally {
+            if (!linked && candidate != null) {
+                Files.deleteIfExists(candidate);
+            }
+        }
+    }
+
     private static boolean matchesIndexedMetadata(
             ResourceIndex.Provider provider, BasicFileAttributes attributes) {
         long modifiedMillis = Math.max(0, attributes.lastModifiedTime().toMillis());
         return attributes.size() == provider.size() && modifiedMillis == provider.modifiedMillis();
     }
 
-    /** Digests an already-open handle, so no implementation can re-open the provider by name. */
+    /** Digests an already-open stream supplied by the exact-evidence observer. */
     @FunctionalInterface
     interface DirectHasher {
         String sha256(InputStream bytes) throws IOException;
