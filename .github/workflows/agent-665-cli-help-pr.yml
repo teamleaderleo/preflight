@@ -1,0 +1,39 @@
+name: Agent 665 CLI help PR patch
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/issue-665-cli-help
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Apply focused CLI help changes
+        run: python3 .github/agent-665-cli-help.py
+      - name: Verify CLI help slice
+        run: ./mvnw --batch-mode --no-transfer-progress -pl preflight-cli -am -Dtest=PreflightCliHelpTest -Dsurefire.failIfNoSpecifiedTests=false test
+      - name: Commit reviewed slice and remove staging files
+        shell: bash
+        run: |
+          git config user.name 'preflight-cli-agent'
+          git config user.email 'preflight-cli-agent@users.noreply.github.com'
+          git rm .github/workflows/agent-665-cli-help.yml \
+                 .github/workflows/agent-665-cli-help-pr.yml \
+                 .github/agent-665-cli-help.py
+          git add preflight-cli/src/main/java/dev/starsector/preflight/cli/PreflightCli.java \
+                  preflight-cli/src/test/java/dev/starsector/preflight/cli/PreflightCliHelpTest.java
+          git commit -m 'feat(cli): organize everyday help'
+          git push origin HEAD:agent/issue-665-cli-help
