@@ -84,7 +84,6 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
             <button
               className="button button--quiet button--compact"
               type="button"
-              aria-pressed={motion === "still"}
               title={motion === "rotate" ? "Stop decorative hull rotation" : "Resume decorative hull rotation"}
               onClick={() => setMotion(motion === "rotate" ? "still" : "rotate")}
             >
