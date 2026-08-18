@@ -142,8 +142,8 @@ jobs:
           lock = json.loads(lock_path.read_text())
           sources = lock["sources"]
           for source in (
-              "src-tauri/src/report_authority.rs",
-              "src-tauri/src/report_transport_v2.rs",
+              "preflight-desktop/src-tauri/src/report_authority.rs",
+              "preflight-desktop/src-tauri/src/report_transport_v2.rs",
           ):
               sources.setdefault(source, "")
           lock["sources"] = dict(sorted(sources.items()))
