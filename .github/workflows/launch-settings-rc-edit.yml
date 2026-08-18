@@ -33,17 +33,105 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path("preflight-desktop/src/requestFencing.test.tsx")
-          text = path.read_text(encoding="utf-8")
-          old = '  expect(announce).toHaveBeenLastCalledWith("Game settings saved. Vanilla and Preflight launches will use the same values.", "success");\n'
-          new = '''  expect(announce).toHaveBeenLastCalledWith(
+          def replace(path_name: str, old: str, new: str) -> None:
+              path = Path(path_name)
+              text = path.read_text(encoding="utf-8")
+              if text.count(old) != 1:
+                  raise RuntimeError(f"{path_name}: expected one reviewed replacement target")
+              path.write_text(text.replace(old, new), encoding="utf-8")
+
+          replace(
+              "preflight-desktop/src/requestFencing.test.tsx",
+              '  expect(announce).toHaveBeenLastCalledWith("Game settings saved. Vanilla and Preflight launches will use the same values.", "success");\n',
+              '''  expect(announce).toHaveBeenLastCalledWith(
             "Global game settings applied and verified. Vanilla and Preflight launches will use the same values.",
             "success",
           );
-          '''
-          if text.count(old) != 1:
-              raise RuntimeError("requestFencing.test.tsx: stale success assertion was not found exactly once")
-          path.write_text(text.replace(old, new), encoding="utf-8")
+          ''',
+          )
+
+          replace(
+              "preflight-cli/src/main/java/dev/starsector/preflight/cli/JvmMemorySettings.java",
+              '''            requireUnchanged(absolute, expected);
+            if (forceReplaceFallback) {
+                Files.move(temporary, absolute, StandardCopyOption.REPLACE_EXISTING);
+            } else {
+                try {
+                    Files.move(temporary, absolute,
+                            StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                } catch (AtomicMoveNotSupportedException unsupported) {
+                    Files.move(temporary, absolute, StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+          ''',
+              '''            requireUnchanged(absolute, expected);
+            if (forceReplaceFallback) {
+                // Model the second publication attempt reached after an atomic move is rejected.
+                beforeCommitCheck.run(absolute);
+                requireUnchanged(absolute, expected);
+                Files.move(temporary, absolute, StandardCopyOption.REPLACE_EXISTING);
+            } else {
+                try {
+                    Files.move(temporary, absolute,
+                            StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                } catch (AtomicMoveNotSupportedException unsupported) {
+                    beforeCommitCheck.run(absolute);
+                    requireUnchanged(absolute, expected);
+                    Files.move(temporary, absolute, StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+          ''',
+          )
+
+          replace(
+              "preflight-cli/src/test/java/dev/starsector/preflight/cli/JvmMemorySettingsTest.java",
+              '''import java.nio.file.attribute.FileTime;
+          ''',
+              '''import java.nio.file.attribute.FileTime;
+          import java.util.concurrent.atomic.AtomicInteger;
+          ''',
+          )
+
+          replace(
+              "preflight-cli/src/test/java/dev/starsector/preflight/cli/JvmMemorySettingsTest.java",
+              '''    @Test
+            void publishesAndVerifiesThroughTheReplaceFallback() throws Exception {
+          ''',
+              '''    @Test
+            void fallbackRereadsAgainImmediatelyBeforeReplacement() throws Exception {
+                Path root = temporary.resolve("fallback-reread/game");
+                Path launcher = root.resolve("starsector.sh");
+                Path backups = temporary.resolve("fallback-reread/backups");
+                Files.createDirectories(root);
+                String original = "#!/bin/sh\\nexec java -Xmx4g game.Main\\n";
+                String external = "#!/bin/sh\\nexec java -Xmx5g game.Main\\n";
+                Files.writeString(launcher, original);
+                AtomicInteger checks = new AtomicInteger();
+
+                IOException failure = assertThrows(IOException.class, () -> JvmMemorySettings.update(
+                        root,
+                        target(root, launcher),
+                        6144,
+                        backups,
+                        source -> {},
+                        source -> {
+                            if (checks.incrementAndGet() == 2) Files.writeString(source, external);
+                        },
+                        source -> {},
+                        true));
+
+                assertEquals(2, checks.get());
+                assertTrue(failure.getMessage().contains("changed while they were being reviewed"), failure::getMessage);
+                assertEquals(external, Files.readString(launcher));
+                try (var files = Files.list(backups)) {
+                    assertEquals(0, files.count(), "a fallback-check refusal should delete its unused backup");
+                }
+            }
+
+            @Test
+            void publishesAndVerifiesThroughTheReplaceFallback() throws Exception {
+          ''',
+          )
           PY
           rm .github/launch-settings-rc-edit.py .github/launch-settings-rc-edit.py.gz.b64 .github/workflows/launch-settings-rc-edit.yml
 
