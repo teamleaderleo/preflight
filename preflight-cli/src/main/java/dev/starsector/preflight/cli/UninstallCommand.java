@@ -345,8 +345,22 @@ final class UninstallCommand {
         Path quarantined = anchorIntegration(target);
         fireRemoval(RemovalEvent.AFTER_QUARANTINE, integration, quarantined);
         PreflightHome.Integration anchoredIntegration = relocated(integration, quarantined);
-        if (!reviewed.sameAs(IntegrationMutation.Snapshot.capture(quarantined))
-                || !anchoredIntegration.isOwned()) {
+        boolean exactOwned;
+        try {
+            exactOwned = reviewed.sameAs(IntegrationMutation.Snapshot.capture(quarantined))
+                    && anchoredIntegration.isOwned();
+        } catch (IOException proofFailure) {
+            try {
+                restoreOrPreserve(quarantined, target);
+            } catch (IOException restoreFailure) {
+                proofFailure.addSuppressed(restoreFailure);
+            }
+            throw new IOException(
+                    "Preserved launcher integration because its anchored generation could not be re-proved before deletion: "
+                            + target + "; anchored generation at " + quarantined,
+                    proofFailure);
+        }
+        if (!exactOwned) {
             restoreOrPreserve(quarantined, target);
             throw new IOException("Preserved launcher integration because its reviewed owned generation changed before deletion: "
                     + target + "; anchored generation at " + quarantined);
