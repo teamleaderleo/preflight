@@ -25,6 +25,7 @@ import { useDesktopAutomation } from "./useDesktopAutomation";
 import { useAutomaticMaintenance } from "./useAutomaticMaintenance";
 import { useAfterLaunchBehavior } from "./useAfterLaunchBehavior";
 import { lastRunForCurrentProfile } from "./lastRunApplicability";
+import { launchProfileNameFor } from "./launchProfileIdentity";
 import { useCacheCleanup } from "./useCacheCleanup";
 import { useDiagnosticsReport } from "./useDiagnosticsReport";
 import { useLauncherSettings } from "./useLauncherSettings";
@@ -252,8 +253,10 @@ export default function App() {
     refreshCache,
     announceProfiles,
   );
-  const activeProfileMatches = profilesState.profiles?.profiles.filter((profile) => profile.active) ?? [];
-  const launchProfileName = activeProfileMatches.length === 1 ? activeProfileMatches[0]?.name ?? null : null;
+  const launchProfileName = launchProfileNameFor(
+    profilesState.profiles,
+    preparation.cache?.currentProfileFingerprint ?? null,
+  );
   const { clearProfiles } = profilesState;
   const cleanup = useCacheCleanup(
     snapshot?.selected?.installRoot,
