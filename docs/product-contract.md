@@ -39,13 +39,15 @@ There are three distinct kinds of change:
    bytecode, resource indexes, and reports live below Preflight's own home. Inputs that affect an
    answer are hashed into its identity. A miss, corrupt entry, uncertain source, or runtime
    validation failure takes the original game path.
-3. **Explicit preferences.** A confirmed named-profile switch backs up and atomically replaces only
-   `mods/enabled_mods.json`. The launch-settings surface writes only Starsector's existing
-   `resolution`, `fullscreen`, `sound`, `numAASamples`, `screenScale`, and `gameplaySettings`
-   preferences after backing up the prior selected values. The registration serial is never read
-   into that backup or exposed to the desktop interface. An explicit memory change can update the
-   heap flag in one unambiguous launcher-owned `vmparams` file inside the selected installation;
-   Preflight saves the exact original file and refuses ambiguous layouts.
+3. **Explicit preferences.** A confirmed named-profile switch backs up only
+   `mods/enabled_mods.json`, stages the complete replacement beside it, rechecks the reviewed source,
+   and requests an atomic move; filesystems without atomic-move support use a staged same-directory
+   replacement. The launch-settings surface writes only Starsector's existing `resolution`,
+   `fullscreen`, `sound`, `numAASamples`, `screenScale`, and `gameplaySettings` preferences after
+   backing up the prior selected values. The registration serial is never read into that backup or
+   exposed to the desktop interface. An explicit memory change can update the heap flag in one
+   unambiguous launcher-owned `vmparams` file inside the selected installation; Preflight saves the
+   exact original file and refuses ambiguous layouts.
 
 Each desktop package includes a
 [machine-checked capability receipt](capability-receipt.md) for this boundary. It names the exact
