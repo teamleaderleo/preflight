@@ -142,7 +142,9 @@ export function DesktopShell({
         href="#page-workspace"
         onClick={(event) => {
           event.preventDefault();
-          pageViewport.current?.focus({ preventScroll: true });
+          const workspace = pageViewport.current;
+          const recoveryAction = workspace?.querySelector<HTMLElement>("[role='alert'] button:not([disabled])");
+          (recoveryAction ?? workspace)?.focus({ preventScroll: true });
         }}
       >
         Skip to workspace
