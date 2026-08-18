@@ -20,17 +20,31 @@ describe("launchSetupApplicability", () => {
     expect(launchSetupApplicability(run, "/Games/Other", null)).toBe("foreign");
   });
 
-  it("waits for profile identity on the same installation", () => {
+  it("waits for current profile identity on the same installation", () => {
     expect(launchSetupApplicability(run, "/Games/Starsector", null)).toBe("unknown");
+    expect(launchSetupApplicability(
+      { installRoot: "/Games/Starsector" },
+      "/Games/Starsector",
+      null,
+    )).toBe("unknown");
+  });
+
+  it.each([
+    "optimizations-off launch",
+    "launch-without-preparing recovery",
+  ])("retires an ambiguous %s once the same-install current profile is known", () => {
+    expect(launchSetupApplicability(
+      { installRoot: "/Games/Starsector" },
+      "/Games/Starsector",
+      "a".repeat(64),
+    )).toBe("foreign");
   });
 
   it("retires evidence once the authoritative profile fingerprint differs", () => {
     expect(launchSetupApplicability(run, "/Games/Starsector", "b".repeat(64))).toBe("foreign");
   });
 
-  it("keeps legacy or preview identity unknown when a binding is missing", () => {
-    expect(launchSetupApplicability({ installRoot: "/Games/Starsector" }, "/Games/Starsector", "a".repeat(64)))
-      .toBe("unknown");
+  it("keeps identity unknown when the installation binding is missing", () => {
     expect(launchSetupApplicability({ profileFingerprint: "a".repeat(64) }, "/Games/Starsector", "a".repeat(64)))
       .toBe("unknown");
   });
