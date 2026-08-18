@@ -310,12 +310,12 @@ final class EvidenceCommand {
             return 0;
         }
         out.printf(Locale.ROOT, "%s %,d evidence sessions (%,d files), freeing %s.%n",
-                confirmed ? "Removed" : "Would remove",
+                confirmed ? "Removed" : "Preview: would remove",
                 plan.removals().size(),
                 plan.files(),
                 CacheFootprint.humanBytes(plan.bytes()));
         if (!confirmed) {
-            out.println("Nothing was removed. Re-run the same command with --yes to apply it.");
+            out.println("Preview only; nothing was removed. Re-run the same command with --yes to apply it.");
         }
         return 0;
     }

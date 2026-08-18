@@ -203,31 +203,36 @@ final class UninstallCommand {
         }
     }
 
-    private static void print(Plan plan, boolean json, PrintStream out) {
+    static void print(Plan plan, boolean json, PrintStream out) {
         if (json) {
             out.println(Json.object(plan.toJson()));
             return;
         }
         if (!plan.safe()) {
-            plan.refusals().forEach(out::println);
+            out.println(plan.applied() ? "Removal failed:" : "Preview refused:");
+            plan.refusals().forEach(refusal -> out.println("  " + refusal));
             return;
         }
         if (!plan.refusals().isEmpty()) {
             plan.refusals().forEach(out::println);
         }
         if (plan.targets().isEmpty()) {
-            out.println("Nothing to remove for the selected scope.");
+            out.println(plan.applied()
+                    ? "Nothing to remove for the selected scope."
+                    : "Preview: nothing to remove for the selected scope.");
             return;
         }
-        out.println(plan.applied() ? "Removed:" : "Would remove:");
+        out.println(plan.applied() ? "Removed:" : "Preview: Would remove:");
         for (Target target : plan.targets()) {
             out.printf(Locale.ROOT, "  %-24s %s%n", target.label(), target.path());
         }
         out.printf(Locale.ROOT, "%n%s across %,d files.%n", CacheFootprint.humanBytes(plan.bytes()), plan.files());
         out.println("Starsector, mods, saves, and game-owned settings are outside this plan.");
-        if (!plan.applied()) out.println("Nothing was removed. Re-run with --yes to apply this exact scope.");
-        else if (plan.safe()) out.println("Done.");
-        else plan.refusals().forEach(out::println);
+        if (!plan.applied()) {
+            out.println("Preview only; nothing was removed. Re-run with --yes to apply this exact scope.");
+        } else {
+            out.println("Done.");
+        }
     }
 
     static void deleteRecursively(Path path) throws IOException {
