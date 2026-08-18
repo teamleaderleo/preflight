@@ -101,9 +101,9 @@
   font-weight: 650;
 }
 
-/* Keep even a deliberately long decorative hull label out of the centered launch button. */
+/* Keep even a deliberately long decorative hull label clear of the centered launch button. */
 .home-ship-name {
-  max-width: max(0px, calc(50% - 190px));
+  max-width: max(0px, calc(50% - 210px));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
