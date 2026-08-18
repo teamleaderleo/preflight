@@ -229,6 +229,28 @@ test("run recovery keeps Relaunch when the captured failed target still matches 
   expect(dismiss).not.toHaveBeenCalled();
 });
 
+test("cosmetic Home changes keep recovery bound to the same failed setup", () => {
+  const dismiss = vi.fn();
+  const view = render(<HomePage {...props({
+    snapshot: failedSnapshot(),
+    runFailure: failedRunFailure(),
+    onDismissRunFailure: dismiss,
+  })} />);
+
+  view.rerender(<HomePage {...props({
+    snapshot: failedSnapshot(),
+    runFailure: failedRunFailure(),
+    onDismissRunFailure: dismiss,
+    theme: "dark",
+    launchSettingsDirty: true,
+  })} />);
+
+  expect(screen.getByText("Run needs attention")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Relaunch" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Options · changed" })).toBeInTheDocument();
+  expect(dismiss).not.toHaveBeenCalled();
+});
+
 test("switching to another profile retires the old Home recovery card", async () => {
   const dismiss = vi.fn();
   render(<HomePage {...props({
