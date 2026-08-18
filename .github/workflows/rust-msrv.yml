@@ -80,25 +80,30 @@ jobs:
       - name: Run the stored expiry patch
         shell: bash
         run: |
-          python3 -m pip install --disable-pip-version-check pyyaml
           python3 <<'PY'
           import subprocess
           from pathlib import Path
-          import yaml
 
-          workflow = yaml.safe_load(Path(".github/workflows/apply-703-expiry.yml").read_text())
-          scripts = {
-              step.get("name"): step.get("run")
-              for step in workflow["jobs"]["apply"]["steps"]
-              if isinstance(step, dict)
-          }
-          for name in (
-              "Apply expiry pruning and aligned tests",
-              "Format and verify",
-          ):
-              script = scripts.get(name)
-              if not isinstance(script, str):
+          text = Path(".github/workflows/apply-703-expiry.yml").read_text()
+
+          def stored_script(name: str, next_name: str) -> str:
+              marker = f"      - name: {name}\n        shell: bash\n        run: |\n"
+              end_marker = f"\n      - name: {next_name}"
+              start = text.find(marker)
+              if start < 0:
                   raise SystemExit(f"stored updater step missing: {name}")
+              start += len(marker)
+              end = text.find(end_marker, start)
+              if end < 0:
+                  raise SystemExit(f"stored updater boundary missing after: {name}")
+              lines = text[start:end].splitlines()
+              return "\n".join(line[10:] if line.startswith("          ") else line for line in lines) + "\n"
+
+          scripts = (
+              stored_script("Apply expiry pruning and aligned tests", "Format and verify"),
+              stored_script("Format and verify", "Publish branch commit"),
+          )
+          for script in scripts:
               subprocess.run(["bash", "-euo", "pipefail", "-c", script], check=True)
           PY
 
