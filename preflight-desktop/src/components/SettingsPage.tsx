@@ -19,6 +19,7 @@ interface SettingsPageProps {
   afterLaunchBehavior: AfterLaunchBehavior;
   automaticRunReports: boolean;
   installation: string | null;
+  installationChangeBlockedReason?: string | null;
   onAutomaticRunReportsChange: (enabled: boolean) => void;
   onAfterLaunchBehaviorChange: (behavior: AfterLaunchBehavior) => void;
   onChooseInstall: () => void;
@@ -39,6 +40,7 @@ export function SettingsPage({
   afterLaunchBehavior,
   automaticRunReports,
   installation,
+  installationChangeBlockedReason,
   onAutomaticRunReportsChange,
   onAfterLaunchBehaviorChange,
   onChooseInstall,
@@ -57,7 +59,9 @@ export function SettingsPage({
     checkUpdates,
     installSignedUpdate,
   } = updates;
-  const installationChangeBlocked = removalBusy || updateInstalling || Boolean(removalBlockedReason);
+  const installationChangeBlocked = Boolean(installationChangeBlockedReason) || removalBusy || updateInstalling;
+  const installationChangeTitle = installationChangeBlockedReason
+    ?? (removalBusy || updateInstalling ? "Finish the current operation before changing installations." : undefined);
   return (
     <div className="settings-page">
       <NoticeBanner message={updateError === message ? "" : message} tone={messageTone} />
@@ -72,7 +76,7 @@ export function SettingsPage({
             type="button"
             onClick={onChooseInstall}
             disabled={installationChangeBlocked}
-            title={installationChangeBlocked ? removalBlockedReason ?? "Finish the current operation before changing installations." : undefined}
+            title={installationChangeTitle}
           >
             {installation ? "Change folder" : "Choose game folder"}
           </button>
