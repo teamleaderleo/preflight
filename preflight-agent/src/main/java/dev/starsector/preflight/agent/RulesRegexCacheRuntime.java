@@ -81,7 +81,7 @@ public final class RulesRegexCacheRuntime {
     }
 
     private static boolean matches(char value, char first, char second, char third) {
-        return value == first || value == second || value == third;
+        return value == first || value == second || (third != '\0' && value == third);
     }
 
     public static String[] split(String input, String regex) {
