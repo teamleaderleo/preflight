@@ -94,8 +94,10 @@ jobs:
               "        Path launcher = root.resolve(\"starsector.sh\");",
               "        Path backups = temporary.resolve(\"fallback-reread/backups\");",
               "        Files.createDirectories(root);",
-              "        String original = \"#!/bin/sh\\\\nexec java -Xmx4g game.Main\\\\n\";",
-              "        String external = \"#!/bin/sh\\\\nexec java -Xmx5g game.Main\\\\n\";",
+              "        String original = String.join(System.lineSeparator(),",
+              "                \"#!/bin/sh\", \"exec java -Xmx4g game.Main\", \"\");",
+              "        String external = String.join(System.lineSeparator(),",
+              "                \"#!/bin/sh\", \"exec java -Xmx5g game.Main\", \"\");",
               "        Files.writeString(launcher, original);",
               "        AtomicInteger checks = new AtomicInteger();",
               "",
@@ -158,6 +160,10 @@ jobs:
 
       - name: Format native host
         run: cargo fmt --manifest-path preflight-desktop/src-tauri/Cargo.toml
+
+      - name: Re-review guarded capability sources
+        working-directory: preflight-desktop
+        run: npm run capabilities:review
 
       - name: Verify Java engine
         run: ./mvnw --batch-mode --no-transfer-progress verify
