@@ -28,6 +28,22 @@
   order: -1;
 }
 
+/*
+ * Visual ordering alone does not change keyboard order. A prior-run recovery card already owns the
+ * Relaunch action, so remove the duplicate idle controls until that card is dismissed. An immediate
+ * launch error gets the same treatment only while the console itself is in its error state; a plain
+ * settings error can keep the controls needed to correct it.
+ */
+.page-viewport--home:has(.run-recovery[role="alert"]) .launch-console .status-chip,
+.page-viewport--home:has(.run-recovery[role="alert"]) .launch-console .home-options-toggle,
+.page-viewport--home:has(.run-recovery[role="alert"]) .launch-console .home-playtime,
+.page-viewport--home:has(.run-recovery[role="alert"]) .launch-console .last-run-health,
+.page-viewport--home:has(.run-recovery[role="alert"]) .launch-console .launch-console__actions,
+.page-viewport--home:has(.notice--error) .launch-console--error .home-options-toggle,
+.page-viewport--home:has(.notice--error) .launch-console--error .launch-console__actions {
+  display: none;
+}
+
 /* The launch-settings disclosure stays clear of the primary launch/recovery actions. */
 .launch-console--options-open .quick-settings {
   top: 72px;
