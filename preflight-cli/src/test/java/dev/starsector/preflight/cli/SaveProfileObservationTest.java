@@ -348,6 +348,134 @@ final class SaveProfileObservationTest {
         assertNull(observations.get(0).missingSince());
     }
 
+    @Test
+    void prepareWithoutAnExactLaunchFingerprintSkipsObservationWithoutBuildingAnIndex()
+            throws Exception {
+        Path runDir = temp.resolve("run-without-profile-fingerprint");
+        Files.createDirectories(runDir);
+        Files.writeString(
+                runDir.resolve("run.json"),
+                "{\"installRoot\":\""
+                        + temp.resolve("Starsector").toString().replace("\\", "\\\\")
+                        + "\"}");
+        ProcessBuilder builder = new ProcessBuilder("echo", "test");
+        builder.environment().put("PREFLIGHT_RUN_DIR", runDir.toString());
+        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+
+        SaveProfileObservation.Prepared prepared = SaveProfileObservation.prepare(
+                builder, new java.io.PrintStream(bytes, true, UTF_8));
+
+        assertNull(prepared.context());
+        assertNull(prepared.identity());
+        assertTrue(bytes.toString(UTF_8).contains("exact launch profile fingerprint is unavailable"));
+    }
+
+    @Test
+    void saveWithDescendantsPastDepthCeilingIsExcludedCompletely() throws Exception {
+        Fixture fixture = fixture("ordinary", "normal-content");
+        Path deepSave = fixture.saves.resolve("deep-save");
+        Files.createDirectories(deepSave);
+        Path shallowFile = deepSave.resolve("shallow.dat");
+        Files.writeString(shallowFile, "before");
+        Path nested = deepSave;
+        for (int index = 0; index < SaveProfileObservation.MAX_SAVE_TREE_DEPTH + 2; index++) {
+            nested = nested.resolve("level-" + index);
+        }
+        Files.createDirectories(nested);
+        Files.writeString(nested.resolve("deep.dat"), "deep");
+
+        Instant end = futureEnd();
+        SaveProfileObservation.Session session = fixture.session(heavy(), end.minusSeconds(10));
+        Files.writeString(fixture.saveFile("ordinary"), "updated");
+        Files.writeString(shallowFile, "after-longer");
+        session.scanWhileOwned();
+        session.finish(end);
+
+        assertEquals(List.of("ordinary"), fixture.observations().stream()
+                .map(SaveProfileObservation.Observation::saveKey)
+                .toList());
+    }
+
+    @Test
+    void fileAtTheDepthCeilingIsStillObserved() throws Exception {
+        Fixture fixture = fixture("ordinary", "normal-content");
+        Path boundedSave = fixture.saves.resolve("bounded-save");
+        Path nested = boundedSave;
+        for (int index = 0; index < SaveProfileObservation.MAX_SAVE_TREE_DEPTH - 1; index++) {
+            nested = nested.resolve("level-" + index);
+        }
+        Files.createDirectories(nested);
+        Path boundaryFile = nested.resolve("boundary.dat");
+        Files.writeString(boundaryFile, "before");
+
+        Instant end = futureEnd();
+        SaveProfileObservation.Session session = fixture.session(heavy(), end.minusSeconds(10));
+        Files.writeString(boundaryFile, "after-longer");
+        session.scanWhileOwned();
+        session.finish(end);
+
+        assertEquals(List.of("bounded-save"), fixture.observations().stream()
+                .map(SaveProfileObservation.Observation::saveKey)
+                .toList());
+    }
+
+    @Test
+    void saveOverEntryBudgetIsExcludedCompletely() throws Exception {
+        Fixture fixture = fixture("ordinary", "normal-content");
+        Path largeSave = fixture.saves.resolve("large-save");
+        Files.createDirectories(largeSave);
+        for (int index = 0; index < SaveProfileObservation.MAX_ENTRIES_PER_SAVE + 10; index++) {
+            Files.writeString(largeSave.resolve("file-" + index + ".dat"), "data");
+        }
+
+        Instant end = futureEnd();
+        SaveProfileObservation.Session session = fixture.session(heavy(), end.minusSeconds(10));
+        Files.writeString(fixture.saveFile("ordinary"), "updated");
+        Files.writeString(largeSave.resolve("file-0.dat"), "updated-large");
+        session.scanWhileOwned();
+        session.finish(end);
+
+        assertEquals(List.of("ordinary"), fixture.observations().stream()
+                .map(SaveProfileObservation.Observation::saveKey)
+                .toList());
+    }
+
+    @Test
+    void incompleteBaselineDoesNotTurnAnUnseenSaveIntoAMissingSave() throws Exception {
+        Fixture fixture = fixture("manual", "before");
+        Instant firstEnd = futureEnd();
+        SaveProfileObservation.Session first = fixture.session(heavy(), firstEnd.minusSeconds(10));
+        Files.writeString(fixture.saveFile("manual"), "after-longer");
+        first.scanWhileOwned();
+        first.finish(firstEnd);
+        deleteRecursively(fixture.saves.resolve("manual"));
+
+        Path oversized = fixture.saves.resolve("oversized");
+        Files.createDirectories(oversized);
+        for (int index = 0; index < SaveProfileObservation.MAX_ENTRIES_PER_SAVE + 1; index++) {
+            Files.writeString(oversized.resolve("file-" + index + ".dat"), "data");
+        }
+
+        SaveProfileObservation.Session next = fixture.session(light(), firstEnd.plusSeconds(1));
+        next.finish(firstEnd.plusSeconds(2));
+
+        List<SaveProfileObservation.Observation> observations = fixture.observations();
+        assertEquals(1, observations.size());
+        assertEquals("manual", observations.get(0).saveKey());
+        assertNull(observations.get(0).missingSince());
+    }
+
+    @Test
+    void aCancelledPollDoesNoFurtherObservationWork() throws Exception {
+        Fixture fixture = fixture("ordinary", "normal-content");
+        SaveProfileObservation.Session session = fixture.session(heavy(), Instant.now());
+        Files.writeString(fixture.saveFile("ordinary"), "updated");
+
+        session.scanWhileOwned(() -> false);
+
+        assertTrue(session.changedSaveKeys().isEmpty());
+    }
+
     private Fixture fixture(String saveName, String contents) throws Exception {
         PreflightHome home = new PreflightHome(temp.resolve("preflight-home"), List.of());
         Path install = temp.resolve("Starsector");
