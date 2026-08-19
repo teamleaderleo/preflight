@@ -74,28 +74,27 @@ fn expiring_one_case_does_not_remove_another() {
 }
 
 #[test]
-fn automatic_claims_are_exact_and_releasable() {
-    let root = temp_root("claim");
+fn duplicate_automatic_claim_is_rejected_before_append() {
+    let root = temp_root("claim-duplicate");
     let journal = root.join("authority.spra");
-    append(
-        &journal,
-        &JournalRecord::AutoClaim {
-            run_identity: "run-a".to_string(),
-        },
-    )
-    .unwrap();
-    assert!(
-        append(
-            &journal,
-            &JournalRecord::AutoClaim {
-                run_identity: "run-a".to_string(),
-            },
-        )
-        .is_err()
-            || replay(&journal).is_err()
-    );
-    fs::remove_file(&journal).unwrap();
+    let claim = JournalRecord::AutoClaim {
+        run_identity: "run-a".to_string(),
+    };
+    append(&journal, &claim).unwrap();
+    let before = fs::read(&journal).unwrap();
 
+    let error = append(&journal, &claim).unwrap_err();
+
+    assert!(error.contains("Duplicate automatic report claim"));
+    assert_eq!(before, fs::read(&journal).unwrap());
+    assert!(replay(&journal).unwrap().automatic_claims.contains("run-a"));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn automatic_claim_can_be_released() {
+    let root = temp_root("claim-release");
+    let journal = root.join("authority.spra");
     append(
         &journal,
         &JournalRecord::AutoClaim {
@@ -141,17 +140,20 @@ fn checksum_validity_and_torn_tail_fail_closed() {
 }
 
 #[test]
-fn accepted_without_grant_is_rejected() {
+fn accepted_without_grant_is_rejected_before_append() {
     let root = temp_root("accepted-without-grant");
     let journal = root.join("authority.spra");
-    append(
+
+    let error = append(
         &journal,
         &JournalRecord::Accepted {
             case_id: "A".to_string(),
         },
     )
-    .unwrap();
-    assert!(replay(&journal).unwrap_err().contains("no durable grant"));
+    .unwrap_err();
+
+    assert!(error.contains("no durable grant"));
+    assert!(!journal.exists());
     fs::remove_dir_all(root).unwrap();
 }
 
