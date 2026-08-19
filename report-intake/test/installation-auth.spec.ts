@@ -35,6 +35,15 @@ async function signed(
   return encodeInstallationSignature(signature);
 }
 
+function recoveryChallenge(): InstallationChallenge {
+  return {
+    v: INSTALLATION_AUTH_VERSION,
+    action: "recover",
+    nonce: "nonce_0123456789abcdef",
+    exp: 1_800_000_120,
+  };
+}
+
 describe("installation-key report authority", () => {
   it("verifies a bounded delete challenge for the bound installation key", async () => {
     const pair = await keyPair();
@@ -104,12 +113,7 @@ describe("installation-key report authority", () => {
   it("consumes a valid nonce exactly once", async () => {
     const pair = await keyPair();
     const publicKey = await jwk(pair.publicKey);
-    const challenge: InstallationChallenge = {
-      v: INSTALLATION_AUTH_VERSION,
-      action: "recover",
-      nonce: "nonce_0123456789abcdef",
-      exp: 1_800_000_120,
-    };
+    const challenge = recoveryChallenge();
     const signature = await signed(pair.privateKey, challenge);
     const consumed = new Set<string>();
     const consume = async (keyId: string, value: InstallationChallenge): Promise<boolean> => {
@@ -156,9 +160,50 @@ describe("installation-key report authority", () => {
   it("derives a stable public installation identity without private material", async () => {
     const pair = await keyPair();
     const publicKey = await jwk(pair.publicKey);
+    expect(publicKey.x).toHaveLength(43);
+    expect(publicKey.y).toHaveLength(43);
     expect(await installationKeyId(publicKey)).toBe(await installationKeyId({ ...publicKey }));
 
     const privateKey = await jwk(pair.privateKey);
     await expect(installationKeyId(privateKey)).rejects.toThrow("private material");
+  });
+
+  it("rejects oversized and non-P-256 coordinate encodings before key import", async () => {
+    const pair = await keyPair();
+    const publicKey = await jwk(pair.publicKey);
+
+    await expect(installationKeyId({ ...publicKey, x: "A".repeat(1_000_000) }))
+      .rejects.toThrow("coordinate length");
+    await expect(installationKeyId({ ...publicKey, x: "A".repeat(42) }))
+      .rejects.toThrow("coordinate length");
+    await expect(installationKeyId({ ...publicKey, y: "A".repeat(44) }))
+      .rejects.toThrow("coordinate length");
+  });
+
+  it("rejects oversized and wrong-width signatures before verification", async () => {
+    const pair = await keyPair();
+    const publicKey = await jwk(pair.publicKey);
+    const challenge = recoveryChallenge();
+    const signature = await signed(pair.privateKey, challenge);
+    expect(signature).toHaveLength(86);
+
+    await expect(verifyInstallationRequest(
+      publicKey,
+      challenge,
+      "A".repeat(1_000_000),
+      1_800_000_000,
+    )).rejects.toThrow("signature length");
+    await expect(verifyInstallationRequest(
+      publicKey,
+      challenge,
+      "A".repeat(85),
+      1_800_000_000,
+    )).rejects.toThrow("signature length");
+    await expect(verifyInstallationRequest(
+      publicKey,
+      challenge,
+      "A".repeat(87),
+      1_800_000_000,
+    )).rejects.toThrow("signature length");
   });
 });
