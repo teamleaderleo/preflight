@@ -56,6 +56,17 @@ class PreparedRulesCsvCacheIOTest {
         assertThrows(IOException.class, () -> PreparedRulesCsvCacheIO.fromBytes(hull));
     }
 
+    @Test
+    void readStopsAtConfiguredBoundBeforeParsing() throws Exception {
+        Path file = temporaryDirectory.resolve("bounded.sprc");
+        Files.write(file, PreparedRulesCsvCacheIO.toBytes(
+                new PreparedRulesCsvCache("d".repeat(64), rulesTree("rule-a", "rule-b"))));
+
+        IOException oversized = assertThrows(IOException.class, () -> PreparedRulesCsvCacheIO.read(file, 64));
+        assertTrue(oversized.getMessage().contains("64 byte safety limit"));
+        assertThrows(IllegalArgumentException.class, () -> PreparedRulesCsvCacheIO.read(file, 32));
+    }
+
     private static byte[] rulesTree(String... ids) {
         return JsonTree.encode(java.util.Arrays.stream(ids)
                 .map(id -> Map.<String, Object>of("id", id)).toList());
