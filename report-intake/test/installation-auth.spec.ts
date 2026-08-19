@@ -18,6 +18,10 @@ async function keyPair(): Promise<CryptoKeyPair> {
   ) as Promise<CryptoKeyPair>;
 }
 
+async function jwk(key: CryptoKey): Promise<JsonWebKey> {
+  return crypto.subtle.exportKey("jwk", key) as Promise<JsonWebKey>;
+}
+
 async function signed(
   privateKey: CryptoKey,
   challenge: InstallationChallenge,
@@ -33,7 +37,7 @@ async function signed(
 describe("installation-key report authority", () => {
   it("verifies a bounded delete challenge for the bound installation key", async () => {
     const pair = await keyPair();
-    const publicKey = await crypto.subtle.exportKey("jwk", pair.publicKey);
+    const publicKey = await jwk(pair.publicKey);
     const challenge: InstallationChallenge = {
       v: INSTALLATION_AUTH_VERSION,
       action: "delete",
@@ -52,7 +56,7 @@ describe("installation-key report authority", () => {
 
   it("cannot substitute another case into a captured delete signature", async () => {
     const pair = await keyPair();
-    const publicKey = await crypto.subtle.exportKey("jwk", pair.publicKey);
+    const publicKey = await jwk(pair.publicKey);
     const original: InstallationChallenge = {
       v: INSTALLATION_AUTH_VERSION,
       action: "delete",
@@ -72,7 +76,7 @@ describe("installation-key report authority", () => {
 
   it("cannot replay a delete signature as a recover request", async () => {
     const pair = await keyPair();
-    const publicKey = await crypto.subtle.exportKey("jwk", pair.publicKey);
+    const publicKey = await jwk(pair.publicKey);
     const deletion: InstallationChallenge = {
       v: INSTALLATION_AUTH_VERSION,
       action: "delete",
@@ -98,7 +102,7 @@ describe("installation-key report authority", () => {
 
   it("rejects expired and overlong challenges before signature verification", async () => {
     const pair = await keyPair();
-    const publicKey = await crypto.subtle.exportKey("jwk", pair.publicKey);
+    const publicKey = await jwk(pair.publicKey);
     const expired: InstallationChallenge = {
       v: INSTALLATION_AUTH_VERSION,
       action: "recover",
@@ -116,10 +120,10 @@ describe("installation-key report authority", () => {
 
   it("derives a stable public installation identity without private material", async () => {
     const pair = await keyPair();
-    const publicKey = await crypto.subtle.exportKey("jwk", pair.publicKey);
+    const publicKey = await jwk(pair.publicKey);
     expect(await installationKeyId(publicKey)).toBe(await installationKeyId({ ...publicKey }));
 
-    const privateKey = await crypto.subtle.exportKey("jwk", pair.privateKey);
+    const privateKey = await jwk(pair.privateKey);
     await expect(installationKeyId(privateKey)).rejects.toThrow("private material");
   });
 });
