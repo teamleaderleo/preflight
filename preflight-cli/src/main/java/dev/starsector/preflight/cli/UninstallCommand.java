@@ -71,26 +71,30 @@ final class UninstallCommand {
         Plan applied;
         OperationLease.Acquisition acquisition = acquire(home, scope);
         try (OperationLease ignored = acquisition.lease()) {
-            Plan current = plan(home, scope, false);
-            if (!current.safe()) {
-                print(current, json, out);
-                return 1;
+            Plan current = plan(home, scope, false, true);
+            try {
+                if (!current.safe()) {
+                    print(current.withoutReviews(), json, out);
+                    return 1;
+                }
+                if (scope == Scope.ALL_DATA) markRemoval(home);
+                RemovalOutcome outcome = remove(current.targets(), scope, home);
+                List<String> diagnostics = new ArrayList<>(current.refusals());
+                diagnostics.addAll(outcome.failures());
+                diagnostics.addAll(outcome.warnings());
+                long bytes = outcome.removed().stream().mapToLong(Target::bytes).sum();
+                long files = outcome.removed().stream().mapToLong(Target::files).sum();
+                applied = new Plan(
+                        scope,
+                        outcome.failures().isEmpty(),
+                        true,
+                        bytes,
+                        files,
+                        outcome.removed().stream().map(Target::withoutReview).toList(),
+                        List.copyOf(diagnostics));
+            } finally {
+                closeReviews(current.targets());
             }
-            if (scope == Scope.ALL_DATA) markRemoval(home);
-            RemovalOutcome outcome = remove(current.targets(), scope, home);
-            List<String> diagnostics = new ArrayList<>(current.refusals());
-            diagnostics.addAll(outcome.failures());
-            diagnostics.addAll(outcome.warnings());
-            long bytes = outcome.removed().stream().mapToLong(Target::bytes).sum();
-            long files = outcome.removed().stream().mapToLong(Target::files).sum();
-            applied = new Plan(
-                    scope,
-                    outcome.failures().isEmpty(),
-                    true,
-                    bytes,
-                    files,
-                    List.copyOf(outcome.removed()),
-                    List.copyOf(diagnostics));
         }
 
         if (scope == Scope.LAUNCHER) {
@@ -124,53 +128,99 @@ final class UninstallCommand {
     }
 
     static Plan plan(PreflightHome home, Scope scope, boolean applied) throws IOException {
-        List<Target> targets = new ArrayList<>();
-        List<String> refusals = new ArrayList<>();
-        for (PreflightHome.Integration integration : home.integrations()) {
-            Path path = integration.path().toAbsolutePath().normalize();
-            if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) continue;
-            try {
-                IntegrationMutation.Review review = IntegrationMutation.reviewForRemoval(integration);
-                if (review.snapshot().present()) {
-                    addTarget(targets, "launch-integration", integration.label(), path, review);
-                }
-            } catch (IOException refusal) {
-                refusals.add(refusal.getMessage());
-            }
-        }
-        Path installedEngine = home.installedJar().getParent();
-        if (Files.exists(installedEngine, LinkOption.NOFOLLOW_LINKS)) {
-            addTarget(targets, "installed-engine", "installed command engine", installedEngine, null);
-        }
-        boolean safe = true;
-        if (scope == Scope.ALL_DATA) {
-            Path root = home.root().toAbsolutePath().normalize();
-            if (Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
-                if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) {
-                    safe = false;
-                    refusals.add("Preflight home directory is a symlink or alias (" + root + "). All-data removal is refused.");
-                } else {
-                    targets.removeIf(target -> target.path().startsWith(root));
-                    addTarget(targets, "preflight-data", "Preflight data", root, null);
-                }
-            }
-        }
-        long bytes = targets.stream().mapToLong(Target::bytes).sum();
-        long files = targets.stream().mapToLong(Target::files).sum();
-        return new Plan(scope, safe, applied, bytes, files, List.copyOf(targets), List.copyOf(refusals));
+        return plan(home, scope, applied, false);
     }
 
-    private static void addTarget(
+    private static Plan plan(PreflightHome home, Scope scope, boolean applied, boolean retainReviews)
+            throws IOException {
+        List<Target> targets = new ArrayList<>();
+        List<String> refusals = new ArrayList<>();
+        try {
+            for (PreflightHome.Integration integration : home.integrations()) {
+                Path path = integration.path().toAbsolutePath().normalize();
+                if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) continue;
+                IntegrationMutation.Review review = null;
+                try {
+                    review = IntegrationMutation.reviewForRemoval(integration);
+                    if (review.snapshot().present()
+                            && addTarget(targets, "launch-integration", integration.label(), path, review)) {
+                        review = null;
+                    }
+                } catch (IOException refusal) {
+                    refusals.add(refusal.getMessage());
+                } finally {
+                    if (review != null) review.close();
+                }
+            }
+            Path installedEngine = home.installedJar().getParent();
+            if (Files.exists(installedEngine, LinkOption.NOFOLLOW_LINKS)) {
+                addTarget(targets, "installed-engine", "installed command engine", installedEngine, null);
+            }
+            boolean safe = true;
+            if (scope == Scope.ALL_DATA) {
+                Path root = home.root().toAbsolutePath().normalize();
+                if (Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
+                    if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) {
+                        safe = false;
+                        refusals.add("Preflight home directory is a symlink or alias (" + root + "). All-data removal is refused.");
+                    } else {
+                        removeCoveredTargets(targets, root);
+                        addTarget(targets, "preflight-data", "Preflight data", root, null);
+                    }
+                }
+            }
+            long bytes = targets.stream().mapToLong(Target::bytes).sum();
+            long files = targets.stream().mapToLong(Target::files).sum();
+            Plan result = new Plan(scope, safe, applied, bytes, files, List.copyOf(targets), List.copyOf(refusals));
+            if (retainReviews) return result;
+            closeReviews(targets);
+            return result.withoutReviews();
+        } catch (IOException | RuntimeException failure) {
+            closeReviewsSuppressing(targets, failure);
+            throw failure;
+        }
+    }
+
+    private static boolean addTarget(
             List<Target> targets,
             String kind,
             String label,
             Path path,
             IntegrationMutation.Review integrationReview) throws IOException {
         Path normalized = path.toAbsolutePath().normalize();
-        targets.removeIf(existing -> existing.path().startsWith(normalized));
-        if (targets.stream().anyMatch(existing -> normalized.startsWith(existing.path()))) return;
+        removeCoveredTargets(targets, normalized);
+        if (targets.stream().anyMatch(existing -> normalized.startsWith(existing.path()))) return false;
         CacheFootprint.Usage usage = strictUsage(normalized);
         targets.add(new Target(kind, label, normalized, usage.bytes(), usage.files(), integrationReview));
+        return true;
+    }
+
+    private static void removeCoveredTargets(List<Target> targets, Path parent) throws IOException {
+        List<Target> covered = targets.stream().filter(target -> target.path().startsWith(parent)).toList();
+        closeReviews(covered);
+        targets.removeAll(covered);
+    }
+
+    private static void closeReviews(List<Target> targets) throws IOException {
+        IOException failure = null;
+        for (Target target : targets) {
+            if (target.integrationReview() == null) continue;
+            try {
+                target.integrationReview().close();
+            } catch (IOException closeFailure) {
+                if (failure == null) failure = closeFailure;
+                else failure.addSuppressed(closeFailure);
+            }
+        }
+        if (failure != null) throw failure;
+    }
+
+    private static void closeReviewsSuppressing(List<Target> targets, Throwable primary) {
+        try {
+            closeReviews(targets);
+        } catch (IOException closeFailure) {
+            primary.addSuppressed(closeFailure);
+        }
     }
 
     private static CacheFootprint.Usage strictUsage(Path path) throws IOException {
@@ -298,14 +348,16 @@ final class UninstallCommand {
     static IntegrationRemoval removeIntegration(PreflightHome.Integration integration) throws IOException {
         Path target = integration.path().toAbsolutePath().normalize();
         if (!Files.exists(target, LinkOption.NOFOLLOW_LINKS)) return new IntegrationRemoval(false, null);
-        IntegrationMutation.Removal removal = IntegrationMutation.remove(IntegrationMutation.reviewForRemoval(integration));
-        if (!removal.removed()) return new IntegrationRemoval(false, null);
-        try {
-            removal.cleanupCommitted();
-            return new IntegrationRemoval(true, null);
-        } catch (IOException cleanupFailure) {
-            return new IntegrationRemoval(true,
-                    "preserved changed quarantine residue after removal: " + cleanupFailure.getMessage());
+        try (IntegrationMutation.Review review = IntegrationMutation.reviewForRemoval(integration)) {
+            IntegrationMutation.Removal removal = IntegrationMutation.remove(review);
+            if (!removal.removed()) return new IntegrationRemoval(false, null);
+            try {
+                removal.cleanupCommitted();
+                return new IntegrationRemoval(true, null);
+            } catch (IOException cleanupFailure) {
+                return new IntegrationRemoval(true,
+                        "preserved changed quarantine residue after removal: " + cleanupFailure.getMessage());
+            }
         }
     }
 
@@ -336,6 +388,10 @@ final class UninstallCommand {
             this(kind, label, path, bytes, files, null);
         }
 
+        Target withoutReview() {
+            return integrationReview == null ? this : new Target(kind, label, path, bytes, files, null);
+        }
+
         Map<String, Object> toJson() {
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("kind", kind); value.put("label", label); value.put("path", path);
@@ -350,6 +406,11 @@ final class UninstallCommand {
 
     record Plan(Scope scope, boolean safe, boolean applied, long bytes, long files,
                 List<Target> targets, List<String> refusals) {
+        Plan withoutReviews() {
+            return new Plan(scope, safe, applied, bytes, files,
+                    targets.stream().map(Target::withoutReview).toList(), refusals);
+        }
+
         Map<String, Object> toJson() {
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("format", FORMAT); value.put("scope", scope.value()); value.put("safe", safe);
