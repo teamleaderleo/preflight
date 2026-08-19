@@ -59,7 +59,7 @@ class AudioCensusCommandIT {
         Path game = buildProfile();
         Path mod = game.resolve("mods/formula-mod");
         Files.createDirectories(mod.resolve("data/config"));
-        String maliciousId = "=HYPERLINK(\"https://attacker.example\",\"click\")";
+        String maliciousId = "\t=HYPERLINK(\"https://attacker.example\",\"click\")";
         Files.writeString(game.resolve("mods/enabled_mods.json"),
                 "{\"enabledMods\":[" + Json.quote(maliciousId) + "]}");
         Files.writeString(mod.resolve("mod_info.json"), "{\"id\":" + Json.quote(maliciousId) + "}");
@@ -72,10 +72,10 @@ class AudioCensusCommandIT {
         assertEquals(0, AudioCensusCommand.execute(
                 new String[] {"--game", game.toString(), "--csv", csv.toString()}, 0));
 
-        List<String> rows = Files.readAllLines(csv);
-        assertTrue(rows.stream().anyMatch(row -> row.startsWith(
-                "\"'@effect.ogg\",\"'=HYPERLINK(\"\"https://attacker.example\"\",\"\"click\"\")\",effect,")),
-                rows.toString());
+        String csvText = Files.readString(csv);
+        assertTrue(csvText.contains(
+                "\"'@effect.ogg\",\"'\t=HYPERLINK(\"\"https://attacker.example\"\",\"\"click\"\")\",effect,"),
+                csvText);
     }
 
     @Test
