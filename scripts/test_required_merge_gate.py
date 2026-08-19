@@ -86,6 +86,11 @@ class FailureClassificationTest(unittest.TestCase):
         self.assertEqual("runner/action bootstrap failure", kind)
         self.assertEqual([], steps)
 
+    def test_cancelled_workflow_is_labeled_rerun_required(self):
+        kind, steps = gate.failure_kind({"conclusion": "cancelled"}, [])
+        self.assertEqual("workflow cancellation; rerun required", kind)
+        self.assertEqual([], steps)
+
 
 if __name__ == "__main__":
     unittest.main()
