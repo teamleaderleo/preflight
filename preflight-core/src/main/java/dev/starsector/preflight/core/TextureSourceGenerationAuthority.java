@@ -336,7 +336,8 @@ public final class TextureSourceGenerationAuthority {
         public Map<Path, String> capture(List<Path> sources) throws IOException {
             List<String> output = runTool(
                     List.of("/usr/bin/osascript", "-l", "JavaScript", "-e", MAC_CAPTURE_SCRIPT),
-                    sources.stream().map(TextureSourceGenerationAuthority::encodePath).toList());
+                    sources.stream().map(TextureSourceGenerationAuthority::encodePath).toList())
+                    .stdoutLines();
             if (output.size() != sources.size()) {
                 throw new IOException("macOS generation provider returned " + output.size()
                         + " tokens for " + sources.size() + " sources");
@@ -362,7 +363,8 @@ public final class TextureSourceGenerationAuthority {
             }
             List<String> output = runTool(
                     List.of("/usr/bin/osascript", "-l", "JavaScript", "-e", MAC_VALIDATE_SCRIPT),
-                    input);
+                    input)
+                    .stdoutLines();
             if (output.size() != sources.size()) {
                 throw new IOException("macOS generation validator returned " + output.size()
                         + " answers for " + sources.size() + " sources");
@@ -383,7 +385,7 @@ public final class TextureSourceGenerationAuthority {
 
         @Override
         public Map<Path, String> capture(List<Path> sources) throws IOException {
-            List<String> rawOutput = runTool(
+            ToolOutput tool = runTool(
                     List.of(
                             windowsPowerShell(),
                             "-NoLogo",
@@ -394,14 +396,15 @@ public final class TextureSourceGenerationAuthority {
                             "-EncodedCommand",
                             powershellEncodedCommand(WINDOWS_USN_SCRIPT)),
                     sources.stream().map(TextureSourceGenerationAuthority::encodePath).toList());
-            List<String> output = rawOutput.stream()
+            List<String> output = tool.stdoutLines().stream()
                     .filter(line -> line.startsWith(WINDOWS_OUTPUT_PREFIX))
                     .map(line -> line.substring(WINDOWS_OUTPUT_PREFIX.length()))
                     .toList();
             if (output.size() != sources.size()) {
                 throw new IOException("Windows USN provider returned " + output.size()
-                        + " framed tokens for " + sources.size() + " sources; output: "
-                        + bounded(String.join(" | ", rawOutput)));
+                        + " framed tokens for " + sources.size() + " sources; stdout: "
+                        + bounded(String.join(" | ", tool.stdoutLines()))
+                        + (tool.stderr().isBlank() ? "" : "; stderr: " + bounded(tool.stderr())));
             }
             Map<Path, String> tokens = new HashMap<>();
             for (int index = 0; index < sources.size(); index++) {
@@ -485,6 +488,13 @@ public final class TextureSourceGenerationAuthority {
             long sourceBytes) {
     }
 
+    private record ToolOutput(List<String> stdoutLines, String stderr) {
+        ToolOutput {
+            stdoutLines = List.copyOf(stdoutLines);
+            stderr = stderr == null ? "" : stderr;
+        }
+    }
+
     private static final class HashFailure extends RuntimeException {
         private HashFailure(IOException cause) {
             super(cause);
@@ -510,7 +520,7 @@ public final class TextureSourceGenerationAuthority {
         return Base64.getEncoder().encodeToString(script.getBytes(StandardCharsets.UTF_16LE));
     }
 
-    private static List<String> runTool(List<String> command, List<String> inputLines)
+    private static ToolOutput runTool(List<String> command, List<String> inputLines)
             throws IOException {
         String textInput = inputLines.isEmpty() ? "" : String.join("\n", inputLines) + "\n";
         byte[] input = textInput.getBytes(StandardCharsets.US_ASCII);
@@ -518,12 +528,17 @@ public final class TextureSourceGenerationAuthority {
             throw new IOException("Source generation provider input exceeded the safety limit");
         }
 
-        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
-        FutureTask<byte[]> outputTask = new FutureTask<>(() ->
+        Process process = new ProcessBuilder(command).start();
+        FutureTask<byte[]> stdoutTask = new FutureTask<>(() ->
                 process.getInputStream().readNBytes(MAX_TOOL_OUTPUT_BYTES + 1));
-        Thread reader = new Thread(outputTask, "preflight-generation-tool-output");
-        reader.setDaemon(true);
-        reader.start();
+        FutureTask<byte[]> stderrTask = new FutureTask<>(() ->
+                process.getErrorStream().readNBytes(MAX_TOOL_OUTPUT_BYTES + 1));
+        Thread stdoutReader = new Thread(stdoutTask, "preflight-generation-tool-stdout");
+        Thread stderrReader = new Thread(stderrTask, "preflight-generation-tool-stderr");
+        stdoutReader.setDaemon(true);
+        stderrReader.setDaemon(true);
+        stdoutReader.start();
+        stderrReader.start();
         try {
             process.getOutputStream().write(input);
             process.getOutputStream().close();
@@ -545,21 +560,34 @@ public final class TextureSourceGenerationAuthority {
             throw new IOException("Source generation provider exceeded "
                     + TOOL_TIMEOUT.toSeconds() + " seconds");
         }
-        byte[] output;
+
+        byte[] stdout;
+        byte[] stderr;
         try {
-            output = outputTask.get(10, TimeUnit.SECONDS);
+            stdout = stdoutTask.get(10, TimeUnit.SECONDS);
+            stderr = stderrTask.get(10, TimeUnit.SECONDS);
         } catch (Exception error) {
             process.destroyForcibly();
             throw new IOException("Could not collect source generation provider output", error);
         }
-        if (output.length > MAX_TOOL_OUTPUT_BYTES) {
-            throw new IOException("Source generation provider output exceeded the safety limit");
+        if (stdout.length > MAX_TOOL_OUTPUT_BYTES) {
+            throw new IOException("Source generation provider stdout exceeded the safety limit");
         }
-        String text = new String(output, StandardCharsets.UTF_8);
+        if (stderr.length > MAX_TOOL_OUTPUT_BYTES) {
+            throw new IOException("Source generation provider stderr exceeded the safety limit");
+        }
+
+        String stdoutText = new String(stdout, StandardCharsets.UTF_8);
+        String stderrText = new String(stderr, StandardCharsets.UTF_8);
         if (process.exitValue() != 0) {
-            throw new IOException("Source generation provider failed: " + bounded(text));
+            String detail = stderrText.isBlank() ? stdoutText : stderrText;
+            throw new IOException("Source generation provider failed: " + bounded(detail));
         }
-        if (text.isEmpty()) {
+        return new ToolOutput(lines(stdoutText), stderrText);
+    }
+
+    private static List<String> lines(String text) {
+        if (text == null || text.isEmpty()) {
             return List.of();
         }
         String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
