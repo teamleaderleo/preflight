@@ -6,6 +6,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.channels.FileChannel;
@@ -32,6 +33,7 @@ public final class TextureSourceGenerationProofIO {
     private static final int MAX_PROFILE_FILE_NAME_BYTES = 240;
     private static final int MAX_ENTRIES = 100_000;
     private static final int MAX_EAGER_CAPACITY = 65_536;
+    private static final int READ_BUFFER_BYTES = 8 * 1024;
 
     private TextureSourceGenerationProofIO() {
     }
@@ -74,11 +76,40 @@ public final class TextureSourceGenerationProofIO {
     }
 
     public static TextureSourceGenerationProof read(Path source) throws IOException {
-        long size = Files.size(source);
-        if (size < minimumFileBytes() || size > MAX_FILE_BYTES) {
+        return read(source, MAX_FILE_BYTES);
+    }
+
+    static TextureSourceGenerationProof read(Path source, int maximumFileBytes) throws IOException {
+        if (maximumFileBytes < minimumFileBytes() || maximumFileBytes > MAX_FILE_BYTES) {
+            throw new IllegalArgumentException("Texture source generation proof read limit is invalid");
+        }
+        byte[] bytes = readBounded(source, maximumFileBytes);
+        if (bytes.length < minimumFileBytes()) {
             throw new IOException("Texture source generation proof size is invalid: " + source);
         }
-        return fromBytes(Files.readAllBytes(source));
+        return fromBytes(bytes);
+    }
+
+    private static byte[] readBounded(Path source, int maximumFileBytes) throws IOException {
+        try (InputStream input = Files.newInputStream(source, StandardOpenOption.READ)) {
+            ByteArrayOutputStream output = new ByteArrayOutputStream(Math.min(maximumFileBytes, 64 * 1024));
+            byte[] buffer = new byte[READ_BUFFER_BYTES];
+            while (true) {
+                int remaining = maximumFileBytes - output.size();
+                int allowed = Math.min(buffer.length, remaining + 1);
+                int read = input.read(buffer, 0, allowed);
+                if (read < 0) {
+                    return output.toByteArray();
+                }
+                if (read == 0) {
+                    continue;
+                }
+                if ((long) output.size() + read > maximumFileBytes) {
+                    throw new IOException("Texture source generation proof size is invalid: " + source);
+                }
+                output.write(buffer, 0, read);
+            }
+        }
     }
 
     public static byte[] toBytes(TextureSourceGenerationProof proof) throws IOException {
