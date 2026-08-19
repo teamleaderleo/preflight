@@ -1,12 +1,10 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.ResourceIndex;
+import dev.starsector.preflight.core.ResourceProviderComparison;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -21,6 +19,10 @@ import java.util.Set;
  * declared {@code hullId} must name a winning ship hull spec in the same resolved profile. Hull
  * specs can come from ordinary {@code .ship} definitions or {@code .skin} definitions. It does not
  * build another profile index, does not mutate anything, and ignores overridden losing files.
+ *
+ * <p>Each spec is parsed only from bytes read through the existing exact provider-generation proof.
+ * A provider replacement between index construction and analysis therefore becomes non-authoritative
+ * instead of letting newer bytes inherit an older profile/index identity.
  */
 final class StaticReferenceCheck {
     private static final String PROVIDER = "static-links";
@@ -68,10 +70,8 @@ final class StaticReferenceCheck {
                 skipped++;
                 continue;
             }
-            Text document;
-            try {
-                document = boundedText(index.resolveExisting(winner));
-            } catch (IOException unreadable) {
+            Text document = exactBoundedText(index, path, winner);
+            if (document == null) {
                 skipped++;
                 continue;
             }
@@ -186,6 +186,32 @@ final class StaticReferenceCheck {
                 System.nanoTime() - started);
     }
 
+    /**
+     * Uses the same provider-local hard-link proof as exact profile hashing. The supplied hasher
+     * captures the bounded bytes while hashing them, so analysis adds no second payload read.
+     */
+    private static Text exactBoundedText(
+            ResourceIndex index,
+            String logicalPath,
+            ResourceIndex.Provider provider) {
+        Text[] captured = new Text[1];
+        ResourceProviderComparison.ContentIdentitySource source = ResourceProviderContentIdentity.direct(
+                index,
+                input -> {
+                    byte[] content = input.readNBytes(MAX_SPEC_BYTES + 1);
+                    if (content.length > MAX_SPEC_BYTES) {
+                        throw new IOException("Static spec file exceeds the 1 MiB input limit");
+                    }
+                    captured[0] = new Text(new String(content, StandardCharsets.UTF_8), content.length);
+                    return Hashes.sha256(content);
+                });
+        ResourceProviderComparison.ContentObservation observation = source.observe(logicalPath, provider);
+        if (observation.evidence() != ResourceProviderComparison.ContentEvidence.HASHED) {
+            return null;
+        }
+        return captured[0];
+    }
+
     private static void addHullIds(Set<String> hullIds, List<Spec> specs) {
         for (Spec spec : specs) {
             if (spec.hullId() != null && !spec.hullId().isBlank()) {
@@ -208,16 +234,6 @@ final class StaticReferenceCheck {
 
     private static boolean isVariant(String path) {
         return path.startsWith(VARIANT_PREFIX) && path.endsWith(".variant");
-    }
-
-    private static Text boundedText(Path path) throws IOException {
-        try (InputStream input = Files.newInputStream(path, StandardOpenOption.READ)) {
-            byte[] bytes = input.readNBytes(MAX_SPEC_BYTES + 1);
-            if (bytes.length > MAX_SPEC_BYTES) {
-                throw new IOException("Static spec file exceeds the 1 MiB input limit");
-            }
-            return new Text(new String(bytes, StandardCharsets.UTF_8), bytes.length);
-        }
     }
 
     record Result(
