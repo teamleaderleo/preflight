@@ -11,6 +11,10 @@ on:
         description: Successful Distribution run ID that created and verified the draft
         required: true
         type: string
+      lifecycle_run_id:
+        description: Successful Tagged candidate package lifecycle run over the same Distribution bytes
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -30,6 +34,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       RELEASE_TAG: ${{ inputs.tag }}
       DISTRIBUTION_RUN_ID: ${{ inputs.distribution_run_id }}
+      LIFECYCLE_RUN_ID: ${{ inputs.lifecycle_run_id }}
     steps:
       - name: Validate release inputs
         shell: bash
@@ -41,6 +46,10 @@ jobs:
           }
           [[ "$DISTRIBUTION_RUN_ID" =~ ^[0-9]+$ ]] || {
             echo "::error::Distribution run ID must be numeric"
+            exit 1
+          }
+          [[ "$LIFECYCLE_RUN_ID" =~ ^[0-9]+$ ]] || {
+            echo "::error::Tagged lifecycle run ID must be numeric"
             exit 1
           }
 
@@ -128,6 +137,104 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --name "preflight-complete-release-$DISTRIBUTION_RUN_ID" \
             --dir verified-release
+
+      - name: Require package lifecycle evidence from these exact tagged bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$LIFECYCLE_RUN_ID" \
+            > "$RUNNER_TEMP/tagged-lifecycle-run.json"
+          lifecycle_head="$(python3 - "$RUNNER_TEMP/tagged-lifecycle-run.json" <<'PY'
+          import json
+          import sys
+
+          run = json.load(open(sys.argv[1], encoding="utf-8"))
+          errors = []
+          if run.get("name") != "Tagged candidate package lifecycle":
+              errors.append(f"run name is {run.get('name')!r}")
+          if run.get("path") != ".github/workflows/tagged-candidate-lifecycle.yml":
+              errors.append(f"workflow path is {run.get('path')!r}")
+          if run.get("event") != "workflow_dispatch":
+              errors.append(f"run event is {run.get('event')!r}, expected 'workflow_dispatch'")
+          if run.get("head_branch") != "main":
+              errors.append(f"run branch is {run.get('head_branch')!r}, expected 'main'")
+          if run.get("status") != "completed" or run.get("conclusion") != "success":
+              errors.append(
+                  f"run state is {run.get('status')!r}/{run.get('conclusion')!r}, expected completed/success"
+              )
+          head = run.get("head_sha")
+          if not isinstance(head, str) or len(head) != 40:
+              errors.append(f"invalid lifecycle head SHA {head!r}")
+          if errors:
+              raise SystemExit("Refusing publication: " + "; ".join(errors))
+          print(head)
+          PY
+          )"
+          git merge-base --is-ancestor "$lifecycle_head" origin/main || {
+            echo "::error::Tagged lifecycle workflow did not run from reviewed main history"
+            exit 1
+          }
+
+          mkdir -p tagged-lifecycle/Linux tagged-lifecycle/Windows tagged-lifecycle/macOS
+          for platform in Linux Windows macOS; do
+            gh run download "$LIFECYCLE_RUN_ID" \
+              --repo "$GITHUB_REPOSITORY" \
+              --name "tagged-candidate-package-lifecycle-$platform-$DISTRIBUTION_RUN_ID" \
+              --dir "tagged-lifecycle/$platform"
+          done
+
+          python3 - verified-release tagged-lifecycle "$RELEASE_TAG" "$DISTRIBUTION_RUN_ID" "$(git rev-parse "${RELEASE_TAG}^{}")" <<'PY'
+          from hashlib import sha256
+          import json
+          from pathlib import Path
+          import sys
+
+          release = Path(sys.argv[1])
+          evidence = Path(sys.argv[2])
+          tag = sys.argv[3]
+          distribution_run_id = sys.argv[4]
+          source_revision = sys.argv[5]
+          expected = {
+              "Linux": ("Preflight-Linux-x86_64.deb", "SHA256SUMS-linux-x64.txt"),
+              "Windows": ("Preflight-Windows-x86_64.exe", "SHA256SUMS-win32-x64.txt"),
+              "macOS": ("Preflight-macOS-arm64.dmg", "SHA256SUMS-darwin-arm64.txt"),
+          }
+          errors = []
+          for platform, (package_name, checksum_name) in expected.items():
+              receipt_path = evidence / platform / "lifecycle.json"
+              if not receipt_path.is_file():
+                  errors.append(f"missing {platform} lifecycle receipt")
+                  continue
+              receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+              if receipt.get("format") != "preflight-tagged-package-lifecycle-v1":
+                  errors.append(f"{platform} receipt has wrong format")
+              if receipt.get("platform") != platform:
+                  errors.append(f"{platform} receipt names platform {receipt.get('platform')!r}")
+              if receipt.get("releaseTag") != tag:
+                  errors.append(f"{platform} receipt tag does not match {tag}")
+              if str(receipt.get("distributionRunId")) != distribution_run_id:
+                  errors.append(f"{platform} receipt Distribution run does not match")
+              if receipt.get("sourceRevision") != source_revision:
+                  errors.append(f"{platform} receipt source revision does not match tag")
+              package = receipt.get("exactCandidatePackage") or {}
+              if package.get("name") != package_name:
+                  errors.append(f"{platform} receipt package is {package.get('name')!r}")
+              if package.get("checksumManifest") != checksum_name:
+                  errors.append(f"{platform} receipt checksum manifest is {package.get('checksumManifest')!r}")
+              release_package = release / package_name
+              if not release_package.is_file():
+                  errors.append(f"verified release is missing {package_name}")
+                  continue
+              data = release_package.read_bytes()
+              actual_sha = sha256(data).hexdigest()
+              if package.get("bytes") != len(data):
+                  errors.append(f"{platform} receipt byte length differs from tagged release")
+              if package.get("sha256") != actual_sha:
+                  errors.append(f"{platform} receipt SHA-256 differs from tagged release")
+          if errors:
+              raise SystemExit("Refusing publication: " + "; ".join(errors))
+          print("Tagged package lifecycle receipts match all three published package byte sets")
+          PY
 
       - name: Download current draft release assets
         shell: bash
