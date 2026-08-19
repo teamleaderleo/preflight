@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -154,6 +155,21 @@ class AudioCensusTest {
         assertEquals(1, result.sounds().size());
         assertEquals("alpha", sound(result, "sounds/shared.ogg").rootId());
         assertEquals(16_384, sound(result, "sounds/shared.ogg").decodedBytes());
+    }
+
+    @Test
+    void reportsMalformedDeclarationsAsMissingInsteadOfAbortingTheScan() throws Exception {
+        Path core = writeMinimalProfile();
+        Files.writeString(core.resolve("data/config/sounds.json"), """
+                {
+                  "bad_effect":[{"file":"../outside.ogg","volume":1}],
+                  "music":{"bad_music":[{"file":"C:/outside.ogg","volume":1}]}
+                }
+                """);
+
+        AudioCensus.Result result = AudioCensus.scan(temporaryDirectory);
+
+        assertEquals(List.of("../outside.ogg", "c:/outside.ogg"), result.missingDeclarations());
     }
 
     private Path writeMinimalProfile() throws IOException {
