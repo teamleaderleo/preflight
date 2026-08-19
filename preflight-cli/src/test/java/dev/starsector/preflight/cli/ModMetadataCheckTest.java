@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -131,6 +132,17 @@ class ModMetadataCheckTest {
                 IOException.class,
                 () -> ModMetadataCheck.check(game, 2L * 1024 * 1024));
         assertTrue(error.getMessage().contains("Aggregate mod metadata"));
+    }
+
+    @Test
+    void findingFanoutFailsBeforeExceedingSharedResultLimit() throws Exception {
+        List<String> enabled = IntStream.range(0, 257)
+                .mapToObj(index -> "missing-" + index)
+                .toList();
+        Path game = game(enabled);
+
+        IOException error = assertThrows(IOException.class, () -> ModMetadataCheck.check(game));
+        assertTrue(error.getMessage().contains("shared finding limit"));
     }
 
     @Test
