@@ -72,7 +72,8 @@ final class AudioCensusCommand {
     }
 
     private static String quote(String value) {
-        return '"' + value.replace("\"", "\"\"") + '"';
+        String safe = !value.isEmpty() && "=+-@".indexOf(value.charAt(0)) >= 0 ? "'" + value : value;
+        return '"' + safe.replace("\"", "\"\"") + '"';
     }
 
     private static String requireValue(String[] args, int index, String option) {
