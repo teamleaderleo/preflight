@@ -130,7 +130,7 @@ final class StaticReferenceCheck {
                     hullUniverseComplete = false;
                     continue;
                 }
-                String rawVariantId = variant ? JsonText.rootString(document.value(), "variantId") : null;
+                String rawVariantId = variant ? optionalVariantId(document.value()) : null;
                 String variantId = rawVariantId != null
                                 && !rawVariantId.isBlank()
                                 && rawVariantId.length() <= MAX_ID_CHARS
@@ -228,6 +228,18 @@ final class StaticReferenceCheck {
                 unknownContextReferences,
                 bytes,
                 System.nanoTime() - started);
+    }
+
+    /**
+     * Variant ID is descriptive evidence, not relationship authority. Keep it root-scoped, but a
+     * duplicate/malformed optional label must not suppress an otherwise authoritative hull link.
+     */
+    private static String optionalVariantId(String document) {
+        try {
+            return JsonText.rootString(document, "variantId");
+        } catch (IllegalArgumentException malformedOptionalLabel) {
+            return null;
+        }
     }
 
     private static SetupAnalysis.Finding missingHullFinding(Spec variant, String hullId) {
