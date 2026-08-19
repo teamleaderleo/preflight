@@ -145,7 +145,7 @@ pub(crate) struct ReportUploadInput {
     pub(crate) sha256: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct ReportDeletion {
     pub(crate) method: String,
@@ -346,7 +346,8 @@ pub(crate) async fn send_run_report(
                     true,
                 ));
             }
-            drop(running);
+            // Publish the background slot while the foreground coordinator is still held.
+            // Manual/player actions take the locks in this same order, then cancel this slot.
             let mut background = AUTOMATIC_REPORT_UPLOAD.lock().map_err(|_| {
                 NativeCommandError::new(
                     "operation-state-unavailable",
@@ -529,7 +530,30 @@ fn background_upload_snapshot() -> Result<(Option<u64>, Option<u64>), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ReportUploadError, upload_outcome_error};
+    use super::{
+        AUTOMATIC_REPORT_UPLOAD, ReportUploadError, cancel_background_report,
+        upload_outcome_error,
+    };
+    use crate::operations::ReportUploadProcess;
+    use tokio::sync::watch;
+
+    #[test]
+    fn foreground_cancellation_signals_and_clears_automatic_upload() {
+        let (cancel, receiver) = watch::channel(false);
+        {
+            let mut background = AUTOMATIC_REPORT_UPLOAD.lock().unwrap();
+            assert!(background.is_none());
+            *background = Some(ReportUploadProcess {
+                id: 7,
+                total_bytes: 11,
+                cancel,
+            });
+        }
+
+        assert!(cancel_background_report().unwrap());
+        assert!(*receiver.borrow());
+        assert!(AUTOMATIC_REPORT_UPLOAD.lock().unwrap().is_none());
+    }
 
     #[test]
     fn cancellation_has_a_stable_machine_readable_error_code() {
