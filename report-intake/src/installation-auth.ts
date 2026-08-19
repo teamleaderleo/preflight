@@ -13,6 +13,11 @@ export interface InstallationChallenge {
   caseId?: string;
 }
 
+export type ConsumeInstallationNonce = (
+  installationKeyId: string,
+  challenge: InstallationChallenge,
+) => Promise<boolean>;
+
 export function canonicalInstallationChallenge(challenge: InstallationChallenge): string {
   validateChallenge(challenge, Number.MIN_SAFE_INTEGER);
   return [
@@ -45,6 +50,21 @@ export async function verifyInstallationRequest(
     decodeBase64url(signature),
     encoder.encode(canonicalInstallationChallenge(challenge)),
   );
+}
+
+export async function authorizeInstallationRequest(
+  publicKey: JsonWebKey,
+  challenge: InstallationChallenge,
+  signature: string,
+  consumeNonce: ConsumeInstallationNonce,
+  nowSeconds = Math.floor(Date.now() / 1000),
+): Promise<boolean> {
+  if (!await verifyInstallationRequest(publicKey, challenge, signature, nowSeconds)) return false;
+  const keyId = await installationKeyId(publicKey);
+  if (!await consumeNonce(keyId, challenge)) {
+    throw new Error("installation challenge was already consumed");
+  }
+  return true;
 }
 
 export async function installationKeyId(publicKey: JsonWebKey): Promise<string> {
