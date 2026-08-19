@@ -141,6 +141,15 @@ function savedRunReportReceipt(): ReportReceipt | null {
   return null;
 }
 
+function clearRemoteReportingStorage() {
+  try {
+    window.localStorage.removeItem(AUTOMATIC_RUN_REPORTS_STORAGE_KEY);
+    window.localStorage.removeItem(REPORT_RECEIPT_STORAGE_KEY);
+  } catch {
+    // Runtime state still fails closed if a locked-down webview denies local storage.
+  }
+}
+
 export function useDiagnosticsReport(active: boolean, announce: Announce) {
   const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
   const [diagnosticsExport, setDiagnosticsExport] = useState<DiagnosticsExport | null>(null);
@@ -159,6 +168,14 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
   const automaticReportRef = useRef(false);
   const automaticRunReportsRef = useRef(automaticRunReports);
   const reportIntakeRef = useRef(reportIntake);
+
+  const disableRemoteReportingState = useCallback(() => {
+    clearRemoteReportingStorage();
+    automaticRunReportsRef.current = false;
+    setAutomaticRunReports(false);
+    setReportReview(false);
+    setReportReceipt(null);
+  }, []);
 
   useEffect(() => {
     automaticRunReportsRef.current = automaticRunReports;
@@ -181,21 +198,26 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
   }, [reportReceipt]);
 
   useEffect(() => {
-    if ((!active && !automaticRunReports) || reportIntake !== null) return;
+    if ((!active && !automaticRunReports && !reportReceipt) || reportIntake !== null) return;
     let cancelled = false;
     void getReportIntakeStatus()
       .then((status) => {
-        if (!cancelled) setReportIntake(status);
+        if (cancelled) return;
+        reportIntakeRef.current = status;
+        setReportIntake(status);
+        if (!status.configured) disableRemoteReportingState();
       })
       .catch((error) => {
-        if (!cancelled) {
-          setReportIntake({ configured: false, origin: null, reason: errorMessage(error) });
-        }
+        if (cancelled) return;
+        const status = { configured: false, origin: null, reason: errorMessage(error) };
+        reportIntakeRef.current = status;
+        setReportIntake(status);
+        disableRemoteReportingState();
       });
     return () => {
       cancelled = true;
     };
-  }, [active, automaticRunReports, reportIntake]);
+  }, [active, automaticRunReports, disableRemoteReportingState, reportIntake, reportReceipt]);
 
   useEffect(() => {
     if (!isDesktopHost()) return;
@@ -372,7 +394,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
   };
 
   const removeRunReport = async () => {
-    if (!reportReceipt || reportDeleting) return;
+    if (!reportIntake?.configured || !reportReceipt || reportDeleting) return;
     setReportDeleting(true);
     try {
       await deleteRunReport(reportReceipt.deletion);
@@ -387,6 +409,11 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
   };
 
   const setAutomaticRunReportsSafely = useCallback((enabled: boolean) => {
+    if (enabled && reportIntakeRef.current?.configured === false) {
+      disableRemoteReportingState();
+      announce("Remote reporting is disabled in this beta. Local diagnostics ZIP export is still available.");
+      return;
+    }
     if (!persistAutomaticRunReports(enabled)) {
       announce("Preflight couldn’t save that choice, so automatic reports stay off.", "warning");
       setAutomaticRunReports(false);
@@ -395,7 +422,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     }
     automaticRunReportsRef.current = enabled;
     setAutomaticRunReports(enabled);
-  }, [announce]);
+  }, [announce, disableRemoteReportingState]);
 
   const submitAutomaticFailedRunReport = useCallback(async ({
     game,
@@ -414,7 +441,10 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
         reportIntakeRef.current = intake;
         setReportIntake(intake);
       }
-      if (!intake.configured) return;
+      if (!intake.configured) {
+        disableRemoteReportingState();
+        return;
+      }
       const latest = await getSnapshot(game).catch(() => null);
       const identity = failedRunIdentity(latest?.lastRun ?? null, wrapperPid);
       if (!identity) return;
@@ -445,10 +475,10 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
       setReportCancelling(false);
       automaticReportRef.current = false;
     }
-  }, [announce]);
+  }, [announce, disableRemoteReportingState]);
 
   return {
-    automaticRunReports,
+    automaticRunReports: automaticRunReports && reportIntake?.configured === true,
     diagnosticsBusy,
     diagnosticsExport,
     reportCancelling,
