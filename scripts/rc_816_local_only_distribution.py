@@ -28,7 +28,7 @@ workflow = "".join(
 )
 assert "PREFLIGHT_REPORT_INTAKE_ORIGIN" not in workflow
 assert "REPORT_INTAKE_ORIGIN" not in workflow
-assert "PREFLIGHT_UPDATER_PRIVATE_KEY" in workflow
+assert "TAURI_SIGNING_PRIVATE_KEY" in workflow
 assert "PREFLIGHT_UPDATER_PUBLIC_KEY" in workflow
 assert "PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD" in workflow
 workflow_path.write_text(workflow)
