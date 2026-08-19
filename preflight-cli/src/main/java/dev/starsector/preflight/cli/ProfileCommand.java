@@ -38,6 +38,8 @@ final class ProfileCommand {
     };
     private static final ProfileMutationTransaction.Hook NO_PROFILE_MUTATION_HOOK =
             new ProfileMutationTransaction.Hook() {};
+    private static final EnabledModsActivationTransaction.Hook NO_ACTIVATION_HOOK =
+            new EnabledModsActivationTransaction.Hook() {};
 
     private ProfileCommand() {
     }
@@ -102,6 +104,7 @@ final class ProfileCommand {
         }
         LaunchTarget target = discover(options.game(), options.launcher());
         PreflightHome home = PreflightHome.current();
+        EnabledModsActivationTransaction.recoverInterrupted(home, target.installRoot());
         return switch (operation) {
             case "list" -> list(home, target.installRoot(), options.json(), System.out);
             case "save" -> save(home, target.installRoot(), name, options.json(), System.out);
@@ -420,6 +423,7 @@ final class ProfileCommand {
 
     /** The read-only document used by both the public command and the desktop bootstrap. */
     static Map<String, Object> describeList(PreflightHome home, Path installRoot) throws Exception {
+        EnabledModsActivationTransaction.recoverInterrupted(home, installRoot);
         GameLayout layout = GameLayout.locate(installRoot);
         List<String> current = readEnabled(layout.enabledModsFile());
         Set<String> installed = installedModIds(layout.modsDirectory());
@@ -443,14 +447,26 @@ final class ProfileCommand {
             boolean confirmed,
             boolean json,
             PrintStream out) throws Exception {
+        return activate(home, installRoot, name, confirmed, json, out, NO_ACTIVATION_HOOK);
+    }
+
+    static int activate(
+            PreflightHome home,
+            Path installRoot,
+            String name,
+            boolean confirmed,
+            boolean json,
+            PrintStream out,
+            EnabledModsActivationTransaction.Hook activationHook) throws Exception {
         name = validateName(name);
+        EnabledModsActivationTransaction.recoverInterrupted(home, installRoot);
         if (!confirmed) {
-            return activateOwned(home, installRoot, name, false, json, out);
+            return activateOwned(home, installRoot, name, false, json, out, activationHook);
         }
         OperationLease.Acquisition ownership = OperationLease.acquire(home, "switching-profile", installRoot);
         try (OperationLease ignored = ownership.lease()) {
             recoverProfileTransactions(home);
-            return activateOwned(home, installRoot, name, true, json, out);
+            return activateOwned(home, installRoot, name, true, json, out, activationHook);
         }
     }
 
@@ -836,8 +852,12 @@ final class ProfileCommand {
             String name,
             boolean confirmed,
             boolean json,
-            PrintStream out) throws Exception {
+            PrintStream out,
+            EnabledModsActivationTransaction.Hook activationHook) throws Exception {
         GameLayout layout = GameLayout.locate(installRoot);
+        if (confirmed) {
+            layout = layout.requireMutationSafe();
+        }
         SavedProfile profile = readProfile(profilePath(home, name));
         requireProfileName(profile, name);
         byte[] sourceState = Files.readAllBytes(layout.enabledModsFile());
@@ -914,13 +934,66 @@ final class ProfileCommand {
         Path backup = backup(home, sourceState);
         byte[] replacement = (Json.object(Map.of("enabledMods", profile.enabledMods()))
                 + System.lineSeparator()).getBytes(StandardCharsets.UTF_8);
-        boolean atomicReplace = replaceIfUnchanged(layout.enabledModsFile(), sourceState, replacement);
+        EnabledModsActivationTransaction.Result publication;
+        try {
+            publication = EnabledModsActivationTransaction.replace(
+                    layout.enabledModsFile(), sourceState, replacement, activationHook);
+        } catch (EnabledModsActivationTransaction.StaleGenerationException stale) {
+            return refreshActivationAfterCommitRace(home, layout, profile, json, out);
+        }
         deleteActivationReview(home, layout.installRoot(), name);
         plan.put("applied", true);
-        plan.put("atomicReplace", atomicReplace);
+        plan.put("atomicReplace", true);
+        plan.put("cleanupPending", publication.cleanupPending());
         plan.put("backup", backup);
         emitActivation(plan, json, out);
         return 0;
+    }
+
+    private static int refreshActivationAfterCommitRace(
+            PreflightHome home,
+            GameLayout layout,
+            SavedProfile reviewedProfile,
+            boolean json,
+            PrintStream out) throws Exception {
+        SavedProfile profile = readProfile(profilePath(home, reviewedProfile.name()));
+        requireProfileName(profile, reviewedProfile.name());
+        byte[] sourceState = Files.readAllBytes(layout.enabledModsFile());
+        String sourceStateSha256 = Hashes.sha256(sourceState);
+        List<String> current = readEnabled(sourceState);
+        Set<String> installed = installedModIds(layout.modsDirectory());
+        List<String> missing = profile.enabledMods().stream().filter(id -> !installed.contains(id)).toList();
+        List<String> enable = difference(profile.enabledMods(), current);
+        List<String> disable = difference(current, profile.enabledMods());
+        boolean sameInstall = profile.installRoot().equals(layout.installRoot());
+        boolean active = current.equals(profile.enabledMods());
+        boolean canActivate = sameInstall && missing.isEmpty();
+        boolean profileChanged = !profile.profileFingerprint().equals(reviewedProfile.profileFingerprint());
+
+        Map<String, Object> plan = new LinkedHashMap<>();
+        plan.put("format", "starsector-preflight-profile-activation-v1");
+        plan.put("name", profile.name());
+        plan.put("installRoot", layout.installRoot());
+        plan.put("savedInstallRoot", profile.installRoot());
+        plan.put("sameInstall", sameInstall);
+        plan.put("active", active);
+        plan.put("canActivate", canActivate);
+        plan.put("applied", false);
+        plan.put("enable", enable);
+        plan.put("disable", disable);
+        plan.put("missingMods", missing);
+        plan.put("sourceStateSha256", sourceStateSha256);
+        plan.put("sourceChanged", true);
+        plan.put("profileChanged", profileChanged);
+        plan.put("reviewChanged", true);
+
+        if (canActivate && !active) {
+            writeActivationReview(home, layout.installRoot(), profile, sourceStateSha256);
+        } else {
+            deleteActivationReview(home, layout.installRoot(), profile.name());
+        }
+        emitActivation(plan, json, out);
+        return 2;
     }
 
     private static void emitActivation(Map<String, Object> plan, boolean json, PrintStream out) {
@@ -961,7 +1034,7 @@ final class ProfileCommand {
         out.println("  disable: " + (disable.isEmpty() ? "none" : String.join(", ", disable)));
         if (Boolean.TRUE.equals(plan.get("applied"))) {
             String method = Boolean.TRUE.equals(plan.get("atomicReplace"))
-                    ? "applied with an atomic move"
+                    ? "applied with an atomic commit"
                     : "applied with a staged same-directory replacement";
             out.println("  " + method + "; backup: " + plan.get("backup"));
         }
