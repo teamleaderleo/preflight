@@ -56,6 +56,9 @@ final class StaticReferenceCheck {
         List<Spec> variants = new ArrayList<>();
         long bytes = 0;
         int skipped = 0;
+        int hullInputs = 0;
+        int skinInputs = 0;
+        int variantInputs = 0;
         int totalConversionSkips = 0;
         int unknownContextReferences = 0;
         boolean hullUniverseComplete = true;
@@ -69,15 +72,24 @@ final class StaticReferenceCheck {
                 continue;
             }
 
-            // Refuse before opening another spec once a class has exhausted its reviewed work cap.
-            if (skin && skins.size() >= MAX_SKINS) {
-                throw new IOException("Static skin analysis exceeds the 4,096-definition limit");
-            }
-            if (hull && hulls.size() >= MAX_HULLS) {
-                throw new IOException("Static hull analysis exceeds the 4,096-definition limit");
-            }
-            if (variant && variants.size() >= MAX_VARIANTS) {
-                throw new IOException("Static variant analysis exceeds the 16,384-definition limit");
+            // Refuse before opening another winning candidate once a class has exhausted its reviewed
+            // work cap. Count attempts, not only successfully decoded specs, so empty/malformed inputs
+            // cannot bypass the file-count bound while consuming filesystem/parser work.
+            if (skin) {
+                if (skinInputs >= MAX_SKINS) {
+                    throw new IOException("Static skin analysis exceeds the 4,096-definition limit");
+                }
+                skinInputs++;
+            } else if (hull) {
+                if (hullInputs >= MAX_HULLS) {
+                    throw new IOException("Static hull analysis exceeds the 4,096-definition limit");
+                }
+                hullInputs++;
+            } else {
+                if (variantInputs >= MAX_VARIANTS) {
+                    throw new IOException("Static variant analysis exceeds the 16,384-definition limit");
+                }
+                variantInputs++;
             }
 
             List<ResourceIndex.Provider> providers = entry.getValue();
