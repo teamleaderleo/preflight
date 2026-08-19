@@ -1,0 +1,62 @@
+name: Repair RC 770 macOS fcntl varargs
+
+on:
+  push:
+    branches: [agent/rc-enabled-mods-cas-670]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/rc-enabled-mods-cas-670
+          fetch-depth: 0
+          token: ${{ github.token }}
+      - uses: ./.github/actions/setup-build-jdk
+        with:
+          java-version: '17'
+      - name: Map fcntl as the variadic C function it is
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name preflight-agent
+          git config user.email preflight-agent@users.noreply.github.com
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('preflight-cli/src/main/java/dev/starsector/preflight/cli/ParentBoundDirectory.java')
+          text = path.read_text()
+
+          old_call = '''            if (PosixLibC.INSTANCE.fcntl(
+                    descriptor,
+                    F_GETPATH,
+                    new NativeLong(Pointer.nativeValue(buffer))) != 0) {
+'''
+          new_call = '''            if (PosixLibC.INSTANCE.fcntl(descriptor, F_GETPATH, buffer) != 0) {
+'''
+          if text.count(old_call) != 1:
+              raise SystemExit(f'fcntl call anchor count={text.count(old_call)}')
+          text = text.replace(old_call, new_call)
+
+          old_decl = '        int fcntl(int fd, int command, NativeLong argument);\n'
+          new_decl = '        int fcntl(int fd, int command, Object... arguments);\n'
+          if text.count(old_decl) != 1:
+              raise SystemExit(f'fcntl declaration anchor count={text.count(old_decl)}')
+          text = text.replace(old_decl, new_decl)
+          path.write_text(text)
+          PY
+
+          ./mvnw --batch-mode --no-transfer-progress \
+            -pl preflight-cli -am \
+            -Dtest=ExclusiveMoveTest,ParentBoundDirectoryTest,EnabledModsActivationParentSwapTest,EnabledModsActivationTransactionTest,ProfileActivationPublicationRaceTest \
+            -Dsurefire.failIfNoSpecifiedTests=false test
+
+          rm .github/workflows/repair-770-macos-fcntl-varargs.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(cli): map macOS fcntl as varargs"
+          git push origin HEAD:agent/rc-enabled-mods-cas-670
