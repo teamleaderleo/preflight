@@ -612,6 +612,23 @@ final class RunCommand {
             if (textureContext.profileFingerprint() != null) {
                 System.out.println("  texture profile: " + textureContext.profileFingerprint());
             }
+            if (textureContext.automatic()) {
+                if (textureContext.sourceGenerationValidated()) {
+                    System.out.printf(
+                            Locale.ROOT,
+                            "  texture source generation: verified via %s — %,d entries / %.1f MB in %.1fms; "
+                                    + "prelaunch source-content bytes read=0%n",
+                            textureContext.sourceGenerationProvider(),
+                            textureContext.sourceGenerationEntries(),
+                            textureContext.sourceGenerationBytes() / 1_000_000.0,
+                            textureContext.sourceGenerationValidationMillis());
+                } else {
+                    System.out.println("  prepared texture acceleration: disabled — "
+                            + textureContext.sourceGenerationProblem());
+                }
+            } else {
+                System.out.println("  texture source validation: exact SHA-256 on prepared lookups");
+            }
         }
         System.out.println("  command:  " + renderCommand(command));
         System.out.println("  JAVA_TOOL_OPTIONS: " + javaToolOptions);
@@ -813,6 +830,23 @@ final class RunCommand {
         values.put("textureIndexSha256", textureContext == null ? null : textureContext.indexSha256());
         values.put("textureIndexCheckedProviders", textureContext == null ? null : textureContext.checkedProviders());
         values.put("textureCurrentIndexBuildMs", textureContext == null ? null : textureContext.indexBuildMillis());
+        boolean automaticTextures = textureContext != null && textureContext.automatic();
+        values.put("textureSourceGenerationValidated",
+                automaticTextures ? textureContext.sourceGenerationValidated() : null);
+        values.put("textureSourceGenerationProvider",
+                automaticTextures ? textureContext.sourceGenerationProvider() : null);
+        values.put("textureSourceGenerationEntries",
+                automaticTextures ? textureContext.sourceGenerationEntries() : null);
+        values.put("textureSourceGenerationBytesCovered",
+                automaticTextures ? textureContext.sourceGenerationBytes() : null);
+        values.put("textureSourceGenerationValidationMs",
+                automaticTextures ? textureContext.sourceGenerationValidationMillis() : null);
+        values.put("textureSourceGenerationProblem",
+                automaticTextures ? textureContext.sourceGenerationProblem() : null);
+        // The automatic authority path compares generation tokens only. Recording this as an
+        // explicit counter makes a representative launch prove the performance contract directly.
+        values.put("textureSourceGenerationPrelaunchSourceContentBytesRead",
+                automaticTextures ? 0L : null);
         values.put("adapterKillSwitchProperty", "preflight.adapter.disabled");
         values.put("adapterKillSwitchEnvironment", "PREFLIGHT_DISABLE_ADAPTER");
         // Per-seam contract and signature reports are written when they carry a finding. Set either
