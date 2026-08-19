@@ -9,6 +9,8 @@ import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import dev.starsector.preflight.core.TextureManifest;
 import dev.starsector.preflight.core.TextureManifestIO;
+import dev.starsector.preflight.core.TextureSourceGenerationAuthority;
+import dev.starsector.preflight.core.TextureSourceGenerationProofIO;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -56,10 +58,12 @@ final class CacheHealth {
         Path index = ResourceIndexIO.directory(cache).resolve(profile + ".spfi").normalize();
         Path manifest = TextureManifestIO.directory(cache).resolve(profile + ".spfm").normalize();
         Path pack = PreparedTexturePackIO.path(cache, profile).normalize();
+        Path proof;
         Path audio = PreparedAudioCache.manifestDirectory(cache)
                 .resolve(profile + ".spam").toAbsolutePath().normalize();
         try {
-            requireSafeArtifactPaths(cache, index, manifest, pack, audio);
+            proof = TextureSourceGenerationProofIO.path(cache, profile).normalize();
+            requireSafeArtifactPaths(cache, index, manifest, pack, proof, audio);
         } catch (IOException | IllegalArgumentException error) {
             return unsafe(profile, cache, "Prepared-data paths couldn't be verified: " + message(error));
         }
@@ -68,23 +72,24 @@ final class CacheHealth {
         LinkedHashSet<Target> targets = new LinkedHashSet<>();
         boolean indexPresent = exists(index);
         boolean manifestPresent = exists(manifest);
+        ResourceIndex storedIndex = null;
         TextureManifest textureManifest = null;
 
         if (!indexPresent && !manifestPresent) {
-            if (exists(pack)) {
-                textureIssue(issues, targets, index, manifest, pack,
-                        "The texture pack exists without its profile index and manifest.");
+            if (exists(pack) || exists(proof)) {
+                textureIssue(issues, targets, index, manifest, pack, proof,
+                        "Prepared texture artifacts exist without their profile index and manifest.");
             }
         } else if (!indexPresent || !manifestPresent) {
-            textureIssue(issues, targets, index, manifest, pack,
+            textureIssue(issues, targets, index, manifest, pack, proof,
                     "Prepared texture data is incomplete for this profile.");
         } else if (!regularFile(index) || !regularFile(manifest)) {
-            textureIssue(issues, targets, index, manifest, pack,
+            textureIssue(issues, targets, index, manifest, pack, proof,
                     "Prepared texture metadata isn't stored as regular cache files.");
         } else {
             try {
-                ResourceIndex stored = ResourceIndexIO.read(index);
-                if (!profile.equals(stored.profileFingerprint())) {
+                storedIndex = ResourceIndexIO.read(index);
+                if (!profile.equals(storedIndex.profileFingerprint())) {
                     throw new IOException("resource index profile identity differs");
                 }
                 textureManifest = TextureManifestIO.read(manifest);
@@ -92,7 +97,7 @@ final class CacheHealth {
                     throw new IOException("texture manifest profile identity differs");
                 }
             } catch (Exception error) {
-                textureIssue(issues, targets, index, manifest, pack,
+                textureIssue(issues, targets, index, manifest, pack, proof,
                         "Prepared texture metadata is unreadable: " + message(error));
             }
         }
@@ -107,15 +112,36 @@ final class CacheHealth {
                     throw new IOException("prepared texture pack isn't a regular cache file");
                 }
             } catch (Exception error) {
-                textureIssue(issues, targets, index, manifest, pack,
+                textureIssue(issues, targets, index, manifest, pack, proof,
                         "The prepared texture pack needs rebuilding: " + message(error));
             }
             if (issues.stream().noneMatch(issue -> "prepared-textures".equals(issue.artifact()))) {
                 try (PreparedTexturePack ignored = PreparedTexturePackIO.open(pack, profile, blobs)) {
                     // Opening validates the bounded header, index checksum, profile, and entry set.
                 } catch (Exception error) {
-                    textureIssue(issues, targets, index, manifest, pack,
+                    textureIssue(issues, targets, index, manifest, pack, proof,
                             "The prepared texture pack needs rebuilding: " + message(error));
+                }
+            }
+        }
+
+        // Doctor/cache health should make the same acceleration decision as an automatic launch.
+        // A manifest and pack can be perfectly readable while their source-generation authority is
+        // absent or stale; calling that state "ready" would promise acceleration that launch then
+        // declines. Validation compares only the cheap generation tokens and reads no source bytes.
+        if (textureManifest != null
+                && storedIndex != null
+                && issues.stream().noneMatch(issue -> "prepared-textures".equals(issue.artifact()))) {
+            if (!regularFile(proof)) {
+                textureIssue(issues, targets, index, manifest, pack, proof,
+                        "Prepared texture source-generation proof is missing; run `preflight prepare` to seal this profile.");
+            } else {
+                TextureSourceGenerationAuthority.Validation generation =
+                        TextureSourceGenerationAuthority.validate(cache, manifest, textureManifest, storedIndex);
+                if (!generation.valid()) {
+                    textureIssue(issues, targets, index, manifest, pack, proof,
+                            "Prepared texture source-generation proof is stale or unavailable: "
+                                    + generation.problem());
                 }
             }
         }
@@ -252,6 +278,7 @@ final class CacheHealth {
             Path index,
             Path manifest,
             Path pack,
+            Path proof,
             String summary) {
         if (issues.stream().noneMatch(issue -> "prepared-textures".equals(issue.artifact()))) {
             issues.add(new Issue("prepared-textures", summary, manifest));
@@ -259,6 +286,7 @@ final class CacheHealth {
         addTargetIfPresent(targets, "resource-index", index);
         addTargetIfPresent(targets, "texture-manifest", manifest);
         addTargetIfPresent(targets, "texture-pack", pack);
+        addTargetIfPresent(targets, "texture-source-generation-proof", proof);
     }
 
     private static void addTargetIfPresent(
