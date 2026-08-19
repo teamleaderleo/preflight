@@ -5,7 +5,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 
-/** Small, dependency-free reader for the string fields used by Starsector metadata files. */
+/** Small, dependency-free reader for the fields used by Starsector metadata files. */
 final class JsonText {
     private JsonText() {
     }
@@ -18,6 +18,33 @@ final class JsonText {
         Cursor cursor = new Cursor(json, value);
         cursor.skipWhitespaceAndComments();
         return cursor.peek() == '"' ? cursor.readString() : null;
+    }
+
+    /**
+     * Reads Starsector metadata flags, whose ecosystem contains both JSON booleans and historical
+     * string spellings such as {@code "true"}. Absent fields return null. Present values with any
+     * other type/spelling are malformed rather than silently defaulting to false.
+     */
+    static Boolean booleanLike(String json, String key) {
+        int value = findValue(json, key);
+        if (value < 0) {
+            return null;
+        }
+        Cursor cursor = new Cursor(json, value);
+        cursor.skipWhitespaceAndComments();
+        if (cursor.peek() == '"') {
+            String text = cursor.readString();
+            if ("true".equalsIgnoreCase(text)) return Boolean.TRUE;
+            if ("false".equalsIgnoreCase(text)) return Boolean.FALSE;
+            throw new IllegalArgumentException("Expected true/false for key " + key);
+        }
+        if (json.startsWith("true", cursor.position()) && cursor.literalBoundary(4)) {
+            return Boolean.TRUE;
+        }
+        if (json.startsWith("false", cursor.position()) && cursor.literalBoundary(5)) {
+            return Boolean.FALSE;
+        }
+        throw new IllegalArgumentException("Expected true/false for key " + key);
     }
 
     static List<String> stringArray(String json, String key) {
@@ -287,6 +314,18 @@ final class JsonText {
                 return true;
             }
             return false;
+        }
+
+        boolean literalBoundary(int length) {
+            int end = offset + length;
+            if (end >= text.length()) return true;
+            char next = text.charAt(end);
+            return Character.isWhitespace(next)
+                    || next == ','
+                    || next == '}'
+                    || next == ']'
+                    || next == '#'
+                    || next == '/';
         }
 
         void skipWhitespaceAndComments() {

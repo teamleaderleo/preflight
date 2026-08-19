@@ -31,6 +31,7 @@ class ModMetadataCheckTest {
         ModMetadataCheck.Result result = ModMetadataCheck.check(game);
 
         assertEquals(List.of(), result.findings());
+        assertEquals(ModMetadataCheck.ConversionMode.NORMAL, result.conversionMode());
         assertEquals(2, result.modDirectories());
         assertTrue(result.metadataBytes() > 0);
         assertTrue(result.elapsedNanos() > 0);
@@ -62,14 +63,16 @@ class ModMetadataCheckTest {
     }
 
     @Test
-    void duplicateRelevantModIdIsBlocking() throws Exception {
+    void duplicateRelevantModIdIsBlockingAndConversionContextIsUnknown() throws Exception {
         Path game = game(List.of("dup"));
         mod(game, "first", "{\"id\":\"dup\"}");
         mod(game, "second", "{\"id\":\"dup\"}");
 
-        SetupAnalysis.Finding finding = only(ModMetadataCheck.check(game));
+        ModMetadataCheck.Result result = ModMetadataCheck.check(game);
+        SetupAnalysis.Finding finding = only(result);
         assertEquals("mod-metadata.duplicate-id", finding.code());
         assertEquals(2L, finding.parameters().get("candidates"));
+        assertEquals(ModMetadataCheck.ConversionMode.UNKNOWN, result.conversionMode());
     }
 
     @Test
@@ -77,9 +80,11 @@ class ModMetadataCheckTest {
         Path game = game(List.of("alpha"));
         Files.createDirectories(game.resolve("mods").resolve("alpha"));
 
-        SetupAnalysis.Finding finding = only(ModMetadataCheck.check(game));
+        ModMetadataCheck.Result result = ModMetadataCheck.check(game);
+        SetupAnalysis.Finding finding = only(result);
         assertEquals("mod-metadata.enabled-metadata-invalid", finding.code());
         assertEquals("missing", finding.parameters().get("problem"));
+        assertEquals(ModMetadataCheck.ConversionMode.UNKNOWN, result.conversionMode());
     }
 
     @Test
@@ -159,15 +164,75 @@ class ModMetadataCheckTest {
     }
 
     @Test
+    void stringTotalConversionFlagIsAuthoritative() throws Exception {
+        Path game = game(List.of("conversion"));
+        mod(game, "conversion", "{\"id\":\"conversion\",\"totalConversion\":\"true\"}");
+
+        ModMetadataCheck.Result result = ModMetadataCheck.check(game);
+
+        assertEquals(ModMetadataCheck.ConversionMode.TOTAL_CONVERSION, result.conversionMode());
+        assertEquals(List.of(), result.findings());
+    }
+
+    @Test
+    void jsonBooleanTotalConversionFlagIsAlsoAccepted() throws Exception {
+        Path game = game(List.of("conversion"));
+        mod(game, "conversion", "{\"id\":\"conversion\",\"totalConversion\":true}");
+
+        ModMetadataCheck.Result result = ModMetadataCheck.check(game);
+
+        assertEquals(ModMetadataCheck.ConversionMode.TOTAL_CONVERSION, result.conversionMode());
+        assertEquals(List.of(), result.findings());
+    }
+
+    @Test
+    void absentOrFalseTotalConversionFlagMeansNormalProfile() throws Exception {
+        Path game = game(List.of("alpha", "beta"));
+        mod(game, "alpha", "{\"id\":\"alpha\"}");
+        mod(game, "beta", "{\"id\":\"beta\",\"totalConversion\":\"false\"}");
+
+        assertEquals(
+                ModMetadataCheck.ConversionMode.NORMAL,
+                ModMetadataCheck.check(game).conversionMode());
+    }
+
+    @Test
+    void malformedTotalConversionFlagStaysUnknownAndWarns() throws Exception {
+        Path game = game(List.of("alpha"));
+        mod(game, "alpha", "{\"id\":\"alpha\",\"totalConversion\":\"maybe\"}");
+
+        ModMetadataCheck.Result result = ModMetadataCheck.check(game);
+
+        assertEquals(ModMetadataCheck.ConversionMode.UNKNOWN, result.conversionMode());
+        SetupAnalysis.Finding finding = only(result);
+        assertEquals("mod-metadata.total-conversion-flag-malformed", finding.code());
+        assertEquals(SetupAnalysis.Severity.WARNING, finding.severity());
+    }
+
+    @Test
+    void provenTotalConversionWinsOverOtherUnknownEnabledContext() throws Exception {
+        Path game = game(List.of("conversion", "missing"));
+        mod(game, "conversion", "{\"id\":\"conversion\",\"totalConversion\":true}");
+
+        ModMetadataCheck.Result result = ModMetadataCheck.check(game);
+
+        assertEquals(ModMetadataCheck.ConversionMode.TOTAL_CONVERSION, result.conversionMode());
+        assertTrue(result.findings().stream().anyMatch(finding ->
+                finding.code().equals("mod-metadata.enabled-mod-missing")));
+    }
+
+    @Test
     void oversizedEnabledMetadataFailsClosedWithoutUnboundedRead() throws Exception {
         Path game = game(List.of("alpha"));
         Path directory = Files.createDirectories(game.resolve("mods").resolve("alpha"));
         String huge = "{\"id\":\"alpha\",\"padding\":\"" + "x".repeat(1024 * 1024) + "\"}";
         Files.writeString(directory.resolve("mod_info.json"), huge);
 
-        SetupAnalysis.Finding finding = only(ModMetadataCheck.check(game));
+        ModMetadataCheck.Result result = ModMetadataCheck.check(game);
+        SetupAnalysis.Finding finding = only(result);
         assertEquals("mod-metadata.enabled-metadata-invalid", finding.code());
         assertEquals("unreadable", finding.parameters().get("problem"));
+        assertEquals(ModMetadataCheck.ConversionMode.UNKNOWN, result.conversionMode());
     }
 
     @Test
