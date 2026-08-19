@@ -7,10 +7,7 @@ import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.charset.CharacterCodingException;
-import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -179,17 +176,7 @@ public final class PreparedRuleCommandClassCacheIO {
     }
 
     private static void writeString(DataOutputStream output, String value) throws IOException {
-        byte[] bytes;
-        try {
-            ByteBuffer encoded = StandardCharsets.UTF_8.newEncoder()
-                    .onMalformedInput(CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(CodingErrorAction.REPORT)
-                    .encode(CharBuffer.wrap(value));
-            bytes = new byte[encoded.remaining()];
-            encoded.get(bytes);
-        } catch (CharacterCodingException error) {
-            throw new IOException("Prepared rule command string cannot be encoded as UTF-8", error);
-        }
+        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
         if (bytes.length > PreparedRuleCommandClassCache.MAX_NAME_LENGTH) {
             throw new IOException("Prepared rule command string exceeds the safety limit");
         }
@@ -206,15 +193,7 @@ public final class PreparedRuleCommandClassCacheIO {
         if (bytes.length != length) {
             throw new EOFException("Prepared rule command cache ended inside a string");
         }
-        try {
-            return StandardCharsets.UTF_8.newDecoder()
-                    .onMalformedInput(CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(CodingErrorAction.REPORT)
-                    .decode(ByteBuffer.wrap(bytes))
-                    .toString();
-        } catch (CharacterCodingException error) {
-            throw new IOException("Prepared rule command string is not valid UTF-8", error);
-        }
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 
     private static int minimumFileBytes() {
