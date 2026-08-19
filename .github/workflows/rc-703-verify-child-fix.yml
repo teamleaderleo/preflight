@@ -1,0 +1,63 @@
+name: RC 703 verify child-generation repair
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/rc-703-verify-child-fix.yml'
+      - 'scripts/rc_703_restore_anchor_error.py'
+
+permissions:
+  contents: write
+
+jobs:
+  verify-and-publish:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'fix/desktop-report-authority'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/desktop-report-authority
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          components: rustfmt
+
+      - name: Install Linux desktop dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Provide compile-time engine resource
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p preflight-desktop/src-tauri/target/engine
+          printf 'RC 703 compile-time resource placeholder\n' \
+            > preflight-desktop/src-tauri/target/engine/rc-703-placeholder.txt
+
+      - name: Apply error-path correction and run focused gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/rc_703_restore_anchor_error.py
+          cargo fmt --manifest-path preflight-desktop/src-tauri/Cargo.toml
+          cargo test --locked --manifest-path preflight-desktop/src-tauri/Cargo.toml --test report_authority_dir
+
+      - name: Commit exact product bytes and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/rc-703-verify-child-fix.yml \
+                 scripts/rc_703_restore_anchor_error.py
+          git add preflight-desktop/src-tauri/src/report_authority_dir.rs
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m 'Preserve report authority on child identity errors'
+          git push origin HEAD:fix/desktop-report-authority
