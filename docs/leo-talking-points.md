@@ -17,14 +17,23 @@ an installation directly.
 ## Things that are easy to forget to mention
 
 - **The benchmark is built in.** People can compare a normal launch and a Preflight launch on their
-  own machine instead of taking the development numbers on faith.
+  own machine instead of taking the development numbers on faith. The latest comparison also has a
+  bounded **Copy result** action for sharing the two measured times and the installation-specific
+  qualifier without copying raw evidence.
 - **It tracks Starsector playtime.** The local launch ledger survives the desktop minimizing or
-  closing after the game starts. The history can also be exported as versioned JSON or CSV.
+  closing after the game starts. The Speed page can copy a bounded playtime summary with total,
+  session count, longest/average session, and first/latest recorded dates. The history can also be
+  exported as versioned JSON or CSV through the existing engine/CLI; a desktop file-export wrapper
+  remains a separate reviewed capability change.
 - **Named mod profiles are a real product feature.** Profile activation previews the exact
   `enabled_mods.json` change and saves a backup. A saved profile can also be duplicated before an
-  experiment without activating the copy or duplicating mods, saves, or cache bytes.
+  experiment without activating the copy or duplicating mods, saves, or cache bytes. Saved profiles
+  are searchable, and that small UI preference survives restart without changing profile identity.
 - **Common game settings live beside Launch.** Resolution, fullscreen, sound, antialiasing, UI
   scale, RAM, and battle size are available without opening a separate launcher/settings ritual.
+- **The Home presentation is optional.** The default Hangar view can be switched to a compact
+  launch-first view, recorded playtime can be hidden independently, and decorative hull rotation can
+  be stopped or reversed. Those are display preferences only.
 - **Preparation plans disk use before writing.** The app calculates the current profile's bound and
   offers a minimal-disk preparation path when the default cache does not fit.
 - **Help has Copy setup.** It produces a bounded privacy-safe support summary with the useful setup
@@ -112,17 +121,19 @@ its evidence, not who typed each line.
 These are useful follow-ups with unusually high leverage because much of the underlying work already
 exists:
 
-- Add a desktop **Export play history...** action over the existing JSON/CSV exporter.
-- Add **Save setup summary...** beside **Copy setup**, generated from the exact same privacy-safe
-  projection.
-- Add **Copy benchmark result** for a compact forum/Discord-ready comparison from the retained
-  benchmark result.
-- Finish the safe remembered-UI subset from #562: useful filters/search, immediate Launch/Prepare
-  busy feedback, and session-local Help/Recovery position.
-- Review and disposition the already-built #738 hull motion/direction preference and #747
-  Hangar/Compact + playtime visibility preference before the exact candidate is frozen.
-- Add the #578 **Run self-check** desktop action by composing checks Preflight already performs.
+- Add a desktop **Export play history...** action over the existing JSON/CSV exporter. Keep it a
+  purpose-specific reviewed native export, because the packaged command/write boundary is audited.
+- Add **Save setup summary...** beside **Copy setup** under #848, generated from the exact same
+  privacy-safe projection and a narrow reviewed text-file write.
+- Put the existing **Copy setup** action directly on the failed-run recovery card under #850 so the
+  player can grab the public-safe facts before navigating deeper into Help.
+- Finish the remaining safe remembered-UI subset from #562 after saved-profile search: only state
+  that improves repeat use, with transient reviewed plans and operation state kept ephemeral.
+- Add the #578 **Run self-check** desktop action over the existing read-only setup-analysis command.
+  Keep the deeper resource/static pass explicit and on-demand so the ordinary launch path stays
+  unaffected.
 - Follow with #573's player-facing explanation of why preparation is stale and how much data will be
-  reused before rebuilding.
+  reused before rebuilding. Only publish totals once all preparation domains reconcile to the same
+  plan.
 - Later, #585 can turn the existing profile evidence into **Check before switching** without changing
   the installation.
