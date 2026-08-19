@@ -44,17 +44,17 @@ jobs:
           set -euo pipefail
           ! grep -R -n -E 'PREFLIGHT_REPORT_INTAKE_ORIGIN|REPORT_INTAKE_ORIGIN' .github/workflows/distribution.yml
 
-      - name: Commit release bytes and self-clean
+      - name: Publish tested non-workflow bytes and staged YAML snapshot
         shell: bash
         run: |
           set -euo pipefail
-          git rm .github/workflows/rc-816-local-only-distribution.yml \
-                 scripts/rc_816_local_only_distribution.py
-          git add .github/workflows/distribution.yml \
+          cp .github/workflows/distribution.yml scripts/rc_816_distribution.generated.yml
+          git checkout -- .github/workflows/distribution.yml
+          git add scripts/rc_816_distribution.generated.yml \
                   preflight-desktop/scripts/distribution-workflow.node-test.mjs \
                   preflight-desktop/scripts/local-only-distribution.node-test.mjs \
                   docs/release-gate-closeout.md
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git commit -m 'Make first-beta Distribution local-only'
+          git commit -m 'Stage tested local-only Distribution bytes'
           git push origin HEAD:release/816-local-only-distribution
