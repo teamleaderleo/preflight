@@ -3,8 +3,8 @@
   "sources": {
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/DesktopRunEvents.java": "86269855fb5fb51ab07f1b19d3427372b838afa7e694633ec3fa651fcb982f3d",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/ExclusiveMove.java": "bca990d36339ec7ce3d39897d2b0ef8a4f40ae30333a594663a147bfdcf77ce1",
-    "preflight-cli/src/main/java/dev/starsector/preflight/cli/InstallCommand.java": "1462b906a15596e721674a48a3bc3978f0ec681e365324d6a33459400eff5eab",
-    "preflight-cli/src/main/java/dev/starsector/preflight/cli/IntegrationMutation.java": "2b64ec4d86206c4d617f648e9af3dfaa77550133f13058d42df4d8658b76bc60",
+    "preflight-cli/src/main/java/dev/starsector/preflight/cli/InstallCommand.java": "bffac2224f4cfcf7e6c5a5377b9551368b0f101f55ec8158d81b5a964b5e106e",
+    "preflight-cli/src/main/java/dev/starsector/preflight/cli/IntegrationMutation.java": "3c7bfb1624d25d6a11a6f6530c93b64396242bcaa188a710c27be9dd226377de",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/IntegrationOwnership.java": "96bab1d7ab6592e8e11bdae47d29e1e656b6dc01f9a231424165e302276fce54",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/JvmMemorySettings.java": "421c15ee0712847f998a7c4d1bc8f6b2c072993d21c5e32f8f3ba2575fae7e72",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/LaunchLedger.java": "c2545f4d7e67a21becbad18da8213ac5114c6a927cc4bbdb51456bbec9264bf4",
