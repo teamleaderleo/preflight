@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { createBenchmarkShareText } from "../benchmarkShare";
 import { CheckIcon } from "../icons";
 import type { useDesktopAutomation } from "../useDesktopAutomation";
 import { InfoTip } from "./InfoTip";
@@ -34,6 +36,7 @@ export function BenchmarkPage({
   nativeBlockReason,
   automation,
 }: BenchmarkPageProps) {
+  const [benchmarkCopyState, setBenchmarkCopyState] = useState<"idle" | "copied" | "error">("idle");
   const {
     desktopSmokeProbe,
     desktopSmokeProbeBusy,
@@ -51,6 +54,16 @@ export function BenchmarkPage({
     || nativeBlockReason !== null
     || status === "launching"
     || status === "running";
+  const benchmarkMetric = desktopBenchmarkComparison?.metrics.processToMainMenuMs;
+  const copyBenchmarkResult = async () => {
+    if (!benchmarkMetric) return;
+    try {
+      await navigator.clipboard.writeText(createBenchmarkShareText(benchmarkMetric));
+      setBenchmarkCopyState("copied");
+    } catch {
+      setBenchmarkCopyState("error");
+    }
+  };
   return (
     <div className="settings-page benchmark-page">
       <NoticeBanner message={message} tone={messageTone} />
@@ -71,7 +84,17 @@ export function BenchmarkPage({
           {desktopSmokeRunning ? (
             <button className="button button--quiet button--benchmark" type="button" onClick={() => void stopDesktopAutomation()} disabled={desktopSmokeCancelling}>{desktopSmokeCancelling ? "Stopping…" : "Stop benchmark"}</button>
           ) : (
-            <button className="button button--primary button--benchmark" type="button" onClick={() => desktopSmokeProbe?.probe.ready ? void runDesktopAutomation() : void checkDesktopAutomation(true)} disabled={desktopSmokeProbeBusy || benchmarkBlocked} aria-describedby={nativeBlockReason ? "benchmark-native-block" : undefined}>
+            <button
+              className="button button--primary button--benchmark"
+              type="button"
+              onClick={() => {
+                setBenchmarkCopyState("idle");
+                if (desktopSmokeProbe?.probe.ready) void runDesktopAutomation();
+                else void checkDesktopAutomation(true);
+              }}
+              disabled={desktopSmokeProbeBusy || benchmarkBlocked}
+              aria-describedby={nativeBlockReason ? "benchmark-native-block" : undefined}
+            >
               {desktopSmokeProbeBusy ? "Checking…" : desktopSmokeProbe && !desktopSmokeProbe.probe.ready ? "Check again" : "Run benchmark"}
             </button>
           )}
@@ -87,9 +110,23 @@ export function BenchmarkPage({
             <CheckIcon className="settings-check" />
           </div>
           <div className="benchmark-results__grid">
-            <BenchmarkResult label="Main menu" metric={desktopBenchmarkComparison.metrics.processToMainMenuMs} unit="time" />
+            <BenchmarkResult label="Main menu" metric={benchmarkMetric} unit="time" />
           </div>
           <BenchmarkContext comparison={desktopBenchmarkComparison} />
+          {benchmarkMetric ? (
+            <div className="benchmark-card__actions">
+              <button className="button button--quiet button--compact" type="button" onClick={() => void copyBenchmarkResult()}>
+                Copy result
+              </button>
+              <small aria-live="polite">
+                {benchmarkCopyState === "copied"
+                  ? "Benchmark result copied."
+                  : benchmarkCopyState === "error"
+                    ? "Couldn’t copy the benchmark result."
+                    : "Copies the two measured startup times and an installation-specific qualifier."}
+              </small>
+            </div>
+          ) : null}
           <small>The saved result includes exact versions and raw timings.</small>
         </section>
       ) : null}
