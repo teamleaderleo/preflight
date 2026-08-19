@@ -1,4 +1,4 @@
-name: RC 703 final report secret-surface fix
+name: RC 703 final report source fix
 
 on:
   push:
@@ -21,7 +21,7 @@ jobs:
         with:
           ref: fix/desktop-report-authority
           fetch-depth: 0
-      - name: Remove bearer Debug surface and self-clean
+      - name: Apply final report source fixes and self-clean
         shell: bash
         run: |
           set -euo pipefail
@@ -31,21 +31,92 @@ jobs:
 
           reports = Path('preflight-desktop/src-tauri/src/reports.rs')
           text = reports.read_text()
-          old = '''#[derive(Clone, Debug, Deserialize, Serialize)]
+
+          debug_old = '''#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct ReportDeletion {'''
-          new = '''#[derive(Clone, Deserialize, Serialize)]
+          debug_new = '''#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct ReportDeletion {'''
-          if old in text:
-              reports.write_text(text.replace(old, new, 1))
-          elif new not in text:
+          if debug_old in text:
+              text = text.replace(debug_old, debug_new, 1)
+          elif debug_new not in text:
               raise SystemExit('ReportDeletion derive seam changed unexpectedly')
+
+          race_old = '''            drop(running);
+            let mut background = AUTOMATIC_REPORT_UPLOAD.lock().map_err(|_| {'''
+          race_new = '''            // Publish the background slot while the foreground coordinator is still held.
+            // Manual/player actions take the locks in this same order, then cancel this slot.
+            let mut background = AUTOMATIC_REPORT_UPLOAD.lock().map_err(|_| {'''
+          if race_old in text:
+              text = text.replace(race_old, race_new, 1)
+          elif race_new not in text:
+              raise SystemExit('automatic/foreground lock seam changed unexpectedly')
+
+          import_old = '''mod tests {
+    use super::{ReportUploadError, upload_outcome_error};
+'''
+          import_new = '''mod tests {
+    use super::{
+        AUTOMATIC_REPORT_UPLOAD, ReportUploadError, cancel_background_report,
+        upload_outcome_error,
+    };
+    use crate::operations::ReportUploadProcess;
+    use tokio::sync::watch;
+'''
+          if import_old in text:
+              text = text.replace(import_old, import_new, 1)
+          elif import_new not in text:
+              raise SystemExit('reports test import seam changed unexpectedly')
+
+          test_anchor = '''    #[test]
+    fn cancellation_has_a_stable_machine_readable_error_code() {'''
+          test_block = '''    #[test]
+    fn foreground_cancellation_signals_and_clears_automatic_upload() {
+        let (cancel, receiver) = watch::channel(false);
+        {
+            let mut background = AUTOMATIC_REPORT_UPLOAD.lock().unwrap();
+            assert!(background.is_none());
+            *background = Some(ReportUploadProcess {
+                id: 7,
+                total_bytes: 11,
+                cancel,
+            });
+        }
+
+        assert!(cancel_background_report().unwrap());
+        assert!(*receiver.borrow());
+        assert!(AUTOMATIC_REPORT_UPLOAD.lock().unwrap().is_none());
+    }
+
+'''
+          if test_block not in text:
+              if test_anchor not in text:
+                  raise SystemExit('reports test insertion seam changed unexpectedly')
+              text = text.replace(test_anchor, test_block + test_anchor, 1)
+
+          reports.write_text(text)
 
           lock_path = Path('preflight-desktop/capabilities/release-receipt-source-lock.json')
           lock = json.loads(lock_path.read_text())
           normalized = reports.read_text().replace('\r\n', '\n').encode()
           lock['sources']['preflight-desktop/src-tauri/src/reports.rs'] = hashlib.sha256(normalized).hexdigest()
+          lock_path.write_text(json.dumps(lock, indent=2) + '\n')
+          PY
+
+          cd preflight-desktop/src-tauri
+          cargo fmt --all
+          cd ../..
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+          reports = Path('preflight-desktop/src-tauri/src/reports.rs')
+          lock_path = Path('preflight-desktop/capabilities/release-receipt-source-lock.json')
+          lock = json.loads(lock_path.read_text())
+          lock['sources']['preflight-desktop/src-tauri/src/reports.rs'] = hashlib.sha256(
+              reports.read_text().replace('\r\n', '\n').encode()
+          ).hexdigest()
           lock_path.write_text(json.dumps(lock, indent=2) + '\n')
           PY
 
@@ -56,7 +127,7 @@ pub(crate) struct ReportDeletion {'''
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add -A
-          git commit -m 'fix(desktop): keep report deletion bearer out of Debug'
+          git commit -m 'fix(desktop): close report secret and foreground races'
           git push origin HEAD:fix/desktop-report-authority
 
           git push origin --delete rc-703-bound-helper-runner || true
