@@ -221,16 +221,18 @@ public final class TextureSourceGenerationProofIO {
         return value;
     }
 
-    private static String canonicalProfileFileName(String value) throws IOException {
+    private static String canonicalProfileFileName(String value) {
         if (value == null || value.isBlank()) {
-            throw new IOException("Texture source generation profile fingerprint is blank");
+            throw new IllegalArgumentException("Texture source generation profile fingerprint is blank");
         }
         byte[] utf8 = value.getBytes(StandardCharsets.UTF_8);
         if (utf8.length > MAX_PROFILE_FILE_NAME_BYTES) {
-            throw new IOException("Texture source generation profile fingerprint exceeds the filename safety limit");
+            throw new IllegalArgumentException(
+                    "Texture source generation profile fingerprint exceeds the filename safety limit");
         }
         if (".".equals(value) || "..".equals(value)) {
-            throw new IOException("Texture source generation profile fingerprint is not a file name: " + value);
+            throw new IllegalArgumentException(
+                    "Texture source generation profile fingerprint is not a file name: " + value);
         }
         for (int index = 0; index < value.length(); index++) {
             char character = value.charAt(index);
@@ -241,8 +243,8 @@ public final class TextureSourceGenerationProofIO {
                     || character == '_'
                     || character == '.';
             if (!portable) {
-                throw new IOException("Texture source generation profile fingerprint is not a portable file name: "
-                        + value);
+                throw new IllegalArgumentException(
+                        "Texture source generation profile fingerprint is not a portable file name: " + value);
             }
         }
         return value;
