@@ -67,6 +67,20 @@ class PreparedRulesCsvCacheIOTest {
         assertThrows(IllegalArgumentException.class, () -> PreparedRulesCsvCacheIO.read(file, 32));
     }
 
+    @Test
+    void configuredReadBoundIsInclusive() throws Exception {
+        PreparedRulesCsvCache cache = new PreparedRulesCsvCache(
+                "e".repeat(64), rulesTree("rule-a", "rule-b"));
+        byte[] bytes = PreparedRulesCsvCacheIO.toBytes(cache);
+        Path file = temporaryDirectory.resolve("exact-bound.sprc");
+        Files.write(file, bytes);
+
+        assertEquals(cache, PreparedRulesCsvCacheIO.read(file, bytes.length));
+        IOException oversized = assertThrows(
+                IOException.class, () -> PreparedRulesCsvCacheIO.read(file, bytes.length - 1));
+        assertTrue(oversized.getMessage().contains((bytes.length - 1) + " byte safety limit"));
+    }
+
     private static byte[] rulesTree(String... ids) {
         return JsonTree.encode(java.util.Arrays.stream(ids)
                 .map(id -> Map.<String, Object>of("id", id)).toList());
