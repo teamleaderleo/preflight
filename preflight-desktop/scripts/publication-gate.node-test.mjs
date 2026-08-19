@@ -28,8 +28,8 @@ test("publication requires tagged lifecycle evidence from reviewed main", () => 
   assert.match(workflow, /lifecycle_run_id:/);
   assert.match(workflow, /Tagged candidate package lifecycle/);
   assert.match(workflow, /\.github\/workflows\/tagged-candidate-lifecycle\.yml/);
-  assert.match(workflow, /\.event.*workflow_dispatch/s);
-  assert.match(workflow, /\.head_branch.*main/s);
+  assert.match(workflow, /run\.get\("event"\) != "workflow_dispatch"/);
+  assert.match(workflow, /run\.get\("head_branch"\) != "main"/);
   assert.match(workflow, /git merge-base --is-ancestor "\$lifecycle_head" origin\/main/);
 });
 
