@@ -3,6 +3,7 @@ import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
 import { formatSavedAt, shortPath } from "../uiFormat";
 import type { useProfiles } from "../useProfiles";
+import { filterProfileNames, useProfileSearch } from "../useProfileSearch";
 import type { NoticeTone } from "../types";
 
 type ProfilesState = ReturnType<typeof useProfiles>;
@@ -15,6 +16,7 @@ interface ProfilesPageProps {
 }
 
 export function ProfilesPage({ message, messageTone, profilesState, operationBlocked }: ProfilesPageProps) {
+  const profileSearch = useProfileSearch();
   const {
     activationPlan,
     mutationPlan,
@@ -53,6 +55,13 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
     : profileNameAlreadySaved
       ? `“${trimmedProfileName}” is already a saved profile. Choose a new name to save this mod setup.`
       : "Creates a new saved profile from the current enabled-mod order.";
+  const savedProfiles = profiles?.profiles ?? [];
+  const visibleProfiles = filterProfileNames(savedProfiles, profileSearch.query);
+  const profileCount = profilesLoading
+    ? "Checking…"
+    : profileSearch.query.trim()
+      ? `${visibleProfiles.length} of ${savedProfiles.length}`
+      : `${savedProfiles.length} saved`;
 
   return (
     <div className="profiles-page">
@@ -61,11 +70,22 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
         <section className="card profile-list-card">
           <div className="card__heading">
             <div className="heading-with-info"><h2>Saved profiles</h2><InfoTip label="About mod profiles">A profile remembers enabled mods and their load order. Switching is previewed before Preflight changes the mod list, and matching prepared data is reused automatically.</InfoTip></div>
-            <span className="field-note">{profilesLoading ? "Checking…" : `${profiles?.profiles.length ?? 0} saved`}</span>
+            <span className="field-note">{profileCount}</span>
           </div>
+          {savedProfiles.length > 0 || profileSearch.query ? (
+            <input
+              aria-label="Search saved profiles"
+              value={profileSearch.query}
+              onChange={(event) => profileSearch.setQuery(event.target.value)}
+              placeholder="Search profiles"
+              maxLength={100}
+              autoComplete="off"
+            />
+          ) : null}
           <div className="profile-list">
-            {!profilesLoading && profiles?.profiles.length === 0 ? <div className="profile-empty"><span>Save your current mod list, then switch profiles without toggling every mod by hand.</span></div> : null}
-            {(profiles?.profiles ?? []).map((profile) => (
+            {!profilesLoading && savedProfiles.length === 0 ? <div className="profile-empty"><span>Save your current mod list, then switch profiles without toggling every mod by hand.</span></div> : null}
+            {!profilesLoading && savedProfiles.length > 0 && visibleProfiles.length === 0 ? <div className="profile-empty"><span>No saved profiles match “{profileSearch.query.trim()}”.</span></div> : null}
+            {visibleProfiles.map((profile) => (
               <article className={`profile-card ${profile.active ? "profile-card--active" : ""}`} key={profile.name}>
                 <div className="profile-card__copy">
                   <div><strong>{profile.name}</strong>{profile.active ? <b>Active</b> : null}</div>
