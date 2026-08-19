@@ -2,8 +2,10 @@ package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import dev.starsector.preflight.core.ResourceIndex;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -80,6 +82,32 @@ class StaticReferenceBoundsTest {
         assertEquals(1, result.skipped());
         assertFalse(result.findings().stream()
                 .anyMatch(value -> value.severity() == SetupAnalysis.Severity.BLOCKING));
+    }
+
+    @Test
+    void malformedOrOversizedCandidatesStillConsumeTheClassWorkCeiling() throws Exception {
+        Path root = Files.createDirectories(temp.resolve("attempt-bound"));
+        LinkedHashMap<String, List<ResourceIndex.Provider>> entries = new LinkedHashMap<>();
+        for (int index = 0; index <= 4_096; index++) {
+            String relative = "data/hulls/oversized-" + index + ".ship";
+            entries.put(relative, List.of(new ResourceIndex.Provider(
+                    0,
+                    relative,
+                    1024L * 1024L + 1L,
+                    1L)));
+        }
+        ResourceIndex resourceIndex = new ResourceIndex(
+                "profile-fingerprint",
+                List.of(new ResourceIndex.Root("example.mod", root, false)),
+                entries);
+
+        IOException error = assertThrows(
+                IOException.class,
+                () -> StaticReferenceCheck.checkVariantHullLinks(
+                        resourceIndex,
+                        ModMetadataCheck.ConversionMode.NORMAL));
+
+        assertEquals("Static hull analysis exceeds the 4,096-definition limit", error.getMessage());
     }
 
     @Test
