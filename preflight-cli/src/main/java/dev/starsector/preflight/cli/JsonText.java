@@ -55,6 +55,56 @@ final class JsonText {
         }
     }
 
+    /**
+     * Returns the exact object texts from an array-valued field in Starsector's loose JSON dialect.
+     * Comments and trailing commas are accepted just like the existing string helpers. The objects
+     * are not interpreted here; callers reuse {@link #string(String, String)} and the other typed
+     * helpers so every metadata consumer keeps one parser boundary.
+     *
+     * <p>A present field with a non-array value is malformed rather than equivalent to an absent
+     * optional field. Callers such as the dependency checker must not silently turn wrong-typed
+     * metadata into "no dependencies".</p>
+     */
+    static List<String> objectArray(String json, String key) {
+        int value = findValue(json, key);
+        if (value < 0) {
+            return List.of();
+        }
+        Cursor cursor = new Cursor(json, value);
+        cursor.skipWhitespaceAndComments();
+        if (!cursor.consume('[')) {
+            throw new IllegalArgumentException("Expected an object array for key " + key);
+        }
+
+        List<String> values = new ArrayList<>();
+        while (true) {
+            cursor.skipWhitespaceAndComments();
+            if (cursor.consume(']')) {
+                return List.copyOf(values);
+            }
+            if (cursor.peek() != '{') {
+                throw new IllegalArgumentException("Expected an object in array for key " + key);
+            }
+            int start = cursor.position();
+            cursor.skipValue();
+            if (cursor.finished()) {
+                throw new IllegalArgumentException("Unterminated object array for key " + key);
+            }
+            values.add(json.substring(start, cursor.position()));
+            cursor.skipWhitespaceAndComments();
+            if (cursor.consume(']')) {
+                return List.copyOf(values);
+            }
+            if (!cursor.consume(',')) {
+                throw new IllegalArgumentException("Expected ',' or ']' in object array for key " + key);
+            }
+            cursor.skipWhitespaceAndComments();
+            if (cursor.consume(']')) {
+                return List.copyOf(values);
+            }
+        }
+    }
+
     static Long integer(String json, String key) {
         int value = findValue(json, key);
         if (value < 0) return null;
