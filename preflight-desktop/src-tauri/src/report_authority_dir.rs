@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 
 /// One exact opened report-authority directory generation.
 ///
-/// Consequential file opens are relative to this handle/descriptor, so replacing the public
-/// pathname after review cannot redirect credential publication or generation reads.
+/// Consequential file opens and cleanup are relative to this handle/descriptor, so replacing the
+/// public pathname after review cannot redirect credential publication, reads, or cleanup.
 pub(crate) struct BoundDirectory {
     path: PathBuf,
     file: File,
@@ -69,6 +69,11 @@ impl BoundDirectory {
         Ok(bytes)
     }
 
+    pub(crate) fn delete_file(&self, name: &str) -> io::Result<()> {
+        validate_name(name)?;
+        imp::delete_file(&self.file, name)
+    }
+
     pub(crate) fn sync(&self) -> Result<(), String> {
         imp::sync_directory(&self.file)
             .map_err(|error| format!("Could not durably save report authority: {error}"))
@@ -114,7 +119,6 @@ mod imp {
     use std::ffi::{CString, c_char, c_int};
     use std::fs::OpenOptions;
     use std::os::fd::{AsRawFd, FromRawFd};
-    use std::os::unix::ffi::OsStrExt;
     use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 
     const O_RDONLY: c_int = 0;
@@ -138,6 +142,7 @@ mod imp {
 
     unsafe extern "C" {
         fn openat(dirfd: c_int, path: *const c_char, flags: c_int, ...) -> c_int;
+        fn unlinkat(dirfd: c_int, path: *const c_char, flags: c_int) -> c_int;
     }
 
     pub(super) fn open_directory(path: &Path) -> io::Result<File> {
@@ -181,6 +186,15 @@ mod imp {
         Ok(unsafe { File::from_raw_fd(fd) })
     }
 
+    pub(super) fn delete_file(parent: &File, name: &str) -> io::Result<()> {
+        let name = CString::new(name)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "filename contains NUL"))?;
+        if unsafe { unlinkat(parent.as_raw_fd(), name.as_ptr(), 0) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(())
+    }
+
     pub(super) fn sync_directory(directory: &File) -> io::Result<()> {
         directory.sync_all()
     }
@@ -189,11 +203,11 @@ mod imp {
 #[cfg(windows)]
 mod imp {
     use super::*;
-    use std::ffi::{c_void, OsStr};
+    use std::ffi::{OsStr, c_void};
     use std::mem::size_of;
     use std::os::windows::ffi::OsStrExt;
     use std::os::windows::io::{AsRawHandle, FromRawHandle, RawHandle};
-    use std::ptr::{null, null_mut};
+    use std::ptr::null_mut;
 
     type Handle = *mut c_void;
 
@@ -202,6 +216,7 @@ mod imp {
     const FILE_WRITE_DATA: u32 = 0x0002;
     const FILE_TRAVERSE: u32 = 0x0020;
     const FILE_READ_ATTRIBUTES: u32 = 0x0080;
+    const DELETE: u32 = 0x0001_0000;
     const SYNCHRONIZE: u32 = 0x0010_0000;
     const FILE_SHARE_READ: u32 = 0x0000_0001;
     const FILE_SHARE_WRITE: u32 = 0x0000_0002;
@@ -217,6 +232,7 @@ mod imp {
     const FILE_NON_DIRECTORY_FILE: u32 = 0x0000_0040;
     const FILE_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
     const OBJ_CASE_INSENSITIVE: u32 = 0x0000_0040;
+    const FILE_DISPOSITION_INFORMATION: u32 = 13;
     const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
     const STATUS_OBJECT_NAME_COLLISION: i32 = 0xC000_0035u32 as i32;
     const STATUS_OBJECT_PATH_NOT_FOUND: i32 = 0xC000_003Au32 as i32;
@@ -287,6 +303,13 @@ mod imp {
             ea_buffer: *mut c_void,
             ea_length: u32,
         ) -> i32;
+        fn NtSetInformationFile(
+            file_handle: Handle,
+            io_status_block: *mut usize,
+            file_information: *mut c_void,
+            length: u32,
+            file_information_class: u32,
+        ) -> i32;
     }
 
     pub(super) fn open_directory(path: &Path) -> io::Result<File> {
@@ -335,6 +358,38 @@ mod imp {
             FILE_READ_DATA | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
             FILE_OPEN,
         )
+    }
+
+    pub(super) fn delete_file(parent: &File, name: &str) -> io::Result<()> {
+        let file = match open_relative(
+            parent,
+            name,
+            DELETE | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+            FILE_OPEN,
+        ) {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(error),
+        };
+        let mut disposition = 1u8;
+        let mut io_status = [0usize; 2];
+        let status = unsafe {
+            NtSetInformationFile(
+                file.as_raw_handle() as Handle,
+                io_status.as_mut_ptr(),
+                (&mut disposition as *mut u8).cast(),
+                1,
+                FILE_DISPOSITION_INFORMATION,
+            )
+        };
+        if status < 0 {
+            return Err(io::Error::other(format!(
+                "NtSetInformationFile(disposition) failed (NTSTATUS 0x{:08x})",
+                status as u32
+            )));
+        }
+        drop(file);
+        Ok(())
     }
 
     pub(super) fn sync_directory(_directory: &File) -> io::Result<()> {
