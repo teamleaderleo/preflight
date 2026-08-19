@@ -316,6 +316,7 @@ export function usePreparation(
         : "Preparing the exact current profile… You can leave this window open.");
       localPreparationStarting.current = true;
       localPreparationPid.current = null;
+      lastHandledTerminalPid.current = null;
       pendingPreparationObservedPid.current = null;
       pendingPreparationStartedPid.current = null;
       pendingPreparationStates.current.clear();
@@ -437,6 +438,10 @@ export function usePreparation(
         apply: (operation) => {
           if (operation.preparationPid !== null) {
             const firstRead = previousPid === undefined;
+            const newGeneration = previousPid !== operation.preparationPid;
+            if (newGeneration && lastHandledTerminalPid.current === operation.preparationPid) {
+              lastHandledTerminalPid.current = null;
+            }
             previousPid = operation.preparationPid;
             firstMissingPid = null;
             setPreparing(true);
