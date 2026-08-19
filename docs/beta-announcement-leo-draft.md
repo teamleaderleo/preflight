@@ -6,7 +6,8 @@ the instructions at the bottom. Keep
 [beta-announcement-draft.md](beta-announcement-draft.md) as the longer source copy.
 
 Replace every bracketed field before posting. Convert the Markdown to BBCode for the Starsector
-forum.
+forum. Read [Leo's talking points](leo-talking-points.md) before posting so the smaller finished
+features and claim qualifiers do not get lost while editing this down.
 
 ## Title
 
@@ -31,7 +32,20 @@ The app includes the benchmark, so it can measure the difference on your own ins
 Somehow, Starsector has never had a playtime counter. The usual workaround has been adding it to
 Steam as a non-Steam game. As far as I can find, Preflight is the first dedicated playtime tracker
 for Starsector. It keeps a durable total of the sessions launched through Preflight, including when
-the desktop minimizes or quits after starting the game.
+the desktop minimizes or quits after starting the game. The recorded history can also be exported
+as versioned JSON or CSV.
+
+It has named mod profiles too. Switching a profile previews the exact `enabled_mods.json` change and
+saves a backup, and you can duplicate a saved profile before experimenting without copying mods,
+saves, or cache data. Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and battle size
+are available beside the launch button.
+
+The small support features ended up being useful as well. **Copy setup** produces a bounded summary
+of the game, profile, mods, launch settings, preparation state, and recent launch result without
+putting paths, credentials, save contents, or arbitrary logs on the clipboard. Diagnostics use a
+separate allowlisted ZIP with an in-ZIP disclosure. Ordinary game launches upload no logs or
+telemetry; support reporting is a separate disclosed action, and automatic failed-run reporting is
+off until the player enables it.
 
 Preflight also removes repeated work from some campaign and combat paths, which can improve 1%
 lows. Startup is the part with the big controlled result; gameplay will depend much more heavily on
