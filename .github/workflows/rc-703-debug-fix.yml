@@ -1,0 +1,63 @@
+name: RC 703 final report secret-surface fix
+
+on:
+  push:
+    branches:
+      - fix/desktop-report-authority
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rc-703-debug-fix
+  cancel-in-progress: true
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/desktop-report-authority
+          fetch-depth: 0
+      - name: Remove bearer Debug surface and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+
+          reports = Path('preflight-desktop/src-tauri/src/reports.rs')
+          text = reports.read_text()
+          old = '''#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct ReportDeletion {'''
+          new = '''#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct ReportDeletion {'''
+          if old in text:
+              reports.write_text(text.replace(old, new, 1))
+          elif new not in text:
+              raise SystemExit('ReportDeletion derive seam changed unexpectedly')
+
+          lock_path = Path('preflight-desktop/capabilities/release-receipt-source-lock.json')
+          lock = json.loads(lock_path.read_text())
+          normalized = reports.read_text().replace('\r\n', '\n').encode()
+          lock['sources']['preflight-desktop/src-tauri/src/reports.rs'] = hashlib.sha256(normalized).hexdigest()
+          lock_path.write_text(json.dumps(lock, indent=2) + '\n')
+          PY
+
+          node preflight-desktop/scripts/review-capability-lock.mjs --check
+          git diff --check
+          rm -f .github/workflows/rc-703-debug-fix.yml .rc-703-debug-fix-trigger
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m 'fix(desktop): keep report deletion bearer out of Debug'
+          git push origin HEAD:fix/desktop-report-authority
+
+          git push origin --delete rc-703-bound-helper-runner || true
+          git push origin --delete rc-703-finalize-runner || true
