@@ -6,6 +6,7 @@ import type { Page } from "./DesktopShell";
 import type { ThemePreference } from "../useTheme";
 import { QuickGameSettings } from "./QuickGameSettings";
 import { NoticeBanner } from "./NoticeBanner";
+import { RunRecoveryActions } from "./RunRecoveryActions";
 import { storagePlanApplies, type usePreparation } from "../usePreparation";
 import { lastRunForCurrentProfile, launchSetupApplicability } from "../lastRunApplicability";
 import { formatBytes, formatPlaytime, shortPath, splitPlaytime } from "../uiFormat";
@@ -376,11 +377,13 @@ export function HomePage({
               </details>
             ) : null}
           </div>
-          <div className="run-recovery__actions">
-            <button className="button button--primary button--compact" type="button" onClick={onPrimaryLaunch} disabled={operationBlocked}>Relaunch</button>
-            <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("help")}>Get help</button>
-            <button className="button button--quiet button--compact" type="button" onClick={onDismissRunFailure}>Dismiss</button>
-          </div>
+          <RunRecoveryActions
+            optimizationPreset={optimizationPreset}
+            operationBlocked={operationBlocked}
+            onRelaunch={onPrimaryLaunch}
+            onGetHelp={() => onNavigate("help")}
+            onDismiss={onDismissRunFailure}
+          />
         </section>
       ) : null}
 
