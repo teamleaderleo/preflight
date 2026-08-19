@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { ArrowIcon, GaugeIcon } from "../icons";
+import { createPlaytimeShareText } from "../playtimeShare";
 import type { LastRun, PlaytimeSnapshot, WireframeHull } from "../types";
 import type { SpeedMeasurement, SpeedStanding } from "../useSpeedRecord";
 import { formatDuration, formatPlaytime } from "../uiFormat";
@@ -14,6 +16,13 @@ interface SpeedScoreboardProps {
   onOpenBenchmark: () => void;
 }
 
+function formatSessionContext(totalMillis: number): string {
+  const compact = formatPlaytime(totalMillis);
+  if (compact.endsWith("h")) return `${compact.slice(0, -1)} hours`;
+  if (compact.endsWith("m")) return `${compact.slice(0, -1)} minutes`;
+  return compact;
+}
+
 function RecordedPlaytime({ playtime }: { playtime?: PlaytimeSnapshot }) {
   if (!playtime?.readable || playtime.launches <= 0 || playtime.totalMillis <= 0) return null;
   const total = formatPlaytime(playtime.totalMillis);
@@ -22,11 +31,34 @@ function RecordedPlaytime({ playtime }: { playtime?: PlaytimeSnapshot }) {
     <div
       className="scoreboard__playtime"
       aria-label={`${total} recorded playtime across ${sessions} sessions`}
-      title={`Across ${sessions} recorded sessions`}
+      title={`Across ${sessions} recorded sessions · longest ${formatSessionContext(playtime.longestSessionMillis)}`}
     >
       <strong>{total}</strong>
       <span>recorded playtime</span>
     </div>
+  );
+}
+
+function PlaytimeCopyButton({ playtime }: { playtime?: PlaytimeSnapshot }) {
+  const [state, setState] = useState<"idle" | "copied" | "error">("idle");
+  if (!playtime?.readable || playtime.launches <= 0 || playtime.totalMillis <= 0) return null;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(createPlaytimeShareText(playtime));
+      setState("copied");
+    } catch {
+      setState("error");
+    }
+  };
+  return (
+    <>
+      <button className="button button--quiet button--compact" type="button" onClick={() => void copy()}>
+        Copy playtime
+      </button>
+      <small aria-live="polite">
+        {state === "copied" ? "Playtime summary copied." : state === "error" ? "Couldn’t copy playtime." : `${playtime.launches.toLocaleString()} recorded sessions · longest ${formatSessionContext(playtime.longestSessionMillis)}`}
+      </small>
+    </>
   );
 }
 
@@ -62,7 +94,10 @@ export function SpeedScoreboard({ standing, isReady, playtime, lastRun, hull, on
           <strong>Measure your startup time.</strong>
           {typeof lastRun?.startupMillis === "number" ? <p className="scoreboard__last-launch">Last Preflight launch: {formatDuration(lastRun.startupMillis)} to the menu.</p> : null}
           <p className="scoreboard__prompt">Starsector opens twice so Preflight can compare launch times.</p>
-          <button className="button button--primary" type="button" onClick={onOpenBenchmark} disabled={!isReady}><GaugeIcon />Measure speed<ArrowIcon /></button>
+          <div className="scoreboard__actions">
+            <button className="button button--primary" type="button" onClick={onOpenBenchmark} disabled={!isReady}><GaugeIcon />Measure speed<ArrowIcon /></button>
+            <PlaytimeCopyButton playtime={playtime} />
+          </div>
         </div>
       </section>
     );
@@ -95,6 +130,7 @@ export function SpeedScoreboard({ standing, isReady, playtime, lastRun, hull, on
         </div>
         <div className="scoreboard__actions">
           <button className="button button--quiet button--compact" type="button" onClick={onOpenBenchmark} disabled={!isReady}><GaugeIcon />Measure current setup</button>
+          <PlaytimeCopyButton playtime={playtime} />
           <small>Personal best recorded {bestMeasuredOn.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</small>
         </div>
       </div>
