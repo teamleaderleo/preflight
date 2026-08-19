@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,6 +79,80 @@ class SetupAnalysisTest {
                 .toJson();
 
         assertEquals(a, b);
+    }
+
+    @Test
+    void composeBoundsTwoFullProvidersWithoutIterationOrderBias() {
+        List<SetupAnalysis.Finding> raw = new ArrayList<>();
+        for (int index = 0; index < 256; index++) {
+            raw.add(finding("a.block", "provider-a", SetupAnalysis.Severity.BLOCKING));
+            raw.add(finding("b.block", "provider-b", SetupAnalysis.Severity.BLOCKING));
+        }
+
+        SetupAnalysis.Result first = SetupAnalysis.compose(
+                "game",
+                "profile",
+                raw,
+                List.of("save-history"));
+        List<SetupAnalysis.Finding> reversed = new ArrayList<>(raw);
+        Collections.reverse(reversed);
+        SetupAnalysis.Result second = SetupAnalysis.compose(
+                "game",
+                "profile",
+                reversed,
+                List.of("save-history"));
+
+        assertEquals(256, first.findings().size());
+        assertFalse(first.ready());
+        assertTrue(first.findings().stream().anyMatch(finding -> finding.provider().equals("provider-a")));
+        assertTrue(first.findings().stream().anyMatch(finding -> finding.provider().equals("provider-b")));
+        assertTrue(first.findings().stream().anyMatch(finding ->
+                finding.code().equals("orchestration.findings-truncated")
+                        && finding.severity() == SetupAnalysis.Severity.BLOCKING));
+        List<String> summarisedProviders = first.findings().stream()
+                .filter(finding -> finding.code().equals("orchestration.suppressed-finding-group"))
+                .map(finding -> (String) finding.parameters().get("sourceProvider"))
+                .sorted()
+                .toList();
+        assertEquals(List.of("provider-a", "provider-b"), summarisedProviders);
+        assertEquals(first.toJson(), second.toJson());
+    }
+
+    @Test
+    void blockerNoiseCannotEraseAnotherProvidersSuppressedWarning() {
+        List<SetupAnalysis.Finding> raw = new ArrayList<>();
+        for (int index = 0; index < 300; index++) {
+            raw.add(finding("a.block", "provider-a", SetupAnalysis.Severity.BLOCKING));
+        }
+        for (int index = 0; index < 10; index++) {
+            raw.add(finding("b.warn", "provider-b", SetupAnalysis.Severity.WARNING));
+        }
+
+        SetupAnalysis.Result result = SetupAnalysis.compose("game", "profile", raw, List.of());
+
+        assertFalse(result.ready());
+        assertTrue(result.findings().stream().anyMatch(finding ->
+                finding.code().equals("orchestration.suppressed-finding-group")
+                        && finding.severity() == SetupAnalysis.Severity.WARNING
+                        && "provider-b".equals(finding.parameters().get("sourceProvider"))
+                        && "b.warn".equals(finding.parameters().get("sourceCode"))));
+        SetupAnalysis.Finding global = result.findings().stream()
+                .filter(finding -> finding.code().equals("orchestration.findings-truncated"))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(10L, global.parameters().get("warning"));
+        assertTrue((Long) global.parameters().get("blocking") > 0L);
+    }
+
+    @Test
+    void composeRejectsUnboundedRawProviderFanIn() {
+        List<SetupAnalysis.Finding> raw = new ArrayList<>();
+        for (int index = 0; index < 8_193; index++) {
+            raw.add(finding("info", "provider", SetupAnalysis.Severity.INFO));
+        }
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> SetupAnalysis.compose("game", "profile", raw, List.of()));
     }
 
     @Test
