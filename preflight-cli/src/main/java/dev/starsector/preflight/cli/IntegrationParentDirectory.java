@@ -31,33 +31,37 @@ import java.util.Locale;
  */
 final class IntegrationParentDirectory implements AutoCloseable {
     static final int MAX_REVIEW_FILE_BYTES = 256 * 1024;
-    static final int MAX_REVIEW_DIRECTORY_ENTRIES = 64;
+    static final int MAX_REVIEW_TOTAL_ENTRIES = 64;
+    static final int MAX_REVIEW_TOTAL_BYTES = 1024 * 1024;
 
     private final Path publicPath;
     private final Backend backend;
     private final Identity identity;
+    private final ReviewBudget reviewBudget;
     private boolean closed;
 
-    private IntegrationParentDirectory(Path publicPath, Backend backend) throws IOException {
+    private IntegrationParentDirectory(Path publicPath, Backend backend, ReviewBudget reviewBudget)
+            throws IOException {
         this.publicPath = publicPath.toAbsolutePath().normalize();
         this.backend = backend;
         this.identity = backend.identity();
+        this.reviewBudget = reviewBudget;
     }
 
     static IntegrationParentDirectory ensureAndOpen(Path directory) throws IOException {
         Path absolute = directory.toAbsolutePath().normalize();
-        return fromBackend(absolute, openPath(absolute, true));
+        return fromBackend(absolute, openPath(absolute, true), null);
     }
 
     static IntegrationParentDirectory open(Path directory) throws IOException {
         Path absolute = directory.toAbsolutePath().normalize();
-        return fromBackend(absolute, openPath(absolute, false));
+        return fromBackend(absolute, openPath(absolute, false), null);
     }
 
-    private static IntegrationParentDirectory fromBackend(Path publicPath, Backend backend)
-            throws IOException {
+    private static IntegrationParentDirectory fromBackend(
+            Path publicPath, Backend backend, ReviewBudget reviewBudget) throws IOException {
         try {
-            return new IntegrationParentDirectory(publicPath, backend);
+            return new IntegrationParentDirectory(publicPath, backend, reviewBudget);
         } catch (IOException failure) {
             try {
                 backend.close();
@@ -99,13 +103,17 @@ final class IntegrationParentDirectory implements AutoCloseable {
     Identity identity() throws IOException { ensureOpen(); return backend.identity(); }
 
     List<String> listNames() throws IOException {
-        return listNames(MAX_REVIEW_DIRECTORY_ENTRIES);
+        return listNames(MAX_REVIEW_TOTAL_ENTRIES);
     }
 
     List<String> listNames(int maxEntries) throws IOException {
         ensureOpen();
         if (maxEntries < 0) throw new IOException("Launcher review entry budget is negative");
-        List<String> names = new ArrayList<>(backend.listNames(maxEntries));
+        int effectiveLimit = reviewBudget == null
+                ? maxEntries
+                : Math.min(maxEntries, reviewBudget.remainingEntries());
+        List<String> names = new ArrayList<>(backend.listNames(effectiveLimit));
+        if (reviewBudget != null) reviewBudget.retainEntries(names.size());
         names.sort(Comparator.naturalOrder());
         return List.copyOf(names);
     }
@@ -115,7 +123,8 @@ final class IntegrationParentDirectory implements AutoCloseable {
         String name = relative(child);
         Backend opened = backend.tryOpenDirectory(name);
         if (opened == null) return null;
-        return fromBackend(publicPath.resolve(name), opened);
+        ReviewBudget childBudget = reviewBudget == null ? ReviewBudget.forRootDirectory() : reviewBudget;
+        return fromBackend(publicPath.resolve(name), opened, childBudget);
     }
 
     IntegrationParentDirectory openDirectory(String child) throws IOException {
@@ -131,7 +140,12 @@ final class IntegrationParentDirectory implements AutoCloseable {
     FileInfo readFile(String child, int maxBytes) throws IOException {
         ensureOpen();
         if (maxBytes < 0) throw new IOException("Launcher review byte budget is negative");
-        return backend.readFile(relative(child), maxBytes);
+        int effectiveLimit = reviewBudget == null
+                ? maxBytes
+                : Math.min(maxBytes, reviewBudget.remainingBytes());
+        FileInfo file = backend.readFile(relative(child), effectiveLimit);
+        if (reviewBudget != null) reviewBudget.retainBytes(file.bytes().length);
+        return file;
     }
 
     boolean exists(String child) throws IOException { ensureOpen(); return backend.exists(relative(child)); }
@@ -168,8 +182,45 @@ final class IntegrationParentDirectory implements AutoCloseable {
     }
 
     private static IOException entryLimitExceeded(int maxEntries) {
-        return new IOException("Launcher integration directory exceeds review entry limit of "
+        return new IOException("Launcher integration directory exceeds remaining review entry budget of "
                 + maxEntries + " entries");
+    }
+
+    private static final class ReviewBudget {
+        private int entries;
+        private int bytes;
+
+        private ReviewBudget(int entries) {
+            this.entries = entries;
+        }
+
+        static ReviewBudget forRootDirectory() {
+            return new ReviewBudget(1);
+        }
+
+        int remainingEntries() {
+            return MAX_REVIEW_TOTAL_ENTRIES - entries;
+        }
+
+        int remainingBytes() {
+            return MAX_REVIEW_TOTAL_BYTES - bytes;
+        }
+
+        void retainEntries(int count) throws IOException {
+            if (count < 0 || count > remainingEntries()) {
+                throw new IOException("Launcher integration snapshot exceeds review entry limit of "
+                        + MAX_REVIEW_TOTAL_ENTRIES + " entries");
+            }
+            entries += count;
+        }
+
+        void retainBytes(int count) throws IOException {
+            if (count < 0 || count > remainingBytes()) {
+                throw new IOException("Launcher integration snapshot exceeds retained-byte review limit of "
+                        + MAX_REVIEW_TOTAL_BYTES + " bytes");
+            }
+            bytes += count;
+        }
     }
 
     record Identity(long device, long file) {}
