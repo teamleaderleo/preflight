@@ -1,9 +1,10 @@
 # Privacy
 
 Preflight runs locally. Preparation, launching, profiles, settings, storage cleanup, diagnostics,
-and benchmarking don't send their contents to the project maintainer. Packaged desktop builds can
-make the update-check request described below, and run reports are sent only through the separate
-explicit-consent path described later in this document.
+and benchmarking don't send their contents to the project maintainer. The first beta can make the
+signed update-check request described below, but it does **not** contain an active remote diagnostics
+intake: support ZIPs remain on the player's computer until the player chooses a separate support
+path to share one.
 
 Local maintenance keeps the 10 newest launch reports and 5 newest benchmarks and removes older
 Preflight evidence while the desktop is idle. This is local deletion only; it makes no network
@@ -38,50 +39,47 @@ background updater.
 
 ## Voluntary support ZIPs
 
-The desktop build can save a diagnostics ZIP chosen by the user. A build compiled with the private
-intake origin also enables sending. Nothing is sent until the user chooses **Get support**, creates
-the ZIP, opens its review, sees the fixed inclusion and exclusion boundary, exact entries, finished
-byte count and SHA-256, and confirms the send. Ordinary development and source builds omit the
-origin, so sending is disabled while local export remains available.
+The desktop build can save a diagnostics ZIP chosen by the user. In the first beta, creating the ZIP
+is the end of Preflight's support-sharing capability: the app exposes no remote review/send/delete
+action and no automatic failed-run upload. The player can inspect the disclosure inside the ZIP and,
+if they choose, share the file later through a private support path they select themselves.
+
+The first-beta release build rejects a configured `PREFLIGHT_REPORT_INTAKE_ORIGIN`, and the trusted
+Distribution workflow supplies no report-intake origin. Stale development-era automatic-report
+preferences cannot enable network sending in this build. An authoritative local-only intake status
+also clears stale renderer-side report consent/receipt state so it cannot become an actionable
+remote control in the beta.
 
 ### What a support ZIP contains
 
-The report is the same bounded ZIP produced by `preflight evidence export`. It contains a disclosure,
-a manifest, and allowlisted JSON or JSONL evidence from selected launch runs and benchmark sessions.
-That evidence can include enabled mod IDs, platform and runtime details, adapter targets, counters,
-hashes, resource names, settings used by a benchmark, and bounded failure metadata. Occurrences of
-the current user home are replaced with `<home>`.
+The ZIP is the same bounded archive produced by `preflight evidence export`. It contains a
+disclosure, a manifest, and allowlisted JSON or JSONL evidence from selected launch runs and
+benchmark sessions. That evidence can include enabled mod IDs, platform and runtime details,
+adapter targets, counters, hashes, resource names, settings used by a benchmark, and bounded failure
+metadata. Occurrences of the current user home are replaced with `<home>`.
 
 It excludes acceleration caches, Starsector and mod files, saves, logs and crash dumps, JFR
 recordings, screenshots, audio, unknown filenames, binary content, symbolic links, files above 512
 KiB, and source content above 5 MiB. The exact format is documented in
 [Diagnostics export](diagnostics.md).
 
-### What sending adds
+### Deferred remote reporting
 
-Creating a case sends the Preflight version, ZIP byte count, and ZIP SHA-256 to the intake service.
-After confirmation, the service receives that exact ZIP. Cloudflare necessarily processes normal
-network metadata such as the source IP to serve and rate-limit the request. Preflight doesn't add a
-user identifier, advertising identifier, machine name, email address, account, or persistent client
-secret.
+The repository contains a private report-intake service and dormant desktop transport code from
+pre-release experiments. Those paths are **not enabled in the first beta**. The beta does not create
+a remote case, upload a support ZIP, retain a remote report on the player's behalf, issue a deletion
+bearer, or send a failed-run report automatically.
 
-Accepted reports are stored in a private Cloudflare R2 bucket. The proposed default starts automatic
-deletion after 14 days; R2 lifecycle processing can take up to another day, which is reflected in the
-receipt's retention deadline. The receipt also carries a case-specific deletion authorization so the
-user can request earlier deletion. The report isn't used for advertising or sold.
+A later release may reintroduce remote reporting only after its authority, retention, deletion,
+migration, consent, package, and privacy contracts are reviewed for that release. Any future
+remote-capable release must require its then-current consent contract; a stale beta/development
+preference cannot silently opt a player into sending.
 
-The intake service and desktop consent/upload/delete path are implemented and have completed a
-packaged macOS canary against the private production bucket. Public packages remain disabled until
-the final release candidate repeats that path. Its operational contract is in
-[report-intake/README.md](../report-intake/README.md).
+Historical intake/canary implementation notes remain under `report-intake/` for engineering review;
+they do not describe a capability of the first-beta package.
 
-**Run-report service operator:** the Preflight project maintainer (`teamleaderleo`).
+**Project operator:** the Preflight project maintainer (`teamleaderleo`).
 **Contact:** [the Preflight issue tracker](https://github.com/teamleaderleo/preflight/issues). Do not
 post private diagnostics, credentials, personal data, or security exploit details in a public issue;
-use the bounded support flow and [security policy](../SECURITY.md) as applicable.
-**Privacy notice effective date:** 2026-08-13.
-
-Automatic failed-run reports are off by default. Enabling them is a separate remembered choice.
-After an exact failed launch, Preflight exports and sends the same bounded ZIP disclosed in Help.
-The run ID, wrapper PID, and wrapper start time must all match before it sends. At most three local
-automatic ZIPs are retained. Ordinary launch, preparation, and Worker observability can't enable it.
+use a private support path for a diagnostics ZIP and [security policy](../SECURITY.md) as applicable.
+**Privacy notice effective date:** 2026-08-19.
