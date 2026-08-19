@@ -1,0 +1,40 @@
+name: Merge gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: merge-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  required:
+    name: Merge gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Verify the aggregate gate implementation
+        run: |
+          python3 -m py_compile scripts/required_merge_gate.py scripts/test_required_merge_gate.py
+          python3 scripts/test_required_merge_gate.py
+
+      - name: Require every scoped PR workflow that actually ran
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/required_merge_gate.py \
+            --repo "${{ github.repository }}" \
+            --sha "${{ github.event.pull_request.head.sha }}" \
+            --pr "${{ github.event.pull_request.number }}" \
+            --timeout 3600 \
+            --poll 15 \
+            --settle 45
