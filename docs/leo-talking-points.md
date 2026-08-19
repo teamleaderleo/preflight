@@ -34,8 +34,9 @@ an installation directly.
   until the player explicitly enables it.
 - **Ordinary game launches do not upload logs or telemetry.** Update checks and explicitly enabled
   support reporting are separate product actions.
-- **The update path is signed and checked.** Release packages use the project updater key and the
-  release workflow exercises update/rollback/package boundaries before publication.
+- **The update path is signed and checked.** Release packages use the project updater key. The
+  private-candidate lifecycle rehearses update, rollback, and package boundaries; #818 tracks the
+  remaining requirement that final publication evidence be bound to the exact tagged package bytes.
 - **Every package carries a capability receipt.** It records the native commands, writes, child
   processes, links, and network endpoints available to that exact build.
 - **There is a mod linter too.** It has found progressive JPEGs, wasteful texture/audio allocation,
@@ -46,13 +47,14 @@ an installation directly.
 
 ## The trust explanation
 
-Preflight does not rewrite Starsector or mod JARs, executables, assets, activation data, or saves.
-Runtime optimizations live in the launched game JVM and disappear when the game exits. If installed
-code or prepared evidence differs from what Preflight recognizes, that optimization declines and the
+Preflight does not rewrite Starsector or mod JARs, executables, assets, or saves. Runtime
+optimizations live in the launched game JVM and disappear when the game exits. If installed code or
+prepared evidence differs from what Preflight recognizes, that optimization declines and the
 original game path handles the work.
 
-Two explicit backed-up features can change game-owned preferences: named-profile activation and the
-launch-settings editor. Both have reviewed boundaries instead of hidden background mutation.
+Two explicit backed-up features can change game-owned configuration: named-profile activation writes
+the reviewed enabled-mod selection, and the launch-settings editor writes the reviewed launch/game
+settings. Both have reviewed boundaries instead of hidden background mutation.
 
 The support path follows the same rule. Ordinary game launches send no logs or telemetry. A support
 report is a disclosed bounded ZIP, and automatic failed-run reporting requires explicit opt-in.
@@ -117,8 +119,8 @@ exists:
   benchmark result.
 - Finish the safe remembered-UI subset from #562: useful filters/search, immediate Launch/Prepare
   busy feedback, and session-local Help/Recovery position.
-- Review the already-built #738 hull motion/direction preference and #747 Hangar/Compact + playtime
-  visibility preference when the release captain opens the presentation lane.
+- Review and disposition the already-built #738 hull motion/direction preference and #747
+  Hangar/Compact + playtime visibility preference before the exact candidate is frozen.
 - Add the #578 **Run self-check** desktop action by composing checks Preflight already performs.
 - Follow with #573's player-facing explanation of why preparation is stale and how much data will be
   reused before rebuilding.
