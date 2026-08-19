@@ -43,6 +43,20 @@ class TextureManifestIOTest {
         assertThrows(IOException.class, () -> TextureManifestIO.fromBytes(Arrays.copyOf(bytes, bytes.length - 3)));
     }
 
+    @Test
+    void readStopsAtConfiguredBoundBeforeParsing() throws Exception {
+        TextureManifest manifest = fixture(false);
+        byte[] bytes = TextureManifestIO.toBytes(manifest);
+        Path file = temporaryDirectory.resolve("bounded.spfm");
+        Files.write(file, bytes);
+
+        assertEquals(manifest.entries(), TextureManifestIO.read(file, bytes.length).entries());
+        IOException oversized = assertThrows(
+                IOException.class, () -> TextureManifestIO.read(file, bytes.length - 1));
+        assertTrue(oversized.getMessage().contains((bytes.length - 1) + " byte safety limit"));
+        assertThrows(IllegalArgumentException.class, () -> TextureManifestIO.read(file, 32));
+    }
+
     private static TextureManifest fixture(boolean reverse) {
         TextureManifest.Entry alpha = new TextureManifest.Entry(
                 "aa".repeat(32),
