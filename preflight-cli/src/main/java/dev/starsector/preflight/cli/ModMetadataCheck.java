@@ -1,5 +1,6 @@
 package dev.starsector.preflight.cli;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -19,17 +20,36 @@ import java.util.Set;
 final class ModMetadataCheck {
     private static final String PROVIDER = "mod-metadata";
     private static final int MAX_MOD_DIRECTORIES = 1_024;
+    private static final int MAX_ENABLED_MODS = 1_024;
+    private static final int MAX_DEPENDENCIES_PER_MOD = 256;
     private static final int MAX_METADATA_BYTES = 1024 * 1024;
     private static final long MAX_TOTAL_METADATA_BYTES = 64L * 1024 * 1024;
+    private static final int READ_BUFFER_BYTES = 8 * 1024;
 
     private ModMetadataCheck() {
     }
 
     static Result check(Path installRoot) throws IOException {
+        return check(installRoot, MAX_TOTAL_METADATA_BYTES);
+    }
+
+    static Result check(Path installRoot, long maximumTotalMetadataBytes) throws IOException {
+        if (maximumTotalMetadataBytes <= 0 || maximumTotalMetadataBytes > MAX_TOTAL_METADATA_BYTES) {
+            throw new IllegalArgumentException("Metadata check budget is outside the supported range");
+        }
         long started = System.nanoTime();
         GameLayout layout = GameLayout.locate(installRoot);
-        Text enabledDocument = boundedText(layout.enabledModsFile(), MAX_METADATA_BYTES);
-        List<String> enabled = JsonText.stringArray(enabledDocument.value(), "enabledMods");
+        MetadataBudget budget = new MetadataBudget(maximumTotalMetadataBytes);
+        Text enabledDocument = boundedText(layout.enabledModsFile(), MAX_METADATA_BYTES, budget);
+        JsonText.ArrayRead enabledRead =
+                JsonText.stringArrayStatus(enabledDocument.value(), "enabledMods", MAX_ENABLED_MODS);
+        if (enabledRead.malformed()) {
+            throw new IOException("enabledMods is present but is not a valid string array");
+        }
+        if (enabledRead.tooMany()) {
+            throw new IOException("enabledMods exceeds the bounded mod-count limit");
+        }
+        List<String> enabled = enabledRead.values();
         Set<String> enabledSet = new LinkedHashSet<>(enabled);
 
         List<Path> directories;
@@ -46,7 +66,6 @@ final class ModMetadataCheck {
             throw new IOException("Too many immediate mod directories for the bounded metadata check");
         }
 
-        long metadataBytes = enabledDocument.bytes();
         Map<String, List<Mod>> byId = new HashMap<>();
         Map<String, MetadataProblem> unresolvedByFolder = new HashMap<>();
         for (Path directory : directories) {
@@ -58,15 +77,10 @@ final class ModMetadataCheck {
             }
             Text document;
             try {
-                document = boundedText(info, MAX_METADATA_BYTES);
-                metadataBytes += document.bytes();
-                if (metadataBytes > MAX_TOTAL_METADATA_BYTES) {
-                    throw new IOException("Aggregate mod metadata exceeds the 64 MiB check budget");
-                }
+                document = boundedText(info, MAX_METADATA_BYTES, budget);
+            } catch (AggregateBudgetExceededException exhausted) {
+                throw exhausted;
             } catch (IOException unreadable) {
-                if (metadataBytes > MAX_TOTAL_METADATA_BYTES) {
-                    throw unreadable;
-                }
                 unresolvedByFolder.put(folder, MetadataProblem.UNREADABLE);
                 continue;
             }
@@ -82,19 +96,23 @@ final class ModMetadataCheck {
                 continue;
             }
 
+            JsonText.ArrayRead dependencyRead = JsonText.objectArrayStatus(
+                    document.value(), "dependencies", MAX_DEPENDENCIES_PER_MOD);
             List<String> dependencies = new ArrayList<>();
-            boolean dependenciesMalformed = false;
-            try {
-                for (String dependency : JsonText.objectArray(document.value(), "dependencies")) {
-                    String dependencyId = JsonText.string(dependency, "id");
-                    if (dependencyId == null || dependencyId.isBlank()) {
-                        dependenciesMalformed = true;
-                        continue;
-                    }
-                    dependencies.add(dependencyId);
+            boolean dependenciesMalformed = dependencyRead.malformed() || dependencyRead.tooMany();
+            for (String dependency : dependencyRead.values()) {
+                String dependencyId;
+                try {
+                    dependencyId = JsonText.string(dependency, "id");
+                } catch (RuntimeException malformed) {
+                    dependenciesMalformed = true;
+                    continue;
                 }
-            } catch (RuntimeException malformed) {
-                dependenciesMalformed = true;
+                if (dependencyId == null || dependencyId.isBlank()) {
+                    dependenciesMalformed = true;
+                    continue;
+                }
+                dependencies.add(dependencyId);
             }
             Mod mod = new Mod(id, List.copyOf(dependencies), dependenciesMalformed);
             byId.computeIfAbsent(id, ignored -> new ArrayList<>()).add(mod);
@@ -201,7 +219,7 @@ final class ModMetadataCheck {
         return new Result(
                 List.copyOf(findings),
                 directories.size(),
-                metadataBytes,
+                budget.bytesRead(),
                 System.nanoTime() - started);
     }
 
@@ -221,13 +239,30 @@ final class ModMetadataCheck {
                 List.of());
     }
 
-    private static Text boundedText(Path file, int maximumBytes) throws IOException {
+    private static Text boundedText(Path file, int maximumBytes, MetadataBudget budget) throws IOException {
         try (InputStream input = Files.newInputStream(
                 file, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
-            byte[] bytes = input.readNBytes(maximumBytes + 1);
-            if (bytes.length > maximumBytes) {
-                throw new IOException("Metadata file exceeds the " + maximumBytes + " byte limit");
+            ByteArrayOutputStream output = new ByteArrayOutputStream(Math.min(maximumBytes, 64 * 1024));
+            byte[] buffer = new byte[READ_BUFFER_BYTES];
+            while (true) {
+                long remainingAggregate = budget.remainingBytes();
+                int remainingFile = maximumBytes - output.size();
+                long probe = Math.min((long) remainingFile + 1L, remainingAggregate + 1L);
+                int allowed = (int) Math.min(buffer.length, Math.max(1L, probe));
+                int read = input.read(buffer, 0, allowed);
+                if (read < 0) {
+                    break;
+                }
+                if (read == 0) {
+                    continue;
+                }
+                budget.charge(read);
+                if ((long) output.size() + read > maximumBytes) {
+                    throw new IOException("Metadata file exceeds the " + maximumBytes + " byte limit");
+                }
+                output.write(buffer, 0, read);
             }
+            byte[] bytes = output.toByteArray();
             return new Text(new String(bytes, StandardCharsets.UTF_8), bytes.length);
         }
     }
@@ -243,6 +278,40 @@ final class ModMetadataCheck {
     }
 
     private record Mod(String id, List<String> dependencies, boolean dependenciesMalformed) {
+    }
+
+    private static final class MetadataBudget {
+        private final long maximumBytes;
+        private long bytesRead;
+
+        MetadataBudget(long maximumBytes) {
+            this.maximumBytes = maximumBytes;
+        }
+
+        long remainingBytes() {
+            return Math.max(0L, maximumBytes - bytesRead);
+        }
+
+        long bytesRead() {
+            return bytesRead;
+        }
+
+        void charge(int bytes) throws AggregateBudgetExceededException {
+            if (bytes < 0) {
+                throw new IllegalArgumentException("Read byte count may not be negative");
+            }
+            long next = bytesRead + bytes;
+            bytesRead = next;
+            if (next > maximumBytes) {
+                throw new AggregateBudgetExceededException();
+            }
+        }
+    }
+
+    private static final class AggregateBudgetExceededException extends IOException {
+        AggregateBudgetExceededException() {
+            super("Aggregate mod metadata exceeds the bounded check budget");
+        }
     }
 
     private enum MetadataProblem {
