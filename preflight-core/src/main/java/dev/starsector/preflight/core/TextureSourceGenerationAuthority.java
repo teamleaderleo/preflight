@@ -19,7 +19,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.FutureTask;
@@ -45,6 +44,7 @@ public final class TextureSourceGenerationAuthority {
     public static final String LINUX_PROVIDER = "linux-unix-ctime-v1";
     public static final String WINDOWS_PROVIDER = "windows-ntfs-usn-v1";
 
+    private static final int MAX_TOOL_INPUT_BYTES = 64 * 1024 * 1024;
     private static final int MAX_TOOL_OUTPUT_BYTES = 64 * 1024 * 1024;
     private static final Duration TOOL_TIMEOUT = Duration.ofMinutes(2);
     private static final Set<String> LINUX_CTIME_FILESYSTEMS = Set.of(
@@ -382,37 +382,31 @@ public final class TextureSourceGenerationAuthority {
 
         @Override
         public Map<Path, String> capture(List<Path> sources) throws IOException {
-            Path script = Files.createTempFile("preflight-usn-", ".ps1");
-            try {
-                Files.writeString(script, WINDOWS_USN_SCRIPT, StandardCharsets.UTF_8);
-                List<String> output = runTool(
-                        List.of(
-                                windowsPowerShell(),
-                                "-NoLogo",
-                                "-NoProfile",
-                                "-NonInteractive",
-                                "-ExecutionPolicy",
-                                "Bypass",
-                                "-File",
-                                script.toString()),
-                        sources.stream().map(TextureSourceGenerationAuthority::encodePath).toList());
-                if (output.size() != sources.size()) {
-                    throw new IOException("Windows USN provider returned " + output.size()
-                            + " tokens for " + sources.size() + " sources");
-                }
-                Map<Path, String> tokens = new HashMap<>();
-                for (int index = 0; index < sources.size(); index++) {
-                    String token = output.get(index);
-                    if (token.isBlank() || token.startsWith("!")) {
-                        throw new IOException("Windows USN unavailable for " + sources.get(index)
-                                + (token.isBlank() ? "" : ": " + token.substring(1)));
-                    }
-                    tokens.put(sources.get(index), token);
-                }
-                return Map.copyOf(tokens);
-            } finally {
-                Files.deleteIfExists(script);
+            List<String> output = runTool(
+                    List.of(
+                            windowsPowerShell(),
+                            "-NoLogo",
+                            "-NoProfile",
+                            "-NonInteractive",
+                            "-ExecutionPolicy",
+                            "Bypass",
+                            "-EncodedCommand",
+                            powershellEncodedCommand(WINDOWS_USN_SCRIPT)),
+                    sources.stream().map(TextureSourceGenerationAuthority::encodePath).toList());
+            if (output.size() != sources.size()) {
+                throw new IOException("Windows USN provider returned " + output.size()
+                        + " tokens for " + sources.size() + " sources");
             }
+            Map<Path, String> tokens = new HashMap<>();
+            for (int index = 0; index < sources.size(); index++) {
+                String token = output.get(index);
+                if (token.isBlank() || token.startsWith("!")) {
+                    throw new IOException("Windows USN unavailable for " + sources.get(index)
+                            + (token.isBlank() ? "" : ": " + token.substring(1)));
+                }
+                tokens.put(sources.get(index), token);
+            }
+            return Map.copyOf(tokens);
         }
     }
 
@@ -506,57 +500,67 @@ public final class TextureSourceGenerationAuthority {
         return "powershell.exe";
     }
 
-    private static List<String> runTool(List<String> baseCommand, List<String> inputLines)
+    private static String powershellEncodedCommand(String script) {
+        return Base64.getEncoder().encodeToString(script.getBytes(StandardCharsets.UTF_16LE));
+    }
+
+    private static List<String> runTool(List<String> command, List<String> inputLines)
             throws IOException {
-        Path input = Files.createTempFile("preflight-generation-", ".txt");
-        try {
-            Files.write(input, inputLines, StandardCharsets.US_ASCII);
-            List<String> command = new ArrayList<>(baseCommand);
-            command.add(input.toString());
-            Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
-            FutureTask<byte[]> outputTask = new FutureTask<>(() ->
-                    process.getInputStream().readNBytes(MAX_TOOL_OUTPUT_BYTES + 1));
-            Thread reader = new Thread(outputTask, "preflight-generation-tool-output");
-            reader.setDaemon(true);
-            reader.start();
-            boolean exited;
-            try {
-                exited = process.waitFor(TOOL_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-                process.destroyForcibly();
-                throw new IOException("Interrupted while reading source generations", interrupted);
-            }
-            if (!exited) {
-                process.destroyForcibly();
-                throw new IOException("Source generation provider exceeded "
-                        + TOOL_TIMEOUT.toSeconds() + " seconds");
-            }
-            byte[] output;
-            try {
-                output = outputTask.get(10, TimeUnit.SECONDS);
-            } catch (Exception error) {
-                process.destroyForcibly();
-                throw new IOException("Could not collect source generation provider output", error);
-            }
-            if (output.length > MAX_TOOL_OUTPUT_BYTES) {
-                throw new IOException("Source generation provider output exceeded the safety limit");
-            }
-            String text = new String(output, StandardCharsets.UTF_8);
-            if (process.exitValue() != 0) {
-                throw new IOException("Source generation provider failed: " + bounded(text));
-            }
-            if (text.isEmpty()) {
-                return List.of();
-            }
-            String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
-            if (normalized.endsWith("\n")) {
-                normalized = normalized.substring(0, normalized.length() - 1);
-            }
-            return normalized.isEmpty() ? List.of() : List.of(normalized.split("\n", -1));
-        } finally {
-            Files.deleteIfExists(input);
+        String textInput = inputLines.isEmpty() ? "" : String.join("\n", inputLines) + "\n";
+        byte[] input = textInput.getBytes(StandardCharsets.US_ASCII);
+        if (input.length > MAX_TOOL_INPUT_BYTES) {
+            throw new IOException("Source generation provider input exceeded the safety limit");
         }
+
+        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+        FutureTask<byte[]> outputTask = new FutureTask<>(() ->
+                process.getInputStream().readNBytes(MAX_TOOL_OUTPUT_BYTES + 1));
+        Thread reader = new Thread(outputTask, "preflight-generation-tool-output");
+        reader.setDaemon(true);
+        reader.start();
+        try {
+            process.getOutputStream().write(input);
+            process.getOutputStream().close();
+        } catch (IOException error) {
+            process.destroyForcibly();
+            throw new IOException("Could not send source generations to provider", error);
+        }
+
+        boolean exited;
+        try {
+            exited = process.waitFor(TOOL_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            process.destroyForcibly();
+            throw new IOException("Interrupted while reading source generations", interrupted);
+        }
+        if (!exited) {
+            process.destroyForcibly();
+            throw new IOException("Source generation provider exceeded "
+                    + TOOL_TIMEOUT.toSeconds() + " seconds");
+        }
+        byte[] output;
+        try {
+            output = outputTask.get(10, TimeUnit.SECONDS);
+        } catch (Exception error) {
+            process.destroyForcibly();
+            throw new IOException("Could not collect source generation provider output", error);
+        }
+        if (output.length > MAX_TOOL_OUTPUT_BYTES) {
+            throw new IOException("Source generation provider output exceeded the safety limit");
+        }
+        String text = new String(output, StandardCharsets.UTF_8);
+        if (process.exitValue() != 0) {
+            throw new IOException("Source generation provider failed: " + bounded(text));
+        }
+        if (text.isEmpty()) {
+            return List.of();
+        }
+        String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
+        if (normalized.endsWith("\n")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized.isEmpty() ? List.of() : List.of(normalized.split("\n", -1));
     }
 
     private static String bounded(String text) {
@@ -575,8 +579,9 @@ public final class TextureSourceGenerationAuthority {
 
     private static final String MAC_CAPTURE_SCRIPT = """
             ObjC.import('Foundation');
-            function textFile(path) {
-              var value = $.NSString.stringWithContentsOfFileEncodingError($(path), $.NSUTF8StringEncoding, null);
+            function inputText() {
+              var data = $.NSFileHandle.fileHandleWithStandardInput.readDataToEndOfFile;
+              var value = $.NSString.alloc.initWithDataEncoding(data, $.NSUTF8StringEncoding);
               if (!value) throw new Error('could not read generation input');
               return ObjC.unwrap(value);
             }
@@ -598,7 +603,7 @@ public final class TextureSourceGenerationAuthority {
               return ObjC.unwrap(data.base64EncodedStringWithOptions(0));
             }
             function run(argv) {
-              var text = textFile(argv[0]);
+              var text = inputText();
               var lines = text.length === 0 ? [] : text.split(/\\r?\\n/);
               if (lines.length && lines[lines.length - 1] === '') lines.pop();
               var output = [];
@@ -613,8 +618,9 @@ public final class TextureSourceGenerationAuthority {
 
     private static final String MAC_VALIDATE_SCRIPT = """
             ObjC.import('Foundation');
-            function textFile(path) {
-              var value = $.NSString.stringWithContentsOfFileEncodingError($(path), $.NSUTF8StringEncoding, null);
+            function inputText() {
+              var data = $.NSFileHandle.fileHandleWithStandardInput.readDataToEndOfFile;
+              var value = $.NSString.alloc.initWithDataEncoding(data, $.NSUTF8StringEncoding);
               if (!value) throw new Error('could not read generation input');
               return ObjC.unwrap(value);
             }
@@ -636,7 +642,7 @@ public final class TextureSourceGenerationAuthority {
               return $.NSKeyedUnarchiver.unarchiveObjectWithData(data);
             }
             function run(argv) {
-              var text = textFile(argv[0]);
+              var text = inputText();
               var lines = text.length === 0 ? [] : text.split(/\\r?\\n/);
               if (lines.length && lines[lines.length - 1] === '') lines.pop();
               var output = [];
@@ -652,7 +658,6 @@ public final class TextureSourceGenerationAuthority {
             """;
 
     private static final String WINDOWS_USN_SCRIPT = """
-            param([Parameter(Mandatory=$true)][string]$InputFile)
             $ErrorActionPreference = 'Stop'
             Add-Type -TypeDefinition @'
             using System;
@@ -740,7 +745,8 @@ public final class TextureSourceGenerationAuthority {
             '@ | Out-Null
 
             $utf8 = [System.Text.Encoding]::UTF8
-            foreach ($line in [System.IO.File]::ReadAllLines($InputFile, [System.Text.Encoding]::ASCII)) {
+            $inputText = [Console]::In.ReadToEnd()
+            foreach ($line in ($inputText -split "`r?`n")) {
                 if ([string]::IsNullOrEmpty($line)) { continue }
                 try {
                     $path = $utf8.GetString([Convert]::FromBase64String($line))
