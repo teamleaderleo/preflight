@@ -26,6 +26,7 @@ final class SetupAnalysis {
     private static final int MAX_SUMMARY_CHARS = 512;
     private static final int MAX_PARAMETER_KEY_CHARS = 64;
     private static final int MAX_PARAMETER_STRING_CHARS = 1_024;
+    private static final int MAX_PARAMETER_NUMBER_CHARS = 128;
     private static final int MAX_LIST_VALUE_CHARS = 256;
 
     enum Severity {
@@ -163,6 +164,11 @@ final class SetupAnalysis {
             return number;
         }
         if (value instanceof BigInteger || value instanceof BigDecimal) {
+            String encoded = value.toString();
+            if (encoded.length() > MAX_PARAMETER_NUMBER_CHARS) {
+                throw new IllegalArgumentException("setup finding parameter '" + key
+                        + "' exceeds the " + MAX_PARAMETER_NUMBER_CHARS + "-character numeric limit");
+            }
             return value;
         }
         throw new IllegalArgumentException("setup finding parameter '" + key
