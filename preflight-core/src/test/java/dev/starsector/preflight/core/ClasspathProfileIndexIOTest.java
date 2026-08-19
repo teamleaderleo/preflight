@@ -3,14 +3,20 @@ package dev.starsector.preflight.core;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class ClasspathProfileIndexIOTest {
+    @TempDir
+    Path temporaryDirectory;
+
     @Test
     void roundTripsOrderedProvidersAndWinner() throws Exception {
         List<ClasspathProfileIndex.Archive> archives = List.of(
@@ -59,6 +65,20 @@ class ClasspathProfileIndexIOTest {
                         "ff".repeat(32),
                         index.archives(),
                         Map.of("a/A.class", List.of(0, 0))));
+    }
+
+    @Test
+    void readStopsAtConfiguredBoundBeforeParsing() throws Exception {
+        ClasspathProfileIndex index = new ClasspathProfileIndex(
+                "dd".repeat(32),
+                List.of(archive("one", "one.jar", "11", 0)),
+                Map.of("a/A.class", List.of(0)));
+        Path file = temporaryDirectory.resolve("classpath.spfc");
+        Files.write(file, ClasspathProfileIndexIO.toBytes(index));
+
+        IOException oversized = assertThrows(IOException.class, () -> ClasspathProfileIndexIO.read(file, 64));
+        assertTrue(oversized.getMessage().contains("64 byte safety limit"));
+        assertThrows(IllegalArgumentException.class, () -> ClasspathProfileIndexIO.read(file, 32));
     }
 
     private static ClasspathProfileIndex.Archive archive(
