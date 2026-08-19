@@ -49,16 +49,23 @@ test("failed-run recovery exposes the existing privacy-safe Copy setup action", 
   expect(onDismiss).toHaveBeenCalledOnce();
 });
 
-test("copy reports in-progress and copied states without changing recovery ownership", () => {
+test("copy reports its in-progress state without taking recovery ownership", () => {
   setupState.state = "copying";
-  const view = renderActions();
+  renderActions();
+
   expect(screen.getByRole("button", { name: "Copying…" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Relaunch" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "Get help" })).toBeEnabled();
-  view.onRelaunch.mockClear();
+});
 
+test("copy reports completion without removing the other recovery actions", () => {
   setupState.state = "copied";
-  view.onDismiss.mockClear();
+  renderActions();
+
+  expect(screen.getByRole("button", { name: "Setup copied" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Relaunch" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Get help" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Dismiss" })).toBeEnabled();
 });
 
 test("operation ownership blocks Relaunch and Copy setup but keeps help/dismissal available", () => {
