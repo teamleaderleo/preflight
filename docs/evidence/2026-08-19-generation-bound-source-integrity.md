@@ -3,7 +3,7 @@
 **Date:** 2026-08-19  
 **PR:** #799  
 **Scope:** #753 adapter source archives and #766 prepared texture source verification  
-**Status:** implementation/proof branch; correctness gates running; representative licensed-profile performance run still required before review-ready status
+**Status:** implementation/proof branch; hosted correctness gates green before the current polish pass; representative licensed-profile performance run still required before review-ready status
 
 ## Decision
 
@@ -60,11 +60,29 @@ Automatic launch rebuilds the current resource index and validates the sealed ge
 
 Unsealed/manual texture contexts have no generation proof. They perform exact source SHA-256 on each prepared lookup after cheap metadata rejection checks. This keeps the expensive behavior available as an explicit diagnostic lane without using mutable metadata as content authority.
 
+### Operator and persistence contracts
+
+Generation authority is now visible anywhere an operator would reasonably ask whether acceleration is ready. `CacheHealth`/`doctor` validate the same `SPTG` proof as automatic launch, so a readable manifest and pack with a missing, corrupt, stale, or unsupported proof is reported as repair-needed instead of ready. Cache repair includes the proof in the profile-scoped repair set when it exists.
+
+`SPTG` profile keys are restricted to one portable filename component before path resolution or binary persistence. Path separators, drive-colon syntax, dot segments, control/glob characters, and non-ASCII filename forms are rejected; the proof cannot introduce a new profile-derived path escape on a platform whose path syntax differs from the writer's.
+
+An automatic launch carries its generation decision into `run.json` using these stable evidence keys:
+
+- `textureSourceGenerationValidated`;
+- `textureSourceGenerationProvider`;
+- `textureSourceGenerationEntries`;
+- `textureSourceGenerationBytesCovered`;
+- `textureSourceGenerationValidationMs`;
+- `textureSourceGenerationProblem`;
+- `textureSourceGenerationPrelaunchSourceContentBytesRead`.
+
+The last field is explicitly `0` for an automatic generation-token check. This gives the representative launch a machine-readable assertion of the zero-source-content authorization contract instead of requiring console interpretation. The launch plan prints the same provider, source coverage, validation wall time, and zero-byte statement for human inspection.
+
 ### Same-size/restored-mtime regression
 
 The hosted generation-provider test writes one source, seals it, mutates the bytes to a different value of the same length, restores the original mtime, and requires launch-generation validation to fail.
 
-The counterexample has passed on hosted Ubuntu, macOS, and Windows with the provider implementations above. The Windows helper protocol also keeps stdout/stderr separately bounded and parses only explicit machine records from stdout.
+The counterexample has passed on hosted Ubuntu, macOS, and Windows with the provider implementations above. The Windows helper protocol also keeps stdout/stderr separately bounded and parses only explicit machine records from stdout. The cross-platform preparation lane now includes cache-health parity, so each supported host also proves that operator readiness consumes the same generation authority as launch.
 
 ### Active-launch boundary
 
@@ -96,12 +114,12 @@ For #753 record:
 - hash CPU time;
 - startup wall time.
 
-For #766 record:
+For #766 record from `run.json` plus the adapter report:
 
-- prepared source entries checked;
-- unique source bytes covered;
-- generation-provider validation wall time;
-- source-content bytes hashed inside the game JVM on the clean automatic path (**target: zero**);
+- `textureSourceGenerationEntries`;
+- `textureSourceGenerationBytesCovered`;
+- `textureSourceGenerationValidationMs`;
+- `textureSourceGenerationPrelaunchSourceContentBytesRead` (**target: `0`**);
 - startup wall time.
 
 Keep JFR sample composition, CPU, I/O, allocation, and wall time as separate quantities under #295/#450. The retained large-profile cohort remains a comparison baseline only where performance-relevant inputs remain comparable.
