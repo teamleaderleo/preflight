@@ -9,58 +9,95 @@ import required_merge_gate as gate
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 MERGE_GATE_WORKFLOW = REPOSITORY / ".github" / "workflows" / "merge-gate.yml"
+SOURCE = ".github/workflows/source-boundary.yml"
+CI = ".github/workflows/ci.yml"
+DESKTOP = ".github/workflows/desktop-application.yml"
+STATIC = ".github/workflows/java-static-analysis.yml"
+REPRO = ".github/workflows/java-reproducibility.yml"
+LAUNCHER = ".github/workflows/launcher-ownership-boundary.yml"
+TRUSTED = frozenset({SOURCE, CI, DESKTOP, STATIC, REPRO, LAUNCHER})
+
+
+def run(run_id: int, path: str, name: str, conclusion: str = "success") -> dict:
+    return {
+        "id": run_id,
+        "path": path,
+        "name": name,
+        "head_sha": "a" * 40,
+        "head_branch": "topic",
+        "head_repository": {"id": 17},
+        "status": "completed",
+        "conclusion": conclusion,
+    }
+
+
+def pull_request() -> dict:
+    return {"head": {"sha": "a" * 40, "ref": "topic", "repo": {"id": 17}}}
 
 
 class RunSelectionTest(unittest.TestCase):
-    def test_run_must_belong_to_current_pull_request(self):
-        run = {"pull_requests": [{"number": 607}]}
-        self.assertTrue(gate.belongs_to_pr(run, 607))
-        self.assertFalse(gate.belongs_to_pr(run, 608))
+    def test_run_must_match_exact_pull_request_head_identity(self):
+        expected = pull_request()
+        self.assertTrue(gate.belongs_to_pr(run(1, CI, "CI"), expected))
 
-    def test_latest_rerun_wins_and_aggregate_excludes_itself(self):
-        latest = gate.latest_by_name(
-            [
-                {"id": 1, "name": "CI", "status": "completed", "conclusion": "failure"},
-                {"id": 2, "name": "CI", "status": "completed", "conclusion": "success"},
-                {"id": 3, "name": gate.AGGREGATE_WORKFLOW, "status": "in_progress"},
-            ]
+        wrong_branch = run(2, CI, "CI")
+        wrong_branch["head_branch"] = "other"
+        self.assertFalse(gate.belongs_to_pr(wrong_branch, expected))
+
+        wrong_repo = run(3, CI, "CI")
+        wrong_repo["head_repository"] = {"id": 18}
+        self.assertFalse(gate.belongs_to_pr(wrong_repo, expected))
+
+    def test_latest_rerun_wins_by_trusted_workflow_path(self):
+        latest = gate.latest_by_path(
+            [run(1, CI, "CI", "failure"), run(2, CI, "CI", "success")],
+            TRUSTED,
         )
-        self.assertEqual({"CI"}, set(latest))
-        self.assertEqual(2, latest["CI"]["id"])
+        self.assertEqual({CI}, set(latest))
+        self.assertEqual(2, latest[CI]["id"])
+
+    def test_pr_supplied_same_name_workflow_cannot_mask_trusted_failure(self):
+        spoof = run(99, ".github/workflows/pr-spoof.yml", "Source boundary", "success")
+        state, paths, latest = gate.evaluate(
+            [run(1, SOURCE, "Source boundary", "failure"), spoof],
+            TRUSTED,
+        )
+        self.assertEqual("failed", state)
+        self.assertEqual([SOURCE], paths)
+        self.assertEqual({SOURCE}, set(latest))
 
 
 class EvaluationTest(unittest.TestCase):
     def test_source_boundary_is_always_required(self):
-        state, details, _ = gate.evaluate([])
+        state, details, _ = gate.evaluate([], TRUSTED)
         self.assertEqual("pending", state)
-        self.assertEqual(["Source boundary: missing"], details)
+        self.assertEqual([SOURCE], details)
 
     def test_all_observed_scoped_workflows_must_pass(self):
         state, details, _ = gate.evaluate(
             [
-                {"id": 1, "name": "Source boundary", "status": "completed", "conclusion": "success"},
-                {"id": 2, "name": "Desktop application", "status": "completed", "conclusion": "failure"},
-                {"id": 3, "name": "Java static analysis", "status": "completed", "conclusion": "success"},
-            ]
+                run(1, SOURCE, "Source boundary"),
+                run(2, DESKTOP, "Desktop application", "failure"),
+                run(3, STATIC, "Java static analysis"),
+            ],
+            TRUSTED,
         )
         self.assertEqual("failed", state)
-        self.assertEqual(["Desktop application: failure"], details)
+        self.assertEqual([DESKTOP], details)
 
-    def test_success_accepts_whichever_scoped_workflows_ran(self):
+    def test_success_accepts_whichever_base_known_scoped_workflows_ran(self):
         state, details, latest = gate.evaluate(
             [
-                {"id": 1, "name": "Source boundary", "status": "completed", "conclusion": "success"},
-                {"id": 2, "name": "CI", "status": "completed", "conclusion": "success"},
-                {"id": 3, "name": "Java reproducibility", "status": "completed", "conclusion": "success"},
-                {"id": 4, "name": "Launcher ownership boundary", "status": "completed", "conclusion": "success"},
-            ]
+                run(1, SOURCE, "Source boundary"),
+                run(2, CI, "CI"),
+                run(3, REPRO, "Java reproducibility"),
+                run(4, LAUNCHER, "Launcher ownership boundary"),
+            ],
+            TRUSTED,
         )
         self.assertEqual("success", state)
         self.assertEqual([], details)
-        self.assertEqual(
-            {"Source boundary", "CI", "Java reproducibility", "Launcher ownership boundary"},
-            set(latest),
-        )
+        self.assertEqual({SOURCE, CI, REPRO, LAUNCHER}, set(latest))
 
 
 class FailureClassificationTest(unittest.TestCase):
