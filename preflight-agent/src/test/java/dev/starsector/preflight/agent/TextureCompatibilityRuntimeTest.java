@@ -209,16 +209,8 @@ class TextureCompatibilityRuntimeTest {
         assertEquals(true, TextureCompatibilityRuntime.telemetry().get("trustedValidatedIndex"));
     }
 
-    /**
-     * The cost of taking SHA-256 off the loading thread, stated as a test rather than left in a
-     * comment. An edit that preserves both a file's length and its modification time to the
-     * millisecond is not detected by default; it is detected under
-     * {@code -Dpreflight.texture.verifySourceHash=true}. Every real mod update changes at least one
-     * of the two, and hashing 1.34 GB of sources per launch cost 41% of the loading thread's CPU
-     * under Rosetta 2, where the JVM's SHA-256 intrinsic cannot apply.
-     */
     @Test
-    void anEditThatPreservesSizeAndTimestampIsCaughtOnlyByTheOptInHash() throws Exception {
+    void untrustedContextHashesSameSizeRestoredTimestampSourceExactly() throws Exception {
         Fixture fixture = fixture();
         assertTrue(TextureCompatibilityRuntime.configure(
                 fixture.cache(), fixture.manifest(), fixture.index()));
@@ -226,14 +218,7 @@ class TextureCompatibilityRuntimeTest {
         Files.write(fixture.source(), new byte[] {4, 3, 2, 1});
         Files.setLastModifiedTime(fixture.source(), original);
 
-        assertNotNull(TextureCompatibilityRuntime.load("graphics/test.png"));
-
-        System.setProperty(TextureCompatibilityRuntime.VERIFY_SOURCE_HASH_PROPERTY, "true");
-        try {
-            assertNull(TextureCompatibilityRuntime.load("graphics/test.png"));
-        } finally {
-            System.clearProperty(TextureCompatibilityRuntime.VERIFY_SOURCE_HASH_PROPERTY);
-        }
+        assertNull(TextureCompatibilityRuntime.load("graphics/test.png"));
         @SuppressWarnings("unchecked")
         Map<String, Object> reasons =
                 (Map<String, Object>) TextureCompatibilityRuntime.telemetry().get("fallbackReasons");
