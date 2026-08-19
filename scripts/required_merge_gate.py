@@ -166,6 +166,8 @@ def failed_step_names(jobs: Iterable[dict]) -> list[str]:
 def failure_kind(run: dict, jobs: Iterable[dict]) -> tuple[str, list[str]]:
     conclusion = run.get("conclusion")
     steps = failed_step_names(jobs)
+    if conclusion == "cancelled":
+        return "workflow cancellation; rerun required", steps
     if conclusion == "startup_failure":
         return "runner/action bootstrap failure", steps
     if steps and all(any(marker in step.lower() for marker in BOOTSTRAP_STEP_MARKERS) for step in steps):
