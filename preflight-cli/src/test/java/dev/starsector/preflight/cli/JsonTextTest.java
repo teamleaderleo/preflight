@@ -1,7 +1,9 @@
 package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -67,5 +69,34 @@ class JsonTextTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> JsonText.objectArray("{\"dependencies\":{\"id\":\"lazy\"}}", "dependencies"));
+    }
+
+    @Test
+    void boundedArrayStatusPreservesPrefixAndDistinguishesMalformedAndOverLimit() {
+        JsonText.ArrayRead mixed = JsonText.objectArrayStatus(
+                "{\"dependencies\":[{\"id\":\"lazy\"},\"junk\"]}",
+                "dependencies",
+                8);
+        assertTrue(mixed.present());
+        assertTrue(mixed.malformed());
+        assertFalse(mixed.tooMany());
+        assertEquals(1, mixed.values().size());
+        assertEquals("lazy", JsonText.string(mixed.values().get(0), "id"));
+
+        JsonText.ArrayRead wrongType = JsonText.stringArrayStatus(
+                "{\"enabledMods\":{\"id\":\"alpha\"}}", "enabledMods", 8);
+        assertTrue(wrongType.present());
+        assertTrue(wrongType.malformed());
+        assertEquals(List.of(), wrongType.values());
+
+        JsonText.ArrayRead limited = JsonText.stringArrayStatus(
+                "{\"enabledMods\":[\"alpha\",\"beta\"]}", "enabledMods", 1);
+        assertEquals(List.of("alpha"), limited.values());
+        assertTrue(limited.tooMany());
+        assertFalse(limited.malformed());
+
+        JsonText.ArrayRead absent = JsonText.stringArrayStatus("{}", "enabledMods", 8);
+        assertFalse(absent.present());
+        assertEquals(List.of(), absent.values());
     }
 }
