@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import * as bridge from "./bridge";
 import {
@@ -70,6 +70,7 @@ test("a stale automatic-report preference cannot bypass an unconfigured local-on
   const { result } = renderHook(() => useDiagnosticsReport(false, vi.fn()));
 
   expect(result.current.automaticRunReports).toBe(true);
+  await waitFor(() => expect(result.current.reportIntake).toMatchObject({ configured: false }));
   await act(async () => result.current.submitAutomaticFailedRunReport({
     game: "/Applications/Starsector",
     wrapperPid: 4242,
