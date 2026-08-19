@@ -1,0 +1,32 @@
+name: Dispatch package lifecycle #779 evidence
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/package-lifecycle-779-dispatch.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch canonical lifecycle after trigger cleanup
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch='hardening/launcher-ancestor-generation-594'
+          trigger='.github/workflows/package-lifecycle-779-dispatch.yml'
+          for attempt in $(seq 1 180); do
+            if ! gh api --repo "${GITHUB_REPOSITORY}" "repos/${GITHUB_REPOSITORY}/contents/${trigger}?ref=${branch}" >/dev/null 2>&1; then
+              gh workflow run package-lifecycle.yml --repo "${GITHUB_REPOSITORY}" --ref "${branch}"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo 'Temporary dispatcher was not cleaned up before the bounded deadline.' >&2
+          exit 1
