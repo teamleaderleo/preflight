@@ -36,6 +36,12 @@ function tracePolygon(context: CanvasRenderingContext2D, points: WireframePoint[
   context.closePath();
 }
 
+/*
+ * The instrument's colours come from the palette that is on, so a blue app draws a blue ship.
+ * They are declared over the palette's own ink and accent, which means the value stored in the
+ * custom property is an unresolved expression a canvas cannot parse. Assigning it to a real
+ * colour property and reading that back makes the browser resolve it to an rgb() first.
+ */
 function resolveColour(probe: HTMLElement, token: string, fallback: string): string {
   probe.style.color = fallback;
   probe.style.color = `var(${token})`;
@@ -64,6 +70,15 @@ function readPalette(canvas: HTMLCanvasElement): InstrumentPalette {
   return palette;
 }
 
+/*
+ * Weight and opacity by what an edge is, on top of what depth already does to it.
+ *
+ * Depth alone gives every edge in the same plane the same weight, and the silhouette then has to
+ * compete with the deck plating drawn a few pixels inside it. Reading the ship's outer edge first
+ * and its interior second is most of what makes a wireframe legible, so the outline is drawn at
+ * better than twice the interior's weight and the bracing that holds the side panels together is
+ * dropped well back -- it is there to say the side is a surface, not to be read line by line.
+ */
 const EDGE_WEIGHT: Record<HullSegmentKind, number> = {
   outline: 2.1,
   deck: 1,
@@ -80,6 +95,15 @@ const EDGE_ALPHA: Record<HullSegmentKind, number> = {
   engine: 1,
 };
 
+/*
+ * The paint, carried over from the prototype rather than reinvented.
+ *
+ * Every edge is drawn on its own, sorted back to front, and its depth in the view decides three
+ * things at once: colour between a far tone and a near one, line weight, and opacity. That is
+ * what makes a flat set of lines read as a solid object -- not the geometry, which is the same
+ * either way. Batching the edges by kind and giving each kind a flat colour was tried, and the
+ * ship came out looking like a diagram of itself.
+ */
 function drawHull(
   canvas: HTMLCanvasElement,
   hull: WireframeHull,
@@ -106,6 +130,14 @@ function drawHull(
   const projected = projectHull(hull, yaw, detail);
   if (projected.segments.length === 0) return;
 
+  /*
+   * One fixed camera, not a fit to what happens to be on screen this frame.
+   *
+   * Refitting per frame was tried and it is why the ship appeared to zoom and drift while it
+   * turned: a rotating hull's projected bounding box breathes, so re-deriving the scale from it
+   * pumps the whole picture on every frame. The geometry is already normalised to one frame,
+   * which is what makes a constant work here for a stubby Hammerhead and a long Conquest alike.
+   */
   const scale = Math.min(width, height) * (variant === "stage" ? 0.56 : 0.46);
   const map = (point: WireframePoint) => ({
     x: width / 2 + point.x * scale,
@@ -115,6 +147,7 @@ function drawHull(
   context.lineJoin = "round";
   context.lineCap = "round";
 
+  // The floor first, and underneath everything.
   if (projected.ground.length > 0) {
     context.beginPath();
     for (const line of projected.ground) {
@@ -147,6 +180,7 @@ function drawHull(
     .sort((left, right) => left.depth - right.depth);
 
   for (const { segment, depth } of sorted) {
+    // 0 at the far edge of this hull, 1 at the near one.
     const lit = (depth - furthest) / range;
     const channel = (index: 0 | 1 | 2) =>
       Math.round(palette.far[index] + (palette.near[index] - palette.far[index]) * lit);
@@ -171,6 +205,7 @@ function drawHull(
     context.stroke();
   }
 
+  // The bow: the one bright point, so which way the ship is facing is never in question.
   if (projected.nose) {
     const nose = map(projected.nose);
     context.fillStyle = palette.accent;
@@ -184,6 +219,11 @@ function drawHull(
 export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge" }: FlightInstrumentProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { motion, direction } = useInstrumentMotion();
+  const directionRef = useRef(direction);
+
+  useEffect(() => {
+    directionRef.current = direction;
+  }, [direction]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -194,8 +234,13 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
     let previous = 0;
     let palette = readPalette(canvas);
 
+    /*
+     * It turns, all the way round, at the prototype's rate: one revolution in about eighteen
+     * seconds. Rocking it back and forth through a narrow arc was tried and reads as a fidget --
+     * the ship looks stuck rather than displayed, and half the hull is never shown at all.
+     */
     const RATE = 0.34;
-    const DIRECTION = direction === "clockwise" ? 1 : -1;
+    /* The angle a still frame is parked at, for reduced motion and the first paint. */
     const RESTING = variant === "stage" ? 0.52 : 0.38;
     let yaw = RESTING;
     const drawStill = () => drawHull(canvas, hull, yaw, palette, variant);
@@ -210,7 +255,10 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       if (!visible || motion !== "rotate" || reducedMotion.matches) return;
       if (previous === 0) previous = time;
       if (time - previous >= 1000 / 24) {
-        yaw += Math.min(time - previous, 250) / 1000 * RATE * DIRECTION;
+        // Advance by elapsed time rather than per frame, so a dropped frame or a background tab
+        // does not change how fast the ship appears to turn.
+        const directionSign = directionRef.current === "clockwise" ? 1 : -1;
+        yaw += Math.min(time - previous, 250) / 1000 * RATE * directionSign;
         previous = time;
         drawHull(canvas, hull, yaw, palette, variant);
       }
@@ -252,7 +300,7 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       theme.disconnect();
       reducedMotion.removeEventListener("change", updateMotion);
     };
-  }, [direction, hull, motion, variant]);
+  }, [hull, motion, variant]);
 
   return (
     <div
