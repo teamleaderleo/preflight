@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { applyRemoval, getRemovalPlan } from "./bridge";
 import { clearPreflightLocalStorage } from "./desktopStorage";
 import { resetHomePresentation } from "./useHomePresentation";
+import { resetInstrumentMotion } from "./useInstrumentMotion";
 import type { Announce, DesktopSnapshot, RemovalPlan, RemovalScope } from "./types";
 import { errorMessage } from "./uiFormat";
 
@@ -53,6 +54,7 @@ export function useRemoval(
       if (scope === "all-data") {
         localStorageFailures = clearPreflightLocalStorage();
         resetHomePresentation();
+        resetInstrumentMotion();
         clearCache();
         clearProfiles();
         clearReportReceipt();

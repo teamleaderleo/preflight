@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
+import { INSTRUMENT_HULL_MOTION_STORAGE_KEY } from "../desktopStorage";
 import type { useInstrumentHull } from "../useInstrumentHull";
 import type { WireframeHull, WireframeTuning } from "../types";
 import { HangarPage } from "./HangarPage";
@@ -51,6 +52,10 @@ function state(overrides: Partial<ReturnType<typeof useInstrumentHull>> = {}) {
   } as ReturnType<typeof useInstrumentHull>;
 }
 
+beforeEach(() => {
+  window.localStorage.clear();
+});
+
 test("installed hulls stay in the searchable picker while featured selection remains compact", () => {
   const instrumentHull = state();
   render(<HangarPage instrumentHull={instrumentHull} />);
@@ -59,6 +64,24 @@ test("installed hulls stay in the searchable picker while featured selection rem
   expect(select).toHaveTextContent("Odyssey");
   expect(select).not.toHaveTextContent("Modded Hull");
   expect(screen.getByRole("button", { name: /Modded Hull/ })).toBeInTheDocument();
+});
+
+test("motion and direction change immediately without an Apply step", () => {
+  render(<HangarPage instrumentHull={state()} />);
+
+  const clockwise = screen.getByRole("button", { name: "Direction: Clockwise" });
+  fireEvent.click(clockwise);
+  expect(screen.getByRole("button", { name: "Direction: Counter-clockwise" })).toBeEnabled();
+
+  const rotate = screen.getByRole("button", { name: "Motion: Rotate" });
+  expect(rotate).toHaveAttribute("title", "Stop decorative hull rotation");
+  fireEvent.click(rotate);
+
+  const still = screen.getByRole("button", { name: "Motion: Still" });
+  expect(still).toHaveAttribute("title", "Resume decorative hull rotation");
+  expect(screen.getByRole("button", { name: "Direction: Counter-clockwise" })).toBeDisabled();
+  expect(JSON.parse(window.localStorage.getItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY) ?? "null"))
+    .toEqual({ motion: "still", direction: "counter-clockwise" });
 });
 
 test("interior tuning remains independently editable after the shared appearance dials", () => {
