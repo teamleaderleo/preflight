@@ -337,10 +337,7 @@ final class ParentBoundDirectory implements AutoCloseable {
             if (!mac) return Path.of("/proc/self/fd", Integer.toString(descriptor));
             Memory buffer = new Memory(MAXPATHLEN);
             buffer.clear();
-            if (PosixLibC.INSTANCE.fcntl(
-                    descriptor,
-                    F_GETPATH,
-                    new NativeLong(Pointer.nativeValue(buffer))) != 0) {
+            if (PosixLibC.INSTANCE.fcntl(descriptor, F_GETPATH, buffer) != 0) {
                 throw failure("resolve reviewed mutation descriptor", Native.getLastError());
             }
             byte[] bytes = buffer.getByteArray(0, MAXPATHLEN);
@@ -777,7 +774,7 @@ final class ParentBoundDirectory implements AutoCloseable {
         int fchmod(int fd, int mode);
         int fsync(int fd);
         int close(int fd);
-        int fcntl(int fd, int command, NativeLong argument);
+        int fcntl(int fd, int command, Object... arguments);
     }
 
     private interface Kernel32 extends StdCallLibrary {
