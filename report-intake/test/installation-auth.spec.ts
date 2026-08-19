@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   INSTALLATION_AUTH_VERSION,
+  authorizeInstallationRequest,
   canonicalInstallationChallenge,
   encodeInstallationSignature,
   installationKeyId,
@@ -98,6 +99,40 @@ describe("installation-key report authority", () => {
       signature,
       1_800_000_000,
     )).toBe(false);
+  });
+
+  it("consumes a valid nonce exactly once", async () => {
+    const pair = await keyPair();
+    const publicKey = await jwk(pair.publicKey);
+    const challenge: InstallationChallenge = {
+      v: INSTALLATION_AUTH_VERSION,
+      action: "recover",
+      nonce: "nonce_0123456789abcdef",
+      exp: 1_800_000_120,
+    };
+    const signature = await signed(pair.privateKey, challenge);
+    const consumed = new Set<string>();
+    const consume = async (keyId: string, value: InstallationChallenge): Promise<boolean> => {
+      const id = `${keyId}:${value.action}:${value.caseId ?? ""}:${value.nonce}`;
+      if (consumed.has(id)) return false;
+      consumed.add(id);
+      return true;
+    };
+
+    expect(await authorizeInstallationRequest(
+      publicKey,
+      challenge,
+      signature,
+      consume,
+      1_800_000_000,
+    )).toBe(true);
+    await expect(authorizeInstallationRequest(
+      publicKey,
+      challenge,
+      signature,
+      consume,
+      1_800_000_000,
+    )).rejects.toThrow("already consumed");
   });
 
   it("rejects expired and overlong challenges before signature verification", async () => {
