@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::Path;
@@ -12,7 +13,7 @@ const CHECKSUM_BYTES: usize = 32;
 const MAX_RECORD_BYTES: usize = 64 * 1024;
 const MAX_JOURNAL_BYTES: u64 = 1024 * 1024;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum JournalRecord {
     Grant {
@@ -40,17 +41,27 @@ pub(crate) enum JournalRecord {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct LiveCase {
     pub(crate) delete_secret: String,
     pub(crate) retention_deadline: String,
     pub(crate) accepted: bool,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub(crate) struct JournalState {
     pub(crate) cases: BTreeMap<String, LiveCase>,
     pub(crate) automatic_claims: BTreeSet<String>,
+}
+
+impl fmt::Debug for JournalState {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("JournalState")
+            .field("case_count", &self.cases.len())
+            .field("automatic_claim_count", &self.automatic_claims.len())
+            .finish()
+    }
 }
 
 pub(crate) fn append(path: &Path, record: &JournalRecord) -> Result<(), String> {
