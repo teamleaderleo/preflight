@@ -378,7 +378,12 @@ final class SetupAnalysis {
         return Comparator.comparingInt((Finding finding) -> severityRank(finding.severity()))
                 .thenComparing(Finding::provider)
                 .thenComparing(Finding::code)
-                .thenComparing(Finding::summary);
+                .thenComparing(Finding::summary)
+                .thenComparing(SetupAnalysis::canonicalFindingKey);
+    }
+
+    private static String canonicalFindingKey(Finding finding) {
+        return Json.object(view(finding));
     }
 
     private static int severityRank(Severity severity) {
