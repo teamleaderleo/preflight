@@ -30,6 +30,9 @@ import java.util.Locale;
  * that name; a replacement pathname is never used as a mutation root.
  */
 final class IntegrationParentDirectory implements AutoCloseable {
+    static final int MAX_REVIEW_FILE_BYTES = 256 * 1024;
+    static final int MAX_REVIEW_DIRECTORY_ENTRIES = 64;
+
     private final Path publicPath;
     private final Backend backend;
     private final Identity identity;
@@ -43,12 +46,26 @@ final class IntegrationParentDirectory implements AutoCloseable {
 
     static IntegrationParentDirectory ensureAndOpen(Path directory) throws IOException {
         Path absolute = directory.toAbsolutePath().normalize();
-        return new IntegrationParentDirectory(absolute, openPath(absolute, true));
+        return fromBackend(absolute, openPath(absolute, true));
     }
 
     static IntegrationParentDirectory open(Path directory) throws IOException {
         Path absolute = directory.toAbsolutePath().normalize();
-        return new IntegrationParentDirectory(absolute, openPath(absolute, false));
+        return fromBackend(absolute, openPath(absolute, false));
+    }
+
+    private static IntegrationParentDirectory fromBackend(Path publicPath, Backend backend)
+            throws IOException {
+        try {
+            return new IntegrationParentDirectory(publicPath, backend);
+        } catch (IOException failure) {
+            try {
+                backend.close();
+            } catch (IOException closeFailure) {
+                failure.addSuppressed(closeFailure);
+            }
+            throw failure;
+        }
     }
 
     private static Backend openPath(Path directory, boolean createMissing) throws IOException {
@@ -82,8 +99,13 @@ final class IntegrationParentDirectory implements AutoCloseable {
     Identity identity() throws IOException { ensureOpen(); return backend.identity(); }
 
     List<String> listNames() throws IOException {
+        return listNames(MAX_REVIEW_DIRECTORY_ENTRIES);
+    }
+
+    List<String> listNames(int maxEntries) throws IOException {
         ensureOpen();
-        List<String> names = new ArrayList<>(backend.listNames());
+        if (maxEntries < 0) throw new IOException("Launcher review entry budget is negative");
+        List<String> names = new ArrayList<>(backend.listNames(maxEntries));
         names.sort(Comparator.naturalOrder());
         return List.copyOf(names);
     }
@@ -93,12 +115,7 @@ final class IntegrationParentDirectory implements AutoCloseable {
         String name = relative(child);
         Backend opened = backend.tryOpenDirectory(name);
         if (opened == null) return null;
-        try {
-            return new IntegrationParentDirectory(publicPath.resolve(name), opened);
-        } catch (IOException failure) {
-            opened.close();
-            throw failure;
-        }
+        return fromBackend(publicPath.resolve(name), opened);
     }
 
     IntegrationParentDirectory openDirectory(String child) throws IOException {
@@ -107,7 +124,16 @@ final class IntegrationParentDirectory implements AutoCloseable {
         return opened;
     }
 
-    FileInfo readFile(String child) throws IOException { ensureOpen(); return backend.readFile(relative(child)); }
+    FileInfo readFile(String child) throws IOException {
+        return readFile(child, MAX_REVIEW_FILE_BYTES);
+    }
+
+    FileInfo readFile(String child, int maxBytes) throws IOException {
+        ensureOpen();
+        if (maxBytes < 0) throw new IOException("Launcher review byte budget is negative");
+        return backend.readFile(relative(child), maxBytes);
+    }
+
     boolean exists(String child) throws IOException { ensureOpen(); return backend.exists(relative(child)); }
     void createDirectory(String child) throws IOException { ensureOpen(); backend.createDirectory(relative(child)); }
     void createFile(String child, byte[] bytes, boolean executable) throws IOException { ensureOpen(); backend.createFile(relative(child), bytes, executable); }
@@ -136,6 +162,16 @@ final class IntegrationParentDirectory implements AutoCloseable {
     private IOException changedParent() { return new IOException("Launcher mutation parent changed after review: " + publicPath); }
     private IOException changedParent(Throwable cause) { return new IOException("Launcher mutation parent changed after review: " + publicPath, cause); }
 
+    private static IOException readLimitExceeded(String relative, int maxBytes) {
+        return new IOException("Launcher integration file exceeds review byte limit of "
+                + maxBytes + " bytes: " + relative);
+    }
+
+    private static IOException entryLimitExceeded(int maxEntries) {
+        return new IOException("Launcher integration directory exceeds review entry limit of "
+                + maxEntries + " entries");
+    }
+
     record Identity(long device, long file) {}
     record FileInfo(Identity identity, byte[] bytes, boolean executable) {
         FileInfo { bytes = bytes.clone(); }
@@ -144,9 +180,9 @@ final class IntegrationParentDirectory implements AutoCloseable {
 
     private interface Backend extends AutoCloseable {
         Identity identity() throws IOException;
-        List<String> listNames() throws IOException;
+        List<String> listNames(int maxEntries) throws IOException;
         Backend tryOpenDirectory(String relative) throws IOException;
-        FileInfo readFile(String relative) throws IOException;
+        FileInfo readFile(String relative, int maxBytes) throws IOException;
         boolean exists(String relative) throws IOException;
         void createDirectory(String relative) throws IOException;
         void createFile(String relative, byte[] bytes, boolean executable) throws IOException;
@@ -176,6 +212,7 @@ final class IntegrationParentDirectory implements AutoCloseable {
         private static final int MAC_AT_REMOVEDIR = 0x0080;
         private static final int RENAME_NOREPLACE = 1;
         private static final int RENAME_EXCL = 0x00000004;
+        private static final int READ_BUFFER_BYTES = 16 * 1024;
 
         private final boolean mac;
         private final int fd;
@@ -231,7 +268,7 @@ final class IntegrationParentDirectory implements AutoCloseable {
 
         @Override public Identity identity() throws IOException { ensureOpen(); return identityFor(fd, mac); }
 
-        @Override public List<String> listNames() throws IOException {
+        @Override public List<String> listNames(int maxEntries) throws IOException {
             ensureOpen();
             int duplicated = PosixLibC.INSTANCE.dup(fd);
             if (duplicated < 0) throw failure("duplicate launcher directory descriptor", null, Native.getLastError());
@@ -258,7 +295,9 @@ final class IntegrationParentDirectory implements AutoCloseable {
                         if (length == 0) continue;
                         name = new String(bytes, 0, length, StandardCharsets.UTF_8);
                     }
-                    if (!name.equals(".") && !name.equals("..")) result.add(name);
+                    if (name.equals(".") || name.equals("..")) continue;
+                    if (result.size() >= maxEntries) throw entryLimitExceeded(maxEntries);
+                    result.add(name);
                 }
             } finally {
                 if (PosixLibC.INSTANCE.closedir(directory) != 0) throw failure("close launcher directory enumeration", null, Native.getLastError());
@@ -276,7 +315,7 @@ final class IntegrationParentDirectory implements AutoCloseable {
             throw failure("open launcher child directory without following aliases", Path.of(relative), error);
         }
 
-        @Override public FileInfo readFile(String relative) throws IOException {
+        @Override public FileInfo readFile(String relative, int maxBytes) throws IOException {
             ensureOpen();
             int flags = POSIX_O_RDONLY | (mac ? MAC_O_NOFOLLOW | MAC_O_CLOEXEC : LINUX_O_NOFOLLOW | LINUX_O_CLOEXEC);
             int file = PosixLibC.INSTANCE.openat(fd, relative, flags, 0);
@@ -289,13 +328,16 @@ final class IntegrationParentDirectory implements AutoCloseable {
             try {
                 Stat stat = stat(file, mac);
                 if ((stat.mode() & 0170000) != 0100000) throw new IOException("Launcher integration entry is not a regular file: " + relative);
-                ByteArrayOutputStream output = new ByteArrayOutputStream();
-                Memory buffer = new Memory(16 * 1024L);
+                ByteArrayOutputStream output = new ByteArrayOutputStream(Math.min(maxBytes, READ_BUFFER_BYTES));
+                Memory buffer = new Memory(READ_BUFFER_BYTES);
                 while (true) {
-                    NativeLong value = PosixLibC.INSTANCE.read(file, buffer, new NativeLong(16 * 1024L));
+                    int remaining = maxBytes - output.size();
+                    int requested = Math.min(READ_BUFFER_BYTES, remaining + 1);
+                    NativeLong value = PosixLibC.INSTANCE.read(file, buffer, new NativeLong(requested));
                     long count = value.longValue();
                     if (count < 0) throw failure("read launcher file", Path.of(relative), Native.getLastError());
                     if (count == 0) break;
+                    if (count > remaining) throw readLimitExceeded(relative, maxBytes);
                     output.write(buffer.getByteArray(0, (int) count));
                 }
                 return new FileInfo(stat.identity(), output.toByteArray(), (stat.mode() & 0111) != 0);
@@ -311,7 +353,7 @@ final class IntegrationParentDirectory implements AutoCloseable {
             try {
                 Backend directory = tryOpenDirectory(relative);
                 if (directory != null) { directory.close(); return true; }
-                readFile(relative);
+                readFile(relative, MAX_REVIEW_FILE_BYTES);
                 return true;
             } catch (NoSuchFileException missing) {
                 return false;
@@ -450,6 +492,7 @@ final class IntegrationParentDirectory implements AutoCloseable {
         private static final int STATUS_OBJECT_PATH_NOT_FOUND = (int) 0xC000003AL;
         private static final int STATUS_NOT_A_DIRECTORY = (int) 0xC0000103L;
         private static final int STATUS_NO_MORE_FILES = (int) 0x80000006L;
+        private static final int READ_BUFFER_BYTES = 16 * 1024;
 
         private final Pointer handle;
         private boolean closed;
@@ -494,7 +537,7 @@ final class IntegrationParentDirectory implements AutoCloseable {
             return new Identity(device, file);
         }
 
-        @Override public List<String> listNames() throws IOException {
+        @Override public List<String> listNames(int maxEntries) throws IOException {
             ensureOpen();
             List<String> result = new ArrayList<>();
             boolean restart = true;
@@ -512,7 +555,10 @@ final class IntegrationParentDirectory implements AutoCloseable {
                     int length = information.getInt(offset + 8L);
                     if (length < 0 || offset + 12L + length > information.size()) throw new IOException("Invalid native launcher directory enumeration result");
                     String name = new String(information.getByteArray(offset + 12L, length), StandardCharsets.UTF_16LE);
-                    if (!name.equals(".") && !name.equals("..")) result.add(name);
+                    if (!name.equals(".") && !name.equals("..")) {
+                        if (result.size() >= maxEntries) throw entryLimitExceeded(maxEntries);
+                        result.add(name);
+                    }
                     if (next == 0) break;
                     offset += next;
                 }
@@ -528,7 +574,7 @@ final class IntegrationParentDirectory implements AutoCloseable {
             } catch (NoSuchFileException | NotDirectory failure) { return null; }
         }
 
-        @Override public FileInfo readFile(String relative) throws IOException {
+        @Override public FileInfo readFile(String relative, int maxBytes) throws IOException {
             ensureOpen();
             Pointer file = openRelative(handle, relative, FILE_READ_DATA | FILE_READ_ATTRIBUTES | SYNCHRONIZE, FILE_OPEN, FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_REPARSE_POINT);
             IOException pending = null;
@@ -536,12 +582,15 @@ final class IntegrationParentDirectory implements AutoCloseable {
                 ByHandleFileInformation attributes = information(file, relative);
                 long device = Integer.toUnsignedLong(attributes.volumeSerialNumber);
                 long identity = (Integer.toUnsignedLong(attributes.fileIndexHigh) << 32) | Integer.toUnsignedLong(attributes.fileIndexLow);
-                ByteArrayOutputStream output = new ByteArrayOutputStream();
-                Memory buffer = new Memory(16 * 1024L);
+                ByteArrayOutputStream output = new ByteArrayOutputStream(Math.min(maxBytes, READ_BUFFER_BYTES));
+                Memory buffer = new Memory(READ_BUFFER_BYTES);
                 while (true) {
+                    int remaining = maxBytes - output.size();
+                    int requested = Math.min(READ_BUFFER_BYTES, remaining + 1);
                     IntByReference count = new IntByReference();
-                    if (Kernel32.INSTANCE.ReadFile(file, buffer, 16 * 1024, count, Pointer.NULL) == 0) throw win32Failure("read launcher file");
+                    if (Kernel32.INSTANCE.ReadFile(file, buffer, requested, count, Pointer.NULL) == 0) throw win32Failure("read launcher file");
                     if (count.getValue() == 0) break;
+                    if (count.getValue() > remaining) throw readLimitExceeded(relative, maxBytes);
                     output.write(buffer.getByteArray(0, count.getValue()));
                 }
                 return new FileInfo(new Identity(device, identity), output.toByteArray(), false);
@@ -557,7 +606,7 @@ final class IntegrationParentDirectory implements AutoCloseable {
             try {
                 Backend directory = tryOpenDirectory(relative);
                 if (directory != null) { directory.close(); return true; }
-                readFile(relative);
+                readFile(relative, MAX_REVIEW_FILE_BYTES);
                 return true;
             } catch (NoSuchFileException missing) { return false; }
         }
