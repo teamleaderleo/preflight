@@ -102,68 +102,36 @@ The existing tagged Distribution path stages a draft and preserves a verified co
 
 That leaves public publication as one explicit reviewed action over already-verified bytes.
 
-## #678 — current cross-process desktop race
+## #678 — packaged desktop single-instance contract
 
-### What current main already changed
+Resolved on main by #795. The selected beta correctness contract is **one packaged Preflight desktop process per user/session**; focus/reveal/handoff IPC is optional later product polish, not a release gate.
 
-Current desktop operation state still lives in a process-local `OperationCoordinator`, while later work reduced several original issue cases:
+### Implemented lifetime guard
 
-- preparation owns and clears the exact spawned child PID;
-- renderer restart restores native update-install ownership;
-- renderer/native recovery reconciles operation state after restart;
-- Java-backed game/profile/cache/settings mutations retain the cross-process `OperationLease` as their final authority;
-- #703 is adding persistent automatic-report claims and durable removal fencing at the report-authority boundary.
+The cross-process guard is acquired in the tiny native `main.rs` entrypoint before the Tauri application and process-local `OperationCoordinator` exist.
 
-Those changes make a distributed cross-process desktop coordinator excessive for the beta.
+- Unix prefers the validated owner-private runtime directory and otherwise creates/validates an owner-private `0700` fallback before opening the stable lock name with `O_NOFOLLOW` and holding an exclusive `flock`.
+- Windows holds a session-local named kernel mutex.
+- A normal second invocation gets a bounded two-second collision grace and then exits cleanly without creating a second normal Tauri lifetime or operation coordinator.
+- Tauri updater restart uses the same grace because the replacement process may start before the old process has exited; the child becomes primary as soon as the old lifetime releases the guard.
+- Windows collision handles are closed before retry so a waiting replacement cannot accidentally keep the old mutex object alive itself.
+- Guard-acquisition errors fail closed with a bounded diagnostic.
 
-### Remaining races with two desktop processes
+The Java `OperationLease` continues to serialize Java-backed CLI mutations. The native single-instance guard closes the separate packaged-Desktop lifetime gap for update/export/benchmark/game/preparation ownership.
 
-A second packaged desktop process still starts with its own idle native coordinator.
+### Installed-package evidence
 
-1. **Java-backed admission/UI divergence.** Process B can present idle state and admit a conflicting request while process A owns game/preparation work. The Java `OperationLease` can refuse the protected mutation before a second protected commit, but process B learns that only after crossing into Java.
-2. **Native update ownership.** Process A can check/install/restart an update while process B has independent native update/report/export/benchmark state. The Java lease does not serialize these desktop-native lifetimes.
-3. **Manual report/diagnostics ownership.** Process A can upload a report or export diagnostics while process B independently admits another native operation that one coordinator would serialize.
-4. **Benchmark/exit/restart ownership.** Native benchmark tracking, deferred exit, update restart, and cleanup belong to one desktop process. A second desktop process has separate flags and lifetime.
+Run against the exact installed candidate on Linux, Windows, and macOS:
 
-#703 should continue owning its report-specific persistent claims/fences. The broad beta answer is one packaged Preflight desktop instance.
+1. start Preflight and wait for the first native host; launch a second invocation and require the second process to exit within the bounded collision grace without creating a second normal app lifetime;
+2. repeat while preparation/game ownership is active and require exactly one admitted desktop coordinator and one owned game/preparation lifetime;
+3. repeat during diagnostics export and update operations; the second invocation must still exit without admitting independent native operation state;
+4. exercise updater restart overlap and require the replacement process to acquire the guard immediately after the old lifetime releases it;
+5. on Windows, burst at least eight simultaneous invocations during first-instance startup and require exactly one primary while every non-primary invocation exits within the bounded grace; **no focus/handoff assertion is part of this contract**;
+6. repeat the burst after install, update, and rollback;
+7. after the primary exits and after uninstall/removal, verify no helper process or live singleton ownership remains.
 
-### Beta product and queued implementation
-
-Second invocation behavior:
-
-- detect the existing packaged Preflight instance;
-- reveal/unminimize its main window;
-- focus it;
-- hand off without starting a second normal app lifetime.
-
-The official Tauri v2 single-instance plugin supports Windows, macOS, and Linux. Register the singleton guard before other normal app plugins/initialization so the second invocation performs only the handoff path.
-
-The bounded code seam is:
-
-- `preflight-desktop/src-tauri/Cargo.toml`
-- `preflight-desktop/src-tauri/Cargo.lock`
-- `preflight-desktop/src-tauri/src/lib.rs`
-- focused package/native regression coverage
-
-#703 currently changes both `Cargo.toml` and `Cargo.lock`, so this preparation PR deliberately leaves that seam untouched. Immediately after #703 merges, add the selected single-instance dependency/lockfile update plus early `lib.rs` registration in one bounded change.
-
-One upstream Windows race remains under active repair in the Tauri plugin: mutex creation can race the event window used for handoff. Selection of the plugin revision therefore depends on packaged Windows burst evidence.
-
-### Package test plan
-
-Run against installed candidate packages on Linux, Windows, and macOS:
-
-1. start Preflight and wait for the first native host/window;
-2. launch a second invocation; assert focus/handoff and prompt second-process exit;
-3. repeat with the first window minimized; assert reveal/unminimize/focus;
-4. repeat while preparation/game ownership is active; assert one desktop instance and one owned PID;
-5. repeat during report upload and diagnostics export; assert handoff only;
-6. repeat during update install and immediately after restart; assert at most one admitted desktop process and successful singleton reacquisition after restart;
-7. on Windows, burst at least eight simultaneous second invocations during first-instance startup and repeat the burst enough times to exercise the upstream mutex/event-window race;
-8. repeat the burst after install, update, and rollback;
-9. verify uninstall/removal leaves no singleton helper/process after the app closes.
-
-A Windows burst failure blocks that singleton implementation/revision and calls for fixing or changing the single-instance admission implementation.
+A failure to maintain one admitted normal desktop lifetime blocks the candidate. Window focus/reveal behavior does not.
 
 ## Exact candidate preparation
 
