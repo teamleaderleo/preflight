@@ -1,7 +1,7 @@
 # Release-gate closeout plan
 
 **Prepared:** 2026-08-19  
-**Source refreshed through:** `main` at `0f460f6a62cc5de9a910bc56de49e5ab06dd2ae0`
+**Source refreshed through:** `main` at `94bd0ac6cba220615af5af4d5be82c23675a70e9`
 
 This file separates repository-owner administration, engineering preparation, and evidence that genuinely requires final release-candidate bytes.
 
@@ -58,14 +58,29 @@ This preparation branch also refreshes `preflight-desktop/README.md` and `docs/d
 
 ## #607 — main branch/ruleset
 
-Current GitHub reports `main` unprotected. The smallest useful policy is one stable repository-owned aggregate plus PR-only main.
+Current GitHub reports `main` unprotected. The smallest useful policy is one trusted repository-owned aggregate status plus PR-only main.
 
-This branch adds **Merge gate**. It queries the current PR head's GitHub Actions runs, filters them to the current PR, requires `Source boundary` as the always-present baseline, and waits for every repository pull-request workflow that actually ran for that PR. Existing path filters therefore continue to decide which expensive workflows apply. The newest rerun of each workflow name wins. Failed setup/action bootstrap and failed product checks are labeled separately; both remain blocking until a successful rerun replaces them.
+This branch adds a **Merge gate publisher** on `pull_request_target`. The publisher executes only the reviewed base revision, never checks out or executes pull-request code, and has only `contents: read`, `actions: read`, and `statuses: write`. It publishes one commit-status context named **Merge gate** directly onto the current pull-request head SHA.
 
-After `Merge gate` has emitted a successful check on a pull request, create an active ruleset for `main`:
+The trusted aggregate queries that head SHA's GitHub Actions runs, filters them to the current pull request, requires `Source boundary` as the always-present baseline, and waits for every repository pull-request workflow that actually ran for that PR. Existing path filters therefore continue to decide which expensive workflows apply. The newest rerun of each workflow name wins. Runner/action bootstrap failure, workflow cancellation requiring a rerun, and product/check failure are reported separately; every unsuccessful class remains blocking until a successful current-head rerun replaces it.
+
+The status publisher first posts `Merge gate=pending`. It posts `success` only after the aggregate passes and `failure` when an observed scoped workflow fails. If the publisher itself crashes, loses API access, or is cancelled before its final status update, the context stays missing or pending and the branch rule remains closed.
+
+### Bootstrap order
+
+`pull_request_target` workflows come from the default branch. This preparation pull request therefore cannot prove its own final trusted publisher on later synchronize events while the publisher exists only on its topic branch.
+
+After this pull request merges:
+
+1. open or update one ordinary pull request against `main`;
+2. verify **Merge gate publisher** runs from the base revision and the PR head receives a commit status named **Merge gate**;
+3. verify `Merge gate` stays pending while applicable scoped workflows run and becomes success only after they all pass;
+4. then create the active `main` ruleset and select **Merge gate** as the required status context. Select GitHub Actions as the expected source when GitHub offers that source binding.
+
+The owner ruleset should then:
 
 - require a pull request before merging;
-- require **Merge gate** from GitHub Actions;
+- require the **Merge gate** status context;
 - require the branch to be up to date before merge;
 - block force pushes;
 - block branch deletion;
@@ -262,7 +277,7 @@ Engineering can continue while these stay open:
 - configure/approve `release-signing` and enter the two private `RELEASE_*` signing values;
 - keep/relocate the candidate archive password as an owner-managed release secret;
 - configure the exact production report-intake origin/service credentials;
-- activate the `main` ruleset after **Merge gate** has emitted a successful check;
+- after this publisher is on `main`, verify one successful **Merge gate** head status and activate the `main` ruleset;
 - resolve Fractal Softworks guidance, descriptive Starsector trademark use, attribution, disclaimer wording, and the owner's publication decision.
 
 ## Candidate-byte-dependent closeout
