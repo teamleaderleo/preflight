@@ -1,9 +1,10 @@
+use super::report_authority_dir::BoundDirectory;
 use crate::reports::{CreateReportCaseResponse, ReportDeletion, ReportReceipt, ReportUploadInput};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
-use std::fs::{self, OpenOptions};
-use std::io::{Read, Write};
+use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 #[cfg(test)]
 use std::sync::Mutex;
@@ -97,14 +98,11 @@ impl ReportAuthorityStore {
 
     fn create_at(root: PathBuf) -> Result<Self, String> {
         ensure_protected_directory_chain(&root)?;
-        let marker = root.join("generation");
-        let generation = match read_regular_text(&marker) {
-            Ok(value) if !value.trim().is_empty() => value.trim().to_string(),
-            _ => create_or_read_generation(&marker)?,
-        };
-        let store = Self { root, generation };
-        prune_expired_accepted_at(&store.root, now_millis()?)?;
-        Ok(store)
+        let directory = BoundDirectory::open(&root)?;
+        let generation = create_or_read_generation(&directory)?;
+        prune_expired_accepted_in(&directory, now_millis()?)?;
+        directory.require_current()?;
+        Ok(Self { root, generation })
     }
 
     pub(crate) fn lifecycle(&self) -> NativeReportAuthorityLifecycle {
@@ -115,83 +113,78 @@ impl ReportAuthorityStore {
     }
 
     pub(crate) fn reports(&self) -> Result<Vec<ReportCaseView>, String> {
-        list_report_views_at(&self.root)
+        let directory = self.ensure_generation()?;
+        list_report_views_in(&directory)
     }
 
     pub(crate) fn persist_accepted(&self, receipt: &ReportReceipt) -> Result<(), String> {
         refuse_if_removal_pending(&self.root)?;
-        self.ensure_generation()?;
-        persist_accepted_at(&self.root, receipt)
+        let directory = self.ensure_generation()?;
+        persist_accepted_in(&directory, receipt)
     }
 
     pub(crate) fn deletion(&self, case_id: &str) -> Result<ReportDeletion, String> {
-        self.ensure_generation()?;
-        prune_expired_accepted_at(&self.root, now_millis()?)?;
+        let directory = self.ensure_generation()?;
+        prune_expired_accepted_in(&directory, now_millis()?)?;
         validate_case_id(case_id)?;
-        let accepted = accepted_path(&self.root, case_id);
-        if accepted.exists() {
-            let receipt: ReportReceipt = read_json_regular(&accepted)?;
+        let accepted = accepted_name(case_id);
+        if directory
+            .exists_regular(&accepted)
+            .map_err(|error| format!("Could not inspect saved report authority: {error}"))?
+        {
+            let receipt: ReportReceipt = read_json_regular_in(&directory, &accepted)?;
             return Ok(receipt.deletion);
         }
-        let pending: PendingAuthority = read_json_regular(&pending_path(&self.root, case_id))?;
+        let pending: PendingAuthority = read_json_regular_in(&directory, &pending_name(case_id))?;
         Ok(pending.deletion)
     }
 
     pub(crate) fn dismiss(&self, case_id: &str) -> Result<(), String> {
-        self.ensure_generation()?;
-        remove_case_at(&self.root, case_id)
+        let directory = self.ensure_generation()?;
+        remove_case_in(&directory, case_id)
     }
 
     pub(crate) fn clear_all(app: &AppHandle) -> Result<(), String> {
-        let authority = authority_root(app)?;
-        if authority.symlink_metadata().is_ok() {
-            verify_protected_directory_chain(&authority)?;
-            if !list_report_views_at(&authority)?.is_empty() {
+        let authority_path = authority_root(app)?;
+        if let Some(directory) = open_existing_bound_directory(&authority_path)? {
+            if !list_report_views_in(&directory)?.is_empty() {
                 return Err("Delete uploaded reports, or explicitly dismiss their saved deletion authorization, before clearing report authority.".to_string());
             }
+            directory.require_current()?;
         }
 
         // Establish the same durable removal fence used by the Java operation lease before
-        // removing the empty native authority namespace. Other Preflight processes then
-        // fail closed instead of recreating bearer credentials during all-data removal.
-        let fence = establish_removal_fence(&authority)?;
-        if authority.symlink_metadata().is_ok() {
-            verify_protected_directory_chain(&authority)?;
-            if !list_report_views_at(&authority)?.is_empty() {
+        // clearing the empty native authority namespace. Other Preflight processes then
+        // fail closed instead of publishing bearer credentials during all-data removal.
+        let fence = establish_removal_fence(&authority_path)?;
+
+        // Re-open after the fence and re-check through the exact retained directory
+        // generation. Any publication that won before the fence remains visible here.
+        let authority = open_existing_bound_directory(&authority_path)?;
+        if let Some(directory) = authority.as_ref() {
+            if !list_report_views_in(directory)?.is_empty() {
                 release_new_removal_fence(&fence)?;
                 return Err("A report case became actionable while all-data removal was starting. Delete it, or explicitly dismiss its saved deletion authorization, then retry removal.".to_string());
             }
         }
+        let claims_path = claim_root(app)?;
+        let claims = open_existing_bound_directory(&claims_path)?;
 
-        for root in [authority, claim_root(app)?] {
-            let metadata = match root.symlink_metadata() {
-                Ok(metadata) => metadata,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-                Err(error) => {
-                    return Err(format!("Could not inspect saved report authority: {error}"));
-                }
-            };
-            if metadata_is_alias(&metadata) || !metadata.is_dir() {
-                return Err(
-                    "Refusing to clear report authority through an aliased or non-directory path."
-                        .to_string(),
-                );
-            }
-            verify_protected_directory_chain(&root)?;
-            fs::remove_dir_all(&root)
-                .map_err(|error| format!("Could not clear saved report authority: {error}"))?;
+        // Report authority/claim namespaces are flat. Clear only regular entries through
+        // the exact opened handles; never recurse through or reopen a public replacement.
+        if let Some(directory) = authority.as_ref() {
+            directory.clear_regular_files()?;
+            directory.require_current()?;
+        }
+        if let Some(directory) = claims.as_ref() {
+            directory.clear_regular_files()?;
+            directory.require_current()?;
         }
         Ok(())
     }
 
-    fn ensure_generation(&self) -> Result<(), String> {
-        verify_protected_directory_chain(&self.root)?;
-        let current = read_regular_text(&self.root.join("generation"))?;
-        if current.trim() == self.generation {
-            Ok(())
-        } else {
-            Err("Report-authority storage changed while the report was active.".to_string())
-        }
+    fn ensure_generation(&self) -> Result<BoundDirectory, String> {
+        open_generation_at(&self.root, &self.generation)
     }
 }
 
@@ -202,11 +195,18 @@ impl NativeReportAuthorityLifecycle {
         report: &ReportUploadInput,
     ) -> Result<(), String> {
         refuse_if_removal_pending(&self.root)?;
-        self.ensure_generation()?;
-        prune_expired_accepted_at(&self.root, now_millis()?)?;
-        if !accepted_path(&self.root, &grant.case_id).exists()
-            && !pending_path(&self.root, &grant.case_id).exists()
-            && authority_count(&self.root)? >= MAX_AUTHORITIES
+        let directory = self.ensure_generation()?;
+        prune_expired_accepted_in(&directory, now_millis()?)?;
+        validate_case_id(&grant.case_id)?;
+        let accepted = accepted_name(&grant.case_id);
+        let pending_name = pending_name(&grant.case_id);
+        if !directory
+            .exists_regular(&accepted)
+            .map_err(|error| format!("Could not inspect saved report authority: {error}"))?
+            && !directory
+                .exists_regular(&pending_name)
+                .map_err(|error| format!("Could not inspect saved report authority: {error}"))?
+            && authority_count_in(&directory)? >= MAX_AUTHORITIES
         {
             return Err("Preflight already has the maximum number of actionable report cases. Delete or dismiss an older case before sending another report.".to_string());
         }
@@ -222,30 +222,24 @@ impl NativeReportAuthorityLifecycle {
             },
             created_at_millis: now_millis()?,
         };
-        persist_json_new(&pending_path(&self.root, &grant.case_id), &pending)
+        persist_json_new_in(&directory, &pending_name, &pending)
     }
 
     pub(crate) fn accepted(&self, receipt: &ReportReceipt) -> Result<(), String> {
         refuse_if_removal_pending(&self.root)?;
-        self.ensure_generation()?;
-        persist_accepted_at(&self.root, receipt)
+        let directory = self.ensure_generation()?;
+        persist_accepted_in(&directory, receipt)
     }
 
     pub(crate) fn cleared(&self, case_id: &str) -> Result<(), String> {
-        if self.ensure_generation().is_err() {
+        let Ok(directory) = self.ensure_generation() else {
             return Ok(());
-        }
-        remove_case_at(&self.root, case_id)
+        };
+        remove_case_in(&directory, case_id)
     }
 
-    fn ensure_generation(&self) -> Result<(), String> {
-        verify_protected_directory_chain(&self.root)?;
-        let current = read_regular_text(&self.root.join("generation"))?;
-        if current.trim() == self.generation {
-            Ok(())
-        } else {
-            Err("Report-authority storage changed while the report was active.".to_string())
-        }
+    fn ensure_generation(&self) -> Result<BoundDirectory, String> {
+        open_generation_at(&self.root, &self.generation)
     }
 }
 
@@ -259,18 +253,19 @@ fn claim_automatic_report_at(root: &Path, identity: &str) -> Result<bool, String
     }
     refuse_if_removal_pending(root)?;
     ensure_protected_directory_chain(root)?;
-    prune_claims(root)?;
+    let directory = BoundDirectory::open(root)?;
+    directory.require_current()?;
+    prune_claims_in(&directory)?;
     let digest = Sha256::digest(identity.as_bytes())
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
-    let path = root.join(format!("{digest}.claim"));
-    verify_protected_directory_chain(root)?;
-    match OpenOptions::new().write(true).create_new(true).open(&path) {
+    let name = format!("{digest}.claim");
+    match directory.create_new(&name, 0o600) {
         Ok(mut file) => {
             if let Err(error) = make_private_file(&file) {
                 drop(file);
-                let _ = remove_file_if_regular(&path);
+                let _ = directory.delete_file(&name);
                 return Err(error);
             }
             let write_result = file
@@ -282,15 +277,20 @@ fn claim_automatic_report_at(root: &Path, identity: &str) -> Result<bool, String
                 });
             drop(file);
             if let Err(error) = write_result {
-                let _ = remove_file_if_regular(&path);
+                let _ = directory.delete_file(&name);
                 return Err(error);
             }
             if let Err(error) = refuse_if_removal_pending(root) {
-                let _ = remove_file_if_regular(&path);
+                let _ = directory.delete_file(&name);
+                let _ = directory.sync();
                 return Err(error);
             }
-            verify_protected_directory_chain(root)?;
-            sync_directory(root)?;
+            if let Err(error) = directory.require_current() {
+                let _ = directory.delete_file(&name);
+                let _ = directory.sync();
+                return Err(error);
+            }
+            directory.sync()?;
             Ok(true)
         }
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
@@ -300,34 +300,26 @@ fn claim_automatic_report_at(root: &Path, identity: &str) -> Result<bool, String
     }
 }
 
-fn prune_claims(root: &Path) -> Result<(), String> {
-    verify_protected_directory_chain(root)?;
+fn prune_claims_in(directory: &BoundDirectory) -> Result<(), String> {
     let mut claims = Vec::new();
-    for entry in fs::read_dir(root)
-        .map_err(|error| format!("Could not read automatic-report claim storage: {error}"))?
-    {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(_) => continue,
-        };
-        let name = entry.file_name().to_string_lossy().into_owned();
+    for name in directory.list_names()? {
         if !name.ends_with(".claim") {
             continue;
         }
-        let Ok(metadata) = entry.metadata() else {
-            continue;
-        };
-        let Ok(modified) = metadata.modified() else {
-            continue;
-        };
-        claims.push((modified, entry.path()));
+        let modified = directory
+            .modified(&name)
+            .map_err(|error| format!("Could not inspect automatic-report claim: {error}"))?;
+        claims.push((modified, name));
     }
-    claims.sort_by_key(|(modified, _)| *modified);
+    claims.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
     while claims.len() >= MAX_CLAIMS {
-        let (_, path) = claims.remove(0);
-        verify_protected_directory_chain(root)?;
-        remove_file_if_regular(&path)?;
+        let (_, name) = claims.remove(0);
+        directory
+            .delete_file(&name)
+            .map_err(|error| format!("Could not prune automatic-report claim: {error}"))?;
     }
+    directory.require_current()?;
+    directory.sync()?;
     Ok(())
 }
 
@@ -350,30 +342,88 @@ fn support_root(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(home.join(".starsector-preflight").join("support"))
 }
 
-fn create_or_read_generation(marker: &Path) -> Result<String, String> {
-    let parent = marker
-        .parent()
-        .ok_or_else(|| "Report-authority generation has no parent directory.".to_string())?;
-    verify_protected_directory_chain(parent)?;
+fn open_existing_bound_directory(root: &Path) -> Result<Option<BoundDirectory>, String> {
+    let metadata = match root.symlink_metadata() {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(format!("Could not inspect saved report authority: {error}"));
+        }
+    };
+    if metadata_is_alias(&metadata) || !metadata.is_dir() {
+        return Err(
+            "Refusing report authority through an aliased or non-directory path.".to_string(),
+        );
+    }
+    verify_protected_directory_chain(root)?;
+    let directory = BoundDirectory::open(root)?;
+    directory.require_current()?;
+    Ok(Some(directory))
+}
+
+fn open_generation_at(root: &Path, generation: &str) -> Result<BoundDirectory, String> {
+    verify_protected_directory_chain(root)?;
+    let directory = BoundDirectory::open(root)?;
+    let current = read_regular_text_in(&directory, "generation")?;
+    if current.trim() != generation {
+        return Err("Report-authority storage changed while the report was active.".to_string());
+    }
+    directory.require_current()?;
+    Ok(directory)
+}
+
+fn create_or_read_generation(directory: &BoundDirectory) -> Result<String, String> {
+    match directory.exists_regular("generation") {
+        Ok(true) => {
+            let value = read_regular_text_in(directory, "generation")?;
+            if value.trim().is_empty() {
+                return Err("Report-authority generation is empty.".to_string());
+            }
+            return Ok(value.trim().to_string());
+        }
+        Ok(false) => {}
+        Err(error) => {
+            return Err(format!(
+                "Could not inspect report-authority generation: {error}"
+            ));
+        }
+    }
     let value = format!(
         "{}-{}-{}",
         std::process::id(),
         now_millis()?,
         NEXT_GENERATION.fetch_add(1, Ordering::Relaxed)
     );
-    match OpenOptions::new().write(true).create_new(true).open(marker) {
+    match directory.create_new("generation", 0o600) {
         Ok(mut file) => {
-            make_private_file(&file)?;
-            file.write_all(value.as_bytes())
-                .map_err(|error| format!("Could not write report-authority generation: {error}"))?;
-            file.sync_all()
-                .map_err(|error| format!("Could not save report-authority generation: {error}"))?;
-            verify_protected_directory_chain(parent)?;
-            sync_directory(parent)?;
+            if let Err(error) = make_private_file(&file) {
+                drop(file);
+                let _ = directory.delete_file("generation");
+                return Err(error);
+            }
+            let saved = file
+                .write_all(value.as_bytes())
+                .map_err(|error| format!("Could not write report-authority generation: {error}"))
+                .and_then(|()| {
+                    file.sync_all().map_err(|error| {
+                        format!("Could not save report-authority generation: {error}")
+                    })
+                });
+            drop(file);
+            if let Err(error) = saved {
+                let _ = directory.delete_file("generation");
+                return Err(error);
+            }
+            if let Err(error) = directory.require_current() {
+                let _ = directory.delete_file("generation");
+                let _ = directory.sync();
+                return Err(error);
+            }
+            directory.sync()?;
             Ok(value)
         }
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-            let value = read_regular_text(marker)?;
+            let value = read_regular_text_in(directory, "generation")?;
             if value.trim().is_empty() {
                 Err("Report-authority generation is empty.".to_string())
             } else {
@@ -386,99 +436,107 @@ fn create_or_read_generation(marker: &Path) -> Result<String, String> {
     }
 }
 
-fn persist_accepted_at(root: &Path, receipt: &ReportReceipt) -> Result<(), String> {
-    verify_protected_directory_chain(root)?;
+fn persist_accepted_in(directory: &BoundDirectory, receipt: &ReportReceipt) -> Result<(), String> {
     let now = now_millis()?;
-    prune_expired_accepted_at(root, now)?;
+    prune_expired_accepted_in(directory, now)?;
     validate_case_id(&receipt.case_id)?;
     let deadline = parse_retention_deadline_millis(&receipt.retention_deadline)
         .map_err(|error| format!("Report receipt has an invalid retention deadline: {error}"))?;
-    let path = accepted_path(root, &receipt.case_id);
-    if path.exists() {
-        let existing: ReportReceipt = read_json_regular(&path)?;
+    let accepted = accepted_name(&receipt.case_id);
+    let pending = pending_name(&receipt.case_id);
+    if directory
+        .exists_regular(&accepted)
+        .map_err(|error| format!("Could not inspect saved report authority: {error}"))?
+    {
+        let existing: ReportReceipt = read_json_regular_in(directory, &accepted)?;
         if existing.case_id == receipt.case_id
             && existing.bytes == receipt.bytes
             && existing.sha256 == receipt.sha256
             && existing.deletion.url == receipt.deletion.url
             && existing.deletion.token == receipt.deletion.token
         {
-            remove_file_if_regular(&pending_path(root, &receipt.case_id))?;
+            directory
+                .delete_file(&pending)
+                .map_err(|error| format!("Could not remove saved report authority: {error}"))?;
+            directory.require_current()?;
+            directory.sync()?;
             return Ok(());
         }
         return Err("A different report authority already exists for this case.".to_string());
     }
     if i128::from(deadline) <= i128::from(now) {
-        remove_file_if_regular(&pending_path(root, &receipt.case_id))?;
-        if root.exists() {
-            verify_protected_directory_chain(root)?;
-            sync_directory(root)?;
-        }
+        directory
+            .delete_file(&pending)
+            .map_err(|error| format!("Could not remove saved report authority: {error}"))?;
+        directory.require_current()?;
+        directory.sync()?;
         return Ok(());
     }
-    if !pending_path(root, &receipt.case_id).exists() && authority_count(root)? >= MAX_AUTHORITIES {
+    if !directory
+        .exists_regular(&pending)
+        .map_err(|error| format!("Could not inspect saved report authority: {error}"))?
+        && authority_count_in(directory)? >= MAX_AUTHORITIES
+    {
         return Err(
             "Preflight already has the maximum number of actionable report cases.".to_string(),
         );
     }
-    persist_json_new(&path, receipt)?;
-    remove_file_if_regular(&pending_path(root, &receipt.case_id))?;
+    persist_json_new_in(directory, &accepted, receipt)?;
+    directory
+        .delete_file(&pending)
+        .map_err(|error| format!("Could not remove saved report authority: {error}"))?;
+    directory.require_current()?;
+    directory.sync()?;
     Ok(())
 }
 
-fn prune_expired_accepted_at(root: &Path, now_millis: u64) -> Result<usize, String> {
-    if root.exists() {
-        verify_protected_directory_chain(root)?;
-    }
-    let entries = match fs::read_dir(root) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
-        Err(error) => return Err(format!("Could not read saved report authority: {error}")),
-    };
+fn prune_expired_accepted_in(directory: &BoundDirectory, now_millis: u64) -> Result<usize, String> {
     let mut accepted = Vec::new();
-    for entry in entries {
-        let entry =
-            entry.map_err(|error| format!("Could not read saved report authority: {error}"))?;
-        let name = entry.file_name().to_string_lossy().into_owned();
+    for name in directory.list_names()? {
         if let Some(case_id) = name.strip_suffix(".accepted.json") {
-            accepted.push((case_id.to_string(), entry.path()));
+            accepted.push((case_id.to_string(), name));
         }
     }
     accepted.sort_by(|left, right| left.0.cmp(&right.0));
 
+    // Validate every candidate before deleting any entry. A malformed accepted authority
+    // therefore cannot turn an expiry pass into partial destructive cleanup.
     let mut expired = Vec::new();
-    for (case_id, path) in accepted {
+    for (case_id, accepted_name) in accepted {
         validate_case_id(&case_id)?;
-        let receipt: ReportReceipt = read_json_regular(&path)?;
+        let receipt: ReportReceipt = read_json_regular_in(directory, &accepted_name)?;
         if receipt.case_id != case_id {
             return Err("Saved accepted report authority is inconsistent.".to_string());
         }
-        let deadline = parse_retention_deadline_millis(&receipt.retention_deadline).map_err(|error| {
-            format!(
-                "Saved accepted report authority for case {case_id} has an invalid retention deadline: {error}"
-            )
-        })?;
+        let deadline = parse_retention_deadline_millis(&receipt.retention_deadline)
+            .map_err(|error| {
+                format!(
+                    "Saved accepted report authority for case {case_id} has an invalid retention deadline: {error}"
+                )
+            })?;
         if i128::from(deadline) <= i128::from(now_millis) {
-            let pending = pending_path(root, &case_id);
-            if let Ok(metadata) = pending.symlink_metadata() {
-                if metadata_is_alias(&metadata) || !metadata.is_file() {
-                    return Err("Saved report authority is not a regular file.".to_string());
-                }
-            }
-            expired.push((pending, path));
+            let pending = pending_name(&case_id);
+            let _ = directory
+                .exists_regular(&pending)
+                .map_err(|error| format!("Could not inspect saved report authority: {error}"))?;
+            expired.push((pending, accepted_name));
         }
     }
 
     let removed = expired.len();
     for (pending, accepted) in expired {
-        verify_protected_directory_chain(root)?;
-        // Remove a crash-residue pending credential first. A process stop between these deletions
-        // leaves the accepted receipt available for the next deterministic expiry pass.
-        remove_file_if_regular(&pending)?;
-        remove_file_if_regular(&accepted)?;
+        // Remove a crash-residue pending credential first. A process stop between these
+        // deletions leaves the accepted receipt available for the next expiry pass.
+        directory
+            .delete_file(&pending)
+            .map_err(|error| format!("Could not remove saved report authority: {error}"))?;
+        directory
+            .delete_file(&accepted)
+            .map_err(|error| format!("Could not remove saved report authority: {error}"))?;
     }
     if removed > 0 {
-        verify_protected_directory_chain(root)?;
-        sync_directory(root)?;
+        directory.require_current()?;
+        directory.sync()?;
     }
     Ok(removed)
 }
@@ -575,24 +633,13 @@ fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {
     era * 146_097 + day_of_era - 719_468
 }
 
-fn list_report_views_at(root: &Path) -> Result<Vec<ReportCaseView>, String> {
-    if root.exists() {
-        verify_protected_directory_chain(root)?;
-    }
-    prune_expired_accepted_at(root, now_millis()?)?;
-    let entries = match fs::read_dir(root) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(format!("Could not read saved report authority: {error}")),
-    };
+fn list_report_views_in(directory: &BoundDirectory) -> Result<Vec<ReportCaseView>, String> {
+    prune_expired_accepted_in(directory, now_millis()?)?;
     let mut reports = BTreeMap::<String, ReportCaseView>::new();
-    for entry in entries {
-        let entry =
-            entry.map_err(|error| format!("Could not read saved report authority: {error}"))?;
-        let name = entry.file_name().to_string_lossy().into_owned();
+    for name in directory.list_names()? {
         if let Some(case_id) = name.strip_suffix(".pending.json") {
             validate_case_id(case_id)?;
-            let pending: PendingAuthority = read_json_regular(&entry.path())?;
+            let pending: PendingAuthority = read_json_regular_in(directory, &name)?;
             if pending.format != AUTHORITY_FORMAT || pending.case_id != case_id {
                 return Err("Saved pending report authority is inconsistent.".to_string());
             }
@@ -601,7 +648,7 @@ fn list_report_views_at(root: &Path) -> Result<Vec<ReportCaseView>, String> {
                 .or_insert_with(|| ReportCaseView::pending(&pending));
         } else if let Some(case_id) = name.strip_suffix(".accepted.json") {
             validate_case_id(case_id)?;
-            let receipt: ReportReceipt = read_json_regular(&entry.path())?;
+            let receipt: ReportReceipt = read_json_regular_in(directory, &name)?;
             if receipt.case_id != case_id {
                 return Err("Saved accepted report authority is inconsistent.".to_string());
             }
@@ -618,35 +665,38 @@ fn list_report_views_at(root: &Path) -> Result<Vec<ReportCaseView>, String> {
     Ok(reports)
 }
 
-fn authority_count(root: &Path) -> Result<usize, String> {
-    Ok(list_report_views_at(root)?.len())
+fn authority_count_in(directory: &BoundDirectory) -> Result<usize, String> {
+    Ok(list_report_views_in(directory)?.len())
 }
 
-fn persist_json_new<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| "Saved report authority has no parent directory.".to_string())?;
-    refuse_if_removal_pending(parent)?;
-    test_mutate_before_persist(parent)?;
-    // Parent creation belongs to store/claim initialization. Final credential publication never
-    // recreates an absent parent, so a clear that wins after generation validation stays final.
-    verify_protected_directory_chain(parent)?;
+fn persist_json_new_in<T: Serialize>(
+    directory: &BoundDirectory,
+    name: &str,
+    value: &T,
+) -> Result<(), String> {
     let bytes = serde_json::to_vec(value)
         .map_err(|error| format!("Could not serialize saved report authority: {error}"))?;
     if bytes.len() as u64 > MAX_AUTHORITY_BYTES {
         return Err("Saved report authority is unexpectedly large.".to_string());
     }
-    verify_protected_directory_chain(parent)?;
-    let mut file = match OpenOptions::new().write(true).create_new(true).open(path) {
+    refuse_if_removal_pending(directory.path())?;
+    // The test seam sits after the parent has been opened/proven and immediately before
+    // the create. Production performs the create through this same retained capability.
+    test_mutate_before_persist(directory.path())?;
+    let mut file = match directory.create_new(name, 0o600) {
         Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
             return Err("Saved report authority already exists for this case.".to_string());
         }
-        Err(error) => return Err(format!("Could not create saved report authority: {error}")),
+        Err(error) => {
+            return Err(format!(
+                "Could not create saved report authority in protected report storage: {error}"
+            ));
+        }
     };
     if let Err(error) = make_private_file(&file) {
         drop(file);
-        let _ = remove_file_if_regular(path);
+        let _ = directory.delete_file(name);
         return Err(error);
     }
     let write_result = file
@@ -658,92 +708,164 @@ fn persist_json_new<T: Serialize>(path: &Path, value: &T) -> Result<(), String> 
         });
     drop(file);
     if let Err(error) = write_result {
-        let _ = remove_file_if_regular(path);
+        let _ = directory.delete_file(name);
         return Err(error);
     }
-    if let Err(error) = refuse_if_removal_pending(parent) {
-        let _ = remove_file_if_regular(path);
+    if let Err(error) = refuse_if_removal_pending(directory.path()) {
+        let _ = directory.delete_file(name);
+        let _ = directory.sync();
         return Err(error);
     }
-    verify_protected_directory_chain(parent)?;
-    sync_directory(parent)?;
+    if let Err(error) = directory.require_current() {
+        let cleanup = directory.delete_file(name);
+        let _ = directory.sync();
+        if let Err(cleanup) = cleanup {
+            return Err(format!(
+                "{error} Could not clean the stale parent-bound authority: {cleanup}"
+            ));
+        }
+        return Err(error);
+    }
+    directory.sync()?;
     Ok(())
 }
 
-fn read_json_regular<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {
-    if let Some(parent) = path.parent() {
-        verify_protected_directory_chain(parent)?;
-    }
-    let metadata = path
-        .symlink_metadata()
-        .map_err(|error| format!("Could not inspect saved report authority: {error}"))?;
-    if metadata_is_alias(&metadata) || !metadata.is_file() || metadata.len() > MAX_AUTHORITY_BYTES {
-        return Err("Saved report authority is not a bounded regular file.".to_string());
-    }
-    let mut file = fs::File::open(path)
-        .map_err(|error| format!("Could not open saved report authority: {error}"))?;
-    let mut bytes = Vec::with_capacity(metadata.len() as usize);
-    file.read_to_end(&mut bytes)
-        .map_err(|error| format!("Could not read saved report authority: {error}"))?;
+fn read_json_regular_in<T: for<'de> Deserialize<'de>>(
+    directory: &BoundDirectory,
+    name: &str,
+) -> Result<T, String> {
+    let bytes = directory.read_bytes(name, MAX_AUTHORITY_BYTES)?;
     serde_json::from_slice(&bytes)
         .map_err(|error| format!("Saved report authority is unreadable: {error}"))
 }
 
-fn read_regular_text(path: &Path) -> Result<String, String> {
-    if let Some(parent) = path.parent() {
-        verify_protected_directory_chain(parent)?;
-    }
-    let metadata = path
-        .symlink_metadata()
-        .map_err(|error| format!("Could not inspect report-authority generation: {error}"))?;
-    if metadata_is_alias(&metadata) || !metadata.is_file() || metadata.len() > 256 {
-        return Err("Report-authority generation is not a bounded regular file.".to_string());
-    }
-    fs::read_to_string(path)
+fn read_regular_text_in(directory: &BoundDirectory, name: &str) -> Result<String, String> {
+    let bytes = directory.read_bytes(name, 256)?;
+    String::from_utf8(bytes)
         .map_err(|error| format!("Could not read report-authority generation: {error}"))
 }
 
-fn remove_case_at(root: &Path, case_id: &str) -> Result<(), String> {
+fn remove_case_in(directory: &BoundDirectory, case_id: &str) -> Result<(), String> {
     validate_case_id(case_id)?;
-    verify_protected_directory_chain(root)?;
-    remove_file_if_regular(&accepted_path(root, case_id))?;
-    verify_protected_directory_chain(root)?;
-    remove_file_if_regular(&pending_path(root, case_id))?;
-    verify_protected_directory_chain(root)?;
-    sync_directory(root)?;
+    directory
+        .delete_file(&accepted_name(case_id))
+        .map_err(|error| format!("Could not remove saved report authority: {error}"))?;
+    directory
+        .delete_file(&pending_name(case_id))
+        .map_err(|error| format!("Could not remove saved report authority: {error}"))?;
+    directory.require_current()?;
+    directory.sync()?;
     Ok(())
 }
 
+fn accepted_name(case_id: &str) -> String {
+    format!("{case_id}.accepted.json")
+}
+
+fn pending_name(case_id: &str) -> String {
+    format!("{case_id}.pending.json")
+}
+
+#[cfg(test)]
+fn list_report_views_at(root: &Path) -> Result<Vec<ReportCaseView>, String> {
+    let Some(directory) = open_existing_bound_directory(root)? else {
+        return Ok(Vec::new());
+    };
+    list_report_views_in(&directory)
+}
+
+#[cfg(test)]
+fn authority_count(root: &Path) -> Result<usize, String> {
+    Ok(list_report_views_at(root)?.len())
+}
+
+#[cfg(test)]
+fn persist_json_new<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "Saved report authority has no parent directory.".to_string())?;
+    verify_protected_directory_chain(parent)?;
+    let directory = BoundDirectory::open(parent)?;
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "Saved report authority has an invalid filename.".to_string())?;
+    persist_json_new_in(&directory, name, value)
+}
+
+#[cfg(test)]
+fn read_json_regular<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "Saved report authority has no parent directory.".to_string())?;
+    verify_protected_directory_chain(parent)?;
+    let directory = BoundDirectory::open(parent)?;
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "Saved report authority has an invalid filename.".to_string())?;
+    read_json_regular_in(&directory, name)
+}
+
+#[cfg(test)]
+fn read_regular_text(path: &Path) -> Result<String, String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "Report-authority generation has no parent directory.".to_string())?;
+    verify_protected_directory_chain(parent)?;
+    let directory = BoundDirectory::open(parent)?;
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "Report-authority generation has an invalid filename.".to_string())?;
+    read_regular_text_in(&directory, name)
+}
+
+#[cfg(test)]
+fn remove_case_at(root: &Path, case_id: &str) -> Result<(), String> {
+    verify_protected_directory_chain(root)?;
+    let directory = BoundDirectory::open(root)?;
+    remove_case_in(&directory, case_id)
+}
+
+#[cfg(test)]
 fn remove_file_if_regular(path: &Path) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        verify_protected_directory_chain(parent)?;
-    }
-    let metadata = match path.symlink_metadata() {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "Saved report authority has no parent directory.".to_string())?;
+    let metadata = match parent.symlink_metadata() {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(format!("Could not inspect saved report authority: {error}")),
+        Err(error) => {
+            return Err(format!("Could not inspect saved report authority: {error}"));
+        }
     };
-    if metadata_is_alias(&metadata) || !metadata.is_file() {
-        return Err("Saved report authority is not a regular file.".to_string());
+    if metadata_is_alias(&metadata) || !metadata.is_dir() {
+        return Err("Saved report authority parent is not a real directory.".to_string());
     }
-    if let Some(parent) = path.parent() {
-        verify_protected_directory_chain(parent)?;
-    }
-    fs::remove_file(path)
+    verify_protected_directory_chain(parent)?;
+    let directory = BoundDirectory::open(parent)?;
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "Saved report authority has an invalid filename.".to_string())?;
+    directory
+        .delete_file(name)
         .map_err(|error| format!("Could not remove saved report authority: {error}"))
 }
 
+#[cfg(test)]
 fn accepted_path(root: &Path, case_id: &str) -> PathBuf {
-    root.join(format!("{case_id}.accepted.json"))
+    root.join(accepted_name(case_id))
 }
 
+#[cfg(test)]
 fn pending_path(root: &Path, case_id: &str) -> PathBuf {
-    root.join(format!("{case_id}.pending.json"))
+    root.join(pending_name(case_id))
 }
 
-#[derive(Clone, Debug)]
 struct RemovalFence {
-    path: Option<PathBuf>,
+    directory: Option<BoundDirectory>,
     created: bool,
 }
 
@@ -765,24 +887,49 @@ fn refuse_if_removal_pending(path: &Path) -> Result<(), String> {
     let Some(marker) = removal_marker_for_owned_path(path) else {
         return Ok(());
     };
-    match marker.symlink_metadata() {
-        Ok(metadata) if !metadata_is_alias(&metadata) && metadata.is_file() => Err(
-            "Preflight data removal is in progress. Finish all-data removal before creating or publishing report authority."
+    let state = marker
+        .parent()
+        .ok_or_else(|| "All-data removal marker has no parent directory.".to_string())?;
+    let metadata = match state.symlink_metadata() {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => {
+            return Err(format!(
+                "Could not inspect the all-data removal marker: {error}"
+            ));
+        }
+    };
+    if metadata_is_alias(&metadata) || !metadata.is_dir() {
+        return Err(
+            "Refusing report authority while the all-data removal marker parent is aliased or malformed."
                 .to_string(),
-        ),
-        Ok(_) => Err(
+        );
+    }
+    verify_protected_directory_chain(state)?;
+    let directory = BoundDirectory::open(state)?;
+    match directory.open_regular(REMOVAL_MARKER_NAME) {
+        Ok(file) => {
+            drop(file);
+            Err(
+                "Preflight data removal is in progress. Finish all-data removal before creating or publishing report authority."
+                    .to_string(),
+            )
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            directory.require_current()?;
+            Ok(())
+        }
+        Err(_) => Err(
             "Refusing report authority while the all-data removal marker is aliased or malformed."
                 .to_string(),
         ),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(format!("Could not inspect the all-data removal marker: {error}")),
     }
 }
 
 fn establish_removal_fence(path: &Path) -> Result<RemovalFence, String> {
     let Some(marker) = removal_marker_for_owned_path(path) else {
         return Ok(RemovalFence {
-            path: None,
+            directory: None,
             created: false,
         });
     };
@@ -790,49 +937,50 @@ fn establish_removal_fence(path: &Path) -> Result<RemovalFence, String> {
         .parent()
         .ok_or_else(|| "All-data removal marker has no parent directory.".to_string())?;
     ensure_protected_directory_chain(state)?;
-    match OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&marker)
-    {
+    let directory = BoundDirectory::open(state)?;
+    directory.require_current()?;
+    match directory.create_new(REMOVAL_MARKER_NAME, 0o600) {
         Ok(mut file) => {
             if let Err(error) = make_private_file(&file) {
                 drop(file);
-                let _ = remove_file_if_regular(&marker);
+                let _ = directory.delete_file(REMOVAL_MARKER_NAME);
                 return Err(error);
             }
             let saved = file
-                .write_all(b"Preflight data removal is in progress. Re-run uninstall --purge --yes if interrupted.
-")
-                .map_err(|error| format!("Could not write the all-data removal marker: {error}"))
+                .write_all(b"Preflight data removal is in progress. Re-run uninstall --purge --yes if interrupted.\n")
+                .map_err(|error| {
+                    format!("Could not write the all-data removal marker: {error}")
+                })
                 .and_then(|()| {
-                    file.sync_all()
-                        .map_err(|error| format!("Could not save the all-data removal marker: {error}"))
+                    file.sync_all().map_err(|error| {
+                        format!("Could not save the all-data removal marker: {error}")
+                    })
                 });
             drop(file);
             if let Err(error) = saved {
-                let _ = remove_file_if_regular(&marker);
+                let _ = directory.delete_file(REMOVAL_MARKER_NAME);
                 return Err(error);
             }
-            verify_protected_directory_chain(state)?;
-            sync_directory(state)?;
+            if let Err(error) = directory.require_current() {
+                let _ = directory.delete_file(REMOVAL_MARKER_NAME);
+                let _ = directory.sync();
+                return Err(error);
+            }
+            directory.sync()?;
             Ok(RemovalFence {
-                path: Some(marker),
+                directory: Some(directory),
                 created: true,
             })
         }
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-            let metadata = marker.symlink_metadata().map_err(|error| {
-                format!("Could not inspect the all-data removal marker: {error}")
+            let file = directory.open_regular(REMOVAL_MARKER_NAME).map_err(|_| {
+                "Refusing all-data removal through an aliased or malformed removal marker."
+                    .to_string()
             })?;
-            if metadata_is_alias(&metadata) || !metadata.is_file() {
-                return Err(
-                    "Refusing all-data removal through an aliased or malformed removal marker."
-                        .to_string(),
-                );
-            }
+            drop(file);
+            directory.require_current()?;
             Ok(RemovalFence {
-                path: Some(marker),
+                directory: Some(directory),
                 created: false,
             })
         }
@@ -846,13 +994,13 @@ fn release_new_removal_fence(fence: &RemovalFence) -> Result<(), String> {
     if !fence.created {
         return Ok(());
     }
-    let Some(path) = fence.path.as_deref() else {
+    let Some(directory) = fence.directory.as_ref() else {
         return Ok(());
     };
-    remove_file_if_regular(path)?;
-    if let Some(parent) = path.parent() {
-        sync_directory(parent)?;
-    }
+    directory
+        .delete_file(REMOVAL_MARKER_NAME)
+        .map_err(|error| format!("Could not remove the all-data removal marker: {error}"))?;
+    directory.sync()?;
     Ok(())
 }
 
@@ -1039,16 +1187,9 @@ fn make_private_file(_file: &fs::File) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(unix)]
+#[cfg(test)]
 fn sync_directory(path: &Path) -> Result<(), String> {
-    fs::File::open(path)
-        .and_then(|directory| directory.sync_all())
-        .map_err(|error| format!("Could not durably save report authority: {error}"))
-}
-
-#[cfg(not(unix))]
-fn sync_directory(_path: &Path) -> Result<(), String> {
-    Ok(())
+    BoundDirectory::open(path)?.sync()
 }
 
 #[cfg(test)]

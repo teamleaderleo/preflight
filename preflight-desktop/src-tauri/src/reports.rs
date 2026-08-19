@@ -1,5 +1,7 @@
 #[path = "report_authority.rs"]
 mod report_authority;
+#[path = "report_authority_dir.rs"]
+mod report_authority_dir;
 #[path = "report_transport_v2.rs"]
 mod report_transport_v2;
 
