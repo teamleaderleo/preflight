@@ -22,7 +22,8 @@ new = '''        match same_identity(&reviewed, &anchored) {
             Err(identity_error) => {
                 drop(anchored);
                 match rename_no_replace(parent, &anchor, name) {
-                    Ok(()) | Err(ref error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+                    Ok(()) => {}
+                    Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
                     Err(restore_error) => {
                         return Err(io::Error::other(format!(
                             "could not verify report-authority child identity ({identity_error}); preserved private deletion anchor after restore failed: {restore_error}"
