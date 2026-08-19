@@ -34,6 +34,7 @@ final class StaticReferenceCheck {
     private static final int MAX_HULLS = 4_096;
     private static final int MAX_SKINS = 4_096;
     private static final int MAX_VARIANTS = 16_384;
+    private static final int MAX_FINDINGS = 256;
     private static final int MAX_ID_CHARS = 256;
     private static final int MAX_PUBLIC_PATH_CHARS = 1_024;
 
@@ -123,6 +124,7 @@ final class StaticReferenceCheck {
         addHullIds(hullIds, skins);
 
         List<SetupAnalysis.Finding> findings = new ArrayList<>();
+        int omittedNormalFindings = 0;
         for (Spec variant : variants) {
             String hullId = variant.hullId();
             if (hullId == null || hullId.isBlank() || hullIds.contains(hullId)) {
@@ -142,6 +144,10 @@ final class StaticReferenceCheck {
                 }
             }
 
+            if (findings.size() >= MAX_FINDINGS) {
+                omittedNormalFindings++;
+                continue;
+            }
             Map<String, Object> parameters = new LinkedHashMap<>();
             parameters.put("hullId", hullId);
             if (variant.logicalPath().length() <= MAX_PUBLIC_PATH_CHARS) {
@@ -160,6 +166,19 @@ final class StaticReferenceCheck {
                     "A winning variant references a hull that is absent from the resolved profile.",
                     parameters,
                     affectedModIds,
+                    List.of()));
+        }
+
+        if (omittedNormalFindings > 0) {
+            findings.remove(findings.size() - 1);
+            omittedNormalFindings++;
+            findings.add(new SetupAnalysis.Finding(
+                    "static-reference.findings-truncated",
+                    PROVIDER,
+                    SetupAnalysis.Severity.BLOCKING,
+                    "Additional blocking static-reference findings were omitted by the public result limit.",
+                    Map.of("omittedReferences", omittedNormalFindings),
+                    List.of(),
                     List.of()));
         }
 
