@@ -6,6 +6,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -13,6 +14,7 @@ import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -42,11 +44,25 @@ public final class BlockCacheManifestIO {
     }
 
     public static BlockCacheManifest read(Path source) throws IOException {
-        long size = Files.size(source);
-        if (size < minimumFileBytes() || size > MAX_FILE_BYTES) {
-            throw new IOException("Block cache manifest size is invalid: " + source);
+        return read(source, MAX_FILE_BYTES);
+    }
+
+    static BlockCacheManifest read(Path source, int maximumBytes) throws IOException {
+        if (maximumBytes < minimumFileBytes() || maximumBytes > MAX_FILE_BYTES) {
+            throw new IllegalArgumentException("Invalid block cache manifest read limit: " + maximumBytes);
         }
-        return fromBytes(Files.readAllBytes(source));
+        byte[] bytes;
+        try (InputStream input = Files.newInputStream(source, StandardOpenOption.READ)) {
+            bytes = input.readNBytes(Math.addExact(maximumBytes, 1));
+        }
+        if (bytes.length < minimumFileBytes()) {
+            throw new IOException("Block cache manifest is too small: " + source);
+        }
+        if (bytes.length > maximumBytes) {
+            throw new IOException(
+                    "Block cache manifest exceeds the " + maximumBytes + " byte safety limit: " + source);
+        }
+        return fromBytes(bytes);
     }
 
     public static byte[] toBytes(BlockCacheManifest manifest) throws IOException {
