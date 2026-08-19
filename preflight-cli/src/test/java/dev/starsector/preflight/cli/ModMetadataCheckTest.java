@@ -2,8 +2,10 @@ package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -87,6 +89,48 @@ class ModMetadataCheckTest {
         SetupAnalysis.Finding finding = only(ModMetadataCheck.check(game));
         assertEquals("mod-metadata.dependencies-malformed", finding.code());
         assertEquals(SetupAnalysis.Severity.WARNING, finding.severity());
+    }
+
+    @Test
+    void mixedMalformedDependencyKeepsKnownRequiredDependency() throws Exception {
+        Path game = game(List.of("alpha"));
+        mod(game, "alpha", """
+                {"id":"alpha","dependencies":[{"id":"lib"},"junk"]}
+                """);
+
+        List<String> codes = ModMetadataCheck.check(game).findings().stream()
+                .map(SetupAnalysis.Finding::code)
+                .toList();
+
+        assertEquals(
+                List.of(
+                        "mod-metadata.dependencies-malformed",
+                        "mod-metadata.required-dependency-missing"),
+                codes);
+    }
+
+    @Test
+    void wrongTypedEnabledModsFailsClosedInsteadOfLookingEmpty() throws Exception {
+        Path game = game(List.of());
+        Files.writeString(game.resolve("mods/enabled_mods.json"), "{\"enabledMods\":{\"id\":\"alpha\"}}");
+
+        IOException error = assertThrows(IOException.class, () -> ModMetadataCheck.check(game));
+        assertTrue(error.getMessage().contains("enabledMods"));
+    }
+
+    @Test
+    void aggregateBudgetCountsOversizedReadsThatBecomeUnreadableFindings() throws Exception {
+        Path game = game(List.of());
+        String oversized = "{\"id\":\"ignored\",\"padding\":\""
+                + "x".repeat(1024 * 1024)
+                + "\"}";
+        Files.writeString(Files.createDirectories(game.resolve("mods/first")).resolve("mod_info.json"), oversized);
+        Files.writeString(Files.createDirectories(game.resolve("mods/second")).resolve("mod_info.json"), oversized);
+
+        IOException error = assertThrows(
+                IOException.class,
+                () -> ModMetadataCheck.check(game, 2L * 1024 * 1024));
+        assertTrue(error.getMessage().contains("Aggregate mod metadata"));
     }
 
     @Test
