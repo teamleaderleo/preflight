@@ -39,6 +39,23 @@ where the time went, and `scripts/run-startup-benchmark.sh --unattended` is the 
 `preflight run` is the launcher, not a measurement: it never exits on its own, and a launch left
 running holds ~4 GB and a GPU context and poisons everything measured after it.
 
+## Register persisted binary formats
+
+Preflight owns the `SPxx` binary-magic namespace. Before adding or changing a persisted binary
+artifact, read [docs/binary-formats.md](docs/binary-formats.md) and search the repository for existing
+magic values. New production formats use a unique `SP[A-Z][A-Z]` magic and update that registry in
+the same change.
+
+The historical `SPFC` collision is frozen compatibility debt, not a naming precedent. Do not add
+another collision. Magic bytes are a wrong-format guard, not authentication and not a complete type
+system; the expected reader, version, bounds, checksum/identity checks, canonicalization, and
+fallback contract still decide whether an artifact is usable.
+
+If you encounter an unregistered `SPxx` value, treat the implementation as authoritative for the
+bytes and repair the registry before inventing another identifier. Keep external primitives such as
+SHA-256, CRC32C, LZ4, NTFS USNs, and platform generation identifiers conceptually separate from the
+Preflight protocol/file-format names that use them.
+
 ## Write what you saw, not what it means
 
 Fresh results are worth saying and worth writing down. What they are not is settled. A number you
