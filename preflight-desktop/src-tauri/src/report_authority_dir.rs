@@ -430,12 +430,28 @@ mod imp {
                 return Err(error);
             }
         };
-        if !same_identity(&reviewed, &anchored)? {
-            drop(anchored);
-            let _ = rename_no_replace(parent, &anchor, name);
-            return Err(io::Error::other(
-                "report-authority child changed before deletion commit",
-            ));
+        match same_identity(&reviewed, &anchored) {
+            Ok(true) => {}
+            Ok(false) => {
+                drop(anchored);
+                let _ = rename_no_replace(parent, &anchor, name);
+                return Err(io::Error::other(
+                    "report-authority child changed before deletion commit",
+                ));
+            }
+            Err(identity_error) => {
+                drop(anchored);
+                match rename_no_replace(parent, &anchor, name) {
+                    Ok(()) => {}
+                    Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+                    Err(restore_error) => {
+                        return Err(io::Error::other(format!(
+                            "could not verify report-authority child identity ({identity_error}); preserved private deletion anchor after restore failed: {restore_error}"
+                        )));
+                    }
+                }
+                return Err(identity_error);
+            }
         }
 
         super::run_before_delete_test_hook(name);
