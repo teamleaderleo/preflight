@@ -320,12 +320,18 @@ final class JsonText {
             int end = offset + length;
             if (end >= text.length()) return true;
             char next = text.charAt(end);
-            return Character.isWhitespace(next)
+            if (Character.isWhitespace(next)
                     || next == ','
                     || next == '}'
                     || next == ']'
-                    || next == '#'
-                    || next == '/';
+                    || next == '#') {
+                return true;
+            }
+            if (next != '/' || end + 1 >= text.length()) {
+                return false;
+            }
+            char comment = text.charAt(end + 1);
+            return comment == '/' || comment == '*';
         }
 
         void skipWhitespaceAndComments() {
