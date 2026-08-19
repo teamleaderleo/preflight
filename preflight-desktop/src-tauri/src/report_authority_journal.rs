@@ -54,13 +54,29 @@ pub(crate) struct JournalState {
 }
 
 pub(crate) fn append(path: &Path, record: &JournalRecord) -> Result<(), String> {
+    let current_len = match fs::metadata(path) {
+        Ok(metadata) => metadata.len(),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => 0,
+        Err(error) => {
+            return Err(format!(
+                "Could not inspect report-authority journal before append: {error}"
+            ));
+        }
+    };
+
+    let mut state = if current_len == 0 {
+        JournalState::default()
+    } else {
+        replay(path)?
+    };
+    apply(&mut state, record.clone())?;
+
     let payload = serde_json::to_vec(record)
         .map_err(|error| format!("Could not encode report-authority journal record: {error}"))?;
     if payload.len() > MAX_RECORD_BYTES {
         return Err("Report-authority journal record exceeds the safety limit.".to_string());
     }
 
-    let current_len = fs::metadata(path).map(|metadata| metadata.len()).unwrap_or(0);
     let additional = if current_len == 0 {
         HEADER_BYTES as u64
     } else {
@@ -70,10 +86,6 @@ pub(crate) fn append(path: &Path, record: &JournalRecord) -> Result<(), String> 
         + CHECKSUM_BYTES as u64;
     if current_len.saturating_add(additional) > MAX_JOURNAL_BYTES {
         return Err("Report-authority journal exceeds the safety limit.".to_string());
-    }
-
-    if current_len != 0 {
-        validate_header(path)?;
     }
 
     let mut file = OpenOptions::new()
@@ -112,18 +124,6 @@ pub(crate) fn replay(path: &Path) -> Result<JournalState, String> {
         return Err("Report-authority journal exceeds the safety limit while reading.".to_string());
     }
     decode(&bytes)
-}
-
-fn validate_header(path: &Path) -> Result<(), String> {
-    let mut file = File::open(path)
-        .map_err(|error| format!("Could not open report-authority journal: {error}"))?;
-    let mut header = [0_u8; HEADER_BYTES];
-    file.read_exact(&mut header)
-        .map_err(|error| format!("Could not read report-authority journal header: {error}"))?;
-    if &header[..4] != MAGIC || u32::from_be_bytes(header[4..8].try_into().unwrap()) != VERSION {
-        return Err("Report-authority journal header is invalid.".to_string());
-    }
-    Ok(())
 }
 
 fn decode(bytes: &[u8]) -> Result<JournalState, String> {
@@ -189,6 +189,9 @@ fn apply(state: &mut JournalState, record: JournalRecord) -> Result<(), String> 
                 .cases
                 .get_mut(&case_id)
                 .ok_or_else(|| format!("Accepted report case {case_id} has no durable grant."))?;
+            if case.accepted {
+                return Err(format!("Report case {case_id} was already accepted."));
+            }
             case.accepted = true;
         }
         JournalRecord::Deleted { case_id }
