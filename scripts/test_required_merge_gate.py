@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+from pathlib import Path
 import unittest
 
 import required_merge_gate as gate
+
+
+REPOSITORY = Path(__file__).resolve().parents[1]
+MERGE_GATE_WORKFLOW = REPOSITORY / ".github" / "workflows" / "merge-gate.yml"
 
 
 class RunSelectionTest(unittest.TestCase):
@@ -90,6 +95,26 @@ class FailureClassificationTest(unittest.TestCase):
         kind, steps = gate.failure_kind({"conclusion": "cancelled"}, [])
         self.assertEqual("workflow cancellation; rerun required", kind)
         self.assertEqual([], steps)
+
+
+class WorkflowTrustBoundaryTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.workflow = MERGE_GATE_WORKFLOW.read_text(encoding="utf-8").replace("\r\n", "\n")
+
+    def test_publisher_runs_from_trusted_base_and_never_checks_out_pr_head(self):
+        self.assertIn("pull_request_target:", self.workflow)
+        self.assertIn("ref: ${{ github.event.pull_request.base.sha }}", self.workflow)
+        self.assertNotIn("ref: ${{ github.event.pull_request.head.sha }}", self.workflow)
+        self.assertIn("statuses: write", self.workflow)
+
+    def test_required_context_is_published_to_latest_pr_head(self):
+        self.assertIn("HEAD_SHA: ${{ github.event.pull_request.head.sha }}", self.workflow)
+        self.assertIn("GATE_CONTEXT: Merge gate", self.workflow)
+        self.assertIn('"https://api.github.com/repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA"', self.workflow)
+        self.assertIn("post_status pending", self.workflow)
+        self.assertIn("post_status success", self.workflow)
+        self.assertIn("post_status failure", self.workflow)
 
 
 if __name__ == "__main__":
