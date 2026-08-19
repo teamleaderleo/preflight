@@ -3,6 +3,7 @@ package dev.starsector.preflight.cli;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -42,7 +43,7 @@ final class WindowsPrivateDirectoryTest {
         }
     }
 
-    private static void assertOwnerOnlyAcl(Path directory) throws Exception {
+    private static void assertOwnerOnlyAcl(Path directory) throws IOException {
         assertTrue(Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS));
         AclFileAttributeView acl = Files.getFileAttributeView(
                 directory, AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
