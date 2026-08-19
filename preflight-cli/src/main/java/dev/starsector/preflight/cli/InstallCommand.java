@@ -97,10 +97,27 @@ final class InstallCommand {
         }
     }
 
+    private static IntegrationMutation.Review reviewForPublication(
+            PreflightHome.Integration integration) throws IOException {
+        try {
+            return IntegrationMutation.reviewForPublication(integration);
+        } catch (IOException failure) {
+            String message = failure.getMessage();
+            if (message != null
+                    && (message.contains("without following aliases")
+                            || message.contains("reparse point"))) {
+                throw new IOException(
+                        "Refusing to install launcher over symlink or alias: " + integration.path(),
+                        failure);
+            }
+            throw failure;
+        }
+    }
+
     static int installMac(PreflightHome preflight, Path jar, Path game) throws IOException {
         PreflightHome.Integration integration = preflight.integration(PreflightHome.Id.MAC_APP);
         Path app = integration.path().toAbsolutePath().normalize();
-        try (IntegrationMutation.Review review = IntegrationMutation.reviewForPublication(integration)) {
+        try (IntegrationMutation.Review review = reviewForPublication(integration)) {
             IntegrationMutation.Staging staged = review.createStagingDirectory();
             try {
                 staged.createDirectory("Contents/MacOS");
@@ -171,8 +188,8 @@ final class InstallCommand {
                 + "Terminal=false\n"
                 + "Categories=Game;Utility;\n";
 
-        try (IntegrationMutation.Review commandReview = IntegrationMutation.reviewForPublication(commandIntegration);
-                IntegrationMutation.Review desktopReview = IntegrationMutation.reviewForPublication(desktopIntegration)) {
+        try (IntegrationMutation.Review commandReview = reviewForPublication(commandIntegration);
+                IntegrationMutation.Review desktopReview = reviewForPublication(desktopIntegration)) {
             IntegrationMutation.Staging stagedCommand = commandReview.createStagingFile(script, true);
             IntegrationMutation.Staging stagedDesktop = null;
             IntegrationMutation.Publication commandPublication = null;
@@ -233,7 +250,7 @@ final class InstallCommand {
             throws IOException {
         PreflightHome.Integration integration = preflight.integration(PreflightHome.Id.WINDOWS_DIRECTORY);
         Path directory = integration.path().toAbsolutePath().normalize();
-        try (IntegrationMutation.Review review = IntegrationMutation.reviewForPublication(integration)) {
+        try (IntegrationMutation.Review review = reviewForPublication(integration)) {
             IntegrationMutation.Staging staged = review.createStagingDirectory();
             try {
                 String content = "@echo off\r\n"
