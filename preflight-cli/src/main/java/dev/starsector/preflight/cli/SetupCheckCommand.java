@@ -13,6 +13,8 @@ import java.util.Locale;
 final class SetupCheckCommand {
     private static final String METADATA_PROVIDER = "mod-metadata";
     private static final String STATIC_PROVIDER = "static-links";
+    private static final String BENIGN_INDEX_DIAGNOSTIC =
+            "Excluded runtime-generated file from the resource index:";
     private static final int HUMAN_FINDING_LIMIT = 20;
 
     private SetupCheckCommand() {
@@ -68,12 +70,16 @@ final class SetupCheckCommand {
         ResourceIndex index = build.index();
         String installationIdentity = installationIdentity(installRoot, index);
 
-        try {
-            StaticReferenceCheck.Result staticLinks =
-                    StaticReferenceCheck.checkVariantHullLinks(index, conversionMode);
-            findings.addAll(staticLinks.findings());
-        } catch (IOException unavailable) {
+        if (!staticCoverageComplete(build)) {
             unavailableProviders.add(STATIC_PROVIDER);
+        } else {
+            try {
+                StaticReferenceCheck.Result staticLinks =
+                        StaticReferenceCheck.checkVariantHullLinks(index, conversionMode);
+                findings.addAll(staticLinks.findings());
+            } catch (IOException unavailable) {
+                unavailableProviders.add(STATIC_PROVIDER);
+            }
         }
 
         return SetupAnalysis.compose(
@@ -81,6 +87,18 @@ final class SetupCheckCommand {
                 index.profileFingerprint(),
                 findings,
                 unavailableProviders);
+    }
+
+    /**
+     * #812 can make blocking absence claims only over a complete resolved graph. ResourceIndexBuilder
+     * currently exposes coverage detail as diagnostics, so this first consumer accepts only its one
+     * intentional non-resource exclusion. Any other diagnostic makes the deep provider unavailable
+     * rather than interpreting a partial graph as complete.
+     */
+    private static boolean staticCoverageComplete(ResourceIndexBuilder.BuildResult build) {
+        boolean hasCore = build.index().roots().stream().anyMatch(ResourceIndex.Root::core);
+        return hasCore && build.diagnostics().stream()
+                .allMatch(diagnostic -> diagnostic.startsWith(BENIGN_INDEX_DIAGNOSTIC));
     }
 
     private static String installationIdentity(Path installRoot, ResourceIndex index) throws Exception {
