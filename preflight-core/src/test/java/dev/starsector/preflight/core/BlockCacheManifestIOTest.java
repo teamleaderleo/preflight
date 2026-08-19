@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -80,6 +81,20 @@ class BlockCacheManifestIOTest {
 
         assertThrows(IOException.class,
                 () -> BlockCacheManifestIO.fromBytes(Arrays.copyOf(bytes, bytes.length - 7)));
+    }
+
+    @Test
+    void readStopsAtConfiguredBoundBeforeParsing() throws Exception {
+        BlockCacheManifest manifest = fixture(BlockCompressor.CODEC_VERSION);
+        byte[] bytes = BlockCacheManifestIO.toBytes(manifest);
+        Path file = temporaryDirectory.resolve("bounded.spfc");
+        Files.write(file, bytes);
+
+        assertEquals(manifest.entries(), BlockCacheManifestIO.read(file, bytes.length).entries());
+        IOException oversized = assertThrows(
+                IOException.class, () -> BlockCacheManifestIO.read(file, bytes.length - 1));
+        assertTrue(oversized.getMessage().contains((bytes.length - 1) + " byte safety limit"));
+        assertThrows(IllegalArgumentException.class, () -> BlockCacheManifestIO.read(file, 32));
     }
 
     @Test
