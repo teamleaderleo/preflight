@@ -121,14 +121,19 @@ The release dependency files are described in
 [Release dependency inventory](dependency-inventory.md). They are generated from the exact release
 commit and published beside the platform packages; the standalone archives carry their own copies.
 
-Tagged builds are stricter. The workflow first requires the updater private key, its password, and
-the matching public key. It signs every supported updater artifact, assembles `latest.json` only
-after Linux, macOS, and Windows are present, and makes the staged GitHub release public only after
-every asset uploads. This Tauri signature is free and separate from Apple Developer ID or Windows
-Authenticode. The desktop app checks that fixed HTTPS feed quietly and waits for an explicit
-**Install and restart** action. Tauri verifies the downloaded signature before installation. A
-failed download or verification leaves the current version installed. `.deb` packages don't use
-the AppImage update payload; they continue through the package manager used to install them.
+Tagged builds are stricter. Updater-signing jobs run behind the GitHub Environment named
+`release-signing` and require its `RELEASE_TAURI_SIGNING_PRIVATE_KEY` and
+`RELEASE_TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secrets plus the matching
+`PREFLIGHT_UPDATER_PUBLIC_KEY` variable. They sign every supported updater artifact and assemble
+`latest.json` only after Linux, macOS, and Windows are present. Distribution stages the verified
+assets as a draft release. Public publication happens later through **Publish verified release**,
+which rechecks the exact preserved Distribution bytes, requires `release-signing` approval, and
+requires the tag commit to be reachable from `main` before undrafting. This Tauri signature is free
+and separate from Apple Developer ID or Windows Authenticode. The desktop app checks that fixed
+HTTPS feed quietly and waits for an explicit **Install and restart** action. Tauri verifies the
+downloaded signature before installation. A failed download or verification leaves the current
+version installed. `.deb` packages don't use the AppImage update payload; they continue through the
+package manager used to install them.
 
 ## Platform warnings in the first beta
 
@@ -319,11 +324,15 @@ The Distribution workflow checks that the tag, frontend package and lockfile, Ta
 Rust package and lockfile, and every Maven reactor module agree. It then runs the full verification
 suite, assembles archives, smoke-tests the packaged JAR, and builds the desktop host and its
 platform-native Java runtime independently on Linux, macOS, and Windows. Platform jobs upload
-private workflow artifacts. The final job builds the signature-verified static update feed, uploads
-every asset to a draft, then publishes it. The
-reviewed `docs/releases/<version>.md` file supplies both the updater notes and GitHub release body;
-a missing or empty file stops candidate assembly. Any failed verification, missing updater
-signature, failed upload, or failed desktop platform leaves the tag without a public release.
+private workflow artifacts. The final job builds the signature-verified static update feed and
+uploads every verified asset to a draft GitHub release. The separate manually dispatched
+**Publish verified release** workflow requires `release-signing` approval, verifies that the tag
+commit is reachable from `main`, downloads the preserved successful Distribution artifact, compares
+the draft assets byte-for-byte with it, runs the complete-release verifier again, and only then
+undrafts the release. The reviewed `docs/releases/<version>.md` file supplies both the updater notes
+and GitHub release body; a missing or empty file stops candidate assembly. Any failed verification,
+missing updater signature, failed upload, or failed desktop platform leaves the tag without a public
+release.
 
 ### Provision the updater key
 
@@ -334,19 +343,23 @@ cd preflight-desktop
 npm run tauri signer generate -- -w ~/.tauri/preflight.key
 ```
 
-Back up that private key and password separately. Add the private key contents to the GitHub Actions
-secret `TAURI_SIGNING_PRIVATE_KEY`, its password to
-`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and the generated public key to the repository variable
+Back up that private key and password separately. In GitHub, create/configure the Environment named
+`release-signing`, admit branch `main` and release tags `v*`, and add the private key contents as the
+Environment secret `RELEASE_TAURI_SIGNING_PRIVATE_KEY` plus its password as
+`RELEASE_TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Keep the generated public key in the variable
 `PREFLIGHT_UPDATER_PUBLIC_KEY`. The public key is compiled into tagged desktop packages; the private
-key is available only to the packaging jobs and must never enter the repository or a release asset.
-This follows [Tauri's signed-updater contract](https://v2.tauri.app/plugin/updater/), whose signature
-verification can't be disabled.
+key becomes available to updater-signing jobs only after the Environment protection rules pass and
+must never enter the repository or a release asset. This follows
+[Tauri's signed-updater contract](https://v2.tauri.app/plugin/updater/), whose signature verification
+can't be disabled.
 
-The project key was provisioned on 2026-08-08. Its encrypted recovery copy is outside the
-repository with owner-only permissions, its password is stored separately in macOS Keychain, and
-GitHub Actions contains the private key and password as secrets. The public key is a repository
-variable. GitHub doesn't permit reading secret values back, so the local encrypted recovery copy
-must be retained even after a successful release.
+The project key was provisioned on 2026-08-08. Its encrypted recovery copy is outside the repository
+with owner-only permissions, and its password is stored separately in macOS Keychain. GitHub does
+not permit reading secret values back, so the local encrypted recovery copy must be retained after a
+successful release. The release workflow now reads only the two `RELEASE_*` Environment secret
+names. After the Environment-backed signed candidate passes, remove repository-level legacy secrets
+named `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, plus any temporary
+repository-level duplicate of the two `RELEASE_*` names.
 
 ### Build a private signed candidate
 
