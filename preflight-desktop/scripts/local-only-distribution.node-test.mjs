@@ -14,7 +14,7 @@ test("Distribution cannot compile remote report intake into the local-only beta"
   assert.doesNotMatch(workflow, /PREFLIGHT_REPORT_INTAKE_ORIGIN/);
   assert.doesNotMatch(workflow, /REPORT_INTAKE_ORIGIN/);
 
-  assert.match(workflow, /PREFLIGHT_UPDATER_PRIVATE_KEY/);
+  assert.match(workflow, /TAURI_SIGNING_PRIVATE_KEY/);
   assert.match(workflow, /PREFLIGHT_UPDATER_PUBLIC_KEY/);
   assert.match(workflow, /PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD/);
   assert.match(workflow, /candidate-crypt\.mjs[\s\\]+encrypt/);
