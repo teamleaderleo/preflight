@@ -20,13 +20,24 @@ final class JsonText {
         return cursor.peek() == '"' ? cursor.readString() : null;
     }
 
+    /** Reads one immediate root-object string field without accepting nested lookalikes. */
+    static String rootString(String json, String key) {
+        int value = findRootValue(json, key);
+        if (value < 0) {
+            return null;
+        }
+        Cursor cursor = new Cursor(json, value);
+        cursor.skipWhitespaceAndComments();
+        return cursor.peek() == '"' ? cursor.readString() : null;
+    }
+
     /**
-     * Reads Starsector metadata flags, whose ecosystem contains both JSON booleans and historical
-     * string spellings such as {@code "true"}. Absent fields return null. Present values with any
-     * other type/spelling are malformed rather than silently defaulting to false.
+     * Reads Starsector root metadata flags, whose ecosystem contains both JSON booleans and
+     * historical string spellings such as {@code "true"}. Absent fields return null. Present
+     * values with any other type/spelling are malformed rather than silently defaulting to false.
      */
     static Boolean booleanLike(String json, String key) {
-        int value = findValue(json, key);
+        int value = findRootValue(json, key);
         if (value < 0) {
             return null;
         }
@@ -224,6 +235,50 @@ final class JsonText {
             return Long.valueOf(json.substring(start, cursor.position()));
         } catch (NumberFormatException malformed) {
             return null;
+        }
+    }
+
+    private static int findRootValue(String json, String key) {
+        Cursor cursor = new Cursor(json, 0);
+        cursor.skipWhitespaceAndComments();
+        if (!cursor.consume('{')) {
+            throw new IllegalArgumentException("Expected a root metadata object");
+        }
+
+        int found = -1;
+        while (true) {
+            cursor.skipWhitespaceAndComments();
+            if (cursor.consume('}')) {
+                return found;
+            }
+            if (cursor.peek() != '"') {
+                throw new IllegalArgumentException("Expected a root metadata field at offset " + cursor.position());
+            }
+            String candidate = cursor.readString();
+            cursor.skipWhitespaceAndComments();
+            if (!cursor.consume(':')) {
+                throw new IllegalArgumentException("Expected ':' after root metadata field " + candidate);
+            }
+            cursor.skipWhitespaceAndComments();
+            int value = cursor.position();
+            if (candidate.equals(key)) {
+                if (found >= 0) {
+                    throw new IllegalArgumentException("Duplicate root metadata field " + key);
+                }
+                found = value;
+            }
+            cursor.skipValue();
+            cursor.skipWhitespaceAndComments();
+            if (cursor.consume('}')) {
+                return found;
+            }
+            if (!cursor.consume(',')) {
+                throw new IllegalArgumentException("Expected ',' or '}' in root metadata object");
+            }
+            cursor.skipWhitespaceAndComments();
+            if (cursor.consume('}')) {
+                return found;
+            }
         }
     }
 
