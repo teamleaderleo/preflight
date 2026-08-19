@@ -4,8 +4,9 @@ use std::path::{Path, PathBuf};
 
 /// One exact opened report-authority directory generation.
 ///
-/// Consequential file opens and cleanup are relative to this handle/descriptor, so replacing the
-/// public pathname after review cannot redirect credential publication, reads, or cleanup.
+/// The directory is reached by a component-by-component no-follow walk. Consequential file opens
+/// and cleanup are relative to the retained handle/descriptor, so replacing any public pathname
+/// component after review cannot redirect credential publication, reads, or cleanup.
 pub(crate) struct BoundDirectory {
     path: PathBuf,
     file: File,
@@ -119,7 +120,9 @@ mod imp {
     use std::ffi::{CString, c_char, c_int};
     use std::fs::OpenOptions;
     use std::os::fd::{AsRawFd, FromRawFd};
+    use std::os::unix::ffi::OsStrExt;
     use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+    use std::path::Component;
 
     const O_RDONLY: c_int = 0;
     const O_WRONLY: c_int = 1;
@@ -146,11 +149,45 @@ mod imp {
     }
 
     pub(super) fn open_directory(path: &Path) -> io::Result<File> {
+        if !path.is_absolute() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "protected report storage path is not absolute",
+            ));
+        }
         let mut options = OpenOptions::new();
-        options
-            .read(true)
-            .custom_flags(O_NOFOLLOW | O_DIRECTORY);
-        options.open(path)
+        options.read(true).custom_flags(O_NOFOLLOW | O_DIRECTORY);
+        let mut current = options.open(Path::new("/"))?;
+        for component in path.components() {
+            match component {
+                Component::RootDir => {}
+                Component::Normal(name) => {
+                    let name = CString::new(name.as_bytes()).map_err(|_| {
+                        io::Error::new(io::ErrorKind::InvalidInput, "directory name contains NUL")
+                    })?;
+                    let fd = unsafe {
+                        openat(
+                            current.as_raw_fd(),
+                            name.as_ptr(),
+                            O_RDONLY | O_NOFOLLOW | O_DIRECTORY,
+                            0,
+                        )
+                    };
+                    if fd < 0 {
+                        return Err(io::Error::last_os_error());
+                    }
+                    current = unsafe { File::from_raw_fd(fd) };
+                }
+                Component::CurDir => {}
+                Component::ParentDir | Component::Prefix(_) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "protected report storage contains an unsafe path component",
+                    ));
+                }
+            }
+        }
+        Ok(current)
     }
 
     pub(super) fn same_identity(left: &File, right: &File) -> io::Result<bool> {
@@ -203,10 +240,11 @@ mod imp {
 #[cfg(windows)]
 mod imp {
     use super::*;
-    use std::ffi::{OsStr, c_void};
+    use std::ffi::{OsStr, OsString, c_void};
     use std::mem::size_of;
     use std::os::windows::ffi::OsStrExt;
     use std::os::windows::io::{AsRawHandle, FromRawHandle, RawHandle};
+    use std::path::Component;
     use std::ptr::null_mut;
 
     type Handle = *mut c_void;
@@ -230,6 +268,7 @@ mod imp {
     const FILE_CREATE: u32 = 2;
     const FILE_SYNCHRONOUS_IO_NONALERT: u32 = 0x0000_0020;
     const FILE_NON_DIRECTORY_FILE: u32 = 0x0000_0040;
+    const FILE_DIRECTORY_FILE: u32 = 0x0000_0001;
     const FILE_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
     const OBJ_CASE_INSENSITIVE: u32 = 0x0000_0040;
     const FILE_DISPOSITION_INFORMATION: u32 = 13;
@@ -313,25 +352,43 @@ mod imp {
     }
 
     pub(super) fn open_directory(path: &Path) -> io::Result<File> {
-        let mut wide = path.as_os_str().encode_wide().collect::<Vec<_>>();
-        wide.push(0);
-        let handle = unsafe {
-            CreateFileW(
-                wide.as_ptr(),
-                FILE_LIST_DIRECTORY | FILE_TRAVERSE | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
-                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                null_mut(),
-                OPEN_EXISTING,
-                FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
-                null_mut(),
-            )
-        };
-        if handle.is_null() || handle as isize == -1 {
-            return Err(io::Error::last_os_error());
+        if !path.is_absolute() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "protected report storage path is not absolute",
+            ));
         }
-        let file = unsafe { File::from_raw_handle(handle as RawHandle) };
-        require_not_reparse(&file)?;
-        Ok(file)
+        let mut root = PathBuf::new();
+        let mut names = Vec::<OsString>::new();
+        let mut rooted = false;
+        for component in path.components() {
+            match component {
+                Component::Prefix(prefix) => root.push(prefix.as_os_str()),
+                Component::RootDir => {
+                    root.push(Path::new("\\"));
+                    rooted = true;
+                }
+                Component::Normal(name) => names.push(name.to_os_string()),
+                Component::CurDir => {}
+                Component::ParentDir => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "protected report storage contains an unsafe path component",
+                    ));
+                }
+            }
+        }
+        if !rooted {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "protected report storage has no filesystem root",
+            ));
+        }
+        let mut current = open_directory_by_path(&root)?;
+        for name in names {
+            current = open_relative_directory(&current, &name)?;
+        }
+        Ok(current)
     }
 
     pub(super) fn same_identity(left: &File, right: &File) -> io::Result<bool> {
@@ -345,27 +402,30 @@ mod imp {
     pub(super) fn create_new(parent: &File, name: &str, _mode: u32) -> io::Result<File> {
         open_relative(
             parent,
-            name,
+            OsStr::new(name),
             FILE_WRITE_DATA | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
             FILE_CREATE,
+            FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_REPARSE_POINT,
         )
     }
 
     pub(super) fn open_regular(parent: &File, name: &str) -> io::Result<File> {
         open_relative(
             parent,
-            name,
+            OsStr::new(name),
             FILE_READ_DATA | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
             FILE_OPEN,
+            FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_REPARSE_POINT,
         )
     }
 
     pub(super) fn delete_file(parent: &File, name: &str) -> io::Result<()> {
         let file = match open_relative(
             parent,
-            name,
+            OsStr::new(name),
             DELETE | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
             FILE_OPEN,
+            FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_REPARSE_POINT,
         ) {
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
@@ -396,13 +456,46 @@ mod imp {
         Ok(())
     }
 
+    fn open_directory_by_path(path: &Path) -> io::Result<File> {
+        let mut wide = path.as_os_str().encode_wide().collect::<Vec<_>>();
+        wide.push(0);
+        let handle = unsafe {
+            CreateFileW(
+                wide.as_ptr(),
+                FILE_LIST_DIRECTORY | FILE_TRAVERSE | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                null_mut(),
+                OPEN_EXISTING,
+                FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+                null_mut(),
+            )
+        };
+        if handle.is_null() || handle as isize == -1 {
+            return Err(io::Error::last_os_error());
+        }
+        let file = unsafe { File::from_raw_handle(handle as RawHandle) };
+        require_not_reparse(&file)?;
+        Ok(file)
+    }
+
+    fn open_relative_directory(parent: &File, name: &OsStr) -> io::Result<File> {
+        open_relative(
+            parent,
+            name,
+            FILE_LIST_DIRECTORY | FILE_TRAVERSE | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+            FILE_OPEN,
+            FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_REPARSE_POINT,
+        )
+    }
+
     fn open_relative(
         parent: &File,
-        name: &str,
+        name: &OsStr,
         desired_access: u32,
         disposition: u32,
+        options: u32,
     ) -> io::Result<File> {
-        let mut wide = OsStr::new(name).encode_wide().collect::<Vec<_>>();
+        let mut wide = name.encode_wide().collect::<Vec<_>>();
         wide.push(0);
         let byte_len = (wide.len() - 1)
             .checked_mul(2)
@@ -433,7 +526,7 @@ mod imp {
                 FILE_ATTRIBUTE_NORMAL,
                 FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                 disposition,
-                FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_REPARSE_POINT,
+                options,
                 null_mut(),
                 0,
             )
