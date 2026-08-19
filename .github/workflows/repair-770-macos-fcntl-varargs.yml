@@ -55,7 +55,7 @@ jobs:
             -Dtest=ExclusiveMoveTest,ParentBoundDirectoryTest,EnabledModsActivationParentSwapTest,EnabledModsActivationTransactionTest,ProfileActivationPublicationRaceTest \
             -Dsurefire.failIfNoSpecifiedTests=false test
 
-          rm .github/workflows/repair-770-macos-fcntl-varargs.yml
+          rm -f .github/workflows/repair-770-macos-fcntl-varargs.yml .rc-770-macos-varargs-trigger
           git add -A
           git diff --cached --check
           git commit -m "fix(cli): map macOS fcntl as varargs"
