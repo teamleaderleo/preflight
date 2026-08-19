@@ -5,7 +5,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 
-/** Small, dependency-free reader for the string fields used by Starsector metadata files. */
+/** Small, dependency-free reader for the fields used by Starsector metadata files. */
 final class JsonText {
     private JsonText() {
     }
@@ -18,6 +18,33 @@ final class JsonText {
         Cursor cursor = new Cursor(json, value);
         cursor.skipWhitespaceAndComments();
         return cursor.peek() == '"' ? cursor.readString() : null;
+    }
+
+    /**
+     * Reads Starsector metadata flags, whose ecosystem contains both JSON booleans and historical
+     * string spellings such as {@code "true"}. Absent fields return null. Present values with any
+     * other type/spelling are malformed rather than silently defaulting to false.
+     */
+    static Boolean booleanLike(String json, String key) {
+        int value = findValue(json, key);
+        if (value < 0) {
+            return null;
+        }
+        Cursor cursor = new Cursor(json, value);
+        cursor.skipWhitespaceAndComments();
+        if (cursor.peek() == '"') {
+            String text = cursor.readString();
+            if ("true".equalsIgnoreCase(text)) return Boolean.TRUE;
+            if ("false".equalsIgnoreCase(text)) return Boolean.FALSE;
+            throw new IllegalArgumentException("Expected true/false for key " + key);
+        }
+        if (json.startsWith("true", cursor.position()) && cursor.literalBoundary(4)) {
+            return Boolean.TRUE;
+        }
+        if (json.startsWith("false", cursor.position()) && cursor.literalBoundary(5)) {
+            return Boolean.FALSE;
+        }
+        throw new IllegalArgumentException("Expected true/false for key " + key);
     }
 
     static List<String> stringArray(String json, String key) {
@@ -47,6 +74,133 @@ final class JsonText {
             }
             if (!cursor.consume(',')) {
                 throw new IllegalArgumentException("Expected ',' or ']' in array for key " + key);
+            }
+            cursor.skipWhitespaceAndComments();
+            if (cursor.consume(']')) {
+                return List.copyOf(values);
+            }
+        }
+    }
+
+    /**
+     * Reads a bounded string-array field while preserving a valid prefix when later elements are
+     * malformed. This is intentionally separate from {@link #stringArray(String, String)} so
+     * existing metadata consumers keep their established absent/wrong-type behavior.
+     */
+    static ArrayRead stringArrayStatus(String json, String key, int maximumValues) {
+        return arrayStatus(json, key, maximumValues, false);
+    }
+
+    /**
+     * Reads a bounded object-array field while preserving exact object texts that were valid before
+     * a malformed tail. Callers can keep deterministic evidence already observed without treating
+     * the remaining array as authoritative.
+     */
+    static ArrayRead objectArrayStatus(String json, String key, int maximumValues) {
+        return arrayStatus(json, key, maximumValues, true);
+    }
+
+    private static ArrayRead arrayStatus(
+            String json,
+            String key,
+            int maximumValues,
+            boolean objects) {
+        if (maximumValues < 0) {
+            throw new IllegalArgumentException("maximumValues may not be negative");
+        }
+        int value = findValue(json, key);
+        if (value < 0) {
+            return ArrayRead.absent();
+        }
+        Cursor cursor = new Cursor(json, value);
+        cursor.skipWhitespaceAndComments();
+        if (!cursor.consume('[')) {
+            return ArrayRead.malformed(List.of());
+        }
+
+        List<String> values = new ArrayList<>();
+        try {
+            while (true) {
+                cursor.skipWhitespaceAndComments();
+                if (cursor.consume(']')) {
+                    return ArrayRead.valid(values);
+                }
+                char expected = objects ? '{' : '"';
+                if (cursor.peek() != expected) {
+                    return ArrayRead.malformed(values);
+                }
+                if (values.size() >= maximumValues) {
+                    return ArrayRead.tooMany(values);
+                }
+                if (objects) {
+                    int start = cursor.position();
+                    cursor.skipValue();
+                    if (cursor.finished()) {
+                        return ArrayRead.malformed(values);
+                    }
+                    values.add(json.substring(start, cursor.position()));
+                } else {
+                    values.add(cursor.readString());
+                }
+                cursor.skipWhitespaceAndComments();
+                if (cursor.consume(']')) {
+                    return ArrayRead.valid(values);
+                }
+                if (!cursor.consume(',')) {
+                    return ArrayRead.malformed(values);
+                }
+                cursor.skipWhitespaceAndComments();
+                if (cursor.consume(']')) {
+                    return ArrayRead.valid(values);
+                }
+            }
+        } catch (RuntimeException malformed) {
+            return ArrayRead.malformed(values);
+        }
+    }
+
+    /**
+     * Returns the exact object texts from an array-valued field in Starsector's loose JSON dialect.
+     * Comments and trailing commas are accepted just like the existing string helpers. The objects
+     * are not interpreted here; callers reuse {@link #string(String, String)} and the other typed
+     * helpers so every metadata consumer keeps one parser boundary.
+     *
+     * <p>A present field with a non-array value is malformed rather than equivalent to an absent
+     * optional field. Callers such as the dependency checker must not silently turn wrong-typed
+     * metadata into "no dependencies".</p>
+     */
+    static List<String> objectArray(String json, String key) {
+        int value = findValue(json, key);
+        if (value < 0) {
+            return List.of();
+        }
+        Cursor cursor = new Cursor(json, value);
+        cursor.skipWhitespaceAndComments();
+        if (!cursor.consume('[')) {
+            throw new IllegalArgumentException("Expected an object array for key " + key);
+        }
+
+        List<String> values = new ArrayList<>();
+        while (true) {
+            cursor.skipWhitespaceAndComments();
+            if (cursor.consume(']')) {
+                return List.copyOf(values);
+            }
+            if (cursor.peek() != '{') {
+                throw new IllegalArgumentException("Expected an object in array for key " + key);
+            }
+            int start = cursor.position();
+            cursor.skipValue();
+            if (cursor.finished()) {
+                throw new IllegalArgumentException("Unterminated object array for key " + key);
+            }
+            values.add(json.substring(start, cursor.position()));
+            cursor.skipWhitespaceAndComments();
+            if (cursor.consume(']')) {
+                return List.copyOf(values);
+            }
+            if (!cursor.consume(',')) {
+                throw new IllegalArgumentException("Expected ',' or ']' in object array for key " + key);
             }
             cursor.skipWhitespaceAndComments();
             if (cursor.consume(']')) {
@@ -99,6 +253,34 @@ final class JsonText {
         return -1;
     }
 
+    record ArrayRead(List<String> values, boolean present, boolean malformed, boolean tooMany) {
+        ArrayRead {
+            values = List.copyOf(values);
+            if (!present && (malformed || tooMany || !values.isEmpty())) {
+                throw new IllegalArgumentException("Absent array result may not carry values or errors");
+            }
+            if (tooMany && malformed) {
+                throw new IllegalArgumentException("Array result cannot be malformed and over limit");
+            }
+        }
+
+        private static ArrayRead absent() {
+            return new ArrayRead(List.of(), false, false, false);
+        }
+
+        private static ArrayRead valid(List<String> values) {
+            return new ArrayRead(values, true, false, false);
+        }
+
+        private static ArrayRead malformed(List<String> values) {
+            return new ArrayRead(values, true, true, false);
+        }
+
+        private static ArrayRead tooMany(List<String> values) {
+            return new ArrayRead(values, true, false, true);
+        }
+    }
+
     private static final class Cursor {
         private final String text;
         private int offset;
@@ -132,6 +314,24 @@ final class JsonText {
                 return true;
             }
             return false;
+        }
+
+        boolean literalBoundary(int length) {
+            int end = offset + length;
+            if (end >= text.length()) return true;
+            char next = text.charAt(end);
+            if (Character.isWhitespace(next)
+                    || next == ','
+                    || next == '}'
+                    || next == ']'
+                    || next == '#') {
+                return true;
+            }
+            if (next != '/' || end + 1 >= text.length()) {
+                return false;
+            }
+            char comment = text.charAt(end + 1);
+            return comment == '/' || comment == '*';
         }
 
         void skipWhitespaceAndComments() {

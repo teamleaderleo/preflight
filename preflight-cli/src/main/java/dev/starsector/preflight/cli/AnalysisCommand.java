@@ -7,9 +7,12 @@ final class AnalysisCommand {
     }
 
     static int execute(String[] args, int offset) throws Exception {
+        if (offset < args.length && "setup".equals(args[offset])) {
+            return SetupCheckCommand.execute(args, offset + 1);
+        }
         if (offset >= args.length || !"probe".equals(args[offset])) {
             throw new IllegalArgumentException(
-                    "Expected: analyze probe <adapter.json> <summary.json> [--json <adapter-analysis.json>]");
+                    "Expected: analyze <setup|probe> ...");
         }
         if (offset + 2 >= args.length) {
             throw new IllegalArgumentException(

@@ -17,6 +17,7 @@ final class EvidenceCommand {
     private static final String REPORT_FORMAT = "starsector-preflight-evidence-v1";
     private static final String PRUNE_FORMAT = "starsector-preflight-evidence-prune-v1";
     private static final String EXPORT_FORMAT = "starsector-preflight-diagnostics-export-v1";
+    private static final String HISTORY_EXPORT_FORMAT = "starsector-preflight-play-history-export-v1";
 
     private EvidenceCommand() {
     }
@@ -24,6 +25,7 @@ final class EvidenceCommand {
     static int execute(String[] args, int offset) throws Exception {
         boolean prune = false;
         boolean export = false;
+        boolean historyExport = false;
         boolean confirmed = false;
         boolean json = false;
         Integer keepRuns = null;
@@ -34,12 +36,14 @@ final class EvidenceCommand {
         List<String> runSessions = new ArrayList<>();
         List<String> benchmarkSessions = new ArrayList<>();
         Path output = null;
+        Path historyCsv = null;
         boolean exportOptions = false;
         boolean overwrite = false;
         for (int index = offset; index < args.length; index++) {
             switch (args[index]) {
                 case "prune" -> prune = true;
                 case "export" -> export = true;
+                case "history-export" -> historyExport = true;
                 case "--yes" -> confirmed = true;
                 case "--json" -> json = true;
                 case "--keep-runs" -> keepRuns = count(args, ++index, "--keep-runs");
@@ -67,6 +71,10 @@ final class EvidenceCommand {
                     exportOptions = true;
                     output = path(args, ++index, "--output");
                 }
+                case "--csv" -> {
+                    exportOptions = true;
+                    historyCsv = path(args, ++index, "--csv");
+                }
                 case "--overwrite" -> {
                     exportOptions = true;
                     overwrite = true;
@@ -79,10 +87,29 @@ final class EvidenceCommand {
                         "preflight evidence: unknown option: " + args[index]);
             }
         }
-        if (prune && export) {
-            throw new IllegalArgumentException("evidence prune and export are separate operations");
+        int operations = (prune ? 1 : 0) + (export ? 1 : 0) + (historyExport ? 1 : 0);
+        if (operations > 1) {
+            throw new IllegalArgumentException(
+                    "evidence prune, export, and history-export are separate operations");
+        }
+        if (historyExport) {
+            if (confirmed || keepRuns != null || keepBenchmarks != null || countSelection
+                    || !runSessions.isEmpty() || !benchmarkSessions.isEmpty() || overwrite) {
+                throw new IllegalArgumentException(
+                        "history-export accepts only --output, optional --csv, and optional --json");
+            }
+            if (output == null) {
+                throw new IllegalArgumentException(
+                        "evidence history-export requires --output <history.json>");
+            }
+            PlayHistoryExport.Result result = PlayHistoryExport.export(
+                    PreflightHome.current(), output, historyCsv);
+            return historyExported(result, json, System.out);
         }
         if (export) {
+            if (historyCsv != null) {
+                throw new IllegalArgumentException("--csv requires `preflight evidence history-export`");
+            }
             if (confirmed || keepRuns != null || keepBenchmarks != null) {
                 throw new IllegalArgumentException(
                         "--yes and retention counts require `preflight evidence prune`");
@@ -113,7 +140,7 @@ final class EvidenceCommand {
         }
         if (exportOptions) {
             throw new IllegalArgumentException(
-                    "export selectors and output options require `preflight evidence export`");
+                    "export selectors and output options require `preflight evidence export` or `history-export`");
         }
         if (!prune && (confirmed || keepRuns != null || keepBenchmarks != null)) {
             throw new IllegalArgumentException(
@@ -185,6 +212,26 @@ final class EvidenceCommand {
         out.printf(Locale.ROOT, "  %,d metadata files included; %,d present files skipped%n",
                 result.included().size(), result.skipped().size());
         out.println("The ZIP contains a disclosure and manifest. Inspect it before sharing.");
+        return 0;
+    }
+
+    static int historyExported(PlayHistoryExport.Result result, boolean json, PrintStream out) {
+        if (json) {
+            Map<String, Object> receipt = new LinkedHashMap<>();
+            receipt.put("format", HISTORY_EXPORT_FORMAT);
+            receipt.put("output", result.json());
+            receipt.put("csv", result.csv());
+            receipt.put("events", result.events());
+            receipt.put("totalMillis", result.totalMillis());
+            out.println(Json.object(receipt));
+            return 0;
+        }
+        out.printf(Locale.ROOT, "Saved play history to %s (%,d events, %s recorded).%n",
+                result.json(), result.events(), Playtime.human(result.totalMillis()));
+        if (result.csv() != null) {
+            out.println("Saved spreadsheet view to " + result.csv() + '.');
+        }
+        out.println("This is a read-only export; the local launch ledger was not changed.");
         return 0;
     }
 

@@ -15,6 +15,7 @@ class CapabilityHashProbeTest {
                 "InstallCommand.java",
                 "IntegrationMutation.java",
                 "IntegrationOwnership.java",
+                "IntegrationParentDirectory.java",
                 "PreflightHome.java",
                 "UninstallCommand.java"
         }) {

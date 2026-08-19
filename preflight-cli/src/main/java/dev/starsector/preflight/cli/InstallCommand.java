@@ -97,70 +97,79 @@ final class InstallCommand {
         }
     }
 
+    private static IntegrationMutation.Review reviewForPublication(
+            PreflightHome.Integration integration) throws IOException {
+        try {
+            return IntegrationMutation.reviewForPublication(integration);
+        } catch (IOException failure) {
+            String message = failure.getMessage();
+            if (message != null
+                    && (message.contains("without following aliases")
+                            || message.contains("reparse point"))) {
+                throw new IOException(
+                        "Refusing to install launcher over symlink or alias: " + integration.path(),
+                        failure);
+            }
+            throw failure;
+        }
+    }
+
     static int installMac(PreflightHome preflight, Path jar, Path game) throws IOException {
         PreflightHome.Integration integration = preflight.integration(PreflightHome.Id.MAC_APP);
-        IntegrationMutation.Review review = IntegrationMutation.reviewForPublication(integration);
         Path app = integration.path().toAbsolutePath().normalize();
-        requireRealDirectory(app.getParent(), "macOS Applications directory");
-        Path staged = IntegrationMutation.createStagingDirectory(app);
-        try {
-            Path macos = staged.resolve("Contents").resolve("MacOS");
-            Files.createDirectories(macos);
-            Path executable = macos.resolve("preflight");
-            String script = "#!/bin/sh\n"
-                    + IntegrationOwnership.POSIX_MARKER
-                    + "\nexec "
-                    + shellQuote(javaExecutable())
-                    + " -jar "
-                    + shellQuote(jar.toString())
-                    + " run --fast --game "
-                    + shellQuote(game.toString())
-                    + " \"$@\"\n";
-            Files.writeString(executable, script, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
-            makeExecutable(executable);
+        try (IntegrationMutation.Review review = reviewForPublication(integration)) {
+            IntegrationMutation.Staging staged = review.createStagingDirectory();
+            try {
+                staged.createDirectory("Contents/MacOS");
+                String script = "#!/bin/sh\n"
+                        + IntegrationOwnership.POSIX_MARKER
+                        + "\nexec "
+                        + shellQuote(javaExecutable())
+                        + " -jar "
+                        + shellQuote(jar.toString())
+                        + " run --fast --game "
+                        + shellQuote(game.toString())
+                        + " \"$@\"\n";
+                staged.createFile("Contents/MacOS/preflight", script, true);
 
-            String plist = """
-                    <?xml version="1.0" encoding="UTF-8"?>
-                    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-                    <plist version="1.0"><dict>
-                      <key>CFBundleName</key><string>Preflight</string>
-                      <key>CFBundleDisplayName</key><string>Preflight</string>
-                      <key>CFBundleIdentifier</key><string>dev.starsector.preflight.launcher</string>
-                      <key>CFBundleVersion</key><string>1</string>
-                      <key>CFBundlePackageType</key><string>APPL</string>
-                      <key>CFBundleExecutable</key><string>preflight</string>
-                      <key>LSUIElement</key><true/>
-                    </dict></plist>
-                    """;
-            Files.writeString(
-                    staged.resolve("Contents").resolve("Info.plist"),
-                    plist,
-                    StandardCharsets.UTF_8,
-                    StandardOpenOption.CREATE_NEW);
+                String plist = """
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+                        <plist version="1.0"><dict>
+                          <key>CFBundleName</key><string>Preflight</string>
+                          <key>CFBundleDisplayName</key><string>Preflight</string>
+                          <key>CFBundleIdentifier</key><string>dev.starsector.preflight.launcher</string>
+                          <key>CFBundleVersion</key><string>1</string>
+                          <key>CFBundlePackageType</key><string>APPL</string>
+                          <key>CFBundleExecutable</key><string>preflight</string>
+                          <key>LSUIElement</key><true/>
+                        </dict></plist>
+                        """;
+                staged.createFile("Contents/Info.plist", plist, false);
 
-            IntegrationMutation.Publication publication = IntegrationMutation.publish(
-                    review,
-                    staged,
-                    (previous, replacement) -> preserveMacMetadata(previous, replacement));
-            publication.commit();
-            cleanupCommittedPublication(publication, "macOS launcher");
-            System.out.println("Installed macOS launcher: " + app);
-            return 0;
-        } finally {
-            IntegrationMutation.deleteStaging(staged);
+                IntegrationMutation.Publication publication = IntegrationMutation.publish(
+                        review,
+                        staged,
+                        (previous, replacement) -> {
+                            replacement.copyOptionalFile(previous, ".DS_Store");
+                            replacement.copyOptionalFile(previous, "Contents/.DS_Store");
+                            replacement.copyOptionalFile(previous, "Contents/MacOS/.DS_Store");
+                        });
+                publication.commit();
+                cleanupCommittedPublication(publication, "macOS launcher");
+                System.out.println("Installed macOS launcher: " + app);
+                return 0;
+            } finally {
+                IntegrationMutation.deleteStaging(staged);
+            }
         }
     }
 
     static int installLinux(PreflightHome preflight, Path jar, Path game) throws IOException {
         PreflightHome.Integration commandIntegration = preflight.integration(PreflightHome.Id.LINUX_COMMAND);
         PreflightHome.Integration desktopIntegration = preflight.integration(PreflightHome.Id.LINUX_DESKTOP_ENTRY);
-        IntegrationMutation.Review commandReview = IntegrationMutation.reviewForPublication(commandIntegration);
-        IntegrationMutation.Review desktopReview = IntegrationMutation.reviewForPublication(desktopIntegration);
-
         Path launcher = commandIntegration.path().toAbsolutePath().normalize();
         Path desktop = desktopIntegration.path().toAbsolutePath().normalize();
-        requireRealDirectory(launcher.getParent(), "Linux command directory");
-        requireRealDirectory(desktop.getParent(), "Linux desktop-entry directory");
 
         String script = "#!/bin/sh\n"
                 + IntegrationOwnership.POSIX_MARKER
@@ -179,93 +188,95 @@ final class InstallCommand {
                 + "Terminal=false\n"
                 + "Categories=Game;Utility;\n";
 
-        Path stagedCommand = stageFile(launcher, script, true);
-        Path stagedDesktop = null;
-        IntegrationMutation.Publication commandPublication = null;
-        IntegrationMutation.Publication desktopPublication = null;
-        boolean desktopCommitted = false;
-        boolean commandCommitted = false;
-        try {
-            stagedDesktop = stageFile(desktop, desktopFile, false);
-            commandPublication = IntegrationMutation.publish(commandReview, stagedCommand);
-            desktopPublication = IntegrationMutation.publish(desktopReview, stagedDesktop);
+        try (IntegrationMutation.Review commandReview = reviewForPublication(commandIntegration);
+                IntegrationMutation.Review desktopReview = reviewForPublication(desktopIntegration)) {
+            IntegrationMutation.Staging stagedCommand = commandReview.createStagingFile(script, true);
+            IntegrationMutation.Staging stagedDesktop = null;
+            IntegrationMutation.Publication commandPublication = null;
+            IntegrationMutation.Publication desktopPublication = null;
+            boolean desktopCommitted = false;
+            boolean commandCommitted = false;
+            try {
+                stagedDesktop = desktopReview.createStagingFile(desktopFile, false);
+                commandPublication = IntegrationMutation.publish(commandReview, stagedCommand);
+                desktopPublication = IntegrationMutation.publish(desktopReview, stagedDesktop);
 
-            // Prove both public generations before retiring either predecessor. The desktop entry
-            // depends on the command, so a late command loss can still withdraw the desktop safely.
-            desktopPublication.commit();
-            desktopCommitted = true;
-            commandPublication.commit();
-            commandCommitted = true;
+                // Prove both public generations before retiring either predecessor. The desktop entry
+                // depends on the command, so a late command loss can still withdraw the desktop safely.
+                desktopPublication.commit();
+                desktopCommitted = true;
+                commandPublication.commit();
+                commandCommitted = true;
 
-            // Cleanup is post-commit maintenance. A changed quarantine is preserved as residue and
-            // cannot turn an already committed public pair into a misleading install failure.
-            cleanupCommittedPublication(commandPublication, "Linux command");
-            cleanupCommittedPublication(desktopPublication, "Linux desktop entry");
-            System.out.println("Installed command: " + launcher);
-            System.out.println("Installed desktop entry: " + desktop);
-            return 0;
-        } catch (IOException failure) {
-            IOException result = failure;
-            if (desktopPublication != null) {
-                try {
-                    if (desktopCommitted && !commandCommitted) {
-                        // Restoring the old desktop here would point it at a command generation
-                        // whose exact ownership proof just failed. Withdraw the desired desktop and
-                        // retain its reviewed predecessor in quarantine for recovery instead.
-                        desktopPublication.rollbackWithoutRestore();
-                    } else {
-                        desktopPublication.rollback();
+                // Cleanup is post-commit maintenance. A changed quarantine is preserved as residue and
+                // cannot turn an already committed public pair into a misleading install failure.
+                cleanupCommittedPublication(commandPublication, "Linux command");
+                cleanupCommittedPublication(desktopPublication, "Linux desktop entry");
+                System.out.println("Installed command: " + launcher);
+                System.out.println("Installed desktop entry: " + desktop);
+                return 0;
+            } catch (IOException failure) {
+                IOException result = failure;
+                if (desktopPublication != null) {
+                    try {
+                        if (desktopCommitted && !commandCommitted) {
+                            // Restoring the old desktop here would point it at a command generation
+                            // whose exact ownership proof just failed. Withdraw the desired desktop and
+                            // retain its reviewed predecessor in quarantine for recovery instead.
+                            desktopPublication.rollbackWithoutRestore();
+                        } else {
+                            desktopPublication.rollback();
+                        }
+                    } catch (IOException rollbackFailure) {
+                        result.addSuppressed(rollbackFailure);
                     }
-                } catch (IOException rollbackFailure) {
-                    result.addSuppressed(rollbackFailure);
                 }
-            }
-            if (commandPublication != null) {
-                try {
-                    commandPublication.rollback();
-                } catch (IOException rollbackFailure) {
-                    result.addSuppressed(rollbackFailure);
+                if (commandPublication != null) {
+                    try {
+                        commandPublication.rollback();
+                    } catch (IOException rollbackFailure) {
+                        result.addSuppressed(rollbackFailure);
+                    }
                 }
+                throw result;
+            } finally {
+                IntegrationMutation.deleteStaging(stagedCommand);
+                IntegrationMutation.deleteStaging(stagedDesktop);
             }
-            throw result;
-        } finally {
-            IntegrationMutation.deleteStaging(stagedCommand);
-            IntegrationMutation.deleteStaging(stagedDesktop);
         }
     }
 
     static int installWindows(PreflightHome preflight, Path jar, Path game)
             throws IOException {
         PreflightHome.Integration integration = preflight.integration(PreflightHome.Id.WINDOWS_DIRECTORY);
-        IntegrationMutation.Review review = IntegrationMutation.reviewForPublication(integration);
         Path directory = integration.path().toAbsolutePath().normalize();
-        requireRealDirectory(directory.getParent(), "Windows launcher parent directory");
-        Path staged = IntegrationMutation.createStagingDirectory(directory);
-        try {
-            String content = "@echo off\r\n"
-                    + IntegrationOwnership.WINDOWS_MARKER
-                    + "\r\n\""
-                    + windowsBatchLiteral(javaExecutable())
-                    + "\" -jar \""
-                    + windowsBatchLiteral(jar.toString())
-                    + "\" run --fast --game \""
-                    + windowsBatchLiteral(game.toString())
-                    + "\" %*\r\n";
-            Files.writeString(
-                    staged.resolve("Preflight.cmd"),
-                    content,
-                    StandardCharsets.UTF_8,
-                    StandardOpenOption.CREATE_NEW);
-            IntegrationMutation.Publication publication = IntegrationMutation.publish(
-                    review,
-                    staged,
-                    (previous, replacement) -> preserveWindowsMetadata(previous, replacement));
-            publication.commit();
-            cleanupCommittedPublication(publication, "Windows launcher");
-            System.out.println("Installed Windows launcher: " + directory.resolve("Preflight.cmd"));
-            return 0;
-        } finally {
-            IntegrationMutation.deleteStaging(staged);
+        try (IntegrationMutation.Review review = reviewForPublication(integration)) {
+            IntegrationMutation.Staging staged = review.createStagingDirectory();
+            try {
+                String content = "@echo off\r\n"
+                        + IntegrationOwnership.WINDOWS_MARKER
+                        + "\r\n\""
+                        + windowsBatchLiteral(javaExecutable())
+                        + "\" -jar \""
+                        + windowsBatchLiteral(jar.toString())
+                        + "\" run --fast --game \""
+                        + windowsBatchLiteral(game.toString())
+                        + "\" %*\r\n";
+                staged.createFile("Preflight.cmd", content, false);
+                IntegrationMutation.Publication publication = IntegrationMutation.publish(
+                        review,
+                        staged,
+                        (previous, replacement) -> {
+                            replacement.copyOptionalFile(previous, "desktop.ini");
+                            replacement.copyOptionalFile(previous, ".DS_Store");
+                        });
+                publication.commit();
+                cleanupCommittedPublication(publication, "Windows launcher");
+                System.out.println("Installed Windows launcher: " + directory.resolve("Preflight.cmd"));
+                return 0;
+            } finally {
+                IntegrationMutation.deleteStaging(staged);
+            }
         }
     }
 
@@ -278,43 +289,6 @@ final class InstallCommand {
                     + "; preserved a changed predecessor quarantine for recovery: "
                     + cleanupFailure.getMessage());
         }
-    }
-
-    private static Path stageFile(Path target, String content, boolean executable) throws IOException {
-        Path staged = IntegrationMutation.createStagingFile(target);
-        boolean complete = false;
-        try {
-            Files.writeString(
-                    staged,
-                    content,
-                    StandardCharsets.UTF_8,
-                    StandardOpenOption.TRUNCATE_EXISTING,
-                    StandardOpenOption.WRITE);
-            if (executable) makeExecutable(staged);
-            complete = true;
-            return staged;
-        } finally {
-            if (!complete) IntegrationMutation.deleteStaging(staged);
-        }
-    }
-
-    private static void preserveMacMetadata(Path previous, Path replacement) throws IOException {
-        copyMetadata(previous.resolve(".DS_Store"), replacement.resolve(".DS_Store"));
-        copyMetadata(previous.resolve("Contents/.DS_Store"), replacement.resolve("Contents/.DS_Store"));
-        copyMetadata(previous.resolve("Contents/MacOS/.DS_Store"), replacement.resolve("Contents/MacOS/.DS_Store"));
-    }
-
-    private static void preserveWindowsMetadata(Path previous, Path replacement) throws IOException {
-        copyMetadata(previous.resolve("desktop.ini"), replacement.resolve("desktop.ini"));
-        copyMetadata(previous.resolve(".DS_Store"), replacement.resolve(".DS_Store"));
-    }
-
-    private static void copyMetadata(Path source, Path target) throws IOException {
-        if (!Files.exists(source, LinkOption.NOFOLLOW_LINKS)) return;
-        if (!Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(source)) {
-            throw new IOException("Refusing launcher metadata alias or special file: " + source);
-        }
-        Files.copy(source, target, StandardCopyOption.COPY_ATTRIBUTES);
     }
 
     static void checkNotUnownedCollision(PreflightHome preflight, PreflightHome.Id id)

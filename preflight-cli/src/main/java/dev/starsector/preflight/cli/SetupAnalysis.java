@@ -3,13 +3,16 @@ package dev.starsector.preflight.cli;
 import dev.starsector.preflight.core.Json;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 
 /** Shared read-only finding model for current-setup readiness providers. */
 final class SetupAnalysis {
@@ -28,6 +31,9 @@ final class SetupAnalysis {
     private static final int MAX_PARAMETER_STRING_CHARS = 1_024;
     private static final int MAX_PARAMETER_NUMBER_CHARS = 128;
     private static final int MAX_LIST_VALUE_CHARS = 256;
+    private static final int MAX_RAW_FINDINGS = MAX_FINDINGS * MAX_UNAVAILABLE_PROVIDERS;
+    private static final int MAX_SUPPRESSION_GROUP_SUMMARIES = 31;
+    private static final String ORCHESTRATION_PROVIDER = "setup-orchestration";
 
     enum Severity {
         BLOCKING,
@@ -102,6 +108,186 @@ final class SetupAnalysis {
     }
 
     private SetupAnalysis() {
+    }
+
+    /**
+     * Global provider fan-in. Individual providers may each be locally bounded while their combined
+     * output still exceeds the public {@link Result} ceiling, so orchestration selects evidence
+     * before constructing the result.
+     *
+     * <p>Selection is severity-first and provider-fair: within each severity, providers are visited
+     * in stable lexical round-robin order. Suppressed findings retain bounded provider/code/severity
+     * evidence, plus one global truncation finding. Raw provider iteration order therefore cannot
+     * decide which provider survives a noisy fan-in.</p>
+     */
+    static Result compose(
+            String installationIdentity,
+            String profileFingerprint,
+            List<Finding> providerFindings,
+            List<String> unavailableProviders) {
+        List<Finding> bounded = aggregateFindings(providerFindings);
+        return new Result(installationIdentity, profileFingerprint, bounded, unavailableProviders);
+    }
+
+    private static List<Finding> aggregateFindings(List<Finding> providerFindings) {
+        if (providerFindings == null || providerFindings.isEmpty()) {
+            return List.of();
+        }
+        if (providerFindings.size() > MAX_RAW_FINDINGS) {
+            throw new IllegalArgumentException(
+                    "setup provider fan-in exceeds the " + MAX_RAW_FINDINGS + "-finding raw-input limit");
+        }
+        if (providerFindings.size() <= MAX_FINDINGS) {
+            return List.copyOf(providerFindings);
+        }
+
+        List<Finding> ordered = new ArrayList<>(providerFindings);
+        ordered.sort(findingOrder());
+
+        int groupSummarySlots = MAX_SUPPRESSION_GROUP_SUMMARIES;
+        List<Finding> selected = List.of();
+        List<Finding> suppressed = List.of();
+        List<SuppressedGroup> groups = List.of();
+        while (true) {
+            int detailLimit = MAX_FINDINGS - 1 - groupSummarySlots;
+            selected = selectProviderFairDetails(ordered, detailLimit);
+            suppressed = subtractOccurrences(ordered, selected);
+            groups = suppressionGroups(suppressed);
+            int requiredGroupSlots = Math.min(MAX_SUPPRESSION_GROUP_SUMMARIES, groups.size());
+            if (requiredGroupSlots == groupSummarySlots) {
+                break;
+            }
+            groupSummarySlots = requiredGroupSlots;
+        }
+
+        List<Finding> result = new ArrayList<>(MAX_FINDINGS);
+        result.addAll(selected);
+        for (int index = 0; index < groupSummarySlots; index++) {
+            SuppressedGroup group = groups.get(index);
+            result.add(new Finding(
+                    "orchestration.suppressed-finding-group",
+                    ORCHESTRATION_PROVIDER,
+                    group.severity(),
+                    "Some findings from a readiness provider were omitted by the global result limit.",
+                    Map.of(
+                            "sourceProvider", group.provider(),
+                            "sourceCode", group.code(),
+                            "count", group.count()),
+                    List.of(),
+                    List.of()));
+        }
+
+        result.add(globalSuppressionFinding(suppressed, groups.size(), groupSummarySlots));
+        if (result.size() > MAX_FINDINGS) {
+            throw new IllegalStateException("setup orchestration exceeded its own finding budget");
+        }
+        return List.copyOf(result);
+    }
+
+    private static List<Finding> selectProviderFairDetails(List<Finding> ordered, int limit) {
+        List<Finding> selected = new ArrayList<>(limit);
+        for (Severity severity : Severity.values()) {
+            TreeMap<String, ArrayDeque<Finding>> byProvider = new TreeMap<>();
+            for (Finding finding : ordered) {
+                if (finding.severity() == severity) {
+                    byProvider.computeIfAbsent(finding.provider(), ignored -> new ArrayDeque<>())
+                            .addLast(finding);
+                }
+            }
+            boolean progress = true;
+            while (selected.size() < limit && progress) {
+                progress = false;
+                for (ArrayDeque<Finding> queue : byProvider.values()) {
+                    if (selected.size() >= limit) {
+                        break;
+                    }
+                    Finding next = queue.pollFirst();
+                    if (next != null) {
+                        selected.add(next);
+                        progress = true;
+                    }
+                }
+            }
+            if (selected.size() >= limit) {
+                break;
+            }
+        }
+        return List.copyOf(selected);
+    }
+
+    private static List<Finding> subtractOccurrences(List<Finding> ordered, List<Finding> selected) {
+        Map<Finding, Integer> selectedCounts = new HashMap<>();
+        for (Finding finding : selected) {
+            selectedCounts.merge(finding, 1, Integer::sum);
+        }
+        List<Finding> suppressed = new ArrayList<>();
+        for (Finding finding : ordered) {
+            int count = selectedCounts.getOrDefault(finding, 0);
+            if (count > 0) {
+                if (count == 1) {
+                    selectedCounts.remove(finding);
+                } else {
+                    selectedCounts.put(finding, count - 1);
+                }
+            } else {
+                suppressed.add(finding);
+            }
+        }
+        return List.copyOf(suppressed);
+    }
+
+    private static List<SuppressedGroup> suppressionGroups(List<Finding> suppressed) {
+        Map<SuppressionKey, Integer> counts = new HashMap<>();
+        for (Finding finding : suppressed) {
+            SuppressionKey key = new SuppressionKey(
+                    finding.severity(), finding.provider(), finding.code());
+            counts.merge(key, 1, Integer::sum);
+        }
+        List<SuppressedGroup> groups = new ArrayList<>(counts.size());
+        for (Map.Entry<SuppressionKey, Integer> entry : counts.entrySet()) {
+            SuppressionKey key = entry.getKey();
+            groups.add(new SuppressedGroup(
+                    key.severity(), key.provider(), key.code(), entry.getValue()));
+        }
+        groups.sort(Comparator.comparingInt((SuppressedGroup group) -> severityRank(group.severity()))
+                .thenComparing(SuppressedGroup::provider)
+                .thenComparing(SuppressedGroup::code));
+        return List.copyOf(groups);
+    }
+
+    private static Finding globalSuppressionFinding(
+            List<Finding> suppressed,
+            int suppressedGroups,
+            int representedGroups) {
+        long blocking = countSeverity(suppressed, Severity.BLOCKING);
+        long warning = countSeverity(suppressed, Severity.WARNING);
+        long info = countSeverity(suppressed, Severity.INFO);
+        long unknown = countSeverity(suppressed, Severity.UNKNOWN);
+        Severity severity = blocking > 0
+                ? Severity.BLOCKING
+                : warning > 0
+                        ? Severity.WARNING
+                        : info > 0 ? Severity.INFO : Severity.UNKNOWN;
+        Map<String, Object> parameters = new LinkedHashMap<>();
+        parameters.put("suppressedFindings", suppressed.size());
+        parameters.put("suppressedGroups", suppressedGroups);
+        parameters.put("unrepresentedGroups", Math.max(0, suppressedGroups - representedGroups));
+        parameters.put("blocking", blocking);
+        parameters.put("warning", warning);
+        parameters.put("info", info);
+        parameters.put("unknown", unknown);
+        return new Finding(
+                "orchestration.findings-truncated",
+                ORCHESTRATION_PROVIDER,
+                severity,
+                "Additional provider findings were omitted by the global setup-analysis limit.",
+                parameters,
+                List.of(),
+                List.of());
+    }
+
+    private static long countSeverity(List<Finding> findings, Severity severity) {
+        return findings.stream().filter(finding -> finding.severity() == severity).count();
     }
 
     private static Map<String, Object> view(Finding finding) {
@@ -184,11 +370,20 @@ final class SetupAnalysis {
                     "setup analysis exceeds the " + MAX_FINDINGS + "-finding limit");
         }
         List<Finding> ordered = new ArrayList<>(findings);
-        ordered.sort(Comparator.comparingInt((Finding finding) -> severityRank(finding.severity()))
+        ordered.sort(findingOrder());
+        return List.copyOf(ordered);
+    }
+
+    private static Comparator<Finding> findingOrder() {
+        return Comparator.comparingInt((Finding finding) -> severityRank(finding.severity()))
                 .thenComparing(Finding::provider)
                 .thenComparing(Finding::code)
-                .thenComparing(Finding::summary));
-        return List.copyOf(ordered);
+                .thenComparing(Finding::summary)
+                .thenComparing(SetupAnalysis::canonicalFindingKey);
+    }
+
+    private static String canonicalFindingKey(Finding finding) {
+        return Json.object(view(finding));
     }
 
     private static int severityRank(Severity severity) {
@@ -224,5 +419,11 @@ final class SetupAnalysis {
             throw new IllegalArgumentException(label + " exceeds the " + maxChars + "-character limit");
         }
         return value;
+    }
+
+    private record SuppressionKey(Severity severity, String provider, String code) {
+    }
+
+    private record SuppressedGroup(Severity severity, String provider, String code, int count) {
     }
 }

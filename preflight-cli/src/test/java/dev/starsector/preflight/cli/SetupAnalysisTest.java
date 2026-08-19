@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +82,80 @@ class SetupAnalysisTest {
     }
 
     @Test
+    void composeBoundsTwoFullProvidersWithoutIterationOrderBias() {
+        List<SetupAnalysis.Finding> raw = new ArrayList<>();
+        for (int index = 0; index < 256; index++) {
+            raw.add(indexedFinding("a.block", "provider-a", SetupAnalysis.Severity.BLOCKING, index));
+            raw.add(indexedFinding("b.block", "provider-b", SetupAnalysis.Severity.BLOCKING, index));
+        }
+
+        SetupAnalysis.Result first = SetupAnalysis.compose(
+                "game",
+                "profile",
+                raw,
+                List.of("save-history"));
+        List<SetupAnalysis.Finding> reversed = new ArrayList<>(raw);
+        Collections.reverse(reversed);
+        SetupAnalysis.Result second = SetupAnalysis.compose(
+                "game",
+                "profile",
+                reversed,
+                List.of("save-history"));
+
+        assertEquals(256, first.findings().size());
+        assertFalse(first.ready());
+        assertTrue(first.findings().stream().anyMatch(finding -> finding.provider().equals("provider-a")));
+        assertTrue(first.findings().stream().anyMatch(finding -> finding.provider().equals("provider-b")));
+        assertTrue(first.findings().stream().anyMatch(finding ->
+                finding.code().equals("orchestration.findings-truncated")
+                        && finding.severity() == SetupAnalysis.Severity.BLOCKING));
+        List<String> summarisedProviders = first.findings().stream()
+                .filter(finding -> finding.code().equals("orchestration.suppressed-finding-group"))
+                .map(finding -> (String) finding.parameters().get("sourceProvider"))
+                .sorted()
+                .toList();
+        assertEquals(List.of("provider-a", "provider-b"), summarisedProviders);
+        assertEquals(first.toJson(), second.toJson());
+    }
+
+    @Test
+    void blockerNoiseCannotEraseAnotherProvidersSuppressedWarning() {
+        List<SetupAnalysis.Finding> raw = new ArrayList<>();
+        for (int index = 0; index < 300; index++) {
+            raw.add(indexedFinding("a.block", "provider-a", SetupAnalysis.Severity.BLOCKING, index));
+        }
+        for (int index = 0; index < 10; index++) {
+            raw.add(indexedFinding("b.warn", "provider-b", SetupAnalysis.Severity.WARNING, index));
+        }
+
+        SetupAnalysis.Result result = SetupAnalysis.compose("game", "profile", raw, List.of());
+
+        assertFalse(result.ready());
+        assertTrue(result.findings().stream().anyMatch(finding ->
+                finding.code().equals("orchestration.suppressed-finding-group")
+                        && finding.severity() == SetupAnalysis.Severity.WARNING
+                        && "provider-b".equals(finding.parameters().get("sourceProvider"))
+                        && "b.warn".equals(finding.parameters().get("sourceCode"))));
+        SetupAnalysis.Finding global = result.findings().stream()
+                .filter(finding -> finding.code().equals("orchestration.findings-truncated"))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(10L, global.parameters().get("warning"));
+        assertTrue((Long) global.parameters().get("blocking") > 0L);
+    }
+
+    @Test
+    void composeRejectsUnboundedRawProviderFanIn() {
+        List<SetupAnalysis.Finding> raw = new ArrayList<>();
+        for (int index = 0; index < 8_193; index++) {
+            raw.add(indexedFinding("info", "provider", SetupAnalysis.Severity.INFO, index));
+        }
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> SetupAnalysis.compose("game", "profile", raw, List.of()));
+    }
+
+    @Test
     void cleanAnalysisIsReady() {
         SetupAnalysis.Result result = new SetupAnalysis.Result("game", "profile", List.of(), List.of());
         assertTrue(result.ready());
@@ -118,6 +193,21 @@ class SetupAnalysisTest {
                 severity,
                 "summary " + code,
                 Map.of("kind", code),
+                List.of(),
+                List.of());
+    }
+
+    private static SetupAnalysis.Finding indexedFinding(
+            String code,
+            String provider,
+            SetupAnalysis.Severity severity,
+            int index) {
+        return new SetupAnalysis.Finding(
+                code,
+                provider,
+                severity,
+                "summary " + code,
+                Map.of("index", index),
                 List.of(),
                 List.of());
     }
