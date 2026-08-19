@@ -38,6 +38,21 @@ class TextureSourceGenerationProofIOTest {
     }
 
     @Test
+    void boundedPathReadRejectsBytesBeyondTheConfiguredLimit() throws Exception {
+        byte[] bytes = TextureSourceGenerationProofIO.toBytes(fixture(false));
+        Path output = temporaryDirectory.resolve("growing.sptg");
+        byte[] oversized = Arrays.copyOf(bytes, bytes.length + 1);
+        oversized[oversized.length - 1] = 1;
+        Files.write(output, oversized);
+
+        IOException error = assertThrows(
+                IOException.class,
+                () -> TextureSourceGenerationProofIO.read(output, bytes.length));
+
+        assertTrue(error.getMessage().contains("size is invalid"));
+    }
+
+    @Test
     void rejectsCorruptAndTruncatedProofs() throws Exception {
         byte[] bytes = TextureSourceGenerationProofIO.toBytes(fixture(false));
         byte[] corrupt = bytes.clone();
