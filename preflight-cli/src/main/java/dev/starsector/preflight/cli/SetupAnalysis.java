@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /** Shared read-only finding model for current-setup readiness providers. */
@@ -90,7 +91,7 @@ final class SetupAnalysis {
             root.put("ready", ready());
             Map<String, Object> counts = new LinkedHashMap<>();
             for (Severity severity : Severity.values()) {
-                counts.put(severity.name().toLowerCase(), count(severity));
+                counts.put(severity.name().toLowerCase(Locale.ROOT), count(severity));
             }
             root.put("counts", counts);
             root.put("findings", findings.stream().map(SetupAnalysis::view).toList());
@@ -106,7 +107,7 @@ final class SetupAnalysis {
         Map<String, Object> value = new LinkedHashMap<>();
         value.put("code", finding.code());
         value.put("provider", finding.provider());
-        value.put("severity", finding.severity().name().toLowerCase());
+        value.put("severity", finding.severity().name().toLowerCase(Locale.ROOT));
         value.put("summary", finding.summary());
         value.put("parameters", finding.parameters());
         value.put("affectedModIds", finding.affectedModIds());
@@ -177,11 +178,20 @@ final class SetupAnalysis {
                     "setup analysis exceeds the " + MAX_FINDINGS + "-finding limit");
         }
         List<Finding> ordered = new ArrayList<>(findings);
-        ordered.sort(Comparator.comparing((Finding finding) -> finding.severity().ordinal())
+        ordered.sort(Comparator.comparingInt((Finding finding) -> severityRank(finding.severity()))
                 .thenComparing(Finding::provider)
                 .thenComparing(Finding::code)
                 .thenComparing(Finding::summary));
         return List.copyOf(ordered);
+    }
+
+    private static int severityRank(Severity severity) {
+        return switch (severity) {
+            case BLOCKING -> 0;
+            case WARNING -> 1;
+            case INFO -> 2;
+            case UNKNOWN -> 3;
+        };
     }
 
     private static List<String> boundedSorted(
