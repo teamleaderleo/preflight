@@ -31,9 +31,24 @@ mod single_instance {
     }
 
     pub fn acquire() -> io::Result<Acquisition> {
+        acquire_path(lock_path(None))
+    }
+
+    #[cfg(test)]
+    pub fn acquire_for_test(suffix: &str) -> io::Result<Acquisition> {
+        acquire_path(lock_path(Some(suffix)))
+    }
+
+    fn lock_path(suffix: Option<&str>) -> PathBuf {
         // SAFETY: geteuid takes no arguments and has no memory-safety preconditions.
         let uid = unsafe { geteuid() };
-        let path = PathBuf::from(format!("/tmp/starsector-preflight-desktop-{uid}.lock"));
+        let suffix = suffix.map(|value| format!("-{value}")).unwrap_or_default();
+        PathBuf::from(format!(
+            "/tmp/starsector-preflight-desktop-{uid}{suffix}.lock"
+        ))
+    }
+
+    fn acquire_path(path: PathBuf) -> io::Result<Acquisition> {
         let file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -91,7 +106,16 @@ mod single_instance {
     }
 
     pub fn acquire() -> io::Result<Acquisition> {
-        let name: Vec<u16> = "Local\\StarsectorPreflightDesktop\0".encode_utf16().collect();
+        acquire_name("Local\\StarsectorPreflightDesktop")
+    }
+
+    #[cfg(test)]
+    pub fn acquire_for_test(suffix: &str) -> io::Result<Acquisition> {
+        acquire_name(&format!("Local\\StarsectorPreflightDesktop-{suffix}"))
+    }
+
+    fn acquire_name(name: &str) -> io::Result<Acquisition> {
+        let name: Vec<u16> = format!("{name}\0").encode_utf16().collect();
         // SAFETY: attributes is null, the name is NUL-terminated, and the returned handle is owned here.
         let handle = unsafe { CreateMutexW(ptr::null(), 0, name.as_ptr()) };
         if handle.is_null() {
@@ -126,4 +150,29 @@ fn main() {
     };
 
     starsector_preflight_desktop_lib::run();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::single_instance::{self, Acquisition};
+
+    #[test]
+    fn single_instance_guard_refuses_a_peer_and_releases_on_drop() {
+        let suffix = format!("test-{}", std::process::id());
+        let first = match single_instance::acquire_for_test(&suffix).unwrap() {
+            Acquisition::Primary(guard) => guard,
+            Acquisition::AlreadyRunning => panic!("test guard unexpectedly already owned"),
+        };
+
+        assert!(matches!(
+            single_instance::acquire_for_test(&suffix).unwrap(),
+            Acquisition::AlreadyRunning
+        ));
+
+        drop(first);
+        assert!(matches!(
+            single_instance::acquire_for_test(&suffix).unwrap(),
+            Acquisition::Primary(_)
+        ));
+    }
 }
