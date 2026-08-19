@@ -3,6 +3,7 @@ package dev.starsector.preflight.cli;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.math.BigInteger;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,8 +47,10 @@ class SetupAnalysisContractTest {
     }
 
     @Test
-    void parameterStringsAndResultIdentityAreBounded() {
+    void parameterStringsNumbersAndResultIdentityAreBounded() {
         assertThrows(IllegalArgumentException.class, () -> finding(Map.of("value", "x".repeat(1_025))));
+        assertThrows(IllegalArgumentException.class,
+                () -> finding(Map.of("value", new BigInteger("9".repeat(129)))));
         assertThrows(IllegalArgumentException.class,
                 () -> new SetupAnalysis.Result("", "profile", List.of(), List.of()));
         assertThrows(IllegalArgumentException.class,
