@@ -8,11 +8,17 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class JarArchiveIndexIOTest {
+    @TempDir
+    Path temporaryDirectory;
+
     @Test
     void roundTripsDeterministicallyAndSupportsExactQueries() throws Exception {
         Map<String, JarArchiveIndex.Entry> entries = new LinkedHashMap<>();
@@ -59,5 +65,19 @@ class JarArchiveIndexIOTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new JarArchiveIndex("ef".repeat(32), 2, duplicates));
+    }
+
+    @Test
+    void readStopsAtConfiguredBoundBeforeParsing() throws Exception {
+        JarArchiveIndex index = new JarArchiveIndex(
+                "ab".repeat(32),
+                1,
+                Map.of("a/A.class", new JarArchiveIndex.Entry("a/A.class", 1, 1, 0, 0)));
+        Path file = temporaryDirectory.resolve("archive.spfj");
+        Files.write(file, JarArchiveIndexIO.toBytes(index));
+
+        IOException oversized = assertThrows(IOException.class, () -> JarArchiveIndexIO.read(file, 64));
+        assertTrue(oversized.getMessage().contains("64 byte safety limit"));
+        assertThrows(IllegalArgumentException.class, () -> JarArchiveIndexIO.read(file, 32));
     }
 }
