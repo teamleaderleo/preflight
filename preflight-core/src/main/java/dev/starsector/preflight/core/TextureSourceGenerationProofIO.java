@@ -29,6 +29,7 @@ public final class TextureSourceGenerationProofIO {
     private static final int MAX_STRING_BYTES = 16 * 1024 * 1024;
     private static final int MAX_PROVIDER_BYTES = 4 * 1024;
     private static final int MAX_TOKEN_BYTES = 64 * 1024;
+    private static final int MAX_PROFILE_FILE_NAME_BYTES = 240;
     private static final int MAX_ENTRIES = 100_000;
     private static final int MAX_EAGER_CAPACITY = 65_536;
 
@@ -40,7 +41,7 @@ public final class TextureSourceGenerationProofIO {
     }
 
     public static Path path(Path cacheRoot, String profileFingerprint) {
-        return directory(cacheRoot).resolve(profileFingerprint + ".sptg");
+        return directory(cacheRoot).resolve(canonicalProfileFileName(profileFingerprint) + ".sptg");
     }
 
     public static void write(Path target, TextureSourceGenerationProof proof) throws IOException {
@@ -132,7 +133,11 @@ public final class TextureSourceGenerationProofIO {
     private static byte[] encodePayload(TextureSourceGenerationProof proof) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (DataOutputStream output = new DataOutputStream(bytes)) {
-            writeString(output, proof.profileFingerprint(), MAX_STRING_BYTES, "profile fingerprint");
+            writeString(
+                    output,
+                    canonicalProfileFileName(proof.profileFingerprint()),
+                    MAX_STRING_BYTES,
+                    "profile fingerprint");
             writeString(output, proof.manifestSha256(), MAX_STRING_BYTES, "manifest SHA-256");
             writeString(output, proof.provider(), MAX_PROVIDER_BYTES, "generation provider");
             output.writeInt(proof.entryCount());
@@ -146,7 +151,8 @@ public final class TextureSourceGenerationProofIO {
 
     private static TextureSourceGenerationProof decodePayload(byte[] payload) throws IOException {
         try (DataInputStream input = new DataInputStream(new ByteArrayInputStream(payload))) {
-            String fingerprint = readString(input, MAX_STRING_BYTES, "profile fingerprint");
+            String fingerprint = canonicalProfileFileName(
+                    readString(input, MAX_STRING_BYTES, "profile fingerprint"));
             String manifestSha256 = readCanonicalSha256(input);
             String provider = readString(input, MAX_PROVIDER_BYTES, "generation provider");
             int entryCount = readCount(input, MAX_ENTRIES);
@@ -212,6 +218,33 @@ public final class TextureSourceGenerationProofIO {
             throw new IOException("Texture generation proof SHA-256 is not canonical lowercase hex");
         }
         Hashes.decodeSha256(value);
+        return value;
+    }
+
+    private static String canonicalProfileFileName(String value) throws IOException {
+        if (value == null || value.isBlank()) {
+            throw new IOException("Texture source generation profile fingerprint is blank");
+        }
+        byte[] utf8 = value.getBytes(StandardCharsets.UTF_8);
+        if (utf8.length > MAX_PROFILE_FILE_NAME_BYTES) {
+            throw new IOException("Texture source generation profile fingerprint exceeds the filename safety limit");
+        }
+        if (".".equals(value) || "..".equals(value)) {
+            throw new IOException("Texture source generation profile fingerprint is not a file name: " + value);
+        }
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            boolean portable = (character >= 'a' && character <= 'z')
+                    || (character >= 'A' && character <= 'Z')
+                    || (character >= '0' && character <= '9')
+                    || character == '-'
+                    || character == '_'
+                    || character == '.';
+            if (!portable) {
+                throw new IOException("Texture source generation profile fingerprint is not a portable file name: "
+                        + value);
+            }
+        }
         return value;
     }
 
