@@ -2,6 +2,7 @@ package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -98,5 +99,24 @@ class JsonTextTest {
         JsonText.ArrayRead absent = JsonText.stringArrayStatus("{}", "enabledMods", 8);
         assertFalse(absent.present());
         assertEquals(List.of(), absent.values());
+    }
+
+    @Test
+    void readsHistoricalStringAndJsonBooleanMetadataFlags() {
+        assertEquals(Boolean.TRUE, JsonText.booleanLike("{\"totalConversion\":\"true\"}", "totalConversion"));
+        assertEquals(Boolean.FALSE, JsonText.booleanLike("{\"totalConversion\":\"false\"}", "totalConversion"));
+        assertEquals(Boolean.TRUE, JsonText.booleanLike("{\"totalConversion\":true}", "totalConversion"));
+        assertEquals(Boolean.FALSE, JsonText.booleanLike("{\"totalConversion\":false}", "totalConversion"));
+        assertNull(JsonText.booleanLike("{\"id\":\"ordinary\"}", "totalConversion"));
+    }
+
+    @Test
+    void malformedPresentMetadataFlagIsNotDefaultedToFalse() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> JsonText.booleanLike("{\"totalConversion\":1}", "totalConversion"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> JsonText.booleanLike("{\"totalConversion\":\"maybe\"}", "totalConversion"));
     }
 }

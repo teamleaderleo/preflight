@@ -114,7 +114,18 @@ final class ModMetadataCheck {
                 }
                 dependencies.add(dependencyId);
             }
-            Mod mod = new Mod(id, List.copyOf(dependencies), dependenciesMalformed);
+
+            ConversionMode conversionMode;
+            try {
+                Boolean totalConversion = JsonText.booleanLike(document.value(), "totalConversion");
+                conversionMode = Boolean.TRUE.equals(totalConversion)
+                        ? ConversionMode.TOTAL_CONVERSION
+                        : ConversionMode.NORMAL;
+            } catch (RuntimeException malformed) {
+                conversionMode = ConversionMode.UNKNOWN;
+            }
+
+            Mod mod = new Mod(id, List.copyOf(dependencies), dependenciesMalformed, conversionMode);
             byId.computeIfAbsent(id, ignored -> new ArrayList<>()).add(mod);
         }
 
@@ -151,6 +162,14 @@ final class ModMetadataCheck {
                         "mod-metadata.dependencies-malformed",
                         SetupAnalysis.Severity.WARNING,
                         "Dependency metadata for " + id + " is malformed or incomplete.",
+                        Map.of("modId", id),
+                        List.of(id)));
+            }
+            if (mod.conversionMode() == ConversionMode.UNKNOWN) {
+                findings.add(finding(
+                        "mod-metadata.total-conversion-flag-malformed",
+                        SetupAnalysis.Severity.WARNING,
+                        "Total-conversion metadata for " + id + " is malformed or incomplete.",
                         Map.of("modId", id),
                         List.of(id)));
             }
@@ -218,9 +237,29 @@ final class ModMetadataCheck {
 
         return new Result(
                 List.copyOf(findings),
+                profileConversionMode(enabled, byId),
                 directories.size(),
                 budget.bytesRead(),
                 System.nanoTime() - started);
+    }
+
+    private static ConversionMode profileConversionMode(List<String> enabled, Map<String, List<Mod>> byId) {
+        boolean unknown = false;
+        for (String id : enabled) {
+            List<Mod> candidates = byId.getOrDefault(id, List.of());
+            if (candidates.size() != 1) {
+                unknown = true;
+                continue;
+            }
+            ConversionMode mode = candidates.get(0).conversionMode();
+            if (mode == ConversionMode.TOTAL_CONVERSION) {
+                return ConversionMode.TOTAL_CONVERSION;
+            }
+            if (mode == ConversionMode.UNKNOWN) {
+                unknown = true;
+            }
+        }
+        return unknown ? ConversionMode.UNKNOWN : ConversionMode.NORMAL;
     }
 
     private static SetupAnalysis.Finding finding(
@@ -269,15 +308,26 @@ final class ModMetadataCheck {
 
     record Result(
             List<SetupAnalysis.Finding> findings,
+            ConversionMode conversionMode,
             int modDirectories,
             long metadataBytes,
             long elapsedNanos) {
     }
 
+    enum ConversionMode {
+        NORMAL,
+        TOTAL_CONVERSION,
+        UNKNOWN
+    }
+
     private record Text(String value, int bytes) {
     }
 
-    private record Mod(String id, List<String> dependencies, boolean dependenciesMalformed) {
+    private record Mod(
+            String id,
+            List<String> dependencies,
+            boolean dependenciesMalformed,
+            ConversionMode conversionMode) {
     }
 
     private static final class MetadataBudget {
