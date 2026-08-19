@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { INSTRUMENT_APPEARANCE_ATTRIBUTES } from "../flightInstrumentAppearance";
+import { useInstrumentMotion } from "../useInstrumentMotion";
 import type { HullSegmentKind } from "../wireframeHullGeometry";
 import type { WireframeHull, WireframePoint } from "../types";
 import { BUNDLED_DEFAULT_HULL } from "../bundledWireframeHulls";
@@ -217,6 +218,12 @@ function drawHull(
 /** Draws bounded hull geometry derived locally from the user's Starsector installation. */
 export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge" }: FlightInstrumentProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { motion, direction } = useInstrumentMotion();
+  const directionRef = useRef(direction);
+
+  useEffect(() => {
+    directionRef.current = direction;
+  }, [direction]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -238,17 +245,20 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
     let yaw = RESTING;
     const drawStill = () => drawHull(canvas, hull, yaw, palette, variant);
     const schedule = () => {
-      if (frame === null && visible && !reducedMotion.matches) frame = window.requestAnimationFrame(render);
+      if (frame === null && visible && motion === "rotate" && !reducedMotion.matches) {
+        frame = window.requestAnimationFrame(render);
+      }
     };
 
     const render = (time: number) => {
       frame = null;
-      if (!visible || reducedMotion.matches) return;
+      if (!visible || motion !== "rotate" || reducedMotion.matches) return;
       if (previous === 0) previous = time;
       if (time - previous >= 1000 / 24) {
         // Advance by elapsed time rather than per frame, so a dropped frame or a background tab
         // does not change how fast the ship appears to turn.
-        yaw += Math.min(time - previous, 250) / 1000 * RATE;
+        const directionSign = directionRef.current === "clockwise" ? 1 : -1;
+        yaw += Math.min(time - previous, 250) / 1000 * RATE * directionSign;
         previous = time;
         drawHull(canvas, hull, yaw, palette, variant);
       }
@@ -290,10 +300,15 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       theme.disconnect();
       reducedMotion.removeEventListener("change", updateMotion);
     };
-  }, [hull, variant]);
+  }, [hull, motion, variant]);
 
   return (
-    <div className={`flight-instrument flight-instrument--${variant}`} aria-hidden="true">
+    <div
+      className={`flight-instrument flight-instrument--${variant}`}
+      data-motion={motion}
+      data-direction={direction}
+      aria-hidden="true"
+    >
       <div className="flight-instrument__drift">
         {variant === "badge" ? (
           <svg viewBox="0 0 240 150" focusable="false">
