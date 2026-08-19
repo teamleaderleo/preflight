@@ -52,11 +52,55 @@ class SetupCheckCommandTest {
     }
 
     @Test
+    void modOnlyResourceGraphMakesStaticProviderUnknownInsteadOfFalseBlocking() throws Exception {
+        Path game = temp.resolve("mod-only");
+        Files.createDirectories(game);
+        Files.writeString(game.resolve("starfarer_obf.jar"), "fixture-game-build", StandardCharsets.UTF_8);
+        Path mods = Files.createDirectories(game.resolve("mods"));
+        Files.writeString(
+                mods.resolve("enabled_mods.json"),
+                "{\"enabledMods\":[\"alpha\"]}",
+                StandardCharsets.UTF_8);
+        Path alpha = Files.createDirectories(mods.resolve("alpha/data/variants"));
+        Files.writeString(
+                mods.resolve("alpha/mod_info.json"),
+                "{\"id\":\"alpha\"}",
+                StandardCharsets.UTF_8);
+        Files.writeString(
+                alpha.resolve("broken.variant"),
+                "{\"variantId\":\"broken_Variant\",\"hullId\":\"vanilla_hull\"}",
+                StandardCharsets.UTF_8);
+
+        SetupAnalysis.Result result = SetupCheckCommand.analyze(game);
+
+        assertEquals(List.of("static-links"), result.unavailableProviders());
+        assertEquals(SetupCheckCommand.Outcome.UNKNOWN, SetupCheckCommand.outcome(result));
+        assertFalse(result.findings().stream()
+                .anyMatch(finding -> finding.code().equals("static-reference.variant-missing-hull")));
+    }
+
+    @Test
+    void intentionalRuntimeLogExclusionDoesNotDisableStaticCoverage() throws Exception {
+        Path game = gameWithDependencyAndStaticProblem();
+        Files.writeString(
+                game.resolve("starsector-core/starsector.log"),
+                "runtime log",
+                StandardCharsets.UTF_8);
+
+        SetupAnalysis.Result result = SetupCheckCommand.analyze(game);
+
+        assertFalse(result.unavailableProviders().contains("static-links"));
+        assertTrue(result.findings().stream()
+                .anyMatch(finding -> finding.code().equals("static-reference.variant-missing-hull")));
+    }
+
+    @Test
     void humanOutcomeDistinguishesProblemUnknownWarningAndReady() {
         SetupAnalysis.Finding problem = finding(
                 "problem", SetupAnalysis.Severity.BLOCKING, "problem");
+        String unknownSummary = "unknown" + (char) 27 + "[31m";
         SetupAnalysis.Finding unknown = finding(
-                "unknown", SetupAnalysis.Severity.UNKNOWN, "unknown\u001b[31m");
+                "unknown", SetupAnalysis.Severity.UNKNOWN, unknownSummary);
         SetupAnalysis.Finding warning = finding(
                 "warning", SetupAnalysis.Severity.WARNING, "warning");
 
@@ -77,7 +121,7 @@ class SetupCheckCommandTest {
                 SetupCheckCommand.outcome(result(List.of(), List.of())));
 
         String rendered = SetupCheckCommand.render(result(List.of(unknown), List.of()));
-        assertFalse(rendered.contains("\u001b"));
+        assertFalse(rendered.indexOf((char) 27) >= 0);
         assertTrue(rendered.contains("\\u001b"));
         assertTrue(rendered.endsWith("Nothing was changed.\n"));
     }
@@ -99,7 +143,7 @@ class SetupCheckCommandTest {
     }
 
     private Path gameWithDependencyAndStaticProblem() throws Exception {
-        Path game = temp.resolve("game");
+        Path game = temp.resolve("game-" + System.nanoTime());
         Path core = Files.createDirectories(game.resolve("starsector-core"));
         Files.writeString(core.resolve("starfarer_obf.jar"), "fixture-game-build", StandardCharsets.UTF_8);
 
