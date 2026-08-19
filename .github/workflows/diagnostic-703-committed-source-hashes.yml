@@ -1,0 +1,30 @@
+name: Diagnose #703 committed source hashes
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnostic-703-committed-source-hashes.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  hashes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Print normalized hashes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from hashlib import sha256
+          from pathlib import Path
+          for name in [
+              'preflight-desktop/src-tauri/src/report_authority.rs',
+              'preflight-desktop/src-tauri/src/report_authority_dir.rs',
+              'preflight-desktop/src-tauri/src/reports.rs',
+          ]:
+              data = Path(name).read_text().replace('\r\n', '\n').encode()
+              print(name, sha256(data).hexdigest())
+          PY
