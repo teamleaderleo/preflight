@@ -1,0 +1,31 @@
+:root[data-home-playtime="hidden"] .home-playtime {
+  display: none !important;
+}
+
+/* Compact Home removes only settled decorative/history layers. The same Home DOM still owns
+ * readiness, launch identity, Options, preparation/recovery, and every launch action. A previous
+ * run that explicitly recommends review remains visible because that evidence can affect the
+ * player's launch decision. */
+:root[data-home-mode="compact"] .launch-console--ready .home-flight-instrument,
+:root[data-home-mode="compact"] .launch-console--ready .home-playtime,
+:root[data-home-mode="compact"] .launch-console--ready .last-run-health:not(.last-run-health--review),
+:root[data-home-mode="compact"] .launch-console--ready .home-ship-name {
+  display: none !important;
+}
+
+/* Collapse only the quiet ready state. Active work, recovery/error, and an open Options panel keep
+ * the existing roomy composition so a cosmetic preference cannot crowd consequential controls. */
+:root[data-home-mode="compact"]
+  .page-viewport--home:not(:has(.run-recovery)):not(:has(.notice--error))
+  .launch-console--ready.launch-console--minimal:not(.launch-console--launching):not(.launch-console--running):not(.launch-console--error):not(:has(.launch-console__note)):not(:has(.launch-console__stop)) {
+  height: 260px;
+  min-height: 260px;
+}
+
+:root[data-home-mode="compact"]
+  .page-viewport--home:not(:has(.run-recovery)):not(:has(.notice--error))
+  .launch-console--ready.launch-console--minimal:not(.launch-console--launching):not(.launch-console--running):not(.launch-console--error):not(:has(.launch-console__note)):not(:has(.launch-console__stop))
+  .launch-console__primary {
+  height: 260px;
+  min-height: 260px;
+}

@@ -2,6 +2,7 @@ import { ShieldIcon } from "../icons";
 import { NoticeBanner } from "./NoticeBanner";
 import { openProjectLink } from "../bridge";
 import type { useSignedUpdates } from "../useSignedUpdates";
+import { useHomePresentation } from "../useHomePresentation";
 import { formatBytes, shortPath } from "../uiFormat";
 import type { AfterLaunchBehavior, NoticeTone, RemovalPlan, RemovalScope, ReportIntakeStatus } from "../types";
 
@@ -59,6 +60,7 @@ export function SettingsPage({
     checkUpdates,
     installSignedUpdate,
   } = updates;
+  const homePresentation = useHomePresentation();
   const installationChangeBlocked = Boolean(installationChangeBlockedReason) || removalBusy || updateInstalling;
   const installationChangeTitle = installationChangeBlockedReason
     ?? (removalBusy || updateInstalling ? "Finish the current operation before changing installations." : undefined);
@@ -101,6 +103,37 @@ export function SettingsPage({
               : afterLaunchBehavior === "quit"
                 ? "Playtime still records."
                 : "Useful while testing."}</small>
+          </label>
+        </div>
+        <div className="preference-block">
+          <div>
+            <h2>Home</h2>
+          </div>
+          <label className="setting-field preference-field">
+            <span>Presentation</span>
+            <select
+              aria-label="Home presentation"
+              value={homePresentation.mode}
+              onChange={(event) => homePresentation.setMode(event.target.value === "compact" ? "compact" : "hangar")}
+            >
+              <option value="hangar">Hangar</option>
+              <option value="compact">Compact</option>
+            </select>
+            <small>{homePresentation.mode === "compact"
+              ? "Launch-first Home without the decorative hull and history readouts."
+              : "Hull-led Home with the full settled display."}</small>
+          </label>
+          <label className="setting-field preference-field">
+            <span>Recorded playtime</span>
+            <select
+              aria-label="Home playtime"
+              value={homePresentation.showPlaytime ? "show" : "hide"}
+              onChange={(event) => homePresentation.setShowPlaytime(event.target.value === "show")}
+            >
+              <option value="show">Show</option>
+              <option value="hide">Hide</option>
+            </select>
+            <small>Display only. Launch history and playtime recording continue either way.</small>
           </label>
         </div>
       </section>

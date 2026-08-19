@@ -1,7 +1,8 @@
 import type { ComponentProps } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
+import { HOME_PRESENTATION_STORAGE_KEY } from "../desktopStorage";
 import type { useSignedUpdates } from "../useSignedUpdates";
 import { SettingsPage } from "./SettingsPage";
 
@@ -47,6 +48,12 @@ function props(overrides: Partial<ComponentProps<typeof SettingsPage>> = {}): Co
   };
 }
 
+beforeEach(() => {
+  window.localStorage.clear();
+  delete document.documentElement.dataset.homeMode;
+  delete document.documentElement.dataset.homePlaytime;
+});
+
 test("Settings owns ordinary installation changes", async () => {
   const user = userEvent.setup();
   const onChooseInstall = vi.fn();
@@ -69,4 +76,38 @@ test("installation changes follow the app-wide workflow lock", () => {
 
   expect(screen.getByRole("button", { name: "Change folder" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Change folder" })).toHaveAttribute("title", "Updating the saved mod profile");
+});
+
+test("Home presentation switches immediately between Hangar and Compact", async () => {
+  const user = userEvent.setup();
+  render(<SettingsPage {...props()} />);
+
+  const select = screen.getByRole("combobox", { name: "Home presentation" });
+  expect(select).toHaveValue("hangar");
+  expect(screen.getByText("Hull-led Home with the full settled display.")).toBeInTheDocument();
+
+  await user.selectOptions(select, "compact");
+  expect(select).toHaveValue("compact");
+  expect(document.documentElement.dataset.homeMode).toBe("compact");
+  expect(screen.getByText("Launch-first Home without the decorative hull and history readouts.")).toBeInTheDocument();
+  expect(JSON.parse(window.localStorage.getItem(HOME_PRESENTATION_STORAGE_KEY) ?? "null"))
+    .toEqual({ mode: "compact", showPlaytime: true });
+});
+
+test("Home playtime visibility is an immediate display-only preference", async () => {
+  const user = userEvent.setup();
+  render(<SettingsPage {...props()} />);
+
+  const select = screen.getByRole("combobox", { name: "Home playtime" });
+  expect(select).toHaveValue("show");
+  expect(screen.getByText("Display only. Launch history and playtime recording continue either way.")).toBeInTheDocument();
+
+  await user.selectOptions(select, "hide");
+  expect(select).toHaveValue("hide");
+  expect(document.documentElement.dataset.homePlaytime).toBe("hidden");
+  expect(JSON.parse(window.localStorage.getItem(HOME_PRESENTATION_STORAGE_KEY) ?? "null"))
+    .toEqual({ mode: "hangar", showPlaytime: false });
+
+  await user.selectOptions(select, "show");
+  expect(document.documentElement.dataset.homePlaytime).toBe("shown");
 });

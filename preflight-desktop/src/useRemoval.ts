@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { applyRemoval, getRemovalPlan } from "./bridge";
 import { clearPreflightLocalStorage } from "./desktopStorage";
+import { resetHomePresentation } from "./useHomePresentation";
 import type { Announce, DesktopSnapshot, RemovalPlan, RemovalScope } from "./types";
 import { errorMessage } from "./uiFormat";
 
@@ -51,6 +52,7 @@ export function useRemoval(
       let localStorageFailures: string[] = [];
       if (scope === "all-data") {
         localStorageFailures = clearPreflightLocalStorage();
+        resetHomePresentation();
         clearCache();
         clearProfiles();
         clearReportReceipt();
