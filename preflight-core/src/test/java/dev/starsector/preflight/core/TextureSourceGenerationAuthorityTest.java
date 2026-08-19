@@ -56,9 +56,14 @@ class TextureSourceGenerationAuthorityTest {
         Path manifestPath = TextureManifestIO.directory(cache).resolve(profile + ".spfm");
         TextureManifestIO.write(manifestPath, manifest);
 
+        TextureSourceGenerationAuthority.SealResult seal =
+                TextureSourceGenerationAuthority.sealIfPossible(manifestPath, manifest);
+        assertTrue(seal.available(),
+                "the hosted filesystem must provide the reviewed source generation primitive: "
+                        + seal.problem());
+
         Path proofPath = TextureSourceGenerationProofIO.path(cache, profile);
-        assertTrue(Files.isRegularFile(proofPath),
-                "the hosted filesystem must provide the reviewed source generation primitive");
+        assertTrue(Files.isRegularFile(proofPath), "generation proof must be persisted after sealing");
 
         TextureSourceGenerationAuthority.Validation before =
                 TextureSourceGenerationAuthority.validate(cache, manifestPath, manifest, index);
