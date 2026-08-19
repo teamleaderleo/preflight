@@ -76,6 +76,22 @@ def applicable_runs(workflow_runs: Iterable[dict], pull_request: dict) -> list[d
     return [run for run in workflow_runs if belongs_to_pr(run, pull_request)]
 
 
+def trusted_workflow_definition_changes(
+    changed_files: Iterable[dict], trusted_paths: frozenset[str]
+) -> list[str]:
+    changed: set[str] = set()
+    for item in changed_files:
+        if not isinstance(item, dict):
+            continue
+        filename = item.get("filename")
+        previous = item.get("previous_filename")
+        if isinstance(filename, str) and filename in trusted_paths:
+            changed.add(filename)
+        if isinstance(previous, str) and previous in trusted_paths:
+            changed.add(previous)
+    return sorted(changed)
+
+
 def run_label(path: str, run: dict | None) -> str:
     if run is None:
         return path
@@ -129,11 +145,45 @@ def api_json(url: str, token: str) -> tuple[dict, str]:
         return json.load(response), response.headers.get("Link", "")
 
 
+def api_list(url: str, token: str) -> tuple[list[dict], str]:
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme != "https" or parsed.hostname != "api.github.com":
+        raise RuntimeError(f"Refusing non-GitHub API URL: {url}")
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "preflight-required-merge-gate",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        payload = json.load(response)
+        if not isinstance(payload, list):
+            raise RuntimeError("GitHub API response is not a list")
+        return payload, response.headers.get("Link", "")
+
+
 def github_pull_request(repo: str, pr_number: int, token: str) -> dict:
     payload, _ = api_json(f"https://api.github.com/repos/{repo}/pulls/{pr_number}", token)
     if not isinstance(payload.get("head"), dict):
         raise RuntimeError("GitHub pull-request response has no head object")
     return payload
+
+
+def github_changed_files(repo: str, pr_number: int, token: str) -> list[dict]:
+    url: str | None = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/files?per_page=100"
+    files: list[dict] = []
+    pages = 0
+    while url:
+        pages += 1
+        if pages > 30:
+            raise RuntimeError("pull-request file pagination exceeded 30 pages")
+        page, link = api_list(url, token)
+        files.extend(page)
+        url = next_link(link)
+    return files
 
 
 def github_workflow_runs(repo: str, sha: str, token: str) -> list[dict]:
@@ -249,6 +299,7 @@ def wait_for_workflows(
     try:
         trusted_paths = trusted_workflow_paths()
         pull_request = github_pull_request(repo, pr_number, token)
+        changed_files = github_changed_files(repo, pr_number, token)
     except (OSError, urllib.error.HTTPError, urllib.error.URLError, TimeoutError, RuntimeError) as exc:
         print(f"Merge gate could not establish trusted workflow/PR identity: {exc}", file=sys.stderr)
         return 2
@@ -258,6 +309,17 @@ def wait_for_workflows(
             f"Merge gate head moved before evaluation: expected {sha}, current {head.get('sha') or 'unknown'}",
             file=sys.stderr,
         )
+        return 1
+
+    workflow_changes = trusted_workflow_definition_changes(changed_files, trusted_paths)
+    if workflow_changes:
+        print(
+            "Merge gate refuses pull-request edits to trusted workflow definitions; use the reviewed "
+            "repository bypass path for workflow-policy changes:",
+            file=sys.stderr,
+        )
+        for path in workflow_changes:
+            print(f"- {path}", file=sys.stderr)
         return 1
 
     deadline = time.monotonic() + timeout
