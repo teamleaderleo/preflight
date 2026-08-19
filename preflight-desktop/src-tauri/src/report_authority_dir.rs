@@ -30,11 +30,14 @@ impl BoundDirectory {
         &self.path
     }
 
+    #[cfg(all(test, unix))]
+    pub(crate) fn is_close_on_exec(&self) -> io::Result<bool> {
+        imp::is_close_on_exec(&self.file)
+    }
+
     pub(crate) fn require_current(&self) -> Result<(), String> {
         let current = imp::open_directory(&self.path).map_err(|error| {
-            format!(
-                "Protected report storage changed while report authority was active: {error}"
-            )
+            format!("Protected report storage changed while report authority was active: {error}")
         })?;
         if imp::same_identity(&self.file, &current).map_err(|error| {
             format!("Could not compare protected report storage generations: {error}")
@@ -178,7 +181,7 @@ mod imp {
         let fd = unsafe {
             libc::open(
                 root.as_ptr(),
-                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_DIRECTORY,
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_DIRECTORY | libc::O_CLOEXEC,
             )
         };
         if fd < 0 {
@@ -196,7 +199,7 @@ mod imp {
                         libc::openat(
                             current.as_raw_fd(),
                             name.as_ptr(),
-                            libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_DIRECTORY,
+                            libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_DIRECTORY | libc::O_CLOEXEC,
                         )
                     };
                     if fd < 0 {
@@ -222,6 +225,15 @@ mod imp {
         Ok(left.dev() == right.dev() && left.ino() == right.ino())
     }
 
+    #[cfg(test)]
+    pub(super) fn is_close_on_exec(file: &File) -> io::Result<bool> {
+        let flags = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_GETFD) };
+        if flags < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(flags & libc::FD_CLOEXEC != 0)
+    }
+
     pub(super) fn create_new(parent: &File, name: &str, mode: u32) -> io::Result<File> {
         let name = CString::new(name)
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "filename contains NUL"))?;
@@ -229,7 +241,7 @@ mod imp {
             libc::openat(
                 parent.as_raw_fd(),
                 name.as_ptr(),
-                libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW,
+                libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW | libc::O_CLOEXEC,
                 mode as libc::mode_t,
             )
         };
@@ -246,7 +258,7 @@ mod imp {
             libc::openat(
                 parent.as_raw_fd(),
                 name.as_ptr(),
-                libc::O_RDONLY | libc::O_NOFOLLOW,
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
             )
         };
         if fd < 0 {
@@ -256,7 +268,7 @@ mod imp {
     }
 
     pub(super) fn list_names(parent: &File) -> io::Result<Vec<String>> {
-        let duplicate = unsafe { libc::dup(parent.as_raw_fd()) };
+        let duplicate = unsafe { libc::fcntl(parent.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 0) };
         if duplicate < 0 {
             return Err(io::Error::last_os_error());
         }
@@ -345,7 +357,7 @@ mod imp {
 #[cfg(windows)]
 mod imp {
     use super::*;
-    use std::ffi::{OsStr, OsString, c_void};
+    use std::ffi::{c_void, OsStr, OsString};
     use std::mem::size_of;
     use std::os::windows::ffi::{OsStrExt, OsStringExt};
     use std::os::windows::io::{AsRawHandle, FromRawHandle, RawHandle};
@@ -577,18 +589,19 @@ mod imp {
                     "NtQueryDirectoryFile returned an invalid record length",
                 ));
             }
-            let name_bytes = u32::from_ne_bytes(buffer[8..12].try_into().expect("fixed slice"))
-                as usize;
+            let name_bytes =
+                u32::from_ne_bytes(buffer[8..12].try_into().expect("fixed slice")) as usize;
             if name_bytes % 2 != 0 || 12usize.saturating_add(name_bytes) > information {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     "NtQueryDirectoryFile returned an invalid filename length",
                 ));
             }
-            let wide = unsafe {
-                std::slice::from_raw_parts(buffer.as_ptr().add(12).cast::<u16>(), name_bytes / 2)
-            };
-            let name = OsString::from_wide(wide).into_string().map_err(|_| {
+            let wide = buffer[12..12 + name_bytes]
+                .chunks_exact(2)
+                .map(|pair| u16::from_ne_bytes([pair[0], pair[1]]))
+                .collect::<Vec<_>>();
+            let name = OsString::from_wide(&wide).into_string().map_err(|_| {
                 io::Error::new(
                     io::ErrorKind::InvalidData,
                     "report-authority filename is not Unicode",
@@ -767,9 +780,8 @@ mod imp {
             file_index_high: 0,
             file_index_low: 0,
         };
-        let ok = unsafe {
-            GetFileInformationByHandle(file.as_raw_handle() as Handle, &mut information)
-        };
+        let ok =
+            unsafe { GetFileInformationByHandle(file.as_raw_handle() as Handle, &mut information) };
         if ok == 0 {
             Err(io::Error::last_os_error())
         } else {

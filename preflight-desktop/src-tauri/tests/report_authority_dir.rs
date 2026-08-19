@@ -24,9 +24,38 @@ fn relative_create_read_enumerate_and_delete_stay_in_the_opened_directory() {
         b"secret",
         directory.read_bytes("secret.json", 64).unwrap().as_slice()
     );
-    assert_eq!(vec!["secret.json".to_string()], directory.list_names().unwrap());
+    assert_eq!(
+        vec!["secret.json".to_string()],
+        directory.list_names().unwrap()
+    );
     directory.delete_file("secret.json").unwrap();
     assert!(!root.join("secret.json").exists());
+    fs::remove_dir_all(base).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn retained_directory_and_entry_handles_are_close_on_exec() {
+    use std::os::fd::AsRawFd;
+
+    let base = temp_root("close-on-exec");
+    let root = base.join("authority");
+    fs::create_dir_all(&root).unwrap();
+    let directory = BoundDirectory::open(&root).unwrap();
+    assert!(directory.is_close_on_exec().unwrap());
+
+    let file = directory.create_new("secret.json", 0o600).unwrap();
+    let flags = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_GETFD) };
+    assert!(flags >= 0);
+    assert_ne!(flags & libc::FD_CLOEXEC, 0);
+    drop(file);
+
+    let file = directory.open_regular("secret.json").unwrap();
+    let flags = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_GETFD) };
+    assert!(flags >= 0);
+    assert_ne!(flags & libc::FD_CLOEXEC, 0);
+    drop(file);
+
     fs::remove_dir_all(base).unwrap();
 }
 
@@ -49,7 +78,10 @@ fn create_after_public_root_replacement_stays_in_the_reviewed_generation() {
     drop(file);
 
     assert!(directory.require_current().is_err());
-    assert_eq!(b"owned", fs::read(reviewed.join("secret.json")).unwrap().as_slice());
+    assert_eq!(
+        b"owned",
+        fs::read(reviewed.join("secret.json")).unwrap().as_slice()
+    );
     assert_eq!(external_before, snapshot(&root));
     fs::remove_dir_all(base).unwrap();
 }
@@ -117,9 +149,7 @@ fn preexisting_alias_ancestor_is_refused() {
     fs::create_dir_all(external.join("support").join("report-authority")).unwrap();
     symlink(&external, &public).unwrap();
 
-    assert!(
-        BoundDirectory::open(&public.join("support").join("report-authority")).is_err()
-    );
+    assert!(BoundDirectory::open(&public.join("support").join("report-authority")).is_err());
     assert!(
         fs::read_dir(external.join("support").join("report-authority"))
             .unwrap()
@@ -149,9 +179,7 @@ fn preexisting_reparse_ancestor_is_refused() {
         .unwrap();
     assert!(status.success());
 
-    assert!(
-        BoundDirectory::open(&public.join("support").join("report-authority")).is_err()
-    );
+    assert!(BoundDirectory::open(&public.join("support").join("report-authority")).is_err());
     assert!(
         fs::read_dir(external.join("support").join("report-authority"))
             .unwrap()
