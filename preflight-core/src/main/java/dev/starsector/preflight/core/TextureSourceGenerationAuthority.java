@@ -49,6 +49,7 @@ public final class TextureSourceGenerationAuthority {
     private static final Duration TOOL_TIMEOUT = Duration.ofMinutes(2);
     private static final Set<String> LINUX_CTIME_FILESYSTEMS = Set.of(
             "ext2", "ext3", "ext4", "xfs", "btrfs", "f2fs", "overlay", "tmpfs");
+    private static final String WINDOWS_OUTPUT_PREFIX = "SPTG:";
 
     private TextureSourceGenerationAuthority() {
     }
@@ -382,7 +383,7 @@ public final class TextureSourceGenerationAuthority {
 
         @Override
         public Map<Path, String> capture(List<Path> sources) throws IOException {
-            List<String> output = runTool(
+            List<String> rawOutput = runTool(
                     List.of(
                             windowsPowerShell(),
                             "-NoLogo",
@@ -393,9 +394,14 @@ public final class TextureSourceGenerationAuthority {
                             "-EncodedCommand",
                             powershellEncodedCommand(WINDOWS_USN_SCRIPT)),
                     sources.stream().map(TextureSourceGenerationAuthority::encodePath).toList());
+            List<String> output = rawOutput.stream()
+                    .filter(line -> line.startsWith(WINDOWS_OUTPUT_PREFIX))
+                    .map(line -> line.substring(WINDOWS_OUTPUT_PREFIX.length()))
+                    .toList();
             if (output.size() != sources.size()) {
                 throw new IOException("Windows USN provider returned " + output.size()
-                        + " tokens for " + sources.size() + " sources");
+                        + " framed tokens for " + sources.size() + " sources; output: "
+                        + bounded(String.join(" | ", rawOutput)));
             }
             Map<Path, String> tokens = new HashMap<>();
             for (int index = 0; index < sources.size(); index++) {
@@ -750,9 +756,9 @@ public final class TextureSourceGenerationAuthority {
                 if ([string]::IsNullOrEmpty($line)) { continue }
                 try {
                     $path = $utf8.GetString([Convert]::FromBase64String($line))
-                    [PreflightUsnGeneration]::Token($path)
+                    [Console]::Out.WriteLine('SPTG:' + [PreflightUsnGeneration]::Token($path))
                 } catch {
-                    '!'+$_.Exception.Message.Replace("`r", ' ').Replace("`n", ' ')
+                    [Console]::Out.WriteLine('SPTG:!' + $_.Exception.Message.Replace("`r", ' ').Replace("`n", ' '))
                 }
             }
             """;
