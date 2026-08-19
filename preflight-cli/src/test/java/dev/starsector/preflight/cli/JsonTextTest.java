@@ -111,6 +111,28 @@ class JsonTextTest {
     }
 
     @Test
+    void authorityFieldsUseOnlyImmediateRootDeclarations() {
+        String nestedOnly = "{\"id\":\"alpha\",\"metadata\":{\"totalConversion\":true,\"hullId\":\"nested\"}}";
+        assertNull(JsonText.booleanLike(nestedOnly, "totalConversion"));
+        assertNull(JsonText.rootString(nestedOnly, "hullId"));
+
+        String rootWins = "{\"metadata\":{\"hullId\":\"nested\"},\"hullId\":\"root\",}";
+        assertEquals("root", JsonText.rootString(rootWins, "hullId"));
+    }
+
+    @Test
+    void duplicateRootAuthorityFieldIsMalformed() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> JsonText.booleanLike(
+                        "{\"totalConversion\":false,\"totalConversion\":true}",
+                        "totalConversion"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> JsonText.rootString("{\"hullId\":\"a\",\"hullId\":\"b\"}", "hullId"));
+    }
+
+    @Test
     void malformedPresentMetadataFlagIsNotDefaultedToFalse() {
         assertThrows(
                 IllegalArgumentException.class,
