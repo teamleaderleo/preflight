@@ -17,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.HexFormat;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -25,10 +26,20 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Content fingerprints for explicitly constrained local code-source archives.
  *
- * <p>A persistent advisory journal avoids re-reading unchanged archives in the game's x86 JVM.
- * Entries are accepted only for the same real path, non-symlink regular-file identity, byte size,
- * and nanosecond modification time. Any mismatch or malformed journal performs the complete
- * SHA-256 again; the target's independent class hash, source kind/suffix, and loader gates remain.
+ * <p>The first authorization for one live classloader/archive generation reads and hashes the
+ * archive bytes. Later authorizations may reuse that exact digest only for the same classloader
+ * object, canonical path, regular-file identity, byte size, and nanosecond modification time.
+ * Those filesystem fields select a digest that was already established from bytes; they are never
+ * accepted as persistent content proof.
+ *
+ * <p>The persisted journal is advisory. A new JVM/classloader generation always hashes before a
+ * journal entry can count as a verified match. This keeps cross-launch and replacement mutations
+ * from inheriting stale authority without rereading the same archive for every transformed class.
+ *
+ * <p>The active-launch boundary is deliberate: once a classloader generation has established an
+ * archive digest, a same-user writer that mutates that same file in place and restores every
+ * observed identity field before the next authorization is treated as mutating an immutable live
+ * code generation. Restarting creates a new generation and hashes the bytes again.
  */
 final class SourceArchiveHashes {
     private static final long MAX_ARCHIVE_BYTES = 4L * 1024 * 1024 * 1024;
@@ -37,13 +48,17 @@ final class SourceArchiveHashes {
     private static final int JOURNAL_VERSION = 1;
     private static final int MAX_JOURNAL_ENTRIES = 10_000;
     private static final String JOURNAL_NAME = "adapter-source-hashes-v1.bin";
-    private static final ConcurrentHashMap<Key, Result> CACHE = new ConcurrentHashMap<>();
+    private static final Object DEFAULT_GENERATION = new Object();
+    private static final Object BOOTSTRAP_GENERATION = new Object();
+    private static final ConcurrentHashMap<GenerationKey, CompletableFuture<Result>> CACHE =
+            new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<Path, JournalEntry> JOURNAL = new ConcurrentHashMap<>();
     private static final ThreadLocal<byte[]> BUFFER =
             ThreadLocal.withInitial(() -> new byte[BUFFER_BYTES]);
     private static final AtomicBoolean SHUTDOWN_HOOK_INSTALLED = new AtomicBoolean();
     private static final AtomicLong CALLS = new AtomicLong();
     private static final AtomicLong SESSION_HITS = new AtomicLong();
+    private static final AtomicLong DISTINCT_GENERATIONS = new AtomicLong();
     private static final AtomicLong JOURNAL_HITS = new AtomicLong();
     private static final AtomicLong HASHES = new AtomicLong();
     private static final AtomicLong HASHED_BYTES = new AtomicLong();
@@ -63,6 +78,7 @@ final class SourceArchiveHashes {
         JOURNAL.clear();
         CALLS.set(0);
         SESSION_HITS.set(0);
+        DISTINCT_GENERATIONS.set(0);
         JOURNAL_HITS.set(0);
         HASHES.set(0);
         HASHED_BYTES.set(0);
@@ -95,7 +111,18 @@ final class SourceArchiveHashes {
         return new Result("", "");
     }
 
+    /** Test/backwards-compatible seam: one process-local default generation. */
     static Result sha256(Path source) {
+        return sha256(source, DEFAULT_GENERATION);
+    }
+
+    /**
+     * Returns the exact archive digest for one live generation.
+     *
+     * <p>{@code generationOwner} is compared by object identity. Production passes the defining
+     * {@link ClassLoader}; null represents the bootstrap loader.
+     */
+    static Result sha256(Path source, Object generationOwner) {
         CALLS.incrementAndGet();
         if (source == null) {
             return Result.failure("code source is not a local file");
@@ -111,26 +138,42 @@ final class SourceArchiveHashes {
         if (before.size() > MAX_ARCHIVE_BYTES) {
             return Result.failure("code source exceeds " + MAX_ARCHIVE_BYTES + " bytes");
         }
-        Key key = new Key(real, before);
-        Result cached = CACHE.get(key);
-        if (cached != null) {
-            SESSION_HITS.incrementAndGet();
-            return cached;
+
+        Object owner = generationOwner == null ? BOOTSTRAP_GENERATION : generationOwner;
+        GenerationKey key = new GenerationKey(new IdentityKey(owner), real, before);
+        CompletableFuture<Result> proposed = new CompletableFuture<>();
+        CompletableFuture<Result> shared = CACHE.putIfAbsent(key, proposed);
+        if (shared != null) {
+            Result reused = shared.join();
+            if (reused.successful()) {
+                SESSION_HITS.incrementAndGet();
+            }
+            return reused;
         }
+
+        Result hashed;
+        try {
+            hashed = hash(real, before);
+            proposed.complete(hashed);
+        } catch (RuntimeException | Error failure) {
+            proposed.completeExceptionally(failure);
+            CACHE.remove(key, proposed);
+            throw failure;
+        }
+        if (!hashed.successful()) {
+            CACHE.remove(key, proposed);
+            return hashed;
+        }
+
+        DISTINCT_GENERATIONS.incrementAndGet();
         ensureJournalLoaded();
         JournalEntry stored = JOURNAL.get(real);
-        if (stored != null && before.equals(stored.stamp())) {
-            Result hit = Result.success(stored.sha256());
-            Result raced = CACHE.putIfAbsent(key, hit);
+        if (stored != null && before.equals(stored.stamp())
+                && hashed.sha256().equals(stored.sha256())) {
             JOURNAL_HITS.incrementAndGet();
-            return raced == null ? hit : raced;
         }
-        Result hashed = hash(real, before);
-        CACHE.putIfAbsent(key, hashed);
-        if (hashed.successful()) {
-            JOURNAL.put(real, new JournalEntry(before, hashed.sha256()));
-            journalDirty = true;
-        }
+        JOURNAL.put(real, new JournalEntry(before, hashed.sha256()));
+        journalDirty = true;
         return hashed;
     }
 
@@ -168,6 +211,7 @@ final class SourceArchiveHashes {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("calls", CALLS.get());
         values.put("sessionHits", SESSION_HITS.get());
+        values.put("distinctGenerations", DISTINCT_GENERATIONS.get());
         values.put("journalHits", JOURNAL_HITS.get());
         values.put("hashes", HASHES.get());
         values.put("hashedBytes", HASHED_BYTES.get());
@@ -317,6 +361,26 @@ final class SourceArchiveHashes {
     private record JournalEntry(FileStamp stamp, String sha256) {
     }
 
-    private record Key(Path path, FileStamp stamp) {
+    private record GenerationKey(IdentityKey owner, Path path, FileStamp stamp) {
+    }
+
+    private static final class IdentityKey {
+        private final Object value;
+        private final int hashCode;
+
+        private IdentityKey(Object value) {
+            this.value = value;
+            this.hashCode = System.identityHashCode(value);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof IdentityKey identity && value == identity.value;
+        }
+
+        @Override
+        public int hashCode() {
+            return hashCode;
+        }
     }
 }
