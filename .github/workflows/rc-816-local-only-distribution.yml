@@ -1,0 +1,60 @@
+name: RC 816 local-only Distribution repair
+
+on:
+  pull_request:
+    branches:
+      - proto/local-only-beta-798
+    paths:
+      - '.github/workflows/rc-816-local-only-distribution.yml'
+      - 'scripts/rc_816_local_only_distribution.py'
+      - 'preflight-desktop/scripts/local-only-distribution.node-test.mjs'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'release/816-local-only-distribution'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: release/816-local-only-distribution
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6.2.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: preflight-desktop/package-lock.json
+
+      - name: Apply exact local-only release repair
+        run: python3 scripts/rc_816_local_only_distribution.py
+
+      - name: Verify permanent Distribution policy
+        working-directory: preflight-desktop
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test scripts/distribution-workflow.node-test.mjs scripts/local-only-distribution.node-test.mjs
+
+      - name: Verify remote intake is absent from Distribution
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R -n -E 'PREFLIGHT_REPORT_INTAKE_ORIGIN|REPORT_INTAKE_ORIGIN' .github/workflows/distribution.yml
+
+      - name: Commit release bytes and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/rc-816-local-only-distribution.yml \
+                 scripts/rc_816_local_only_distribution.py
+          git add .github/workflows/distribution.yml \
+                  preflight-desktop/scripts/distribution-workflow.node-test.mjs \
+                  preflight-desktop/scripts/local-only-distribution.node-test.mjs \
+                  docs/release-gate-closeout.md
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m 'Make first-beta Distribution local-only'
+          git push origin HEAD:release/816-local-only-distribution
