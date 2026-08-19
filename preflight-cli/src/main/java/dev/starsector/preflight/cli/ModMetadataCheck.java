@@ -22,6 +22,9 @@ final class ModMetadataCheck {
     private static final int MAX_MOD_DIRECTORIES = 1_024;
     private static final int MAX_ENABLED_MODS = 1_024;
     private static final int MAX_DEPENDENCIES_PER_MOD = 256;
+    private static final int MAX_RELEVANT_IDS = 16_384;
+    private static final int MAX_DEPENDENCY_EDGES = 16_384;
+    private static final int MAX_FINDINGS = 256;
     private static final int MAX_METADATA_BYTES = 1024 * 1024;
     private static final long MAX_TOTAL_METADATA_BYTES = 64L * 1024 * 1024;
     private static final int READ_BUFFER_BYTES = 8 * 1024;
@@ -125,14 +128,14 @@ final class ModMetadataCheck {
             if (candidates.isEmpty()) {
                 MetadataProblem problem = unresolvedByFolder.get(id);
                 if (problem != null) {
-                    findings.add(finding(
+                    addFinding(findings, finding(
                             "mod-metadata.enabled-metadata-invalid",
                             SetupAnalysis.Severity.BLOCKING,
                             "Enabled mod " + id + " has unavailable or invalid metadata.",
                             Map.of("modId", id, "problem", problem.code()),
                             List.of(id)));
                 } else {
-                    findings.add(finding(
+                    addFinding(findings, finding(
                             "mod-metadata.enabled-mod-missing",
                             SetupAnalysis.Severity.BLOCKING,
                             "Enabled mod " + id + " is not installed with readable metadata.",
@@ -145,9 +148,11 @@ final class ModMetadataCheck {
                 continue;
             }
             Mod mod = candidates.get(0);
-            relevantIds.addAll(mod.dependencies());
+            for (String dependencyId : mod.dependencies()) {
+                addRelevantId(relevantIds, dependencyId);
+            }
             if (mod.dependenciesMalformed()) {
-                findings.add(finding(
+                addFinding(findings, finding(
                         "mod-metadata.dependencies-malformed",
                         SetupAnalysis.Severity.WARNING,
                         "Dependency metadata for " + id + " is malformed or incomplete.",
@@ -159,7 +164,7 @@ final class ModMetadataCheck {
         for (String id : relevantIds) {
             List<Mod> candidates = byId.getOrDefault(id, List.of());
             if (candidates.size() > 1) {
-                findings.add(finding(
+                addFinding(findings, finding(
                         "mod-metadata.duplicate-id",
                         SetupAnalysis.Severity.BLOCKING,
                         "Multiple installed mods declare the same ID " + id + ".",
@@ -175,14 +180,19 @@ final class ModMetadataCheck {
                 continue;
             }
             for (String dependencyId : candidates.get(0).dependencies()) {
-                if (!dependencyPairs.add(id + "\u0000" + dependencyId)) {
+                String pair = id + "\u0000" + dependencyId;
+                if (dependencyPairs.contains(pair)) {
                     continue;
                 }
+                if (dependencyPairs.size() >= MAX_DEPENDENCY_EDGES) {
+                    throw new IOException("Mod dependency analysis exceeds the bounded edge limit");
+                }
+                dependencyPairs.add(pair);
                 List<Mod> dependencies = byId.getOrDefault(dependencyId, List.of());
                 if (dependencies.isEmpty()) {
                     MetadataProblem problem = unresolvedByFolder.get(dependencyId);
                     if (problem != null) {
-                        findings.add(finding(
+                        addFinding(findings, finding(
                                 "mod-metadata.required-dependency-invalid",
                                 SetupAnalysis.Severity.BLOCKING,
                                 "Mod " + id + " requires " + dependencyId
@@ -193,7 +203,7 @@ final class ModMetadataCheck {
                                         "problem", problem.code()),
                                 List.of(id, dependencyId)));
                     } else {
-                        findings.add(finding(
+                        addFinding(findings, finding(
                                 "mod-metadata.required-dependency-missing",
                                 SetupAnalysis.Severity.BLOCKING,
                                 "Mod " + id + " requires missing dependency " + dependencyId + ".",
@@ -206,7 +216,7 @@ final class ModMetadataCheck {
                     continue;
                 }
                 if (!enabledSet.contains(dependencyId)) {
-                    findings.add(finding(
+                    addFinding(findings, finding(
                             "mod-metadata.required-dependency-disabled",
                             SetupAnalysis.Severity.BLOCKING,
                             "Mod " + id + " requires installed but disabled dependency " + dependencyId + ".",
@@ -221,6 +231,25 @@ final class ModMetadataCheck {
                 directories.size(),
                 budget.bytesRead(),
                 System.nanoTime() - started);
+    }
+
+    private static void addRelevantId(Set<String> relevantIds, String id) throws IOException {
+        if (relevantIds.contains(id)) {
+            return;
+        }
+        if (relevantIds.size() >= MAX_RELEVANT_IDS) {
+            throw new IOException("Mod dependency analysis exceeds the bounded ID limit");
+        }
+        relevantIds.add(id);
+    }
+
+    private static void addFinding(
+            List<SetupAnalysis.Finding> findings,
+            SetupAnalysis.Finding finding) throws IOException {
+        if (findings.size() >= MAX_FINDINGS) {
+            throw new IOException("Mod metadata analysis exceeds the shared finding limit");
+        }
+        findings.add(finding);
     }
 
     private static SetupAnalysis.Finding finding(
