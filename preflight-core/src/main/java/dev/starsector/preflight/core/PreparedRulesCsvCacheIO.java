@@ -6,6 +6,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -54,11 +55,25 @@ public final class PreparedRulesCsvCacheIO {
     }
 
     public static PreparedRulesCsvCache read(Path source) throws IOException {
-        long size = Files.size(source);
-        if (size < minimumFileBytes() || size > MAX_FILE_BYTES) {
-            throw new IOException("Prepared rules cache size is invalid: " + source);
+        return read(source, MAX_FILE_BYTES);
+    }
+
+    static PreparedRulesCsvCache read(Path source, int maximumBytes) throws IOException {
+        if (maximumBytes < minimumFileBytes() || maximumBytes > MAX_FILE_BYTES) {
+            throw new IllegalArgumentException("Invalid prepared rules cache read limit: " + maximumBytes);
         }
-        return fromBytes(Files.readAllBytes(source));
+        byte[] bytes;
+        try (InputStream input = Files.newInputStream(source, StandardOpenOption.READ)) {
+            bytes = input.readNBytes(Math.addExact(maximumBytes, 1));
+        }
+        if (bytes.length < minimumFileBytes()) {
+            throw new IOException("Prepared rules cache is too small: " + source);
+        }
+        if (bytes.length > maximumBytes) {
+            throw new IOException(
+                    "Prepared rules cache exceeds the " + maximumBytes + " byte safety limit: " + source);
+        }
+        return fromBytes(bytes);
     }
 
     public static byte[] toBytes(PreparedRulesCsvCache cache) throws IOException {
