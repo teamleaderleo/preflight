@@ -156,6 +156,21 @@ class AudioCensusTest {
         assertEquals(16_384, sound(result, "sounds/shared.ogg").decodedBytes());
     }
 
+    @Test
+    void reportsMalformedDeclarationsAsMissingInsteadOfAbortingTheScan() throws Exception {
+        Path core = writeMinimalProfile();
+        Files.writeString(core.resolve("data/config/sounds.json"), """
+                {
+                  "bad_effect":[{"file":"../outside.ogg","volume":1}],
+                  "music":{"bad_music":[{"file":"C:/outside.ogg","volume":1}]}
+                }
+                """);
+
+        AudioCensus.Result result = AudioCensus.scan(temporaryDirectory);
+
+        assertEquals(List.of("../outside.ogg", "c:/outside.ogg"), result.missingDeclarations());
+    }
+
     private Path writeMinimalProfile() throws IOException {
         Path core = temporaryDirectory.resolve("starsector-core");
         Path mods = temporaryDirectory.resolve("mods");
