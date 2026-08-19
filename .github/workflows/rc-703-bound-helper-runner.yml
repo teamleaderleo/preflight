@@ -1,0 +1,95 @@
+name: RC 703 isolated bound helper hardening
+
+on:
+  push:
+    branches:
+      - rc-703-bound-helper-runner
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/desktop-report-authority
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Apply hardening to target branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          helper = Path('preflight-desktop/src-tauri/src/report_authority_dir.rs')
+          text = helper.read_text()
+          text = text.replace(
+              'libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_DIRECTORY,',
+              'libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_DIRECTORY | libc::O_CLOEXEC,',
+          )
+          text = text.replace(
+              'libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW,',
+              'libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW | libc::O_CLOEXEC,',
+          )
+          text = text.replace(
+              'libc::O_RDONLY | libc::O_NOFOLLOW,',
+              'libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC,',
+          )
+          text = text.replace(
+              'let duplicate = unsafe { libc::dup(parent.as_raw_fd()) };',
+              'let duplicate = unsafe { libc::fcntl(parent.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 0) };',
+          )
+          old = '''            let wide = unsafe {
+                std::slice::from_raw_parts(buffer.as_ptr().add(12).cast::<u16>(), name_bytes / 2)
+            };
+            let name = OsString::from_wide(wide).into_string().map_err(|_| {'''
+          new = '''            let wide = buffer[12..12 + name_bytes]
+                .chunks_exact(2)
+                .map(|pair| u16::from_ne_bytes([pair[0], pair[1]]))
+                .collect::<Vec<_>>();
+            let name = OsString::from_wide(&wide).into_string().map_err(|_| {'''
+          if old not in text:
+              raise SystemExit('Windows directory decode seam changed unexpectedly')
+          helper.write_text(text.replace(old, new, 1))
+          PY
+
+          cd preflight-desktop/src-tauri
+          cargo fmt --all
+          cd ../..
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+
+          lock_path = Path('preflight-desktop/capabilities/release-receipt-source-lock.json')
+          lock = json.loads(lock_path.read_text())
+          for name in [
+              'preflight-desktop/src-tauri/src/report_authority.rs',
+              'preflight-desktop/src-tauri/src/report_authority_dir.rs',
+              'preflight-desktop/src-tauri/src/reports.rs',
+          ]:
+              data = Path(name).read_text().replace('\r\n', '\n').encode()
+              lock['sources'][name] = hashlib.sha256(data).hexdigest()
+          lock['sources'] = dict(sorted(lock['sources'].items()))
+          lock_path.write_text(json.dumps(lock, indent=2) + '\n')
+          PY
+
+          cd preflight-desktop/src-tauri
+          cargo test --locked --test report_authority_dir
+          cargo test --locked --lib report_authority::tests
+          cargo clippy --locked --all-targets -- -D warnings
+          cd ../..
+          node preflight-desktop/scripts/review-capability-lock.mjs --check
+          git diff --check
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add preflight-desktop/src-tauri/src/report_authority_dir.rs \
+                  preflight-desktop/capabilities/release-receipt-source-lock.json
+          git commit -m 'fix(desktop): harden bound report directory handles'
+          git push origin HEAD:fix/desktop-report-authority
