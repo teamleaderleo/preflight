@@ -79,17 +79,23 @@ happened in that run rather than what another machine should expect.
 - **Launch.** Recommended mode applies reviewed runtime shortcuts inside the child game JVM and
   tracks which adapters ran, declined, or failed.
 - **Playtime.** A durable local ledger totals how long Starsector remains open across launches that
-  Preflight can observe. It continues recording when the desktop minimizes or quits after launch.
+  Preflight can observe. It continues recording when the desktop minimizes or quits after launch,
+  and the history can be exported as versioned JSON or CSV.
 - **Profiles.** Named mod profiles retain their own identities and prepared data. Switching a
-  profile previews the exact `enabled_mods.json` change and saves a backup.
+  profile previews the exact `enabled_mods.json` change and saves a backup. Saved profiles can also
+  be duplicated before experimenting without copying mods, saves, or cache bytes.
 - **Storage.** The desktop app calculates a conservative disk requirement before writing, separates
   prepared data from old reports, and previews cleanup before anything is removed. Cleanup keeps the
   current and saved profiles fast.
 - **Game settings.** Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and battle size are
   available beside the launch button.
-- **Evidence.** The benchmark compares a normal launch with Preflight. A separate support ZIP
-  contains bounded, disclosed metadata and excludes saves, assets, screenshots, recordings, caches,
-  and arbitrary logs.
+- **Evidence and support.** The benchmark compares a normal launch with Preflight. Help can copy a
+  bounded privacy-safe setup summary for a forum, Discord, or support conversation. A separate
+  support ZIP contains disclosed allowlisted metadata and excludes saves, assets, screenshots,
+  recordings, caches, arbitrary logs, and credentials.
+- **Updates and package identity.** The desktop release path uses the project signing key for
+  updates, and every package carries a machine-checked capability receipt describing the commands,
+  writes, child processes, links, and network endpoints available to that exact build.
 
 The normal path is simple: open Preflight and press the large button. It finds Starsector, prepares
 the current profile when needed, and launches the game. Recommended optimizations and Balanced
@@ -145,9 +151,10 @@ Preflight checks the installed code before applying an optimization. If it doesn
 something, it leaves it alone. I tried to get the app itself to also be as performant as possible.
 This should be better than Microsoft Teams.
 
-Preflight doesn’t modify saves. Ordinary launches send nothing. Optional failed-run reports are off
-until you enable them, and use the same bounded support ZIP shown in Help. This is still a beta. If
-you find a problem, please report it. I will investigate.
+Preflight doesn’t modify saves. Ordinary game launches upload no logs or telemetry. Support-report
+sending is a separate disclosed action using the bounded ZIP shown in Help, and automatic failed-run
+reporting stays off until you enable it. This is still a beta. If you find a problem, please report
+it. I will investigate.
 
 Every package also carries a [machine-checked capability receipt](docs/capability-receipt.md) listing
 the commands, writes, child processes, links, and network endpoints available to that exact build.
@@ -256,7 +263,12 @@ The detailed disk model and safe pruning behavior are in
 <img alt="Preflight saved mod profiles" src="docs/images/desktop-profiles-light.png">
 
 Named profiles preserve ordered mod selections and let prepared data follow the setup it belongs to.
-Diagnostics are managed independently from acceleration data. Export includes only allowlisted text
+They can be duplicated before an experiment without changing the active game profile or duplicating
+mods, saves, or prepared bytes. The local play-history ledger can be exported as a versioned JSON
+document with an optional spreadsheet-safe CSV view.
+
+Diagnostics are managed independently from acceleration data. **Copy setup** produces a compact
+privacy-safe summary for ordinary support. The separate ZIP export includes only allowlisted text
 metadata from recent runs and benchmarks, with an in-ZIP disclosure that names every included or
 skipped file.
 
@@ -264,7 +276,8 @@ Removal has two scopes. Removing the launcher leaves Starsector and Preflight's 
 place. Removing all Preflight data includes caches, profiles, retained evidence, and backups after a
 target review. Neither scope includes Starsector, mods, saves, or game-owned settings.
 
-See [Diagnostics export](docs/diagnostics.md), [Privacy](docs/privacy.md), and
+See [Diagnostics export](docs/diagnostics.md), [Privacy](docs/privacy.md),
+[Portable play-history export](docs/play-history-export.md), and
 [Downloads and installation](docs/downloads.md) for the exact behavior.
 
 ## Before the public beta
@@ -302,6 +315,7 @@ extension mismatches, unused files, and configuration placed where the game neve
 ## Documentation
 
 - [Documentation map](docs/README.md)
+- [Leo's release talking points](docs/leo-talking-points.md)
 - [Optimization history](docs/optimization-history.md)
 - [Product contract](docs/product-contract.md)
 - [Release readiness](docs/release-readiness.md)

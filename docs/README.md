@@ -26,6 +26,8 @@ archive. They answer different questions. This page is the shortest route to the
 - [Downloads and installation](downloads.md): planned artifacts and current private build process.
 - [Leo's beta announcement draft](beta-announcement-leo-draft.md): the short forum and Reddit post,
   with the result first and instructions at the bottom.
+- [Leo's talking points](leo-talking-points.md): the release crib sheet for remembered features,
+  trust/privacy answers, claim qualifiers, and small product opportunities.
 - [Long beta announcement draft](beta-announcement-draft.md): retained source copy with the fuller
   privacy, compatibility, and release explanation.
 - [Patreon page draft](patreon-page-draft.md): short About, tier, welcome, and first-post copy.
