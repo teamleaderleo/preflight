@@ -6,7 +6,6 @@ import dev.starsector.preflight.core.ResourceIndex;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,7 +52,6 @@ class StaticReferenceBoundsTest {
     void excessiveMissingHullFindingsStayBlockingAndBounded() throws Exception {
         Path root = Files.createDirectories(temp.resolve("many-missing"));
         Map<String, List<ResourceIndex.Provider>> entries = new LinkedHashMap<>();
-        List<Path> files = new ArrayList<>();
         for (int index = 0; index < 257; index++) {
             String relative = "data/variants/missing-" + String.format("%03d", index) + ".variant";
             Path file = root.resolve(relative);
@@ -61,7 +59,6 @@ class StaticReferenceBoundsTest {
             byte[] bytes = ("{\"variantId\":\"variant_" + index + "\",\"hullId\":\"missing_" + index + "\"}")
                     .getBytes(StandardCharsets.UTF_8);
             Files.write(file, bytes);
-            files.add(file);
             long modified = Math.max(1L, Files.getLastModifiedTime(file).toMillis());
             entries.put(relative, List.of(new ResourceIndex.Provider(0, relative, bytes.length, modified)));
         }
