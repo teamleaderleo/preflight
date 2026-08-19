@@ -208,7 +208,9 @@ final class AgentJarStaging {
         PosixFileAttributeView posix = Files.getFileAttributeView(
                 root, PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
         Path directory = posix == null
-                ? Files.createTempDirectory(root, DIRECTORY_NAME + "-")
+                ? (WindowsPrivateDirectory.supported()
+                        ? WindowsPrivateDirectory.create(root, DIRECTORY_NAME + "-")
+                        : Files.createTempDirectory(root, DIRECTORY_NAME + "-"))
                 : Files.createTempDirectory(
                         root,
                         DIRECTORY_NAME + "-",
