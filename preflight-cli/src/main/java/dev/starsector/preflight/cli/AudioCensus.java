@@ -209,17 +209,25 @@ final class AudioCensus {
     private static List<String> missingDeclarations(ResourceIndex index, Declarations declarations) {
         List<String> missing = new ArrayList<>();
         for (String declared : declarations.effectFiles()) {
-            if (index.providers(declared).isEmpty()) {
+            if (isMissing(index, declared)) {
                 missing.add(declared);
             }
         }
         for (String declared : declarations.musicFiles()) {
-            if (index.providers(declared).isEmpty()) {
+            if (isMissing(index, declared)) {
                 missing.add(declared);
             }
         }
         missing.sort(Comparator.naturalOrder());
         return List.copyOf(missing);
+    }
+
+    private static boolean isMissing(ResourceIndex index, String declared) {
+        try {
+            return index.providers(declared).isEmpty();
+        } catch (IllegalArgumentException invalidPath) {
+            return true;
+        }
     }
 
     private static Map<String, Object> report(

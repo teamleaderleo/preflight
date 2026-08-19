@@ -7,7 +7,11 @@ import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -141,6 +145,10 @@ public final class PreparedHullJsonCacheIO {
             TreeMap<String, byte[]> entries = new TreeMap<>();
             for (int index = 0; index < count; index++) {
                 String path = readString(input, MAX_PATH_BYTES);
+                String canonicalPath = SpecCachePaths.normalizeKey(path);
+                if (!canonicalPath.equals(path)) {
+                    throw new IOException("Prepared hull cache path is not canonical: " + path);
+                }
                 byte[] tree = readBytes(input, MAX_TREE_BYTES);
                 if (entries.put(path, tree) != null) {
                     throw new IOException("Duplicate prepared hull path: " + path);
@@ -154,7 +162,17 @@ public final class PreparedHullJsonCacheIO {
     }
 
     private static void writeString(DataOutputStream output, String value, int limit) throws IOException {
-        byte[] bytes = value.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] bytes;
+        try {
+            ByteBuffer encoded = StandardCharsets.UTF_8.newEncoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .encode(CharBuffer.wrap(value));
+            bytes = new byte[encoded.remaining()];
+            encoded.get(bytes);
+        } catch (CharacterCodingException error) {
+            throw new IOException("Prepared hull cache string cannot be encoded as UTF-8", error);
+        }
         writeBytes(output, bytes, limit);
     }
 
@@ -171,7 +189,16 @@ public final class PreparedHullJsonCacheIO {
         if (length < 0 || length > limit) {
             throw new IOException("Prepared hull cache string length is invalid: " + length);
         }
-        return new String(readBytes(input, length, limit), java.nio.charset.StandardCharsets.UTF_8);
+        byte[] bytes = readBytes(input, length, limit);
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
+        } catch (CharacterCodingException error) {
+            throw new IOException("Prepared hull cache string is not valid UTF-8", error);
+        }
     }
 
     private static byte[] readBytes(DataInputStream input, int limit) throws IOException {

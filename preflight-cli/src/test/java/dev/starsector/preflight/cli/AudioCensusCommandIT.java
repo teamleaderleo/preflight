@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.starsector.preflight.core.Json;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -51,6 +52,30 @@ class AudioCensusCommandIT {
         assertTrue(rows.stream().anyMatch(row -> row.startsWith("\"sounds/effect-one.ogg\",\"core\",effect,")), rows.toString());
         assertTrue(rows.stream().anyMatch(row -> row.contains(",music,")), rows.toString());
         assertTrue(rows.stream().anyMatch(row -> row.contains(",unreferenced,")), rows.toString());
+    }
+
+    @Test
+    void csvNeutralizesSpreadsheetFormulasFromProfileMetadata() throws Exception {
+        Path game = buildProfile();
+        Path mod = game.resolve("mods/formula-mod");
+        Files.createDirectories(mod.resolve("data/config"));
+        String maliciousId = "\t=HYPERLINK(\"https://attacker.example\",\"click\")";
+        Files.writeString(game.resolve("mods/enabled_mods.json"),
+                "{\"enabledMods\":[" + Json.quote(maliciousId) + "]}");
+        Files.writeString(mod.resolve("mod_info.json"), "{\"id\":" + Json.quote(maliciousId) + "}");
+        write(mod, "@effect.ogg", "mono-22050.ogg");
+        Files.writeString(mod.resolve("data/config/sounds.json"), """
+                {"formula_effect":[{"file":"@effect.ogg","volume":1}]}
+                """);
+        Path csv = temporaryDirectory.resolve("formula.csv");
+
+        assertEquals(0, AudioCensusCommand.execute(
+                new String[] {"--game", game.toString(), "--csv", csv.toString()}, 0));
+
+        String csvText = Files.readString(csv);
+        assertTrue(csvText.contains(
+                "\"'@effect.ogg\",\"'\t=HYPERLINK(\"\"https://attacker.example\"\",\"\"click\"\")\",effect,"),
+                csvText);
     }
 
     @Test

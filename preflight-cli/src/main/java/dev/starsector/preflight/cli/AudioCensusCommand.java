@@ -72,7 +72,17 @@ final class AudioCensusCommand {
     }
 
     private static String quote(String value) {
-        return '"' + value.replace("\"", "\"\"") + '"';
+        // Spreadsheet parsers also treat leading tab/CR/LF as formula-capable prefixes.
+        boolean spreadsheetControl = false;
+        if (!value.isEmpty()) {
+            char first = value.charAt(0);
+            spreadsheetControl = "=+-@".indexOf(first) >= 0
+                    || first == '\t'
+                    || first == '\r'
+                    || first == '\n';
+        }
+        String safe = spreadsheetControl ? "'" + value : value;
+        return '"' + safe.replace("\"", "\"\"") + '"';
     }
 
     private static String requireValue(String[] args, int index, String option) {
