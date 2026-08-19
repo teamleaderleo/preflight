@@ -89,6 +89,19 @@ class BlockTextureIOTest {
     }
 
     @Test
+    void readStopsAtConfiguredBoundBeforeParsing() throws Exception {
+        BlockTexture texture = fixture(16, 16, false);
+        byte[] bytes = BlockTextureIO.toBytes(texture);
+        Path file = temporaryDirectory.resolve("bounded.spfb");
+        Files.write(file, bytes);
+
+        assertEquals(texture, BlockTextureIO.read(file, bytes.length));
+        IOException oversized = assertThrows(IOException.class, () -> BlockTextureIO.read(file, bytes.length - 1));
+        assertTrue(oversized.getMessage().contains((bytes.length - 1) + " byte safety limit"));
+        assertThrows(IllegalArgumentException.class, () -> BlockTextureIO.read(file, 32));
+    }
+
+    @Test
     void refusesAStaleEncodersBlocksAsData() throws Exception {
         // A blob from an older encoder is not corrupt and cannot be recognised by inspection; the
         // codec version is the only thing that distinguishes it, so it has to survive the round trip.
