@@ -1,6 +1,8 @@
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
+#[cfg(test)]
+use std::sync::Mutex;
 use std::time::SystemTime;
 
 /// One exact opened report-authority directory generation.
@@ -13,6 +15,67 @@ pub(crate) struct BoundDirectory {
     path: PathBuf,
     file: File,
 }
+
+#[cfg(test)]
+struct TestHook {
+    name: String,
+    callback: Box<dyn FnOnce() + Send>,
+}
+
+#[cfg(test)]
+static TEST_BEFORE_DELETE: Mutex<Option<TestHook>> = Mutex::new(None);
+#[cfg(test)]
+static TEST_BEFORE_READ: Mutex<Option<TestHook>> = Mutex::new(None);
+
+#[cfg(test)]
+pub(crate) fn install_before_delete_test_hook(
+    name: &str,
+    callback: impl FnOnce() + Send + 'static,
+) {
+    *TEST_BEFORE_DELETE.lock().expect("delete test hook lock") = Some(TestHook {
+        name: name.to_string(),
+        callback: Box::new(callback),
+    });
+}
+
+#[cfg(test)]
+pub(crate) fn install_before_read_test_hook(name: &str, callback: impl FnOnce() + Send + 'static) {
+    *TEST_BEFORE_READ.lock().expect("read test hook lock") = Some(TestHook {
+        name: name.to_string(),
+        callback: Box::new(callback),
+    });
+}
+
+#[cfg(test)]
+fn run_test_hook(slot: &Mutex<Option<TestHook>>, name: &str) {
+    let hook = {
+        let mut slot = slot.lock().expect("report-authority test hook lock");
+        if slot.as_ref().is_some_and(|hook| hook.name == name) {
+            slot.take()
+        } else {
+            None
+        }
+    };
+    if let Some(hook) = hook {
+        (hook.callback)();
+    }
+}
+
+#[cfg(test)]
+fn run_before_delete_test_hook(name: &str) {
+    run_test_hook(&TEST_BEFORE_DELETE, name);
+}
+
+#[cfg(not(test))]
+fn run_before_delete_test_hook(_name: &str) {}
+
+#[cfg(test)]
+fn run_before_read_test_hook(name: &str) {
+    run_test_hook(&TEST_BEFORE_READ, name);
+}
+
+#[cfg(not(test))]
+fn run_before_read_test_hook(_name: &str) {}
 
 impl BoundDirectory {
     pub(crate) fn open(path: &Path) -> Result<Self, String> {
@@ -32,9 +95,7 @@ impl BoundDirectory {
 
     pub(crate) fn require_current(&self) -> Result<(), String> {
         let current = imp::open_directory(&self.path).map_err(|error| {
-            format!(
-                "Protected report storage changed while report authority was active: {error}"
-            )
+            format!("Protected report storage changed while report authority was active: {error}")
         })?;
         if imp::same_identity(&self.file, &current).map_err(|error| {
             format!("Could not compare protected report storage generations: {error}")
@@ -79,7 +140,7 @@ impl BoundDirectory {
     }
 
     pub(crate) fn read_bytes(&self, name: &str, max_bytes: u64) -> Result<Vec<u8>, String> {
-        let mut file = self.open_regular(name).map_err(|error| {
+        let file = self.open_regular(name).map_err(|error| {
             format!("Could not open parent-bound report-authority entry {name}: {error}")
         })?;
         let metadata = file.metadata().map_err(|error| {
@@ -88,10 +149,15 @@ impl BoundDirectory {
         if metadata.len() > max_bytes {
             return Err("Saved report authority is unexpectedly large.".to_string());
         }
+        run_before_read_test_hook(name);
         let mut bytes = Vec::with_capacity(metadata.len() as usize);
-        file.read_to_end(&mut bytes).map_err(|error| {
+        let mut limited = file.take(max_bytes.saturating_add(1));
+        limited.read_to_end(&mut bytes).map_err(|error| {
             format!("Could not read parent-bound report-authority entry {name}: {error}")
         })?;
+        if bytes.len() as u64 > max_bytes {
+            return Err("Saved report authority is unexpectedly large.".to_string());
+        }
         Ok(bytes)
     }
 
@@ -166,6 +232,20 @@ mod imp {
     use std::os::unix::ffi::OsStrExt;
     use std::os::unix::fs::MetadataExt;
     use std::path::Component;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_DELETE_ANCHOR: AtomicU64 = AtomicU64::new(1);
+
+    #[cfg(target_os = "macos")]
+    unsafe extern "C" {
+        fn renameatx_np(
+            from_fd: libc::c_int,
+            from: *const libc::c_char,
+            to_fd: libc::c_int,
+            to: *const libc::c_char,
+            flags: libc::c_uint,
+        ) -> libc::c_int;
+    }
 
     pub(super) fn open_directory(path: &Path) -> io::Result<File> {
         if !path.is_absolute() {
@@ -196,10 +276,7 @@ mod imp {
                         libc::openat(
                             current.as_raw_fd(),
                             name.as_ptr(),
-                            libc::O_RDONLY
-                                | libc::O_NOFOLLOW
-                                | libc::O_DIRECTORY
-                                | libc::O_CLOEXEC,
+                            libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_DIRECTORY | libc::O_CLOEXEC,
                         )
                     };
                     if fd < 0 {
@@ -232,11 +309,7 @@ mod imp {
             libc::openat(
                 parent.as_raw_fd(),
                 name.as_ptr(),
-                libc::O_WRONLY
-                    | libc::O_CREAT
-                    | libc::O_EXCL
-                    | libc::O_NOFOLLOW
-                    | libc::O_CLOEXEC,
+                libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW | libc::O_CLOEXEC,
                 mode as libc::mode_t,
             )
         };
@@ -318,20 +391,98 @@ mod imp {
     }
 
     pub(super) fn delete_file(parent: &File, name: &str) -> io::Result<()> {
-        let file = open_regular(parent, name)?;
-        if !file.metadata()?.is_file() {
+        let reviewed = open_regular(parent, name)?;
+        if !reviewed.metadata()?.is_file() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "parent-bound report-authority entry is not a regular file",
             ));
         }
-        drop(file);
-        let name = CString::new(name)
+
+        // First move the contested public name to a private no-replace sibling. The identity
+        // check below proves that the moved object is the exact child generation we reviewed.
+        // A newcomer can then occupy the public name without becoming deletion collateral.
+        let anchor = (0..32)
+            .find_map(|_| {
+                let candidate = format!(
+                    ".preflight-delete-{}-{}",
+                    std::process::id(),
+                    NEXT_DELETE_ANCHOR.fetch_add(1, Ordering::Relaxed)
+                );
+                match rename_no_replace(parent, name, &candidate) {
+                    Ok(()) => Some(Ok(candidate)),
+                    Err(error) if error.kind() == io::ErrorKind::AlreadyExists => None,
+                    Err(error) => Some(Err(error)),
+                }
+            })
+            .transpose()?
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::AlreadyExists,
+                    "could not reserve a private report-authority deletion anchor",
+                )
+            })?;
+
+        let anchored = match open_regular(parent, &anchor) {
+            Ok(file) => file,
+            Err(error) => {
+                let _ = rename_no_replace(parent, &anchor, name);
+                return Err(error);
+            }
+        };
+        if !same_identity(&reviewed, &anchored)? {
+            drop(anchored);
+            let _ = rename_no_replace(parent, &anchor, name);
+            return Err(io::Error::other(
+                "report-authority child changed before deletion commit",
+            ));
+        }
+
+        super::run_before_delete_test_hook(name);
+        drop(anchored);
+        drop(reviewed);
+        let anchor = CString::new(anchor)
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "filename contains NUL"))?;
-        if unsafe { libc::unlinkat(parent.as_raw_fd(), name.as_ptr(), 0) } != 0 {
+        if unsafe { libc::unlinkat(parent.as_raw_fd(), anchor.as_ptr(), 0) } != 0 {
             return Err(io::Error::last_os_error());
         }
         Ok(())
+    }
+
+    fn rename_no_replace(parent: &File, from: &str, to: &str) -> io::Result<()> {
+        let from = CString::new(from)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "filename contains NUL"))?;
+        let to = CString::new(to)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "filename contains NUL"))?;
+
+        #[cfg(target_os = "linux")]
+        let result = unsafe {
+            libc::syscall(
+                libc::SYS_renameat2,
+                parent.as_raw_fd(),
+                from.as_ptr(),
+                parent.as_raw_fd(),
+                to.as_ptr(),
+                1u32,
+            )
+        };
+
+        #[cfg(target_os = "macos")]
+        let result = unsafe {
+            renameatx_np(
+                parent.as_raw_fd(),
+                from.as_ptr(),
+                parent.as_raw_fd(),
+                to.as_ptr(),
+                0x0000_0004,
+            ) as libc::c_long
+        };
+
+        if result == 0 {
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
+        }
     }
 
     pub(super) fn sync_directory(directory: &File) -> io::Result<()> {
@@ -352,7 +503,7 @@ mod imp {
 #[cfg(windows)]
 mod imp {
     use super::*;
-    use std::ffi::{c_void, OsStr, OsString};
+    use std::ffi::{OsStr, OsString, c_void};
     use std::mem::size_of;
     use std::os::windows::ffi::{OsStrExt, OsStringExt};
     use std::os::windows::io::{AsRawHandle, FromRawHandle, RawHandle};
@@ -622,6 +773,7 @@ mod imp {
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
             Err(error) => return Err(error),
         };
+        super::run_before_delete_test_hook(name);
         let mut disposition = 1u8;
         let mut io_status = [0usize; 2];
         let status = unsafe {
@@ -775,9 +927,8 @@ mod imp {
             file_index_high: 0,
             file_index_low: 0,
         };
-        let ok = unsafe {
-            GetFileInformationByHandle(file.as_raw_handle() as Handle, &mut information)
-        };
+        let ok =
+            unsafe { GetFileInformationByHandle(file.as_raw_handle() as Handle, &mut information) };
         if ok == 0 {
             Err(io::Error::last_os_error())
         } else {

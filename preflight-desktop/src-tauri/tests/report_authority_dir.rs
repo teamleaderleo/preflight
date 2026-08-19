@@ -1,7 +1,9 @@
 #[path = "../src/report_authority_dir.rs"]
 mod report_authority_dir;
 
-use report_authority_dir::BoundDirectory;
+use report_authority_dir::{
+    BoundDirectory, install_before_delete_test_hook, install_before_read_test_hook,
+};
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
@@ -24,7 +26,10 @@ fn relative_create_read_enumerate_and_delete_stay_in_the_opened_directory() {
         b"secret",
         directory.read_bytes("secret.json", 64).unwrap().as_slice()
     );
-    assert_eq!(vec!["secret.json".to_string()], directory.list_names().unwrap());
+    assert_eq!(
+        vec!["secret.json".to_string()],
+        directory.list_names().unwrap()
+    );
     directory.delete_file("secret.json").unwrap();
     assert!(!root.join("secret.json").exists());
     fs::remove_dir_all(base).unwrap();
@@ -49,7 +54,10 @@ fn create_after_public_root_replacement_stays_in_the_reviewed_generation() {
     drop(file);
 
     assert!(directory.require_current().is_err());
-    assert_eq!(b"owned", fs::read(reviewed.join("secret.json")).unwrap().as_slice());
+    assert_eq!(
+        b"owned",
+        fs::read(reviewed.join("secret.json")).unwrap().as_slice()
+    );
     assert_eq!(external_before, snapshot(&root));
     fs::remove_dir_all(base).unwrap();
 }
@@ -117,9 +125,7 @@ fn preexisting_alias_ancestor_is_refused() {
     fs::create_dir_all(external.join("support").join("report-authority")).unwrap();
     symlink(&external, &public).unwrap();
 
-    assert!(
-        BoundDirectory::open(&public.join("support").join("report-authority")).is_err()
-    );
+    assert!(BoundDirectory::open(&public.join("support").join("report-authority")).is_err());
     assert!(
         fs::read_dir(external.join("support").join("report-authority"))
             .unwrap()
@@ -149,9 +155,7 @@ fn preexisting_reparse_ancestor_is_refused() {
         .unwrap();
     assert!(status.success());
 
-    assert!(
-        BoundDirectory::open(&public.join("support").join("report-authority")).is_err()
-    );
+    assert!(BoundDirectory::open(&public.join("support").join("report-authority")).is_err());
     assert!(
         fs::read_dir(external.join("support").join("report-authority"))
             .unwrap()
@@ -159,6 +163,58 @@ fn preexisting_reparse_ancestor_is_refused() {
             .is_none()
     );
     fs::remove_dir(public).unwrap();
+    fs::remove_dir_all(base).unwrap();
+}
+
+#[test]
+fn same_parent_replacement_after_child_proof_preserves_the_newcomer() {
+    let base = temp_root("same-parent-replacement");
+    let root = base.join("authority");
+    fs::create_dir_all(&root).unwrap();
+    let public = root.join("replace-target.json");
+    fs::write(&public, b"owned").unwrap();
+    let directory = BoundDirectory::open(&root).unwrap();
+
+    let public_for_hook = public.clone();
+    #[cfg(windows)]
+    let moved_for_hook = root.join("reviewed-old.json");
+    install_before_delete_test_hook("replace-target.json", move || {
+        #[cfg(windows)]
+        fs::rename(&public_for_hook, &moved_for_hook).unwrap();
+        #[cfg(unix)]
+        assert!(!public_for_hook.exists());
+        fs::write(&public_for_hook, b"external").unwrap();
+    });
+
+    directory.delete_file("replace-target.json").unwrap();
+
+    assert_eq!(b"external", fs::read(&public).unwrap().as_slice());
+    #[cfg(windows)]
+    assert!(!root.join("reviewed-old.json").exists());
+    fs::remove_dir_all(base).unwrap();
+}
+
+#[test]
+fn read_bytes_rejects_growth_after_the_initial_metadata_check() {
+    let base = temp_root("growing-read");
+    let root = base.join("authority");
+    fs::create_dir_all(&root).unwrap();
+    let path = root.join("grow.json");
+    fs::write(&path, b"tiny").unwrap();
+    let directory = BoundDirectory::open(&root).unwrap();
+
+    let path_for_hook = path.clone();
+    install_before_read_test_hook("grow.json", move || {
+        let mut file = fs::OpenOptions::new()
+            .append(true)
+            .open(&path_for_hook)
+            .unwrap();
+        file.write_all(&[b'x'; 128]).unwrap();
+        file.sync_all().unwrap();
+    });
+
+    let error = directory.read_bytes("grow.json", 8).unwrap_err();
+    assert!(error.contains("unexpectedly large"));
     fs::remove_dir_all(base).unwrap();
 }
 
