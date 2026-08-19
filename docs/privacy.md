@@ -60,8 +60,8 @@ metadata. Occurrences of the current user home are replaced with `<home>`.
 
 It excludes acceleration caches, Starsector and mod files, saves, logs and crash dumps, JFR
 recordings, screenshots, audio, unknown filenames, binary content, symbolic links, files above 512
-KiB, and source content above 5 MiB. The exact format is documented in
-[Diagnostics export](diagnostics.md).
+KiB, and source content above 5 MiB. The exact format is documented in the
+[Diagnostics export guide](https://github.com/teamleaderleo/preflight/blob/main/docs/diagnostics.md).
 
 ### Deferred remote reporting
 
@@ -81,5 +81,6 @@ they do not describe a capability of the first-beta package.
 **Project operator:** the Preflight project maintainer (`teamleaderleo`).
 **Contact:** [the Preflight issue tracker](https://github.com/teamleaderleo/preflight/issues). Do not
 post private diagnostics, credentials, personal data, or security exploit details in a public issue;
-use a private support path for a diagnostics ZIP and [security policy](../SECURITY.md) as applicable.
+use a private support path for a diagnostics ZIP and the repository's
+[security policy](https://github.com/teamleaderleo/preflight/blob/main/SECURITY.md) as applicable.
 **Privacy notice effective date:** 2026-08-19.
