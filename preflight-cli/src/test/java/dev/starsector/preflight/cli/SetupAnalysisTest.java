@@ -85,8 +85,8 @@ class SetupAnalysisTest {
     void composeBoundsTwoFullProvidersWithoutIterationOrderBias() {
         List<SetupAnalysis.Finding> raw = new ArrayList<>();
         for (int index = 0; index < 256; index++) {
-            raw.add(finding("a.block", "provider-a", SetupAnalysis.Severity.BLOCKING));
-            raw.add(finding("b.block", "provider-b", SetupAnalysis.Severity.BLOCKING));
+            raw.add(indexedFinding("a.block", "provider-a", SetupAnalysis.Severity.BLOCKING, index));
+            raw.add(indexedFinding("b.block", "provider-b", SetupAnalysis.Severity.BLOCKING, index));
         }
 
         SetupAnalysis.Result first = SetupAnalysis.compose(
@@ -122,10 +122,10 @@ class SetupAnalysisTest {
     void blockerNoiseCannotEraseAnotherProvidersSuppressedWarning() {
         List<SetupAnalysis.Finding> raw = new ArrayList<>();
         for (int index = 0; index < 300; index++) {
-            raw.add(finding("a.block", "provider-a", SetupAnalysis.Severity.BLOCKING));
+            raw.add(indexedFinding("a.block", "provider-a", SetupAnalysis.Severity.BLOCKING, index));
         }
         for (int index = 0; index < 10; index++) {
-            raw.add(finding("b.warn", "provider-b", SetupAnalysis.Severity.WARNING));
+            raw.add(indexedFinding("b.warn", "provider-b", SetupAnalysis.Severity.WARNING, index));
         }
 
         SetupAnalysis.Result result = SetupAnalysis.compose("game", "profile", raw, List.of());
@@ -148,7 +148,7 @@ class SetupAnalysisTest {
     void composeRejectsUnboundedRawProviderFanIn() {
         List<SetupAnalysis.Finding> raw = new ArrayList<>();
         for (int index = 0; index < 8_193; index++) {
-            raw.add(finding("info", "provider", SetupAnalysis.Severity.INFO));
+            raw.add(indexedFinding("info", "provider", SetupAnalysis.Severity.INFO, index));
         }
         assertThrows(
                 IllegalArgumentException.class,
@@ -193,6 +193,21 @@ class SetupAnalysisTest {
                 severity,
                 "summary " + code,
                 Map.of("kind", code),
+                List.of(),
+                List.of());
+    }
+
+    private static SetupAnalysis.Finding indexedFinding(
+            String code,
+            String provider,
+            SetupAnalysis.Severity severity,
+            int index) {
+        return new SetupAnalysis.Finding(
+                code,
+                provider,
+                severity,
+                "summary " + code,
+                Map.of("index", index),
                 List.of(),
                 List.of());
     }
