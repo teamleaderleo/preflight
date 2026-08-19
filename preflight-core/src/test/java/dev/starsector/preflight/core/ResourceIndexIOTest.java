@@ -38,6 +38,19 @@ class ResourceIndexIOTest {
     }
 
     @Test
+    void boundedReadRejectsAtTheStreamLimit() throws Exception {
+        byte[] bytes = ResourceIndexIO.toBytes(fixtureIndex(false));
+        Path input = temporaryDirectory.resolve("bounded.spfi");
+        Files.write(input, bytes);
+
+        IOException error = assertThrows(
+                IOException.class,
+                () -> ResourceIndexIO.read(input, bytes.length - 1));
+
+        assertTrue(error.getMessage().contains("byte safety limit"));
+    }
+
+    @Test
     void rejectsCorruptPayloads() throws Exception {
         byte[] bytes = ResourceIndexIO.toBytes(fixtureIndex(false));
         bytes[bytes.length / 2] ^= 0x5a;
