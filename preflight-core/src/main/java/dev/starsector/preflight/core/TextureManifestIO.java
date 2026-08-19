@@ -6,6 +6,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.channels.FileChannel;
@@ -71,11 +72,25 @@ public final class TextureManifestIO {
     }
 
     public static TextureManifest read(Path source) throws IOException {
-        long size = Files.size(source);
-        if (size < minimumFileBytes() || size > MAX_FILE_BYTES) {
-            throw new IOException("Texture manifest size is invalid: " + source);
+        return read(source, MAX_FILE_BYTES);
+    }
+
+    static TextureManifest read(Path source, int maximumBytes) throws IOException {
+        if (maximumBytes < minimumFileBytes() || maximumBytes > MAX_FILE_BYTES) {
+            throw new IllegalArgumentException("Invalid texture manifest read limit: " + maximumBytes);
         }
-        return fromBytes(Files.readAllBytes(source));
+        byte[] bytes;
+        try (InputStream input = Files.newInputStream(source, StandardOpenOption.READ)) {
+            bytes = input.readNBytes(Math.addExact(maximumBytes, 1));
+        }
+        if (bytes.length < minimumFileBytes()) {
+            throw new IOException("Texture manifest is too small: " + source);
+        }
+        if (bytes.length > maximumBytes) {
+            throw new IOException(
+                    "Texture manifest exceeds the " + maximumBytes + " byte safety limit: " + source);
+        }
+        return fromBytes(bytes);
     }
 
     public static byte[] toBytes(TextureManifest manifest) throws IOException {
