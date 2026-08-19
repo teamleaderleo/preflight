@@ -6,10 +6,12 @@ import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import dev.starsector.preflight.core.TextureManifest;
 import dev.starsector.preflight.core.TextureManifestIO;
+import dev.starsector.preflight.core.TextureSourceGenerationAuthority;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 
 /** Resolves only an exact, already-prepared texture cache for the current installed profile. */
 final class CurrentTextureCache {
@@ -56,33 +58,53 @@ final class CurrentTextureCache {
         if (!stored.roots().equals(current.roots()) || !stored.entries().equals(current.entries())) {
             throw new IOException("Prepared texture index does not exactly describe the selected installation");
         }
-        // No second pass over the files. `current` was just built by walking this installation and
-        // reading each file's attributes, and the comparison above proves `stored` holds exactly the
-        // same roots and the same providers -- same relative path, same size, same modification
-        // time, in the same resolution order. Validating `stored` against disk after that is asking
-        // the filesystem a question it has already answered: 61,693 more toRealPath and
-        // readAttributes calls for 513ms, in the window before the game's JVM even starts.
-        //
-        // The check is not weakened, only deduplicated. A file that vanished, changed size, was
-        // touched, stopped being a regular file, or escaped its root cannot survive the equality
-        // above, because the build would not have produced the same provider for it.
-        //
-        // ResourceIndexValidator still exists and is still used where there is no freshly built
-        // index to compare against -- `doctor`, and the preparation path that checks an artifact
-        // long after it was written.
-        // Carry the checksummed stored index forward. RunCommand's dependency identities need the
-        // same object immediately after this; reading and decoding the 8 MB artifact again added
-        // about 0.21 s while proving nothing the equality check above had not already proved.
+
+        // The fresh index build above is the cheap whole-profile accidental-drift check. Exact
+        // prepared-texture authority comes from the generation proof sealed after preparation had
+        // re-hashed every prepared source against the manifest. Launch compares only those tokens;
+        // it never re-reads the source bytes merely to authorize a cache hit.
+        TextureSourceGenerationAuthority.Validation generation =
+                TextureSourceGenerationAuthority.validate(realCache, manifest, prepared, stored);
+        Path launchManifest = manifest;
+        if (generation.valid()) {
+            System.out.printf(
+                    Locale.ROOT,
+                    "Preflight verified %,d prepared texture source generations with %s "
+                            + "(%.1f MB covered) in %.1fms.%n",
+                    generation.checkedEntries(),
+                    generation.provider(),
+                    generation.sourceBytes() / 1_000_000.0,
+                    generation.durationMillis());
+        } else {
+            // Pass a guaranteed-absent manifest path into the agent. Its existing fail-open
+            // configure path then leaves the original game decoder active, while the resource
+            // index remains available to unrelated launch caches.
+            launchManifest = realCache.resolve(".prepared-textures-disabled-"
+                    + ProcessHandle.current().pid() + '-' + System.nanoTime() + ".spfm");
+            System.err.println("Preflight prepared textures are disabled for this launch: "
+                    + generation.problem() + "; original texture loading remains active.");
+        }
+
+        // No second ResourceIndexValidator pass over the files. `current` was just built by walking
+        // this installation and reading each file's attributes, and the comparison above proves
+        // `stored` holds exactly the same roots and providers. Content authority is now the separate
+        // generation proof rather than another size/mtime sweep or source SHA inside the game JVM.
         return new Resolution(
                 realCache,
-                manifest,
+                launchManifest,
                 index,
                 stored,
                 fingerprint,
                 Hashes.sha256(manifest),
                 Hashes.sha256(index),
                 current.providerCount(),
-                currentBuild.durationMillis());
+                currentBuild.durationMillis(),
+                generation.valid(),
+                generation.provider(),
+                generation.checkedEntries(),
+                generation.sourceBytes(),
+                generation.durationMillis(),
+                generation.problem());
     }
 
     private static Path firstArtifact(Path cache, String fileName, List<String> directories) throws IOException {
@@ -117,6 +139,12 @@ final class CurrentTextureCache {
             String manifestSha256,
             String indexSha256,
             long checkedProviders,
-            double indexBuildMillis) {
+            double indexBuildMillis,
+            boolean sourceGenerationValidated,
+            String sourceGenerationProvider,
+            int sourceGenerationEntries,
+            long sourceGenerationBytes,
+            double sourceGenerationValidationMillis,
+            String sourceGenerationProblem) {
     }
 }
