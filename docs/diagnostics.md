@@ -6,10 +6,9 @@ Create an attachable support bundle without copying acceleration caches or game 
 java -jar preflight.jar evidence export --output preflight-diagnostics.zip
 ```
 
-The desktop application exposes the same engine contract under **Settings → Save diagnostics
-bundle** and asks where to save the ZIP. The default selection is the newest three launch runs and
-two benchmark sessions. CLI callers can lower or raise those session counts explicitly, up to 20
-per category:
+The desktop application exposes the same engine contract under **Help → Make a support file** and
+asks where to save the ZIP. The default selection is the newest three launch runs and two benchmark
+sessions. CLI callers can lower or raise those session counts explicitly, up to 20 per category:
 
 ```bash
 java -jar preflight.jar evidence export \
@@ -68,22 +67,25 @@ sharing if that metadata is sensitive.
 selected-session ranks/timestamps, redactions, exclusions, and the byte count and SHA-256 of every
 included entry. The command receipt separately reports the finished ZIP's SHA-256.
 
-## Voluntary send flow
+## First-beta local-only flow
 
-The desktop action can now review and send the exact saved ZIP. Before consent it shows the path,
-byte count, full SHA-256, retention, every included entry, skipped-source count, and the fixed
-exclusions above. The native host then reopens the regular non-symlink file, rechecks its size,
-modification state, and SHA-256, and streams at most 6 MiB to a compile-time HTTPS origin. The UI
-shows progress and cancellation state. An accepted report returns a signed case receipt with the
-same digest and size, retention deadline, and case-specific early-deletion authorization.
+The first beta can **create and save** this disclosed ZIP, but it does not send the file to a
+Preflight service. Help exposes no remote review/send/delete action and Settings exposes no
+automatic failed-run reporting control in the packaged beta. The trusted Distribution workflow does
+not compile a report-intake origin into the native application.
 
-Ordinary development and source builds don't contain an intake origin, so the action remains
-disabled and local export continues to work. The private Worker and hostile-ZIP checks live under
-[`report-intake`](../report-intake/README.md). Production provisioning, rate limiting and the live
-synthetic canary are complete. A production-origin macOS package has also completed disclosure,
-consent, mid-stream cancellation with confirmed server cleanup, retry, receipt persistence and
-scoped deletion. The complete hosted candidate matrix still blocks enabling the origin in a
-distributed package.
-This isn't a general telemetry channel. Automatic failed-run reports are a separate, remembered,
-default-off choice. They send this same bounded ZIP only after an exact failed launch. See the
-[product contract](product-contract.md) and [Privacy](privacy.md).
+After creating a ZIP, inspect `README.txt` and `manifest.json`, keep the file on your computer, and
+share it only through a private support path you choose if you want someone else to inspect it. Do
+not attach private diagnostics to a public issue merely because the archive is bounded and redacted.
+The **Copy setup** action remains the smaller public-safe text path for an ordinary issue.
+
+The repository still contains the private Worker, transport implementation, and historical hosted
+canary evidence from pre-release remote-report experiments. They are retained for future engineering
+work, not enabled by the first-beta package. A later remote-capable release must re-establish the
+consent, retention, deletion, migration, package, and privacy contracts before that capability is
+advertised or compiled into a release.
+
+Automatic failed-run upload is likewise absent from the first beta. A stale development-era
+preference cannot turn it on or cause a failed run to be inspected/exported/sent once authoritative
+local-only status is known. See the [product contract](product-contract.md) and
+[Privacy](privacy.md).
