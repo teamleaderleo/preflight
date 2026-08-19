@@ -153,14 +153,14 @@ class LaunchCacheContextsTest {
         assertEquals(serial.texture().manifestSha256(), parallel.texture().manifestSha256());
         assertEquals(serial.texture().indexSha256(), parallel.texture().indexSha256());
         assertEquals(serial.texture().checkedProviders(), parallel.texture().checkedProviders());
-        assertEquals(serial.texture().indexBuildMillis(), parallel.texture().indexBuildMillis());
+        assertTrue(serial.texture().indexBuildMillis() >= 0);
+        assertTrue(parallel.texture().indexBuildMillis() >= 0);
         assertEquals(serial.texture().sourceGenerationValidated(), parallel.texture().sourceGenerationValidated());
         assertEquals(serial.texture().sourceGenerationProvider(), parallel.texture().sourceGenerationProvider());
         assertEquals(serial.texture().sourceGenerationEntries(), parallel.texture().sourceGenerationEntries());
         assertEquals(serial.texture().sourceGenerationBytes(), parallel.texture().sourceGenerationBytes());
-        assertEquals(
-                serial.texture().sourceGenerationValidationMillis(),
-                parallel.texture().sourceGenerationValidationMillis());
+        assertTrue(serial.texture().sourceGenerationValidationMillis() >= 0);
+        assertTrue(parallel.texture().sourceGenerationValidationMillis() >= 0);
         assertEquals(serial.texture().sourceGenerationProblem(), parallel.texture().sourceGenerationProblem());
         assertEquals(serial.texture().resourceIndex().roots(), parallel.texture().resourceIndex().roots());
         assertEquals(serial.texture().resourceIndex().entries(), parallel.texture().resourceIndex().entries());
