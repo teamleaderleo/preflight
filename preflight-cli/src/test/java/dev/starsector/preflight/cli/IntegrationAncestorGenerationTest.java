@@ -163,6 +163,86 @@ class IntegrationAncestorGenerationTest {
         assertNoMutationResidue(reviewedParent);
     }
 
+    @Test
+    void oversizedLauncherFileIsRefusedDuringNativeReadAndPreserved(@TempDir Path tempDir) throws Exception {
+        Path parent = Files.createDirectory(tempDir.resolve("parent"));
+        Path target = parent.resolve("preflight");
+        byte[] oversized = new byte[IntegrationParentDirectory.MAX_REVIEW_FILE_BYTES + 1];
+        Files.write(target, oversized);
+        PreflightHome.Integration integration = command(target, false);
+
+        IOException publicationFailure = assertThrows(
+                IOException.class, () -> IntegrationMutation.reviewForPublication(integration));
+        IOException removalFailure = assertThrows(
+                IOException.class, () -> IntegrationMutation.reviewForRemoval(integration));
+
+        assertTrue(publicationFailure.getMessage().contains("review byte limit"));
+        assertTrue(removalFailure.getMessage().contains("review byte limit"));
+        assertEquals(oversized.length, Files.size(target));
+        assertNoMutationResidue(parent);
+    }
+
+    @Test
+    void oversizedUnknownDirectoryFileIsRefusedBeforeOwnershipDecision(@TempDir Path tempDir) throws Exception {
+        Path parent = Files.createDirectory(tempDir.resolve("parent"));
+        Path target = Files.createDirectory(parent.resolve("Preflight"));
+        Files.writeString(
+                target.resolve("Preflight.cmd"),
+                "@echo off\r\n" + IntegrationOwnership.WINDOWS_MARKER + "\r\necho owned\r\n",
+                StandardCharsets.UTF_8);
+        Path unknown = target.resolve("external.bin");
+        byte[] oversized = new byte[IntegrationParentDirectory.MAX_REVIEW_FILE_BYTES + 1];
+        Files.write(unknown, oversized);
+        PreflightHome.Integration integration = windowsDirectory(target);
+
+        assertThrows(IOException.class, () -> IntegrationMutation.reviewForPublication(integration));
+        assertThrows(IOException.class, () -> IntegrationMutation.reviewForRemoval(integration));
+
+        assertEquals(oversized.length, Files.size(unknown));
+        assertNoMutationResidue(parent);
+    }
+
+    @Test
+    void overCountLauncherDirectoryIsRefusedBeforeRetainingUnboundedEntries(@TempDir Path tempDir)
+            throws Exception {
+        Path parent = Files.createDirectory(tempDir.resolve("parent"));
+        Path target = Files.createDirectory(parent.resolve("Preflight"));
+        for (int index = 0; index < IntegrationParentDirectory.MAX_REVIEW_TOTAL_ENTRIES; index++) {
+            Files.writeString(target.resolve("entry-" + index), "x", StandardCharsets.UTF_8);
+        }
+        PreflightHome.Integration integration = windowsDirectory(target);
+
+        IOException failure = assertThrows(
+                IOException.class, () -> IntegrationMutation.reviewForPublication(integration));
+
+        assertTrue(failure.getMessage().contains("entry"));
+        try (var entries = Files.list(target)) {
+            assertEquals(IntegrationParentDirectory.MAX_REVIEW_TOTAL_ENTRIES, entries.count());
+        }
+        assertNoMutationResidue(parent);
+    }
+
+    @Test
+    void aggregateLauncherSnapshotBytesAreBoundedAcrossSmallFiles(@TempDir Path tempDir) throws Exception {
+        Path parent = Files.createDirectory(tempDir.resolve("parent"));
+        Path target = Files.createDirectory(parent.resolve("Preflight"));
+        int fileBytes = IntegrationParentDirectory.MAX_REVIEW_FILE_BYTES - 1024;
+        int fileCount = (IntegrationParentDirectory.MAX_REVIEW_TOTAL_BYTES / fileBytes) + 1;
+        for (int index = 0; index < fileCount; index++) {
+            Files.write(target.resolve("part-" + index), new byte[fileBytes]);
+        }
+        PreflightHome.Integration integration = windowsDirectory(target);
+
+        IOException failure = assertThrows(
+                IOException.class, () -> IntegrationMutation.reviewForPublication(integration));
+
+        assertTrue(failure.getMessage().contains("review byte limit"));
+        for (int index = 0; index < fileCount; index++) {
+            assertEquals(fileBytes, Files.size(target.resolve("part-" + index)));
+        }
+        assertNoMutationResidue(parent);
+    }
+
     private static PreflightHome.Integration command(Path path, boolean legacy) {
         return new PreflightHome.Integration(
                 legacy ? PreflightHome.Id.LEGACY_LINUX_COMMAND : PreflightHome.Id.LINUX_COMMAND,
@@ -170,6 +250,15 @@ class IntegrationAncestorGenerationTest {
                 path,
                 false,
                 legacy);
+    }
+
+    private static PreflightHome.Integration windowsDirectory(Path path) {
+        return new PreflightHome.Integration(
+                PreflightHome.Id.WINDOWS_DIRECTORY,
+                "Windows launcher directory",
+                path,
+                true,
+                false);
     }
 
     private static String ownedScript(String game) {
