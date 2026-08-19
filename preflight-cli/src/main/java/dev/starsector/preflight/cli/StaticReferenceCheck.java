@@ -116,8 +116,8 @@ final class StaticReferenceCheck {
             Spec spec;
             try {
                 String rawHullId = skin
-                        ? JsonText.string(document.value(), "skinHullId")
-                        : JsonText.string(document.value(), "hullId");
+                        ? JsonText.rootString(document.value(), "skinHullId")
+                        : JsonText.rootString(document.value(), "hullId");
                 if (rawHullId != null && !rawHullId.isBlank() && rawHullId.length() > MAX_ID_CHARS) {
                     skipped++;
                     if (hull || skin) hullUniverseComplete = false;
