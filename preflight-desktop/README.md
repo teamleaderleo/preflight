@@ -53,15 +53,18 @@ Gatekeeper/SmartScreen instructions. Its separate Tauri update artifacts remain 
 free project-owned updater key and require a release-candidate verification pass.
 
 Tagged builds generate a release-only Tauri configuration containing the public updater key and the
-v2 artifact switch. They require `TAURI_SIGNING_PRIVATE_KEY`,
-`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and the compile-time `PREFLIGHT_UPDATER_PUBLIC_KEY`; missing
-credentials stop the release before packaging. The client uses the fixed GitHub `latest.json` feed,
-checks in the background, and waits for explicit install confirmation. Ordinary development builds
-contain no verification key and report their update channel as disabled. The project key and GitHub
-credentials were provisioned on 2026-08-08. An isolated macOS package completed signed forward
-update, rejected-signature recovery, checked-package rollback, and install/remove verification.
-The generic hosted lifecycle rehearsal has passed on Windows, Linux, and macOS; the exact hosted
-candidate still needs its own installed lifecycle completion.
+v2 artifact switch. The updater-signing jobs run behind the GitHub Environment named
+`release-signing` and require its `RELEASE_TAURI_SIGNING_PRIVATE_KEY` and
+`RELEASE_TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secrets plus the compile-time
+`PREFLIGHT_UPDATER_PUBLIC_KEY` variable; missing credentials stop the release before packaging. The
+client uses the fixed GitHub `latest.json` feed, checks in the background, and waits for explicit
+install confirmation. Ordinary development builds contain no verification key and report their
+update channel as disabled. The project updater key was provisioned on 2026-08-08; release jobs now
+fail closed until the `release-signing` Environment and its `RELEASE_*` secrets are configured. An
+isolated macOS package completed signed forward update, rejected-signature recovery,
+checked-package rollback, and install/remove verification. The generic hosted lifecycle rehearsal
+has passed on Windows, Linux, and macOS; the exact hosted candidate still needs its own installed
+lifecycle completion.
 
 After changing the Java reactor, run `mvn verify` from the repository root and then `npm run verify`
 here. The desktop command refreshes its bounded engine snapshot before release-script, frontend,
