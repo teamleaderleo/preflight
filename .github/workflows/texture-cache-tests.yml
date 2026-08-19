@@ -45,7 +45,7 @@ jobs:
             tests: PreparedTexturePackIOTest,PreparedTexturePackPersistencePropertyTest
           - name: manifest-format
             module: preflight-core
-            tests: TextureManifestIOTest,TextureManifestPersistencePropertyTest
+            tests: TextureManifestIOTest,TextureManifestPersistencePropertyTest,TextureSourceGenerationProofIOTest
           - name: block-manifest-format
             module: preflight-core
             tests: BlockCacheManifestIOTest,BlockCacheManifestPersistencePropertyTest
@@ -78,11 +78,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-build-jdk
-      - name: Run macOS layout, filesystem identity, and preparation report tests
+      - name: Run cross-platform source generation and preparation contract tests
         shell: bash
         run: >-
           mvn --batch-mode --no-transfer-progress
           -pl preflight-cli -am
-          -Dtest=ResourceIndexBuilderTest,LookupEquivalenceTest,PrepareCommandTest,CurrentTextureCacheTest,StarsectorRunLogEvidenceTest
+          -Dtest=TextureSourceGenerationAuthorityTest,ResourceIndexBuilderTest,LookupEquivalenceTest,PrepareCommandTest,CurrentTextureCacheTest,StarsectorRunLogEvidenceTest
           -Dsurefire.failIfNoSpecifiedTests=false
           test
