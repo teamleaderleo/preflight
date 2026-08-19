@@ -24,6 +24,8 @@ jobs:
   publish:
     name: Reverify and publish existing draft
     runs-on: ubuntu-latest
+    environment:
+      name: release-signing
     env:
       GH_TOKEN: ${{ github.token }}
       RELEASE_TAG: ${{ inputs.tag }}
@@ -53,6 +55,11 @@ jobs:
         run: |
           set -euo pipefail
           tag_sha="$(git rev-parse "${RELEASE_TAG}^{}")"
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          git merge-base --is-ancestor "$tag_sha" origin/main || {
+            echo "::error::Release tag commit is not reachable from main"
+            exit 1
+          }
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$DISTRIBUTION_RUN_ID" \
             > "$RUNNER_TEMP/distribution-run.json"
           python3 - "$RUNNER_TEMP/distribution-run.json" "$tag_sha" <<'PY'

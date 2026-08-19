@@ -46,7 +46,7 @@ jobs:
         run: >-
           ./mvnw --batch-mode --no-transfer-progress
           -pl preflight-cli -am
-          -Dtest=ExclusiveMoveTest,WindowsPrivateDirectoryTest
+          -Dtest=ExclusiveMoveTest,WindowsPrivateDirectoryTest,IntegrationAncestorGenerationTest,IntegrationPublicationRaceTest,IntegrationRemovalRaceTest,IntegrationCommitBoundaryTest
           -Dsurefire.failIfNoSpecifiedTests=false
           test
 
