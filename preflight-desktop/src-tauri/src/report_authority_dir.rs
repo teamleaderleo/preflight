@@ -1,12 +1,14 @@
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 /// One exact opened report-authority directory generation.
 ///
-/// The directory is reached by a component-by-component no-follow walk. Consequential file opens
-/// and cleanup are relative to the retained handle/descriptor, so replacing any public pathname
-/// component after review cannot redirect credential publication, reads, or cleanup.
+/// The directory is reached by a component-by-component no-follow walk. Consequential file opens,
+/// enumeration, publication, and cleanup stay relative to the retained handle/descriptor, so a
+/// replacement of any public pathname component cannot redirect report authority into another
+/// directory generation.
 pub(crate) struct BoundDirectory {
     path: PathBuf,
     file: File,
@@ -15,9 +17,17 @@ pub(crate) struct BoundDirectory {
 impl BoundDirectory {
     pub(crate) fn open(path: &Path) -> Result<Self, String> {
         let path = path.to_absolute_path();
-        let file = imp::open_directory(&path)
-            .map_err(|error| format!("Could not open protected report storage {}: {error}", path.display()))?;
+        let file = imp::open_directory(&path).map_err(|error| {
+            format!(
+                "Could not open protected report storage {}: {error}",
+                path.display()
+            )
+        })?;
         Ok(Self { path, file })
+    }
+
+    pub(crate) fn path(&self) -> &Path {
+        &self.path
     }
 
     pub(crate) fn require_current(&self) -> Result<(), String> {
@@ -53,6 +63,21 @@ impl BoundDirectory {
         Ok(file)
     }
 
+    pub(crate) fn exists_regular(&self, name: &str) -> io::Result<bool> {
+        match self.open_regular(name) {
+            Ok(file) => {
+                drop(file);
+                Ok(true)
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(error),
+        }
+    }
+
+    pub(crate) fn modified(&self, name: &str) -> io::Result<SystemTime> {
+        self.open_regular(name)?.metadata()?.modified()
+    }
+
     pub(crate) fn read_bytes(&self, name: &str, max_bytes: u64) -> Result<Vec<u8>, String> {
         let mut file = self.open_regular(name).map_err(|error| {
             format!("Could not open parent-bound report-authority entry {name}: {error}")
@@ -70,9 +95,28 @@ impl BoundDirectory {
         Ok(bytes)
     }
 
+    pub(crate) fn list_names(&self) -> Result<Vec<String>, String> {
+        imp::list_names(&self.file)
+            .map_err(|error| format!("Could not enumerate saved report authority: {error}"))
+    }
+
     pub(crate) fn delete_file(&self, name: &str) -> io::Result<()> {
         validate_name(name)?;
-        imp::delete_file(&self.file, name)
+        match imp::delete_file(&self.file, name) {
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            result => result,
+        }
+    }
+
+    /// Clear the flat report-authority namespace through this exact opened directory generation.
+    /// Unexpected directories, aliases, or special files fail closed instead of being traversed.
+    pub(crate) fn clear_regular_files(&self) -> Result<(), String> {
+        for name in self.list_names()? {
+            self.delete_file(&name).map_err(|error| {
+                format!("Could not clear parent-bound report-authority entry {name}: {error}")
+            })?;
+        }
+        self.sync()
     }
 
     pub(crate) fn sync(&self) -> Result<(), String> {
@@ -117,36 +161,11 @@ fn validate_name(name: &str) -> io::Result<()> {
 #[cfg(unix)]
 mod imp {
     use super::*;
-    use std::ffi::{CString, c_char, c_int};
-    use std::fs::OpenOptions;
+    use std::ffi::{CStr, CString};
     use std::os::fd::{AsRawFd, FromRawFd};
     use std::os::unix::ffi::OsStrExt;
-    use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+    use std::os::unix::fs::MetadataExt;
     use std::path::Component;
-
-    const O_RDONLY: c_int = 0;
-    const O_WRONLY: c_int = 1;
-    #[cfg(target_os = "linux")]
-    const O_CREAT: c_int = 0x40;
-    #[cfg(target_os = "linux")]
-    const O_EXCL: c_int = 0x80;
-    #[cfg(target_os = "linux")]
-    const O_NOFOLLOW: c_int = 0x20000;
-    #[cfg(target_os = "linux")]
-    const O_DIRECTORY: c_int = 0x10000;
-    #[cfg(target_os = "macos")]
-    const O_CREAT: c_int = 0x0200;
-    #[cfg(target_os = "macos")]
-    const O_EXCL: c_int = 0x0800;
-    #[cfg(target_os = "macos")]
-    const O_NOFOLLOW: c_int = 0x0100;
-    #[cfg(target_os = "macos")]
-    const O_DIRECTORY: c_int = 0x100000;
-
-    unsafe extern "C" {
-        fn openat(dirfd: c_int, path: *const c_char, flags: c_int, ...) -> c_int;
-        fn unlinkat(dirfd: c_int, path: *const c_char, flags: c_int) -> c_int;
-    }
 
     pub(super) fn open_directory(path: &Path) -> io::Result<File> {
         if !path.is_absolute() {
@@ -155,9 +174,17 @@ mod imp {
                 "protected report storage path is not absolute",
             ));
         }
-        let mut options = OpenOptions::new();
-        options.read(true).custom_flags(O_NOFOLLOW | O_DIRECTORY);
-        let mut current = options.open(Path::new("/"))?;
+        let root = CString::new("/").expect("filesystem root contains no NUL");
+        let fd = unsafe {
+            libc::open(
+                root.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_DIRECTORY,
+            )
+        };
+        if fd < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        let mut current = unsafe { File::from_raw_fd(fd) };
         for component in path.components() {
             match component {
                 Component::RootDir => {}
@@ -166,11 +193,10 @@ mod imp {
                         io::Error::new(io::ErrorKind::InvalidInput, "directory name contains NUL")
                     })?;
                     let fd = unsafe {
-                        openat(
+                        libc::openat(
                             current.as_raw_fd(),
                             name.as_ptr(),
-                            O_RDONLY | O_NOFOLLOW | O_DIRECTORY,
-                            0,
+                            libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_DIRECTORY,
                         )
                     };
                     if fd < 0 {
@@ -200,11 +226,11 @@ mod imp {
         let name = CString::new(name)
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "filename contains NUL"))?;
         let fd = unsafe {
-            openat(
+            libc::openat(
                 parent.as_raw_fd(),
                 name.as_ptr(),
-                O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW,
-                mode as c_int,
+                libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW,
+                mode as libc::mode_t,
             )
         };
         if fd < 0 {
@@ -216,17 +242,86 @@ mod imp {
     pub(super) fn open_regular(parent: &File, name: &str) -> io::Result<File> {
         let name = CString::new(name)
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "filename contains NUL"))?;
-        let fd = unsafe { openat(parent.as_raw_fd(), name.as_ptr(), O_RDONLY | O_NOFOLLOW, 0) };
+        let fd = unsafe {
+            libc::openat(
+                parent.as_raw_fd(),
+                name.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW,
+            )
+        };
         if fd < 0 {
             return Err(io::Error::last_os_error());
         }
         Ok(unsafe { File::from_raw_fd(fd) })
     }
 
+    pub(super) fn list_names(parent: &File) -> io::Result<Vec<String>> {
+        let duplicate = unsafe { libc::dup(parent.as_raw_fd()) };
+        if duplicate < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        let directory = unsafe { libc::fdopendir(duplicate) };
+        if directory.is_null() {
+            let error = io::Error::last_os_error();
+            unsafe {
+                libc::close(duplicate);
+            }
+            return Err(error);
+        }
+
+        let mut names = Vec::new();
+        let mut failure = None;
+        loop {
+            unsafe {
+                *errno_location() = 0;
+            }
+            let entry = unsafe { libc::readdir(directory) };
+            if entry.is_null() {
+                let errno = unsafe { *errno_location() };
+                if errno != 0 {
+                    failure = Some(io::Error::from_raw_os_error(errno));
+                }
+                break;
+            }
+            let name = unsafe { CStr::from_ptr((*entry).d_name.as_ptr()) };
+            let bytes = name.to_bytes();
+            if bytes == b"." || bytes == b".." {
+                continue;
+            }
+            let name = match std::str::from_utf8(bytes) {
+                Ok(name) => name.to_string(),
+                Err(_) => {
+                    failure = Some(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "report-authority filename is not UTF-8",
+                    ));
+                    break;
+                }
+            };
+            names.push(name);
+        }
+        if unsafe { libc::closedir(directory) } != 0 && failure.is_none() {
+            failure = Some(io::Error::last_os_error());
+        }
+        if let Some(error) = failure {
+            return Err(error);
+        }
+        names.sort();
+        Ok(names)
+    }
+
     pub(super) fn delete_file(parent: &File, name: &str) -> io::Result<()> {
+        let file = open_regular(parent, name)?;
+        if !file.metadata()?.is_file() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "parent-bound report-authority entry is not a regular file",
+            ));
+        }
+        drop(file);
         let name = CString::new(name)
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "filename contains NUL"))?;
-        if unsafe { unlinkat(parent.as_raw_fd(), name.as_ptr(), 0) } != 0 {
+        if unsafe { libc::unlinkat(parent.as_raw_fd(), name.as_ptr(), 0) } != 0 {
             return Err(io::Error::last_os_error());
         }
         Ok(())
@@ -235,6 +330,16 @@ mod imp {
     pub(super) fn sync_directory(directory: &File) -> io::Result<()> {
         directory.sync_all()
     }
+
+    #[cfg(target_os = "linux")]
+    fn errno_location() -> *mut libc::c_int {
+        unsafe { libc::__errno_location() }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn errno_location() -> *mut libc::c_int {
+        unsafe { libc::__error() }
+    }
 }
 
 #[cfg(windows)]
@@ -242,7 +347,7 @@ mod imp {
     use super::*;
     use std::ffi::{OsStr, OsString, c_void};
     use std::mem::size_of;
-    use std::os::windows::ffi::OsStrExt;
+    use std::os::windows::ffi::{OsStrExt, OsStringExt};
     use std::os::windows::io::{AsRawHandle, FromRawHandle, RawHandle};
     use std::path::Component;
     use std::ptr::null_mut;
@@ -272,9 +377,11 @@ mod imp {
     const FILE_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
     const OBJ_CASE_INSENSITIVE: u32 = 0x0000_0040;
     const FILE_DISPOSITION_INFORMATION: u32 = 13;
+    const FILE_NAMES_INFORMATION: u32 = 12;
     const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
     const STATUS_OBJECT_NAME_COLLISION: i32 = 0xC000_0035u32 as i32;
     const STATUS_OBJECT_PATH_NOT_FOUND: i32 = 0xC000_003Au32 as i32;
+    const STATUS_NO_MORE_FILES: i32 = 0x8000_0006u32 as i32;
 
     #[repr(C)]
     struct UnicodeString {
@@ -349,6 +456,19 @@ mod imp {
             length: u32,
             file_information_class: u32,
         ) -> i32;
+        fn NtQueryDirectoryFile(
+            file_handle: Handle,
+            event: Handle,
+            apc_routine: *mut c_void,
+            apc_context: *mut c_void,
+            io_status_block: *mut usize,
+            file_information: *mut c_void,
+            length: u32,
+            file_information_class: u32,
+            return_single_entry: u8,
+            file_name: *mut UnicodeString,
+            restart_scan: u8,
+        ) -> i32;
     }
 
     pub(super) fn open_directory(path: &Path) -> io::Result<File> {
@@ -417,6 +537,69 @@ mod imp {
             FILE_OPEN,
             FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_REPARSE_POINT,
         )
+    }
+
+    pub(super) fn list_names(directory: &File) -> io::Result<Vec<String>> {
+        let mut names = Vec::new();
+        let mut restart_scan = 1u8;
+        loop {
+            let mut buffer = [0u8; 4096];
+            let mut io_status = [0usize; 2];
+            let status = unsafe {
+                NtQueryDirectoryFile(
+                    directory.as_raw_handle() as Handle,
+                    null_mut(),
+                    null_mut(),
+                    null_mut(),
+                    io_status.as_mut_ptr(),
+                    buffer.as_mut_ptr().cast(),
+                    buffer.len() as u32,
+                    FILE_NAMES_INFORMATION,
+                    1,
+                    null_mut(),
+                    restart_scan,
+                )
+            };
+            restart_scan = 0;
+            if status == STATUS_NO_MORE_FILES {
+                break;
+            }
+            if status < 0 {
+                return Err(io::Error::other(format!(
+                    "NtQueryDirectoryFile failed (NTSTATUS 0x{:08x})",
+                    status as u32
+                )));
+            }
+            let information = io_status[1];
+            if information < 12 || information > buffer.len() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "NtQueryDirectoryFile returned an invalid record length",
+                ));
+            }
+            let name_bytes = u32::from_ne_bytes(buffer[8..12].try_into().expect("fixed slice"))
+                as usize;
+            if name_bytes % 2 != 0 || 12usize.saturating_add(name_bytes) > information {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "NtQueryDirectoryFile returned an invalid filename length",
+                ));
+            }
+            let wide = unsafe {
+                std::slice::from_raw_parts(buffer.as_ptr().add(12).cast::<u16>(), name_bytes / 2)
+            };
+            let name = OsString::from_wide(wide).into_string().map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "report-authority filename is not Unicode",
+                )
+            })?;
+            if name != "." && name != ".." {
+                names.push(name);
+            }
+        }
+        names.sort();
+        Ok(names)
     }
 
     pub(super) fn delete_file(parent: &File, name: &str) -> io::Result<()> {
@@ -532,10 +715,16 @@ mod imp {
             )
         };
         if status == STATUS_OBJECT_NAME_COLLISION {
-            return Err(io::Error::new(io::ErrorKind::AlreadyExists, "entry already exists"));
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "entry already exists",
+            ));
         }
         if status == STATUS_OBJECT_NAME_NOT_FOUND || status == STATUS_OBJECT_PATH_NOT_FOUND {
-            return Err(io::Error::new(io::ErrorKind::NotFound, "entry does not exist"));
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "entry does not exist",
+            ));
         }
         if status < 0 {
             return Err(io::Error::other(format!(
@@ -579,10 +768,7 @@ mod imp {
             file_index_low: 0,
         };
         let ok = unsafe {
-            GetFileInformationByHandle(
-                file.as_raw_handle() as Handle,
-                &mut information,
-            )
+            GetFileInformationByHandle(file.as_raw_handle() as Handle, &mut information)
         };
         if ok == 0 {
             Err(io::Error::last_os_error())
