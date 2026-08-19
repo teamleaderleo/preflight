@@ -45,10 +45,7 @@ mod single_instance {
     }
 
     #[cfg(test)]
-    pub fn acquire_for_test_with_grace(
-        suffix: &str,
-        grace: Duration,
-    ) -> io::Result<Acquisition> {
+    pub fn acquire_for_test_with_grace(suffix: &str, grace: Duration) -> io::Result<Acquisition> {
         acquire_path(lock_path(Some(suffix))?, grace)
     }
 
@@ -95,10 +92,7 @@ mod single_instance {
 
     fn validate_private_directory(path: &Path, uid: u32) -> io::Result<()> {
         let metadata = fs::symlink_metadata(path)?;
-        if !metadata.file_type().is_dir()
-            || metadata.uid() != uid
-            || metadata.mode() & 0o077 != 0
-        {
+        if !metadata.file_type().is_dir() || metadata.uid() != uid || metadata.mode() & 0o077 != 0 {
             return Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
                 format!(
@@ -190,11 +184,11 @@ mod single_instance {
     }
 
     #[cfg(test)]
-    pub fn acquire_for_test_with_grace(
-        suffix: &str,
-        grace: Duration,
-    ) -> io::Result<Acquisition> {
-        acquire_name(&format!("Local\\StarsectorPreflightDesktop-{suffix}"), grace)
+    pub fn acquire_for_test_with_grace(suffix: &str, grace: Duration) -> io::Result<Acquisition> {
+        acquire_name(
+            &format!("Local\\StarsectorPreflightDesktop-{suffix}"),
+            grace,
+        )
     }
 
     fn acquire_name(name: &str, grace: Duration) -> io::Result<Acquisition> {
