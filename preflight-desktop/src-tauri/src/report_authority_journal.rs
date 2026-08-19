@@ -184,7 +184,9 @@ fn apply(state: &mut JournalState, record: JournalRecord) -> Result<(), String> 
             retention_deadline,
         } => {
             if state.cases.contains_key(&case_id) {
-                return Err(format!("Duplicate report-authority grant for case {case_id}."));
+                return Err(format!(
+                    "Duplicate report-authority grant for case {case_id}."
+                ));
             }
             state.cases.insert(
                 case_id,
@@ -212,7 +214,9 @@ fn apply(state: &mut JournalState, record: JournalRecord) -> Result<(), String> 
         }
         JournalRecord::AutoClaim { run_identity } => {
             if !state.automatic_claims.insert(run_identity.clone()) {
-                return Err(format!("Duplicate automatic report claim for {run_identity}."));
+                return Err(format!(
+                    "Duplicate automatic report claim for {run_identity}."
+                ));
             }
         }
         JournalRecord::AutoClaimReleased { run_identity } => {
