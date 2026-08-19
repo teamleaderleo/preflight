@@ -26,8 +26,6 @@ Keep the matching public key as the variable `PREFLIGHT_UPDATER_PUBLIC_KEY`.
 
 `PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD` is a separate candidate-artifact encryption secret. It can also live in `release-signing` for narrower release-only access, but its scope is independent of the updater-key migration.
 
-`PREFLIGHT_REPORT_INTAKE_ORIGIN` is an HTTPS origin. A `release-signing` Environment variable is the narrowest useful production scope for it.
-
 ### Environment protection
 
 Allow the refs that actually execute release jobs:
@@ -215,26 +213,21 @@ The Markdown receipt should record Distribution run ID, source revision, candida
 
 For the release comparison, require at least five accepted vanilla and five accepted accelerated launches with the same sealed installation/profile/launcher/runtime/settings identity and a clear drift guard.
 
-### Production report-intake candidate canary
+### Local-only diagnostics candidate evidence
 
-Prerequisites:
+The first beta deliberately ships no remote report-intake capability. Final candidate evidence should prove that smaller boundary instead of exercising a service the package cannot contact.
 
-- #703 merged with its final capability-bound report filesystem operations and report-authority tests green;
-- exact candidate package checksum/capability verified;
-- exact production `PREFLIGHT_REPORT_INTAKE_ORIGIN` configured for the release build;
-- production Worker/private bucket, retention lifecycle, grant-signing key, rate limits, and daily grant ceiling active;
-- one synthetic failed-run/support fixture inside the disclosed ZIP boundary;
-- operator access for confirming cleanup/deletion without exposing service credentials.
+On each exact candidate package:
 
-Final sequence:
+1. open Help and create the bounded disclosed support ZIP;
+2. verify the inclusion/exclusion disclosure and retained local ZIP bytes/SHA-256;
+3. verify Help exposes no remote review/send/delete controls and Settings exposes no automatic-report toggle;
+4. verify a stale automatic-report preference cannot inspect, export, or send a failed run once authoritative local-only status is known;
+5. verify a transient intake-status read failure remains fail-closed for runtime remote actions without being treated as an authoritative state reset;
+6. verify the packaged native build contains no configured report-intake origin and Distribution supplied no report-intake environment key;
+7. verify full Preflight-data removal clears local reporting preferences/receipts without contacting a remote service.
 
-1. create the support ZIP from the packaged UI and review inclusion/exclusion disclosure;
-2. cancel after a bounded partial upload;
-3. verify server-side cleanup and local ZIP retention;
-4. retry the same ZIP and verify receipt bytes/SHA-256;
-5. restart the same candidate and verify unexpired receipt persistence;
-6. delete through the case-scoped grant and verify the local receipt clears;
-7. verify the canary case/object is gone and retain only bounded receipt metadata as evidence.
+Remote reporting remains post-beta work and requires its own reviewed authority, migration, retention, and deletion evidence before a later release enables it.
 
 ### Checksums, SBOMs, dependencies, legal/privacy/install docs
 
@@ -276,7 +269,6 @@ Engineering can continue while these stay open:
 
 - configure/approve `release-signing` and enter the two private `RELEASE_*` signing values;
 - keep/relocate the candidate archive password as an owner-managed release secret;
-- configure the exact production report-intake origin/service credentials;
 - after this publisher is on `main`, verify one successful **Merge gate** head status and activate the `main` ruleset;
 - resolve Fractal Softworks guidance, descriptive Starsector trademark use, attribution, disclaimer wording, and the owner's publication decision.
 
@@ -287,7 +279,7 @@ These steps genuinely wait for final bytes:
 - run **Candidate package lifecycle** against the exact successful signed Distribution run;
 - run candidate signed-update/signature-rejection/rollback evidence where applicable;
 - run the #418 exact packaged-engine benchmark and retain the raw receipt;
-- run the final packaged production report-intake canary;
+- run the final packaged local-only diagnostics capability audit;
 - run the final complete-release/source-history/package-content audit;
 - replace draft release-note performance/package claims with accepted candidate evidence;
 - tag and stage the reviewed draft;

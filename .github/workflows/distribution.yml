@@ -38,15 +38,13 @@ jobs:
           test -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" || { echo "::error::RELEASE_TAURI_SIGNING_PRIVATE_KEY_PASSWORD is required in the release-signing environment"; exit 1; }
           test -n "$PREFLIGHT_UPDATER_PUBLIC_KEY" || { echo "::error::PREFLIGHT_UPDATER_PUBLIC_KEY is required for an update-signed build"; exit 1; }
 
-      - name: Validate private-candidate report intake
+      - name: Validate private-candidate archive credentials
         if: inputs.signed_candidate
         env:
-          PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ vars.PREFLIGHT_REPORT_INTAKE_ORIGIN }}
           PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD: ${{ secrets.PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD }}
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$PREFLIGHT_REPORT_INTAKE_ORIGIN" || { echo "::error::PREFLIGHT_REPORT_INTAKE_ORIGIN is required for a private signed candidate"; exit 1; }
           test "${#PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD}" -ge 32 || { echo "::error::PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD must contain at least 32 characters"; exit 1; }
 
       - name: Check out source
@@ -217,7 +215,6 @@ jobs:
         working-directory: preflight-desktop
         env:
           PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ (startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate) && vars.PREFLIGHT_UPDATER_PUBLIC_KEY || '' }}
-          PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ inputs.signed_candidate && vars.PREFLIGHT_REPORT_INTAKE_ORIGIN || '' }}
         shell: bash
         run: |
           npm run engine:prepare:verified
@@ -248,7 +245,6 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.RELEASE_TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.RELEASE_TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ vars.PREFLIGHT_UPDATER_PUBLIC_KEY }}
-          PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ inputs.signed_candidate && vars.PREFLIGHT_REPORT_INTAKE_ORIGIN || '' }}
         run: npx tauri build --bundles ${{ matrix.update_bundles }} --config src-tauri/target/release-updater-config.json
 
       - name: Verify extracted native package contents
@@ -387,7 +383,6 @@ jobs:
         working-directory: preflight-desktop
         env:
           PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ (startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate) && vars.PREFLIGHT_UPDATER_PUBLIC_KEY || '' }}
-          PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ inputs.signed_candidate && vars.PREFLIGHT_REPORT_INTAKE_ORIGIN || '' }}
         run: |
           npm run engine:prepare:verified
           npm test
@@ -409,7 +404,6 @@ jobs:
         working-directory: preflight-desktop
         env:
           PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ (startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate) && vars.PREFLIGHT_UPDATER_PUBLIC_KEY || '' }}
-          PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ inputs.signed_candidate && vars.PREFLIGHT_REPORT_INTAKE_ORIGIN || '' }}
         run: npx tauri build --bundles deb
 
       - name: Build Linux AppImage
@@ -429,7 +423,6 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.RELEASE_TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.RELEASE_TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ vars.PREFLIGHT_UPDATER_PUBLIC_KEY }}
-          PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ inputs.signed_candidate && vars.PREFLIGHT_REPORT_INTAKE_ORIGIN || '' }}
         run: npx tauri bundle --verbose --bundles appimage --config src-tauri/target/release-updater-config.json
 
       - name: Verify extracted native package contents
