@@ -168,14 +168,19 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
   const automaticReportRef = useRef(false);
   const automaticRunReportsRef = useRef(automaticRunReports);
   const reportIntakeRef = useRef(reportIntake);
+  const reportIntakeAuthoritativeRef = useRef(false);
 
-  const disableRemoteReportingState = useCallback(() => {
-    clearRemoteReportingStorage();
+  const failClosedRemoteReportingRuntime = useCallback(() => {
     automaticRunReportsRef.current = false;
     setAutomaticRunReports(false);
     setReportReview(false);
-    setReportReceipt(null);
   }, []);
+
+  const disableRemoteReportingState = useCallback(() => {
+    clearRemoteReportingStorage();
+    failClosedRemoteReportingRuntime();
+    setReportReceipt(null);
+  }, [failClosedRemoteReportingRuntime]);
 
   useEffect(() => {
     automaticRunReportsRef.current = automaticRunReports;
@@ -203,6 +208,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     void getReportIntakeStatus()
       .then((status) => {
         if (cancelled) return;
+        reportIntakeAuthoritativeRef.current = true;
         reportIntakeRef.current = status;
         setReportIntake(status);
         if (!status.configured) disableRemoteReportingState();
@@ -210,14 +216,22 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
       .catch((error) => {
         if (cancelled) return;
         const status = { configured: false, origin: null, reason: errorMessage(error) };
+        reportIntakeAuthoritativeRef.current = false;
         reportIntakeRef.current = status;
         setReportIntake(status);
-        disableRemoteReportingState();
+        failClosedRemoteReportingRuntime();
       });
     return () => {
       cancelled = true;
     };
-  }, [active, automaticRunReports, disableRemoteReportingState, reportIntake, reportReceipt]);
+  }, [
+    active,
+    automaticRunReports,
+    disableRemoteReportingState,
+    failClosedRemoteReportingRuntime,
+    reportIntake,
+    reportReceipt,
+  ]);
 
   useEffect(() => {
     if (!isDesktopHost()) return;
@@ -410,8 +424,13 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
 
   const setAutomaticRunReportsSafely = useCallback((enabled: boolean) => {
     if (enabled && reportIntakeRef.current?.configured === false) {
-      disableRemoteReportingState();
-      announce("Remote reporting is disabled in this beta. Local diagnostics ZIP export is still available.");
+      if (reportIntakeAuthoritativeRef.current) {
+        disableRemoteReportingState();
+        announce("Remote reporting is disabled in this beta. Local diagnostics ZIP export is still available.");
+      } else {
+        failClosedRemoteReportingRuntime();
+        announce("Report intake could not be verified. Automatic reporting remains off for this session.", "warning");
+      }
       return;
     }
     if (!persistAutomaticRunReports(enabled)) {
@@ -422,7 +441,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     }
     automaticRunReportsRef.current = enabled;
     setAutomaticRunReports(enabled);
-  }, [announce, disableRemoteReportingState]);
+  }, [announce, disableRemoteReportingState, failClosedRemoteReportingRuntime]);
 
   const submitAutomaticFailedRunReport = useCallback(async ({
     game,
@@ -438,6 +457,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
       let intake = reportIntakeRef.current;
       if (intake === null) {
         intake = await getReportIntakeStatus();
+        reportIntakeAuthoritativeRef.current = true;
         reportIntakeRef.current = intake;
         setReportIntake(intake);
       }
