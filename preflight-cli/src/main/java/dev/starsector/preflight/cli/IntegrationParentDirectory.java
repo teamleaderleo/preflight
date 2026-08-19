@@ -185,6 +185,7 @@ final class IntegrationParentDirectory implements AutoCloseable {
 
         static PosixBackend openPath(Path directory, boolean createMissing, boolean mac) throws IOException {
             Path absolute = directory.toAbsolutePath().normalize();
+            if (mac) absolute = macKernelPath(absolute);
             if (!absolute.isAbsolute() || absolute.getRoot() == null) throw new IOException("Launcher mutation parent must be absolute: " + absolute);
             int directoryFlags = POSIX_O_RDONLY | (mac ? MAC_O_DIRECTORY | MAC_O_NOFOLLOW | MAC_O_CLOEXEC : LINUX_O_DIRECTORY | LINUX_O_NOFOLLOW | LINUX_O_CLOEXEC);
             int current = PosixLibC.INSTANCE.open(absolute.getRoot().toString(), directoryFlags);
@@ -202,7 +203,11 @@ final class IntegrationParentDirectory implements AutoCloseable {
                         }
                         next = PosixLibC.INSTANCE.openat(current, name, directoryFlags, 0);
                     }
-                    if (next < 0) throw failure("open launcher parent without following aliases", absolute, Native.getLastError());
+                    if (next < 0) {
+                        int error = Native.getLastError();
+                        if (error == ENOENT) throw new NoSuchFileException(absolute.toString());
+                        throw failure("open launcher parent without following aliases", absolute, error);
+                    }
                     if (PosixLibC.INSTANCE.close(current) != 0) {
                         int error = Native.getLastError();
                         PosixLibC.INSTANCE.close(next);
@@ -215,6 +220,13 @@ final class IntegrationParentDirectory implements AutoCloseable {
             } finally {
                 if (!success) PosixLibC.INSTANCE.close(current);
             }
+        }
+
+        private static Path macKernelPath(Path absolute) {
+            if (absolute.getRoot() == null || absolute.getNameCount() == 0) return absolute;
+            String first = absolute.getName(0).toString();
+            if (!first.equals("var") && !first.equals("tmp") && !first.equals("etc")) return absolute;
+            return Path.of("/private").resolve(absolute.getRoot().relativize(absolute));
         }
 
         @Override public Identity identity() throws IOException { ensureOpen(); return identityFor(fd, mac); }
@@ -260,8 +272,7 @@ final class IntegrationParentDirectory implements AutoCloseable {
             int child = PosixLibC.INSTANCE.openat(fd, relative, flags, 0);
             if (child >= 0) return new PosixBackend(mac, child);
             int error = Native.getLastError();
-            if (error == ENOTDIR) return null;
-            if (error == ENOENT) throw new NoSuchFileException(relative);
+            if (error == ENOTDIR || error == ENOENT) return null;
             throw failure("open launcher child directory without following aliases", Path.of(relative), error);
         }
 
@@ -514,7 +525,7 @@ final class IntegrationParentDirectory implements AutoCloseable {
             try {
                 Pointer child = openRelative(handle, relative, FILE_LIST_DIRECTORY | FILE_TRAVERSE | FILE_READ_ATTRIBUTES | SYNCHRONIZE, FILE_OPEN, FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_REPARSE_POINT);
                 return new WindowsBackend(child);
-            } catch (NotDirectory failure) { return null; }
+            } catch (NoSuchFileException | NotDirectory failure) { return null; }
         }
 
         @Override public FileInfo readFile(String relative) throws IOException {
