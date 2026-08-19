@@ -33,18 +33,19 @@ export function HelpPage({
 }: HelpPageProps) {
   const setupCopy = useCopySetup(optimizationPreset);
   const {
+    automaticRunReports,
+    backgroundReportUploading,
     diagnosticsBusy,
     diagnosticsExport,
     reportCancelling,
-    reportDeleting,
+    reportCases,
+    reportDeletingCaseId,
     reportError,
     reportFinalizing,
     reportIntake,
-    reportReceipt,
     reportReview,
     reportUploadedBytes,
     reportUploading,
-    automaticRunReports,
     copyRunReportReceipt,
     dismissRunReportReceipt,
     removeRunReport,
@@ -100,7 +101,9 @@ export function HelpPage({
               ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}`
               : "Copy your setup for a public post, or make a redacted support ZIP for richer evidence."}</p>
             <small>{automaticRunReports
-              ? "Failed-run reports are on. A failed launch can send the separate support ZIP automatically."
+              ? backgroundReportUploading
+                ? "Failed-run reports are on. A support report is sending in the background; launch and recovery stay available."
+                : "Failed-run reports are on. Failed launches can send the separate support ZIP in the background."
               : "Copy setup stays on your clipboard. Support files stay local until you choose Send."}</small>
           </div>
           <div className="report-actions">
@@ -110,7 +113,7 @@ export function HelpPage({
             <button className="button button--quiet button--support" type="button" onClick={() => void saveDiagnostics()} disabled={operationBlocked || diagnosticsBusy || reportUploading}>
               <FolderIcon />{diagnosticsBusy ? "Creating…" : diagnosticsExport ? "Make another one" : "Make a support file"}
             </button>
-            {diagnosticsExport ? <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>{reportReceipt ? "Receipt below" : "Review and send"}</button> : null}
+            {diagnosticsExport ? <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading}>Review and send</button> : null}
           </div>
         </div>
         {setupCopy.state === "error" && setupCopy.text ? (
@@ -184,7 +187,7 @@ export function HelpPage({
             </div>
           ) : null}
           <div className="activation-review__footer">
-            <span><ShieldIcon /> Preflight rechecks the file, size, and SHA-256 immediately before upload.</span>
+            <span><ShieldIcon /> Preflight reads and verifies the disclosed file into its native upload boundary immediately before sending it.</span>
             {reportUploading
               ? <button className="button button--quiet" type="button" onClick={() => void stopRunReport()} disabled={reportCancelling || reportFinalizing}>{reportFinalizing ? "Finishing receipt…" : reportCancelling ? "Stopping…" : "Cancel upload"}</button>
               : <button className="button button--primary" type="button" onClick={() => void submitRunReport()} disabled={!reportIntake?.configured || diagnosticsBusy}>{reportError ? "Try sending again" : "Send this exact file"}</button>}
@@ -192,22 +195,31 @@ export function HelpPage({
         </section>
       ) : null}
 
-      {reportReceipt ? (
-        <section className="card report-receipt" aria-label="Run report receipt">
-          <div className="card__heading"><div><p className="eyebrow">Accepted</p><h2>Case {reportReceipt.caseId}</h2></div><CheckIcon className="settings-check" /></div>
-          <p>{formatBytes(reportReceipt.bytes)} arrived with the same SHA-256. Use this case number in an issue. The deletion receipt stays here until you dismiss it, delete the report, or its deadline passes.</p>
-          <div className="report-facts">
-            <div><span>Received</span><strong>{new Date(reportReceipt.receivedAt).toLocaleString()}</strong></div>
-            <div><span>Retention deadline</span><strong>{new Date(reportReceipt.retentionDeadline).toLocaleString()}</strong></div>
-            <div className="report-facts__digest"><span>SHA-256</span><code>{reportReceipt.sha256}</code></div>
-          </div>
-          <div className="update-actions">
-            <button className="button button--quiet button--compact" type="button" onClick={() => void copyRunReportReceipt()}>Copy receipt</button>
-            <button className="button button--quiet button--compact" type="button" onClick={dismissRunReportReceipt}>I saved this receipt</button>
-            <button className="button button--danger button--compact" type="button" onClick={() => void removeRunReport()} disabled={reportDeleting}>{reportDeleting ? "Deleting…" : "Delete uploaded report"}</button>
-          </div>
-        </section>
-      ) : null}
+      {reportCases.map((report) => {
+        const accepted = report.state === "accepted";
+        const deleting = reportDeletingCaseId === report.caseId;
+        return (
+          <section className="card report-receipt" aria-label={`Run report case ${report.caseId}`} key={report.caseId}>
+            <div className="card__heading">
+              <div><p className="eyebrow">{accepted ? "Accepted" : "Cleanup available"}</p><h2>Case {report.caseId}</h2></div>
+              {accepted ? <CheckIcon className="settings-check" /> : <ShieldIcon className="settings-check" />}
+            </div>
+            <p>{accepted
+              ? `${formatBytes(report.bytes)} arrived with the same SHA-256. Preflight keeps this case’s deletion authorization in native storage until you dismiss it, delete it, or its deadline passes.`
+              : "This server case did not finish cleanly. Preflight retained its deletion authorization so you can remove that exact case."}</p>
+            <div className="report-facts">
+              {report.receivedAt ? <div><span>Received</span><strong>{new Date(report.receivedAt).toLocaleString()}</strong></div> : null}
+              {report.retentionDeadline ? <div><span>Retention deadline</span><strong>{new Date(report.retentionDeadline).toLocaleString()}</strong></div> : null}
+              <div className="report-facts__digest"><span>SHA-256</span><code>{report.sha256}</code></div>
+            </div>
+            <div className="update-actions">
+              <button className="button button--quiet button--compact" type="button" onClick={() => void copyRunReportReceipt(report.caseId)}>Copy receipt</button>
+              <button className="button button--quiet button--compact" type="button" onClick={() => dismissRunReportReceipt(report.caseId)}>Dismiss</button>
+              <button className="button button--danger button--compact" type="button" onClick={() => void removeRunReport(report.caseId)} disabled={deleting}>{deleting ? "Deleting…" : "Delete uploaded report"}</button>
+            </div>
+          </section>
+        );
+      })}
 
       <section className="card help-links-card">
         <div className="card__heading"><div><h2>More help</h2></div></div>
