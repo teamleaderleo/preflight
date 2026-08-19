@@ -22,6 +22,7 @@
 // Exit status is 0 when every case agrees within rounding, 1 on a mismatch, 2 if it could not run.
 
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -266,8 +267,17 @@ static int checkCase(void) {
     if (!readInt(&expectedLength)) {
         return -1;
     }
+    if (width <= 0 || height <= 0
+            || (size_t) width > SIZE_MAX / (size_t) height
+            || (size_t) width * (size_t) height > SIZE_MAX / 4) {
+        return -1;
+    }
+    size_t expectedPixelBytes = (size_t) width * (size_t) height * 4;
+    if (expectedLength < 0 || (size_t) expectedLength != expectedPixelBytes) {
+        return -1;
+    }
     unsigned char *expected = readBlob(expectedLength);
-    if (!expected || expectedLength != width * height * 4) {
+    if (!expected) {
         return -1;
     }
 
