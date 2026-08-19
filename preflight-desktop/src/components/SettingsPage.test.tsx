@@ -70,3 +70,34 @@ test("installation changes follow the app-wide workflow lock", () => {
   expect(screen.getByRole("button", { name: "Change folder" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Change folder" })).toHaveAttribute("title", "Updating the saved mod profile");
 });
+
+test("local-only builds expose no automatic report control", () => {
+  render(<SettingsPage {...props({
+    reportIntake: {
+      configured: false,
+      origin: null,
+      reason: "Remote reporting is disabled in this beta.",
+    },
+  })} />);
+
+  expect(screen.queryByRole("checkbox", { name: /Send failed-run reports automatically/i })).not.toBeInTheDocument();
+  expect(screen.getByText("Update checks fetch version metadata. Support ZIPs stay here until you share one.")).toBeInTheDocument();
+});
+
+test("remote-capable builds retain the automatic report control", async () => {
+  const user = userEvent.setup();
+  const onAutomaticRunReportsChange = vi.fn();
+  render(<SettingsPage {...props({
+    reportIntake: {
+      configured: true,
+      origin: "https://reports.example.invalid",
+      reason: null,
+    },
+    onAutomaticRunReportsChange,
+  })} />);
+
+  const checkbox = screen.getByRole("checkbox", { name: /Send failed-run reports automatically/i });
+  expect(checkbox).toBeEnabled();
+  await user.click(checkbox);
+  expect(onAutomaticRunReportsChange).toHaveBeenCalledWith(true);
+});

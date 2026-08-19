@@ -53,6 +53,7 @@ export function HelpPage({
     stopRunReport,
     submitRunReport,
   } = diagnostics;
+  const reportingConfigured = reportIntake?.configured === true;
 
   return (
     <div className="settings-page help-page">
@@ -101,7 +102,9 @@ export function HelpPage({
               : "Copy your setup for a public post, or make a redacted support ZIP for richer evidence."}</p>
             <small>{automaticRunReports
               ? "Failed-run reports are on. A failed launch can send the separate support ZIP automatically."
-              : "Copy setup stays on your clipboard. Support files stay local until you choose Send."}</small>
+              : reportingConfigured
+                ? "Copy setup stays on your clipboard. Support files stay local until you choose Send."
+                : "Support ZIPs stay local in this beta. Save the file and share it only through a support path you choose."}</small>
           </div>
           <div className="report-actions">
             <button className={`button ${setupCopy.state === "copied" ? "button--quiet" : "button--primary"} button--support`} type="button" onClick={() => void setupCopy.copySetup()} disabled={operationBlocked || setupCopy.state === "copying"}>
@@ -110,7 +113,7 @@ export function HelpPage({
             <button className="button button--quiet button--support" type="button" onClick={() => void saveDiagnostics()} disabled={operationBlocked || diagnosticsBusy || reportUploading}>
               <FolderIcon />{diagnosticsBusy ? "Creating…" : diagnosticsExport ? "Make another one" : "Make a support file"}
             </button>
-            {diagnosticsExport ? <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>{reportReceipt ? "Receipt below" : "Review and send"}</button> : null}
+            {diagnosticsExport && reportingConfigured ? <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={reportUploading || reportReceipt !== null}>{reportReceipt ? "Receipt below" : "Review and send"}</button> : null}
           </div>
         </div>
         {setupCopy.state === "error" && setupCopy.text ? (
@@ -151,7 +154,7 @@ export function HelpPage({
 
       {diagnosticsExport && reportIntake && !reportIntake.configured ? <p className="report-unavailable"><ShieldIcon /> {reportIntake.reason ?? "This build can’t send support files."} The ZIP is still on this computer.</p> : null}
 
-      {reportReview && diagnosticsExport ? (
+      {reportReview && diagnosticsExport && reportingConfigured ? (
         <section className="card report-review" aria-label="Run report consent">
           <div className="activation-review__heading">
             <div><p className="eyebrow">Send review</p><h2>Send this exact file?</h2></div>
@@ -187,12 +190,12 @@ export function HelpPage({
             <span><ShieldIcon /> Preflight rechecks the file, size, and SHA-256 immediately before upload.</span>
             {reportUploading
               ? <button className="button button--quiet" type="button" onClick={() => void stopRunReport()} disabled={reportCancelling || reportFinalizing}>{reportFinalizing ? "Finishing receipt…" : reportCancelling ? "Stopping…" : "Cancel upload"}</button>
-              : <button className="button button--primary" type="button" onClick={() => void submitRunReport()} disabled={!reportIntake?.configured || diagnosticsBusy}>{reportError ? "Try sending again" : "Send this exact file"}</button>}
+              : <button className="button button--primary" type="button" onClick={() => void submitRunReport()} disabled={diagnosticsBusy}>{reportError ? "Try sending again" : "Send this exact file"}</button>}
           </div>
         </section>
       ) : null}
 
-      {reportReceipt ? (
+      {reportReceipt && reportingConfigured ? (
         <section className="card report-receipt" aria-label="Run report receipt">
           <div className="card__heading"><div><p className="eyebrow">Accepted</p><h2>Case {reportReceipt.caseId}</h2></div><CheckIcon className="settings-check" /></div>
           <p>{formatBytes(reportReceipt.bytes)} arrived with the same SHA-256. Use this case number in an issue. The deletion receipt stays here until you dismiss it, delete the report, or its deadline passes.</p>
@@ -211,7 +214,9 @@ export function HelpPage({
 
       <section className="card help-links-card">
         <div className="card__heading"><div><h2>More help</h2></div></div>
-        <p>Paste the Copy setup summary into a public issue. Never attach a support ZIP there. If you sent one through Preflight, quote only the case number.</p>
+        <p>{reportIntake && !reportIntake.configured
+          ? "Paste the Copy setup summary into a public issue. Never attach a support ZIP there. Keep the ZIP local unless you choose a private support path."
+          : "Paste the Copy setup summary into a public issue. Never attach a support ZIP there. If you sent one through Preflight, quote only the case number."}</p>
         <div className="privacy-links">
           <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("getting-started")}>Getting started</button>
           <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("report-issue")}>Open an issue</button>

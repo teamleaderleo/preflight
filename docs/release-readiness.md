@@ -2,7 +2,7 @@
 
 **Status:** release-candidate preparation; Fractal Softworks guidance requested, awaiting response
 
-**Updated:** 2026-08-16
+**Updated:** 2026-08-19
 
 Preflight has a credible performance result and a verified cross-platform packaging pipeline. It is
 still inside the release boundary below.
@@ -10,7 +10,7 @@ still inside the release boundary below.
 | Area | Current state |
 | --- | --- |
 | Publication policy | Guidance requested August 7; maintainer decision pending |
-| Desktop product | First-run, preparation, profiles, settings, updates, reports, cleanup, and removal implemented |
+| Desktop product | First-run, preparation, profiles, settings, updates, local diagnostics, cleanup, and removal implemented |
 | Package lifecycle | Local macOS candidate passes; complete hosted three-platform candidate pending |
 | Real-game coverage | Development macOS profile exercised; Windows and Linux runs pending |
 | Performance record | **101s → 15.25s** established; controlled medians are 89.00s/15.53s on one profile; packaged benchmark still to run |
@@ -90,7 +90,7 @@ still inside the release boundary below.
   profile identity under the durable lease, refuses path-boundary ambiguity, removes only scoped
   metadata/packs, retains shared blobs, and then rebuilds through the normal bounded preparation
   plan.
-- [x] Reconcile launch, preparation, automation, report-upload, and update state with the native
+- [x] Reconcile launch, preparation, automation, local diagnostics, and update state with the native
   coordinator when a live event subscription fails. The cross-process operation lease remains the
   final authority after desktop restarts.
 - [x] Provide preview-first cleanup that retains the current and readable named profiles, groups
@@ -102,35 +102,20 @@ still inside the release boundary below.
   report that their channel is disabled, Linux package installs stay with their package manager,
   and no update surprise-installs. The native host admits one installation at a time, refuses
   concurrent checks and mutations, and releases that state on every failed or changed offer.
-- [x] Add voluntary support ZIP sending using the bounded diagnostics export, with disclosure, ZIP digest and
-  size, consent, progress, cancel/retry, case receipt, retention deadline, and deletion instructions.
-  The private receiving service, local Java-export interoperability check, and desktop
-  consent/upload/cancel/receipt/delete path are complete.
-- [x] Provision the production intake with a private bucket, automatic expiration, encrypted grant
-  signing, per-client edge brakes, an exact 500 MiB daily grant ceiling, and a synthetic live
-  create/upload/finalize/delete canary. The canary left the bucket empty.
-- [ ] Put the intake origin in a packaged release candidate and exercise disclosure, consent,
-  cancel/retry, receipt, and deletion through the packaged UI. Distributed builds continue to omit
-  the origin until that final canary passes. A local update-signed macOS package has completed
-  disclosure, consent, fail-closed receipt recovery, retry, and a receipt whose exact object was
-  verified through authenticated R2 access and then deleted through authenticated operator access.
-  The desktop now retains an unexpired deletion receipt across restarts and removes it on deletion,
-  dismissal, or expiry. A local intake server now exercises the native host's complete HTTP
-  boundary: create, byte-exact streaming, finalize and receipt validation; cancellation followed by
-  authorized cleanup deletion; and explicit receipt deletion. A production-origin release-mode DMG
-  has now completed packaged disclosure, consent, upload, receipt persistence and deletion through
-  its scoped grant. A second 3,762,549-byte canary cancelled after 256 KiB, confirmed server cleanup,
-  retained the local ZIP, then retried to a matching receipt whose object was deleted through its
-  scoped grant. On 2026-08-12, the packaged desktop created and disclosed a 38,165-byte ZIP,
-  uploaded it to the production intake, received a matching accepted receipt, and retained that
-  receipt across an exact package reinstall. The ZIP named 12 included evidence entries, listed the
-  excluded categories, and used the local calendar date. This report remains under automatic expiry
-  so its receipt can be inspected during the owner walkthrough. A final candidate cancel/retry/delete
-  sequence and the first complete hosted candidate matrix remain. See
-  [the packaged report canary](evidence/2026-08-08-packaged-report-canary.md).
-- [x] Keep automatic failed-run reports separate and default off. Consent is versioned and
-  remembered, the exact failed wrapper identity is rechecked, the bounded support ZIP is unchanged,
-  duplicate run uploads are refused, and at most three local automatic ZIPs are retained.
+- [x] Keep the bounded disclosed support ZIP as the first-beta diagnostics path. Help can create and
+  save it locally; the packaged beta exposes no remote review/send/delete controls and no automatic
+  failed-run upload setting. The release build rejects `PREFLIGHT_REPORT_INTAKE_ORIGIN`, and the
+  trusted Distribution workflow supplies no report-intake origin.
+- [x] Select local-only diagnostics as the first-beta disposition for the report-authority lane.
+  This deliberately removes remote cases, deletion bearers, retention promises, background report
+  claims, and report-vs-removal authority from the beta release boundary. Final candidate evidence
+  now proves local ZIP behavior and the absence of a compiled report-intake origin instead of
+  running a production report canary.
+- [ ] Revisit remote report sending after the beta as a separate feature/release. The repository
+  retains the private Worker, transport implementation, and historical canary evidence, but a later
+  release must re-review durable authority, retention, deletion/revocation, migration, consent,
+  package, and privacy semantics before enabling or advertising that capability. This item is
+  **post-beta and does not block 0.1.0**.
 - [x] Surface Recommended, Conservative, and Off/troubleshooting. Keep raw plan flags behind an
   Advanced disclosure and let the engine enforce dependencies.
 - [x] Preserve the ordinary game settings users expect: resolution, fullscreen, sound,
@@ -209,7 +194,9 @@ identity gates or original-code fallback in the candidate:
   run remains. The 2026-08-11 full-history audit accepted the current tracked tree, including the
   preserved unshipped icon candidates, with no unreviewed oversized blob.
 - [x] Prepare a support template that asks for product/game/mod identities, preset, storage policy,
-  launch result, and optional run-report case ID without requesting private logs by default.
+  launch result, and reproduction details without requesting private logs or diagnostics by default.
+  First-beta support guidance says a diagnostics ZIP stays local unless a separate private transfer
+  route is agreed; there is no beta run-report case ID.
 - [x] Prepare a rollback/kill-switch notice path for a bad adapter or release.
 - [ ] Make forum and Reddit announcements from the same reviewed claims and link to the evidence
   instead of copying an ever-growing benchmark table into each post.

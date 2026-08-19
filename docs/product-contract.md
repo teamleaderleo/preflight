@@ -1,7 +1,7 @@
-# Product, compatibility, and support-upload contract
+# Product, compatibility, and support-diagnostics contract
 
 **Status:** executable product boundary for the desktop beta
-**Updated:** 2026-08-18
+**Updated:** 2026-08-19
 
 Public distribution hasn't started. The product is named **Preflight**; Fractal Softworks has been
 asked for guidance on descriptive use of the Starsector name, the disclaimer, and the integration
@@ -134,15 +134,32 @@ Launch settings remain global Starsector preferences for the release candidate. 
 remain shareable by content identity; toggling a reader off doesn't delete their data. Cleanup and
 storage policy stay separate, preview-first actions.
 
-## Voluntary support upload
+## First-beta support diagnostics
 
-“Send diagnostics” should upload the exact bounded ZIP already produced by `evidence export`; it
-must not create a broader telemetry path. The consent screen shows the existing inclusion/exclusion
-list, the byte count, and the ZIP SHA-256 before sending. Automatic failed-run reports are a
-separate, remembered setting that starts off and sends the same bounded ZIP only after an exact
-failed wrapper identity is confirmed.
+The first beta can create the exact bounded ZIP produced by `evidence export`, but it does **not**
+upload that ZIP to a Preflight service. The desktop shows the fixed inclusion/exclusion boundary and
+finished ZIP identity, then leaves the file on the player's computer. Help exposes no remote
+review/send/delete controls and Settings exposes no automatic failed-run-report toggle in the
+packaged beta.
 
-The service flow is:
+The release build rejects `PREFLIGHT_REPORT_INTAKE_ORIGIN` if it is present at build time, and the
+trusted Distribution workflow supplies no report-intake origin. Retained native HTTP commands
+therefore have no configured service and fail closed even if an untrusted renderer attempts to call
+them directly. Stale development-era automatic-report preferences cannot silently enable sending.
+
+The user decides whether to share the ZIP later through a separate private support path. A bounded
+archive is not automatically public-safe: users should inspect `README.txt` and `manifest.json` and
+must not post private diagnostics to a public issue merely because Preflight created the file.
+
+## Deferred remote-report design
+
+The repository retains a private intake Worker and desktop transport from pre-release experiments.
+That implementation is **post-beta work**, not a capability of the first-beta package. A future
+remote-capable release may still use the same bounded ZIP, but it must re-establish the authority,
+retention, deletion, migration, consent, server, package, and privacy contracts before it is enabled
+or advertised.
+
+The experimental service flow is documented for engineering review:
 
 1. Client asks a small HTTPS intake service for a new case and short-lived upload grant, sending only
    product version, ZIP byte count, and SHA-256.
@@ -151,34 +168,14 @@ The service flow is:
    one immutable write through the Worker's private R2 binding.
 3. Client uploads the ZIP, then asks the service to finalize the case.
 4. Service verifies size, ZIP structure and decompression limits, bounded manifest schema, entry
-   allowlist, per-entry hashes, and the outer SHA-256 before marking it accepted. A Worker can
-   compute SHA-256 with Web Crypto
-   ([Workers documentation](https://developers.cloudflare.com/workers/runtime-apis/web-crypto/)).
+   allowlist, per-entry hashes, and the outer SHA-256 before marking it accepted.
 5. Service returns a case ID plus a server-signed receipt covering object key, digest, size,
-   received time, product version, and retention deadline. The app displays and copies that receipt.
+   received time, product version, and retention deadline.
 
-The embedded application has no durable secret. A secret shipped in a desktop binary is extractable,
-so it can't prove that an upload came from an untampered official client. The intake therefore
-treats every request as anonymous hostile input. The receipt proves what the service accepted;
-strict server-side format checks, private storage, short retention, and rate limits constrain abuse.
-Cloudflare's Worker-native rate-limiting bindings cap report creation and mutating intake requests
-before archive processing. Those bindings are intentionally permissive and local to a Cloudflare
-location, so accepted grants also pass through an exact 500 MiB limit for each UTC day, coordinated
-by one SQLite Durable Object per day
-([Rate Limiting API](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/)).
-If uploader identity becomes necessary, GitHub's device flow can add an explicit sign-in without
-asking users to paste tokens
-([GitHub documentation](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow)); it shouldn't be required for ordinary beta feedback.
-
-Operational defaults should include a small maximum object size, private bucket, short retention,
-no public object URLs, least-privilege intake credentials, deletion by case ID, and a visible privacy
-statement. Server-side processing must treat ZIPs and JSON as hostile input despite the client-side
-allowlist.
-
-Cloudflare's own Worker Logs cover request, custom, and exception logs inside the intake service;
-they don't replace desktop consent, disclosure, redaction, bundle construction, or the separate
-choice to upload a report. Automatic failed-run reports are therefore their own remembered,
-default-off toggle rather than a side effect of enabling server observability.
+The intake treats every request as anonymous hostile input. If remote reporting returns, server-side
+format checks, private storage, short retention, rate limits, and deletion/revocation semantics must
+be reviewed as one end-to-end authority boundary. Automatic failed-run upload, if reintroduced, is
+a separate remembered consent contract and may not become a side effect of ordinary observability.
 
 ## Update, removal, and storage contract
 
@@ -186,9 +183,9 @@ The default desktop path presents one primary action, **Launch Starsector**, and
 before/after result. Advanced controls remain available without becoming prerequisites.
 
 - Updates may be checked in the background, but installation is explicit. Every Tauri updater
-  artifact must have its project-key signature in the feed, and a failed verification must leave
-  the installed version runnable. This free update signature is separate from paid Apple Developer
-  ID or Windows Authenticode identities; the first beta doesn't require those platform identities.
+  artifact must have its project-key signature in the feed, and a failed verification must leave the
+  installed version runnable. This free update signature is separate from paid Apple Developer ID
+  or Windows Authenticode identities; the first beta doesn't require those platform identities.
 - The app shows current cache/evidence use and the effect of Balanced versus Fastest before changing
   policy. Cleanup is preview-first and never runs while the game or preparation owns the profile.
   Its desktop plan keeps the current profile and every readable named profile, summarizes every
@@ -202,9 +199,8 @@ before/after result. Advanced controls remain available without becoming prerequ
   uninstaller; a running app doesn't attempt to delete its own bundle.
 - A profile or game update selects new content identities. Old data remains removable through the
   same preview-first storage flow rather than accumulating invisibly forever.
-- Sending a support ZIP is a deliberate action after creation and review, with a digest, progress,
-  cancel/retry behavior, case receipt, retention information, and deletion path. It isn't ambient
-  telemetry.
+- Creating a support ZIP is a deliberate local action. The first beta retains no remote case,
+  retention deadline, deletion bearer, or automatic failed-run upload state.
 
 ## Operation lifecycle
 

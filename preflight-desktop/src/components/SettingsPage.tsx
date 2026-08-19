@@ -148,15 +148,16 @@ export function SettingsPage({
             />
             <span>Check for updates automatically<small>Checks the release feed when Preflight starts.</small></span>
           </label>
-          <label className="settings-toggle">
-            <input
-              type="checkbox"
-              checked={automaticRunReports}
-              disabled={!reportIntake?.configured}
-              onChange={(event) => onAutomaticRunReportsChange(event.target.checked)}
-            />
-            <span>Send failed-run reports automatically<small>{reportIntake?.configured ? "If Starsector closes with an error, sends the same disclosed support ZIP shown in Help." : "Report intake is unavailable in this build."}</small></span>
-          </label>
+          {reportIntake?.configured ? (
+            <label className="settings-toggle">
+              <input
+                type="checkbox"
+                checked={automaticRunReports}
+                onChange={(event) => onAutomaticRunReportsChange(event.target.checked)}
+              />
+              <span>Send failed-run reports automatically<small>If Starsector closes with an error, sends the same disclosed support ZIP shown in Help.</small></span>
+            </label>
+          ) : null}
         </section>
 
         {/*
@@ -170,17 +171,15 @@ export function SettingsPage({
           <ul className="privacy-facts">
             <li><strong>No ambient telemetry or accounts.</strong></li>
             {/*
-              * A build without a configured intake cannot send a report at all, and the Benchmark
-              * page already says so where the button would be. Describing the send flow here anyway
-              * would advertise a feature this build doesn't have -- and understate the actual
-              * privacy position, which in that case is stronger, not weaker.
+              * A build without a configured intake cannot send a report at all. Keep its copy local-
+              * only so a packaged beta does not advertise a capability that it intentionally omits.
               */}
             {automaticRunReports ? (
               <li>Failed-run reports are on. They send the same bounded support ZIP shown in Help.</li>
-            ) : reportIntake && !reportIntake.configured ? (
-              <li>Update checks fetch version metadata. Support ZIPs stay here until you share one.</li>
-            ) : (
+            ) : reportIntake?.configured ? (
               <li>Update checks fetch version metadata. A support ZIP is sent only when you press Send.</li>
+            ) : (
+              <li>Update checks fetch version metadata. Support ZIPs stay here until you share one.</li>
             )}
             <li>Saves, mods, screenshots, and game files stay out.</li>
           </ul>
