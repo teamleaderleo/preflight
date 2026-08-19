@@ -1,7 +1,8 @@
 name: Merge gate
 
 on:
-  pull_request:
+  pull_request_target:
+    branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
@@ -18,8 +19,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 65
     steps:
+      # pull_request_target supplies the event from the protected base context. Keep the checkout
+      # on that reviewed base revision as well, so a PR cannot edit the program deciding whether
+      # that same PR satisfies the required merge gate.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 0
 
       - name: Verify the aggregate gate implementation
