@@ -15,7 +15,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** Adversarial proof seam for same-inode mutation hidden by restored size/mtime. */
+/** Adversarial proof seams for same-inode mutation hidden by restored size/mtime. */
 class ResourceProviderContentIdentitySameInodeAbaTest {
     @TempDir
     Path temporaryDirectory;
@@ -52,6 +52,34 @@ class ResourceProviderContentIdentitySameInodeAbaTest {
                 observed.evidence(),
                 "same-inode bytes changed during the read must not be published as exact content evidence");
         assertEquals(originalDigest, Hashes.sha256(file), "the public file has the original final content");
+        assertNoProofArtifacts(root);
+    }
+
+    @Test
+    void sameInodeMutationAfterIndexBeforeObservationCannotInheritIndexedGeneration() throws Exception {
+        Path root = Files.createDirectories(temporaryDirectory.resolve("pre-observation/root"));
+        Path file = Files.writeString(root.resolve("shared.bin"), "AAAA");
+        assumeTrue(hardLinkProofAvailable(file), "requires the production hard-link proof primitive");
+
+        ResourceIndex.Provider provider = provider(root, "shared.bin");
+        ResourceIndex index = index(root, provider);
+        FileTime indexedModified = Files.getLastModifiedTime(file);
+
+        // Change the inode after the index captured its generation, then restore every field the
+        // persisted v1 provider currently remembers. A read-time before/after check alone is not
+        // enough: the newer BBBB generation can remain perfectly stable throughout observation.
+        Files.writeString(file, "BBBB");
+        Files.setLastModifiedTime(file, indexedModified);
+
+        ResourceProviderComparison.ContentIdentitySource identities =
+                ResourceProviderContentIdentity.direct(index, Hashes::sha256);
+        ResourceProviderComparison.ContentObservation observed = identities.observe("shared.bin", provider);
+
+        assertEquals("BBBB", Files.readString(file));
+        assertEquals(
+                ResourceProviderComparison.ContentEvidence.STALE,
+                observed.evidence(),
+                "a stable newer same-inode generation must not inherit the older ResourceIndex authority");
         assertNoProofArtifacts(root);
     }
 
