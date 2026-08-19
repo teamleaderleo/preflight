@@ -118,34 +118,24 @@ class StaticReferenceRootAuthorityTest {
     private ResourceIndex index(Map<String, String> documents) throws Exception {
         Path root = Files.createDirectories(temp.resolve("mod"));
         LinkedHashMap<String, List<ResourceIndex.Provider>> entries = new LinkedHashMap<>();
-        documents.entrySet().stream()
+        for (Map.Entry<String, String> entry : documents.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
-                .forEach(entry -> {
-                    try {
-                        String relative = entry.getKey();
-                        Path path = root.resolve(relative);
-                        Files.createDirectories(path.getParent());
-                        byte[] bytes = entry.getValue().getBytes(StandardCharsets.UTF_8);
-                        Files.write(path, bytes);
-                        long modified = Math.max(0L, Files.getLastModifiedTime(path).toMillis());
-                        entries.put(relative, List.of(new ResourceIndex.Provider(
-                                0,
-                                relative,
-                                bytes.length,
-                                modified)));
-                    } catch (Exception error) {
-                        throw new FixtureFailure(error);
-                    }
-                });
+                .toList()) {
+            String relative = entry.getKey();
+            Path path = root.resolve(relative);
+            Files.createDirectories(path.getParent());
+            byte[] bytes = entry.getValue().getBytes(StandardCharsets.UTF_8);
+            Files.write(path, bytes);
+            long modified = Math.max(0L, Files.getLastModifiedTime(path).toMillis());
+            entries.put(relative, List.of(new ResourceIndex.Provider(
+                    0,
+                    relative,
+                    bytes.length,
+                    modified)));
+        }
         return new ResourceIndex(
                 "profile-fingerprint",
                 List.of(new ResourceIndex.Root("example.mod", root, false)),
                 entries);
-    }
-
-    private static final class FixtureFailure extends RuntimeException {
-        FixtureFailure(Throwable cause) {
-            super(cause);
-        }
     }
 }
