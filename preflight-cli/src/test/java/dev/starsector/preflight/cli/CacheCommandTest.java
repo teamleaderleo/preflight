@@ -73,9 +73,11 @@ class CacheCommandTest {
         CacheHealth.Report damaged = CacheHealth.inspect(home, profile);
         assertEquals("repair-needed", damaged.status());
         assertEquals(1, damaged.issues().size());
-        assertEquals(Set.of("resource-index", "texture-manifest"), damaged.targets().stream()
-                .map(CacheHealth.Target::artifact)
-                .collect(java.util.stream.Collectors.toSet()));
+        assertEquals(
+                Set.of("resource-index", "texture-manifest", "texture-source-generation-proof"),
+                damaged.targets().stream()
+                        .map(CacheHealth.Target::artifact)
+                        .collect(java.util.stream.Collectors.toSet()));
 
         CacheHealth.Repair preview = CacheHealth.repair(home, profile, false);
         assertTrue(preview.safe());
@@ -85,7 +87,7 @@ class CacheCommandTest {
 
         CacheHealth.Repair applied = CacheHealth.repair(home, profile, true);
         assertTrue(applied.applied());
-        assertEquals(2, applied.files());
+        assertEquals(3, applied.files());
         assertFalse(Files.exists(index));
         assertFalse(Files.exists(manifest));
         assertEquals("another profile stays intact", Files.readString(otherProfile));
