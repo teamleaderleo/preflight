@@ -23,3 +23,27 @@ test("public release tag must descend from reviewed main", () => {
   assert.match(workflow, /git merge-base --is-ancestor "\$tag_sha" origin\/main/);
   assert.match(workflow, /Release tag commit is not reachable from main/);
 });
+
+test("publication requires tagged lifecycle evidence from reviewed main", () => {
+  assert.match(workflow, /lifecycle_run_id:/);
+  assert.match(workflow, /Tagged candidate package lifecycle/);
+  assert.match(workflow, /\.github\/workflows\/tagged-candidate-lifecycle\.yml/);
+  assert.match(workflow, /run\.get\("event"\) != "workflow_dispatch"/);
+  assert.match(workflow, /run\.get\("head_branch"\) != "main"/);
+  assert.match(workflow, /git merge-base --is-ancestor "\$lifecycle_head" origin\/main/);
+});
+
+test("publication binds all platform lifecycle receipts to the exact tag Distribution bytes", () => {
+  assert.match(
+    workflow,
+    /tagged-candidate-package-lifecycle-\$platform-\$DISTRIBUTION_RUN_ID/,
+  );
+  assert.match(workflow, /preflight-tagged-package-lifecycle-v1/);
+  assert.match(workflow, /Preflight-Linux-x86_64\.deb/);
+  assert.match(workflow, /Preflight-Windows-x86_64\.exe/);
+  assert.match(workflow, /Preflight-macOS-arm64\.dmg/);
+  assert.match(workflow, /receipt\.get\("releaseTag"\) != tag/);
+  assert.match(workflow, /receipt\.get\("sourceRevision"\) != source_revision/);
+  assert.match(workflow, /package\.get\("sha256"\) != actual_sha/);
+  assert.match(workflow, /package\.get\("bytes"\) != len\(data\)/);
+});
