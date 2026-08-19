@@ -3,6 +3,11 @@ const encoder = new TextEncoder();
 export const INSTALLATION_AUTH_VERSION = 2;
 export const MAX_CHALLENGE_LIFETIME_SECONDS = 5 * 60;
 
+const P256_COORDINATE_BYTES = 32;
+const P256_COORDINATE_BASE64URL_LENGTH = 43;
+const P256_SIGNATURE_BYTES = 64;
+const P256_SIGNATURE_BASE64URL_LENGTH = 86;
+
 export type InstallationAction = "recover" | "delete";
 
 export interface InstallationChallenge {
@@ -37,6 +42,12 @@ export async function verifyInstallationRequest(
 ): Promise<boolean> {
   validatePublicKey(publicKey);
   validateChallenge(challenge, nowSeconds);
+  const signatureBytes = decodeExactBase64url(
+    signature,
+    P256_SIGNATURE_BASE64URL_LENGTH,
+    P256_SIGNATURE_BYTES,
+    "installation signature",
+  );
   const key = await crypto.subtle.importKey(
     "jwk",
     publicKey,
@@ -47,7 +58,7 @@ export async function verifyInstallationRequest(
   return crypto.subtle.verify(
     { name: "ECDSA", hash: "SHA-256" },
     key,
-    decodeBase64url(signature),
+    signatureBytes,
     encoder.encode(canonicalInstallationChallenge(challenge)),
   );
 }
@@ -86,8 +97,18 @@ function validatePublicKey(key: JsonWebKey): void {
   if ("d" in key && key.d !== undefined) {
     throw new Error("installation public key contains private material");
   }
-  decodeBase64url(key.x);
-  decodeBase64url(key.y);
+  decodeExactBase64url(
+    key.x,
+    P256_COORDINATE_BASE64URL_LENGTH,
+    P256_COORDINATE_BYTES,
+    "installation public key coordinate",
+  );
+  decodeExactBase64url(
+    key.y,
+    P256_COORDINATE_BASE64URL_LENGTH,
+    P256_COORDINATE_BYTES,
+    "installation public key coordinate",
+  );
 }
 
 function validateChallenge(challenge: InstallationChallenge, nowSeconds: number): void {
@@ -113,6 +134,18 @@ function base64url(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+}
+
+function decodeExactBase64url(
+  value: string,
+  encodedLength: number,
+  decodedLength: number,
+  label: string,
+): Uint8Array {
+  if (value.length !== encodedLength) throw new Error(`invalid ${label} length`);
+  const bytes = decodeBase64url(value);
+  if (bytes.byteLength !== decodedLength) throw new Error(`invalid ${label} length`);
+  return bytes;
 }
 
 function decodeBase64url(value: string): Uint8Array {
