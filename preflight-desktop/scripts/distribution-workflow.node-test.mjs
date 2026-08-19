@@ -101,15 +101,20 @@ test("signed candidates require updater credentials, release validation and ever
   assert.match(distribution, /if: startsWith\(github\.ref, 'refs\/tags\/v'\) \|\| inputs\.signed_candidate/);
   assert.match(distribution, /validate-release-version\.mjs "\$tag"/);
   assert.match(distribution, /TAURI_SIGNING_PRIVATE_KEY_PASSWORD/);
-  assert.doesNotMatch(workflow, /PREFLIGHT_REPORT_INTAKE_ORIGIN|REPORT_INTAKE_ORIGIN/);
+  assert.match(distribution, /PREFLIGHT_REPORT_INTAKE_ORIGIN: \$\{\{ vars\.PREFLIGHT_REPORT_INTAKE_ORIGIN \}\}/);
+  assert.match(distribution, /PREFLIGHT_REPORT_INTAKE_ORIGIN is required for an update-signed build/);
   assert.match(distribution, /PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD must contain at least 32 characters/);
   assert.match(distribution, /path: candidate-core\/\*\.pfcandidate/);
   for (const platformJob of [desktop, linux]) {
     assert.match(platformJob, /Decrypt and stage private-candidate engine JAR/);
     assert.match(platformJob, /path: preflight-desktop\/candidate-desktop\/\*\.pfcandidate/);
     assert.match(platformJob, /PREFLIGHT_UPDATE_RELEASE:.*inputs\.signed_candidate/);
+    assert.match(platformJob, /Configure report intake for release builds[\s\S]*?if: startsWith\(github\.ref, 'refs\/tags\/v'\) \|\| inputs\.signed_candidate/);
+    assert.match(platformJob, /PREFLIGHT_REPORT_INTAKE_ORIGIN: \$\{\{ vars\.PREFLIGHT_REPORT_INTAKE_ORIGIN \}\}/);
+    assert.match(platformJob, /PREFLIGHT_REPORT_INTAKE_ORIGIN=\$PREFLIGHT_REPORT_INTAKE_ORIGIN.*GITHUB_ENV/);
     assert.match(platformJob, /Test frontend and prepare desktop engine[\s\S]*?PREFLIGHT_UPDATER_PUBLIC_KEY:/);
   }
+  assert.doesNotMatch(workflow, /inputs\.signed_candidate && vars\.PREFLIGHT_REPORT_INTAKE_ORIGIN/);
   assert.match(desktop, /update_bundles: dmg,app/);
   assert.match(desktop, /--bundles \$\{\{ matrix\.update_bundles \}\}/);
   assert.match(candidate, /needs: \[distribution, desktop, desktop-linux\]/);
