@@ -73,7 +73,7 @@ new_second = '''test("a stale report-error preview remains local-only and keeps 
   await user.click(screen.getByRole("button", { name: "Help" }));
   await user.click(await screen.findByRole("button", { name: "Make a support file" }));
 
-  expect(await screen.findByText(/Run-report sending isn't configured/)).toBeInTheDocument();
+  expect(await screen.findByText(/Support ZIPs stay local in this beta/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Make another one" })).toBeEnabled();
   expect(screen.queryByRole("button", { name: "Review and send" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Send this exact file" })).not.toBeInTheDocument();
