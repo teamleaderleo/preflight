@@ -95,10 +95,10 @@ player cache state. They still live in the same registry because collisions are 
 
 ## How to read the names
 
-The suffixes are mnemonics, not a formal standards-body allocation. Some are immediately readable
-(`FI` for an index family, `FM` for a manifest, `TG` for texture generation); others reflect the
-artifact name that existed when the format was introduced. Treat the complete four-byte value as
-an opaque registered identifier rather than reverse-engineering authority from individual letters.
+The suffixes are mnemonics, not a formal standards-body allocation and not a stable acronym scheme.
+Some values closely resemble the artifact name that introduced them; others are simply the unique
+registered value chosen at the time. Treat the complete four-byte magic as an opaque registered
+identifier rather than deriving behavior or authority from individual letters.
 
 The important distinction is:
 
