@@ -70,19 +70,18 @@ After changing the Java reactor, run `mvn verify` from the repository root and t
 here. The desktop command refreshes its bounded engine snapshot before release-script, frontend,
 Rust, and clippy checks, so a rebuilt reactor JAR can't leave a stale packaged dependency behind.
 
-Run-report sending is also a compile-time release capability. Ordinary builds omit it and retain
-local diagnostics export only. After the private intake has been provisioned and verified, build
-the release package with the exact production HTTPS origin:
+## First-beta diagnostics boundary
 
-```bash
-PREFLIGHT_REPORT_INTAKE_ORIGIN=https://reports.example.com npm run desktop:build
-```
+The first beta is deliberately local-only for diagnostics. It can create the bounded disclosed
+support ZIP, but it does not compile a report-intake origin, expose remote send/delete controls, or
+perform automatic failed-run uploads. The trusted Distribution workflow must not supply
+`PREFLIGHT_REPORT_INTAKE_ORIGIN` at all.
 
-The value must be an origin only: no path, credentials, query, or fragment. Missing, malformed,
-non-HTTPS, and `.invalid` values disable sending. The app doesn't accept a runtime override or an
-arbitrary destination from the frontend. A tagged release must not set this variable until the
-private bucket, retention rule, rate limit, public privacy details, and complete canary lifecycle
-have passed the [intake deployment checklist](../report-intake/README.md#production-provisioning).
+This branch makes that absence fail closed at native build time: setting
+`PREFLIGHT_REPORT_INTAKE_ORIGIN`—even to an empty value—causes the build to stop. Do not use the old
+pre-release command that compiled a private intake origin into a package. The report transport and
+private Worker remain in the repository as deferred engineering work for a later release; enabling
+them again requires a new reviewed release/privacy/authority contract.
 
 ## Boundaries
 
@@ -99,11 +98,9 @@ have passed the [intake deployment checklist](../report-intake/README.md#product
 - The only user-selected write outside Preflight's own directories is a `.zip` chosen through the
   native save dialog. The Java engine fills it from its bounded diagnostics allowlist; the frontend
   can't choose source files or add arbitrary content.
-- A configured **Send run report** action rechecks that exact ZIP's path, type, size, modification
-  state, and SHA-256 in the native host. It follows only same-origin, case-specific endpoints from
-  the compile-time intake origin, refuses redirects, streams at most 6 MiB, supports cancellation,
-  and returns a signed receipt with an early-deletion authorization. Unconfigured builds save the
-  ZIP locally and send nothing.
+- First-beta support ZIPs stay local. Retained native remote-report commands require a configured
+  compile-time intake origin and therefore fail closed in this beta; Help and Settings expose no
+  remote report action when authoritative local-only status is known.
 - Preparation is a separately reported background operation, but it shares an ownership lock with
   the game so profile files and caches are never prepared while Starsector is running.
 - Desktop smoke automation has a no-launch readiness probe and a separate confirmation. The host
