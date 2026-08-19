@@ -4,6 +4,7 @@ import * as bridge from "./bridge";
 import {
   AUTOMATIC_RUN_REPORT_HISTORY_STORAGE_KEY,
   AUTOMATIC_RUN_REPORTS_STORAGE_KEY,
+  REPORT_RECEIPT_STORAGE_KEY,
 } from "./desktopStorage";
 import { useDiagnosticsReport } from "./useDiagnosticsReport";
 
@@ -52,7 +53,7 @@ test("automatic failed-run reporting requires durable versioned consent and dedu
     .toMatchObject({ protocolVersion: 1, runIdentities: [expect.stringContaining("4242")] });
 });
 
-test("a stale automatic-report preference cannot bypass an unconfigured local-only intake", async () => {
+test("a stale automatic-report preference is cleared when the beta intake is unconfigured", async () => {
   window.localStorage.setItem(AUTOMATIC_RUN_REPORTS_STORAGE_KEY, JSON.stringify({
     protocolVersion: 1,
     disclosureVersion: 1,
@@ -69,18 +70,75 @@ test("a stale automatic-report preference cannot bypass an unconfigured local-on
   const snapshot = vi.spyOn(bridge, "getSnapshot");
   const { result } = renderHook(() => useDiagnosticsReport(false, vi.fn()));
 
-  expect(result.current.automaticRunReports).toBe(true);
+  expect(result.current.automaticRunReports).toBe(false);
   await waitFor(() => expect(result.current.reportIntake).toMatchObject({ configured: false }));
+  await waitFor(() => expect(window.localStorage.getItem(AUTOMATIC_RUN_REPORTS_STORAGE_KEY)).toBeNull());
   await act(async () => result.current.submitAutomaticFailedRunReport({
     game: "/Applications/Starsector",
     wrapperPid: 4242,
   }));
 
   expect(intake).toHaveBeenCalledOnce();
+  expect(result.current.automaticRunReports).toBe(false);
   expect(snapshot).not.toHaveBeenCalled();
   expect(exportAutomatic).not.toHaveBeenCalled();
   expect(send).not.toHaveBeenCalled();
   expect(window.localStorage.getItem(AUTOMATIC_RUN_REPORT_HISTORY_STORAGE_KEY)).toBeNull();
+});
+
+test("an inactive local-only beta clears a stale remote deletion receipt before it can be used", async () => {
+  const now = Date.now();
+  window.localStorage.setItem(REPORT_RECEIPT_STORAGE_KEY, JSON.stringify({
+    protocolVersion: 1,
+    caseId: "case-local-only-upgrade",
+    objectKey: "accepted/case-local-only-upgrade.zip",
+    bytes: 123,
+    sha256: "a".repeat(64),
+    productVersion: "0.1.0",
+    receivedAt: new Date(now - 1_000).toISOString(),
+    retentionDeadline: new Date(now + 86_400_000).toISOString(),
+    deletion: {
+      method: "DELETE",
+      url: "https://reports.invalid/delete/case-local-only-upgrade",
+      token: "stale-deletion-bearer",
+    },
+    signature: "stale-signature",
+  }));
+  const intake = vi.spyOn(bridge, "getReportIntakeStatus").mockResolvedValue({
+    configured: false,
+    origin: null,
+    reason: "Remote reporting is disabled in this beta.",
+  });
+  const remove = vi.spyOn(bridge, "deleteRunReport");
+  const { result } = renderHook(() => useDiagnosticsReport(false, vi.fn()));
+
+  expect(result.current.reportReceipt).toMatchObject({ caseId: "case-local-only-upgrade" });
+  await waitFor(() => expect(result.current.reportIntake).toMatchObject({ configured: false }));
+  await waitFor(() => expect(result.current.reportReceipt).toBeNull());
+  expect(window.localStorage.getItem(REPORT_RECEIPT_STORAGE_KEY)).toBeNull();
+
+  await act(async () => result.current.removeRunReport());
+  expect(intake).toHaveBeenCalledOnce();
+  expect(remove).not.toHaveBeenCalled();
+});
+
+test("enabling automatic reports after local-only intake is known remains off", async () => {
+  vi.spyOn(bridge, "getReportIntakeStatus").mockResolvedValue({
+    configured: false,
+    origin: null,
+    reason: "Remote reporting is disabled in this beta.",
+  });
+  const announce = vi.fn();
+  const { result } = renderHook(() => useDiagnosticsReport(true, announce));
+
+  await waitFor(() => expect(result.current.reportIntake).toMatchObject({ configured: false }));
+  act(() => result.current.setAutomaticRunReports(true));
+
+  expect(result.current.automaticRunReports).toBe(false);
+  expect(window.localStorage.getItem(AUTOMATIC_RUN_REPORTS_STORAGE_KEY)).toBeNull();
+  expect(announce).toHaveBeenCalledWith(
+    "Remote reporting is disabled in this beta. Local diagnostics ZIP export is still available.",
+  );
 });
 
 test("an unrelated or successful latest run is never uploaded for a failed process event", async () => {
