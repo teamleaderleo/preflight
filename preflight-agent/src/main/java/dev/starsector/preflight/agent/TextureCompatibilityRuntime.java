@@ -35,11 +35,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 /** Shared fail-open cache lookup plus the decoded-image compatibility consumer. */
 public final class TextureCompatibilityRuntime {
     static final String PLAN_ID = "texture-compatibility-v2";
-    /** Opt back in to hashing every source file's contents on the loading thread. */
+    /** Diagnostic: force exact per-hit source hashing even when launch snapshot trust was requested. */
     public static final String VERIFY_SOURCE_HASH_PROPERTY = "preflight.texture.verifySourceHash";
     /** Opt back in to hashing every prepared blob's pixels on the loading thread. */
     public static final String VERIFY_BLOB_CHECKSUM_PROPERTY = "preflight.texture.verifyBlobChecksum";
-    /** Diagnostic: use the configure-time full index validation as the launch snapshot. */
+    /** Use the launcher's already-validated source-generation snapshot for this launch. */
     public static final String TRUST_VALIDATED_INDEX_PROPERTY = "preflight.texture.trustValidatedIndex";
     public static final int MAX_MANIFEST_ENTRIES = 100_000;
     public static final long MAX_INDEX_PROVIDERS = 500_000;
@@ -342,29 +342,15 @@ public final class TextureCompatibilityRuntime {
     }
 
     /**
-     * Decides whether the file on disk is still the one the cached blob was built from.
+     * Exact fallback for unsealed/manual texture contexts.
      *
-     * <p>This used to re-read and SHA-256 every source file, on the loading thread, once per
-     * lookup. Under the prefetch bypass that became the single largest computation on the thread
-     * whose wall clock is the load: 1,076 of {@code main}'s 2,631 on-CPU samples -- 41% -- were
-     * {@code SHA2.implCompress0}, hashing up to 1.34 GB of PNGs per launch.
+     * <p>The product path does not reach this method: {@code preflight run --fast} validates the
+     * prepare-time source-generation proof before launching the game and supplies the trusted
+     * snapshot flag. That keeps the measured gigabyte-scale source hash out of the shipped JVM.
      *
-     * <p>It is that expensive because Starsector ships an x86_64 JRE, so the whole game runs under
-     * Rosetta 2, which has no SHA-NI. The JVM's SHA-256 intrinsic never applies and the pure-Java
-     * {@code ByteArrayAccess.b2iBig64} VarHandle path runs instead: 292 MB/s measured in the game's
-     * own JRE against 3,314 MB/s in a native arm64 JDK on the same machine, an 11.4x penalty that
-     * no amount of work on our side removes.
-     *
-     * <p>So the fast path asks the cheaper question, and asks it of evidence that already exists.
-     * {@link #configure} runs {@link ResourceIndexValidator} over every provider in the index
-     * before the first lookup, and that validator's staleness test is exactly size and modified
-     * time. Re-checking those two here costs one {@code readAttributes} -- the same syscall the
-     * old {@code isRegularFile} guard already paid -- and closes the window between configure and
-     * lookup. What it gives up, relative to the hash, is detection of an edit that changes a file's
-     * contents while preserving both its length and its modification time to the millisecond. That
-     * is the staleness contract every build system in common use accepts.
-     *
-     * <p>Set {@code -Dpreflight.texture.verifySourceHash=true} to keep the content hash instead.
+     * <p>A manual or explicitly rechecked context has no such authority, so it pays the exact
+     * source SHA-256 after the cheap size/mtime rejection tests. This is intentionally the slower
+     * diagnostic lane; mutable filesystem metadata never authorizes source contents here.
      */
     private static SourceVerdict verifySource(
             Path source,
@@ -382,13 +368,8 @@ public final class TextureCompatibilityRuntime {
         if (attributes.size() != winner.size()) {
             return SourceVerdict.CHANGED;
         }
-        // Matches ResourceIndexValidator's own comparison, so the configure-time sweep and this
-        // per-lookup re-check cannot disagree about what counts as unchanged.
         if (Math.max(0, attributes.lastModifiedTime().toMillis()) != winner.modifiedMillis()) {
             return SourceVerdict.CHANGED;
-        }
-        if (!Boolean.getBoolean(VERIFY_SOURCE_HASH_PROPERTY)) {
-            return SourceVerdict.UNCHANGED;
         }
         try {
             return entry.sourceSha256().equals(Hashes.sha256(source))
