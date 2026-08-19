@@ -86,7 +86,7 @@ final class AssetLintCommand {
         StringBuilder out = new StringBuilder();
         List<AssetLint.Finding> findings = result.findings();
         if (findings.isEmpty()) {
-            return modFilter == null ? "No findings.\n" : "No findings for " + modFilter + ".\n";
+            return modFilter == null ? "No findings.\n" : "No findings for " + terminalSafe(modFilter) + ".\n";
         }
 
         out.append(findings.size()).append(" finding").append(findings.size() == 1 ? "" : "s");
@@ -124,7 +124,7 @@ final class AssetLintCommand {
     }
 
     private static void appendProvider(StringBuilder out, String provider, List<AssetLint.Finding> findings) {
-        out.append(provider).append("  (").append(findings.size())
+        out.append(terminalSafe(provider)).append("  (").append(findings.size())
                 .append(findings.size() == 1 ? " finding" : " findings");
         String totals = costSummary(findings);
         if (!totals.isEmpty()) {
@@ -147,9 +147,9 @@ final class AssetLintCommand {
                 out.append(wrap(why, "    ")).append('\n');
             }
             for (AssetLint.Finding finding : forRule.subList(0, Math.min(LISTED_PER_RULE, forRule.size()))) {
-                out.append("      ").append(finding.path());
+                out.append("      ").append(terminalSafe(finding.path()));
                 if (!finding.detail().isEmpty()) {
-                    out.append("  \u2014 ").append(finding.detail());
+                    out.append("  \u2014 ").append(terminalSafe(finding.detail()));
                 }
                 out.append('\n');
             }
@@ -158,6 +158,20 @@ final class AssetLintCommand {
             }
         }
         out.append('\n');
+    }
+
+    /** Makes untrusted mod metadata and file names inert when prose is printed to a terminal. */
+    private static String terminalSafe(String text) {
+        StringBuilder safe = new StringBuilder(text.length());
+        for (int i = 0; i < text.length(); i++) {
+            char character = text.charAt(i);
+            if (Character.isISOControl(character)) {
+                safe.append(String.format(Locale.ROOT, "\\u%04x", (int) character));
+            } else {
+                safe.append(character);
+            }
+        }
+        return safe.toString();
     }
 
     private static String wrap(String text, String indent) {
