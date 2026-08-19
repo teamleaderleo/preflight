@@ -1,0 +1,50 @@
+name: RC 803 local-only App tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/rc-803-local-only-app-tests.yml'
+      - 'scripts/rc_803_local_only_app_tests.py'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'proto/local-only-beta-798'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: proto/local-only-beta-798
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6.2.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: preflight-desktop/package-lock.json
+
+      - name: Apply exact stale-test correction
+        run: python3 scripts/rc_803_local_only_app_tests.py
+
+      - name: Run App integration tests
+        working-directory: preflight-desktop
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npx vitest run src/App.test.tsx
+
+      - name: Commit product test bytes and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/rc-803-local-only-app-tests.yml \
+                 scripts/rc_803_local_only_app_tests.py
+          git add preflight-desktop/src/App.test.tsx
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m 'Align App diagnostics tests with local-only beta'
+          git push origin HEAD:proto/local-only-beta-798
