@@ -2,13 +2,14 @@
 mod report_authority_dir;
 
 use report_authority_dir::BoundDirectory;
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
-fn relative_create_read_and_delete_stay_in_the_opened_directory() {
+fn relative_create_read_enumerate_and_delete_stay_in_the_opened_directory() {
     let base = temp_root("ordinary");
     let root = base.join("authority");
     fs::create_dir_all(&root).unwrap();
@@ -19,32 +20,89 @@ fn relative_create_read_and_delete_stay_in_the_opened_directory() {
     file.sync_all().unwrap();
     drop(file);
 
-    assert_eq!(b"secret", directory.read_bytes("secret.json", 64).unwrap().as_slice());
+    assert_eq!(
+        b"secret",
+        directory.read_bytes("secret.json", 64).unwrap().as_slice()
+    );
+    assert_eq!(vec!["secret.json".to_string()], directory.list_names().unwrap());
     directory.delete_file("secret.json").unwrap();
     assert!(!root.join("secret.json").exists());
     fs::remove_dir_all(base).unwrap();
 }
 
 #[test]
-fn cleanup_after_public_root_replacement_cannot_touch_the_replacement() {
-    let base = temp_root("replacement");
+fn create_after_public_root_replacement_stays_in_the_reviewed_generation() {
+    let base = temp_root("create-replacement");
     let root = base.join("authority");
     let reviewed = base.join("reviewed-authority");
     fs::create_dir_all(&root).unwrap();
     let directory = BoundDirectory::open(&root).unwrap();
-    let mut file = directory.create_new("owned.json", 0o600).unwrap();
+
+    fs::rename(&root, &reviewed).unwrap();
+    fs::create_dir(&root).unwrap();
+    fs::write(root.join("secret.json"), b"external").unwrap();
+    let external_before = snapshot(&root);
+
+    let mut file = directory.create_new("secret.json", 0o600).unwrap();
     file.write_all(b"owned").unwrap();
     file.sync_all().unwrap();
     drop(file);
 
+    assert!(directory.require_current().is_err());
+    assert_eq!(b"owned", fs::read(reviewed.join("secret.json")).unwrap().as_slice());
+    assert_eq!(external_before, snapshot(&root));
+    fs::remove_dir_all(base).unwrap();
+}
+
+#[test]
+fn prune_delete_after_public_root_replacement_cannot_touch_the_replacement() {
+    let base = temp_root("delete-replacement");
+    let root = base.join("authority");
+    let reviewed = base.join("reviewed-authority");
+    fs::create_dir_all(&root).unwrap();
+    fs::write(root.join("expired.accepted.json"), b"owned").unwrap();
+    let directory = BoundDirectory::open(&root).unwrap();
+
     fs::rename(&root, &reviewed).unwrap();
     fs::create_dir(&root).unwrap();
-    fs::write(root.join("owned.json"), b"external").unwrap();
+    fs::write(root.join("expired.accepted.json"), b"external").unwrap();
+    fs::write(root.join("sentinel"), b"external-sentinel").unwrap();
+    let external_before = snapshot(&root);
+
+    assert_eq!(
+        vec!["expired.accepted.json".to_string()],
+        directory.list_names().unwrap()
+    );
+    directory.delete_file("expired.accepted.json").unwrap();
 
     assert!(directory.require_current().is_err());
-    directory.delete_file("owned.json").unwrap();
-    assert!(!reviewed.join("owned.json").exists());
-    assert_eq!(b"external", fs::read(root.join("owned.json")).unwrap().as_slice());
+    assert!(!reviewed.join("expired.accepted.json").exists());
+    assert_eq!(external_before, snapshot(&root));
+    fs::remove_dir_all(base).unwrap();
+}
+
+#[test]
+fn clear_after_public_root_replacement_clears_only_the_reviewed_generation() {
+    let base = temp_root("clear-replacement");
+    let root = base.join("authority");
+    let reviewed = base.join("reviewed-authority");
+    fs::create_dir_all(&root).unwrap();
+    fs::write(root.join("generation"), b"owned-generation").unwrap();
+    fs::write(root.join("case.pending.json"), b"owned-pending").unwrap();
+    let directory = BoundDirectory::open(&root).unwrap();
+
+    fs::rename(&root, &reviewed).unwrap();
+    fs::create_dir(&root).unwrap();
+    fs::write(root.join("generation"), b"external-generation").unwrap();
+    fs::write(root.join("case.pending.json"), b"external-pending").unwrap();
+    fs::write(root.join("sentinel"), b"external-sentinel").unwrap();
+    let external_before = snapshot(&root);
+
+    directory.clear_regular_files().unwrap();
+
+    assert!(directory.require_current().is_err());
+    assert!(fs::read_dir(&reviewed).unwrap().next().is_none());
+    assert_eq!(external_before, snapshot(&root));
     fs::remove_dir_all(base).unwrap();
 }
 
@@ -62,12 +120,59 @@ fn preexisting_alias_ancestor_is_refused() {
     assert!(
         BoundDirectory::open(&public.join("support").join("report-authority")).is_err()
     );
-    assert!(fs::read_dir(external.join("support").join("report-authority"))
-        .unwrap()
-        .next()
-        .is_none());
+    assert!(
+        fs::read_dir(external.join("support").join("report-authority"))
+            .unwrap()
+            .next()
+            .is_none()
+    );
     fs::remove_file(public).unwrap();
     fs::remove_dir_all(base).unwrap();
+}
+
+#[cfg(windows)]
+#[test]
+fn preexisting_reparse_ancestor_is_refused() {
+    use std::process::Command;
+
+    let base = temp_root("reparse");
+    let public = base.join("public");
+    let external = base.join("external");
+    fs::create_dir_all(external.join("support").join("report-authority")).unwrap();
+    let status = Command::new("cmd")
+        .arg("/C")
+        .arg("mklink")
+        .arg("/J")
+        .arg(&public)
+        .arg(&external)
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    assert!(
+        BoundDirectory::open(&public.join("support").join("report-authority")).is_err()
+    );
+    assert!(
+        fs::read_dir(external.join("support").join("report-authority"))
+            .unwrap()
+            .next()
+            .is_none()
+    );
+    fs::remove_dir(public).unwrap();
+    fs::remove_dir_all(base).unwrap();
+}
+
+fn snapshot(root: &Path) -> BTreeMap<String, Vec<u8>> {
+    fs::read_dir(root)
+        .unwrap()
+        .map(|entry| {
+            let entry = entry.unwrap();
+            (
+                entry.file_name().to_string_lossy().into_owned(),
+                fs::read(entry.path()).unwrap(),
+            )
+        })
+        .collect()
 }
 
 fn temp_root(label: &str) -> PathBuf {
