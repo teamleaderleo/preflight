@@ -1,7 +1,7 @@
 #[path = "../src/report_authority_journal.rs"]
 mod report_authority_journal;
 
-use report_authority_journal::{append, replay, JournalRecord};
+use report_authority_journal::{JournalRecord, append, replay};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
