@@ -186,6 +186,17 @@ class ModMetadataCheckTest {
     }
 
     @Test
+    void nestedTotalConversionFlagIsNotDeclarationAuthority() throws Exception {
+        Path game = game(List.of("alpha"));
+        mod(game, "alpha", "{\"id\":\"alpha\",\"metadata\":{\"totalConversion\":true}}");
+
+        ModMetadataCheck.Result result = ModMetadataCheck.check(game);
+
+        assertEquals(ModMetadataCheck.ConversionMode.NORMAL, result.conversionMode());
+        assertEquals(List.of(), result.findings());
+    }
+
+    @Test
     void absentOrFalseTotalConversionFlagMeansNormalProfile() throws Exception {
         Path game = game(List.of("alpha", "beta"));
         mod(game, "alpha", "{\"id\":\"alpha\"}");
