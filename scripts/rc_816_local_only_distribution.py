@@ -59,18 +59,12 @@ policy = require_once(
 assert "PREFLIGHT_REPORT_INTAKE_ORIGIN:" not in policy
 policy_path.write_text(policy)
 
-# The dedicated local-only policy uses the actual updater-signing variable from Distribution.
-local_policy_path = Path("preflight-desktop/scripts/local-only-distribution.node-test.mjs")
-local_policy = local_policy_path.read_text()
-local_policy = require_once(
-    local_policy,
-    '  assert.match(workflow, /PREFLIGHT_UPDATER_PRIVATE_KEY/);\n',
-    '  assert.match(workflow, /TAURI_SIGNING_PRIVATE_KEY/);\n',
-    "private updater signing assertion",
-)
-local_policy_path.write_text(local_policy)
+# The dedicated local-only regression already carries the actual signing credential name.
+local_policy = Path("preflight-desktop/scripts/local-only-distribution.node-test.mjs").read_text()
+assert "TAURI_SIGNING_PRIVATE_KEY" in local_policy
+assert "PREFLIGHT_UPDATER_PRIVATE_KEY" not in local_policy
 
-# Closeout: the first beta is now deliberately local-only. Remove release-origin owner work and the
+# Closeout: the first beta is deliberately local-only. Remove release-origin owner work and the
 # remote canary, replacing it with exact candidate evidence for the capability that will actually ship.
 closeout_path = Path("docs/release-gate-closeout.md")
 closeout = closeout_path.read_text()
