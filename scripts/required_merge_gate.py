@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One stable required check over the PR workflows that actually apply."""
+"""One stable required check over the base-known PR workflows that actually apply."""
 
 from __future__ import annotations
 
@@ -12,9 +12,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Iterable
+from pathlib import Path
 
-AGGREGATE_WORKFLOW = "Merge gate"
-ALWAYS_REQUIRED = {"Source boundary"}
+ALWAYS_REQUIRED_PATHS = {".github/workflows/source-boundary.yml"}
 SUCCESS_CONCLUSIONS = {"success"}
 BOOTSTRAP_STEP_MARKERS = (
     "set up job",
@@ -29,49 +29,82 @@ BOOTSTRAP_STEP_MARKERS = (
 )
 
 
-def latest_by_name(workflow_runs: Iterable[dict]) -> dict[str, dict]:
+def trusted_workflow_paths(root: Path = Path(".github/workflows")) -> frozenset[str]:
+    if not root.is_dir():
+        raise RuntimeError(f"trusted workflow directory is missing: {root}")
+    paths = frozenset(
+        path.as_posix()
+        for path in root.iterdir()
+        if path.is_file() and path.suffix.lower() in {".yml", ".yaml"}
+    )
+    missing = ALWAYS_REQUIRED_PATHS - paths
+    if missing:
+        raise RuntimeError("required base workflow is missing: " + ", ".join(sorted(missing)))
+    return paths
+
+
+def latest_by_path(workflow_runs: Iterable[dict], trusted_paths: frozenset[str]) -> dict[str, dict]:
     latest: dict[str, dict] = {}
     for run in workflow_runs:
-        name = run.get("name")
-        if not isinstance(name, str) or name == AGGREGATE_WORKFLOW:
+        path = run.get("path")
+        if not isinstance(path, str) or path not in trusted_paths:
+            # Workflow display names are PR-controlled. Only a workflow file that already exists in
+            # the checked-out base revision can contribute to the aggregate required check.
             continue
-        current = latest.get(name)
+        current = latest.get(path)
         if current is None or int(run.get("id", 0)) > int(current.get("id", 0)):
-            latest[name] = run
+            latest[path] = run
     return latest
 
 
-def belongs_to_pr(run: dict, pr_number: int) -> bool:
-    pull_requests = run.get("pull_requests")
-    if not isinstance(pull_requests, list):
+def belongs_to_pr(run: dict, pull_request: dict) -> bool:
+    head = pull_request.get("head")
+    if not isinstance(head, dict):
         return False
-    return any(item.get("number") == pr_number for item in pull_requests if isinstance(item, dict))
+    head_repo = head.get("repo")
+    run_repo = run.get("head_repository")
+    return (
+        run.get("head_sha") == head.get("sha")
+        and run.get("head_branch") == head.get("ref")
+        and isinstance(head_repo, dict)
+        and isinstance(run_repo, dict)
+        and run_repo.get("id") == head_repo.get("id")
+    )
 
 
-def applicable_runs(workflow_runs: Iterable[dict], pr_number: int) -> list[dict]:
-    return [run for run in workflow_runs if belongs_to_pr(run, pr_number)]
+def applicable_runs(workflow_runs: Iterable[dict], pull_request: dict) -> list[dict]:
+    return [run for run in workflow_runs if belongs_to_pr(run, pull_request)]
 
 
-def evaluate(workflow_runs: Iterable[dict]) -> tuple[str, list[str], dict[str, dict]]:
-    latest = latest_by_name(workflow_runs)
-    expected = ALWAYS_REQUIRED | set(latest)
+def run_label(path: str, run: dict | None) -> str:
+    if run is None:
+        return path
+    name = run.get("name")
+    return f"{name} [{path}]" if isinstance(name, str) and name else path
+
+
+def evaluate(
+    workflow_runs: Iterable[dict], trusted_paths: frozenset[str]
+) -> tuple[str, list[str], dict[str, dict]]:
+    latest = latest_by_path(workflow_runs, trusted_paths)
+    expected = ALWAYS_REQUIRED_PATHS | set(latest)
     pending: list[str] = []
     failed: list[str] = []
-    for name in sorted(expected):
-        run = latest.get(name)
+    for path in sorted(expected):
+        run = latest.get(path)
         if run is None:
-            pending.append(f"{name}: missing")
+            pending.append(path)
             continue
         status = run.get("status")
         conclusion = run.get("conclusion")
         if status != "completed":
-            pending.append(f"{name}: {status or 'pending'}")
+            pending.append(path)
         elif conclusion in SUCCESS_CONCLUSIONS:
             continue
         elif conclusion:
-            failed.append(f"{name}: {conclusion}")
+            failed.append(path)
         else:
-            pending.append(f"{name}: awaiting conclusion")
+            pending.append(path)
     if failed:
         return "failed", failed, latest
     if pending:
@@ -94,6 +127,13 @@ def api_json(url: str, token: str) -> tuple[dict, str]:
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         return json.load(response), response.headers.get("Link", "")
+
+
+def github_pull_request(repo: str, pr_number: int, token: str) -> dict:
+    payload, _ = api_json(f"https://api.github.com/repos/{repo}/pulls/{pr_number}", token)
+    if not isinstance(payload.get("head"), dict):
+        raise RuntimeError("GitHub pull-request response has no head object")
+    return payload
 
 
 def github_workflow_runs(repo: str, sha: str, token: str) -> list[dict]:
@@ -175,18 +215,17 @@ def failure_kind(run: dict, jobs: Iterable[dict]) -> tuple[str, list[str]]:
     return "product/check failure", steps
 
 
-def describe_failures(failed_names: Iterable[str], latest: dict[str, dict], token: str) -> list[str]:
+def describe_failures(failed_paths: Iterable[str], latest: dict[str, dict], token: str) -> list[str]:
     details: list[str] = []
-    for item in failed_names:
-        name = item.split(":", 1)[0]
-        run = latest.get(name, {})
+    for path in failed_paths:
+        run = latest.get(path, {})
         try:
             jobs = github_jobs(run, token)
             kind, steps = failure_kind(run, jobs)
         except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, RuntimeError) as exc:
             kind, steps = "failure; job detail unavailable", [str(exc)]
         url = run.get("html_url") or ""
-        detail = f"{name}: {kind}; conclusion={run.get('conclusion') or 'unknown'}"
+        detail = f"{run_label(path, run)}: {kind}; conclusion={run.get('conclusion') or 'unknown'}"
         if steps:
             detail += "; failed steps=" + ", ".join(steps[:6])
         if url:
@@ -207,14 +246,28 @@ def wait_for_workflows(
     if not token:
         print("GITHUB_TOKEN is required to read GitHub Actions runs", file=sys.stderr)
         return 2
+    try:
+        trusted_paths = trusted_workflow_paths()
+        pull_request = github_pull_request(repo, pr_number, token)
+    except (OSError, urllib.error.HTTPError, urllib.error.URLError, TimeoutError, RuntimeError) as exc:
+        print(f"Merge gate could not establish trusted workflow/PR identity: {exc}", file=sys.stderr)
+        return 2
+    head = pull_request.get("head", {})
+    if head.get("sha") != sha:
+        print(
+            f"Merge gate head moved before evaluation: expected {sha}, current {head.get('sha') or 'unknown'}",
+            file=sys.stderr,
+        )
+        return 1
+
     deadline = time.monotonic() + timeout
     last_state: tuple[str, tuple[str, ...]] | None = None
-    last_names: frozenset[str] | None = None
+    last_paths: frozenset[str] | None = None
     stable_since = time.monotonic()
     api_errors = 0
     while True:
         try:
-            runs = applicable_runs(github_workflow_runs(repo, sha, token), pr_number)
+            runs = applicable_runs(github_workflow_runs(repo, sha, token), pull_request)
             api_errors = 0
         except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, RuntimeError) as exc:
             api_errors += 1
@@ -228,33 +281,39 @@ def wait_for_workflows(
             time.sleep(poll)
             continue
 
-        status, details, latest = evaluate(runs)
-        names = frozenset(latest)
-        if names != last_names:
+        status, paths, latest = evaluate(runs, trusted_paths)
+        observed_paths = frozenset(latest)
+        if observed_paths != last_paths:
             stable_since = time.monotonic()
-            last_names = names
-            print("Observed in-scope PR workflows:")
-            for name in sorted(names):
-                print(f"- {name}")
-        state = (status, tuple(details))
+            last_paths = observed_paths
+            print("Observed base-known in-scope PR workflows:")
+            for path in sorted(observed_paths):
+                print(f"- {run_label(path, latest[path])}")
+        state = (status, tuple(paths))
         if state != last_state:
             print(f"Merge gate state: {status}")
-            for detail in details:
-                print(f"- {detail}")
+            for path in paths:
+                run = latest.get(path)
+                if run is None:
+                    print(f"- {path}: missing")
+                elif run.get("status") != "completed":
+                    print(f"- {run_label(path, run)}: {run.get('status') or 'pending'}")
+                else:
+                    print(f"- {run_label(path, run)}: {run.get('conclusion') or 'awaiting conclusion'}")
             last_state = state
 
         if status == "failed":
             print("One or more in-scope PR workflows failed:", file=sys.stderr)
-            for detail in describe_failures(details, latest, token):
+            for detail in describe_failures(paths, latest, token):
                 print(f"- {detail}", file=sys.stderr)
             return 1
         if status == "success" and time.monotonic() - stable_since >= settle:
-            print("All observed in-scope PR workflows passed after the workflow set settled.")
+            print("All observed base-known in-scope PR workflows passed after the workflow set settled.")
             return 0
         if time.monotonic() >= deadline:
             print("Merge gate timed out waiting for in-scope PR workflows:", file=sys.stderr)
-            for detail in details:
-                print(f"- {detail}", file=sys.stderr)
+            for path in paths:
+                print(f"- {run_label(path, latest.get(path))}", file=sys.stderr)
             return 1
         time.sleep(poll)
 
