@@ -177,14 +177,20 @@ class IntegrationAncestorGenerationTest {
                 + "\nexec 'java' -jar 'preflight.jar' run --fast --game '" + game + "' \"$@\"\n";
     }
 
-    private static void createDirectoryAlias(Path alias, Path target) throws Exception {
+    private static void createDirectoryAlias(Path alias, Path target) throws IOException {
         if (Platform.current() == Platform.WINDOWS) {
             Process process = new ProcessBuilder(
                     "cmd.exe", "/d", "/c", "mklink", "/J", alias.toString(), target.toString())
                     .redirectErrorStream(true)
                     .start();
             String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            int exit = process.waitFor();
+            int exit;
+            try {
+                exit = process.waitFor();
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Interrupted while creating Windows junction for ancestor test", interrupted);
+            }
             assertEquals(0, exit, output);
             assertTrue(Files.exists(alias, LinkOption.NOFOLLOW_LINKS), output);
         } else {
