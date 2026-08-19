@@ -39,6 +39,8 @@ import java.util.Deque;
 final class ConfigSyntax {
     /** Enough of a look at the trailing content to recognise it, without reprinting the file. */
     private static final int PREVIEW_LIMIT = 60;
+    /** Keeps corrupt, attacker-supplied input from growing the bracket stack without bound. */
+    static final int MAX_NESTING_DEPTH = 10_000;
 
     private ConfigSyntax() {
     }
@@ -49,7 +51,9 @@ final class ConfigSyntax {
         /** No reader could accept this: a bracket or string that never closes. */
         UNPARSEABLE,
         /** It parses, and carries configuration past the end of what a reader would consume. */
-        TRAILING_CONTENT
+        TRAILING_CONTENT,
+        /** The input exceeded a safety bound, so no syntax claim can be made. */
+        RESOURCE_LIMIT
     }
 
     /**
@@ -132,6 +136,10 @@ final class ConfigSyntax {
                 }
                 char c = text.charAt(index);
                 if (c == '{' || c == '[') {
+                    if (open.size() >= MAX_NESTING_DEPTH) {
+                        return new Reading(Verdict.RESOURCE_LIMIT, line,
+                                "nesting exceeds the " + MAX_NESTING_DEPTH + " level safety limit");
+                    }
                     open.push(new int[] {c, line});
                     advance();
                 } else if (c == '}' || c == ']') {

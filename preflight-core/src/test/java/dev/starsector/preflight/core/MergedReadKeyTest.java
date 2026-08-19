@@ -64,6 +64,16 @@ class MergedReadKeyTest {
     }
 
     @Test
+    void refusesAbsoluteSingleJsonPathsOutsideTheProfileIdentity() {
+        assertNull(MergedReadKey.singleJson(
+                "/tmp/untrusted/data/config/chatter/characters/default.json"));
+        assertNull(MergedReadKey.singleJson(
+                "C:/untrusted/data/config/chatter/characters/default.json"));
+        assertNotNull(MergedReadKey.singleJson(
+                "data/config/chatter/characters/default.json"));
+    }
+
+    @Test
     void refusesBackslashesAndUnnameableArguments() {
         assertNull(MergedReadKey.json("data\\config\\settings.json", List.of()));
         assertNull(MergedReadKey.json("C:\\Games\\Starsector\\data/config/settings.json", List.of()));

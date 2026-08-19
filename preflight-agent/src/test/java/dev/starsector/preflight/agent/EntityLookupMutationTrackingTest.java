@@ -111,6 +111,24 @@ class EntityLookupMutationTrackingTest {
     }
 
     @Test
+    void mutableIdWithoutASetterRetainsDeepValidation() {
+        List<Object> entities = trackedEntities(31);
+        MutableEntity mutable = new MutableEntity("custom");
+        entities.add(mutable);
+        Object location = new Object();
+
+        assertTrue(EntityLookupRuntime.missing(
+                EntityLookupRuntime.lookup(entities, location, "renamed")));
+
+        mutable.rename("renamed");
+
+        assertSame(mutable, EntityLookupRuntime.lookup(entities, location, "renamed"));
+        assertEquals(0L, EntityLookupRuntime.counters().get("fastValidations"));
+        assertTrue((Long) EntityLookupRuntime.counters().get("deepValidations") >= 2L);
+        assertTrue((Long) EntityLookupRuntime.counters().get("unsafeIdEntities") >= 1L);
+    }
+
+    @Test
     void partialInstallationCannotEnableTheIndex() {
         EntityLookupRuntime.beginSession();
         EntityLookupRuntime.locationInstalled();
@@ -143,6 +161,23 @@ class EntityLookupMutationTrackingTest {
         @Override
         public void setId(String id) {
             super.setId(id);
+        }
+    }
+
+    private static final class MutableEntity implements SectorEntityToken {
+        private String id;
+
+        private MutableEntity(String id) {
+            this.id = id;
+        }
+
+        @Override
+        public String getId() {
+            return id;
+        }
+
+        private void rename(String id) {
+            this.id = id;
         }
     }
 }

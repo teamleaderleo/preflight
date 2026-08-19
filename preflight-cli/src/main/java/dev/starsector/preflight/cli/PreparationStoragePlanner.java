@@ -245,8 +245,10 @@ final class PreparationStoragePlanner {
                 >= TextureBatchBuilder.BALANCED_RAW_BELOW_RATIO;
         long lz4Upper = saturatedAdd(rawFileBytes, Math.max(64, pixelBytes / 255 + 16));
         if (predictedEffective) {
+            // The encoded-size heuristic affects the prediction only. The builder still has to
+            // write the LZ4 candidate before measuring it and may then write a raw fallback.
             return new BlobEstimate(lz4Path, predictedLz4, rawFileBytes,
-                    predictedLz4, lz4Upper, 0);
+                    predictedLz4, saturatedAdd(lz4Upper, rawFileBytes), 0);
         }
         // Balanced has to write the LZ4 candidate before it can prove raw is preferable.
         return new BlobEstimate(rawPath, rawFileBytes, rawFileBytes,

@@ -42,7 +42,8 @@ import java.util.Set;
  * Those are staged into a fresh private directory below a path the child can spell. A shared staging
  * root is never trusted to contain an existing agent: Preflight creates an unpredictable directory,
  * restricts that directory to the current owner, creates a new file inside it, and verifies the full
- * SHA-256 before handing the path to the child. The copy is removed when the wrapper JVM exits.
+ * SHA-256 before handing the path to the child. The copy and its private directory are removed in
+ * that order when the wrapper JVM exits.
  *
  * <p>The encoding consulted is the wrapper's own {@code sun.jnu.encoding}. The wrapper and the game
  * share an environment and a system locale, so the wrapper's value is what the child will use.
@@ -172,8 +173,7 @@ final class AgentJarStaging {
             if (!expectedSha256.equals(actualSha256)) {
                 throw new IOException("staged agent checksum changed while copying: " + staged);
             }
-            staged.toFile().deleteOnExit();
-            directory.toFile().deleteOnExit();
+            registerCleanup(staged, directory);
             keep = true;
             return staged;
         } finally {
@@ -184,11 +184,33 @@ final class AgentJarStaging {
         }
     }
 
+    private static void registerCleanup(Path staged, Path directory) throws IOException {
+        Thread cleanup = new Thread(() -> {
+            try {
+                Files.deleteIfExists(staged);
+            } catch (IOException ignored) {
+                // Best effort at shutdown; leaving a private copy is safer than touching another path.
+            }
+            try {
+                Files.deleteIfExists(directory);
+            } catch (IOException ignored) {
+                // The parent is attempted only after its staged child.
+            }
+        }, "preflight-agent-staging-cleanup");
+        try {
+            Runtime.getRuntime().addShutdownHook(cleanup);
+        } catch (IllegalStateException | SecurityException unavailable) {
+            throw new IOException("Could not register staged-agent cleanup", unavailable);
+        }
+    }
+
     private static Path createPrivateDirectory(Path root) throws IOException {
         PosixFileAttributeView posix = Files.getFileAttributeView(
                 root, PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
         Path directory = posix == null
-                ? Files.createTempDirectory(root, DIRECTORY_NAME + "-")
+                ? (WindowsPrivateDirectory.supported()
+                        ? WindowsPrivateDirectory.create(root, DIRECTORY_NAME + "-")
+                        : Files.createTempDirectory(root, DIRECTORY_NAME + "-"))
                 : Files.createTempDirectory(
                         root,
                         DIRECTORY_NAME + "-",

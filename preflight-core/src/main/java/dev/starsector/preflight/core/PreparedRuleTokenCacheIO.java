@@ -7,7 +7,10 @@ import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -180,7 +183,17 @@ public final class PreparedRuleTokenCacheIO {
 
     private static void writeString(DataOutputStream output, String value, int maximum)
             throws IOException {
-        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes;
+        try {
+            ByteBuffer encoded = StandardCharsets.UTF_8.newEncoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .encode(CharBuffer.wrap(value));
+            bytes = new byte[encoded.remaining()];
+            encoded.get(bytes);
+        } catch (CharacterCodingException error) {
+            throw new IOException("Prepared rule-token string cannot be encoded as UTF-8", error);
+        }
         if (bytes.length > maximum) {
             throw new IOException("Prepared rule-token string exceeds the safety limit");
         }
@@ -197,7 +210,15 @@ public final class PreparedRuleTokenCacheIO {
         if (bytes.length != length) {
             throw new EOFException("Prepared rule-token cache ended inside a string");
         }
-        return new String(bytes, StandardCharsets.UTF_8);
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
+        } catch (CharacterCodingException error) {
+            throw new IOException("Prepared rule-token string is not valid UTF-8", error);
+        }
     }
 
     private static int minimumFileBytes() {

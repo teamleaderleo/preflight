@@ -170,6 +170,23 @@ class AssetLintTest {
     }
 
     @Test
+    void rendersTerminalControlsAsVisibleText() {
+        AssetLint.Finding finding = new AssetLint.Finding(
+                "audio-undecodable", AssetLint.Severity.ERROR, AssetLint.Cost.NONE,
+                "evil\u001b[31m", "sounds/hidden\nfile.ogg", 0, "bad\u009b2Kdetail");
+        AssetLint.Result result = new AssetLint.Result(Map.of(), List.of(finding));
+
+        String rendered = AssetLintCommand.render(result, null);
+
+        assertTrue(rendered.contains("evil\\u001b[31m"), rendered);
+        assertTrue(rendered.contains("sounds/hidden\\u000afile.ogg"), rendered);
+        assertTrue(rendered.contains("bad\\u009b2Kdetail"), rendered);
+        assertFalse(rendered.contains("\u001b"), rendered);
+        assertFalse(rendered.contains("\u009b"), rendered);
+        assertFalse(rendered.contains("hidden\nfile"), rendered);
+    }
+
+    @Test
     void reportsASoundDeclaredButSuppliedByNobody() throws Exception {
         profile();
         declare("""

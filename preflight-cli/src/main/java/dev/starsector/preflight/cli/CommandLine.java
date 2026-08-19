@@ -390,7 +390,7 @@ record CommandLine(
                 case RECOMMENDED -> new PresetConfiguration(
                         true, true, AdapterMode.ENABLED, preset.planScope(),
                         true, TextureAdapterMode.PREPARED_PIXELS, false, RecordingMode.OFF,
-                        false, false, true, true, false, true, false, true, true,
+                        false, true, false, true, false, true, false, true, true,
                         true, true, true, true, true, false, true, true);
                 case CONSERVATIVE -> new PresetConfiguration(
                         true, true, AdapterMode.ENABLED, preset.planScope(),

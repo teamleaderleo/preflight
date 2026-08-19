@@ -5,6 +5,9 @@ import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.ImageHeaderReader;
 import dev.starsector.preflight.core.ResourceIndex;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -52,6 +55,8 @@ final class AssetLint {
      */
     private static final long DUPLICATE_FLOOR_BYTES = 64L << 10;
     private static final int FINDINGS_PER_RULE_LIMIT = 25;
+    /** Config lint is advisory; it must not exhaust the CLI heap on an untrusted mod file. */
+    static final int MAX_CONFIG_BYTES = 8 * 1024 * 1024;
 
     /**
      * Editor project formats. The game reads none of them, so shipping one costs a user download and
@@ -415,8 +420,20 @@ final class AssetLint {
             for (ResourceIndex.Provider provider : entry.getValue()) {
                 String text;
                 try {
-                    text = java.nio.file.Files.readString(
-                            index.resolveExisting(provider), java.nio.charset.StandardCharsets.UTF_8);
+                    if (provider.size() > MAX_CONFIG_BYTES) {
+                        diagnostics.add("Skipped config syntax for " + logicalPath
+                                + ": file exceeds the " + MAX_CONFIG_BYTES + " byte safety limit");
+                        continue;
+                    }
+                    try (InputStream input = java.nio.file.Files.newInputStream(index.resolveExisting(provider))) {
+                        byte[] bytes = input.readNBytes(MAX_CONFIG_BYTES + 1);
+                        if (bytes.length > MAX_CONFIG_BYTES) {
+                            diagnostics.add("Skipped config syntax for " + logicalPath
+                                    + ": file exceeds the " + MAX_CONFIG_BYTES + " byte safety limit");
+                            continue;
+                        }
+                        text = StandardCharsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString();
+                    }
                 } catch (IOException | RuntimeException error) {
                     // Config in an encoding this cannot decode is a separate question from syntax, and
                     // guessing at one while reporting the other would be worse than staying quiet.
@@ -430,6 +447,8 @@ final class AssetLint {
                             Cost.NONE, rootId, logicalPath, 0, reading.detail()));
                     case TRAILING_CONTENT -> findings.add(new Finding("config-unread-content",
                             Severity.ERROR, Cost.NONE, rootId, logicalPath, 0, reading.detail()));
+                    case RESOURCE_LIMIT -> diagnostics.add("Skipped config syntax for " + logicalPath
+                            + ": " + reading.detail());
                     case WELL_FORMED -> {
                     }
                 }

@@ -176,7 +176,7 @@ export function HomePage({
     : status === "running"
       ? "Game running"
       : preparing
-        ? `Preparing ${preparationPercent}%`
+        ? preparationPercent === null ? "Preparation in progress" : `Preparing ${preparationPercent}%`
         : status === "loading"
           ? "Finding Starsector"
           : !isReady
@@ -262,7 +262,7 @@ export function HomePage({
                   disabled={preparing || cacheRepairing || operationBlocked || status === "loading" || status === "error" || cacheLoading || (!storageBlocked && needsPreparation && !cacheNeedsRepair && !cacheInspectionBlocked && awaitingStoragePlan)}
                 >
                   {needsPreparation ? <SparklesIcon /> : <PlayIcon />}
-                  <span>{status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? `Preparing ${preparationPercent}%…` : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review profile check" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Prepare with less disk" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}</span>
+                  <span>{status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? preparationPercent === null ? "Preparation in progress…" : `Preparing ${preparationPercent}%…` : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review profile check" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Prepare with less disk" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}</span>
                 </button>
                 {preparing ? (
                   <button className="button button--quiet launch-console__stop" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>
@@ -301,7 +301,9 @@ export function HomePage({
           {isReady && (preparing || needsPreparation || !profilePrepared) ? (
             <div className="launch-console__note">
               <span>{preparing
-                ? `${preparationPhaseLabel ?? "Preparing"} · Starsector opens automatically. Finished work stays reusable if you stop.`
+                ? preparationPercent === null
+                  ? `${preparationPhaseLabel ?? "Preparation continues"} · Reconnected after restart. Starsector stays closed when this finishes; launch from Home when you’re ready. Finished work stays reusable if you stop.`
+                  : `${preparationPhaseLabel ?? "Preparing"} · Starsector opens automatically. Finished work stays reusable if you stop.`
                 : cacheNeedsRepair
                   ? "Damaged prepared data will be rebuilt. Game files, mods, and saves stay unchanged."
                 : needsPreparation
