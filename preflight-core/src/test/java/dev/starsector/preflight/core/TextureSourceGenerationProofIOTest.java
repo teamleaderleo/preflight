@@ -52,6 +52,33 @@ class TextureSourceGenerationProofIOTest {
                         Arrays.copyOf(bytes, bytes.length - 3)));
     }
 
+    @Test
+    void proofPathAcceptsOnlyOnePortableProfileComponent() {
+        Path cache = temporaryDirectory.resolve("cache");
+        assertEquals(
+                cache.resolve("texture-source-generations-v1/profile-01_alpha.beta.sptg"),
+                TextureSourceGenerationProofIO.path(cache, "profile-01_alpha.beta"));
+
+        for (String profile : new String[] {
+                "../escape",
+                "folder/profile",
+                "folder\\profile",
+                "drive:profile",
+                ".",
+                "..",
+                "profile?query",
+                "profile*glob",
+                "profile|pipe",
+                "profile\u0000nul",
+                "prøfile"
+        }) {
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> TextureSourceGenerationProofIO.path(cache, profile),
+                    profile);
+        }
+    }
+
     private static TextureSourceGenerationProof fixture(boolean reverse) {
         Map<String, String> entries = new LinkedHashMap<>();
         if (reverse) {
