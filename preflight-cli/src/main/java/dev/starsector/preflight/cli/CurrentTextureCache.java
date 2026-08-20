@@ -33,6 +33,7 @@ final class CurrentTextureCache {
             throw new IOException("The enabled-mod profile contains missing mod directories; prepare and launch "
                     + "only after the profile is internally consistent");
         }
+        requireExactGenerationAuthority(current);
 
         Path indexCandidate = ResourceIndexIO.directory(realCache).resolve(fingerprint + ".spfi");
         Path index = Files.isRegularFile(indexCandidate)
@@ -83,6 +84,25 @@ final class CurrentTextureCache {
                 Hashes.sha256(index),
                 current.providerCount(),
                 currentBuild.durationMillis());
+    }
+
+    static void requireExactGenerationAuthority(ResourceIndex index)
+            throws GenerationAuthorityUnavailableException {
+        long unavailable = index.entries().values().stream()
+                .flatMap(List::stream)
+                .filter(provider -> !provider.hasGenerationAuthority())
+                .count();
+        if (unavailable > 0) {
+            throw new GenerationAuthorityUnavailableException(
+                    "Exact file-generation authority is unavailable for " + unavailable
+                            + " resource provider(s)");
+        }
+    }
+
+    static final class GenerationAuthorityUnavailableException extends IOException {
+        GenerationAuthorityUnavailableException(String message) {
+            super(message);
+        }
     }
 
     private static Path firstArtifact(Path cache, String fileName, List<String> directories) throws IOException {

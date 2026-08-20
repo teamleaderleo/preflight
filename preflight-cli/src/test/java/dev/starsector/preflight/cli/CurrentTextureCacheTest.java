@@ -12,6 +12,7 @@ import dev.starsector.preflight.core.TextureManifestIO;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -49,6 +50,26 @@ class CurrentTextureCacheTest {
                 () -> CurrentTextureCache.resolve(fixture.game(), fixture.cache()));
 
         assertTrue(error.getMessage().contains("No prepared texture index matches"), error.getMessage());
+    }
+
+    @Test
+    void degradedProviderCannotAuthorizeExactTextureReuse() throws Exception {
+        Path root = Files.createDirectories(temporaryDirectory.resolve("degraded-root"));
+        Path source = Files.writeString(root.resolve("test.png"), "texture");
+        ResourceIndex degraded = new ResourceIndex(
+                "d".repeat(64),
+                List.of(new ResourceIndex.Root("mod", root, false)),
+                Map.of("test.png", List.of(new ResourceIndex.Provider(
+                        0,
+                        "test.png",
+                        Files.size(source),
+                        Files.getLastModifiedTime(source).toMillis()))));
+
+        CurrentTextureCache.GenerationAuthorityUnavailableException error = assertThrows(
+                CurrentTextureCache.GenerationAuthorityUnavailableException.class,
+                () -> CurrentTextureCache.requireExactGenerationAuthority(degraded));
+
+        assertTrue(error.getMessage().contains("1 resource provider"), error.getMessage());
     }
 
     private Fixture fixture() throws Exception {

@@ -51,19 +51,25 @@ final class LaunchCacheContexts {
     private static Texture textureContext(CommandLine options, LaunchTarget target) throws IOException {
         if (options.textureAuto()) {
             System.out.println("Preflight is matching prepared textures to the current installed profile...");
-            CurrentTextureCache.Resolution resolved = CurrentTextureCache.resolve(
-                    target.installRoot(), options.textureCacheDirectory());
-            return new Texture(
-                    resolved.cacheDirectory(),
-                    resolved.manifest(),
-                    resolved.index(),
-                    resolved.resourceIndex(),
-                    true,
-                    resolved.profileFingerprint(),
-                    resolved.manifestSha256(),
-                    resolved.indexSha256(),
-                    resolved.checkedProviders(),
-                    resolved.indexBuildMillis());
+            try {
+                CurrentTextureCache.Resolution resolved = CurrentTextureCache.resolve(
+                        target.installRoot(), options.textureCacheDirectory());
+                return new Texture(
+                        resolved.cacheDirectory(),
+                        resolved.manifest(),
+                        resolved.index(),
+                        resolved.resourceIndex(),
+                        true,
+                        resolved.profileFingerprint(),
+                        resolved.manifestSha256(),
+                        resolved.indexSha256(),
+                        resolved.checkedProviders(),
+                        resolved.indexBuildMillis());
+            } catch (CurrentTextureCache.GenerationAuthorityUnavailableException unavailable) {
+                System.err.println("Preflight prepared textures are unavailable for this launch: "
+                        + unavailable.getMessage() + "; vanilla texture loading remains active.");
+                return null;
+            }
         }
         if (options.textureManifest() == null) {
             return null;

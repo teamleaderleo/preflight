@@ -368,13 +368,11 @@ final class ResourceIndexBuilder {
                             .toString()
                             .replace('\\', '/');
                     String logical = ResourceIndex.normalizeLogicalPath(relative);
-                    OpenedFileGenerationAuthority.Generation generation;
+                    OpenedFileGenerationAuthority.Generation generation = null;
                     try {
                         generation = OpenedFileGenerationAuthority.capture(realChild);
                     } catch (IOException unavailable) {
-                        throw new GenerationAuthorityException(
-                                "Exact file-generation authority is unavailable for " + realChild,
-                                unavailable);
+                        noteGenerationUnavailable(diagnostics, root, unavailable);
                     }
                     BasicFileAttributes generationBound = Files.readAttributes(realChild, BasicFileAttributes.class);
                     long modifiedMillis = Math.max(0, attributes.lastModifiedTime().toMillis());
@@ -384,13 +382,15 @@ final class ResourceIndexBuilder {
                         throw new GenerationAuthorityException(
                                 "Provider changed while file-generation authority was captured: " + realChild);
                     }
+                    String generationProvider = generation == null ? "" : generation.provider();
+                    String generationToken = generation == null ? "" : generation.token();
                     ResourceIndex.Provider provider = new ResourceIndex.Provider(
                             rootIndex,
                             relative,
                             attributes.size(),
                             modifiedMillis,
-                            generation.provider(),
-                            generation.token());
+                            generationProvider,
+                            generationToken);
                     List<ResourceIndex.Provider> providers = entries.computeIfAbsent(logical, ignored -> new ArrayList<>());
                     if (!providers.isEmpty() && providers.get(providers.size() - 1).rootIndex() == rootIndex) {
                         diagnostics.add("Case-colliding paths in " + root.id() + ": "
@@ -403,8 +403,8 @@ final class ResourceIndexBuilder {
                     update(fingerprint, relative);
                     update(fingerprint, Long.toString(attributes.size()));
                     update(fingerprint, Long.toString(modifiedMillis));
-                    update(fingerprint, generation.provider());
-                    update(fingerprint, generation.token());
+                    update(fingerprint, generationProvider);
+                    update(fingerprint, generationToken);
                 }
             } catch (GenerationAuthorityException fatal) {
                 throw fatal;
@@ -417,10 +417,7 @@ final class ResourceIndexBuilder {
     private static void requireCurrentProviderGenerations(List<RootScan> scans) throws IOException {
         for (RootScan scan : scans) {
             for (ProviderCapture capture : scan.captures()) {
-                OpenedFileGenerationAuthority.Generation expected =
-                        new OpenedFileGenerationAuthority.Generation(
-                                capture.provider().generationProvider(),
-                                capture.provider().generationToken());
+                ResourceIndex.Provider provider = capture.provider();
                 Path current = PathContainment.existingInsideRealRoot(
                         scan.realRoot(),
                         capture.publicPath());
@@ -429,9 +426,38 @@ final class ResourceIndexBuilder {
                             "Indexed provider pathname changed before publication: "
                                     + capture.publicPath());
                 }
-                OpenedFileGenerationAuthority.requireCurrent(current, expected);
+                BasicFileAttributes attributes = Files.readAttributes(current, BasicFileAttributes.class);
+                if (!attributes.isRegularFile()
+                        || attributes.size() != provider.size()
+                        || Math.max(0, attributes.lastModifiedTime().toMillis()) != provider.modifiedMillis()) {
+                    throw new OpenedFileGenerationAuthority.StaleGenerationException(
+                            "Indexed provider metadata changed before publication: "
+                                    + capture.publicPath());
+                }
+                if (provider.hasGenerationAuthority()) {
+                    OpenedFileGenerationAuthority.requireCurrent(
+                            current,
+                            new OpenedFileGenerationAuthority.Generation(
+                                    provider.generationProvider(), provider.generationToken()));
+                }
             }
         }
+    }
+
+    private static void noteGenerationUnavailable(
+            List<String> diagnostics, SourceRoot root, IOException unavailable) {
+        String prefix = "Exact file-generation authority unavailable in resource root "
+                + root.id() + "; ";
+        if (diagnostics.stream().anyMatch(value -> value.startsWith(prefix))) {
+            return;
+        }
+        String detail = unavailable.getMessage();
+        if (detail == null || detail.isBlank()) {
+            detail = unavailable.getClass().getSimpleName();
+        }
+        diagnostics.add(prefix
+                + "provider metadata retained without exact generation authority; "
+                + "exact content evidence will fail closed. First failure: " + detail);
     }
 
     /**
