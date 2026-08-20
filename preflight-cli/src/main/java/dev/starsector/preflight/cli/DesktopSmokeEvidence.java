@@ -170,6 +170,24 @@ final class DesktopSmokeEvidence {
                 input, MAX_RESULT_BYTES, sourceLabel, "Desktop smoke driver result");
     }
 
+    static long artifactHashLimit(long totalBytes) throws IOException {
+        if (totalBytes < 0 || totalBytes > MAX_TOTAL_ARTIFACT_BYTES) {
+            throw new IOException("Smoke artifact total is outside the admitted range");
+        }
+        return Math.min(MAX_ARTIFACT_BYTES, MAX_TOTAL_ARTIFACT_BYTES - totalBytes);
+    }
+
+    static String hashArtifact(InputStream input, long maximumBytes, String sourceLabel)
+            throws IOException {
+        if (input == null) {
+            throw new IllegalArgumentException("Smoke artifact input is required");
+        }
+        if (maximumBytes < 0) {
+            throw new IllegalArgumentException("Smoke artifact byte limit must be nonnegative");
+        }
+        return Hashes.sha256(new BoundedArtifactInputStream(input, maximumBytes, sourceLabel));
+    }
+
     @FunctionalInterface
     interface BeforeOpenHook {
         void run(Path path) throws IOException;
@@ -353,6 +371,55 @@ final class DesktopSmokeEvidence {
         }
     }
 
+    private static final class BoundedArtifactInputStream extends InputStream {
+        private final InputStream delegate;
+        private final long maximumBytes;
+        private final String sourceLabel;
+        private long remaining;
+
+        private BoundedArtifactInputStream(InputStream delegate, long maximumBytes, String sourceLabel) {
+            this.delegate = delegate;
+            this.maximumBytes = maximumBytes;
+            this.sourceLabel = sourceLabel == null ? "smoke artifact" : sourceLabel;
+            this.remaining = maximumBytes;
+        }
+
+        @Override
+        public int read() throws IOException {
+            if (remaining == 0) {
+                int extra = delegate.read();
+                if (extra < 0) return -1;
+                throw exceeded();
+            }
+            int value = delegate.read();
+            if (value >= 0) remaining--;
+            return value;
+        }
+
+        @Override
+        public int read(byte[] bytes, int offset, int length) throws IOException {
+            if (bytes == null) throw new NullPointerException("bytes");
+            if (offset < 0 || length < 0 || offset > bytes.length - length) {
+                throw new IndexOutOfBoundsException();
+            }
+            if (length == 0) return 0;
+            if (remaining == 0) {
+                int extra = delegate.read();
+                if (extra < 0) return -1;
+                throw exceeded();
+            }
+            int allowed = (int) Math.min((long) length, remaining);
+            int read = delegate.read(bytes, offset, allowed);
+            if (read > 0) remaining -= read;
+            return read;
+        }
+
+        private IOException exceeded() {
+            return new IOException(
+                    "Smoke artifact read exceeds " + maximumBytes + " bytes: " + sourceLabel);
+        }
+    }
+
     private static final class Collector {
         private final Path runDirectory;
         private final Map<Path, Map<String, Object>> artifacts = new LinkedHashMap<>();
@@ -391,7 +458,16 @@ final class DesktopSmokeEvidence {
                 if (before.size() > MAX_ARTIFACT_BYTES) {
                     throw new IOException("Smoke artifact exceeds " + MAX_ARTIFACT_BYTES + " bytes: " + real);
                 }
-                String sha256 = Hashes.sha256(real);
+                long hashLimit = artifactHashLimit(totalBytes);
+                if (before.size() > hashLimit) {
+                    throw new IOException(
+                            "Smoke artifacts exceed " + MAX_TOTAL_ARTIFACT_BYTES + " bytes in total");
+                }
+                String sha256;
+                try (InputStream input = Files.newInputStream(
+                        real, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+                    sha256 = hashArtifact(input, hashLimit, real.toString());
+                }
                 BasicFileAttributes after = Files.readAttributes(
                         real, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
                 if (before.size() != after.size()
