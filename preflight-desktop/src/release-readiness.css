@@ -163,8 +163,9 @@ summary:active {
   text-transform: uppercase;
 }
 
+/* Keep appearance labels and values distinct instead of squeezing a fourth dial into the row. */
 .hangar-dock--catalog .hangar-dials {
-  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   align-self: center;
 }
 
@@ -283,6 +284,25 @@ summary:active {
   margin: 0;
   color: var(--ink-faint);
   font-size: 11px;
+}
+
+/* The profile filter is a first-class desktop control, not a browser-default text box. */
+.profile-list-card > input {
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: 10px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, .46);
+  font: inherit;
+  font-size: 14px;
+}
+
+.profile-list-card > input:focus-visible {
+  border-color: rgba(144, 116, 90, .5);
+  outline: 3px solid rgba(144, 116, 90, .14);
 }
 
 @container (max-width: 760px) {

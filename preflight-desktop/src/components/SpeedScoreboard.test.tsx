@@ -59,3 +59,34 @@ test("keeps the personal best trophy while showing an unfavorable latest benchma
   expect(screen.getByRole("button", { name: /Measure current setup/ })).toBeEnabled();
   expect(screen.queryByText(/matching launches/)).not.toBeInTheDocument();
 });
+
+test("keeps playtime session detail on hover and in the accessible description while the copy utility stays icon-only", () => {
+  render(
+    <SpeedScoreboard
+      standing={standing()}
+      isReady
+      hull={hull}
+      playtime={{
+        readable: true,
+        totalMillis: 12_600_000,
+        longestSessionMillis: 7_200_000,
+        averageMillis: 4_200_000,
+        launches: 3,
+        sessionsWithoutDuration: 0,
+        first: null,
+        last: null,
+      }}
+      onOpenBenchmark={vi.fn()}
+    />,
+  );
+
+  const playtime = screen.getByLabelText("3.5h recorded playtime across 3 sessions");
+  expect(playtime).toHaveAccessibleDescription("Longest session 2.0 hours");
+  expect(playtime).toHaveAttribute(
+    "title",
+    "Across 3 recorded sessions · longest 2.0 hours",
+  );
+  expect(screen.getByRole("button", { name: "Copy playtime" })).toHaveAttribute("title", "Copy playtime summary");
+  expect(screen.queryByText(/3 recorded sessions · longest/)).not.toBeInTheDocument();
+  expect(screen.queryByText("Copy playtime")).not.toBeInTheDocument();
+});

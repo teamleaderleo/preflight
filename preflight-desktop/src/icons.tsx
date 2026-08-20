@@ -90,6 +90,24 @@ export function RefreshIcon(props: IconProps) {
   );
 }
 
+export function RotateClockwiseIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M20 11a8 8 0 1 0-2.3 5.7" />
+      <path d="M20 6v5h-5" />
+    </svg>
+  );
+}
+
+export function RotateCounterClockwiseIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M4 11a8 8 0 1 1 2.3 5.7" />
+      <path d="M4 6v5h5" />
+    </svg>
+  );
+}
+
 export function SystemThemeIcon(props: IconProps) {
   return (
     <svg {...defaults} {...props}>
@@ -120,6 +138,23 @@ export function PlayIcon(props: IconProps) {
   return (
     <svg {...defaults} {...props}>
       <path fill="currentColor" stroke="none" d="M8 5.5v13l10-6.5z" />
+    </svg>
+  );
+}
+
+export function PauseIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M9 6v12M15 6v12" />
+    </svg>
+  );
+}
+
+export function CopyIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <rect x="8" y="8" width="11" height="11" rx="2" />
+      <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
     </svg>
   );
 }

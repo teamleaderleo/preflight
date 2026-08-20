@@ -190,7 +190,7 @@ export function HomePage({
                 ? "Preparation needed"
                 : optimizationPreset === "off"
                   ? "Optimizations off"
-                  : "Fast launch ready";
+                  : "Ready to launch";
 
   return (
     <>
@@ -238,7 +238,7 @@ export function HomePage({
           ) : null}
           {!isReady ? <h2>{status === "loading" ? "Finding Starsector…" : "Choose your Starsector installation"}</h2> : null}
           {!isReady ? <p>{status === "loading" ? "Checking the usual installation locations." : "Select the folder containing Starsector.app, starsector.exe, or starsector.sh."}</p> : null}
-          {!isReady && status !== "loading" ? <p className="setup-next">Preflight prepares your mods once, then opens Starsector. It never moves the game, mods, or saves.</p> : null}
+          {!isReady && status !== "loading" ? <p className="setup-next">Preflight creates reusable startup data for your current mod setup, then opens Starsector. Your game, mods, and saves stay unchanged.</p> : null}
           {isReady && (status === "ready" || status === "error") && snapshot?.selected ? (
             <div
               className="home-launch-identity"
@@ -263,7 +263,7 @@ export function HomePage({
                   disabled={preparing || cacheRepairing || operationBlocked || status === "loading" || status === "error" || cacheLoading || (!storageBlocked && needsPreparation && !cacheNeedsRepair && !cacheInspectionBlocked && awaitingStoragePlan)}
                 >
                   {needsPreparation ? <SparklesIcon /> : <PlayIcon />}
-                  <span>{status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? preparationPercent === null ? "Preparation in progress…" : `Preparing ${preparationPercent}%…` : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review profile check" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Prepare with less disk" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}</span>
+                  <span>{status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? preparationPercent === null ? "Preparation in progress…" : `Preparing ${preparationPercent}%…` : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review prepared data" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Prepare with less disk" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}</span>
                 </button>
                 {preparing ? (
                   <button className="button button--quiet launch-console__stop" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>
@@ -318,7 +318,7 @@ export function HomePage({
                       ? `Full preparation needs ${formatBytes(preparationPlan.requiredFreeBytes)} free; ${formatBytes(preparationPlan.usableBytes)} is available. Minimal uses a few megabytes.`
                       : "Storage must be calculated before preparation."
                 : "Optimizations are off for this launch."}</span>
-              {cacheInspectionBlocked ? <span>You can still launch at normal speed while Preflight leaves this cache alone.</span> : null}
+              {cacheInspectionBlocked ? <span>You can still launch at normal speed while Preflight leaves this prepared data alone.</span> : null}
             </div>
           ) : null}
         </div>
@@ -353,14 +353,14 @@ export function HomePage({
       />
 
       {cacheInspectionBlocked ? (
-        <section className="card run-recovery cache-recovery" aria-label="Prepared data needs repair">
+        <section className="card run-recovery cache-recovery" aria-label="Prepared data needs attention">
           <div>
-            <strong>{cacheIdentityUnknown ? "Current mod setup couldn't be inspected" : cacheBoundaryUnsafe ? "Cache location needs attention" : "Prepared data needs repair"}</strong>
-            <p>{cacheHealth.issues[0]?.summary ?? "Some prepared data for this mod setup couldn't be validated."} Starsector and your mods are unchanged.</p>
+            <strong>{cacheIdentityUnknown ? "Prepared data couldn't be checked" : cacheBoundaryUnsafe ? "Prepared data location needs attention" : "Prepared data needs repair"}</strong>
+            <p>{cacheHealth.issues[0]?.summary ?? "Some prepared data for this mod setup couldn't be validated."} Preflight left it in place. Starsector and your mods are unchanged.</p>
             {cacheHealth.issues.length > 1 ? <small>{cacheHealth.issues.length - 1} more issue{cacheHealth.issues.length === 2 ? "" : "s"} found.</small> : null}
           </div>
           <div className="run-recovery__actions">
-            <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("speed")} disabled={cacheRepairing}>Details</button>
+            <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("speed")} disabled={cacheRepairing}>Review details</button>
           </div>
         </section>
       ) : null}

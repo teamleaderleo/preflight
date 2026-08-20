@@ -131,15 +131,20 @@ export function PreparationPage({
       <SpeedScoreboard standing={speedStanding} isReady={isReady} playtime={playtime} lastRun={lastRun} hull={instrumentHull} onOpenBenchmark={onOpenBenchmark} />
 
       {cacheHealth?.status === "repair-needed" || cacheHealth?.status === "unsafe" || cacheHealth?.status === "unknown" ? (
-        <section className="card run-recovery cache-recovery" aria-label="Prepared data repair">
+        <section className="card run-recovery cache-recovery" aria-label="Prepared data needs attention">
           <div>
-            <p className="eyebrow">Current profile</p>
-            <h2>{cacheHealth.status === "unknown" ? "Current mod setup couldn't be inspected" : cacheHealth.status === "unsafe" ? "Cache location needs attention" : "Prepared data needs repair"}</h2>
-            <p>{cacheHealth.issues.map((issue) => issue.summary).join(" ")} {cacheHealth.status === "unsafe" || cacheHealth.status === "unknown" ? "Preflight refused to remove anything." : "Only the listed profile metadata and pack will be removed; shared cache blobs, game files, mods, and saves stay in place."}</p>
-            <small>{cacheHealth.repairFiles.toLocaleString()} artifact{cacheHealth.repairFiles === 1 ? "" : "s"} · {formatBytes(cacheHealth.repairBytes)}</small>
+            <p className="eyebrow">Current mod setup</p>
+            <h2>{cacheHealth.status === "unknown" ? "Prepared data couldn't be checked" : cacheHealth.status === "unsafe" ? "Prepared data location needs attention" : "Prepared data needs repair"}</h2>
+            <p>{cacheHealth.issues.map((issue) => issue.summary).join(" ")} {cacheHealth.status === "unsafe" || cacheHealth.status === "unknown" ? "Preflight left this prepared data in place. Starsector, mods, and saves stay unchanged." : "Preflight will rebuild only its prepared data for this mod setup. Starsector, mods, and saves stay unchanged."}</p>
+            {cacheHealth.status === "repair-needed" ? (
+              <details className="run-recovery__details">
+                <summary>Repair details</summary>
+                <small>{cacheHealth.repairFiles.toLocaleString()} prepared file{cacheHealth.repairFiles === 1 ? "" : "s"} · {formatBytes(cacheHealth.repairBytes)}</small>
+              </details>
+            ) : null}
           </div>
           <div className="run-recovery__actions">
-            {cacheHealth.status === "repair-needed" ? <button className="button button--primary button--compact" type="button" onClick={() => void repairAndPrepare(false)} disabled={operationBlocked || cacheRepairing}>{cacheRepairing ? "Repairing…" : "Repair and rebuild"}</button> : null}
+            {cacheHealth.status === "repair-needed" ? <button className="button button--primary button--compact" type="button" onClick={() => void repairAndPrepare(false)} disabled={operationBlocked || cacheRepairing}>{cacheRepairing ? "Rebuilding…" : "Rebuild prepared data"}</button> : null}
           </div>
         </section>
       ) : null}
@@ -160,7 +165,7 @@ export function PreparationPage({
             ? "Preflight won’t apply optimizations. Prepared data stays here for when you turn them back on."
             : optimizationPreset === "conservative"
               ? "Compatibility mode uses startup caches with the game’s original code. Try it if the default mode causes trouble."
-              : "Preflight prepares your mods once, then reuses that work to start the game faster."}</p>
+              : "Preflight creates reusable startup data for your current mod setup, then reuses it on later launches."}</p>
         </div>
         <label className="simple-switch">
           <input type="checkbox" aria-label="Use Preflight optimizations" checked={optimizationPreset !== "off"} onChange={(event) => onOptimizationPresetChange(event.target.checked ? "recommended" : "off")} disabled={operationBlocked} />
@@ -173,8 +178,8 @@ export function PreparationPage({
           <strong>{preparationCancelling ? "Stopping preparation" : preparing ? preparationPhaseLabel ?? "Preparation is running" : preparationPlanLoading ? "Calculating disk requirement" : storageBlocked ? "Full preparation doesn’t fit" : preparationPlan?.safeToPrepare || !storagePlanApplies(textureStorage) ? "Ready to prepare" : "Preparation needs attention"}</strong>
           <span>{preparing
             ? preparationPercent === null
-              ? "Reconnected after restart · finished artifacts stay reusable"
-              : `${preparationPercent}% complete · finished artifacts stay reusable`
+              ? "Reconnected after restart · finished work stays reusable"
+              : `${preparationPercent}% complete · finished work stays reusable`
             : storageBlocked
               ? "Minimal preparation uses a few megabytes and still speeds up startup."
               : `${textureStorage === "balanced" ? "Balanced storage selected" : textureStorage === "fastest" ? "Fastest raw storage selected" : "Minimal disk use selected · no prepared textures"} · ${resourcePresets[resourcePreset].label.toLowerCase()} resource use`}</span>
@@ -183,7 +188,7 @@ export function PreparationPage({
         </div>
         <div className="prepare-actions">
           {preparing ? <button className="button button--quiet" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>{preparationCancelling ? "Stopping…" : "Stop safely"}</button> : null}
-          <button className="button button--primary" type="button" onClick={() => void prepare(false, storageBlocked ? "minimal" : textureStorage)} disabled={operationBlocked || cacheRepairing || cacheHealth?.status === "repair-needed" || cacheHealth?.status === "unsafe" || cacheHealth?.status === "unknown" || !isReady || preparationPlanLoading || (!storageBlocked && !canPrepare)}><SparklesIcon />{preparing ? preparationPercent === null ? "Preparation in progress…" : "Preparing…" : preparationPlanLoading ? "Calculating…" : storageBlocked ? "Prepare with less disk" : "Prepare current profile"}</button>
+          <button className="button button--primary" type="button" onClick={() => void prepare(false, storageBlocked ? "minimal" : textureStorage)} disabled={operationBlocked || cacheRepairing || cacheHealth?.status === "repair-needed" || cacheHealth?.status === "unsafe" || cacheHealth?.status === "unknown" || !isReady || preparationPlanLoading || (!storageBlocked && !canPrepare)}><SparklesIcon />{preparing ? preparationPercent === null ? "Preparation in progress…" : "Preparing…" : preparationPlanLoading ? "Calculating…" : storageBlocked ? "Prepare with less disk" : "Prepare current mod setup"}</button>
         </div>
       </section> : null}
 
@@ -267,7 +272,7 @@ export function PreparationPage({
           </section>
 
           <section>
-            <h2>Prepared caches</h2>
+            <h2>Prepared data</h2>
             <div className="optimization-domain-list">
               <label className="optimization-domain">
                 <input type="checkbox" aria-label="Prepared textures" checked={!disabledOptimizationDomains.includes("prepared-textures")} onChange={(event) => onOptimizationDomainChange("prepared-textures", event.target.checked)} disabled={operationBlocked || optimizationPreset === "off"} />

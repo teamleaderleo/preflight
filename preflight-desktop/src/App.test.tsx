@@ -420,7 +420,7 @@ test("setup keeps a single installation action and hides unavailable ready-state
 
   expect(await screen.findByRole("heading", { name: "Setup", level: 1 })).toBeInTheDocument();
   expect(screen.getAllByRole("button", { name: "Choose game folder" })).toHaveLength(1);
-  expect(screen.getByText("Preflight prepares your mods once, then opens Starsector. It never moves the game, mods, or saves.")).toBeVisible();
+  expect(screen.getByText("Preflight creates reusable startup data for your current mod setup, then opens Starsector. Your game, mods, and saves stay unchanged.")).toBeVisible();
   expect(screen.queryByRole("region", { name: "Current Preflight setup" })).not.toBeInTheDocument();
   expect(screen.queryByText("Unavailable")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Speed" })).toBeDisabled();
@@ -853,7 +853,7 @@ test("the Hangar keeps the ship central and its compact customization local to t
 
   const height = screen.getByRole("slider", { name: "Depth" });
   fireEvent.change(height, { target: { value: "1.35" } });
-  expect(screen.getByRole("button", { name: "Reset" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Reset appearance" })).toBeEnabled();
   await waitFor(() => expect(JSON.parse(window.localStorage.getItem("preflight.instrumentHullTuning.v1") ?? "{}")["/Applications/Starsector::odyssey"].height).toBe(1.35));
 
   const detail = screen.getByRole("slider", { name: "Detail" });
@@ -865,7 +865,7 @@ test("the Hangar keeps the ship central and its compact customization local to t
   });
 
   await user.selectOptions(ship, "onslaught");
-  expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Reset appearance" })).toBeDisabled();
   await user.selectOptions(ship, "odyssey");
   expect(screen.getByRole("slider", { name: "Depth" })).toHaveValue("1.35");
   expect(screen.getByRole("slider", { name: "Detail" })).toHaveValue("0.04");
@@ -934,7 +934,7 @@ test("storage totals disclose data outside the active cache categories", async (
   render(<App />);
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Speed" }));
-  await user.click(await screen.findByText("Storage details"));
+  await user.click(screen.getByText("Storage details"));
 
   expect(await screen.findByText("Other Preflight data")).toBeInTheDocument();
   expect(screen.getByText("512 B")).toBeInTheDocument();
