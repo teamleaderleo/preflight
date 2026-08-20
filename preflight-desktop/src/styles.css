@@ -592,7 +592,6 @@ h2 {
 
 .launch-console {
   display: grid;
-  grid-template-columns: minmax(330px, 0.9fr) minmax(360px, 1.1fr);
   min-height: 264px;
   overflow: hidden;
   border-color: var(--console-line);
@@ -3662,10 +3661,6 @@ footer {
 @media (max-width: 720px) {
   .main {
     padding: 24px 16px;
-  }
-
-  .launch-console {
-    grid-template-columns: 1fr;
   }
 
   .launch-console__primary {
