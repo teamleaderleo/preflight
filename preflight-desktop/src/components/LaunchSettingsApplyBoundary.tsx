@@ -39,7 +39,7 @@ export function LaunchSettingsApplyBoundary({
         />
         <span>
           <strong>{boundary.confirmationLabel}</strong>
-          <small>{boundary.instruction}</small>
+          <small>Keep them closed until Apply finishes.</small>
         </span>
       </label>
       {blockReason ? <small className="launch-apply-boundary__blocked">{blockReason}</small> : null}
