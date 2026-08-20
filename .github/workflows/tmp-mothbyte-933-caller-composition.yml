@@ -1,0 +1,169 @@
+name: Temporary #933 caller composition regression
+
+on:
+  push:
+    branches: [hardening/931-desktop-smoke-artifact-hash-mossfox]
+    paths:
+      - '.github/workflows/tmp-mothbyte-933-caller-composition.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: hardening/931-desktop-smoke-artifact-hash-mossfox
+      - name: Pin collector aggregate composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path('preflight-cli/src/main/java/dev/starsector/preflight/cli/DesktopSmokeEvidence.java')
+          text = source.read_text(encoding='utf-8')
+
+          old = '''    static String hashArtifact(InputStream input, long maximumBytes, String sourceLabel)
+            throws IOException {
+        if (input == null) {
+            throw new IllegalArgumentException("Smoke artifact input is required");
+        }
+        if (maximumBytes < 0) {
+            throw new IllegalArgumentException("Smoke artifact byte limit must be nonnegative");
+        }
+        return Hashes.sha256(new BoundedArtifactInputStream(input, maximumBytes, sourceLabel));
+    }
+
+    @FunctionalInterface
+    interface BeforeOpenHook {
+'''
+          new = '''    static String hashArtifact(InputStream input, long maximumBytes, String sourceLabel)
+            throws IOException {
+        if (input == null) {
+            throw new IllegalArgumentException("Smoke artifact input is required");
+        }
+        if (maximumBytes < 0) {
+            throw new IllegalArgumentException("Smoke artifact byte limit must be nonnegative");
+        }
+        return Hashes.sha256(new BoundedArtifactInputStream(input, maximumBytes, sourceLabel));
+    }
+
+    static String hashAdmittedArtifact(
+            Path source,
+            long sampledBytes,
+            long totalBytes,
+            ArtifactInputOpener opener) throws IOException {
+        if (sampledBytes < 0) {
+            throw new IllegalArgumentException("Smoke artifact sampled size must be nonnegative");
+        }
+        if (opener == null) {
+            throw new IllegalArgumentException("Smoke artifact opener is required");
+        }
+        long hashLimit = artifactHashLimit(totalBytes);
+        if (sampledBytes > hashLimit) {
+            throw new IOException(
+                    "Smoke artifacts exceed " + MAX_TOTAL_ARTIFACT_BYTES + " bytes in total");
+        }
+        try (InputStream input = opener.open(source)) {
+            return hashArtifact(input, hashLimit, source.toString());
+        }
+    }
+
+    @FunctionalInterface
+    interface ArtifactInputOpener {
+        InputStream open(Path source) throws IOException;
+    }
+
+    @FunctionalInterface
+    interface BeforeOpenHook {
+'''
+          if text.count(old) != 1:
+              raise SystemExit('hashArtifact insertion point changed unexpectedly')
+          text = text.replace(old, new)
+
+          old = '''                long hashLimit = artifactHashLimit(totalBytes);
+                if (before.size() > hashLimit) {
+                    throw new IOException(
+                            "Smoke artifacts exceed " + MAX_TOTAL_ARTIFACT_BYTES + " bytes in total");
+                }
+                String sha256;
+                try (InputStream input = Files.newInputStream(
+                        real, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+                    sha256 = hashArtifact(input, hashLimit, real.toString());
+                }
+'''
+          new = '''                String sha256 = hashAdmittedArtifact(
+                        real,
+                        before.size(),
+                        totalBytes,
+                        source -> Files.newInputStream(
+                                source, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS));
+'''
+          if text.count(old) != 1:
+              raise SystemExit('collector hash composition changed unexpectedly')
+          source.write_text(text.replace(old, new), encoding='utf-8')
+
+          test = Path('preflight-cli/src/test/java/dev/starsector/preflight/cli/DesktopSmokeEvidenceBoundedArtifactHashTest.java')
+          text = test.read_text(encoding='utf-8')
+          marker = '''    @Test
+    void finalComponentSymlinkArtifactIsNotReadable() throws Exception {
+'''
+          addition = '''    @Test
+    void laterArtifactOverRemainingAggregateIsRefusedBeforeContentOpen() throws Exception {
+        Path artifact = temporaryDirectory.resolve("aggregate-prefilter.bin");
+        Files.write(artifact, new byte[] {1, 2, 3, 4});
+        boolean[] opened = {false};
+
+        IOException error = assertThrows(
+                IOException.class,
+                () -> DesktopSmokeEvidence.hashAdmittedArtifact(
+                        artifact,
+                        4,
+                        MAX_TOTAL_ARTIFACT_BYTES - 3,
+                        source -> {
+                            opened[0] = true;
+                            return Files.newInputStream(source);
+                        }));
+
+        assertTrue(error.getMessage().contains("Smoke artifacts exceed"), error.getMessage());
+        assertFalse(opened[0]);
+    }
+
+    @Test
+    void laterArtifactGrowthUsesRemainingAggregateAsActualReadLimit() throws Exception {
+        Path artifact = temporaryDirectory.resolve("aggregate-composed-growing.bin");
+        Files.write(artifact, new byte[] {1, 2, 3});
+        boolean[] appended = {false};
+
+        IOException error = assertThrows(
+                IOException.class,
+                () -> DesktopSmokeEvidence.hashAdmittedArtifact(
+                        artifact,
+                        3,
+                        MAX_TOTAL_ARTIFACT_BYTES - 3,
+                        source -> growing(
+                                Files.newInputStream(source), source, appended, (byte) 4)));
+
+        assertTrue(error.getMessage().contains("exceeds 3 bytes"), error.getMessage());
+        assertTrue(appended[0]);
+        assertEquals(4L, Files.size(artifact));
+    }
+
+'''
+          if text.count(marker) != 1:
+              raise SystemExit('artifact test insertion point changed unexpectedly')
+          test.write_text(text.replace(marker, addition + marker), encoding='utf-8')
+          PY
+
+          ./mvnw -q -pl preflight-cli -am -DskipTests package
+          ./mvnw -q -pl preflight-cli -Dtest=DesktopSmokeEvidenceBoundedArtifactHashTest test
+
+          git config user.name 'Mothbyte'
+          git config user.email 'actions@users.noreply.github.com'
+          git add preflight-cli/src/main/java/dev/starsector/preflight/cli/DesktopSmokeEvidence.java \
+                  preflight-cli/src/test/java/dev/starsector/preflight/cli/DesktopSmokeEvidenceBoundedArtifactHashTest.java
+          git commit -m 'Pin Desktop smoke aggregate hash composition (#932)'
+          git push origin HEAD:hardening/931-desktop-smoke-artifact-hash-mossfox
