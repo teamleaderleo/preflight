@@ -77,8 +77,7 @@ export function BenchmarkPage({
           <p>{isReady
             ? "Runs Starsector twice, once normally and once with Preflight, then compares the launch times."
             : "Choose Starsector on Home before running the benchmark."}</p>
-          {isReady ? <small>Expect several minutes. Starsector opens and closes on its own.</small> : null}
-          {desktopSmokeRunDirectory ? <small>Saved to {shortPath(desktopSmokeRunDirectory)}</small> : null}
+          {isReady ? <small>Expect several minutes. Starsector opens and closes on its own.{desktopSmokeRunDirectory ? ` Saved to ${shortPath(desktopSmokeRunDirectory)}.` : ""}</small> : null}
         </div>
         <div className="benchmark-card__actions">
           {desktopSmokeRunning ? (
