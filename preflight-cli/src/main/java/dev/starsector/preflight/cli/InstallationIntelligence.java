@@ -28,6 +28,10 @@ final class InstallationIntelligence {
     static Result from(ClasspathAudit.Result classpath, ModJarApiUsage.Result apiUsage) {
         Map<String, Object> classpathValues = classpath.values();
         Map<String, Object> usageValues = apiUsage.values();
+        Map<String, Object> classpathTotals = map(classpathValues.get("totals"));
+        Map<String, Object> usageTotals = map(usageValues.get("totals"));
+        boolean providerInventoryComplete = Boolean.TRUE.equals(usageTotals.get("providerInventoryComplete"));
+        Map<String, Boolean> staticCompleteByMod = staticCompletenessByMod(usageValues);
         List<ModInput> mods = mods(classpathValues);
         List<StaticEdge> staticEdges = staticEdges(usageValues);
         Map<String, ApiInput> apiByMod = apiUsageByMod(usageValues);
@@ -39,6 +43,8 @@ final class InstallationIntelligence {
 
         List<Map<String, Object>> modReports = new ArrayList<>();
         for (ModInput mod : mods) {
+            boolean staticScanComplete = staticCompleteByMod.getOrDefault(mod.id(), false);
+            boolean staticEvidenceComplete = providerInventoryComplete && staticScanComplete;
             List<StaticEdge> outgoing = edgesBySource.getOrDefault(mod.id(), List.of());
             Map<String, StaticEdge> byTarget = new LinkedHashMap<>();
             for (StaticEdge edge : outgoing) {
@@ -49,23 +55,29 @@ final class InstallationIntelligence {
             Set<String> emittedTargets = new LinkedHashSet<>();
             for (String dependency : mod.dependencies()) {
                 StaticEdge edge = byTarget.get(dependency);
+                String evidence = edge != null
+                        ? "declared-and-static"
+                        : staticEvidenceComplete ? "declared-only" : "declared-static-unknown";
                 relationships.add(relationship(
                         dependency,
-                        edge == null ? "declared-only" : "declared-and-static",
+                        evidence,
                         true,
-                        edge));
+                        edge,
+                        staticEvidenceComplete));
                 emittedTargets.add(dependency);
             }
             outgoing.stream()
                     .filter(edge -> !emittedTargets.contains(edge.toMod()))
                     .sorted(Comparator.comparing(StaticEdge::toMod))
                     .forEach(edge -> relationships.add(relationship(
-                            edge.toMod(), "static-only", false, edge)));
+                            edge.toMod(), "static-only", false, edge, staticEvidenceComplete)));
 
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("id", mod.id());
             value.put("order", mod.order());
             value.put("resolved", mod.resolved());
+            value.put("staticScanComplete", staticScanComplete);
+            value.put("staticEvidenceComplete", staticEvidenceComplete);
             value.put("missingDependencies", mod.missingDependencies());
             value.put("dependencyOrderProblems", mod.dependencyOrderProblems());
             value.put("missingDeclaredJars", mod.missingDeclaredJars());
@@ -77,13 +89,12 @@ final class InstallationIntelligence {
                 apiValue.put("referencedClasses", api.referencedClasses());
                 apiValue.put("sampleClasses", api.sampleClasses());
                 apiValue.put("truncated", api.truncated());
+                apiValue.put("staticScanComplete", api.staticScanComplete());
                 value.put("starsectorApi", apiValue);
             }
             modReports.add(value);
         }
 
-        Map<String, Object> classpathTotals = map(classpathValues.get("totals"));
-        Map<String, Object> usageTotals = map(usageValues.get("totals"));
         Map<String, Object> summary = new LinkedHashMap<>();
         copyCount(classpathTotals, summary, "enabledMods");
         copyCount(classpathTotals, summary, "resolvedMods");
@@ -96,6 +107,8 @@ final class InstallationIntelligence {
         copyCount(usageTotals, summary, "undeclaredStaticModEdges");
         copyCount(usageTotals, summary, "modsReferencingStarsectorApi");
         copyCount(usageTotals, summary, "ambiguousStaticReferences");
+        copyCount(usageTotals, summary, "incompleteProviderResolutionReferences");
+        summary.put("providerInventoryComplete", providerInventoryComplete);
         summary.put("truncated", Boolean.TRUE.equals(usageTotals.get("truncated")));
 
         Map<String, Object> values = new LinkedHashMap<>();
@@ -109,20 +122,28 @@ final class InstallationIntelligence {
         values.put("mods", List.copyOf(modReports));
         values.put("ambiguousStaticReferenceSamples",
                 listOfMaps(usageValues.get("ambiguousStaticReferenceSamples")));
+        values.put("incompleteProviderResolutionSamples",
+                listOfMaps(usageValues.get("incompleteProviderResolutionSamples")));
         values.put("notes", List.of(
-                "declared-only means metadata declares the relationship but this static scan did not observe a referenced class supplied by that mod.",
-                "static-only means bytecode references a class supplied by another enabled mod without a matching declared dependency; this can be an intentional optional integration.",
+                "declared-only means complete static evidence found no referenced class supplied by that declared dependency.",
+                "declared-static-unknown means metadata declares the relationship but scan/provider completeness is insufficient to interpret static absence.",
+                "static-only means bytecode references a class uniquely supplied by another enabled mod without a matching declared dependency; this can be an intentional optional integration.",
                 "No relationship kind is a compatibility verdict."));
         return new Result(values);
     }
 
     private static Map<String, Object> relationship(
-            String target, String evidence, boolean declaredDependency, StaticEdge edge) {
+            String target,
+            String evidence,
+            boolean declaredDependency,
+            StaticEdge edge,
+            boolean staticEvidenceComplete) {
         Map<String, Object> value = new LinkedHashMap<>();
         value.put("targetMod", target);
         value.put("evidence", evidence);
         value.put("declaredDependency", declaredDependency);
         value.put("staticReference", edge != null);
+        value.put("staticEvidenceComplete", staticEvidenceComplete);
         if (edge != null) {
             value.put("referencedClasses", edge.referencedClasses());
             value.put("sampleClasses", edge.sampleClasses());
@@ -171,6 +192,16 @@ final class InstallationIntelligence {
         return List.copyOf(result);
     }
 
+    private static Map<String, Boolean> staticCompletenessByMod(Map<String, Object> values) {
+        Map<String, Boolean> result = new LinkedHashMap<>();
+        for (Map<String, Object> entry : listOfMaps(values.get("modStaticCompleteness"))) {
+            if (entry.get("modId") instanceof String modId) {
+                result.put(modId, Boolean.TRUE.equals(entry.get("staticScanComplete")));
+            }
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
     private static Map<String, ApiInput> apiUsageByMod(Map<String, Object> values) {
         Map<String, ApiInput> result = new LinkedHashMap<>();
         for (Map<String, Object> usage : listOfMaps(values.get("starsectorApiUsage"))) {
@@ -180,7 +211,8 @@ final class InstallationIntelligence {
             result.put(modId, new ApiInput(
                     number(usage.get("referencedClasses")),
                     strings(usage.get("sampleClasses")),
-                    Boolean.TRUE.equals(usage.get("truncated"))));
+                    Boolean.TRUE.equals(usage.get("truncated")),
+                    Boolean.TRUE.equals(usage.get("staticScanComplete"))));
         }
         return Collections.unmodifiableMap(result);
     }
@@ -249,6 +281,10 @@ final class InstallationIntelligence {
             boolean truncated) {
     }
 
-    private record ApiInput(long referencedClasses, List<String> sampleClasses, boolean truncated) {
+    private record ApiInput(
+            long referencedClasses,
+            List<String> sampleClasses,
+            boolean truncated,
+            boolean staticScanComplete) {
     }
 }
