@@ -87,15 +87,7 @@ final class GameConfigurationAuthority {
                 GameLaunchPreferences.SCREEN_SCALE,
                 generation.get(GameLaunchPreferences.SCREEN_SCALE) == null ? "unset" : "stored-value",
                 null));
-        settings.add(preference(
-                "battleSize",
-                launch.battleSize(),
-                generation,
-                GameLaunchPreferences.GAMEPLAY_SETTINGS,
-                generation.get(GameLaunchPreferences.GAMEPLAY_SETTINGS) == null
-                        ? "unset"
-                        : "stored-json-field",
-                GameLaunchPreferences.BATTLE_SIZE));
+        settings.add(battleSizePreference(launch.battleSize(), generation));
         settings.add(heap("maxHeapMiB", memory.maxHeapMiB(), installRoot, memory));
         settings.add(heap("initialHeapMiB", memory.initialHeapMiB(), installRoot, memory));
 
@@ -118,6 +110,7 @@ final class GameConfigurationAuthority {
                 "The preference fingerprint identifies the exact supplied values for the launcher-setting keys in this projection.",
                 "Heap values come from a separately supplied JvmMemorySettings observation with no shared generation token; combined currentness is not established.",
                 "Heap source paths are only projected lexically relative to the selected installation; this projector does not perform a new filesystem containment check.",
+                "Nested preference fields report parent-key presence separately from field-path presence and typed derivation.",
                 "Registration credentials and unrelated launcher preferences are outside this projection.",
                 "This report is read-only and does not apply or stage configuration changes."));
         return new Result(values);
@@ -141,6 +134,36 @@ final class GameConfigurationAuthority {
         if (valuePath != null) {
             value.put("valuePath", valuePath);
         }
+        return value;
+    }
+
+    private static Map<String, Object> battleSizePreference(
+            Integer effectiveValue,
+            GameLaunchPreferences.Generation generation) {
+        String raw = generation.get(GameLaunchPreferences.GAMEPLAY_SETTINGS);
+        boolean valuePathPresent = false;
+        String derivation = "unset";
+        if (raw != null && !raw.isBlank()) {
+            try {
+                Map<String, Object> gameplay = StrictJson.object(raw);
+                valuePathPresent = gameplay.containsKey(GameLaunchPreferences.BATTLE_SIZE);
+                if (valuePathPresent) {
+                    derivation = effectiveValue == null
+                            ? "stored-json-field-unresolved"
+                            : "stored-json-field";
+                }
+            } catch (RuntimeException malformed) {
+                derivation = "unreadable-json-container";
+            }
+        }
+        Map<String, Object> value = preference(
+                "battleSize",
+                effectiveValue,
+                generation,
+                GameLaunchPreferences.GAMEPLAY_SETTINGS,
+                derivation,
+                GameLaunchPreferences.BATTLE_SIZE);
+        value.put("valuePathPresent", valuePathPresent);
         return value;
     }
 
