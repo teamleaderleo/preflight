@@ -1,9 +1,6 @@
 package dev.starsector.preflight.cli;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
@@ -45,13 +42,8 @@ final class RuntimeProcessIdentity {
 
     static RuntimeProcessIdentity read(Path file) throws IOException {
         Path absolute = file.toAbsolutePath().normalize();
-        if (!Files.isRegularFile(absolute, LinkOption.NOFOLLOW_LINKS)) {
-            throw new IOException("Runtime process identity is not a regular file: " + absolute);
-        }
-        if (Files.size(absolute) > MAX_BYTES) {
-            throw new IOException("Runtime process identity exceeds " + MAX_BYTES + " bytes");
-        }
-        Map<String, Object> root = StrictJson.object(Files.readString(absolute, StandardCharsets.UTF_8));
+        Map<String, Object> root = BoundedRuntimeJson.readObject(
+                absolute, MAX_BYTES, "Runtime process identity");
         for (String field : root.keySet()) {
             if (!FIELDS.contains(field)) {
                 throw new IllegalArgumentException("Runtime process identity contains unknown field: " + field);
