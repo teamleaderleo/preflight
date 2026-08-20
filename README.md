@@ -126,8 +126,7 @@ does not need Accessibility permission or desktop-input automation.
 
 ## When the game or a mod changes
 
-Preflight keeps Starsector JARs, mod JARs, executables, assets, and saves outside the acceleration
-path. Runtime changes live inside the launched game process and disappear when the game exits. Two
+Preflight leaves Starsector JARs, mod JARs, executables, assets, and saves unchanged. Runtime changes live inside the launched game process and disappear when the game exits. Two
 backed-up features can update game-owned preferences: named-profile activation and the launch-settings
 editor.
 
@@ -290,12 +289,13 @@ See [Diagnostics export](docs/diagnostics.md), [Privacy](docs/privacy.md),
 
 ## Before the public beta
 
-Four release checks remain:
+Current beta blockers are:
 
-1. Exercise real-game installations on Windows and Linux.
-2. Freeze and exercise the complete hosted Windows, macOS, and Linux candidate.
-3. Run the startup benchmark from the packaged candidate and retain the result.
-4. Complete the packaged support-intake canary cancel/retry/delete sequence.
+1. Exercise real-game installations on Windows and native x86-64 Linux.
+2. Freeze and exercise one complete hosted Windows, macOS, and Linux candidate generation.
+3. Run the startup benchmark against the exact packaged candidate bytes and retain the result.
+4. Complete the packaged support-intake partial-upload cancel, cleanup/local-ZIP retention, retry, accepted-receipt, and delete sequence.
+5. Complete release-owner visual acceptance of Home and Hangar at the default and minimum shipped window sizes (#976).
 
 The Fractal Softworks courtesy request is outside the publication gate. The complete checklist is in
 [Release readiness](docs/release-readiness.md), and the broader follow-up work is in the

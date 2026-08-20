@@ -201,7 +201,7 @@ export function SettingsPage({
         <section className="card privacy-card">
           <div className="card__heading"><div><h2>Privacy</h2></div><ShieldIcon className="settings-check" /></div>
           <ul className="privacy-facts">
-            <li><strong>No accounts or background telemetry.</strong></li>
+            <li><strong>No accounts. No usage telemetry.</strong></li>
             {/*
               * A build without a configured intake cannot send a report at all, and the Benchmark
               * page already says so where the button would be. Describing the send flow here anyway
