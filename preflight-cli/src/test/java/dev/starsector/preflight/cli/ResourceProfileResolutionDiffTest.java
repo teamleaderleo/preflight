@@ -55,9 +55,9 @@ class ResourceProfileResolutionDiffTest {
         assertEquals(1L, number(totals, "addedPaths"));
         assertEquals(1L, number(totals, "removedPaths"));
         assertEquals(2L, number(totals, "providerSourceSequenceChangedPaths"));
-        assertEquals(2L, number(totals, "providerSnapshotMetadataChangedPaths"));
+        assertEquals(2L, number(totals, "providerSnapshotMetadataOnlyChangedPaths"));
         assertEquals(1L, number(totals, "winnerSourceChangedPaths"));
-        assertEquals(1L, number(totals, "winnerSnapshotMetadataChangedPaths"));
+        assertEquals(1L, number(totals, "winnerSnapshotMetadataOnlyChangedPaths"));
         assertEquals(6L, number(totals, "changeDetailsReturned"));
         assertFalse((Boolean) totals.get("changeDetailsTruncated"));
 
@@ -81,12 +81,14 @@ class ResourceProfileResolutionDiffTest {
 
         Map<String, Object> metadata = change(changes, "data/weapons/meta.wpn");
         assertFalse((Boolean) metadata.get("providerSourceSequenceChanged"));
-        assertTrue((Boolean) metadata.get("providerSnapshotMetadataChanged"));
-        assertTrue((Boolean) metadata.get("winnerSnapshotMetadataChanged"));
+        assertTrue((Boolean) metadata.get("providerSnapshotMetadataOnlyChanged"));
+        assertTrue((Boolean) metadata.get("winnerSnapshotMetadataOnlyChanged"));
+        assertTrue(((List<?>) metadata.get("changeReasons")).contains("provider-snapshot-metadata-only-changed"));
+        assertTrue(((List<?>) metadata.get("changeReasons")).contains("winner-snapshot-metadata-only-changed"));
 
         Map<String, Object> nonwinnerMetadata = change(changes, "data/config/nonwinner.json");
-        assertTrue((Boolean) nonwinnerMetadata.get("providerSnapshotMetadataChanged"));
-        assertFalse((Boolean) nonwinnerMetadata.get("winnerSnapshotMetadataChanged"));
+        assertTrue((Boolean) nonwinnerMetadata.get("providerSnapshotMetadataOnlyChanged"));
+        assertFalse((Boolean) nonwinnerMetadata.get("winnerSnapshotMetadataOnlyChanged"));
 
         Map<String, Object> added = change(changes, "data/factions/added.faction");
         assertEquals("added", added.get("status"));
@@ -100,6 +102,7 @@ class ResourceProfileResolutionDiffTest {
 
         String json = result.toJson();
         assertFalse(json.contains(temporaryDirectory.toString()));
+        assertTrue(json.contains("Metadata-only counters apply only when the corresponding provider or winner source identity stayed the same"));
         assertTrue(json.contains("Provider size and modifiedMillis differences are ResourceIndex snapshot metadata changes"));
     }
 
