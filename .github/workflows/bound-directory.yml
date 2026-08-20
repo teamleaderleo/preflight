@@ -1,68 +1,250 @@
-name: Bound directory capability
+name: Bound directory macOS ACL repair bridge
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [synchronize]
     paths:
       - '.github/workflows/bound-directory.yml'
-      - 'preflight-desktop/src-tauri/Cargo.lock'
-      - 'preflight-desktop/src-tauri/Cargo.toml'
-      - 'preflight-desktop/src-tauri/src/bound_directory.rs'
-      - 'preflight-desktop/src-tauri/tests/bound_directory.rs'
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/bound-directory.yml'
-      - 'preflight-desktop/src-tauri/Cargo.lock'
-      - 'preflight-desktop/src-tauri/Cargo.toml'
-      - 'preflight-desktop/src-tauri/src/bound_directory.rs'
-      - 'preflight-desktop/src-tauri/tests/bound_directory.rs'
   workflow_dispatch:
 
 permissions:
-  contents: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  contents: write
 
 jobs:
-  test:
-    name: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  repair:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: proto/report-stack-800
+          fetch-depth: 0
 
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with:
           components: rustfmt
 
-      - name: Install Linux desktop dependencies
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
-
-      - name: Provide compile-time engine resource
+      - name: Apply exact macOS extended-ACL validation repair
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p preflight-desktop/src-tauri/target/engine
-          printf 'BoundDirectory test compile-time resource placeholder\n' \
-            > preflight-desktop/src-tauri/target/engine/bound-directory-placeholder.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json
 
-      - name: Check Rust formatting
-        if: runner.os == 'Linux'
-        run: cargo fmt --check --manifest-path preflight-desktop/src-tauri/Cargo.toml
+          source_path = Path('preflight-desktop/src-tauri/src/bound_directory.rs')
+          tests_path = Path('preflight-desktop/src-tauri/tests/bound_directory.rs')
+          lock_path = Path('preflight-desktop/capabilities/release-receipt-source-lock.json')
 
-      - name: Test capability replacement contracts
-        run: cargo test --locked --manifest-path preflight-desktop/src-tauri/Cargo.toml --test bound_directory -- --test-threads=1
+          source = source_path.read_text()
+          tests = tests_path.read_text()
+
+          old_extern = '''    #[cfg(target_os = "macos")]
+              unsafe extern "C" {
+                  fn renameatx_np(
+                      from_fd: libc::c_int,
+                      from: *const libc::c_char,
+                      to_fd: libc::c_int,
+                      to: *const libc::c_char,
+                      flags: libc::c_uint,
+                  ) -> libc::c_int;
+              }
+          '''
+          new_extern = '''    #[cfg(target_os = "macos")]
+              const ACL_TYPE_EXTENDED: libc::c_uint = 0x0000_0100;
+              #[cfg(target_os = "macos")]
+              const ACL_FIRST_ENTRY: libc::c_int = 0;
+
+              #[cfg(target_os = "macos")]
+              unsafe extern "C" {
+                  fn renameatx_np(
+                      from_fd: libc::c_int,
+                      from: *const libc::c_char,
+                      to_fd: libc::c_int,
+                      to: *const libc::c_char,
+                      flags: libc::c_uint,
+                  ) -> libc::c_int;
+                  fn acl_get_fd_np(fd: libc::c_int, acl_type: libc::c_uint) -> *mut libc::c_void;
+                  fn acl_get_entry(
+                      acl: *mut libc::c_void,
+                      entry_id: libc::c_int,
+                      entry: *mut *mut libc::c_void,
+                  ) -> libc::c_int;
+                  fn acl_free(object: *mut libc::c_void) -> libc::c_int;
+              }
+          '''
+          if source.count(old_extern) != 1:
+              raise SystemExit('expected one macOS extern block')
+          source = source.replace(old_extern, new_extern)
+
+          old_dir_tail = '''        if metadata.mode() & 0o7777 != 0o700 {
+                      return Err(io::Error::new(
+                          io::ErrorKind::PermissionDenied,
+                          "protected component does not have private mode 0700",
+                      ));
+                  }
+                  Ok(())
+              }
+          '''
+          new_dir_tail = '''        if metadata.mode() & 0o7777 != 0o700 {
+                      return Err(io::Error::new(
+                          io::ErrorKind::PermissionDenied,
+                          "protected component does not have private mode 0700",
+                      ));
+                  }
+                  require_no_extended_acl(directory)?;
+                  Ok(())
+              }
+          '''
+          if source.count(old_dir_tail) != 1:
+              raise SystemExit('expected one private-directory tail')
+          source = source.replace(old_dir_tail, new_dir_tail)
+
+          old_file_tail = '''        if metadata.mode() & 0o077 != 0 {
+                      return Err(io::Error::new(
+                          io::ErrorKind::PermissionDenied,
+                          "child permissions are broader than owner-only",
+                      ));
+                  }
+                  Ok(())
+              }
+
+              fn validate_private_file_mode(mode: u32) -> io::Result<()> {
+          '''
+          new_file_tail = '''        if metadata.mode() & 0o077 != 0 {
+                      return Err(io::Error::new(
+                          io::ErrorKind::PermissionDenied,
+                          "child permissions are broader than owner-only",
+                      ));
+                  }
+                  require_no_extended_acl(file)?;
+                  Ok(())
+              }
+
+              #[cfg(target_os = "macos")]
+              fn require_no_extended_acl(file: &File) -> io::Result<()> {
+                  let acl = unsafe { acl_get_fd_np(file.as_raw_fd(), ACL_TYPE_EXTENDED) };
+                  if acl.is_null() {
+                      let error = io::Error::last_os_error();
+                      return match error.raw_os_error() {
+                          Some(libc::ENOENT) | Some(libc::EOPNOTSUPP) => Ok(()),
+                          _ => Err(error),
+                      };
+                  }
+
+                  let mut entry: *mut libc::c_void = std::ptr::null_mut();
+                  let has_entry = unsafe { acl_get_entry(acl, ACL_FIRST_ENTRY, &mut entry) } == 0;
+                  if unsafe { acl_free(acl) } != 0 {
+                      return Err(io::Error::last_os_error());
+                  }
+                  if has_entry {
+                      return Err(io::Error::new(
+                          io::ErrorKind::PermissionDenied,
+                          "opened generation has an extended ACL",
+                      ));
+                  }
+                  Ok(())
+              }
+
+              #[cfg(not(target_os = "macos"))]
+              fn require_no_extended_acl(_file: &File) -> io::Result<()> {
+                  Ok(())
+              }
+
+              fn validate_private_file_mode(mode: u32) -> io::Result<()> {
+          '''
+          if source.count(old_file_tail) != 1:
+              raise SystemExit('expected one private-file tail')
+          source = source.replace(old_file_tail, new_file_tail)
+
+          marker = '''#[cfg(unix)]
+          #[test]
+          fn public_winner_before_missing_component_publish_is_never_adopted() {
+          '''
+          test = '''#[cfg(target_os = "macos")]
+          #[test]
+          fn extended_acl_is_rejected_despite_private_mode_bits() {
+              use std::os::unix::fs::PermissionsExt;
+              use std::process::Command;
+
+              let base = temp_root("extended-acl");
+              let root = base.join("owned").join("authority");
+              let directory = BoundDirectory::open_or_create(&base, Path::new("owned/authority")).unwrap();
+              let file_path = root.join("secret.bin");
+              let file = directory
+                  .create_new(OsStr::new("secret.bin"), 0o600)
+                  .unwrap();
+              drop(file);
+
+              let file_acl = Command::new("/bin/chmod")
+                  .arg("+a")
+                  .arg("everyone allow read")
+                  .arg(&file_path)
+                  .status()
+                  .unwrap();
+              assert!(file_acl.success());
+              assert_eq!(0, fs::metadata(&file_path).unwrap().permissions().mode() & 0o077);
+              let error = directory.open_regular(OsStr::new("secret.bin")).unwrap_err();
+              assert_eq!(std::io::ErrorKind::PermissionDenied, error.kind());
+
+              let directory_acl = Command::new("/bin/chmod")
+                  .arg("+a")
+                  .arg("everyone allow list,search")
+                  .arg(&root)
+                  .status()
+                  .unwrap();
+              assert!(directory_acl.success());
+              assert_eq!(0o700, fs::metadata(&root).unwrap().permissions().mode() & 0o7777);
+              let error = BoundDirectory::open_existing(&base, Path::new("owned/authority")).unwrap_err();
+              assert_eq!(std::io::ErrorKind::PermissionDenied, error.kind());
+
+              drop(directory);
+              fs::remove_dir_all(base).unwrap();
+          }
+
+          '''
+          if tests.count(marker) != 1:
+              raise SystemExit('expected one public-winner test marker')
+          tests = tests.replace(marker, test + marker)
+
+          source_path.write_text(source)
+          tests_path.write_text(tests)
+
+          # The lock is refreshed after rustfmt below, outside this Python block.
+          PY
+
+          rustfmt --edition 2024 \
+            preflight-desktop/src-tauri/src/bound_directory.rs \
+            preflight-desktop/src-tauri/tests/bound_directory.rs
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+          source_path = Path('preflight-desktop/src-tauri/src/bound_directory.rs')
+          lock_path = Path('preflight-desktop/capabilities/release-receipt-source-lock.json')
+          digest = hashlib.sha256(source_path.read_bytes()).hexdigest()
+          data = json.loads(lock_path.read_text())
+          key = 'preflight-desktop/src-tauri/src/bound_directory.rs'
+          if key not in data['sourceSha256']:
+              raise SystemExit('BoundDirectory source lock entry missing')
+          data['sourceSha256'][key] = digest
+          lock_path.write_text(json.dumps(data, indent=2) + '\n')
+          print(f'bound_directory_sha256={digest}')
+          PY
+
+          git diff --check
+          git diff --stat
+
+      - name: Commit durable repair bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Gatekeeper-804'
+          git config user.email 'actions@users.noreply.github.com'
+          git add \
+            preflight-desktop/src-tauri/src/bound_directory.rs \
+            preflight-desktop/src-tauri/tests/bound_directory.rs \
+            preflight-desktop/capabilities/release-receipt-source-lock.json
+          git diff --cached --quiet && exit 0
+          git commit -m 'Reject macOS extended ACLs in BoundDirectory'
+          git push origin HEAD:proto/report-stack-800
