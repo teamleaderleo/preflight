@@ -530,8 +530,9 @@ final class SaveProfileObservation {
                     complete = false;
                     break;
                 }
-                String displayName = boundedText(save.getFileName().toString(), 255);
-                String key = saveKey(displayName, caseInsensitivePaths);
+                String directoryEntryName = save.getFileName().toString();
+                String displayName = boundedText(directoryEntryName, 255);
+                String key = saveKey(directoryEntryName);
                 SaveDigest digest = digestMetadata(save, stillOwned, aggregateWork);
                 if (digest != null) {
                     states.put(key, new SaveState(key, displayName, digest.token(), digest.maxModified()));
@@ -849,7 +850,7 @@ final class SaveProfileObservation {
     private static Observation parseObservation(Map<?, ?> raw) {
         try {
             String installationKey = string(raw.get("installationKey"));
-            String saveKey = string(raw.get("saveKey"));
+            String saveKey = nonEmptyString(raw.get("saveKey"));
             String saveName = boundedText(string(raw.get("saveName")), 255);
             String stateToken = string(raw.get("stateToken"));
             Instant observedAt = parseInstant(raw.get("observedAt"));
@@ -938,8 +939,8 @@ final class SaveProfileObservation {
         return caseInsensitivePaths ? value.toLowerCase(Locale.ROOT) : value;
     }
 
-    private static String saveKey(String displayName, boolean caseInsensitivePaths) {
-        return caseInsensitivePaths ? displayName.toLowerCase(Locale.ROOT) : displayName;
+    private static String saveKey(String directoryEntryName) {
+        return directoryEntryName;
     }
 
     private static Instant parseInstant(Object value) {
@@ -953,6 +954,10 @@ final class SaveProfileObservation {
 
     private static String string(Object value) {
         return value instanceof String text && !text.isBlank() ? text : null;
+    }
+
+    private static String nonEmptyString(Object value) {
+        return value instanceof String text && !text.isEmpty() ? text : null;
     }
 
     private static String boundedText(String value, int max) {

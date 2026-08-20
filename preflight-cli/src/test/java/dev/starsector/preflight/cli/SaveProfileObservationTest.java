@@ -438,8 +438,11 @@ final class SaveProfileObservationTest {
     }
 
     @Test
-    void caseOnlyRenameUsesSameSaveIdentityOnCaseInsensitiveFilesystems() throws Exception {
+    void caseOnlyRenameDoesNotTransferExactDirectoryIdentity() throws Exception {
         Fixture fixture = fixture("Manual", "before");
+        org.junit.jupiter.api.Assumptions.assumeFalse(
+                Files.exists(fixture.saves.resolve("manual")),
+                "test filesystem aliases case-only directory spellings");
         Instant firstEnd = futureEnd();
         SaveProfileObservation.Session first = SaveProfileObservation.testSession(
                 fixture.home, fixture.install, heavy(), firstEnd.minusSeconds(10), true);
@@ -454,8 +457,8 @@ final class SaveProfileObservationTest {
 
         List<SaveProfileObservation.Observation> observations = fixture.observations();
         assertEquals(1, observations.size());
-        assertEquals("manual", observations.get(0).saveKey());
-        assertNull(observations.get(0).missingSince());
+        assertEquals("Manual", observations.get(0).saveKey());
+        assertNotNull(observations.get(0).missingSince());
     }
 
     @Test
