@@ -53,9 +53,9 @@ launch the game sooner.
 - **It plans storage before preparation.** Preflight calculates the current profile's requirement,
   reuses matching prepared data, and refuses before writing when the safe bound does not fit. If the
   normal preparation is too large, it can offer a much smaller minimal-disk route.
-- **Recovery is part of the product.** Preparation can be stopped safely, damaged prepared data can
-  be repaired for the exact profile, cleanup is previewed before deletion, and a failed run puts
-  **Copy setup** directly beside Relaunch and Get help.
+- **Preflight cannot hold the game hostage to its own cache.** If full preparation will not fit, or
+  prepared data cannot be trusted enough to use, Home can still offer **Launch at normal speed**.
+  Damaged prepared data gets a scoped repair path, and an in-progress preparation has **Stop safely**.
 - **It can inspect a broken-looking mod setup without launching the game.** The read-only deep setup
   check can report missing enabled mods, invalid metadata, duplicate mod IDs, required dependencies
   that are missing or disabled, and resolved variants that point at hulls absent from the active
