@@ -1,78 +1,121 @@
 # Leo's beta announcement draft
 
-This is the shorter technical release post for the Starsector forum and subreddit. It states the
-result, explains the useful parts, leaves the implementation details in the repository, and puts
-the instructions at the bottom. Keep
+This is the shorter technical release post for the Starsector forum and subreddit. It should still
+feel like a person explaining the thing he spent an unreasonable amount of time on. Keep
 [beta-announcement-draft.md](beta-announcement-draft.md) as the longer source copy.
 
 Replace every bracketed field before posting. Convert the Markdown to BBCode for the Starsector
 forum. Read [Leo's talking points](leo-talking-points.md) before posting so the smaller finished
-features and claim qualifiers do not get lost while editing this down.
+features, current limits, and claim qualifiers do not disappear during the final edit.
 
 ## Title
 
-> Preflight, a performance launcher for Starsector (101s to 15.25s on 83 mods)
+> Preflight, a performance launcher for Starsector (101s to 15.25s on my 83-mod setup)
 
 ---
 
 ## Post
 
-I have 83 mods installed. At its worst, Starsector took 101 seconds to reach the main menu. The
-fastest launch I have recorded with Preflight is 15.25 seconds.
+I have 83 mods installed.
+
+At its worst, Starsector took about 101 seconds to reach the main menu. In the latest controlled
+comparison on that same mod profile, five ordinary launches had an **89.00-second median** and five
+Preflight launches had a **15.53-second median**. The lowest recorded launch in the comparison was
+**15.25 seconds**.
 
 So, here it is.
 
 **Download Preflight:** [RELEASE URL]
 
-Preflight is a free, open-source performance launcher for Starsector. On the development
-installation, the result was roughly a sixfold change. The same-session controlled medians were
-89.00 seconds normally and 15.53 seconds with Preflight. Results depend on your hardware and mods.
-The app includes the benchmark, so it can measure the difference on your own installation.
+Preflight is a free, open-source performance launcher for Starsector. It prepares work the game and
+mods would otherwise repeat on every launch, checks that the exact inputs still match, and reuses the
+result. When an exact check does not match, that shortcut declines and the original game code handles
+the work.
 
-Somehow, Starsector has never had a playtime counter. The usual workaround has been adding it to
-Steam as a non-Steam game. As far as I can find, Preflight is the first dedicated playtime tracker
-for Starsector. It keeps a durable total of the sessions launched through Preflight, including when
-the desktop minimizes or quits after starting the game. The recorded history can also be exported
-as versioned JSON or CSV.
+The app includes the same normal-versus-Preflight startup benchmark I use for the development
+comparison, so you can measure your own installation instead of extrapolating from mine. The result
+can be copied as a compact forum/Discord-ready summary without copying raw evidence or private paths.
 
-It has named mod profiles too. Switching a profile previews the exact `enabled_mods.json` change and
-saves a backup, and you can duplicate a saved profile before experimenting without copying mods,
-saves, or cache data. Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and battle size
-are available beside the launch button.
+And because I apparently cannot leave a project at one job, Preflight now does quite a bit more than
+launch the game sooner.
 
-The small support features ended up being useful as well. **Copy setup** produces a bounded summary
-of the game, profile, mods, launch settings, preparation state, and recent launch result without
-putting paths, credentials, save contents, or arbitrary logs on the clipboard. Diagnostics use a
-separate allowlisted ZIP with an in-ZIP disclosure. Ordinary game launches upload no logs or
-telemetry; support reporting is a separate disclosed action, and automatic failed-run reporting is
-off until the player enables it.
+- **It tracks Starsector playtime.** The local ledger keeps recording a session launched through
+  Preflight even if the desktop minimizes or exits afterward. The Speed page can copy a summary with
+  total time, session count, longest and average session, and first/latest recorded dates. The engine
+  can also export the history as versioned JSON or spreadsheet-safe CSV.
+- **It has named mod profiles.** Switching previews the exact `enabled_mods.json` change and saves a
+  backup first. Profiles can be created, searched, renamed, duplicated, switched, and deleted.
+  Duplicating a profile does not duplicate your mods, saves, or cache data.
+- **The usual launch settings are beside Launch.** Resolution, fullscreen, sound, antialiasing, UI
+  scale, RAM, and battle size are all there.
+- **It plans storage before preparation.** Preflight calculates the current profile's requirement,
+  reuses matching prepared data, and refuses before writing when the safe bound does not fit. If the
+  normal preparation is too large, it can offer a much smaller minimal-disk route.
+- **Recovery is part of the product.** Preparation can be stopped safely, damaged prepared data can
+  be repaired for the exact profile, cleanup is previewed before deletion, and a failed run puts
+  **Copy setup** directly beside Relaunch and Get help.
+- **Support data is deliberately boring.** Copy setup gives you the useful game/profile/mod/launch
+  facts without paths, credentials, saves, or arbitrary logs. A separate support ZIP uses a fixed
+  allowlist, tells you what is inside before you send it, and excludes saves, game/mod assets,
+  screenshots, audio, caches, arbitrary logs, and credentials. Automatic failed-run reporting is a
+  separate setting and starts off.
+- **Updates are signed.** The desktop can notify you about a newer release, show its notes, download
+  and verify it, then install and restart when you ask. The release process also rehearses install,
+  upgrade, rollback, and removal across macOS, Windows, and Linux.
+- **There is a read-only mod linter too.** It can inspect one mod or a whole profile for measurable
+  asset/config costs without editing anything or assigning a score.
 
-Preflight also removes repeated work from some campaign and combat paths, which can improve 1%
-lows. Startup is the part with the big controlled result; gameplay will depend much more heavily on
-what your mods are doing.
+The linter came out of the same profiling work. On the reviewed mod set it found progressive JPEGs
+that decode about **8.75 times slower** through the game's ImageIO path, large amounts of avoidable
+texture and audio allocation, shadowed and duplicate assets, editor source files the game never
+reads, and a handful of released config files containing data the game silently never applies. It
+was calibrated over 86 installed mod directories; the median was zero findings and 44 of 86 were
+completely clean. The point is useful signal, not telling mod authors that their work is bad.
 
-How? Lots and lots of caching. Starsector and its mods redo a surprising amount of identical work
-every time the game starts. Preflight does that work once, checks whether the inputs are still the
-same, and reuses the answer. I will spare you the details here. They are in the
-[README](https://github.com/teamleaderleo/preflight#readme), the technical writeup at [TECHNICAL
-WRITEUP URL], and the [development history](https://github.com/teamleaderleo/preflight/blob/main/docs/optimization-history.md)
-if you want them.
+The performance story is much weirder than "cache some files."
 
-It works with your existing installation and mods. Preflight doesn't rewrite the game's JARs, mod
-JARs, assets, or saves. Runtime optimizations are checked against the installed code before they
-run. If Preflight doesn't recognize something, it leaves it alone and the original code runs.
+The loading thread could spend roughly 27 seconds waiting behind a one-thread texture prefetch
+queue, then repeat hashing, image decoding, pixel conversion, copying, color work, and empty
+power-of-two padding. Once textures became cheap, the visible 0-percent pause turned out to be
+`SpecStore` rebuilding stable JSON/CSV-derived data every process. Then the mod callback tail became
+visible: AshLib repeatedly resolved the same hull data, GraphicsLib repeated work around generated
+texture state, Janino regenerated highly overlapping class maps, and the game decoded a very large
+amount of audio before the menu.
 
-Yes. I used ChatGPT (Codex) and Claude (Code) throughout development. Yes, I stand by the code and
-its rigour. The repository includes the experiments, failures, fixes, and tests that got it here.
-This is still a beta. If you find a problem, please report it. I will investigate.
+Not every idea survived. Some early texture-cache pilots had excellent hit counters and broken
+visuals. A supposed timing split turned out to be a stale benchmark anchor. Java Flight Recorder's
+clock was off by about 2.49 times under one runtime setting. A GraphicsLib traversal replay made the
+measured path substantially worse and was removed. AppCDS did not establish a safe win and was
+removed too. The repository keeps those failures and the evidence that killed them instead of
+retelling the history as a straight line of successes.
 
-Real-game testing has been deepest on Apple silicon macOS. Windows and Linux packages pass their
-automated installation and lifecycle checks, and this beta is where they get tested on more actual
-machines. The reviewed game version is 0.98a-RC8. Unknown game or mod code uses its original path.
+That is also why the built-in benchmark exists. I spent enough time learning that a convincing
+number can still be measuring the wrong thing.
+
+Preflight does **not** rewrite Starsector's JARs, mod JARs, executables, assets, activation data, or
+saves. Runtime optimizations exist inside the launched game process and disappear when it exits.
+Profile switching and the launch-settings editor are the two explicit, backed-up paths that can
+change game-owned preferences.
+
+Every release package also carries a machine-checked capability receipt describing the native
+commands, writes, child processes, links, and network endpoints available to that exact package. The
+release pipeline is being tightened so the evidence for install/update/rollback and the final
+published package all refer to the same exact bytes.
+
+Yes, I used ChatGPT/Codex and Claude Code throughout development. I stand by the code, the tests, and
+the evidence. The repository includes the experiment history, rejected approaches, review notes,
+regressions, and current release work. If something fails, I want enough evidence to reproduce it
+and enough containment that the original installation stays recoverable.
+
+This is still a beta. Real-game testing has been deepest on Apple silicon macOS. Windows and Linux
+packages already go through substantial automated package and lifecycle testing, but broader
+real-machine game evidence is one of the reasons to do a beta. The reviewed game version is
+0.98a-RC8. Unknown or changed code can mean fewer optimizations until Preflight is updated.
 
 **Download:** [RELEASE URL]
 
-If Preflight helps and you want to support the work:
+If Preflight helps, saves you a pile of waiting, or you simply like this kind of obsessive
+open-source work and want to support it:
 
 - GitHub Sponsors: [GITHUB SPONSORS URL]
 - Patreon: https://www.patreon.com/cw/teamleaderleo
@@ -83,4 +126,5 @@ This note is not part of the post. Searches found Starsector players asking how 
 in [2021](https://www.reddit.com/r/starsector/comments/l20mae/) and again in
 [2026](https://www.reddit.com/r/starsector/comments/1q73sh7/is_there_a_way_to_check_how_many_hours_ive_played/).
 The recurring answer is to add Starsector to Steam as a non-Steam game. No dedicated tracker or mod
-turned up. Keep “as far as I can find” unless stronger evidence appears.
+turned up. Keep "as far as I can find" around any first-dedicated-tracker claim unless stronger
+evidence appears.
