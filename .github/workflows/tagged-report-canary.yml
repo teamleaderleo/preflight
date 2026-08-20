@@ -1,0 +1,219 @@
+name: Tagged report-intake canary
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Exact v-prefixed release tag whose Distribution bytes will be exercised
+        required: true
+        type: string
+      distribution_run_id:
+        description: Successful tag-push Distribution run that produced the draft release
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: tagged-report-canary-${{ inputs.distribution_run_id }}
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    name: Exercise production intake for exact tagged candidate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bind the requested tagged Distribution run
+        id: metadata
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = main || {
+            echo "::error::Tagged report canary must be dispatched from main"
+            exit 1
+          }
+          [[ "${{ inputs.tag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || {
+            echo "::error::tag must be an exact v-prefixed SemVer release tag"
+            exit 1
+          }
+          [[ "${{ inputs.distribution_run_id }}" =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::distribution_run_id must be a positive integer"
+            exit 1
+          }
+          run_json="$(curl --fail --silent --show-error \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header 'Accept: application/vnd.github+json' \
+            --header 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${{ inputs.distribution_run_id }}")"
+          test "$(jq -r '.name' <<<"$run_json")" = "Distribution" || {
+            echo "::error::Run is not the Distribution workflow"
+            exit 1
+          }
+          test "$(jq -r '.path' <<<"$run_json")" = ".github/workflows/distribution.yml" || {
+            echo "::error::Run did not use the reviewed Distribution workflow path"
+            exit 1
+          }
+          test "$(jq -r '.event' <<<"$run_json")" = "push" || {
+            echo "::error::Final candidate Distribution run was not triggered by the release tag"
+            exit 1
+          }
+          test "$(jq -r '.head_branch' <<<"$run_json")" = "${{ inputs.tag }}" || {
+            echo "::error::Tagged Distribution run ref differs from the selected release tag"
+            exit 1
+          }
+          test "$(jq -r '.status' <<<"$run_json")" = "completed" \
+            -a "$(jq -r '.conclusion' <<<"$run_json")" = "success" || {
+            echo "::error::Tagged Distribution run did not complete successfully"
+            exit 1
+          }
+          source_revision="$(jq -er '.head_sha' <<<"$run_json")"
+          [[ "$source_revision" =~ ^[a-f0-9]{40}$ ]] || {
+            echo "::error::Distribution run has an invalid head SHA"
+            exit 1
+          }
+          echo "source_revision=$source_revision" >> "$GITHUB_OUTPUT"
+
+      - name: Check out exact release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+
+      - name: Prove tag and Distribution identify the same source
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag_sha="$(git rev-parse '${{ inputs.tag }}^{}')"
+          test "$tag_sha" = "${{ steps.metadata.outputs.source_revision }}" || {
+            echo "::error::Tagged Distribution head SHA differs from the selected release tag"
+            exit 1
+          }
+          node preflight-desktop/scripts/validate-release-version.mjs "${{ inputs.tag }}"
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: report-intake/package-lock.json
+
+      - name: Download exact complete tagged release
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: preflight-complete-release-${{ inputs.distribution_run_id }}
+          path: tagged-release
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.distribution_run_id }}
+
+      - name: Bind canary endpoint to exact tagged package capability
+        id: candidate
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          DISTRIBUTION_RUN_ID: ${{ inputs.distribution_run_id }}
+          SOURCE_REVISION: ${{ steps.metadata.outputs.source_revision }}
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_complete_release.py --release tagged-release
+          mkdir -p tagged-report-canary
+          python3 - <<'PY'
+          from hashlib import sha256
+          import json
+          import os
+          from pathlib import Path
+          from urllib.parse import urlparse
+
+          release = Path("tagged-release")
+          package_name = "Preflight-Linux-x86_64.deb"
+          checksum_name = "SHA256SUMS-linux-x64.txt"
+          capability_name = "CAPABILITIES-linux-x64.json"
+          package = release / package_name
+          capability_path = release / capability_name
+          capability_envelope = json.loads(capability_path.read_text(encoding="utf-8"))
+          capability = capability_envelope.get("capabilityReceipt") or {}
+          source_revision = os.environ["SOURCE_REVISION"]
+          if capability.get("sourceRevision") != source_revision:
+              raise SystemExit("Tagged Linux capability source revision differs from Distribution head SHA")
+          network = capability.get("network") or {}
+          origin = network.get("reportIntakeOrigin")
+          if not isinstance(origin, str) or origin == "disabled":
+              raise SystemExit("Tagged candidate has no production report-intake origin")
+          parsed = urlparse(origin)
+          if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password \
+                  or parsed.path not in ("", "/") or parsed.params or parsed.query or parsed.fragment:
+              raise SystemExit("Tagged candidate report-intake origin is not an exact HTTPS origin")
+          package_bytes = package.read_bytes()
+          identity = {
+              "releaseTag": os.environ["RELEASE_TAG"],
+              "distributionRunId": os.environ["DISTRIBUTION_RUN_ID"],
+              "sourceRevision": source_revision,
+              "platform": "Linux",
+              "exactCandidatePackage": {
+                  "name": package_name,
+                  "bytes": len(package_bytes),
+                  "sha256": sha256(package_bytes).hexdigest(),
+                  "checksumManifest": checksum_name,
+              },
+              "capabilityReceipt": {
+                  "name": capability_name,
+                  "sha256": sha256(capability_path.read_bytes()).hexdigest(),
+              },
+              "reportIntakeOrigin": origin,
+          }
+          Path("tagged-report-canary/candidate.json").write_text(
+              json.dumps(identity, indent=2) + "\n", encoding="utf-8"
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"origin={origin}\n")
+          PY
+
+      - name: Install report-intake canary dependencies
+        working-directory: report-intake
+        run: npm ci
+
+      - name: Exercise production intake and exact deletion cleanup
+        env:
+          REPORT_INTAKE_ORIGIN: ${{ steps.candidate.outputs.origin }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node report-intake/scripts/canary.mjs "$REPORT_INTAKE_ORIGIN" \
+            > tagged-report-canary/canary.json
+
+      - name: Seal non-secret tagged canary receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          identity = json.loads(Path("tagged-report-canary/candidate.json").read_text(encoding="utf-8"))
+          canary = json.loads(Path("tagged-report-canary/canary.json").read_text(encoding="utf-8"))
+          if canary.get("format") != "preflight-report-intake-canary-v1":
+              raise SystemExit("Production canary returned an unsupported receipt format")
+          if canary.get("origin") != identity["reportIntakeOrigin"]:
+              raise SystemExit("Production canary origin differs from tagged package capability")
+          if canary.get("deleted") is not True:
+              raise SystemExit("Production canary did not prove exact case deletion cleanup")
+          receipt = {
+              "format": "preflight-tagged-report-canary-v1",
+              **identity,
+              "canary": canary,
+          }
+          Path("tagged-report-canary/receipt.json").write_text(
+              json.dumps(receipt, indent=2) + "\n", encoding="utf-8"
+          )
+          PY
+          cat tagged-report-canary/receipt.json
+
+      - name: Preserve tagged report-intake canary receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tagged-report-canary-${{ inputs.distribution_run_id }}
+          path: tagged-report-canary/receipt.json
+          if-no-files-found: error
