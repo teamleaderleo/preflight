@@ -4,14 +4,16 @@ Read this before a forum post, Patreon update, video, stream, interview, release
 other moment where the project has to fit into human working memory.
 
 The announcement drafts are still the source for finished prose. This page is here because Preflight
-now does enough things that any improvised explanation will forget half of them.
+now does enough things that any improvised explanation will forget half of them. The deliberately
+excessive hook reservoir is [Public-writing sales inventory](public-writing-sales-inventory.md).
 
 ## The one-sentence sale
 
 Preflight is a free, open-source performance launcher for Starsector that took the controlled median
 on my 83-mod setup from **89.00 seconds normally to 15.53 seconds with Preflight**, then somehow grew
-a built-in benchmark, playtime tracking, named mod profiles, storage planning, game settings,
-recovery/support tools, signed updates, and a mod linter around that job.
+a built-in benchmark, playtime tracking, named mod profiles, launch settings through 2,000-point
+battles, storage/recovery tools, deep setup analysis, signed updates, an installed-ship wireframe
+Hangar, and a mod linter around that job.
 
 ## The personal version
 
@@ -116,7 +118,10 @@ These are finished on current `main` unless a note says otherwise.
   the exact `enabled_mods.json` change and saves a backup. Duplicate profiles do not duplicate mods,
   saves, or prepared bytes.
 - **Game settings beside Launch.** Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and
-  battle size.
+  battle size. The extended battle-size controls can offer 600/1000/1500/2000 deployment-point
+  presets on an ordinary installation while writing Starsector's own preference.
+- **High-DPI-aware resolution choices.** The desktop reasons from the physical panel behind OS
+  scaling rather than assuming the scaled desktop size is the display's real pixel ceiling.
 - **Storage planning.** The app calculates the current profile before writing, shows predicted and
   conservative disk requirements, accounts for reuse, keeps a reserve, and can offer a minimal-disk
   path when normal preparation will not fit.
@@ -125,15 +130,29 @@ These are finished on current `main` unless a note says otherwise.
 - **Failed-run recovery.** Relaunch, **Copy setup**, Get help, and Dismiss on the Home recovery card.
 - **Cleanup and removal.** Preview-first cleanup, app-only removal, and separately reviewed removal
   of Preflight-owned data. Starsector, mods, and saves are outside both scopes.
+- **Deep setup analysis.** `preflight analyze setup` is read-only and can flag missing enabled mods,
+  invalid mod metadata, duplicate mod IDs, missing or disabled required dependencies, malformed
+  dependency/total-conversion metadata, and winning variants whose hull is absent from the resolved
+  profile. It does not launch or modify the game.
 - **Home presentation.** Full Hangar or Compact launch-first view; independent playtime visibility;
   decorative hull motion and direction preferences shared across Home/Speed/Hangar.
+- **Installed-hull Hangar.** The app can discover installed hull definitions, remember the selected
+  display ship, and store smoothing/detail/depth tuning per installation and hull. Featured installed
+  sprites can be traced locally into Preflight's own wireframe rendering rather than bundling
+  Starsector ship art.
 - **Signed updates.** Background check, explicit review, **Install and restart**, exact-offer recheck,
   Tauri signature verification, progress/reconciliation, and current-version survival on failure.
 - **Support flow.** Copy setup plus a separate bounded/disclosed ZIP, explicit send consent,
   progress/cancel/retry, accepted receipt, retention/deletion information, and default-off automatic
   failed-run reporting.
+- **Power-user CLI.** The same Java engine backs desktop and terminal use. `doctor` discovers without
+  launching, `scan` inventories the enabled profile, `--dry-run` previews the exact launch, explicit
+  compatible launchers can be wrapped, and the optional direct path uses Starsector's own saved
+  launch preferences.
 - **Read-only mod linter.** One-mod and whole-profile modes with measurable asset/config findings and
   no score, ranking, or automatic fixer.
+- **No system JDK for native desktop use.** The Windows/macOS/Linux desktop packages carry a minimal
+  Preflight Java runtime. The standalone JAR still exists for people who want it.
 
 Open desktop polish PRs #855, #856, and #857 should not be described as shipped until they merge.
 They cover paused hull-direction editing, keyboard focus transfer into profile review panels, and
@@ -177,7 +196,13 @@ It never considers prepared caches, Starsector or mod files, saves, decoded asse
 console/game/wrapper logs, crash dumps, JFR recordings, screenshots, or audio captures.
 
 Sending is another separate action after disclosure. Automatic failed-run reporting is another
-separate setting and starts off.
+separate setting and starts off. Accepted reports carry retention/deletion information; the supported
+intake path can delete an accepted upload through its scoped deletion authorization.
+
+The server side deliberately does not pretend a secret embedded in a desktop binary proves an
+untampered official client. Such a secret is extractable. The intake treats requests/archives as
+hostile input and verifies size, digest, ZIP limits, manifest schema, entry allowlist, and entry
+hashes itself.
 
 Do not summarize this as "we care about privacy." Describe what the product actually excludes and
 requires. That is much stronger.
@@ -192,15 +217,43 @@ verifies the updater signature.
 A failed update leaves the current version runnable. Linux `.deb` packages stay with the package
 manager.
 
+Incompatible cache formats can coexist in separate namespaces so rolling the app back does not first
+destroy the prepared data expected by the older version. Old namespaces remain visible as Preflight
+data until broader cleanup is explicitly chosen.
+
 Release packages go through native install/remove checks and package lifecycle rehearsals across
 Linux, Windows, and macOS. Tagged lifecycle evidence is being bound to the exact package bytes that
 publication would ship, not just a matching source revision.
 
 Every package carries a capability receipt listing native commands, writes, child processes, links,
-and network endpoints available to that exact package.
+and network endpoints available to that exact package. Public release artifacts also include
+checksums, dependency inventory, CycloneDX SBOMs, license/notices/privacy material, and known
+limitations.
+
+The release does not use a remote feed that can download new transformation code into an installed
+client. New executable runtime behavior stays inside signed application releases. A future advisory
+feed may narrow/disable known-bad compatibility, but it should not become a second code-delivery
+system.
 
 This is good public material because it answers a very ordinary user question: "If I trust version
 0.1.0, what happens when 0.1.1 appears?"
+
+## What happens after Starsector or a mod updates?
+
+Compatibility is granular rather than one giant on/off switch.
+
+Prepared content validates the inputs that determine its answer. Generic caches can continue to work
+where those input contracts still match. Runtime adapters are pinned to exact reviewed code. If a
+mod update changes one target, that adapter declines and the original game path handles that work.
+It does not get the old transformation merely because a class still has the same name.
+
+A sufficiently large game, launcher, preference, classloading, or runtime change can still require a
+Preflight application update. The useful public point is that one changed mod does not automatically
+mean every cache and every other reviewed optimization becomes garbage.
+
+There is also explicit ownership logic around third-party launch paths. For example, when Fast
+Rendering owns the reviewed Janino compiler path through its custom loader, Preflight leaves that
+compiler seam to Fast Rendering rather than trying to double-own it.
 
 ## The trust explanation
 
@@ -210,19 +263,25 @@ Runtime optimizations live inside the launched game JVM and disappear when it ex
 If installed code or prepared evidence differs from what Preflight recognizes, the affected shortcut
 declines and the original game path handles that work.
 
+The desktop host exposes a fixed set of typed native commands rather than an arbitrary shell. When a
+frozen launched process must be stopped, Preflight requires the recorded process ID and matching start
+time so an unrelated process or reused PID is left alone.
+
 Two explicit backed-up features can change game-owned configuration:
 
 1. named-profile activation writes the reviewed enabled-mod selection;
 2. the launch-settings editor writes the reviewed launch/game settings.
 
-Both are explicit user actions with review/backup behavior.
+Both are explicit user actions with review/backup behavior. RAM editing follows the selected launcher
+to one unambiguous launcher-owned memory file, keeps the exact original, and refuses ambiguous
+layouts rather than guessing.
 
 ## Strong story angles for future posts
 
 ### "I tried to reduce one loading screen and accidentally made a Starsector companion app"
 
 Use for Patreon or general dev audiences. Start with the performance investigation and then reveal
-benchmark, playtime, profiles, settings, support, updates, storage, and linter.
+benchmark, playtime, profiles, settings, support, updates, storage, setup analysis, Hangar, and linter.
 
 ### "How 101 seconds became 15.25"
 
@@ -244,15 +303,39 @@ The point is how many ways optimization work can lie to you.
 Use for the linter. Lead with 44/86 completely clean, then progressive JPEG cost, audio, padding,
 shadowing, and the handful of real config defects.
 
+### "Before you blame the launcher, inspect the mod stack"
+
+Use for deep setup analysis. Missing or disabled dependencies, duplicate mod IDs, invalid metadata,
+and a variant pointing at an absent hull are concrete and understandable. The hook is that none of
+this requires launching Starsector or dumping a giant log.
+
+### "Yes, the battle-size button goes to 2000"
+
+Use for a lighter player-facing settings post: extended battle size, physical-pixel/high-DPI
+resolution handling, RAM editing with backup/refusal, and why these are still Starsector's own
+preferences rather than a second private configuration system.
+
+### "How Preflight draws Starsector ships without shipping Starsector art"
+
+Use for design/dev audiences. Explain installed hull discovery, local sprite tracing for featured
+ships, persistent display selection, per-hull tuning, and why proprietary game art stays out of the
+package.
+
 ### "Why does a game launcher have rollback rehearsals?"
 
 Use for release engineering. Explain signed updater artifacts, exact candidate bytes, install/update/
-rollback/removal checks, and capability receipts in user terms.
+rollback/removal checks, rollback-preserving cache namespaces, checksums/SBOMs, and capability
+receipts in user terms.
+
+### "What happens when a mod updates?"
+
+Explain generic content reuse versus exact runtime adapters, individual decline, third-party
+ownership such as Fast Rendering's Janino path, and why compatibility is not an all-or-nothing badge.
 
 ### "What does a privacy-conscious bug report actually contain?"
 
 Do not write vague values language. Walk through Copy setup versus the ZIP, the fixed exclusions,
-digest review, consent, cancellation, receipt, retention, and deletion.
+digest review, consent, cancellation, receipt, retention, deletion, and hostile-input server model.
 
 ### "Five gigabytes for 446 milliseconds?"
 
@@ -264,10 +347,10 @@ are better than treating more cache as automatically better.
 "Preflight is a performance launcher for Starsector. On my 83-mod setup, a controlled comparison
 measured 89 seconds normally and 15.53 seconds with Preflight. It prepares repeated startup work,
 checks that the exact game and mod inputs still match, and reuses it. The app also has its own
-before/after benchmark, playtime tracking, named mod profiles, the usual launch settings, disk
-planning, recovery and support tools, signed updates, and a read-only mod linter. It does not rewrite
-saves or mod files, and when it cannot prove that a shortcut applies, the original game path handles
-the work."
+before/after benchmark, playtime tracking, named mod profiles, extended launch settings, disk
+planning, deep setup analysis, recovery/support tools, signed updates, an installed-ship Hangar, and
+a read-only mod linter. It does not rewrite saves or mod files, and when it cannot prove that a
+shortcut applies, the original game path handles the work."
 
 ## Questions people will ask
 
@@ -286,6 +369,24 @@ explicit backed-up game-owned preference changes.
 It is primarily a performance launcher. Named profiles, duplication, search, setup analysis,
 storage planning, support tools, and game settings grew around that job because they make a large
 modded installation easier to launch and reason about. It does not install, update, or rewrite mods.
+
+**"What happens when one of my mods updates?"**
+
+Preflight re-evaluates the relevant identities. Generic prepared work can continue where its inputs
+still match. An exact runtime adapter whose target changed declines and the original game path runs
+for that work. A larger game/launcher/runtime change can still require a Preflight update.
+
+**"Do I need to install Java?"**
+
+Not for the native desktop app. The packaged Windows/macOS/Linux application carries its own minimal
+Preflight Java runtime. A system JDK is for the standalone JAR/development path.
+
+**"Why can the battle-size control go past the vanilla slider?"**
+
+Preflight writes Starsector's own `battleSize` preference. The vanilla `maxBattleSize` value is the
+settings-slider ceiling, not the only value the game preference can hold. Preflight still bounds its
+extended control and opening the vanilla slider later can reset a value above that installed slider
+maximum.
 
 **"What gets sent anywhere?"**
 
