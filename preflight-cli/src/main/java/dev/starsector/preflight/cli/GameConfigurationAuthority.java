@@ -45,6 +45,7 @@ final class GameConfigurationAuthority {
         if (memory == null) {
             throw new IllegalArgumentException("Heap settings snapshot is required");
         }
+        validatePreferenceGeneration(generation);
 
         GameLaunchPreferences.Snapshot launch = GameLaunchPreferences.read(generation);
         List<Map<String, Object>> settings = new ArrayList<>();
@@ -97,6 +98,7 @@ final class GameConfigurationAuthority {
         values.put("freshness", "preference-generation-bound-heap-observation-unbound");
         values.put("combinedCurrentnessEstablished", false);
         values.put("preferenceNode", DirectLaunchSettings.PREFERENCES_NODE);
+        values.put("preferenceGenerationScope", "tracked-launcher-setting-keys-only");
         values.put("preferenceGenerationBinding", "exact-supplied-generation-fingerprint");
         values.put("preferenceGenerationFingerprint", preferenceGenerationFingerprint(generation));
         values.put("heapObservationBinding", HEAP_OBSERVATION_BINDING);
@@ -107,13 +109,22 @@ final class GameConfigurationAuthority {
         values.put("memoryDiagnosticCount", memory.diagnostics().size());
         values.put("notes", List.of(
                 "Launcher settings use the same Java Preferences node and keys as Starsector's own launcher.",
-                "The preference fingerprint identifies the exact supplied values for the launcher-setting keys in this projection.",
+                "The preference fingerprint identifies the exact supplied values for the tracked launcher-setting keys in this projection.",
+                "Preference generations containing untracked keys are rejected rather than silently omitted from the fingerprint.",
                 "Heap values come from a separately supplied JvmMemorySettings observation with no shared generation token; combined currentness is not established.",
                 "Heap source paths are only projected lexically relative to the selected installation; this projector does not perform a new filesystem containment check.",
                 "Nested preference fields report parent-key presence separately from field-path presence and typed derivation.",
                 "Registration credentials and unrelated launcher preferences are outside this projection.",
                 "This report is read-only and does not apply or stage configuration changes."));
         return new Result(values);
+    }
+
+    private static void validatePreferenceGeneration(GameLaunchPreferences.Generation generation) {
+        for (String key : generation.values().keySet()) {
+            if (!PREFERENCE_KEYS.contains(key)) {
+                throw new IllegalArgumentException("Launcher preference generation contains an untracked key");
+            }
+        }
     }
 
     private static Map<String, Object> preference(
