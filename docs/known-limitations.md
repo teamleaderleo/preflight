@@ -1,9 +1,11 @@
 # Known limitations
 
-Preflight is in release-candidate preparation. The isolated macOS package has completed signed
-update, signature-failure recovery, rollback, and app-only removal. A hosted three-platform
-candidate, its exact-package benchmark, and the final Windows/Linux package lifecycle still need to
-be retained before the first beta.
+Preflight is in release-candidate execution. The live beta gate is owned by
+[#652](https://github.com/teamleaderleo/preflight/issues/652) and mirrored in
+[Release readiness](release-readiness.md): real-game Windows/Linux exercise, the complete hosted
+three-platform candidate, the startup benchmark on exact packaged candidate bytes, and the final
+packaged report-intake cancel/retry/delete canary. Broader compatibility and release-administration
+work stays in its own owner lanes unless a concrete candidate failure changes that list.
 
 The first beta's macOS and Windows packages will lack paid platform identities. macOS will require
 the user's explicit **Open Anyway** approval, and Windows may show SmartScreen's unrecognized-app
