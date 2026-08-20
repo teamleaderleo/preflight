@@ -151,7 +151,7 @@ final class SaveProfileObservation {
         SavedProfileMatch saved = savedProfileMatch(
                 home, installKey, profileFingerprint, caseInsensitivePaths);
         return new Prepared(null, new SessionIdentity(
-                profileFingerprint, saved.displayName(), "test-build", saved.mods()));
+                profileFingerprint, saved.displayName(), "test-build", saved.mods(), saved.modCount()));
     }
 
     static List<Observation> observations(PreflightHome home) throws IOException {
@@ -162,7 +162,7 @@ final class SaveProfileObservation {
     }
 
     static List<Difference> differences(Observation observed, SessionIdentity current) {
-        List<Difference> differences = new ArrayList<>(3);
+        List<Difference> differences = new ArrayList<>(4);
         if (!Objects.equals(observed.profileFingerprint(), current.profileFingerprint())) {
             differences.add(Difference.PROFILE_FINGERPRINT);
         }
@@ -171,8 +171,16 @@ final class SaveProfileObservation {
         }
         if (observed.mods() == null || current.mods() == null) {
             differences.add(Difference.MOD_METADATA_UNAVAILABLE);
-        } else if (!Objects.equals(observed.mods(), current.mods())) {
-            differences.add(Difference.MOD_METADATA);
+        } else {
+            if (!Objects.equals(observed.mods(), current.mods())
+                    || (observed.modCount() != null
+                            && current.modCount() != null
+                            && !Objects.equals(observed.modCount(), current.modCount()))) {
+                differences.add(Difference.MOD_METADATA);
+            }
+            if (!observed.modsComplete() || !current.modsComplete()) {
+                differences.add(Difference.MOD_METADATA_INCOMPLETE);
+            }
         }
         return List.copyOf(differences);
     }
@@ -181,6 +189,7 @@ final class SaveProfileObservation {
         PROFILE_FINGERPRINT,
         GAME_BUILD,
         MOD_METADATA,
+        MOD_METADATA_INCOMPLETE,
         MOD_METADATA_UNAVAILABLE
     }
 
@@ -199,18 +208,36 @@ final class SaveProfileObservation {
             String profileFingerprint,
             String profileDisplayName,
             String gameBuild,
-            List<Mod> mods) {
+            List<Mod> mods,
+            Integer modCount) {
+        SessionIdentity(String profileFingerprint, String profileDisplayName, String gameBuild, List<Mod> mods) {
+            this(profileFingerprint, profileDisplayName, gameBuild, mods, observedModCount(mods));
+        }
+
         SessionIdentity {
             profileFingerprint = boundedText(profileFingerprint, 256);
             profileDisplayName = boundedNullable(profileDisplayName, 160);
             gameBuild = boundedText(gameBuild, 256);
             mods = boundedMods(mods);
+            modCount = normalizeModCount(mods, modCount);
             if (profileFingerprint.isBlank()) {
                 throw new IllegalArgumentException("Profile fingerprint is required");
             }
             if (gameBuild.isBlank()) {
                 throw new IllegalArgumentException("Game build identity is required");
             }
+        }
+
+        boolean modsComplete() {
+            return modEvidenceComplete(mods, modCount);
+        }
+
+        boolean modsTruncated() {
+            return mods != null && modCount != null && modCount > mods.size();
+        }
+
+        Integer omittedModCount() {
+            return mods == null || modCount == null ? null : modCount - mods.size();
         }
     }
 
@@ -224,7 +251,50 @@ final class SaveProfileObservation {
             String profileFingerprint,
             String profileDisplayName,
             String gameBuild,
-            List<Mod> mods) {
+            List<Mod> mods,
+            Integer modCount) {
+        Observation(
+                String installationKey,
+                String saveKey,
+                String saveName,
+                String stateToken,
+                Instant observedAt,
+                Instant missingSince,
+                String profileFingerprint,
+                String profileDisplayName,
+                String gameBuild,
+                List<Mod> mods) {
+            this(
+                    installationKey,
+                    saveKey,
+                    saveName,
+                    stateToken,
+                    observedAt,
+                    missingSince,
+                    profileFingerprint,
+                    profileDisplayName,
+                    gameBuild,
+                    mods,
+                    observedModCount(mods));
+        }
+
+        Observation {
+            mods = boundedMods(mods);
+            modCount = normalizeModCount(mods, modCount);
+        }
+
+        boolean modsComplete() {
+            return modEvidenceComplete(mods, modCount);
+        }
+
+        boolean modsTruncated() {
+            return mods != null && modCount != null && modCount > mods.size();
+        }
+
+        Integer omittedModCount() {
+            return mods == null || modCount == null ? null : modCount - mods.size();
+        }
+
         String lastObservedMessage() {
             String label = profileDisplayName;
             if (label == null || label.isBlank()) {
@@ -435,7 +505,8 @@ final class SaveProfileObservation {
         String gameBuild = PrepareAudioCommand.starsectorBuildIdentity(gameJars);
         SavedProfileMatch saved = savedProfileMatch(
                 context.home(), context.installationKey(), fingerprint, context.caseInsensitivePaths());
-        return new SessionIdentity(fingerprint, saved.displayName(), gameBuild, saved.mods());
+        return new SessionIdentity(
+                fingerprint, saved.displayName(), gameBuild, saved.mods(), saved.modCount());
     }
 
     private static SavedProfileMatch savedProfileMatch(
@@ -444,7 +515,7 @@ final class SaveProfileObservation {
             String profileFingerprint,
             boolean caseInsensitivePaths) throws IOException {
         Path directory = home.profiles();
-        if (!Files.isDirectory(directory)) return new SavedProfileMatch(null, null);
+        if (!Files.isDirectory(directory)) return new SavedProfileMatch(null, null, null);
         List<SavedProfileCandidate> matches = new ArrayList<>();
         try (var stream = Files.list(directory)) {
             for (Path file : stream.filter(path -> path.getFileName().toString().endsWith(".json"))
@@ -462,14 +533,15 @@ final class SaveProfileObservation {
                     }
                     String name = values.get("name") instanceof String value ? boundedNullable(value, 160) : null;
                     Instant savedAt = parseInstant(values.get("savedAt"));
-                    List<Mod> mods = parseSavedModIds(values.get("enabledMods"));
-                    matches.add(new SavedProfileCandidate(name, savedAt, mods));
+                    ModEvidence modEvidence = parseSavedModIds(values.get("enabledMods"));
+                    matches.add(new SavedProfileCandidate(
+                            name, savedAt, modEvidence.mods(), modEvidence.totalCount()));
                 } catch (RuntimeException ignored) {
                     // One malformed historical profile cannot establish or erase an association.
                 }
             }
         }
-        if (matches.isEmpty()) return new SavedProfileMatch(null, null);
+        if (matches.isEmpty()) return new SavedProfileMatch(null, null, null);
         matches.sort(Comparator.comparing(
                         SavedProfileCandidate::savedAt,
                         Comparator.nullsLast(Comparator.reverseOrder()))
@@ -479,13 +551,18 @@ final class SaveProfileObservation {
             if (match.displayName() != null && !match.displayName().isBlank()) names.add(match.displayName());
         }
         String displayName = names.size() == 1 ? names.iterator().next() : null;
-        return new SavedProfileMatch(displayName, matches.get(0).mods());
+        SavedProfileCandidate selected = matches.get(0);
+        return new SavedProfileMatch(displayName, selected.mods(), selected.modCount());
     }
 
-    private record SavedProfileCandidate(String displayName, Instant savedAt, List<Mod> mods) {
+    private record SavedProfileCandidate(
+            String displayName, Instant savedAt, List<Mod> mods, Integer modCount) {
     }
 
-    private record SavedProfileMatch(String displayName, List<Mod> mods) {
+    private record SavedProfileMatch(String displayName, List<Mod> mods, Integer modCount) {
+    }
+
+    private record ModEvidence(List<Mod> mods, Integer totalCount) {
     }
 
     private record SaveState(String key, String displayName, String token, Instant maxModified) {
@@ -690,7 +767,8 @@ final class SaveProfileObservation {
                             identity.profileFingerprint(),
                             identity.profileDisplayName(),
                             identity.gameBuild(),
-                            identity.mods());
+                            identity.mods(),
+                            identity.modCount());
                     byKey.put(installationKey + "\n" + state.key(), observation);
                 }
                 writeUnlocked(retained(new ArrayList<>(byKey.values()), observedAt));
@@ -832,6 +910,9 @@ final class SaveProfileObservation {
         value.put("gameBuild", observation.gameBuild());
         if (observation.mods() != null) {
             value.put("modsOrdered", true);
+            if (observation.modCount() != null) {
+                value.put("modsTotal", observation.modCount());
+            }
             value.put("mods", observation.mods().stream().map(mod -> {
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("id", mod.id());
@@ -862,6 +943,7 @@ final class SaveProfileObservation {
             List<Mod> mods = Boolean.TRUE.equals(raw.get("modsOrdered")) && raw.containsKey("mods")
                     ? parseMods(raw.get("mods"))
                     : null;
+            Integer modCount = mods == null ? null : parseModCount(raw.get("modsTotal"), mods.size());
             if (installationKey == null || saveKey == null || stateToken == null || observedAt == null
                     || fingerprint == null || gameBuild == null) return null;
             return new Observation(
@@ -874,7 +956,8 @@ final class SaveProfileObservation {
                     fingerprint,
                     profileName,
                     gameBuild,
-                    mods);
+                    mods,
+                    modCount);
         } catch (RuntimeException malformed) {
             return null;
         }
@@ -891,19 +974,24 @@ final class SaveProfileObservation {
                 observation.profileFingerprint(),
                 observation.profileDisplayName(),
                 observation.gameBuild(),
-                observation.mods());
+                observation.mods(),
+                observation.modCount());
     }
 
-    private static List<Mod> parseSavedModIds(Object raw) {
-        if (!(raw instanceof List<?> list)) return null;
+    private static ModEvidence parseSavedModIds(Object raw) {
+        if (!(raw instanceof List<?> list)) return new ModEvidence(null, null);
         List<Mod> mods = new ArrayList<>();
+        int totalCount = 0;
         for (Object item : list) {
-            if (item instanceof String id && !id.isBlank()) {
+            if (!(item instanceof String id) || id.isBlank()) {
+                return new ModEvidence(null, null);
+            }
+            totalCount++;
+            if (mods.size() < MAX_MODS) {
                 mods.add(new Mod(id, null, null));
             }
-            if (mods.size() >= MAX_MODS) break;
         }
-        return boundedMods(mods);
+        return new ModEvidence(boundedMods(mods), totalCount);
     }
 
     private static List<Mod> parseMods(Object raw) {
@@ -927,6 +1015,43 @@ final class SaveProfileObservation {
                 .filter(Objects::nonNull)
                 .limit(MAX_MODS)
                 .toList();
+    }
+
+    private static Integer observedModCount(List<Mod> mods) {
+        if (mods == null) return null;
+        int count = 0;
+        for (Mod mod : mods) {
+            if (mod != null) count++;
+        }
+        return count;
+    }
+
+    private static Integer normalizeModCount(List<Mod> mods, Integer modCount) {
+        if (mods == null) {
+            if (modCount != null) {
+                throw new IllegalArgumentException("Mod count requires mod metadata");
+            }
+            return null;
+        }
+        if (modCount == null) return null;
+        if (modCount < mods.size()) {
+            throw new IllegalArgumentException("Mod count cannot be smaller than retained mod evidence");
+        }
+        return modCount;
+    }
+
+    private static Integer parseModCount(Object raw, int retainedCount) {
+        if (raw == null) return null;
+        if (!(raw instanceof Long value)
+                || value < retainedCount
+                || value > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Saved mod total is invalid");
+        }
+        return value.intValue();
+    }
+
+    private static boolean modEvidenceComplete(List<Mod> mods, Integer modCount) {
+        return mods != null && modCount != null && modCount == mods.size();
     }
 
     private static boolean caseInsensitivePaths() {
