@@ -830,6 +830,7 @@ final class SaveProfileObservation {
         value.put("profileDisplayName", observation.profileDisplayName());
         value.put("gameBuild", observation.gameBuild());
         if (observation.mods() != null) {
+            value.put("modsOrdered", true);
             value.put("mods", observation.mods().stream().map(mod -> {
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("id", mod.id());
@@ -857,7 +858,9 @@ final class SaveProfileObservation {
             String profileName = raw.get("profileDisplayName") instanceof String value
                     ? boundedNullable(value, 160) : null;
             String gameBuild = string(raw.get("gameBuild"));
-            List<Mod> mods = raw.containsKey("mods") ? parseMods(raw.get("mods")) : null;
+            List<Mod> mods = Boolean.TRUE.equals(raw.get("modsOrdered")) && raw.containsKey("mods")
+                    ? parseMods(raw.get("mods"))
+                    : null;
             if (installationKey == null || saveKey == null || stateToken == null || observedAt == null
                     || fingerprint == null || gameBuild == null) return null;
             return new Observation(
@@ -921,9 +924,6 @@ final class SaveProfileObservation {
         if (mods.isEmpty()) return List.of();
         return mods.stream()
                 .filter(Objects::nonNull)
-                .sorted(Comparator.comparing(Mod::id)
-                        .thenComparing(mod -> mod.displayName() == null ? "" : mod.displayName())
-                        .thenComparing(mod -> mod.version() == null ? "" : mod.version()))
                 .limit(MAX_MODS)
                 .toList();
     }

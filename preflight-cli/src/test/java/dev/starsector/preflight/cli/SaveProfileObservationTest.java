@@ -245,7 +245,7 @@ final class SaveProfileObservationTest {
     }
 
     @Test
-    void modMetadataIsBoundedAndSortedForStableDifferencePresentation() {
+    void modMetadataIsBoundedWithoutReorderingEnabledMods() {
         SaveProfileObservation.SessionIdentity identity = new SaveProfileObservation.SessionIdentity(
                 "fingerprint",
                 "Name",
@@ -253,7 +253,7 @@ final class SaveProfileObservationTest {
                 List.of(
                         new SaveProfileObservation.Mod("z", "Zulu", "1"),
                         new SaveProfileObservation.Mod("a", "Alpha", "2")));
-        assertEquals(List.of("a", "z"), identity.mods().stream()
+        assertEquals(List.of("z", "a"), identity.mods().stream()
                 .map(SaveProfileObservation.Mod::id)
                 .toList());
 
