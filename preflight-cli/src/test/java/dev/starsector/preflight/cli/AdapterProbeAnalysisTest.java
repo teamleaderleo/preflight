@@ -2,16 +2,23 @@ package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class AdapterProbeAnalysisTest {
+    private static final long MAX_INPUT_BYTES = 32L * 1024 * 1024;
+
     @TempDir
     Path temporaryDirectory;
 
@@ -129,5 +136,62 @@ class AdapterProbeAnalysisTest {
         Map<String, Object> report = StrictJson.object(Files.readString(output));
         assertEquals(0L, report.get("matchedClasses"));
         assertFalse(((List<?>) report.get("diagnostics")).isEmpty());
+    }
+
+    @Test
+    void adapterReportRejectsAnInitiallyOversizedFileBeforeParsing() throws Exception {
+        Path adapter = temporaryDirectory.resolve("oversized-adapter.json");
+        Path summary = temporaryDirectory.resolve("summary.json");
+        Path output = temporaryDirectory.resolve("analysis.json");
+        writeSparseOversized(adapter);
+        Files.writeString(summary, "{\"imageReadStackAttribution\":{\"topMethods\":[]}}");
+
+        IOException error = assertThrows(
+                IOException.class,
+                () -> AdapterProbeAnalysis.analyze(adapter, summary, output));
+
+        assertTrue(error.getMessage().contains("Adapter report exceeds"), error.getMessage());
+    }
+
+    @Test
+    void startupSummaryRejectsAnInitiallyOversizedFileBeforeParsing() throws Exception {
+        Path adapter = temporaryDirectory.resolve("adapter.json");
+        Path summary = temporaryDirectory.resolve("oversized-summary.json");
+        Path output = temporaryDirectory.resolve("analysis.json");
+        Files.writeString(adapter, "{\"mode\":\"PROBE\",\"rankedCandidates\":[]}");
+        writeSparseOversized(summary);
+
+        IOException error = assertThrows(
+                IOException.class,
+                () -> AdapterProbeAnalysis.analyze(adapter, summary, output));
+
+        assertTrue(error.getMessage().contains("Startup summary exceeds"), error.getMessage());
+    }
+
+    @Test
+    void malformedStartupSummaryUtf8IsRejectedBeforeJsonParsing() throws Exception {
+        Path adapter = temporaryDirectory.resolve("adapter.json");
+        Path summary = temporaryDirectory.resolve("malformed-summary.json");
+        Path output = temporaryDirectory.resolve("analysis.json");
+        Files.writeString(adapter, "{\"mode\":\"PROBE\",\"rankedCandidates\":[]}");
+        Files.write(summary, new byte[] {
+                (byte) '{', (byte) '"', (byte) 'x', (byte) '"', (byte) ':',
+                (byte) '"', (byte) 0x80, (byte) '"', (byte) '}'
+        });
+
+        IOException error = assertThrows(
+                IOException.class,
+                () -> AdapterProbeAnalysis.analyze(adapter, summary, output));
+
+        assertTrue(error.getMessage().contains("UTF-8"), error.getMessage());
+    }
+
+    private static void writeSparseOversized(Path path) throws IOException {
+        try (FileChannel channel = FileChannel.open(
+                path, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+            channel.position(MAX_INPUT_BYTES);
+            channel.write(ByteBuffer.wrap(new byte[] {0}));
+        }
+        assertEquals(MAX_INPUT_BYTES + 1, Files.size(path));
     }
 }
