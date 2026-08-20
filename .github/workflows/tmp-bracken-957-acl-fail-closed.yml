@@ -1,5 +1,6 @@
 name: Temporary #957 macOS ACL fail-closed repair
 
+# Trigger-only revision after workflow registration.
 on:
   push:
     branches: [fix/bound-directory-macos-acl]
