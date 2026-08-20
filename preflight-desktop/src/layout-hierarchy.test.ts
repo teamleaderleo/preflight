@@ -81,6 +81,9 @@ test("failed-run recovery floats above a stable adjacent Home field", () => {
   expect(layoutStyles).toMatch(
     /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-launch-identity\s*\{[^}]*top:\s*auto;[^}]*bottom:\s*18px;/s,
   );
+  expect(layoutStyles).toMatch(
+    /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-launch-path::after\s*\{[^}]*top:\s*auto;[^}]*bottom:\s*calc\(100% \+ 7px\);/s,
+  );
 });
 
 test("launch identity keeps the setup first while the path remains an interactive disclosure", () => {
