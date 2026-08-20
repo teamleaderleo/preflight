@@ -39,6 +39,23 @@ where the time went, and `scripts/run-startup-benchmark.sh --unattended` is the 
 `preflight run` is the launcher, not a measurement: it never exits on its own, and a launch left
 running holds ~4 GB and a GPU context and poisons everything measured after it.
 
+## Look at the desktop, not just its JSX
+
+For player-facing Desktop work, source review is only half the job. `cd preflight-desktop && npm run dev`
+starts the browser preview without launching the game. Use it, preferably with Playwright or another
+real browser, and inspect the rendered screen at the normal desktop size and at a narrower supported
+width before calling copy or layout finished.
+
+The preview has read-only fixtures for the states that are easiest to miss in ordinary ready-state
+review: `?scenario=setup`, `low-disk`, `cache-repair`, `profile-mismatch`, `benchmark-unavailable`,
+`update-error`, and `report-error`. Exercise the relevant fixture rather than inferring the final
+composition from component strings alone. Text that is fine in isolation can become repetitive,
+cramped, or oddly alarming once labels, helper copy, buttons, and warnings sit together.
+
+If the local checkout is unavailable but a pull request has run Desktop CI, that workflow builds and
+uploads `preflight-desktop-frontend-<run id>`. Reviewing that verified frontend artifact in a browser
+is preferable to stopping at source inspection or rebuilding a lookalike by hand.
+
 ## Write what you saw, not what it means
 
 Fresh results are worth saying and worth writing down. What they are not is settled. A number you
