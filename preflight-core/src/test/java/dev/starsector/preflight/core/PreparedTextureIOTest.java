@@ -5,9 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -29,6 +32,39 @@ class PreparedTextureIOTest {
 
         assertEquals(texture, restored);
         assertTrue(Files.isRegularFile(output));
+    }
+
+    @Test
+    void verifiedReadRejectsGrowthDuringTheActualStreamRead() throws Exception {
+        byte[] bytes = PreparedTextureIO.toBytes(fixture());
+        Path file = temporaryDirectory.resolve("growing.spft");
+        Files.write(file, bytes);
+        boolean[] appended = {false};
+
+        try (InputStream exact = Files.newInputStream(file)) {
+            assertEquals(fixture(), PreparedTextureIO.read(exact, bytes.length, file.toString()));
+        }
+
+        try (InputStream raw = Files.newInputStream(file);
+             InputStream growing = new FilterInputStream(raw) {
+                 @Override
+                 public int read(byte[] buffer, int offset, int length) throws IOException {
+                     int requested = appended[0] ? length : Math.min(1, length);
+                     int read = super.read(buffer, offset, requested);
+                     if (!appended[0] && read > 0) {
+                         Files.write(file, new byte[] {0x55}, StandardOpenOption.APPEND);
+                         appended[0] = true;
+                     }
+                     return read;
+                 }
+             }) {
+            IOException error = assertThrows(
+                    IOException.class,
+                    () -> PreparedTextureIO.read(growing, bytes.length, file.toString()));
+            assertTrue(appended[0]);
+            assertTrue(error.getMessage().contains("byte safety limit"), error.getMessage());
+        }
+        assertEquals(bytes.length + 1L, Files.size(file));
     }
 
     @Test
