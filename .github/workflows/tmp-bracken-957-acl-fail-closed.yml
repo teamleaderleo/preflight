@@ -1,9 +1,10 @@
 name: Temporary #957 macOS ACL fail-closed repair
 
-# Trigger-only revision after workflow registration; errno-zero enumeration failures are not accepted.
+# One-shot PR carrier. The job applies/formats/tests durable source, refreshes the lock, then removes itself.
 on:
-  push:
-    branches: [fix/bound-directory-macos-acl]
+  pull_request:
+    branches: [main]
+    types: [synchronize]
     paths:
       - '.github/workflows/tmp-bracken-957-acl-fail-closed.yml'
 
@@ -12,6 +13,7 @@ permissions:
 
 jobs:
   repair:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'fix/bound-directory-macos-acl'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -142,7 +144,18 @@ jobs:
           if old_fn not in text:
               raise SystemExit('macOS ACL validation function changed unexpectedly')
           source.write_text(text.replace(old_fn, new_fn, 1), encoding='utf-8')
+          PY
 
+          cd preflight-desktop/src-tauri
+          cargo fmt
+          cargo test --test bound_directory
+          cd ../..
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+
+          source = Path('preflight-desktop/src-tauri/src/bound_directory.rs')
           normalized = source.read_text(encoding='utf-8').replace('\r\n', '\n').encode('utf-8')
           digest = hashlib.sha256(normalized).hexdigest()
           lock_path = Path('preflight-desktop/capabilities/release-receipt-source-lock.json')
@@ -155,15 +168,13 @@ jobs:
           print('BOUND_DIRECTORY_SHA256=' + digest)
           PY
 
-          cd preflight-desktop/src-tauri
-          cargo test --test bound_directory
-          cd ../..
           node .github/scripts/review-capability-lock.mjs
 
           rm .github/workflows/tmp-bracken-957-acl-fail-closed.yml
           git config user.name 'Bracken'
           git config user.email 'actions@users.noreply.github.com'
           git add preflight-desktop/src-tauri/src/bound_directory.rs \
+                  preflight-desktop/src-tauri/tests/bound_directory.rs \
                   preflight-desktop/capabilities/release-receipt-source-lock.json \
                   .github/workflows/tmp-bracken-957-acl-fail-closed.yml
           git diff --cached --check
