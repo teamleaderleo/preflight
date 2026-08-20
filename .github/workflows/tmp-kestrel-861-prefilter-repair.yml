@@ -1,8 +1,12 @@
 name: Temporary Kestrel SPJP prefilter repair
 
 on:
-  push:
-    branches: [hardening/spjp-strict-writer-utf8]
+  pull_request:
+    types: [synchronize]
+    paths:
+      - '.github/workflows/tmp-kestrel-861-prefilter-repair.yml'
+      - 'preflight-core/src/main/java/dev/starsector/preflight/core/GeneratedBytecodePack.java'
+      - 'preflight-core/src/test/java/dev/starsector/preflight/core/GeneratedBytecodePackPersistenceTest.java'
 
 permissions:
   contents: write
