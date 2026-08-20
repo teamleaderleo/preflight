@@ -114,13 +114,13 @@ When documents disagree, use this precedence:
 ## Writing voice
 
 Public writing should say things directly and retain the path of the thought. Deliberate repetition
-is allowed. An ordinary word can sit beside a more specific or esoteric one. Keep a sentence when
-its rhythm or detail earns the space.
+is not a defect. Neither is an ordinary word beside a more specific or esoteric one. Do not sand a
+sentence down merely because a shorter version is available.
 
-Use contractions. Keep grammar precise. Qualify claims when the evidence calls for it. Humor should
-come from the observation itself. Avoid generic setup, packaged personality, contrast scaffolding,
-and lists created only to make prose look organized. Never use an em dash unless Leo explicitly
-asks for one.
+Use contractions. Keep grammar precise. Hedge when the evidence actually calls for it. Humor should
+come from the observation itself rather than a decorative adjective. Avoid generic setup, packaged
+personality, contrast scaffolding, and lists created only to make prose look organized. Never use an
+em dash unless Leo explicitly asks for one.
 
 Do not use **build** or **building** as promotional language. It reads like generic founder/dev
 posturing. Use the verb that actually describes the work: make, write, develop, investigate,
@@ -133,10 +133,11 @@ personal and can use lines such as "I make stuff that tends to become much large
 "I make Preflight." A technical release post should still lead with Preflight or the measured result
 because that is what the Starsector reader came for.
 
-Public copy is allowed to sell the work. Lead with the strongest exact result, then reveal the
-breadth of the product: benchmark, playtime, profiles, settings, storage/recovery, support/privacy,
-signed updates, and the linter. Failed experiments and corrected measurements are also valuable
-public material because they explain why the current claims deserve confidence.
+Public copy is allowed to sell the work. Do not confuse restraint with underselling. Lead with the
+strongest exact result, then reveal the breadth of the product: benchmark, playtime, profiles,
+settings, storage/recovery, support/privacy, signed updates, and the linter. The failed experiments
+and corrected measurements are also valuable public material because they explain why the current
+claims deserve confidence.
 
 Benchmark conditions, compatibility limits, write boundaries, and release-candidate status must stay
 exact even when the surrounding prose is informal. Never turn a development number into a universal
