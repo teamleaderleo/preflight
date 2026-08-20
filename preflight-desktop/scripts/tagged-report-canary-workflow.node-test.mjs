@@ -27,6 +27,11 @@ test("tagged report canary binds one successful exact-tag Distribution generatio
   assert.match(workflow, /\.conclusion' <<<"\$run_json"\)" = "success"/);
   assert.match(workflow, /tag_sha=.*git rev-parse/);
   assert.match(workflow, /steps\.metadata\.outputs\.source_revision/);
+  assert.match(
+    workflow,
+    /GITHUB_REF_TYPE=tag node preflight-desktop\/scripts\/validate-release-version\.mjs "\$\{\{ inputs\.tag \}\}"/,
+    "tag checkout must be validated in final/tag mode even though the workflow was dispatched from main",
+  );
   assert.match(workflow, /preflight-complete-release-\$\{\{ inputs\.distribution_run_id \}\}/);
   assert.match(workflow, /scripts\/verify_complete_release\.py --release tagged-release/);
 });
