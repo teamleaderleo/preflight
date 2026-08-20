@@ -266,6 +266,29 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
     };
     const resize = new ResizeObserver(drawStill);
     resize.observe(canvas);
+    let pixelRatioQuery: MediaQueryList | null = null;
+    let pixelRatioListener: (() => void) | null = null;
+    const clearPixelRatioListener = () => {
+      if (pixelRatioQuery && pixelRatioListener) {
+        pixelRatioQuery.removeEventListener("change", pixelRatioListener);
+      }
+      pixelRatioQuery = null;
+      pixelRatioListener = null;
+    };
+    const watchPixelRatio = () => {
+      clearPixelRatioListener();
+      const ratio = window.devicePixelRatio || 1;
+      const query = window.matchMedia(`(resolution: ${ratio}dppx)`);
+      const onChange = () => {
+        clearPixelRatioListener();
+        drawStill();
+        watchPixelRatio();
+      };
+      pixelRatioQuery = query;
+      pixelRatioListener = onChange;
+      query.addEventListener("change", onChange, { once: true });
+    };
+    watchPixelRatio();
     const intersection = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(([entry]) => {
       visible = entry.isIntersecting;
       if (!visible && frame !== null) {
@@ -296,6 +319,7 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
     return () => {
       if (frame !== null) window.cancelAnimationFrame(frame);
       resize.disconnect();
+      clearPixelRatioListener();
       intersection?.disconnect();
       theme.disconnect();
       reducedMotion.removeEventListener("change", updateMotion);
