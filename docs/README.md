@@ -36,6 +36,9 @@ the current answer.
   performance investigation, desktop features, linter, privacy/support, updates, and beta limits.
 - [Leo's talking points](leo-talking-points.md): the public-writing crib sheet for numbers, product
   features, story angles, trust/privacy answers, claim qualifiers, and current release work.
+- [Public-writing sales inventory](public-writing-sales-inventory.md): intentionally overcomplete
+  hook reservoir by audience, including player candy, power-user features, trust/release flexes,
+  harder wording examples, and publication boundaries.
 - [Patreon page draft](patreon-page-draft.md): creator-page About, four membership tiers, welcome
   note, first current post, follow-up post queue, and image notes.
 - [GitHub Sponsors page draft](github-sponsors-page-draft.md): short bio, introduction, goal,
