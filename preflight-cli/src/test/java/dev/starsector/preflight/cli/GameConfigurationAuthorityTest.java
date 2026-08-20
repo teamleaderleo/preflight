@@ -2,6 +2,7 @@ package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -17,7 +18,7 @@ class GameConfigurationAuthorityTest {
     Path temporaryDirectory;
 
     @Test
-    void projectsPreferenceAndHeapAuthorityWithoutAbsolutePathsOrSerial() {
+    void projectsPreferenceAndHeapAuthorityWithoutAbsolutePathsOrCredentialFields() {
         Map<String, String> raw = new LinkedHashMap<>();
         raw.put(GameLaunchPreferences.RESOLUTION, "1920x1080");
         raw.put(GameLaunchPreferences.FULLSCREEN, "true");
@@ -33,8 +34,19 @@ class GameConfigurationAuthorityTest {
                 GameConfigurationAuthority.project(temporaryDirectory, generation, memory);
 
         assertEquals("starsector-configuration-authority-v1", result.values().get("evidenceKind"));
+        assertEquals("independent-supplied-snapshots", result.values().get("composition"));
+        assertEquals(
+                "preference-generation-bound-heap-observation-unbound",
+                result.values().get("freshness"));
+        assertFalse((Boolean) result.values().get("combinedCurrentnessEstablished"));
         assertEquals("/com/fs/starfarer", result.values().get("preferenceNode"));
-        assertTrue((Boolean) result.values().get("memoryAuthorityResolved"));
+        assertEquals(
+                "exact-supplied-generation-fingerprint",
+                result.values().get("preferenceGenerationBinding"));
+        assertEquals(64, ((String) result.values().get("preferenceGenerationFingerprint")).length());
+        assertEquals("unbound-current-observation", result.values().get("heapObservationBinding"));
+        assertFalse((Boolean) result.values().get("heapObservationGenerationBound"));
+        assertTrue((Boolean) result.values().get("heapObservationAvailable"));
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> settings = (List<Map<String, Object>>) result.values().get("settings");
@@ -57,9 +69,11 @@ class GameConfigurationAuthorityTest {
         Map<String, Object> maxHeap = setting(settings, "maxHeapMiB");
         assertEquals(6144, maxHeap.get("effectiveValue"));
         assertEquals("launcher-heap-flags", maxHeap.get("authority"));
+        assertEquals("unbound-current-observation", maxHeap.get("observationBinding"));
+        assertFalse((Boolean) maxHeap.get("generationBound"));
         assertEquals("starsector-core/starsector.vmparams", maxHeap.get("sourceRelativePath"));
         assertEquals("starsector.vmparams", maxHeap.get("sourceFileName"));
-        assertTrue((Boolean) maxHeap.get("sourceInsideSelectedInstall"));
+        assertTrue((Boolean) maxHeap.get("sourceLexicallyInsideSelectedInstall"));
 
         String json = result.toJson();
         assertFalse(json.contains(temporaryDirectory.toAbsolutePath().toString()));
@@ -80,7 +94,7 @@ class GameConfigurationAuthorityTest {
         Map<String, Object> maxHeap = setting(settings, "maxHeapMiB");
         assertNull(maxHeap.get("sourceRelativePath"));
         assertEquals("hidden.vmparams", maxHeap.get("sourceFileName"));
-        assertFalse((Boolean) maxHeap.get("sourceInsideSelectedInstall"));
+        assertFalse((Boolean) maxHeap.get("sourceLexicallyInsideSelectedInstall"));
         assertEquals(1, result.values().get("memoryDiagnosticCount"));
         assertFalse(result.toJson().contains(outside.getParent().toString()));
     }
@@ -101,12 +115,43 @@ class GameConfigurationAuthorityTest {
         assertNull(setting(settings, "uiScale").get("effectiveValue"));
         assertNull(setting(settings, "battleSize").get("effectiveValue"));
         assertTrue((Boolean) setting(settings, "antialiasingSamples").get("rawPresent"));
-        assertFalse((Boolean) result.values().get("memoryAuthorityResolved"));
+        assertFalse((Boolean) result.values().get("heapObservationAvailable"));
 
         @SuppressWarnings("unchecked")
         List<String> diagnostics = (List<String>) result.values().get("launcherPreferenceDiagnostics");
         assertEquals(3, diagnostics.size());
         assertTrue(diagnostics.stream().allMatch(message -> !message.contains("many") && !message.contains("not-json")));
+    }
+
+    @Test
+    void preferenceGenerationFingerprintChangesWhileHeapFreshnessRemainsExplicitlyUnbound() {
+        GameLaunchPreferences.Generation first = new GameLaunchPreferences.Generation(
+                Map.of(GameLaunchPreferences.RESOLUTION, "1920x1080"));
+        GameLaunchPreferences.Generation second = new GameLaunchPreferences.Generation(
+                Map.of(GameLaunchPreferences.RESOLUTION, "2560x1440"));
+        Path source = temporaryDirectory.resolve("starsector.vmparams");
+        JvmMemorySettings.Snapshot firstHeap = new JvmMemorySettings.Snapshot(
+                true, true, 4096, 4096, source, "VM-parameter file", null, List.of());
+        JvmMemorySettings.Snapshot secondHeap = new JvmMemorySettings.Snapshot(
+                true, true, 8192, 4096, source, "VM-parameter file", null, List.of());
+
+        GameConfigurationAuthority.Result firstResult =
+                GameConfigurationAuthority.project(temporaryDirectory, first, firstHeap);
+        GameConfigurationAuthority.Result repeatFirst =
+                GameConfigurationAuthority.project(temporaryDirectory, first, secondHeap);
+        GameConfigurationAuthority.Result secondResult =
+                GameConfigurationAuthority.project(temporaryDirectory, second, secondHeap);
+
+        assertEquals(
+                firstResult.values().get("preferenceGenerationFingerprint"),
+                repeatFirst.values().get("preferenceGenerationFingerprint"));
+        assertNotEquals(
+                firstResult.values().get("preferenceGenerationFingerprint"),
+                secondResult.values().get("preferenceGenerationFingerprint"));
+        assertEquals("unbound-current-observation", firstResult.values().get("heapObservationBinding"));
+        assertEquals("unbound-current-observation", repeatFirst.values().get("heapObservationBinding"));
+        assertFalse((Boolean) firstResult.values().get("combinedCurrentnessEstablished"));
+        assertFalse((Boolean) repeatFirst.values().get("combinedCurrentnessEstablished"));
     }
 
     private static Map<String, Object> setting(List<Map<String, Object>> settings, String name) {
