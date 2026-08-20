@@ -165,7 +165,7 @@ final class SpreadsheetCsv {
 
     record Table(List<List<String>> rows) {
         Table {
-            rows = rows.stream().map(List::copyOf).toList();
+            rows = List.copyOf(rows);
         }
     }
 }
