@@ -2,6 +2,8 @@ import { readFileSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+const RELEASE_NOTE_PLACEHOLDER = /\[(?:CANDIDATE|FINAL|GITHUB SPONSORS)[A-Z0-9 /_.:-]*\]/;
+
 export function validateReleaseVersion(tag, sources) {
   if (!/^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(tag)) {
     throw new Error(`Release tag must be v-prefixed SemVer: ${tag}`);
@@ -21,13 +23,19 @@ export function validateReleaseNotes(tag, text, source, { allowDraft = false } =
     throw new Error(`Release ${tag} is missing reviewed notes: ${source}`);
   }
 
-  // Draft notes are useful while the private candidate is being rehearsed, but a public tag must
-  // never turn that placeholder into published release copy accidentally. Keep this deliberately
-  // tied to an explicit marker near the top: ordinary prose may discuss historical drafts without
-  // making the release itself a draft.
+  // Draft notes are useful while a private candidate is being rehearsed, but a public tag must
+  // never turn unfinished release copy into the immutable draft-release body accidentally. Keep
+  // the draft check tied to an explicit marker near the top, and reject release placeholders
+  // anywhere in final tag notes so deleting only the draft marker cannot expose unfinished claims.
   const preamble = text.slice(0, 1024);
   if (!allowDraft && /\bdraft release notes\b/i.test(preamble)) {
     throw new Error(`Release ${tag} still has draft notes: ${source}`);
+  }
+  if (!allowDraft) {
+    const placeholder = text.match(RELEASE_NOTE_PLACEHOLDER)?.[0];
+    if (placeholder) {
+      throw new Error(`Release ${tag} still has a release placeholder ${placeholder}: ${source}`);
+    }
   }
 }
 
@@ -87,7 +95,7 @@ if (isMain) {
 
   // Distribution invokes this command only for a private signed candidate or a public v* tag.
   // A workflow_dispatch on a branch is the private rehearsal and may intentionally use draft notes;
-  // a tag ref (including a manually dispatched tag) must use finalized notes.
+  // a tag ref (including a manually dispatched tag) must use finalized, placeholder-free notes.
   validateReleaseNotes(tag, readFileSync(notes, "utf8"), notesRelative, {
     allowDraft: draftNotesAllowedForEnvironment(),
   });
