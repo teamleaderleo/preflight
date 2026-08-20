@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createBenchmarkShareText } from "../benchmarkShare";
-import { CheckIcon } from "../icons";
+import { CheckIcon, CopyIcon } from "../icons";
 import type { useDesktopAutomation } from "../useDesktopAutomation";
 import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
@@ -64,6 +64,7 @@ export function BenchmarkPage({
       setBenchmarkCopyState("error");
     }
   };
+  const benchmarkCopied = benchmarkCopyState === "copied";
   return (
     <div className="settings-page benchmark-page">
       <NoticeBanner message={message} tone={messageTone} />
@@ -115,16 +116,20 @@ export function BenchmarkPage({
           <BenchmarkContext comparison={desktopBenchmarkComparison} />
           {benchmarkMetric ? (
             <div className="benchmark-card__actions">
-              <button className="button button--quiet button--compact" type="button" onClick={() => void copyBenchmarkResult()}>
-                Copy result
+              <button
+                className="icon-button icon-button--small"
+                type="button"
+                aria-label={benchmarkCopied ? "Benchmark result copied" : "Copy benchmark result"}
+                title={benchmarkCopied ? "Benchmark result copied" : "Copy measured startup times and installation qualifier"}
+                onClick={() => void copyBenchmarkResult()}
+              >
+                {benchmarkCopied ? <CheckIcon /> : <CopyIcon />}
               </button>
-              <small aria-live="polite">
-                {benchmarkCopyState === "copied"
-                  ? "Benchmark result copied."
-                  : benchmarkCopyState === "error"
-                    ? "Couldn’t copy the benchmark result."
-                    : "Copies the two measured startup times and an installation-specific qualifier."}
-              </small>
+              {benchmarkCopyState === "copied"
+                ? <small aria-live="polite">Benchmark result copied.</small>
+                : benchmarkCopyState === "error"
+                  ? <small aria-live="polite">Couldn’t copy the benchmark result.</small>
+                  : null}
             </div>
           ) : null}
           <small>The saved result includes exact versions and raw timings.</small>

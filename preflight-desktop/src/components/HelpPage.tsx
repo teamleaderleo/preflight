@@ -1,4 +1,4 @@
-import { ArrowIcon, CheckIcon, FolderIcon, ShieldIcon } from "../icons";
+import { ArrowIcon, CheckIcon, CopyIcon, FolderIcon, ShieldIcon } from "../icons";
 import type { Page } from "./DesktopShell";
 import type { useDiagnosticsReport } from "../useDiagnosticsReport";
 import { useCopySetup } from "../useCopySetup";
@@ -202,7 +202,7 @@ export function HelpPage({
             <div className="report-facts__digest"><span>SHA-256</span><code>{reportReceipt.sha256}</code></div>
           </div>
           <div className="update-actions">
-            <button className="button button--quiet button--compact" type="button" onClick={() => void copyRunReportReceipt()}>Copy receipt</button>
+            <button className="icon-button icon-button--small" type="button" aria-label="Copy receipt" title="Copy case receipt" onClick={() => void copyRunReportReceipt()}><CopyIcon /></button>
             <button className="button button--quiet button--compact" type="button" onClick={dismissRunReportReceipt}>I saved this receipt</button>
             <button className="button button--danger button--compact" type="button" onClick={() => void removeRunReport()} disabled={reportDeleting}>{reportDeleting ? "Deleting…" : "Delete uploaded report"}</button>
           </div>

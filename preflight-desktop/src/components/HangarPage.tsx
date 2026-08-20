@@ -1,3 +1,4 @@
+import { PauseIcon, PlayIcon, RefreshIcon, RotateClockwiseIcon, RotateCounterClockwiseIcon } from "../icons";
 import type { useInstrumentHull } from "../useInstrumentHull";
 import { FEATURED_HULL_IDS } from "../useInstrumentHull";
 import { useInstrumentMotion } from "../useInstrumentMotion";
@@ -49,6 +50,11 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
   const quickHulls = selectedIsFeatured
     ? featured
     : [...featured, instrumentHull.selected];
+  const motionLabel = motion === "rotate" ? "Pause rotation" : "Resume rotation";
+  const directionLabel = direction === "clockwise" ? "Use counter-clockwise" : "Use clockwise";
+  const directionTitle = motion === "still"
+    ? `${directionLabel} when rotation resumes`
+    : direction === "clockwise" ? "Rotate counter-clockwise" : "Rotate clockwise";
 
   return (
     <div className="hangar-page">
@@ -81,26 +87,26 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
                 ? `${instrumentHull.catalog.hulls.length.toLocaleString()} installed`
                 : instrumentHull.catalogLoaded ? "Included ships" : "Finding installed ships…"}
             </span>
-            <button
-              className="button button--quiet button--compact"
-              type="button"
-              title={motion === "rotate" ? "Stop decorative hull rotation" : "Resume decorative hull rotation"}
-              onClick={() => setMotion(motion === "rotate" ? "still" : "rotate")}
-            >
-              {motion === "rotate" ? "Motion: Rotate" : "Motion: Still"}
-            </button>
-            <button
-              className="button button--quiet button--compact"
-              type="button"
-              title={motion === "still"
-                ? direction === "clockwise"
-                  ? "Use counter-clockwise when rotation resumes"
-                  : "Use clockwise when rotation resumes"
-                : direction === "clockwise" ? "Rotate the other way" : "Restore clockwise rotation"}
-              onClick={() => setDirection(direction === "clockwise" ? "counter-clockwise" : "clockwise")}
-            >
-              {direction === "clockwise" ? "Direction: Clockwise" : "Direction: Counter-clockwise"}
-            </button>
+            <div role="group" aria-label="Display motion" style={{ display: "flex", gap: 6 }}>
+              <button
+                className="icon-button icon-button--small"
+                type="button"
+                aria-label={motionLabel}
+                title={motion === "rotate" ? "Pause decorative hull rotation" : "Resume decorative hull rotation"}
+                onClick={() => setMotion(motion === "rotate" ? "still" : "rotate")}
+              >
+                {motion === "rotate" ? <PauseIcon /> : <PlayIcon />}
+              </button>
+              <button
+                className="icon-button icon-button--small"
+                type="button"
+                aria-label={directionLabel}
+                title={directionTitle}
+                onClick={() => setDirection(direction === "clockwise" ? "counter-clockwise" : "clockwise")}
+              >
+                {direction === "clockwise" ? <RotateCounterClockwiseIcon /> : <RotateClockwiseIcon />}
+              </button>
+            </div>
             {additional.length > 0 ? (
               <HullPicker
                 hulls={additional}
@@ -159,13 +165,14 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
           </div>
 
           <button
-            className="button button--quiet button--compact hangar-reset"
+            className="icon-button icon-button--small"
             type="button"
+            aria-label="Reset appearance"
             title="Reset appearance"
             disabled={!instrumentHull.customized}
             onClick={instrumentHull.resetCustomization}
           >
-            Reset
+            <RefreshIcon />
           </button>
         </div>
       </section>
