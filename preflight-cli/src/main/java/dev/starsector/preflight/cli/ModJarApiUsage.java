@@ -35,9 +35,11 @@ final class ModJarApiUsage {
     private static final long MAX_CLASS_BYTES_TOTAL = 512L * 1024 * 1024;
     private static final int MAX_REFERENCES_PER_JAR = 100_000;
     private static final int MAX_VERIFIED_CLASSES = 250_000;
+    private static final int MAX_STATIC_EDGES = 4_096;
     private static final int MAX_EDGE_CLASSES = 4_096;
     private static final int MAX_STARSECTOR_API_CLASSES_PER_MOD = 4_096;
     private static final int MAX_ERROR_SAMPLES_PER_JAR = 8;
+    private static final int MAX_AMBIGUOUS_REFERENCES = 4_096;
     private static final int MAX_AMBIGUOUS_SAMPLES = 128;
     private static final String STARSECTOR_API_PREFIX = "com.fs.starfarer.api.";
 
@@ -95,7 +97,8 @@ final class ModJarApiUsage {
         values.put("notes", List.of(
                 "Static bytecode evidence only; no mod classes were loaded or executed.",
                 "A static reference does not by itself prove that the code path runs in a given session.",
-                "An undeclared cross-mod reference may be an intentional optional integration, not a defect."));
+                "An undeclared cross-mod reference may be an intentional optional integration, not a defect.",
+                "Counts with truncated=true are lower bounds."));
         return new Result(values);
     }
 
@@ -117,8 +120,8 @@ final class ModJarApiUsage {
         try (ZipFile zip = new ZipFile(file.toFile())) {
             List<? extends ZipEntry> classEntries = zip.stream()
                     .filter(entry -> !entry.isDirectory() && entry.getName().endsWith(".class"))
-                    .sorted(Comparator.comparing(ZipEntry::getName))
                     .limit(MAX_CLASSFILES_PER_JAR + 1L)
+                    .sorted(Comparator.comparing(ZipEntry::getName))
                     .toList();
             if (classEntries.size() > MAX_CLASSFILES_PER_JAR) {
                 truncated = true;
@@ -150,6 +153,10 @@ final class ModJarApiUsage {
                 byte[] classfile;
                 try (InputStream input = zip.getInputStream(entry)) {
                     classfile = readAtMost(input, payloadLimit + 1);
+                } catch (IOException error) {
+                    unreadableClasses++;
+                    sample(errors, entry.getName() + ": could not read class entry");
+                    continue;
                 }
                 bytesRead += classfile.length;
                 if (classfile.length > payloadLimit) {
@@ -187,7 +194,7 @@ final class ModJarApiUsage {
         } catch (IOException error) {
             return new JarEvidence(
                     jar.modId(), jar.relativePath(), 0, 0, bytesRead, true,
-                    Set.of(), Set.of(), List.of(error.getMessage()));
+                    Set.of(), Set.of(), List.of("Could not read JAR archive"));
         }
 
         return new JarEvidence(
@@ -241,7 +248,7 @@ final class ModJarApiUsage {
             input.readUnsignedShort();
             int thisClass = input.readUnsignedShort();
             String binaryName = className(tags, classNameIndexes, utf8, thisClass);
-            if (binaryName == null || binaryName.startsWith("[") || binaryName.indexOf('.') < 0) {
+            if (binaryName == null || binaryName.startsWith("[")) {
                 throw new IOException("invalid this_class identity");
             }
 
@@ -337,30 +344,43 @@ final class ModJarApiUsage {
                 if (providers == null) {
                     continue;
                 }
-                LinkedHashSet<String> otherMods = new LinkedHashSet<>();
+                LinkedHashSet<String> providerMods = new LinkedHashSet<>();
                 for (Provider provider : providers) {
-                    if (!provider.modId().equals(jar.modId())) {
-                        otherMods.add(provider.modId());
-                    }
+                    providerMods.add(provider.modId());
                 }
-                if (otherMods.size() == 1) {
+                boolean selfProvides = providerMods.contains(jar.modId());
+                LinkedHashSet<String> otherMods = new LinkedHashSet<>(providerMods);
+                otherMods.remove(jar.modId());
+
+                if (!selfProvides && otherMods.size() == 1) {
                     String target = otherMods.iterator().next();
-                    BoundedNames names = edges.computeIfAbsent(
-                            new EdgeKey(jar.modId(), target), ignored -> new BoundedNames(MAX_EDGE_CLASSES));
+                    EdgeKey key = new EdgeKey(jar.modId(), target);
+                    BoundedNames names = edges.get(key);
+                    if (names == null) {
+                        if (edges.size() >= MAX_STATIC_EDGES) {
+                            truncated = true;
+                            continue;
+                        }
+                        names = new BoundedNames(MAX_EDGE_CLASSES);
+                        edges.put(key, names);
+                    }
                     names.add(reference);
                     truncated |= names.truncated();
-                } else if (otherMods.size() > 1) {
+                } else if (!otherMods.isEmpty() && (selfProvides || otherMods.size() > 1)) {
                     String ambiguityKey = jar.modId() + "\u0000" + reference;
-                    if (seenAmbiguous.add(ambiguityKey)) {
+                    if (!seenAmbiguous.contains(ambiguityKey)) {
+                        if (seenAmbiguous.size() >= MAX_AMBIGUOUS_REFERENCES) {
+                            truncated = true;
+                            continue;
+                        }
+                        seenAmbiguous.add(ambiguityKey);
                         ambiguousCount++;
                         if (ambiguousSamples.size() < MAX_AMBIGUOUS_SAMPLES) {
                             Map<String, Object> sample = new LinkedHashMap<>();
                             sample.put("fromMod", jar.modId());
                             sample.put("className", reference);
-                            sample.put("providerMods", List.copyOf(otherMods));
+                            sample.put("providerMods", List.copyOf(providerMods));
                             ambiguousSamples.add(sample);
-                        } else {
-                            truncated = true;
                         }
                     }
                 }
@@ -403,7 +423,6 @@ final class ModJarApiUsage {
     }
 
     private record Inputs(Map<String, Set<String>> dependenciesByMod, List<JarInput> jars) {
-        @SuppressWarnings("unchecked")
         static Inputs from(Map<String, Object> values) {
             Map<String, Set<String>> dependencies = new LinkedHashMap<>();
             Map<String, Path> directories = new LinkedHashMap<>();
