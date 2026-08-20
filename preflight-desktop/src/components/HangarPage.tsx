@@ -92,9 +92,10 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
             <button
               className="button button--quiet button--compact"
               type="button"
-              disabled={motion === "still"}
               title={motion === "still"
-                ? "Resume rotation to change its direction"
+                ? direction === "clockwise"
+                  ? "Use counter-clockwise when rotation resumes"
+                  : "Use clockwise when rotation resumes"
                 : direction === "clockwise" ? "Rotate the other way" : "Restore clockwise rotation"}
               onClick={() => setDirection(direction === "clockwise" ? "counter-clockwise" : "clockwise")}
             >
