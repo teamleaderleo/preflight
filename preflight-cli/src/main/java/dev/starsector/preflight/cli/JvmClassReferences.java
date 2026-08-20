@@ -15,8 +15,6 @@ import java.util.Set;
 final class JvmClassReferences {
     private static final int CLASSFILE_MAGIC = 0xcafebabe;
     private static final int MAX_CONSTANT_POOL_ENTRIES = 65_535;
-    private static final int MAX_MEMBER_COUNT = 65_535;
-    private static final int MAX_ATTRIBUTE_COUNT = 65_535;
 
     private JvmClassReferences() {
     }
@@ -39,6 +37,7 @@ final class JvmClassReferences {
             byte[] tags = new byte[count];
             int[] classNameIndexes = new int[count];
             int[] descriptorIndexes = new int[count];
+            int[] nameAndTypeIndexes = new int[count];
             String[] utf8 = new String[count];
             for (int index = 1; index < count; index++) {
                 int tag = input.readUnsignedByte();
@@ -52,13 +51,20 @@ final class JvmClassReferences {
                     }
                     case 7 -> classNameIndexes[index] = input.readUnsignedShort();
                     case 8, 19, 20 -> skipFully(input, 2);
-                    case 9, 10, 11, 17, 18 -> skipFully(input, 4);
+                    case 9, 10, 11 -> {
+                        input.readUnsignedShort();
+                        nameAndTypeIndexes[index] = input.readUnsignedShort();
+                    }
                     case 12 -> {
                         input.readUnsignedShort();
                         descriptorIndexes[index] = input.readUnsignedShort();
                     }
                     case 15 -> skipFully(input, 3);
                     case 16 -> descriptorIndexes[index] = input.readUnsignedShort();
+                    case 17, 18 -> {
+                        input.readUnsignedShort();
+                        nameAndTypeIndexes[index] = input.readUnsignedShort();
+                    }
                     default -> throw new IOException("unsupported constant-pool tag: " + tag);
                 }
             }
@@ -79,8 +85,14 @@ final class JvmClassReferences {
                         throw new IOException("invalid CONSTANT_Class entry at " + index);
                     }
                     addClassConstant(references, name);
-                } else if (tags[index] == 12 || tags[index] == 16) {
+                } else if (tags[index] == 16) {
                     addDescriptor(references, utf8At(tags, utf8, descriptorIndexes[index]));
+                } else if (nameAndTypeIndexes[index] != 0) {
+                    int nameAndType = nameAndTypeIndexes[index];
+                    if (nameAndType <= 0 || nameAndType >= tags.length || tags[nameAndType] != 12) {
+                        throw new IOException("member reference has invalid NameAndType index");
+                    }
+                    addDescriptor(references, utf8At(tags, utf8, descriptorIndexes[nameAndType]));
                 }
             }
 
@@ -94,7 +106,7 @@ final class JvmClassReferences {
             }
 
             references.remove(binaryName);
-            return new Result(binaryName, Collections.unmodifiableSet(references));
+            return new Result(binaryName, Collections.unmodifiableSet(new LinkedHashSet<>(references)));
         } catch (EOFException error) {
             throw new IOException("classfile ended before its declared structure", error);
         } catch (ArithmeticException error) {
@@ -105,9 +117,6 @@ final class JvmClassReferences {
     private static void readMembers(
             DataInputStream input, byte[] tags, String[] utf8, Set<String> references) throws IOException {
         int members = input.readUnsignedShort();
-        if (members > MAX_MEMBER_COUNT) {
-            throw new IOException("member count exceeds parser limit");
-        }
         for (int index = 0; index < members; index++) {
             input.readUnsignedShort();
             input.readUnsignedShort();
@@ -119,9 +128,6 @@ final class JvmClassReferences {
 
     private static void skipAttributes(DataInputStream input) throws IOException {
         int attributes = input.readUnsignedShort();
-        if (attributes > MAX_ATTRIBUTE_COUNT) {
-            throw new IOException("attribute count exceeds parser limit");
-        }
         for (int index = 0; index < attributes; index++) {
             input.readUnsignedShort();
             long length = Integer.toUnsignedLong(input.readInt());
@@ -190,7 +196,7 @@ final class JvmClassReferences {
 
     record Result(String binaryName, Set<String> references) {
         Result {
-            references = Set.copyOf(references);
+            references = Collections.unmodifiableSet(new LinkedHashSet<>(references));
         }
     }
 }
