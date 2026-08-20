@@ -87,7 +87,7 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
                 ? `${instrumentHull.catalog.hulls.length.toLocaleString()} installed`
                 : instrumentHull.catalogLoaded ? "Included ships" : "Finding installed ships…"}
             </span>
-            <div role="group" aria-label="Display motion" style={{ display: "flex", gap: 6 }}>
+            <div className="hangar-motion-controls" role="group" aria-label="Display motion and appearance">
               <button
                 className="icon-button icon-button--small"
                 type="button"
@@ -105,6 +105,17 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
                 onClick={() => setDirection(direction === "clockwise" ? "counter-clockwise" : "clockwise")}
               >
                 {direction === "clockwise" ? <RotateCounterClockwiseIcon /> : <RotateClockwiseIcon />}
+              </button>
+              <button
+                className="button button--quiet button--compact hangar-reset-action"
+                type="button"
+                aria-label="Reset appearance"
+                title="Reset appearance"
+                disabled={!instrumentHull.customized}
+                onClick={instrumentHull.resetCustomization}
+              >
+                <RefreshIcon />
+                <span>Reset</span>
               </button>
             </div>
             {additional.length > 0 ? (
@@ -163,17 +174,6 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
               onChange={(value) => instrumentHull.customize({ height: value })}
             />
           </div>
-
-          <button
-            className="icon-button icon-button--small"
-            type="button"
-            aria-label="Reset appearance"
-            title="Reset appearance"
-            disabled={!instrumentHull.customized}
-            onClick={instrumentHull.resetCustomization}
-          >
-            <RefreshIcon />
-          </button>
         </div>
       </section>
     </div>

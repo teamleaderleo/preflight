@@ -1,0 +1,193 @@
+/* Rendered-layout follow-up for #976. This layer owns the final Home/Hangar composition after the
+ * base styles, release-readiness behavior, and Home presentation preferences have loaded. */
+
+/* Keep every Home state scroll-reachable; #982 removed the dead base launch-console tracks. */
+.page-viewport--home {
+  position: relative;
+  overflow-y: auto;
+  padding-right: 5px;
+}
+
+/* The settled ship is the main visual object. Lift its visual centre into the open field. */
+.launch-console--layout-settled.launch-console--minimal .home-flight-instrument {
+  inset: -34px 30px 100px;
+}
+
+/* Settled identity sits directly above the launch action. Open its path disclosure upward so a
+ * keyboard- or pointer-open tooltip cannot be painted behind the button at the minimum window. */
+.launch-console--layout-settled .home-launch-path::after {
+  top: auto;
+  bottom: calc(100% + 7px);
+}
+
+/* Preparation keeps more room for status copy while retaining the hull as the setup being discussed. */
+.launch-console--layout-preparation .home-flight-instrument {
+  inset: 6px 36px 104px;
+}
+
+/* Recovery already precedes the console in DOM order. Collapse the console into a companion portrait. */
+.launch-console--layout-recovery {
+  height: clamp(220px, 34vh, 280px);
+  min-height: 220px;
+}
+
+.launch-console--layout-recovery .launch-console__primary {
+  height: 100%;
+  min-height: 220px;
+  padding-block: 16px;
+}
+
+.launch-console--layout-recovery .home-flight-instrument {
+  inset: -42px 22px 22px;
+  opacity: .82;
+}
+
+.launch-console--layout-recovery .home-launch-identity {
+  top: 16px;
+  left: 18px;
+  width: min(420px, calc(100% - 36px));
+}
+
+.launch-console--layout-recovery .home-ship-name {
+  right: 16px;
+  bottom: 10px;
+  left: auto;
+  max-width: 42%;
+  text-align: right;
+}
+
+/* A captured failed run is the active job, but it should not physically shove the entire Home hero
+ * down when it appears. Keep the alert first in DOM order while letting it float over a stable
+ * companion field. The adjacent-console selectors deliberately scope the taller portrait only to
+ * this observed run-recovery composition; other recovery/error states keep their own layout. */
+.page-viewport--home > .run-recovery[role="alert"] {
+  position: absolute;
+  z-index: 8;
+  top: 0;
+  right: 5px;
+  left: 0;
+  margin-bottom: 0;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+}
+
+.page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery {
+  height: 100%;
+  min-height: 100%;
+}
+
+.page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .launch-console__primary {
+  height: 100%;
+  min-height: 100%;
+}
+
+.page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-flight-instrument {
+  inset: 120px 30px 54px;
+  opacity: .72;
+}
+
+.page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-launch-identity {
+  top: auto;
+  right: auto;
+  bottom: 18px;
+  left: 18px;
+  width: min(520px, calc(100% - 36px));
+  text-align: left;
+  transform: none;
+}
+
+/* Failed-run identity sits on the lower edge of the stable companion field. Open its full-path
+ * disclosure upward so pointer and keyboard users can actually see it inside the clipped Home viewport. */
+.page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-launch-path::after {
+  top: auto;
+  bottom: calc(100% + 7px);
+}
+
+/* Motion, direction, and appearance reset form one compact local cluster. Reset keeps a visible word
+ * because a second circular-arrow-only glyph beside direction is needlessly ambiguous. */
+.hangar-dock--catalog {
+  grid-template-columns: minmax(240px, .85fr) minmax(0, 1.15fr);
+}
+
+.hangar-motion-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: 100%;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--paper-solid) 58%, transparent);
+}
+
+.hangar-reset-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 2px;
+  padding-inline: 10px;
+  white-space: nowrap;
+}
+
+.hangar-reset-action svg {
+  width: 15px;
+  height: 15px;
+}
+
+@container (max-width: 760px) {
+  .hangar-dock--catalog {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .launch-console--layout-settled.launch-console--minimal .home-flight-instrument {
+    inset: -12px 8px 102px;
+  }
+
+  .launch-console--layout-preparation .home-flight-instrument {
+    inset: 16px 8px 110px;
+  }
+
+  .launch-console--layout-recovery {
+    height: 220px;
+    min-height: 220px;
+  }
+
+  .launch-console--layout-recovery .home-flight-instrument {
+    inset: -18px 8px 28px;
+  }
+
+  .launch-console--layout-recovery .home-launch-identity {
+    top: 14px;
+    left: 14px;
+    width: calc(100% - 28px);
+  }
+
+  .launch-console--layout-recovery .home-ship-name {
+    right: 12px;
+    bottom: 8px;
+    max-width: 46%;
+  }
+
+  .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery {
+    height: 100%;
+    min-height: 100%;
+  }
+
+  .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .launch-console__primary {
+    min-height: 100%;
+  }
+
+  .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-flight-instrument {
+    inset: 105px 8px 24px;
+  }
+
+  .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-launch-identity {
+    top: auto;
+    bottom: 12px;
+    left: 14px;
+    width: calc(100% - 28px);
+  }
+}

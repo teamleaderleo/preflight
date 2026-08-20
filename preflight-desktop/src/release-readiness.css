@@ -6,48 +6,10 @@ summary:active {
   transform: translateY(1px);
 }
 
-/* A ready Home can still grow recovery/update content below the launch display. Keep it reachable. */
-.page-viewport--home:has(.launch-console--ready) {
+/* Home owns several explicit composition states. Keep follow-up content reachable in all of them. */
+.page-viewport--home {
   overflow-y: auto;
   padding-right: 5px;
-}
-
-/*
- * A previous run failure or current blocking error is the player's current job. Put its recovery
- * before the idle launch display so the next useful action is visible on entry instead of living
- * one viewport below "Ready" / "Needs attention".
- */
-.page-viewport--home:has(.run-recovery),
-.page-viewport--home:has(.notice--error) {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.page-viewport--home:has(.run-recovery) > *,
-.page-viewport--home:has(.notice--error) > * {
-  flex: 0 0 auto;
-}
-
-.page-viewport--home:has(.run-recovery) .run-recovery,
-.page-viewport--home:has(.notice--error) .notice--error {
-  order: -1;
-}
-
-/*
- * Visual ordering alone does not change keyboard order. A prior-run recovery card already owns the
- * Relaunch action, so remove the duplicate idle controls until that card is dismissed. An immediate
- * launch error gets the same treatment only while the console itself is in its error state; a plain
- * settings error can keep the controls needed to correct it.
- */
-.page-viewport--home:has(.run-recovery[role="alert"]) .launch-console .status-chip,
-.page-viewport--home:has(.run-recovery[role="alert"]) .launch-console .home-options-toggle,
-.page-viewport--home:has(.run-recovery[role="alert"]) .launch-console .home-playtime,
-.page-viewport--home:has(.run-recovery[role="alert"]) .launch-console .last-run-health,
-.page-viewport--home:has(.run-recovery[role="alert"]) .launch-console .launch-console__actions,
-.page-viewport--home:has(.notice--error) .launch-console--error .home-options-toggle,
-.page-viewport--home:has(.notice--error) .launch-console--error .launch-console__actions {
-  display: none;
 }
 
 /* The launch-settings disclosure stays clear of the primary launch/recovery actions. */
@@ -58,7 +20,7 @@ summary:active {
 }
 
 /* Preparation/recovery moves identity to the top, so options begin below that context. */
-.launch-console--options-open:has(.launch-console__note) .quick-settings {
+.launch-console--options-open:is(.launch-console--layout-preparation, .launch-console--layout-recovery) .quick-settings {
   top: 108px;
 }
 
@@ -76,7 +38,8 @@ summary:active {
   z-index: 3 !important;
   bottom: 82px;
   left: 50%;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 2px;
   width: min(520px, calc(100% - 48px));
   min-width: 0;
@@ -86,25 +49,72 @@ summary:active {
   transform: translateX(-50%);
 }
 
-.home-launch-identity span,
-.home-launch-identity strong {
+.home-launch-identity > strong,
+.home-launch-path__short {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.home-launch-identity span {
-  font-family: var(--font-data);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: .1em;
-  text-transform: uppercase;
+.home-launch-identity > strong {
+  color: var(--console-ink);
+  font-size: 14px;
+  font-weight: 680;
+  letter-spacing: .01em;
 }
 
-.home-launch-identity strong {
-  color: var(--console-ink);
-  font-size: 12px;
+.home-launch-path {
+  position: relative;
+  display: block;
+  min-width: 0;
+  color: var(--console-soft);
+  font-family: var(--font-data);
+  font-size: 9px;
   font-weight: 650;
+  letter-spacing: .06em;
+  text-transform: none;
+  pointer-events: auto;
+  cursor: help;
+}
+
+.home-launch-path:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 3px;
+}
+
+.home-launch-path::after {
+  position: absolute;
+  z-index: 12;
+  top: calc(100% + 7px);
+  left: 50%;
+  width: max-content;
+  max-width: min(620px, calc(100vw - 48px));
+  padding: 6px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  color: var(--ink);
+  background: var(--paper-solid);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .16);
+  content: attr(data-full-path);
+  font-family: var(--font-data);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.35;
+  text-align: left;
+  text-transform: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -2px);
+  transition: opacity 70ms ease, transform 70ms ease;
+}
+
+.home-launch-path:is(:hover, :focus-visible)::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 /* Keep even a deliberately long decorative hull label clear of the centered launch button. */
@@ -115,19 +125,22 @@ summary:active {
   white-space: nowrap;
 }
 
-/*
- * When preparation/recovery is the current job, setup identity is more useful than playtime or the
- * previous run's health line. Reuse that quiet upper-left space instead of making the player carry
- * a profile choice from Mods back to Home in memory.
- */
-.launch-console--ready:has(.launch-console__note) .home-playtime,
-.launch-console--ready:has(.launch-console__note) .last-run-health {
+/* Preparation makes the current setup more useful than playtime or the previous run summary. */
+.launch-console--layout-preparation .home-playtime,
+.launch-console--layout-preparation .last-run-health {
   display: none;
 }
 
-.launch-console--ready:has(.launch-console__note) .home-launch-identity,
-.page-viewport--home:has(.run-recovery[role="alert"]) .launch-console .home-launch-identity,
-.page-viewport--home:has(.notice--error) .launch-console--error .home-launch-identity {
+/* Recovery is already first in DOM order; the companion console yields its duplicate actions. */
+.launch-console--layout-recovery .status-chip,
+.launch-console--layout-recovery .home-options-toggle,
+.launch-console--layout-recovery .home-playtime,
+.launch-console--layout-recovery .last-run-health,
+.launch-console--layout-recovery .launch-console__actions {
+  display: none;
+}
+
+.launch-console:is(.launch-console--layout-preparation, .launch-console--layout-recovery) .home-launch-identity {
   top: 64px;
   right: auto;
   bottom: auto;
@@ -135,6 +148,15 @@ summary:active {
   width: min(520px, calc(100% - 36px));
   text-align: left;
   transform: none;
+}
+
+.launch-console:is(.launch-console--layout-preparation, .launch-console--layout-recovery) .home-launch-path::after {
+  left: 0;
+  transform: translateY(-2px);
+}
+
+.launch-console:is(.launch-console--layout-preparation, .launch-console--layout-recovery) .home-launch-path:is(:hover, :focus-visible)::after {
+  transform: translateY(0);
 }
 
 /* Exceptional actions own this space; the decorative hull caption yields to them. */
@@ -351,5 +373,13 @@ summary:active {
   .home-launch-identity {
     bottom: 88px;
     width: calc(100% - 32px);
+  }
+
+  .home-launch-identity > strong {
+    font-size: 13px;
+  }
+
+  .home-launch-path {
+    font-size: 9px;
   }
 }

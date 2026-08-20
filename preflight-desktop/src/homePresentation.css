@@ -2,29 +2,28 @@
   display: none !important;
 }
 
-/* Compact Home removes only settled decorative/history layers. The same Home DOM still owns
- * readiness, launch identity, Options, preparation/recovery, and every launch action. A previous
- * run that explicitly recommends review remains visible because that evidence can affect the
- * player's launch decision. */
-:root[data-home-mode="compact"] .launch-console--ready .home-flight-instrument,
-:root[data-home-mode="compact"] .launch-console--ready .home-playtime,
-:root[data-home-mode="compact"] .launch-console--ready .last-run-health:not(.last-run-health--review),
-:root[data-home-mode="compact"] .launch-console--ready .home-ship-name {
+/* Compact Home removes only settled decorative/history layers. The explicit Home composition
+ * modifier is the state owner: preparation, recovery, and active work keep their visual context.
+ * A previous run that explicitly recommends review remains visible because that evidence can
+ * affect the player's launch decision. */
+:root[data-home-mode="compact"] .launch-console--layout-settled .home-flight-instrument,
+:root[data-home-mode="compact"] .launch-console--layout-settled .home-playtime,
+:root[data-home-mode="compact"] .launch-console--layout-settled .last-run-health:not(.last-run-health--review),
+:root[data-home-mode="compact"] .launch-console--layout-settled .home-ship-name {
   display: none !important;
 }
 
-/* Collapse only the quiet ready state. Active work, recovery/error, and an open Options panel keep
- * the existing roomy composition so a cosmetic preference cannot crowd consequential controls. */
+/* Collapse only the quiet settled state. Active work, preparation, recovery, and an open Options
+ * panel retain the composition selected by HomePage, so this cosmetic preference never has to
+ * rediscover page state from descendants. */
 :root[data-home-mode="compact"]
-  .page-viewport--home:not(:has(.run-recovery)):not(:has(.notice--error))
-  .launch-console--ready.launch-console--minimal:not(.launch-console--launching):not(.launch-console--running):not(.launch-console--error):not(:has(.launch-console__note)):not(:has(.launch-console__stop)) {
+  .launch-console--layout-settled.launch-console--minimal {
   height: 260px;
   min-height: 260px;
 }
 
 :root[data-home-mode="compact"]
-  .page-viewport--home:not(:has(.run-recovery)):not(:has(.notice--error))
-  .launch-console--ready.launch-console--minimal:not(.launch-console--launching):not(.launch-console--running):not(.launch-console--error):not(:has(.launch-console__note)):not(:has(.launch-console__stop))
+  .launch-console--layout-settled.launch-console--minimal
   .launch-console__primary {
   height: 260px;
   min-height: 260px;
