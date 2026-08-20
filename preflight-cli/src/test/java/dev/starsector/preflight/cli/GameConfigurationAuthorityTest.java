@@ -65,6 +65,9 @@ class GameConfigurationAuthorityTest {
         assertEquals(400, battle.get("effectiveValue"));
         assertEquals("gameplaySettings", battle.get("rawKey"));
         assertEquals("battleSize", battle.get("valuePath"));
+        assertTrue((Boolean) battle.get("rawPresent"));
+        assertTrue((Boolean) battle.get("valuePathPresent"));
+        assertEquals("stored-json-field", battle.get("derivation"));
 
         Map<String, Object> maxHeap = setting(settings, "maxHeapMiB");
         assertEquals(6144, maxHeap.get("effectiveValue"));
@@ -78,6 +81,46 @@ class GameConfigurationAuthorityTest {
         String json = result.toJson();
         assertFalse(json.contains(temporaryDirectory.toAbsolutePath().toString()));
         assertFalse(json.contains("serial"));
+    }
+
+    @Test
+    void gameplayContainerWithoutBattleSizeDoesNotClaimStoredField() {
+        GameLaunchPreferences.Generation generation = new GameLaunchPreferences.Generation(Map.of(
+                GameLaunchPreferences.GAMEPLAY_SETTINGS, "{\"other\":1}"));
+        GameConfigurationAuthority.Result result = GameConfigurationAuthority.project(
+                temporaryDirectory,
+                generation,
+                JvmMemorySettings.Snapshot.unavailable("not available"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> settings = (List<Map<String, Object>>) result.values().get("settings");
+        Map<String, Object> battle = setting(settings, "battleSize");
+        assertNull(battle.get("effectiveValue"));
+        assertTrue((Boolean) battle.get("rawPresent"));
+        assertFalse((Boolean) battle.get("valuePathPresent"));
+        assertEquals("unset", battle.get("derivation"));
+    }
+
+    @Test
+    void unusableBattleSizeFieldRemainsPresentButUnresolved() {
+        GameLaunchPreferences.Generation generation = new GameLaunchPreferences.Generation(Map.of(
+                GameLaunchPreferences.GAMEPLAY_SETTINGS, "{\"battleSize\":\"many\"}"));
+        GameConfigurationAuthority.Result result = GameConfigurationAuthority.project(
+                temporaryDirectory,
+                generation,
+                JvmMemorySettings.Snapshot.unavailable("not available"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> settings = (List<Map<String, Object>>) result.values().get("settings");
+        Map<String, Object> battle = setting(settings, "battleSize");
+        assertNull(battle.get("effectiveValue"));
+        assertTrue((Boolean) battle.get("rawPresent"));
+        assertTrue((Boolean) battle.get("valuePathPresent"));
+        assertEquals("stored-json-field-unresolved", battle.get("derivation"));
+
+        @SuppressWarnings("unchecked")
+        List<String> diagnostics = (List<String>) result.values().get("launcherPreferenceDiagnostics");
+        assertEquals(1, diagnostics.size());
     }
 
     @Test
@@ -113,7 +156,11 @@ class GameConfigurationAuthorityTest {
         List<Map<String, Object>> settings = (List<Map<String, Object>>) result.values().get("settings");
         assertNull(setting(settings, "antialiasingSamples").get("effectiveValue"));
         assertNull(setting(settings, "uiScale").get("effectiveValue"));
-        assertNull(setting(settings, "battleSize").get("effectiveValue"));
+        Map<String, Object> battle = setting(settings, "battleSize");
+        assertNull(battle.get("effectiveValue"));
+        assertTrue((Boolean) battle.get("rawPresent"));
+        assertFalse((Boolean) battle.get("valuePathPresent"));
+        assertEquals("unreadable-json-container", battle.get("derivation"));
         assertTrue((Boolean) setting(settings, "antialiasingSamples").get("rawPresent"));
         assertFalse((Boolean) result.values().get("heapObservationAvailable"));
 
