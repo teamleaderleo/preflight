@@ -1,7 +1,8 @@
 # Documentation map
 
-Preflight's documentation includes a product manual, an engineering record, and a large evidence
-archive. They answer different questions. This page is the shortest route to the current answer.
+Preflight's documentation includes a product manual, an engineering record, a release-writing set,
+and a large evidence archive. They answer different questions. This page is the shortest route to
+the current answer.
 
 ## Start here
 
@@ -17,21 +18,26 @@ archive. They answer different questions. This page is the shortest route to the
 - [Packaged capability receipt](capability-receipt.md): the machine-checked writes, child
   processes, native commands, fixed links, and network endpoints in an exact package.
 - [Optimization history](optimization-history.md): the readable, source-linked account from the
-  roughly 101-second observed worst case through the 15.25-second warm record, with the latest
-  same-profile medians at 89.00 seconds ordinary and 15.53 seconds accelerated.
+  roughly 101-second observed worst case through the 15.25-second recorded low, with the latest
+  same-profile medians at 89.00 seconds ordinary and 15.53 seconds with Preflight.
 - [Experiment ledger](experiment-ledger.md): every retained optimization family, including rejected,
   corrected, diagnostic, and deferred branches.
 - [Performance and storage tradeoffs](performance-storage-tradeoffs.md): what Balanced, Fastest,
   prepared audio, redundancy, and safe pruning cost and buy.
-- [Downloads and installation](downloads.md): planned artifacts and current private build process.
-- [Leo's beta announcement draft](beta-announcement-leo-draft.md): the short forum and Reddit post,
-  with the result first and instructions at the bottom.
-- [Leo's talking points](leo-talking-points.md): the release crib sheet for remembered features,
-  trust/privacy answers, claim qualifiers, and small product opportunities.
-- [Long beta announcement draft](beta-announcement-draft.md): retained source copy with the fuller
-  privacy, compatibility, and release explanation.
-- [Patreon page draft](patreon-page-draft.md): current About, four membership tiers, welcome note,
-  first current post, and image notes.
+- [Downloads and installation](downloads.md): planned artifacts and current private package process.
+- [Public beta release writing kit](release-post-draft.md): release headline/deck copy, GitHub Release
+  body source, package/support language, short descriptions, and placeholders that must be replaced
+  with exact candidate facts.
+- [Preflight 0.1.0 draft release notes](releases/0.1.0.md): first-beta release-note source with the
+  current feature inventory and explicit candidate placeholders.
+- [Leo's beta announcement draft](beta-announcement-leo-draft.md): the shorter forum/Reddit post with
+  the result first, the broader product immediately afterward, and instructions at the bottom.
+- [Long beta announcement draft](beta-announcement-draft.md): full public source copy covering the
+  performance investigation, desktop features, linter, privacy/support, updates, and beta limits.
+- [Leo's talking points](leo-talking-points.md): the public-writing crib sheet for numbers, product
+  features, story angles, trust/privacy answers, claim qualifiers, and current release work.
+- [Patreon page draft](patreon-page-draft.md): creator-page About, four membership tiers, welcome
+  note, first current post, follow-up post queue, and image notes.
 - [GitHub Sponsors page draft](github-sponsors-page-draft.md): short bio, introduction, goal,
   featured-work choices, monthly tiers, one-time support, and the activation checklist.
 - [Known limitations](known-limitations.md): the current platform, evidence, storage, and fallback
@@ -96,13 +102,30 @@ sentence down merely because a shorter version is available.
 
 Use contractions. Keep grammar precise. Hedge when the evidence actually calls for it. Humor should
 come from the observation itself rather than a decorative adjective. Avoid generic setup, packaged
-personality, contrast scaffolding, and lists created only to make prose look organized.
-Never use an em dash unless Leo explicitly asks for one.
+personality, contrast scaffolding, and lists created only to make prose look organized. Never use an
+em dash unless Leo explicitly asks for one.
 
-First person belongs wherever Leo is describing what he did, saw, or decided. Product instructions
-can remain neutral. Benchmark conditions, compatibility limits, and write boundaries must stay
-exact even when the surrounding prose is informal.
-Public titles lead with Preflight or the result. Never frame a release as “I built,” “I made,” or
-“I created” something.
-Posts to the Starsector forum and subreddit are technical release posts. Do not write them as
-product launches or sincere clickbait. Any clickbait-adjacent joke has to be unmistakably ironic.
+Do not use **build** or **building** as promotional language. It reads like generic founder/dev
+posturing. Use the verb that actually describes the work: make, write, develop, investigate,
+measure, maintain, prepare, test, release, or work on. Technical documentation can still use
+"build" when it literally means a compiler/package/workflow build and another word would make the
+instruction less precise.
+
+First person belongs wherever Leo is describing what he did, saw, or decided. Creator pages can be
+personal and can use lines such as "I make stuff that tends to become much larger than I expect" or
+"I make Preflight." A technical release post should still lead with Preflight or the measured result
+because that is what the Starsector reader came for.
+
+Public copy is allowed to sell the work. Do not confuse restraint with underselling. Lead with the
+strongest exact result, then reveal the breadth of the product: benchmark, playtime, profiles,
+settings, storage/recovery, support/privacy, signed updates, and the linter. The failed experiments
+and corrected measurements are also valuable public material because they explain why the current
+claims deserve confidence.
+
+Benchmark conditions, compatibility limits, write boundaries, and release-candidate status must stay
+exact even when the surrounding prose is informal. Never turn a development number into a universal
+promise. Never describe an open PR as shipped.
+
+Posts to the Starsector forum and subreddit are technical release posts. They can be enthusiastic,
+funny, and personal without reading like a startup announcement. Any clickbait-adjacent joke has to
+be unmistakably ironic.
