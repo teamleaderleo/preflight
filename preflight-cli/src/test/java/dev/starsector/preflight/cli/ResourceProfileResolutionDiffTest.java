@@ -42,7 +42,7 @@ class ResourceProfileResolutionDiffTest {
         assertEquals("resource-index-resolution-and-provider-snapshot-metadata", result.values().get("comparisonScope"));
         assertFalse((Boolean) result.values().get("filesystemRead"));
         assertFalse((Boolean) result.values().get("sourceGenerationBound"));
-        assertEquals("core-root-id-canonical-root-relative-path", result.values().get("providerSourceIdentity"));
+        assertEquals("core-root-id-normalized-root-relative-path", result.values().get("providerSourceIdentity"));
         assertEquals("profile-local-provider-occurrence", result.values().get("rootIndexScope"));
 
         @SuppressWarnings("unchecked")
