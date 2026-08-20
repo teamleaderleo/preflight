@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.core.ResourceIndex;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,8 @@ class ResourceOwnershipSummaryTest {
         ResourceIndex index = fixture();
 
         ResourceOwnershipSummary.Result result = ResourceOwnershipSummary.summarize(index);
+        assertEquals("resource-index-provider-resolution-v1", result.values().get("evidenceKind"));
+        assertEquals("profile-fingerprint", result.values().get("profileFingerprint"));
         @SuppressWarnings("unchecked")
         Map<String, Object> totals = (Map<String, Object>) result.values().get("totals");
         assertEquals(4, ((Number) totals.get("resourcePaths")).intValue());
@@ -50,9 +53,11 @@ class ResourceOwnershipSummaryTest {
         Map<String, Object> image = override(overrides, "graphics/ships/example.png");
         assertEquals("mod_a", image.get("winnerRootId"));
         assertEquals(List.of("core"), image.get("shadowedRootIds"));
+        assertEquals(false, image.get("shadowedRootIdsTruncated"));
         Map<String, Object> variant = override(overrides, "data/variants/example.variant");
         assertEquals("mod_b", variant.get("winnerRootId"));
         assertEquals(List.of("mod_a"), variant.get("shadowedRootIds"));
+        assertEquals(false, variant.get("shadowedRootIdsTruncated"));
 
         String json = result.toJson();
         assertFalse(json.contains("/private/game"));
@@ -66,6 +71,9 @@ class ResourceOwnershipSummaryTest {
         Map<String, Object> explained = ResourceOwnershipSummary.explain(
                 index, "GRAPHICS\\SHIPS\\EXAMPLE.PNG");
 
+        assertEquals("resource-index-provider-resolution-v1", explained.get("evidenceKind"));
+        assertEquals("profile-fingerprint", explained.get("profileFingerprint"));
+        assertEquals("resource-index-provider-order-last-wins", explained.get("derivation"));
         assertEquals("graphics/ships/example.png", explained.get("logicalPath"));
         assertEquals("image", explained.get("kind"));
         assertEquals(true, explained.get("resolved"));
@@ -84,11 +92,56 @@ class ResourceOwnershipSummaryTest {
     }
 
     @Test
-    void absentResourceProducesAnExplanationInsteadOfAnError() {
+    void absentResourceProducesProfileBoundExplanationInsteadOfAnError() {
         Map<String, Object> explained = ResourceOwnershipSummary.explain(fixture(), "data/does-not-exist.json");
+        assertEquals("resource-index-provider-resolution-v1", explained.get("evidenceKind"));
+        assertEquals("profile-fingerprint", explained.get("profileFingerprint"));
+        assertEquals("resource-index-provider-order-last-wins", explained.get("derivation"));
         assertEquals(false, explained.get("resolved"));
         assertEquals(0, explained.get("providerCount"));
         assertEquals("configuration", explained.get("kind"));
+    }
+
+    @Test
+    void longProviderChainsKeepWinnerExplicitAndBoundIdentitySamples() {
+        List<ResourceIndex.Root> roots = new ArrayList<>();
+        List<ResourceIndex.Provider> providers = new ArrayList<>();
+        for (int index = 0; index < 40; index++) {
+            roots.add(new ResourceIndex.Root(
+                    "root_" + index,
+                    Path.of("/private/root-" + index),
+                    index == 0));
+            providers.add(provider(index, "graphics/ships/long.png", 100 + index));
+        }
+        ResourceIndex index = new ResourceIndex(
+                "long-profile",
+                roots,
+                Map.of("graphics/ships/long.png", List.copyOf(providers)));
+
+        ResourceOwnershipSummary.Result result = ResourceOwnershipSummary.summarize(index);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> overrides = (List<Map<String, Object>>) result.values().get("overrides");
+        Map<String, Object> detail = override(overrides, "graphics/ships/long.png");
+
+        assertEquals("long-profile", detail.get("profileFingerprint"));
+        assertEquals(40, detail.get("providerCount"));
+        assertEquals(true, detail.get("providersTruncated"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> returnedProviders =
+                (List<Map<String, Object>>) detail.get("providers");
+        assertEquals(32, returnedProviders.size());
+
+        assertEquals("root_39", detail.get("winnerRootId"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> winner = (Map<String, Object>) detail.get("winner");
+        assertEquals("root_39", winner.get("rootId"));
+        assertEquals(39, detail.get("shadowedProviderCount"));
+        @SuppressWarnings("unchecked")
+        List<String> shadowedRootIds = (List<String>) detail.get("shadowedRootIds");
+        assertEquals(32, shadowedRootIds.size());
+        assertEquals("root_0", shadowedRootIds.get(0));
+        assertEquals("root_31", shadowedRootIds.get(31));
+        assertEquals(true, detail.get("shadowedRootIdsTruncated"));
     }
 
     private static ResourceIndex fixture() {
