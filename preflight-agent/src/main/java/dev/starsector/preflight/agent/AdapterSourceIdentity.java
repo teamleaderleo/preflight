@@ -37,7 +37,7 @@ record AdapterSourceIdentity(
                 ? normalizePath(raw)
                 : normalizePath(localPath.toAbsolutePath().normalize().toString());
         SourceArchiveHashes.Result hash = hashArchive
-                ? SourceArchiveHashes.sha256(localPath)
+                ? SourceArchiveHashes.sha256(localPath, loader)
                 : SourceArchiveHashes.notRequested();
         return new AdapterSourceIdentity(
                 raw,

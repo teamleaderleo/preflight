@@ -132,18 +132,31 @@ java -cp preflight-cli/target/preflight.jar \
 
 Prepared-pixels-v2 accepts either three direct non-static `java.awt.Color` fields on the texture object, or three non-static `TextureLoader` color fields that each flow through an instance method into one distinct, exactly typed texture-object setter. Mixed, incomplete, ambiguous, untyped, static-transfer, or raster-free models decline.
 
-## Runtime validation and hash policy
+## Runtime validation and source-generation policy
 
-Before serving anything, the texture runtime verifies that the cache artifacts remain inside the supplied cache root, the manifest and resource index share an identity, counts are bounded, and the complete resource index still matches the installation.
+Prepared texture authority now has two separate stages. Preparation proves exact bytes; launch proves that those bytes still belong to the current source generation.
 
-Normal product launches do **not** re-hash every source file and every prepared pixel payload on the loading thread. That policy was removed after it became a dominant Rosetta CPU cost.
+During preparation, the converter already hashes the exact encoded byte snapshot it decodes and requires that hash to equal the manifest entry's source SHA-256. After the manifest is published, Preflight performs an exact source-content verification pass in the native engine JVM while holding a platform generation token stable around that pass. A successful seal is persisted as a checksummed `SPTG` proof bound to the exact manifest SHA-256, profile fingerprint, provider, and complete prepared source set.
 
-- Recommended/`--fast` includes `--trust-validated-texture-index`, treating the complete configure-time provider validation as the immutable source snapshot for that launch.
-- `--recheck-texture-sources` restores a per-hit filesystem staleness check using the same size/mtime contract as `ResourceIndexValidator`.
-- `-Dpreflight.texture.verifySourceHash=true` additionally restores a full source SHA-256 on those per-hit checks.
-- `-Dpreflight.texture.verifyBlobChecksum=true` restores strict SPFT payload checksum verification on every prepared-blob read.
+The reviewed generation providers are:
 
-Without the diagnostic hash switches, runtime serving still checks the manifest entry, winning provider identity, transformation, dimensions, channels, payload length, path containment, and cache format/identity needed by the selected serving path. Missing or malformed data, identity mismatches, unsupported textures, direct-memory pressure, bridge failures, and contained runtime errors return to the preserved original path. Strict `texture verify` remains available for an explicit integrity pass.
+- macOS: Foundation's persistent `NSURLGenerationIdentifierKey`;
+- Windows NTFS: volume/file identity plus the file's latest USN from `FSCTL_READ_FILE_USN_DATA`;
+- Linux: device, inode, and kernel change time on the reviewed local-filesystem allowlist.
+
+Before an automatic prepared-texture launch, Preflight rebuilds the current resource index and compares the persisted generation tokens with the current source files. The clean launch path reads **zero source contents** for this authorization. The shipped game JVM therefore avoids the gigabyte-scale SHA-256 pass that previously dominated loading-thread CPU under Rosetta.
+
+A missing proof, unsupported filesystem, changed token, changed manifest, changed source set, helper failure, or ambiguous generation disables prepared-texture acceleration for that launch. The original Starsector decoder remains the authority. Size and mtime can reject obvious drift cheaply, but they never serve as content proof.
+
+`doctor` and cache health use the same generation proof as automatic launch. A manifest and pack with a missing, corrupt, stale, or unavailable proof are reported as repair-needed, so “prepared data ready” means the next automatic launch can actually use it. The proof directory is reported as acceleration data in cache inventory, and profile-scoped repair removes an invalid proof together with its matching manifest/index artifacts.
+
+Recommended/`--fast` uses the automatically validated generation snapshot. An unsealed/manual texture context has no launch-generation authority and therefore performs exact source SHA-256 on each prepared lookup after the cheap metadata rejection checks. `--recheck-texture-sources` selects that exact diagnostic path. `-Dpreflight.texture.verifySourceHash=true` also forces exact per-hit source hashing even when snapshot trust was requested. `-Dpreflight.texture.verifyBlobChecksum=true` restores strict SPFT payload checksum verification on every prepared-blob read.
+
+Automatic launch prints the generation provider, entry count, source bytes covered, validation wall time, and the zero-source-content authorization result. The same values are written to `run.json` as `textureSourceGenerationValidated`, `textureSourceGenerationProvider`, `textureSourceGenerationEntries`, `textureSourceGenerationBytesCovered`, `textureSourceGenerationValidationMs`, `textureSourceGenerationProblem`, and `textureSourceGenerationPrelaunchSourceContentBytesRead`. The last field is `0` on the automatic clean path and is the machine-readable performance contract used by the representative launch gate.
+
+The active-launch boundary is explicit. Once launch has validated the sealed source generation and handed control to the game, a same-user process deliberately rewriting game/mod assets during that live launch requires restart/reprepare before prepared-cache authority is re-established. Covering hostile mutation inside that window would require a race-free live change-generation/watch handoff. Re-reading every source on every lookup is outside the product path because retained measurement already shows that work costs multiple seconds on the reviewed large profile.
+
+Runtime serving still checks the manifest entry, winning provider identity, transformation, dimensions, channels, payload length, path containment, and cache format/identity needed by the selected serving path. Missing or malformed data, identity mismatches, unsupported textures, direct-memory pressure, bridge failures, and contained runtime errors return to the preserved original path. Strict `texture verify` remains available for an explicit integrity pass.
 
 ## NPOT and padding policy
 

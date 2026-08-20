@@ -5,7 +5,7 @@
 1. Source mods, saves, launcher files, and VM parameter files remain untouched.
 2. Cache deletion is always safe.
 3. Cache failures return to the original Starsector loading path.
-4. Every persisted format and runtime integration interface is versioned.
+4. Every persisted format and runtime integration interface is versioned; project-owned `SPxx` binary formats are registered in the [binary format registry](binary-formats.md).
 5. Content identity, enabled-mod order, source bindings, and transformation configuration participate in invalidation.
 6. Existing files are resolved through canonical roots; links that escape an approved root are rejected.
 7. First-build and repeat-launch performance are reported separately.
@@ -15,7 +15,7 @@
 
 ### `preflight-core`
 
-Portable identity, format, validation, and report code. Current persisted formats include the resource-provider index, texture manifest, prepared texture blob, classpath profile/archive indexes, and generated-bytecode records. Files use explicit versions, bounds, checksums, and atomic replacement where applicable.
+Portable identity, format, validation, and report code. Current persisted formats include the resource-provider index, texture manifest, prepared texture blob, classpath profile/archive indexes, generated-bytecode records, and source-generation proofs. Files use explicit versions, bounds, checksums, and atomic replacement where applicable. The canonical inventory and naming rules for Preflight-owned binary formats live in [binary-formats.md](binary-formats.md).
 
 ### `preflight-agent`
 
@@ -86,6 +86,7 @@ environment/property kill switch remain authoritative.
     classpath/profiles/PROFILE.spfc
     manifests/PROFILE.spfm
     blobs/HH/SOURCE_HASH-identity.spft
+    texture-source-generations-v1/PROFILE.sptg
     quarantine/
     reports/preparation-latest.json
   runs/YYYYMMDD-HHMMSS-SSS-NONCE/

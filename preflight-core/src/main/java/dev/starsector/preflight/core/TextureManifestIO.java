@@ -69,6 +69,12 @@ public final class TextureManifestIO {
                 Files.deleteIfExists(temporary);
             }
         }
+
+        // A prepared manifest becomes eligible for the zero-source-byte launch path only when its
+        // current sources can be tied back to their manifest hashes with a platform generation
+        // token. Sealing is advisory to preparation: unsupported volumes retain a valid manifest,
+        // while launch declines prepared textures until it has exact generation evidence.
+        TextureSourceGenerationAuthority.sealIfPossible(absolute, manifest);
     }
 
     public static TextureManifest read(Path source) throws IOException {

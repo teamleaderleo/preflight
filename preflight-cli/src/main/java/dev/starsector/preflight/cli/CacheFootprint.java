@@ -7,6 +7,7 @@ import dev.starsector.preflight.core.PreparedTexturePackIO;
 import dev.starsector.preflight.core.PreparedTextureIO;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import dev.starsector.preflight.core.TextureManifestIO;
+import dev.starsector.preflight.core.TextureSourceGenerationProofIO;
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -39,6 +40,8 @@ final class CacheFootprint {
                     acceleration("one per prepared profile")),
             Map.entry(relative(TextureManifestIO.directory(Path.of("cache"))),
                     acceleration("one per prepared profile")),
+            Map.entry(relative(TextureSourceGenerationProofIO.directory(Path.of("cache"))),
+                    acceleration("exact-manifest source-generation proofs for prepared textures")),
             Map.entry("cache/spec-store", acceleration(
                     "prepared JSON, rules and command-class artifacts")),
             Map.entry(relative(PreparedAudioCache.root(Path.of("cache"))), acceleration(

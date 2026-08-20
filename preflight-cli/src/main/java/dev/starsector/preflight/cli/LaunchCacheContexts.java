@@ -63,7 +63,13 @@ final class LaunchCacheContexts {
                     resolved.manifestSha256(),
                     resolved.indexSha256(),
                     resolved.checkedProviders(),
-                    resolved.indexBuildMillis());
+                    resolved.indexBuildMillis(),
+                    resolved.sourceGenerationValidated(),
+                    resolved.sourceGenerationProvider(),
+                    resolved.sourceGenerationEntries(),
+                    resolved.sourceGenerationBytes(),
+                    resolved.sourceGenerationValidationMillis(),
+                    resolved.sourceGenerationProblem());
         }
         if (options.textureManifest() == null) {
             return null;
@@ -78,7 +84,13 @@ final class LaunchCacheContexts {
                 null,
                 null,
                 0,
-                0);
+                0,
+                false,
+                null,
+                0,
+                0,
+                0,
+                null);
     }
 
     /**
@@ -597,7 +609,13 @@ final class LaunchCacheContexts {
             String manifestSha256,
             String indexSha256,
             long checkedProviders,
-            double indexBuildMillis) {
+            double indexBuildMillis,
+            boolean sourceGenerationValidated,
+            String sourceGenerationProvider,
+            int sourceGenerationEntries,
+            long sourceGenerationBytes,
+            double sourceGenerationValidationMillis,
+            String sourceGenerationProblem) {
     }
 
     record VariantJson(Path artifact) {

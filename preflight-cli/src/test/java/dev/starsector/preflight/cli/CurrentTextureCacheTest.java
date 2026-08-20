@@ -37,6 +37,10 @@ class CurrentTextureCacheTest {
         assertEquals(Hashes.sha256(fixture.manifest()), resolution.manifestSha256());
         assertEquals(1L, resolution.checkedProviders());
         assertTrue(resolution.indexBuildMillis() >= 0);
+        assertTrue(resolution.sourceGenerationValidated(), resolution.sourceGenerationProblem());
+        assertEquals(0, resolution.sourceGenerationEntries());
+        assertEquals(0L, resolution.sourceGenerationBytes());
+        assertTrue(resolution.sourceGenerationValidationMillis() >= 0);
     }
 
     @Test

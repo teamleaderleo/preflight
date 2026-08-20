@@ -42,6 +42,14 @@ bash ./scripts/verify-all.sh
 
 That command runs the Maven reactor first, reuses its verified runnable JAR for the desktop packaged-engine contract, verifies the React and Rust hosts, regenerates and checks the report-intake bindings, runs Worker tests and the production dependency audit, and performs a Wrangler dry-run without deploying. Native DMG/NSIS/Debian/AppImage assembly remains in the platform GitHub Actions matrix.
 
+## Persisted binary formats
+
+Preflight's project-owned binary formats use registered four-byte `SPxx` magic headers. Before
+adding or changing one, read [docs/binary-formats.md](docs/binary-formats.md). New production
+formats use an unused magic, define an explicit version and bounded validation contract, and update
+the registry in the same change. The existing `SPFC` collision is retained compatibility debt and
+must not be copied as a naming pattern.
+
 ## Optional analysis profiles
 
 Two opt-in Maven profiles are available and are intentionally kept out of the default

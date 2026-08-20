@@ -3,6 +3,7 @@ package dev.starsector.preflight.cli;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
@@ -42,6 +43,9 @@ class LaunchCacheContextsTest {
         assertEquals(manifest.toAbsolutePath().normalize(), selected.texture().manifest());
         assertEquals(index.toAbsolutePath().normalize(), selected.texture().index());
         assertFalse(selected.texture().automatic());
+        assertFalse(selected.texture().sourceGenerationValidated());
+        assertNull(selected.texture().sourceGenerationProvider());
+        assertNull(selected.texture().sourceGenerationProblem());
         assertNoProfileCaches(selected);
     }
 
@@ -99,6 +103,7 @@ class LaunchCacheContextsTest {
             System.setProperty(PARALLEL_SELECTION, "true");
             LaunchCacheContexts.Result parallel = LaunchCacheContexts.select(options, target, false);
 
+            assertTrue(serial.texture().sourceGenerationValidated(), serial.texture().sourceGenerationProblem());
             assertEquivalent(serial, parallel);
         } finally {
             if (previous == null) {
@@ -148,6 +153,15 @@ class LaunchCacheContextsTest {
         assertEquals(serial.texture().manifestSha256(), parallel.texture().manifestSha256());
         assertEquals(serial.texture().indexSha256(), parallel.texture().indexSha256());
         assertEquals(serial.texture().checkedProviders(), parallel.texture().checkedProviders());
+        assertTrue(serial.texture().indexBuildMillis() >= 0);
+        assertTrue(parallel.texture().indexBuildMillis() >= 0);
+        assertEquals(serial.texture().sourceGenerationValidated(), parallel.texture().sourceGenerationValidated());
+        assertEquals(serial.texture().sourceGenerationProvider(), parallel.texture().sourceGenerationProvider());
+        assertEquals(serial.texture().sourceGenerationEntries(), parallel.texture().sourceGenerationEntries());
+        assertEquals(serial.texture().sourceGenerationBytes(), parallel.texture().sourceGenerationBytes());
+        assertTrue(serial.texture().sourceGenerationValidationMillis() >= 0);
+        assertTrue(parallel.texture().sourceGenerationValidationMillis() >= 0);
+        assertEquals(serial.texture().sourceGenerationProblem(), parallel.texture().sourceGenerationProblem());
         assertEquals(serial.texture().resourceIndex().roots(), parallel.texture().resourceIndex().roots());
         assertEquals(serial.texture().resourceIndex().entries(), parallel.texture().resourceIndex().entries());
         assertEquals(serial.variantJson(), parallel.variantJson());
