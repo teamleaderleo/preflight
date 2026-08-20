@@ -2,6 +2,10 @@ package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.Json;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -44,6 +48,7 @@ import java.util.Map;
  */
 record PreflightHome(Path root, List<Integration> integrations) {
     static final String DIRECTORY_NAME = ".starsector-preflight";
+    private static final int MAX_INTEGRATION_RECEIPT_BYTES = 512 * 1024;
 
     /** Identifies one integration so the installer and the uninstaller name the same path. */
     enum Id {
@@ -79,7 +84,7 @@ record PreflightHome(Path root, List<Integration> integrations) {
         Path receipt = root.resolve("integrations.json");
         if (Files.isRegularFile(receipt, LinkOption.NOFOLLOW_LINKS)) {
             try {
-                Map<String, Object> json = StrictJson.object(Files.readString(receipt, StandardCharsets.UTF_8));
+                Map<String, Object> json = readIntegrationReceipt(receipt, MAX_INTEGRATION_RECEIPT_BYTES);
                 Object list = json.get("integrations");
                 if (list instanceof List<?> entries) {
                     Map<Id, Path> recorded = new HashMap<>();
@@ -118,6 +123,43 @@ record PreflightHome(Path root, List<Integration> integrations) {
             }
         }
         return new PreflightHome(root, List.copyOf(integrations));
+    }
+
+    static Map<String, Object> readIntegrationReceipt(Path receipt, int maximumBytes) throws IOException {
+        validateReceiptReadLimit(maximumBytes);
+        long size = Files.size(receipt);
+        if (size > maximumBytes) {
+            throw new IOException("Integration receipt exceeds the " + maximumBytes + " byte safety limit: " + receipt);
+        }
+        try (InputStream input = Files.newInputStream(receipt, StandardOpenOption.READ)) {
+            return readIntegrationReceipt(input, maximumBytes, receipt.toString());
+        }
+    }
+
+    static Map<String, Object> readIntegrationReceipt(
+            InputStream input, int maximumBytes, String sourceLabel) throws IOException {
+        validateReceiptReadLimit(maximumBytes);
+        byte[] bytes = input.readNBytes(Math.addExact(maximumBytes, 1));
+        if (bytes.length > maximumBytes) {
+            throw new IOException(
+                    "Integration receipt exceeds the " + maximumBytes + " byte safety limit: " + sourceLabel);
+        }
+        try {
+            String json = StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
+            return StrictJson.object(json);
+        } catch (CharacterCodingException error) {
+            throw new IOException("Integration receipt is not valid UTF-8: " + sourceLabel, error);
+        }
+    }
+
+    private static void validateReceiptReadLimit(int maximumBytes) {
+        if (maximumBytes < 1 || maximumBytes > MAX_INTEGRATION_RECEIPT_BYTES) {
+            throw new IllegalArgumentException("Integration receipt read limit is invalid: " + maximumBytes);
+        }
     }
 
     private static List<Integration> defaultIntegrations(
