@@ -1,11 +1,12 @@
 # Patreon page draft
 
 Working copy for <https://www.patreon.com/cw/teamleaderleo>. This is preparation copy, not a fixed
-contract; revise it as the page and projects evolve. Preflight stays free and open source.
+contract. Revise it whenever the page, the projects, or my taste changes. Preflight stays free and
+open source.
 
 ## Page line
 
-Preflight and other projects.
+Preflight and other projects that got out of hand.
 
 ## About
 
@@ -14,26 +15,39 @@ I make stuff that tends to become much larger than I expect.
 Right now, most of my public work is going into Preflight, a free and open-source performance
 launcher for Starsector.
 
-Membership helps support development time, testing hardware, hosting, releases, and future projects.
-I will post updates here when I have something worth sharing.
+Preflight started because my heavily modded installation could take 101 seconds to reach the main
+menu. The latest controlled comparison on that 83-mod setup had an 89.00-second normal-launch median
+and a 15.53-second Preflight median, with one launch reaching 15.25 seconds.
+
+That investigation has since turned into a full desktop app with its own before-and-after benchmark,
+Starsector playtime tracking, named mod profiles, common game settings beside Launch, storage
+planning and recovery, privacy-conscious support tools, signed updates, and a read-only mod linter.
+The repository also keeps the experiments that failed, the measurements that turned out to be wrong,
+and the regression tests that came out of both.
+
+Membership helps support development time, testing hardware, hosting, release work, and whatever I
+end up working on next. Preflight access does not depend on membership. The app, source, features,
+and public support stay available to everyone.
 
 ## Membership tiers
 
-The tiers are contribution levels. Preflight access does not change between them.
+The tiers are contribution levels. Pick whichever amount feels right; they do not unlock different
+versions of Preflight.
 
 ### Supporter
 
 **Price:** $5 per month
 
 Help support Preflight and my other projects. Your membership contributes to development, testing,
-releases, hosting, hardware, and keeping the work maintained.
+release work, hosting, hardware, and keeping the work maintained.
 
 ### Backer
 
 **Price:** $10 per month
 
 Give a little more toward ongoing development, compatibility work, testing, and future projects. A
-good fit if you use Preflight regularly or like following what I make.
+good fit if you use Preflight regularly or enjoy following an investigation that keeps turning into
+more software.
 
 **Highlighted tier:** yes.
 
@@ -54,37 +68,132 @@ and future projects.
 
 ## Welcome note
 
-Thank you! This helps support the time and costs behind Preflight and whatever I end up working on
+Thank you. This helps support the time and costs behind Preflight and whatever I end up working on
 next.
 
-Download Preflight and follow development at <https://github.com/teamleaderleo/preflight>. If
-something breaks, use the support file in the app or open an issue.
+Preflight lives at <https://github.com/teamleaderleo/preflight>. If something breaks, use **Copy
+setup** or the support file in the app, or open an issue. Membership is never required for support.
 
 ## First current public post
 
-### Preflight
+### Preflight got out of hand
 
-It has been a while since I posted here. I make stuff that tends to become much larger than I
-expect, and Preflight has definitely become one of those things.
+It has been a while since I posted here.
 
-Preflight is a free and open-source performance launcher for Starsector. It prepares and reuses work
-the game would otherwise repeat during startup, while being careful about compatibility and leaving
-the game, mods, and saves alone.
+I make stuff that tends to become much larger than I expect, and Preflight has definitely become one
+of those things.
 
-On my heavily modded installation, the worst startup I recorded was 101 seconds. The fastest run so
-far is 15.25 seconds.
+The original problem was simple: I have a ridiculous Starsector installation. On the current setup,
+83 mods are enabled. At its worst, the game took about 101 seconds to reach the main menu. I wanted
+to know where that time was actually going and whether any of it was work the game did not need to
+repeat every single launch.
 
-Most of my public work right now is going into Preflight, and I am working toward its public beta. I
-will use this page for updates when there is something worth sharing.
+A lot of it was.
 
-If you want to support the work, membership helps with development time, testing hardware, hosting,
-releases, and future projects. Preflight will remain free and open source.
+The latest controlled comparison on that same 83-mod profile had five ordinary launches with an
+89.00-second median and five Preflight launches with a 15.53-second median. The lowest recorded
+launch in that comparison was 15.25 seconds. Results will differ by machine and mod list, which is
+why Preflight now includes the same normal-versus-Preflight benchmark in the desktop app.
+
+That was supposed to be the project. It was not the end of the project.
+
+Preflight now tracks Starsector playtime locally. It has named mod profiles that preview the exact
+mod-list change and make a backup before switching. It can duplicate and search saved profiles. It
+puts resolution, fullscreen, sound, antialiasing, UI scale, RAM, and battle size beside the launch
+button. It calculates the current profile's storage requirement before preparation, offers a tiny
+minimal-disk route when the normal cache will not fit, previews cleanup before deleting anything,
+and keeps removal of the application separate from removal of Preflight's data.
+
+There is a built-in startup benchmark because I do not want anyone to take my machine's result on
+faith. There is **Copy result** for sharing a compact benchmark comparison. There is **Copy
+playtime** for sharing the local playtime summary. There is **Copy setup** for getting the useful
+support facts without dumping paths, saves, credentials, or arbitrary logs into a Discord message.
+If a run fails, that same action is available directly on the recovery card.
+
+The support ZIP is its own rabbit hole. It uses a fixed allowlist, has hard size limits, excludes
+saves, game and mod assets, screenshots, audio, caches, arbitrary logs, and credentials, and tells
+you what it contains before you choose whether to send it. Automatic failed-run reporting is a
+separate setting and starts off.
+
+The updater became another rabbit hole. Releases use a signed in-app update path, and the release
+process exercises installation, upgrade, rollback, and removal across macOS, Windows, and Linux.
+The packages carry a machine-checked receipt describing which native commands, writes, child
+processes, links, and network endpoints that exact package can use.
+
+There is also a mod linter now, because apparently this was not enough. It is read-only and can
+inspect one mod or a full profile. On the reviewed mod set it found progressive JPEGs that decode
+about 8.75 times slower through the game's ImageIO path, large amounts of avoidable texture and audio
+allocation, shadowed and duplicate resources, editor source files the game never reads, and a small
+number of released configuration files containing data the game silently never applies. It gives no
+score and edits nothing.
+
+The performance investigation itself has been the strangest part. The first texture cache produced
+great-looking hit counters and then broke actual visuals. A supposed timing split turned out to be a
+stale benchmark anchor. Java Flight Recorder's clock was off by about 2.49 times under one runtime
+setting. A GraphicsLib replay that sounded promising made the measured path substantially slower and
+was deleted. AppCDS did not establish a safe win and was deleted too. Those failures are still in the
+repository because they are part of how the current result became trustworthy.
+
+The accepted work goes through texture preparation, a single-threaded prefetch queue, repeated JSON
+and CSV reconstruction, generated bytecode, audio, resource indexing, mod-specific callback work,
+and a long tail of smaller costs. The full chronology is public, including the dead ends.
+
+Preflight does not rewrite Starsector's JARs, mod JARs, assets, or saves. Runtime optimizations are
+checked against the installed code before they run. When Preflight cannot establish that something
+is the exact thing it reviewed, that shortcut declines and the original code handles the work.
+
+I am working toward the first public beta now. The desktop product is largely there. The remaining
+work is mostly release-candidate evidence: exercising the exact distributed package bytes, finishing
+the packaged benchmark and report checks, broadening Windows and Linux real-machine coverage, and
+finishing the publication decision.
+
+Preflight will remain free and open source. This Patreon is here for anyone who wants to support the
+time, hardware, hosting, and release work behind it, or just enjoys watching me disappear into a
+problem and come back with far too much software.
 
 Project: <https://github.com/teamleaderleo/preflight>
 
+## Follow-up posts worth writing
+
+These are deliberately different stories. Do not turn them into one giant announcement.
+
+### How 101 seconds became 15.25
+
+Walk through the accepted performance chronology: the texture prefetch queue, the 0-percent
+`SpecStore` plateau, mod callbacks, generated bytecode, audio, and the final serial tail. Include the
+wrong measurements and rejected experiments because they are some of the best parts of the story.
+
+### The launcher accidentally became a Starsector companion app
+
+Focus on the product around the optimization: built-in benchmark, playtime tracking, named profiles,
+search and duplication, launch settings, storage planning, recovery, Copy setup, cleanup, updates,
+and removal.
+
+### I pointed the profiler at 86 mods
+
+Tell the linter story. Lead with the measured progressive-JPEG cost and the calibration result that
+44 of 86 inspected mod directories were completely clean. Explain why there is no score, no ranking,
+and no automatic fixer.
+
+### When the profiler lies to you
+
+Write about the stale benchmark anchor, the JFR clock error, visually broken texture-cache pilots,
+and why every attractive number needs a second way to prove what it means.
+
+### Why a launcher has a signed updater and rollback rehearsal
+
+Explain the release side in human terms: if software is going to touch someone's launch path, the
+update and removal stories deserve the same scrutiny as the performance code.
+
+### What I am actually working on now
+
+A lighter development update: exact package evidence, cross-platform release checks, filesystem and
+cache correctness work, the remaining desktop polish, and the road to the first public beta.
+
 ## Images
 
-- Profile image: the Preflight mark, square, without text.
-- Header: the wireframe ship on the drafting grid, with the ship kept to the right so Patreon can
-  crop the left side safely.
+- Profile image: use the current creator avatar or the Preflight mark, whichever fits the page at the
+  time. This is a creator page, not a permanent Preflight-only identity.
+- Header while Preflight is the main public project: the wireframe ship on the drafting grid, with
+  the ship kept to the right so Patreon can crop the left side safely.
 - Do not put essential text in either image; Patreon crops them differently across devices.
