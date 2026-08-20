@@ -1,5 +1,6 @@
 package dev.starsector.preflight.agent;
 
+import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -22,6 +23,7 @@ public final class SimOpponentSafetyRuntime {
     private static final String FIGHTER_WING =
             "com.fs.starfarer.loading.specs.FighterWingSpec";
     private static final int MAX_REPORTED_IDS = 256;
+    private static final int MAX_TRACKED_DIALOG_GENERATIONS = 32;
 
     private static volatile boolean installed;
     private static final AtomicLong CALLS = new AtomicLong();
@@ -42,7 +44,8 @@ public final class SimOpponentSafetyRuntime {
     private static final AtomicLong DIALOG_GRID_BUILDS = new AtomicLong();
     private static final AtomicLong DIALOG_LAYOUT_OBSERVATIONS = new AtomicLong();
     private static final AtomicLong DIALOG_POST_ADVANCE_OBSERVATIONS = new AtomicLong();
-    private static final AtomicBoolean DIALOG_POST_ADVANCE_CAPTURED = new AtomicBoolean();
+    private static final List<WeakReference<Object>> DIALOG_POST_ADVANCE_DIALOGS = new ArrayList<>();
+    private static final AtomicBoolean DIALOG_NULL_POST_ADVANCE_CAPTURED = new AtomicBoolean();
     private static final AtomicLong DIALOG_OWNER_ID = new AtomicLong(-1L);
     private static final AtomicLong DIALOG_RESERVES = new AtomicLong(-1L);
     private static final AtomicLong DIALOG_RESERVE_GRID_MEMBERS = new AtomicLong(-1L);
@@ -224,7 +227,7 @@ public final class SimOpponentSafetyRuntime {
 
     /** Records the stock dialog's source collection and both grids after a rebuild. */
     public static void recordDialog(Object dialog, int phase) {
-        if (phase == 2 && !DIALOG_POST_ADVANCE_CAPTURED.compareAndSet(false, true)) {
+        if (phase == 2 && !claimDialogPostAdvance(dialog)) {
             return;
         }
         DIALOG_OBSERVATIONS.incrementAndGet();
@@ -289,6 +292,27 @@ public final class SimOpponentSafetyRuntime {
             throw fatal;
         } catch (Throwable ignored) {
             CATEGORY_UPDATE_FAILURES.incrementAndGet();
+        }
+    }
+
+    private static boolean claimDialogPostAdvance(Object dialog) {
+        if (dialog == null) {
+            return DIALOG_NULL_POST_ADVANCE_CAPTURED.compareAndSet(false, true);
+        }
+        synchronized (DIALOG_POST_ADVANCE_DIALOGS) {
+            for (int index = DIALOG_POST_ADVANCE_DIALOGS.size() - 1; index >= 0; index--) {
+                Object observed = DIALOG_POST_ADVANCE_DIALOGS.get(index).get();
+                if (observed == null) {
+                    DIALOG_POST_ADVANCE_DIALOGS.remove(index);
+                } else if (observed == dialog) {
+                    return false;
+                }
+            }
+            if (DIALOG_POST_ADVANCE_DIALOGS.size() >= MAX_TRACKED_DIALOG_GENERATIONS) {
+                DIALOG_POST_ADVANCE_DIALOGS.remove(0);
+            }
+            DIALOG_POST_ADVANCE_DIALOGS.add(new WeakReference<>(dialog));
+            return true;
         }
     }
 
@@ -545,7 +569,10 @@ public final class SimOpponentSafetyRuntime {
         DIALOG_GRID_BUILDS.set(0L);
         DIALOG_LAYOUT_OBSERVATIONS.set(0L);
         DIALOG_POST_ADVANCE_OBSERVATIONS.set(0L);
-        DIALOG_POST_ADVANCE_CAPTURED.set(false);
+        DIALOG_NULL_POST_ADVANCE_CAPTURED.set(false);
+        synchronized (DIALOG_POST_ADVANCE_DIALOGS) {
+            DIALOG_POST_ADVANCE_DIALOGS.clear();
+        }
         DIALOG_OWNER_ID.set(-1L);
         DIALOG_RESERVES.set(-1L);
         DIALOG_RESERVE_GRID_MEMBERS.set(-1L);
