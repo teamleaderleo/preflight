@@ -35,7 +35,9 @@ Lead with:
 - battle-size presets that can extend beyond the vanilla slider to 2,000 deployment points;
 - disk planning before preparation and the minimal-disk route;
 - recovery that does not require deleting everything and starting again;
-- playtime tracking that Starsector itself does not expose.
+- playtime tracking that Starsector itself does not expose;
+- the read-only setup checker for missing/disabled dependencies, duplicate mod IDs, broken metadata,
+  and resolved variants that point at absent hulls.
 
 Useful line:
 
@@ -86,12 +88,17 @@ Useful line:
 
 ### A mod author
 
-Lead with the linter and scan tools:
+Lead with the linter, scan, and setup-analysis tools:
 
 - `preflight lint --path ./MyMod` works on one mod without requiring a whole profile;
 - whole-profile lint understands provider order and cross-mod relationships;
 - `preflight scan` inventories the enabled profile, largest assets/mods, extensions, missing IDs,
   duplicates, and provider winners;
+- `preflight analyze setup` is a separate deep read-only check that does not launch or modify the
+  game;
+- setup analysis can flag enabled mods with missing/invalid metadata, duplicate declared mod IDs,
+  required dependencies that are missing or installed-but-disabled, malformed dependency metadata,
+  and winning variants that reference hull IDs absent from the resolved profile;
 - the linter edits nothing, gives no score, and has no automatic fixer;
 - progressive JPEGs measured around 8.75 times slower through the game's ImageIO path;
 - calibration across 86 installed mod directories produced a median of zero findings, with 44
@@ -180,6 +187,21 @@ profile does not copy mods, saves, or prepared bytes.
 That makes “try another mod setup” much lighter than maintaining whole duplicate game directories.
 Do not call Preflight a complete mod manager; it does not install or update mods.
 
+### A Starsector-flavored UI without shipping Starsector art
+
+The Hangar's ship display is not copied game artwork bundled into Preflight. The native host reads
+installed hull definitions and, for featured ships, traces the installed sprite locally into bounded
+wireframe contours, holes, interior lines, engines, and weapon mounts.
+
+That gives the desktop a visual relationship with the installed game while keeping proprietary game
+art out of Preflight's package.
+
+Good design-post hook:
+
+> How do you make a launcher feel like it belongs beside a game without copying the game's UI or
+> shipping its art? In Preflight's case: read the installed ship data and draw a new wireframe from
+> it locally.
+
 ## Power-user candy
 
 ### Same engine, desktop and terminal
@@ -220,6 +242,22 @@ Java, data-file totals, extension/mod breakdowns, largest assets/mods, duplicate
 provider-order winners.
 
 The census is a product in its own right for people trying to understand a huge mod setup.
+
+### Deep setup check without launching the game
+
+`preflight analyze setup` composes bounded metadata and static-reference providers over the resolved
+profile. It can report:
+
+- enabled mods with unavailable/invalid metadata;
+- duplicate installed mods declaring the same ID;
+- missing or installed-but-disabled required dependencies;
+- malformed/incomplete dependency and total-conversion metadata;
+- winning variants whose declared hull is absent from the authoritative resolved hull/skin set.
+
+The command exits after analysis, says “Nothing was changed,” and can emit JSON for tooling.
+
+That is a strong support and mod-author hook because it finds deterministic setup problems without
+requiring a game launch, save load, or log dump.
 
 ## Troubleshooting is a feature
 
@@ -360,6 +398,16 @@ Stronger:
 > Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and battle size live beside Launch,
 > including battle-size presets through 2,000 deployment points.
 
+Weak:
+
+> Preflight has setup diagnostics.
+
+Stronger:
+
+> Without launching Starsector, the deep setup check can tell you that a required dependency is
+> installed but disabled, that two installed mods claim the same ID, or that the winning variant in
+> the resolved profile points at a hull that does not exist there.
+
 ## Do not accidentally undersell with these habits
 
 - Do not call a finished feature “small” just because its implementation was bounded.
@@ -372,6 +420,8 @@ Stronger:
 - Do not bury the linter as developer tooling. Mod authors are a real audience.
 - Do not bury no-system-Java native installs in the installation appendix.
 - Do not bury report deletion, rollback behavior, or capability receipts in implementation docs.
+- Do not bury `analyze setup` as an internal checker. It is useful player-facing diagnosis even
+  before the desktop gets its future self-check button.
 - Do not imply open PRs or candidate-only evidence are already shipped.
 - Do not turn the current campaign/combat investigation into an FPS promise it has not earned.
 
@@ -391,6 +441,8 @@ Stronger:
 - “The benchmark was wrong. Twice.”
 - “The desktop app does not need you to install Java”
 - “The same launcher has a GUI, a dry-run, a profile census, and a mod linter”
+- “Can I tell my mod setup is broken without launching the game?”
+- “Why does Preflight redraw Starsector ships instead of shipping their art?”
 
 ## Boundaries before publication
 
