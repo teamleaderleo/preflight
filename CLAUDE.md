@@ -2,7 +2,7 @@
 
 These are the canonical repository-working rules for coding agents. [AGENTS.md](AGENTS.md) points here so agent clients share one copy.
 
-Current project state starts at [LLM_HANDOFF.md](LLM_HANDOFF.md), which points to the maintained release-readiness and latest maintenance checkpoint before the longer engineering chronology. This file is about how to work, not what is true.
+Current project state starts at [LLM_HANDOFF.md](LLM_HANDOFF.md), which routes agents through the live release owners before the longer engineering chronology. This file is about how to work, not what is true.
 
 ## Check live work before starting a slice
 
@@ -38,6 +38,23 @@ Two that keep being missed: `scripts/probe-launch.sh` is one launch that stops i
 where the time went, and `scripts/run-startup-benchmark.sh --unattended` is the repeated campaign.
 `preflight run` is the launcher, not a measurement: it never exits on its own, and a launch left
 running holds ~4 GB and a GPU context and poisons everything measured after it.
+
+## Use the computer for operator evidence
+
+When the live release owner says the remaining step is rendered acceptance, a real-game exercise,
+a packaged-candidate benchmark, or another hands-on gate, stop treating it as a source-review task.
+Use the actual computer/browser/terminal and the exact bytes being accepted.
+
+Immediately before the run, refresh the live owner issue/PR and capture the current `main`, PR head,
+workflow/artifact identity, or packaged candidate identity that applies. Do not reuse a SHA, artifact,
+or benchmark result copied from an old handoff or an earlier operator session.
+
+For UI acceptance, use the verified browser frontend and Chromium/Playwright at the shipped window
+sizes, including hover/focus and keyboard/pointer interactions where they carry information. For a
+release startup claim, follow `scripts/README.md` and use `run-startup-benchmark.sh --engine ...`
+against the packaged candidate; a checkout build is not candidate evidence. Keep the exact candidate
+identity beside every result. If source changes after candidate generation, package-dependent evidence
+belongs to the old generation and must not be carried forward as if it covered the new bytes.
 
 ## Write what you saw, not what it means
 
