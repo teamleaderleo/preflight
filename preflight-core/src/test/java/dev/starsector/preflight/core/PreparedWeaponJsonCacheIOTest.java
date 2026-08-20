@@ -5,12 +5,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -50,6 +54,45 @@ class PreparedWeaponJsonCacheIOTest {
                 read.entries().get("data/shipsystems/wpn/a.wpn"));
         assertArrayEquals(cache.entries().get("data/weapons/z.wpn"),
                 read.entries().get("data/weapons/z.wpn"));
+    }
+
+    @Test
+    void actualReadIsInclusiveAndRejectsConcurrentGrowth() throws Exception {
+        PreparedWeaponJsonCache cache = new PreparedWeaponJsonCache(
+                PROFILE, Map.of("data/weapons/a.wpn", tree("a")));
+        byte[] bytes = PreparedWeaponJsonCacheIO.toBytes(cache);
+        Path file = temporaryDirectory.resolve("growing.spwj");
+        Files.write(file, bytes);
+
+        try (InputStream exact = new ByteArrayInputStream(bytes)) {
+            PreparedWeaponJsonCache decoded =
+                    PreparedWeaponJsonCacheIO.read(exact, bytes.length, file.toString());
+            assertEquals(cache.profileIdentitySha256(), decoded.profileIdentitySha256());
+            assertArrayEquals(cache.entries().get("data/weapons/a.wpn"),
+                    decoded.entries().get("data/weapons/a.wpn"));
+        }
+
+        boolean[] appended = {false};
+        try (InputStream raw = Files.newInputStream(file);
+             InputStream growing = new FilterInputStream(raw) {
+                 @Override
+                 public int read(byte[] buffer, int offset, int length) throws IOException {
+                     int requested = appended[0] ? length : Math.min(1, length);
+                     int read = super.read(buffer, offset, requested);
+                     if (!appended[0] && read > 0) {
+                         Files.write(file, new byte[] {0x55}, StandardOpenOption.APPEND);
+                         appended[0] = true;
+                     }
+                     return read;
+                 }
+             }) {
+            IOException error = assertThrows(
+                    IOException.class,
+                    () -> PreparedWeaponJsonCacheIO.read(growing, bytes.length, file.toString()));
+            assertTrue(appended[0]);
+            assertTrue(error.getMessage().contains("byte safety limit"), error.getMessage());
+        }
+        assertEquals(bytes.length + 1L, Files.size(file));
     }
 
     @Test
