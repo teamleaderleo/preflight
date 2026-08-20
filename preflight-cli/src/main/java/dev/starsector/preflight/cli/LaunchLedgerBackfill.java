@@ -55,9 +55,7 @@ final class LaunchLedgerBackfill {
                     return recovered;
                 }
                 List<LaunchLedger.Entry> imported = collectHistorical(home, known);
-                for (LaunchLedger.Entry entry : imported) {
-                    LaunchLedger.appendUnlocked(home, entry);
-                }
+                LaunchLedger.appendAllUnlocked(home, imported);
                 Files.writeString(
                         marker,
                         "Imported " + imported.size() + " launches from run directories at "
@@ -107,7 +105,7 @@ final class LaunchLedgerBackfill {
                 Map<String, Object> values = metadata(directory);
                 if (!owns(values, heartbeat) || heartbeat.ownerAlive()) continue;
                 LaunchLedger.Entry entry = recoveredEntry(directory, values, heartbeat);
-                if (entry == null) continue;
+                if (entry == null || !LaunchLedger.fitsEncodedEntryLimit(entry)) continue;
                 LaunchLedger.appendUnlocked(home, entry);
                 known.add(entry.launchId());
                 recovered++;
@@ -183,7 +181,9 @@ final class LaunchLedgerBackfill {
                 // of guessing a duration from it here.
                 if (LaunchHeartbeat.read(directory) != null) continue;
                 LaunchLedger.Entry entry = readHistorical(directory, name);
-                if (entry != null && !known.contains(entry.launchId())) {
+                if (entry != null
+                        && LaunchLedger.fitsEncodedEntryLimit(entry)
+                        && !known.contains(entry.launchId())) {
                     found.add(entry);
                     known.add(entry.launchId());
                 }
