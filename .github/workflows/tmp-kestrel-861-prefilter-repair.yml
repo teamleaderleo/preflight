@@ -63,7 +63,7 @@ jobs:
           if old not in text:
               raise SystemExit("expected GeneratedBytecodePack read block not found")
           text = text.replace(old, new, 1)
-          marker = '''    private static int minimumFileBytes() {
+          marker = '''    private static long minimumFileBytes() {
 '''
           helper = '''    private static void validateReadLimit(int maximumBytes) {
         if (maximumBytes < minimumFileBytes() || maximumBytes > MAX_FILE_BYTES) {
