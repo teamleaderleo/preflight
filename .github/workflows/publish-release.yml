@@ -15,6 +15,10 @@ on:
         description: Successful Tagged candidate package lifecycle run over the same Distribution bytes
         required: true
         type: string
+      report_canary_run_id:
+        description: Successful Tagged report-intake canary run over the same Distribution bytes
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -35,6 +39,7 @@ jobs:
       RELEASE_TAG: ${{ inputs.tag }}
       DISTRIBUTION_RUN_ID: ${{ inputs.distribution_run_id }}
       LIFECYCLE_RUN_ID: ${{ inputs.lifecycle_run_id }}
+      REPORT_CANARY_RUN_ID: ${{ inputs.report_canary_run_id }}
     steps:
       - name: Validate release inputs
         shell: bash
@@ -50,6 +55,10 @@ jobs:
           }
           [[ "$LIFECYCLE_RUN_ID" =~ ^[0-9]+$ ]] || {
             echo "::error::Tagged lifecycle run ID must be numeric"
+            exit 1
+          }
+          [[ "$REPORT_CANARY_RUN_ID" =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::Tagged report-canary run ID must be a positive integer"
             exit 1
           }
 
@@ -71,12 +80,13 @@ jobs:
           }
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$DISTRIBUTION_RUN_ID" \
             > "$RUNNER_TEMP/distribution-run.json"
-          python3 - "$RUNNER_TEMP/distribution-run.json" "$tag_sha" <<'PY'
+          python3 - "$RUNNER_TEMP/distribution-run.json" "$tag_sha" "$RELEASE_TAG" <<'PY'
           import json
           import sys
 
           run = json.load(open(sys.argv[1], encoding="utf-8"))
           tag_sha = sys.argv[2]
+          tag = sys.argv[3]
           errors = []
           if run.get("name") != "Distribution":
               errors.append(f"run name is {run.get('name')!r}, expected 'Distribution'")
@@ -84,6 +94,8 @@ jobs:
               errors.append(f"workflow path is {run.get('path')!r}")
           if run.get("event") != "push":
               errors.append(f"run event is {run.get('event')!r}, expected 'push'")
+          if run.get("head_branch") != tag:
+              errors.append(f"run ref is {run.get('head_branch')!r}, expected {tag!r}")
           if run.get("status") != "completed" or run.get("conclusion") != "success":
               errors.append(
                   f"run state is {run.get('status')!r}/{run.get('conclusion')!r}, expected completed/success"
@@ -94,7 +106,7 @@ jobs:
               raise SystemExit("Refusing publication: " + "; ".join(errors))
           PY
 
-          node preflight-desktop/scripts/validate-release-version.mjs "$RELEASE_TAG"
+          GITHUB_REF_TYPE=tag node preflight-desktop/scripts/validate-release-version.mjs "$RELEASE_TAG"
 
       - name: Read and validate draft release
         shell: bash
@@ -234,6 +246,160 @@ jobs:
           if errors:
               raise SystemExit("Refusing publication: " + "; ".join(errors))
           print("Tagged package lifecycle receipts match all three published package byte sets")
+          PY
+
+      - name: Require production report canary evidence from these exact tagged bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$REPORT_CANARY_RUN_ID" \
+            > "$RUNNER_TEMP/tagged-report-canary-run.json"
+          canary_head="$(python3 - "$RUNNER_TEMP/tagged-report-canary-run.json" <<'PY'
+          import json
+          import sys
+
+          run = json.load(open(sys.argv[1], encoding="utf-8"))
+          errors = []
+          if run.get("name") != "Tagged report-intake canary":
+              errors.append(f"run name is {run.get('name')!r}")
+          if run.get("path") != ".github/workflows/tagged-report-canary.yml":
+              errors.append(f"workflow path is {run.get('path')!r}")
+          if run.get("event") != "workflow_dispatch":
+              errors.append(f"run event is {run.get('event')!r}, expected 'workflow_dispatch'")
+          if run.get("head_branch") != "main":
+              errors.append(f"run branch is {run.get('head_branch')!r}, expected 'main'")
+          if run.get("status") != "completed" or run.get("conclusion") != "success":
+              errors.append(
+                  f"run state is {run.get('status')!r}/{run.get('conclusion')!r}, expected completed/success"
+              )
+          head = run.get("head_sha")
+          if not isinstance(head, str) or len(head) != 40:
+              errors.append(f"invalid canary head SHA {head!r}")
+          if errors:
+              raise SystemExit("Refusing publication: " + "; ".join(errors))
+          print(head)
+          PY
+          )"
+          git merge-base --is-ancestor "$canary_head" origin/main || {
+            echo "::error::Tagged report canary workflow did not run from reviewed main history"
+            exit 1
+          }
+
+          mkdir -p tagged-report-canary
+          gh run download "$REPORT_CANARY_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "tagged-report-canary-$DISTRIBUTION_RUN_ID" \
+            --dir tagged-report-canary
+
+          python3 - verified-release tagged-report-canary "$RELEASE_TAG" "$DISTRIBUTION_RUN_ID" "$(git rev-parse "${RELEASE_TAG}^{}")" <<'PY'
+          from datetime import datetime
+          from hashlib import sha256
+          import json
+          from pathlib import Path
+          import re
+          import sys
+
+          release = Path(sys.argv[1])
+          evidence = Path(sys.argv[2])
+          tag = sys.argv[3]
+          distribution_run_id = sys.argv[4]
+          source_revision = sys.argv[5]
+          receipt_path = evidence / "receipt.json"
+          if not receipt_path.is_file():
+              raise SystemExit("Refusing publication: missing tagged report-canary receipt")
+          receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+          errors = []
+          if receipt.get("format") != "preflight-tagged-report-canary-v1":
+              errors.append("report canary receipt has wrong format")
+          if receipt.get("releaseTag") != tag:
+              errors.append("report canary receipt tag differs from release tag")
+          if str(receipt.get("distributionRunId")) != distribution_run_id:
+              errors.append("report canary receipt Distribution run differs from selected release")
+          if receipt.get("sourceRevision") != source_revision:
+              errors.append("report canary receipt source revision differs from release tag")
+          if receipt.get("platform") != "Linux":
+              errors.append("report canary receipt is not bound to the reviewed Linux package")
+
+          package_name = "Preflight-Linux-x86_64.deb"
+          checksum_name = "SHA256SUMS-linux-x64.txt"
+          package = receipt.get("exactCandidatePackage") or {}
+          release_package = release / package_name
+          if package.get("name") != package_name:
+              errors.append("report canary receipt names the wrong package")
+          if package.get("checksumManifest") != checksum_name:
+              errors.append("report canary receipt names the wrong checksum manifest")
+          if not release_package.is_file():
+              errors.append(f"verified release is missing {package_name}")
+          else:
+              data = release_package.read_bytes()
+              if package.get("bytes") != len(data):
+                  errors.append("report canary package byte length differs from tagged release")
+              if package.get("sha256") != sha256(data).hexdigest():
+                  errors.append("report canary package SHA-256 differs from tagged release")
+
+          capability_name = "CAPABILITIES-linux-x64.json"
+          capability_path = release / capability_name
+          capability = receipt.get("capabilityReceipt") or {}
+          if capability.get("name") != capability_name:
+              errors.append("report canary receipt names the wrong capability receipt")
+          if not capability_path.is_file():
+              errors.append(f"verified release is missing {capability_name}")
+              expected_origin = None
+          else:
+              capability_bytes = capability_path.read_bytes()
+              if capability.get("sha256") != sha256(capability_bytes).hexdigest():
+                  errors.append("report canary capability digest differs from tagged release")
+              envelope = json.loads(capability_bytes.decode("utf-8"))
+              expected_origin = ((envelope.get("capabilityReceipt") or {}).get("network") or {}).get("reportIntakeOrigin")
+
+          origin = receipt.get("reportIntakeOrigin")
+          if origin != expected_origin or not isinstance(origin, str) or origin == "disabled":
+              errors.append("report canary origin differs from tagged package capability")
+
+          canary = receipt.get("canary")
+          allowed_canary_fields = {
+              "format", "origin", "caseId", "archiveBytes", "sha256",
+              "receivedAt", "retentionDeadline", "deleted",
+          }
+          if not isinstance(canary, dict):
+              errors.append("report canary receipt has no bounded canary object")
+          else:
+              if set(canary) != allowed_canary_fields:
+                  errors.append("report canary public field set differs from the reviewed bounded receipt")
+              if canary.get("format") != "preflight-report-intake-canary-v1":
+                  errors.append("report canary result has wrong format")
+              if canary.get("origin") != origin:
+                  errors.append("report canary result origin differs from package capability")
+              if not isinstance(canary.get("caseId"), str) or not re.fullmatch(
+                      r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+                      canary.get("caseId", "")):
+                  errors.append("report canary case ID is invalid")
+              archive_bytes = canary.get("archiveBytes")
+              if type(archive_bytes) is not int or not (0 < archive_bytes <= 6 * 1024 * 1024):
+                  errors.append("report canary archive byte count is invalid")
+              if not isinstance(canary.get("sha256"), str) or not re.fullmatch(
+                      r"[0-9a-f]{64}", canary.get("sha256", "")):
+                  errors.append("report canary archive SHA-256 is invalid")
+              instant_pattern = r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z"
+              received_at = canary.get("receivedAt")
+              retention_deadline = canary.get("retentionDeadline")
+              if not isinstance(received_at, str) or not re.fullmatch(instant_pattern, received_at):
+                  errors.append("report canary receivedAt is invalid")
+              if not isinstance(retention_deadline, str) or not re.fullmatch(instant_pattern, retention_deadline):
+                  errors.append("report canary retentionDeadline is invalid")
+              if isinstance(received_at, str) and isinstance(retention_deadline, str) \
+                      and re.fullmatch(instant_pattern, received_at) \
+                      and re.fullmatch(instant_pattern, retention_deadline):
+                  received = datetime.fromisoformat(received_at.replace("Z", "+00:00"))
+                  retained_until = datetime.fromisoformat(retention_deadline.replace("Z", "+00:00"))
+                  if retained_until <= received:
+                      errors.append("report canary retention deadline does not follow receipt time")
+              if canary.get("deleted") is not True:
+                  errors.append("report canary did not prove deletion cleanup")
+
+          if errors:
+              raise SystemExit("Refusing publication: " + "; ".join(errors))
+          print("Tagged report-intake canary matches the selected published package generation")
           PY
 
       - name: Download current draft release assets
