@@ -1,4 +1,8 @@
 import styles from "./styles.css?raw";
+import releaseReadinessStyles from "./release-readiness.css?raw";
+import homePresentationStyles from "./homePresentation.css?raw";
+
+const homeCascade = [styles, releaseReadinessStyles, homePresentationStyles].join("\n");
 
 test("responsive layouts keep document scrolling locked to bounded workspaces", () => {
   expect(styles).toMatch(/body\s*\{[^}]*overflow:\s*hidden;/s);
@@ -77,7 +81,6 @@ test("active controls look active without relying on gradients", () => {
 
 test("wide, narrow, and short windows keep content inside the desktop shell", () => {
   expect(styles).toMatch(/\.main\s*\{[^}]*min-width:\s*0;/s);
-  expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.launch-console\s*\{[^}]*grid-template-columns:\s*1fr;/);
   expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.launch-console--options-open \.quick-settings\s*\{[^}]*width:\s*calc\(100% - 16px\);/);
   expect(styles).toMatch(/@media \(max-width: 780px\)[\s\S]*?\.brand,[\s\S]*?\.nav,[\s\S]*?\.sidebar__footer\s*\{[^}]*flex-shrink:\s*0;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.main\s*\{[^}]*padding-top:\s*20px;/);
@@ -91,6 +94,26 @@ test("wide, narrow, and short windows keep content inside the desktop shell", ()
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.page-viewport--home:not\(:has\(\.launch-console--ready\)\)\s*\{[^}]*overflow-y:\s*auto;/);
   expect(styles).toMatch(/\.hangar-display\s*\{[^}]*height:\s*auto;[^}]*min-height:\s*100%;/s);
   expect(styles).toMatch(/\.app-shell--sidebar-collapsed\s*\{[^}]*grid-template-columns:\s*76px minmax\(0, 1fr\);/s);
+});
+
+test("reachable launch console states resolve their layout from state modifiers", () => {
+  const style = document.createElement("style");
+  style.textContent = homeCascade;
+  document.head.append(style);
+
+  const setup = document.createElement("section");
+  setup.className = "launch-console launch-console--setup";
+  const ready = document.createElement("section");
+  ready.className = "launch-console launch-console--ready";
+  document.body.append(setup, ready);
+
+  expect(getComputedStyle(setup).display).toBe("grid");
+  expect(getComputedStyle(setup).gridTemplateColumns).toBe("minmax(0, 1fr)");
+  expect(getComputedStyle(ready).display).toBe("block");
+
+  setup.remove();
+  ready.remove();
+  style.remove();
 });
 
 test("the Hangar keeps its instrument and controls available at every layout", () => {
