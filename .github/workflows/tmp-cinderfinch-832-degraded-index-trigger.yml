@@ -1,0 +1,16 @@
+name: Temporary #832 degraded-index PR trigger
+
+on:
+  pull_request:
+    branches: [hardening/832-file-generation-authority]
+    paths:
+      - '.github/workflows/tmp-cinderfinch-832-degraded-index-trigger.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  note:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "The sibling push carrier owns the repair; this file only makes the child split visible to PR workflows."
