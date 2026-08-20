@@ -6,6 +6,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.channels.FileChannel;
@@ -62,11 +63,37 @@ public final class PreparedWeaponJsonCacheIO {
     }
 
     public static PreparedWeaponJsonCache read(Path source) throws IOException {
+        return read(source, MAX_FILE_BYTES);
+    }
+
+    static PreparedWeaponJsonCache read(Path source, int maximumBytes) throws IOException {
+        if (maximumBytes < minimumFileBytes() || maximumBytes > MAX_FILE_BYTES) {
+            throw new IllegalArgumentException("Prepared weapon cache read limit is invalid: " + maximumBytes);
+        }
         long size = Files.size(source);
-        if (size < minimumFileBytes() || size > MAX_FILE_BYTES) {
+        if (size < minimumFileBytes() || size > maximumBytes) {
             throw new IOException("Prepared weapon cache size is invalid: " + source);
         }
-        return fromBytes(Files.readAllBytes(source));
+        try (InputStream input = Files.newInputStream(source, StandardOpenOption.READ)) {
+            return read(input, maximumBytes, source.toString());
+        }
+    }
+
+    static PreparedWeaponJsonCache read(InputStream input, int maximumBytes, String sourceLabel)
+            throws IOException {
+        if (maximumBytes < minimumFileBytes() || maximumBytes > MAX_FILE_BYTES) {
+            throw new IllegalArgumentException("Prepared weapon cache read limit is invalid: " + maximumBytes);
+        }
+        byte[] bytes = input.readNBytes(Math.addExact(maximumBytes, 1));
+        if (bytes.length > maximumBytes) {
+            throw new IOException(
+                    "Prepared weapon cache exceeds the " + maximumBytes
+                            + " byte safety limit: " + sourceLabel);
+        }
+        if (bytes.length < minimumFileBytes()) {
+            throw new IOException("Prepared weapon cache size is invalid: " + sourceLabel);
+        }
+        return fromBytes(bytes);
     }
 
     public static byte[] toBytes(PreparedWeaponJsonCache cache) throws IOException {
