@@ -20,6 +20,8 @@ import java.util.TreeMap;
 
 /** Joins exact agent class signatures and source identities with methods observed during image reads. */
 final class AdapterProbeAnalysis {
+    private static final long MAX_ADAPTER_REPORT_BYTES = 32L * 1024 * 1024;
+    private static final long MAX_STARTUP_SUMMARY_BYTES = 32L * 1024 * 1024;
     private static final int OUTPUT_LIMIT = 100;
     private static final int BEHAVIOR_ONLY_LIMIT = 50;
     private static final Comparator<CombinedCandidate> RANKING = Comparator
@@ -39,8 +41,10 @@ final class AdapterProbeAnalysis {
     static Result analyze(Path adapterReport, Path startupSummary, Path output) throws IOException {
         Path adapter = requireFile(adapterReport, "adapter report");
         Path summary = requireFile(startupSummary, "startup summary");
-        Map<String, Object> adapterJson = StrictJson.object(Files.readString(adapter, StandardCharsets.UTF_8));
-        Map<String, Object> summaryJson = StrictJson.object(Files.readString(summary, StandardCharsets.UTF_8));
+        Map<String, Object> adapterJson = BoundedEvidenceJson.readObject(
+                adapter, MAX_ADAPTER_REPORT_BYTES, "Adapter report");
+        Map<String, Object> summaryJson = BoundedEvidenceJson.readObject(
+                summary, MAX_STARTUP_SUMMARY_BYTES, "Startup summary");
 
         List<Map<String, Object>> candidates = candidateReports(adapterJson);
         List<Map<String, Object>> methods = objectList(nested(
