@@ -21,16 +21,16 @@ class ResourceProfileResolutionDiffTest {
         ResourceIndex before = new ResourceIndex(
                 "before-profile",
                 List.of(
-                        root("core", "before-core", true),
-                        root("alpha", "before-alpha", false),
-                        root("beta", "before-beta", false)),
+                        root("core", "shared-core", true),
+                        root("alpha", "shared-alpha", false),
+                        root("beta", "shared-beta", false)),
                 beforeEntries());
         ResourceIndex after = new ResourceIndex(
                 "after-profile",
                 List.of(
-                        root("core", "after-core", true),
-                        root("beta", "after-beta", false),
-                        root("alpha", "after-alpha", false),
+                        root("core", "shared-core", true),
+                        root("beta", "shared-beta", false),
+                        root("alpha", "shared-alpha", false),
                         root("gamma", "after-gamma", false)),
                 afterEntries());
 
@@ -42,7 +42,7 @@ class ResourceProfileResolutionDiffTest {
         assertEquals("resource-index-resolution-and-provider-snapshot-metadata", result.values().get("comparisonScope"));
         assertFalse((Boolean) result.values().get("filesystemRead"));
         assertFalse((Boolean) result.values().get("sourceGenerationBound"));
-        assertEquals("core-root-id-relative-path", result.values().get("providerSourceIdentity"));
+        assertEquals("core-root-id-canonical-root-relative-path", result.values().get("providerSourceIdentity"));
         assertEquals("profile-local-provider-occurrence", result.values().get("rootIndexScope"));
 
         @SuppressWarnings("unchecked")
@@ -118,7 +118,7 @@ class ResourceProfileResolutionDiffTest {
         afterEntries.put("data/c.json", List.of(provider(0, "data/c.json", 1, 1)));
         ResourceIndex after = new ResourceIndex(
                 "after-three",
-                List.of(root("core", "three-core", true)),
+                List.of(root("core", "empty-core", true)),
                 afterEntries);
 
         ResourceProfileResolutionDiff.Result result =
@@ -140,14 +140,14 @@ class ResourceProfileResolutionDiffTest {
     void identicalProviderSourcesAtDifferentRootIndexesRemainUnchanged() {
         ResourceIndex before = new ResourceIndex(
                 "before-shift",
-                List.of(root("core", "shift-core-before", true), root("alpha", "shift-alpha-before", false)),
+                List.of(root("core", "shift-core", true), root("alpha", "shift-alpha", false)),
                 Map.of("data/shared.json", List.of(provider(1, "data/shared.json", 10, 20))));
         ResourceIndex after = new ResourceIndex(
                 "after-shift",
                 List.of(
-                        root("core", "shift-core-after", true),
+                        root("core", "shift-core", true),
                         root("unrelated", "shift-unrelated", false),
-                        root("alpha", "shift-alpha-after", false)),
+                        root("alpha", "shift-alpha", false)),
                 Map.of("data/shared.json", List.of(provider(2, "data/shared.json", 10, 20))));
 
         ResourceProfileResolutionDiff.Result result = ResourceProfileResolutionDiff.compare(before, after);
@@ -159,6 +159,40 @@ class ResourceProfileResolutionDiffTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> changes = (List<Map<String, Object>>) result.values().get("changes");
         assertTrue(changes.isEmpty());
+    }
+
+    @Test
+    void duplicateRootIdsAtDifferentRootsRemainDistinctAcrossProfiles() {
+        ResourceIndex before = new ResourceIndex(
+                "before-duplicate",
+                List.of(
+                        root("core", "duplicate-core", true),
+                        root("same-id", "duplicate-first", false),
+                        root("same-id", "duplicate-second", false)),
+                Map.of("data/shared.json", List.of(provider(1, "data/shared.json", 10, 20))));
+        ResourceIndex after = new ResourceIndex(
+                "after-duplicate",
+                List.of(
+                        root("core", "duplicate-core", true),
+                        root("same-id", "duplicate-first", false),
+                        root("same-id", "duplicate-second", false)),
+                Map.of("data/shared.json", List.of(provider(2, "data/shared.json", 10, 20))));
+
+        ResourceProfileResolutionDiff.Result result = ResourceProfileResolutionDiff.compare(before, after);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> totals = (Map<String, Object>) result.values().get("totals");
+        assertEquals(1L, number(totals, "changedPaths"));
+        assertEquals(1L, number(totals, "providerSourceSequenceChangedPaths"));
+        assertEquals(1L, number(totals, "winnerSourceChangedPaths"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> changes = (List<Map<String, Object>>) result.values().get("changes");
+        Map<String, Object> change = change(changes, "data/shared.json");
+        assertTrue((Boolean) change.get("providerSourceSequenceChanged"));
+        assertTrue((Boolean) change.get("winnerSourceChanged"));
+        assertWinner(change, "before", "same-id", 1);
+        assertWinner(change, "after", "same-id", 2);
+        assertFalse(result.toJson().contains(temporaryDirectory.toString()));
     }
 
     private Map<String, List<ResourceIndex.Provider>> beforeEntries() {
