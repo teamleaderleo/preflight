@@ -1,0 +1,413 @@
+name: Temporary #832 degraded-index compatibility repair
+
+on:
+  push:
+    branches: [hardening/832-degraded-index-compat]
+    paths:
+      - '.github/workflows/tmp-cinderfinch-832-degraded-index.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: hardening/832-degraded-index-compat
+      - uses: ./.github/actions/setup-build-jdk
+      - name: Restore degraded ResourceIndex compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          builder = Path('preflight-cli/src/main/java/dev/starsector/preflight/cli/ResourceIndexBuilder.java')
+          text = builder.read_text(encoding='utf-8')
+
+          old = '''                    OpenedFileGenerationAuthority.Generation generation;
+                    try {
+                        generation = OpenedFileGenerationAuthority.capture(realChild);
+                    } catch (IOException unavailable) {
+                        throw new GenerationAuthorityException(
+                                "Exact file-generation authority is unavailable for " + realChild,
+                                unavailable);
+                    }
+                    BasicFileAttributes generationBound = Files.readAttributes(realChild, BasicFileAttributes.class);
+                    long modifiedMillis = Math.max(0, attributes.lastModifiedTime().toMillis());
+                    if (!generationBound.isRegularFile()
+                            || generationBound.size() != attributes.size()
+                            || Math.max(0, generationBound.lastModifiedTime().toMillis()) != modifiedMillis) {
+                        throw new GenerationAuthorityException(
+                                "Provider changed while file-generation authority was captured: " + realChild);
+                    }
+                    ResourceIndex.Provider provider = new ResourceIndex.Provider(
+                            rootIndex,
+                            relative,
+                            attributes.size(),
+                            modifiedMillis,
+                            generation.provider(),
+                            generation.token());'''
+          new = '''                    OpenedFileGenerationAuthority.Generation generation = null;
+                    try {
+                        generation = OpenedFileGenerationAuthority.capture(realChild);
+                    } catch (IOException unavailable) {
+                        noteGenerationUnavailable(diagnostics, root, unavailable);
+                    }
+                    BasicFileAttributes generationBound = Files.readAttributes(realChild, BasicFileAttributes.class);
+                    long modifiedMillis = Math.max(0, attributes.lastModifiedTime().toMillis());
+                    if (!generationBound.isRegularFile()
+                            || generationBound.size() != attributes.size()
+                            || Math.max(0, generationBound.lastModifiedTime().toMillis()) != modifiedMillis) {
+                        throw new GenerationAuthorityException(
+                                "Provider changed while file-generation authority was captured: " + realChild);
+                    }
+                    String generationProvider = generation == null ? "" : generation.provider();
+                    String generationToken = generation == null ? "" : generation.token();
+                    ResourceIndex.Provider provider = new ResourceIndex.Provider(
+                            rootIndex,
+                            relative,
+                            attributes.size(),
+                            modifiedMillis,
+                            generationProvider,
+                            generationToken);'''
+          if text.count(old) != 1:
+              raise SystemExit('ResourceIndexBuilder generation-capture seam changed')
+          text = text.replace(old, new)
+
+          old = '''                    update(fingerprint, Long.toString(attributes.size()));
+                    update(fingerprint, Long.toString(modifiedMillis));
+                    update(fingerprint, generation.provider());
+                    update(fingerprint, generation.token());'''
+          new = '''                    update(fingerprint, Long.toString(attributes.size()));
+                    update(fingerprint, Long.toString(modifiedMillis));
+                    update(fingerprint, generationProvider);
+                    update(fingerprint, generationToken);'''
+          if text.count(old) != 1:
+              raise SystemExit('ResourceIndexBuilder generation fingerprint seam changed')
+          text = text.replace(old, new)
+
+          old = '''    private static void requireCurrentProviderGenerations(List<RootScan> scans) throws IOException {
+        for (RootScan scan : scans) {
+            for (ProviderCapture capture : scan.captures()) {
+                OpenedFileGenerationAuthority.Generation expected =
+                        new OpenedFileGenerationAuthority.Generation(
+                                capture.provider().generationProvider(),
+                                capture.provider().generationToken());
+                Path current = PathContainment.existingInsideRealRoot(
+                        scan.realRoot(),
+                        capture.publicPath());
+                if (!current.equals(capture.realPath())) {
+                    throw new OpenedFileGenerationAuthority.StaleGenerationException(
+                            "Indexed provider pathname changed before publication: "
+                                    + capture.publicPath());
+                }
+                OpenedFileGenerationAuthority.requireCurrent(current, expected);
+            }
+        }
+    }
+'''
+          new = '''    private static void requireCurrentProviderGenerations(List<RootScan> scans) throws IOException {
+        for (RootScan scan : scans) {
+            for (ProviderCapture capture : scan.captures()) {
+                ResourceIndex.Provider provider = capture.provider();
+                Path current = PathContainment.existingInsideRealRoot(
+                        scan.realRoot(),
+                        capture.publicPath());
+                if (!current.equals(capture.realPath())) {
+                    throw new OpenedFileGenerationAuthority.StaleGenerationException(
+                            "Indexed provider pathname changed before publication: "
+                                    + capture.publicPath());
+                }
+                BasicFileAttributes attributes = Files.readAttributes(current, BasicFileAttributes.class);
+                if (!attributes.isRegularFile()
+                        || attributes.size() != provider.size()
+                        || Math.max(0, attributes.lastModifiedTime().toMillis()) != provider.modifiedMillis()) {
+                    throw new OpenedFileGenerationAuthority.StaleGenerationException(
+                            "Indexed provider metadata changed before publication: "
+                                    + capture.publicPath());
+                }
+                if (provider.hasGenerationAuthority()) {
+                    OpenedFileGenerationAuthority.requireCurrent(
+                            current,
+                            new OpenedFileGenerationAuthority.Generation(
+                                    provider.generationProvider(), provider.generationToken()));
+                }
+            }
+        }
+    }
+
+    private static void noteGenerationUnavailable(
+            List<String> diagnostics, SourceRoot root, IOException unavailable) {
+        String prefix = "Exact file-generation authority unavailable in resource root "
+                + root.id() + "; ";
+        if (diagnostics.stream().anyMatch(value -> value.startsWith(prefix))) {
+            return;
+        }
+        String detail = unavailable.getMessage();
+        if (detail == null || detail.isBlank()) {
+            detail = unavailable.getClass().getSimpleName();
+        }
+        diagnostics.add(prefix
+                + "provider metadata retained without exact generation authority; exact content evidence will fail closed. "
+                + "First failure: " + detail);
+    }
+'''
+          if text.count(old) != 1:
+              raise SystemExit('ResourceIndexBuilder publication-recheck seam changed')
+          builder.write_text(text.replace(old, new), encoding='utf-8')
+
+          current = Path('preflight-cli/src/main/java/dev/starsector/preflight/cli/CurrentTextureCache.java')
+          text = current.read_text(encoding='utf-8')
+          old = '''        if (currentBuild.diagnostics().stream()
+                .anyMatch(value -> value.startsWith("Enabled mod directory not found for ID:"))) {
+            throw new IOException("The enabled-mod profile contains missing mod directories; prepare and launch "
+                    + "only after the profile is internally consistent");
+        }
+
+        Path indexCandidate = ResourceIndexIO.directory(realCache).resolve(fingerprint + ".spfi");'''
+          new = '''        if (currentBuild.diagnostics().stream()
+                .anyMatch(value -> value.startsWith("Enabled mod directory not found for ID:"))) {
+            throw new IOException("The enabled-mod profile contains missing mod directories; prepare and launch "
+                    + "only after the profile is internally consistent");
+        }
+        requireExactGenerationAuthority(current);
+
+        Path indexCandidate = ResourceIndexIO.directory(realCache).resolve(fingerprint + ".spfi");'''
+          if text.count(old) != 1:
+              raise SystemExit('CurrentTextureCache current-index seam changed')
+          text = text.replace(old, new)
+
+          marker = '''    private static Path firstArtifact(Path cache, String fileName, List<String> directories) throws IOException {'''
+          addition = '''    static void requireExactGenerationAuthority(ResourceIndex index)
+            throws GenerationAuthorityUnavailableException {
+        long unavailable = index.entries().values().stream()
+                .flatMap(List::stream)
+                .filter(provider -> !provider.hasGenerationAuthority())
+                .count();
+        if (unavailable > 0) {
+            throw new GenerationAuthorityUnavailableException(
+                    "Exact file-generation authority is unavailable for " + unavailable
+                            + " resource provider(s)");
+        }
+    }
+
+    static final class GenerationAuthorityUnavailableException extends IOException {
+        GenerationAuthorityUnavailableException(String message) {
+            super(message);
+        }
+    }
+
+'''
+          if text.count(marker) != 1:
+              raise SystemExit('CurrentTextureCache helper insertion seam changed')
+          current.write_text(text.replace(marker, addition + marker), encoding='utf-8')
+
+          contexts = Path('preflight-cli/src/main/java/dev/starsector/preflight/cli/LaunchCacheContexts.java')
+          text = contexts.read_text(encoding='utf-8')
+          old = '''        if (options.textureAuto()) {
+            System.out.println("Preflight is matching prepared textures to the current installed profile...");
+            CurrentTextureCache.Resolution resolved = CurrentTextureCache.resolve(
+                    target.installRoot(), options.textureCacheDirectory());
+            return new Texture(
+                    resolved.cacheDirectory(),
+                    resolved.manifest(),
+                    resolved.index(),
+                    resolved.resourceIndex(),
+                    true,
+                    resolved.profileFingerprint(),
+                    resolved.manifestSha256(),
+                    resolved.indexSha256(),
+                    resolved.checkedProviders(),
+                    resolved.indexBuildMillis());
+        }'''
+          new = '''        if (options.textureAuto()) {
+            System.out.println("Preflight is matching prepared textures to the current installed profile...");
+            try {
+                CurrentTextureCache.Resolution resolved = CurrentTextureCache.resolve(
+                        target.installRoot(), options.textureCacheDirectory());
+                return new Texture(
+                        resolved.cacheDirectory(),
+                        resolved.manifest(),
+                        resolved.index(),
+                        resolved.resourceIndex(),
+                        true,
+                        resolved.profileFingerprint(),
+                        resolved.manifestSha256(),
+                        resolved.indexSha256(),
+                        resolved.checkedProviders(),
+                        resolved.indexBuildMillis());
+            } catch (CurrentTextureCache.GenerationAuthorityUnavailableException unavailable) {
+                System.err.println("Preflight prepared textures are unavailable for this launch: "
+                        + unavailable.getMessage() + "; vanilla texture loading remains active.");
+                return null;
+            }
+        }'''
+          if text.count(old) != 1:
+              raise SystemExit('LaunchCacheContexts automatic-texture seam changed')
+          contexts.write_text(text.replace(old, new), encoding='utf-8')
+
+          test = Path('preflight-cli/src/test/java/dev/starsector/preflight/cli/CurrentTextureCacheTest.java')
+          text = test.read_text(encoding='utf-8')
+          if 'import java.util.List;\n' not in text:
+              text = text.replace('import java.nio.file.Path;\n', 'import java.nio.file.Path;\nimport java.util.List;\n')
+          marker = '''    private Fixture fixture() throws Exception {'''
+          addition = '''    @Test
+    void degradedProviderCannotAuthorizeExactTextureReuse() throws Exception {
+        Path root = Files.createDirectories(temporaryDirectory.resolve("degraded-root"));
+        Path source = Files.writeString(root.resolve("test.png"), "texture");
+        ResourceIndex degraded = new ResourceIndex(
+                "d".repeat(64),
+                List.of(new ResourceIndex.Root("mod", root, false)),
+                Map.of("test.png", List.of(new ResourceIndex.Provider(
+                        0,
+                        "test.png",
+                        Files.size(source),
+                        Files.getLastModifiedTime(source).toMillis()))));
+
+        CurrentTextureCache.GenerationAuthorityUnavailableException error = assertThrows(
+                CurrentTextureCache.GenerationAuthorityUnavailableException.class,
+                () -> CurrentTextureCache.requireExactGenerationAuthority(degraded));
+
+        assertTrue(error.getMessage().contains("1 resource provider"), error.getMessage());
+    }
+
+'''
+          if text.count(marker) != 1:
+              raise SystemExit('CurrentTextureCacheTest insertion seam changed')
+          test.write_text(text.replace(marker, addition + marker), encoding='utf-8')
+          PY
+
+          cat > preflight-cli/src/test/java/dev/starsector/preflight/cli/ResourceIndexDegradedGenerationTest.java <<'JAVA'
+          package dev.starsector.preflight.cli;
+
+          import static org.junit.jupiter.api.Assertions.assertEquals;
+          import static org.junit.jupiter.api.Assertions.assertFalse;
+          import static org.junit.jupiter.api.Assertions.assertNotEquals;
+          import static org.junit.jupiter.api.Assertions.assertThrows;
+          import static org.junit.jupiter.api.Assertions.assertTrue;
+
+          import dev.starsector.preflight.core.Hashes;
+          import dev.starsector.preflight.core.ResourceIndex;
+          import dev.starsector.preflight.core.ResourceProviderComparison;
+          import java.io.IOException;
+          import java.net.URI;
+          import java.nio.file.FileSystem;
+          import java.nio.file.FileSystems;
+          import java.nio.file.Files;
+          import java.nio.file.Path;
+          import java.util.List;
+          import java.util.Map;
+          import java.util.concurrent.atomic.AtomicInteger;
+          import org.junit.jupiter.api.Test;
+          import org.junit.jupiter.api.io.TempDir;
+
+          final class ResourceIndexDegradedGenerationTest {
+              @TempDir
+              Path temporaryDirectory;
+
+              @Test
+              void unavailableNativeGenerationKeepsOrdinaryProviderButExactObservationHashesNothing()
+                      throws Exception {
+                  try (Fixture fixture = fixture("degraded-basic.zip", 1)) {
+                      ResourceIndexBuilder.BuildResult built =
+                              ResourceIndexBuilder.buildStandalone(fixture.root(), "mod");
+                      ResourceIndex.Provider provider = built.index().winner("file-0.bin").orElseThrow();
+
+                      assertFalse(provider.hasGenerationAuthority());
+                      assertEquals(1, built.index().providerCount());
+                      assertEquals(1, generationDiagnostics(built));
+
+                      AtomicInteger hashes = new AtomicInteger();
+                      ResourceProviderComparison.ContentObservation observed =
+                              ResourceProviderContentIdentity.direct(
+                                      built.index(),
+                                      input -> {
+                                          hashes.incrementAndGet();
+                                          return Hashes.sha256(input);
+                                      })
+                                      .observe("file-0.bin", provider);
+                      assertEquals(ResourceProviderComparison.ContentEvidence.STALE, observed.evidence());
+                      assertEquals(0, hashes.get(), "degraded provider must refuse before payload hashing");
+                  }
+              }
+
+              @Test
+              void unavailableGenerationDiagnosticsAreBoundedPerRoot() throws Exception {
+                  try (Fixture fixture = fixture("degraded-many.zip", 64)) {
+                      ResourceIndexBuilder.BuildResult built =
+                              ResourceIndexBuilder.buildStandalone(fixture.root(), "mod");
+
+                      assertEquals(64, built.index().providerCount());
+                      assertEquals(1, generationDiagnostics(built));
+                      assertTrue(built.diagnostics().stream().anyMatch(value ->
+                              value.contains("provider metadata retained without exact generation authority")));
+                  }
+              }
+
+              @Test
+              void degradedFingerprintIsDeterministicButStillTracksOrdinaryMetadata() throws Exception {
+                  try (Fixture fixture = fixture("degraded-fingerprint.zip", 1)) {
+                      ResourceIndex first = ResourceIndexBuilder.buildStandalone(fixture.root(), "mod").index();
+                      ResourceIndex second = ResourceIndexBuilder.buildStandalone(fixture.root(), "mod").index();
+                      assertEquals(first.profileFingerprint(), second.profileFingerprint());
+
+                      Files.write(fixture.root().resolve("file-0.bin"), new byte[] {1, 2, 3, 4, 5});
+                      ResourceIndex changed = ResourceIndexBuilder.buildStandalone(fixture.root(), "mod").index();
+                      assertNotEquals(first.profileFingerprint(), changed.profileFingerprint());
+                  }
+              }
+
+              @Test
+              void degradedPublicationStillRejectsOrdinaryMetadataChange() throws Exception {
+                  try (Fixture fixture = fixture("degraded-publication.zip", 1)) {
+                      Path source = fixture.root().resolve("file-0.bin");
+                      assertThrows(IOException.class, () -> ResourceIndexBuilder.buildStandalone(
+                              fixture.root(),
+                              "mod",
+                              () -> Files.write(source, new byte[] {1, 2, 3, 4, 5})));
+                  }
+              }
+
+              private static long generationDiagnostics(ResourceIndexBuilder.BuildResult built) {
+                  return built.diagnostics().stream()
+                          .filter(value -> value.startsWith(
+                                  "Exact file-generation authority unavailable in resource root "))
+                          .count();
+              }
+
+              private Fixture fixture(String name, int files) throws Exception {
+                  Path archive = temporaryDirectory.resolve(name);
+                  FileSystem fileSystem = FileSystems.newFileSystem(
+                          URI.create("jar:" + archive.toUri()), Map.of("create", "true"));
+                  Path root = Files.createDirectories(fileSystem.getPath("/root"));
+                  for (int index = 0; index < files; index++) {
+                      Files.write(root.resolve("file-" + index + ".bin"), new byte[] {1, 2, 3, 4});
+                  }
+                  return new Fixture(fileSystem, root);
+              }
+
+              private record Fixture(FileSystem fileSystem, Path root) implements AutoCloseable {
+                  @Override
+                  public void close() throws IOException {
+                      fileSystem.close();
+                  }
+              }
+          }
+          JAVA
+
+          ./mvnw --batch-mode --no-transfer-progress -pl preflight-cli -am -DskipTests package
+          ./mvnw --batch-mode --no-transfer-progress -pl preflight-cli -Dtest=ResourceIndexDegradedGenerationTest,CurrentTextureCacheTest,ResourceProviderContentIdentityStabilityTest -Dsurefire.failIfNoSpecifiedTests=false test
+
+          git config user.name 'Cinderfinch'
+          git config user.email 'actions@users.noreply.github.com'
+          git add preflight-cli/src/main/java/dev/starsector/preflight/cli/ResourceIndexBuilder.java \
+                  preflight-cli/src/main/java/dev/starsector/preflight/cli/CurrentTextureCache.java \
+                  preflight-cli/src/main/java/dev/starsector/preflight/cli/LaunchCacheContexts.java \
+                  preflight-cli/src/test/java/dev/starsector/preflight/cli/CurrentTextureCacheTest.java \
+                  preflight-cli/src/test/java/dev/starsector/preflight/cli/ResourceIndexDegradedGenerationTest.java
+          git rm .github/workflows/tmp-cinderfinch-832-degraded-index.yml
+          git commit -m 'Allow degraded ResourceIndex generation evidence (#832)'
+          git push origin HEAD:hardening/832-degraded-index-compat
