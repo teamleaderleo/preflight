@@ -1,9 +1,15 @@
 # Fractal Softworks correspondence
 
-**Status:** sent 2026-08-07; awaiting response
+**Status:** sent 2026-08-07; courtesy correspondence; response still welcome
 
-This records the request sent before public distribution. Any reply and conditions remain in the
-private release record unless Fractal Softworks authorizes their publication.
+The maintainer publication decision recorded on 2026-08-20 in
+[#950](https://github.com/teamleaderleo/preflight/issues/950) treats this request as a courtesy
+notice. Waiting for a response is outside the beta/publication gate. Current release blockers and
+any later priority change are owned by
+[#652](https://github.com/teamleaderleo/preflight/issues/652).
+
+This page preserves the message that was sent before public distribution. Any reply and conditions
+remain in the private release record unless Fractal Softworks authorizes their publication.
 
 ## Subject
 
@@ -38,9 +44,12 @@ Thanks,
 
 Leo
 
-## After receiving a reply
+## If a reply arrives
 
-- Record the date, scope, descriptive-name guidance, required disclaimer or attribution, and any
-  technical or distribution conditions in the private release record.
-- Convert every condition into a blocking item in [release-readiness.md](release-readiness.md).
-- Don’t summarize silence, ambiguity, or a narrow answer as broader permission.
+- Record the date, scope, descriptive-name guidance, requested disclaimer or attribution, and any
+  technical or distribution request in the private release record.
+- Compare the reply with the maintainer publication decision in #950 and the current release state in
+  #652.
+- Let the maintainer decide whether a concrete new constraint changes release priority; do not expand
+  the blocker list automatically from correspondence.
+- Keep silence, ambiguity, and narrowly scoped answers described at their actual scope.
