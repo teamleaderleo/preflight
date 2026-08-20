@@ -17,10 +17,10 @@ and broken link syntax. Ready-to-paste download blocks for the forum, Reddit and
 
 I have 83 mods installed.
 
-At its worst, Starsector took about **101 seconds** to reach the main menu. In the latest controlled
+At its worst, Starsector took about 101 seconds to reach the main menu. In the latest controlled
 comparison on that same mod profile, five ordinary launches had an **89.00-second median** and five
 Preflight launches had a **15.53-second median**. The lowest recorded launch in that comparison was
-**15.25 seconds**.
+15.25 seconds.
 
 That is the headline. The final release candidate also gets its own retained benchmark before these
 words become release copy: **[CANDIDATE BENCHMARK RESULT]** on **[CANDIDATE GAME / HARDWARE /
@@ -103,11 +103,11 @@ On the reviewed 83-mod development profile, one cold-preparation measurement pro
 
 | Mode | Complete prepared-data directory | Observed preparation |
 | --- | ---: | ---: |
-| **Balanced** (default) | **4.76 GB** | **3m21s** |
-| **Minimal disk** | **10.9 MB** | **5.6s** |
-| **Fastest** | **10.03 GB** | high-disk optional mode |
+| **Balanced** (default) | 4.76 GB | **3m21s** |
+| **Minimal disk** | 10.9 MB | 5.6s |
+| **Fastest** | 10.03 GB | high-disk optional mode |
 
-Balanced needed **12.92 GB free before starting** in that measurement because the safety check uses
+Balanced needed 12.92 GB free before starting in that measurement because the safety check uses
 a larger worst-case preparation bound than the final retained directory. Your profile will have its
 own numbers, and the app calculates them locally.
 
