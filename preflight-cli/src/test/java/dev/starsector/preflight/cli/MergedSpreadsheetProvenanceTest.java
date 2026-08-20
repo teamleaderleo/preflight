@@ -157,10 +157,13 @@ class MergedSpreadsheetProvenanceTest {
         assertEquals(1L, number(totals, "parsedProviders"));
         assertEquals(1L, number(totals, "keyableProviders"));
         assertEquals(0L, number(totals, "providersWithErrors"));
+        assertFalse((Boolean) totals.get("providerEvidenceTruncated"));
+        assertFalse((Boolean) totals.get("keysTruncated"));
+        assertFalse((Boolean) totals.get("contributorsTruncated"));
     }
 
     @Test
-    void capsKeysAndContributorsWithExplicitTruncation() throws Exception {
+    void separatesProviderEvidenceAndContributorTruncationFromKeySetTruncation() throws Exception {
         Path first = temporaryDirectory.resolve("limit-first");
         Path second = temporaryDirectory.resolve("limit-second");
         String relative = "data/config/limited.csv";
@@ -184,7 +187,9 @@ class MergedSpreadsheetProvenanceTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> totals = (Map<String, Object>) result.values().get("totals");
         assertEquals(1L, number(totals, "uniqueKeysObserved"));
-        assertTrue((Boolean) totals.get("keysTruncated"));
+        assertTrue((Boolean) totals.get("providerEvidenceTruncated"));
+        assertFalse((Boolean) totals.get("keysTruncated"));
+        assertTrue((Boolean) totals.get("contributorsTruncated"));
         assertTrue((Boolean) totals.get("truncated"));
         assertFalse((Boolean) totals.get("completeForRequestedKeys"));
 
@@ -195,6 +200,37 @@ class MergedSpreadsheetProvenanceTest {
         assertEquals(1, ((Number) keys.get(0).get("contributorCountLowerBound")).intValue());
         assertEquals(1, ((Number) keys.get(0).get("contributorsReturned")).intValue());
         assertFalse((Boolean) keys.get(0).get("contributorCountComplete"));
+    }
+
+    @Test
+    void reportsAggregateKeySetTruncationSeparately() throws Exception {
+        Path first = temporaryDirectory.resolve("key-limit-first");
+        Path second = temporaryDirectory.resolve("key-limit-second");
+        String relative = "data/config/key-limited.csv";
+        Path firstFile = write(first, relative, "id,name\na,One\n");
+        Path secondFile = write(second, relative, "id,name\nb,Two\n");
+        ResourceIndex index = index(
+                List.of(
+                        new ResourceIndex.Root("first", first, false),
+                        new ResourceIndex.Root("second", second, false)),
+                relative,
+                List.of(provider(0, relative, firstFile), provider(1, relative, secondFile)));
+        MergedSpreadsheetProvenance.ScanLimits limits = new MergedSpreadsheetProvenance.ScanLimits(
+                2,
+                1,
+                2,
+                2,
+                new SpreadsheetCsv.Limits(1_024, 20, 10, 100));
+
+        MergedSpreadsheetProvenance.Result result =
+                MergedSpreadsheetProvenance.inspect(index, relative, List.of("id"), limits);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> totals = (Map<String, Object>) result.values().get("totals");
+        assertFalse((Boolean) totals.get("providerEvidenceTruncated"));
+        assertTrue((Boolean) totals.get("keysTruncated"));
+        assertFalse((Boolean) totals.get("contributorsTruncated"));
+        assertTrue((Boolean) totals.get("truncated"));
+        assertFalse((Boolean) totals.get("completeForRequestedKeys"));
     }
 
     private ResourceIndex index(
