@@ -303,6 +303,7 @@ final class MergedSpreadsheetProvenance {
             ResourceIndex index, ProviderIdentity identity, int rowsForKey) {
         ResourceIndex.Root root = index.roots().get(identity.rootIndex());
         Map<String, Object> value = new LinkedHashMap<>();
+        value.put("rootIndex", identity.rootIndex());
         value.put("rootId", root.id());
         value.put("core", root.core());
         value.put("relativePath", identity.relativePath());
@@ -367,6 +368,7 @@ final class MergedSpreadsheetProvenance {
         Map<String, Object> toMap(ResourceIndex index, ResourceIndex.Provider provider) {
             ResourceIndex.Root root = index.roots().get(provider.rootIndex());
             Map<String, Object> value = new LinkedHashMap<>();
+            value.put("rootIndex", provider.rootIndex());
             value.put("rootId", root.id());
             value.put("core", root.core());
             value.put("relativePath", provider.relativePath());
