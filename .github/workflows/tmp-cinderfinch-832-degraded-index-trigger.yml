@@ -1,16 +1,43 @@
-name: Temporary #832 degraded-index PR trigger
+name: Temporary #832 degraded-index PR repair
 
 on:
   pull_request:
     branches: [hardening/832-file-generation-authority]
     paths:
       - '.github/workflows/tmp-cinderfinch-832-degraded-index-trigger.yml'
+      - '.github/workflows/tmp-cinderfinch-832-degraded-index.yml'
 
 permissions:
   contents: write
 
 jobs:
-  note:
+  repair:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'hardening/832-degraded-index-compat'
     runs-on: ubuntu-latest
     steps:
-      - run: echo "The sibling push carrier owns the repair; this file only makes the child split visible to PR workflows."
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: hardening/832-degraded-index-compat
+      - uses: ./.github/actions/setup-build-jdk
+      - name: Execute the sibling repair carrier
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path('.github/workflows/tmp-cinderfinch-832-degraded-index.yml').read_text(encoding='utf-8')
+          marker = '        run: |\n'
+          if source.count(marker) != 1:
+              raise SystemExit('degraded-index repair carrier shape changed')
+          body = source.split(marker, 1)[1]
+          lines = []
+          for line in body.splitlines():
+              if line.startswith('          '):
+                  lines.append(line[10:])
+              elif line.strip():
+                  raise SystemExit('unexpected YAML after repair run block')
+              else:
+                  lines.append('')
+          Path('/tmp/degraded-index-repair.sh').write_text('\n'.join(lines) + '\n', encoding='utf-8')
+          PY
+          bash /tmp/degraded-index-repair.sh
