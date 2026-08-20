@@ -38,6 +38,32 @@ class JvmClassReferencesTest {
         assertThrows(IOException.class, () -> JvmClassReferences.parse(java.util.Arrays.copyOf(valid, valid.length - 1)));
     }
 
+    @Test
+    void rejectsMalformedDeclaredFieldDescriptor() throws Exception {
+        assertThrows(IOException.class, () -> JvmClassReferences.parse(
+                classFileWithOneFieldDescriptor("(I)V")));
+    }
+
+    @Test
+    void rejectsMalformedMethodTypeDescriptor() throws Exception {
+        assertThrows(IOException.class, () -> JvmClassReferences.parse(
+                classFileWithMethodTypeDescriptor("I")));
+    }
+
+    @Test
+    void rejectsWrongDescriptorCategoryOnReferencedField() throws Exception {
+        assertThrows(IOException.class, () -> JvmClassReferences.parse(
+                classFileWithFieldReferenceDescriptor("()V")));
+    }
+
+    @Test
+    void declaredInstanceMethodAccountsForImplicitReceiverAtParameterBoundary() throws Exception {
+        String maximumStatic = "(" + "J".repeat(127) + "I)V";
+        JvmClassReferences.parse(classFileWithOneMethodDescriptor(maximumStatic, true));
+        assertThrows(IOException.class, () -> JvmClassReferences.parse(
+                classFileWithOneMethodDescriptor(maximumStatic, false)));
+    }
+
     private static byte[] classFileWithDescriptorEvidence() throws Exception {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (DataOutputStream output = new DataOutputStream(bytes)) {
@@ -107,6 +133,105 @@ class JvmClassReferencesTest {
         return bytes.toByteArray();
     }
 
+    private static byte[] classFileWithOneFieldDescriptor(String descriptor) throws Exception {
+        ByteArrayOutputStream bytes = baseClassConstantPool("example/BadField", "field", descriptor, 7);
+        try (DataOutputStream output = new DataOutputStream(bytes)) {
+            writeClassHeader(output);
+            output.writeShort(1); // fields
+            output.writeShort(0x0002); // private
+            output.writeShort(5); // name
+            output.writeShort(6); // descriptor
+            output.writeShort(0); // attributes
+            output.writeShort(0); // methods
+            output.writeShort(0); // class attributes
+        }
+        return bytes.toByteArray();
+    }
+
+    private static byte[] classFileWithOneMethodDescriptor(String descriptor, boolean isStatic) throws Exception {
+        ByteArrayOutputStream bytes = baseClassConstantPool("example/MethodBoundary", "call", descriptor, 7);
+        try (DataOutputStream output = new DataOutputStream(bytes)) {
+            writeClassHeader(output);
+            output.writeShort(0); // fields
+            output.writeShort(1); // methods
+            output.writeShort(0x0401 | (isStatic ? 0x0008 : 0)); // public abstract [static]
+            output.writeShort(5); // name
+            output.writeShort(6); // descriptor
+            output.writeShort(0); // attributes
+            output.writeShort(0); // class attributes
+        }
+        return bytes.toByteArray();
+    }
+
+    private static byte[] classFileWithMethodTypeDescriptor(String descriptor) throws Exception {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (DataOutputStream output = new DataOutputStream(bytes)) {
+            output.writeInt(0xcafebabe);
+            output.writeShort(0);
+            output.writeShort(52);
+            output.writeShort(7);
+            utf8(output, "example/BadMethodType"); // 1
+            clazz(output, 1); // 2
+            utf8(output, "java/lang/Object"); // 3
+            clazz(output, 3); // 4
+            utf8(output, descriptor); // 5
+            methodType(output, 5); // 6
+            writeClassHeader(output);
+            output.writeShort(0); // fields
+            output.writeShort(0); // methods
+            output.writeShort(0); // class attributes
+        }
+        return bytes.toByteArray();
+    }
+
+    private static byte[] classFileWithFieldReferenceDescriptor(String descriptor) throws Exception {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (DataOutputStream output = new DataOutputStream(bytes)) {
+            output.writeInt(0xcafebabe);
+            output.writeShort(0);
+            output.writeShort(52);
+            output.writeShort(9);
+            utf8(output, "example/BadFieldRef"); // 1
+            clazz(output, 1); // 2
+            utf8(output, "java/lang/Object"); // 3
+            clazz(output, 3); // 4
+            utf8(output, "field"); // 5
+            utf8(output, descriptor); // 6
+            nameAndType(output, 5, 6); // 7
+            fieldRef(output, 4, 7); // 8
+            writeClassHeader(output);
+            output.writeShort(0); // fields
+            output.writeShort(0); // methods
+            output.writeShort(0); // class attributes
+        }
+        return bytes.toByteArray();
+    }
+
+    private static ByteArrayOutputStream baseClassConstantPool(
+            String className, String memberName, String descriptor, int constantPoolCount) throws Exception {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        DataOutputStream output = new DataOutputStream(bytes);
+        output.writeInt(0xcafebabe);
+        output.writeShort(0);
+        output.writeShort(52);
+        output.writeShort(constantPoolCount);
+        utf8(output, className); // 1
+        clazz(output, 1); // 2
+        utf8(output, "java/lang/Object"); // 3
+        clazz(output, 3); // 4
+        utf8(output, memberName); // 5
+        utf8(output, descriptor); // 6
+        output.flush();
+        return bytes;
+    }
+
+    private static void writeClassHeader(DataOutputStream output) throws IOException {
+        output.writeShort(0x0421); // public abstract super
+        output.writeShort(2); // this_class
+        output.writeShort(4); // super_class
+        output.writeShort(0); // interfaces
+    }
+
     private static void utf8(DataOutputStream output, String value) throws IOException {
         output.writeByte(1);
         output.writeUTF(value);
@@ -121,6 +246,12 @@ class JvmClassReferencesTest {
         output.writeByte(12);
         output.writeShort(nameIndex);
         output.writeShort(descriptorIndex);
+    }
+
+    private static void fieldRef(DataOutputStream output, int classIndex, int nameAndTypeIndex) throws IOException {
+        output.writeByte(9);
+        output.writeShort(classIndex);
+        output.writeShort(nameAndTypeIndex);
     }
 
     private static void methodRef(DataOutputStream output, int classIndex, int nameAndTypeIndex) throws IOException {
