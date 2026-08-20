@@ -142,10 +142,7 @@ public final class PreparedAudioManifestIO {
         long bytes = PAYLOAD_BASE_BYTES;
         long maximum = MAX_FILE_BYTES - (long) minimumFileBytes();
         for (PreparedAudioManifest.Entry entry : manifest.entries().values()) {
-            int pathBytes = entry.logicalPath().getBytes(StandardCharsets.UTF_8).length;
-            if (pathBytes < 1 || pathBytes > MAX_STRING_BYTES) {
-                throw new IOException("Prepared audio manifest string length is invalid");
-            }
+            int pathBytes = encodeString(entry.logicalPath()).length;
             bytes = Math.addExact(bytes, Integer.BYTES + (long) pathBytes + ENTRY_FIXED_BYTES);
             if (!entry.cacheKeySha256().isEmpty()) {
                 bytes = Math.addExact(bytes, SHA256_BYTES);
@@ -172,7 +169,11 @@ public final class PreparedAudioManifestIO {
             Map<String, PreparedAudioManifest.Entry> entries = new LinkedHashMap<>();
             String previous = null;
             for (int i = 0; i < count; i++) {
-                String logicalPath = ResourceIndex.normalizeLogicalPath(readString(input));
+                String persistedPath = readString(input);
+                String logicalPath = ResourceIndex.normalizeLogicalPath(persistedPath);
+                if (!persistedPath.equals(logicalPath)) {
+                    throw new IOException("Prepared audio manifest path is not canonical: " + persistedPath);
+                }
                 if (previous != null && previous.compareTo(logicalPath) >= 0) {
                     throw new IOException("Prepared audio manifest entries are not in strict order");
                 }
@@ -220,12 +221,20 @@ public final class PreparedAudioManifestIO {
     }
 
     private static void writeString(DataOutputStream output, String value) throws IOException {
+        byte[] bytes = encodeString(value);
+        output.writeInt(bytes.length);
+        output.write(bytes);
+    }
+
+    private static byte[] encodeString(String value) throws IOException {
+        if (!StandardCharsets.UTF_8.newEncoder().canEncode(value)) {
+            throw new IOException("Prepared audio manifest string cannot be encoded as UTF-8");
+        }
         byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
         if (bytes.length < 1 || bytes.length > MAX_STRING_BYTES) {
             throw new IOException("Prepared audio manifest string length is invalid");
         }
-        output.writeInt(bytes.length);
-        output.write(bytes);
+        return bytes;
     }
 
     private static String readString(DataInputStream input) throws IOException {
