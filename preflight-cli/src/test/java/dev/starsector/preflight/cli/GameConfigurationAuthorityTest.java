@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
@@ -40,6 +41,9 @@ class GameConfigurationAuthorityTest {
                 result.values().get("freshness"));
         assertFalse((Boolean) result.values().get("combinedCurrentnessEstablished"));
         assertEquals("/com/fs/starfarer", result.values().get("preferenceNode"));
+        assertEquals(
+                "tracked-launcher-setting-keys-only",
+                result.values().get("preferenceGenerationScope"));
         assertEquals(
                 "exact-supplied-generation-fingerprint",
                 result.values().get("preferenceGenerationBinding"));
@@ -81,6 +85,24 @@ class GameConfigurationAuthorityTest {
         String json = result.toJson();
         assertFalse(json.contains(temporaryDirectory.toAbsolutePath().toString()));
         assertFalse(json.contains("serial"));
+    }
+
+    @Test
+    void rejectsPreferenceGenerationsContainingUntrackedKeys() {
+        GameLaunchPreferences.Generation generation = new GameLaunchPreferences.Generation(Map.of(
+                GameLaunchPreferences.RESOLUTION, "1920x1080",
+                "unexpected", "private-value"));
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> GameConfigurationAuthority.project(
+                        temporaryDirectory,
+                        generation,
+                        JvmMemorySettings.Snapshot.unavailable("not available")));
+
+        assertEquals("Launcher preference generation contains an untracked key", error.getMessage());
+        assertFalse(error.getMessage().contains("unexpected"));
+        assertFalse(error.getMessage().contains("private-value"));
     }
 
     @Test
