@@ -1,0 +1,85 @@
+name: Agent 665 PR reconstruction runner
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  reconstruct:
+    if: github.head_ref == 'agent/issue-665-current-main-cli-polish'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      BASE_SHA: feca35828c33d06e36e00cbf24b6bcce3c56191d
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/issue-665-current-main-cli-polish
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-build-jdk
+      - name: Reconstruct, verify, measure, and publish branch head
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if test -f preflight-cli/src/main/java/dev/starsector/preflight/cli/CliHelp.java; then
+            echo "Current-main reconstruction is already present on the branch."
+            exit 0
+          fi
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          test -z "$(git diff --name-only "$BASE_SHA" -- preflight-cli docs | head -1)"
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          staged = Path('.github/workflows/agent-665-reconstruct.yml').read_text(encoding='utf-8')
+
+          def body(start_marker, end_marker):
+              start = staged.index(start_marker) + len(start_marker)
+              end = staged.index(end_marker, start)
+              lines = staged[start:end].splitlines()
+              return '\n'.join(line[10:] if line.startswith('          ') else line for line in lines) + '\n'
+
+          harness = body(
+              "          cat > /tmp/measure_cli_665.py <<'PY'\n",
+              "\n          PY\n\n      - name: Measure current main")
+          patch = body(
+              "      - name: Reconstruct proven behavior on current main\n        shell: bash\n        run: |\n          python3 - <<'PY'\n",
+              "\n          PY\n\n      - name: Verify reconstructed Java tree")
+          evidence = body(
+              "      - name: Write measurement evidence and enforce presentation contracts\n        shell: bash\n        run: |\n          python3 - <<'PY'\n",
+              "\n          PY\n\n      - name: Commit reconstructed slice")
+          Path('/tmp/measure_cli_665.py').write_text(harness, encoding='utf-8')
+          Path('/tmp/patch_cli_665.py').write_text(patch, encoding='utf-8')
+          Path('/tmp/evidence_cli_665.py').write_text(evidence, encoding='utf-8')
+          PY
+
+          ./mvnw --batch-mode --no-transfer-progress -pl preflight-cli -am -DskipTests package
+          python3 /tmp/measure_cli_665.py current-main /tmp/cli-665-baseline.json
+          python3 /tmp/patch_cli_665.py
+          ./mvnw --batch-mode --no-transfer-progress verify
+          git diff --check
+          test -z "$(git diff --name-only "$BASE_SHA" | grep -E '(^|/)(IndexFileGenerationAuthority|OpenedFileGenerationAuthority|ResourceIndex|ResourceIndexIO)\\.java$' || true)"
+          python3 /tmp/measure_cli_665.py reconstructed-head /tmp/cli-665-after.json
+          python3 /tmp/evidence_cli_665.py
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            preflight-cli/src/main/java/dev/starsector/preflight/cli/CliHelp.java \
+            preflight-cli/src/main/java/dev/starsector/preflight/cli/PreflightCli.java \
+            preflight-cli/src/main/java/dev/starsector/preflight/cli/TerminalStyle.java \
+            preflight-cli/src/main/java/dev/starsector/preflight/cli/EvidenceCommand.java \
+            preflight-cli/src/main/java/dev/starsector/preflight/cli/ProfileCommand.java \
+            preflight-cli/src/test/java/dev/starsector/preflight/cli/CliHelpTest.java \
+            preflight-cli/src/test/java/dev/starsector/preflight/cli/TerminalStyleTest.java \
+            preflight-cli/src/test/java/dev/starsector/preflight/cli/CliHumanOutputTest.java \
+            docs/next-llm-handoff.md \
+            docs/release-gate-closeout.md \
+            docs/evidence/2026-08-20-cli-response-current-main.md
+          git diff --cached --check
+          git commit -m "Reconstruct current-main CLI polish (#665)"
+          git push origin HEAD:agent/issue-665-current-main-cli-polish
