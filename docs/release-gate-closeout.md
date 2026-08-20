@@ -1,7 +1,8 @@
 # Release-gate closeout plan
 
 **Prepared:** 2026-08-19  
-**Source refreshed through:** `main` at `94bd0ac6cba220615af5af4d5be82c23675a70e9`
+**Source refreshed through:** `main` at `94bd0ac6cba220615af5af4d5be82c23675a70e9`  
+**#678/#817 reconciled through:** `main` at `56e908abe8f97ea75e35128ff193166f904c9d5b`
 
 This file separates repository-owner administration, engineering preparation, and evidence that genuinely requires final release-candidate bytes.
 
@@ -104,76 +105,44 @@ The existing tagged Distribution path stages a draft and preserves a verified co
 
 That leaves public publication as one explicit reviewed action over already-verified bytes.
 
-## #678 — current cross-process desktop race
+## #678 / #817 — accepted packaged Desktop singleton
 
-### What current main already changed
+### Accepted beta contract
 
-Current desktop operation state still lives in a process-local `OperationCoordinator`, while later work reduced several original issue cases:
+#678 is closed as completed by merged #795. The first-beta contract is the smaller behavior that #678 explicitly allowed: one normal packaged Preflight Desktop lifetime per user/session, with a colliding secondary invocation exiting cleanly.
 
-- preparation owns and clears the exact spawned child PID;
-- renderer restart restores native update-install ownership;
-- renderer/native recovery reconciles operation state after restart;
-- Java-backed game/profile/cache/settings mutations retain the cross-process `OperationLease` as their final authority;
-- #703 is adding persistent automatic-report claims and durable removal fencing at the report-authority boundary.
+The accepted implementation is already on `main`:
 
-Those changes make a distributed cross-process desktop coordinator excessive for the beta.
+- the cross-process guard is acquired in `preflight-desktop/src-tauri/src/main.rs` before the Tauri app and process-local `OperationCoordinator` are created;
+- Unix opens an owner-private lock file without following the final alias and holds an exclusive `flock` for the process lifetime;
+- Windows holds a session-local named mutex and closes collision handles before retrying;
+- a colliding launch waits for a bounded two-second grace so a Tauri updater replacement can acquire ownership as soon as the old process exits;
+- if the existing owner remains alive through that grace, the secondary exits cleanly before normal app initialization;
+- acquisition errors fail closed instead of starting an uncoordinated second Desktop lifetime.
 
-### Remaining races with two desktop processes
+Focus, reveal/unminimize, and argument handoff are optional post-beta product polish. They are not candidate blockers for #678. The release plan therefore does not require the Tauri single-instance plugin, a Cargo dependency change, or focus IPC that the accepted implementation does not contain.
 
-A second packaged desktop process still starts with its own idle native coordinator.
+### Candidate package evidence
 
-1. **Java-backed admission/UI divergence.** Process B can present idle state and admit a conflicting request while process A owns game/preparation work. The Java `OperationLease` can refuse the protected mutation before a second protected commit, but process B learns that only after crossing into Java.
-2. **Native update ownership.** Process A can check/install/restart an update while process B has independent native update/report/export/benchmark state. The Java lease does not serialize these desktop-native lifetimes.
-3. **Manual report/diagnostics ownership.** Process A can upload a report or export diagnostics while process B independently admits another native operation that one coordinator would serialize.
-4. **Benchmark/exit/restart ownership.** Native benchmark tracking, deferred exit, update restart, and cleanup belong to one desktop process. A second desktop process has separate flags and lifetime.
+Run these checks against the exact installed final-candidate packages selected by the #818/#841 tagged-byte lifecycle on Linux, Windows, and macOS:
 
-#703 should continue owning its report-specific persistent claims/fences. The broad beta answer is one packaged Preflight desktop instance.
+1. start Preflight and wait for the primary packaged process to establish its normal native lifetime;
+2. launch a second invocation while the primary remains alive; require the secondary to exit successfully after the bounded collision grace, keep the primary alive, and admit no second normal Desktop lifetime;
+3. exercise updater-restart overlap by starting the replacement while the old process still owns the guard, then release the old lifetime within the grace and require the replacement to become the sole primary;
+4. after clean primary exit, require a new invocation to acquire immediately, proving process/guard lifetime releases ownership without a stale boolean/helper;
+5. repeat singleton admission after install, upgrade, and byte-identical rollback;
+6. run concurrent secondary-launch bursts against a held primary on every platform; on Windows include at least eight simultaneous peers so the implemented named-mutex admission path receives explicit contention coverage; every peer must exit and exactly one primary must remain;
+7. after ordinary removal/reinstall, require ownership acquisition to work again. A persistent Unix lock-file pathname is acceptable; stale held ownership is not.
 
-### Beta product and queued implementation
-
-Second invocation behavior:
-
-- detect the existing packaged Preflight instance;
-- reveal/unminimize its main window;
-- focus it;
-- hand off without starting a second normal app lifetime.
-
-The official Tauri v2 single-instance plugin supports Windows, macOS, and Linux. Register the singleton guard before other normal app plugins/initialization so the second invocation performs only the handoff path.
-
-The bounded code seam is:
-
-- `preflight-desktop/src-tauri/Cargo.toml`
-- `preflight-desktop/src-tauri/Cargo.lock`
-- `preflight-desktop/src-tauri/src/lib.rs`
-- focused package/native regression coverage
-
-#703 currently changes both `Cargo.toml` and `Cargo.lock`, so this preparation PR deliberately leaves that seam untouched. Immediately after #703 merges, add the selected single-instance dependency/lockfile update plus early `lib.rs` registration in one bounded change.
-
-One upstream Windows race remains under active repair in the Tauri plugin: mutex creation can race the event window used for handoff. Selection of the plugin revision therefore depends on packaged Windows burst evidence.
-
-### Package test plan
-
-Run against installed candidate packages on Linux, Windows, and macOS:
-
-1. start Preflight and wait for the first native host/window;
-2. launch a second invocation; assert focus/handoff and prompt second-process exit;
-3. repeat with the first window minimized; assert reveal/unminimize/focus;
-4. repeat while preparation/game ownership is active; assert one desktop instance and one owned PID;
-5. repeat during report upload and diagnostics export; assert handoff only;
-6. repeat during update install and immediately after restart; assert at most one admitted desktop process and successful singleton reacquisition after restart;
-7. on Windows, burst at least eight simultaneous second invocations during first-instance startup and repeat the burst enough times to exercise the upstream mutex/event-window race;
-8. repeat the burst after install, update, and rollback;
-9. verify uninstall/removal leaves no singleton helper/process after the app closes.
-
-A Windows burst failure blocks that singleton implementation/revision and calls for fixing or changing the single-instance admission implementation.
+The retained singleton receipt must bind the exact release tag, tagged Distribution run ID, source revision, candidate package name/length/SHA-256, platform, primary PID, peer exit results, bounded-grace/reacquisition verdicts, and burst count. A failure to preserve one normal lifetime or to reacquire after the previous owner exits blocks the candidate. Missing focus/reveal/handoff does not.
 
 ## Exact candidate preparation
 
-### Candidate-scoped three-platform lifecycle
+### Rehearsal and tagged final-candidate lifecycle
 
-This branch adds **Candidate package lifecycle**, keyed by one successful private signed Distribution run ID.
+The existing **Candidate package lifecycle** remains a useful private pre-tag rehearsal keyed by one successful workflow-dispatch signed Distribution run ID. It proves packaging/install mechanics before a release tag exists, but it does not authorize later tag-built bytes.
 
-The workflow:
+The rehearsal workflow:
 
 1. requires dispatch from `main`;
 2. validates the requested run is the successful `Distribution` workflow at `.github/workflows/distribution.yml`, triggered by `workflow_dispatch` from `main`;
@@ -187,13 +156,15 @@ The workflow:
 10. exercises install, upgrade to exact candidate, byte-identical rollback to the retained older package, ordinary removal, and separately owned data preservation on Linux, Windows, and macOS;
 11. uploads only a small lifecycle receipt binding Distribution run ID, source revision/version, candidate package name/size/SHA-256, and checksum manifest.
 
-The exact candidate package is never rebuilt by this workflow, and decrypted candidate bytes are never uploaded by the lifecycle lane.
+The rehearsal candidate package is never rebuilt by this workflow, and decrypted candidate bytes are never uploaded by the lifecycle lane.
+
+For final release acceptance, merged #841's **Tagged candidate package lifecycle** is authoritative. After the protected release tag triggers a successful tag-push Distribution run and stages the draft, dispatch the tagged lifecycle with that exact tag and Distribution run ID. It consumes `preflight-complete-release-<run id>` directly, rebuilds no final package, verifies the tagged source/package identity, exercises Linux/Windows/macOS install → upgrade → exact rollback → removal, and emits receipts binding release tag, tagged Distribution run ID, source revision, package name/length/SHA-256, and checksum manifest. **Publish verified release** requires those receipts to match the same preserved tagged package bytes.
 
 The installable package set is `.deb`, NSIS `.exe`, and `.dmg`. Signed updater forward/rejected-signature evidence remains a separate candidate lane because Linux desktop self-update uses the AppImage updater artifact while `.deb` stays with the package manager.
 
 ### Exact packaged engine for #418
 
-Select the engine from the installed/extracted exact candidate package after complete-release verification and platform checksum verification. Require its JAR SHA-256 to equal `engineJarSha256` in that platform's `CAPABILITIES-<platform>.json`.
+Select the engine from the installed/extracted exact tagged final-candidate package after complete-release verification and platform checksum verification. Require its JAR SHA-256 to equal `engineJarSha256` in that platform's `CAPABILITIES-<platform>.json`.
 
 Run:
 
@@ -211,7 +182,7 @@ Retain the reviewed interpretation as:
 
 `docs/evidence/<date>-candidate-startup-benchmark.md`
 
-The Markdown receipt should record Distribution run ID, source revision, candidate package name/SHA-256, capability-receipt engine SHA-256, game/profile identity, OS/hardware/runtime identity, vanilla and accelerated accepted-run counts, medians, acceptance verdict, and any drift/failure reason.
+The Markdown receipt should record release tag, tagged Distribution run ID, source revision, candidate package name/SHA-256, capability-receipt engine SHA-256, game/profile identity, OS/hardware/runtime identity, vanilla and accelerated accepted-run counts, medians, acceptance verdict, and any drift/failure reason.
 
 For the release comparison, require at least five accepted vanilla and five accepted accelerated launches with the same sealed installation/profile/launcher/runtime/settings identity and a clear drift guard.
 
@@ -220,7 +191,7 @@ For the release comparison, require at least five accepted vanilla and five acce
 Prerequisites:
 
 - #703 merged with its final capability-bound report filesystem operations and report-authority tests green;
-- exact candidate package checksum/capability verified;
+- exact tagged final-candidate package checksum/capability verified;
 - exact production `PREFLIGHT_REPORT_INTAKE_ORIGIN` configured for the release build;
 - production Worker/private bucket, retention lifecycle, grant-signing key, rate limits, and daily grant ceiling active;
 - one synthetic failed-run/support fixture inside the disclosed ZIP boundary;
@@ -232,9 +203,9 @@ Final sequence:
 2. cancel after a bounded partial upload;
 3. verify server-side cleanup and local ZIP retention;
 4. retry the same ZIP and verify receipt bytes/SHA-256;
-5. restart the same candidate and verify unexpired receipt persistence;
+5. restart the same tagged final candidate and verify unexpired receipt persistence;
 6. delete through the case-scoped grant and verify the local receipt clears;
-7. verify the canary case/object is gone and retain only bounded receipt metadata as evidence.
+7. verify the canary case/object is gone and retain only bounded receipt metadata as evidence, including the release tag, tagged Distribution run ID, source revision, platform/package name, and package length/SHA-256.
 
 ### Checksums, SBOMs, dependencies, legal/privacy/install docs
 
@@ -257,18 +228,26 @@ The existing release assembler and complete-release verifier already prepare or 
 
 ### Final source-history/package-content audit
 
-For the final candidate source revision:
+Complete the source/admin checks before creating the final release tag:
 
-1. require the candidate source revision to be the current reviewed `main` commit and the checkout clean;
+1. require the intended release source revision to be the current reviewed `main` commit and the checkout clean;
 2. run the full PR/release suite plus `scripts/verify_source_boundary.py` over current tracked content and reachable history;
-3. run `scripts/verify_complete_release.py` over the decrypted candidate and require one common clean `sourceRevision` across capability receipts;
-4. verify every platform checksum manifest and updater signature/URL pair;
-5. extract DMG, NSIS, Debian, and AppImage payloads through the existing native package verifier and compare embedded engine/legal/runtime resources with reviewed release inputs;
-6. inspect the exact candidate inventory for logs, diagnostics, screenshots, game/mod/save content, unexpected binaries, symlinks, or extra files;
-7. confirm SBOM/dependency inventories and notices match final lockfiles/package set;
-8. confirm release notes, privacy, limitations, install/removal text, unsigned-package warnings, Apple-silicon scope, and Linux package-manager/self-update distinction match the final packages;
-9. retain lifecycle, benchmark, report-canary, checksum, source-boundary, package-boundary, and capability receipts under the final source revision;
-10. create/review the release tag and draft only after those checks. Public publication remains the separate **Publish verified release** action.
+3. confirm dependency inventories, notices, privacy/limitations/install/removal text, unsigned-package warnings, Apple-silicon scope, Linux package-manager/self-update distinction, and draft release notes are ready for that source revision;
+4. complete the owner-controlled signing/ruleset/publication prerequisites that must hold before tag creation.
+
+Then create the protected release tag from that accepted `main` revision and require the tag-push **Distribution** run to complete successfully and stage the draft. That successful tagged Distribution artifact is the final candidate byte authority for the checks below.
+
+Against that exact tagged final-candidate artifact:
+
+5. run `scripts/verify_complete_release.py` and require one common clean `sourceRevision` across capability receipts matching the tagged revision;
+6. verify every platform checksum manifest and updater signature/URL pair;
+7. extract DMG, NSIS, Debian, and AppImage payloads through the existing native package verifier and compare embedded engine/legal/runtime resources with reviewed release inputs;
+8. inspect the exact candidate inventory for logs, diagnostics, screenshots, game/mod/save content, unexpected binaries, symlinks, or extra files;
+9. confirm SBOM/dependency inventories and notices match the exact final package set;
+10. run and retain the tagged lifecycle, singleton, benchmark, report-canary, checksum, source-boundary, package-boundary, and capability receipts required for the release, all bound to the same release tag / tagged Distribution generation and exact package identities;
+11. replace candidate-dependent release-note claims only from accepted exact-tag evidence.
+
+Public publication remains the separate **Publish verified release** action over those same accepted tagged bytes.
 
 ## Owner-only blockers
 
@@ -282,13 +261,14 @@ Engineering can continue while these stay open:
 
 ## Candidate-byte-dependent closeout
 
-These steps genuinely wait for final bytes:
+After pre-tag source/admin acceptance, the final-byte sequence is:
 
-- run **Candidate package lifecycle** against the exact successful signed Distribution run;
-- run candidate signed-update/signature-rejection/rollback evidence where applicable;
-- run the #418 exact packaged-engine benchmark and retain the raw receipt;
-- run the final packaged production report-intake canary;
-- run the final complete-release/source-history/package-content audit;
-- replace draft release-note performance/package claims with accepted candidate evidence;
-- tag and stage the reviewed draft;
-- publish only through **Publish verified release** after every release gate is accepted.
+- create/review the protected release tag from the accepted `main` revision and require the tag-push **Distribution** run to succeed and stage the draft;
+- run **Tagged candidate package lifecycle** against that exact release tag and tagged Distribution run;
+- run the installed-package singleton admission, collision-burst, and updater-restart reacquisition evidence against those exact tagged Distribution package bytes on Linux, Windows, and macOS;
+- run candidate signed-update/signature-rejection/rollback evidence where applicable against the same tagged package generation;
+- run the #418 exact packaged-engine benchmark and retain the raw receipt bound to the same tagged package identity;
+- run the final packaged production report-intake canary bound to the same tagged package identity;
+- run the final complete-release/source-history/package-content audit over those exact tagged bytes;
+- replace draft release-note performance/package claims with accepted exact-tag evidence;
+- publish only through **Publish verified release** after every release gate is accepted, using those same staged bytes.
