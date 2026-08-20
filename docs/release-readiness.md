@@ -1,15 +1,15 @@
 # Release readiness
 
-**Status:** release-candidate preparation; Fractal Softworks guidance requested, awaiting response
+**Status:** release-candidate preparation; publication policy decided by the owner
 
-**Updated:** 2026-08-16
+**Updated:** 2026-08-20
 
 Preflight has a credible performance result and a verified cross-platform packaging pipeline. It is
 still inside the release boundary below.
 
 | Area | Current state |
 | --- | --- |
-| Publication policy | Guidance requested August 7; maintainer decision pending |
+| Publication policy | Decided 2026-08-20: a Fractal Softworks response is not a release gate |
 | Desktop product | First-run, preparation, profiles, settings, updates, reports, cleanup, and removal implemented |
 | Package lifecycle | Local macOS candidate passes; complete hosted three-platform candidate pending |
 | Real-game coverage | Development macOS profile exercised; Windows and Linux runs pending |
@@ -18,12 +18,15 @@ still inside the release boundary below.
 
 ## Blocking before public distribution
 
-- [ ] Resolve the publication policy after the requested Fractal Softworks guidance window. The
-  [permission request](fractal-permission-request.md) was sent on 2026-08-07; this is an owner/legal
-  decision rather than an unfinished engine feature.
+- [x] Resolve the publication policy. **Decided by the owner on 2026-08-20: waiting on a Fractal
+  Softworks response is not a release blocker.** The [permission request](fractal-permission-request.md)
+  sent on 2026-08-07 stands as a courtesy notice; publication does not wait on a reply to it, and no
+  release gate should be reopened on the grounds that no reply has arrived. Preflight ships as an
+  independent, unofficial project that redistributes no Starsector content.
 - [x] Use **Preflight** as the public product, repository, and application name.
-- [ ] Confirm descriptive use of the Starsector name, trademark attribution, and disclaimer with
-  Fractal Softworks.
+- [x] Use the Starsector name descriptively, with the unaffiliated/unendorsed disclaimer stated in
+  the README masthead and footer. This is the owner's own call under the same 2026-08-20 decision
+  and does not require Fractal Softworks confirmation.
 - [x] Use the project-controlled `io.github.teamleaderleo.preflight` bundle identifier before users
   install persistent packages.
 - [x] Record the first-beta package trust policy. macOS and Windows packages will ship without paid

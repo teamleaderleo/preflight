@@ -375,13 +375,12 @@ See [Diagnostics export](docs/diagnostics.md), [Privacy](docs/privacy.md),
 The desktop product is largely there. The remaining gates establish the release claim and platform
 boundary:
 
-1. Resolve the publication policy after the requested Fractal Softworks guidance window.
-2. Exercise clean real-game installations on Windows and Linux. CI, synthetic installs, native
+1. Exercise clean real-game installations on Windows and Linux. CI, synthetic installs, native
    package boot, and VMware Fusion acceptance already cover substantial portable-engine and package
    behavior.
-3. Freeze and exercise the exact hosted candidate, including signed update, rollback, report,
+2. Freeze and exercise the exact hosted candidate, including signed update, rollback, report,
    cleanup, removal, recovery, and final package identity.
-4. Run the final benchmark pass on the exact candidate and publish that result beside the
+3. Run the final benchmark pass on the exact candidate and publish that result beside the
    established development record.
 
 The complete publication checklist is in [Release readiness](docs/release-readiness.md). The ordered
