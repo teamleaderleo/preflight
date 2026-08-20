@@ -1,12 +1,18 @@
 package dev.starsector.preflight.cli;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 /**
@@ -186,10 +192,55 @@ final class IntegrationOwnership {
     }
 
     private static String readBounded(Path file) throws IOException {
-        long size = Files.size(file);
-        if (size > MAX_SCRIPT_SCAN_BYTES) {
+        return readBounded(file, MAX_SCRIPT_SCAN_BYTES, ignored -> {});
+    }
+
+    static String readBounded(Path file, int maximumBytes, BeforeOpenHook beforeOpen) throws IOException {
+        Objects.requireNonNull(file, "file");
+        Objects.requireNonNull(beforeOpen, "beforeOpen");
+        int readLimit = validateReadLimit(maximumBytes);
+        if (Files.size(file) > maximumBytes) {
             return "";
         }
-        return Files.readString(file, StandardCharsets.UTF_8);
+        beforeOpen.run(file);
+        try (InputStream input = Files.newInputStream(
+                file, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+            return readBounded(input, maximumBytes, readLimit, file.toString());
+        }
+    }
+
+    static String readBounded(InputStream input, int maximumBytes, String sourceLabel) throws IOException {
+        Objects.requireNonNull(input, "input");
+        int readLimit = validateReadLimit(maximumBytes);
+        return readBounded(input, maximumBytes, readLimit, sourceLabel);
+    }
+
+    private static String readBounded(
+            InputStream input, int maximumBytes, int readLimit, String sourceLabel) throws IOException {
+        byte[] bytes = input.readNBytes(readLimit);
+        if (bytes.length > maximumBytes) {
+            return "";
+        }
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
+        } catch (CharacterCodingException malformed) {
+            throw new IOException("Launcher ownership text is not valid UTF-8: " + sourceLabel, malformed);
+        }
+    }
+
+    private static int validateReadLimit(int maximumBytes) {
+        if (maximumBytes < 0 || maximumBytes > MAX_SCRIPT_SCAN_BYTES) {
+            throw new IllegalArgumentException("Launcher ownership text byte limit is invalid: " + maximumBytes);
+        }
+        return Math.addExact(maximumBytes, 1);
+    }
+
+    @FunctionalInterface
+    interface BeforeOpenHook {
+        void run(Path file) throws IOException;
     }
 }
