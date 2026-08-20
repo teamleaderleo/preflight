@@ -330,6 +330,9 @@ public final class GeneratedBytecodePack {
     }
 
     private static void writeString(DataOutputStream output, String value) throws IOException {
+        if (!StandardCharsets.UTF_8.newEncoder().canEncode(value)) {
+            throw new IOException("Generated class name cannot be encoded as UTF-8");
+        }
         byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
         if (bytes.length < 1 || bytes.length > MAX_NAME_BYTES) throw new IOException("Invalid class name length");
         output.writeInt(bytes.length);
