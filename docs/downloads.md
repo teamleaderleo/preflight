@@ -62,8 +62,8 @@ grep '  Preflight-macOS-arm64.dmg$' SHA256SUMS-darwin-arm64.txt | shasum -a 256 
 The beta package is Apple silicon. Intel macOS remains outside the first package matrix. The DMG
 ships without paid Developer ID notarization, so Gatekeeper can block the first launch. After the
 checksum succeeds, use **System Settings → Privacy & Security** and the specific **Open Anyway**
-control for Preflight if macOS presents it. Do not disable Gatekeeper globally or strip quarantine
-metadata broadly.
+control for Preflight if macOS presents it. Keep Gatekeeper enabled and use only the per-app
+override above; do not strip quarantine metadata broadly.
 
 ### Windows
 
@@ -77,7 +77,8 @@ $actual -eq $expected
 
 The first beta uses an NSIS installer without paid Authenticode identity, so SmartScreen can warn on
 first run. After the checksum succeeds, use the warning's **More info → Run anyway** path for that
-specific installer if Windows presents it. Do not disable SmartScreen or antivirus globally.
+specific installer if Windows presents it. Keep SmartScreen and antivirus enabled; use only the
+per-installer path above.
 
 ### Linux
 
