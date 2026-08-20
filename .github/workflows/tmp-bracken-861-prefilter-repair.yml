@@ -1,12 +1,8 @@
 name: Temporary Bracken SPJP prefilter repair
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    paths:
-      - 'preflight-core/src/main/java/dev/starsector/preflight/core/GeneratedBytecodePack.java'
-      - 'preflight-core/src/test/java/dev/starsector/preflight/core/GeneratedBytecodePackPersistenceTest.java'
-      - '.github/workflows/tmp-bracken-861-prefilter-repair.yml'
+  push:
+    branches: [repair/861-spjp-size-prefilter]
 
 permissions:
   contents: write
