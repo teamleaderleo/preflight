@@ -42,7 +42,9 @@ final class MergedSpreadsheetProvenance {
         List<Map<String, Object>> providerReports = new ArrayList<>();
         Map<RowKey, KeyContributors> contributions = new TreeMap<>();
         boolean keysTruncated = false;
-        long readableProviders = 0;
+        long parsedProviders = 0;
+        long keyableProviders = 0;
+        long providersWithErrors = 0;
         long dataRows = 0;
         long keyedRows = 0;
         long duplicateKeyRows = 0;
@@ -53,8 +55,14 @@ final class MergedSpreadsheetProvenance {
             ResourceIndex.Provider provider = allProviders.get(providerIndex);
             ProviderScan scan = scanProvider(index, provider, keys, limits);
             providerReports.add(scan.toMap(index, provider));
-            if (scan.readable()) {
-                readableProviders++;
+            if (scan.parsed()) {
+                parsedProviders++;
+            }
+            if (scan.keyable()) {
+                keyableProviders++;
+            }
+            if (!scan.errors().isEmpty()) {
+                providersWithErrors++;
             }
             dataRows += scan.dataRows();
             keyedRows += scan.keyedRows();
@@ -79,10 +87,17 @@ final class MergedSpreadsheetProvenance {
             keysTruncated |= scan.truncated();
         }
 
+        boolean completeForRequestedKeys = !allProviders.isEmpty()
+                && !providersTruncated
+                && !keysTruncated
+                && providersWithErrors == 0
+                && rowsMissingKeyCells == 0;
         Map<String, Object> totals = new LinkedHashMap<>();
         totals.put("providers", allProviders.size());
         totals.put("providersScanned", providerCount);
-        totals.put("readableProviders", readableProviders);
+        totals.put("parsedProviders", parsedProviders);
+        totals.put("keyableProviders", keyableProviders);
+        totals.put("providersWithErrors", providersWithErrors);
         totals.put("dataRows", dataRows);
         totals.put("keyedRows", keyedRows);
         totals.put("uniqueKeysObserved", contributions.size());
@@ -92,6 +107,7 @@ final class MergedSpreadsheetProvenance {
         totals.put("providersTruncated", providersTruncated);
         totals.put("keysTruncated", keysTruncated);
         totals.put("truncated", providersTruncated || keysTruncated);
+        totals.put("completeForRequestedKeys", completeForRequestedKeys);
 
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("evidenceKind", EVIDENCE_KIND);
@@ -109,6 +125,7 @@ final class MergedSpreadsheetProvenance {
                 "This evidence reports keyed rows physically present in each ResourceIndex provider spreadsheet.",
                 "It does not establish Starsector's final merged-row winner or reproduce the game's spreadsheet merge policy.",
                 "Duplicate keys inside one provider remain explicit instead of being silently collapsed into an ownership claim.",
+                "completeForRequestedKeys is false when a provider could not be parsed/keyed, a keyed row was incomplete, or a bound truncated evidence.",
                 "Counts with truncated=true are lower bounds."));
         return new Result(values);
     }
@@ -122,31 +139,32 @@ final class MergedSpreadsheetProvenance {
         try {
             Path file = index.resolveExisting(provider);
             if (provider.size() > limits.csvLimits().maxBytes()) {
-                return ProviderScan.failure("provider-exceeds-byte-limit", true);
+                return ProviderScan.readFailure("provider-exceeds-byte-limit", true);
             }
             try (InputStream input = Files.newInputStream(file)) {
                 bytes = input.readNBytes(limits.csvLimits().maxBytes() + 1);
             }
             if (bytes.length > limits.csvLimits().maxBytes()) {
-                return ProviderScan.failure("provider-exceeds-byte-limit", true);
+                return ProviderScan.readFailure("provider-exceeds-byte-limit", true);
             }
         } catch (IOException | IllegalArgumentException error) {
-            return ProviderScan.failure("provider-read-failed", false);
+            return ProviderScan.readFailure("provider-read-failed", false);
         }
 
         SpreadsheetCsv.Table table;
         try {
             table = SpreadsheetCsv.parse(bytes, limits.csvLimits());
         } catch (IOException error) {
-            return ProviderScan.failure("malformed-csv", false);
+            return ProviderScan.parseFailure(bytes.length, "malformed-csv");
         }
         if (table.rows().isEmpty()) {
-            return ProviderScan.failure("empty-spreadsheet", false);
+            return ProviderScan.unkeyable(bytes.length, 0, List.of("empty-spreadsheet"));
         }
 
+        long dataRows = Math.max(0, table.rows().size() - 1L);
         HeaderResolution header = resolveHeader(table.rows().get(0), keyColumns);
         if (!header.errors().isEmpty()) {
-            return ProviderScan.failure(header.errors(), false);
+            return ProviderScan.unkeyable(bytes.length, dataRows, header.errors());
         }
 
         Map<RowKey, Integer> rowCounts = new TreeMap<>();
@@ -193,8 +211,9 @@ final class MergedSpreadsheetProvenance {
         }
         return new ProviderScan(
                 true,
+                true,
                 bytes.length,
-                Math.max(0, rows.size() - 1L),
+                dataRows,
                 keyedRows,
                 duplicateKeyRows,
                 blankKeyRows,
@@ -308,7 +327,8 @@ final class MergedSpreadsheetProvenance {
     }
 
     private record ProviderScan(
-            boolean readable,
+            boolean parsed,
+            boolean keyable,
             long bytesRead,
             long dataRows,
             long keyedRows,
@@ -318,12 +338,17 @@ final class MergedSpreadsheetProvenance {
             boolean truncated,
             Map<RowKey, Integer> rowCounts,
             List<String> errors) {
-        static ProviderScan failure(String error, boolean truncated) {
-            return failure(List.of(error), truncated);
+        static ProviderScan readFailure(String error, boolean truncated) {
+            return new ProviderScan(false, false, 0, 0, 0, 0, 0, 0, truncated, Map.of(), List.of(error));
         }
 
-        static ProviderScan failure(List<String> errors, boolean truncated) {
-            return new ProviderScan(false, 0, 0, 0, 0, 0, 0, truncated, Map.of(), List.copyOf(errors));
+        static ProviderScan parseFailure(long bytesRead, String error) {
+            return new ProviderScan(false, false, bytesRead, 0, 0, 0, 0, 0, false, Map.of(), List.of(error));
+        }
+
+        static ProviderScan unkeyable(long bytesRead, long dataRows, List<String> errors) {
+            return new ProviderScan(
+                    true, false, bytesRead, dataRows, 0, 0, 0, 0, false, Map.of(), List.copyOf(errors));
         }
 
         Map<String, Object> toMap(ResourceIndex index, ResourceIndex.Provider provider) {
@@ -333,7 +358,8 @@ final class MergedSpreadsheetProvenance {
             value.put("core", root.core());
             value.put("relativePath", provider.relativePath());
             value.put("declaredBytes", provider.size());
-            value.put("readable", readable);
+            value.put("parsed", parsed);
+            value.put("keyable", keyable);
             value.put("bytesRead", bytesRead);
             value.put("dataRows", dataRows);
             value.put("keyedRows", keyedRows);
