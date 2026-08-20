@@ -1,9 +1,6 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.Json;
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
@@ -26,8 +23,6 @@ import java.util.zip.ZipFile;
  * different dynamic path than the bytecode makes possible.
  */
 final class ModJarApiUsage {
-    private static final int CLASSFILE_MAGIC = 0xcafebabe;
-    private static final int MAX_CONSTANT_POOL_ENTRIES = 65_535;
     private static final int MAX_JARS = 512;
     private static final int MAX_CLASSFILES_PER_JAR = 50_000;
     private static final int MAX_CLASSFILE_BYTES = 4 * 1024 * 1024;
@@ -47,7 +42,10 @@ final class ModJarApiUsage {
     }
 
     static Result scan(Path installRoot) throws IOException {
-        ClasspathAudit.Result classpath = ClasspathAudit.scan(installRoot);
+        return scan(ClasspathAudit.scan(installRoot));
+    }
+
+    static Result scan(ClasspathAudit.Result classpath) {
         Inputs inputs = Inputs.from(classpath.values());
 
         List<JarEvidence> evidence = new ArrayList<>();
@@ -86,7 +84,7 @@ final class ModJarApiUsage {
                 || relationships.truncated());
 
         Map<String, Object> values = new LinkedHashMap<>();
-        values.put("evidenceKind", "constant-pool-class-reference-v1");
+        values.put("evidenceKind", "classfile-static-type-reference-v1");
         values.put("archiveFingerprint", classpath.values().get("archiveFingerprint"));
         values.put("classpathFingerprint", classpath.values().get("classpathFingerprint"));
         values.put("totals", totals);
@@ -96,6 +94,8 @@ final class ModJarApiUsage {
         values.put("jarScans", evidence.stream().map(JarEvidence::toMap).toList());
         values.put("notes", List.of(
                 "Static bytecode evidence only; no mod classes were loaded or executed.",
+                "Class references include JVM class constants and referenced/declaration type descriptors.",
+                "Reflective class-name strings and generic-signature-only types are not included in this evidence kind.",
                 "A static reference does not by itself prove that the code path runs in a given session.",
                 "An undeclared cross-mod reference may be an intentional optional integration, not a defect.",
                 "Counts with truncated=true are lower bounds."));
@@ -167,7 +167,7 @@ final class ModJarApiUsage {
                 }
 
                 try {
-                    ClassEvidence parsed = parseClass(classfile);
+                    JvmClassReferences.Result parsed = JvmClassReferences.parse(classfile);
                     String entryBinaryName = entry.getName()
                             .substring(0, entry.getName().length() - ".class".length())
                             .replace('/', '.');
@@ -207,119 +207,6 @@ final class ModJarApiUsage {
             return new byte[0];
         }
         return input.readNBytes(limit);
-    }
-
-    private static ClassEvidence parseClass(byte[] classfile) throws IOException {
-        if (classfile.length < 10) {
-            throw new IOException("classfile is too small");
-        }
-        try (DataInputStream input = new DataInputStream(new ByteArrayInputStream(classfile))) {
-            if (input.readInt() != CLASSFILE_MAGIC) {
-                throw new IOException("invalid classfile magic");
-            }
-            input.readUnsignedShort();
-            input.readUnsignedShort();
-            int count = input.readUnsignedShort();
-            if (count < 2 || count > MAX_CONSTANT_POOL_ENTRIES) {
-                throw new IOException("invalid constant-pool count: " + count);
-            }
-
-            byte[] tags = new byte[count];
-            int[] classNameIndexes = new int[count];
-            String[] utf8 = new String[count];
-            for (int index = 1; index < count; index++) {
-                int tag = input.readUnsignedByte();
-                tags[index] = (byte) tag;
-                switch (tag) {
-                    case 1 -> utf8[index] = input.readUTF();
-                    case 3, 4 -> skipFully(input, 4);
-                    case 5, 6 -> {
-                        skipFully(input, 8);
-                        index++;
-                    }
-                    case 7 -> classNameIndexes[index] = input.readUnsignedShort();
-                    case 8, 16, 19, 20 -> skipFully(input, 2);
-                    case 9, 10, 11, 12, 17, 18 -> skipFully(input, 4);
-                    case 15 -> skipFully(input, 3);
-                    default -> throw new IOException("unsupported constant-pool tag: " + tag);
-                }
-            }
-
-            input.readUnsignedShort();
-            int thisClass = input.readUnsignedShort();
-            String binaryName = className(tags, classNameIndexes, utf8, thisClass);
-            if (binaryName == null || binaryName.startsWith("[")) {
-                throw new IOException("invalid this_class identity");
-            }
-
-            LinkedHashSet<String> references = new LinkedHashSet<>();
-            for (int index = 1; index < count; index++) {
-                if (tags[index] != 7) {
-                    continue;
-                }
-                String name = className(tags, classNameIndexes, utf8, index);
-                if (name == null) {
-                    throw new IOException("invalid CONSTANT_Class entry at " + index);
-                }
-                addClassConstant(references, name);
-            }
-            references.remove(binaryName);
-            return new ClassEvidence(binaryName, Collections.unmodifiableSet(references));
-        } catch (EOFException error) {
-            throw new IOException("classfile ended inside its constant pool", error);
-        }
-    }
-
-    private static String className(byte[] tags, int[] classNameIndexes, String[] utf8, int classIndex) {
-        if (classIndex <= 0 || classIndex >= tags.length || tags[classIndex] != 7) {
-            return null;
-        }
-        int nameIndex = classNameIndexes[classIndex];
-        if (nameIndex <= 0 || nameIndex >= tags.length || tags[nameIndex] != 1 || utf8[nameIndex] == null) {
-            return null;
-        }
-        String internal = utf8[nameIndex];
-        if (internal.isBlank()) {
-            return null;
-        }
-        if (internal.startsWith("[")) {
-            return internal;
-        }
-        if (internal.indexOf('.') >= 0) {
-            return null;
-        }
-        return internal.replace('/', '.');
-    }
-
-    private static void addClassConstant(Set<String> output, String name) {
-        if (!name.startsWith("[")) {
-            if (name.indexOf('.') >= 0) {
-                output.add(name);
-            }
-            return;
-        }
-        int cursor = 0;
-        while (cursor < name.length()) {
-            int marker = name.indexOf('L', cursor);
-            if (marker < 0) {
-                return;
-            }
-            int end = name.indexOf(';', marker + 1);
-            if (end < 0) {
-                return;
-            }
-            String internal = name.substring(marker + 1, end);
-            if (!internal.isBlank() && internal.indexOf('.') < 0) {
-                output.add(internal.replace('/', '.'));
-            }
-            cursor = end + 1;
-        }
-    }
-
-    private static void skipFully(DataInputStream input, int bytes) throws IOException {
-        if (input.skipBytes(bytes) != bytes) {
-            throw new EOFException("classfile ended inside its constant pool");
-        }
     }
 
     private static RelationshipSummary relationships(
@@ -476,9 +363,6 @@ final class ModJarApiUsage {
     }
 
     private record JarInput(String modId, Path directory, String relativePath) {
-    }
-
-    private record ClassEvidence(String binaryName, Set<String> references) {
     }
 
     private record JarEvidence(
