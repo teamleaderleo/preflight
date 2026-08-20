@@ -77,6 +77,8 @@ class MergedSpreadsheetProvenanceTest {
         assertTrue((Boolean) shared.get("duplicateWithinProvider"));
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> contributors = (List<Map<String, Object>>) shared.get("contributors");
+        assertEquals(List.of(0, 1),
+                contributors.stream().map(item -> ((Number) item.get("rootIndex")).intValue()).toList());
         assertEquals(List.of("core", "mod_a"),
                 contributors.stream().map(item -> (String) item.get("rootId")).toList());
         assertEquals(2, ((Number) contributors.get(0).get("rowsForKey")).intValue());
@@ -84,6 +86,8 @@ class MergedSpreadsheetProvenanceTest {
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> providers = (List<Map<String, Object>>) result.values().get("providers");
+        assertEquals(List.of(0, 1, 2),
+                providers.stream().map(item -> ((Number) item.get("rootIndex")).intValue()).toList());
         assertFalse((Boolean) providers.get(2).get("parsed"));
         assertFalse((Boolean) providers.get(2).get("keyable"));
         assertEquals(List.of("malformed-csv"), providers.get(2).get("errors"));
@@ -93,6 +97,40 @@ class MergedSpreadsheetProvenanceTest {
         assertFalse(json.contains("\"winner\":"));
         assertTrue(json.contains("\"sourceGenerationBound\":false"));
         assertTrue(json.contains("does not establish Starsector's final merged-row winner"));
+    }
+
+    @Test
+    void keepsDuplicateRootIdsDistinctByRootOccurrence() throws Exception {
+        Path first = temporaryDirectory.resolve("duplicate-id-first");
+        Path second = temporaryDirectory.resolve("duplicate-id-second");
+        String relative = "data/config/duplicate-root-id.csv";
+        Path firstFile = write(first, relative, "id,name\nshared,One\n");
+        Path secondFile = write(second, relative, "id,name\nshared,Two\n");
+        ResourceIndex index = index(
+                List.of(
+                        new ResourceIndex.Root("same-id", first, false),
+                        new ResourceIndex.Root("same-id", second, false)),
+                relative,
+                List.of(provider(0, relative, firstFile), provider(1, relative, secondFile)));
+
+        MergedSpreadsheetProvenance.Result result =
+                MergedSpreadsheetProvenance.inspect(index, relative, List.of("id"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> keys = (List<Map<String, Object>>) result.values().get("keys");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> contributors =
+                (List<Map<String, Object>>) key(keys, "id", "shared").get("contributors");
+        assertEquals(List.of("same-id", "same-id"),
+                contributors.stream().map(item -> (String) item.get("rootId")).toList());
+        assertEquals(List.of(0, 1),
+                contributors.stream().map(item -> ((Number) item.get("rootIndex")).intValue()).toList());
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> providers = (List<Map<String, Object>>) result.values().get("providers");
+        assertEquals(List.of("same-id", "same-id"),
+                providers.stream().map(item -> (String) item.get("rootId")).toList());
+        assertEquals(List.of(0, 1),
+                providers.stream().map(item -> ((Number) item.get("rootIndex")).intValue()).toList());
     }
 
     @Test
