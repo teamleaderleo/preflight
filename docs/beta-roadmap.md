@@ -1,131 +1,99 @@
 # Public beta roadmap
 
-**Updated:** 2026-08-11
+**Updated:** 2026-08-20
 
-This is the working sequence from the current development build to a public beta. The detailed
-pass/fail ledger remains [Release readiness](release-readiness.md); this page explains the order and
-the product each phase is meant to leave behind.
+This page explains the release sequence. The live coordination board is
+[#652](https://github.com/teamleaderleo/preflight/issues/652), which owns current blocker status,
+merge order, and any promotion caused by a concrete candidate failure. The checklist mirror is
+[Release readiness](release-readiness.md).
 
 ## Current position
 
-The desktop flow, permission-free startup benchmark, cache recovery, profile safety, bounded support
-export, updater boundary, and local macOS package lifecycle are implemented. The next engineering
-step is an immutable hosted candidate: build the three platform packages from one revision, run the
-complete package verifier, retain a benchmark from that exact candidate, then capture final
-screenshots and publish the matching release material.
+The desktop product, recovery paths, package pipeline, startup benchmark harness, updater boundary,
+and report-intake path have reached release-candidate execution. The beta now has four active
+candidate/platform tasks:
 
-Windows and Linux package contracts already run without game content. Real-game runs on those
-platforms expand the beta's support evidence; they aren't evidence that can be manufactured in CI.
-The first beta should say plainly that macOS has the deepest real-game coverage and use early
-Windows/Linux reports to complete that matrix.
+1. exercise real-game installations on Windows and Linux;
+2. freeze and exercise the complete hosted Windows, macOS, and Linux candidate from one accepted
+   source revision;
+3. run the startup benchmark on the exact packaged candidate bytes; and
+4. complete the packaged report-intake cancel/retry/delete canary on that candidate.
 
-## Product contract
+Keep this list synchronized with #652 instead of extending it from open engineering issues.
 
-The ordinary path has four steps: open Preflight, select Starsector if discovery didn't find it,
-choose **Prepare and launch** once, then use **Launch Starsector** on later runs. Matching prepared
-data is reused automatically. Profiles, storage controls, support export, updates, and removal stay
-available without becoming setup requirements.
+## 1. Real-game Windows and Linux exercise
 
-Preflight's main promise is simple: make the installed game faster and leave its files, mods, saves,
-and settings recoverable. Every runtime change keeps an exact identity gate and the original
-behavior as its fallback.
+Hosted package checks and synthetic fixtures already cover package and engine contracts. Native
+Windows and Linux runs provide the remaining real-game evidence for those platforms. Record exactly
+which installation, launcher, display path, profile, and package generation was exercised. macOS
+continues to carry the deepest development-game history.
 
-## 1. Finish the desktop state model — complete
+**Exit:** the Windows and Linux real-game exercise has retained evidence suitable for the beta's
+platform claims.
 
-Exercise the complete interface against fixture states for first discovery, a cold profile, a ready
-profile, low disk space, damaged prepared data, an unsupported update, a failed launch, and an
-interrupted operation. Each disabled primary action needs a visible reason. Recovery should state
-what happened, what remained unchanged, and the useful next action.
+## 2. Freeze and exercise the complete hosted candidate
 
-Finish the drafting-paper spacecraft icon, responsive light and dark layouts, keyboard behavior,
-and the remaining copy pass. Home must fit the normal desktop window without scrolling. Longer
-advanced work stays inside its workspace.
+Choose one reviewed source revision and produce the complete Windows, macOS, and Linux candidate.
+Verify the embedded engine, package hashes, updater metadata, legal/privacy/install files,
+SBOM/dependency inventory, capability receipts, and absence of proprietary game/mod/save content.
+Exercise the candidate package lifecycle through the existing hosted lanes. A code change produces a
+new candidate generation.
 
-**Exit:** someone unfamiliar with the project can prepare, launch, change a profile, export support
-data, update, and remove Preflight without reading the manual.
+**Exit:** every candidate byte maps to one reviewed revision and the complete hosted candidate has
+accepted package evidence.
 
-## 2. Ship a permission-free startup benchmark — complete
+## 3. Benchmark the exact packaged candidate
 
-The desktop owns an identity-checked normal then optimized pair through one coordinator. It waits
-for the main-menu marker emitted by Preflight's runtime agent, closes only its exact process
-lifetimes, checks the sealed installation/profile/launcher/runtime/settings identity, and emits one
-versioned result. The benchmark doesn't use desktop input or Accessibility permission. It reports
-startup before and after plus prepared-data disk cost. The packaged result accompanies the established
-development record; optional campaign and combat measurement can follow as a separate advanced tool.
+Run the normal-versus-Preflight startup pair with the engine extracted from or installed by the
+accepted candidate. The harness verifies packaged identity metadata and refuses checkout fallback in
+candidate mode.
 
-The result should show startup before and after, seconds saved, percentage change, exact identities,
-and prepared-data disk cost. Alternating pairs, cooldowns, campaign/combat selection, frame-time
-telemetry, and raw evidence remain optional diagnostic tools.
+Publish the candidate result beside the development record: the current controlled development
+comparison is 89.00 seconds ordinary versus 15.53 seconds with Preflight on the reviewed 83-mod
+profile, with a 15.25-second low. Keep machine, profile, runtime, and candidate identity attached to
+the claim.
 
-**Exit:** **Run benchmark** produces an honest, repeatable baseline-versus-Preflight result or a
-specific refusal.
+**Exit:** the exact distributed engine has a retained startup result.
 
-## 3. Close correctness and lifecycle gaps — complete for candidate freeze
+## 4. Complete the packaged intake canary
 
-Keep testing truncated, stale, missing, and incompatible cache artifacts; symlinked or unusual
-filesystems; `ENOSPC`; killed preparation; restarts; stale PIDs; profile drift between preview and
-apply; and every conflicting pair of launch, preparation, cleanup, profile, update, report, and
-removal operations. Build outputs must carry enough provenance to reject a stale embedded engine.
+Use the accepted candidate's production report-intake path to review disclosure, cancel a partial
+upload, verify cleanup and local ZIP retention, retry, validate the receipt, and delete the case
+through the scoped path. Retain bounded evidence tied to the candidate package identity.
 
-The game scenario covers Fast Rendering, GraphicsLib, BoxUtil, a large mod profile, title and audio
-transitions, campaign notifications, simulation, retreat, save/reload, and clean exit. Unknown game
-or mod versions decline their affected transformations and continue with the original code.
+**Exit:** the final candidate cancel/retry/delete sequence is accepted.
 
-**Exit:** failures remain scoped, explainable, and recoverable without touching the game install.
+## After candidate acceptance
 
-## 4. Freeze an immutable release candidate — next
+Finalize release notes and public copy from the accepted candidate evidence. Attach the reviewed
+checksums, dependency/SBOM material, license and notices, privacy and limitation text, and platform
+install/removal guidance to the same release generation. Publication remains an explicit owner
+operation over the accepted bytes.
 
-Freeze one source revision and adapter catalog, then build macOS, Windows, and Linux packages from
-it. Verify the embedded engine, update signature and origin, report origin, checksums, SBOM,
-licenses, notices, privacy disclosure, install/removal instructions, and absence of proprietary game
-or mod content. Exercise clean install, signed update, rejected signature, rollback, app-only removal,
-and full Preflight-data removal. Any code change creates a new candidate.
+Repository administration and signing configuration have their own live issue owners:
+[#607](https://github.com/teamleaderleo/preflight/issues/607) for branch/tag protection verification
+and [#720](https://github.com/teamleaderleo/preflight/issues/720) for the `release-signing`
+Environment and release-tag admission. Use those issue bodies for current operator state instead of
+copying their settings into this roadmap.
 
-**Exit:** each published byte maps to a reviewed source revision and a completed lifecycle result.
+## Publication policy
 
-## 5. Gather platform evidence — continues through beta
+The maintainer decision recorded in
+[#950](https://github.com/teamleaderleo/preflight/issues/950) treats the 2026-08-07 Fractal Softworks
+request as courtesy correspondence. A reply is outside the publication gate. Preflight remains an
+independent, unofficial project and keeps its existing descriptive-use attribution and disclaimer.
 
-macOS gets the complete local game and package lifecycle. VMware Fusion can establish Windows x64
-package behavior under ARM emulation, including paths, discovery, preparation, launch construction,
-update, and removal; it isn't native performance evidence. Hosted CI proves package and synthetic
-contracts. Native Windows and Linux testers establish game, driver, display-server, and performance
-claims. Linux starts with X11; Wayland limitations remain explicit.
+## During and after beta
 
-**Exit:** each platform claim says whether its evidence came from hosted, emulated, or native work.
+Broader compatibility evidence continues as beta work: reviewed large-mod scenarios, audio/visual
+regressions, simulation and combat coverage, save/reload, frame-time reporting, and additional native
+platform/display paths. Each claim should carry the evidence scope that supports it. Research and
+prototype lanes stay post-RC unless #652 records a concrete candidate failure that changes release
+priority.
 
-## 6. Benchmark the release candidate — harness ready
+## Historical roadmap
 
-Run the built-in normal-versus-Preflight benchmark on the exact candidate and retain its receipt.
-Publish that result beside the established **101 seconds → 15.25 seconds** development progression.
-An alternating multi-run campaign remains available when it answers a useful follow-up question; it
-isn't required to make the existing progression real.
+The 2026-08-11 version is retained as a dated snapshot of the earlier release plan. It contains a
+superseded Fractal-response gate and older sequencing, so use it only as historical context:
 
-The operator harness can now take that exact packaged engine, verify its adjacent manifest and
-SHA-256, bind the session to it, and refuse a checkout fallback. The remaining action is the paired
-run after the candidate revision is frozen.
-
-**Exit:** the exact distributed package has a retained benchmark result and the development record
-keeps its stated machine and profile context.
-
-## 7. Finish presentation and distribution — after candidate acceptance
-
-Capture final screenshots after the interface stops moving. Add platform download buttons, release
-download counts, checksum and OS-warning instructions, update/rollback/removal/privacy/support
-pages, and a readable optimization history. Forum, Reddit, README, and release notes use the same
-reviewed claims and state that Preflight is unofficial, needs a legitimate Starsector installation,
-falls back on uncertainty, and sends no ordinary launch telemetry. If optional failed-run reports
-are enabled, say exactly what they send and that the setting starts off.
-
-Fractal Softworks' reply remains the external publication gate. It doesn't block the engineering
-and packaging work above.
-
-## After the first beta
-
-Further startup work continues only when measurement shows a useful target. Gameplay work starts
-with frame spikes and throughput evidence, then exact mod-specific plans. Additional storage modes,
-signed compatibility advisories, community fixtures, and upstream patches follow the same identity,
-fallback, and evidence rules.
-
-Another startup record, perfect 60 FPS on every mod profile, paid platform signing, a complete mod
-manager, a native game rewrite, Wayland automation, automatic telemetry, and advance support for
-unknown future releases aren't first-beta requirements.
+[Historical 2026-08-11-era snapshot](https://github.com/teamleaderleo/preflight/blob/6bee58e44264d222fded7ad51c04caa013d360be/docs/beta-roadmap.md)

@@ -1,55 +1,53 @@
 # Documentation map
 
-Preflight's documentation includes a product manual, an engineering record, a release-writing set,
-and a large evidence archive. They answer different questions. This page is the shortest route to
-the current answer.
+Preflight's documentation includes a product manual, an engineering record, release writing, and a
+large evidence archive. They answer different questions. This page is the shortest route to the
+current answer.
 
 ## Start here
 
+- [Live release convergence #652](https://github.com/teamleaderleo/preflight/issues/652): current
+  beta blockers, merge order, collision control, and moving `main` coordination.
+- [Release readiness](release-readiness.md): documentation mirror of the four active beta blockers.
+- [Public beta roadmap](beta-roadmap.md): current candidate/platform execution sequence.
+- [Product contract](product-contract.md): current product, compatibility, preset, storage, update,
+  and diagnostics boundaries.
 - [Project overview](../README.md): what Preflight does, current measured results, and development
   status.
-- [Release readiness](release-readiness.md): the blocking work before public distribution.
-- [Public beta roadmap](beta-roadmap.md): the ordered product, benchmark, reliability, package,
-  platform, evidence, and presentation program.
-- [Fractal permission request](fractal-permission-request.md): sent maintainer correspondence and
-  reply-handling checklist.
-- [Product contract](product-contract.md): exact modification, compatibility, preset, storage,
-  update, and diagnostics boundaries.
-- [Packaged capability receipt](capability-receipt.md): the machine-checked writes, child
-  processes, native commands, fixed links, and network endpoints in an exact package.
-- [Optimization history](optimization-history.md): the readable, source-linked account from the
-  roughly 101-second observed worst case through the 15.25-second recorded low, with the latest
-  same-profile medians at 89.00 seconds ordinary and 15.53 seconds with Preflight.
-- [Experiment ledger](experiment-ledger.md): every retained optimization family, including rejected,
-  corrected, diagnostic, and deferred branches.
-- [Performance and storage tradeoffs](performance-storage-tradeoffs.md): what Balanced, Fastest,
-  prepared audio, redundancy, and safe pruning cost and buy.
-- [Downloads and installation](downloads.md): planned artifacts and current private package process.
+- [Publication decision #950](https://github.com/teamleaderleo/preflight/issues/950): the 2026-08-20
+  maintainer decision that the Fractal Softworks request is courtesy correspondence and a reply is
+  outside the publication gate.
+- [Fractal permission request](fractal-permission-request.md): the retained 2026-08-07 courtesy
+  correspondence and reply-handling record; use #950 for publication policy.
+- [Packaged capability receipt](capability-receipt.md): machine-checked writes, child processes,
+  native commands, fixed links, and network endpoints in an exact package.
+- [Optimization history](optimization-history.md): source-linked development performance history,
+  including the controlled 89.00-second ordinary and 15.53-second Preflight medians and the
+  15.25-second low.
+- [Startup benchmark](startup-benchmark.md): current measurement protocol and exact packaged-engine
+  candidate mode.
+- [Experiment ledger](experiment-ledger.md): retained optimization families, including rejected,
+  corrected, diagnostic, and deferred work.
+- [Performance and storage tradeoffs](performance-storage-tradeoffs.md): current preset preparation
+  costs and storage behavior.
+- [Downloads and installation](downloads.md): planned public artifacts and current candidate/publication
+  boundary.
 - [Public beta release writing kit](release-post-draft.md): release headline/deck copy, GitHub Release
-  body source, package/support language, short descriptions, and placeholders that must be replaced
-  with exact candidate facts.
+  body source, package/support language, short descriptions, and candidate placeholders.
 - [Preflight 0.1.0 draft release notes](releases/0.1.0.md): first-beta release-note source with the
-  current feature inventory and explicit candidate placeholders.
-- [Leo's beta announcement draft](beta-announcement-leo-draft.md): the shorter forum/Reddit post with
-  the result first, the broader product immediately afterward, and instructions at the bottom.
-- [Long beta announcement draft](beta-announcement-draft.md): full public source copy covering the
-  performance investigation, desktop features, linter, privacy/support, updates, and beta limits.
-- [Mod-author public writing draft](mod-author-post-draft.md): the standalone pitch for `lint`,
-  `scan`, and `analyze setup`, the 86-mod calibration story, concrete findings, and the clearly
-  separated exploratory asset-lab material.
-- [Leo's talking points](leo-talking-points.md): the public-writing crib sheet for numbers, product
-  features, story angles, trust/privacy answers, claim qualifiers, and current release work.
-- [Public-writing sales inventory](public-writing-sales-inventory.md): intentionally overcomplete
-  hook reservoir by audience, including player candy, power-user features, trust/release flexes,
-  harder wording examples, and publication boundaries.
-- [Patreon page draft](patreon-page-draft.md): creator-page About, four membership tiers, welcome
-  note, first current post, follow-up post queue, and image notes.
-- [GitHub Sponsors page draft](github-sponsors-page-draft.md): short bio, introduction, goal,
-  featured-work choices, monthly tiers, one-time support, and the activation checklist.
-- [Known limitations](known-limitations.md): the current platform, evidence, storage, and fallback
-  limits.
-- [Cross-platform evidence plan](cross-platform-evidence-plan.md): what hosted, emulated, and native
-  checks can establish before a platform is accepted.
+  current feature inventory and candidate placeholders.
+- [Leo's beta announcement draft](beta-announcement-leo-draft.md): shorter forum/Reddit post.
+- [Long beta announcement draft](beta-announcement-draft.md): fuller public source copy.
+- [Mod-author public writing draft](mod-author-post-draft.md): standalone pitch for `lint`, `scan`,
+  and `analyze setup`.
+- [Leo's talking points](leo-talking-points.md): public-writing crib sheet for numbers, features,
+  trust/privacy answers, claim qualifiers, and current release work.
+- [Public-writing sales inventory](public-writing-sales-inventory.md): overcomplete hook reservoir by
+  audience; treat dated release-status language inside it as copy history unless refreshed against
+  #652 and #950.
+- [Known limitations](known-limitations.md): current platform, evidence, storage, and fallback limits.
+- [Cross-platform evidence plan](cross-platform-evidence-plan.md): claim boundary for hosted,
+  emulated, and native checks.
 - [VMware Fusion acceptance](fusion-acceptance.md): deterministic Windows package and Ubuntu ARM64
   portable checks that use no game content.
 - [Versioning and updates](versioning-and-updates.md): application releases, game/mod compatibility,
@@ -81,24 +79,37 @@ the current answer.
 - [What generalizes](what-generalizes.md)
 - [Desktop application research](desktop-app-research.md)
 
+Repository administration stays with its live issues: use
+[#607](https://github.com/teamleaderleo/preflight/issues/607) for branch/tag protection verification
+and [#720](https://github.com/teamleaderleo/preflight/issues/720) for the `release-signing`
+Environment and release-tag admission. Dated runbooks can preserve the history without owning live
+settings.
+
 ## Engineering record
 
-The [roadmap](roadmap.md), [optimization north star](optimization-north-star.md), and focused cache,
-audio, texture, resource-index, JFR, and bytecode documents record how the current design was
-reached. Some open with measurements or priorities that were current at the time. Read them as a
-chronological laboratory notebook unless they explicitly say they are the current product contract.
+The [roadmap](roadmap.md), [optimization north star](optimization-north-star.md), focused cache,
+audio, texture, resource-index, JFR, bytecode documents, and the
+[historical implementation handoff](next-llm-handoff.md) record how the current implementation was
+reached. Some contain headings such as “current,” “next,” or “release program” that were accurate on
+their recorded date. Read those headings as dated snapshots unless the document explicitly delegates
+live state to #652.
 
-The [evidence archive](evidence/) contains immutable run reports and decision records. Historical
-numbers and rejected approaches remain unchanged after later work supersedes them. The large
-[engineering handoff](next-llm-handoff.md) is an operational ledger for continued work.
+The [evidence archive](evidence/) contains retained run reports and decision records. Historical
+numbers and rejected approaches stay unchanged after later work supersedes them. When a newer
+controlled result changes the status of an older benchmark, keep both and let
+[Optimization history](optimization-history.md) explain the chronology.
+
+Do not use durable documentation as a moving-SHA dashboard. Exact revision identities belong in
+immutable evidence, PRs, commits, or the live coordination issue while work is in flight.
 
 When documents disagree, use this precedence:
 
 1. current code and automated tests;
-2. the product contract and release-readiness checklist;
-3. current architecture and user documentation;
-4. the dated engineering record; and
-5. individual evidence reports, interpreted in their recorded context.
+2. #652 for live beta blockers, merge order, and moving release coordination;
+3. the product contract, release-readiness mirror, and current user documentation;
+4. current architecture documentation;
+5. the dated engineering record; and
+6. individual evidence reports, interpreted in their recorded context.
 
 ## Writing voice
 

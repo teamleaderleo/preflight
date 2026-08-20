@@ -1,11 +1,13 @@
 # Product, compatibility, and support-upload contract
 
 **Status:** executable product boundary for the desktop beta
-**Updated:** 2026-08-18
+**Updated:** 2026-08-20
 
-Public distribution hasn't started. The product is named **Preflight**; Fractal Softworks has been
-asked for guidance on descriptive use of the Starsector name, the disclaimer, and the integration
-approach. This contract describes the intended release; it isn't a claim of endorsement.
+Public distribution hasn't started. The product is named **Preflight**. The maintainer decision
+recorded on 2026-08-20 in [#950](https://github.com/teamleaderleo/preflight/issues/950) treats the
+2026-08-07 Fractal Softworks request as courtesy correspondence; a reply is outside the publication
+gate. Preflight remains an independent, unofficial project with the existing descriptive-use
+attribution and disclaimer. This contract describes product behavior and makes no endorsement claim.
 
 ## A shared engine, several entry points
 
