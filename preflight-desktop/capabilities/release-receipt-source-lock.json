@@ -8,7 +8,7 @@
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/IntegrationOwnership.java": "96bab1d7ab6592e8e11bdae47d29e1e656b6dc01f9a231424165e302276fce54",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/IntegrationParentDirectory.java": "9129d507df131eed0e2aca8f73fa056eebd612ff5312a0145d38bd7c597889fa",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/JvmMemorySettings.java": "421c15ee0712847f998a7c4d1bc8f6b2c072993d21c5e32f8f3ba2575fae7e72",
-    "preflight-cli/src/main/java/dev/starsector/preflight/cli/LaunchLedger.java": "c2545f4d7e67a21becbad18da8213ac5114c6a927cc4bbdb51456bbec9264bf4",
+    "preflight-cli/src/main/java/dev/starsector/preflight/cli/LaunchLedger.java": "43408c6fa5def4d45e14df77406cfa9f257ec11e7836ff139caa662d8a478ad9",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/LaunchSettingsCommand.java": "cccdf3396307a9528a375c99dc1668669d8b54b07cc2ec23f87d54c192ab94ff",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/PreflightHome.java": "32bd3cb14080f145ba2eec5d0570718d7c93f9e50c9e07f7cc58ae740b5f1c1a",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/ProfileCommand.java": "7af34c67170e7c4f313f26527c8fac0f5b55fa331f49031e54579b235beb4a7a",
