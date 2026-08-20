@@ -166,7 +166,7 @@ final class ResourceProfileResolutionDiff {
         values.put("comparisonScope", "resource-index-resolution-and-provider-snapshot-metadata");
         values.put("filesystemRead", false);
         values.put("sourceGenerationBound", false);
-        values.put("providerSourceIdentity", "core-root-id-canonical-root-relative-path");
+        values.put("providerSourceIdentity", "core-root-id-normalized-root-relative-path");
         values.put("rootIndexScope", "profile-local-provider-occurrence");
         values.put("totals", totals);
         values.put("changes", List.copyOf(changes));
