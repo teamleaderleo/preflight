@@ -3375,6 +3375,7 @@ dependencies = [
  "async-stream",
  "futures-util",
  "getrandom 0.4.3",
+ "libc",
  "png 0.18.1",
  "reqwest",
  "serde",
