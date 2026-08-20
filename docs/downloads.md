@@ -17,19 +17,12 @@ The first public tagged release is expected to include:
 - `preflight.jar`, its SHA-256, and standalone `.zip` / `.tar.gz` archives;
 - `LICENSE`, `THIRD_PARTY_NOTICES.md`, `PRIVACY.md`, and `KNOWN_LIMITATIONS.md`;
 - `DEPENDENCY_INVENTORY.md`, the release CycloneDX SBOMs, and their checksum manifest;
-- Windows: an NSIS `.exe` installer;
-- macOS: an Apple-silicon `.dmg`;
-- Linux: `.AppImage` and `.deb` packages;
-- platform-qualified SHA-256 manifests;
+- Windows: `Preflight-Windows-x86_64.exe` with `SHA256SUMS-win32-x64.txt`;
+- macOS: `Preflight-macOS-arm64.dmg` with `SHA256SUMS-darwin-arm64.txt`;
+- Linux: `Preflight-Linux-x86_64.AppImage` and `Preflight-Linux-x86_64.deb` with
+  `SHA256SUMS-linux-x64.txt`;
 - signed updater artifacts where the desktop updater applies; and
 - `latest.json` plus its checksum for the fixed update feed.
-
-Stable native package names are expected to remain:
-
-- `Preflight-Windows-x86_64.exe`
-- `Preflight-macOS-arm64.dmg`
-- `Preflight-Linux-x86_64.AppImage`
-- `Preflight-Linux-x86_64.deb`
 
 The canonical public destination, once a release exists, is:
 
@@ -55,23 +48,56 @@ instead of copying an older runbook.
 Public publication is a separate reviewed operation over the accepted candidate bytes. A new source
 revision produces a new candidate generation and new candidate evidence.
 
-## Platform notes for the first beta
+## Verify a native download before opening it
 
-### Windows
-
-The first beta uses an NSIS installer without paid Authenticode identity. State the expected
-SmartScreen warning before download and publish the exact package checksum beside the installer.
+Use the checksum manifest downloaded from the same accepted release. These commands verify only the
+named package; they do not disable an operating-system security control.
 
 ### macOS
 
+```bash
+grep '  Preflight-macOS-arm64.dmg$' SHA256SUMS-darwin-arm64.txt | shasum -a 256 -c -
+```
+
 The beta package is Apple silicon. Intel macOS remains outside the first package matrix. The DMG
-ships without paid Developer ID notarization, so installation guidance should explain the expected
-Gatekeeper flow and provide the exact checksum.
+ships without paid Developer ID notarization, so Gatekeeper can block the first launch. After the
+checksum succeeds, use **System Settings → Privacy & Security** and the specific **Open Anyway**
+control for Preflight if macOS presents it. Do not disable Gatekeeper globally or strip quarantine
+metadata broadly.
+
+### Windows
+
+In PowerShell:
+
+```powershell
+$expected = (Get-Content SHA256SUMS-win32-x64.txt | Where-Object { $_ -match '  Preflight-Windows-x86_64.exe$' }).Substring(0, 64).ToLowerInvariant()
+$actual = (Get-FileHash -Algorithm SHA256 .\Preflight-Windows-x86_64.exe).Hash.ToLowerInvariant()
+$actual -eq $expected
+```
+
+The first beta uses an NSIS installer without paid Authenticode identity, so SmartScreen can warn on
+first run. After the checksum succeeds, use the warning's **More info → Run anyway** path for that
+specific installer if Windows presents it. Do not disable SmartScreen or antivirus globally.
 
 ### Linux
 
-Publish both AppImage and Debian package forms for x86-64. The `.deb` follows the package manager for
-updates; the AppImage is the desktop self-update artifact where the signed updater path applies.
+For the Debian package:
+
+```bash
+grep '  Preflight-Linux-x86_64.deb$' SHA256SUMS-linux-x64.txt | sha256sum -c -
+sudo apt install ./Preflight-Linux-x86_64.deb
+```
+
+For the AppImage:
+
+```bash
+grep '  Preflight-Linux-x86_64.AppImage$' SHA256SUMS-linux-x64.txt | sha256sum -c -
+chmod +x Preflight-Linux-x86_64.AppImage
+./Preflight-Linux-x86_64.AppImage
+```
+
+The `.deb` follows the package manager for updates; the AppImage is the desktop self-update artifact
+where the signed updater path applies.
 
 Desktop packages include the reviewed Preflight Java runtime and do not require a system JDK for
 ordinary use.
