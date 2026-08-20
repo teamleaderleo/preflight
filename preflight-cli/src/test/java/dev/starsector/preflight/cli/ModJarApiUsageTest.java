@@ -75,21 +75,28 @@ class ModJarApiUsageTest {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> totals = (Map<String, Object>) first.values().get("totals");
+        assertEquals(4L, count(totals, "auditedJars"));
         assertEquals(4L, count(totals, "candidateJars"));
+        assertEquals(0L, count(totals, "invalidAuditedJars"));
         assertEquals(4L, count(totals, "scannedJars"));
         assertEquals(5L, count(totals, "scannedClassFiles"));
         assertEquals(0L, count(totals, "unreadableClassFiles"));
+        assertEquals(true, totals.get("providerInventoryComplete"));
         assertEquals(2L, count(totals, "staticModEdges"));
         assertEquals(1L, count(totals, "undeclaredStaticModEdges"));
         assertEquals(2L, count(totals, "modsReferencingStarsectorApi"));
         assertEquals(1L, count(totals, "ambiguousStaticReferences"));
+        assertEquals(0L, count(totals, "incompleteProviderResolutionReferences"));
         assertEquals(false, totals.get("truncated"));
+        assertTrue(staticComplete(first, "declared_consumer"));
+        assertTrue(staticComplete(first, "optional_consumer"));
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> edges =
                 (List<Map<String, Object>>) first.values().get("staticModReferences");
         Map<String, Object> declaredEdge = edge(edges, "declared_consumer", "library");
         assertEquals(true, declaredEdge.get("declaredDependency"));
+        assertEquals(true, declaredEdge.get("providerInventoryComplete"));
         assertEquals(List.of("library.Api"), declaredEdge.get("sampleClasses"));
 
         Map<String, Object> optionalEdge = edge(edges, "optional_consumer", "library");
@@ -101,6 +108,7 @@ class ModJarApiUsageTest {
                 (List<Map<String, Object>>) first.values().get("starsectorApiUsage");
         assertTrue(api(apiUsage, "declared_consumer").get("sampleClasses").toString()
                 .contains("com.fs.starfarer.api.Global"));
+        assertEquals(true, api(apiUsage, "declared_consumer").get("staticScanComplete"));
         assertTrue(api(apiUsage, "optional_consumer").get("sampleClasses").toString()
                 .contains("com.fs.starfarer.api.combat.ShipAPI"));
 
@@ -110,10 +118,59 @@ class ModJarApiUsageTest {
         assertEquals("declared_consumer", ambiguous.get(0).get("fromMod"));
         assertEquals("shared.Ambiguous", ambiguous.get(0).get("className"));
         assertEquals(List.of("library", "second_provider"), ambiguous.get(0).get("providerMods"));
+        assertEquals(true, ambiguous.get(0).get("providerInventoryComplete"));
 
         String json = first.toJson();
         assertFalse(json.contains(temporaryDirectory.toString()));
         assertTrue(json.contains("Static bytecode evidence only"));
+    }
+
+    @Test
+    void providerIndexTruncationCannotManufactureAUniqueCrossModEdge() throws Exception {
+        Path install = temporaryDirectory.resolve("ProviderCompleteness");
+        Path mods = install.resolve("mods");
+
+        Path firstProvider = mods.resolve("FirstProvider");
+        metadata(firstProvider, """
+                {"id":"first_provider","jars":["first.jar"]}
+                """);
+        jar(firstProvider.resolve("first.jar"), Map.of(
+                "shared/Api.class", classFile("shared.Api")));
+
+        Path secondProvider = mods.resolve("SecondProvider");
+        metadata(secondProvider, """
+                {"id":"second_provider","jars":["second.jar"]}
+                """);
+        jar(secondProvider.resolve("second.jar"), Map.of(
+                "shared/Api.class", classFile("shared.Api")));
+
+        Path consumer = mods.resolve("Consumer");
+        metadata(consumer, """
+                {"id":"consumer","jars":["consumer.jar"]}
+                """);
+        jar(consumer.resolve("consumer.jar"), Map.of(
+                "consumer/Main.class", classFile("consumer.Main", "shared.Api")));
+
+        enable(install, List.of("first_provider", "second_provider", "consumer"));
+        ClasspathAudit.Result classpath = ClasspathAudit.scan(install);
+        ModJarApiUsage.Result result = ModJarApiUsage.scan(classpath, 1);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> totals = (Map<String, Object>) result.values().get("totals");
+        assertEquals(false, totals.get("providerInventoryComplete"));
+        assertEquals(0L, count(totals, "staticModEdges"));
+        assertEquals(1L, count(totals, "incompleteProviderResolutionReferences"));
+        assertTrue(staticComplete(result, "consumer"),
+                "provider-index truncation must stay separate from the source-reference scan completeness");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> samples =
+                (List<Map<String, Object>>) result.values().get("incompleteProviderResolutionSamples");
+        assertEquals(1, samples.size());
+        assertEquals("consumer", samples.get(0).get("fromMod"));
+        assertEquals("shared.Api", samples.get(0).get("className"));
+        assertEquals(List.of("first_provider"), samples.get(0).get("knownProviderMods"));
+        assertEquals(false, samples.get(0).get("providerInventoryComplete"));
     }
 
     @Test
@@ -141,6 +198,7 @@ class ModJarApiUsageTest {
         ModJarApiUsage.Result result = ModJarApiUsage.scan(install);
         @SuppressWarnings("unchecked")
         Map<String, Object> totals = (Map<String, Object>) result.values().get("totals");
+        assertEquals(true, totals.get("providerInventoryComplete"));
         assertEquals(0L, count(totals, "staticModEdges"));
         assertEquals(1L, count(totals, "ambiguousStaticReferences"));
 
@@ -153,7 +211,7 @@ class ModJarApiUsageTest {
     }
 
     @Test
-    void isolatesMalformedClassesAndEntryIdentityMismatches() throws Exception {
+    void partialClassScanRetainsPositiveApiEvidenceButMarksAbsenceIncomplete() throws Exception {
         Path install = temporaryDirectory.resolve("BrokenInstall");
         Path mod = install.resolve("mods/Broken");
         metadata(mod, """
@@ -170,13 +228,35 @@ class ModJarApiUsageTest {
         Map<String, Object> totals = (Map<String, Object>) result.values().get("totals");
         assertEquals(1L, count(totals, "scannedClassFiles"));
         assertEquals(2L, count(totals, "unreadableClassFiles"));
+        assertEquals(false, totals.get("providerInventoryComplete"));
         assertEquals(1L, count(totals, "modsReferencingStarsectorApi"));
+        assertFalse(staticComplete(result, "broken"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> apiUsage =
+                (List<Map<String, Object>>) result.values().get("starsectorApiUsage");
+        Map<String, Object> api = api(apiUsage, "broken");
+        assertEquals(false, api.get("staticScanComplete"));
+        assertEquals(true, api.get("truncated"));
+        assertTrue(api.get("sampleClasses").toString().contains("com.fs.starfarer.api.Global"));
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> jarScans = (List<Map<String, Object>>) result.values().get("jarScans");
         assertEquals(2L, ((Number) jarScans.get(0).get("unreadableClassFiles")).longValue());
+        assertEquals(false, jarScans.get(0).get("complete"));
         assertEquals(2, ((List<?>) jarScans.get(0).get("errors")).size());
         assertFalse((Boolean) jarScans.get(0).get("truncated"));
+    }
+
+    private static boolean staticComplete(ModJarApiUsage.Result result, String modId) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> values =
+                (List<Map<String, Object>>) result.values().get("modStaticCompleteness");
+        return values.stream()
+                .filter(value -> modId.equals(value.get("modId")))
+                .map(value -> Boolean.TRUE.equals(value.get("staticScanComplete")))
+                .findFirst()
+                .orElse(false);
     }
 
     private static long count(Map<String, Object> totals, String key) {
