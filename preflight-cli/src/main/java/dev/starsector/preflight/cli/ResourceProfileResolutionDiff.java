@@ -43,9 +43,9 @@ final class ResourceProfileResolutionDiff {
         long addedPaths = 0;
         long removedPaths = 0;
         long providerSourceSequenceChangedPaths = 0;
-        long providerSnapshotMetadataChangedPaths = 0;
+        long providerSnapshotMetadataOnlyChangedPaths = 0;
         long winnerSourceChangedPaths = 0;
-        long winnerSnapshotMetadataChangedPaths = 0;
+        long winnerSnapshotMetadataOnlyChangedPaths = 0;
         boolean detailsTruncated = false;
         List<Map<String, Object>> changes = new ArrayList<>();
 
@@ -118,14 +118,14 @@ final class ResourceProfileResolutionDiff {
                 if (flags.providerSourceSequenceChanged()) {
                     providerSourceSequenceChangedPaths++;
                 }
-                if (flags.providerSnapshotMetadataChanged()) {
-                    providerSnapshotMetadataChangedPaths++;
+                if (flags.providerSnapshotMetadataOnlyChanged()) {
+                    providerSnapshotMetadataOnlyChangedPaths++;
                 }
                 if (flags.winnerSourceChanged()) {
                     winnerSourceChangedPaths++;
                 }
-                if (flags.winnerSnapshotMetadataChanged()) {
-                    winnerSnapshotMetadataChangedPaths++;
+                if (flags.winnerSnapshotMetadataOnlyChanged()) {
+                    winnerSnapshotMetadataOnlyChangedPaths++;
                 }
                 if (changes.size() < maxChangeDetails) {
                     changes.add(detail(
@@ -152,9 +152,9 @@ final class ResourceProfileResolutionDiff {
         totals.put("addedPaths", addedPaths);
         totals.put("removedPaths", removedPaths);
         totals.put("providerSourceSequenceChangedPaths", providerSourceSequenceChangedPaths);
-        totals.put("providerSnapshotMetadataChangedPaths", providerSnapshotMetadataChangedPaths);
+        totals.put("providerSnapshotMetadataOnlyChangedPaths", providerSnapshotMetadataOnlyChangedPaths);
         totals.put("winnerSourceChangedPaths", winnerSourceChangedPaths);
-        totals.put("winnerSnapshotMetadataChangedPaths", winnerSnapshotMetadataChangedPaths);
+        totals.put("winnerSnapshotMetadataOnlyChangedPaths", winnerSnapshotMetadataOnlyChangedPaths);
         totals.put("changeDetailsReturned", changes.size());
         totals.put("changeDetailsTruncated", detailsTruncated);
 
@@ -174,6 +174,7 @@ final class ResourceProfileResolutionDiff {
                 "This comparison uses only the two supplied immutable ResourceIndex snapshots and performs no filesystem reads.",
                 "Provider source equality compares core/mod identity, root ID, and provider-relative path while preserving sequence and multiplicity.",
                 "rootIndex remains visible inside each side's ownership explanation but is local to that profile snapshot and is not cross-profile identity.",
+                "Metadata-only counters apply only when the corresponding provider or winner source identity stayed the same.",
                 "Provider size and modifiedMillis differences are ResourceIndex snapshot metadata changes, not exact content-generation evidence.",
                 "Added, removed, and changed resources are information; this comparison does not classify overrides as errors or intentional/unintentional."));
         return new Result(values);
@@ -186,34 +187,34 @@ final class ResourceProfileResolutionDiff {
             List<ResourceIndex.Provider> afterProviders) {
         boolean sourceSequenceChanged = !sameSourceSequence(
                 beforeIndex, beforeProviders, afterIndex, afterProviders);
-        boolean providerMetadataChanged = !sourceSequenceChanged
+        boolean providerMetadataOnlyChanged = !sourceSequenceChanged
                 && !sameSnapshotMetadata(beforeProviders, afterProviders);
 
         ResourceIndex.Provider beforeWinner = beforeProviders.get(beforeProviders.size() - 1);
         ResourceIndex.Provider afterWinner = afterProviders.get(afterProviders.size() - 1);
         boolean winnerSourceChanged = !sameSource(
                 beforeIndex, beforeWinner, afterIndex, afterWinner);
-        boolean winnerMetadataChanged = !winnerSourceChanged
+        boolean winnerMetadataOnlyChanged = !winnerSourceChanged
                 && !sameSnapshotMetadata(beforeWinner, afterWinner);
 
         List<String> reasons = new ArrayList<>(4);
         if (sourceSequenceChanged) {
             reasons.add("provider-source-sequence-changed");
         }
-        if (providerMetadataChanged) {
-            reasons.add("provider-snapshot-metadata-changed");
+        if (providerMetadataOnlyChanged) {
+            reasons.add("provider-snapshot-metadata-only-changed");
         }
         if (winnerSourceChanged) {
             reasons.add("winner-source-changed");
         }
-        if (winnerMetadataChanged) {
-            reasons.add("winner-snapshot-metadata-changed");
+        if (winnerMetadataOnlyChanged) {
+            reasons.add("winner-snapshot-metadata-only-changed");
         }
         return new ChangeFlags(
                 sourceSequenceChanged,
-                providerMetadataChanged,
+                providerMetadataOnlyChanged,
                 winnerSourceChanged,
-                winnerMetadataChanged,
+                winnerMetadataOnlyChanged,
                 List.copyOf(reasons));
     }
 
@@ -282,9 +283,9 @@ final class ResourceProfileResolutionDiff {
         value.put("changeReasons", reasons);
         if (flags != null) {
             value.put("providerSourceSequenceChanged", flags.providerSourceSequenceChanged());
-            value.put("providerSnapshotMetadataChanged", flags.providerSnapshotMetadataChanged());
+            value.put("providerSnapshotMetadataOnlyChanged", flags.providerSnapshotMetadataOnlyChanged());
             value.put("winnerSourceChanged", flags.winnerSourceChanged());
-            value.put("winnerSnapshotMetadataChanged", flags.winnerSnapshotMetadataChanged());
+            value.put("winnerSnapshotMetadataOnlyChanged", flags.winnerSnapshotMetadataOnlyChanged());
         }
         value.put("before", ResourceOwnershipSummary.explain(before, logicalPath));
         value.put("after", ResourceOwnershipSummary.explain(after, logicalPath));
@@ -307,12 +308,12 @@ final class ResourceProfileResolutionDiff {
 
     private record ChangeFlags(
             boolean providerSourceSequenceChanged,
-            boolean providerSnapshotMetadataChanged,
+            boolean providerSnapshotMetadataOnlyChanged,
             boolean winnerSourceChanged,
-            boolean winnerSnapshotMetadataChanged,
+            boolean winnerSnapshotMetadataOnlyChanged,
             List<String> reasons) {
         boolean changed() {
-            return providerSourceSequenceChanged || providerSnapshotMetadataChanged;
+            return providerSourceSequenceChanged || providerSnapshotMetadataOnlyChanged;
         }
     }
 }
