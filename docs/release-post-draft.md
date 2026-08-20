@@ -190,7 +190,7 @@ not requirements for every installation.
 
 ## What Preflight leaves alone
 
-Preflight does not permanently patch Starsector or mod JARs, executables, assets, activation data, or
+Preflight does not permanently patch Starsector or mod JARs, executables, assets, or
 saves. Runtime changes live inside the launched game JVM and disappear when it exits. Prepared data
 lives in Preflight's own area.
 

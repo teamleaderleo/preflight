@@ -36,7 +36,7 @@ signed updates, and a mod linter.
 - **Measure your own result.** The desktop benchmark compares a normal launch with a Preflight launch
   on the current installation. **Copy result** produces a compact shareable comparison without raw
   evidence, private paths, or logs.
-- **Track Starsector playtime.** A durable local ledger follows sessions launched through Preflight
+- **Track Starsector playtime.** A bounded local play-history ledger follows sessions launched through Preflight
   even if the desktop minimizes or exits afterward. **Copy playtime** shares total/session context,
   and the engine can export versioned JSON plus spreadsheet-safe CSV.
 - **Keep named mod profiles.** Save, search, switch, rename, duplicate, and delete profiles. Switching
@@ -134,7 +134,7 @@ happened in that run rather than what another machine should expect.
   tracks which adapters ran, declined, or failed.
 - **Benchmark.** The permission-free desktop benchmark compares the same sealed installation and
   profile through normal and Preflight launch paths, then retains one versioned result.
-- **Playtime.** A durable local ledger totals how long Starsector remains open across launches that
+- **Playtime.** A bounded local play-history ledger totals how long Starsector remains open across launches that
   Preflight can observe. It continues recording when the desktop minimizes or exits after launch.
   The UI can copy a bounded summary and the engine can export versioned JSON or CSV.
 - **Profiles.** Named mod profiles retain their own identities and prepared data. Switching a profile
@@ -184,7 +184,7 @@ It does not need Accessibility permission or click through the game on your beha
 
 ## Compatibility and containment
 
-Preflight does not rewrite game or mod JARs, executables, assets, activation data, or saves. Runtime
+Preflight does not rewrite game or mod JARs, executables, assets, or saves. Runtime
 changes exist only in the launched JVM and disappear when the game exits. Two explicit, backed-up
 features can update game-owned preferences: profile activation and the launch-settings editor.
 

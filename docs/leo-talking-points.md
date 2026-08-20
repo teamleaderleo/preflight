@@ -257,7 +257,7 @@ compiler seam to Fast Rendering rather than trying to double-own it.
 
 ## The trust explanation
 
-Preflight does not rewrite Starsector or mod JARs, executables, assets, activation data, or saves.
+Preflight does not rewrite Starsector or mod JARs, executables, assets, or saves.
 Runtime optimizations live inside the launched game JVM and disappear when it exits.
 
 If installed code or prepared evidence differs from what Preflight recognizes, the affected shortcut
