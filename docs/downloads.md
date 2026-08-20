@@ -31,6 +31,9 @@ Stable native package names are expected to remain:
 - `Preflight-Linux-x86_64.AppImage`
 - `Preflight-Linux-x86_64.deb`
 
+Their platform checksum manifests are `SHA256SUMS-win32-x64.txt`,
+`SHA256SUMS-darwin-arm64.txt`, and `SHA256SUMS-linux-x64.txt`.
+
 The canonical public destination, once a release exists, is:
 
 ```text
@@ -62,16 +65,60 @@ revision produces a new candidate generation and new candidate evidence.
 The first beta uses an NSIS installer without paid Authenticode identity. State the expected
 SmartScreen warning before download and publish the exact package checksum beside the installer.
 
+Verify the installer against the manifest before running it. In PowerShell, the final expression
+must return `True`:
+
+```powershell
+$actual = (Get-FileHash .\Preflight-Windows-x86_64.exe -Algorithm SHA256).Hash.ToLower()
+$line = (Get-Content .\SHA256SUMS-win32-x64.txt | Select-String '  Preflight-Windows-x86_64.exe$').Line
+$expected = ($line -split '\s+')[0]
+$actual -eq $expected
+```
+
+If Windows shows **Windows protected your PC**, and the source and digest are correct and local
+policy permits the install, use **More info → Run anyway**. Preflight does not ask users to disable
+SmartScreen or another system-wide protection.
+
 ### macOS
 
 The beta package is Apple silicon. Intel macOS remains outside the first package matrix. The DMG
 ships without paid Developer ID notarization, so installation guidance should explain the expected
 Gatekeeper flow and provide the exact checksum.
 
+From the download directory, verify the DMG before opening it:
+
+```bash
+grep '  Preflight-macOS-arm64.dmg$' SHA256SUMS-darwin-arm64.txt | shasum -a 256 -c -
+```
+
+If Gatekeeper blocks the verified app after the first open attempt, use **System Settings → Privacy
+& Security → Open Anyway** for that app. Preflight does not ask users to turn off Gatekeeper or
+apply a system-wide override.
+
 ### Linux
 
 Publish both AppImage and Debian package forms for x86-64. The `.deb` follows the package manager for
 updates; the AppImage is the desktop self-update artifact where the signed updater path applies.
+
+Verify the package selected for installation from the download directory:
+
+```bash
+grep '  Preflight-Linux-x86_64.deb$' SHA256SUMS-linux-x64.txt | sha256sum -c -
+grep '  Preflight-Linux-x86_64.AppImage$' SHA256SUMS-linux-x64.txt | sha256sum -c -
+```
+
+For Debian-family systems, install the verified package with:
+
+```bash
+sudo apt install ./Preflight-Linux-x86_64.deb
+```
+
+For the portable AppImage:
+
+```bash
+chmod +x Preflight-Linux-x86_64.AppImage
+./Preflight-Linux-x86_64.AppImage
+```
 
 Desktop packages include the reviewed Preflight Java runtime and do not require a system JDK for
 ordinary use.
