@@ -123,6 +123,7 @@
       "unit": "s",
       "publishedIn": [
         "README.md",
+        "docs/beta-announcement-draft.md",
         "docs/optimization-history.md"
       ],
       "evidence": "docs/evidence/2026-08-15-controlled-vanilla-fast-campaign.md",
