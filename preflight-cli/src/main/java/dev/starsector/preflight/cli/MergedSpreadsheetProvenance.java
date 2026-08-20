@@ -41,7 +41,9 @@ final class MergedSpreadsheetProvenance {
 
         List<Map<String, Object>> providerReports = new ArrayList<>();
         Map<RowKey, KeyContributors> contributions = new TreeMap<>();
+        boolean providerEvidenceTruncated = false;
         boolean keysTruncated = false;
+        boolean contributorsTruncated = false;
         long parsedProviders = 0;
         long keyableProviders = 0;
         long providersWithErrors = 0;
@@ -69,6 +71,7 @@ final class MergedSpreadsheetProvenance {
             duplicateKeyRows += scan.duplicateKeyRows();
             blankKeyRows += scan.blankKeyRows();
             rowsMissingKeyCells += scan.rowsMissingKeyCells();
+            providerEvidenceTruncated |= scan.truncated();
 
             ProviderIdentity identity = new ProviderIdentity(provider.rootIndex(), provider.relativePath());
             for (Map.Entry<RowKey, Integer> entry : scan.rowCounts().entrySet()) {
@@ -82,14 +85,16 @@ final class MergedSpreadsheetProvenance {
                     contributions.put(entry.getKey(), existing);
                 }
                 existing.add(identity, entry.getValue());
-                keysTruncated |= existing.truncated();
+                contributorsTruncated |= existing.truncated();
             }
-            keysTruncated |= scan.truncated();
         }
 
+        boolean anyTruncated = providersTruncated
+                || providerEvidenceTruncated
+                || keysTruncated
+                || contributorsTruncated;
         boolean completeForRequestedKeys = !allProviders.isEmpty()
-                && !providersTruncated
-                && !keysTruncated
+                && !anyTruncated
                 && providersWithErrors == 0
                 && rowsMissingKeyCells == 0;
         Map<String, Object> totals = new LinkedHashMap<>();
@@ -105,8 +110,10 @@ final class MergedSpreadsheetProvenance {
         totals.put("blankKeyRows", blankKeyRows);
         totals.put("rowsMissingKeyCells", rowsMissingKeyCells);
         totals.put("providersTruncated", providersTruncated);
+        totals.put("providerEvidenceTruncated", providerEvidenceTruncated);
         totals.put("keysTruncated", keysTruncated);
-        totals.put("truncated", providersTruncated || keysTruncated);
+        totals.put("contributorsTruncated", contributorsTruncated);
+        totals.put("truncated", anyTruncated);
         totals.put("completeForRequestedKeys", completeForRequestedKeys);
 
         Map<String, Object> values = new LinkedHashMap<>();
@@ -129,7 +136,7 @@ final class MergedSpreadsheetProvenance {
                 "The profile fingerprint binds provider selection/order; row bytes are current reads from those resolved provider paths, not exact generation-bound content evidence.",
                 "It does not establish Starsector's final merged-row winner or reproduce the game's spreadsheet merge policy.",
                 "Duplicate keys inside one provider remain explicit instead of being silently collapsed into an ownership claim.",
-                "completeForRequestedKeys is false when a provider could not be parsed/keyed, a keyed row was incomplete, or a bound truncated evidence.",
+                "Provider, provider-evidence, key-set, and contributor truncation are reported separately; any of them makes completeForRequestedKeys false.",
                 "Counts with truncated=true are lower bounds."));
         return new Result(values);
     }
@@ -388,12 +395,12 @@ final class MergedSpreadsheetProvenance {
         public int compareTo(RowKey other) {
             int common = Math.min(values.size(), other.values.size());
             for (int index = 0; index < common; index++) {
-                int comparison = values.get(index).compareTo(other.values().get(index));
+                int comparison = values.get(index).compareTo(other.values.get(index));
                 if (comparison != 0) {
                     return comparison;
                 }
             }
-            return Integer.compare(values.size(), other.values().size());
+            return Integer.compare(values.size(), other.values.size());
         }
     }
 
