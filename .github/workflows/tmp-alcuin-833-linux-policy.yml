@@ -1,0 +1,75 @@
+name: Temporary #833 Linux authority policy repair
+
+on:
+  push:
+    branches: [hardening/832-file-generation-authority]
+    paths:
+      - '.github/workflows/tmp-alcuin-833-linux-policy.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: hardening/832-file-generation-authority
+      - name: Fail closed on Linux filesystems without multigrain timestamps
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path('preflight-cli/src/main/java/dev/starsector/preflight/cli/OpenedFileGenerationAuthority.java')
+          text = source.read_text(encoding='utf-8')
+          old = '''    private static final Set<String> LINUX_FILESYSTEMS = Set.of(
+              "ext4", "xfs", "btrfs", "f2fs", "overlay", "tmpfs");'''
+          new = '''    private static final Set<String> LINUX_FILESYSTEMS = Set.of(
+              "ext4", "xfs", "btrfs", "tmpfs");'''
+          if old in text:
+              text = text.replace(old, new)
+              source.write_text(text, encoding='utf-8')
+          elif '"f2fs"' in text or '"overlay"' in text:
+              raise SystemExit('Linux allowlist shape changed unexpectedly')
+
+          test = Path('preflight-cli/src/test/java/dev/starsector/preflight/cli/OpenedFileGenerationAuthorityTest.java')
+          text = test.read_text(encoding='utf-8')
+          old = '''    @Test
+      void linuxCtimePolicyRejectsSecondGranularityFilesystems() {
+          assertTrue(OpenedFileGenerationAuthority.supportsLinuxFilesystem("ext4"));
+          assertFalse(OpenedFileGenerationAuthority.supportsLinuxFilesystem("ext2"));
+          assertFalse(OpenedFileGenerationAuthority.supportsLinuxFilesystem("ext3"));
+      }'''
+          new = '''    @Test
+      void linuxCtimePolicyRejectsFilesystemsWithoutReviewedMultigrainTimestamps() {
+          assertTrue(OpenedFileGenerationAuthority.supportsLinuxFilesystem("ext4"));
+          assertTrue(OpenedFileGenerationAuthority.supportsLinuxFilesystem("xfs"));
+          assertTrue(OpenedFileGenerationAuthority.supportsLinuxFilesystem("btrfs"));
+          assertTrue(OpenedFileGenerationAuthority.supportsLinuxFilesystem("tmpfs"));
+          assertFalse(OpenedFileGenerationAuthority.supportsLinuxFilesystem("ext2"));
+          assertFalse(OpenedFileGenerationAuthority.supportsLinuxFilesystem("ext3"));
+          assertFalse(OpenedFileGenerationAuthority.supportsLinuxFilesystem("f2fs"));
+          assertFalse(OpenedFileGenerationAuthority.supportsLinuxFilesystem("overlay"));
+      }'''
+          if old in text:
+              text = text.replace(old, new)
+              test.write_text(text, encoding='utf-8')
+          elif 'supportsLinuxFilesystem("f2fs")' not in text:
+              raise SystemExit('Linux support-policy test shape changed unexpectedly')
+          PY
+
+          ./mvnw -q -pl preflight-cli -am -DskipTests package
+          ./mvnw -q -pl preflight-cli -Dtest=OpenedFileGenerationAuthorityTest test
+
+          git config user.name 'Alcuin'
+          git config user.email 'actions@users.noreply.github.com'
+          git add preflight-cli/src/main/java/dev/starsector/preflight/cli/OpenedFileGenerationAuthority.java \
+                  preflight-cli/src/test/java/dev/starsector/preflight/cli/OpenedFileGenerationAuthorityTest.java
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'Fail closed on weak Linux generation filesystems (#832)'
+          git push origin HEAD:hardening/832-file-generation-authority
