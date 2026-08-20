@@ -112,6 +112,9 @@ final class MergedSpreadsheetProvenance {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("evidenceKind", EVIDENCE_KIND);
         values.put("profileFingerprint", index.profileFingerprint());
+        values.put("providerOrderBinding", "resource-index-profile-fingerprint");
+        values.put("contentBinding", "current-provider-path-read");
+        values.put("sourceGenerationBound", false);
         values.put("logicalPath", normalized);
         values.put("keyColumns", keys);
         values.put("resolved", !allProviders.isEmpty());
@@ -123,6 +126,7 @@ final class MergedSpreadsheetProvenance {
                 .toList());
         values.put("notes", List.of(
                 "This evidence reports keyed rows physically present in each ResourceIndex provider spreadsheet.",
+                "The profile fingerprint binds provider selection/order; row bytes are current reads from those resolved provider paths, not exact generation-bound content evidence.",
                 "It does not establish Starsector's final merged-row winner or reproduce the game's spreadsheet merge policy.",
                 "Duplicate keys inside one provider remain explicit instead of being silently collapsed into an ownership claim.",
                 "completeForRequestedKeys is false when a provider could not be parsed/keyed, a keyed row was incomplete, or a bound truncated evidence.",
@@ -279,7 +283,9 @@ final class MergedSpreadsheetProvenance {
                 .toList();
         Map<String, Object> value = new LinkedHashMap<>();
         value.put("key", keyValues);
-        value.put("contributorCount", contributorValues.size());
+        value.put("contributorCountLowerBound", contributorValues.size());
+        value.put("contributorsReturned", contributorValues.size());
+        value.put("contributorCountComplete", !contributors.truncated());
         value.put("contributors", contributorValues);
         value.put("duplicateWithinProvider", contributors.rowsByProvider().values().stream().anyMatch(count -> count > 1));
         value.put("contributorsTruncated", contributors.truncated());
@@ -382,12 +388,12 @@ final class MergedSpreadsheetProvenance {
         public int compareTo(RowKey other) {
             int common = Math.min(values.size(), other.values.size());
             for (int index = 0; index < common; index++) {
-                int comparison = values.get(index).compareTo(other.values.get(index));
+                int comparison = values.get(index).compareTo(other.values().get(index));
                 if (comparison != 0) {
                     return comparison;
                 }
             }
-            return Integer.compare(values.size(), other.values.size());
+            return Integer.compare(values.size(), other.values().size());
         }
     }
 
