@@ -40,18 +40,21 @@ class SpreadsheetCsvTest {
     }
 
     @Test
-    void enforcesRowsColumnsCellsAndBytesIndependently() {
+    void enforcesRowsColumnsCellCharactersAggregateCellsAndBytesIndependently() {
         assertThrows(IOException.class, () -> SpreadsheetCsv.parse(
                 "a\nb\n".getBytes(StandardCharsets.UTF_8),
-                new SpreadsheetCsv.Limits(100, 1, 10, 10)));
+                new SpreadsheetCsv.Limits(100, 1, 10, 10, 100)));
         assertThrows(IOException.class, () -> SpreadsheetCsv.parse(
                 "a,b,c\n".getBytes(StandardCharsets.UTF_8),
-                new SpreadsheetCsv.Limits(100, 10, 2, 10)));
+                new SpreadsheetCsv.Limits(100, 10, 2, 10, 100)));
         assertThrows(IOException.class, () -> SpreadsheetCsv.parse(
                 "abcd\n".getBytes(StandardCharsets.UTF_8),
-                new SpreadsheetCsv.Limits(100, 10, 10, 3)));
+                new SpreadsheetCsv.Limits(100, 10, 10, 3, 100)));
+        assertThrows(IOException.class, () -> SpreadsheetCsv.parse(
+                ",,,,,\n".getBytes(StandardCharsets.UTF_8),
+                new SpreadsheetCsv.Limits(100, 10, 10, 10, 5)));
         assertThrows(IOException.class, () -> SpreadsheetCsv.parse(
                 "abcd\n".getBytes(StandardCharsets.UTF_8),
-                new SpreadsheetCsv.Limits(3, 10, 10, 10)));
+                new SpreadsheetCsv.Limits(3, 10, 10, 10, 100)));
     }
 }
