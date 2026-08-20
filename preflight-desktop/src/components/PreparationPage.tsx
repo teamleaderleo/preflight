@@ -17,10 +17,10 @@ function preparationReuseSummary(
 ): string | null {
   if (!preparationPlan || !storagePlanApplies(textureStorage)) return null;
   if (preparationPlan.reusableLooseBytes > 0 && preparationPlan.packHit) {
-    return `${formatBytes(preparationPlan.reusableLooseBytes)} of prepared texture data is already on disk. The current profile texture pack will be reused.`;
+    return `${formatBytes(preparationPlan.reusableLooseBytes)} of compatible prepared texture data is already on disk. The current profile texture pack will be reused.`;
   }
   if (preparationPlan.reusableLooseBytes > 0) {
-    return `${formatBytes(preparationPlan.reusableLooseBytes)} of prepared texture data is already on disk.`;
+    return `${formatBytes(preparationPlan.reusableLooseBytes)} of compatible prepared texture data is already on disk.`;
   }
   if (preparationPlan.packHit) return "The current profile texture pack will be reused.";
   return null;
@@ -135,8 +135,8 @@ export function PreparationPage({
           <div>
             <p className="eyebrow">Current profile</p>
             <h2>{cacheHealth.status === "unknown" ? "Current mod setup couldn't be inspected" : cacheHealth.status === "unsafe" ? "Cache location needs attention" : "Prepared data needs repair"}</h2>
-            <p>{cacheHealth.issues.map((issue) => issue.summary).join(" ")} {cacheHealth.status === "unsafe" || cacheHealth.status === "unknown" ? "Nothing has been removed." : "Only the listed profile metadata and pack will be removed; shared cache blobs, game files, mods, and saves stay in place."}</p>
-            <small>{cacheHealth.repairFiles.toLocaleString()} prepared file{cacheHealth.repairFiles === 1 ? "" : "s"} · {formatBytes(cacheHealth.repairBytes)}</small>
+            <p>{cacheHealth.issues.map((issue) => issue.summary).join(" ")} {cacheHealth.status === "unsafe" || cacheHealth.status === "unknown" ? "Preflight refused to remove anything." : "Only the listed profile metadata and pack will be removed; shared cache blobs, game files, mods, and saves stay in place."}</p>
+            <small>{cacheHealth.repairFiles.toLocaleString()} artifact{cacheHealth.repairFiles === 1 ? "" : "s"} · {formatBytes(cacheHealth.repairBytes)}</small>
           </div>
           <div className="run-recovery__actions">
             {cacheHealth.status === "repair-needed" ? <button className="button button--primary button--compact" type="button" onClick={() => void repairAndPrepare(false)} disabled={operationBlocked || cacheRepairing}>{cacheRepairing ? "Repairing…" : "Repair and rebuild"}</button> : null}
@@ -148,7 +148,7 @@ export function PreparationPage({
         <div>
           <div className="heading-with-info">
             <h2>Optimizations</h2>
-            <InfoTip label="About Preflight optimizations">Preflight only uses runtime optimizations with game and mod code it recognizes. Anything unfamiliar runs normally.</InfoTip>
+            <InfoTip label="About Preflight optimizations">Before changing runtime code, Preflight checks that it exactly matches a reviewed version. Anything unfamiliar stays untouched.</InfoTip>
           </div>
           {/*
             * The switch stated its own position and nothing else, so the page named Speed opened
@@ -173,8 +173,8 @@ export function PreparationPage({
           <strong>{preparationCancelling ? "Stopping preparation" : preparing ? preparationPhaseLabel ?? "Preparation is running" : preparationPlanLoading ? "Calculating disk requirement" : storageBlocked ? "Full preparation doesn’t fit" : preparationPlan?.safeToPrepare || !storagePlanApplies(textureStorage) ? "Ready to prepare" : "Preparation needs attention"}</strong>
           <span>{preparing
             ? preparationPercent === null
-              ? "Reconnected after restart · finished work stays reusable"
-              : `${preparationPercent}% complete · finished work stays reusable`
+              ? "Reconnected after restart · finished artifacts stay reusable"
+              : `${preparationPercent}% complete · finished artifacts stay reusable`
             : storageBlocked
               ? "Minimal preparation uses a few megabytes and still speeds up startup."
               : `${textureStorage === "balanced" ? "Balanced storage selected" : textureStorage === "fastest" ? "Fastest raw storage selected" : "Minimal disk use selected · no prepared textures"} · ${resourcePresets[resourcePreset].label.toLowerCase()} resource use`}</span>
@@ -214,8 +214,8 @@ export function PreparationPage({
               return <div key={group.id}><span>{label}</span><strong>{formatBytes(group.bytes)}</strong>{detail ? <small>{detail}</small> : null}</div>;
             })}
             {(cache?.uncategorizedBytes ?? 0) > 0 ? <div><span>Other Preflight data</span><strong>{formatBytes(cache?.uncategorizedBytes ?? 0)}</strong><small>Files that don’t fit a category above.</small></div> : null}
-            {storagePlanApplies(textureStorage) && (preparationPlan?.reusableLooseBytes ?? 0) > 0 ? <div><span>Prepared texture data already on disk</span><strong>{formatBytes(preparationPlan?.reusableLooseBytes ?? 0)}</strong><small>Some alternate encodings can remain on disk even when this preparation uses another one.</small></div> : null}
-            {storagePlanApplies(textureStorage) && preparationPlan?.packHit ? <div><span>Current profile texture pack</span><strong>Will be reused</strong><small>This profile’s prepared texture pack already matches what preparation needs, so it can be reused without rebuilding.</small></div> : null}
+            {storagePlanApplies(textureStorage) && (preparationPlan?.reusableLooseBytes ?? 0) > 0 ? <div><span>Compatible prepared texture data on disk</span><strong>{formatBytes(preparationPlan?.reusableLooseBytes ?? 0)}</strong><small>Compatible texture blobs already present; this count can include alternate encodings that remain on disk while preparation uses another.</small></div> : null}
+            {storagePlanApplies(textureStorage) && preparationPlan?.packHit ? <div><span>Current profile texture pack</span><strong>Will be reused</strong><small>The exact prepared texture pack matches this profile and the builder’s required entry order, so preparation will use it without rebuilding.</small></div> : null}
             <div><span>Preparing this profile adds</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.predictedAdditionalBytes) : "…"}</strong><small>A one-off cost for the current mod list. Preparation won’t start unless the larger figure above fits.</small></div>
             <div><span>Free on this disk</span><strong>{preparationPlan ? formatBytes(preparationPlan.usableBytes) : "…"}</strong><small>Space currently free where Preflight stores its data.</small></div>
           </div>
