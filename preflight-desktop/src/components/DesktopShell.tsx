@@ -1,3 +1,4 @@
+import "../desktopShell.css";
 import type { AppStatus } from "../types";
 import { openProjectLink } from "../bridge";
 import { SIDEBAR_STORAGE_KEY } from "../desktopStorage";
