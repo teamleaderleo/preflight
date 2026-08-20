@@ -6,6 +6,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.channels.FileChannel;
@@ -76,24 +77,49 @@ public final class PreparedTexturePackOrderIO {
     }
 
     public static List<String> read(Path source, String expectedProfile) throws IOException {
+        return read(source, expectedProfile, MAX_FILE_BYTES);
+    }
+
+    static List<String> read(Path source, String expectedProfile, int maximumBytes) throws IOException {
+        validateReadLimit(maximumBytes);
         long size = Files.size(source);
-        if (size < HEADER_BYTES + CHECKSUM_BYTES || size > MAX_FILE_BYTES) {
-            throw new IOException("Prepared texture pack order size is invalid");
+        if (size < minimumFileBytes() || size > maximumBytes) {
+            throw new IOException("Prepared texture pack order size is invalid: " + source);
         }
-        byte[] bytes = Files.readAllBytes(source);
-        try (DataInputStream input = new DataInputStream(new ByteArrayInputStream(bytes))) {
-            if (!java.util.Arrays.equals(MAGIC, input.readNBytes(MAGIC.length))) {
+        try (InputStream input = Files.newInputStream(source, StandardOpenOption.READ)) {
+            return read(input, expectedProfile, maximumBytes, source.toString());
+        }
+    }
+
+    static List<String> read(
+            InputStream input,
+            String expectedProfile,
+            int maximumBytes,
+            String sourceLabel) throws IOException {
+        validateReadLimit(maximumBytes);
+        byte[] bytes = input.readNBytes(Math.addExact(maximumBytes, 1));
+        if (bytes.length > maximumBytes) {
+            throw new IOException(
+                    "Prepared texture pack order exceeds the " + maximumBytes
+                            + " byte safety limit: " + sourceLabel);
+        }
+        if (bytes.length < minimumFileBytes()) {
+            throw new IOException("Prepared texture pack order size is invalid: " + sourceLabel);
+        }
+        try (DataInputStream data = new DataInputStream(new ByteArrayInputStream(bytes))) {
+            if (!java.util.Arrays.equals(MAGIC, data.readNBytes(MAGIC.length))) {
                 throw new IOException("Prepared texture pack order magic header is invalid");
             }
-            if (input.readInt() != FORMAT_VERSION) {
+            if (data.readInt() != FORMAT_VERSION) {
                 throw new IOException("Unsupported prepared texture pack order version");
             }
-            int payloadLength = input.readInt();
-            if (payloadLength <= 0 || HEADER_BYTES + (long) payloadLength + CHECKSUM_BYTES != size) {
+            int payloadLength = data.readInt();
+            if (payloadLength <= 0
+                    || HEADER_BYTES + (long) payloadLength + CHECKSUM_BYTES != bytes.length) {
                 throw new IOException("Prepared texture pack order payload length is invalid");
             }
-            byte[] payload = input.readNBytes(payloadLength);
-            byte[] checksum = input.readNBytes(CHECKSUM_BYTES);
+            byte[] payload = data.readNBytes(payloadLength);
+            byte[] checksum = data.readNBytes(CHECKSUM_BYTES);
             if (payload.length != payloadLength || checksum.length != CHECKSUM_BYTES
                     || !MessageDigest.isEqual(checksum, Hashes.sha256Bytes(payload))) {
                 throw new IOException("Prepared texture pack order checksum mismatch");
@@ -195,5 +221,16 @@ public final class PreparedTexturePackOrderIO {
         } catch (CharacterCodingException error) {
             throw new IOException("Prepared texture pack order string is not valid UTF-8", error);
         }
+    }
+
+    private static void validateReadLimit(int maximumBytes) {
+        if (maximumBytes < minimumFileBytes() || maximumBytes > MAX_FILE_BYTES) {
+            throw new IllegalArgumentException(
+                    "Prepared texture pack order read limit is invalid: " + maximumBytes);
+        }
+    }
+
+    private static int minimumFileBytes() {
+        return HEADER_BYTES + CHECKSUM_BYTES;
     }
 }
