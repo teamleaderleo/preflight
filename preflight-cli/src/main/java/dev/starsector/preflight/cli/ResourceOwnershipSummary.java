@@ -46,12 +46,12 @@ final class ResourceOwnershipSummary {
                 if (provider.rootIndex() < rootStats.size()) {
                     RootStats stats = rootStats.get(provider.rootIndex());
                     stats.providerOccurrences++;
-                    stats.providedBytes += provider.size();
+                    stats.providedBytes = saturatingAdd(stats.providedBytes, provider.size());
                     if (providerIndex == providers.size() - 1) {
                         stats.winningPaths++;
                     } else {
                         stats.shadowedOccurrences++;
-                        stats.shadowedBytes += provider.size();
+                        stats.shadowedBytes = saturatingAdd(stats.shadowedBytes, provider.size());
                     }
                 }
             }
@@ -64,10 +64,12 @@ final class ResourceOwnershipSummary {
             overrideKinds.merge(kind, 1L, Long::sum);
 
             ResourceIndex.Provider winner = providers.get(providers.size() - 1);
-            boolean winnerCore = root(index, winner).core();
+            ResourceIndex.Root winningRoot = root(index, winner);
+            boolean winnerCore = winningRoot.core();
             boolean hasCore = providers.stream().anyMatch(provider -> root(index, provider).core());
             boolean hasOtherMod = providers.stream()
-                    .anyMatch(provider -> !root(index, provider).core() && provider.rootIndex() != winner.rootIndex());
+                    .map(provider -> root(index, provider))
+                    .anyMatch(root -> !root.core() && !root.id().equals(winningRoot.id()));
             if (!winnerCore && hasCore) {
                 coreOverriddenPaths++;
             }
@@ -169,6 +171,7 @@ final class ResourceOwnershipSummary {
     private static Map<String, Object> provider(ResourceIndex index, ResourceIndex.Provider provider) {
         ResourceIndex.Root root = root(index, provider);
         Map<String, Object> value = new LinkedHashMap<>();
+        value.put("rootIndex", provider.rootIndex());
         value.put("rootId", root.id());
         value.put("core", root.core());
         value.put("relativePath", provider.relativePath());
@@ -178,6 +181,10 @@ final class ResourceOwnershipSummary {
 
     private static ResourceIndex.Root root(ResourceIndex index, ResourceIndex.Provider provider) {
         return index.roots().get(provider.rootIndex());
+    }
+
+    private static long saturatingAdd(long total, long value) {
+        return value > Long.MAX_VALUE - total ? Long.MAX_VALUE : total + value;
     }
 
     private static String kind(String logicalPath) {

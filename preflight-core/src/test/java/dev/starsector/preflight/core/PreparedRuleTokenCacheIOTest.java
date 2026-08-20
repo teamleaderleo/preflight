@@ -2,13 +2,18 @@ package dev.starsector.preflight.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -76,6 +81,24 @@ class PreparedRuleTokenCacheIOTest {
     }
 
     @Test
+    void checksumValidNoncanonicalNullableStringFlagIsRejected() throws Exception {
+        PreparedRuleTokenCache cache = new PreparedRuleTokenCache(
+                PROFILE, Map.of("x", List.of(new PreparedRuleTokenCache.Token("x", "WORD"))));
+        byte[] bytes = PreparedRuleTokenCacheIO.toBytes(cache);
+        int flagOffset = firstTokenNullableFlagOffset(bytes);
+        assertEquals(1, Byte.toUnsignedInt(bytes[flagOffset]));
+
+        // DataInputStream.readBoolean accepts every non-zero byte as true, but writeBoolean emits
+        // only 0 or 1. A checksum-valid 2 therefore used to decode into state the writer never emits.
+        bytes[flagOffset] = 2;
+        resignPayload(bytes);
+
+        IOException error = assertThrows(
+                IOException.class, () -> PreparedRuleTokenCacheIO.fromBytes(bytes));
+        assertTrue(error.getMessage().contains("nullable-string flag"), error.getMessage());
+    }
+
+    @Test
     void writerRejectsMalformedUtf16Strings() {
         PreparedRuleTokenCache malformedExpression = new PreparedRuleTokenCache(
                 PROFILE,
@@ -90,6 +113,63 @@ class PreparedRuleTokenCacheIOTest {
         assertThrows(IOException.class, () -> PreparedRuleTokenCacheIO.toBytes(malformedExpression));
         assertThrows(IOException.class, () -> PreparedRuleTokenCacheIO.toBytes(malformedTokenString));
         assertThrows(IOException.class, () -> PreparedRuleTokenCacheIO.toBytes(malformedTokenType));
+    }
+
+    @Test
+    void exactReadLimitIsInclusive() throws Exception {
+        PreparedRuleTokenCache cache = new PreparedRuleTokenCache(
+                PROFILE, Map.of("x", List.of(new PreparedRuleTokenCache.Token("x", "WORD"))));
+        byte[] bytes = PreparedRuleTokenCacheIO.toBytes(cache);
+
+        assertEquals(
+                cache,
+                PreparedRuleTokenCacheIO.read(
+                        new ByteArrayInputStream(bytes), bytes.length, "exact-limit.sprt"));
+    }
+
+    @Test
+    void actualStreamReadRejectsGrowthPastTheLimit() throws Exception {
+        PreparedRuleTokenCache cache = new PreparedRuleTokenCache(
+                PROFILE, Map.of("x", List.of(new PreparedRuleTokenCache.Token("x", "WORD"))));
+        byte[] bytes = PreparedRuleTokenCacheIO.toBytes(cache);
+        Path artifact = temporary.resolve("growing.sprt");
+        Files.write(artifact, bytes);
+        boolean[] appended = {false};
+
+        try (InputStream raw = Files.newInputStream(artifact);
+             InputStream growing = new FilterInputStream(raw) {
+                 @Override
+                 public int read(byte[] buffer, int offset, int length) throws IOException {
+                     int requested = appended[0] ? length : Math.min(1, length);
+                     int read = super.read(buffer, offset, requested);
+                     if (!appended[0] && read > 0) {
+                         Files.write(artifact, new byte[] {0x55}, StandardOpenOption.APPEND);
+                         appended[0] = true;
+                     }
+                     return read;
+                 }
+             }) {
+            IOException error = assertThrows(
+                    IOException.class,
+                    () -> PreparedRuleTokenCacheIO.read(growing, bytes.length, artifact.toString()));
+            assertTrue(appended[0]);
+            assertTrue(error.getMessage().contains("byte safety limit"), error.getMessage());
+        }
+        assertEquals(bytes.length + 1L, Files.size(artifact));
+    }
+
+    @Test
+    void initialSizePrefilterStillRejectsBeforeTheBoundedRead() throws Exception {
+        PreparedRuleTokenCache cache = new PreparedRuleTokenCache(
+                PROFILE, Map.of("x", List.of(new PreparedRuleTokenCache.Token("x", "WORD"))));
+        byte[] bytes = PreparedRuleTokenCacheIO.toBytes(cache);
+        Path artifact = temporary.resolve("already-too-large.sprt");
+        Files.write(artifact, bytes);
+
+        IOException error = assertThrows(
+                IOException.class,
+                () -> PreparedRuleTokenCacheIO.read(artifact, bytes.length - 1));
+        assertTrue(error.getMessage().contains("size is invalid"), error.getMessage());
     }
 
     @Test
@@ -110,6 +190,16 @@ class PreparedRuleTokenCacheIOTest {
         int expressionLengthOffset = countOffset + Integer.BYTES;
         assertEquals(3, intAt(bytes, expressionLengthOffset));
         return expressionLengthOffset + Integer.BYTES;
+    }
+
+    private static int firstTokenNullableFlagOffset(byte[] bytes) {
+        int countOffset = PAYLOAD_OFFSET + PROFILE_BYTES;
+        assertEquals(1, intAt(bytes, countOffset));
+        int expressionLengthOffset = countOffset + Integer.BYTES;
+        int expressionLength = intAt(bytes, expressionLengthOffset);
+        int tokenCountOffset = expressionLengthOffset + Integer.BYTES + expressionLength;
+        assertEquals(1, intAt(bytes, tokenCountOffset));
+        return tokenCountOffset + Integer.BYTES;
     }
 
     private static void resignPayload(byte[] bytes) {

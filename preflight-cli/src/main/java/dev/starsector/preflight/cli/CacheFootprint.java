@@ -74,36 +74,87 @@ final class CacheFootprint {
     }
 
     static Report measure(PreflightHome home) throws IOException {
+        Path root = home.root();
+        if (!Files.isDirectory(root)) {
+            return new Report(root, false, List.of(), new Usage(0, 0), 0, List.of());
+        }
+
+        Map<String, long[]> categoryTotals = new LinkedHashMap<>();
+        Map<String, Map<String, long[]>> evidenceArtifactTotals = new LinkedHashMap<>();
+        for (Map.Entry<String, Category> category : CATEGORIES.entrySet()) {
+            categoryTotals.put(category.getKey(), new long[2]);
+            if ("evidence".equals(category.getValue().group())) {
+                evidenceArtifactTotals.put(category.getKey(), new TreeMap<>());
+            }
+        }
+
+        long[] wholeTotals = new long[2];
+        Files.walkFileTree(root, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) {
+                if (!attributes.isRegularFile()) {
+                    return FileVisitResult.CONTINUE;
+                }
+                wholeTotals[0] = wholeTotals[0] + attributes.size();
+                wholeTotals[1] = wholeTotals[1] + 1;
+
+                String fileRelative = relative(root.relativize(file));
+                for (Map.Entry<String, Category> category : CATEGORIES.entrySet()) {
+                    String categoryPath = category.getKey();
+                    if (!fileRelative.startsWith(categoryPath + "/")) {
+                        continue;
+                    }
+                    long[] totals = categoryTotals.get(categoryPath);
+                    totals[0] = totals[0] + attributes.size();
+                    totals[1] = totals[1] + 1;
+                    Map<String, long[]> byName = evidenceArtifactTotals.get(categoryPath);
+                    if (byName != null) {
+                        long[] artifact = byName.computeIfAbsent(
+                                file.getFileName().toString(), ignored -> new long[2]);
+                        artifact[0] = artifact[0] + attributes.size();
+                        artifact[1] = artifact[1] + 1;
+                    }
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFileFailed(Path file, IOException failure) {
+                // Match the reporting contract of the old per-directory walks: a file that
+                // disappears or becomes unreadable mid-report is omitted rather than failing the
+                // whole storage summary.
+                return FileVisitResult.CONTINUE;
+            }
+        });
+
         List<Entry> entries = new ArrayList<>();
-        long total = 0;
         long counted = 0;
         for (Map.Entry<String, Category> category : CATEGORIES.entrySet()) {
-            Path directory = home.root().resolve(category.getKey());
-            Usage usage = usage(directory);
+            String categoryPath = category.getKey();
+            long[] totals = categoryTotals.get(categoryPath);
+            Usage usage = new Usage(totals[0], totals[1]);
+            Path directory = root.resolve(categoryPath);
             if (usage.files() > 0 || Files.exists(directory)) {
-                // Only evidence is broken down. Acceleration categories are content-hashed blobs
-                // whose file names are hashes, so grouping by name would produce one row per file
-                // and say nothing; what matters there is the total, and that it is deliberate.
                 entries.add(new Entry(
-                        category.getKey(),
+                        categoryPath,
                         category.getValue().group(),
                         category.getValue().description(),
                         usage,
                         "evidence".equals(category.getValue().group())
-                                ? artifacts(directory)
+                                ? artifacts(evidenceArtifactTotals.get(categoryPath))
                                 : List.of()));
                 counted = Math.addExact(counted, usage.bytes());
             }
         }
-        Usage whole = usage(home.root());
-        total = whole.bytes();
+
+        Usage whole = new Usage(wholeTotals[0], wholeTotals[1]);
         entries.sort(Comparator.comparingLong((Entry entry) -> entry.usage().bytes()).reversed());
         return new Report(
-                home.root(),
-                Files.isDirectory(home.root()),
+                root,
+                true,
                 entries,
                 whole,
-                Math.max(0, total - counted),
+                Math.max(0, whole.bytes() - counted),
                 profiles(home));
     }
 
@@ -213,6 +264,13 @@ final class CacheFootprint {
                 return FileVisitResult.CONTINUE;
             }
         });
+        return artifacts(byName);
+    }
+
+    private static List<Artifact> artifacts(Map<String, long[]> byName) {
+        if (byName == null || byName.isEmpty()) {
+            return List.of();
+        }
         List<Artifact> all = new ArrayList<>(byName.size());
         byName.forEach((name, totals) -> all.add(new Artifact(name, totals[0], totals[1])));
         all.sort(Comparator.comparingLong(Artifact::bytes).reversed()

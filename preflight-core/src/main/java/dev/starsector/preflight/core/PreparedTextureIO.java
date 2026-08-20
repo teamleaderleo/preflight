@@ -9,6 +9,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
@@ -272,7 +273,30 @@ public final class PreparedTextureIO {
         if (size > MAX_FILE_BYTES) {
             throw new IOException("Prepared texture blob exceeds the " + MAX_FILE_BYTES + " byte safety limit: " + source);
         }
-        return fromBytes(Files.readAllBytes(source), verifyChecksum);
+        try (InputStream input = Files.newInputStream(source, StandardOpenOption.READ)) {
+            return read(input, MAX_FILE_BYTES, source.toString(), verifyChecksum);
+        }
+    }
+
+    static PreparedTexture read(InputStream input, int maximumBytes, String sourceLabel) throws IOException {
+        return read(input, maximumBytes, sourceLabel, true);
+    }
+
+    private static PreparedTexture read(
+            InputStream input, int maximumBytes, String sourceLabel, boolean verifyChecksum) throws IOException {
+        Objects.requireNonNull(input, "input");
+        if (maximumBytes < minimumFileBytes() || maximumBytes > MAX_FILE_BYTES) {
+            throw new IllegalArgumentException("Invalid prepared texture read limit: " + maximumBytes);
+        }
+        byte[] bytes = input.readNBytes(Math.addExact(maximumBytes, 1));
+        if (bytes.length > maximumBytes) {
+            throw new IOException(
+                    "Prepared texture blob exceeds the " + maximumBytes + " byte safety limit: " + sourceLabel);
+        }
+        if (bytes.length < minimumFileBytes()) {
+            throw new IOException("Prepared texture blob is too small: " + sourceLabel);
+        }
+        return fromBytes(bytes, verifyChecksum);
     }
 
     public static byte[] toBytes(PreparedTexture texture) throws IOException {

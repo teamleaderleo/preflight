@@ -82,11 +82,14 @@ class ResourceOwnershipSummaryTest {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> winner = (Map<String, Object>) explained.get("winner");
+        assertEquals(1, winner.get("rootIndex"));
         assertEquals("mod_a", winner.get("rootId"));
         assertEquals("graphics/ships/Example.png", winner.get("relativePath"));
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> providers = (List<Map<String, Object>>) explained.get("providers");
+        assertEquals(List.of(0, 1),
+                providers.stream().map(provider -> (Integer) provider.get("rootIndex")).toList());
         assertEquals(List.of("core", "mod_a"),
                 providers.stream().map(provider -> (String) provider.get("rootId")).toList());
     }
@@ -134,6 +137,7 @@ class ResourceOwnershipSummaryTest {
         assertEquals("root_39", detail.get("winnerRootId"));
         @SuppressWarnings("unchecked")
         Map<String, Object> winner = (Map<String, Object>) detail.get("winner");
+        assertEquals(39, winner.get("rootIndex"));
         assertEquals("root_39", winner.get("rootId"));
         assertEquals(39, detail.get("shadowedProviderCount"));
         @SuppressWarnings("unchecked")
@@ -142,6 +146,63 @@ class ResourceOwnershipSummaryTest {
         assertEquals("root_0", shadowedRootIds.get(0));
         assertEquals("root_31", shadowedRootIds.get(31));
         assertEquals(true, detail.get("shadowedRootIdsTruncated"));
+    }
+
+    @Test
+    void duplicateModIdsRetainProviderOccurrenceIdentityWithoutCrossModClaim() {
+        List<ResourceIndex.Root> roots = List.of(
+                new ResourceIndex.Root("duplicate", Path.of("/private/duplicate"), false),
+                new ResourceIndex.Root("duplicate", Path.of("/private/duplicate"), false));
+        ResourceIndex index = new ResourceIndex(
+                "duplicate-profile",
+                roots,
+                Map.of("data/variants/duplicate.variant", List.of(
+                        provider(0, "data/variants/duplicate.variant", 10),
+                        provider(1, "data/variants/duplicate.variant", 11))));
+
+        ResourceOwnershipSummary.Result result = ResourceOwnershipSummary.summarize(index);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> totals = (Map<String, Object>) result.values().get("totals");
+        assertEquals(1L, ((Number) totals.get("overridePaths")).longValue());
+        assertEquals(0L, ((Number) totals.get("modToModOverridePaths")).longValue());
+
+        Map<String, Object> explained = ResourceOwnershipSummary.explain(
+                index, "data/variants/duplicate.variant");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> winner = (Map<String, Object>) explained.get("winner");
+        assertEquals(1, winner.get("rootIndex"));
+        assertEquals("duplicate", winner.get("rootId"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> providers = (List<Map<String, Object>>) explained.get("providers");
+        assertEquals(List.of(0, 1),
+                providers.stream().map(provider -> (Integer) provider.get("rootIndex")).toList());
+        assertEquals(List.of("duplicate", "duplicate"),
+                providers.stream().map(provider -> (String) provider.get("rootId")).toList());
+    }
+
+    @Test
+    void byteSummariesSaturateAtLongMaxValue() {
+        ResourceIndex index = new ResourceIndex(
+                "large-profile",
+                List.of(new ResourceIndex.Root("large", Path.of("/private/large"), false)),
+                Map.of("graphics/ships/large.png", List.of(
+                        provider(0, "graphics/ships/large.png", Long.MAX_VALUE - 4),
+                        provider(0, "graphics/ships/LARGE.png", 10),
+                        provider(0, "graphics/ships/Large.png", 1))));
+
+        ResourceOwnershipSummary.Result result = ResourceOwnershipSummary.summarize(index);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> roots = (List<Map<String, Object>>) result.values().get("roots");
+        Map<String, Object> root = roots.get(0);
+        assertEquals(Long.MAX_VALUE, ((Number) root.get("providedBytes")).longValue());
+        assertEquals(Long.MAX_VALUE, ((Number) root.get("shadowedBytes")).longValue());
+
+        Map<String, Object> explained = ResourceOwnershipSummary.explain(index, "graphics/ships/large.png");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> providers = (List<Map<String, Object>>) explained.get("providers");
+        assertEquals(Long.MAX_VALUE - 4, ((Number) providers.get(0).get("size")).longValue());
+        assertEquals(10L, ((Number) providers.get(1).get("size")).longValue());
+        assertEquals(1L, ((Number) providers.get(2).get("size")).longValue());
     }
 
     private static ResourceIndex fixture() {

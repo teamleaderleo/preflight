@@ -79,9 +79,14 @@ test("motion and direction change immediately without an Apply step", () => {
 
   const still = screen.getByRole("button", { name: "Motion: Still" });
   expect(still).toHaveAttribute("title", "Resume decorative hull rotation");
-  expect(screen.getByRole("button", { name: "Direction: Counter-clockwise" })).toBeDisabled();
+  const pausedDirection = screen.getByRole("button", { name: "Direction: Counter-clockwise" });
+  expect(pausedDirection).toBeEnabled();
+  expect(pausedDirection).toHaveAttribute("title", "Use clockwise when rotation resumes");
+
+  fireEvent.click(pausedDirection);
+  expect(screen.getByRole("button", { name: "Direction: Clockwise" })).toBeEnabled();
   expect(JSON.parse(window.localStorage.getItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY) ?? "null"))
-    .toEqual({ motion: "still", direction: "counter-clockwise" });
+    .toEqual({ motion: "still", direction: "clockwise" });
 });
 
 test("interior tuning remains independently editable after the shared appearance dials", () => {

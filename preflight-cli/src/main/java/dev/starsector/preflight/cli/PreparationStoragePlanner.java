@@ -4,6 +4,7 @@ import dev.starsector.preflight.core.PreparedTexture;
 import dev.starsector.preflight.core.PreparedTextureIO;
 import dev.starsector.preflight.core.PreparedTexturePack;
 import dev.starsector.preflight.core.PreparedTexturePackIO;
+import dev.starsector.preflight.core.PreparedTexturePackOrderIO;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import dev.starsector.preflight.core.TextureManifestIO;
@@ -12,9 +13,13 @@ import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
@@ -98,6 +103,7 @@ final class PreparationStoragePlanner {
             int failed = 0;
             Map<String, Long> predictedPackEntries = new LinkedHashMap<>();
             Map<String, Long> upperPackEntries = new LinkedHashMap<>();
+            Map<TextureBatchBuilder.BlobKey, String> selectedPackPaths = new LinkedHashMap<>();
 
             for (Map.Entry<TextureBatchBuilder.BlobKey, TextureBatchBuilder.HashedCandidate> entry
                     : unique.entrySet()) {
@@ -122,7 +128,18 @@ final class PreparationStoragePlanner {
                 reusableLoose = saturatedAdd(reusableLoose, estimate.reusableBytes());
                 predictedPackEntries.put(estimate.selectedPath(), estimate.predictedSelectedFileBytes());
                 upperPackEntries.put(estimate.selectedPath(), estimate.upperSelectedFileBytes());
+                selectedPackPaths.put(entry.getKey(), estimate.selectedPath());
             }
+
+            List<String> logicalPackOrder = hashed.stream()
+                    .sorted(Comparator.comparing(TextureBatchBuilder.HashedCandidate::logicalPath))
+                    .map(candidate -> selectedPackPaths.get(new TextureBatchBuilder.BlobKey(
+                            candidate.sourceSha256(), PreparedTexture.Transformation.IDENTITY)))
+                    .filter(path -> path != null)
+                    .distinct()
+                    .toList();
+            List<String> expectedPackOrder = preferredPackOrder(
+                    cacheRoot, index.profileFingerprint(), logicalPackOrder);
 
             boolean packHit = false;
             long predictedPack = 0;
@@ -130,9 +147,9 @@ final class PreparationStoragePlanner {
             Path packPath = PreparedTexturePackIO.path(cacheRoot, index.profileFingerprint());
             if (!predictedPackEntries.isEmpty()) {
                 if (Files.isRegularFile(packPath)) {
-                    try (PreparedTexturePack ignored = PreparedTexturePackIO.open(
-                            packPath, index.profileFingerprint(), predictedPackEntries.keySet())) {
-                        packHit = true;
+                    try (PreparedTexturePack existing = PreparedTexturePackIO.open(
+                            packPath, index.profileFingerprint(), expectedPackOrder)) {
+                        packHit = existing.hasEntryOrder(expectedPackOrder);
                     } catch (IOException ignored) {
                         // Loose content remains authoritative; preparation will replace this pack.
                     }
@@ -273,6 +290,57 @@ final class PreparationStoragePlanner {
         } catch (IOException | RuntimeException ignored) {
             return null;
         }
+    }
+
+    private static List<String> preferredPackOrder(
+            Path cacheRoot, String profile, List<String> logicalOrder) {
+        Path sidecar = PreparedTexturePackOrderIO.path(cacheRoot, profile);
+        if (!Files.isRegularFile(sidecar)) {
+            return logicalOrder;
+        }
+        try {
+            Set<String> available = Set.copyOf(logicalOrder);
+            Map<String, String> availableByContent = new HashMap<>();
+            Set<String> ambiguousContent = new java.util.HashSet<>();
+            for (String path : logicalOrder) {
+                String identity = codecIndependentBlobPath(path);
+                String previous = availableByContent.putIfAbsent(identity, path);
+                if (previous != null && !previous.equals(path)) {
+                    ambiguousContent.add(identity);
+                }
+            }
+            LinkedHashSet<String> ordered = new LinkedHashSet<>();
+            for (String observed : PreparedTexturePackOrderIO.read(sidecar, profile)) {
+                if (available.contains(observed)) {
+                    ordered.add(observed);
+                    continue;
+                }
+                String identity = codecIndependentBlobPath(observed);
+                if (!ambiguousContent.contains(identity)) {
+                    String equivalent = availableByContent.get(identity);
+                    if (equivalent != null) {
+                        ordered.add(equivalent);
+                    }
+                }
+            }
+            ordered.addAll(logicalOrder);
+            return List.copyOf(ordered);
+        } catch (IOException | IllegalArgumentException ignored) {
+            return logicalOrder;
+        }
+    }
+
+    private static String codecIndependentBlobPath(String path) {
+        for (PreparedTextureIO.StorageCodec codec : PreparedTextureIO.StorageCodec.values()) {
+            if (codec == PreparedTextureIO.StorageCodec.RAW) {
+                continue;
+            }
+            String suffix = "-" + codec.suffix() + ".spft";
+            if (path.endsWith(suffix)) {
+                return path.substring(0, path.length() - suffix.length()) + ".spft";
+            }
+        }
+        return path;
     }
 
     private static Path nearestExisting(Path path) throws IOException {

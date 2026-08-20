@@ -95,11 +95,8 @@ final class BenchmarkScenarioComparison {
         if (!Files.isRegularFile(path)) {
             throw new IOException("Benchmark scenario result does not exist: " + path);
         }
-        long bytes = Files.size(path);
-        if (bytes > MAX_RESULT_BYTES) {
-            throw new IOException("Benchmark scenario result exceeds " + MAX_RESULT_BYTES + " bytes: " + path);
-        }
-        Map<String, Object> root = StrictJson.object(Files.readString(path));
+        Map<String, Object> root = BoundedEvidenceJson.readObject(
+                path, MAX_RESULT_BYTES, "Benchmark scenario result");
         requireKeys(root, Set.of("schema", "version", "identity", "milestones", "durationsMs", "telemetry", "exit"), "result");
         if (!SCENARIO_SCHEMA.equals(text(root, "schema"))) {
             throw invalid(path, "unexpected schema");

@@ -2,13 +2,18 @@ package dev.starsector.preflight.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -21,6 +26,64 @@ class PreparedTexturePackOrderUtf8CanonicalTest {
 
     @TempDir
     Path temporaryDirectory;
+
+    @Test
+    void exactReadLimitIsInclusive() throws Exception {
+        String profile = "10".repeat(32);
+        Path file = temporaryDirectory.resolve("exact-limit.spfo");
+        List<String> paths = List.of("blobs/aa.spft");
+        PreparedTexturePackOrderIO.write(file, profile, paths);
+        byte[] bytes = Files.readAllBytes(file);
+
+        assertEquals(
+                paths,
+                PreparedTexturePackOrderIO.read(
+                        new ByteArrayInputStream(bytes), profile, bytes.length, file.toString()));
+    }
+
+    @Test
+    void rejectsGrowthDuringTheActualStreamRead() throws Exception {
+        String profile = "12".repeat(32);
+        Path file = temporaryDirectory.resolve("growing.spfo");
+        PreparedTexturePackOrderIO.write(file, profile, List.of("blobs/aa.spft"));
+        long originalBytes = Files.size(file);
+        boolean[] appended = {false};
+
+        try (InputStream raw = Files.newInputStream(file);
+             InputStream growing = new FilterInputStream(raw) {
+                 @Override
+                 public int read(byte[] buffer, int offset, int length) throws IOException {
+                     int requested = appended[0] ? length : Math.min(1, length);
+                     int read = super.read(buffer, offset, requested);
+                     if (!appended[0] && read > 0) {
+                         Files.write(file, new byte[] {0x55}, StandardOpenOption.APPEND);
+                         appended[0] = true;
+                     }
+                     return read;
+                 }
+             }) {
+            IOException error = assertThrows(
+                    IOException.class,
+                    () -> PreparedTexturePackOrderIO.read(
+                            growing, profile, Math.toIntExact(originalBytes), file.toString()));
+            assertTrue(appended[0]);
+            assertTrue(error.getMessage().contains("byte safety limit"), error.getMessage());
+        }
+        assertEquals(originalBytes + 1, Files.size(file));
+    }
+
+    @Test
+    void initialSizePrefilterStillRejectsBeforeTheBoundedRead() throws Exception {
+        String profile = "14".repeat(32);
+        Path file = temporaryDirectory.resolve("already-too-large.spfo");
+        PreparedTexturePackOrderIO.write(file, profile, List.of("blobs/aa.spft"));
+        int size = Math.toIntExact(Files.size(file));
+
+        IOException error = assertThrows(
+                IOException.class,
+                () -> PreparedTexturePackOrderIO.read(file, profile, size - 1));
+        assertTrue(error.getMessage().contains("size is invalid"), error.getMessage());
+    }
 
     @Test
     void checksumValidMalformedUtf8PathCannotBecomeAcceptedOrderEntry() throws Exception {
