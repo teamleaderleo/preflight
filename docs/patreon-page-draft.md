@@ -20,10 +20,11 @@ menu. The latest controlled comparison on that 83-mod setup had an 89.00-second 
 and a 15.53-second Preflight median, with one launch reaching 15.25 seconds.
 
 That investigation has since turned into a full desktop app with its own before-and-after benchmark,
-Starsector playtime tracking, named mod profiles, common game settings beside Launch, storage
-planning and recovery, privacy-conscious support tools, signed updates, and a read-only mod linter.
-The repository also keeps the experiments that failed, the measurements that turned out to be wrong,
-and the regression tests that came out of both.
+Starsector playtime tracking, named mod profiles, common and extended game settings, storage planning
+and recovery, read-only setup analysis, privacy-conscious support tools, signed updates, a Hangar
+that can draw installed ships as local wireframes, and a mod linter. The repository also keeps the
+experiments that failed, the measurements that turned out to be wrong, and the regression tests that
+came out of both.
 
 Membership helps support development time, testing hardware, hosting, release work, and whatever I
 end up working on next. Preflight access does not depend on membership. The app, source, features,
@@ -139,6 +140,17 @@ and an optional direct-launch path uses Starsector's own saved launch preference
 through its launcher UI. Preflight can also wrap an explicitly selected compatible launcher instead
 of replacing it on disk.
 
+There is a deeper read-only setup checker as well. Without launching Starsector it can catch things
+like an enabled mod with unavailable metadata, two installed mods declaring the same ID, a required
+dependency that is missing or merely disabled, or a winning ship variant that references a hull the
+resolved profile does not actually contain. It exits after the analysis and changes nothing.
+
+Then the Hangar got out of hand too. Preflight can read the installed hull catalog and let you choose
+a ship for the app's wireframe display. For featured ships it can trace the installed sprite locally
+into a new wireframe instead of packaging Starsector's artwork. The selected hull persists, and the
+wireframe can be tuned per installation and ship for smoothing, outer and interior detail, and depth.
+It is completely unnecessary. I like it a lot.
+
 There is also a mod linter now, because apparently this was not enough. It is read-only and can
 inspect one mod or a full profile. On the reviewed mod set it found progressive JPEGs that decode
 about 8.75 times slower through the game's ImageIO path, large amounts of avoidable texture and audio
@@ -198,6 +210,19 @@ setup, cleanup, updates, and removal.
 A lighter player-facing post about launch settings: the ordinary settings beside Launch, why the
 battle-size range can go beyond the vanilla slider, high-DPI resolution handling, RAM editing, and
 why Preflight backs up/refuses ambiguous settings layouts instead of guessing.
+
+### Before you blame the launcher, inspect the mod stack
+
+A support/modder post about `preflight analyze setup`: missing enabled mods, duplicate IDs, disabled
+required dependencies, malformed metadata, and resolved variants that point at absent hulls. The
+interesting part is that the check can make those deterministic findings without starting the game
+or asking for somebody's giant log file.
+
+### How Preflight draws Starsector ships without shipping Starsector art
+
+A design/dev post about the Hangar: installed hull discovery, local sprite tracing for featured
+ships, choosing a display hull, per-hull wireframe tuning, and why the package contains none of the
+proprietary source artwork.
 
 ### The same app has a GUI, a dry-run, a profile census, and a mod linter
 
