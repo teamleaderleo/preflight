@@ -32,6 +32,13 @@ carry a machine-readable capability receipt describing their commands, writes, c
 links, and network endpoints. Release artifacts are prepared with checksums, dependency inventory,
 CycloneDX SBOMs, privacy/limitations material, and exact-package verification.
 
+Cross-platform evidence is kept honest too. A hosted Windows/macOS/Linux package job can prove the
+package and portable contracts, but it is not relabelled as a real-game or performance test. Windows
+on ARM emulation is labelled emulated compatibility, Ubuntu ARM checks are labelled portable ARM64
+coverage, and real game/driver/performance claims come from native beta machines. I would rather
+publish a narrower claim with the evidence it actually has than turn “CI was green” into “tested on
+every platform.”
+
 The repository keeps the experiment history too, including ideas that failed, measurements that
 turned out to be wrong, and the tests that came out of both. I would rather leave the embarrassing
 counterexample in the history than quietly delete the reason a current check exists.
