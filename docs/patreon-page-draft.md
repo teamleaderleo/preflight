@@ -151,6 +151,15 @@ into a new wireframe instead of packaging Starsector's artwork. The selected hul
 wireframe can be tuned per installation and ship for smoothing, outer and interior detail, and depth.
 It is completely unnecessary. I like it a lot.
 
+The rest of the desktop got some of that treatment too. There are five palettes — Blueprint, Hangar,
+Ultraviolet, Airglow, and Phosphor — on top of System, Light, and Dark themes. Home can be the full
+hull-led Hangar or a Compact launch-first view. You can hide the playtime readout without stopping
+playtime recording, and the hull can rotate, sit still, or turn the other direction.
+
+And once Preflight has verified that the actual Starsector JVM is alive, it can minimize, stay open,
+or quit according to your remembered preference. If it quits, playtime still records. The launcher
+can do its work and then get out of the way.
+
 There is also a mod linter now, because apparently this was not enough. It is read-only and can
 inspect one mod or a full profile. On the reviewed mod set it found progressive JPEGs that decode
 about 8.75 times slower through the game's ImageIO path, large amounts of avoidable texture and audio
@@ -203,7 +212,8 @@ wrong measurements and rejected experiments because they are some of the best pa
 
 Focus on the product around the optimization: built-in benchmark, playtime tracking, named profiles,
 search and duplication, launch settings, extended battle size, storage planning, recovery, Copy
-setup, cleanup, updates, and removal.
+setup, cleanup, updates, removal, and the fact that it can disappear after launch while playtime keeps
+recording.
 
 ### Yes, the battle-size button goes to 2000
 
@@ -221,8 +231,13 @@ or asking for somebody's giant log file.
 ### How Preflight draws Starsector ships without shipping Starsector art
 
 A design/dev post about the Hangar: installed hull discovery, local sprite tracing for featured
-ships, choosing a display hull, per-hull wireframe tuning, and why the package contains none of the
-proprietary source artwork.
+ships, choosing a display hull, per-hull wireframe tuning, palettes/themes, and why the package
+contains none of the proprietary source artwork.
+
+### The launcher should disappear when the game starts
+
+A small product post about after-launch behavior, why the choice only applies after the actual game
+JVM is confirmed alive, and how playtime recording continues even when the desktop quits.
 
 ### The same app has a GUI, a dry-run, a profile census, and a mod linter
 
