@@ -6,8 +6,11 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -60,11 +63,31 @@ public final class PreparedMergedReadCacheIO {
     }
 
     public static PreparedMergedReadCache read(Path source) throws IOException {
+        return read(source, MAX_FILE_BYTES);
+    }
+
+    static PreparedMergedReadCache read(Path source, int maximumBytes) throws IOException {
+        validateReadLimit(maximumBytes);
         long size = Files.size(source);
-        if (size < minimumFileBytes() || size > MAX_FILE_BYTES) {
+        if (size < minimumFileBytes() || size > maximumBytes) {
             throw new IOException("Prepared merged read cache size is invalid: " + source);
         }
-        return fromBytes(Files.readAllBytes(source));
+        try (InputStream input = Files.newInputStream(source)) {
+            return read(input, maximumBytes, source.toString());
+        }
+    }
+
+    static PreparedMergedReadCache read(InputStream input, int maximumBytes, String sourceLabel) throws IOException {
+        validateReadLimit(maximumBytes);
+        byte[] bytes = input.readNBytes(Math.addExact(maximumBytes, 1));
+        if (bytes.length > maximumBytes) {
+            throw new IOException(
+                    "Prepared merged read cache exceeds the " + maximumBytes + " byte safety limit: " + sourceLabel);
+        }
+        if (bytes.length < minimumFileBytes()) {
+            throw new IOException("Prepared merged read cache size is invalid: " + sourceLabel);
+        }
+        return fromBytes(bytes);
     }
 
     public static byte[] toBytes(PreparedMergedReadCache cache) throws IOException {
@@ -126,7 +149,7 @@ public final class PreparedMergedReadCacheIO {
             // Sorted so an artifact is a function of what it holds and not of the order the launch
             // happened to learn things in; two runs that learn the same reads write the same bytes.
             for (Map.Entry<String, byte[]> item : new TreeMap<>(cache.entries()).entrySet()) {
-                writeBytes(output, item.getKey().getBytes(StandardCharsets.UTF_8), MAX_KEY_BYTES);
+                writeString(output, item.getKey());
                 writeBytes(output, item.getValue(), MAX_VALUE_BYTES);
             }
         }
@@ -145,7 +168,7 @@ public final class PreparedMergedReadCacheIO {
             }
             Map<String, byte[]> entries = new LinkedHashMap<>(Math.max(16, count * 2));
             for (int index = 0; index < count; index++) {
-                String key = new String(readBytes(input, MAX_KEY_BYTES), StandardCharsets.UTF_8);
+                String key = readString(input);
                 byte[] value = readBytes(input, MAX_VALUE_BYTES);
                 if (entries.put(key, value) != null) {
                     throw new IOException("Duplicate prepared merged read key");
@@ -156,6 +179,26 @@ public final class PreparedMergedReadCacheIO {
             }
             return new PreparedMergedReadCache(
                     java.util.HexFormat.of().formatHex(profile), entries);
+        }
+    }
+
+    private static void writeString(DataOutputStream output, String value) throws IOException {
+        if (!StandardCharsets.UTF_8.newEncoder().canEncode(value)) {
+            throw new IOException("Prepared merged read cache key cannot be encoded as UTF-8");
+        }
+        writeBytes(output, value.getBytes(StandardCharsets.UTF_8), MAX_KEY_BYTES);
+    }
+
+    private static String readString(DataInputStream input) throws IOException {
+        byte[] bytes = readBytes(input, MAX_KEY_BYTES);
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
+        } catch (CharacterCodingException error) {
+            throw new IOException("Prepared merged read cache key is not valid UTF-8", error);
         }
     }
 
@@ -177,6 +220,12 @@ public final class PreparedMergedReadCacheIO {
             throw new EOFException("Prepared merged read cache ended inside a field");
         }
         return bytes;
+    }
+
+    private static void validateReadLimit(int maximumBytes) {
+        if (maximumBytes < minimumFileBytes() || maximumBytes > MAX_FILE_BYTES) {
+            throw new IllegalArgumentException("Prepared merged read cache read limit is invalid: " + maximumBytes);
+        }
     }
 
     private static int minimumFileBytes() {
