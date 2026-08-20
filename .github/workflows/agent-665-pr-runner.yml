@@ -52,6 +52,36 @@ jobs:
           evidence = body(
               "      - name: Write measurement evidence and enforce presentation contracts\n        shell: bash\n        run: |\n          python3 - <<'PY'\n",
               "\n          PY\n\n      - name: Commit reconstructed slice")
+
+          # The old evidence carriers were copied into a YAML heredoc, where indentation differs from
+          # today's files. Make only the carrier's source matcher whitespace-tolerant; every semantic
+          # token still has to match exactly once before replacement.
+          patch = patch.replace("from pathlib import Path\n", "from pathlib import Path\nimport re\n", 1)
+          exact = '''def replace_once(path, old, new):
+    text = read(path)
+    count = text.count(old)
+    if count != 1:
+        raise SystemExit(f"{path}: expected one exact replacement, found {count}: {old[:80]!r}")
+    write(path, text.replace(old, new, 1))
+'''
+          tolerant = '''def replace_once(path, old, new):
+    text = read(path)
+    count = text.count(old)
+    if count == 1:
+        write(path, text.replace(old, new, 1))
+        return
+    tokens = [re.escape(token) for token in re.split(r"\\s+", old.strip()) if token]
+    pattern = r"\\s+".join(tokens)
+    matches = list(re.finditer(pattern, text, flags=re.MULTILINE))
+    if len(matches) != 1:
+        raise SystemExit(f"{path}: expected one bounded replacement, found {len(matches)}: {old[:80]!r}")
+    match = matches[0]
+    write(path, text[:match.start()] + new + text[match.end():])
+'''
+          if exact not in patch:
+              raise SystemExit("replace_once carrier seam changed")
+          patch = patch.replace(exact, tolerant, 1)
+
           Path('/tmp/measure_cli_665.py').write_text(harness, encoding='utf-8')
           Path('/tmp/patch_cli_665.py').write_text(patch, encoding='utf-8')
           Path('/tmp/evidence_cli_665.py').write_text(evidence, encoding='utf-8')
