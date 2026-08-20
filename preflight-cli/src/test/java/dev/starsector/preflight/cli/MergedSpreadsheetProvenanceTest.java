@@ -49,6 +49,9 @@ class MergedSpreadsheetProvenanceTest {
 
         assertEquals("spreadsheet-provider-row-contribution-v1", result.values().get("evidenceKind"));
         assertEquals("provider-contribution-only", result.values().get("resolution"));
+        assertEquals("resource-index-profile-fingerprint", result.values().get("providerOrderBinding"));
+        assertEquals("current-provider-path-read", result.values().get("contentBinding"));
+        assertFalse((Boolean) result.values().get("sourceGenerationBound"));
         assertTrue((Boolean) result.values().get("resolved"));
 
         @SuppressWarnings("unchecked")
@@ -68,7 +71,9 @@ class MergedSpreadsheetProvenanceTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> keys = (List<Map<String, Object>>) result.values().get("keys");
         Map<String, Object> shared = key(keys, "id", "shared");
-        assertEquals(2, ((Number) shared.get("contributorCount")).intValue());
+        assertEquals(2, ((Number) shared.get("contributorCountLowerBound")).intValue());
+        assertEquals(2, ((Number) shared.get("contributorsReturned")).intValue());
+        assertTrue((Boolean) shared.get("contributorCountComplete"));
         assertTrue((Boolean) shared.get("duplicateWithinProvider"));
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> contributors = (List<Map<String, Object>>) shared.get("contributors");
@@ -86,6 +91,7 @@ class MergedSpreadsheetProvenanceTest {
         String json = result.toJson();
         assertFalse(json.contains(temporaryDirectory.toString()));
         assertFalse(json.contains("\"winner\":"));
+        assertTrue(json.contains("\"sourceGenerationBound\":false"));
         assertTrue(json.contains("does not establish Starsector's final merged-row winner"));
     }
 
@@ -186,7 +192,9 @@ class MergedSpreadsheetProvenanceTest {
         List<Map<String, Object>> keys = (List<Map<String, Object>>) result.values().get("keys");
         assertEquals(1, keys.size());
         assertTrue((Boolean) keys.get(0).get("contributorsTruncated"));
-        assertEquals(1, ((Number) keys.get(0).get("contributorCount")).intValue());
+        assertEquals(1, ((Number) keys.get(0).get("contributorCountLowerBound")).intValue());
+        assertEquals(1, ((Number) keys.get(0).get("contributorsReturned")).intValue());
+        assertFalse((Boolean) keys.get(0).get("contributorCountComplete"));
     }
 
     private ResourceIndex index(
