@@ -72,8 +72,10 @@ machines. The reviewed game version is 0.98a-RC8. Unknown game or mod code uses 
 
 **Download:** [RELEASE URL]
 
-If Preflight helps and you want to support it:
-https://www.patreon.com/cw/teamleaderleo
+If Preflight helps and you want to support the work:
+
+- GitHub Sponsors: [GITHUB SPONSORS URL]
+- Patreon: https://www.patreon.com/cw/teamleaderleo
 
 ## Playtime claim note
 
