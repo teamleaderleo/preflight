@@ -71,7 +71,10 @@ current answer.
 - [Architecture](architecture.md)
 - [Java runtime support](java-runtime-support.md)
 - [Refactoring audit](refactoring-audit.md)
-- [Desktop redesign brief](desktop-redesign-brief.md)
+- [UI design guide](ui-design.md): current visual language, interaction hierarchy, CSS ownership,
+  responsive expectations, accessibility, and rendered-review rules for the desktop app.
+- [Desktop redesign brief](desktop-redesign-brief.md): historical redesign rationale and implementation
+  record; use the UI design guide for current visual direction when the two disagree.
 - [Verification strategy](verification-strategy.md)
 - [Runtime adapter model](runtime-adapters.md)
 - [Vanilla runtime adapter](vanilla-adapter.md)

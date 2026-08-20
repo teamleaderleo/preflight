@@ -2,7 +2,7 @@
 
 These are the canonical repository-working rules for coding agents. [AGENTS.md](AGENTS.md) points here so agent clients share one copy.
 
-Current project state starts at [LLM_HANDOFF.md](LLM_HANDOFF.md), which points to the maintained release-readiness and latest maintenance checkpoint before the longer engineering chronology. This file is about how to work, not what is true.
+Current project state starts at [LLM_HANDOFF.md](LLM_HANDOFF.md), which routes agents through the live release owners before the longer engineering chronology. This file is about how to work, not what is true.
 
 ## Check live work before starting a slice
 
@@ -38,6 +38,23 @@ Two that keep being missed: `scripts/probe-launch.sh` is one launch that stops i
 where the time went, and `scripts/run-startup-benchmark.sh --unattended` is the repeated campaign.
 `preflight run` is the launcher, not a measurement: it never exits on its own, and a launch left
 running holds ~4 GB and a GPU context and poisons everything measured after it.
+
+## Use the computer for operator evidence
+
+When the live release owner says the remaining step is rendered acceptance, a real-game exercise,
+a packaged-candidate benchmark, or another hands-on gate, stop treating it as a source-review task.
+Use the actual computer/browser/terminal and the exact bytes being accepted.
+
+Immediately before the run, refresh the live owner issue/PR and capture the current `main`, PR head,
+workflow/artifact identity, or packaged candidate identity that applies. Do not reuse a SHA, artifact,
+or benchmark result copied from an old handoff or an earlier operator session.
+
+For UI acceptance, use the verified browser frontend and Chromium/Playwright at the shipped window
+sizes, including hover/focus and keyboard/pointer interactions where they carry information. For a
+release startup claim, follow `scripts/README.md` and use `run-startup-benchmark.sh --engine ...`
+against the packaged candidate; a checkout build is not candidate evidence. Keep the exact candidate
+identity beside every result. If source changes after candidate generation, package-dependent evidence
+belongs to the old generation and must not be carried forward as if it covered the new bytes.
 
 ## Write what you saw, not what it means
 
@@ -92,6 +109,23 @@ the game "must" do has been wrong here before. Read game jar entries in memory (
 case-insensitive filesystem.
 
 Nothing from the installation enters the repo.
+
+## Render UI work before calling it done
+
+For desktop/frontend work, read [docs/ui-design.md](docs/ui-design.md) before introducing a new
+visual pattern. Source review and jsdom tests are not visual acceptance. If a change affects
+composition, density, responsive behavior, disclosure, or control hierarchy, render the actual
+browser frontend and inspect it in Chromium/Playwright.
+
+Use the deterministic browser-preview scenarios and check the normal Tauri window (`1040×700`)
+and minimum window (`720×560`). Exercise hover and keyboard focus when those interactions carry
+information. If the repo is not mounted locally, use the verified frontend artifact produced by
+Desktop CI rather than stopping at source inspection.
+
+Do not default to generic dashboard/card/pill patterns or create another late-loading CSS override
+layer merely because the first implementation is convenient. Preserve the existing design language
+unless the product wants a real departure, and make major layout state explicit in the component
+instead of hiding it in selector cleverness.
 
 ## Git
 
