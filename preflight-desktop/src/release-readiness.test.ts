@@ -7,6 +7,10 @@ function installReadinessStyles(base = "") {
   return style;
 }
 
+test("ordinary controls acknowledge a press before asynchronous state arrives", () => {
+  expect(readinessStyles).toMatch(/button:not\(:disabled\):active,\s*summary:active\s*\{[^}]*transform:\s*translateY\(1px\);/s);
+});
+
 test("ready Home keeps recovery content scrollable and launch controls clear of options", () => {
   expect(readinessStyles).toMatch(/\.page-viewport--home:has\(\.launch-console--ready\)\s*\{[^}]*overflow-y:\s*auto;/s);
   expect(readinessStyles).toMatch(/\.launch-console--options-open \.quick-settings\s*\{[^}]*bottom:\s*118px;[^}]*max-height:\s*none;/s);

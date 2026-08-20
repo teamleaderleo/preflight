@@ -1,5 +1,11 @@
 /* Release-convergence overrides for the Home/Hangar ownership pass. */
 
+/* Ordinary controls acknowledge the press before any asynchronous busy label can arrive. */
+button:not(:disabled):active,
+summary:active {
+  transform: translateY(1px);
+}
+
 /* A ready Home can still grow recovery/update content below the launch display. Keep it reachable. */
 .page-viewport--home:has(.launch-console--ready) {
   overflow-y: auto;
