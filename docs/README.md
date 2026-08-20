@@ -30,7 +30,10 @@ archive. They answer different questions. This page is the shortest route to the
   trust/privacy answers, claim qualifiers, and small product opportunities.
 - [Long beta announcement draft](beta-announcement-draft.md): retained source copy with the fuller
   privacy, compatibility, and release explanation.
-- [Patreon page draft](patreon-page-draft.md): short About, tier, welcome, and first-post copy.
+- [Patreon page draft](patreon-page-draft.md): current About, four membership tiers, welcome note,
+  first current post, and image notes.
+- [GitHub Sponsors page draft](github-sponsors-page-draft.md): short bio, introduction, goal,
+  featured-work choices, monthly tiers, one-time support, and the activation checklist.
 - [Known limitations](known-limitations.md): the current platform, evidence, storage, and fallback
   limits.
 - [Cross-platform evidence plan](cross-platform-evidence-plan.md): what hosted, emulated, and native
