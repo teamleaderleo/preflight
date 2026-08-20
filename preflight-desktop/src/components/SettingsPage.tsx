@@ -188,7 +188,7 @@ export function SettingsPage({
               disabled={!reportIntake?.configured}
               onChange={(event) => onAutomaticRunReportsChange(event.target.checked)}
             />
-            <span>Send failed-run reports automatically<small>{reportIntake?.configured ? "If Starsector closes with an error, sends the same support ZIP shown in Help." : "Report intake is unavailable in this build."}</small></span>
+            <span>Send failed-run reports automatically<small>{reportIntake?.configured ? "If Starsector closes with an error, Preflight sends the same support ZIP shown in Help." : "Report intake is unavailable in this build."}</small></span>
           </label>
         </section>
 
