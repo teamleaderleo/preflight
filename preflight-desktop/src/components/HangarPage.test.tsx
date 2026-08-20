@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 import { INSTRUMENT_HULL_MOTION_STORAGE_KEY } from "../desktopStorage";
 import type { useInstrumentHull } from "../useInstrumentHull";
@@ -66,32 +66,34 @@ test("installed hulls stay in the searchable picker while featured selection rem
   expect(screen.getByRole("button", { name: /Modded Hull/ })).toBeInTheDocument();
 });
 
-test("motion controls use compact symbols with hover and accessible action labels", () => {
+test("motion direction and reset read as one locally coherent control group", () => {
   render(<HangarPage instrumentHull={state()} />);
 
-  const counterClockwise = screen.getByRole("button", { name: "Use counter-clockwise" });
+  const controls = screen.getByRole("group", { name: "Display motion and appearance" });
+  const counterClockwise = within(controls).getByRole("button", { name: "Use counter-clockwise" });
   expect(counterClockwise).toHaveAttribute("title", "Rotate counter-clockwise");
   fireEvent.click(counterClockwise);
-  expect(screen.getByRole("button", { name: "Use clockwise" })).toBeEnabled();
+  expect(within(controls).getByRole("button", { name: "Use clockwise" })).toBeEnabled();
 
-  const pause = screen.getByRole("button", { name: "Pause rotation" });
+  const pause = within(controls).getByRole("button", { name: "Pause rotation" });
   expect(pause).toHaveAttribute("title", "Pause decorative hull rotation");
-  expect(screen.queryByText("Pause rotation")).not.toBeInTheDocument();
+  expect(within(controls).queryByText("Pause rotation")).not.toBeInTheDocument();
   fireEvent.click(pause);
 
-  const resume = screen.getByRole("button", { name: "Resume rotation" });
+  const resume = within(controls).getByRole("button", { name: "Resume rotation" });
   expect(resume).toHaveAttribute("title", "Resume decorative hull rotation");
-  const pausedDirection = screen.getByRole("button", { name: "Use clockwise" });
+  const pausedDirection = within(controls).getByRole("button", { name: "Use clockwise" });
   expect(pausedDirection).toBeEnabled();
   expect(pausedDirection).toHaveAttribute("title", "Use clockwise when rotation resumes");
 
   fireEvent.click(pausedDirection);
-  expect(screen.getByRole("button", { name: "Use counter-clockwise" })).toBeEnabled();
+  expect(within(controls).getByRole("button", { name: "Use counter-clockwise" })).toBeEnabled();
   expect(JSON.parse(window.localStorage.getItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY) ?? "null"))
     .toEqual({ motion: "still", direction: "clockwise" });
 
-  expect(screen.getByRole("button", { name: "Reset appearance" })).toHaveAttribute("title", "Reset appearance");
-  expect(screen.queryByText("Reset")).not.toBeInTheDocument();
+  const reset = within(controls).getByRole("button", { name: "Reset appearance" });
+  expect(reset).toHaveAttribute("title", "Reset appearance");
+  expect(reset).toHaveTextContent("Reset");
 });
 
 test("interior tuning remains independently editable after the shared appearance dials", () => {

@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import type { usePreparation } from "../usePreparation";
 import type { DesktopSnapshot, WireframeHull } from "../types";
@@ -180,23 +180,25 @@ function preparationForProfile(profileFingerprint: string, cacheLoading = false)
 test("settled Home shows the installation and active named profile beside the launch action", () => {
   render(<HomePage {...props()} />);
 
-  const identity = screen.getByLabelText("Launches profile Exploration from /Applications/Starsector");
-  expect(within(identity).getByText("/Applications/Starsector")).toHaveAttribute("title", "/Applications/Starsector");
-  expect(within(identity).getByText("Exploration")).toBeInTheDocument();
+  expect(screen.getByText("Exploration", { selector: ".home-launch-identity strong" })).toBeInTheDocument();
+  const installation = screen.getByLabelText("Installation /Applications/Starsector");
+  expect(installation).toHaveAttribute("title", "/Applications/Starsector");
+  expect(installation).toHaveAttribute("tabindex", "0");
   expect(screen.getByRole("button", { name: "Launch Starsector" })).toBeEnabled();
 });
 
 test("settled Home labels an unsaved active mod set without inventing a profile name", () => {
   render(<HomePage {...props({ launchProfileName: null })} />);
 
-  const identity = screen.getByLabelText("Launches the current mod setup from /Applications/Starsector");
-  expect(within(identity).getByText("Current mod setup")).toBeInTheDocument();
+  expect(screen.getByText("Current mod setup", { selector: ".home-launch-identity strong" })).toBeInTheDocument();
+  expect(screen.getByLabelText("Installation /Applications/Starsector")).toBeInTheDocument();
 });
 
 test("Home keeps the new profile and installation visible when that setup needs preparation", () => {
   render(<HomePage {...props({ needsPreparation: true })} />);
 
-  expect(screen.getByLabelText("Launches profile Exploration from /Applications/Starsector")).toBeInTheDocument();
+  expect(screen.getByText("Exploration", { selector: ".home-launch-identity strong" })).toBeInTheDocument();
+  expect(screen.getByLabelText("Installation /Applications/Starsector")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Prepare and launch" })).toBeDisabled();
   expect(screen.getByText("Storage must be calculated before preparation.")).toBeInTheDocument();
 });
@@ -213,7 +215,8 @@ test("a launch error keeps the retry target visible beside its recovery action",
 
   expect(screen.getByRole("alert")).toHaveTextContent("Launch failed");
   expect(screen.getByRole("button", { name: "Try launch again" })).toBeEnabled();
-  expect(screen.getByLabelText("Launches profile Exploration from /Applications/Starsector")).toBeInTheDocument();
+  expect(screen.getByText("Exploration", { selector: ".home-launch-identity strong" })).toBeInTheDocument();
+  expect(screen.getByLabelText("Installation /Applications/Starsector")).toBeInTheDocument();
 });
 
 test("run recovery keeps Relaunch when the captured failed target still matches the current setup", () => {
@@ -264,7 +267,8 @@ test("switching to another profile retires the old Home recovery card", async ()
   expect(screen.queryByText("Run needs attention")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Relaunch" })).not.toBeInTheDocument();
   await waitFor(() => expect(dismiss).toHaveBeenCalledOnce());
-  expect(screen.getByLabelText("Launches profile Utilities only from /Applications/Starsector")).toBeInTheDocument();
+  expect(screen.getByText("Utilities only", { selector: ".home-launch-identity strong" })).toBeInTheDocument();
+  expect(screen.getByLabelText("Installation /Applications/Starsector")).toBeInTheDocument();
 });
 
 test("changing installations retires the old Home recovery card before the new profile identity settles", async () => {

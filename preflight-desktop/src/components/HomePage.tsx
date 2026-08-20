@@ -7,9 +7,10 @@ import type { ThemePreference } from "../useTheme";
 import { QuickGameSettings } from "./QuickGameSettings";
 import { NoticeBanner } from "./NoticeBanner";
 import { RunRecoveryActions } from "./RunRecoveryActions";
+import { HomeLaunchIdentity } from "./HomeLaunchIdentity";
 import { storagePlanApplies, type usePreparation } from "../usePreparation";
 import { lastRunForCurrentProfile, launchSetupApplicability } from "../lastRunApplicability";
-import { formatBytes, formatPlaytime, shortPath, splitPlaytime } from "../uiFormat";
+import { formatBytes, formatPlaytime, splitPlaytime } from "../uiFormat";
 import { FlightInstrument } from "./FlightInstrument";
 import type {
   AppStatus,
@@ -160,6 +161,20 @@ export function HomePage({
   const visibleRunFailure = runFailureStale ? null : runFailure;
   const hasPlaytime = Boolean(playtime?.readable && playtime.launches > 0 && playtime.totalMillis > 0);
   const playtimeTotal = hasPlaytime && playtime ? splitPlaytime(playtime.totalMillis) : null;
+  const recoveryLayout = Boolean(visibleRunFailure) || status === "error";
+  const activeLayout = status === "launching" || status === "running";
+  const preparationLayout = isReady && !recoveryLayout && !activeLayout
+    && (preparing || needsPreparation || !profilePrepared || cacheInspectionBlocked);
+  const homeLayoutState = !isReady
+    ? "setup"
+    : recoveryLayout
+      ? "recovery"
+      : activeLayout
+        ? "active"
+        : preparationLayout
+          ? "preparation"
+          : "settled";
+  const recoveryFirst = Boolean(visibleRunFailure || cacheInspectionBlocked || status === "error");
   const toggleOptions = () => {
     setOptionsOpen((current) => {
       const next = !current;
@@ -192,9 +207,54 @@ export function HomePage({
                   ? "Optimizations off"
                   : "Ready to launch";
 
+  const notice = (
+    <NoticeBanner
+      message={visibleRunFailure?.summary === message ? "" : message}
+      tone={status === "error" ? "error" : messageTone}
+      actionLabel={status === "error" ? retryLabel : undefined}
+      onAction={status === "error" ? onRetry : undefined}
+    />
+  );
+  const cacheRecovery = cacheInspectionBlocked ? (
+    <section className="card run-recovery cache-recovery" aria-label="Prepared data needs attention">
+      <div>
+        <strong>{cacheIdentityUnknown ? "Prepared data couldn't be checked" : cacheBoundaryUnsafe ? "Prepared data location needs attention" : "Prepared data needs repair"}</strong>
+        <p>{cacheHealth.issues[0]?.summary ?? "Some prepared data for this mod setup couldn't be validated."} Preflight left it in place. Starsector and your mods are unchanged.</p>
+        {cacheHealth.issues.length > 1 ? <small>{cacheHealth.issues.length - 1} more issue{cacheHealth.issues.length === 2 ? "" : "s"} found.</small> : null}
+      </div>
+      <div className="run-recovery__actions">
+        <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("speed")} disabled={cacheRepairing}>Review details</button>
+      </div>
+    </section>
+  ) : null;
+  const runRecovery = visibleRunFailure ? (
+    <section className="card run-recovery" aria-label="Run needs attention" role="alert">
+      <div>
+        <strong>Run needs attention</strong>
+        <p>{visibleRunFailure.summary}</p>
+        {visibleRunFailure.detail ? (
+          <details className="run-recovery__details">
+            <summary>Technical details</summary>
+            <pre>{visibleRunFailure.detail}</pre>
+          </details>
+        ) : null}
+      </div>
+      <RunRecoveryActions
+        optimizationPreset={optimizationPreset}
+        operationBlocked={operationBlocked}
+        onRelaunch={onPrimaryLaunch}
+        onGetHelp={() => onNavigate("help")}
+        onDismiss={onDismissRunFailure}
+      />
+    </section>
+  ) : null;
+  const recoveryContent = <>{notice}{cacheRecovery}{runRecovery}</>;
+
   return (
     <>
-      <section className={`launch-console ${isReady ? "launch-console--ready" : "card launch-console--setup"} launch-console--${status} ${isReady && optionsOpen ? "launch-console--options-open" : "launch-console--minimal"} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""}`}>
+      {recoveryFirst ? recoveryContent : null}
+
+      <section className={`launch-console ${isReady ? "launch-console--ready" : "card launch-console--setup"} launch-console--${status} launch-console--layout-${homeLayoutState} ${isReady && optionsOpen ? "launch-console--options-open" : "launch-console--minimal"} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""}`}>
         <div className="launch-console__primary">
           {isReady ? (
             <div className="home-flight-instrument">
@@ -240,13 +300,10 @@ export function HomePage({
           {!isReady ? <p>{status === "loading" ? "Checking the usual installation locations." : "Select the folder containing Starsector.app, starsector.exe, or starsector.sh."}</p> : null}
           {!isReady && status !== "loading" ? <p className="setup-next">Preflight creates reusable startup data for your current mod setup, then opens Starsector. Your game, mods, and saves stay unchanged.</p> : null}
           {isReady && (status === "ready" || status === "error") && snapshot?.selected ? (
-            <div
-              className="home-launch-identity"
-              aria-label={`Launches ${launchProfileName ? `profile ${launchProfileName}` : "the current mod setup"} from ${snapshot.selected.installRoot}`}
-            >
-              <span title={snapshot.selected.installRoot}>{shortPath(snapshot.selected.installRoot)}</span>
-              <strong title={launchProfileName ?? undefined}>{launchProfileName ?? "Current mod setup"}</strong>
-            </div>
+            <HomeLaunchIdentity
+              installRoot={snapshot.selected.installRoot}
+              profileName={launchProfileName}
+            />
           ) : null}
           <div className="launch-console__actions">
             {isReady ? (
@@ -345,47 +402,7 @@ export function HomePage({
         </section>
       ) : null}
 
-      <NoticeBanner
-        message={visibleRunFailure?.summary === message ? "" : message}
-        tone={status === "error" ? "error" : messageTone}
-        actionLabel={status === "error" ? retryLabel : undefined}
-        onAction={status === "error" ? onRetry : undefined}
-      />
-
-      {cacheInspectionBlocked ? (
-        <section className="card run-recovery cache-recovery" aria-label="Prepared data needs attention">
-          <div>
-            <strong>{cacheIdentityUnknown ? "Prepared data couldn't be checked" : cacheBoundaryUnsafe ? "Prepared data location needs attention" : "Prepared data needs repair"}</strong>
-            <p>{cacheHealth.issues[0]?.summary ?? "Some prepared data for this mod setup couldn't be validated."} Preflight left it in place. Starsector and your mods are unchanged.</p>
-            {cacheHealth.issues.length > 1 ? <small>{cacheHealth.issues.length - 1} more issue{cacheHealth.issues.length === 2 ? "" : "s"} found.</small> : null}
-          </div>
-          <div className="run-recovery__actions">
-            <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("speed")} disabled={cacheRepairing}>Review details</button>
-          </div>
-        </section>
-      ) : null}
-
-      {visibleRunFailure ? (
-        <section className="card run-recovery" aria-label="Run needs attention" role="alert">
-          <div>
-            <strong>Run needs attention</strong>
-            <p>{visibleRunFailure.summary}</p>
-            {visibleRunFailure.detail ? (
-              <details className="run-recovery__details">
-                <summary>Technical details</summary>
-                <pre>{visibleRunFailure.detail}</pre>
-              </details>
-            ) : null}
-          </div>
-          <RunRecoveryActions
-            optimizationPreset={optimizationPreset}
-            operationBlocked={operationBlocked}
-            onRelaunch={onPrimaryLaunch}
-            onGetHelp={() => onNavigate("help")}
-            onDismiss={onDismissRunFailure}
-          />
-        </section>
-      ) : null}
+      {!recoveryFirst ? recoveryContent : null}
 
       {!isReady && snapshot?.diagnostics.length ? (
         <details className="setup-diagnostics">
