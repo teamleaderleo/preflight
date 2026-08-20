@@ -56,7 +56,7 @@ test("resolved Home cascade follows explicit state modifiers", () => {
 
   // jsdom can report older declarations after parsing the modern production cascade. Pin those late
   // owners directly; real scrolling and pixel placement belong to the Chromium acceptance pass.
-  expect(layoutStyles).toMatch(/\.page-viewport--home\s*\{[^}]*overflow-y:\s*auto;/s);
+  expect(layoutStyles).toMatch(/\.page-viewport--home\s*\{[^}]*position:\s*relative;[^}]*overflow-y:\s*auto;/s);
   expect(getComputedStyle(settled.instrument).inset).toBe("-34px 30px 100px");
   expect(getComputedStyle(preparation.instrument).inset).toBe("6px 36px 104px");
   expect(getComputedStyle(recovery.console).minHeight).toBe("220px");
@@ -66,6 +66,21 @@ test("resolved Home cascade follows explicit state modifiers", () => {
 
   viewport.remove();
   style.remove();
+});
+
+test("failed-run recovery floats above a stable adjacent Home field", () => {
+  expect(layoutStyles).toMatch(
+    /\.page-viewport--home > \.run-recovery\[role="alert"\]\s*\{[^}]*position:\s*absolute;[^}]*z-index:\s*8;[^}]*top:\s*0;[^}]*margin-bottom:\s*0;/s,
+  );
+  expect(layoutStyles).toMatch(
+    /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery\s*\{[^}]*height:\s*100%;[^}]*min-height:\s*100%;/s,
+  );
+  expect(layoutStyles).toMatch(
+    /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-flight-instrument\s*\{[^}]*inset:\s*120px 30px 54px;[^}]*opacity:\s*\.72;/s,
+  );
+  expect(layoutStyles).toMatch(
+    /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-launch-identity\s*\{[^}]*top:\s*auto;[^}]*bottom:\s*18px;/s,
+  );
 });
 
 test("launch identity keeps the setup first while the path remains an interactive disclosure", () => {
@@ -160,5 +175,6 @@ test("compact rules exist for the required 720px review width", () => {
   expect(selectors).toContain(".launch-console--layout-settled.launch-console--minimal .home-flight-instrument");
   expect(selectors).toContain(".launch-console--layout-preparation .home-flight-instrument");
   expect(selectors).toContain(".launch-console--layout-recovery");
+  expect(selectors).toContain('.page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery');
   style.remove();
 });
