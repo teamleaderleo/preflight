@@ -220,26 +220,6 @@
       "derivation": "Reviewed cache-identity construction time after the shared identity change."
     },
     {
-      "type": "storage",
-      "value": "3.08",
-      "unit": "GB",
-      "publishedIn": [
-        "README.md"
-      ],
-      "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
-      "derivation": "Human-reviewed difference between 5.33 GB and 2.26 GB of texture blob bytes; this is the texture representation delta, not whole-cache disk use."
-    },
-    {
-      "type": "storage",
-      "value": "5.27",
-      "unit": "GB",
-      "publishedIn": [
-        "README.md"
-      ],
-      "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
-      "derivation": "Human-reviewed whole-cache directory difference between 10.03 GB Fastest and 4.76 GB Balanced on the same profile."
-    },
-    {
       "type": "count",
       "value": "77",
       "unit": "mod",
