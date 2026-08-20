@@ -3,6 +3,7 @@ package dev.starsector.preflight.cli;
 import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.Json;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -142,7 +143,14 @@ final class DesktopSmokeEvidence {
         return result;
     }
 
-    private static Map<String, Object> readResult(Path source) throws IOException {
+    static Map<String, Object> readResult(Path source) throws IOException {
+        return readResult(source, ignored -> {});
+    }
+
+    static Map<String, Object> readResult(Path source, BeforeOpenHook beforeOpen) throws IOException {
+        if (beforeOpen == null) {
+            throw new IllegalArgumentException("Desktop smoke pre-open hook is required");
+        }
         Path absolute = source.toAbsolutePath().normalize();
         if (!Files.isRegularFile(absolute, LinkOption.NOFOLLOW_LINKS)) {
             throw new IOException("Desktop smoke driver result is not a regular file: " + absolute);
@@ -150,7 +158,21 @@ final class DesktopSmokeEvidence {
         if (Files.size(absolute) > MAX_RESULT_BYTES) {
             throw new IOException("Desktop smoke driver result exceeds " + MAX_RESULT_BYTES + " bytes");
         }
-        return StrictJson.object(Files.readString(absolute, StandardCharsets.UTF_8));
+        beforeOpen.run(absolute);
+        try (InputStream input = Files.newInputStream(
+                absolute, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+            return readResult(input, absolute.toString());
+        }
+    }
+
+    static Map<String, Object> readResult(InputStream input, String sourceLabel) throws IOException {
+        return BoundedEvidenceJson.readObject(
+                input, MAX_RESULT_BYTES, sourceLabel, "Desktop smoke driver result");
+    }
+
+    @FunctionalInterface
+    interface BeforeOpenHook {
+        void run(Path path) throws IOException;
     }
 
     private static Driver driver(Map<String, Object> raw) {
