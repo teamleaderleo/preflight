@@ -6,12 +6,12 @@ import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -25,69 +25,52 @@ import java.util.stream.IntStream;
 /**
  * The work every dependency-profile identity has in common, done once per launch.
  *
- * <p>Six caches each need an exact identity for the files that can change their answer, and until
- * this existed each of them independently re-read the resource index, re-hashed the game jar, and
- * re-resolved every provider through {@code toRealPath}. On the measured 83-mod profile that cost
- * <b>1,612ms in the launcher before the JVM even starts</b>, of which roughly a third was five
- * redundant reads of the same 8&nbsp;MB index file.
- *
- * <p>Five things are shared here:
- *
- * <ul>
- *   <li><b>the index and the game jar hash</b>, read and computed once;
- *   <li><b>containment</b>, which resolves each provider's <i>parent directory</i> through
- *       {@code toRealPath} and memoises it. 12,797 providers on this profile live in 694 distinct
- *       directories, so the symlink-escape check costs 694 resolutions instead of 12,797;
- *   <li><b>provider resolution</b>, memoised after the first full containment check so overlapping
- *       identities do not repeat {@code readAttributes} for the same indexed provider;
- *   <li><b>hashing</b>, which runs across every core but hands results back in request order, so the
- *       bytes fed to a caller's digest are exactly the bytes a serial loop would have fed it;
- *   <li><b>content digests</b>, memoised by resolved path for this preparation. The broad
- *       {@code data/} identity overlaps the four spec corpora, so those files are read once even
- *       though more than one identity consumes their digest.
- * </ul>
- *
- * <p>Nothing here weakens what an identity covers. Every file that was hashed before is still hashed,
- * by content, on every launch. This is the same answer computed faster, which is why
- * {@code ProfileIdentityContextTest} checks the parallel result against a serial reference rather
- * than against a recorded constant.
+ * <p>Every content digest is tied to one strong opened-file generation. Provider hashes must match
+ * the generation persisted by the ResourceIndex. Other profile inputs establish a launch-local
+ * accepted generation on their first pinned read. One payload read is shared per accepted
+ * generation, while every memo reuse performs a cheap generation revalidation.
  */
 final class ProfileIdentityContext implements Closeable {
     private final Path installRoot;
     private final Path gameJar;
     private final String gameJarSha256;
+    private final OpenedFileGenerationAuthority.Generation gameJarGeneration;
     private final ResourceIndex resources;
     private final List<Path> realRoots;
     private final ContentHasher hasher;
     private final Map<Path, Path> realDirectories = new ConcurrentHashMap<>();
     private final Map<ResourceIndex.Provider, Path> realProviders = new ConcurrentHashMap<>();
     private final Map<Path, ResourceIndex.Provider> providerByPath = new ConcurrentHashMap<>();
-    private final Map<Path, CompletableFuture<String>> fileHashes = new ConcurrentHashMap<>();
+    private final Map<Path, OpenedFileGenerationAuthority.Generation> acceptedGenerations =
+            new ConcurrentHashMap<>();
+    private final Map<Path, CompletableFuture<OpenedFileGenerationAuthority.HashEvidence>> fileHashes =
+            new ConcurrentHashMap<>();
     private final int workers;
 
     private ForkJoinPool pool;
 
     @FunctionalInterface
     interface ContentHasher {
-        String sha256(Path file) throws IOException;
+        String sha256(Path publicPath, InputStream input) throws IOException;
     }
 
     private ProfileIdentityContext(
             Path installRoot,
             Path gameJar,
-            String gameJarSha256,
+            OpenedFileGenerationAuthority.HashEvidence gameJarEvidence,
             ResourceIndex resources,
             List<Path> realRoots,
             ContentHasher hasher,
             int workers) {
         this.installRoot = installRoot;
         this.gameJar = gameJar;
-        this.gameJarSha256 = gameJarSha256;
+        this.gameJarSha256 = gameJarEvidence.sha256();
+        this.gameJarGeneration = gameJarEvidence.generation();
         this.resources = resources;
         this.realRoots = realRoots;
         this.hasher = hasher;
         this.workers = workers;
-        this.fileHashes.put(gameJar, CompletableFuture.completedFuture(gameJarSha256));
+        this.fileHashes.put(gameJar, CompletableFuture.completedFuture(gameJarEvidence));
     }
 
     /** Reads the index from disk. The launcher does this once and shares the result. */
@@ -96,7 +79,7 @@ final class ProfileIdentityContext implements Closeable {
     }
 
     static ProfileIdentityContext of(Path installRoot, ResourceIndex resources) throws IOException {
-        return of(installRoot, resources, Hashes::sha256, defaultWorkers());
+        return of(installRoot, resources, (ignored, input) -> Hashes.sha256(input), defaultWorkers());
     }
 
     static ProfileIdentityContext of(
@@ -110,18 +93,16 @@ final class ProfileIdentityContext implements Closeable {
         for (ResourceIndex.Root each : resources.roots()) {
             realRoots.add(PathContainment.realDirectory(each.path()));
         }
-        BasicFileAttributes jarBefore = Files.readAttributes(
-                gameJar, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
-        FileIdentity jarBeforeId = FileIdentity.from(jarBefore);
-        String gameJarSha256 = hasher.sha256(gameJar);
-        BasicFileAttributes jarAfter = Files.readAttributes(
-                gameJar, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
-        if (!jarBeforeId.equals(FileIdentity.from(jarAfter))) {
-            throw new IOException("Game jar modified or replaced during hash read: " + gameJar);
-        }
+        OpenedFileGenerationAuthority.HashEvidence gameJarEvidence =
+                OpenedFileGenerationAuthority.hash(gameJar, null, hasher::sha256);
         return new ProfileIdentityContext(
-                root, gameJar, gameJarSha256, resources, List.copyOf(realRoots),
-                hasher, workers);
+                root,
+                gameJar,
+                gameJarEvidence,
+                resources,
+                List.copyOf(realRoots),
+                hasher,
+                workers);
     }
 
     static int defaultWorkers() {
@@ -144,14 +125,6 @@ final class ProfileIdentityContext implements Closeable {
         return resources;
     }
 
-    /**
-     * Resolves providers to real files, rejecting anything that escapes its root.
-     *
-     * <p>Equivalent to calling {@link PathContainment#existingInsideRealRoot} per provider. The
-     * parent directory is resolved through {@code toRealPath} and memoised, and the file itself is
-     * confirmed to exist and not to be a symbolic link; a symlink falls back to the full resolution
-     * so the containment decision is the one the unmemoised check would have made.
-     */
     List<Path> resolveAll(List<ResourceIndex.Provider> providers) throws IOException {
         List<Path> sources = new ArrayList<>(providers.size());
         for (ResourceIndex.Provider provider : providers) {
@@ -176,6 +149,11 @@ final class ProfileIdentityContext implements Closeable {
         }
     }
 
+    String sha256(ResourceIndex.Provider provider) throws IOException {
+        Path resolved = resolve(provider);
+        return sha256(resolved, provider);
+    }
+
     private Path resolveUncached(ResourceIndex.Provider provider) throws IOException {
         Path realRoot = realRoots.get(provider.rootIndex());
         Path candidate = resources.resolve(provider);
@@ -190,7 +168,6 @@ final class ProfileIdentityContext implements Closeable {
             attributes = Files.readAttributes(
                     candidate, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
         } catch (IOException missing) {
-            // Let the unmemoised path produce the same failure the callers already handle.
             Path resolved = PathContainment.existingInsideRealRoot(realRoot, candidate);
             providerByPath.put(resolved, provider);
             return resolved;
@@ -225,13 +202,7 @@ final class ProfileIdentityContext implements Closeable {
         }
     }
 
-    /**
-     * SHA-256 of every source, in the order requested.
-     *
-     * <p>Order is what makes this substitutable for a serial loop: a caller feeding
-     * {@code sha256All(sources).get(i)} into its digest writes the same bytes in the same sequence it
-     * wrote before, so identities computed by an older build still match.
-     */
+    /** SHA-256 of every source, in the order requested. */
     List<String> sha256All(List<Path> sources) throws IOException {
         int count = sources.size();
         String[] digests = new String[count];
@@ -263,59 +234,93 @@ final class ProfileIdentityContext implements Closeable {
         return List.of(digests);
     }
 
-    /** One content read per resolved path for the lifetime of this preparation context. */
     private String sha256(Path source) throws IOException {
         Path resolved = source.toAbsolutePath().normalize();
-        CompletableFuture<String> proposed = new CompletableFuture<>();
-        CompletableFuture<String> shared = fileHashes.putIfAbsent(resolved, proposed);
-        if (shared == null) {
-            shared = proposed;
-            try {
-                proposed.complete(computeStableHash(resolved));
-            } catch (IOException | RuntimeException | Error failure) {
-                proposed.completeExceptionally(failure);
-                fileHashes.remove(resolved, proposed);
-            }
-        }
-        return awaitHash(resolved, shared);
+        return sha256(resolved, providerByPath.get(resolved));
     }
 
-    private String computeStableHash(Path resolved) throws IOException {
-        ResourceIndex.Provider provider = providerByPath.get(resolved);
-        BasicFileAttributes before;
-        try {
-            before = Files.readAttributes(
+    private String sha256(Path resolved, ResourceIndex.Provider provider) throws IOException {
+        OpenedFileGenerationAuthority.Generation required = requiredGeneration(resolved, provider);
+
+        while (true) {
+            CompletableFuture<OpenedFileGenerationAuthority.HashEvidence> proposed = new CompletableFuture<>();
+            CompletableFuture<OpenedFileGenerationAuthority.HashEvidence> shared =
+                    fileHashes.putIfAbsent(resolved, proposed);
+            if (shared == null) {
+                shared = proposed;
+                try {
+                    proposed.complete(computeStableHash(resolved, provider, required));
+                } catch (IOException | RuntimeException | Error failure) {
+                    proposed.completeExceptionally(failure);
+                    fileHashes.remove(resolved, proposed);
+                }
+            }
+
+            OpenedFileGenerationAuthority.HashEvidence evidence = awaitHash(resolved, shared);
+            OpenedFileGenerationAuthority.Generation accepted = required;
+            if (accepted == null) {
+                OpenedFileGenerationAuthority.Generation prior =
+                        acceptedGenerations.putIfAbsent(resolved, evidence.generation());
+                accepted = prior == null ? evidence.generation() : prior;
+            }
+            if (!accepted.equals(evidence.generation())) {
+                fileHashes.remove(resolved, shared);
+                throw new OpenedFileGenerationAuthority.StaleGenerationException(
+                        "Memoized hash belongs to another file generation: " + resolved);
+            }
+            try {
+                OpenedFileGenerationAuthority.requireCurrent(resolved, accepted);
+                return evidence.sha256();
+            } catch (OpenedFileGenerationAuthority.StaleGenerationException stale) {
+                fileHashes.remove(resolved, shared);
+                throw stale;
+            }
+        }
+    }
+
+    private OpenedFileGenerationAuthority.HashEvidence computeStableHash(
+            Path resolved,
+            ResourceIndex.Provider provider,
+            OpenedFileGenerationAuthority.Generation required) throws IOException {
+        if (provider != null) {
+            BasicFileAttributes before = Files.readAttributes(
                     resolved, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
-        } catch (IOException error) {
-            throw new IOException("Failed to read file attributes before hashing: " + resolved, error);
-        }
-        if (!before.isRegularFile()) {
-            throw new IOException("Profile source is not a regular file: " + resolved);
-        }
-        if (provider != null && !matchesIndexedMetadata(provider, before)) {
-            throw new IOException("Provider metadata does not match indexed state before hashing: " + resolved);
+            if (!before.isRegularFile()) {
+                throw new IOException("Profile source is not a regular file: " + resolved);
+            }
+            if (!matchesIndexedMetadata(provider, before)) {
+                throw new OpenedFileGenerationAuthority.StaleGenerationException(
+                        "Provider metadata does not match indexed state before hashing: " + resolved);
+            }
         }
 
-        FileIdentity beforeIdentity = FileIdentity.from(before);
-        String digest = hasher.sha256(resolved);
+        OpenedFileGenerationAuthority.HashEvidence evidence =
+                OpenedFileGenerationAuthority.hash(resolved, required, hasher::sha256);
 
-        BasicFileAttributes after;
-        try {
-            after = Files.readAttributes(
+        if (provider != null) {
+            BasicFileAttributes after = Files.readAttributes(
                     resolved, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
-        } catch (IOException error) {
-            throw new IOException("Failed to read file attributes after hashing: " + resolved, error);
+            if (!after.isRegularFile() || !matchesIndexedMetadata(provider, after)) {
+                throw new OpenedFileGenerationAuthority.StaleGenerationException(
+                        "Provider metadata changed during hashing: " + resolved);
+            }
         }
-        if (!after.isRegularFile()) {
-            throw new IOException("Profile source became non-regular file during hashing: " + resolved);
+        return evidence;
+    }
+
+    private OpenedFileGenerationAuthority.Generation requiredGeneration(
+            Path resolved, ResourceIndex.Provider provider) throws IOException {
+        if (provider != null) {
+            if (!provider.hasGenerationAuthority()) {
+                throw new IOException("Provider has no exact file-generation authority: " + resolved);
+            }
+            return new OpenedFileGenerationAuthority.Generation(
+                    provider.generationProvider(), provider.generationToken());
         }
-        if (provider != null && !matchesIndexedMetadata(provider, after)) {
-            throw new IOException("Provider metadata changed during hashing: " + resolved);
+        if (resolved.equals(gameJar)) {
+            return gameJarGeneration;
         }
-        if (!beforeIdentity.equals(FileIdentity.from(after))) {
-            throw new IOException("Source file identity changed or replaced during hash read: " + resolved);
-        }
-        return digest;
+        return acceptedGenerations.get(resolved);
     }
 
     private static boolean matchesIndexedMetadata(
@@ -325,7 +330,9 @@ final class ProfileIdentityContext implements Closeable {
                 && Math.max(0, attributes.lastModifiedTime().toMillis()) == provider.modifiedMillis();
     }
 
-    private static String awaitHash(Path resolved, CompletableFuture<String> shared) throws IOException {
+    private static OpenedFileGenerationAuthority.HashEvidence awaitHash(
+            Path resolved,
+            CompletableFuture<OpenedFileGenerationAuthority.HashEvidence> shared) throws IOException {
         try {
             return shared.join();
         } catch (CompletionException failed) {
@@ -375,6 +382,7 @@ final class ProfileIdentityContext implements Closeable {
         }
         realProviders.clear();
         providerByPath.clear();
+        acceptedGenerations.clear();
         fileHashes.clear();
     }
 
@@ -389,14 +397,5 @@ final class ProfileIdentityContext implements Closeable {
             }
         }
         throw new IOException("Could not locate starfarer_obf.jar under " + installRoot);
-    }
-
-    private record FileIdentity(long size, FileTime modified, Object fileKey) {
-        static FileIdentity from(BasicFileAttributes attributes) {
-            return new FileIdentity(
-                    attributes.size(),
-                    attributes.lastModifiedTime(),
-                    attributes.fileKey());
-        }
     }
 }

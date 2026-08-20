@@ -14,6 +14,7 @@ import dev.starsector.preflight.core.PreparedAudioCache;
 import dev.starsector.preflight.core.PreparedAudioManifest;
 import dev.starsector.preflight.core.PreparedAudioManifestIO;
 import dev.starsector.preflight.core.PreparedTexture;
+import dev.starsector.preflight.core.ResourceIndexIO;
 import dev.starsector.preflight.core.TextureManifest;
 import dev.starsector.preflight.core.TextureManifestIO;
 import java.io.IOException;
@@ -61,7 +62,7 @@ class CachePruneTest {
         assertFalse(Files.exists(
                 preflight.cache().resolve("manifests").resolve(discarded + ".spfm")));
         assertFalse(Files.exists(
-                preflight.cache().resolve("resource-indexes").resolve(discarded + ".spfi")));
+                ResourceIndexIO.directory(preflight.cache()).resolve(discarded + ".spfi")));
     }
 
     @Test
@@ -75,8 +76,8 @@ class CachePruneTest {
         writeProfile(preflight, discarded, List.of("payload"));
         Files.createDirectories(preflight.cache().resolve("manifests"));
         Files.writeString(preflight.cache().resolve("manifests").resolve(kept + ".spfm"), "corrupt");
-        Files.createDirectories(preflight.cache().resolve("resource-indexes"));
-        Files.writeString(preflight.cache().resolve("resource-indexes").resolve(kept + ".spfi"), "x");
+        Files.createDirectories(ResourceIndexIO.directory(preflight.cache()));
+        Files.writeString(ResourceIndexIO.directory(preflight.cache()).resolve(kept + ".spfi"), "x");
 
         CachePrune.Plan plan = CachePrune.plan(preflight, Set.of(kept), Set.of());
         assertFalse(plan.safe(), "an unreadable survivor must abort the plan");
@@ -93,8 +94,8 @@ class CachePruneTest {
         // no blobs rather than making the plan unsafe.
         PreflightHome preflight = home();
         String kept = "e".repeat(64);
-        Files.createDirectories(preflight.cache().resolve("resource-indexes"));
-        Files.writeString(preflight.cache().resolve("resource-indexes").resolve(kept + ".spfi"), "x");
+        Files.createDirectories(ResourceIndexIO.directory(preflight.cache()));
+        Files.writeString(ResourceIndexIO.directory(preflight.cache()).resolve(kept + ".spfi"), "x");
 
         CachePrune.Plan plan = CachePrune.plan(preflight, Set.of(kept), Set.of());
         assertTrue(plan.safe());
@@ -273,9 +274,9 @@ class CachePruneTest {
 
     private static void writeProfile(PreflightHome preflight, String fingerprint, List<String> blobs)
             throws IOException {
-        Files.createDirectories(preflight.cache().resolve("resource-indexes"));
+        Files.createDirectories(ResourceIndexIO.directory(preflight.cache()));
         Files.writeString(
-                preflight.cache().resolve("resource-indexes").resolve(fingerprint + ".spfi"),
+                ResourceIndexIO.directory(preflight.cache()).resolve(fingerprint + ".spfi"),
                 "index for " + fingerprint);
 
         Map<String, TextureManifest.Entry> entries = new LinkedHashMap<>();

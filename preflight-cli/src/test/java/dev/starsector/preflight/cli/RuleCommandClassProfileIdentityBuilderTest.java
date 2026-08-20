@@ -132,8 +132,14 @@ class RuleCommandClassProfileIdentityBuilderTest {
 
         private static ResourceIndex.Provider provider(int root, String relative, Path file)
                 throws Exception {
+            OpenedFileGenerationAuthority.Generation generation = OpenedFileGenerationAuthority.capture(file);
             return new ResourceIndex.Provider(
-                    root, relative, Files.size(file), Files.getLastModifiedTime(file).toMillis());
+                    root,
+                    relative,
+                    Files.size(file),
+                    Files.getLastModifiedTime(file).toMillis(),
+                    generation.provider(),
+                    generation.token());
         }
     }
 }

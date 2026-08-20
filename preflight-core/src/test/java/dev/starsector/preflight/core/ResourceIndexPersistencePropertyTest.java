@@ -288,15 +288,21 @@ class ResourceIndexPersistencePropertyTest {
         cursor += Long.BYTES;
         int firstProviderModifiedOffset = cursor;
         cursor += Long.BYTES;
+        cursor = skipString(encoded, cursor);
+        cursor = skipString(encoded, cursor);
 
         int secondProviderRootOffset = cursor;
         cursor += Integer.BYTES;
         cursor = skipString(encoded, cursor);
         cursor += Long.BYTES * 2;
+        cursor = skipString(encoded, cursor);
+        cursor = skipString(encoded, cursor);
         for (int provider = 2; provider < providerCount; provider++) {
             cursor += Integer.BYTES;
             cursor = skipString(encoded, cursor);
             cursor += Long.BYTES * 2;
+            cursor = skipString(encoded, cursor);
+            cursor = skipString(encoded, cursor);
         }
 
         int secondEntryPathLengthOffset = cursor;

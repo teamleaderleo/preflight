@@ -168,6 +168,8 @@ public final class ResourceIndexIO {
                     writeString(output, provider.relativePath());
                     output.writeLong(provider.size());
                     output.writeLong(provider.modifiedMillis());
+                    writeGenerationString(output, provider.generationProvider());
+                    writeGenerationString(output, provider.generationToken());
                 }
             }
         }
@@ -197,7 +199,9 @@ public final class ResourceIndexIO {
                             input.readInt(),
                             readString(input),
                             input.readLong(),
-                            input.readLong()));
+                            input.readLong(),
+                            readGenerationString(input),
+                            readGenerationString(input)));
                 }
                 if (entries.put(path, providers) != null) {
                     throw new IOException("Duplicate resource path in index: " + path);
@@ -223,22 +227,47 @@ public final class ResourceIndexIO {
     }
 
     private static void writeString(DataOutputStream output, String value) throws IOException {
+        writeString(output, value, MAX_STRING_BYTES, "resource index string");
+    }
+
+    private static void writeGenerationString(DataOutputStream output, String value) throws IOException {
+        writeString(
+                output,
+                value,
+                ResourceIndex.MAX_GENERATION_FIELD_BYTES,
+                "resource index generation field");
+    }
+
+    private static void writeString(
+            DataOutputStream output, String value, int maximumBytes, String label) throws IOException {
         byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
-        if (bytes.length > MAX_STRING_BYTES) {
-            throw new IOException("String exceeds resource index safety limit");
+        if (bytes.length > maximumBytes) {
+            throw new IOException(label + " exceeds the " + maximumBytes + " byte safety limit");
         }
         output.writeInt(bytes.length);
         output.write(bytes);
     }
 
     private static String readString(DataInputStream input) throws IOException {
+        return readString(input, MAX_STRING_BYTES, "resource index string");
+    }
+
+    private static String readGenerationString(DataInputStream input) throws IOException {
+        return readString(
+                input,
+                ResourceIndex.MAX_GENERATION_FIELD_BYTES,
+                "resource index generation field");
+    }
+
+    private static String readString(
+            DataInputStream input, int maximumBytes, String label) throws IOException {
         int length = input.readInt();
-        if (length < 0 || length > MAX_STRING_BYTES) {
-            throw new IOException("Invalid resource index string length: " + length);
+        if (length < 0 || length > maximumBytes) {
+            throw new IOException("Invalid " + label + " length: " + length);
         }
         byte[] bytes = input.readNBytes(length);
         if (bytes.length != length) {
-            throw new EOFException("Resource index ended inside a string");
+            throw new EOFException("Resource index ended inside a " + label);
         }
         try {
             return StandardCharsets.UTF_8.newDecoder()
@@ -247,7 +276,7 @@ public final class ResourceIndexIO {
                     .decode(ByteBuffer.wrap(bytes))
                     .toString();
         } catch (CharacterCodingException error) {
-            throw new IOException("Resource index string is not valid UTF-8", error);
+            throw new IOException(label + " is not valid UTF-8", error);
         }
     }
 

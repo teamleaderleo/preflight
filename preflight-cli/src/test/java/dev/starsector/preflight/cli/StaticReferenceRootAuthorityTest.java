@@ -117,12 +117,29 @@ class StaticReferenceRootAuthorityTest {
         byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
         Files.write(path, bytes);
         long modified = Math.max(1L, Files.getLastModifiedTime(path).toMillis());
-        return new ProviderFile(relative, bytes.length, modified);
+        OpenedFileGenerationAuthority.Generation generation = OpenedFileGenerationAuthority.capture(path);
+        return new ProviderFile(
+                relative,
+                bytes.length,
+                modified,
+                generation.provider(),
+                generation.token());
     }
 
-    private record ProviderFile(String relative, long size, long modified) {
+    private record ProviderFile(
+            String relative,
+            long size,
+            long modified,
+            String generationProvider,
+            String generationToken) {
         ResourceIndex.Provider provider(int rootIndex) {
-            return new ResourceIndex.Provider(rootIndex, relative, size, modified);
+            return new ResourceIndex.Provider(
+                    rootIndex,
+                    relative,
+                    size,
+                    modified,
+                    generationProvider,
+                    generationToken);
         }
     }
 }

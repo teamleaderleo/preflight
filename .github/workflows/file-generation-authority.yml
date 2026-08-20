@@ -1,0 +1,53 @@
+name: File generation authority
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/file-generation-authority.yml'
+      - 'preflight-core/src/main/java/dev/starsector/preflight/core/ResourceIndex.java'
+      - 'preflight-core/src/main/java/dev/starsector/preflight/core/ResourceIndexIO.java'
+      - 'preflight-core/src/test/java/dev/starsector/preflight/core/ResourceIndexIOTest.java'
+      - 'preflight-core/src/test/java/dev/starsector/preflight/core/ResourceIndexPersistencePropertyTest.java'
+      - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/OpenedFileGenerationAuthority.java'
+      - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/ProfileIdentityContext.java'
+      - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/ResourceIndexBuilder.java'
+      - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/ResourceProviderContentIdentity.java'
+      - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/OpenedFileGenerationAuthorityPerformanceTest.java'
+      - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/OpenedFileGenerationAuthorityTest.java'
+      - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/ProfileIdentityContextTest.java'
+      - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/ResourceIndexGenerationFingerprintTest.java'
+      - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/ResourceIndexGenerationPublicationTest.java'
+      - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/ResourceProviderContentIdentitySameInodeAbaTest.java'
+      - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/ResourceProviderContentIdentityStabilityTest.java'
+      - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/ResourceProviderObservationIsolationTest.java'
+
+permissions:
+  contents: read
+
+jobs:
+  exact-authority:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-build-jdk
+      - name: Verify exact generation and ABA regressions
+        shell: bash
+        run: >-
+          ./mvnw --batch-mode --no-transfer-progress
+          -pl preflight-cli -am
+          -Dtest=OpenedFileGenerationAuthorityTest,ResourceProviderContentIdentitySameInodeAbaTest,ResourceProviderContentIdentityStabilityTest,ResourceProviderObservationIsolationTest,ResourceIndexGenerationFingerprintTest,ResourceIndexGenerationPublicationTest,ProfileIdentityContextTest
+          -Dsurefire.failIfNoSpecifiedTests=false
+          test
+      - name: Measure generation observation separately from payload hashing
+        shell: bash
+        run: >-
+          ./mvnw --batch-mode --no-transfer-progress
+          -pl preflight-cli -am
+          -Dtest=OpenedFileGenerationAuthorityPerformanceTest
+          -Dsurefire.failIfNoSpecifiedTests=false
+          test

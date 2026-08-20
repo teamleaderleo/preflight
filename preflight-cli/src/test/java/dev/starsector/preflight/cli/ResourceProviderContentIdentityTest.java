@@ -72,7 +72,12 @@ class ResourceProviderContentIdentityTest {
         ResourceIndex.Provider first = provider(0, core, "shared.bin");
         ResourceIndex.Provider current = provider(1, mod, "shared.bin");
         ResourceIndex.Provider stale = new ResourceIndex.Provider(
-                current.rootIndex(), current.relativePath(), current.size(), current.modifiedMillis() + 1);
+                current.rootIndex(),
+                current.relativePath(),
+                current.size(),
+                current.modifiedMillis() + 1,
+                current.generationProvider(),
+                current.generationToken());
         ResourceIndex index = index(core, mod, Map.of("shared.bin", List.of(first, stale)));
 
         ResourceProviderComparison.Result result = ResourceProviderComparison.analyze(
@@ -127,7 +132,7 @@ class ResourceProviderContentIdentityTest {
     }
 
     @Test
-    void sharedProfileContextReusesHashesAlreadyPaidForInTheSamePreparation() throws Exception {
+    void sharedProfileContextReusesOnlyAnUnchangedAcceptedGeneration() throws Exception {
         Path game = temporaryDirectory.resolve("cached/game");
         Path core = Files.createDirectories(game.resolve("Contents/Resources/Java"));
         Path mod = Files.createDirectories(temporaryDirectory.resolve("cached/mod"));
@@ -142,12 +147,20 @@ class ResourceProviderContentIdentityTest {
             List<ResourceIndex.Provider> providers = index.providers("shared.bin");
             List<Path> sources = context.resolveAll(providers);
             context.sha256All(sources);
-            Files.writeString(mod.resolve("shared.bin"), "different-bytes");
 
             ResourceProviderComparison.Result reused = ResourceProviderComparison.analyze(
                     index, ResourceProviderContentIdentity.cached(context));
             assertEquals(1, reused.identicalDuplicates(),
-                    "comparison inside one preparation must reuse the content digest already cached");
+                    "unchanged accepted generations should reuse the content digests already cached");
+
+            Files.writeString(mod.resolve("shared.bin"), "different-bytes");
+            ResourceProviderComparison.Result changed = ResourceProviderComparison.analyze(
+                    index, ResourceProviderContentIdentity.cached(context));
+            assertEquals(1, changed.ambiguousComparisons(),
+                    "a changed generation must invalidate the cached exact-content observation");
+            assertEquals(
+                    ResourceProviderComparison.ContentEvidence.STALE,
+                    changed.ambiguousSamples().get(0).providers().get(1).evidence());
         }
 
         ResourceIndex refreshedIndex = index(core, mod, Map.of("shared.bin", List.of(
@@ -157,7 +170,7 @@ class ResourceProviderContentIdentityTest {
             ResourceProviderComparison.Result refreshed = ResourceProviderComparison.analyze(
                     refreshedIndex, ResourceProviderContentIdentity.cached(nextPreparation));
             assertEquals(1, refreshed.differingOverrides(),
-                    "a fresh preparation must read the changed bytes");
+                    "a fresh preparation must read the changed generation");
         }
     }
 
@@ -198,10 +211,13 @@ class ResourceProviderContentIdentityTest {
     private static ResourceIndex.Provider provider(int rootIndex, Path root, String relative)
             throws IOException {
         Path file = root.resolve(relative);
+        OpenedFileGenerationAuthority.Generation generation = OpenedFileGenerationAuthority.capture(file);
         return new ResourceIndex.Provider(
                 rootIndex,
                 relative,
                 Files.size(file),
-                Math.max(0, Files.getLastModifiedTime(file).toMillis()));
+                Math.max(0, Files.getLastModifiedTime(file).toMillis()),
+                generation.provider(),
+                generation.token());
     }
 }

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.core.PreparedTextureIO;
 import dev.starsector.preflight.core.ResourceIndex;
+import dev.starsector.preflight.core.ResourceIndexIO;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
@@ -95,7 +96,7 @@ class PreparationStoragePlannerTest {
         TextureBatchBuilder.build(index, cache, new TextureBatchBuilder.Options(
                 1, 16L * 1024 * 1024,
                 dev.starsector.preflight.core.PreparedTextureIO.StorageCodec.RAW, false));
-        Path resourceIndex = cache.resolve("resource-indexes").resolve(profile + ".spfi");
+        Path resourceIndex = ResourceIndexIO.directory(cache).resolve(profile + ".spfi");
         Files.createDirectories(resourceIndex.getParent());
         Files.writeString(resourceIndex, "present");
 
@@ -114,8 +115,14 @@ class PreparationStoragePlannerTest {
         for (String relative : paths) {
             Path file = root.resolve(relative);
             BasicFileAttributes attributes = Files.readAttributes(file, BasicFileAttributes.class);
+            OpenedFileGenerationAuthority.Generation generation = OpenedFileGenerationAuthority.capture(file);
             entries.put(relative, List.of(new ResourceIndex.Provider(
-                    0, relative, attributes.size(), attributes.lastModifiedTime().toMillis())));
+                    0,
+                    relative,
+                    attributes.size(),
+                    attributes.lastModifiedTime().toMillis(),
+                    generation.provider(),
+                    generation.token())));
         }
         return new ResourceIndex(
                 fingerprint,

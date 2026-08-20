@@ -71,7 +71,8 @@ class PrepareValidationGateTest {
         assertTrue(json.contains("\"textures\":{\"status\":\"SKIPPED\""), json);
         assertTrue(json.contains("\"lookupVerification\":{\"status\":\"SKIPPED\""), json);
         assertTrue(json.contains("\"resourceIndex\":null"), json);
-        assertFalse(hasFileWithSuffix(cache.resolve("resource-indexes"), ".spfi"));
+        assertFalse(hasFileWithSuffix(
+                dev.starsector.preflight.core.ResourceIndexIO.directory(cache), ".spfi"));
         assertFalse(hasFileWithSuffix(cache.resolve("spec-store/profiles"), ".json"));
         assertFalse(hasFileWithSuffix(cache.resolve("manifests"), ".spfm"));
 
@@ -91,7 +92,7 @@ class PrepareValidationGateTest {
         String[] command = prepareCommand(install, cache, report);
         assertEquals(0, PreflightCli.run(command));
 
-        Path index = Files.list(cache.resolve("resource-indexes"))
+        Path index = Files.list(dev.starsector.preflight.core.ResourceIndexIO.directory(cache))
                 .filter(path -> path.toString().endsWith(".spfi"))
                 .findFirst()
                 .orElseThrow();

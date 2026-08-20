@@ -8,34 +8,25 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.ProviderMismatchException;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.nio.file.attribute.FileTime;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 /** Exact byte-identity sources for resource-provider comparison. */
 final class ResourceProviderContentIdentity {
-    static final String PROOF_DIRECTORY_PREFIX = ".preflight-provider-proof-";
-
     private final ResourceIndex index;
     private final ProfileIdentityContext profileContext;
     private final DirectHasher directHasher;
-    private final ProofLinkFactory proofLinkFactory;
     private final Map<Path, DirectHash> directHashes = new HashMap<>();
 
     private ResourceProviderContentIdentity(
             ResourceIndex index,
             ProfileIdentityContext profileContext,
-            DirectHasher directHasher,
-            ProofLinkFactory proofLinkFactory) {
+            DirectHasher directHasher) {
         this.index = index;
         this.profileContext = profileContext;
         this.directHasher = directHasher;
-        this.proofLinkFactory = proofLinkFactory;
     }
 
     /**
@@ -46,129 +37,56 @@ final class ResourceProviderContentIdentity {
         return direct(index, Hashes::sha256);
     }
 
-    /** Test seam for changing a provider while its bytes are being hashed. */
+    /** Test seam for changing a provider while its already-open bytes are being hashed. */
     static ResourceProviderComparison.ContentIdentitySource direct(
             ResourceIndex index, DirectHasher hasher) {
-        return direct(index, hasher, ResourceProviderContentIdentity::createProofLink);
-    }
-
-    /** Test seam for deterministic proof-link placement and cleanup failure coverage. */
-    static ResourceProviderComparison.ContentIdentitySource direct(
-            ResourceIndex index, DirectHasher hasher, ProofLinkFactory proofLinkFactory) {
         ResourceProviderContentIdentity source = new ResourceProviderContentIdentity(
-                index,
-                null,
-                Objects.requireNonNull(hasher, "hasher"),
-                Objects.requireNonNull(proofLinkFactory, "proofLinkFactory"));
+                index, null, Objects.requireNonNull(hasher, "hasher"));
         return source::observeDirect;
     }
 
     /**
-     * Reuses the exact per-launch provider resolution and SHA-256 memo already owned by the shared
-     * profile identity context. Callers must pass the current index represented by that context.
+     * Reuses the exact per-launch provider resolution and SHA-256 memo owned by the shared profile
+     * identity context. The provider itself selects the persisted generation authority.
      */
     static ResourceProviderComparison.ContentIdentitySource cached(ProfileIdentityContext context) {
         ResourceProviderContentIdentity source = new ResourceProviderContentIdentity(
-                context.resources(), context, Hashes::sha256, ResourceProviderContentIdentity::createProofLink);
+                context.resources(), context, Hashes::sha256);
         return source::observeCached;
     }
 
     private ResourceProviderComparison.ContentObservation observeDirect(
             String logicalPath, ResourceIndex.Provider provider) {
         try {
-            ProofLink proof = null;
-            try {
-                Path file = index.resolveExisting(provider).toAbsolutePath().normalize();
-                BasicFileAttributes before = Files.readAttributes(file, BasicFileAttributes.class);
-                if (!before.isRegularFile()) {
-                    return ResourceProviderComparison.ContentObservation.unreadable();
-                }
-                if (!matchesIndexedMetadata(provider, before)) {
-                    return ResourceProviderComparison.ContentObservation.stale();
-                }
-
-                FileIdentity beforeIdentity = FileIdentity.from(before);
-                DirectHash cached = directHashes.get(file);
-                if (cached != null) {
-                    if (!cached.identity().equals(beforeIdentity)) {
-                        directHashes.remove(file);
-                        return ResourceProviderComparison.ContentObservation.stale();
-                    }
-                    return ResourceProviderComparison.ContentObservation.hashed(cached.sha256());
-                }
-
-                /*
-                 * The portable Java 17 channel APIs expose no identity for an already-open handle.
-                 * Anchor the selected entry under a second name instead. Production creates that
-                 * namespace outside every indexed resource root on the provider FileStore: a failed
-                 * cleanup can therefore leave residue, but never a self-authored resource that a
-                 * later index/profile scan can ingest. isSameFile ties the anchored file back to the
-                 * provider pathname before and after the read. If any part of that proof is
-                 * unavailable, exact evidence fails closed as stale.
-                 */
-                Path proofDirectory = proofDirectory(file, provider);
-                if (proofDirectory == null) {
-                    return ResourceProviderComparison.ContentObservation.stale();
-                }
-                proof = proofLinkFactory.create(file, proofDirectory);
-                if (proof == null) {
-                    return ResourceProviderComparison.ContentObservation.stale();
-                }
-                Path proofLink = proof.path();
-
-                BasicFileAttributes proofBefore = Files.readAttributes(proofLink, BasicFileAttributes.class);
-                FileIdentity proofIdentity = FileIdentity.from(proofBefore);
-                if (!proofBefore.isRegularFile()
-                        || !matchesIndexedMetadata(provider, proofBefore)
-                        || !beforeIdentity.equals(proofIdentity)
-                        || !Files.isSameFile(file, proofLink)) {
-                    return ResourceProviderComparison.ContentObservation.stale();
-                }
-
-                String digest;
-                try (InputStream bytes = Files.newInputStream(proofLink)) {
-                    digest = directHasher.sha256(bytes);
-                }
-
-                Path afterFile = index.resolveExisting(provider).toAbsolutePath().normalize();
-                if (!file.equals(afterFile)) {
-                    return ResourceProviderComparison.ContentObservation.stale();
-                }
-
-                BasicFileAttributes proofAfter = Files.readAttributes(proofLink, BasicFileAttributes.class);
-                BasicFileAttributes after = Files.readAttributes(afterFile, BasicFileAttributes.class);
-                FileIdentity proofAfterIdentity = FileIdentity.from(proofAfter);
-                FileIdentity afterIdentity = FileIdentity.from(after);
-                if (!proofAfter.isRegularFile()
-                        || !after.isRegularFile()
-                        || !matchesIndexedMetadata(provider, proofAfter)
-                        || !matchesIndexedMetadata(provider, after)
-                        || !proofIdentity.equals(proofAfterIdentity)
-                        || !proofAfterIdentity.equals(afterIdentity)
-                        || !Files.isSameFile(afterFile, proofLink)) {
-                    return ResourceProviderComparison.ContentObservation.stale();
-                }
-
-                /*
-                 * Cleanup is part of publishing exact evidence. Dispose of the proof before the
-                 * memo or result becomes visible, so a failed delete cannot leave behind both an
-                 * owned hard link and reusable HASHED evidence from an UNREADABLE observation.
-                 */
-                ProofLink completedProof = proof;
-                proof = null;
-                completedProof.close();
-
-                // A null file key cannot safely distinguish a later same-metadata replacement, so
-                // exact evidence can still be returned for this read but must not enter the memo.
-                if (afterIdentity.fileKey() != null) {
-                    directHashes.put(file, new DirectHash(digest, afterIdentity));
-                }
-                return ResourceProviderComparison.ContentObservation.hashed(digest);
-            } finally {
-                if (proof != null) {
-                    proof.close();
-                }
+            Path file = index.resolveExisting(provider).toAbsolutePath().normalize();
+            BasicFileAttributes before = Files.readAttributes(file, BasicFileAttributes.class);
+            if (!before.isRegularFile()) {
+                return ResourceProviderComparison.ContentObservation.unreadable();
             }
+            if (!matchesIndexedMetadata(provider, before) || !provider.hasGenerationAuthority()) {
+                return ResourceProviderComparison.ContentObservation.stale();
+            }
+
+            OpenedFileGenerationAuthority.Generation expected = generation(provider);
+            DirectHash cached = directHashes.get(file);
+            if (cached != null) {
+                if (!cached.generation().equals(expected)) {
+                    directHashes.remove(file);
+                    return ResourceProviderComparison.ContentObservation.stale();
+                }
+                OpenedFileGenerationAuthority.requireCurrent(file, expected);
+                return ResourceProviderComparison.ContentObservation.hashed(cached.sha256());
+            }
+
+            OpenedFileGenerationAuthority.HashEvidence evidence =
+                    OpenedFileGenerationAuthority.hash(
+                            file,
+                            expected,
+                            (ignored, input) -> directHasher.sha256(input));
+            directHashes.put(file, new DirectHash(evidence.sha256(), evidence.generation()));
+            return ResourceProviderComparison.ContentObservation.hashed(evidence.sha256());
+        } catch (OpenedFileGenerationAuthority.StaleGenerationException stale) {
+            return ResourceProviderComparison.ContentObservation.stale();
         } catch (NoSuchFileException missing) {
             return ResourceProviderComparison.ContentObservation.missing();
         } catch (IllegalArgumentException invalidPath) {
@@ -181,9 +99,10 @@ final class ResourceProviderContentIdentity {
     private ResourceProviderComparison.ContentObservation observeCached(
             String logicalPath, ResourceIndex.Provider provider) {
         try {
-            Path file = profileContext.resolve(provider);
-            String digest = profileContext.sha256All(List.of(file)).get(0);
-            return ResourceProviderComparison.ContentObservation.hashed(digest);
+            return ResourceProviderComparison.ContentObservation.hashed(
+                    profileContext.sha256(provider));
+        } catch (OpenedFileGenerationAuthority.StaleGenerationException stale) {
+            return ResourceProviderComparison.ContentObservation.stale();
         } catch (NoSuchFileException missing) {
             return ResourceProviderComparison.ContentObservation.missing();
         } catch (IllegalArgumentException invalidPath) {
@@ -193,95 +112,9 @@ final class ResourceProviderContentIdentity {
         }
     }
 
-    /**
-     * Chooses a proof-namespace parent outside every indexed resource root while requiring the same
-     * FileStore as the provider file. Roots may overlap or alias one another, so the provider root's
-     * immediate parent is insufficient: ascend until the candidate is outside all canonical roots.
-     * If no such same-FileStore ancestor exists, exact direct evidence fails closed instead of
-     * placing an owned proof artifact inside any resource namespace.
-     */
-    private Path proofDirectory(Path file, ResourceIndex.Provider provider) {
-        try {
-            List<Path> resourceRoots = new ArrayList<>(index.roots().size());
-            for (ResourceIndex.Root root : index.roots()) {
-                resourceRoots.add(root.path().toRealPath());
-            }
-
-            Path providerRoot = resourceRoots.get(provider.rootIndex());
-            Path candidate = providerRoot.getParent();
-            var providerStore = Files.getFileStore(file);
-            while (candidate != null) {
-                Path canonicalCandidate = candidate.toRealPath();
-                boolean insideIndexedRoot = resourceRoots.stream()
-                        .anyMatch(canonicalCandidate::startsWith);
-                if (!insideIndexedRoot
-                        && providerStore.equals(Files.getFileStore(canonicalCandidate))) {
-                    return canonicalCandidate;
-                }
-                candidate = canonicalCandidate.getParent();
-            }
-            return null;
-        } catch (IOException | SecurityException | IllegalArgumentException unavailable) {
-            return null;
-        }
-    }
-
-    /**
-     * Creates an owned random proof namespace in {@code directory}, then hard-links the provider
-     * inside it. Production passes a same-FileStore directory outside every indexed resource root;
-     * the directory parameter is kept explicit so tests can deterministically exercise a
-     * foreign/default temp filesystem.
-     */
-    static ProofLink createProofLink(Path file, Path directory) throws IOException {
-        Path ownedDirectory = null;
-        try {
-            ownedDirectory = Files.createTempDirectory(directory, PROOF_DIRECTORY_PREFIX);
-            Path link = ownedDirectory.resolve("provider.link");
-            Files.createLink(link, file);
-            return new ProofLink(link, ownedDirectory, ResourceProviderContentIdentity::deleteProofLink);
-        } catch (UnsupportedOperationException
-                | SecurityException
-                | ProviderMismatchException
-                | IOException unavailable) {
-            if (ownedDirectory != null) {
-                cleanupProofDirectory(ownedDirectory);
-            }
-            return null;
-        }
-    }
-
-    private static void cleanupProofDirectory(Path directory) {
-        try {
-            Files.deleteIfExists(directory.resolve("provider.link"));
-        } catch (IOException ignored) {
-            // Best effort after proof creation failed; the directory is private to this attempt.
-        }
-        try {
-            Files.deleteIfExists(directory);
-        } catch (IOException ignored) {
-            // Best effort after proof creation failed; no evidence is published from this attempt.
-        }
-    }
-
-    private static void deleteProofLink(Path path, Path directory) throws IOException {
-        IOException failure = null;
-        try {
-            Files.deleteIfExists(path);
-        } catch (IOException cleanupFailure) {
-            failure = cleanupFailure;
-        }
-        try {
-            Files.deleteIfExists(directory);
-        } catch (IOException cleanupFailure) {
-            if (failure == null) {
-                failure = cleanupFailure;
-            } else {
-                failure.addSuppressed(cleanupFailure);
-            }
-        }
-        if (failure != null) {
-            throw failure;
-        }
+    private static OpenedFileGenerationAuthority.Generation generation(ResourceIndex.Provider provider) {
+        return new OpenedFileGenerationAuthority.Generation(
+                provider.generationProvider(), provider.generationToken());
     }
 
     private static boolean matchesIndexedMetadata(
@@ -290,60 +123,14 @@ final class ResourceProviderContentIdentity {
         return attributes.size() == provider.size() && modifiedMillis == provider.modifiedMillis();
     }
 
-    /** Digests an already-open stream supplied by the exact-evidence observer. */
+    /** Digests the already-open stream supplied by the exact-evidence observer. */
     @FunctionalInterface
     interface DirectHasher {
         String sha256(InputStream bytes) throws IOException;
     }
 
-    @FunctionalInterface
-    interface ProofLinkFactory {
-        ProofLink create(Path file, Path directory) throws IOException;
-    }
-
-    @FunctionalInterface
-    interface ProofCleanup {
-        void clean(Path path, Path directory) throws IOException;
-    }
-
-    static final class ProofLink implements AutoCloseable {
-        private final Path path;
-        private final Path directory;
-        private final ProofCleanup cleanup;
-
-        ProofLink(Path path, Path directory, ProofCleanup cleanup) {
-            this.path = Objects.requireNonNull(path, "path");
-            this.directory = Objects.requireNonNull(directory, "directory");
-            this.cleanup = Objects.requireNonNull(cleanup, "cleanup");
-        }
-
-        Path path() {
-            return path;
-        }
-
-        Path directory() {
-            return directory;
-        }
-
-        @Override
-        public void close() throws IOException {
-            cleanup.clean(path, directory);
-        }
-    }
-
-    private record DirectHash(String sha256, FileIdentity identity) {
-    }
-
-    /**
-     * Same-read stability keeps the filesystem's full timestamp precision. The persisted index has
-     * a millisecond metadata contract, which remains isolated in {@link #matchesIndexedMetadata}.
-     */
-    private record FileIdentity(long size, FileTime modified, Object fileKey) {
-        static FileIdentity from(BasicFileAttributes attributes) {
-            return new FileIdentity(
-                    attributes.size(),
-                    attributes.lastModifiedTime(),
-                    attributes.fileKey());
-        }
+    private record DirectHash(
+            String sha256,
+            OpenedFileGenerationAuthority.Generation generation) {
     }
 }

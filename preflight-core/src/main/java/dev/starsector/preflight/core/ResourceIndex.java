@@ -1,6 +1,7 @@
 package dev.starsector.preflight.core;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
@@ -17,7 +18,8 @@ import java.util.TreeMap;
  * therefore the winning provider for ordinary override lookup.</p>
  */
 public final class ResourceIndex {
-    public static final int FORMAT_VERSION = 1;
+    public static final int FORMAT_VERSION = 2;
+    static final int MAX_GENERATION_FIELD_BYTES = 64 * 1024;
 
     private final String profileFingerprint;
     private final List<Root> roots;
@@ -193,6 +195,12 @@ public final class ResourceIndex {
         return (value >= 'A' && value <= 'Z') || (value >= 'a' && value <= 'z');
     }
 
+    private static void requireGenerationFieldBound(String label, String value) {
+        if (value.getBytes(StandardCharsets.UTF_8).length > MAX_GENERATION_FIELD_BYTES) {
+            throw new IllegalArgumentException(label + " exceeds the persisted generation-field safety limit");
+        }
+    }
+
     public record Root(String id, Path path, boolean core) {
         public Root {
             if (id == null || id.isBlank()) {
@@ -205,15 +213,37 @@ public final class ResourceIndex {
         }
     }
 
-    public record Provider(int rootIndex, String relativePath, long size, long modifiedMillis) {
+    public record Provider(
+            int rootIndex,
+            String relativePath,
+            long size,
+            long modifiedMillis,
+            String generationProvider,
+            String generationToken) {
+        public Provider(int rootIndex, String relativePath, long size, long modifiedMillis) {
+            this(rootIndex, relativePath, size, modifiedMillis, "", "");
+        }
+
         public Provider {
             relativePath = normalizeRelativePath(relativePath);
+            generationProvider = generationProvider == null ? "" : generationProvider;
+            generationToken = generationToken == null ? "" : generationToken;
             if (size < 0) {
                 throw new IllegalArgumentException("Provider size may not be negative");
             }
             if (modifiedMillis < 0) {
                 throw new IllegalArgumentException("Provider modification time may not be negative");
             }
+            if (generationProvider.isBlank() != generationToken.isBlank()) {
+                throw new IllegalArgumentException(
+                        "Provider generation authority must include provider and token together");
+            }
+            requireGenerationFieldBound("Provider generation provider", generationProvider);
+            requireGenerationFieldBound("Provider generation token", generationToken);
+        }
+
+        public boolean hasGenerationAuthority() {
+            return !generationProvider.isBlank() && !generationToken.isBlank();
         }
     }
 }

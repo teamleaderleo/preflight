@@ -63,7 +63,7 @@ class CurrentTextureCacheTest {
 
         ResourceIndex current = ResourceIndexBuilder.build(game).index();
         Path cache = temporaryDirectory.resolve("cache");
-        Path index = cache.resolve("resource-indexes")
+        Path index = ResourceIndexIO.directory(cache)
                 .resolve(current.profileFingerprint() + ".spfi");
         Path manifest = cache.resolve("manifests")
                 .resolve(current.profileFingerprint() + ".spfm");

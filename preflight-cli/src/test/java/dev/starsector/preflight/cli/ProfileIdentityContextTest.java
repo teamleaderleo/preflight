@@ -11,6 +11,7 @@ import dev.starsector.preflight.core.ResourceIndex;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -29,9 +30,6 @@ class ProfileIdentityContextTest {
 
     @Test
     void hashesEveryProviderInRequestOrderNoMatterHowManyThreadsRanIt() throws Exception {
-        // Order is the entire safety argument for hashing in parallel: callers feed these strings
-        // into a digest one after another, so a permuted result would silently change every
-        // identity and orphan every cache artifact already on disk.
         Layout layout = Layout.create(temporaryDirectory.resolve("ordered"), 500);
         try (ProfileIdentityContext context = ProfileIdentityContext.of(layout.game, layout.index())) {
             List<ResourceIndex.Provider> providers = layout.providers(context.resources());
@@ -81,7 +79,6 @@ class ProfileIdentityContextTest {
         assertEquals(commands,
                 RuleCommandClassProfileIdentityBuilder.build(layout.game, resources).identitySha256());
 
-        // Six corpora over one install must not collide, or a cache would read another's artifact.
         assertEquals(6, List.of(variant, weapon, projectile, hull, rules, commands)
                 .stream().distinct().count());
     }
@@ -121,8 +118,6 @@ class ProfileIdentityContextTest {
 
     @Test
     void aContentChangeStillMovesTheIdentity() throws Exception {
-        // The content memo belongs to one preparation context only: every new launch still hashes
-        // every byte, which is what lets a mod update invalidate a cache.
         Layout layout = Layout.create(temporaryDirectory.resolve("content"), 8);
         String before = VariantJsonProfileIdentityBuilder
                 .build(layout.game, layout.index()).identitySha256();
@@ -147,14 +142,18 @@ class ProfileIdentityContextTest {
             assertEquals(first, context.sha256All(List.of(source, source)).get(1));
 
             Files.writeString(source, "{\"variantId\":\"changed-during-preparation\"}");
-            assertEquals(first, context.sha256All(List.of(source)).get(0),
-                    "overlapping identities must reuse the digest already computed this launch");
+            assertThrows(IOException.class, () -> context.sha256All(List.of(source)),
+                    "a changed generation must invalidate the launch-local digest memo");
         }
 
+        ResourceIndex changedResources = layout.index();
         try (ProfileIdentityContext nextLaunch =
-                     ProfileIdentityContext.of(layout.game, resources)) {
-            assertNotEquals(first, nextLaunch.sha256All(List.of(source)).get(0),
-                    "a new launch must observe the changed bytes");
+                     ProfileIdentityContext.of(layout.game, changedResources)) {
+            ResourceIndex.Provider changedProvider = changedResources.entries()
+                    .get("data/variants/variant-3.variant").get(0);
+            Path changedSource = nextLaunch.resolve(changedProvider);
+            assertNotEquals(first, nextLaunch.sha256All(List.of(changedSource)).get(0),
+                    "a rebuilt index must authorize and observe the changed generation");
         }
     }
 
@@ -201,7 +200,7 @@ class ProfileIdentityContextTest {
         try {
             Files.createSymbolicLink(link, outside);
         } catch (UnsupportedOperationException | IOException unsupported) {
-            return; // No symlink support here; the containment check is exercised elsewhere.
+            return;
         }
 
         ResourceIndex resources = layout.indexIncluding("data/variants/escape.variant", link);
@@ -225,9 +224,10 @@ class ProfileIdentityContextTest {
     void constructorSeedsGameJarDigestIntoSharedContentMemo() throws Exception {
         Layout layout = Layout.create(temporaryDirectory.resolve("seeded-jar"), 4);
         try (ProfileIdentityContext context = ProfileIdentityContext.of(layout.game, layout.index())) {
-            String initial = context.gameJarSha256();
+            context.gameJarSha256();
             Files.writeString(context.gameJar(), "changed-during-the-same-preparation");
-            assertEquals(initial, context.sha256All(List.of(context.gameJar())).get(0));
+            assertThrows(IOException.class, () -> context.sha256All(List.of(context.gameJar())),
+                    "game-JAR memo reuse must fail closed after its generation changes");
         }
     }
 
@@ -239,11 +239,11 @@ class ProfileIdentityContextTest {
                 .get("data/variants/variant-1.variant").get(0);
 
         try (ProfileIdentityContext context = ProfileIdentityContext.of(
-                layout.game, resources, path -> {
+                layout.game, resources, (path, input) -> {
                     if (path.toString().endsWith("variant-1.variant")) {
                         Files.writeString(path, "{\"variantId\":\"raced-mutation\"}");
                     }
-                    return Hashes.sha256(path);
+                    return Hashes.sha256(input);
                 }, 1)) {
             Path source = context.resolve(provider);
             assertThrows(IOException.class, () -> context.sha256All(List.of(source)));
@@ -274,12 +274,12 @@ class ProfileIdentityContextTest {
         ResourceIndex.Provider provider = resources.entries()
                 .get("data/variants/variant-1.variant").get(0);
         try (ProfileIdentityContext context = ProfileIdentityContext.of(
-                layout.game, resources, path -> {
+                layout.game, resources, (path, input) -> {
                     if (path.toString().endsWith("variant-1.variant")) {
                         Files.writeString(path, "BBBB");
                         Files.setLastModifiedTime(path, observedAfter);
                     }
-                    return Hashes.sha256(path);
+                    return Hashes.sha256(input);
                 }, 1)) {
             Path source = context.resolve(provider);
             assertThrows(IOException.class, () -> context.sha256All(List.of(source)));
@@ -303,6 +303,95 @@ class ProfileIdentityContextTest {
     }
 
     @Test
+    void sameInodeProviderMutationDuringPinnedHashIsRejectedAfterBytesAndMtimeRestore()
+            throws Exception {
+        Layout layout = Layout.create(temporaryDirectory.resolve("provider-aba"), 4);
+        ResourceIndex resources = layout.index();
+        ResourceIndex.Provider provider = resources.entries()
+                .get("data/variants/variant-1.variant").get(0);
+        Path source = layout.mod.resolve("data/variants/variant-1.variant");
+        String original = Files.readString(source);
+        FileTime modified = Files.getLastModifiedTime(source);
+
+        try (ProfileIdentityContext context = ProfileIdentityContext.of(
+                layout.game,
+                resources,
+                (publicPath, input) -> {
+                    if (publicPath.equals(source)) {
+                        Files.writeString(publicPath, "X".repeat(original.length()));
+                        Files.setLastModifiedTime(publicPath, modified);
+                        String raced = Hashes.sha256(input);
+                        Files.writeString(publicPath, original);
+                        Files.setLastModifiedTime(publicPath, modified);
+                        return raced;
+                    }
+                    return Hashes.sha256(input);
+                },
+                1)) {
+            Path resolved = context.resolve(provider);
+            assertThrows(IOException.class, () -> context.sha256All(List.of(resolved)));
+        }
+    }
+
+    @Test
+    void gameJarMutationDuringConstructorHashIsRejectedAfterBytesAndMtimeRestore()
+            throws Exception {
+        Layout layout = Layout.create(temporaryDirectory.resolve("game-jar-aba"), 4);
+        ResourceIndex resources = layout.index();
+        Path gameJar = layout.game.resolve("Contents/Resources/Java/starfarer_obf.jar");
+        String original = Files.readString(gameJar);
+        FileTime modified = Files.getLastModifiedTime(gameJar);
+
+        assertThrows(IOException.class, () -> ProfileIdentityContext.of(
+                layout.game,
+                resources,
+                (publicPath, input) -> {
+                    if (publicPath.equals(gameJar)) {
+                        Files.writeString(publicPath, "Y".repeat(original.length()));
+                        Files.setLastModifiedTime(publicPath, modified);
+                        String raced = Hashes.sha256(input);
+                        Files.writeString(publicPath, original);
+                        Files.setLastModifiedTime(publicPath, modified);
+                        return raced;
+                    }
+                    return Hashes.sha256(input);
+                },
+                1));
+    }
+
+    @Test
+    void providerPathnameAbaDuringPinnedHashCannotPublishReplacementBytes() throws Exception {
+        Layout layout = Layout.create(temporaryDirectory.resolve("provider-path-aba"), 4);
+        ResourceIndex resources = layout.index();
+        ResourceIndex.Provider provider = resources.entries()
+                .get("data/variants/variant-1.variant").get(0);
+        Path source = layout.mod.resolve("data/variants/variant-1.variant");
+        Path parked = source.resolveSibling("variant-1.parked");
+        String original = Files.readString(source);
+        FileTime modified = Files.getLastModifiedTime(source);
+
+        try (ProfileIdentityContext context = ProfileIdentityContext.of(
+                layout.game,
+                resources,
+                (publicPath, input) -> {
+                    if (publicPath.equals(source)) {
+                        Files.move(publicPath, parked, StandardCopyOption.REPLACE_EXISTING);
+                        Files.writeString(publicPath, "Z".repeat(original.length()));
+                        String opened = Hashes.sha256(input);
+                        Files.delete(publicPath);
+                        Files.move(parked, publicPath, StandardCopyOption.REPLACE_EXISTING);
+                        Files.setLastModifiedTime(publicPath, modified);
+                        return opened;
+                    }
+                    return Hashes.sha256(input);
+                },
+                1)) {
+            Path resolved = context.resolve(provider);
+            assertThrows(IOException.class, () -> context.sha256All(List.of(resolved)));
+        }
+    }
+
+    @Test
     void concurrentRequestsForOneStableFilePerformOneContentRead() throws Exception {
         Layout layout = Layout.create(temporaryDirectory.resolve("single-content-read"), 4);
         ResourceIndex resources = layout.index();
@@ -311,7 +400,7 @@ class ProfileIdentityContextTest {
 
         java.util.concurrent.atomic.AtomicInteger variantReadCount = new java.util.concurrent.atomic.AtomicInteger(0);
         try (ProfileIdentityContext context = ProfileIdentityContext.of(
-                layout.game, resources, path -> {
+                layout.game, resources, (path, input) -> {
                     if (path.toString().endsWith("variant-1.variant")) {
                         variantReadCount.incrementAndGet();
                         try {
@@ -320,7 +409,7 @@ class ProfileIdentityContextTest {
                             Thread.currentThread().interrupt();
                         }
                     }
-                    return Hashes.sha256(path);
+                    return Hashes.sha256(input);
                 }, 4)) {
             Path source = context.resolve(provider);
             ExecutorService executor = Executors.newFixedThreadPool(8);
@@ -349,15 +438,14 @@ class ProfileIdentityContextTest {
 
         java.util.concurrent.atomic.AtomicBoolean failFirst = new java.util.concurrent.atomic.AtomicBoolean(true);
         try (ProfileIdentityContext context = ProfileIdentityContext.of(
-                layout.game, resources, path -> {
+                layout.game, resources, (path, input) -> {
                     if (path.toString().endsWith("variant-1.variant") && failFirst.getAndSet(false)) {
                         throw new IOException("Simulated transient I/O fault");
                     }
-                    return Hashes.sha256(path);
+                    return Hashes.sha256(input);
                 }, 1)) {
             Path source = context.resolve(provider);
             assertThrows(IOException.class, () -> context.sha256All(List.of(source)));
-            // Subsequent read should succeed rather than recalling the exception
             List<String> result = context.sha256All(List.of(source));
             assertEquals(1, result.size());
             assertEquals(Hashes.sha256(source), result.get(0));
@@ -401,7 +489,7 @@ class ProfileIdentityContextTest {
                 Files.writeString(mod.resolve("data/hulls/hull-" + index + ".ship"),
                         "{\"hullId\":\"h" + index + "\"}");
             }
-            return new Layout(game, core, mod);
+            return new Layout(game.toRealPath(), core.toRealPath(), mod.toRealPath());
         }
 
         ResourceIndex index() throws IOException {
@@ -429,9 +517,23 @@ class ProfileIdentityContextTest {
                 }
             }
             if (extraLogicalPath != null) {
-                entries.put(extraLogicalPath, List.of(new ResourceIndex.Provider(
-                        1, extraLogicalPath, Files.size(extraFile),
-                        Files.getLastModifiedTime(extraFile).toMillis())));
+                if (Files.isSymbolicLink(extraFile)) {
+                    entries.put(extraLogicalPath, List.of(new ResourceIndex.Provider(
+                            1,
+                            extraLogicalPath,
+                            Files.size(extraFile),
+                            Files.getLastModifiedTime(extraFile).toMillis())));
+                } else {
+                    OpenedFileGenerationAuthority.Generation generation =
+                            OpenedFileGenerationAuthority.capture(extraFile);
+                    entries.put(extraLogicalPath, List.of(new ResourceIndex.Provider(
+                            1,
+                            extraLogicalPath,
+                            Files.size(extraFile),
+                            Files.getLastModifiedTime(extraFile).toMillis(),
+                            generation.provider(),
+                            generation.token())));
+                }
             }
             return new ResourceIndex("b".repeat(64), roots, entries);
         }
@@ -445,8 +547,15 @@ class ProfileIdentityContextTest {
         private static ResourceIndex.Provider provider(int root, String relative, Path base)
                 throws IOException {
             Path file = base.resolve(relative);
+            OpenedFileGenerationAuthority.Generation generation =
+                    OpenedFileGenerationAuthority.capture(file);
             return new ResourceIndex.Provider(
-                    root, relative, Files.size(file), Files.getLastModifiedTime(file).toMillis());
+                    root,
+                    relative,
+                    Files.size(file),
+                    Files.getLastModifiedTime(file).toMillis(),
+                    generation.provider(),
+                    generation.token());
         }
     }
 }

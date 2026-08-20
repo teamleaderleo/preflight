@@ -33,8 +33,23 @@ class ResourceIndexIOTest {
         assertEquals(index.profileFingerprint(), restored.profileFingerprint());
         assertEquals(index.roots(), restored.roots());
         assertEquals(index.entries(), restored.entries());
-        assertEquals("beta", restored.roots().get(restored.winner("graphics/shared.png").orElseThrow().rootIndex()).id());
+        ResourceIndex.Provider winner = restored.winner("graphics/shared.png").orElseThrow();
+        assertEquals("beta", restored.roots().get(winner.rootIndex()).id());
+        assertTrue(winner.hasGenerationAuthority());
+        assertEquals("test-open-generation-v1", winner.generationProvider());
+        assertEquals("token-beta", winner.generationToken());
         assertTrue(Files.isRegularFile(output));
+    }
+
+    @Test
+    void providerGenerationFieldsHaveDedicatedModelBounds() {
+        String oversized = "x".repeat(ResourceIndex.MAX_GENERATION_FIELD_BYTES + 1);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new ResourceIndex.Provider(0, "shared.bin", 4, 1, "provider", oversized));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new ResourceIndex.Provider(0, "shared.bin", 4, 1, oversized, "token"));
     }
 
     @Test
@@ -74,10 +89,10 @@ class ResourceIndexIOTest {
         Map<String, List<ResourceIndex.Provider>> entries = new LinkedHashMap<>();
         Map<String, List<ResourceIndex.Provider>> values = Map.of(
                 "graphics/shared.png", List.of(
-                        new ResourceIndex.Provider(0, "graphics/shared.png", 1, 10),
-                        new ResourceIndex.Provider(1, "graphics/shared.png", 2, 11),
-                        new ResourceIndex.Provider(2, "graphics/Shared.PNG", 3, 12)),
-                "data/config.json", List.of(new ResourceIndex.Provider(0, "data/config.json", 4, 13)));
+                        provider(0, "graphics/shared.png", 1, 10, "token-core"),
+                        provider(1, "graphics/shared.png", 2, 11, "token-alpha"),
+                        provider(2, "graphics/Shared.PNG", 3, 12, "token-beta")),
+                "data/config.json", List.of(provider(0, "data/config.json", 4, 13, "token-config")));
         if (reverseInsertion) {
             entries.put("graphics/shared.png", values.get("graphics/shared.png"));
             entries.put("data/config.json", values.get("data/config.json"));
@@ -86,5 +101,16 @@ class ResourceIndexIOTest {
             entries.put("graphics/shared.png", values.get("graphics/shared.png"));
         }
         return new ResourceIndex("fingerprint", roots, entries);
+    }
+
+    private static ResourceIndex.Provider provider(
+            int rootIndex, String path, long size, long modifiedMillis, String token) {
+        return new ResourceIndex.Provider(
+                rootIndex,
+                path,
+                size,
+                modifiedMillis,
+                "test-open-generation-v1",
+                token);
     }
 }

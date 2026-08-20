@@ -194,17 +194,16 @@ class CacheCommandTest {
         PreflightHome home = PreflightHome.resolve(Platform.MAC, directory, Map.of());
         String current = "a".repeat(64);
         String retained = "b".repeat(64);
-        Files.createDirectories(home.cache().resolve("resource-indexes"));
+        Path indexes = ResourceIndexIO.directory(home.cache());
+        Files.createDirectories(indexes);
         Files.createDirectories(home.cache().resolve("manifests"));
         Files.createDirectories(home.cache().resolve("packs"));
         Files.createDirectories(home.runs());
         Files.createDirectories(home.root().resolve("history"));
-        Files.writeString(home.cache().resolve("resource-indexes").resolve(current + ".spfi"),
-                "current-index");
+        Files.writeString(indexes.resolve(current + ".spfi"), "current-index");
         Files.writeString(home.cache().resolve("manifests").resolve(current + ".spfm"),
                 "current-manifest");
-        Files.writeString(home.cache().resolve("resource-indexes").resolve(retained + ".spfi"),
-                "retained-index");
+        Files.writeString(indexes.resolve(retained + ".spfi"), "retained-index");
         Files.writeString(home.cache().resolve("packs").resolve(current + ".spfp"), "pack");
         Files.writeString(home.runs().resolve("adapter.json"), "evidence");
         Files.writeString(home.root().resolve("history").resolve("launches.jsonl"), "launch");

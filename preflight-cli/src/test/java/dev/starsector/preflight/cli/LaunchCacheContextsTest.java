@@ -83,7 +83,8 @@ class LaunchCacheContextsTest {
 
         ResourceIndex current = ResourceIndexBuilder.build(game).index();
         Path cache = temporaryDirectory.resolve("automatic-cache");
-        Path index = cache.resolve("resource-indexes/" + current.profileFingerprint() + ".spfi");
+        Path index = ResourceIndexIO.directory(cache)
+                .resolve(current.profileFingerprint() + ".spfi");
         Path manifest = cache.resolve("manifests/" + current.profileFingerprint() + ".spfm");
         ResourceIndexIO.write(index, current);
         TextureManifestIO.write(manifest, new TextureManifest(current.profileFingerprint(), Map.of()));

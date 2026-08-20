@@ -33,11 +33,10 @@ final class ResourceIndexBuilder {
     /**
      * The default width of the root scan.
      *
-     * <p>The walk is two syscalls per file -- a {@code toRealPath} containment check and a
-     * {@code readAttributes} -- across 61,693 files on the reviewed profile, and it was the single
-     * largest thing Preflight did before the game's JVM started. It is latency-bound rather than
-     * CPU-bound, so the useful width is the number of roots that can have a syscall outstanding at
-     * once rather than the number of cores.
+     * <p>The reviewed profile contains roughly 61k files. Root walks are latency-bound, so useful
+     * parallelism is the number of roots that can have filesystem metadata operations outstanding
+     * at once. Generation capture stays metadata-only here; payload hashing belongs to exact-use
+     * sites and is measured separately.
      */
     static final int DEFAULT_SCAN_WORKERS =
             Math.max(2, Math.min(8, Runtime.getRuntime().availableProcessors()));
@@ -84,18 +83,15 @@ final class ResourceIndexBuilder {
                 .toList();
         TreeMap<String, List<ResourceIndex.Provider>> entries = new TreeMap<>();
         MessageDigest fingerprint = sha256();
-        update(fingerprint, "preflight-resource-index-v1");
+        update(fingerprint, "preflight-resource-index-v2");
         for (String enabledId : enabledIds) {
             update(fingerprint, "enabled");
             update(fingerprint, enabledId);
         }
 
-        // Each root is walked into its own scan, then folded in root order. The fold is what keeps
-        // the fingerprint identical to the serial one: a worker records the exact bytes the digest
-        // would have been fed rather than digesting them, so the digest still sees one root's worth
-        // of bytes after another in the original order. Provider lists are appended in the same
-        // order for the same reason -- resolution order across roots is the whole point of the
-        // index, and a permuted merge would silently change which mod wins every path.
+        // Each root is walked into its own scan, then folded in root order. The fold keeps the
+        // fingerprint deterministic: workers record the exact bytes owed to the digest, while the
+        // caller feeds those bytes to the digest in resource-resolution order.
         List<RootScan> scans = scanRoots(sourceRoots, scanWorkers);
         for (int rootIndex = 0; rootIndex < sourceRoots.size(); rootIndex++) {
             SourceRoot root = sourceRoots.get(rootIndex);
@@ -110,6 +106,7 @@ final class ResourceIndexBuilder {
             diagnostics.addAll(scan.diagnostics());
         }
 
+        requireCurrentProviderGenerations(scans);
         ResourceIndex index = new ResourceIndex(
                 HexFormat.of().formatHex(fingerprint.digest()),
                 roots,
@@ -129,6 +126,13 @@ final class ResourceIndexBuilder {
      * rather than report their empty answers as findings.</p>
      */
     static BuildResult buildStandalone(Path directory, String id) throws IOException {
+        return buildStandalone(directory, id, () -> {});
+    }
+
+    static BuildResult buildStandalone(
+            Path directory,
+            String id,
+            GenerationPublicationHook publicationHook) throws IOException {
         long started = System.nanoTime();
         List<String> diagnostics = new ArrayList<>();
         Path root = PathContainment.realDirectory(directory);
@@ -136,13 +140,15 @@ final class ResourceIndexBuilder {
 
         TreeMap<String, List<ResourceIndex.Provider>> entries = new TreeMap<>();
         MessageDigest fingerprint = sha256();
-        update(fingerprint, "preflight-standalone-index-v1");
+        update(fingerprint, "preflight-standalone-index-v2");
         update(fingerprint, id);
         RootScan scan = scanRoot(source, 0);
         fingerprint.update(scan.digestInput());
         entries.putAll(scan.entries());
         diagnostics.addAll(scan.diagnostics());
 
+        publicationHook.beforeGenerationRecheck();
+        requireCurrentProviderGenerations(List.of(scan));
         ResourceIndex index = new ResourceIndex(
                 HexFormat.of().formatHex(fingerprint.digest()),
                 List.of(new ResourceIndex.Root(id, root, false)),
@@ -270,15 +276,37 @@ final class ResourceIndexBuilder {
         TreeMap<String, List<ResourceIndex.Provider>> entries = new TreeMap<>();
         ByteArrayOutputStream digestInput = new ByteArrayOutputStream(1 << 16);
         List<String> diagnostics = new ArrayList<>();
-        scanDirectory(root, rootIndex, root.directory(), entries, digestInput, diagnostics, new LinkedHashSet<>());
-        return new RootScan(entries, digestInput.toByteArray(), diagnostics);
+        List<ProviderCapture> captures = new ArrayList<>();
+        scanDirectory(
+                root,
+                rootIndex,
+                root.directory(),
+                entries,
+                digestInput,
+                diagnostics,
+                new LinkedHashSet<>(),
+                captures);
+        return new RootScan(
+                entries,
+                digestInput.toByteArray(),
+                diagnostics,
+                List.copyOf(captures),
+                root.directory());
     }
 
-    /** One root's contribution: its providers, the digest bytes it owes, and what it noticed. */
+    /** One root's contribution plus the real root used to re-resolve provider names at publication. */
     private record RootScan(
             TreeMap<String, List<ResourceIndex.Provider>> entries,
             byte[] digestInput,
-            List<String> diagnostics) {
+            List<String> diagnostics,
+            List<ProviderCapture> captures,
+            Path realRoot) {
+    }
+
+    private record ProviderCapture(
+            ResourceIndex.Provider provider,
+            Path publicPath,
+            Path realPath) {
     }
 
     private static void scanDirectory(
@@ -288,7 +316,8 @@ final class ResourceIndexBuilder {
             Map<String, List<ResourceIndex.Provider>> entries,
             ByteArrayOutputStream fingerprint,
             List<String> diagnostics,
-            Set<Path> visited) throws IOException {
+            Set<Path> visited,
+            List<ProviderCapture> captures) throws IOException {
         Path realDirectory;
         try {
             realDirectory = PathContainment.existingInsideRealRoot(root.directory(), directory);
@@ -317,7 +346,15 @@ final class ResourceIndexBuilder {
                 Path realChild = PathContainment.existingInsideRealRoot(root.directory(), child);
                 BasicFileAttributes attributes = Files.readAttributes(realChild, BasicFileAttributes.class);
                 if (attributes.isDirectory()) {
-                    scanDirectory(root, rootIndex, child, entries, fingerprint, diagnostics, visited);
+                    scanDirectory(
+                            root,
+                            rootIndex,
+                            child,
+                            entries,
+                            fingerprint,
+                            diagnostics,
+                            visited,
+                            captures);
                 } else if (attributes.isRegularFile()) {
                     String childName = child.getFileName().toString();
                     if (isRuntimeGeneratedResource(childName)) {
@@ -331,24 +368,68 @@ final class ResourceIndexBuilder {
                             .toString()
                             .replace('\\', '/');
                     String logical = ResourceIndex.normalizeLogicalPath(relative);
+                    OpenedFileGenerationAuthority.Generation generation;
+                    try {
+                        generation = OpenedFileGenerationAuthority.capture(realChild);
+                    } catch (IOException unavailable) {
+                        throw new GenerationAuthorityException(
+                                "Exact file-generation authority is unavailable for " + realChild,
+                                unavailable);
+                    }
+                    BasicFileAttributes generationBound = Files.readAttributes(realChild, BasicFileAttributes.class);
+                    long modifiedMillis = Math.max(0, attributes.lastModifiedTime().toMillis());
+                    if (!generationBound.isRegularFile()
+                            || generationBound.size() != attributes.size()
+                            || Math.max(0, generationBound.lastModifiedTime().toMillis()) != modifiedMillis) {
+                        throw new GenerationAuthorityException(
+                                "Provider changed while file-generation authority was captured: " + realChild);
+                    }
                     ResourceIndex.Provider provider = new ResourceIndex.Provider(
                             rootIndex,
                             relative,
                             attributes.size(),
-                            Math.max(0, attributes.lastModifiedTime().toMillis()));
+                            modifiedMillis,
+                            generation.provider(),
+                            generation.token());
                     List<ResourceIndex.Provider> providers = entries.computeIfAbsent(logical, ignored -> new ArrayList<>());
                     if (!providers.isEmpty() && providers.get(providers.size() - 1).rootIndex() == rootIndex) {
                         diagnostics.add("Case-colliding paths in " + root.id() + ": "
                                 + providers.get(providers.size() - 1).relativePath() + " and " + relative);
                     }
                     providers.add(provider);
+                    Path publicPath = child.toAbsolutePath().normalize();
+                    captures.add(new ProviderCapture(provider, publicPath, realChild));
                     update(fingerprint, logical);
                     update(fingerprint, relative);
                     update(fingerprint, Long.toString(attributes.size()));
-                    update(fingerprint, Long.toString(Math.max(0, attributes.lastModifiedTime().toMillis())));
+                    update(fingerprint, Long.toString(modifiedMillis));
+                    update(fingerprint, generation.provider());
+                    update(fingerprint, generation.token());
                 }
+            } catch (GenerationAuthorityException fatal) {
+                throw fatal;
             } catch (IllegalArgumentException | IOException error) {
                 diagnostics.add("Could not index " + child + ": " + error.getMessage());
+            }
+        }
+    }
+
+    private static void requireCurrentProviderGenerations(List<RootScan> scans) throws IOException {
+        for (RootScan scan : scans) {
+            for (ProviderCapture capture : scan.captures()) {
+                OpenedFileGenerationAuthority.Generation expected =
+                        new OpenedFileGenerationAuthority.Generation(
+                                capture.provider().generationProvider(),
+                                capture.provider().generationToken());
+                Path current = PathContainment.existingInsideRealRoot(
+                        scan.realRoot(),
+                        capture.publicPath());
+                if (!current.equals(capture.realPath())) {
+                    throw new OpenedFileGenerationAuthority.StaleGenerationException(
+                            "Indexed provider pathname changed before publication: "
+                                    + capture.publicPath());
+                }
+                OpenedFileGenerationAuthority.requireCurrent(current, expected);
             }
         }
     }
@@ -391,6 +472,21 @@ final class ResourceIndexBuilder {
             return MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException impossible) {
             throw new IllegalStateException("SHA-256 is unavailable", impossible);
+        }
+    }
+
+    @FunctionalInterface
+    interface GenerationPublicationHook {
+        void beforeGenerationRecheck() throws IOException;
+    }
+
+    private static final class GenerationAuthorityException extends IOException {
+        private GenerationAuthorityException(String message) {
+            super(message);
+        }
+
+        private GenerationAuthorityException(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 

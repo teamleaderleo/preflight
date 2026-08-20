@@ -185,7 +185,8 @@ class RunCommandIT {
 
         var current = ResourceIndexBuilder.build(game).index();
         Path cache = temporaryDirectory.resolve("auto-texture-cache");
-        Path index = cache.resolve("resource-indexes/" + current.profileFingerprint() + ".spfi");
+        Path index = dev.starsector.preflight.core.ResourceIndexIO.directory(cache)
+                .resolve(current.profileFingerprint() + ".spfi");
         Path manifest = cache.resolve("manifests/" + current.profileFingerprint() + ".spfm");
         dev.starsector.preflight.core.ResourceIndexIO.write(index, current);
         dev.starsector.preflight.core.TextureManifestIO.write(

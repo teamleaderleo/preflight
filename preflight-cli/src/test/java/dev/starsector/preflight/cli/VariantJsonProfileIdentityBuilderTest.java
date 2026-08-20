@@ -80,10 +80,13 @@ class VariantJsonProfileIdentityBuilderTest {
     }
 
     private static ResourceIndex.Provider provider(int root, Path rootPath, Path file) throws Exception {
+        OpenedFileGenerationAuthority.Generation generation = OpenedFileGenerationAuthority.capture(file);
         return new ResourceIndex.Provider(
                 root,
                 rootPath.relativize(file).toString(),
                 Files.size(file),
-                Files.getLastModifiedTime(file).toMillis());
+                Files.getLastModifiedTime(file).toMillis(),
+                generation.provider(),
+                generation.token());
     }
 }

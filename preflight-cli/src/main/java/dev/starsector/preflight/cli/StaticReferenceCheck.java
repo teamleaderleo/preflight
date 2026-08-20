@@ -265,8 +265,9 @@ final class StaticReferenceCheck {
     }
 
     /**
-     * Uses the same provider-local hard-link proof as exact profile hashing. The supplied hasher
-     * captures the bounded bytes while hashing them, so analysis adds no second payload read.
+     * Uses the same opened-file generation authority as exact profile hashing. The supplied hasher
+     * captures the bounded bytes from that single opened payload stream, so analysis adds no second
+     * payload read.
      */
     private static Text exactBoundedText(
             ResourceIndex index,

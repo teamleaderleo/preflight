@@ -9,7 +9,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -53,12 +52,29 @@ class StaticReferenceOptionalVariantIdTest {
         byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
         Files.write(path, bytes);
         long modified = Math.max(0L, Files.getLastModifiedTime(path).toMillis());
-        return new ProviderFile(relative, bytes.length, modified);
+        OpenedFileGenerationAuthority.Generation generation = OpenedFileGenerationAuthority.capture(path);
+        return new ProviderFile(
+                relative,
+                bytes.length,
+                modified,
+                generation.provider(),
+                generation.token());
     }
 
-    private record ProviderFile(String relative, long size, long modified) {
+    private record ProviderFile(
+            String relative,
+            long size,
+            long modified,
+            String generationProvider,
+            String generationToken) {
         ResourceIndex.Provider provider(int rootIndex) {
-            return new ResourceIndex.Provider(rootIndex, relative, size, modified);
+            return new ResourceIndex.Provider(
+                    rootIndex,
+                    relative,
+                    size,
+                    modified,
+                    generationProvider,
+                    generationToken);
         }
     }
 }

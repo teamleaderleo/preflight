@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import dev.starsector.preflight.core.ResourceIndexIO;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -209,11 +210,12 @@ class UninstallCommandTest {
         PreflightHome preflight = macHome();
         String current = "a".repeat(64);
         String stale = "b".repeat(64);
-        Files.createDirectories(preflight.cache().resolve("resource-indexes"));
+        Path indexes = ResourceIndexIO.directory(preflight.cache());
+        Files.createDirectories(indexes);
         Files.createDirectories(preflight.cache().resolve("manifests"));
-        Files.writeString(preflight.cache().resolve("resource-indexes/" + current + ".spfi"), "index");
+        Files.writeString(indexes.resolve(current + ".spfi"), "index");
         Files.writeString(preflight.cache().resolve("manifests/" + current + ".spfm"), "manifest");
-        Files.writeString(preflight.cache().resolve("resource-indexes/" + stale + ".spfi"), "index");
+        Files.writeString(indexes.resolve(stale + ".spfi"), "index");
 
         ByteArrayOutputStream captured = new ByteArrayOutputStream();
         try (PrintStream out = new PrintStream(captured, true, StandardCharsets.UTF_8)) {

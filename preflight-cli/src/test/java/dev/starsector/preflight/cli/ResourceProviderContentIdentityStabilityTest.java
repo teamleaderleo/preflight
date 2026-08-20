@@ -1,25 +1,19 @@
 package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceProviderComparison;
 import java.io.IOException;
-import java.net.URI;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -29,322 +23,226 @@ class ResourceProviderContentIdentityStabilityTest {
     Path temporaryDirectory;
 
     @Test
-    void mutationDuringHashIsStaleAndRacedDigestIsNotMemoized() throws Exception {
-        Path root = Files.createDirectories(temporaryDirectory.resolve("mutating/root"));
-        Path file = Files.writeString(root.resolve("shared.bin"), "same");
-        ResourceIndex.Provider provider = provider(root, "shared.bin");
-        ResourceIndex index = index(root, provider);
-        AtomicInteger hashCalls = new AtomicInteger();
-        ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
-                index,
-                bytes -> {
-                    int call = hashCalls.incrementAndGet();
-                    if (call == 1) {
-                        Files.writeString(file, "changed-during-hash");
-                    }
-                    return Hashes.sha256(bytes);
-                });
-
-        ResourceProviderComparison.ContentObservation raced = identities.observe("shared.bin", provider);
-
-        assertEquals(ResourceProviderComparison.ContentEvidence.STALE, raced.evidence());
-        assertEquals(1, hashCalls.get());
-
-        Files.writeString(file, "same");
-        Files.setLastModifiedTime(file, FileTime.fromMillis(provider.modifiedMillis()));
-        ResourceProviderComparison.ContentObservation stable = identities.observe("shared.bin", provider);
-
-        assertEquals(ResourceProviderComparison.ContentEvidence.HASHED, stable.evidence());
-        assertEquals(2, hashCalls.get(), "the raced digest must not enter the direct-hash memo");
-        assertNoProofArtifacts(root);
-    }
-
-    @Test
-    void subMillisecondMtimeChangeDuringHashIsStaleWhenFilesystemPreservesPrecision() throws Exception {
-        Path root = Files.createDirectories(temporaryDirectory.resolve("submillisecond/root"));
-        Path file = Files.writeString(root.resolve("shared.bin"), "AAAA");
-        FileTime requestedBefore = FileTime.from(Instant.ofEpochSecond(1_700_000_000L, 100_000));
-        FileTime requestedAfter = FileTime.from(Instant.ofEpochSecond(1_700_000_000L, 900_000));
-
-        Files.setLastModifiedTime(file, requestedBefore);
-        FileTime observedBefore = Files.getLastModifiedTime(file);
-        Files.setLastModifiedTime(file, requestedAfter);
-        FileTime observedAfter = Files.getLastModifiedTime(file);
-        if (observedBefore.equals(observedAfter) || observedBefore.toMillis() != observedAfter.toMillis()) {
-            return; // This filesystem cannot expose the precision this regression exercises.
-        }
-        Files.setLastModifiedTime(file, observedBefore);
-        if (!observedBefore.equals(Files.getLastModifiedTime(file))) {
-            return; // The first precise timestamp cannot be restored reliably on this filesystem.
-        }
-
-        ResourceIndex.Provider provider = provider(root, "shared.bin");
-        ResourceIndex index = index(root, provider);
-        AtomicInteger hashCalls = new AtomicInteger();
-        ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
-                index,
-                bytes -> {
-                    int call = hashCalls.incrementAndGet();
-                    if (call == 1) {
-                        Files.writeString(file, "BBBB");
-                        Files.setLastModifiedTime(file, observedAfter);
-                    }
-                    return Hashes.sha256(bytes);
-                });
-
-        ResourceProviderComparison.ContentObservation raced = identities.observe("shared.bin", provider);
-
-        assertEquals(ResourceProviderComparison.ContentEvidence.STALE, raced.evidence());
-        assertEquals(1, hashCalls.get());
-
-        Files.writeString(file, "AAAA");
-        Files.setLastModifiedTime(file, observedBefore);
-        ResourceProviderComparison.ContentObservation stable = identities.observe("shared.bin", provider);
-
-        assertEquals(ResourceProviderComparison.ContentEvidence.HASHED, stable.evidence());
-        assertEquals(2, hashCalls.get(), "the precision-raced digest must not enter the direct-hash memo");
-        assertNoProofArtifacts(root);
-    }
-
-    @Test
-    void cachedDigestIsRejectedAfterSameMetadataFileReplacementWhenIdentityIsAvailable() throws Exception {
-        Path root = Files.createDirectories(temporaryDirectory.resolve("replacement/root"));
+    void twoUnchangedObservationsReuseOneDigestWithoutSelfInvalidation() throws Exception {
+        Path root = Files.createDirectories(temporaryDirectory.resolve("stable"));
         Path file = Files.writeString(root.resolve("shared.bin"), "AAAA");
         ResourceIndex.Provider provider = provider(root, "shared.bin");
         ResourceIndex index = index(root, provider);
         AtomicInteger hashCalls = new AtomicInteger();
         ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
                 index,
-                bytes -> {
+                input -> {
                     hashCalls.incrementAndGet();
-                    return Hashes.sha256(bytes);
+                    return Hashes.sha256(input);
+                });
+
+        ResourceProviderComparison.ContentObservation first = identities.observe("shared.bin", provider);
+        ResourceProviderComparison.ContentObservation second = identities.observe("shared.bin", provider);
+
+        assertEquals(ResourceProviderComparison.ContentEvidence.HASHED, first.evidence());
+        assertEquals(ResourceProviderComparison.ContentEvidence.HASHED, second.evidence());
+        assertEquals(Hashes.sha256(file), first.sha256());
+        assertEquals(first.sha256(), second.sha256());
+        assertEquals(1, hashCalls.get(), "unchanged exact evidence should reuse one accepted digest");
+    }
+
+    @Test
+    void sameInodeMutationDuringHashIsStaleAndRacedDigestIsNotMemoized() throws Exception {
+        Path root = Files.createDirectories(temporaryDirectory.resolve("mutating"));
+        Path file = Files.writeString(root.resolve("shared.bin"), "AAAA");
+        FileTime modified = Files.getLastModifiedTime(file);
+        ResourceIndex.Provider provider = provider(root, "shared.bin");
+        ResourceIndex index = index(root, provider);
+        AtomicInteger hashCalls = new AtomicInteger();
+        ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
+                index,
+                input -> {
+                    int call = hashCalls.incrementAndGet();
+                    if (call == 1) {
+                        try {
+                            Files.writeString(file, "BBBB");
+                        } catch (IOException writerRefused) {
+                            throw new OpenedFileGenerationAuthority.StaleGenerationException(
+                                    "concurrent mutation was refused by the pinned exact-read handle",
+                                    writerRefused);
+                        }
+                        Files.setLastModifiedTime(file, modified);
+                        String raced = Hashes.sha256(input);
+                        Files.writeString(file, "AAAA");
+                        Files.setLastModifiedTime(file, modified);
+                        return raced;
+                    }
+                    return Hashes.sha256(input);
+                });
+
+        ResourceProviderComparison.ContentObservation raced = identities.observe("shared.bin", provider);
+        assertEquals(ResourceProviderComparison.ContentEvidence.STALE, raced.evidence());
+        assertEquals(1, hashCalls.get());
+
+        ResourceIndex.Provider repaired = provider(root, "shared.bin");
+        ResourceProviderComparison.ContentIdentitySource retried = ResourceProviderContentIdentity.direct(
+                index(root, repaired),
+                input -> {
+                    hashCalls.incrementAndGet();
+                    return Hashes.sha256(input);
+                });
+        ResourceProviderComparison.ContentObservation stable = retried.observe("shared.bin", repaired);
+        assertEquals(ResourceProviderComparison.ContentEvidence.HASHED, stable.evidence());
+        assertEquals(2, hashCalls.get(), "the raced digest must not become reusable evidence");
+    }
+
+    @Test
+    void sameSizeRestoredMtimeMutationAfterIndexBeforeObservationIsStaleWithoutHashing() throws Exception {
+        Path root = Files.createDirectories(temporaryDirectory.resolve("between-index-and-read"));
+        Path file = Files.writeString(root.resolve("shared.bin"), "AAAA");
+        ResourceIndex.Provider provider = provider(root, "shared.bin");
+        ResourceIndex index = index(root, provider);
+        FileTime modified = Files.getLastModifiedTime(file);
+
+        Files.writeString(file, "BBBB");
+        Files.setLastModifiedTime(file, modified);
+
+        AtomicInteger hashCalls = new AtomicInteger();
+        ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
+                index,
+                input -> {
+                    hashCalls.incrementAndGet();
+                    return Hashes.sha256(input);
+                });
+        ResourceProviderComparison.ContentObservation observed = identities.observe("shared.bin", provider);
+
+        assertEquals(ResourceProviderComparison.ContentEvidence.STALE, observed.evidence());
+        assertEquals(0, hashCalls.get(), "indexed-generation mismatch must refuse before reading payload bytes");
+    }
+
+    @Test
+    void sameMetadataPathReplacementInvalidatesAnExistingMemo() throws Exception {
+        Path root = Files.createDirectories(temporaryDirectory.resolve("replacement"));
+        Path file = Files.writeString(root.resolve("shared.bin"), "AAAA");
+        ResourceIndex.Provider provider = provider(root, "shared.bin");
+        ResourceIndex index = index(root, provider);
+        AtomicInteger hashCalls = new AtomicInteger();
+        ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
+                index,
+                input -> {
+                    hashCalls.incrementAndGet();
+                    return Hashes.sha256(input);
                 });
 
         assertEquals(
                 ResourceProviderComparison.ContentEvidence.HASHED,
                 identities.observe("shared.bin", provider).evidence());
-        Object originalKey = Files.readAttributes(file, BasicFileAttributes.class).fileKey();
-        if (originalKey == null) {
-            return; // This filesystem cannot safely support the replacement memo check.
-        }
-        assertEquals(
-                ResourceProviderComparison.ContentEvidence.HASHED,
-                identities.observe("shared.bin", provider).evidence());
-        assertEquals(1, hashCalls.get(), "an unchanged provider with a file identity must reuse the memo");
-
         Path replacement = Files.writeString(root.resolve("replacement.tmp"), "BBBB");
         Files.setLastModifiedTime(replacement, FileTime.fromMillis(provider.modifiedMillis()));
         Files.move(replacement, file, StandardCopyOption.REPLACE_EXISTING);
         Files.setLastModifiedTime(file, FileTime.fromMillis(provider.modifiedMillis()));
-        Object replacementKey = Files.readAttributes(file, BasicFileAttributes.class).fileKey();
-        if (replacementKey == null || Objects.equals(originalKey, replacementKey)) {
-            return; // This filesystem exposes no replacement identity stronger than size/mtime.
-        }
 
         ResourceProviderComparison.ContentObservation replaced = identities.observe("shared.bin", provider);
-
         assertEquals(ResourceProviderComparison.ContentEvidence.STALE, replaced.evidence());
-        assertEquals(1, hashCalls.get(), "a changed file identity must invalidate rather than reuse the memo");
-        assertNoProofArtifacts(root);
+        assertEquals(1, hashCalls.get(), "a changed public generation must not reuse or recompute under the stale index");
     }
 
     @Test
-    void proofLinkUsesProviderFilesystemWhenDefaultTempWouldBeForeign() throws Exception {
-        Path root = Files.createDirectories(temporaryDirectory.resolve("foreign-temp/root"));
+    void pathnameAbaNeverPublishesImpostorBytes() throws Exception {
+        Path root = Files.createDirectories(temporaryDirectory.resolve("path-aba"));
         Path file = Files.writeString(root.resolve("shared.bin"), "AAAA");
-        assumeTrue(hardLinkProofAvailable(file), "requires the production hard-link proof primitive");
-        ResourceIndex.Provider provider = provider(root, "shared.bin");
-        ResourceIndex index = index(root, provider);
-        String expectedDigest = Hashes.sha256(file);
-
-        Path archive = temporaryDirectory.resolve("foreign-temp.zip");
-        URI uri = URI.create("jar:" + archive.toUri());
-        try (FileSystem filesystem = FileSystems.newFileSystem(uri, Map.of("create", "true"))) {
-            Path simulatedDefaultTemp = Files.createDirectories(filesystem.getPath("/tmp"));
-
-            ResourceProviderContentIdentity.ProofLink misplaced =
-                    ResourceProviderContentIdentity.createProofLink(file, simulatedDefaultTemp);
-            assertNull(
-                    misplaced,
-                    "the old default-temp placement cannot create a hard link across filesystems");
-
-            AtomicInteger hashCalls = new AtomicInteger();
-            ResourceProviderComparison.ContentIdentitySource identities =
-                    ResourceProviderContentIdentity.direct(
-                            index,
-                            bytes -> {
-                                hashCalls.incrementAndGet();
-                                return Hashes.sha256(bytes);
-                            });
-
-            ResourceProviderComparison.ContentObservation observed =
-                    identities.observe("shared.bin", provider);
-
-            assertEquals(ResourceProviderComparison.ContentEvidence.HASHED, observed.evidence());
-            assertEquals(expectedDigest, observed.sha256());
-            assertEquals(1, hashCalls.get(), "a stable uncached provider should be digested once");
-            assertNoProofArtifacts(root);
-        }
-    }
-
-    @Test
-    void sameSizeReplacementDuringTheFirstHashNeverPublishesTheReplacementDigest() throws Exception {
-        Path root = Files.createDirectories(temporaryDirectory.resolve("aba/root"));
-        Path file = Files.writeString(root.resolve("shared.bin"), "AAAA");
-        assumeTrue(hardLinkProofAvailable(file), "requires the production hard-link proof primitive");
         ResourceIndex.Provider provider = provider(root, "shared.bin");
         ResourceIndex index = index(root, provider);
         String originalDigest = Hashes.sha256(file);
-        FileTime originalModified = Files.getLastModifiedTime(file);
-
+        String impostorDigest = Hashes.sha256("BBBB".getBytes(StandardCharsets.UTF_8));
         Path parked = root.resolve("parked.tmp");
         Path impostor = Files.writeString(root.resolve("impostor.tmp"), "BBBB");
-        Files.setLastModifiedTime(impostor, FileTime.fromMillis(provider.modifiedMillis()));
 
-        // A -> B -> A entirely inside the read, with B the same size and mtime as A. A pathname
-        // hasher sees B while endpoint pathname observations can both see A.
         ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
                 index,
-                bytes -> {
+                input -> {
                     Files.move(file, parked, StandardCopyOption.REPLACE_EXISTING);
                     Files.move(impostor, file, StandardCopyOption.REPLACE_EXISTING);
-                    Files.setLastModifiedTime(file, FileTime.fromMillis(provider.modifiedMillis()));
-                    String read = Hashes.sha256(bytes);
+                    String openedDigest = Hashes.sha256(input);
                     Files.move(file, impostor, StandardCopyOption.REPLACE_EXISTING);
                     Files.move(parked, file, StandardCopyOption.REPLACE_EXISTING);
-                    Files.setLastModifiedTime(file, originalModified);
-                    return read;
+                    return openedDigest;
                 });
 
         ResourceProviderComparison.ContentObservation observed = identities.observe("shared.bin", provider);
-
-        assertEquals("AAAA", Files.readString(file), "the file on disk is the original again");
-        assertEquals(ResourceProviderComparison.ContentEvidence.HASHED, observed.evidence());
-        assertEquals(
-                originalDigest,
-                observed.sha256(),
-                "a digest published as exact evidence must belong to the anchored provider file");
-        assertNoProofArtifacts(root);
-    }
-
-    @Test
-    void providerWithoutTheHardLinkProofPrimitiveIsConservativelyStale() throws Exception {
-        Path archive = temporaryDirectory.resolve("unsupported-proof.zip");
-        URI uri = URI.create("jar:" + archive.toUri());
-        try (FileSystem filesystem = FileSystems.newFileSystem(uri, Map.of("create", "true"))) {
-            Path root = Files.createDirectories(filesystem.getPath("/root"));
-            Files.writeString(root.resolve("shared.bin"), "AAAA");
-            ResourceIndex.Provider provider = provider(root, "shared.bin");
-            ResourceIndex index = index(root, provider);
-            AtomicInteger hashCalls = new AtomicInteger();
-            ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
-                    index,
-                    bytes -> {
-                        hashCalls.incrementAndGet();
-                        return Hashes.sha256(bytes);
-                    });
-
-            ResourceProviderComparison.ContentObservation observed = identities.observe("shared.bin", provider);
-
+        if (observed.evidence() == ResourceProviderComparison.ContentEvidence.HASHED) {
+            assertEquals(originalDigest, observed.sha256(),
+                    "a successful ABA observation must belong to the pinned original");
+            assertNotEquals(impostorDigest, observed.sha256(),
+                    "impostor bytes must never publish as exact evidence");
+        } else {
             assertEquals(ResourceProviderComparison.ContentEvidence.STALE, observed.evidence());
-            assertEquals(0, hashCalls.get(), "bytes without an exact file-identity proof must not be published");
-            assertNoProofArtifacts(root);
         }
     }
 
     @Test
-    void proofLinkIsCleanedWhenHashingThrows() throws Exception {
-        Path root = Files.createDirectories(temporaryDirectory.resolve("hash-failure/root"));
+    void providerWithoutGenerationAuthorityIsConservativelyStale() throws Exception {
+        Path root = Files.createDirectories(temporaryDirectory.resolve("missing-authority"));
         Path file = Files.writeString(root.resolve("shared.bin"), "AAAA");
-        assumeTrue(hardLinkProofAvailable(file), "requires the production hard-link proof primitive");
-        ResourceIndex.Provider provider = provider(root, "shared.bin");
-        ResourceIndex index = index(root, provider);
-        ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
-                index,
-                bytes -> {
-                    throw new IOException("synthetic hash failure");
-                });
-
-        ResourceProviderComparison.ContentObservation observed = identities.observe("shared.bin", provider);
-
-        assertEquals(ResourceProviderComparison.ContentEvidence.UNREADABLE, observed.evidence());
-        assertNoProofArtifacts(root);
-    }
-
-    @Test
-    void cleanupFailureCannotLeaveAnUnreadableDigestMemoized() throws Exception {
-        Path root = Files.createDirectories(temporaryDirectory.resolve("cleanup-failure/root"));
-        Path file = Files.writeString(root.resolve("shared.bin"), "AAAA");
-        assumeTrue(hardLinkProofAvailable(file), "requires the production hard-link proof primitive");
-        assumeTrue(
-                Files.readAttributes(file, BasicFileAttributes.class).fileKey() != null,
-                "requires a filesystem identity strong enough to exercise the memo");
-        ResourceIndex.Provider provider = provider(root, "shared.bin");
+        ResourceIndex.Provider provider = new ResourceIndex.Provider(
+                0, "shared.bin", Files.size(file), Files.getLastModifiedTime(file).toMillis());
         ResourceIndex index = index(root, provider);
         AtomicInteger hashCalls = new AtomicInteger();
-        AtomicInteger proofAttempts = new AtomicInteger();
         ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
                 index,
-                bytes -> {
+                input -> {
                     hashCalls.incrementAndGet();
-                    return Hashes.sha256(bytes);
-                },
-                (candidate, directory) -> {
-                    ResourceProviderContentIdentity.ProofLink real =
-                            ResourceProviderContentIdentity.createProofLink(candidate, directory);
-                    if (real == null || proofAttempts.incrementAndGet() != 1) {
-                        return real;
-                    }
-                    return new ResourceProviderContentIdentity.ProofLink(
-                            real.path(),
-                            real.directory(),
-                            (path, ownedDirectory) -> {
-                                real.close();
-                                throw new IOException("synthetic proof cleanup failure");
-                            });
+                    return Hashes.sha256(input);
                 });
 
-        ResourceProviderComparison.ContentObservation cleanupFailed =
-                identities.observe("shared.bin", provider);
-
-        assertEquals(ResourceProviderComparison.ContentEvidence.UNREADABLE, cleanupFailed.evidence());
-        assertEquals(1, hashCalls.get());
-        assertNoProofArtifacts(root);
-
-        ResourceProviderComparison.ContentObservation retried = identities.observe("shared.bin", provider);
-        assertEquals(ResourceProviderComparison.ContentEvidence.HASHED, retried.evidence());
-        assertEquals(2, hashCalls.get(), "the cleanup-failed digest must not enter the memo");
-
-        ResourceProviderComparison.ContentObservation memoHit = identities.observe("shared.bin", provider);
-        assertEquals(ResourceProviderComparison.ContentEvidence.HASHED, memoHit.evidence());
-        assertEquals(2, hashCalls.get(), "a successfully cleaned stable digest should retain memo semantics");
-        assertNoProofArtifacts(root);
+        ResourceProviderComparison.ContentObservation observed = identities.observe("shared.bin", provider);
+        assertEquals(ResourceProviderComparison.ContentEvidence.STALE, observed.evidence());
+        assertEquals(0, hashCalls.get());
     }
 
-    private static boolean hardLinkProofAvailable(Path file) throws IOException {
-        Path parent = file.getParent();
-        if (parent == null) {
-            return false;
-        }
-        ResourceProviderContentIdentity.ProofLink proof =
-                ResourceProviderContentIdentity.createProofLink(file, parent);
-        if (proof == null) {
-            return false;
-        }
-        try (proof) {
-            return Files.isSameFile(proof.path(), file);
-        }
+    @Test
+    void unsupportedGenerationProviderIsConservativelyStaleWithoutHashing() throws Exception {
+        Path root = Files.createDirectories(temporaryDirectory.resolve("unsupported-authority"));
+        Path file = Files.writeString(root.resolve("shared.bin"), "AAAA");
+        ResourceIndex.Provider provider = new ResourceIndex.Provider(
+                0,
+                "shared.bin",
+                Files.size(file),
+                Files.getLastModifiedTime(file).toMillis(),
+                "unsupported-generation-v1",
+                "opaque-token");
+        ResourceIndex index = index(root, provider);
+        AtomicInteger hashCalls = new AtomicInteger();
+        ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
+                index,
+                input -> {
+                    hashCalls.incrementAndGet();
+                    return Hashes.sha256(input);
+                });
+
+        ResourceProviderComparison.ContentObservation observed = identities.observe("shared.bin", provider);
+        assertEquals(ResourceProviderComparison.ContentEvidence.STALE, observed.evidence());
+        assertEquals(0, hashCalls.get());
     }
 
-    private static void assertNoProofArtifacts(Path root) throws IOException {
-        try (var entries = Files.list(root)) {
-            assertEquals(
-                    0,
-                    entries.filter(path -> path.getFileName().toString()
-                                    .startsWith(ResourceProviderContentIdentity.PROOF_DIRECTORY_PREFIX))
-                            .count(),
-                    "proof-link namespaces must be cleaned after every observation");
-        }
+    @Test
+    void hashFailureDoesNotEnterTheMemo() throws Exception {
+        Path root = Files.createDirectories(temporaryDirectory.resolve("hash-failure"));
+        Files.writeString(root.resolve("shared.bin"), "AAAA");
+        ResourceIndex.Provider provider = provider(root, "shared.bin");
+        ResourceIndex index = index(root, provider);
+        AtomicInteger calls = new AtomicInteger();
+        ResourceProviderComparison.ContentIdentitySource identities = ResourceProviderContentIdentity.direct(
+                index,
+                input -> {
+                    if (calls.incrementAndGet() == 1) {
+                        throw new IOException("synthetic hash failure");
+                    }
+                    return Hashes.sha256(input);
+                });
+
+        assertEquals(
+                ResourceProviderComparison.ContentEvidence.UNREADABLE,
+                identities.observe("shared.bin", provider).evidence());
+        assertEquals(
+                ResourceProviderComparison.ContentEvidence.HASHED,
+                identities.observe("shared.bin", provider).evidence());
+        assertEquals(2, calls.get());
     }
 
     private static ResourceIndex index(Path root, ResourceIndex.Provider provider) {
@@ -356,10 +254,13 @@ class ResourceProviderContentIdentityStabilityTest {
 
     private static ResourceIndex.Provider provider(Path root, String relative) throws Exception {
         Path file = root.resolve(relative);
+        OpenedFileGenerationAuthority.Generation generation = OpenedFileGenerationAuthority.capture(file);
         return new ResourceIndex.Provider(
                 0,
                 relative,
                 Files.size(file),
-                Math.max(0, Files.getLastModifiedTime(file).toMillis()));
+                Math.max(0, Files.getLastModifiedTime(file).toMillis()),
+                generation.provider(),
+                generation.token());
     }
 }

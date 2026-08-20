@@ -200,11 +200,14 @@ class JaninoProfileIdentityBuilderTest {
 
         private static ResourceIndex.Provider provider(int rootIndex, Path root, Path file)
                 throws Exception {
+            OpenedFileGenerationAuthority.Generation generation = OpenedFileGenerationAuthority.capture(file);
             return new ResourceIndex.Provider(
                     rootIndex,
                     root.relativize(file).toString(),
                     Files.size(file),
-                    Files.getLastModifiedTime(file).toMillis());
+                    Files.getLastModifiedTime(file).toMillis(),
+                    generation.provider(),
+                    generation.token());
         }
 
         private static ClasspathProfileIndex classpath(Path modJar, boolean declared)

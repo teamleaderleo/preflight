@@ -87,7 +87,8 @@ class PrepareCommandTest {
         assertTrue(repeated.contains("\"cacheHitBlobs\":2"), repeated);
         assertTrue(repeated.contains("\"totalMismatches\":0"), repeated);
         assertTrue(Files.isRegularFile(report));
-        assertTrue(Files.list(cache.resolve("resource-indexes")).anyMatch(path -> path.toString().endsWith(".spfi")));
+        assertTrue(Files.list(dev.starsector.preflight.core.ResourceIndexIO.directory(cache))
+                .anyMatch(path -> path.toString().endsWith(".spfi")));
         assertTrue(Files.list(cache.resolve("classpath/profiles")).anyMatch(path -> path.toString().endsWith(".spfc")));
         assertTrue(Files.list(cache.resolve("spec-store/profiles")).anyMatch(path -> path.toString().endsWith(".json")));
         assertTrue(Files.list(cache.resolve("manifests")).anyMatch(path -> path.toString().endsWith(".spfm")));
