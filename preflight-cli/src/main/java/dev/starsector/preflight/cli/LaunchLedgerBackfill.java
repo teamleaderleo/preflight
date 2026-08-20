@@ -1,10 +1,15 @@
 package dev.starsector.preflight.cli;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -31,7 +36,7 @@ import java.util.Set;
  * killed after the first historical import recoverable without counting a wrapper that is alive.
  */
 final class LaunchLedgerBackfill {
-    private static final long MAX_RUN_METADATA_BYTES = 1024L * 1024L;
+    private static final int MAX_RUN_METADATA_BYTES = 1024 * 1024;
 
     private LaunchLedgerBackfill() {
     }
@@ -228,12 +233,57 @@ final class LaunchLedgerBackfill {
 
     private static Map<String, Object> metadata(Path directory) {
         Path path = directory.resolve("run.json");
-        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) return null;
         try {
-            if (Files.size(path) > MAX_RUN_METADATA_BYTES) return null;
-            return StrictJson.object(Files.readString(path, StandardCharsets.UTF_8));
+            return StrictJson.object(readBoundedMetadataText(path, MAX_RUN_METADATA_BYTES));
         } catch (IOException | RuntimeException unreadable) {
             return null;
+        }
+    }
+
+    static String readBoundedMetadataText(Path path, int maximumBytes) throws IOException {
+        validateMetadataReadLimit(maximumBytes);
+        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("Run metadata is not a regular file: " + path);
+        }
+        if (Files.size(path) > maximumBytes) {
+            throw new IOException("Run metadata exceeds the " + maximumBytes + " byte safety limit: " + path);
+        }
+        try (InputStream input = Files.newInputStream(
+                path, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+            return decodeMetadataUtf8(
+                    readBoundedMetadataBytes(input, maximumBytes, path.toString()),
+                    path.toString());
+        }
+    }
+
+    static byte[] readBoundedMetadataBytes(
+            InputStream input,
+            int maximumBytes,
+            String sourceLabel) throws IOException {
+        validateMetadataReadLimit(maximumBytes);
+        byte[] bytes = input.readNBytes(Math.addExact(maximumBytes, 1));
+        if (bytes.length > maximumBytes) {
+            throw new IOException(
+                    "Run metadata exceeds the " + maximumBytes + " byte safety limit: " + sourceLabel);
+        }
+        return bytes;
+    }
+
+    private static void validateMetadataReadLimit(int maximumBytes) {
+        if (maximumBytes < 1 || maximumBytes > MAX_RUN_METADATA_BYTES) {
+            throw new IllegalArgumentException("Run metadata read limit is invalid: " + maximumBytes);
+        }
+    }
+
+    private static String decodeMetadataUtf8(byte[] bytes, String sourceLabel) throws IOException {
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
+        } catch (CharacterCodingException malformed) {
+            throw new IOException("Run metadata is not valid UTF-8: " + sourceLabel, malformed);
         }
     }
 
