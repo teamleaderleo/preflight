@@ -10,8 +10,9 @@ import java.util.List;
 
 /** Strict, bounded CSV parsing for read-only spreadsheet provenance evidence. */
 final class SpreadsheetCsv {
+    private static final int STANDARD_MAX_CELLS = 2_000_000;
     static final Limits STANDARD_LIMITS =
-            new Limits(32 * 1024 * 1024, 250_000, 1_024, 1_048_576, 2_000_000);
+            new Limits(32 * 1024 * 1024, 250_000, 1_024, 1_048_576, STANDARD_MAX_CELLS);
 
     private SpreadsheetCsv() {
     }
@@ -94,7 +95,7 @@ final class SpreadsheetCsv {
             throw new IOException("CSV ended inside a quoted cell");
         }
         if (!row.isEmpty() || !cell.isEmpty() || quotedCellClosed) {
-            cells = finishCell(row, cell, limits, cells);
+            finishCell(row, cell, limits, cells);
             finishRow(rows, row, limits);
         }
         return new Table(rows);
@@ -151,6 +152,10 @@ final class SpreadsheetCsv {
     }
 
     record Limits(int maxBytes, int maxRows, int maxColumns, int maxCellChars, int maxCells) {
+        Limits(int maxBytes, int maxRows, int maxColumns, int maxCellChars) {
+            this(maxBytes, maxRows, maxColumns, maxCellChars, STANDARD_MAX_CELLS);
+        }
+
         Limits {
             if (maxBytes < 1 || maxRows < 1 || maxColumns < 1 || maxCellChars < 1 || maxCells < 1) {
                 throw new IllegalArgumentException("CSV limits must be positive");
