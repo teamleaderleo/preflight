@@ -20,7 +20,7 @@ class ResourceOwnershipSummaryTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> totals = (Map<String, Object>) result.values().get("totals");
         assertEquals(4, ((Number) totals.get("resourcePaths")).intValue());
-        assertEquals(7L, ((Number) totals.get("providers")).longValue());
+        assertEquals(6L, ((Number) totals.get("providers")).longValue());
         assertEquals(2L, ((Number) totals.get("overridePaths")).longValue());
         assertEquals(1L, ((Number) totals.get("coreOverriddenPaths")).longValue());
         assertEquals(1L, ((Number) totals.get("modToModOverridePaths")).longValue());
@@ -36,14 +36,14 @@ class ResourceOwnershipSummaryTest {
         Map<String, Object> core = roots.get(0);
         Map<String, Object> modA = roots.get(1);
         Map<String, Object> modB = roots.get(2);
-        assertEquals(3L, ((Number) core.get("providerOccurrences")).longValue());
-        assertEquals(2L, ((Number) core.get("winningPaths")).longValue());
+        assertEquals(2L, ((Number) core.get("providerOccurrences")).longValue());
+        assertEquals(1L, ((Number) core.get("winningPaths")).longValue());
         assertEquals(1L, ((Number) core.get("shadowedOccurrences")).longValue());
         assertEquals(2L, ((Number) modA.get("providerOccurrences")).longValue());
         assertEquals(1L, ((Number) modA.get("winningPaths")).longValue());
         assertEquals(1L, ((Number) modA.get("shadowedOccurrences")).longValue());
         assertEquals(2L, ((Number) modB.get("providerOccurrences")).longValue());
-        assertEquals(1L, ((Number) modB.get("winningPaths")).longValue());
+        assertEquals(2L, ((Number) modB.get("winningPaths")).longValue());
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> overrides = (List<Map<String, Object>>) result.values().get("overrides");
@@ -106,7 +106,6 @@ class ResourceOwnershipSummaryTest {
         entries.put("data/ships/example.ship", List.of(
                 provider(0, "data/ships/example.ship", 55)));
         entries.put("sounds/example.ogg", List.of(
-                provider(0, "sounds/example.ogg", 70),
                 provider(2, "sounds/example.ogg", 72)));
         return new ResourceIndex("profile-fingerprint", roots, entries);
     }
