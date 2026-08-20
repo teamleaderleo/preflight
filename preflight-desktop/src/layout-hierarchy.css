@@ -96,6 +96,13 @@
   transform: none;
 }
 
+/* Failed-run identity sits on the lower edge of the stable companion field. Open its full-path
+ * disclosure upward so pointer and keyboard users can actually see it inside the clipped Home viewport. */
+.page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-launch-path::after {
+  top: auto;
+  bottom: calc(100% + 7px);
+}
+
 /* Motion, direction, and appearance reset form one compact local cluster. Reset keeps a visible word
  * because a second circular-arrow-only glyph beside direction is needlessly ambiguous. */
 .hangar-dock--catalog {
