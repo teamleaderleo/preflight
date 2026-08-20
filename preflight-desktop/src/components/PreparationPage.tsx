@@ -11,6 +11,21 @@ import { optimizationPresets, storageGroupLabel } from "../preparationOptions";
 
 type PreparationState = ReturnType<typeof usePreparation>;
 
+function preparationReuseSummary(
+  preparationPlan: PreparationState["preparationPlan"],
+  textureStorage: PreparationState["textureStorage"],
+): string | null {
+  if (!preparationPlan || !storagePlanApplies(textureStorage)) return null;
+  if (preparationPlan.reusableLooseBytes > 0 && preparationPlan.packHit) {
+    return `${formatBytes(preparationPlan.reusableLooseBytes)} of compatible prepared texture data is already on disk. The current profile texture pack will be reused.`;
+  }
+  if (preparationPlan.reusableLooseBytes > 0) {
+    return `${formatBytes(preparationPlan.reusableLooseBytes)} of compatible prepared texture data is already on disk.`;
+  }
+  if (preparationPlan.packHit) return "The current profile texture pack will be reused.";
+  return null;
+}
+
 interface PreparationPageProps {
   message: string;
   messageTone: NoticeTone;
@@ -79,6 +94,7 @@ export function PreparationPage({
     && Boolean(preparationPlan && !preparationPlan.safeToPrepare);
   const canPrepare = !storagePlanApplies(textureStorage)
     || Boolean(preparationPlan?.safeToPrepare);
+  const reuseSummary = preparationReuseSummary(preparationPlan, textureStorage);
   const settledLayout = profilePrepared
     && !preparing
     && !cleanupPlan
@@ -162,6 +178,7 @@ export function PreparationPage({
             : storageBlocked
               ? "Minimal preparation uses a few megabytes and still speeds up startup."
               : `${textureStorage === "balanced" ? "Balanced storage selected" : textureStorage === "fastest" ? "Fastest raw storage selected" : "Minimal disk use selected · no prepared textures"} · ${resourcePresets[resourcePreset].label.toLowerCase()} resource use`}</span>
+          {!preparing && reuseSummary ? <small className="field-note">{reuseSummary}</small> : null}
           {preparing && preparationPercent !== null ? <div className="preparation-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={preparationPercent}><span style={{ width: `${preparationPercent}%` }} /></div> : null}
         </div>
         <div className="prepare-actions">
@@ -197,6 +214,8 @@ export function PreparationPage({
               return <div key={group.id}><span>{label}</span><strong>{formatBytes(group.bytes)}</strong>{detail ? <small>{detail}</small> : null}</div>;
             })}
             {(cache?.uncategorizedBytes ?? 0) > 0 ? <div><span>Other Preflight data</span><strong>{formatBytes(cache?.uncategorizedBytes ?? 0)}</strong><small>Files that don’t fit a category above.</small></div> : null}
+            {storagePlanApplies(textureStorage) && (preparationPlan?.reusableLooseBytes ?? 0) > 0 ? <div><span>Compatible prepared texture data on disk</span><strong>{formatBytes(preparationPlan?.reusableLooseBytes ?? 0)}</strong><small>Compatible texture blobs already present; this count can include alternate encodings that remain on disk while preparation uses another.</small></div> : null}
+            {storagePlanApplies(textureStorage) && preparationPlan?.packHit ? <div><span>Current profile texture pack</span><strong>Will be reused</strong><small>The exact prepared texture pack matches this profile and the builder’s required entry order, so preparation will use it without rebuilding.</small></div> : null}
             <div><span>Preparing this profile adds</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.predictedAdditionalBytes) : "…"}</strong><small>A one-off cost for the current mod list. Preparation won’t start unless the larger figure above fits.</small></div>
             <div><span>Free on this disk</span><strong>{preparationPlan ? formatBytes(preparationPlan.usableBytes) : "…"}</strong><small>Space currently free where Preflight stores its data.</small></div>
           </div>
