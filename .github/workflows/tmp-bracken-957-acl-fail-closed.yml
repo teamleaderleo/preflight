@@ -1,6 +1,6 @@
 name: Temporary #957 macOS ACL fail-closed repair
 
-# Trigger-only revision after workflow registration.
+# Trigger-only revision after workflow registration; errno-zero enumeration failures are not accepted.
 on:
   push:
     branches: [fix/bound-directory-macos-acl]
@@ -120,7 +120,7 @@ jobs:
                   }
 
                   let errno = unsafe { *errno_location() };
-                  if status == -1 && (errno == 0 || errno == libc::EINVAL) {
+                  if status == -1 && errno == libc::EINVAL {
                       return Ok(());
                   }
                   Err(if errno == 0 {
