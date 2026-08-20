@@ -34,8 +34,11 @@ result. When an exact check does not match, that shortcut declines and the origi
 the work.
 
 The app includes the same normal-versus-Preflight startup benchmark I use for the development
-comparison, so you can measure your own installation instead of extrapolating from mine. The result
-can be copied as a compact forum/Discord-ready summary without copying raw evidence or private paths.
+comparison, so you can measure your own installation instead of extrapolating from mine. It seals the
+installation/profile/launcher/runtime/settings identity around the pair and refuses to call two
+different setups a comparison. The result can show cache hits, safe fallbacks, contained failures,
+prepared-data size, measurement overhead and available memory alongside the startup time, and
+**Copy result** produces a compact forum/Discord-ready summary without raw evidence or private paths.
 
 And because I apparently cannot leave a project at one job, Preflight now does quite a bit more than
 launch the game sooner.
@@ -70,6 +73,10 @@ launch the game sooner.
   upgrade, rollback, and removal across macOS, Windows, and Linux.
 - **There is a read-only mod linter too.** It can inspect one mod or a whole profile for measurable
   asset/config costs without editing anything or assigning a score.
+
+After a Preflight launch, Home does not reduce compatibility to a green checkmark. It can say
+**Last run: acceleration active**, **acceleration active, with safe fallback**, or **original game
+code used safely**; review-worthy outcomes stay visible and carry a suggested next action.
 
 The native desktop packages bring their own minimal Java runtime. You do not need to install a JDK
 to use the desktop app. The standalone JAR and the CLI still exist for people who want them, and they
@@ -110,7 +117,9 @@ number can still be measuring the wrong thing.
 Preflight does **not** rewrite Starsector's JARs, mod JARs, executables, assets, activation data, or
 saves. Runtime optimizations exist inside the launched game process and disappear when it exits.
 Profile switching and the launch-settings editor are the two explicit, backed-up paths that can
-change game-owned preferences.
+change game-owned preferences. The launch-settings backup contains only the preference keys Preflight
+is authorized to change; it deliberately excludes the registration serial and unrelated launcher
+preferences.
 
 The desktop host is a fixed set of typed commands, not a generic shell. Every release package also
 carries a machine-checked capability receipt describing the native commands, writes, child processes,
