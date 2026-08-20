@@ -212,7 +212,7 @@ class ModJarApiUsageTest {
             output.writeShort(1 + ordered.size() * 2);
             for (int index = 0; index < ordered.size(); index++) {
                 String value = ordered.get(index);
-                String internal = value.startsWith("[") ? value : value.replace('.', '/');
+                String internal = value.replace('.', '/');
                 int utf8Index = 1 + index * 2;
                 output.writeByte(1);
                 output.writeUTF(internal);
