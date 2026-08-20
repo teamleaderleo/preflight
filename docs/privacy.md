@@ -1,87 +1,86 @@
 # Privacy
 
-Preflight runs locally. Preparation, launching, profiles, settings, storage cleanup, diagnostics,
-and benchmarking don't send their contents to the project maintainer. Packaged desktop builds can
-make the update-check request described below, and run reports are sent only through the separate
-explicit-consent path described later in this document.
+Preflight runs locally. Preparation, launching, profiles, settings, storage cleanup, benchmarking,
+and ordinary diagnostics stay on the machine. Network activity comes from two separate features:
+update checks, when enabled, and support-report sending, when a package has the intake service
+configured and the user chooses to send a report.
 
-Local maintenance keeps the 10 newest launch reports and 5 newest benchmarks and removes older
-Preflight evidence while the desktop is idle. This is local deletion only; it makes no network
-request and doesn't touch Starsector, mods, saves, screenshots, or game settings.
+Local maintenance keeps the 10 newest launch reports and 5 newest benchmarks while the desktop is
+open and idle, removing older Preflight diagnostics without making a network request or touching
+Starsector, mods, saves, screenshots, or game settings.
 
 ## Update checks
 
-A packaged desktop build with a configured updater verification key quietly checks for signed update
-metadata once after Preflight is ready. The user can also ask it to check again from the desktop.
-The default public feed is the Preflight release metadata hosted by GitHub Releases; a build may use
-a different HTTPS endpoint only when that endpoint was selected at compile time.
+A packaged desktop app with the updater verification key can check the configured release feed after
+Preflight is ready. The public release feed is hosted through GitHub Releases, and the user can also
+ask for a manual check from the desktop.
 
-Settings discloses this check and turns it off. With **Check for updates automatically** cleared,
-the startup check does not run and the manual button beside it is the only one that does. The
-preference is stored locally and sends nothing when it changes.
+Settings can turn the automatic check off. With **Check for updates automatically** cleared, startup
+does not make that request; the manual check remains available when the user asks for it. The
+preference itself is stored locally.
 
-An update check requests release metadata only. It doesn't send a diagnostics ZIP, enabled-mod list,
-benchmark result, machine name, email address, account identifier, or persistent Preflight client
-identifier. The service serving the configured endpoint necessarily receives ordinary network
-metadata such as the source IP as part of delivering the request. For the default feed, GitHub is
-the remote service handling that request.
+An update check requests release metadata. Preflight does not attach a diagnostics ZIP, enabled-mod
+list, benchmark result, machine name, email address, account identifier, or persistent client ID to
+that request. As with any network request, the remote service receives ordinary connection metadata
+such as the source IP while serving it; for the default feed, that service is GitHub.
 
-Finding an update does not download or install it. Installation starts only after the user chooses
-the explicit **Install and restart** action. Preflight then rechecks that the exact signed offer is
-still current before downloading and verifying the update package. A failed download or signature
-verification leaves the installed version unchanged.
+Finding a newer version does not install it. The user reviews the offer and chooses **Install and
+restart**; Preflight checks the offer again, downloads it, and verifies the updater signature before
+installation. A failed download or verification leaves the installed version available.
 
-The built-in updater is disabled in development builds that don't contain an updater verification
-key. On Linux it is available to the AppImage build; other Linux packages, including the `.deb`,
-defer updates to the package manager used to install them. The standalone JAR has no desktop
-background updater.
+The updater is disabled in development packages that lack its verification key. On Linux, the
+built-in updater applies to the AppImage path, while `.deb` installations continue through the
+package manager. The standalone JAR has no desktop background updater.
 
-## Voluntary support ZIPs
+## Support reports
 
-The desktop build can save a diagnostics ZIP chosen by the user. A build compiled with the private
-intake origin also enables sending. Nothing is sent until the user chooses **Get support**, creates
-the ZIP, opens its review, sees the fixed inclusion and exclusion boundary, exact entries, finished
-byte count and SHA-256, and confirms the send. Ordinary development and source builds omit the
-origin, so sending is disabled while local export remains available.
+**Copy setup** is the lightweight public-support option and stays local: it produces useful game,
+profile, mod, and launch facts while leaving out private paths, credentials, saves, and arbitrary
+logs.
 
-### What a support ZIP contains
+For deeper diagnostics, **Help → Make a support file** creates a ZIP locally. A release package with
+the private intake origin configured can also offer **Send** after the user opens the review. Source
+and ordinary development packages omit that origin, so they can create the file without sending it.
 
-The report is the same bounded ZIP produced by `preflight evidence export`. It contains a disclosure,
-a manifest, and allowlisted JSON or JSONL evidence from selected launch runs and benchmark sessions.
-That evidence can include enabled mod IDs, platform and runtime details, adapter targets, counters,
-hashes, resource names, settings used by a benchmark, and bounded failure metadata. Occurrences of
-the current user home are replaced with `<home>`.
+Before a report is sent, the desktop shows the finished ZIP path, size, SHA-256, included entries,
+and exclusions. Sending is a separate action and supports cancellation and retry.
 
-It excludes acceleration caches, Starsector and mod files, saves, logs and crash dumps, JFR
-recordings, screenshots, audio, unknown filenames, binary content, symbolic links, files above 512
-KiB, and source content above 5 MiB. The exact format is documented in
-[Diagnostics export](diagnostics.md).
+### What the support ZIP can contain
+
+The ZIP contains a disclosure, a manifest, and a fixed set of JSON or JSONL diagnostics from selected
+launch runs and benchmark sessions. Depending on the available evidence, that can include enabled
+mod IDs, platform and runtime details, adapter targets, counters, hashes, resource names, benchmark
+settings, and failure metadata. Occurrences of the current user home are replaced with `<home>`.
+
+The archive excludes acceleration caches, Starsector and mod files, saves, ordinary logs and crash
+dumps, JFR recordings, screenshots, audio, unknown filenames, symbolic links, and binary content.
+Individual source files above 512 KiB and a total source set above 5 MiB are excluded as well. The
+format and detailed inclusion rules are documented in [Diagnostics export](diagnostics.md).
 
 ### What sending adds
 
-Creating a case sends the Preflight version, ZIP byte count, and ZIP SHA-256 to the intake service.
-After confirmation, the service receives that exact ZIP. Cloudflare necessarily processes normal
-network metadata such as the source IP to serve and rate-limit the request. Preflight doesn't add a
-user identifier, advertising identifier, machine name, email address, account, or persistent client
-secret.
+Creating a support case sends the Preflight version, ZIP byte count, and ZIP SHA-256 to the intake
+service; after confirmation, the service receives that ZIP. Cloudflare processes ordinary network
+metadata such as the source IP while serving and rate-limiting the request. Preflight does not add a
+user ID, advertising ID, machine name, email address, account, or persistent client secret.
 
-Accepted reports are stored in a private Cloudflare R2 bucket. The proposed default starts automatic
-deletion after 14 days; R2 lifecycle processing can take up to another day, which is reflected in the
-receipt's retention deadline. The receipt also carries a case-specific deletion authorization so the
-user can request earlier deletion. The report isn't used for advertising or sold.
+Accepted reports are stored in a private Cloudflare R2 bucket. The intended default retention starts
+automatic deletion after 14 days, with up to another day for R2 lifecycle processing; the receipt
+states the retention deadline. The receipt also carries case-specific authorization that can request
+earlier deletion. Reports are not sold or used for advertising.
 
-The intake service and desktop consent/upload/delete path are implemented and have completed a
-packaged macOS canary against the private production bucket. Public packages remain disabled until
-the final release candidate repeats that path. Its operational contract is in
+The intake service and desktop send/delete path are implemented and have completed packaged macOS
+canary exercise against the private production bucket. Public report sending stays disabled until the
+final release candidate completes its packaged cancel/retry/delete canary. The service contract is in
 [report-intake/README.md](../report-intake/README.md).
 
-**Run-report service operator:** the Preflight project maintainer (`teamleaderleo`).
-**Contact:** [the Preflight issue tracker](https://github.com/teamleaderleo/preflight/issues). Do not
-post private diagnostics, credentials, personal data, or security exploit details in a public issue;
-use the bounded support flow and [security policy](../SECURITY.md) as applicable.
+**Run-report service operator:** the Preflight project maintainer (`teamleaderleo`).  
+**Contact:** [the Preflight issue tracker](https://github.com/teamleaderleo/preflight/issues). Keep
+private diagnostics, credentials, personal data, and security exploit details out of public issues;
+use the support flow and [security policy](../SECURITY.md) when appropriate.  
 **Privacy notice effective date:** 2026-08-13.
 
-Automatic failed-run reports are off by default. Enabling them is a separate remembered choice.
-After an exact failed launch, Preflight exports and sends the same bounded ZIP disclosed in Help.
-The run ID, wrapper PID, and wrapper start time must all match before it sends. At most three local
-automatic ZIPs are retained. Ordinary launch, preparation, and Worker observability can't enable it.
+Automatic failed-run reporting starts off and requires a separate remembered choice. When enabled,
+it can send the same support ZIP after a failed Preflight launch whose stored run/process identity
+still matches the failure being reported. At most three local automatic-report ZIPs are retained.
+Ordinary launch, preparation, and internal observability cannot enable this setting on their own.

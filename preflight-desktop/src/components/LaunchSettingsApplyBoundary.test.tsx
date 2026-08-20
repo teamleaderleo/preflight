@@ -27,7 +27,7 @@ describe("launch settings Apply boundary", () => {
 
     const apply = screen.getByRole("button", { name: "Apply changes" });
     expect(apply).toBeDisabled();
-    expect(screen.getByText(boundary.leaseScope)).toBeInTheDocument();
+    expect(screen.queryByText(boundary.leaseScope)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("checkbox", { name: /I closed every settings tool/ }));
     expect(apply).toBeEnabled();

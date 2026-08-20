@@ -1,90 +1,81 @@
 # Versioning and updates
 
-Preflight has three independent identities:
+A Starsector or mod update does not turn Preflight into one giant compatibility switch. Prepared work
+and runtime shortcuts each check the inputs they depend on, so a changed mod can make one shortcut
+step aside while unrelated prepared data keeps working; a larger game, launcher, runtime, or
+preference change can still require a new Preflight release.
 
-1. **Application version** — the desktop host, CLI, Java agent, adapter catalog, and bundled runtime
+There are three identities underneath that behavior:
+
+1. **Application version:** the desktop host, CLI, Java agent, adapter catalog, and bundled runtime
    shipped together as one SemVer release.
-2. **Compatibility identity** — the exact game, mod archive, class, loader, and method fingerprints
-   accepted by that release. One application release can contain many accepted identities for the
-   same plan.
-3. **Profile identity** — the selected installation, ordered mods, source content, preparation
-   policy, and cache-format inputs. Any number of profiles can coexist under one application
-   release, and matching content reuses the same artifacts.
+2. **Compatibility identity:** the game, mod archive, class, loader, and method fingerprints a
+   particular runtime optimization recognizes.
+3. **Profile identity:** the selected installation, ordered mods, source content, preparation policy,
+   and cache-format inputs used for reusable prepared data.
 
-A new game or mod version doesn't imply a new profile-only fix. Existing generic caches continue
-to work wherever their input contracts still match. Exact bytecode adapters decline unfamiliar
-targets and the original code runs. Supporting a changed target requires a signed Preflight update
-when its reviewed fingerprint or transformation logic changes.
+Most players only need the first paragraph. The identities explain why one changed target can lose
+one optimization without requiring every cache and every other shortcut to be discarded.
 
 ## Application updates
 
-The desktop app checks one fixed HTTPS feed after setup and whenever the user asks. A release is
-offered only when Tauri considers its SemVer newer than the installed application. Installation
-requires **Install and restart**; Preflight doesn't update during a game, preparation, or another
-update. An available release appears on Home and beside Settings, while its notes, verification
-boundary, and install action stay together on the Settings page.
+Supported desktop packages check one configured HTTPS release feed after setup and whenever the user
+asks. A newer version appears on Home and Settings with its notes and an **Install and restart**
+action; Preflight does not install an update while Starsector, preparation, or another update is
+running.
 
-Before downloading, the app rechecks the feed and requires the exact version, target, URL,
-signature, notes, and date the user approved. A withdrawn or replaced offer returns to the update
-check instead of installing stale state. The downloaded platform artifact must pass the updater
-key signature embedded in the installed app. Download, signature, or installation failure leaves
-the current version runnable.
+Before downloading, the app checks the offer again and requires the version, target, URL, signature,
+notes, and date to match what the user reviewed. The downloaded artifact then has to pass the updater
+signature embedded in the installed app. A withdrawn offer returns to the update check, and a failed
+download, verification, or installation leaves the current version available.
 
-The final release verifier admits updater assets only from the repository's exact GitHub release
-path whose `v<version>` tag matches the manifest. Private candidates use a separate inert origin and
-can't mix their URLs with public ones. This keeps a checksum-valid `latest.json` from redirecting a
-candidate to an unreviewed HTTPS host or another release tag.
+The public release verifier accepts updater assets only from this repository's release path for the
+matching `v<version>` tag. Private candidates use a separate inert origin, so candidate metadata
+cannot quietly redirect an install to an unrelated HTTPS host or release tag.
 
-The built-in updater covers macOS, Windows, and Linux AppImage packages. Debian packages stay with
-the package manager that installed them. Old release packages and their checksums remain the
-rollback path; Preflight doesn't maintain several installed application versions side by side.
-The first beta downloads a complete signed application artifact rather than a binary delta. Caches,
-profiles, evidence, and game files aren't part of that download and remain in place across updates.
+The built-in updater covers macOS, Windows, and Linux AppImage packages. Debian `.deb` installations
+stay with the package manager that installed them. The standalone JAR has no desktop background
+updater.
 
-The first beta should have one stable feed. A beta channel can be added later as a separate signed
-endpoint and an explicit user choice. Stable clients must never receive beta builds through version
-ordering alone.
-
-Updater-key rotation needs a transition release signed by the old key and embedding the new public
-key. If the private key is suspected compromised, suspend the feed; OTA can't establish a new root
-of trust safely from a key an attacker may hold. Recovery then uses a manually downloaded package
-and its independently published checksum.
+Updates replace the application package, not the player's caches, profiles, diagnostics, or game
+files. Old release packages and their checksums remain the rollback path; Preflight does not try to
+keep several application versions installed side by side.
 
 ## Compatibility across releases
 
-Application updates preserve the Preflight home and rediscover its profiles and content-addressed
-artifacts. Cache files carry format versions and readers reject unsupported data. An incompatible
-writer must also change the artifact identity or namespace so the new representation can coexist
-with data needed by an older release. Migration stays copy-on-write; an update doesn't rewrite the
-game, mods, saves, or every existing cache in place.
+Application updates keep the Preflight home directory and rediscover the profiles and reusable data
+inside it. Cache files carry format versions, and readers reject formats they do not understand. If a
+new release needs an incompatible representation, it moves that representation into a new namespace
+instead of rewriting every older cache in place.
 
-The public-beta cache layout is now the established namespace for texture blobs and packs,
-resource indexes, manifests, prepared audio, spec stores, classpath indexes, and generated
-bytecode. Their current paths remain unchanged. A later binary-format version automatically moves
-that store into a suffixed namespace, while coupled formats such as classpath profiles and archive
-indexes move together. The previous directory remains available to an older Preflight package, so
-rolling back doesn't first destroy the preparation needed by that release.
+That choice is mostly about rollback. An older Preflight package can still find the data format it
+understands after the newer application has run, and the older namespace remains visible as Preflight
+data until the user chooses broader cleanup. A format-changing update can therefore use extra disk
+for a while because old and new representations may coexist.
 
-Cache pruning operates on the active format namespaces. Older namespaces are retained for rollback
-until the user explicitly clears broader cached data; an application update doesn't silently treat
-an unfamiliar old representation as disposable space. The update review warns that a format change
-can temporarily retain both copies before installation starts. The storage view includes bytes
-outside the active categories as **Other Preflight data**, so retained formats remain part of the
-visible total even when the current release can't classify their contents more narrowly.
+Named mod profiles are user data. A future profile-schema change needs a reader or migration that
+preserves the previous file until the replacement has been accepted.
 
-Named mod profiles are user data rather than application state. A future profile schema needs an
-explicit reader or migration and must preserve the previous file until the replacement is accepted.
+## When a Preflight update is needed
 
-## When an application update is required
+A new application release can be needed when game or mod code changes a reviewed runtime target;
+when launcher, JVM, graphics, audio, discovery, or preference behavior changes; when an optimization
+or its dependencies change; when a cache format changes incompatibly; when the desktop, updater,
+report intake, security behavior, or bundled runtime changes; or when a known-bad compatibility match
+needs to be removed.
 
-- a game or mod update changes an exact adapter target;
-- discovery, launcher, JVM, graphics, audio, or preference behavior changes;
-- an adapter implementation or dependency graph changes;
-- a cache representation changes incompatibly;
-- the desktop, updater, report intake, security boundary, or bundled runtime changes; or
-- a known-bad compatibility identity must be removed.
+New runtime transformation logic stays inside signed application releases. The first beta does not
+use a second remote code-delivery feed for adding transformations. A future signed advisory feed may
+be useful for narrowing or disabling a known-bad compatibility match, but it should remain a way to
+remove permission from existing behavior, not a second mechanism for installing new executable
+logic.
 
-Adding remote transformation rules would make a compatibility download equivalent to executable
-code and create a second update system. The first beta keeps transformations inside signed
-application releases. A later signed advisory feed may disable a known-bad plan or fingerprint
-without enabling new code; it should contain only narrowing decisions and fail open when offline.
+## Signing-key changes
+
+Updater-key rotation requires a transition release signed by the old key and carrying the new public
+key. If the private updater key is suspected compromised, suspend the feed; a client cannot establish
+a trustworthy new signing root from a key an attacker may already possess. Recovery then uses a
+manually downloaded package and its independently published checksum.
+
+For release-operator details, use [Release signing setup](release-signing-setup.md). For the player
+rollback path, see [Rollback and bad-release response](rollback.md).

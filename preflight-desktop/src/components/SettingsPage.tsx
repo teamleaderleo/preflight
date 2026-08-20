@@ -102,7 +102,7 @@ export function SettingsPage({
               ? "Restore it for logs or to stop Starsector."
               : afterLaunchBehavior === "quit"
                 ? "Playtime still records."
-                : "Useful while testing."}</small>
+                : "Keeps Preflight visible after the game opens."}</small>
           </label>
         </div>
         <div className="preference-block">
@@ -121,7 +121,7 @@ export function SettingsPage({
             </select>
             <small>{homePresentation.mode === "compact"
               ? "Launch-first Home without the decorative hull and history readouts."
-              : "Hull-led Home with the full settled display."}</small>
+              : "Hull-led Home with the full display."}</small>
           </label>
           <label className="setting-field preference-field">
             <span>Recorded playtime</span>
@@ -144,7 +144,7 @@ export function SettingsPage({
             <ShieldIcon className="settings-check" />
           </div>
           <p className={updateStatus?.available ? "update-release-notes" : undefined}>{updateStatus?.available
-            ? updateStatus.notes || "A newer verified release is ready. Installation starts only after confirmation."
+            ? updateStatus.notes || "A newer release is ready. Installation starts when you choose Install and restart."
             : updateStatus?.configured
               ? `Version ${updateStatus.currentVersion} is current.`
               : updateStatus?.reason || "Update status hasn’t been checked yet."}</p>
@@ -188,7 +188,7 @@ export function SettingsPage({
               disabled={!reportIntake?.configured}
               onChange={(event) => onAutomaticRunReportsChange(event.target.checked)}
             />
-            <span>Send failed-run reports automatically<small>{reportIntake?.configured ? "If Starsector closes with an error, sends the same disclosed support ZIP shown in Help." : "Report intake is unavailable in this build."}</small></span>
+            <span>Send failed-run reports automatically<small>{reportIntake?.configured ? "If Starsector closes with an error, sends the same support ZIP shown in Help." : "Report intake is unavailable in this build."}</small></span>
           </label>
         </section>
 
@@ -201,7 +201,7 @@ export function SettingsPage({
         <section className="card privacy-card">
           <div className="card__heading"><div><h2>Privacy</h2></div><ShieldIcon className="settings-check" /></div>
           <ul className="privacy-facts">
-            <li><strong>No ambient telemetry or accounts.</strong></li>
+            <li><strong>No accounts or background telemetry.</strong></li>
             {/*
               * A build without a configured intake cannot send a report at all, and the Benchmark
               * page already says so where the button would be. Describing the send flow here anyway
@@ -209,7 +209,7 @@ export function SettingsPage({
               * privacy position, which in that case is stronger, not weaker.
               */}
             {automaticRunReports ? (
-              <li>Failed-run reports are on. They send the same bounded support ZIP shown in Help.</li>
+              <li>Failed-run reports are on. They send the same support ZIP shown in Help.</li>
             ) : reportIntake && !reportIntake.configured ? (
               <li>Update checks fetch version metadata. Support ZIPs stay here until you share one.</li>
             ) : (

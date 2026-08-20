@@ -97,21 +97,21 @@ function renderPage(preparationPlan: PreparationStoragePlan) {
   );
 }
 
-test("compatible prepared texture bytes are described as present without promising loose reuse", () => {
+test("prepared texture bytes are described as present without promising loose reuse", () => {
   // reusableLooseBytes can include valid LZ4 + RAW siblings even when preparation selects only one.
   renderPage(plan({
     reusableLooseBytes: 96 * 1024 * 1024,
     predictedLooseBytes: 0,
   }));
 
-  expect(screen.getByText(/^.* of compatible prepared texture data is already on disk\.$/)).toBeInTheDocument();
-  expect(screen.getByText("Compatible prepared texture data on disk")).toBeInTheDocument();
-  expect(screen.getByText(/alternate encodings that remain on disk while preparation uses another/)).toBeInTheDocument();
+  expect(screen.getByText(/^.* of prepared texture data is already on disk\.$/)).toBeInTheDocument();
+  expect(screen.getByText("Prepared texture data already on disk")).toBeInTheDocument();
+  expect(screen.getByText(/alternate encodings can remain on disk even when this preparation uses another one/)).toBeInTheDocument();
   expect(screen.queryByText(/will be reused/i)).not.toBeInTheDocument();
   expect(screen.getByText("Preparing this profile adds")).toBeInTheDocument();
 });
 
-test("pack hit reserves reuse wording for the exact current profile pack", () => {
+test("pack hit reserves reuse wording for the current profile pack", () => {
   renderPage(plan({
     reusableLooseBytes: 96 * 1024 * 1024,
     predictedLooseBytes: 0,
@@ -121,19 +121,19 @@ test("pack hit reserves reuse wording for the exact current profile pack", () =>
     packHit: true,
   }));
 
-  expect(screen.getByText(/^.* of compatible prepared texture data is already on disk\. The current profile texture pack will be reused\.$/)).toBeInTheDocument();
-  expect(screen.getByText("Compatible prepared texture data on disk")).toBeInTheDocument();
+  expect(screen.getByText(/^.* of prepared texture data is already on disk\. The current profile texture pack will be reused\.$/)).toBeInTheDocument();
+  expect(screen.getByText("Prepared texture data already on disk")).toBeInTheDocument();
   expect(screen.getByText("Current profile texture pack")).toBeInTheDocument();
   expect(screen.getByText("Will be reused")).toBeInTheDocument();
-  expect(screen.getByText(/builder’s required entry order/)).toBeInTheDocument();
+  expect(screen.getByText(/already matches what preparation needs/)).toBeInTheDocument();
   expect(screen.getByText("Preparing this profile adds")).toBeInTheDocument();
 });
 
 test("cold preparation stays silent about already-present texture data and pack reuse", () => {
   renderPage(plan());
 
-  expect(screen.queryByText(/compatible prepared texture data is already on disk/)).not.toBeInTheDocument();
-  expect(screen.queryByText("Compatible prepared texture data on disk")).not.toBeInTheDocument();
+  expect(screen.queryByText(/prepared texture data is already on disk/)).not.toBeInTheDocument();
+  expect(screen.queryByText("Prepared texture data already on disk")).not.toBeInTheDocument();
   expect(screen.queryByText("Current profile texture pack")).not.toBeInTheDocument();
   expect(screen.getByText("Preparing this profile adds")).toBeInTheDocument();
 });

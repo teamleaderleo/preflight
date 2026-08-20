@@ -1,25 +1,25 @@
 # Single-command profile preparation
 
-Prepare every renderer-independent cache and write a validation report:
+Prepare the reusable startup data for the current profile and write a validation report:
 
 ```bash
 java -jar preflight.jar prepare
 ```
 
-Preflight discovers Starsector, reads the enabled profile, prepares reusable artifacts, validates them, and writes:
+Preflight discovers Starsector, reads the enabled profile, prepares the supported offline artifacts,
+checks them, and writes:
 
 ```text
 ~/.starsector-preflight/cache/reports/preparation-latest.json
 ```
 
-Preparation writes only Preflight-owned, content-addressed data and its validation report. The
-installation, mods, saves, launcher, game preferences, and VM parameter files remain unchanged.
+Preparation writes under Preflight's own data directory. It leaves the Starsector installation,
+mods, saves, launcher, game preferences, and VM parameter files alone.
 
-Before any write, the command scans the winning texture set and calculates a storage plan from
-encoded content hashes, decoded dimensions and alpha channels, deduplication, reusable checked
-blobs, the profile pack, and filesystem free space. Preparation is refused unless its conservative
-upper bound fits while leaving a reserve of at least 1 GiB. The same gate runs whether preparation
-starts from the desktop app, the CLI, or installation.
+Before the first write, the command scans the winning texture set and calculates a storage plan from
+the current content, decoded image sizes, reusable data, the profile pack, and filesystem free space.
+It also keeps a reserve, so the amount of free disk required to *start* can be much larger than the
+cache that remains afterward.
 
 Inspect the plan without writing anything:
 
@@ -28,13 +28,17 @@ java -jar preflight.jar prepare --plan
 java -jar preflight.jar prepare --plan --json --texture-storage balanced
 ```
 
-The plan separates `predictedAdditionalBytes`, `upperBoundAdditionalBytes`,
-`safetyReserveBytes`, and `usableBytes`. The prediction estimates Balanced compression; the upper
-bound allows every missing texture to occupy its raw upload-ready size, pack duplication, temporary
-codec selection, and non-texture metadata. Existing loose blobs are counted as reusable only after
-their full checked read succeeds. On the reviewed 83-mod cold profile, the prediction was 4.91 GB
-against an observed approximately 4.53 GB final preparation footprint; the conservative bound was
-11.74 GB. The read-only plan left its nonexistent target directory nonexistent.
+The JSON plan separates `predictedAdditionalBytes`, `upperBoundAdditionalBytes`,
+`safetyReserveBytes`, and `usableBytes`. On the reviewed 83-mod profile, the August 15 Balanced plan
+predicted **4.91 GB** of additional data, used an **11.74 GB** conservative upper bound, and required
+**12.92 GB free** once its reserve was included; the completed cache was **4.76 GB**. An earlier cold
+observation of the same general profile family was about 4.53 GB, which is a useful reminder that
+these are profile-specific measurements rather than a universal cache size. The current desktop
+calculates the numbers for the installation in front of it.
+
+For the latest reference measurements and the distinction between predicted bytes, the upper bound,
+free space required to start, and the finished cache, see
+[Performance and storage tradeoffs](performance-storage-tradeoffs.md).
 
 ## Pipeline
 
@@ -46,22 +50,23 @@ together, joins them before their dependants, and then prepares the enabled cach
 3. resource-index validation
 4. persistent JAR/classpath profile build or reuse
 5. classpath metadata validation
-6. exact SpecStore profile identity build or reuse
+6. SpecStore profile identity build or reuse
 7. prepared texture pack/blob build or reuse
 8. texture-manifest validation
-9. an atomic report write
+9. atomic report publication
 
-Other Recommended caches are learned or materialized at their own exact runtime boundaries; this
-command doesn't pretend to prepare them offline. A stage can be skipped or rejected without
-turning the report into a claim that it was prepared.
+Other Recommended caches are learned or materialized at their runtime seams, so this command does
+not claim to prepare every possible optimization offline. A stage can be skipped or rejected and the
+report says so.
 
-Add semantic lookup verification:
+Add semantic lookup verification with:
 
 ```bash
 java -jar preflight.jar prepare --verify-lookups
 ```
 
-That runs the deterministic baseline-versus-index comparison for both available indexes and fails the preparation result on any provider mismatch.
+That compares the baseline and indexed lookup behavior for the available indexes and fails the
+preparation result on any provider mismatch.
 
 ## Useful options
 
@@ -78,14 +83,15 @@ java -jar preflight.jar prepare \
   --seed 42
 ```
 
-`--deep` rehashes source JARs during classpath validation. The texture memory budget applies to concurrent image decoding, conversion, blob reads, and writes.
+`--deep` rehashes source JARs during classpath validation. The texture memory budget applies to
+concurrent image decoding, conversion, blob reads, and writes.
 
-Opening-stage overlap is bounded to two helper threads in addition to the calling thread; texture
-decoding doesn't begin until those jobs have joined. Use `--serial-stages` (or
-`-Dpreflight.prepare.parallel=false`) as a diagnostic kill switch. `--parallel-stages` overrides a
-disabled system property for a command.
+The opening stages use at most two helper threads in addition to the calling thread, and texture
+decoding waits until those jobs have joined. `--serial-stages` (or
+`-Dpreflight.prepare.parallel=false`) is available for diagnosis; `--parallel-stages` overrides a
+disabled system property for one command.
 
-Individual stages may be disabled:
+Individual stages can be disabled:
 
 ```bash
 java -jar preflight.jar prepare --no-textures
@@ -93,33 +99,24 @@ java -jar preflight.jar prepare --no-classpath
 java -jar preflight.jar prepare --no-resource-index --no-textures
 ```
 
-Texture preparation requires the loose-resource index. Disabling that index causes the texture stage to be reported as skipped rather than silently using an unverified provider set.
+Texture preparation depends on the loose-resource index. If that index is disabled, the texture
+stage is reported as skipped rather than silently guessing which provider should win.
 
 ## Repeat runs
 
-An unchanged repeat run can report:
+On an unchanged profile, repeat preparation can reuse the resource index and classpath profile after
+their comparisons pass, reuse prepared texture blobs without decoding the source images again, and
+report zero lookup-equivalence mismatches when verification is enabled.
 
-- resource index artifact hit after profile rescan and fingerprint comparison
-- classpath profile hit after ordered JAR metadata comparison
-- prepared texture blob hits without ImageIO decoding
-- zero lookup-equivalence mismatches
-
-Changing enabled mod order rebuilds ordered profile artifacts while preserving content-addressed JAR inventories and prepared texture blobs whose source content is unchanged.
+Changing enabled-mod order rebuilds the ordered profile artifacts while preserving reusable
+content-addressed JAR inventories and prepared texture blobs whose source content stayed the same.
 
 ## Report
 
-Every stage records:
+Each stage records its status (`SUCCESS`, `FAILED`, or `SKIPPED`), duration, artifact reuse/build
+counts, validation results, and diagnostics.
 
-- `SUCCESS`, `FAILED`, or `SKIPPED`
-- duration
-- artifact hits and builds
-- validation counts and problems
-- diagnostics
-
-The report also has a separate readiness section. Preparation never installs an in-memory
-transformation by itself; a launch preset must select a reader, exact code/profile identities must
-match, and runtime validation must pass. A prepared artifact can therefore be ready while its
-adapter declines on a different game or mod build. Fast Rendering remains an optional, separately
-identified launcher/ownership target.
-
-This distinction keeps offline preparation useful without overstating runtime integration or activation readiness.
+Preparation by itself does not activate a runtime transformation. A later launch still checks the
+game, profile, and code relevant to each shortcut, so an artifact can be perfectly reusable while a
+runtime optimization steps aside on a changed game or mod version. Fast Rendering remains an
+optional, separately identified launcher path.

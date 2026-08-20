@@ -42,7 +42,6 @@ export function LaunchSettingsApplyBoundary({
           <small>{boundary.instruction}</small>
         </span>
       </label>
-      <p>{boundary.leaseScope}</p>
       {blockReason ? <small className="launch-apply-boundary__blocked">{blockReason}</small> : null}
       <button
         className="button button--primary"

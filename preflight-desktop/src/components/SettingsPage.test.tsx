@@ -84,7 +84,7 @@ test("Home presentation switches immediately between Hangar and Compact", async 
 
   const select = screen.getByRole("combobox", { name: "Home presentation" });
   expect(select).toHaveValue("hangar");
-  expect(screen.getByText("Hull-led Home with the full settled display.")).toBeInTheDocument();
+  expect(screen.getByText("Hull-led Home with the full display.")).toBeInTheDocument();
 
   await user.selectOptions(select, "compact");
   expect(select).toHaveValue("compact");

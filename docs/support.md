@@ -1,20 +1,25 @@
 # Support
 
-Use the repository's **Preflight support** issue form for launch, performance, preparation, storage,
-installation, update, profile, and removal problems. It asks for the product and game versions,
-platform, preset, storage policy, mod-profile summary, visible outcome, and reproduction steps.
+For launch, performance, preparation, storage, installation, update, profile, or removal problems, use
+the repository's **Preflight support** issue form. It asks for the product and game versions,
+platform, optimization/storage choices, a mod-profile summary, what happened, and how to reproduce
+it.
 
-Don't post saves, game or mod files, activation codes, raw logs, crash dumps, diagnostics ZIPs, or
-complete report receipts in a public issue. A receipt contains the authorization that can delete
-the uploaded report. If you send a support file, put only the case ID in the issue. The case ID lets
-support find the private bounded report without publishing its contents or deletion token.
+Start with **Copy setup** when you can. It produces a small public-support summary with useful game,
+profile, mod, and launch facts while leaving out private paths, credentials, saves, and arbitrary
+logs.
 
-If sending isn't configured, **Help → Make a support file** still creates the same disclosed file
-locally.
-Keep it on your machine unless a private transfer route is agreed. The ZIP's exact
-contents and exclusions are documented in [Diagnostics export](diagnostics.md), and its handling is
-covered by [Privacy](privacy.md).
+If deeper diagnostics are useful, **Help → Make a support file** creates the same support ZIP whether
+or not sending is configured. Review it before sending or sharing it. The archive's contents and
+exclusions are documented in [Diagnostics export](diagnostics.md), and [Privacy](privacy.md) explains
+what happens when the built-in sending path is enabled.
 
-Try **Off / troubleshooting** when an optimized launch behaves differently. Include whether Off
-changed the result. That distinction helps identify an adapter decline or regression without asking
-for private files first.
+Keep saves, game or mod files, activation codes, raw logs, crash dumps, diagnostics ZIPs, and complete
+report receipts out of public issues. A report receipt contains the authorization used for early
+deletion of that private upload, so when you have sent a support report, put only its case ID in the
+issue.
+
+For an optimization-specific problem, try **Off / troubleshooting** and say whether the behavior
+changes. That keeps the launcher, profiles, settings, process handling, and support tools available
+while removing the runtime optimization layer, which is usually a much more useful comparison than
+starting by uninstalling everything.

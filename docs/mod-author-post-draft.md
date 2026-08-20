@@ -1,11 +1,11 @@
 # Mod-author public writing draft
 
 This is source copy for a Starsector forum post, Patreon update, README section, mod-author outreach,
-or a longer development post about the tooling that fell out of Preflight's performance work. It is
-not a new product contract. Keep the stable read-only tools separate from the exploratory asset lab
-at the bottom.
+or a longer development post about the tooling that fell out of Preflight's performance work. Read
+[Public writing style](public-writing-style.md) for voice; keep the stable read-only tools separate
+from the exploratory asset lab near the bottom.
 
-## Title options
+## Title ideas
 
 - **Preflight for mod authors: I pointed it at 86 Starsector mods. Most were clean.**
 - **A Starsector mod linter that does not grade your mod**
@@ -17,22 +17,20 @@ at the bottom.
 
 Preflight can lint one mod by itself, inspect a complete resolved profile, inventory a giant mod
 stack, and catch deterministic dependency/reference problems without launching Starsector or
-rewriting anybody's files. The linter has no score, ranking, or automatic fixer. Across 86 installed
-mod directories, the median result was zero findings and 44 were completely clean.
+rewriting anybody's files. The linter has no score, ranking, or automatic fixer, and when I
+calibrated it across 86 installed mod directories the median result was zero findings, with 44 mods
+completely clean.
 
 ## Long post
 
 Preflight started because my heavily modded Starsector installation took an absurd amount of time to
-reach the main menu. I started profiling the game to find out where that time was actually going.
+reach the main menu, which meant I spent a lot of time profiling the game and the mods around it,
+and eventually the obvious adjacent question arrived: if the profiler can tell me which files and
+configuration choices cost real decode time, memory, or loader work, can any of that be turned into
+something useful to the people making the mods themselves without producing one of those linters
+whose principal accomplishment is discovering that an ecosystem has conventions?
 
-Eventually that raised another question: if the profiler can tell me which kinds of files and config
-cost the game real time or memory, can any of that information be useful to the people making the
-mods themselves?
-
-The answer is yes, but only if the tool can resist the temptation to turn every unusual thing into a
-warning.
-
-So Preflight has a mod linter now.
+That qualification turned out to be the important part, so Preflight has a mod linter now.
 
 ```bash
 java -jar preflight.jar lint --path ./MyMod
@@ -41,279 +39,200 @@ java -jar preflight.jar lint --game "/path/to/Starsector" --mod my_mod
 java -jar preflight.jar lint --game "/path/to/Starsector" --json --output lint.json
 ```
 
-`--path` checks one mod directory on its own. It does not need the rest of the profile around it. The
-whole-profile form resolves the actual provider order and can answer cross-mod questions that a
-single folder cannot.
+`--path` checks one mod directory on its own and does not require the rest of the profile around it;
+the whole-profile form resolves actual provider order and can answer the cross-mod questions that a
+single folder simply lacks enough information to answer.
 
-It never edits, moves, re-encodes, deletes, or rewrites a mod. It always exits zero. A finding is
-something offered to the author, not a grade and not a gate imposed on somebody else's work.
+The linter is read-only. It does not grade mods, rank authors, or quietly smuggle a rewriting tool
+into a diagnostics command, because a finding should be something an author can evaluate rather
+than a little act of jurisdiction over somebody else's work. The useful test for a rule is whether
+it can say what it measured, why the player pays for it, and where its knowledge ends.
 
-There is no score. There is no tier list. There is no ranking of mods. There is no automatic button
-that rewrites somebody's art because a tool decided it knew better.
-
-A rule has to say what it measured and why the player pays for it.
-
-### The first result I wanted: most mods are fine
+### The first result I wanted was that most mods were fine
 
 I calibrated the rules by running `--path` over 86 installed mod directories as 86 separate samples.
-The **median was zero findings**, and **44 of the 86 mods were completely clean**. No rule fired on
+The **median was zero findings**, **44 of the 86 mods were completely clean**, and no rule fired on
 more than a third of the sample.
 
-That is not a weakness in the linter. That is the target.
+That is the target. A tool pointed at other people's work pays an enormous reputational tax for false
+positives, and a rule that cannot distinguish measurable cost from artistic intent has very little
+business appearing in the default report merely because it can be implemented. I also checked the
+thresholds against 13 mods installed after the original calibration; the firing rates stayed within
+a few points of the larger sample instead of exploding as soon as the corpus changed.
 
-A tool aimed at other people's work pays a much higher price for a false positive than it does for
-missing a clever new rule. If a check cannot distinguish measurable cost from artistic intent, it
-does not belong in the default report.
+### Progressive images are the delightfully uncomplicated case
 
-The thresholds were also checked against 13 mods installed after the original calibration. Their
-firing rates stayed within a few points of the larger sample rather than exploding as soon as the
-sample changed.
-
-### Progressive images are an easy win
-
-One of the clearest findings is progressive image encoding.
-
-Through the ImageIO path the game uses, equivalent progressive JPEGs measured about **8.75 times
-slower to decode** than baseline JPEGs. The fix does not require changing the picture. It is the same
-pixels stored in a representation that is useful for progressive web display and expensive for a
-game that wants the whole image now.
+Through the ImageIO path Starsector uses, equivalent progressive JPEGs measured about **8.75 times
+slower to decode** than baseline JPEGs. The picture itself does not have to change; progressive
+encoding is useful for a web page that wants to reveal an image gradually and rather less useful for
+a game asking for the whole thing immediately.
 
 In the reviewed corpus, 41% of mod JPEGs were progressive and they carried 26% of all mod image
-pixels. That makes this one of the nicest possible lint rules: measurable, actionable, and almost
-entirely disconnected from artistic judgment.
+pixels, which makes this a lovely lint rule because the observation is measurable, the action is
+obvious, and artistic judgment barely enters the room.
 
-### Non-power-of-two textures are normal, so the linter mostly leaves them alone
+### NPOT textures are normal, so the question has to be narrower
 
-83.9% of the reviewed mod images were not powers of two.
+**83.9%** of the reviewed mod images were not powers of two. Treat that statistic as a verdict and
+you have just invented thousands of warnings whose primary informational content is that Starsector
+mod art tends to be sprite-shaped.
 
-A naive linter could turn that into thousands of warnings and tell practically the whole modding
-scene that its art is wrong. Preflight does not do that.
+The stock texture path can allocate the next power-of-two upload buffer, though, so very large NPOT
+art can carry a real VRAM cost. Preflight therefore asks how many bytes of empty padding a particular
+texture creates and reports only when that waste crosses 1 MB. Out of 23,571 NPOT files in the
+reviewed profile, 288 crossed the threshold.
 
-The stock texture path can allocate the next power-of-two upload buffer, so sufficiently large NPOT
-art can waste meaningful VRAM. The lint rule therefore asks a narrower question: **how many bytes of
-empty padding does this particular texture cost?** It reports only when that waste exceeds 1 MB.
+That is a much better answer than a taxonomic rule about what dimensions a texture ought to have.
+Sprite art should be the size the sprite needs; the linter cares about the small subset where the
+allocation consequence becomes large enough to discuss.
 
-Out of 23,571 NPOT files in the reviewed profile, only 288 crossed that threshold.
+### Audio can be expensive long before anyone hears it
 
-That is a better answer than “NPOT bad.” Sprite art should be the size the sprite needs to be. The
-linter is interested in the handful of cases where rounding the allocation upward costs megabytes,
-not in making four fifths of mod authors resize their artwork to satisfy a style rule.
+Starsector bulk-decodes declared effects before the main menu, so the linter can report things with a
+direct load-time or memory consequence: effects at 96 kHz or above, long non-music effects that are
+decoded in full, files named by no `sounds.json` in the resolved profile, declared sounds no provider
+supplies, extension/content mismatches, and audio the game's Vorbis-in-Ogg path cannot decode.
 
-### Audio can be expensive before the player hears any of it
+The wording stays narrow on purpose. `audio-unreferenced` means no `sounds.json` in the resolved
+profile names the file; it does not mean mod code can never open it later. A six-minute live session
+checked the loader premise: Starsector opened all 2,050 effects declared by `sounds.json` and none of
+the 220 undeclared files during that observed run, which supports the startup-loader claim without
+pretending the linter has omniscience about arbitrary code paths.
 
-Starsector bulk-decodes declared effects before the main menu. The linter can therefore point out
-things that have a direct load-time/memory consequence:
-
-- effects stored at 96 kHz or above;
-- long non-music effects that are decoded in full rather than streamed;
-- files named by no `sounds.json` in the resolved profile;
-- declared sounds that no provider actually supplies;
-- files that are named like one format but contain another;
-- audio that is not decodable as the Vorbis-in-Ogg format the game expects.
-
-The wording is deliberately careful. `audio-unreferenced` does **not** mean “dead file.” A mod can
-still open a sound from code. It means no `sounds.json` in the resolved profile names it, which is the
-boundary the bulk startup loader uses.
-
-A six-minute live session checked that premise: Starsector opened every one of the 2,050 sound
-effects declared by `sounds.json`, and none of the 220 undeclared files during the observed run. That
-supports the narrow loader claim without pretending the linter can prove a mod's code never uses one
-later.
-
-### It understands Starsector config instead of yelling “invalid JSON” at the ecosystem
+### Starsector config deserves a Starsector parser, not a strict-JSON scolding
 
 The config checks cover `.json`, `.variant`, `.wpn`, `.ship`, `.proj`, `.system`, `.skin`, `.faction`
-and `.skill`. The reviewed profile contained **15,353** such files.
+and `.skill`; the reviewed profile contained **15,353** such files. Starsector's real dialect admits
+`#` and `//` comments, trailing commas, unquoted keys, numeric suffixes such as `0.1f`, and other
+forms that would make a generic strict-JSON checker produce a magnificent heap of nonsense.
 
-Starsector's real configuration dialect is not strict JSON. Shipping mods rely on `#` and `//`
-comments, trailing commas, unquoted keys, and numeric suffixes such as `0.1f`. Point a strict JSON
-checker at the ecosystem and it will manufacture a spectacular pile of nonsense.
-
-Preflight accepts those forms and checks two much narrower failure modes:
-
-- a structure that can never finish parsing, such as an unterminated bracket/string/comment;
-- meaningful configuration placed after the top-level value has already closed, where a reader that
-  consumes one value never applies it.
-
-It also ignores harmless trailing punctuation. The reviewed set contained 27 files that ended with
-one brace too many and still worked. The rule requires actual unread content beyond the completed
-value, not merely an extra bracket.
+Preflight accepts those conventions and asks narrower questions: can the value finish parsing, and
+is meaningful configuration sitting after the top-level value has already closed where a reader
+that consumes one value will never apply it? Harmless trailing punctuation is ignored; the reviewed
+set included 27 files ending with one brace too many that still worked.
 
 The result was **five config findings out of 15,353 files**. Four were real defects in released mods:
 a missile with a `PROXIMITY_FUSE` block outside the top-level object, a weapon whose `fireSoundTwo`
 never applies, a faction file that closes early and drops everything from `priorityWeapons` onward,
 and a config beginning `0{`.
 
-That signal-to-noise ratio is what I want from this tool.
+That is the signal-to-noise ratio I want.
 
 ### Whole-profile mode knows which file actually wins
 
-For costs tied to bytes the game loads, Preflight examines the winning provider at a logical path.
-If three mods provide the same resource and the third one wins, charging the first two for decode or
-VRAM cost would be misleading.
+For costs tied to bytes the game loads, Preflight examines the winning provider at a logical path. If
+three mods provide the same resource and the third one wins, charging the first two for decode or
+VRAM cost would make the report larger while making it less true.
 
-Shadowed files are their own rule because *not* loading is exactly the point of that finding.
-Duplicate-content detection likewise avoids double-counting a shadowed path as both “shadowed” and
-“duplicate.”
+Shadowed files are therefore their own rule, and duplicate-content detection avoids counting the
+same logical situation twice. Standalone `--path` mode is equally explicit about what it cannot
+know: rules that require provider context disappear from that mode and the report says which ones
+were unavailable.
 
-Standalone `--path` mode is explicit about the questions it cannot answer. It suppresses rules that
-need a whole profile, such as shadowing and cross-mod sound declarations, and reports which rules
-were unavailable. A clean single-mod result should not quietly pretend to prove something that needs
-provider context.
+`knights_of_ludd` is a useful real example. Lint it alone and sixteen sounds appear unreferenced; lint
+the complete profile and a companion mod supplies the declarations, so those findings vanish. The
+tool is supposed to change its answer when you give it the context it was missing.
 
-One real example is `knights_of_ludd`: linting it alone reports sixteen sounds as unreferenced; in the
-complete profile, a companion mod declares them and those findings disappear. The tool is supposed to
-change its answer when it receives the missing context.
+### Different bytes live in different universes
 
-### The byte totals stay separate because they are different problems
+The reviewed 84-root profile produced 1,392 findings whose cost-bearing subset represented **771.9
+MB of VRAM padding**, **687.9 MB of decoded-at-load audio**, and **100.8 MB of disk findings**. Those
+numbers stay separate because adding a megabyte of VRAM, a megabyte of decoded PCM, and a megabyte on
+disk produces a larger integer and no coherent resource quantity.
 
-The reviewed 84-root profile produced 1,392 findings. The cost-bearing findings represented:
+Several of the six error-severity findings in that profile were more important than hundreds of
+megabytes anyway, because they described configuration or audio the game could not use as intended.
 
-- **771.9 MB of VRAM padding**;
-- **687.9 MB of decoded-at-load audio**;
-- **100.8 MB of disk findings**.
-
-Those numbers are intentionally never summed.
-
-A megabyte of VRAM, a megabyte of decoded PCM, and a megabyte sitting on disk are not one resource.
-Adding them together would produce a bigger headline and a worse report. The code and tests keep the
-three cost kinds separate.
-
-The six error-severity findings in that profile did not need a byte total at all. Several were more
-important than the hundreds of megabytes because they described configuration or audio the game
-could not use as intended.
-
-### A rule is allowed to find nothing
+### A rule is allowed to come home empty-handed
 
 `sound-declared-missing` found zero problems in the reviewed profile and has seen 83 enabled mods
-across two profile sizes without firing once.
+across two profile sizes without firing once, which is an excellent outcome: every declared sound was
+supplied by some provider. The rule stays because the failure would be deterministic and useful if it
+appeared, not because every rule owes the dashboard a scary number.
 
-Good.
+## The tooling around `lint`
 
-Every declared sound was supplied by some provider. The rule stays because the failure is
-deterministic and useful when it happens, not because every rule needs to justify its existence with
-a scary number on every scan.
+The performance investigation produced a profile census and a deeper setup checker as well, and the
+three commands answer different questions without needing to be presented as a holy trinity.
 
-## The mod-author toolkit is bigger than `lint`
-
-The performance work produced two other read-only tools that are useful when a mod stack gets large.
-They answer different questions.
-
-### `preflight scan`: what is actually in this profile?
-
-`scan` inventories the enabled setup rather than judging it. It can report enabled and missing IDs,
-file and byte totals, images, sounds, JARs, loose Java, extension/mod breakdowns, largest assets and
-mods, duplicate logical resource paths, and which provider wins each duplicate.
-
-It can also take a VRAM budget and a proposed maximum texture size to project what capping oversized
-textures would save:
+`preflight scan` inventories the enabled setup: enabled and missing IDs, file and byte totals,
+images, sounds, JARs, loose Java, extension/mod breakdowns, largest assets and mods, duplicate logical
+paths, and provider winners. It can also model a VRAM budget and proposed texture-size cap before
+anything is changed.
 
 ```bash
 java -jar preflight.jar scan --game "/path/to/Starsector" --vram-budget 4G --max-texture-size 2048
 ```
 
-That is useful before making a change because it answers “what would this policy actually buy on
-this profile?” instead of assuming a texture cap is worthwhile everywhere.
-
-### `preflight analyze setup`: is this resolved mod stack internally coherent?
-
-The deep setup check is separate from asset linting. It does not launch or modify Starsector.
+`preflight analyze setup` asks whether the resolved mod stack is internally coherent. It can report
+an enabled mod whose metadata is missing or unreadable, duplicate declared mod IDs, required
+dependencies that are missing or installed-but-disabled, malformed dependency or total-conversion
+metadata, and a winning `.variant` whose declared hull does not exist in the resolved hull/skin set.
+It exits after analysis and can emit JSON for tooling.
 
 ```bash
 java -jar preflight.jar analyze setup --game "/path/to/Starsector"
 java -jar preflight.jar analyze setup --game "/path/to/Starsector" --json
 ```
 
-It can deterministically report things such as:
+So `lint` is about measurable asset/configuration costs, `scan` is about what the enormous profile
+actually contains, and `analyze setup` is about whether the active dependency and selected-reference
+picture makes sense before launch. All are useful to players debugging a giant stack; `lint --path`
+is deliberately useful to an author with one mod on the desk and no complete profile available.
 
-- an enabled mod whose metadata is missing or unreadable;
-- two installed mods declaring the same mod ID;
-- a required dependency that is missing;
-- a required dependency that is installed but disabled;
-- malformed dependency or total-conversion metadata;
-- a winning `.variant` whose declared hull does not exist in the resolved hull/skin set.
+## Why there is no Fix all button
 
-That last category is deliberately based on the **resolved** profile. It is not just grepping one
-folder for strings and hoping the provider order does not matter.
+Re-encoding a progressive JPEG is straightforward. Resizing art, deleting files, resampling audio,
+or rewriting somebody's configuration is a different class of tool with a different risk budget,
+and the read-only linter does not get to acquire that power merely because a fix looks obvious in a
+few easy cases.
 
-So the three tools line up like this:
-
-| Question | Tool |
-| --- | --- |
-| What does this mod ship that has a measurable cost or deterministic config problem? | `preflight lint` |
-| What is actually in this enormous enabled profile, and who wins duplicate resources? | `preflight scan` |
-| Are the active mods/dependencies/static links internally coherent before I launch? | `preflight analyze setup` |
-
-All three can be useful to a player debugging a giant stack. `lint --path` is specifically designed
-to also be useful while an author is working on one mod by itself.
-
-## What the linter refuses to become
-
-It does not apply fixes.
-
-That is deliberate. Re-encoding a JPEG is relatively straightforward; resizing art, deleting files,
-resampling audio, or rewriting somebody's config is a different product boundary. The read-only
-linter does not smuggle that risk in behind a “Fix all” button.
-
-It does not call an unreferenced sound dead when mod code may still load it. It does not call ordinary
-NPOT art a mistake. It does not report strict-JSON violations that Starsector accepts. It does not
-score authors against each other.
-
-If a finding cannot say what it knows, what it does **not** know, and why the reported thing costs
-something, I would rather not have the rule.
+The same restraint applies to language. An unreferenced sound may still be opened from code. Ordinary
+NPOT art is ordinary. Starsector accepts configuration syntax that strict JSON rejects. If a finding
+cannot say what it knows, what remains outside its knowledge, and why the reported thing costs
+something, I would rather leave the rule out.
 
 ## Short mod-author pitch
 
-> Preflight has a read-only Starsector mod linter. `lint --path ./MyMod` checks one mod on its own;
-> whole-profile mode understands provider order and cross-mod relationships. It reports measured
-> costs and deterministic config problems, never edits files, and has no score, ranking, or automatic
-> fixer. I calibrated it over 86 installed mods: the median was zero findings and 44 were completely
-> clean. The same CLI also has a profile census and a deep setup check for missing/disabled
-> dependencies, duplicate IDs, and resolved variants pointing at absent hulls.
+> Preflight has a read-only Starsector mod linter. `lint --path ./MyMod` checks one mod on its own,
+> while whole-profile mode understands provider order and cross-mod relationships; it reports
+> measured costs and deterministic config problems, edits nothing, and has no score, ranking, or
+> automatic fixer. I calibrated it over 86 installed mods, where the median was zero findings and 44
+> were completely clean. The same CLI also has a profile census and a deeper setup check for things
+> like disabled required dependencies, duplicate IDs, and selected variants pointing at absent
+> hulls.
 
-## Good screenshots / examples for a public post
+## Good screenshots and examples
 
-Do not make the first image a terminal wall. Good visual candidates:
+The first image should show the thesis rather than a terminal wall. A clean single-mod result is a
+great opener; after that, a progressive-image finding with its measured decode explanation, a large
+NPOT finding with the actual padding cost, the profile summary with separate disk/decoded/VRAM
+numbers, or a setup finding such as an installed-but-disabled dependency all tell a more legible
+story than a giant dump of findings.
 
-1. one clean single-mod lint result;
-2. one progressive-image finding with the measured decode explanation;
-3. one large NPOT finding showing the actual padding cost rather than “NPOT bad”;
-4. the profile summary with separate disk/decoded/VRAM totals;
-5. a deep-setup finding for an installed-but-disabled dependency or missing resolved hull;
-6. the 44/86 clean calibration result as a simple chart if a chart is useful.
+A simple 44/86 clean calibration chart could also work. The point is that the tool can discriminate,
+not that it can make every mod look pathological.
 
-A clean screenshot is important. The thesis is not “I can make every mod look broken.”
+## Exploratory asset lab
 
-## Exploratory asset lab: interesting, but do not sell this as the first-beta contract yet
+The repository also contains asset experiments and local generator tools that grew out of the same
+research. The current asset-quality track labels itself exploratory, so this is future-post material
+instead of first-beta product copy.
 
-The repository also contains asset experiments and local generator tools that came out of the same
-research. The current asset-quality track explicitly labels itself **exploratory / not yet
-evidence-gated**, so these are good future-post material rather than promises about the first beta.
+Interesting examples include `preflight font generate` / `font generate-pack` for local BMFont
+atlases and font mods from operator-supplied fonts; `preflight assets shrink` for generating a
+separate override mod containing capped copies of oversized textures after `scan` estimates the
+trade; block-compression probes and conformance vectors; and contact sheets that put originals,
+reconstructions, error maps, and the experiment's decision beside one another so a fidelity number
+does not become the sole aesthetic sovereign.
 
-Interesting examples include:
-
-- `preflight font generate` and `font generate-pack`, which can generate BMFont atlases and a local
-  drop-in font mod from an operator-supplied font without Preflight redistributing commercial game
-  fonts;
-- `preflight assets shrink`, which can generate a separate override mod containing capped copies of
-  oversized textures after using `scan` to estimate the tradeoff;
-- block-compression probes and conformance vectors for checking experimental GPU-ready texture data
-  against a real driver;
-- contact sheets that place original art, reconstructed art, error maps, and the experiment's
-  decision beside each other so a fidelity number is not the only thing deciding whether a texture
-  category was classified correctly.
-
-There is a very good later story here: the performance investigation produced enough tooling to
-start asking not only “how can Preflight route around expensive inputs?” but “what can an author
-change once so every player of the mod benefits?”
-
-That story is worth telling. It just needs to stay visibly separate from the stable read-only linter,
-profile census, and setup analyzer until the experimental tools have their own accepted product
-boundary.
+There is a good later story here about moving from "how can Preflight route around expensive input?"
+to "what can an author change once so every player of the mod benefits?" It simply belongs after the
+experimental tools earn their own product contract.
 
 ## Call to action
 
-For a single mod:
+For one mod:
 
 ```bash
 java -jar preflight.jar lint --path ./MyMod
@@ -327,7 +246,7 @@ java -jar preflight.jar scan --game "/path/to/Starsector"
 java -jar preflight.jar analyze setup --game "/path/to/Starsector"
 ```
 
-If the linter says zero findings, excellent. If it reports something, the finding should tell you the
-measured cost and enough context to decide whether you care. If it gets that judgment wrong, that is
-something I want reported too. A mod-author tool that people cannot trust to stay quiet when nothing
-is wrong is not useful.
+If the linter says zero findings, excellent. If it reports something, the finding should give enough
+measurement and context for the author to decide whether they care; if it gets that judgment wrong,
+that is worth reporting too, because a mod-author tool that cannot learn to stay quiet when nothing
+useful is wrong will eventually become noise.

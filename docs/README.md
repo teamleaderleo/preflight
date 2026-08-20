@@ -32,6 +32,8 @@ current answer.
   costs and storage behavior.
 - [Downloads and installation](downloads.md): planned public artifacts and current candidate/publication
   boundary.
+- [Public writing style](public-writing-style.md): voice and cadence for README, announcements,
+  creator pages, and other public-facing prose.
 - [Public beta release writing kit](release-post-draft.md): release headline/deck copy, GitHub Release
   body source, package/support language, short descriptions, and candidate placeholders.
 - [Preflight 0.1.0 draft release notes](releases/0.1.0.md): first-beta release-note source with the
@@ -43,8 +45,7 @@ current answer.
 - [Leo's talking points](leo-talking-points.md): public-writing crib sheet for numbers, features,
   trust/privacy answers, claim qualifiers, and current release work.
 - [Public-writing sales inventory](public-writing-sales-inventory.md): overcomplete hook reservoir by
-  audience; treat dated release-status language inside it as copy history unless refreshed against
-  #652 and #950.
+  audience; use it as source material rather than a mandatory feature list.
 - [Known limitations](known-limitations.md): current platform, evidence, storage, and fallback limits.
 - [Cross-platform evidence plan](cross-platform-evidence-plan.md): claim boundary for hosted,
   emulated, and native checks.
@@ -113,9 +114,12 @@ When documents disagree, use this precedence:
 
 ## Writing voice
 
-Public writing should say things directly and retain the path of the thought. Deliberate repetition
-is not a defect. Neither is an ordinary word beside a more specific or esoteric one. Do not sand a
-sentence down merely because a shorter version is available.
+[Public writing style](public-writing-style.md) is the canonical voice guide. The short version is
+that public writing should say things directly while retaining the path of the thought: deliberate
+repetition can stay, a sentence can take a long breath when the thought wants one, transitions do
+real work, and an ordinary word can happily sit beside a more specific or esoteric one. Avoid
+sanding prose down merely because a shorter version exists, and avoid converting connected ideas into
+lists merely because lists are easy to scan.
 
 Use contractions. Keep grammar precise. Hedge when the evidence actually calls for it. Humor should
 come from the observation itself rather than a decorative adjective. Avoid generic setup, packaged
@@ -134,15 +138,14 @@ personal and can use lines such as "I make stuff that tends to become much large
 because that is what the Starsector reader came for.
 
 Public copy is allowed to sell the work. Do not confuse restraint with underselling. Lead with the
-strongest exact result, then reveal the breadth of the product: benchmark, playtime, profiles,
-settings, storage/recovery, support/privacy, signed updates, and the linter. The failed experiments
-and corrected measurements are also valuable public material because they explain why the current
-claims deserve confidence.
+strongest supported result, then let the broader product emerge through the story instead of
+reciting every feature at equal volume. The failed experiments and corrected measurements are also
+valuable public material because they explain why the current claims deserve confidence.
 
 Benchmark conditions, compatibility limits, write boundaries, and release-candidate status must stay
-exact even when the surrounding prose is informal. Never turn a development number into a universal
-promise. Never describe an open PR as shipped.
+precise even when the surrounding prose is informal. Never turn a development number into a
+universal promise. Never describe an open PR as shipped.
 
 Posts to the Starsector forum and subreddit are technical release posts. They can be enthusiastic,
-funny, and personal without reading like a startup announcement. Any clickbait-adjacent joke has to
-be unmistakably ironic.
+funny, discursive, and personal without reading like a startup announcement. Any clickbait-adjacent
+joke has to be unmistakably ironic.

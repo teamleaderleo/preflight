@@ -231,7 +231,7 @@ export function HomePage({
           {isReady && lastAdapterHealth && status !== "running" && status !== "launching" ? (
             <span
               className={`last-run-health ${lastAdapterHealth.reviewRecommended ? "last-run-health--review" : ""}`}
-              title={lastAdapterHealth.suggestedActions[0] ?? "Exact compatibility evidence from the latest Preflight launch"}
+              title={lastAdapterHealth.suggestedActions[0] ?? "Compatibility details from the latest Preflight launch"}
             >
               {adapterHealthLine(lastAdapterHealth)}
             </span>
@@ -263,7 +263,7 @@ export function HomePage({
                   disabled={preparing || cacheRepairing || operationBlocked || status === "loading" || status === "error" || cacheLoading || (!storageBlocked && needsPreparation && !cacheNeedsRepair && !cacheInspectionBlocked && awaitingStoragePlan)}
                 >
                   {needsPreparation ? <SparklesIcon /> : <PlayIcon />}
-                  <span>{status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? preparationPercent === null ? "Preparation in progress…" : `Preparing ${preparationPercent}%…` : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review profile check" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Prepare with less disk" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}</span>
+                  <span>{status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? preparationPercent === null ? "Preparation in progress…" : `Preparing ${preparationPercent}%…` : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review prepared data" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Prepare with less disk" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}</span>
                 </button>
                 {preparing ? (
                   <button className="button button--quiet launch-console__stop" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>
@@ -311,7 +311,7 @@ export function HomePage({
                 ? !storagePlanApplies(textureStorage)
                   ? "Minimal preparation uses a few megabytes. Starsector opens when it’s ready."
                   : preparationPlanLoading
-                  ? "Inspecting this mod setup and calculating a safe disk requirement…"
+                  ? "Checking this mod setup and calculating disk space…"
                   : preparationPlan?.safeToPrepare
                     ? `${firstSetup ? "Initial setup" : "Preparation needed"} · ${textureStorage === "balanced" ? "Balanced" : "Fastest"} uses about ${formatBytes(preparationPlan.predictedAdditionalBytes)}. ${formatBytes(preparationPlan.requiredFreeBytes)} free required; ${formatBytes(preparationPlan.usableBytes)} available.`
                     : preparationPlan
