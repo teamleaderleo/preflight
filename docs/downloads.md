@@ -51,7 +51,7 @@ revision produces a new candidate generation and new candidate evidence.
 ## Verify a native download before opening it
 
 Use the checksum manifest downloaded from the same accepted release. These commands verify only the
-named package; they do not disable an operating-system security control.
+named package; they do not weaken an operating-system security control.
 
 ### macOS
 
@@ -62,8 +62,8 @@ grep '  Preflight-macOS-arm64.dmg$' SHA256SUMS-darwin-arm64.txt | shasum -a 256 
 The beta package is Apple silicon. Intel macOS remains outside the first package matrix. The DMG
 ships without paid Developer ID notarization, so Gatekeeper can block the first launch. After the
 checksum succeeds, use **System Settings → Privacy & Security** and the specific **Open Anyway**
-control for Preflight if macOS presents it. Do not disable Gatekeeper globally or strip quarantine
-metadata broadly.
+control for Preflight if macOS presents it. Use only that per-app exception; keep the system-wide
+Gatekeeper policy and quarantine metadata unchanged.
 
 ### Windows
 
@@ -77,7 +77,8 @@ $actual -eq $expected
 
 The first beta uses an NSIS installer without paid Authenticode identity, so SmartScreen can warn on
 first run. After the checksum succeeds, use the warning's **More info → Run anyway** path for that
-specific installer if Windows presents it. Do not disable SmartScreen or antivirus globally.
+specific installer if Windows presents it. Use only that per-installer exception; keep system-wide
+SmartScreen and antivirus policy unchanged.
 
 ### Linux
 
