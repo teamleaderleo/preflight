@@ -1,241 +1,68 @@
-name: Bound directory macOS ACL repair bridge
+name: Bound directory capability
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - '.github/workflows/bound-directory.yml'
+      - 'preflight-desktop/src-tauri/Cargo.lock'
+      - 'preflight-desktop/src-tauri/Cargo.toml'
+      - 'preflight-desktop/src-tauri/src/bound_directory.rs'
+      - 'preflight-desktop/src-tauri/tests/bound_directory.rs'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/bound-directory.yml'
+      - 'preflight-desktop/src-tauri/Cargo.lock'
+      - 'preflight-desktop/src-tauri/Cargo.toml'
+      - 'preflight-desktop/src-tauri/src/bound_directory.rs'
+      - 'preflight-desktop/src-tauri/tests/bound_directory.rs'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  repair:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+  test:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: fix/bound-directory-macos-acl
-          fetch-depth: 0
 
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with:
           components: rustfmt
 
-      - name: Apply exact macOS extended-ACL validation repair
+      - name: Install Linux desktop dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Provide compile-time engine resource
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
+          mkdir -p preflight-desktop/src-tauri/target/engine
+          printf 'BoundDirectory test compile-time resource placeholder\n' \
+            > preflight-desktop/src-tauri/target/engine/bound-directory-placeholder.txt
 
-          source_path = Path('preflight-desktop/src-tauri/src/bound_directory.rs')
-          tests_path = Path('preflight-desktop/src-tauri/tests/bound_directory.rs')
-          source = source_path.read_text()
-          tests = tests_path.read_text()
+      - name: Check Rust formatting
+        if: runner.os == 'Linux'
+        run: cargo fmt --check --manifest-path preflight-desktop/src-tauri/Cargo.toml
 
-          needle = '''    #[cfg(target_os = "macos")]
-              unsafe extern "C" {
-          '''
-          # Normalize the literal to the actual four-space source indentation.
-          needle = needle.replace('              unsafe', '    unsafe')
-          replacement = '''    #[cfg(target_os = "macos")]
-              const ACL_TYPE_EXTENDED: libc::c_uint = 0x0000_0100;
-              #[cfg(target_os = "macos")]
-              const ACL_FIRST_ENTRY: libc::c_int = 0;
-
-              #[cfg(target_os = "macos")]
-              unsafe extern "C" {
-          '''.replace('              const', '    const').replace('              #[cfg', '    #[cfg').replace('              unsafe', '    unsafe')
-          if source.count(needle) != 1:
-              raise SystemExit(f'expected one macOS extern opener, got {source.count(needle)}')
-          source = source.replace(needle, replacement)
-
-          needle = '''        ) -> libc::c_int;
-              }
-
-              pub(super) fn open_anchor(path: &Path) -> io::Result<File> {
-          '''.replace('              }', '    }').replace('              pub', '    pub')
-          replacement = '''        ) -> libc::c_int;
-                  fn acl_get_fd_np(fd: libc::c_int, acl_type: libc::c_uint) -> *mut libc::c_void;
-                  fn acl_get_entry(
-                      acl: *mut libc::c_void,
-                      entry_id: libc::c_int,
-                      entry: *mut *mut libc::c_void,
-                  ) -> libc::c_int;
-                  fn acl_free(object: *mut libc::c_void) -> libc::c_int;
-              }
-
-              pub(super) fn open_anchor(path: &Path) -> io::Result<File> {
-          '''.replace('                  fn', '        fn').replace('                      acl:', '            acl:').replace('                      entry_id:', '            entry_id:').replace('                      entry:', '            entry:').replace('                  ) ->', '        ) ->').replace('              }', '    }').replace('              pub', '    pub')
-          if source.count(needle) != 1:
-              raise SystemExit(f'expected one macOS extern closer, got {source.count(needle)}')
-          source = source.replace(needle, replacement)
-
-          needle = '''        if metadata.mode() & 0o7777 != 0o700 {
-              return Err(io::Error::new(
-                  io::ErrorKind::PermissionDenied,
-                  "protected component does not have private mode 0700",
-              ));
-          }
-          Ok(())
-      }
-
-      fn require_private_regular(file: &File) -> io::Result<()> {
-          '''.replace('              return', '            return').replace('                  io::', '                io::').replace('                  "protected', '                "protected').replace('              ));', '            ));').replace('          }', '        }').replace('          Ok', '        Ok').replace('      }', '    }').replace('      fn', '    fn')
-          replacement = needle.replace('        Ok(())\n    }\n\n    fn require_private_regular', '        require_no_extended_acl(directory)?;\n        Ok(())\n    }\n\n    fn require_private_regular')
-          if source.count(needle) != 1:
-              raise SystemExit(f'expected one directory privacy tail, got {source.count(needle)}')
-          source = source.replace(needle, replacement)
-
-          needle = '''        if metadata.mode() & 0o077 != 0 {
-              return Err(io::Error::new(
-                  io::ErrorKind::PermissionDenied,
-                  "child permissions are broader than owner-only",
-              ));
-          }
-          Ok(())
-      }
-
-      fn validate_private_file_mode(mode: u32) -> io::Result<()> {
-          '''.replace('              return', '            return').replace('                  io::', '                io::').replace('                  "child', '                "child').replace('              ));', '            ));').replace('          }', '        }').replace('          Ok', '        Ok').replace('      }', '    }').replace('      fn', '    fn')
-          helper = '''        require_no_extended_acl(file)?;
-              Ok(())
-          }
-
-          #[cfg(target_os = "macos")]
-          fn require_no_extended_acl(file: &File) -> io::Result<()> {
-              let acl = unsafe { acl_get_fd_np(file.as_raw_fd(), ACL_TYPE_EXTENDED) };
-              if acl.is_null() {
-                  let error = io::Error::last_os_error();
-                  return match error.raw_os_error() {
-                      Some(libc::ENOENT) | Some(libc::EOPNOTSUPP) => Ok(()),
-                      _ => Err(error),
-                  };
-              }
-
-              let mut entry: *mut libc::c_void = std::ptr::null_mut();
-              let has_entry = unsafe { acl_get_entry(acl, ACL_FIRST_ENTRY, &mut entry) } == 0;
-              if unsafe { acl_free(acl) } != 0 {
-                  return Err(io::Error::last_os_error());
-              }
-              if has_entry {
-                  return Err(io::Error::new(
-                      io::ErrorKind::PermissionDenied,
-                      "opened generation has an extended ACL",
-                  ));
-              }
-              Ok(())
-          }
-
-          #[cfg(not(target_os = "macos"))]
-          fn require_no_extended_acl(_file: &File) -> io::Result<()> {
-              Ok(())
-          }
-
-          fn validate_private_file_mode(mode: u32) -> io::Result<()> {
-          '''.replace('              Ok', '        Ok').replace('          }', '    }').replace('          #[cfg', '    #[cfg').replace('          fn', '    fn').replace('              let', '        let').replace('              if', '        if').replace('                  let', '            let').replace('                  return', '            return').replace('                      Some', '                Some').replace('                      _ =>', '                _ =>').replace('                  };', '            };').replace('              }', '        }').replace('                  return Err', '            return Err').replace('                      io::', '                io::').replace('                      "opened', '                "opened').replace('                  ));', '            ));')
-          replacement = needle.replace('        Ok(())\n    }\n\n    fn validate_private_file_mode(mode: u32) -> io::Result<()> {', helper)
-          if source.count(needle) != 1:
-              raise SystemExit(f'expected one file privacy tail, got {source.count(needle)}')
-          source = source.replace(needle, replacement)
-
-          marker = '''#[cfg(unix)]
-          #[test]
-          fn public_winner_before_missing_component_publish_is_never_adopted() {
-          '''.replace('          #[test]', '#[test]').replace('          fn', 'fn')
-          test = '''#[cfg(target_os = "macos")]
-          #[test]
-          fn extended_acl_is_rejected_despite_private_mode_bits() {
-              use std::os::unix::fs::PermissionsExt;
-              use std::process::Command;
-
-              let base = temp_root("extended-acl");
-              let root = base.join("owned").join("authority");
-              let directory =
-                  BoundDirectory::open_or_create(&base, Path::new("owned/authority")).unwrap();
-              let file_path = root.join("secret.bin");
-              let file = directory
-                  .create_new(OsStr::new("secret.bin"), 0o600)
-                  .unwrap();
-              drop(file);
-
-              let file_acl = Command::new("/bin/chmod")
-                  .arg("+a")
-                  .arg("everyone allow read")
-                  .arg(&file_path)
-                  .status()
-                  .unwrap();
-              assert!(file_acl.success());
-              assert_eq!(
-                  0,
-                  fs::metadata(&file_path).unwrap().permissions().mode() & 0o077
-              );
-              let error = directory.open_regular(OsStr::new("secret.bin")).unwrap_err();
-              assert_eq!(std::io::ErrorKind::PermissionDenied, error.kind());
-
-              let directory_acl = Command::new("/bin/chmod")
-                  .arg("+a")
-                  .arg("everyone allow list,search")
-                  .arg(&root)
-                  .status()
-                  .unwrap();
-              assert!(directory_acl.success());
-              assert_eq!(
-                  0o700,
-                  fs::metadata(&root).unwrap().permissions().mode() & 0o7777
-              );
-              let error =
-                  BoundDirectory::open_existing(&base, Path::new("owned/authority")).unwrap_err();
-              assert_eq!(std::io::ErrorKind::PermissionDenied, error.kind());
-
-              drop(directory);
-              fs::remove_dir_all(base).unwrap();
-          }
-
-          '''.replace('          #[test]', '#[test]').replace('          fn', 'fn').replace('              use', '    use').replace('              let', '    let').replace('                  BoundDirectory', '        BoundDirectory').replace('                  .create', '        .create').replace('                  .arg', '        .arg').replace('                  .status', '        .status').replace('                  .unwrap', '        .unwrap').replace('              drop', '    drop').replace('              assert', '    assert').replace('                  0,', '        0,').replace('                  fs::', '        fs::').replace('              );', '    );').replace('              let error', '    let error').replace('                  BoundDirectory', '        BoundDirectory').replace('              fs::remove', '    fs::remove').replace('          }', '}')
-          if tests.count(marker) != 1:
-              raise SystemExit(f'expected one public-winner test marker, got {tests.count(marker)}')
-          tests = tests.replace(marker, test + marker)
-
-          source_path.write_text(source)
-          tests_path.write_text(tests)
-          PY
-
-          rustfmt --edition 2024 \
-            preflight-desktop/src-tauri/src/bound_directory.rs \
-            preflight-desktop/src-tauri/tests/bound_directory.rs
-
-          python3 - <<'PY'
-          from pathlib import Path
-          import hashlib, json
-          source_path = Path('preflight-desktop/src-tauri/src/bound_directory.rs')
-          lock_path = Path('preflight-desktop/capabilities/release-receipt-source-lock.json')
-          digest = hashlib.sha256(source_path.read_bytes()).hexdigest()
-          data = json.loads(lock_path.read_text())
-          key = 'preflight-desktop/src-tauri/src/bound_directory.rs'
-          if data['sourceSha256'].get(key) != 'ba313aebbe61f5b6ff90c52c007f6ed11f1b2ad5782da4b493c0ee355aa591f0':
-              raise SystemExit('unexpected pre-repair BoundDirectory source lock')
-          data['sourceSha256'][key] = digest
-          lock_path.write_text(json.dumps(data, indent=2) + '\n')
-          print(f'bound_directory_sha256={digest}')
-          PY
-
-          git diff --check
-          git diff --stat
-
-      - name: Commit durable repair bytes
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'Gatekeeper-804'
-          git config user.email 'actions@users.noreply.github.com'
-          git add \
-            preflight-desktop/src-tauri/src/bound_directory.rs \
-            preflight-desktop/src-tauri/tests/bound_directory.rs \
-            preflight-desktop/capabilities/release-receipt-source-lock.json
-          git diff --cached --quiet && exit 0
-          git commit -m 'Reject macOS extended ACLs in BoundDirectory'
-          git push origin HEAD:fix/bound-directory-macos-acl
+      - name: Test capability replacement contracts
+        run: cargo test --locked --manifest-path preflight-desktop/src-tauri/Cargo.toml --test bound_directory -- --test-threads=1
