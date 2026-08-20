@@ -49,24 +49,27 @@ class MergedSpreadsheetProvenanceTest {
 
         assertEquals("spreadsheet-provider-row-contribution-v1", result.values().get("evidenceKind"));
         assertEquals("provider-contribution-only", result.values().get("resolution"));
-        assertEquals(true, result.values().get("resolved"));
+        assertTrue((Boolean) result.values().get("resolved"));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> totals = (Map<String, Object>) result.values().get("totals");
         assertEquals(3L, number(totals, "providers"));
-        assertEquals(2L, number(totals, "readableProviders"));
+        assertEquals(2L, number(totals, "parsedProviders"));
+        assertEquals(2L, number(totals, "keyableProviders"));
+        assertEquals(1L, number(totals, "providersWithErrors"));
         assertEquals(6L, number(totals, "dataRows"));
         assertEquals(5L, number(totals, "keyedRows"));
         assertEquals(3L, number(totals, "uniqueKeysObserved"));
         assertEquals(1L, number(totals, "duplicateKeyRowsWithinProvider"));
         assertEquals(1L, number(totals, "blankKeyRows"));
         assertFalse((Boolean) totals.get("truncated"));
+        assertFalse((Boolean) totals.get("completeForRequestedKeys"));
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> keys = (List<Map<String, Object>>) result.values().get("keys");
         Map<String, Object> shared = key(keys, "id", "shared");
         assertEquals(2, ((Number) shared.get("contributorCount")).intValue());
-        assertEquals(true, shared.get("duplicateWithinProvider"));
+        assertTrue((Boolean) shared.get("duplicateWithinProvider"));
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> contributors = (List<Map<String, Object>>) shared.get("contributors");
         assertEquals(List.of("core", "mod_a"),
@@ -76,6 +79,8 @@ class MergedSpreadsheetProvenanceTest {
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> providers = (List<Map<String, Object>>) result.values().get("providers");
+        assertFalse((Boolean) providers.get(2).get("parsed"));
+        assertFalse((Boolean) providers.get(2).get("keyable"));
         assertEquals(List.of("malformed-csv"), providers.get(2).get("errors"));
 
         String json = result.toJson();
@@ -105,6 +110,7 @@ class MergedSpreadsheetProvenanceTest {
         assertEquals(2L, number(totals, "keyedRows"));
         assertEquals(1L, number(totals, "rowsMissingKeyCells"));
         assertEquals(2L, number(totals, "uniqueKeysObserved"));
+        assertFalse((Boolean) totals.get("completeForRequestedKeys"));
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> keys = (List<Map<String, Object>>) result.values().get("keys");
@@ -115,8 +121,36 @@ class MergedSpreadsheetProvenanceTest {
         MergedSpreadsheetProvenance.Result missing =
                 MergedSpreadsheetProvenance.inspect(index, relative, List.of("missing"));
         @SuppressWarnings("unchecked")
+        Map<String, Object> missingTotals = (Map<String, Object>) missing.values().get("totals");
+        assertEquals(1L, number(missingTotals, "parsedProviders"));
+        assertEquals(0L, number(missingTotals, "keyableProviders"));
+        assertEquals(1L, number(missingTotals, "providersWithErrors"));
+        assertFalse((Boolean) missingTotals.get("completeForRequestedKeys"));
+        @SuppressWarnings("unchecked")
         List<Map<String, Object>> providers = (List<Map<String, Object>>) missing.values().get("providers");
+        assertTrue((Boolean) providers.get(0).get("parsed"));
+        assertFalse((Boolean) providers.get(0).get("keyable"));
         assertEquals(List.of("missing-key-column:missing"), providers.get(0).get("errors"));
+    }
+
+    @Test
+    void marksFullyParsedFullyKeyedUnboundedEvidenceComplete() throws Exception {
+        Path mod = temporaryDirectory.resolve("complete-private-mod");
+        String relative = "data/config/complete.csv";
+        Path file = write(mod, relative, "id,name\nalpha,One\nbeta,Two\n");
+        ResourceIndex index = index(
+                List.of(new ResourceIndex.Root("mod", mod, false)),
+                relative,
+                List.of(provider(0, relative, file)));
+
+        MergedSpreadsheetProvenance.Result result =
+                MergedSpreadsheetProvenance.inspect(index, relative, List.of("id"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> totals = (Map<String, Object>) result.values().get("totals");
+        assertTrue((Boolean) totals.get("completeForRequestedKeys"));
+        assertEquals(1L, number(totals, "parsedProviders"));
+        assertEquals(1L, number(totals, "keyableProviders"));
+        assertEquals(0L, number(totals, "providersWithErrors"));
     }
 
     @Test
@@ -146,11 +180,12 @@ class MergedSpreadsheetProvenanceTest {
         assertEquals(1L, number(totals, "uniqueKeysObserved"));
         assertTrue((Boolean) totals.get("keysTruncated"));
         assertTrue((Boolean) totals.get("truncated"));
+        assertFalse((Boolean) totals.get("completeForRequestedKeys"));
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> keys = (List<Map<String, Object>>) result.values().get("keys");
         assertEquals(1, keys.size());
-        assertEquals(true, keys.get(0).get("contributorsTruncated"));
+        assertTrue((Boolean) keys.get(0).get("contributorsTruncated"));
         assertEquals(1, ((Number) keys.get(0).get("contributorCount")).intValue());
     }
 
