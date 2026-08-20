@@ -10,7 +10,8 @@ import java.util.List;
 
 /** Strict, bounded CSV parsing for read-only spreadsheet provenance evidence. */
 final class SpreadsheetCsv {
-    static final Limits STANDARD_LIMITS = new Limits(32 * 1024 * 1024, 250_000, 1_024, 1_048_576);
+    static final Limits STANDARD_LIMITS =
+            new Limits(32 * 1024 * 1024, 250_000, 1_024, 1_048_576, 2_000_000);
 
     private SpreadsheetCsv() {
     }
@@ -34,6 +35,7 @@ final class SpreadsheetCsv {
         StringBuilder cell = new StringBuilder();
         boolean inQuotes = false;
         boolean quotedCellClosed = false;
+        long cells = 0;
 
         for (int cursor = 0; cursor < text.length(); cursor++) {
             char value = text.charAt(cursor);
@@ -54,12 +56,12 @@ final class SpreadsheetCsv {
 
             if (quotedCellClosed) {
                 if (value == ',') {
-                    finishCell(row, cell, limits);
+                    cells = finishCell(row, cell, limits, cells);
                     quotedCellClosed = false;
                     continue;
                 }
                 if (value == '\r' || value == '\n') {
-                    finishCell(row, cell, limits);
+                    cells = finishCell(row, cell, limits, cells);
                     finishRow(rows, row, limits);
                     quotedCellClosed = false;
                     if (value == '\r' && cursor + 1 < text.length() && text.charAt(cursor + 1) == '\n') {
@@ -76,9 +78,9 @@ final class SpreadsheetCsv {
                 }
                 inQuotes = true;
             } else if (value == ',') {
-                finishCell(row, cell, limits);
+                cells = finishCell(row, cell, limits, cells);
             } else if (value == '\r' || value == '\n') {
-                finishCell(row, cell, limits);
+                cells = finishCell(row, cell, limits, cells);
                 finishRow(rows, row, limits);
                 if (value == '\r' && cursor + 1 < text.length() && text.charAt(cursor + 1) == '\n') {
                     cursor++;
@@ -92,7 +94,7 @@ final class SpreadsheetCsv {
             throw new IOException("CSV ended inside a quoted cell");
         }
         if (!row.isEmpty() || !cell.isEmpty() || quotedCellClosed) {
-            finishCell(row, cell, limits);
+            cells = finishCell(row, cell, limits, cells);
             finishRow(rows, row, limits);
         }
         return new Table(rows);
@@ -105,12 +107,20 @@ final class SpreadsheetCsv {
         cell.append(value);
     }
 
-    private static void finishCell(List<String> row, StringBuilder cell, Limits limits) throws IOException {
+    private static long finishCell(
+            List<String> row,
+            StringBuilder cell,
+            Limits limits,
+            long cells) throws IOException {
         if (row.size() >= limits.maxColumns()) {
             throw new IOException("CSV row exceeds column limit");
         }
+        if (cells >= limits.maxCells()) {
+            throw new IOException("CSV exceeds aggregate cell limit");
+        }
         row.add(cell.toString());
         cell.setLength(0);
+        return cells + 1;
     }
 
     private static void finishRow(List<List<String>> rows, List<String> row, Limits limits) throws IOException {
@@ -140,9 +150,9 @@ final class SpreadsheetCsv {
                 && (bytes[2] & 0xff) == 0xbf;
     }
 
-    record Limits(int maxBytes, int maxRows, int maxColumns, int maxCellChars) {
+    record Limits(int maxBytes, int maxRows, int maxColumns, int maxCellChars, int maxCells) {
         Limits {
-            if (maxBytes < 1 || maxRows < 1 || maxColumns < 1 || maxCellChars < 1) {
+            if (maxBytes < 1 || maxRows < 1 || maxColumns < 1 || maxCellChars < 1 || maxCells < 1) {
                 throw new IllegalArgumentException("CSV limits must be positive");
             }
         }
