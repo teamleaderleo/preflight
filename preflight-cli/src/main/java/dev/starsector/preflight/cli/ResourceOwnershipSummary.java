@@ -4,7 +4,6 @@ import dev.starsector.preflight.core.Json;
 import dev.starsector.preflight.core.ResourceIndex;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -44,7 +43,7 @@ final class ResourceOwnershipSummary {
                 ResourceIndex.Provider provider = providers.get(providerIndex);
                 if (provider.rootIndex() < rootStats.size()) {
                     RootStats stats = rootStats.get(provider.rootIndex());
-                    stats.providedPaths++;
+                    stats.providerOccurrences++;
                     stats.providedBytes += provider.size();
                     if (providerIndex == providers.size() - 1) {
                         stats.winningPaths++;
@@ -224,7 +223,7 @@ final class ResourceOwnershipSummary {
         private final int index;
         private final String id;
         private final boolean core;
-        private long providedPaths;
+        private long providerOccurrences;
         private long winningPaths;
         private long shadowedOccurrences;
         private long providedBytes;
@@ -241,7 +240,7 @@ final class ResourceOwnershipSummary {
             value.put("rootIndex", index);
             value.put("rootId", id);
             value.put("core", core);
-            value.put("providedPaths", providedPaths);
+            value.put("providerOccurrences", providerOccurrences);
             value.put("winningPaths", winningPaths);
             value.put("shadowedOccurrences", shadowedOccurrences);
             value.put("providedBytes", providedBytes);
