@@ -21,6 +21,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
@@ -45,6 +46,8 @@ const PALETTE_NAMES: Record<PalettePreference, string> = {
   airglow: "Airglow",
   phosphor: "Phosphor",
 };
+
+const WORKSPACE_SCROLL_KEYS = new Set(["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End", " "]);
 
 export type Page = "home" | "launch" | "speed" | "mods" | "hangar" | "benchmark" | "help" | "settings";
 
@@ -122,6 +125,16 @@ export function DesktopShell({
       return next;
     });
   }, []);
+  const handOffWorkspaceScroll = useCallback((event: ReactKeyboardEvent<HTMLHeadingElement>) => {
+    const workspace = pageViewport.current;
+    if (!workspace || !WORKSPACE_SCROLL_KEYS.has(event.key)) return;
+    if (workspace.scrollHeight <= workspace.clientHeight + 1) return;
+    // Page changes focus the heading so assistive technology hears the new destination. The outer
+    // document is intentionally locked, though, so native scroll keys have nowhere to go from the
+    // heading. Move focus into the named workspace and let the WebView perform its normal default
+    // scroll action; keeping the key event intact preserves platform-native distances and behavior.
+    workspace.focus({ preventScroll: true });
+  }, []);
   useEffect(() => {
     if (pageViewport.current) pageViewport.current.scrollTop = 0;
     document.documentElement.scrollTop = 0;
@@ -191,7 +204,7 @@ export function DesktopShell({
 
       <main className="main" id="main-content" tabIndex={-1}>
         <header className="topbar">
-          <h1 className="page-title" ref={pageTitle} tabIndex={-1}>{title}</h1>
+          <h1 id="page-title" className="page-title" ref={pageTitle} tabIndex={-1} onKeyDown={handOffWorkspaceScroll}>{title}</h1>
           <div className="topbar__actions">
             <div className="palette-switch" role="group" aria-label="Color palette">
               {PALETTES.map((choice) => (
@@ -219,6 +232,8 @@ export function DesktopShell({
           key={page}
           id="page-workspace"
           ref={pageViewport}
+          role="region"
+          aria-labelledby="page-title"
           tabIndex={-1}
           className={`page-viewport page-viewport--${page}${pageChanged ? " page-viewport--entering" : ""}`}
         >
