@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { ShieldIcon } from "../icons";
 import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
@@ -8,6 +9,11 @@ import type { NoticeTone } from "../types";
 
 type ProfilesState = ReturnType<typeof useProfiles>;
 
+type ReviewReturnTarget = {
+  profileName: string;
+  element: HTMLElement;
+};
+
 interface ProfilesPageProps {
   message: string;
   messageTone: NoticeTone;
@@ -17,6 +23,10 @@ interface ProfilesPageProps {
 
 export function ProfilesPage({ message, messageTone, profilesState, operationBlocked }: ProfilesPageProps) {
   const profileSearch = useProfileSearch();
+  const activationReviewRef = useRef<HTMLElement>(null);
+  const mutationReviewRef = useRef<HTMLElement>(null);
+  const activationReturnRef = useRef<ReviewReturnTarget | null>(null);
+  const mutationReturnRef = useRef<ReviewReturnTarget | null>(null);
   const {
     activationPlan,
     mutationPlan,
@@ -63,6 +73,49 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
       ? `${visibleProfiles.length} of ${savedProfiles.length}`
       : `${savedProfiles.length} saved`;
 
+  useEffect(() => {
+    if (activationPlan) {
+      if (activationReturnRef.current?.profileName !== activationPlan.name) {
+        activationReturnRef.current = null;
+      }
+      activationReviewRef.current?.focus();
+    } else {
+      activationReturnRef.current = null;
+    }
+  }, [activationPlan]);
+
+  useEffect(() => {
+    if (mutationPlan) {
+      if (mutationReturnRef.current?.profileName !== mutationPlan.name) {
+        mutationReturnRef.current = null;
+      }
+      mutationReviewRef.current?.focus();
+    } else {
+      mutationReturnRef.current = null;
+    }
+  }, [mutationPlan]);
+
+  const rememberMutationReturn = (control: HTMLElement, profileName: string) => {
+    const details = control.closest("details");
+    const summary = details?.querySelector<HTMLElement>("summary");
+    mutationReturnRef.current = summary ? { profileName, element: summary } : null;
+    details?.removeAttribute("open");
+  };
+
+  const cancelActivationReview = () => {
+    const returnTarget = activationReturnRef.current;
+    activationReturnRef.current = null;
+    dismissActivationPlan();
+    if (returnTarget?.element.isConnected) returnTarget.element.focus();
+  };
+
+  const cancelMutationReview = () => {
+    const returnTarget = mutationReturnRef.current;
+    mutationReturnRef.current = null;
+    dismissMutationPlan();
+    if (returnTarget?.element.isConnected) returnTarget.element.focus();
+  };
+
   return (
     <div className="profiles-page">
       <NoticeBanner message={message} tone={messageTone} />
@@ -94,20 +147,23 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
                   {profile.missingMods.length > 0 ? <small>Missing: {profile.missingMods.join(", ")}</small> : null}
                 </div>
                 <div className="profile-card__actions">
-                  {!profile.active && profile.canActivate ? <button className="button button--quiet button--compact" type="button" onClick={() => void reviewProfile(profile.name)} disabled={profileBusy || operationBlocked}>Switch…</button> : null}
+                  {!profile.active && profile.canActivate ? <button className="button button--quiet button--compact" type="button" onClick={(event) => {
+                    activationReturnRef.current = { profileName: profile.name, element: event.currentTarget };
+                    void reviewProfile(profile.name);
+                  }} disabled={profileBusy || operationBlocked}>Switch…</button> : null}
                   <details className="profile-menu">
                     <summary aria-label={`Manage ${profile.name}`}>Manage</summary>
                     <div>
                       <button type="button" onClick={(event) => {
-                        event.currentTarget.closest("details")?.removeAttribute("open");
+                        rememberMutationReturn(event.currentTarget, profile.name);
                         beginDuplicate(profile.name);
                       }} disabled={profileBusy || operationBlocked}>Duplicate…</button>
                       <button type="button" onClick={(event) => {
-                        event.currentTarget.closest("details")?.removeAttribute("open");
+                        rememberMutationReturn(event.currentTarget, profile.name);
                         beginRename(profile.name);
                       }} disabled={profileBusy || operationBlocked}>Rename</button>
                       <button type="button" onClick={(event) => {
-                        event.currentTarget.closest("details")?.removeAttribute("open");
+                        rememberMutationReturn(event.currentTarget, profile.name);
                         void reviewDeleteProfile(profile.name);
                       }} disabled={profileBusy || operationBlocked}>Delete</button>
                     </div>
@@ -156,10 +212,15 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
       </div>
 
       {activationPlan ? (
-        <section className="card activation-review" aria-label="Profile switch review">
+        <section
+          ref={activationReviewRef}
+          className="card activation-review"
+          aria-label="Profile switch review"
+          tabIndex={-1}
+        >
           <div className="activation-review__heading">
             <div><p className="eyebrow">Switch review</p><h2>Switch to {activationPlan.name}?</h2></div>
-            <button className="text-button" type="button" onClick={dismissActivationPlan} disabled={profileBusy}>Cancel</button>
+            <button className="text-button" type="button" onClick={cancelActivationReview} disabled={profileBusy}>Cancel</button>
           </div>
           {!activationPlan.sameInstall ? <p className="activation-warning">This profile belongs to {shortPath(activationPlan.savedInstallRoot)} and cannot be applied here.</p> : null}
           {activationPlan.missingMods.length > 0 ? <p className="activation-warning">Install these mods first: {activationPlan.missingMods.join(", ")}</p> : null}
@@ -175,7 +236,12 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
       ) : null}
 
       {mutationPlan ? (
-        <section className="card activation-review profile-mutation-review" aria-label="Profile change review">
+        <section
+          ref={mutationReviewRef}
+          className="card activation-review profile-mutation-review"
+          aria-label="Profile change review"
+          tabIndex={-1}
+        >
           <div className="activation-review__heading">
             <div>
               <p className="eyebrow">Profile review</p>
@@ -185,7 +251,7 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
                   ? `Duplicate ${mutationPlan.name} as ${mutationPlan.targetName}?`
                   : `Delete ${mutationPlan.name}?`}</h2>
             </div>
-            <button className="text-button" type="button" onClick={dismissMutationPlan} disabled={profileBusy}>Cancel</button>
+            <button className="text-button" type="button" onClick={cancelMutationReview} disabled={profileBusy}>Cancel</button>
           </div>
           <p>{mutationPlan.operation === "rename"
             ? "This renames the profile. Its mod list and prepared data stay unchanged."
