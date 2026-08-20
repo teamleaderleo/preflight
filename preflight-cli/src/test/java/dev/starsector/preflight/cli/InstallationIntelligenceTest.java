@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -85,7 +86,7 @@ class InstallationIntelligenceTest {
 
         String json = result.toJson();
         assertFalse(json.contains("/Users/leo/private/Starsector"));
-        assertFalse(json.toLowerCase().contains("compatibilityscore"));
+        assertFalse(json.toLowerCase(Locale.ROOT).contains("compatibilityscore"));
     }
 
     private static Map<String, Object> mod(
