@@ -2,10 +2,13 @@ package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.Json;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileAlreadyExistsException;
@@ -50,6 +53,7 @@ import java.util.function.BooleanSupplier;
 final class SaveProfileObservation {
     static final String FORMAT = "starsector-preflight-save-observations-v1";
     static final String FILE_NAME = "save-observations-v1.json";
+    static final long MAX_LEDGER_BYTES = 96L * 1024 * 1024;
     static final int MAX_RECORDS = 400;
     static final int MAX_MODS = 96;
     static final Duration MAX_AGE = Duration.ofDays(180);
@@ -159,6 +163,51 @@ final class SaveProfileObservation {
                 .sorted(Comparator.comparing(Observation::observedAt).reversed()
                         .thenComparing(Observation::saveKey))
                 .toList();
+    }
+
+    static Map<String, Object> readLedgerRoot(
+            Path file, long maximumBytes, BeforeLedgerOpenHook beforeOpen) throws IOException {
+        validateLedgerReadLimit(maximumBytes);
+        Objects.requireNonNull(file, "file");
+        Objects.requireNonNull(beforeOpen, "beforeOpen");
+        if (Files.size(file) > maximumBytes) {
+            return null;
+        }
+        beforeOpen.run(file);
+        try (InputStream input = Files.newInputStream(
+                file, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+            try {
+                return StrictJson.object(readLedgerText(input, maximumBytes, file.toString()));
+            } catch (UnavailableLedgerException | RuntimeException malformed) {
+                return null;
+            }
+        }
+    }
+
+    static String readLedgerText(InputStream input, long maximumBytes, String sourceLabel)
+            throws IOException {
+        Objects.requireNonNull(input, "input");
+        int readLimit = validateLedgerReadLimit(maximumBytes);
+        byte[] bytes = input.readNBytes(readLimit);
+        if (bytes.length > maximumBytes) {
+            throw new UnavailableLedgerException(
+                    "Save-observation ledger exceeds " + maximumBytes + " bytes: " + sourceLabel);
+        }
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
+        } catch (CharacterCodingException malformed) {
+            throw new UnavailableLedgerException(
+                    "Save-observation ledger is not valid UTF-8: " + sourceLabel, malformed);
+        }
+    }
+
+    @FunctionalInterface
+    interface BeforeLedgerOpenHook {
+        void run(Path path) throws IOException;
     }
 
     static List<Difference> differences(Observation observed, SessionIdentity current) {
@@ -798,12 +847,8 @@ final class SaveProfileObservation {
         private List<Observation> readUnlocked() throws IOException {
             Path file = ledgerFile(false);
             if (file == null) return List.of();
-            Map<String, Object> root;
-            try {
-                root = StrictJson.object(Files.readString(file));
-            } catch (RuntimeException malformed) {
-                return List.of();
-            }
+            Map<String, Object> root = readLedgerRoot(file, MAX_LEDGER_BYTES, ignored -> {});
+            if (root == null) return List.of();
             if (!FORMAT.equals(root.get("format"))) return List.of();
             if (!(root.get("records") instanceof List<?> records)) return List.of();
             List<Observation> observations = new ArrayList<>();
@@ -889,6 +934,23 @@ final class SaveProfileObservation {
                 throw new IOException("Save-observation directory escapes the Preflight home");
             }
             return realRuntime;
+        }
+    }
+
+    private static int validateLedgerReadLimit(long maximumBytes) {
+        if (maximumBytes < 0 || maximumBytes >= Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Save-observation ledger byte limit is invalid: " + maximumBytes);
+        }
+        return Math.toIntExact(maximumBytes + 1);
+    }
+
+    private static final class UnavailableLedgerException extends IOException {
+        private UnavailableLedgerException(String message) {
+            super(message);
+        }
+
+        private UnavailableLedgerException(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 
