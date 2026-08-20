@@ -5,8 +5,9 @@ feel like a person explaining the thing he spent an unreasonable amount of time 
 [beta-announcement-draft.md](beta-announcement-draft.md) as the longer source copy.
 
 Replace every bracketed field before posting. Convert the Markdown to BBCode for the Starsector
-forum. Read [Leo's talking points](leo-talking-points.md) before posting so the smaller finished
-features, current limits, and claim qualifiers do not disappear during the final edit.
+forum. Read [Leo's talking points](leo-talking-points.md) and
+[Public-writing sales inventory](public-writing-sales-inventory.md) before posting so the smaller
+finished features, current limits, and claim qualifiers do not disappear during the final edit.
 
 ## Title
 
@@ -46,14 +47,19 @@ launch the game sooner.
 - **It has named mod profiles.** Switching previews the exact `enabled_mods.json` change and saves a
   backup first. Profiles can be created, searched, renamed, duplicated, switched, and deleted.
   Duplicating a profile does not duplicate your mods, saves, or cache data.
-- **The usual launch settings are beside Launch.** Resolution, fullscreen, sound, antialiasing, UI
-  scale, RAM, and battle size are all there.
+- **The launch settings are actually useful.** Resolution, fullscreen, sound, antialiasing, UI scale,
+  RAM, and battle size all live beside Launch. The battle-size controls can extend beyond the vanilla
+  slider with presets through 2,000 deployment points while still using Starsector's own preference.
 - **It plans storage before preparation.** Preflight calculates the current profile's requirement,
   reuses matching prepared data, and refuses before writing when the safe bound does not fit. If the
   normal preparation is too large, it can offer a much smaller minimal-disk route.
 - **Recovery is part of the product.** Preparation can be stopped safely, damaged prepared data can
   be repaired for the exact profile, cleanup is previewed before deletion, and a failed run puts
   **Copy setup** directly beside Relaunch and Get help.
+- **It can inspect a broken-looking mod setup without launching the game.** The read-only deep setup
+  check can report missing enabled mods, invalid metadata, duplicate mod IDs, required dependencies
+  that are missing or disabled, and resolved variants that point at hulls absent from the active
+  profile. It changes nothing.
 - **Support data is deliberately boring.** Copy setup gives you the useful game/profile/mod/launch
   facts without paths, credentials, saves, or arbitrary logs. A separate support ZIP uses a fixed
   allowlist, tells you what is inside before you send it, and excludes saves, game/mod assets,
@@ -64,6 +70,15 @@ launch the game sooner.
   upgrade, rollback, and removal across macOS, Windows, and Linux.
 - **There is a read-only mod linter too.** It can inspect one mod or a whole profile for measurable
   asset/config costs without editing anything or assigning a score.
+
+The native desktop packages bring their own minimal Java runtime. You do not need to install a JDK
+to use the desktop app. The standalone JAR and the CLI still exist for people who want them, and they
+use the same engine and safety checks as the desktop.
+
+The CLI has some useful power-user tools of its own: `doctor` can show which Starsector launcher
+Preflight found without starting anything, `scan` can inventory a huge enabled profile, `--dry-run`
+can print the exact launch command without executing it, and the direct path can use Starsector's own
+saved launcher preferences when an unattended launch is useful.
 
 The linter came out of the same profiling work. On the reviewed mod set it found progressive JPEGs
 that decode about **8.75 times slower** through the game's ImageIO path, large amounts of avoidable
@@ -97,10 +112,11 @@ saves. Runtime optimizations exist inside the launched game process and disappea
 Profile switching and the launch-settings editor are the two explicit, backed-up paths that can
 change game-owned preferences.
 
-Every release package also carries a machine-checked capability receipt describing the native
-commands, writes, child processes, links, and network endpoints available to that exact package. The
-release pipeline is being tightened so the evidence for install/update/rollback and the final
-published package all refer to the same exact bytes.
+The desktop host is a fixed set of typed commands, not a generic shell. Every release package also
+carries a machine-checked capability receipt describing the native commands, writes, child processes,
+links, and network endpoints available to that exact package. The release pipeline is being tightened
+so the evidence for install/update/rollback and the final published package all refer to the same
+exact bytes.
 
 Yes, I used ChatGPT/Codex and Claude Code throughout development. I stand by the code, the tests, and
 the evidence. The repository includes the experiment history, rejected approaches, review notes,
