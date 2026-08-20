@@ -1,9 +1,14 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.Json;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +18,16 @@ final class GameConfigurationAuthority {
     private static final String EVIDENCE_KIND = "starsector-configuration-authority-v1";
     private static final String PREFERENCE_AUTHORITY = "java-preferences";
     private static final String HEAP_AUTHORITY = "launcher-heap-flags";
+    private static final String PREFERENCE_GENERATION_SCHEMA =
+            "starsector-launcher-preference-generation-v1";
+    private static final String HEAP_OBSERVATION_BINDING = "unbound-current-observation";
+    private static final List<String> PREFERENCE_KEYS = List.of(
+            GameLaunchPreferences.RESOLUTION,
+            GameLaunchPreferences.FULLSCREEN,
+            GameLaunchPreferences.SOUND,
+            GameLaunchPreferences.AA_SAMPLES,
+            GameLaunchPreferences.SCREEN_SCALE,
+            GameLaunchPreferences.GAMEPLAY_SETTINGS);
 
     private GameConfigurationAuthority() {
     }
@@ -86,15 +101,24 @@ final class GameConfigurationAuthority {
 
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("evidenceKind", EVIDENCE_KIND);
+        values.put("composition", "independent-supplied-snapshots");
+        values.put("freshness", "preference-generation-bound-heap-observation-unbound");
+        values.put("combinedCurrentnessEstablished", false);
         values.put("preferenceNode", DirectLaunchSettings.PREFERENCES_NODE);
+        values.put("preferenceGenerationBinding", "exact-supplied-generation-fingerprint");
+        values.put("preferenceGenerationFingerprint", preferenceGenerationFingerprint(generation));
+        values.put("heapObservationBinding", HEAP_OBSERVATION_BINDING);
+        values.put("heapObservationGenerationBound", false);
         values.put("settings", List.copyOf(settings));
         values.put("launcherPreferenceDiagnostics", launch.diagnostics());
-        values.put("memoryAuthorityResolved", memory.available());
+        values.put("heapObservationAvailable", memory.available());
         values.put("memoryDiagnosticCount", memory.diagnostics().size());
         values.put("notes", List.of(
                 "Launcher settings use the same Java Preferences node and keys as Starsector's own launcher.",
-                "Heap values come from the launcher-owned source selected by JvmMemorySettings; only a path relative to the selected installation is exposed.",
-                "The registration serial and unrelated launcher preferences are outside this projection.",
+                "The preference fingerprint identifies the exact supplied values for the launcher-setting keys in this projection.",
+                "Heap values come from a separately supplied JvmMemorySettings observation with no shared generation token; combined currentness is not established.",
+                "Heap source paths are only projected lexically relative to the selected installation; this projector does not perform a new filesystem containment check.",
+                "Registration credentials and unrelated launcher preferences are outside this projection.",
                 "This report is read-only and does not apply or stage configuration changes."));
         return new Result(values);
     }
@@ -129,13 +153,15 @@ final class GameConfigurationAuthority {
         value.put("name", name);
         value.put("effectiveValue", effectiveValue);
         value.put("authority", HEAP_AUTHORITY);
+        value.put("observationBinding", HEAP_OBSERVATION_BINDING);
+        value.put("generationBound", false);
         value.put("available", memory.available());
         value.put("editable", memory.editable());
         value.put("sourceKind", memory.sourceKind());
         SafeSource source = safeSource(installRoot, memory.source());
         value.put("sourceRelativePath", source.relativePath());
         value.put("sourceFileName", source.fileName());
-        value.put("sourceInsideSelectedInstall", source.insideSelectedInstall());
+        value.put("sourceLexicallyInsideSelectedInstall", source.lexicallyInsideSelectedInstall());
         return value;
     }
 
@@ -153,6 +179,34 @@ final class GameConfigurationAuthority {
         return new SafeSource(relative, fileName, true);
     }
 
+    private static String preferenceGenerationFingerprint(GameLaunchPreferences.Generation generation) {
+        MessageDigest digest = sha256();
+        update(digest, PREFERENCE_GENERATION_SCHEMA);
+        for (String key : PREFERENCE_KEYS) {
+            update(digest, key);
+            String raw = generation.get(key);
+            digest.update((byte) (raw == null ? 0 : 1));
+            if (raw != null) {
+                update(digest, raw);
+            }
+        }
+        return HexFormat.of().formatHex(digest.digest());
+    }
+
+    private static void update(MessageDigest digest, String value) {
+        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        digest.update(ByteBuffer.allocate(Integer.BYTES).putInt(bytes.length).array());
+        digest.update(bytes);
+    }
+
+    private static MessageDigest sha256() {
+        try {
+            return MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 is unavailable", impossible);
+        }
+    }
+
     record Result(Map<String, Object> values) {
         Result {
             values = Collections.unmodifiableMap(new LinkedHashMap<>(values));
@@ -163,6 +217,9 @@ final class GameConfigurationAuthority {
         }
     }
 
-    private record SafeSource(String relativePath, String fileName, boolean insideSelectedInstall) {
+    private record SafeSource(
+            String relativePath,
+            String fileName,
+            boolean lexicallyInsideSelectedInstall) {
     }
 }
