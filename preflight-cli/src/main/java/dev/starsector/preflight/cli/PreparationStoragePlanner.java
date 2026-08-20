@@ -96,6 +96,7 @@ final class PreparationStoragePlanner {
             long predictedLoose = 0;
             long upperLoose = 0;
             long reusableLoose = 0;
+            long selectedReusableLoose = 0;
             long uniqueSourceBytes = 0;
             long uniquePixelBytes = 0;
             int supported = 0;
@@ -126,6 +127,8 @@ final class PreparationStoragePlanner {
                 predictedLoose = saturatedAdd(predictedLoose, estimate.predictedAdditionalBytes());
                 upperLoose = saturatedAdd(upperLoose, estimate.upperAdditionalBytes());
                 reusableLoose = saturatedAdd(reusableLoose, estimate.reusableBytes());
+                selectedReusableLoose = saturatedAdd(
+                        selectedReusableLoose, estimate.selectedReusableBytes());
                 predictedPackEntries.put(estimate.selectedPath(), estimate.predictedSelectedFileBytes());
                 upperPackEntries.put(estimate.selectedPath(), estimate.upperSelectedFileBytes());
                 selectedPackPaths.put(entry.getKey(), estimate.selectedPath());
@@ -187,7 +190,7 @@ final class PreparationStoragePlanner {
             return new Plan(
                     index.profileFingerprint(), storage.optionValue(), cacheRoot, packPath,
                     candidates.size(), hashed.size(), unique.size(), supported, unsupported, failed,
-                    uniqueSourceBytes, uniquePixelBytes, reusableLoose,
+                    uniqueSourceBytes, uniquePixelBytes, reusableLoose, selectedReusableLoose,
                     predictedLoose, upperLoose, predictedPack, upperPack,
                     predictedMetadata, upperMetadata, predictedAdditional, upperAdditional,
                     margin, required, usable, Math.max(0, usable - upperAdditional),
@@ -231,10 +234,11 @@ final class PreparationStoragePlanner {
             ExistingBlob existingRaw = existingBlob(raw, key, pixelBytes);
             if (existingRaw != null) {
                 return new BlobEstimate(
-                        rawPath, existingRaw.fileBytes(), rawFileBytes, 0, 0, existingRaw.fileBytes());
+                        rawPath, existingRaw.fileBytes(), rawFileBytes, 0, 0,
+                        existingRaw.fileBytes(), existingRaw.fileBytes());
             }
             return new BlobEstimate(rawPath, rawFileBytes, rawFileBytes,
-                    rawFileBytes, rawFileBytes, 0);
+                    rawFileBytes, rawFileBytes, 0, 0);
         }
 
         String lz4Path = TextureBatchBuilder.blobRelativePath(key, PreparedTextureIO.StorageCodec.LZ4);
@@ -244,15 +248,16 @@ final class PreparationStoragePlanner {
             if (TextureBatchBuilder.compressionRatio(pixelBytes, existingLz4.storedPixelBytes())
                     >= TextureBatchBuilder.BALANCED_RAW_BELOW_RATIO) {
                 return new BlobEstimate(lz4Path, existingLz4.fileBytes(), rawFileBytes,
-                        0, 0, existingLz4.fileBytes());
+                        0, 0, existingLz4.fileBytes(), existingLz4.fileBytes());
             }
             ExistingBlob existingRaw = existingBlob(raw, key, pixelBytes);
             if (existingRaw != null) {
                 return new BlobEstimate(rawPath, existingRaw.fileBytes(), rawFileBytes,
-                        0, 0, saturatedAdd(existingLz4.fileBytes(), existingRaw.fileBytes()));
+                        0, 0, saturatedAdd(existingLz4.fileBytes(), existingRaw.fileBytes()),
+                        existingRaw.fileBytes());
             }
             return new BlobEstimate(rawPath, rawFileBytes, rawFileBytes,
-                    rawFileBytes, rawFileBytes, existingLz4.fileBytes());
+                    rawFileBytes, rawFileBytes, existingLz4.fileBytes(), 0);
         }
 
         long predictedLz4 = Math.min(rawFileBytes,
@@ -265,13 +270,15 @@ final class PreparationStoragePlanner {
             // The encoded-size heuristic affects the prediction only. The builder still has to
             // write the LZ4 candidate before measuring it and may then write a raw fallback.
             return new BlobEstimate(lz4Path, predictedLz4, rawFileBytes,
-                    predictedLz4, saturatedAdd(lz4Upper, rawFileBytes), 0);
+                    predictedLz4, saturatedAdd(lz4Upper, rawFileBytes), 0, 0);
         }
         // Balanced has to write the LZ4 candidate before it can prove raw is preferable.
+        ExistingBlob existingRaw = existingBlob(raw, key, pixelBytes);
+        long retainedReusable = existingRaw == null ? 0 : existingRaw.fileBytes();
         return new BlobEstimate(rawPath, rawFileBytes, rawFileBytes,
                 saturatedAdd(predictedLz4, rawFileBytes),
                 saturatedAdd(lz4Upper, rawFileBytes),
-                existingBlob(raw, key, pixelBytes) == null ? 0 : Files.size(raw));
+                retainedReusable, 0);
     }
 
     private static ExistingBlob existingBlob(
@@ -384,6 +391,7 @@ final class PreparationStoragePlanner {
             long uniqueSourceBytes,
             long uniquePixelBytes,
             long reusableLooseBytes,
+            long selectedReusableLooseBytes,
             long predictedLooseBytes,
             long upperLooseBytes,
             long predictedPackBytes,
@@ -419,6 +427,7 @@ final class PreparationStoragePlanner {
             values.put("uniqueSourceBytes", uniqueSourceBytes);
             values.put("uniquePixelBytes", uniquePixelBytes);
             values.put("reusableLooseBytes", reusableLooseBytes);
+            values.put("selectedReusableLooseBytes", selectedReusableLooseBytes);
             values.put("predictedLooseBytes", predictedLooseBytes);
             values.put("upperLooseBytes", upperLooseBytes);
             values.put("predictedPackBytes", predictedPackBytes);
@@ -462,7 +471,8 @@ final class PreparationStoragePlanner {
             long upperSelectedFileBytes,
             long predictedAdditionalBytes,
             long upperAdditionalBytes,
-            long reusableBytes) {
+            long reusableBytes,
+            long selectedReusableBytes) {
     }
 
     private record ExistingBlob(long fileBytes, long storedPixelBytes) {

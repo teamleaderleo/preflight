@@ -1,10 +1,12 @@
 package dev.starsector.preflight.cli;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -226,12 +228,24 @@ final class LaunchLedgerBackfill {
                 values.get("textureProfileFingerprint") instanceof String profile ? profile : null);
     }
 
-    private static Map<String, Object> metadata(Path directory) {
+    static Map<String, Object> metadata(Path directory) {
         Path path = directory.resolve("run.json");
         if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) return null;
         try {
             if (Files.size(path) > MAX_RUN_METADATA_BYTES) return null;
-            return StrictJson.object(Files.readString(path, StandardCharsets.UTF_8));
+            try (InputStream input = Files.newInputStream(
+                    path, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+                return metadata(input, path.toString());
+            }
+        } catch (IOException unreadable) {
+            return null;
+        }
+    }
+
+    static Map<String, Object> metadata(InputStream input, String sourceLabel) {
+        try {
+            return BoundedEvidenceJson.readObject(
+                    input, MAX_RUN_METADATA_BYTES, sourceLabel, "Launch run metadata");
         } catch (IOException | RuntimeException unreadable) {
             return null;
         }
