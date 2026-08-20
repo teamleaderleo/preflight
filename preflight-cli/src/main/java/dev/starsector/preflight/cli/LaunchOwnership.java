@@ -1,6 +1,9 @@
 package dev.starsector.preflight.cli;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -46,12 +49,32 @@ record LaunchOwnership(Owner owner, List<String> evidence) {
         return owner == Owner.FAST_RENDERING;
     }
 
-    private static String boundedText(Path path, long maximumBytes) {
+    static String boundedText(Path path, long maximumBytes) {
         try {
             if (!Files.isRegularFile(path) || Files.size(path) > maximumBytes) {
                 return "";
             }
-            return Files.readString(path, StandardCharsets.UTF_8).toLowerCase(Locale.ROOT);
+            try (InputStream input = Files.newInputStream(path)) {
+                return boundedText(input, maximumBytes);
+            }
+        } catch (IOException | RuntimeException ignored) {
+            return "";
+        }
+    }
+
+    static String boundedText(InputStream input, long maximumBytes) {
+        try {
+            int readLimit = Math.toIntExact(Math.addExact(maximumBytes, 1));
+            byte[] bytes = input.readNBytes(readLimit);
+            if (bytes.length > maximumBytes) {
+                return "";
+            }
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString()
+                    .toLowerCase(Locale.ROOT);
         } catch (IOException | RuntimeException ignored) {
             return "";
         }
