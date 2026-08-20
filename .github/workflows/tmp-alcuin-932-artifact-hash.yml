@@ -1,0 +1,322 @@
+name: Temporary #932 bounded smoke artifact hashing repair
+
+on:
+  push:
+    branches: [hardening/932-bounded-smoke-artifact-hash]
+    paths:
+      - '.github/workflows/tmp-alcuin-932-artifact-hash.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: hardening/932-bounded-smoke-artifact-hash
+      - name: Apply bounded artifact hashing repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path('preflight-cli/src/main/java/dev/starsector/preflight/cli/DesktopSmokeEvidence.java')
+          text = source.read_text(encoding='utf-8')
+          if 'static SealedArtifact sealArtifact(' in text:
+              raise SystemExit(0)
+
+          old = '''                BasicFileAttributes before = Files.readAttributes(
+                          real, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+                  if (before.size() > MAX_ARTIFACT_BYTES) {
+                      throw new IOException("Smoke artifact exceeds " + MAX_ARTIFACT_BYTES + " bytes: " + real);
+                  }
+                  String sha256 = Hashes.sha256(real);
+                  BasicFileAttributes after = Files.readAttributes(
+                          real, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+                  if (before.size() != after.size()
+                          || !before.lastModifiedTime().equals(after.lastModifiedTime())
+                          || (before.fileKey() != null && !before.fileKey().equals(after.fileKey()))) {
+                      throw new IOException("Smoke artifact changed while it was being sealed: " + real);
+                  }
+                  totalBytes = Math.addExact(totalBytes, after.size());
+                  if (totalBytes > MAX_TOTAL_ARTIFACT_BYTES) {
+                      throw new IOException(
+                              "Smoke artifacts exceed " + MAX_TOTAL_ARTIFACT_BYTES + " bytes in total");
+                  }
+                  Map<String, Object> artifact = new LinkedHashMap<>();
+                  artifact.put("kind", kind);
+                  artifact.put("path", real);
+                  artifact.put("bytes", after.size());
+                  artifact.put("sha256", sha256);'''
+          new = '''                long remainingAggregateBytes = MAX_TOTAL_ARTIFACT_BYTES - totalBytes;
+                  SealedArtifact sealed = sealArtifact(
+                          real,
+                          MAX_ARTIFACT_BYTES,
+                          remainingAggregateBytes,
+                          ignored -> {});
+                  totalBytes = Math.addExact(totalBytes, sealed.bytes());
+                  Map<String, Object> artifact = new LinkedHashMap<>();
+                  artifact.put("kind", kind);
+                  artifact.put("path", real);
+                  artifact.put("bytes", sealed.bytes());
+                  artifact.put("sha256", sealed.sha256());'''
+          if text.count(old) != 1:
+              raise SystemExit('collector replacement count != 1')
+          text = text.replace(old, new)
+
+          anchor = '''    private record Driver(String id, String version, String platform, List<String> capabilities) {
+'''
+          helper = '''    static SealedArtifact sealArtifact(
+              Path path,
+              long maximumArtifactBytes,
+              long remainingAggregateBytes,
+              BeforeArtifactOpenHook beforeOpen) throws IOException {
+          if (maximumArtifactBytes < 0 || maximumArtifactBytes > MAX_ARTIFACT_BYTES) {
+              throw new IllegalArgumentException("Smoke artifact byte limit is invalid: " + maximumArtifactBytes);
+          }
+          if (remainingAggregateBytes < 0 || remainingAggregateBytes > MAX_TOTAL_ARTIFACT_BYTES) {
+              throw new IllegalArgumentException(
+                      "Smoke artifact aggregate remainder is invalid: " + remainingAggregateBytes);
+          }
+          if (beforeOpen == null) {
+              throw new IllegalArgumentException("Smoke artifact pre-open hook is required");
+          }
+
+          BasicFileAttributes before = Files.readAttributes(
+                  path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+          if (!before.isRegularFile()) {
+              throw new IOException("Smoke artifact is not a regular file: " + path);
+          }
+          if (before.size() > maximumArtifactBytes) {
+              throw new IOException("Smoke artifact exceeds " + maximumArtifactBytes + " bytes: " + path);
+          }
+          if (before.size() > remainingAggregateBytes) {
+              throw new IOException(
+                      "Smoke artifacts exceed the remaining " + remainingAggregateBytes + " byte aggregate budget");
+          }
+
+          long actualReadLimit = Math.min(maximumArtifactBytes, remainingAggregateBytes);
+          beforeOpen.run(path);
+          String sha256;
+          try (InputStream input = Files.newInputStream(
+                  path, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+              sha256 = hashBoundedArtifact(input, actualReadLimit, path.toString());
+          }
+
+          BasicFileAttributes after = Files.readAttributes(
+                  path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+          if (before.size() != after.size()
+                  || !before.lastModifiedTime().equals(after.lastModifiedTime())
+                  || (before.fileKey() != null && !before.fileKey().equals(after.fileKey()))) {
+              throw new IOException("Smoke artifact changed while it was being sealed: " + path);
+          }
+          if (after.size() > actualReadLimit) {
+              throw new IOException("Smoke artifact exceeded its bounded hash read: " + path);
+          }
+          return new SealedArtifact(after.size(), sha256);
+      }
+
+      static String hashBoundedArtifact(InputStream input, long maximumBytes, String sourceLabel)
+              throws IOException {
+          if (maximumBytes < 0 || maximumBytes > MAX_ARTIFACT_BYTES) {
+              throw new IllegalArgumentException("Smoke artifact hash limit is invalid: " + maximumBytes);
+          }
+          return Hashes.sha256(new BoundedArtifactInputStream(input, maximumBytes, sourceLabel));
+      }
+
+      record SealedArtifact(long bytes, String sha256) {
+      }
+
+      @FunctionalInterface
+      interface BeforeArtifactOpenHook {
+          void run(Path path) throws IOException;
+      }
+
+      private static final class BoundedArtifactInputStream extends InputStream {
+          private final InputStream input;
+          private final long maximumBytes;
+          private final String sourceLabel;
+          private long consumed;
+
+          private BoundedArtifactInputStream(InputStream input, long maximumBytes, String sourceLabel) {
+              this.input = input;
+              this.maximumBytes = maximumBytes;
+              this.sourceLabel = sourceLabel;
+          }
+
+          @Override
+          public int read() throws IOException {
+              byte[] one = new byte[1];
+              int read = read(one, 0, 1);
+              return read < 0 ? -1 : Byte.toUnsignedInt(one[0]);
+          }
+
+          @Override
+          public int read(byte[] bytes, int offset, int length) throws IOException {
+              if (offset < 0 || length < 0 || offset > bytes.length - length) {
+                  throw new IndexOutOfBoundsException();
+              }
+              if (length == 0) return 0;
+              if (consumed == maximumBytes) {
+                  int extra = input.read();
+                  if (extra < 0) return -1;
+                  consumed++;
+                  throw new IOException(
+                          "Smoke artifact exceeds the bounded hash read of " + maximumBytes
+                                  + " bytes: " + sourceLabel);
+              }
+              int allowed = (int) Math.min((long) length, maximumBytes - consumed);
+              int read = input.read(bytes, offset, allowed);
+              if (read > 0) consumed += read;
+              return read;
+          }
+      }
+
+'''
+          if text.count(anchor) != 1:
+              raise SystemExit('helper insertion anchor count != 1')
+          text = text.replace(anchor, helper + anchor)
+          source.write_text(text, encoding='utf-8')
+
+          test = Path('preflight-cli/src/test/java/dev/starsector/preflight/cli/DesktopSmokeEvidenceArtifactBoundTest.java')
+          test.write_text('''package dev.starsector.preflight.cli;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
+import dev.starsector.preflight.core.Hashes;
+import java.io.FilterInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+final class DesktopSmokeEvidenceArtifactBoundTest {
+    @TempDir
+    Path root;
+
+    @Test
+    void exactArtifactReadLimitIsInclusive() throws Exception {
+        Path file = Files.write(root.resolve("exact.bin"), new byte[] {1, 2, 3, 4, 5, 6});
+
+        DesktopSmokeEvidence.SealedArtifact sealed = DesktopSmokeEvidence.sealArtifact(
+                file, 6, 6, ignored -> {});
+
+        assertEquals(6, sealed.bytes());
+        assertEquals(Hashes.sha256(file), sealed.sha256());
+    }
+
+    @Test
+    void initiallyOversizedArtifactIsRefusedBeforeHashOpen() throws Exception {
+        Path file = Files.write(root.resolve("oversized.bin"), new byte[] {1, 2, 3, 4});
+        AtomicBoolean opened = new AtomicBoolean();
+
+        assertThrows(IOException.class, () -> DesktopSmokeEvidence.sealArtifact(
+                file,
+                3,
+                10,
+                ignored -> opened.set(true)));
+
+        assertFalse(opened.get());
+    }
+
+    @Test
+    void artifactExceedingRemainingAggregateIsRefusedBeforeHashOpen() throws Exception {
+        Path file = Files.write(root.resolve("aggregate.bin"), new byte[] {1, 2, 3, 4});
+        AtomicBoolean opened = new AtomicBoolean();
+
+        assertThrows(IOException.class, () -> DesktopSmokeEvidence.sealArtifact(
+                file,
+                10,
+                3,
+                ignored -> opened.set(true)));
+
+        assertFalse(opened.get());
+    }
+
+    @Test
+    void growthDuringOpenedHashIsRejectedAtLimitPlusOne() throws Exception {
+        Path file = Files.write(root.resolve("growing.bin"), new byte[] {1, 2, 3, 4});
+        AtomicBoolean appended = new AtomicBoolean();
+
+        try (InputStream raw = Files.newInputStream(file);
+                InputStream growing = new FilterInputStream(raw) {
+                    @Override
+                    public int read(byte[] bytes, int offset, int length) throws IOException {
+                        int requested = appended.get() ? length : Math.min(1, length);
+                        int read = super.read(bytes, offset, requested);
+                        if (!appended.get() && read > 0) {
+                            Files.write(file, new byte[] {5}, StandardOpenOption.APPEND);
+                            appended.set(true);
+                        }
+                        return read;
+                    }
+                }) {
+            assertThrows(
+                    IOException.class,
+                    () -> DesktopSmokeEvidence.hashBoundedArtifact(growing, 4, file.toString()));
+        }
+
+        assertTrue(appended.get());
+        assertEquals(5, Files.size(file));
+    }
+
+    @Test
+    void remainingAggregateAlsoBoundsActualHashWork() throws Exception {
+        Path file = Files.write(root.resolve("remaining.bin"), new byte[] {1, 2, 3});
+
+        try (InputStream input = Files.newInputStream(file)) {
+            assertThrows(
+                    IOException.class,
+                    () -> DesktopSmokeEvidence.hashBoundedArtifact(input, 2, file.toString()));
+        }
+    }
+
+    @Test
+    void finalComponentSymlinkReplacementIsRejectedAtActualHashOpen() throws Exception {
+        Path file = Files.write(root.resolve("reviewed.bin"), new byte[] {1, 2, 3});
+        Path replacement = Files.write(root.resolve("replacement.bin"), new byte[] {4, 5, 6});
+        Path probe = root.resolve("symlink-probe");
+        try {
+            Files.createSymbolicLink(probe, replacement.getFileName());
+        } catch (UnsupportedOperationException | IOException unavailable) {
+            assumeTrue(false, "Symbolic links are unavailable: " + unavailable.getMessage());
+        }
+        Files.delete(probe);
+
+        assertThrows(IOException.class, () -> DesktopSmokeEvidence.sealArtifact(
+                file,
+                10,
+                10,
+                path -> {
+                    Files.delete(path);
+                    Files.createSymbolicLink(path, replacement.getFileName());
+                }));
+        assertTrue(Files.isSymbolicLink(file));
+    }
+}
+''', encoding='utf-8')
+          PY
+
+          ./mvnw -q -pl preflight-cli -am -DskipTests package
+          ./mvnw -q -pl preflight-cli -Dtest=DesktopSmokeEvidenceArtifactBoundTest,DesktopSmokeEvidenceTest,DesktopSmokeEvidenceBoundedReadTest test
+
+          git config user.name 'Alcuin'
+          git config user.email 'actions@users.noreply.github.com'
+          git add preflight-cli/src/main/java/dev/starsector/preflight/cli/DesktopSmokeEvidence.java \
+                  preflight-cli/src/test/java/dev/starsector/preflight/cli/DesktopSmokeEvidenceArtifactBoundTest.java
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'Bound desktop smoke artifact hashing work (#932)'
+          git push origin HEAD:hardening/932-bounded-smoke-artifact-hash
