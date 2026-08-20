@@ -1,10 +1,15 @@
 package dev.starsector.preflight.cli;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -31,7 +36,7 @@ import java.util.Set;
  * killed after the first historical import recoverable without counting a wrapper that is alive.
  */
 final class LaunchLedgerBackfill {
-    private static final long MAX_RUN_METADATA_BYTES = 1024L * 1024L;
+    private static final int MAX_RUN_METADATA_BYTES = 1024 * 1024;
 
     private LaunchLedgerBackfill() {
     }
@@ -227,14 +232,55 @@ final class LaunchLedgerBackfill {
     }
 
     private static Map<String, Object> metadata(Path directory) {
-        Path path = directory.resolve("run.json");
+        return readMetadataFile(
+                directory.resolve("run.json"),
+                MAX_RUN_METADATA_BYTES,
+                input -> input);
+    }
+
+    static Map<String, Object> readMetadataFile(
+            Path path,
+            int maximumBytes,
+            InputDecorator decorator) {
+        if (maximumBytes < 1 || maximumBytes == Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Run metadata read limit is invalid: " + maximumBytes);
+        }
+        if (decorator == null) {
+            throw new IllegalArgumentException("Run metadata input decorator is required");
+        }
         if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) return null;
         try {
-            if (Files.size(path) > MAX_RUN_METADATA_BYTES) return null;
-            return StrictJson.object(Files.readString(path, StandardCharsets.UTF_8));
+            if (Files.size(path) > maximumBytes) return null;
+            try (InputStream raw = Files.newInputStream(
+                    path,
+                    StandardOpenOption.READ,
+                    LinkOption.NOFOLLOW_LINKS)) {
+                InputStream input = decorator.decorate(raw);
+                if (input == null) return null;
+                byte[] bytes = input.readNBytes(Math.addExact(maximumBytes, 1));
+                if (bytes.length > maximumBytes) return null;
+                return StrictJson.object(decodeMetadataUtf8(bytes));
+            }
         } catch (IOException | RuntimeException unreadable) {
             return null;
         }
+    }
+
+    private static String decodeMetadataUtf8(byte[] bytes) throws IOException {
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
+        } catch (CharacterCodingException malformed) {
+            throw new IOException("Run metadata is not valid UTF-8", malformed);
+        }
+    }
+
+    @FunctionalInterface
+    interface InputDecorator {
+        InputStream decorate(InputStream input) throws IOException;
     }
 
     private static Long integer(Object value) {
