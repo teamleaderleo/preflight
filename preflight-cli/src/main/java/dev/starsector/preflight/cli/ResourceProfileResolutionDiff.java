@@ -166,13 +166,14 @@ final class ResourceProfileResolutionDiff {
         values.put("comparisonScope", "resource-index-resolution-and-provider-snapshot-metadata");
         values.put("filesystemRead", false);
         values.put("sourceGenerationBound", false);
-        values.put("providerSourceIdentity", "core-root-id-relative-path");
+        values.put("providerSourceIdentity", "core-root-id-canonical-root-relative-path");
         values.put("rootIndexScope", "profile-local-provider-occurrence");
         values.put("totals", totals);
         values.put("changes", List.copyOf(changes));
         values.put("notes", List.of(
                 "This comparison uses only the two supplied immutable ResourceIndex snapshots and performs no filesystem reads.",
-                "Provider source equality compares core/mod identity, root ID, and provider-relative path while preserving sequence and multiplicity.",
+                "Provider source equality compares core/mod identity, root ID, the snapshot's normalized root path, and provider-relative path while preserving sequence and multiplicity.",
+                "The root path participates only in private comparison identity and is never serialized by this evidence result.",
                 "rootIndex remains visible inside each side's ownership explanation but is local to that profile snapshot and is not cross-profile identity.",
                 "Metadata-only counters apply only when the corresponding provider or winner source identity stayed the same.",
                 "Provider size and modifiedMillis differences are ResourceIndex snapshot metadata changes, not exact content-generation evidence.",
@@ -247,6 +248,7 @@ final class ResourceProfileResolutionDiff {
         ResourceIndex.Root afterRoot = afterIndex.roots().get(afterProvider.rootIndex());
         return beforeRoot.core() == afterRoot.core()
                 && beforeRoot.id().equals(afterRoot.id())
+                && beforeRoot.path().equals(afterRoot.path())
                 && beforeProvider.relativePath().equals(afterProvider.relativePath());
     }
 
