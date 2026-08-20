@@ -8,7 +8,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -253,8 +252,8 @@ final class MergedSpreadsheetProvenance {
             RowKey key,
             KeyContributors contributors) {
         Map<String, String> keyValues = new LinkedHashMap<>();
-        for (int index = 0; index < keyColumns.size(); index++) {
-            keyValues.put(keyColumns.get(index), key.values().get(index));
+        for (int keyIndex = 0; keyIndex < keyColumns.size(); keyIndex++) {
+            keyValues.put(keyColumns.get(keyIndex), key.values().get(keyIndex));
         }
         List<Map<String, Object>> contributorValues = contributors.rowsByProvider().entrySet().stream()
                 .map(entry -> contributorMap(index, entry.getKey(), entry.getValue()))
