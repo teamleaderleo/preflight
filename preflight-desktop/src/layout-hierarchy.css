@@ -3,6 +3,7 @@
 
 /* Keep every Home state scroll-reachable; #982 removed the dead base launch-console tracks. */
 .page-viewport--home {
+  position: relative;
   overflow-y: auto;
   padding-right: 5px;
 }
@@ -53,6 +54,46 @@
   left: auto;
   max-width: 42%;
   text-align: right;
+}
+
+/* A captured failed run is the active job, but it should not physically shove the entire Home hero
+ * down when it appears. Keep the alert first in DOM order while letting it float over a stable
+ * companion field. The adjacent-console selectors deliberately scope the taller portrait only to
+ * this observed run-recovery composition; other recovery/error states keep their own layout. */
+.page-viewport--home > .run-recovery[role="alert"] {
+  position: absolute;
+  z-index: 8;
+  top: 0;
+  right: 5px;
+  left: 0;
+  margin-bottom: 0;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+}
+
+.page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery {
+  height: 100%;
+  min-height: 100%;
+}
+
+.page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .launch-console__primary {
+  height: 100%;
+  min-height: 100%;
+}
+
+.page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-flight-instrument {
+  inset: 120px 30px 54px;
+  opacity: .72;
+}
+
+.page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-launch-identity {
+  top: auto;
+  right: auto;
+  bottom: 18px;
+  left: 18px;
+  width: min(520px, calc(100% - 36px));
+  text-align: left;
+  transform: none;
 }
 
 /* Motion, direction, and appearance reset form one compact local cluster. Reset keeps a visible word
@@ -121,5 +162,25 @@
     right: 12px;
     bottom: 8px;
     max-width: 46%;
+  }
+
+  .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery {
+    height: 100%;
+    min-height: 100%;
+  }
+
+  .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .launch-console__primary {
+    min-height: 100%;
+  }
+
+  .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-flight-instrument {
+    inset: 105px 8px 24px;
+  }
+
+  .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-launch-identity {
+    top: auto;
+    bottom: 12px;
+    left: 14px;
+    width: calc(100% - 28px);
   }
 }
