@@ -50,7 +50,7 @@ Useful line:
 Lead with concrete boundaries:
 
 - no permanent patch to Starsector or mod JARs;
-- no rewrite of saves, game assets, mod archives, or activation data;
+- no rewrite of saves, game assets, or mod archives;
 - runtime shortcuts exist only inside the child game JVM;
 - changed or unfamiliar targets decline to the original game path;
 - profile and launch-setting writes are explicit, bounded, reviewed, and backed up;

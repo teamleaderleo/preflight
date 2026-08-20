@@ -56,7 +56,7 @@ Starsector itself does not expose a playtime total. The usual workaround has bee
 as a non-Steam shortcut. As far as I can find, Preflight is the first dedicated Starsector playtime
 tracker.
 
-Preflight keeps a durable local ledger for sessions it launches and can observe. Recording continues
+Preflight keeps a bounded local play-history ledger for sessions it launches and can observe. Recording continues
 when the desktop minimizes or exits after starting the game. The Speed page shows the total and
 session context, and **Copy playtime** can produce a bounded summary with total recorded time,
 session count, longest and average session, and first/latest recorded dates.
@@ -245,7 +245,7 @@ report gets a case receipt with its digest/size and retention/deletion informati
 
 ## What Preflight changes
 
-Preflight leaves Starsector's JARs, executables, assets, activation data, mods, and saves alone.
+Preflight leaves Starsector's JARs, executables, assets, mods, and saves alone.
 Runtime changes live only inside the launched game JVM and disappear when the process exits.
 Prepared data lives in Preflight's own directory.
 
