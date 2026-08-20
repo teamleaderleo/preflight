@@ -1,6 +1,10 @@
 package dev.starsector.preflight.cli;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -70,7 +74,10 @@ final class JvmMemorySettings {
     }
 
     static Snapshot inspect(Path installRoot, LaunchTarget target) {
-        return inspect(installRoot, target, path -> Files.readString(path, StandardCharsets.UTF_8));
+        return inspect(
+                installRoot,
+                target,
+                path -> readBoundedSettingsText(path, (int) MAX_SETTINGS_BYTES));
     }
 
     /** Test seam proving containment is established before a candidate is opened. */
@@ -244,7 +251,7 @@ final class JvmMemorySettings {
         if (original.bytes().length > MAX_SETTINGS_BYTES) {
             throw new IOException("The heap settings file is too large to edit safely: " + source);
         }
-        String text = new String(original.bytes(), StandardCharsets.UTF_8);
+        String text = decodeSettingsUtf8(original.bytes(), source.toString());
         if (count(MAX_HEAP.matcher(text)) != 1 || count(INITIAL_HEAP.matcher(text)) > 1) {
             throw new IOException(SETTINGS_CHANGED);
         }
@@ -373,6 +380,68 @@ final class JvmMemorySettings {
         }
     }
 
+    static String readBoundedSettingsText(Path path, int maximumBytes) throws IOException {
+        return readBoundedSettingsText(path, maximumBytes, ignored -> {});
+    }
+
+    static String readBoundedSettingsText(
+            Path path,
+            int maximumBytes,
+            UpdateHook beforeOpen) throws IOException {
+        validateSettingsReadLimit(maximumBytes);
+        if (beforeOpen == null) {
+            throw new IllegalArgumentException("Heap settings pre-open hook is required");
+        }
+        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("Heap settings source is not a regular file: " + path);
+        }
+        long size = Files.size(path);
+        if (size > maximumBytes) {
+            throw new IOException("Heap settings file exceeds the " + maximumBytes + " byte safety limit: " + path);
+        }
+        beforeOpen.run(path);
+        try (InputStream input = openSettingsInput(path)) {
+            return decodeSettingsUtf8(
+                    readBoundedSettingsBytes(input, maximumBytes, path.toString()),
+                    path.toString());
+        }
+    }
+
+    private static InputStream openSettingsInput(Path path) throws IOException {
+        return Files.newInputStream(path, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS);
+    }
+
+    static byte[] readBoundedSettingsBytes(
+            InputStream input,
+            int maximumBytes,
+            String sourceLabel) throws IOException {
+        validateSettingsReadLimit(maximumBytes);
+        byte[] bytes = input.readNBytes(Math.addExact(maximumBytes, 1));
+        if (bytes.length > maximumBytes) {
+            throw new IOException(
+                    "Heap settings file exceeds the " + maximumBytes + " byte safety limit: " + sourceLabel);
+        }
+        return bytes;
+    }
+
+    private static void validateSettingsReadLimit(int maximumBytes) {
+        if (maximumBytes < 1 || maximumBytes > MAX_SETTINGS_BYTES) {
+            throw new IllegalArgumentException("Heap settings read limit is invalid: " + maximumBytes);
+        }
+    }
+
+    private static String decodeSettingsUtf8(byte[] bytes, String sourceLabel) throws IOException {
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
+        } catch (CharacterCodingException error) {
+            throw new IOException("Heap settings file is not valid UTF-8: " + sourceLabel, error);
+        }
+    }
+
     private static Path containedFile(
             Path realRoot, Path candidate, List<String> diagnostics, String label) {
         try {
@@ -420,7 +489,13 @@ final class JvmMemorySettings {
     private static SourceState readStableSource(Path source) throws IOException {
         BasicFileAttributes before = Files.readAttributes(
                 source, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
-        byte[] bytes = Files.readAllBytes(source);
+        if (before.size() > MAX_SETTINGS_BYTES) {
+            throw new IOException("The heap settings file is too large to edit safely: " + source);
+        }
+        byte[] bytes;
+        try (InputStream input = openSettingsInput(source)) {
+            bytes = readBoundedSettingsBytes(input, (int) MAX_SETTINGS_BYTES, source.toString());
+        }
         BasicFileAttributes after = Files.readAttributes(
                 source, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
         FileIdentity beforeIdentity = FileIdentity.from(before);
