@@ -6,6 +6,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.channels.FileChannel;
@@ -66,7 +67,24 @@ public final class PreparedHullJsonCacheIO {
         if (size < minimumFileBytes() || size > MAX_FILE_BYTES) {
             throw new IOException("Prepared hull cache size is invalid: " + source);
         }
-        return fromBytes(Files.readAllBytes(source));
+        try (InputStream input = Files.newInputStream(source)) {
+            return read(input, MAX_FILE_BYTES, source.toString());
+        }
+    }
+
+    static PreparedHullJsonCache read(InputStream input, int maximumBytes, String sourceLabel) throws IOException {
+        if (maximumBytes < minimumFileBytes() || maximumBytes > MAX_FILE_BYTES) {
+            throw new IllegalArgumentException("Prepared hull cache read limit is invalid: " + maximumBytes);
+        }
+        byte[] bytes = input.readNBytes(maximumBytes + 1);
+        if (bytes.length > maximumBytes) {
+            throw new IOException(
+                    "Prepared hull cache exceeds the " + maximumBytes + " byte safety limit: " + sourceLabel);
+        }
+        if (bytes.length < minimumFileBytes()) {
+            throw new IOException("Prepared hull cache size is invalid: " + sourceLabel);
+        }
+        return fromBytes(bytes);
     }
 
     public static byte[] toBytes(PreparedHullJsonCache cache) throws IOException {
