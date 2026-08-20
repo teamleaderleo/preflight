@@ -1,29 +1,31 @@
 # Release readiness
 
-**Status:** release-candidate preparation; Fractal Softworks guidance requested, awaiting response
+**Status:** release-candidate execution; four candidate/platform blockers remain
 
-**Updated:** 2026-08-16
+**Updated:** 2026-08-20
 
-Preflight has a credible performance result and a verified cross-platform packaging pipeline. It is
-still inside the release boundary below.
+Preflight has a credible performance result and a verified cross-platform packaging pipeline. The
+remaining first-beta gate is candidate/platform evidence, not external permission guidance.
 
 | Area | Current state |
 | --- | --- |
-| Publication policy | Guidance requested August 7; maintainer decision pending |
+| Publication policy | Maintainer decision recorded August 20: the Fractal Softworks request remains a courtesy notice, not a publication gate |
 | Desktop product | First-run, preparation, profiles, settings, updates, reports, cleanup, and removal implemented |
 | Package lifecycle | Local macOS candidate passes; complete hosted three-platform candidate pending |
 | Real-game coverage | Development macOS profile exercised; Windows and Linux runs pending |
 | Performance record | **101s → 15.25s** established; controlled medians are 89.00s/15.53s on one profile; packaged benchmark still to run |
-| Publication | No public release until the candidate and publication decision are accepted |
+| Publication | No public release until the exact candidate/platform evidence below is accepted |
 
 ## Blocking before public distribution
 
-- [ ] Resolve the publication policy after the requested Fractal Softworks guidance window. The
-  [permission request](fractal-permission-request.md) was sent on 2026-08-07; this is an owner/legal
-  decision rather than an unfinished engine feature.
+- [x] Record the publication-policy decision. The
+  [permission request](fractal-permission-request.md) sent on 2026-08-07 remains a courtesy notice;
+  waiting for a response is not a release gate. Preflight remains an independent, unofficial project
+  that redistributes no Starsector content.
 - [x] Use **Preflight** as the public product, repository, and application name.
-- [ ] Confirm descriptive use of the Starsector name, trademark attribution, and disclaimer with
-  Fractal Softworks.
+- [x] Retain descriptive use of the Starsector name with the existing trademark attribution and
+  unofficial-project disclaimer. External confirmation is not required for the maintainer's current
+  publication decision.
 - [x] Use the project-controlled `io.github.teamleaderleo.preflight` bundle identifier before users
   install persistent packages.
 - [x] Record the first-beta package trust policy. macOS and Windows packages will ship without paid
