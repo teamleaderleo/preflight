@@ -117,6 +117,42 @@ class ModJarApiUsageTest {
     }
 
     @Test
+    void doesNotTurnBundledDuplicateClassIntoCrossModUsage() throws Exception {
+        Path install = temporaryDirectory.resolve("BundledDuplicate");
+        Path mods = install.resolve("mods");
+
+        Path library = mods.resolve("Library");
+        metadata(library, """
+                {"id":"library","jars":["jars/library.jar"]}
+                """);
+        jar(library.resolve("jars/library.jar"), Map.of(
+                "shared/Api.class", classFile("shared.Api")));
+
+        Path consumer = mods.resolve("Consumer");
+        metadata(consumer, """
+                {"id":"consumer","jars":["jars/consumer.jar"]}
+                """);
+        jar(consumer.resolve("jars/consumer.jar"), Map.of(
+                "consumer/Main.class", classFile("consumer.Main", "shared.Api"),
+                "shared/Api.class", classFile("shared.Api")));
+
+        enable(install, List.of("library", "consumer"));
+
+        ModJarApiUsage.Result result = ModJarApiUsage.scan(install);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> totals = (Map<String, Object>) result.values().get("totals");
+        assertEquals(0L, count(totals, "staticModEdges"));
+        assertEquals(1L, count(totals, "ambiguousStaticReferences"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> ambiguous =
+                (List<Map<String, Object>>) result.values().get("ambiguousStaticReferenceSamples");
+        assertEquals("consumer", ambiguous.get(0).get("fromMod"));
+        assertEquals("shared.Api", ambiguous.get(0).get("className"));
+        assertEquals(List.of("library", "consumer"), ambiguous.get(0).get("providerMods"));
+    }
+
+    @Test
     void isolatesMalformedClassesAndEntryIdentityMismatches() throws Exception {
         Path install = temporaryDirectory.resolve("BrokenInstall");
         Path mod = install.resolve("mods/Broken");
