@@ -6,8 +6,8 @@ interface InfoTipProps {
   children: ReactNode;
 }
 
-const WIDTH = 290;
-const MARGIN = 12;
+export const INFO_TIP_MAX_WIDTH = 290;
+export const INFO_TIP_MARGIN = 12;
 
 /**
  * A tooltip rendered into the document body rather than beside its trigger.
@@ -32,23 +32,35 @@ export function InfoTip({ label, children }: InfoTipProps) {
   const place = useCallback(() => {
     if (!trigger.current) return;
     const anchor = trigger.current.getBoundingClientRect();
-    const width = Math.min(WIDTH, window.innerWidth - 4 * MARGIN);
+    const width = Math.min(INFO_TIP_MAX_WIDTH, window.innerWidth - 4 * INFO_TIP_MARGIN);
     const height = tooltip.current?.offsetHeight ?? 0;
     const below = anchor.bottom - 3;
     // Flip above the trigger rather than run off the bottom of a short window.
-    const top = height > 0 && below + height + MARGIN > window.innerHeight
-      ? Math.max(MARGIN, anchor.top - height + 3)
+    const top = height > 0 && below + height + INFO_TIP_MARGIN > window.innerHeight
+      ? Math.max(INFO_TIP_MARGIN, anchor.top - height + 3)
       : below;
     setPlacement({
       top,
-      left: Math.max(MARGIN, Math.min(anchor.left + 8, window.innerWidth - width - MARGIN)),
+      left: Math.max(
+        INFO_TIP_MARGIN,
+        Math.min(anchor.left + 8, window.innerWidth - width - INFO_TIP_MARGIN),
+      ),
     });
   }, []);
 
-  // The tooltip is already in the DOM, so it has a height to measure. Placing before paint means it
-  // is never briefly visible in the wrong spot.
+  // The tooltip is already in the DOM, so it has a height to measure. Place before paint, then keep
+  // viewport-coordinate placement paired with its trigger while keyboard focus survives scrolling.
+  // Capture is required because element scroll events do not bubble from .page-viewport.
   useLayoutEffect(() => {
-    if (open) place();
+    if (!open) return;
+
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
   }, [open, place]);
 
   return (
