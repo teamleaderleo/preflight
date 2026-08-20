@@ -26,10 +26,10 @@ that prepared work to the game and ordered mod inputs that produced it, and reus
 inputs still match. Runtime shortcuts are checked against the exact code they were reviewed against.
 If something is missing, changed, damaged, or unfamiliar, the original game path handles it.
 
-That investigation also turned into a much larger desktop application: a before-and-after startup
-benchmark, Starsector playtime tracking, named mod profiles, common game settings beside Launch,
-storage planning and recovery, privacy-conscious support tools, signed updates, and a read-only mod
-linter.
+That investigation also turned into a much larger Starsector companion app: a before-and-after
+startup benchmark, local playtime tracking, named mod profiles, common and extended game settings,
+storage planning and recovery, deep read-only setup analysis, privacy-conscious support tools,
+signed updates, and a mod linter.
 
 ## A lot more than a launch button
 
@@ -42,8 +42,14 @@ linter.
 - **Keep named mod profiles.** Save, search, switch, rename, duplicate, and delete profiles. Switching
   previews the exact `enabled_mods.json` change and saves a backup first. Duplicating a profile does
   not duplicate mods, saves, or prepared data.
-- **Put the normal game settings beside Launch.** Resolution, fullscreen, sound, antialiasing, UI
-  scale, RAM, and battle size are available without a separate launcher ritual.
+- **Put the launch settings you actually care about beside Launch.** Resolution, fullscreen, sound,
+  antialiasing, UI scale, RAM, and battle size are available without a separate launcher ritual.
+  Battle-size presets can extend past the vanilla slider through **2,000 deployment points** while
+  still using Starsector's own `battleSize` preference.
+- **Understand a giant mod setup without starting the game.** `preflight scan` inventories the
+  enabled profile. The separate read-only deep setup check can report missing enabled mods, broken
+  metadata, duplicate mod IDs, missing or disabled required dependencies, and resolved variants that
+  point at hulls absent from the active profile.
 - **Know the storage cost before writing.** Preflight calculates the current profile's predicted and
   conservative requirements, reuses matching data, keeps a reserve, and offers a tiny minimal-disk
   route when the normal preparation does not fit.
@@ -53,13 +59,18 @@ linter.
 - **Share support data deliberately.** Copy setup produces useful public facts without paths,
   credentials, saves, or arbitrary logs. The separate support ZIP is allowlisted, disclosed before
   sending, size-bounded, cancellable, and excludes game/mod assets, saves, screenshots, audio,
-  caches, arbitrary logs, and credentials.
+  caches, arbitrary logs, and credentials. Accepted reports carry retention/deletion information.
 - **Update through a signed path.** The desktop can review a newer release, verify it, install it, and
   restart when asked. The release process also exercises install, upgrade, rollback, and removal
   across macOS, Windows, and Linux.
 - **Inspect mods without editing them.** `preflight lint` reports measurable asset and configuration
   problems for one mod or a complete profile. It gives no score, changes no files, and can explain
   why each finding costs something.
+
+The native desktop packages bring their own minimal Java runtime, so the desktop app does not ask you
+to install a system JDK. The desktop host exposes a fixed set of typed commands rather than an
+arbitrary shell. Every native package also carries a machine-readable capability receipt describing
+the commands, writes, child processes, links, and network endpoints available to that exact package.
 
 The normal path is still simple: open Preflight, let it find Starsector, press **Prepare and launch**
 once, then press **Launch Starsector** on later runs. The rest is there when you want it.
@@ -133,9 +144,13 @@ happened in that run rather than what another machine should expect.
   prepared data from evidence, and previews cleanup before anything is removed. Cleanup keeps the
   current and readable saved profiles reachable.
 - **Game settings.** Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and battle size are
-  available beside the launch button.
+  available beside the launch button. The extended battle-size ceiling is 2,000 deployment points.
 - **Presentation.** Home can use the full Hangar view or a compact launch-first view. Recorded
-  playtime visibility and decorative hull motion/direction are display-only preferences.
+  playtime visibility and decorative hull motion/direction are display-only preferences. Featured
+  Hangar ships can be traced locally from installed hull/sprite data into Preflight's own wireframe
+  rendering rather than bundling Starsector ship art.
+- **Setup analysis.** A read-only deep pass checks mod metadata/dependencies and selected resolved
+  static references without launching or changing the game.
 - **Evidence and support.** Help can copy a bounded privacy-safe setup summary for a forum, Discord,
   or support conversation. A separate support ZIP contains disclosed allowlisted metadata and
   excludes saves, assets, screenshots, recordings, caches, arbitrary logs, and credentials.
@@ -143,12 +158,16 @@ happened in that run rather than what another machine should expect.
   updates, and every package carries a machine-checked capability receipt describing the commands,
   writes, child processes, links, and network endpoints available to that exact package.
 - **Analysis tools.** The CLI includes the profiler and measurement tools used during development,
-  plus a read-only mod linter for measurable asset and configuration problems.
+  profile discovery/census/dry-run commands, deep setup analysis, and a read-only mod linter for
+  measurable asset and configuration problems.
 
 ## From install to launch
 
 On first open, Preflight searches the usual installation folders. If Starsector is not there, choose
 the folder containing `Starsector.app`, `starsector.exe`, or `starsector.sh`.
+
+The native desktop package includes its own minimal Preflight Java runtime. A system JDK is required
+only for the standalone JAR/development path, not for ordinary desktop use.
 
 ![Preflight asking for a Starsector installation](docs/images/walkthrough-setup.png)
 
@@ -179,9 +198,12 @@ features can update game-owned preferences: profile activation and the launch-se
 | Cleanup or removal is requested | Preflight shows the exact owned targets first |
 
 Anything Preflight does not recognize continues through the game's original path. A future launcher
-layout or game update can still require a Preflight update. The full boundary is in the
-[Product contract](docs/product-contract.md), with current limitations in
-[Known limitations](docs/known-limitations.md).
+layout or game update can still require a Preflight update. The desktop native boundary is a fixed
+set of typed commands, not a generic shell, and every packaged release records its available native
+capabilities in the [capability receipt](docs/capability-receipt.md).
+
+The full product boundary is in the [Product contract](docs/product-contract.md), with current
+limitations in [Known limitations](docs/known-limitations.md).
 
 ## How this was developed
 
@@ -240,6 +262,18 @@ Inspect discovery without launching the game:
 
 ```bash
 java -jar preflight-cli/target/preflight.jar doctor
+```
+
+Inspect the resolved setup more deeply without launching or changing it:
+
+```bash
+java -jar preflight-cli/target/preflight.jar analyze setup
+```
+
+Print the exact selected launch command without starting Starsector:
+
+```bash
+java -jar preflight-cli/target/preflight.jar run --dry-run
 ```
 
 Unattended launches can use Starsector's saved display and sound settings directly:
@@ -356,13 +390,19 @@ product and evidence work is in the [Public beta roadmap](docs/beta-roadmap.md).
 ## Analysis and mod tools
 
 The repository also contains the measurement tools used during the investigation: JFR recording,
-startup-phase probes, loader attribution, unattended benchmark campaigns, crash detection, and a
-read-only mod linter. Normal accelerated launches do not require profiling.
+startup-phase probes, loader attribution, unattended benchmark campaigns, crash detection, a profile
+census, a deep read-only setup checker, and the mod linter. Normal accelerated launches do not
+require profiling.
 
 ```bash
 java -jar preflight-cli/target/preflight.jar lint
 java -jar preflight-cli/target/preflight.jar lint --path ./MyMod
+java -jar preflight-cli/target/preflight.jar analyze setup
 ```
+
+The setup checker can flag deterministic active-profile problems such as missing or disabled required
+dependencies, duplicate mod IDs, broken enabled-mod metadata, and winning variants that reference a
+hull absent from the resolved profile. It does not launch or modify Starsector.
 
 Across real profiles, the linter has found progressive JPEGs that decode about 8.75 times slower
 through the game's ImageIO path, gigabytes of avoidable texture and audio allocation, shadowed
@@ -375,6 +415,7 @@ and 44 of 86 were completely clean. It has no score or automatic fixer. See
 
 - [Documentation map](docs/README.md)
 - [Leo's release talking points](docs/leo-talking-points.md)
+- [Public-writing sales inventory](docs/public-writing-sales-inventory.md)
 - [Optimization history](docs/optimization-history.md)
 - [Product contract](docs/product-contract.md)
 - [Release readiness](docs/release-readiness.md)
