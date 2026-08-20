@@ -15,6 +15,7 @@ import java.util.Set;
 final class JvmClassReferences {
     private static final int CLASSFILE_MAGIC = 0xcafebabe;
     private static final int MAX_CONSTANT_POOL_ENTRIES = 65_535;
+    private static final int ACC_STATIC = 0x0008;
 
     private JvmClassReferences() {
     }
@@ -79,27 +80,31 @@ final class JvmClassReferences {
 
             LinkedHashSet<String> references = new LinkedHashSet<>();
             for (int index = 1; index < count; index++) {
-                if (tags[index] == 7) {
-                    String name = className(tags, classNameIndexes, utf8, index);
-                    if (name == null) {
-                        throw new IOException("invalid CONSTANT_Class entry at " + index);
+                switch (tags[index]) {
+                    case 7 -> {
+                        String name = className(tags, classNameIndexes, utf8, index);
+                        if (name == null) {
+                            throw new IOException("invalid CONSTANT_Class entry at " + index);
+                        }
+                        addClassConstant(references, name);
                     }
-                    addClassConstant(references, name);
-                } else if (tags[index] == 16) {
-                    addDescriptor(references, utf8At(tags, utf8, descriptorIndexes[index]));
-                } else if (nameAndTypeIndexes[index] != 0) {
-                    int nameAndType = nameAndTypeIndexes[index];
-                    if (nameAndType <= 0 || nameAndType >= tags.length || tags[nameAndType] != 12) {
-                        throw new IOException("member reference has invalid NameAndType index");
+                    case 9, 17 -> addFieldDescriptor(
+                            references, referencedDescriptor(tags, descriptorIndexes, nameAndTypeIndexes, utf8, index));
+                    case 10, 11, 18 -> addMethodDescriptor(
+                            references, referencedDescriptor(tags, descriptorIndexes, nameAndTypeIndexes, utf8, index), false);
+                    case 16 -> addMethodDescriptor(
+                            references, utf8At(tags, utf8, descriptorIndexes[index]), false);
+                    default -> {
+                        // Other constant kinds either carry no descriptor or are reached through the
+                        // field/method/dynamic reference entries above.
                     }
-                    addDescriptor(references, utf8At(tags, utf8, descriptorIndexes[nameAndType]));
                 }
             }
 
             int interfaces = input.readUnsignedShort();
             skipFully(input, Math.multiplyExact(interfaces, 2));
-            readMembers(input, tags, utf8, references);
-            readMembers(input, tags, utf8, references);
+            readFields(input, tags, utf8, references);
+            readMethods(input, tags, utf8, references);
             skipAttributes(input);
             if (input.available() != 0) {
                 throw new IOException("trailing bytes after classfile attributes");
@@ -114,14 +119,42 @@ final class JvmClassReferences {
         }
     }
 
-    private static void readMembers(
+    private static String referencedDescriptor(
+            byte[] tags,
+            int[] descriptorIndexes,
+            int[] nameAndTypeIndexes,
+            String[] utf8,
+            int referenceIndex) throws IOException {
+        int nameAndType = nameAndTypeIndexes[referenceIndex];
+        if (nameAndType <= 0 || nameAndType >= tags.length || tags[nameAndType] != 12) {
+            throw new IOException("member reference has invalid NameAndType index");
+        }
+        return utf8At(tags, utf8, descriptorIndexes[nameAndType]);
+    }
+
+    private static void readFields(
             DataInputStream input, byte[] tags, String[] utf8, Set<String> references) throws IOException {
-        int members = input.readUnsignedShort();
-        for (int index = 0; index < members; index++) {
+        int fields = input.readUnsignedShort();
+        for (int index = 0; index < fields; index++) {
             input.readUnsignedShort();
             input.readUnsignedShort();
             int descriptorIndex = input.readUnsignedShort();
-            addDescriptor(references, utf8At(tags, utf8, descriptorIndex));
+            addFieldDescriptor(references, utf8At(tags, utf8, descriptorIndex));
+            skipAttributes(input);
+        }
+    }
+
+    private static void readMethods(
+            DataInputStream input, byte[] tags, String[] utf8, Set<String> references) throws IOException {
+        int methods = input.readUnsignedShort();
+        for (int index = 0; index < methods; index++) {
+            int accessFlags = input.readUnsignedShort();
+            input.readUnsignedShort();
+            int descriptorIndex = input.readUnsignedShort();
+            addMethodDescriptor(
+                    references,
+                    utf8At(tags, utf8, descriptorIndex),
+                    (accessFlags & ACC_STATIC) == 0);
             skipAttributes(input);
         }
     }
@@ -145,8 +178,13 @@ final class JvmClassReferences {
         return utf8[index];
     }
 
-    private static void addDescriptor(Set<String> output, String descriptor) {
-        output.addAll(JvmTypeDescriptor.classNames(descriptor));
+    private static void addFieldDescriptor(Set<String> output, String descriptor) throws IOException {
+        output.addAll(JvmTypeDescriptor.parseField(descriptor).classNames());
+    }
+
+    private static void addMethodDescriptor(
+            Set<String> output, String descriptor, boolean instanceReceiver) throws IOException {
+        output.addAll(JvmTypeDescriptor.parseMethod(descriptor, instanceReceiver).classNames());
     }
 
     private static String className(byte[] tags, int[] classNameIndexes, String[] utf8, int classIndex) {
@@ -164,20 +202,19 @@ final class JvmClassReferences {
         if (internal.startsWith("[")) {
             return internal;
         }
-        if (internal.indexOf('.') >= 0) {
+        try {
+            return JvmTypeDescriptor.binaryClassName(internal);
+        } catch (IOException invalid) {
             return null;
         }
-        return internal.replace('/', '.');
     }
 
-    private static void addClassConstant(Set<String> output, String name) {
+    private static void addClassConstant(Set<String> output, String name) throws IOException {
         if (!name.startsWith("[")) {
-            if (name.indexOf('.') >= 0) {
-                output.add(name);
-            }
+            output.add(name);
             return;
         }
-        output.addAll(JvmTypeDescriptor.classNames(name));
+        output.addAll(JvmTypeDescriptor.parseField(name).classNames());
     }
 
     private static void skipFully(DataInputStream input, long bytes) throws IOException {
