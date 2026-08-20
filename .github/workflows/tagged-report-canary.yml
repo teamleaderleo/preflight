@@ -92,7 +92,7 @@ jobs:
             echo "::error::Tagged Distribution head SHA differs from the selected release tag"
             exit 1
           }
-          node preflight-desktop/scripts/validate-release-version.mjs "${{ inputs.tag }}"
+          GITHUB_REF_TYPE=tag node preflight-desktop/scripts/validate-release-version.mjs "${{ inputs.tag }}"
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
