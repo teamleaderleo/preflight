@@ -93,6 +93,23 @@ case-insensitive filesystem.
 
 Nothing from the installation enters the repo.
 
+## Render UI work before calling it done
+
+For desktop/frontend work, read [docs/ui-design.md](docs/ui-design.md) before introducing a new
+visual pattern. Source review and jsdom tests are not visual acceptance. If a change affects
+composition, density, responsive behavior, disclosure, or control hierarchy, render the actual
+browser frontend and inspect it in Chromium/Playwright.
+
+Use the deterministic browser-preview scenarios and check the normal Tauri window (`1040×700`)
+and minimum window (`720×560`). Exercise hover and keyboard focus when those interactions carry
+information. If the repo is not mounted locally, use the verified frontend artifact produced by
+Desktop CI rather than stopping at source inspection.
+
+Do not default to generic dashboard/card/pill patterns or create another late-loading CSS override
+layer merely because the first implementation is convenient. Preserve the existing design language
+unless the product wants a real departure, and make major layout state explicit in the component
+instead of hiding it in selector cleverness.
+
 ## Git
 
 Stage files explicitly. Never `git add -A`: uncommitted work from other agents lives in this
