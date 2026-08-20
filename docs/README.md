@@ -34,6 +34,9 @@ the current answer.
   the result first, the broader product immediately afterward, and instructions at the bottom.
 - [Long beta announcement draft](beta-announcement-draft.md): full public source copy covering the
   performance investigation, desktop features, linter, privacy/support, updates, and beta limits.
+- [Mod-author public writing draft](mod-author-post-draft.md): the standalone pitch for `lint`,
+  `scan`, and `analyze setup`, the 86-mod calibration story, concrete findings, and the clearly
+  separated exploratory asset-lab material.
 - [Leo's talking points](leo-talking-points.md): the public-writing crib sheet for numbers, product
   features, story angles, trust/privacy answers, claim qualifiers, and current release work.
 - [Public-writing sales inventory](public-writing-sales-inventory.md): intentionally overcomplete
