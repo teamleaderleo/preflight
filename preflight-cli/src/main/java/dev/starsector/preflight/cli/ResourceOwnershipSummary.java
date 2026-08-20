@@ -17,6 +17,8 @@ final class ResourceOwnershipSummary {
     private static final int MAX_ROOTS = 512;
     private static final int MAX_OVERRIDE_DETAILS = 512;
     private static final int MAX_PROVIDERS_PER_DETAIL = 32;
+    private static final String EVIDENCE_KIND = "resource-index-provider-resolution-v1";
+    private static final String DERIVATION = "resource-index-provider-order-last-wins";
 
     private ResourceOwnershipSummary() {
     }
@@ -98,7 +100,7 @@ final class ResourceOwnershipSummary {
         totals.put("truncated", truncated);
 
         Map<String, Object> values = new LinkedHashMap<>();
-        values.put("evidenceKind", "resource-index-provider-resolution-v1");
+        values.put("evidenceKind", EVIDENCE_KIND);
         values.put("profileFingerprint", index.profileFingerprint());
         values.put("totals", totals);
         values.put("overrideKinds", sortedCounts(overrideKinds));
@@ -115,6 +117,9 @@ final class ResourceOwnershipSummary {
         String normalized = ResourceIndex.normalizeLogicalPath(logicalPath);
         List<ResourceIndex.Provider> providers = index.providers(normalized);
         Map<String, Object> value = new LinkedHashMap<>();
+        value.put("evidenceKind", EVIDENCE_KIND);
+        value.put("profileFingerprint", index.profileFingerprint());
+        value.put("derivation", DERIVATION);
         value.put("logicalPath", normalized);
         value.put("kind", kind(normalized));
         value.put("providerCount", providers.size());
@@ -142,10 +147,22 @@ final class ResourceOwnershipSummary {
         value.put("winnerRootId", winningRoot.id());
         value.put("winnerCore", winningRoot.core());
         value.put("shadowedProviderCount", providers.size() - 1);
-        value.put("shadowedRootIds", providers.subList(0, providers.size() - 1).stream()
-                .map(provider -> root(index, provider).id())
-                .distinct()
-                .toList());
+
+        List<String> shadowedRootIds = new ArrayList<>();
+        boolean shadowedRootIdsTruncated = false;
+        for (int indexInChain = 0; indexInChain < providers.size() - 1; indexInChain++) {
+            String rootId = root(index, providers.get(indexInChain)).id();
+            if (shadowedRootIds.contains(rootId)) {
+                continue;
+            }
+            if (shadowedRootIds.size() >= MAX_PROVIDERS_PER_DETAIL) {
+                shadowedRootIdsTruncated = true;
+                break;
+            }
+            shadowedRootIds.add(rootId);
+        }
+        value.put("shadowedRootIds", List.copyOf(shadowedRootIds));
+        value.put("shadowedRootIdsTruncated", shadowedRootIdsTruncated);
         return value;
     }
 
