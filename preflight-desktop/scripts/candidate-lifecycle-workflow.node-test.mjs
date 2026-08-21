@@ -35,6 +35,13 @@ test("candidate package is retained as the newer package and receipt binds its d
   assert.match(workflow, /createHash\("sha256"\)/);
 });
 
+test("the runner-local earlier package includes the reviewed frontend", () => {
+  assert.match(
+    workflow,
+    /Build an earlier rehearsal package[\s\S]*npm run build[\s\S]*npx tauri build/,
+  );
+});
+
 test("candidate lifecycle secret access stays behind the release-signing Environment", () => {
   assert.equal((workflow.match(/name: release-signing/g) ?? []).length, 2);
   assert.match(workflow, /secrets\.PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD/);
