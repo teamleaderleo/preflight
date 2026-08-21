@@ -2,7 +2,7 @@
 
 **Status:** operational candidate execution; source and rendered-UI convergence complete
 
-**Updated:** 2026-08-21
+**Updated:** 2026-08-22
 
 This page mirrors the current beta gate. The live owner for blocker status, freeze order, collision
 control, and any promotion caused by a demonstrated candidate failure or explicit maintainer decision
@@ -17,15 +17,16 @@ is needed; #652 owns temporary current-main notes used for active coordination.
 Source and rendered-UI convergence are complete. The remaining first-beta work is operational and
 must stay tied to one accepted candidate generation:
 
-- [ ] **Complete release-signing setup and a private rehearsal (#720).** Configure the
-  `release-signing` Environment, updater key/password, private-candidate archive password, updater
-  public key, and reviewed production report-intake origin. Run a private signed Distribution and
-  its three-platform candidate lifecycle, then remove the legacy repository-level signing secrets
-  and repeat the rehearsal after cleanup.
-- [ ] **Freeze one immutable candidate generation.** Refresh the live board and open queue after the
-  signing rehearsal. Once source is frozen, unrelated source work stops. A demonstrated candidate
-  failure or explicit maintainer decision can still create new bytes; affected package-dependent
-  evidence must then follow the new candidate generation.
+- [x] **Complete release-signing setup and private rehearsals (#720).** The Environment is
+  configured and restricted to `main`. Distribution/lifecycle pairs `32527940046` + `32529367040`
+  and post-cleanup `32530512574` + `32532048780` succeeded on Linux, macOS, and Windows. The two
+  legacy repository updater-key secrets are removed while the Environment copies remain. These runs
+  prove the private signing and package machinery only; they are not final release evidence.
+- [ ] **Select the release source and authorize one immutable tagged candidate generation.** The
+  maintainer must separately choose the exact accepted source and authorize the tag. Once source is
+  frozen, unrelated source work stops. A demonstrated candidate failure or explicit maintainer
+  decision can still create new bytes; affected package-dependent evidence must then follow the new
+  candidate generation.
 - [ ] **Exercise the frozen package on native Windows with a licensed game installation.** Cover
   detection/setup, preparation, repeated launch, campaign/combat, adapter health/fallback, and
   removal.
@@ -97,9 +98,9 @@ Useful current references:
 
 ## Work outside the candidate gate
 
-[#720](https://github.com/teamleaderleo/preflight/issues/720) owns the live release-signing
-administration and private rehearsal that are part of the current gate. #607 is closed `not planned`
-under the owner-selected repository policy; do not recreate a ruleset unless that policy changes.
+[#720](https://github.com/teamleaderleo/preflight/issues/720) records the completed release-signing
+administration and private rehearsals. #607 is closed `not planned` under the owner-selected
+repository policy; do not recreate a ruleset unless that policy changes.
 
 Compatibility work beyond the required native Windows/Linux exercise can continue during beta.
 Broader mod, audio, visual, simulation, save/reload, frame-time, and display-server coverage expands
