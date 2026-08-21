@@ -56,10 +56,10 @@
   text-align: right;
 }
 
-/* A captured failed run is the active job, but it should not physically shove the entire Home hero
- * down when it appears. Keep the alert first in DOM order while letting it float over a stable
- * companion field. The adjacent-console selectors deliberately scope the taller portrait only to
- * this observed run-recovery composition; other recovery/error states keep their own layout. */
+/* A captured failed run is an overlay on the settled Home, not a new composition. Keep the alert
+ * first in DOM order and out of flow while the underlying console, hull, launch identity, and ship
+ * caption remain at their settled coordinates. The recovery controls live in the banner, so the
+ * generic recovery layer can still hide duplicate console actions without moving anything. */
 .page-viewport--home > .run-recovery[role="alert"] {
   position: absolute;
   z-index: 8;
@@ -82,25 +82,39 @@
 }
 
 .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-flight-instrument {
-  inset: 120px 30px 54px;
-  opacity: .72;
+  inset: -34px 30px 100px;
+  opacity: 1;
 }
 
 .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-launch-identity {
   top: auto;
   right: auto;
-  bottom: 18px;
-  left: 18px;
-  width: min(520px, calc(100% - 36px));
-  text-align: left;
-  transform: none;
+  bottom: 82px;
+  left: 50%;
+  width: min(520px, calc(100% - 48px));
+  text-align: center;
+  transform: translateX(-50%);
 }
 
-/* Failed-run identity sits on the lower edge of the stable companion field. Open its full-path
- * disclosure upward so pointer and keyboard users can actually see it inside the clipped Home viewport. */
+.page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-ship-name {
+  right: auto;
+  bottom: 24px;
+  left: 28px;
+  max-width: max(0px, calc(50% - 210px));
+  text-align: left;
+}
+
+/* The settled path disclosure opens upward. Restore its centered transform here because the generic
+ * recovery composition aligns disclosures to the left for non-banner error states. */
 .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-launch-path::after {
   top: auto;
   bottom: calc(100% + 7px);
+  left: 50%;
+  transform: translate(-50%, -2px);
+}
+
+.page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-launch-path:is(:hover, :focus-visible)::after {
+  transform: translate(-50%, 0);
 }
 
 /* Motion, direction, and appearance reset form one compact local cluster. Reset keeps a visible word
@@ -181,13 +195,25 @@
   }
 
   .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-flight-instrument {
-    inset: 105px 8px 24px;
+    inset: -12px 8px 102px;
+    opacity: 1;
   }
 
   .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-launch-identity {
     top: auto;
-    bottom: 12px;
-    left: 14px;
-    width: calc(100% - 28px);
+    right: auto;
+    bottom: 88px;
+    left: 50%;
+    width: calc(100% - 32px);
+    text-align: center;
+    transform: translateX(-50%);
+  }
+
+  .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-ship-name {
+    right: auto;
+    bottom: 16px;
+    left: 10px;
+    max-width: max(0px, calc(50% - 210px));
+    text-align: left;
   }
 }
