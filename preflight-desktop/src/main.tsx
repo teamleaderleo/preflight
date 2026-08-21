@@ -5,6 +5,7 @@ import "./styles.css";
 import "./release-readiness.css";
 import "./game-settings-layout.css";
 import "./homePresentation.css";
+import "./hangarPresentation.css";
 import "./layout-hierarchy.css";
 import "./speedPage.css";
 import { initializeHomePresentation } from "./useHomePresentation";
