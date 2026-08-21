@@ -153,6 +153,11 @@ class WorkflowTrustBoundaryTest(unittest.TestCase):
         self.assertIn("post_status success", self.workflow)
         self.assertIn("post_status failure", self.workflow)
 
+    def test_gate_polls_quickly_without_weakening_workflow_registration_settle(self):
+        self.assertIn("--poll 5", self.workflow)
+        self.assertNotIn("--poll 15", self.workflow)
+        self.assertIn("--settle 45", self.workflow)
+
 
 if __name__ == "__main__":
     unittest.main()
