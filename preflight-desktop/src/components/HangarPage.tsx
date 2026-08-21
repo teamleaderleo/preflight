@@ -1,20 +1,182 @@
+import { useEffect, useId, useMemo, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { PauseIcon, PlayIcon, RefreshIcon, RotateClockwiseIcon, RotateCounterClockwiseIcon } from "../icons";
 import type { useInstrumentHull } from "../useInstrumentHull";
-import { FEATURED_HULL_IDS } from "../useInstrumentHull";
+import type { WireframeHull } from "../types";
 import { useInstrumentMotion } from "../useInstrumentMotion";
 import { FlightInstrument } from "./FlightInstrument";
-import { HullPicker } from "./HullPicker";
 
 type InstrumentHullState = ReturnType<typeof useInstrumentHull>;
 
-const FEATURED_IDS = new Set<string>(FEATURED_HULL_IDS);
+const HULL_RESULT_LIMIT = 8;
 
 function hullSizeLabel(hullSize: string): string {
   return hullSize === "CAPITAL_SHIP" ? "capital" : hullSize.replaceAll("_", " ").toLowerCase();
 }
 
+function hullMatches(hull: WireframeHull, query: string): boolean {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  return (
+    hull.name.toLowerCase().includes(needle)
+    || hull.id.toLowerCase().includes(needle)
+    || hullSizeLabel(hull.hullSize).includes(needle)
+  );
+}
+
+interface HangarHullChooserProps {
+  hulls: WireframeHull[];
+  selected: WireframeHull;
+  onChoose: (id: string) => void;
+  catalogStatus: string;
+}
+
+function HangarHullChooser({ hulls, selected, onChoose, catalogStatus }: HangarHullChooserProps) {
+  const listId = useId();
+  const [query, setQuery] = useState(selected.name);
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    setQuery(selected.name);
+    setActiveIndex(0);
+  }, [selected.id, selected.name]);
+
+  const results = useMemo(() => {
+    const selectedName = selected.name.toLowerCase();
+    const needle = query.trim().toLowerCase();
+    const candidates = !needle || needle === selectedName
+      ? hulls
+      : hulls.filter((hull) => hullMatches(hull, query));
+    return candidates.slice(0, HULL_RESULT_LIMIT);
+  }, [hulls, query, selected.name]);
+
+  const activeHull = results[activeIndex] ?? results[0];
+
+  const findExact = (value: string) => hulls.find((hull) =>
+    hull.name.localeCompare(value, undefined, { sensitivity: "accent" }) === 0
+    || hull.id.localeCompare(value, undefined, { sensitivity: "accent" }) === 0
+  );
+
+  const choose = (hull: WireframeHull) => {
+    onChoose(hull.id);
+    setQuery(hull.name);
+    setOpen(false);
+    setActiveIndex(0);
+  };
+
+  const restoreSelected = () => {
+    setQuery(selected.name);
+    setOpen(false);
+    setActiveIndex(0);
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setOpen(true);
+      setActiveIndex((index) => results.length === 0 ? 0 : (index + 1) % results.length);
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setOpen(true);
+      setActiveIndex((index) => results.length === 0 ? 0 : (index - 1 + results.length) % results.length);
+      return;
+    }
+    if (event.key === "Enter") {
+      const exact = findExact(query);
+      const chosen = open ? activeHull ?? exact : exact;
+      if (chosen) {
+        event.preventDefault();
+        choose(chosen);
+      }
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      restoreSelected();
+    }
+  };
+
+  const activeOptionId = open && activeHull ? `${listId}-option-${activeIndex}` : undefined;
+
+  return (
+    <div className="hangar-hull-combobox" data-open={open ? "true" : "false"}>
+      <input
+        id={`${listId}-input`}
+        className="hangar-hull-combobox__input"
+        type="text"
+        role="combobox"
+        aria-label="Display ship"
+        aria-autocomplete="list"
+        aria-expanded={open}
+        aria-controls={listId}
+        aria-activedescendant={activeOptionId}
+        autoComplete="off"
+        spellCheck={false}
+        value={query}
+        onFocus={(event) => {
+          setOpen(true);
+          setActiveIndex(0);
+          event.currentTarget.select();
+        }}
+        onClick={() => setOpen(true)}
+        onChange={(event) => {
+          setQuery(event.target.value);
+          setOpen(true);
+          setActiveIndex(0);
+        }}
+        onKeyDown={handleKeyDown}
+        onBlur={() => {
+          const exact = findExact(query);
+          if (exact && exact.id !== selected.id) {
+            choose(exact);
+          } else if (!exact) {
+            restoreSelected();
+          } else {
+            setOpen(false);
+            setActiveIndex(0);
+          }
+        }}
+      />
+
+      {open ? (
+        <div id={listId} className="hangar-hull-combobox__list" role="listbox" aria-label="Display ships">
+          {results.length > 0 ? results.map((hull, index) => (
+            <button
+              id={`${listId}-option-${index}`}
+              key={hull.id}
+              className="hangar-hull-combobox__option"
+              type="button"
+              role="option"
+              aria-label={hull.name}
+              aria-selected={hull.id === selected.id}
+              data-active={index === activeIndex ? "true" : "false"}
+              tabIndex={-1}
+              onMouseEnter={() => setActiveIndex(index)}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => choose(hull)}
+            >
+              <span className="hangar-hull-combobox__name">{hull.name}</span>
+              <span className="hangar-hull-combobox__meta">{hullSizeLabel(hull.hullSize)}</span>
+            </button>
+          )) : (
+            <div className="hangar-hull-combobox__empty">No hull matches “{query}”</div>
+          )}
+        </div>
+      ) : null}
+
+      <div className="hangar-identity__meta">
+        <span>{hullSizeLabel(selected.hullSize)}</span>
+        <span aria-live="polite">{catalogStatus}</span>
+      </div>
+    </div>
+  );
+}
+
 interface HangarDialProps {
   label: string;
+  displayLabel?: string;
   value: number;
   valueText: string;
   minimum: number;
@@ -23,10 +185,16 @@ interface HangarDialProps {
   onChange: (value: number) => void;
 }
 
-function HangarDial({ label, value, valueText, minimum, maximum, step, onChange }: HangarDialProps) {
+function HangarDial({ label, displayLabel = label, value, valueText, minimum, maximum, step, onChange }: HangarDialProps) {
+  const range = maximum === minimum ? 0 : ((value - minimum) / (maximum - minimum)) * 100;
+  const boundedRange = Math.min(100, Math.max(0, range));
+
   return (
-    <label className="hangar-dial">
-      <span>{label}</span>
+    <label
+      className="hangar-dial"
+      style={{ "--hangar-range": `${boundedRange}%` } as CSSProperties}
+    >
+      <span>{displayLabel}</span>
       <input
         type="range"
         aria-label={label}
@@ -48,17 +216,15 @@ interface HangarPageProps {
 
 export function HangarPage({ instrumentHull }: HangarPageProps) {
   const { motion, direction, setMotion, setDirection } = useInstrumentMotion();
-  const featured = instrumentHull.hulls.filter((hull) => FEATURED_IDS.has(hull.id));
-  const additional = instrumentHull.hulls.filter((hull) => !FEATURED_IDS.has(hull.id));
-  const selectedIsFeatured = FEATURED_IDS.has(instrumentHull.selectedId);
-  const quickHulls = selectedIsFeatured
-    ? featured
-    : [...featured, instrumentHull.selected];
   const motionLabel = motion === "rotate" ? "Pause rotation" : "Resume rotation";
   const directionLabel = direction === "clockwise" ? "Use counter-clockwise" : "Use clockwise";
   const directionTitle = motion === "still"
     ? `${directionLabel} when rotation resumes`
     : direction === "clockwise" ? "Rotate counter-clockwise" : "Rotate clockwise";
+  const motionStatus = `${motion === "rotate" ? "Rotating" : "Paused"} · ${direction === "clockwise" ? "CW" : "CCW"}`;
+  const catalogStatus = instrumentHull.catalog
+    ? `${instrumentHull.catalog.hulls.length.toLocaleString()} installed`
+    : instrumentHull.catalogLoaded ? "Included ships" : "Finding installed ships…";
 
   return (
     <div className="hangar-page">
@@ -69,31 +235,31 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
           </div>
 
           <div className="hangar-identity">
-            <h2>{instrumentHull.selected.name}</h2>
-            <p>{hullSizeLabel(instrumentHull.selected.hullSize)}</p>
+            <HangarHullChooser
+              hulls={instrumentHull.hulls}
+              selected={instrumentHull.selected}
+              onChoose={instrumentHull.choose}
+              catalogStatus={catalogStatus}
+            />
           </div>
         </div>
 
         <div className="hangar-dock hangar-dock--catalog">
-          <div className="hangar-selection">
-            <select
-              className="hangar-hull-select"
-              aria-label="Display ship"
-              value={instrumentHull.selectedId}
-              onChange={(event) => instrumentHull.choose(event.target.value)}
+          <div className="hangar-console-rail">
+            <span className="hangar-console-heading">Wireframe appearance</span>
+            <div
+              className="hangar-motion-controls"
+              role="group"
+              aria-label="Display motion and appearance"
+              data-motion={motion}
+              data-direction={direction}
             >
-              {quickHulls.map((hull) => (
-                <option key={hull.id} value={hull.id}>{hull.name}</option>
-              ))}
-            </select>
-            <span className="hangar-catalog-status" aria-live="polite">
-              {instrumentHull.catalog
-                ? `${instrumentHull.catalog.hulls.length.toLocaleString()} installed`
-                : instrumentHull.catalogLoaded ? "Included ships" : "Finding installed ships…"}
-            </span>
-            <div className="hangar-motion-controls" role="group" aria-label="Display motion and appearance">
+              <div className="hangar-motion-status" aria-live="polite">
+                <span>Motion</span>
+                <span className="hangar-motion-status__state">{motionStatus}</span>
+              </div>
               <button
-                className="icon-button icon-button--small"
+                className="icon-button icon-button--small hangar-motion-action"
                 type="button"
                 aria-label={motionLabel}
                 title={motion === "rotate" ? "Pause decorative hull rotation" : "Resume decorative hull rotation"}
@@ -102,7 +268,7 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
                 {motion === "rotate" ? <PauseIcon /> : <PlayIcon />}
               </button>
               <button
-                className="icon-button icon-button--small"
+                className="icon-button icon-button--small hangar-direction-action"
                 type="button"
                 aria-label={directionLabel}
                 title={directionTitle}
@@ -122,16 +288,9 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
                 <span>Reset</span>
               </button>
             </div>
-            {additional.length > 0 ? (
-              <HullPicker
-                hulls={additional}
-                selectedId={instrumentHull.selectedId}
-                onChoose={instrumentHull.choose}
-              />
-            ) : null}
           </div>
 
-          <div className="hangar-dials" aria-label="Wireframe appearance">
+          <div className="hangar-dials" role="group" aria-label="Wireframe appearance">
             <HangarDial
               label="Smooth"
               value={instrumentHull.tuning.outerSmooth}
@@ -152,6 +311,7 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
             />
             <HangarDial
               label="Interior smooth"
+              displayLabel="Inner smooth"
               value={instrumentHull.tuning.innerSmooth}
               valueText={instrumentHull.tuning.innerSmooth === 0 ? "None" : instrumentHull.tuning.innerSmooth.toFixed(2)}
               minimum={0}
@@ -161,6 +321,7 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
             />
             <HangarDial
               label="Interior detail"
+              displayLabel="Inner detail"
               value={instrumentHull.tuning.innerDetail}
               valueText={instrumentHull.tuning.innerDetail === 0 ? "Full" : instrumentHull.tuning.innerDetail.toFixed(3)}
               minimum={0}

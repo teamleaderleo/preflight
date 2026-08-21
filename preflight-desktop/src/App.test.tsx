@@ -845,11 +845,21 @@ test("the Hangar keeps the ship central and its compact customization local to t
   expect(screen.queryByText("Longest")).not.toBeInTheDocument();
   expect(screen.queryByText("Featured hulls")).not.toBeInTheDocument();
   const ship = screen.getByRole("combobox", { name: "Display ship" });
+  expect(ship).toHaveValue("Odyssey");
+
+  await user.click(ship);
+  const ships = screen.getByRole("listbox", { name: "Display ships" });
   for (const name of ["Odyssey", "Onslaught", "Conquest", "Paragon", "Astral", "Hammerhead"]) {
-    expect(within(ship).getByRole("option", { name })).toBeInTheDocument();
+    expect(within(ships).getByRole("option", { name })).toBeInTheDocument();
   }
-  expect(within(ship).queryByRole("option", { name: "Preflight courier" })).not.toBeInTheDocument();
-  expect(ship).toHaveValue("odyssey");
+  expect(within(ships).queryByRole("option", { name: "Preflight courier" })).not.toBeInTheDocument();
+
+  await user.clear(ship);
+  await user.type(ship, "para");
+  expect(within(screen.getByRole("listbox", { name: "Display ships" }))
+    .getByRole("option", { name: "Paragon" })).toBeInTheDocument();
+  await user.keyboard("{Escape}");
+  expect(ship).toHaveValue("Odyssey");
 
   const height = screen.getByRole("slider", { name: "Depth" });
   fireEvent.change(height, { target: { value: "1.35" } });
@@ -864,9 +874,16 @@ test("the Hangar keeps the ship central and its compact customization local to t
     expect(saved["/Applications/Starsector::odyssey"].innerDetail).toBe(0.04);
   });
 
-  await user.selectOptions(ship, "onslaught");
+  await user.clear(ship);
+  await user.type(ship, "Onslaught");
+  await user.keyboard("{Enter}");
+  await waitFor(() => expect(ship).toHaveValue("Onslaught"));
   expect(screen.getByRole("button", { name: "Reset appearance" })).toBeDisabled();
-  await user.selectOptions(ship, "odyssey");
+
+  await user.clear(ship);
+  await user.type(ship, "Odyssey");
+  await user.keyboard("{Enter}");
+  await waitFor(() => expect(ship).toHaveValue("Odyssey"));
   expect(screen.getByRole("slider", { name: "Depth" })).toHaveValue("1.35");
   expect(screen.getByRole("slider", { name: "Detail" })).toHaveValue("0.04");
 });
