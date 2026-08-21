@@ -76,7 +76,7 @@ jobs:
             --sha "$HEAD_SHA" \
             --pr "${{ github.event.pull_request.number }}" \
             --timeout 3600 \
-            --poll 15 \
+            --poll 5 \
             --settle 45
           gate_rc=$?
           set -e
