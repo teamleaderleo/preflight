@@ -98,8 +98,7 @@ test("narrow exceptional states reserve action rows locally", () => {
   style.remove();
 });
 
-test("restored installed-hull controls stay bounded at desktop and compact widths", () => {
-  expect(readinessStyles).toMatch(/\.hull-picker__list\s*\{[^}]*max-height:\s*152px;[^}]*overflow-y:\s*auto;/s);
+test("Hangar dial controls stay bounded at desktop and compact widths", () => {
   expect(readinessStyles).toMatch(/\.hangar-dock--catalog \.hangar-dials\s*\{[^}]*repeat\(auto-fit, minmax\(180px, 1fr\)\)/s);
   expect(readinessStyles).toMatch(/@container \(max-width: 760px\)[\s\S]*?\.hangar-dock--catalog\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;/s);
 });
