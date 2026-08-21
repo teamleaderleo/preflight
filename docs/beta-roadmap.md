@@ -4,65 +4,83 @@
 
 This page explains the remaining release sequence. The live coordination board is
 [#652](https://github.com/teamleaderleo/preflight/issues/652), which owns current blocker status,
-merge order, and any promotion caused by a concrete candidate failure. The checklist mirror is
-[Release readiness](release-readiness.md).
+merge order, and changes caused by either a concrete candidate failure or an explicit owner decision.
+The checklist mirror is [Release readiness](release-readiness.md).
 
 ## Current position
 
-The source and rendered desktop UI have converged for the first beta. What remains is operational
-candidate work rather than another general source-polish or hardening wave:
+The broad source-hardening and desktop composition work has converged, but the owner is still
+intentionally refining the Hangar through #999/#1005. That small UI tail is not a reason to stop the
+operational release work that can safely proceed in parallel.
 
-1. finish the `release-signing` Environment setup and private signed rehearsal owned by
-   [#720](https://github.com/teamleaderleo/preflight/issues/720);
-2. freeze one immutable candidate generation after that rehearsal succeeds;
-3. exercise the exact frozen package on a licensed native Windows installation;
-4. exercise the same candidate on native x86-64 Linux;
-5. retain the packaged-candidate startup benchmark, hosted lifecycle/update evidence, and exact-tag
+1. finish the owner-selected #1005 custom hull selector/instrument closeout and accept its exact
+   rendered artifact;
+2. finish the `release-signing` Environment setup and private signed rehearsal owned by
+   [#720](https://github.com/teamleaderleo/preflight/issues/720), in parallel where practical;
+3. freeze one immutable candidate generation after the remaining source/UI state is accepted;
+4. exercise the exact frozen package on a licensed native Windows installation;
+5. exercise the same candidate on native x86-64 Linux;
+6. retain the packaged-candidate startup benchmark, hosted lifecycle/update evidence, and exact-tag
    production report-canary receipt against that same generation; and
-6. complete the hands-on packaged report-intake cancel, cleanup, retry, receipt, and delete sequence
+7. complete the hands-on packaged report-intake cancel, cleanup, retry, receipt, and delete sequence
    owned by [#965](https://github.com/teamleaderleo/preflight/issues/965).
 
 Keep this sequence synchronized with #652 instead of extending it from open engineering issues. A
-private rehearsal, a green source tree, or a complete candidate does not by itself authorize a
-release tag or publication; those remain separate owner decisions.
+private rehearsal, a green source tree, or a complete candidate does not by itself authorize making
+the first public beta GitHub release/downloads live; final candidate creation and public release remain
+explicit owner decisions.
 
-## 1. Finish signing setup and the private rehearsal
+## 1. Finish the small owner-directed UI tail
+
+#999/#1005 owns the intentional custom typeable ARIA hull selector plus the Hangar instrumentation
+closeout. The earlier native selector is historical comparison, not an automatic fallback target.
+Repair concrete accessibility, interaction, test, geometry, or rendered defects on the selected design,
+then accept the exact verified frontend artifact.
+
+This is the final planned product/UI tail before freeze, not a new general polish wave. Additional
+owner-requested changes remain possible, but they should be reflected in #652 rather than treated as
+accidental scope creep.
+
+**Exit:** the owner accepts the final #1005 state and its exact rendered evidence.
+
+## 2. Finish signing setup and the private rehearsal
 
 Configure the `release-signing` Environment and the secrets/configuration required by the signed
-Distribution path, then run the private three-platform rehearsal from current accepted source. The
-rehearsal proves that the signing and package machinery can produce and exercise a candidate before
-source is frozen.
+Distribution path, then run the private three-platform rehearsal from then-current accepted source.
+The rehearsal proves that the signing and package machinery can produce and exercise a candidate before
+source is frozen. This work can proceed while the small UI tail is still converging.
 
 The repository intentionally has no current `main`/tag ruleset. [#607](https://github.com/teamleaderleo/preflight/issues/607)
 is closed `not planned` under that owner-selected policy. Before any tagged deployment is approved,
 the `release-signing` Environment remains the human admission boundary: verify that the tag/commit is
 the intended frozen accepted `main` identity.
 
-**Exit:** #720's private rehearsal and signing-secret cleanup are accepted, with no demonstrated
-source blocker promoted by the result.
+**Exit:** #720's private rehearsal and signing-secret cleanup are accepted, with no unresolved release
+administration problem that prevents freeze/candidate creation.
 
-## 2. Freeze one immutable candidate generation
+## 3. Freeze one immutable candidate generation
 
-Refresh `main`, #652, the candidate-evidence owners, and the open PR queue after the private rehearsal.
-If no demonstrated release blocker remains, record one accepted source revision and stop admitting
-unrelated source changes. When separately authorized, produce the tagged final candidate or preserved
-Distribution package identity from that frozen revision.
+Refresh `main`, #652, the candidate-evidence owners, and the open PR queue after the owner accepts the
+remaining source/UI state. Record one accepted source revision and stop admitting unrelated source
+changes. When separately authorized, produce the tagged final candidate or preserved Distribution
+package identity from that frozen revision.
 
-A source change after freeze creates a new candidate generation and invalidates affected
-package-dependent receipts. A checkout rebuild or an earlier rehearsal does not inherit the final
-candidate's evidence.
+A source change after freeze that changes release bytes creates a new candidate generation and
+invalidates affected package-dependent receipts. A checkout rebuild or an earlier rehearsal does not
+inherit the final candidate's evidence. A demonstrated candidate failure or explicit owner decision
+can still justify changed bytes; the evidence chain must then follow the new generation.
 
 **Exit:** one source identity owns the candidate bytes that the remaining acceptance work will use.
 
-## 3. Exercise the native Windows package
+## 4. Exercise the native Windows package
 
 Install the exact frozen package on native Windows with licensed Starsector. Exercise installation
 selection, setup/preparation, two launches, campaign/combat, adapter health and fallback, ordinary
-recovery, and removal using the candidate that publication would expose.
+recovery, and removal using the candidate that the first public beta would expose.
 
 **Exit:** retained Windows evidence supports the beta's actual Windows package and gameplay claims.
 
-## 4. Exercise native x86-64 Linux
+## 5. Exercise native x86-64 Linux
 
 Run the same acceptance on native x86-64 Linux with the exact frozen package. Hosted package checks
 and synthetic fixtures remain useful, but they do not replace a real licensed game installation for
@@ -70,7 +88,7 @@ this final platform claim.
 
 **Exit:** retained Linux evidence supports the beta's actual Linux package and gameplay claims.
 
-## 5. Bind performance and hosted evidence to the package
+## 6. Bind performance and hosted evidence to the package
 
 Run the normal-versus-Preflight startup pair with the engine extracted from the accepted package
 bytes. The harness verifies packaged identity metadata and refuses checkout fallback in candidate
@@ -86,12 +104,12 @@ candidate identity stay attached to every candidate result.
 [#418](https://github.com/teamleaderleo/preflight/issues/418) and
 [#818](https://github.com/teamleaderleo/preflight/issues/818).
 
-## 6. Complete the packaged intake canary
+## 7. Complete the packaged intake canary
 
 Use the accepted candidate's production report-intake path to inspect the ZIP disclosure, begin an
-upload, cancel after a bounded partial transfer, prove cleanup and local ZIP retention, retry the
-same ZIP, validate the accepted size/SHA and persisted receipt, then delete the uploaded case and
-verify the required local/remote cleanup.
+upload, cancel after a partial transfer, prove cleanup and local ZIP retention, retry the same ZIP,
+validate the accepted size/SHA and persisted receipt, then delete the uploaded case and verify the
+required local/remote cleanup.
 
 **Exit:** #965's final hands-on candidate sequence is accepted.
 
@@ -115,7 +133,7 @@ Broader compatibility evidence continues as beta work: reviewed large-mod scenar
 regressions, simulation and combat coverage, save/reload, frame-time reporting, and additional native
 platform/display paths. Each claim should carry the evidence scope that supports it. Research,
 routine dependency updates, and post-RC hardening stay outside the frozen candidate unless #652
-records a concrete candidate failure that changes release priority.
+records a concrete candidate failure or explicit owner decision that changes release priority.
 
 ## Historical roadmap
 
