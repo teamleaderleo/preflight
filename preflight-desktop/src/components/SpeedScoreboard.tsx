@@ -97,7 +97,7 @@ export function SpeedScoreboard({ standing, isReady, playtime, lastRun, hull, on
         <FlightInstrument hull={hull} />
         <div className="scoreboard__headline">
           <p className="eyebrow">Your startup</p>
-          <strong className="scoreboard__figure scoreboard__figure--unknown" aria-hidden="true">?×</strong>
+          <strong className="scoreboard__figure scoreboard__figure--unknown" aria-hidden="true">—</strong>
           <RecordedPlaytime playtime={playtime} />
         </div>
         <div className="scoreboard__body">

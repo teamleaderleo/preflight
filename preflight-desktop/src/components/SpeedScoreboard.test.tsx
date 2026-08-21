@@ -60,6 +60,21 @@ test("keeps the personal best trophy while showing an unfavorable latest benchma
   expect(screen.queryByText(/matching launches/)).not.toBeInTheDocument();
 });
 
+test("unmeasured startup uses a neutral figure instead of implying a multiplier", () => {
+  render(
+    <SpeedScoreboard
+      standing={{ ...standing(), record: null }}
+      isReady
+      hull={hull}
+      onOpenBenchmark={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByText("—")).toBeInTheDocument();
+  expect(screen.queryByText("?×")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /Measure speed/ })).toBeEnabled();
+});
+
 test("keeps playtime session detail on hover and in the named accessible group while the copy utility stays icon-only", () => {
   render(
     <SpeedScoreboard
