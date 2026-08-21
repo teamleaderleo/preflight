@@ -156,3 +156,12 @@
 .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-launch-path {
   align-self: center;
 }
+
+@media (max-width: 720px) {
+  /* The release-readiness layer used to assume any second action formed another row and hoisted
+   * preparation copy to 132px. These actions fit on the compact row; keep the note directly above
+   * the real 60px action block instead of leaving a large empty gap. */
+  .launch-console--layout-preparation.launch-console--ready:has(.launch-console__actions .launch-console__stop) .launch-console__note {
+    bottom: 82px;
+  }
+}
