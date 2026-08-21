@@ -115,13 +115,9 @@ final class LaunchHeartbeat implements AutoCloseable {
 
     static Record read(Path runDirectory) {
         Path file = runDirectory.resolve(FILE_NAME);
-        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
-            return null;
-        }
         try {
-            if (Files.size(file) > MAX_BYTES) return null;
-            String content = Files.readString(file, StandardCharsets.UTF_8);
-            Map<String, Object> values = StrictJson.object(content);
+            Map<String, Object> values = BoundedRuntimeJson.readObject(
+                    file, MAX_BYTES, "Launch heartbeat");
             if (!FORMAT.equals(values.get("format"))) {
                 return null;
             }
