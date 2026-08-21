@@ -7,6 +7,7 @@ import "./semantic-color.css";
 import "./release-readiness.css";
 import "./profile-input-polish.css";
 import "./game-settings-layout.css";
+import "./settings-targets.css";
 import "./homePresentation.css";
 import "./layout-hierarchy.css";
 import "./hangar-instrumentation.css";
