@@ -80,10 +80,10 @@ export function blockingWorkflow(state: WorkflowState): BlockingWorkflow | null 
   if (state.reportUploading) {
     return {
       reason: state.reportFinalizing
-        ? "Finishing the signed run-report receipt"
+        ? "Finishing the report receipt"
         : state.reportCancelling
-          ? "Stopping the run report upload"
-          : "Sending the run report",
+          ? "Stopping the support upload"
+          : "Sending the support file",
       owner: "help",
     };
   }
