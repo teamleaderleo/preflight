@@ -28,9 +28,15 @@ export function useRemoval(
       const next = await getRemovalPlan(scope);
       if (currentRequest !== request.current) return;
       setPlan(next);
-      announce(next.targets.length === 0
-        ? "There’s nothing in that removal scope."
-        : "Removal is ready to review. Nothing has been removed.");
+      if (!next.safe) {
+        announce("Removal can’t continue. Review the reason below.", "warning");
+      } else if (next.refusals.length > 0) {
+        announce("Removal is ready to review. Some items could not be included.", "warning");
+      } else {
+        announce(next.targets.length === 0
+          ? "There’s nothing in that removal scope."
+          : "Removal is ready to review. Nothing has been removed.");
+      }
     } catch (error) {
       if (currentRequest === request.current) announce(errorMessage(error), "error");
     } finally {

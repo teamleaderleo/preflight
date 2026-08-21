@@ -78,6 +78,84 @@ test("installation changes follow the app-wide workflow lock", () => {
   expect(screen.getByRole("button", { name: "Change folder" })).toHaveAttribute("title", "Updating the saved mod profile");
 });
 
+test("automatic failed-run reports describe their run-scoped support ZIP", () => {
+  render(<SettingsPage {...props({
+    automaticRunReports: true,
+    reportIntake: { configured: true, origin: "https://reports.example", reason: null },
+  })} />);
+
+  expect(screen.getByText("If Starsector closes with an error, Preflight creates a support ZIP for that failed run and tries to send it.")).toBeInTheDocument();
+  expect(screen.getByText("Failed-run reports are on. A failed launch can send a support ZIP for that run automatically.")).toBeInTheDocument();
+  expect(screen.queryByText(/same support ZIP/i)).not.toBeInTheDocument();
+});
+
+test("removal review takes focus and Cancel returns to the initiating control", async () => {
+  const user = userEvent.setup();
+  const onReviewRemoval = vi.fn();
+  const onDismissRemoval = vi.fn();
+  const initial = props({ onReviewRemoval, onDismissRemoval });
+  const { rerender } = render(<SettingsPage {...initial} />);
+
+  const summary = screen.getByText("Remove Preflight").closest("summary");
+  expect(summary).not.toBeNull();
+  await user.click(summary!);
+  const trigger = screen.getByRole("button", { name: "Review deletion" });
+  await user.click(trigger);
+  expect(onReviewRemoval).toHaveBeenCalledWith("all-data");
+
+  rerender(<SettingsPage {...props({
+    onReviewRemoval,
+    onDismissRemoval,
+    removalPlan: {
+      format: "preflight-removal-v1",
+      scope: "all-data",
+      safe: true,
+      applied: false,
+      bytes: 1024,
+      files: 2,
+      targets: [{
+        kind: "preflight-data",
+        label: "Preflight data",
+        path: "/tmp/preflight-data",
+        bytes: 1024,
+        files: 2,
+      }],
+      refusals: [],
+      preserves: [],
+    },
+  })} />);
+
+  expect(screen.getByRole("region", { name: "Removal review" })).toHaveFocus();
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(onDismissRemoval).toHaveBeenCalledOnce();
+  expect(trigger).toHaveFocus();
+});
+
+test("unsafe removal review shows the refusal beside the disabled action", () => {
+  render(<SettingsPage {...props({
+    removalPlan: {
+      format: "preflight-removal-v1",
+      scope: "all-data",
+      safe: false,
+      applied: false,
+      bytes: 0,
+      files: 0,
+      targets: [{
+        kind: "preflight-data",
+        label: "Preflight data",
+        path: "/tmp/preflight-data",
+        bytes: 0,
+        files: 0,
+      }],
+      refusals: ["Preflight home directory is a symlink or alias. All-data removal is refused."],
+      preserves: [],
+    },
+  })} />);
+
+  expect(screen.getByText("Preflight home directory is a symlink or alias. All-data removal is refused.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Remove all Preflight data" })).toBeDisabled();
+});
+
 test("Home presentation switches immediately between Hangar and Compact", async () => {
   const user = userEvent.setup();
   render(<SettingsPage {...props()} />);
