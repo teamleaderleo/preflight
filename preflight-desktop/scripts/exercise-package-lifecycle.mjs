@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { verifyInstalledEngine } from "./verify-installed-engine.mjs";
+import { privilegedCommand } from "./privileged-command.mjs";
 
 /**
  * Install, upgrade, roll back, and remove a real package.
@@ -58,7 +59,7 @@ function exerciseDebianLifecycle(olderDirectory, newerDirectory) {
   try {
     // dpkg permits a downgrade but asks first; the rollback step is the point of this exercise, so
     // it is requested explicitly rather than left to the tool's default question.
-    const install = (path) => run("sudo", ["dpkg", "--force-downgrade", "--install", path]);
+    const install = (path) => runPrivileged("dpkg", ["--force-downgrade", "--install", path]);
     install(older);
     const first = debianInstalledRoot(packageName);
     const firstVersion = installedVersion(first);
@@ -78,7 +79,7 @@ function exerciseDebianLifecycle(olderDirectory, newerDirectory) {
     data.assertUnchanged("the rollback");
 
     const ownedFiles = debianOwnedFiles(packageName).filter(isExistingFile);
-    run("sudo", ["dpkg", "--remove", packageName]);
+    runPrivileged("dpkg", ["--remove", packageName]);
     installed = false;
     assertRemoved(ownedFiles);
     const status = spawnSync("dpkg-query", ["--show", "--showformat=${db:Status-Abbrev}", packageName], {
@@ -91,7 +92,7 @@ function exerciseDebianLifecycle(olderDirectory, newerDirectory) {
     data.assertUnchanged("the removal");
     return report(basename(older), basename(newer), firstVersion, upgradedVersion, ownedFiles.length);
   } finally {
-    if (installed) spawnSync("sudo", ["dpkg", "--purge", packageName], { stdio: "ignore" });
+    if (installed) spawnPrivileged("dpkg", ["--purge", packageName], { stdio: "ignore" });
     data.discard();
   }
 }
@@ -351,6 +352,16 @@ function run(command, args) {
   const result = spawnSync(command, args, { stdio: "inherit" });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${command} exited with ${result.status}`);
+}
+
+function runPrivileged(command, args) {
+  const selected = privilegedCommand(command, args);
+  run(selected.command, selected.args);
+}
+
+function spawnPrivileged(command, args, options) {
+  const selected = privilegedCommand(command, args);
+  return spawnSync(selected.command, selected.args, options);
 }
 
 function capture(command, args) {
