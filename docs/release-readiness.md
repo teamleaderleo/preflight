@@ -1,11 +1,11 @@
 # Release readiness
 
-**Status:** operational candidate execution; source and rendered-UI convergence complete
+**Status:** small owner-directed UI tail plus operational candidate preparation
 
 **Updated:** 2026-08-21
 
 This page mirrors the current beta gate. The live owner for blocker status, freeze order, collision
-control, and any promotion of a newly demonstrated candidate failure is
+control, and any owner-directed change or promotion of a newly demonstrated candidate failure is
 [#652](https://github.com/teamleaderleo/preflight/issues/652). The publication-policy decision is
 recorded in [#950](https://github.com/teamleaderleo/preflight/issues/950).
 
@@ -14,23 +14,29 @@ is needed; #652 owns temporary current-main notes used for active coordination.
 
 ## Active beta work
 
-Source and rendered-UI convergence are complete. The remaining first-beta work is operational and
-must stay tied to one accepted candidate generation:
+The broad source-hardening and composition work is complete, but the owner is still intentionally
+refining the Hangar through #999/#1005. That small UI tail can run in parallel with release-signing
+administration. Do not call source frozen until the owner accepts that state.
 
+- [ ] **Finish the intentional Hangar custom-selector closeout (#999/#1005).** Keep the owner-selected
+  typeable ARIA hull selector, repair concrete accessibility/test/rendered defects on that design,
+  and accept the resulting exact frontend artifact. Do not revert to an older native selector merely
+  because earlier screenshots were clean.
 - [ ] **Complete release-signing setup and a private rehearsal (#720).** Configure the
   `release-signing` Environment, updater key/password, private-candidate archive password, updater
   public key, and reviewed production report-intake origin. Run a private signed Distribution and
   its three-platform candidate lifecycle, then remove the legacy repository-level signing secrets
   and repeat the rehearsal after cleanup.
 - [ ] **Freeze one immutable candidate generation.** Refresh the live board and open queue after the
-  signing rehearsal. Once source is frozen, only a demonstrated release blocker should create a new
-  candidate generation.
+  owner accepts the remaining source/UI state and the signing rehearsal is ready. Once source is
+  frozen, unrelated source work stops; a demonstrated candidate failure or explicit owner decision
+  can still create new bytes, which then require a new applicable candidate generation/evidence.
 - [ ] **Exercise the frozen package on native Windows with a licensed game installation.** Cover
   detection/setup, preparation, repeated launch, campaign/combat, adapter health/fallback, and
   removal.
 - [ ] **Exercise the same frozen package on native x86-64 Linux with a licensed game installation.**
   Run the corresponding acceptance path there.
-- [ ] **Collect exact package-dependent evidence.** Run the #418 startup benchmark against the engine
+- [ ] **Collect package-dependent evidence.** Run the #418 startup benchmark against the engine
   extracted from the accepted package bytes and retain the package/bundle identity with the result.
   Complete the tagged lifecycle/update receipts and the exact-tag production report canary required
   by #974/#818 against that same generation.
@@ -39,11 +45,12 @@ must stay tied to one accepted candidate generation:
   ZIP, verify the accepted size/SHA and retained receipt, then delete it and prove cleanup.
 
 A private rehearsal does not authorize a release tag, and a successful tagged candidate does not by
-itself authorize publication. Tag creation and publication remain separate release-owner decisions.
+itself authorize making the first public beta GitHub release/downloads live. Final candidate creation
+and public release remain explicit owner decisions.
 
 Post-RC hardening, prototypes, compatibility expansion, and research stay in their own owner issues.
-A concrete candidate failure can promote work through #652; an open issue or implementable idea does
-not expand the beta gate by itself.
+A concrete candidate failure or explicit owner decision can promote work through #652; an open issue
+or implementable idea does not expand the beta gate by itself.
 
 ## Publication policy — decided
 
@@ -68,8 +75,9 @@ The detailed evidence remains in the linked documents and dated `docs/evidence/`
 
 - the desktop first-run, preparation, profile, settings, update, diagnostics, cleanup, removal, and
   benchmark flows are implemented;
-- release-owner rendered acceptance of Home/Hangar, minimum-window workspaces, keyboard scrolling,
-  and failed-run attention layout has completed against the supported desktop sizes;
+- release-owner rendered acceptance of the established Home/Hangar composition, minimum-window
+  workspaces, keyboard scrolling, and failed-run attention layout has completed; #1005 owns the
+  current owner-directed Hangar selector/instrument refinement before final freeze;
 - the package pipeline assembles and verifies the reviewed Windows, macOS, and Linux artifacts and
   checks their embedded engine, legal files, checksums, SBOM/dependency inventory, updater metadata,
   and packaged capability receipts;
