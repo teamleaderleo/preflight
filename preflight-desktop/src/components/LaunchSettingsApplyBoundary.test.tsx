@@ -13,7 +13,7 @@ const boundary = {
 };
 
 describe("launch settings Apply boundary", () => {
-  it("requires the explicit acknowledgment and resets it after Apply", async () => {
+  it("requires the explicit acknowledgment and keeps backend coordination language out of the player warning", async () => {
     const user = userEvent.setup();
     const onApply = vi.fn();
     render(
@@ -27,7 +27,8 @@ describe("launch settings Apply boundary", () => {
 
     const apply = screen.getByRole("button", { name: "Apply changes" });
     expect(apply).toBeDisabled();
-    expect(screen.getByText(boundary.leaseScope)).toBeInTheDocument();
+    expect(screen.queryByText(boundary.leaseScope)).not.toBeInTheDocument();
+    expect(screen.getByText("Other programs can still change these Starsector settings while Apply runs.")).toBeInTheDocument();
 
     await user.click(screen.getByRole("checkbox", { name: /I closed every settings tool/ }));
     expect(apply).toBeEnabled();

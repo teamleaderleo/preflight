@@ -42,7 +42,7 @@ export function LaunchSettingsApplyBoundary({
           <small>{boundary.instruction}</small>
         </span>
       </label>
-      <p>{boundary.leaseScope}</p>
+      <p>Other programs can still change these Starsector settings while Apply runs.</p>
       {blockReason ? <small className="launch-apply-boundary__blocked">{blockReason}</small> : null}
       <button
         className="button button--primary"
