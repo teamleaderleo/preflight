@@ -13,7 +13,8 @@ owners.
 ## Current owners
 
 - [#652](https://github.com/teamleaderleo/preflight/issues/652) owns live release convergence,
-  blocker status, merge order, collision control, and moving `main` coordination.
+  blocker status, merge order, collision control, moving `main` coordination, and explicit maintainer
+  changes to the pre-freeze product state.
 - [Release readiness](release-readiness.md) mirrors the current candidate gate.
 - [Public beta roadmap](beta-roadmap.md) explains the current operational sequence without relying on
   this historical runbook.
@@ -37,10 +38,14 @@ one immutable candidate generation, exercise that exact package on native Window
 retain package-bound benchmark/lifecycle/exact-tag canary evidence, and complete #965's hands-on
 report-intake cancel/retry/delete sequence.
 
-A private rehearsal, green source tree, or complete candidate does not itself authorize a release
-tag or publication. Those remain separate owner decisions. Post-RC hardening, research, routine
-dependency work, and prototypes stay outside the candidate unless #652 promotes a concrete observed
-failure.
+A private rehearsal, green source tree, or complete candidate does not itself authorize making the
+first public beta GitHub release and downloadable packages live. Final candidate creation and public
+release remain explicit maintainer decisions. After freeze, a demonstrated candidate failure or
+explicit maintainer decision can create new bytes; affected package-dependent evidence must then be
+regenerated for the new candidate generation.
+
+Post-RC hardening, research, routine dependency work, and prototypes stay outside the candidate unless
+#652 promotes them through a concrete failure or maintainer decision.
 
 ## Historical runbook
 
