@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./styles.css";
+import "./semantic-color.css";
 import "./release-readiness.css";
 import "./game-settings-layout.css";
 import "./homePresentation.css";
