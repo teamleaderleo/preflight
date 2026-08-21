@@ -312,6 +312,28 @@ export function HomePage({
               profileName={launchProfileName}
             />
           ) : null}
+          {isReady && (preparing || needsPreparation || !profilePrepared) ? (
+            <div className="launch-console__note">
+              <span>{preparing
+                ? preparationPercent === null
+                  ? `${preparationPhaseLabel ?? "Preparation continues"} · Reconnected after restart. Starsector stays closed when this finishes; launch from Home when you’re ready. Finished work stays reusable if you stop.`
+                  : `${preparationPhaseLabel ?? "Preparing"} · Starsector opens automatically. Finished work stays reusable if you stop.`
+                : cacheNeedsRepair
+                  ? "Damaged prepared data will be rebuilt. Game files, mods, and saves stay unchanged."
+                : needsPreparation
+                ? !storagePlanApplies(textureStorage)
+                  ? "This preparation uses a few megabytes. Starsector opens when it’s ready."
+                  : preparationPlanLoading
+                  ? "Inspecting this mod setup and calculating a safe disk requirement…"
+                  : preparationPlan?.safeToPrepare
+                    ? `${firstSetup ? "Initial setup" : "Preparation needed"} · Uses about ${formatBytes(preparationPlan.predictedAdditionalBytes)}. ${formatBytes(preparationPlan.requiredFreeBytes)} free required; ${formatBytes(preparationPlan.usableBytes)} available.`
+                    : preparationPlan
+                      ? `Preparation needs ${formatBytes(preparationPlan.requiredFreeBytes)} free; ${formatBytes(preparationPlan.usableBytes)} is available.`
+                      : "Storage must be calculated before preparation."
+                : "Optimizations are off for this launch."}</span>
+              {cacheInspectionBlocked ? <span>You can still launch at normal speed while Preflight leaves this prepared data alone.</span> : null}
+            </div>
+          ) : null}
           <div className="launch-console__actions">
             {isReady ? (
               <>
@@ -363,28 +385,6 @@ export function HomePage({
             )}
           </div>
           {isReady ? <span className="home-ship-name">{instrumentHull.name}</span> : null}
-          {isReady && (preparing || needsPreparation || !profilePrepared) ? (
-            <div className="launch-console__note">
-              <span>{preparing
-                ? preparationPercent === null
-                  ? `${preparationPhaseLabel ?? "Preparation continues"} · Reconnected after restart. Starsector stays closed when this finishes; launch from Home when you’re ready. Finished work stays reusable if you stop.`
-                  : `${preparationPhaseLabel ?? "Preparing"} · Starsector opens automatically. Finished work stays reusable if you stop.`
-                : cacheNeedsRepair
-                  ? "Damaged prepared data will be rebuilt. Game files, mods, and saves stay unchanged."
-                : needsPreparation
-                ? !storagePlanApplies(textureStorage)
-                  ? "Minimal preparation uses a few megabytes. Starsector opens when it’s ready."
-                  : preparationPlanLoading
-                  ? "Inspecting this mod setup and calculating a safe disk requirement…"
-                  : preparationPlan?.safeToPrepare
-                    ? `${firstSetup ? "Initial setup" : "Preparation needed"} · ${textureStorage === "balanced" ? "Balanced" : "Fastest"} uses about ${formatBytes(preparationPlan.predictedAdditionalBytes)}. ${formatBytes(preparationPlan.requiredFreeBytes)} free required; ${formatBytes(preparationPlan.usableBytes)} available.`
-                    : preparationPlan
-                      ? `Full preparation needs ${formatBytes(preparationPlan.requiredFreeBytes)} free; ${formatBytes(preparationPlan.usableBytes)} is available. Minimal uses a few megabytes.`
-                      : "Storage must be calculated before preparation."
-                : "Optimizations are off for this launch."}</span>
-              {cacheInspectionBlocked ? <span>You can still launch at normal speed while Preflight leaves this prepared data alone.</span> : null}
-            </div>
-          ) : null}
         </div>
         {isReady && optionsOpen && launcherDraft && launcherSettings ? (
           <QuickGameSettings

@@ -108,7 +108,7 @@ test("the default cold-profile action prepares with balanced settings and then l
   const action = await screen.findByRole("button", { name: "Prepare and launch" });
   await waitFor(() => expect(action).toBeEnabled());
   expect(screen.getByText("First launch setup")).toBeInTheDocument();
-  expect(screen.getByText(/uses about .* free required; .* available/))
+  expect(screen.getByText(/Uses about .* free required; .* available/))
     .toBeInTheDocument();
   expect(screen.getByLabelText("186h played across 78 recorded sessions")).toBeInTheDocument();
   expect(within(screen.getByRole("main")).queryByText(/^for Starsector$/i)).not.toBeInTheDocument();
@@ -211,7 +211,7 @@ test("a refused preparation still leaves a way to launch the game", async () => 
   render(<App />);
 
   const launch = await screen.findByRole("button", { name: "Launch at normal speed" });
-  expect(screen.getByText(/Minimal uses a few megabytes/)).toBeInTheDocument();
+  expect(screen.getByText(/Preparation needs .* free; .* is available\./)).toBeInTheDocument();
   await user.click(launch);
 
   await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize"));
@@ -267,7 +267,7 @@ test("the Preflight page offers the same direct minimal-disk recovery", async ()
   render(<App />);
 
   const homeAction = await screen.findByRole("button", { name: "Prepare with less disk" });
-  expect(screen.getByText(/Full preparation needs .* free/)).toBeInTheDocument();
+  expect(screen.getByText(/Preparation needs .* free; .* is available\./)).toBeInTheDocument();
   expect(homeAction).toBeEnabled();
   expect(screen.queryByRole("region", { name: "Current Preflight setup" })).not.toBeInTheDocument();
   expect(preparation).not.toHaveBeenCalled();

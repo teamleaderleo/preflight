@@ -1,3 +1,5 @@
+import homePresentationStyles from "../homePresentation.css?raw";
+import releaseReadinessStyles from "../release-readiness.css?raw";
 import { render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import type { usePreparation } from "../usePreparation";
@@ -88,8 +90,8 @@ const preparation = {
   stopPreparation: vi.fn(),
 } as unknown as ReturnType<typeof usePreparation>;
 
-test("Home explains a preparation recovered after restart without inventing a percentage", () => {
-  render(<HomePage
+function renderHome(currentPreparation: ReturnType<typeof usePreparation>, operationBlocked = false) {
+  return render(<HomePage
     snapshot={snapshot}
     status="ready"
     message=""
@@ -97,14 +99,14 @@ test("Home explains a preparation recovered after restart without inventing a pe
     isReady
     needsPreparation
     optimizationPreset="recommended"
-    preparation={preparation}
+    preparation={currentPreparation}
     updateStatus={null}
     launcherSettings={null}
     launcherDraft={null}
     launcherSettingsLoading={false}
     launcherSettingsSaving={false}
     launchSettingsDirty={false}
-    operationBlocked
+    operationBlocked={operationBlocked}
     launchSettingsEditingBlocked={false}
     launchSettingsSaveBlocked={false}
     theme="light"
@@ -124,10 +126,63 @@ test("Home explains a preparation recovered after restart without inventing a pe
     instrumentHull={hull}
     launchProfileName="Exploration"
   />);
+}
+
+test("Home explains a preparation recovered after restart without inventing a percentage", () => {
+  renderHome(preparation, true);
 
   expect(screen.getByText("Preparation in progress")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Preparation in progress…" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Stop safely" })).toBeEnabled();
   expect(screen.getByText(/Reconnected after restart\. Starsector stays closed/)).toBeInTheDocument();
   expect(document.body).not.toHaveTextContent("0%");
+});
+
+test("Home keeps storage-mode taxonomy out of the default low-disk decision", () => {
+  const lowDiskPreparation = {
+    ...preparation,
+    preparing: false,
+    preparationPlan: {
+      safeToPrepare: false,
+      predictedAdditionalBytes: 4_000_000_000,
+      requiredFreeBytes: 5_000_000_000,
+      usableBytes: 3_000_000_000,
+    },
+  } as unknown as ReturnType<typeof usePreparation>;
+
+  renderHome(lowDiskPreparation);
+
+  const noteText = screen.getByText(/Preparation needs .* free; .* is available\./);
+  const lessDisk = screen.getByRole("button", { name: "Prepare with less disk" });
+  expect(screen.getByRole("button", { name: "Launch at normal speed" })).toBeEnabled();
+  expect(document.body).not.toHaveTextContent(/Full preparation|Balanced|Fastest/);
+
+  const note = noteText.closest(".launch-console__note");
+  const actions = lessDisk.closest(".launch-console__actions");
+  expect(note).not.toBeNull();
+  expect(actions).not.toBeNull();
+  expect(note!.nextElementSibling).toBe(actions);
+});
+
+test("compact preparation owns its note over the generic secondary-action fallback", () => {
+  const styles = homePresentationStyles.replace(/\/\*[\s\S]*?\*\//g, "");
+  const readinessStyles = releaseReadinessStyles.replace(/\/\*[\s\S]*?\*\//g, "");
+  const mediaIndex = styles.search(/@media\s*\(\s*max-width\s*:\s*720px\s*\)/);
+  const rule = styles.match(
+    /:root\s+\.launch-console\.launch-console--layout-preparation\.launch-console--ready\s+\.launch-console__note\s*\{([^}]*)\}/,
+  );
+  const fallback = readinessStyles.match(
+    /\.launch-console--ready:has\(\.launch-console__actions\s+\.launch-console__stop\)\s+\.launch-console__note\s*\{([^}]*)\}/,
+  );
+
+  expect(mediaIndex).toBeGreaterThanOrEqual(0);
+  expect(rule).not.toBeNull();
+  expect(rule?.index ?? -1).toBeGreaterThan(mediaIndex);
+  expect(rule?.[1]).toMatch(/bottom\s*:\s*82px\s*;?/);
+  expect(fallback?.[1]).toMatch(/bottom\s*:\s*132px\s*;?/);
+
+  const explicitSpecificity = (rule?.[0].match(/\./g) ?? []).length + 1; // :root
+  const fallbackSpecificity = (fallback?.[0].match(/\./g) ?? []).length;
+  expect(explicitSpecificity).toBeGreaterThan(fallbackSpecificity);
+  expect(styles).not.toContain(":has(");
 });
