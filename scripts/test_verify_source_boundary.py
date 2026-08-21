@@ -2,6 +2,7 @@ import importlib.util
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -14,6 +15,20 @@ spec.loader.exec_module(module)
 
 
 class SourceBoundaryTest(unittest.TestCase):
+    def git(self, repository: Path, *args: str) -> None:
+        subprocess.run(
+            ["git", *args],
+            cwd=repository,
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+
+    def init_repository(self, repository: Path) -> None:
+        self.git(repository, "init", "-b", "main")
+        self.git(repository, "config", "user.name", "Source Boundary Test")
+        self.git(repository, "config", "user.email", "source-boundary@example.invalid")
+
     def test_rejects_game_content_paths(self):
         for path in (
             "mods/example/data/config/settings.json",
@@ -59,6 +74,41 @@ class SourceBoundaryTest(unittest.TestCase):
     def test_rejects_oversized_blob_before_content_inspection(self):
         with self.assertRaisesRegex(module.SourceBoundaryError, "exceeds"):
             module.validate_blob("docs/large.txt", b"a" * (module.MAX_REVIEWED_BLOB_BYTES + 1))
+
+    def test_history_audit_ignores_unrelated_sibling_branch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory)
+            self.init_repository(repository)
+            (repository / "safe.txt").write_text("safe\n", encoding="utf-8")
+            self.git(repository, "add", "safe.txt")
+            self.git(repository, "commit", "-m", "safe main")
+
+            self.git(repository, "switch", "-c", "sibling")
+            forbidden = repository / "mods" / "private.txt"
+            forbidden.parent.mkdir()
+            forbidden.write_text("not part of main\n", encoding="utf-8")
+            self.git(repository, "add", "mods/private.txt")
+            self.git(repository, "commit", "-m", "forbidden sibling")
+            self.git(repository, "switch", "main")
+
+            report = module.validate_repository(repository)
+            self.assertEqual(report["trackedFiles"], 1)
+            self.assertGreater(report["historicalBlobs"], 0)
+
+    def test_history_audit_rejects_removed_forbidden_head_ancestor(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory)
+            self.init_repository(repository)
+            forbidden = repository / "mods" / "private.txt"
+            forbidden.parent.mkdir()
+            forbidden.write_text("was reachable from HEAD\n", encoding="utf-8")
+            self.git(repository, "add", "mods/private.txt")
+            self.git(repository, "commit", "-m", "forbidden ancestor")
+            self.git(repository, "rm", "mods/private.txt")
+            self.git(repository, "commit", "-m", "remove forbidden file")
+
+            with self.assertRaisesRegex(module.SourceBoundaryError, "forbidden repository path segment"):
+                module.validate_repository(repository)
 
     def test_cli_audits_current_tree_and_reachable_history(self):
         result = subprocess.run(
