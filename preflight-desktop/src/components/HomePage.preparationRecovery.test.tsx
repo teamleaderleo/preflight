@@ -160,7 +160,7 @@ test("Home keeps storage-mode taxonomy out of the default low-disk decision", ()
   const actions = lessDisk.closest(".launch-console__actions");
   expect(note).not.toBeNull();
   expect(actions).not.toBeNull();
-  expect(note!.compareDocumentPosition(actions!) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  expect(note!.nextElementSibling).toBe(actions);
 });
 
 test("compact preparation keeps its note immediately above the real action row", () => {
