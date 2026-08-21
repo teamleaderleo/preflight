@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { ShieldIcon } from "../icons";
 import { NoticeBanner } from "./NoticeBanner";
 import { openProjectLink } from "../bridge";
+import { presentRemovalRefusal } from "../removalPresentation";
 import type { useSignedUpdates } from "../useSignedUpdates";
 import { useHomePresentation } from "../useHomePresentation";
 import { formatBytes, shortPath } from "../uiFormat";
@@ -83,6 +84,8 @@ export function SettingsPage({
     onDismissRemoval();
     if (returnTarget?.isConnected) returnTarget.focus();
   };
+
+  const removalRefusalPresentations = removalPlan?.refusals.map(presentRemovalRefusal) ?? [];
 
   return (
     <div className="settings-page">
@@ -288,10 +291,16 @@ export function SettingsPage({
             <div><p className="eyebrow">Removal review</p><h2>{removalPlan.scope === "all-data" ? "Remove all Preflight data?" : "Remove launch integration?"}</h2></div>
             <button className="text-button" type="button" onClick={cancelRemovalReview} disabled={removalBusy}>Cancel</button>
           </div>
-          {removalPlan.refusals.length > 0 ? (
-            <div role="status">
-              {removalPlan.refusals.map((refusal) => <p className="activation-warning" key={refusal}>{refusal}</p>)}
-            </div>
+          {removalRefusalPresentations.length > 0 ? (
+            <>
+              <div role="status">
+                {removalRefusalPresentations.map(({ summary }, index) => <p className="activation-warning" key={`${index}:${summary}`}>{summary}</p>)}
+              </div>
+              <details>
+                <summary>Technical details</summary>
+                <ul>{removalRefusalPresentations.map(({ detail }, index) => <li key={`${index}:${detail}`}>{detail}</li>)}</ul>
+              </details>
+            </>
           ) : null}
           <p className="cleanup-summary">{formatBytes(removalPlan.bytes)} across {removalPlan.files.toLocaleString()} files. The plan was measured from the paths below.</p>
           <div className="cleanup-groups">{removalPlan.targets.map((target) => <div key={`${target.kind}:${target.path}`}><span>{target.label}</span><strong>{formatBytes(target.bytes)} · {shortPath(target.path)}</strong></div>)}</div>
