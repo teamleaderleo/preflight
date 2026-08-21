@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { ShieldIcon } from "../icons";
 import { NoticeBanner } from "./NoticeBanner";
 import { openProjectLink } from "../bridge";
@@ -61,9 +62,28 @@ export function SettingsPage({
     installSignedUpdate,
   } = updates;
   const homePresentation = useHomePresentation();
+  const removalReviewRef = useRef<HTMLElement>(null);
+  const removalReturnRef = useRef<HTMLElement | null>(null);
   const installationChangeBlocked = Boolean(installationChangeBlockedReason) || removalBusy || updateInstalling;
   const installationChangeTitle = installationChangeBlockedReason
     ?? (removalBusy || updateInstalling ? "Finish the current operation before changing installations." : undefined);
+
+  useEffect(() => {
+    if (removalPlan) removalReviewRef.current?.focus();
+  }, [removalPlan]);
+
+  const beginRemovalReview = (scope: RemovalScope, control: HTMLElement) => {
+    removalReturnRef.current = control;
+    onReviewRemoval(scope);
+  };
+
+  const cancelRemovalReview = () => {
+    const returnTarget = removalReturnRef.current;
+    removalReturnRef.current = null;
+    onDismissRemoval();
+    if (returnTarget?.isConnected) returnTarget.focus();
+  };
+
   return (
     <div className="settings-page">
       <NoticeBanner message={updateError === message ? "" : message} tone={messageTone} />
@@ -188,7 +208,7 @@ export function SettingsPage({
               disabled={!reportIntake?.configured}
               onChange={(event) => onAutomaticRunReportsChange(event.target.checked)}
             />
-            <span>Send failed-run reports automatically<small>{reportIntake?.configured ? "If Starsector closes with an error, Preflight sends the same support ZIP shown in Help." : "Report intake is unavailable in this build."}</small></span>
+            <span>Send failed-run reports automatically<small>{reportIntake?.configured ? "If Starsector closes with an error, Preflight creates a support ZIP for that failed run and tries to send it." : "Report intake is unavailable in this build."}</small></span>
           </label>
         </section>
 
@@ -209,7 +229,7 @@ export function SettingsPage({
               * privacy position, which in that case is stronger, not weaker.
               */}
             {automaticRunReports ? (
-              <li>Failed-run reports are on. They send the same support ZIP shown in Help.</li>
+              <li>Failed-run reports are on. A failed launch can send a support ZIP for that run automatically.</li>
             ) : reportIntake && !reportIntake.configured ? (
               <li>Update checks fetch version metadata. Support ZIPs stay here until you share one.</li>
             ) : (
@@ -237,7 +257,7 @@ export function SettingsPage({
               <button
                 className="button button--quiet button--compact"
                 type="button"
-                onClick={() => onReviewRemoval("launcher")}
+                onClick={(event) => beginRemovalReview("launcher", event.currentTarget)}
                 disabled={removalBusy || Boolean(removalBlockedReason)}
                 title={removalBlockedReason ?? undefined}
               >
@@ -250,7 +270,7 @@ export function SettingsPage({
               <button
                 className="button button--danger button--compact"
                 type="button"
-                onClick={() => onReviewRemoval("all-data")}
+                onClick={(event) => beginRemovalReview("all-data", event.currentTarget)}
                 disabled={removalBusy || Boolean(removalBlockedReason)}
                 title={removalBlockedReason ?? undefined}
               >
@@ -263,11 +283,16 @@ export function SettingsPage({
       </details>
 
       {removalPlan ? (
-        <section className="card removal-review" aria-label="Removal review">
+        <section ref={removalReviewRef} className="card removal-review" aria-label="Removal review" tabIndex={-1}>
           <div className="activation-review__heading">
             <div><p className="eyebrow">Removal review</p><h2>{removalPlan.scope === "all-data" ? "Remove all Preflight data?" : "Remove launch integration?"}</h2></div>
-            <button className="text-button" type="button" onClick={onDismissRemoval} disabled={removalBusy}>Cancel</button>
+            <button className="text-button" type="button" onClick={cancelRemovalReview} disabled={removalBusy}>Cancel</button>
           </div>
+          {removalPlan.refusals.length > 0 ? (
+            <div role="status">
+              {removalPlan.refusals.map((refusal) => <p className="activation-warning" key={refusal}>{refusal}</p>)}
+            </div>
+          ) : null}
           <p className="cleanup-summary">{formatBytes(removalPlan.bytes)} across {removalPlan.files.toLocaleString()} files. The plan was measured from the paths below.</p>
           <div className="cleanup-groups">{removalPlan.targets.map((target) => <div key={`${target.kind}:${target.path}`}><span>{target.label}</span><strong>{formatBytes(target.bytes)} · {shortPath(target.path)}</strong></div>)}</div>
           {removalBlockedReason ? <small role="status">{removalBlockedReason}</small> : null}
