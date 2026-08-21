@@ -5,7 +5,7 @@ complete; the remaining beta work is release-signing setup/private rehearsal, fr
 generation, native Windows/Linux game exercise, and the package-bound benchmark/lifecycle/report
 evidence tracked in [#652](https://github.com/teamleaderleo/preflight/issues/652) and mirrored in
 [Release readiness](release-readiness.md). Broader engineering stays parked unless a concrete
-candidate failure promotes it.
+candidate failure or explicit maintainer decision promotes it.
 
 The first beta's macOS and Windows packages will lack paid platform identities. macOS will require
 the user's explicit **Open Anyway** approval, and Windows may show SmartScreen's unrecognized-app
@@ -16,7 +16,8 @@ The current performance evidence comes from Starsector 0.98a-RC8 with a large mo
 Apple-silicon Mac running the game's x86-64 JVM through Rosetta. Native packages build on macOS,
 Windows, and Linux. Real Windows and Linux game installations haven't completed the same startup,
 campaign, combat, save, reload, and exit scenarios, so equal activation and speed aren't claimed
-there yet.
+there yet. The first public beta GitHub release and downloadable packages do not go live until the
+retained candidate completes the required native Windows and native x86-64 Linux real-game exercises.
 
 Runtime optimizations are admitted only for game/mod code Preflight recognizes. A changed or
 unknown target declines that optimization and uses the original code instead. That keeps updates
@@ -27,7 +28,7 @@ The 15.25-second launch is the fastest run from the current development comparis
 result for every system. Mod count and content, cache warmth, CPU, translation, storage, memory
 pressure, and temperature all affect startup and frame time. The built-in benchmark lets each
 installation record its own normal and accelerated launch. The accepted package will get its own
-retained benchmark result before publication.
+retained benchmark result before the first public beta release goes live.
 
 Preparation uses additional disk space. Balanced stores lossless LZ4 data and keeps raw data when
 compression barely helps; Fastest keeps every upload-ready pixel array raw and can use several
