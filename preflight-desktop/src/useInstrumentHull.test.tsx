@@ -94,9 +94,9 @@ test("keeps the six included hulls when the local catalog cannot be read", async
     { initialProps: { enabled: true } },
   );
 
-  await waitFor(() => expect(getWireframeHulls).toHaveBeenCalledWith("/game"));
+  await waitFor(() => expect(result.current.catalogLoaded).toBe(true));
+  expect(getWireframeHulls).toHaveBeenCalledWith("/game");
   expect(result.current.catalog).toBeNull();
-  expect(result.current.catalogLoaded).toBe(true);
   expect(result.current.hulls).toHaveLength(6);
   expect(result.current.selectedId).toBe(DEFAULT_HULL_ID);
 
