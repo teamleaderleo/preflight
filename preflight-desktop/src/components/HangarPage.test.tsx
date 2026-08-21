@@ -82,6 +82,58 @@ test("the Orbitron ship identity is the typeable hull chooser for the full catal
   expect(instrumentHull.choose).toHaveBeenCalledWith("modded-hull");
 });
 
+test("refocus keeps a selected hull active even when it falls outside the ordinary result limit", () => {
+  const distantHull: WireframeHull = {
+    ...featured,
+    id: "onslaught",
+    name: "Onslaught",
+    style: "LOW_TECH",
+    featured: false,
+  };
+  const fillerHulls = Array.from({ length: 8 }, (_, index): WireframeHull => ({
+    ...installed,
+    id: `filler-${index}`,
+    name: `Filler ${index}`,
+  }));
+  const hulls = [featured, ...fillerHulls, distantHull];
+  const choose = vi.fn();
+  const base = {
+    hulls,
+    catalog: { format: "preflight-wireframe-hulls-v1" as const, hulls, skipped: 0 },
+    choose,
+  };
+  const { rerender } = render(<HangarPage instrumentHull={state(base)} />);
+
+  const chooser = screen.getByRole("combobox", { name: "Display ship" });
+  fireEvent.focus(chooser);
+  fireEvent.change(chooser, { target: { value: "Onslaught" } });
+  fireEvent.keyDown(chooser, { key: "Enter" });
+  expect(choose).toHaveBeenCalledTimes(1);
+  expect(choose).toHaveBeenLastCalledWith("onslaught");
+
+  rerender(
+    <HangarPage
+      instrumentHull={state({
+        ...base,
+        selected: distantHull,
+        selectedId: distantHull.id,
+      })}
+    />,
+  );
+  fireEvent.blur(chooser);
+  choose.mockClear();
+  fireEvent.focus(chooser);
+
+  const list = screen.getByRole("listbox", { name: "Display ships" });
+  const selectedOption = within(list).getByRole("option", { name: "Onslaught" });
+  expect(selectedOption).toHaveAttribute("aria-selected", "true");
+  expect(chooser).toHaveAttribute("aria-activedescendant", selectedOption.id);
+
+  fireEvent.keyDown(chooser, { key: "Enter" });
+  expect(chooser).toHaveValue("Onslaught");
+  expect(choose).not.toHaveBeenCalled();
+});
+
 test("invalid free text restores the current hull on blur", () => {
   const instrumentHull = state();
   render(<HangarPage instrumentHull={instrumentHull} />);
