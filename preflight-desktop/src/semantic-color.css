@@ -1,0 +1,67 @@
+/*
+ * Shared semantic colour roles for the desktop UI.
+ *
+ * Palettes still own identity/accent. These tokens own meaning: attention is work/review that needs
+ * notice, warning is unsafe/repair/error, and success is genuinely good. Light mode also gets a
+ * small contrast lift so paper, secondary ink, rules, and instrument detail stop collapsing into
+ * one pale band. Component-specific composition stays in its owning stylesheet.
+ */
+:root[data-theme="light"] {
+  --attention: #8d651f;
+  --attention-soft: #f3e5c2;
+  --warning: #aa4938;
+  --warning-soft: #f4dcd6;
+  --success: #2f7464;
+  --success-soft: #dceee7;
+
+  --ink-soft: color-mix(in srgb, var(--ink) 71%, var(--paper-solid));
+  --ink-faint: color-mix(in srgb, var(--ink) 60%, var(--paper-solid));
+  --line: color-mix(in srgb, var(--ink) 22%, transparent);
+  --line-strong: color-mix(in srgb, var(--ink) 35%, transparent);
+  --grid-line: color-mix(in srgb, var(--ink) 5.5%, transparent);
+  --grid-major: color-mix(in srgb, var(--ink) 9%, transparent);
+  --console-soft: color-mix(in srgb, var(--console-ink) 69%, var(--paper-solid));
+  --console-label: color-mix(in srgb, var(--console-ink) 73%, var(--paper-solid));
+  --console-line: color-mix(in srgb, var(--console-ink) 21%, transparent);
+  --console-line-strong: color-mix(in srgb, var(--console-ink) 35%, transparent);
+}
+
+:root[data-theme="dark"] {
+  --attention: #d8b873;
+  --attention-soft: rgba(185, 135, 44, 0.17);
+  --warning: #e5a49a;
+  --warning-soft: rgba(165, 79, 71, 0.19);
+  --success: #8ed1bc;
+  --success-soft: rgba(63, 137, 121, 0.2);
+}
+
+/* Palette colour means active/selected. Status colour means what happened. */
+:root[data-theme] .status-chip {
+  color: var(--attention);
+  background: var(--attention-soft);
+}
+
+:root[data-theme] :is(.status-chip--ready, .tiny-status--good) {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+:root[data-theme] :is(.notice--error, .notice--warning, .activation-warning) {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+:root[data-theme] .notice--info {
+  color: var(--attention);
+  background: var(--attention-soft);
+}
+
+:root[data-theme] .notice--success {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+/* Light-mode focus should remain obvious against every pale palette, without becoming neon chrome. */
+:root[data-theme="light"] :where(button, input, select, summary, a):focus-visible {
+  outline-color: color-mix(in srgb, var(--accent) 48%, transparent);
+}
