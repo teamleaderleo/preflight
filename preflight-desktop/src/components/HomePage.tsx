@@ -175,6 +175,11 @@ export function HomePage({
           ? "preparation"
           : "settled";
   const recoveryFirst = Boolean(visibleRunFailure || cacheInspectionBlocked || status === "error");
+  const settledReady = isReady
+    && !needsPreparation
+    && !cacheNeedsRepair
+    && !cacheInspectionBlocked
+    && optimizationPreset !== "off";
   const toggleOptions = () => {
     setOptionsOpen((current) => {
       const next = !current;
@@ -197,15 +202,17 @@ export function HomePage({
           ? "Finding Starsector"
           : !isReady
             ? "Installation required"
-            : cacheNeedsRepair
-              ? "Prepared data needs repair"
-              : firstSetup
-              ? "First launch setup"
-              : needsPreparation
-                ? "Preparation needed"
-                : optimizationPreset === "off"
-                  ? "Optimizations off"
-                  : null;
+            : cacheInspectionBlocked
+              ? "Prepared data needs attention"
+              : cacheNeedsRepair
+                ? "Prepared data needs repair"
+                : firstSetup
+                  ? "First launch setup"
+                  : needsPreparation
+                    ? "Preparation needed"
+                    : optimizationPreset === "off"
+                      ? "Optimizations off"
+                      : null;
 
   const notice = (
     <NoticeBanner
@@ -254,7 +261,7 @@ export function HomePage({
     <>
       {recoveryFirst ? recoveryContent : null}
 
-      <section className={`launch-console ${isReady ? "launch-console--ready" : "card launch-console--setup"} launch-console--${status} launch-console--layout-${homeLayoutState} ${isReady && optionsOpen ? "launch-console--options-open" : "launch-console--minimal"} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""}`}>
+      <section className={`launch-console ${isReady ? "launch-console--ready" : "card launch-console--setup"} launch-console--${status} launch-console--layout-${homeLayoutState} ${cacheNeedsRepair ? "launch-console--repair-state" : ""} ${cacheInspectionBlocked ? "launch-console--attention-state" : ""} ${isReady && optionsOpen ? "launch-console--options-open" : "launch-console--minimal"} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""}`}>
         <div className="launch-console__primary">
           {isReady ? (
             <div className="home-flight-instrument">
@@ -264,8 +271,8 @@ export function HomePage({
           {isReady ? (
             <div className="launch-console__status-line">
               {status !== "running" && status !== "launching" && statusLabel ? (
-                <div className={`status-chip ${isReady && !needsPreparation ? "status-chip--ready" : ""}`}>
-                  {isReady && !needsPreparation && optimizationPreset !== "off" ? <CheckIcon /> : <SparklesIcon />}
+                <div className={`status-chip ${settledReady ? "status-chip--ready" : ""}`}>
+                  {settledReady ? <CheckIcon /> : <SparklesIcon />}
                   {statusLabel}
                 </div>
               ) : null}
