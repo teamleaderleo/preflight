@@ -1580,11 +1580,8 @@ mod tests {
 
     #[test]
     fn automatic_report_names_are_bounded_and_run_scoped() {
-        let home = std::env::temp_dir().join(format!(
-            "preflight-auto-report-name-{}-{}",
-            std::process::id(),
-            std::thread::current().name().unwrap_or("test")
-        ));
+        let home =
+            std::env::temp_dir().join(format!("preflight-auto-report-name-{}", std::process::id()));
         std::fs::remove_dir_all(&home).ok();
         std::fs::create_dir_all(&home).expect("temporary home");
 
@@ -1614,9 +1611,8 @@ mod tests {
     #[test]
     fn automatic_report_retention_only_removes_its_own_oldest_zips() {
         let home = std::env::temp_dir().join(format!(
-            "preflight-auto-report-retention-{}-{}",
-            std::process::id(),
-            std::thread::current().name().unwrap_or("test")
+            "preflight-auto-report-retention-{}",
+            std::process::id()
         ));
         let reports = home.join(".starsector-preflight/reports");
         std::fs::remove_dir_all(&home).ok();
