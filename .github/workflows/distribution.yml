@@ -323,6 +323,11 @@ jobs:
     env:
       PREFLIGHT_LINUX_BUILDER_IMAGE: ubuntu:jammy-20260627@sha256:0d779ea97881505f5ef0039336ee85edba27519bdba968c284c86ee066a973c8
       PREFLIGHT_LINUX_MAX_GLIBC: '2.35'
+      # sun.jnu.encoding comes from the locale rather than a JVM flag. Keep the release builder on
+      # the same UTF-8 boundary as ordinary desktop CI so valid non-ASCII installation paths remain
+      # representable during the installed-package contract.
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
     steps:
       - name: Bootstrap pinned Linux builder
         run: |
