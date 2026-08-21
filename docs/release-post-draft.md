@@ -3,7 +3,7 @@
 This is the release-day source for public descriptions, download-page copy, and short forum/social
 blurbs. The tag-owned release notes live in [releases/0.1.0.md](releases/0.1.0.md), while
 [Release readiness](release-readiness.md) and the live [#652](https://github.com/teamleaderleo/preflight/issues/652)
-remain authoritative for what still has to happen before publication.
+remain authoritative for what still has to happen before the first public beta release goes live.
 
 Keep this file readable as public prose rather than turning it into an evidence ledger. Development
 results that already exist can be named now. Candidate benchmark, package, native-machine, lifecycle,
@@ -102,10 +102,11 @@ steps rather than duplicating those procedures here.
 
 ## Known beta limits
 
-Real-game testing has been deepest on Apple silicon macOS. The first beta is **not published** until
-the frozen package has also completed the required native Windows and native x86-64 Linux real-game
-installation exercises. Fill the two lines below from those runs before this post becomes public;
-do not rewrite them as work that can simply happen later in beta.
+Real-game testing has been deepest on Apple silicon macOS. The first public beta release — meaning the
+GitHub release page and downloadable packages — does **not go live** until the frozen package has also
+completed the required native Windows and native x86-64 Linux real-game installation exercises. Fill
+the two lines below from those runs before the release post and downloads go public; do not rewrite
+them as work that can simply happen later in beta.
 
 - **Windows real-game exercise:** [WINDOWS NATIVE REAL-GAME RESULT]
 - **Linux real-game exercise:** [LINUX NATIVE REAL-GAME RESULT]
@@ -113,7 +114,7 @@ do not rewrite them as work that can simply happen later in beta.
 - The reviewed game version is **0.98a-RC8**. Other versions can receive fewer speedups until changed
   targets are reviewed.
 - Development performance numbers describe the stated machine and 83-mod profile. Other installations
-  can differ substantially; the accepted package gets its own benchmark before publication.
+  can differ substantially; the accepted package gets its own benchmark before the release goes live.
 - First preparation can take several minutes and gigabytes on a large profile. The desktop calculates
   the current installation's own storage plan before starting.
 
@@ -140,7 +141,7 @@ For example:
 
 > The published packages completed **[NATIVE WINDOWS/LINUX + HOSTED LIFECYCLE SUMMARY]**, the packaged
 > startup benchmark recorded **[CANDIDATE BENCHMARK SUMMARY]**, and the packaged support-report path
-> completed **[REPORT CANARY SUMMARY]** before publication.
+> completed **[REPORT CANARY SUMMARY]** before the release went live.
 
 Those placeholders remain placeholders until the frozen candidate produces the corresponding facts.
 A private rehearsal, checkout build, or rebuilt package from the same source revision is not a
