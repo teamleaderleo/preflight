@@ -64,6 +64,8 @@ test("installed hulls stay in the searchable picker while featured selection rem
   expect(select).toHaveTextContent("Odyssey");
   expect(select).not.toHaveTextContent("Modded Hull");
   expect(screen.getByRole("button", { name: /Modded Hull/ })).toBeInTheDocument();
+  expect(screen.getByText("capital")).toBeInTheDocument();
+  expect(screen.queryByText("capital ship")).not.toBeInTheDocument();
 });
 
 test("motion direction and reset read as one locally coherent control group", () => {
