@@ -60,7 +60,7 @@ test("keeps the personal best trophy while showing an unfavorable latest benchma
   expect(screen.queryByText(/matching launches/)).not.toBeInTheDocument();
 });
 
-test("keeps playtime session detail on hover and in the accessible description while the copy utility stays icon-only", () => {
+test("keeps playtime session detail on hover and in the named accessible group while the copy utility stays icon-only", () => {
   render(
     <SpeedScoreboard
       standing={standing()}
@@ -80,7 +80,7 @@ test("keeps playtime session detail on hover and in the accessible description w
     />,
   );
 
-  const playtime = screen.getByLabelText("3.5h recorded playtime across 3 sessions");
+  const playtime = screen.getByRole("group", { name: "3.5h recorded playtime across 3 sessions" });
   expect(playtime).toHaveAccessibleDescription("Longest session 2.0 hours");
   expect(playtime).toHaveAttribute(
     "title",
