@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./styles.css";
+import "./shell-control-targets.css";
 import "./semantic-color.css";
 import "./release-readiness.css";
 import "./profile-input-polish.css";

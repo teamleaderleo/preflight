@@ -1,0 +1,8 @@
+/* Keep the topbar appearance controls on the same minimum target contract as the rest of the desktop.
+ * Their enclosing groups already occupy the 44px shell row, so this expands the individual hit areas
+ * without making the topbar taller or stealing workspace height. */
+.palette-switch__button,
+.theme-switch__button {
+  width: 44px;
+  min-height: 44px;
+}
