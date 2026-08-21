@@ -36,36 +36,42 @@ REVIEWED_DOCUMENTATION_IMAGES = {
         {
             (61_109, "6b8308d1b71cb8e85a350bfb6d31956c51556ee5"),
             (56_247, "ca01e532a00e804e5cca00c6f85028ab81b0fbdb"),
+            (312_696, "f9dd453e54eb28ddf315a59cc10a4c3ba33137f8"),
         }
     ),
     "docs/images/desktop-home-light.png": frozenset(
         {
             (64_418, "1c4517a2161186f34a79ea9fffa66db79f28f167"),
             (62_880, "a042bb65181efe99c41e2f7132a96f6ec8ca9c4e"),
+            (343_342, "3c0660bf11ae4f1e4ff6969d10c397e282108f8c"),
         }
     ),
     "docs/images/desktop-profiles-light.png": frozenset(
         {
             (59_424, "b206041df4ee61123b3a6a47b492270bbcae4ac6"),
             (56_409, "4402dd545b806b5667f442e7370bfa3b3f3f8cf9"),
+            (227_598, "84d6395de011e74a3bc14a97feed78263380c192"),
         }
     ),
     "docs/images/walkthrough-benchmark.png": frozenset(
         {
             (56_692, "69fb4cf05512f189151cf1e0f58085a6be6162fe"),
             (56_508, "b36aa4e523f1f850179093388f5ea38a18deb066"),
+            (232_298, "d1a1c695b6849fcf5f4d0952ebead9d329d58ff6"),
         }
     ),
     "docs/images/walkthrough-ready.png": frozenset(
         {
             (61_105, "7e413e9e2e55678192dd4c9f5a04673fc20f4cfa"),
             (56_016, "e8676673464db9e897c831e69813bb08d7bb83c4"),
+            (214_091, "534c36be78b62671c1e8ca13926fda7c4fdf1919"),
         }
     ),
     "docs/images/walkthrough-setup.png": frozenset(
         {
             (50_674, "f41cfd715b7129a3439e3d3deb9e8886d52e90fd"),
             (49_295, "2922b4b63d94ac7a3f1eaca5adc886914199deb1"),
+            (189_574, "18cde0f609a2d9cbcf16097cb4742fdd0db0fad2"),
         }
     ),
 }
