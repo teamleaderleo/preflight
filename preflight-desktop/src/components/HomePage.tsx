@@ -306,7 +306,7 @@ export function HomePage({
           {!isReady ? <h2>{status === "loading" ? "Finding Starsector…" : "Choose your Starsector installation"}</h2> : null}
           {!isReady ? <p>{status === "loading" ? "Checking the usual installation locations." : "Select the folder containing Starsector.app, starsector.exe, or starsector.sh."}</p> : null}
           {!isReady && status !== "loading" ? <p className="setup-next">Preflight creates reusable startup data for your current mod setup, then opens Starsector. Your game, mods, and saves stay unchanged.</p> : null}
-          {isReady && (status === "ready" || status === "error") && snapshot?.selected ? (
+          {isReady && !visibleRunFailure && (status === "ready" || status === "error") && snapshot?.selected ? (
             <HomeLaunchIdentity
               installRoot={snapshot.selected.installRoot}
               profileName={launchProfileName}
