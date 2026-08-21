@@ -32,7 +32,20 @@ export function GameSettingsPage({
   onSave,
 }: GameSettingsPageProps) {
   if (!draft || !settings) {
-    return <div className="launch-page"><section className="card launch-loading">{loading ? "Reading game settings…" : "Game settings unavailable"}</section></div>;
+    return (
+      <div className="launch-page">
+        <section className="card launch-loading">
+          {loading ? "Reading game settings…" : (
+            <>
+              <p>Game settings unavailable</p>
+              <button className="button button--quiet button--compact" type="button" onClick={onRefresh}>
+                Try again
+              </button>
+            </>
+          )}
+        </section>
+      </div>
+    );
   }
 
   const diagnostics = [

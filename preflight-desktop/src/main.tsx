@@ -4,6 +4,7 @@ import App from "./App";
 import "./styles.css";
 import "./semantic-color.css";
 import "./release-readiness.css";
+import "./profile-input-polish.css";
 import "./game-settings-layout.css";
 import "./homePresentation.css";
 import "./layout-hierarchy.css";
