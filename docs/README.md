@@ -8,8 +8,9 @@ current answer.
 
 - [Live release convergence #652](https://github.com/teamleaderleo/preflight/issues/652): current
   beta blockers, merge order, collision control, and moving `main` coordination.
-- [Release readiness](release-readiness.md): documentation mirror of the four active beta blockers.
-- [Public beta roadmap](beta-roadmap.md): current candidate/platform execution sequence.
+- [Release readiness](release-readiness.md): documentation mirror of the current candidate gate.
+- [Public beta roadmap](beta-roadmap.md): current candidate execution sequence from signing rehearsal
+  through native/package acceptance.
 - [Product contract](product-contract.md): current product, compatibility, preset, storage, update,
   and diagnostics boundaries.
 - [Project overview](../README.md): what Preflight does, current measured results, and development
@@ -82,11 +83,11 @@ current answer.
 - [What generalizes](what-generalizes.md)
 - [Desktop application research](desktop-app-research.md)
 
-Repository administration stays with its live issues: use
-[#607](https://github.com/teamleaderleo/preflight/issues/607) for branch/tag protection verification
-and [#720](https://github.com/teamleaderleo/preflight/issues/720) for the `release-signing`
-Environment and release-tag admission. Dated runbooks can preserve the history without owning live
-settings.
+The owner intentionally removed the repository rulesets/branch protection on 2026-08-21; retired
+[#607](https://github.com/teamleaderleo/preflight/issues/607) records that decision rather than owning
+an active release gate. Use [#720](https://github.com/teamleaderleo/preflight/issues/720) for the
+`release-signing` Environment, release-tag admission, and signing-secret migration. #652 remains the
+live release-sequencing authority.
 
 ## Engineering record
 

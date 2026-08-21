@@ -1,31 +1,49 @@
 # Release readiness
 
-**Status:** release-candidate execution; four candidate/platform blockers remain
+**Status:** operational candidate execution; source and rendered-UI convergence complete
 
-**Updated:** 2026-08-20
+**Updated:** 2026-08-21
 
-This page mirrors the current beta gate. The live owner for blocker status, merge order, collision
+This page mirrors the current beta gate. The live owner for blocker status, freeze order, collision
 control, and any promotion of a newly demonstrated candidate failure is
 [#652](https://github.com/teamleaderleo/preflight/issues/652). The publication-policy decision is
 recorded in [#950](https://github.com/teamleaderleo/preflight/issues/950).
 
 Avoid pinning a moving `main` SHA in this document. Query the branch directly when an exact revision
-is needed; #652 owns any temporary current-main note used for active coordination.
+is needed; #652 owns temporary current-main notes used for active coordination.
 
-## Active beta blockers
+## Active beta work
 
-These are the four candidate/platform tasks carried by #652:
+Source and rendered-UI convergence are complete. The remaining first-beta work is operational and
+must stay tied to one accepted candidate generation:
 
-- [ ] Exercise real-game installations on Windows and Linux.
-- [ ] Freeze and exercise the complete hosted Windows, macOS, and Linux candidate from one accepted
-  source revision.
-- [ ] Run the startup benchmark on the **exact packaged candidate bytes** and retain the candidate
-  identity with the result.
-- [ ] Complete the packaged report-intake canary cancel/retry/delete sequence on the candidate.
+- [ ] **Complete release-signing setup and a private rehearsal (#720).** Configure the
+  `release-signing` Environment, updater key/password, private-candidate archive password, updater
+  public key, and reviewed production report-intake origin. Run a private signed Distribution and
+  its three-platform candidate lifecycle, then remove the legacy repository-level signing secrets
+  and repeat the rehearsal after cleanup.
+- [ ] **Freeze one immutable candidate generation.** Refresh the live board and open queue after the
+  signing rehearsal. Once source is frozen, only a demonstrated release blocker should create a new
+  candidate generation.
+- [ ] **Exercise the frozen package on native Windows with a licensed game installation.** Cover
+  detection/setup, preparation, repeated launch, campaign/combat, adapter health/fallback, and
+  removal.
+- [ ] **Exercise the same frozen package on native x86-64 Linux with a licensed game installation.**
+  Run the corresponding acceptance path there.
+- [ ] **Collect exact package-dependent evidence.** Run the #418 startup benchmark against the engine
+  extracted from the accepted package bytes and retain the package/bundle identity with the result.
+  Complete the tagged lifecycle/update receipts and the exact-tag production report canary required
+  by #974/#818 against that same generation.
+- [ ] **Complete the hands-on packaged report-intake canary (#965).** Review the disclosed support
+  ZIP, cancel after a partial upload, prove remote cleanup while the local ZIP remains, retry the same
+  ZIP, verify the accepted size/SHA and retained receipt, then delete it and prove cleanup.
 
-Post-RC hardening, prototypes, compatibility expansion, repository administration, and research stay
-in their own owner issues. A concrete candidate failure can promote work through #652; an open issue
-or implementable hardening idea does not expand this list by itself.
+A private rehearsal does not authorize a release tag, and a successful tagged candidate does not by
+itself authorize publication. Tag creation and publication remain separate release-owner decisions.
+
+Post-RC hardening, prototypes, compatibility expansion, and research stay in their own owner issues.
+A concrete candidate failure can promote work through #652; an open issue or implementable idea does
+not expand the beta gate by itself.
 
 ## Publication policy — decided
 
@@ -35,10 +53,13 @@ or implementable hardening idea does not expand this list by itself.
 - [x] Preflight remains an independent, unofficial project and redistributes no Starsector content.
 - [x] Retain the existing descriptive-use attribution and unofficial-project disclaimer as the
   maintainer's publication position recorded in #950.
-- [x] Keep paid Apple signing/notarization and Windows Authenticode outside the first-beta gate. The
-  beta can publish checksums and accurate operating-system warning instructions.
+- [x] Keep paid Apple Developer ID/notarization and Windows Authenticode outside the first-beta gate.
+  The beta can publish checksums and accurate operating-system warning instructions.
+- [x] Repository rulesets are intentionally not part of the current release gate. The owner retired
+  #607 on 2026-08-21. Before approving a tagged deployment, verify at the `release-signing`
+  Environment boundary that the tag/commit is the intended frozen accepted `main` identity.
 
-The correspondence itself remains in
+The Fractal correspondence itself remains in
 [fractal-permission-request.md](fractal-permission-request.md) for historical context.
 
 ## Candidate preparation already established
@@ -47,15 +68,18 @@ The detailed evidence remains in the linked documents and dated `docs/evidence/`
 
 - the desktop first-run, preparation, profile, settings, update, diagnostics, cleanup, removal, and
   benchmark flows are implemented;
-- the package pipeline assembles the reviewed Windows, macOS, and Linux artifacts and verifies their
-  embedded engine, legal files, checksums, SBOM/dependency inventory, updater metadata, and packaged
-  capability receipts;
+- release-owner rendered acceptance of Home/Hangar, minimum-window workspaces, keyboard scrolling,
+  and failed-run attention layout has completed against the supported desktop sizes;
+- the package pipeline assembles and verifies the reviewed Windows, macOS, and Linux artifacts and
+  checks their embedded engine, legal files, checksums, SBOM/dependency inventory, updater metadata,
+  and packaged capability receipts;
 - hosted package lifecycle rehearsal has exercised install, upgrade, rollback, and removal on all
-  three platforms; the remaining lifecycle work is tied to the complete candidate bytes;
+  three platforms; the remaining lifecycle evidence belongs to the accepted candidate bytes;
 - the startup benchmark harness accepts a packaged engine with adjacent identity metadata and refuses
   checkout fallback in candidate mode;
-- the production report-intake service and packaged upload path have completed earlier canaries; the
-  remaining canary is the final candidate cancel/retry/delete sequence;
+- the production report-intake service and tagged canary producer/consumer path are implemented; the
+  remaining work is the final candidate evidence above, including the hands-on cancel/retry/delete
+  sequence;
 - the controlled development comparison remains 89.00 seconds ordinary versus 15.53 seconds with
   Preflight on the reviewed 83-mod profile, with a 15.25-second low. The packaged candidate result is
   still pending and will sit beside that development record.
@@ -68,22 +92,21 @@ Useful current references:
 - [Packaged report canary](evidence/2026-08-08-packaged-report-canary.md)
 - [Optimization history](optimization-history.md)
 
-## Supporting work outside the four-item blocker list
+## Work outside the candidate gate
 
-Repository and release-account administration has separate live owners. Use
-[#607](https://github.com/teamleaderleo/preflight/issues/607) for branch/tag protection verification
-and [#720](https://github.com/teamleaderleo/preflight/issues/720) for the `release-signing`
-Environment, release-tag admission, and signing-secret migration. Their issue bodies own current
-operator state; dated runbooks should not be used to infer live repository settings.
+[#720](https://github.com/teamleaderleo/preflight/issues/720) owns the live release-signing
+administration and private rehearsal that are part of the current gate. #607 is closed `not planned`
+under the owner-selected repository policy; do not recreate a ruleset unless that policy changes.
 
-Compatibility work beyond the Windows/Linux real-game exercise continues during beta. Broader mod,
-audio, visual, simulation, save/reload, frame-time, and display-server coverage expands supported
-claims as evidence arrives. Keep those results scoped to the platform/profile actually exercised.
+Compatibility work beyond the required native Windows/Linux exercise can continue during beta.
+Broader mod, audio, visual, simulation, save/reload, frame-time, and display-server coverage expands
+supported claims as evidence arrives. Keep those results scoped to the platform/profile actually
+exercised.
 
 Release notes, checksums, SBOMs, notices, privacy/install/removal text, package-content verification,
 and public posts are finalized against the accepted candidate generation. Existing pipeline and
-verification work is retained as preparation evidence; candidate-specific receipts should name the
-exact bytes they accepted.
+verification work remains useful preparation evidence; candidate-specific receipts should name the
+package bytes they accepted.
 
 ## Historical checklist
 
