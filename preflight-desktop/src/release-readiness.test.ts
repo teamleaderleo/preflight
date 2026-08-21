@@ -80,20 +80,20 @@ test("explicit Home state modifiers own recovery and preparation composition", (
   style.remove();
 });
 
-test("narrow exceptional states reserve action rows locally", () => {
+test("narrow exceptional states keep only the live Options clearance fallback", () => {
+  expect(readinessStyles).not.toContain(
+    ".launch-console--ready:has(.launch-console__actions .launch-console__stop) .launch-console__note",
+  );
+
   const style = installReadinessStyles();
   const media = Array.from(style.sheet?.cssRules ?? []).find((rule) =>
     rule instanceof CSSMediaRule && rule.conditionText === "(max-width: 720px)",
   ) as CSSMediaRule | undefined;
   expect(media).toBeDefined();
   const rules = Array.from(media?.cssRules ?? []).filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule);
-  const noteRule = rules.find((rule) =>
-    rule.selectorText === ".launch-console--ready:has(.launch-console__actions .launch-console__stop) .launch-console__note",
-  );
   const optionsRule = rules.find((rule) =>
     rule.selectorText === ".launch-console--options-open:has(.launch-console__actions .launch-console__stop) .quick-settings",
   );
-  expect(noteRule?.style.bottom).toBe("132px");
   expect(optionsRule?.style.bottom).toBe("200px");
   style.remove();
 });

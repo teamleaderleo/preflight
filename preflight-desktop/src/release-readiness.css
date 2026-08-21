@@ -244,15 +244,7 @@ summary:active {
     max-height: none;
   }
 
-  /*
-   * Repair, low-disk recovery, preparation cancellation, and running state add a second action.
-   * Reserve that extra row before placing the note or the settings disclosure so neither can sit
-   * over the consequential action the player is trying to take.
-   */
-  .launch-console--ready:has(.launch-console__actions .launch-console__stop) .launch-console__note {
-    bottom: 132px;
-  }
-
+  /* Secondary-action states still need the Options panel lifted above their real action row. */
   .launch-console--options-open:has(.launch-console__actions .launch-console__stop) .quick-settings {
     bottom: 200px;
   }
