@@ -156,3 +156,12 @@
 .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-launch-path {
   align-self: center;
 }
+
+@media (max-width: 720px) {
+  /* Preparation actions share the compact row. The release-readiness layer still carries an older
+   * generic secondary-action fallback, so this state-owned rule deliberately outranks it and keeps
+   * the preparation note directly above the actual 60px action block. */
+  :root .launch-console.launch-console--layout-preparation.launch-console--ready .launch-console__note {
+    bottom: 82px;
+  }
+}
