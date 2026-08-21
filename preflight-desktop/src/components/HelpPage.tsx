@@ -94,11 +94,11 @@ export function HelpPage({
           <div>
             <div className="heading-with-info">
               <h2>{diagnosticsExport ? "Support file ready" : "Still stuck?"}</h2>
-              <InfoTip label="About support sharing">Copy setup makes a compact public-safe text summary. The support file is a separate redacted ZIP with richer run evidence.</InfoTip>
+              <InfoTip label="About support sharing">Copy setup makes a compact text summary for public posts. The support file is a separate redacted ZIP with more detailed run information.</InfoTip>
             </div>
             <p>{diagnosticsExport
               ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}`
-              : "Copy your setup for a public post, or make a redacted support ZIP for richer evidence."}</p>
+              : "Copy your setup for a public post, or make a redacted support ZIP with more detailed run information."}</p>
             <small>{automaticRunReports
               ? "Failed-run reports are on. A failed launch can send the separate support ZIP automatically."
               : "Copy setup stays on your clipboard. Support files stay local until you choose Send."}</small>
@@ -116,7 +116,7 @@ export function HelpPage({
         {setupCopy.state === "error" && setupCopy.text ? (
           <div className="report-recovery" role="alert">
             <strong>Clipboard access failed</strong>
-            <p>The public-safe summary is still available below. Select and copy it manually, or retry the same summary without rescanning your setup.</p>
+            <p>The setup summary is still available below. Select and copy it manually, or retry the same summary without rescanning your setup.</p>
             <textarea aria-label="Copy setup summary" readOnly rows={10} value={setupCopy.text} />
             <button className="button button--quiet button--compact" type="button" onClick={() => void setupCopy.retryCopySetup()}>Try clipboard again</button>
           </div>
