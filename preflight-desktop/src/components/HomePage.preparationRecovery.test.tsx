@@ -1,8 +1,8 @@
+import homePresentationStyles from "../homePresentation.css?raw";
 import { render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import type { usePreparation } from "../usePreparation";
 import type { DesktopSnapshot, WireframeHull } from "../types";
-import homePresentationStyles from "../homePresentation.css?raw";
 import { HomePage } from "./HomePage";
 
 vi.mock("./FlightInstrument", () => ({
