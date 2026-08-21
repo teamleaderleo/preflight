@@ -190,7 +190,9 @@ def current_files(repository: Path) -> list[str]:
 
 
 def historical_blobs(repository: Path) -> dict[str, set[str]]:
-    objects = git(repository, "rev-list", "--objects", "--all").decode("utf-8").splitlines()
+    # The PR checkout fetches sibling refs to provide complete ancestry. Those refs are independent
+    # review surfaces: audit only objects reachable from the checked-out merge HEAD and its parents.
+    objects = git(repository, "rev-list", "--objects", "HEAD").decode("utf-8").splitlines()
     names_by_oid: dict[str, set[str]] = defaultdict(set)
     object_ids: list[str] = []
     for line in objects:
