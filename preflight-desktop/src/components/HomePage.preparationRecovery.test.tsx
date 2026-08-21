@@ -164,5 +164,14 @@ test("Home keeps storage-mode taxonomy out of the default low-disk decision", ()
 });
 
 test("compact preparation keeps its note immediately above the real action row", () => {
-  expect(homePresentationStyles).toMatch(/@media\s*\(max-width:\s*720px\)[\s\S]*\.launch-console--layout-preparation\.launch-console--ready:has\(\.launch-console__actions \.launch-console__stop\) \.launch-console__note\s*\{[^}]*bottom:\s*82px;/);
+  const media = "@media (max-width: 720px)";
+  const selector = ".launch-console--layout-preparation.launch-console--ready:has(.launch-console__actions .launch-console__stop) .launch-console__note";
+  const mediaIndex = homePresentationStyles.indexOf(media);
+  const selectorIndex = homePresentationStyles.indexOf(selector, mediaIndex);
+  const ruleEnd = homePresentationStyles.indexOf("}", selectorIndex);
+
+  expect(mediaIndex).toBeGreaterThanOrEqual(0);
+  expect(selectorIndex).toBeGreaterThan(mediaIndex);
+  expect(ruleEnd).toBeGreaterThan(selectorIndex);
+  expect(homePresentationStyles.slice(selectorIndex, ruleEnd)).toContain("bottom: 82px;");
 });
