@@ -32,6 +32,7 @@ function RecordedPlaytime({ playtime }: { playtime?: PlaytimeSnapshot }) {
   return (
     <div
       className="scoreboard__playtime"
+      role="group"
       aria-label={`${total} recorded playtime across ${sessions} sessions`}
       aria-describedby={descriptionId}
       title={`Across ${sessions} recorded sessions · longest ${longest}`}
