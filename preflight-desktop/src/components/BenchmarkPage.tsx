@@ -73,13 +73,18 @@ export function BenchmarkPage({
         <div>
           <div className="heading-with-info">
             <h2>Startup benchmark</h2>
-            <InfoTip label="About the benchmark">Opens Starsector twice and times each launch at the main menu: first without Preflight optimizations, then with them. Preflight closes only the exact process it started.</InfoTip>
+            <InfoTip label="About the benchmark">Opens Starsector twice and times each launch at the main menu: first without Preflight optimizations, then with them. Preflight closes only the Starsector process it started.</InfoTip>
           </div>
           <p>{isReady
             ? "Runs Starsector twice, once normally and once with Preflight, then compares the launch times."
             : "Choose Starsector on Home before running the benchmark."}</p>
-          {isReady ? <small>Expect several minutes. Starsector opens and closes on its own.</small> : null}
-          {desktopSmokeRunDirectory ? <small>Saved to {shortPath(desktopSmokeRunDirectory)}</small> : null}
+          {isReady || desktopSmokeRunDirectory ? (
+            <small>
+              {isReady ? "Expect several minutes. Starsector opens and closes on its own." : null}
+              {isReady && desktopSmokeRunDirectory ? " " : null}
+              {desktopSmokeRunDirectory ? `Saved to ${shortPath(desktopSmokeRunDirectory)}` : null}
+            </small>
+          ) : null}
         </div>
         <div className="benchmark-card__actions">
           {desktopSmokeRunning ? (
@@ -132,7 +137,7 @@ export function BenchmarkPage({
                   : null}
             </div>
           ) : null}
-          <small>The saved result includes exact versions and raw timings.</small>
+          <small>The saved result includes the game and mod versions plus raw timings.</small>
         </section>
       ) : null}
 
@@ -155,10 +160,10 @@ function BenchmarkContext({ comparison }: { comparison: AutomationState["desktop
   return (
     <div className="benchmark-results__context" aria-label="Benchmark context">
       {runtime ? <span><strong>{compactNumber(runtime.cacheHits)}</strong> cache hits</span> : null}
-      {runtime ? <span><strong>{compactNumber(runtime.fallbacks)}</strong> safe fallback{runtime.fallbacks === 1 ? "" : "s"}</span> : null}
-      {runtime && runtime.failures > 0 ? <span className="benchmark-results__warning"><strong>{compactNumber(runtime.failures)}</strong> contained failure{runtime.failures === 1 ? "" : "s"}</span> : null}
+      {runtime ? <span><strong>{compactNumber(runtime.fallbacks)}</strong> fallback{runtime.fallbacks === 1 ? "" : "s"}</span> : null}
+      {runtime && runtime.failures > 0 ? <span className="benchmark-results__warning"><strong>{compactNumber(runtime.failures)}</strong> optimization failure{runtime.failures === 1 ? "" : "s"}</span> : null}
       {storage ? <span><strong>{formatBytes(storage.bytes)}</strong> total prepared data</span> : null}
-      {overhead ? <span className={!overhead.withinBudget ? "benchmark-results__warning" : undefined}><strong>{overhead.routeSharePercent.toFixed(2)}%</strong> probe overhead</span> : null}
+      {overhead ? <span className={!overhead.withinBudget ? "benchmark-results__warning" : undefined}><strong>{overhead.routeSharePercent.toFixed(2)}%</strong> benchmark overhead</span> : null}
       {runtime?.memoryAvailablePercent !== null && runtime?.memoryAvailablePercent !== undefined
         ? <span className={runtime.memoryAvailablePercent < 10 ? "benchmark-results__warning" : undefined}><strong>{runtime.memoryAvailablePercent}%</strong> memory available</span>
         : null}
