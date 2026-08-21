@@ -167,11 +167,12 @@ test("compact preparation keeps its note immediately above the real action row",
   const styles = homePresentationStyles.replace(/\/\*[\s\S]*?\*\//g, "");
   const mediaIndex = styles.search(/@media\s*\(\s*max-width\s*:\s*720px\s*\)/);
   const rule = styles.match(
-    /\.launch-console--layout-preparation\.launch-console--ready:has\(\s*\.launch-console__actions\s+\.launch-console__stop\s*\)\s+\.launch-console__note\s*\{([^}]*)\}/,
+    /\.launch-console--layout-preparation\.launch-console--ready\s+\.launch-console__note\s*\{([^}]*)\}/,
   );
 
   expect(mediaIndex).toBeGreaterThanOrEqual(0);
   expect(rule).not.toBeNull();
   expect(rule?.index ?? -1).toBeGreaterThan(mediaIndex);
   expect(rule?.[1]).toMatch(/bottom\s*:\s*82px\s*;?/);
+  expect(styles).not.toContain(":has(");
 });
