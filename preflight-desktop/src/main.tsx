@@ -10,6 +10,7 @@ import "./game-settings-layout.css";
 import "./homePresentation.css";
 import "./layout-hierarchy.css";
 import "./hangar-instrumentation.css";
+import "./hangar-targets.css";
 import "./hangar-focus-contrast.css";
 import "./speedPage.css";
 import { initializeHomePresentation } from "./useHomePresentation";
