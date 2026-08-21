@@ -20,3 +20,12 @@ test("failed-run recovery owns the Home page title", async () => {
   expect(await screen.findByRole("heading", { level: 1, name: "Needs attention" })).toBeInTheDocument();
   expect(await screen.findByRole("alert", { name: "Run needs attention" })).toBeInTheDocument();
 });
+
+test("settled Home does not repeat readiness beside the launch action", async () => {
+  window.history.replaceState(null, "", "/?scenario=ready");
+  render(<App />);
+
+  expect(await screen.findByRole("heading", { level: 1, name: "Ready" })).toBeInTheDocument();
+  expect(await screen.findByRole("button", { name: "Launch Starsector" })).toBeInTheDocument();
+  expect(screen.queryByText("Ready to launch")).not.toBeInTheDocument();
+});

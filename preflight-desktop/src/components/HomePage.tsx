@@ -205,7 +205,7 @@ export function HomePage({
                 ? "Preparation needed"
                 : optimizationPreset === "off"
                   ? "Optimizations off"
-                  : "Ready to launch";
+                  : null;
 
   const notice = (
     <NoticeBanner
@@ -263,7 +263,7 @@ export function HomePage({
           ) : null}
           {isReady ? (
             <div className="launch-console__status-line">
-              {status !== "running" && status !== "launching" ? (
+              {status !== "running" && status !== "launching" && statusLabel ? (
                 <div className={`status-chip ${isReady && !needsPreparation ? "status-chip--ready" : ""}`}>
                   {isReady && !needsPreparation && optimizationPreset !== "off" ? <CheckIcon /> : <SparklesIcon />}
                   {statusLabel}

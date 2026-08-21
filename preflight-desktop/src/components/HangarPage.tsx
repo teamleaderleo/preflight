@@ -9,6 +9,10 @@ type InstrumentHullState = ReturnType<typeof useInstrumentHull>;
 
 const FEATURED_IDS = new Set<string>(FEATURED_HULL_IDS);
 
+function hullSizeLabel(hullSize: string): string {
+  return hullSize === "CAPITAL_SHIP" ? "capital" : hullSize.replaceAll("_", " ").toLowerCase();
+}
+
 interface HangarDialProps {
   label: string;
   value: number;
@@ -66,7 +70,7 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
 
           <div className="hangar-identity">
             <h2>{instrumentHull.selected.name}</h2>
-            <p>{instrumentHull.selected.hullSize.replaceAll("_", " ").toLowerCase()}</p>
+            <p>{hullSizeLabel(instrumentHull.selected.hullSize)}</p>
           </div>
         </div>
 
