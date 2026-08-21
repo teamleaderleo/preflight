@@ -105,7 +105,7 @@ export function BenchmarkPage({
             </button>
           )}
           {nativeBlockReason ? <small id="benchmark-native-block">{nativeBlockReason}</small> : null}
-          {desktopSmokeProbe && !desktopSmokeProbe.probe.ready ? <small>{desktopSmokeProbe.probe.diagnostics[0] ?? "The startup benchmark isn’t available in this build."}</small> : null}
+          {desktopSmokeProbe && !desktopSmokeProbe.probe.ready ? <small>This build can’t run the startup benchmark. Reinstall Preflight, or open Help to make a support file.</small> : null}
         </div>
       </section>
 

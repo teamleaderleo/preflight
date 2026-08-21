@@ -1318,7 +1318,8 @@ test("an unavailable startup benchmark reports the packaged-contract failure wit
   await user.click(await screen.findByRole("button", { name: "Measure speed" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
 
-  expect(await screen.findByText("A packaged startup benchmark scenario is missing.")).toBeInTheDocument();
+  expect(await screen.findByText("This build can’t run the startup benchmark. Reinstall Preflight, or open Help to make a support file.")).toBeInTheDocument();
+  expect(screen.queryByText("A packaged startup benchmark scenario is missing.")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Check again" })).toBeEnabled();
   expect(screen.queryByRole("button", { name: /Accessibility/i })).not.toBeInTheDocument();
   expect(smoke).not.toHaveBeenCalled();
