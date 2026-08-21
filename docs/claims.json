@@ -124,6 +124,7 @@
       "unit": "s",
       "publishedIn": [
         "README.md",
+        "docs/beta-announcement-draft.md",
         "docs/optimization-history.md"
       ],
       "evidence": "docs/evidence/2026-08-15-controlled-vanilla-fast-campaign.md",
@@ -135,6 +136,7 @@
       "unit": "s",
       "publishedIn": [
         "README.md",
+        "docs/beta-announcement-draft.md",
         "docs/optimization-history.md"
       ],
       "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
@@ -255,7 +257,8 @@
       "value": "4.76",
       "unit": "GB",
       "publishedIn": [
-        "README.md"
+        "README.md",
+        "docs/beta-announcement-draft.md"
       ],
       "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
       "derivation": "Whole cache directory produced by one cold Balanced preparation of the 83-mod profile into an empty cache. Second observation of this footprint; an earlier one recorded about 4.53 GB."
@@ -265,7 +268,8 @@
       "value": "12.92",
       "unit": "GB",
       "publishedIn": [
-        "README.md"
+        "README.md",
+        "docs/beta-announcement-draft.md"
       ],
       "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
       "derivation": "Free space Balanced preparation requires before it will begin: the 11,744,225,102-byte conservative upper bound plus its 10% safety reserve, from the read-only plan for that profile."
@@ -275,7 +279,8 @@
       "value": "10.03",
       "unit": "GB",
       "publishedIn": [
-        "README.md"
+        "README.md",
+        "docs/beta-announcement-draft.md"
       ],
       "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
       "derivation": "Whole cache directory produced by the same cold preparation of the same profile with --texture-storage fastest."
@@ -285,7 +290,8 @@
       "value": "10.9",
       "unit": "MB",
       "publishedIn": [
-        "README.md"
+        "README.md",
+        "docs/beta-announcement-draft.md"
       ],
       "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
       "derivation": "Whole cache directory produced by a cold `prepare --no-textures` of the same 83-mod profile; the texture stage is the entire remainder of the 4.76 GB Balanced footprint."
