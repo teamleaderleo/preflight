@@ -46,6 +46,7 @@ export function exercisePackageLifecycle(olderDirectory, newerDirectory, platfor
 function exerciseDebianLifecycle(olderDirectory, newerDirectory) {
   const older = onlyFile(olderDirectory, ".deb");
   const newer = onlyFile(newerDirectory, ".deb");
+  const newerEngineDigest = debianPackageEngineDigest(newer);
   const packageName = capture("dpkg-deb", ["--field", older, "Package"]).trim();
   if (!packageName) throw new Error("The older Debian package declares no package name");
   if (capture("dpkg-deb", ["--field", newer, "Package"]).trim() !== packageName) {
@@ -70,7 +71,7 @@ function exerciseDebianLifecycle(olderDirectory, newerDirectory) {
     const upgraded = debianInstalledRoot(packageName);
     const upgradedVersion = installedVersion(upgraded);
     assertVersionMoved(firstVersion, upgradedVersion);
-    verifyInstalledEngine(upgraded);
+    assertEngineMatchesPackage(upgraded, newerEngineDigest);
     data.assertUnchanged("the upgrade");
 
     install(older);
@@ -100,6 +101,7 @@ function exerciseDebianLifecycle(olderDirectory, newerDirectory) {
 function exerciseNsisLifecycle(olderDirectory, newerDirectory) {
   const older = onlyFile(olderDirectory, "-setup.exe");
   const newer = onlyFile(newerDirectory, "-setup.exe");
+  const newerEngineDigest = windowsPackageEngineDigest(newer);
   const installDirectory = join(tmpdir(), `preflight-lifecycle-${process.pid}`);
   if (existsSync(installDirectory)) throw new Error(`Lifecycle directory already exists: ${installDirectory}`);
   const data = separatelyOwnedData();
@@ -113,7 +115,7 @@ function exerciseNsisLifecycle(olderDirectory, newerDirectory) {
     install(newer);
     const upgradedVersion = installedVersion(installDirectory);
     assertVersionMoved(firstVersion, upgradedVersion);
-    verifyInstalledEngine(installDirectory);
+    assertEngineMatchesPackage(installDirectory, newerEngineDigest);
     data.assertUnchanged("the upgrade");
 
     install(older);
@@ -145,6 +147,7 @@ function exerciseNsisLifecycle(olderDirectory, newerDirectory) {
 function exerciseMacLifecycle(olderDirectory, newerDirectory) {
   const older = onlyFile(olderDirectory, ".dmg");
   const newer = onlyFile(newerDirectory, ".dmg");
+  const newerEngineDigest = macPackageEngineDigest(newer);
   const installDirectory = mkdtempSync(join(tmpdir(), "preflight-lifecycle-"));
   const installedApp = join(installDirectory, "Preflight.app");
   const data = separatelyOwnedData();
@@ -175,7 +178,7 @@ function exerciseMacLifecycle(olderDirectory, newerDirectory) {
     install(newer);
     const upgradedVersion = installedVersion(installedApp);
     assertVersionMoved(firstVersion, upgradedVersion);
-    verifyInstalledEngine(installedApp);
+    assertEngineMatchesPackage(installedApp, newerEngineDigest);
     data.assertUnchanged("the upgrade");
 
     install(older);
@@ -253,16 +256,20 @@ export function treeDigest(root) {
  * is already verified as part of the package payload, so it is the same answer everywhere.
  */
 export function installedVersion(root) {
-  const manifests = regularFiles(root).filter((path) => basename(path) === "bundle.json"
-    && basename(dirname(path)).toLowerCase() === "engine");
-  if (manifests.length !== 1) {
-    throw new Error(`Installed package must contain one engine manifest; found ${manifests.length}`);
-  }
-  const version = JSON.parse(readFileSync(manifests[0], "utf8")).sourceVersion;
+  const manifest = join(engineDirectory(root), "bundle.json");
+  const version = JSON.parse(readFileSync(manifest, "utf8")).sourceVersion;
   if (typeof version !== "string" || !version.trim()) {
-    throw new Error(`Installed engine manifest carries no source version: ${manifests[0]}`);
+    throw new Error(`Installed engine manifest carries no source version: ${manifest}`);
   }
   return version;
+}
+
+export function assertEngineMatchesPackage(installedRoot, expectedDigest) {
+  const actualDigest = treeDigest(engineDirectory(installedRoot));
+  if (actualDigest !== expectedDigest) {
+    throw new Error("Installed engine differs from the exact candidate package");
+  }
+  verifyInstalledEngine(installedRoot, { verifyReviewedSources: false });
 }
 
 /**
@@ -316,12 +323,57 @@ function debianInstalledRoot(packageName) {
   return dirname(dirname(manifests[0]));
 }
 
+function engineDirectory(root) {
+  const manifests = regularFiles(root).filter((path) => basename(path) === "bundle.json"
+    && basename(dirname(path)).toLowerCase() === "engine");
+  if (manifests.length !== 1) {
+    throw new Error(`Installed package must contain one engine manifest; found ${manifests.length}`);
+  }
+  return dirname(manifests[0]);
+}
+
+function debianPackageEngineDigest(path) {
+  return extractedPackageEngineDigest("preflight-lifecycle-deb-", (directory) => {
+    run("dpkg-deb", ["--extract", path, directory]);
+  });
+}
+
+function windowsPackageEngineDigest(path) {
+  return extractedPackageEngineDigest("preflight-lifecycle-nsis-", (directory) => {
+    run("7z", ["x", "-y", `-o${directory}`, path]);
+  });
+}
+
+function macPackageEngineDigest(path) {
+  const mountDirectory = mkdtempSync(join(tmpdir(), "preflight-lifecycle-reference-dmg-"));
+  let mounted = false;
+  try {
+    run("hdiutil", ["attach", "-readonly", "-nobrowse", "-noautoopen", "-mountpoint", mountDirectory, path]);
+    mounted = true;
+    return treeDigest(engineDirectory(join(mountDirectory, "Preflight.app")));
+  } finally {
+    if (mounted) run("hdiutil", ["detach", mountDirectory]);
+    rmSync(mountDirectory, { recursive: true, force: true });
+  }
+}
+
+function extractedPackageEngineDigest(prefix, extract) {
+  const directory = mkdtempSync(join(tmpdir(), prefix));
+  try {
+    extract(directory);
+    return treeDigest(engineDirectory(directory));
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function report(olderPackage, newerPackage, firstVersion, upgradedVersion, ownedFiles) {
   return {
     olderPackage,
     newerPackage,
     installedVersion: firstVersion,
     upgradedVersion,
+    upgradedEngineByteIdentical: true,
     rolledBackByteIdentical: true,
     removedOwnedFiles: ownedFiles,
     separatelyOwnedDataRetained: true,

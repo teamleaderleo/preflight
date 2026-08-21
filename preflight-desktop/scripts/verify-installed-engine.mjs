@@ -3,13 +3,13 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { verifyExtractedPayload } from "./verify-native-package.mjs";
 
-export function verifyInstalledEngine(root) {
+export function verifyInstalledEngine(root, options = {}) {
   const installedRoot = resolve(root);
   const details = lstatSync(installedRoot, { throwIfNoEntry: false });
   if (!details?.isDirectory() || details.isSymbolicLink()) {
     throw new Error(`Installed package root isn't a real directory: ${installedRoot}`);
   }
-  return verifyExtractedPayload(installedRoot);
+  return verifyExtractedPayload(installedRoot, options);
 }
 
 function main() {

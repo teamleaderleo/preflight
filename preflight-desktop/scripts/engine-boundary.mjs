@@ -66,13 +66,7 @@ export function verifyEngineBoundary(
   engineDirectory = join(desktopDirectory, "src-tauri", "target", "engine"),
   options = {},
 ) {
-  assertDirectory(engineDirectory, "desktop engine");
-  assertExactEntries(engineDirectory, rootEntries);
-  assertDirectory(join(engineDirectory, "legal"), "legal directory");
-  assertExactEntries(join(engineDirectory, "legal"), [...legalFiles.keys()].sort());
-  assertDirectory(join(engineDirectory, "scenarios"), "scenario directory");
-  assertExactEntries(join(engineDirectory, "scenarios"), [...scenarioFiles.keys()].sort());
-  assertDirectory(join(engineDirectory, "runtime"), "runtime directory");
+  const report = verifyEngineIntegrity(engineDirectory, options);
 
   assertSameFile(join(engineDirectory, "preflight.jar"), join(repositoryRoot, "preflight-cli", "target", "preflight.jar"));
   for (const [name, source] of legalFiles) {
@@ -81,6 +75,41 @@ export function verifyEngineBoundary(
   for (const [name, source] of scenarioFiles) {
     assertSameFile(join(engineDirectory, "scenarios", name), source);
   }
+
+  const tauriConfig = JSON.parse(readFileSync(join(desktopDirectory, "src-tauri", "tauri.conf.json"), "utf8"));
+  const expectedResources = {
+    "licenses/B612-OFL.txt": "licenses/B612-OFL.txt",
+    "licenses/IBM-Plex-Sans-OFL.txt": "licenses/IBM-Plex-Sans-OFL.txt",
+    "licenses/Orbitron-OFL.txt": "licenses/Orbitron-OFL.txt",
+    "target/engine/": "engine/",
+  };
+  if (stableJson(tauriConfig.bundle?.resources) !== stableJson(expectedResources)) {
+    throw new Error("Tauri resource map differs from the reviewed desktop boundary");
+  }
+
+  return report;
+}
+
+/**
+ * Verify a packaged engine using only the package's own bounded inventories and receipts.
+ *
+ * Distribution uses verifyEngineBoundary so package bytes are compared with the checked-out
+ * sources. The upgrade rehearsal intentionally rebuilds those sources as an older version before
+ * installing the exact candidate, so its post-install check must use the candidate's signed,
+ * previously reviewed identity instead. This still checks the complete engine shape, manifest
+ * digests, capability receipt, runtime inventory, and runnable Java entry point.
+ */
+export function verifyEngineIntegrity(
+  engineDirectory = join(desktopDirectory, "src-tauri", "target", "engine"),
+  options = {},
+) {
+  assertDirectory(engineDirectory, "desktop engine");
+  assertExactEntries(engineDirectory, rootEntries);
+  assertDirectory(join(engineDirectory, "legal"), "legal directory");
+  assertExactEntries(join(engineDirectory, "legal"), [...legalFiles.keys()].sort());
+  assertDirectory(join(engineDirectory, "scenarios"), "scenario directory");
+  assertExactEntries(join(engineDirectory, "scenarios"), [...scenarioFiles.keys()].sort());
+  assertDirectory(join(engineDirectory, "runtime"), "runtime directory");
 
   const manifestPath = join(engineDirectory, "bundle.json");
   assertRegularFile(manifestPath, "bundle manifest");
@@ -187,17 +216,6 @@ export function verifyEngineBoundary(
   const javaName = process.platform === "win32" ? "java.exe" : "java";
   assertRegularFile(join(engineDirectory, "runtime", "bin", javaName), "bundled Java launcher");
   assertRegularFile(join(engineDirectory, "runtime", "release"), "bundled Java release metadata");
-
-  const tauriConfig = JSON.parse(readFileSync(join(desktopDirectory, "src-tauri", "tauri.conf.json"), "utf8"));
-  const expectedResources = {
-    "licenses/B612-OFL.txt": "licenses/B612-OFL.txt",
-    "licenses/IBM-Plex-Sans-OFL.txt": "licenses/IBM-Plex-Sans-OFL.txt",
-    "licenses/Orbitron-OFL.txt": "licenses/Orbitron-OFL.txt",
-    "target/engine/": "engine/",
-  };
-  if (stableJson(tauriConfig.bundle?.resources) !== stableJson(expectedResources)) {
-    throw new Error("Tauri resource map differs from the reviewed desktop boundary");
-  }
 
   return { runtimeFiles: actualRuntime.files, runtimeBytes: actualRuntime.bytes, runtimeChanges };
 }
