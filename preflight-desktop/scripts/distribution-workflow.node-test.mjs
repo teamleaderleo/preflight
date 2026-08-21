@@ -183,6 +183,7 @@ test("Linux release and CI packaging share one pinned compatibility boundary", (
   for (const platformJob of [releaseLinux, ciLinux]) {
     assert.match(platformJob, new RegExp(linuxBuilderImage.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     assert.match(platformJob, /PREFLIGHT_LINUX_MAX_GLIBC: '2\.35'/);
+    assert.match(platformJob, /libasound2/);
     assert.match(platformJob, /verify_linux_glibc_floor\.py/);
     assert.match(platformJob, /write_linux_builder_provenance\.py/);
     assert.match(platformJob, /APPIMAGE_EXTRACT_AND_RUN: '1'/);
