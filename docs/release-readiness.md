@@ -5,8 +5,8 @@
 **Updated:** 2026-08-21
 
 This page mirrors the current beta gate. The live owner for blocker status, freeze order, collision
-control, and any promotion of a newly demonstrated candidate failure is
-[#652](https://github.com/teamleaderleo/preflight/issues/652). The publication-policy decision is
+control, and any promotion caused by a demonstrated candidate failure or explicit maintainer decision
+is [#652](https://github.com/teamleaderleo/preflight/issues/652). The publication-policy decision is
 recorded in [#950](https://github.com/teamleaderleo/preflight/issues/950).
 
 Avoid pinning a moving `main` SHA in this document. Query the branch directly when an exact revision
@@ -23,14 +23,15 @@ must stay tied to one accepted candidate generation:
   its three-platform candidate lifecycle, then remove the legacy repository-level signing secrets
   and repeat the rehearsal after cleanup.
 - [ ] **Freeze one immutable candidate generation.** Refresh the live board and open queue after the
-  signing rehearsal. Once source is frozen, only a demonstrated release blocker should create a new
-  candidate generation.
+  signing rehearsal. Once source is frozen, unrelated source work stops. A demonstrated candidate
+  failure or explicit maintainer decision can still create new bytes; affected package-dependent
+  evidence must then follow the new candidate generation.
 - [ ] **Exercise the frozen package on native Windows with a licensed game installation.** Cover
   detection/setup, preparation, repeated launch, campaign/combat, adapter health/fallback, and
   removal.
 - [ ] **Exercise the same frozen package on native x86-64 Linux with a licensed game installation.**
   Run the corresponding acceptance path there.
-- [ ] **Collect exact package-dependent evidence.** Run the #418 startup benchmark against the engine
+- [ ] **Collect package-dependent evidence.** Run the #418 startup benchmark against the engine
   extracted from the accepted package bytes and retain the package/bundle identity with the result.
   Complete the tagged lifecycle/update receipts and the exact-tag production report canary required
   by #974/#818 against that same generation.
@@ -39,11 +40,12 @@ must stay tied to one accepted candidate generation:
   ZIP, verify the accepted size/SHA and retained receipt, then delete it and prove cleanup.
 
 A private rehearsal does not authorize a release tag, and a successful tagged candidate does not by
-itself authorize publication. Tag creation and publication remain separate release-owner decisions.
+itself authorize making the first public beta GitHub release and downloadable packages live. Final
+candidate creation and public release remain explicit maintainer decisions.
 
 Post-RC hardening, prototypes, compatibility expansion, and research stay in their own owner issues.
-A concrete candidate failure can promote work through #652; an open issue or implementable idea does
-not expand the beta gate by itself.
+A concrete candidate failure or explicit maintainer decision can promote work through #652; an open
+issue or implementable idea does not expand the beta gate by itself.
 
 ## Publication policy — decided
 
@@ -69,7 +71,8 @@ The detailed evidence remains in the linked documents and dated `docs/evidence/`
 - the desktop first-run, preparation, profile, settings, update, diagnostics, cleanup, removal, and
   benchmark flows are implemented;
 - release-owner rendered acceptance of Home/Hangar, minimum-window workspaces, keyboard scrolling,
-  and failed-run attention layout has completed against the supported desktop sizes;
+  failed-run attention layout, and the final custom Hangar hull selector/instrument treatment has
+  completed against the supported desktop sizes;
 - the package pipeline assembles and verifies the reviewed Windows, macOS, and Linux artifacts and
   checks their embedded engine, legal files, checksums, SBOM/dependency inventory, updater metadata,
   and packaged capability receipts;
