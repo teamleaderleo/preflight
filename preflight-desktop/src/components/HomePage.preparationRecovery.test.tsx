@@ -1,4 +1,5 @@
 import homePresentationStyles from "../homePresentation.css?raw";
+import releaseReadinessStyles from "../release-readiness.css?raw";
 import { render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import type { usePreparation } from "../usePreparation";
@@ -163,16 +164,25 @@ test("Home keeps storage-mode taxonomy out of the default low-disk decision", ()
   expect(note!.nextElementSibling).toBe(actions);
 });
 
-test("compact preparation keeps its note immediately above the real action row", () => {
+test("compact preparation owns its note over the generic secondary-action fallback", () => {
   const styles = homePresentationStyles.replace(/\/\*[\s\S]*?\*\//g, "");
+  const readinessStyles = releaseReadinessStyles.replace(/\/\*[\s\S]*?\*\//g, "");
   const mediaIndex = styles.search(/@media\s*\(\s*max-width\s*:\s*720px\s*\)/);
   const rule = styles.match(
-    /\.launch-console--layout-preparation\.launch-console--ready\s+\.launch-console__note\s*\{([^}]*)\}/,
+    /:root\s+\.launch-console\.launch-console--layout-preparation\.launch-console--ready\s+\.launch-console__note\s*\{([^}]*)\}/,
+  );
+  const fallback = readinessStyles.match(
+    /\.launch-console--ready:has\(\.launch-console__actions\s+\.launch-console__stop\)\s+\.launch-console__note\s*\{([^}]*)\}/,
   );
 
   expect(mediaIndex).toBeGreaterThanOrEqual(0);
   expect(rule).not.toBeNull();
   expect(rule?.index ?? -1).toBeGreaterThan(mediaIndex);
   expect(rule?.[1]).toMatch(/bottom\s*:\s*82px\s*;?/);
+  expect(fallback?.[1]).toMatch(/bottom\s*:\s*132px\s*;?/);
+
+  const explicitSpecificity = (rule?.[0].match(/\./g) ?? []).length + 1; // :root
+  const fallbackSpecificity = (fallback?.[0].match(/\./g) ?? []).length;
+  expect(explicitSpecificity).toBeGreaterThan(fallbackSpecificity);
   expect(styles).not.toContain(":has(");
 });
