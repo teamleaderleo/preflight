@@ -65,6 +65,7 @@ test("compiled report intake is exact and rejects broader URLs", () => {
     engineJarPath: engineJar,
     productVersion: "0.1.0",
     sourceRevision: "b".repeat(40),
+    sourceDirty: false,
   };
   assert.equal(buildCapabilityReceipt({
     ...base,
