@@ -87,21 +87,30 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
                 ? `${instrumentHull.catalog.hulls.length.toLocaleString()} installed`
                 : instrumentHull.catalogLoaded ? "Included ships" : "Finding installed ships…"}
             </span>
-            <div className="hangar-motion-controls" role="group" aria-label="Display motion and appearance">
+            <div
+              className="hangar-motion-controls"
+              role="group"
+              aria-label="Display motion and appearance"
+              data-motion={motion}
+              data-direction={direction}
+            >
               <button
-                className="icon-button icon-button--small"
+                className="icon-button icon-button--small hangar-motion-toggle"
                 type="button"
                 aria-label={motionLabel}
                 title={motion === "rotate" ? "Pause decorative hull rotation" : "Resume decorative hull rotation"}
+                data-motion={motion}
                 onClick={() => setMotion(motion === "rotate" ? "still" : "rotate")}
               >
                 {motion === "rotate" ? <PauseIcon /> : <PlayIcon />}
               </button>
               <button
-                className="icon-button icon-button--small"
+                className="icon-button icon-button--small hangar-direction-toggle"
                 type="button"
                 aria-label={directionLabel}
                 title={directionTitle}
+                data-motion={motion}
+                data-direction={direction}
                 onClick={() => setDirection(direction === "clockwise" ? "counter-clockwise" : "clockwise")}
               >
                 {direction === "clockwise" ? <RotateCounterClockwiseIcon /> : <RotateClockwiseIcon />}
