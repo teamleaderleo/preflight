@@ -76,7 +76,7 @@ afterEach(() => {
 });
 
 test("bottom-scrolled minimum Hangar opens the chooser into visible space below", () => {
-  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function () {
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
     if (this.classList.contains("page-viewport")) return rect(117, 560);
     if (this.getAttribute("role") === "combobox") return rect(247, 291, 120, 500);
     if (this.classList.contains("hangar-hull-combobox__list")) return rect(50, 246, 120, 500);
@@ -102,7 +102,7 @@ test("bottom-scrolled minimum Hangar opens the chooser into visible space below"
 });
 
 test("chooser keeps the established upward placement when the list fits above", () => {
-  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function () {
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
     if (this.classList.contains("page-viewport")) return rect(117, 560);
     if (this.getAttribute("role") === "combobox") return rect(400, 444, 120, 500);
     if (this.classList.contains("hangar-hull-combobox__list")) return rect(195, 391, 120, 500);
