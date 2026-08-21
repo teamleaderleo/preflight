@@ -229,7 +229,7 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
             <div><strong>Disable ({activationPlan.disable.length})</strong>{activationPlan.disable.length ? <ul>{activationPlan.disable.map((mod) => <li key={mod}>{mod}</li>)}</ul> : <span>Nothing</span>}</div>
           </div>
           <div className="activation-review__footer">
-            <span><ShieldIcon /> Preflight rechecks the file, writes a backup, then replaces it safely.</span>
+            <span><ShieldIcon /> Preflight checks the current mod list again, saves a backup, then applies this switch.</span>
             <button className="button button--primary" type="button" onClick={() => void applyProfile()} disabled={!activationPlan.canActivate || activationPlan.active || profileBusy || operationBlocked}>{profileBusy ? "Switching…" : "Apply switch"}</button>
           </div>
         </section>
@@ -260,7 +260,7 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
               : "This deletes the profile. The current mod list and prepared data stay unchanged."}</p>
           {mutationPlan.operation === "delete" && mutationPlan.active ? <p className="activation-warning">This is the active profile. Deleting its saved name will not disable any mods.</p> : null}
           <div className="activation-review__footer">
-            <span><ShieldIcon /> Preflight rechecks the exact reviewed profile before changing it.</span>
+            <span><ShieldIcon /> Preflight checks the saved profile again before making this change.</span>
             <button className={`button ${mutationPlan.operation === "delete" ? "button--danger" : "button--primary"}`} type="button" onClick={() => void applyProfileMutation()} disabled={profileBusy || operationBlocked}>
               {profileBusy ? "Applying…" : mutationPlan.operation === "rename" ? "Rename profile" : mutationPlan.operation === "duplicate" ? "Duplicate profile" : "Delete profile"}
             </button>
