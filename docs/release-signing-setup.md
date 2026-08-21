@@ -1,12 +1,14 @@
 # Release signing setup from zero
 
-This page is the owner/admin setup for producing Preflight's private signed candidate and, later, a tagged final candidate.
+This page is the computer-use/operator setup for producing Preflight's private signed rehearsal candidate and, later, the tagged final candidate.
 
-The repository-side workflows already exist. You do **not** need to buy Apple Developer ID, Apple notarization, or Windows Authenticode for the first beta. Those platform publisher identities remain outside the beta gate. The signing described here is the Tauri updater signature used to prove that an update came from this project.
+The repository-side workflows already exist. You do **not** need Apple Developer ID/notarization or Windows Authenticode for the first beta. The signing described here is Tauri's project-owned updater signature.
+
+The repository currently has **no branch or tag ruleset by owner choice**. Do not recreate one as part of this procedure. Release-secret admission is therefore handled at the `release-signing` Environment plus the workflows' own ancestry, tag-stability, package-digest, lifecycle, and canary verification.
+
+#965 is the live operator checklist and evidence ledger. This document is the durable setup reference. If live #965 and this page ever disagree about current release state, refresh #652/#965 and current `main` before acting.
 
 ## Official references
-
-Use these to double-check the setup against the upstream documentation:
 
 - Tauri updater signing: <https://v2.tauri.app/plugin/updater/#signing-updates>
 - Tauri CLI signer reference: <https://v2.tauri.app/reference/cli/#signer-generate>
@@ -14,25 +16,28 @@ Use these to double-check the setup against the upstream documentation:
 - GitHub Environments: <https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments>
 - GitHub Actions secrets: <https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets>
 - GitHub Actions variables: <https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-variables>
-- GitHub repository rulesets: <https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/creating-rulesets-for-a-repository>
-- Tauri Windows publisher-signing reference, which is separate from updater signing: <https://v2.tauri.app/distribute/sign/windows/>
+- Tauri Windows publisher signing, which is separate from updater signing: <https://v2.tauri.app/distribute/sign/windows/>
 
-Tauri's updater documentation states that updater signatures are mandatory, the public key may be shared, and the private key must remain secret and backed up. GitHub's Environment documentation states that environment secrets become available to a job only after the Environment's protection rules pass.
+Tauri updater signatures require a private key that must remain secret and backed up; the public key is safe to distribute. Environment secrets are the release credential boundary used by the workflows below.
 
 ## What already exists
 
-- `.github/workflows/distribution.yml` has a manual `workflow_dispatch` input named `signed_candidate`.
-  - Run from `main` with `signed_candidate=true` to build an encrypted private/rehearsal candidate.
-  - A `v*` tag runs the tagged Distribution path and stages a draft GitHub Release instead.
-- `.github/workflows/candidate-lifecycle.yml` takes a successful private Distribution run ID and exercises the exact encrypted candidate on hosted Linux, Windows, and macOS runners.
-- Release builds read secrets and variables from the GitHub Environment named exactly `release-signing`.
-- `docs/releases/0.1.0.md` is the current release-notes file expected by the 0.1.0 workflow.
+- `.github/workflows/distribution.yml`:
+  - manual `workflow_dispatch` from `main` with `signed_candidate=true` builds an encrypted private/rehearsal candidate;
+  - a release tag runs the tagged Distribution path and stages a draft GitHub Release.
+- `.github/workflows/candidate-lifecycle.yml` exercises a selected private Distribution candidate on hosted Linux, Windows, and macOS.
+- tagged lifecycle/report-canary/publication workflows bind final evidence to the exact tagged Distribution package generation.
+- release builds read credentials/configuration from the GitHub Environment named exactly `release-signing`.
+- `docs/releases/0.1.0.md` is finalized; #961 is already merged.
+- #974 is already merged, so publication requires the exact tagged report-canary receipt.
 
-The manual candidate workflow is therefore shown in GitHub Actions as **Distribution**, not as a separate workflow named “Signed candidate.”
+The manual rehearsal appears in Actions as **Distribution**, not as a separate workflow named “Signed candidate.”
 
-## 1. Prepare a local checkout
+## 1. Start from current main
 
-Use a clean checkout of the repository. The hosted release jobs use Node 22, so Node 22 is the easiest local parity target for these setup commands.
+Immediately before setup, refresh the live repository and #965. Do not reuse a SHA copied from this document.
+
+For local key generation, use a clean checkout. Hosted release jobs use Node 22, so Node 22 is the preferred parity target.
 
 ```bash
 git switch main
@@ -42,13 +47,13 @@ cd preflight-desktop
 npm ci
 ```
 
-`git status --short` should be empty before doing release administration. Key files generated below live outside the repository and must never be committed.
+`git status --short` should be empty. Generate private material outside the repository.
 
-## 2. Generate the free Tauri updater keypair locally
+## 2. Generate the Tauri updater keypair
 
-Do this on a machine you control. Never commit the private key, paste it into an issue, or send it through chat.
+Do this on a machine you control. Never commit the private key, paste it into an issue/chat, or expose it in screenshots/logs.
 
-### macOS / Linux shell
+### macOS / Linux
 
 ```bash
 mkdir -p ~/.tauri
@@ -62,152 +67,152 @@ New-Item -ItemType Directory -Force "$HOME\.tauri" | Out-Null
 npm run tauri signer generate -- -w "$HOME\.tauri\preflight-updater.key"
 ```
 
-Choose a strong password when prompted and store it in a password manager. Keep an offline backup of both the private key and its password. Losing this private key means an already-installed build cannot accept later updates signed by a different key without a separate migration.
+Choose a strong password. Back up the private key and password in a password manager/offline location. Losing the updater private key prevents ordinary future updates to already-installed clients unless a separate migration path is built.
 
-The generated **public** key is safe to share. The generated **private** key is not. Copy the public-key value exactly as reported/generated by the Tauri CLI; do not substitute a path where the workflow expects key content.
+The generated **public** key is safe to share. The Environment secret below receives the private-key **contents**; the Environment variable receives the public-key content.
 
 ## 3. Generate the private-candidate archive password
-
-The repository is public, so private candidate workflow artifacts are encrypted before upload. Generate this value locally and store it as a secret; do not commit it.
-
-A cross-platform Node command is:
 
 ```bash
 node --input-type=module -e "import { randomBytes } from 'node:crypto'; console.log(randomBytes(48).toString('base64'))"
 ```
 
-On macOS/Linux, `openssl rand -base64 48` is also fine if OpenSSL is already installed.
+Store the result in a password manager. Do not post it in #965, issues, chat, Actions inputs, or logs.
 
-Keep the resulting value in a password manager as the private-candidate archive password. Do not post it in #965, another issue, chat, or Actions inputs.
+## 4. Create/configure `release-signing`
 
-## 4. Create the GitHub Environment
+In GitHub:
 
-In the repository UI:
+1. Open **Settings → Environments**.
+2. Create or open an Environment named exactly `release-signing`.
+3. For the **private rehearsal**, restrict deployment to branch `main`.
+4. A required reviewer is optional for a solo-maintainer repository. Do **not** enable **Prevent self-review** unless another eligible reviewer actually exists.
+5. Do not enable broad tag admission for the rehearsal.
 
-1. Open **Settings**.
-2. Open **Environments**.
-3. Choose **New environment**.
-4. Name it exactly `release-signing`.
-5. Under deployment branches/tags, choose **Selected branches and tags**.
-6. Add branch `main`.
+Because the repository intentionally has no tag ruleset, keep Environment tag admission narrow. When the release owner later authorizes the final tag, admit the **exact intended tag name** (for example `v0.1.0`) rather than a broad `v*` pattern when GitHub's Environment rule UI permits it.
 
-For a solo-maintainer repository, a required reviewer is optional. Do **not** enable **Prevent self-review** unless another eligible reviewer actually exists, or signed-candidate jobs can be impossible for the sole maintainer to approve.
+Before approving any tagged `release-signing` deployment, the computer-use operator must verify:
 
-Do not add `v*` tag deployment permission merely to make the first rehearsal run. Add final release-tag admission only after the repository's `v*` tag protection/ruleset has been verified so an untrusted tag cannot reach release secrets before workflow code performs its own checks.
+- the deployment ref is the intended release tag;
+- the tag resolves to the exact frozen/accepted `main` commit recorded in #652/#965;
+- the tag has not moved since candidate identity was recorded.
 
-GitHub's Environment page is also the quickest sanity check later: if a signing job is waiting for Environment approval, that is expected when a reviewer rule is enabled; if the job runs but reports a missing key/variable, fix the named Environment entry rather than editing the workflow.
+The workflows still perform their own ancestry, ref stability, package digest, lifecycle, canary, and publication checks. This manual Environment check is the admission boundary for release secrets under the current no-ruleset policy.
 
-## 5. Add the Environment secrets
+## 5. Add Environment secrets
 
-Under **Settings → Environments → release-signing → Environment secrets**, add these exact names:
+Under **Settings → Environments → release-signing → Environment secrets**, add exactly:
 
-- `RELEASE_TAURI_SIGNING_PRIVATE_KEY`
-  - value: the **contents** of the generated Tauri private key, not a repository path;
-- `RELEASE_TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
-  - value: the password used when generating the updater key;
-- `PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD`
-  - value: the random private-candidate archive password generated above.
+- `RELEASE_TAURI_SIGNING_PRIVATE_KEY` — **contents** of the generated Tauri private key;
+- `RELEASE_TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — updater-key password;
+- `PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD` — random private-candidate archive password.
 
-Do not put any of these values in repository files, issues, Actions inputs, screenshots, terminal transcripts, or comments.
+Never put these values in repository files, issues, chat, Actions inputs, screenshots, terminal transcripts, or comments.
 
-If using GitHub CLI instead of the browser, GitHub documents environment-scoped secrets with `gh secret set --env ENV_NAME SECRET_NAME`. The browser UI is preferable for the first setup because it makes the selected Environment and deployment policy visible at the same time.
+## 6. Add Environment variables
 
-## 6. Add the Environment variables
+Under **Environment variables**, add exactly:
 
-Under **Environment variables**, add:
+- `PREFLIGHT_UPDATER_PUBLIC_KEY` — generated Tauri public-key content;
+- `PREFLIGHT_REPORT_INTAKE_ORIGIN` — reviewed production report-intake HTTPS origin.
 
-- `PREFLIGHT_UPDATER_PUBLIC_KEY`
-  - value: the generated Tauri **public** key content;
-- `PREFLIGHT_REPORT_INTAKE_ORIGIN`
-  - value: the reviewed production report-intake HTTPS origin used by release builds.
+Do not invent a placeholder intake origin. The Distribution workflow intentionally fails closed when release configuration is absent.
 
-The public updater key is intentionally not secret. The report-intake origin is configuration rather than a bearer credential. Do not use a made-up placeholder origin: the Distribution workflow deliberately fails closed when release configuration is missing.
+## 7. Run the private signed rehearsal
 
-GitHub exposes Environment variables through the Actions `vars` context, which is what the reviewed release workflow expects.
+This rehearsal does **not** create a public release and does not become final exact-tag benchmark/canary authority.
 
-## 7. Run the first private signed candidate
+1. Open **Actions → Distribution → Run workflow**.
+2. Select branch `main`.
+3. Set `signed_candidate=true`.
+4. Start the workflow.
+5. Approve `release-signing` if the Environment has an approval rule.
+6. Require the complete run to succeed, including core, Linux, Windows, macOS, and private-candidate assembly.
+7. Record in #965 only the non-secret evidence: current source SHA, Distribution run ID, conclusions, artifact/package names, and later package sizes/SHA-256 values.
 
-This rehearsal does not create a public release.
-
-1. Open **Actions → Distribution**.
-2. Choose **Run workflow**.
-3. Select branch `main`.
-4. Set `signed_candidate` to `true`.
-5. Start the workflow.
-6. If `release-signing` requires approval, review/approve the waiting deployment.
-7. Require the complete run to finish successfully, including core, Linux, Windows, macOS, and private-candidate assembly.
-8. Record the successful Distribution **run ID** in #965. Do not record secret values.
-
-The final artifact from this path is named:
+The encrypted rehearsal artifact is named:
 
 `preflight-private-signed-candidate-<distribution-run-id>`
 
-It is encrypted and intended for rehearsal/evidence, not public download.
-
-### What to record from the run
-
-Safe operator notes include:
-
-- Distribution run ID;
-- source commit SHA;
-- workflow conclusion;
-- package/artifact names;
-- later package lengths and SHA-256 values when the lifecycle workflow exposes them.
-
-Do not copy Environment secret values or private candidate decryption material into operator notes.
-
-## 8. Exercise that exact candidate on all hosted platforms
+## 8. Exercise that exact rehearsal candidate
 
 1. Open **Actions → Candidate package lifecycle**.
-2. Choose **Run workflow** on `main`.
-3. Enter the successful Distribution run ID in `distribution_run_id`.
+2. Run it on `main`.
+3. Set `distribution_run_id` to the successful rehearsal Distribution run ID.
 4. Approve `release-signing` if required.
-5. Require Linux, Windows, and macOS lifecycle jobs to complete successfully.
+5. Require Linux, Windows, and macOS lifecycle jobs to succeed.
+6. Retain the package-bound lifecycle receipts and record their non-secret identities in #965.
 
-This workflow downloads and decrypts the exact private candidate, verifies its package checksum, and exercises install/upgrade/rollback/removal while preserving a package-bound lifecycle receipt.
+This proves the release configuration and hosted candidate pipeline. It does **not** replace the later evidence from the exact tagged final candidate.
 
-A successful private rehearsal is valuable evidence, but it is **not** the final release benchmark/canary authority. Final package-dependent claims are bound to the later tagged candidate bytes.
+## 9. Remove legacy repository-level signing credentials and rehearse again
 
-## 9. Before creating the first `v0.1.0` tag
+After the first private signed rehearsal succeeds:
 
-Do not create the final release tag just because the private candidate passed.
+1. inspect repository-level Actions secrets for legacy updater-key copies;
+2. delete repository-level `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if present;
+3. delete repository-level duplicates named `RELEASE_TAURI_SIGNING_PRIVATE_KEY` / `RELEASE_TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if present;
+4. keep the Environment copies as the release-signing authority;
+5. rerun the private signed Distribution from `main` and its candidate lifecycle;
+6. require the post-cleanup rehearsal to succeed before source freeze.
 
-First verify:
+Never copy secret values into #965 while documenting this cleanup. Record only names removed, run IDs, source SHA, and conclusions.
 
-- `main` is protected and the trusted Merge gate is enforced through the intended PR path;
-- an owner/admin-controlled tag rule protects `v*` creation, movement, and deletion from ordinary automation/contributors;
-- the `release-signing` Environment admits the intended `v*` tags only after that tag protection is in place;
-- the private signed candidate still succeeds after any legacy repository-level signing-secret copies are removed;
-- current release notes contain no candidate placeholders that would become public claims.
+## 10. Before the final release tag
 
-GitHub's ruleset UI lives under **Settings → Rules → Rulesets**. Create/verify the tag ruleset there; keep the release tag operation separate from ordinary branch protection.
+Do not create a tag merely because the private rehearsal is green. Tag creation/publication remain separate release-owner decisions.
 
-Only then create the reviewed `v0.1.0` tag from the accepted main commit. The tag-triggered Distribution run stages the exact draft release bytes. Exact-tag lifecycle, packaged startup benchmark, production report canary, and the remaining publication checks run against those same bytes before the draft is published.
+When separately authorized:
+
+1. refresh #652, #965, #818, #418 and current `main`;
+2. record the exact frozen accepted source SHA;
+3. configure `release-signing` to admit the exact intended tag (for example `v0.1.0`), keeping admission as narrow as the Environment UI permits;
+4. verify release notes contain no candidate placeholders;
+5. create the intended release tag at that exact frozen SHA;
+6. before any tagged Environment approval, verify tag → frozen SHA identity again;
+7. let tag-triggered Distribution stage the draft release bytes;
+8. run exact-tag lifecycle, singleton/reacquisition/update evidence, packaged-engine benchmark, tagged production report canary, and hands-on packaged report-intake acceptance against those exact bytes;
+9. publish only after those package-bound receipts satisfy #818/#965 and the separate release-owner publication decision is made.
+
+Rebuilds from the same source revision are different candidate bytes and do not inherit package-dependent evidence.
+
+## What to record / what never to record
+
+Safe evidence for #965:
+
+- source SHA;
+- Distribution/lifecycle/canary/benchmark run IDs;
+- job conclusions;
+- package names, lengths, SHA-256 values;
+- bounded receipts that contain no bearer credentials.
+
+Never record:
+
+- Tauri private key;
+- updater-key password;
+- candidate archive password;
+- deletion bearer credentials;
+- decrypted private-candidate artifacts.
 
 ## What does and does not cost money
 
-No paid signing identity is required for the first-beta path described above:
+No paid platform signing identity is required for this first-beta path:
 
-- Tauri updater signing keypair: project-owned and free;
-- GitHub Actions/Environment controls used by this public repository: no Apple/Microsoft signing purchase involved;
-- SHA-256 manifests, SBOMs, release verification, and candidate lifecycle: repository tooling;
-- first-beta macOS/Windows packages: intentionally ship without paid Developer ID/notarization or Authenticode, with the documented OS warnings.
+- Tauri updater keypair: project-owned and free;
+- SHA-256/SBOM/release verification/candidate lifecycle: repository tooling;
+- first-beta macOS/Windows packages intentionally remain outside paid Developer ID/notarization and Authenticode.
 
-Paid platform identities can be added later. They are separate from Tauri updater signing and should not block getting the candidate pipeline working.
+Paid platform identities can be added later and are separate from updater signing.
 
 ## If the first signed run fails
 
-Treat the first failure as configuration evidence rather than changing the workflow blindly.
-
-Common early failures are intentionally explicit:
+Treat failures as configuration evidence rather than weakening workflows. Common explicit failures include:
 
 - missing `RELEASE_TAURI_SIGNING_PRIVATE_KEY`;
 - missing `RELEASE_TAURI_SIGNING_PRIVATE_KEY_PASSWORD`;
 - missing `PREFLIGHT_UPDATER_PUBLIC_KEY`;
 - missing `PREFLIGHT_REPORT_INTAKE_ORIGIN`;
 - `PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD` shorter than 32 characters;
-- attempting the manual signed candidate from a branch other than `main`.
+- manual signed candidate dispatched from a branch other than `main`.
 
-Fix the named configuration and rerun. Do not weaken the workflow's fail-closed checks to get a green candidate.
-
-When reporting a failure in #965, include the workflow/run/job name, visible error message, and non-secret run identity. Do not paste secret values, private keys, candidate passwords, or decrypted private-candidate artifacts.
+Fix the named configuration and rerun. In #965, record the workflow/run/job identity and visible non-secret error only.
