@@ -26,6 +26,18 @@ function preparationReuseSummary(
   return null;
 }
 
+function preparationOverrideSummary(
+  textureStorage: PreparationState["textureStorage"],
+  resourcePreset: PreparationState["resourcePreset"],
+): string | null {
+  const consequences: string[] = [];
+  if (textureStorage === "fastest") consequences.push("Uses more disk for a small startup gain");
+  if (textureStorage === "minimal") consequences.push("Skips prepared textures to use almost no disk");
+  if (resourcePreset === "gentle") consequences.push("Uses fewer preparation resources");
+  if (resourcePreset === "eager") consequences.push("Uses more preparation resources");
+  return consequences.length > 0 ? `${consequences.join(" · ")}.` : null;
+}
+
 interface PreparationPageProps {
   message: string;
   messageTone: NoticeTone;
@@ -95,6 +107,7 @@ export function PreparationPage({
   const canPrepare = !storagePlanApplies(textureStorage)
     || Boolean(preparationPlan?.safeToPrepare);
   const reuseSummary = preparationReuseSummary(preparationPlan, textureStorage);
+  const overrideSummary = preparationOverrideSummary(textureStorage, resourcePreset);
   const settledLayout = profilePrepared
     && !preparing
     && !cleanupPlan
@@ -176,13 +189,14 @@ export function PreparationPage({
       {!profilePrepared || preparing ? <section className="card prepare-action">
         <div>
           <strong>{preparationCancelling ? "Stopping preparation" : preparing ? preparationPhaseLabel ?? "Preparation is running" : preparationPlanLoading ? "Calculating disk requirement" : storageBlocked ? "Full preparation doesn’t fit" : preparationPlan?.safeToPrepare || !storagePlanApplies(textureStorage) ? "Ready to prepare" : "Preparation needs attention"}</strong>
-          <span>{preparing
-            ? preparationPercent === null
-              ? "Reconnected after restart · finished work stays reusable"
-              : `${preparationPercent}% complete · finished work stays reusable`
+          {preparing ? <span>{preparationPercent === null
+            ? "Reconnected after restart · finished work stays reusable"
+            : `${preparationPercent}% complete · finished work stays reusable`}</span>
             : storageBlocked
-              ? "Minimal preparation uses a few megabytes and still speeds up startup."
-              : `${textureStorage === "balanced" ? "Balanced storage selected" : textureStorage === "fastest" ? "Fastest raw storage selected" : "Minimal disk use selected · no prepared textures"} · ${resourcePresets[resourcePreset].label.toLowerCase()} resource use`}</span>
+              ? <span>Minimal preparation uses a few megabytes and still speeds up startup.</span>
+              : overrideSummary
+                ? <span>{overrideSummary}</span>
+                : null}
           {!preparing && reuseSummary ? <small className="field-note">{reuseSummary}</small> : null}
           {preparing && preparationPercent !== null ? <div className="preparation-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={preparationPercent}><span style={{ width: `${preparationPercent}%` }} /></div> : null}
         </div>

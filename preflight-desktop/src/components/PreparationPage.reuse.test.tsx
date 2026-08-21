@@ -49,6 +49,7 @@ function plan(overrides: Partial<PreparationStoragePlan> = {}): PreparationStora
 
 function preparation(
   preparationPlan: PreparationStoragePlan,
+  overrides: Partial<ReturnType<typeof usePreparation>> = {},
 ): ReturnType<typeof usePreparation> {
   return {
     cache: null,
@@ -70,10 +71,14 @@ function preparation(
     setResourcePreset: vi.fn(),
     setTextureStorage: vi.fn(),
     stopPreparation: vi.fn(),
+    ...overrides,
   } as unknown as ReturnType<typeof usePreparation>;
 }
 
-function renderPage(preparationPlan: PreparationStoragePlan) {
+function renderPage(
+  preparationPlan: PreparationStoragePlan,
+  overrides: Partial<ReturnType<typeof usePreparation>> = {},
+) {
   render(
     <PreparationPage
       message=""
@@ -81,7 +86,7 @@ function renderPage(preparationPlan: PreparationStoragePlan) {
       isReady
       optimizationPreset="recommended"
       disabledOptimizationDomains={[]}
-      preparation={preparation(preparationPlan)}
+      preparation={preparation(preparationPlan, overrides)}
       cleanupPlan={null}
       cleanupBusy={false}
       operationBlocked={false}
@@ -136,4 +141,23 @@ test("cold preparation stays silent about already-present texture data and pack 
   expect(screen.queryByText("Compatible prepared texture data on disk")).not.toBeInTheDocument();
   expect(screen.queryByText("Current profile texture pack")).not.toBeInTheDocument();
   expect(screen.getByText("Preparing this profile adds")).toBeInTheDocument();
+});
+
+test("default preparation stays quiet while advanced overrides state their consequences", () => {
+  renderPage(plan());
+
+  expect(screen.getByText("Ready to prepare")).toBeInTheDocument();
+  expect(screen.queryByText(/Balanced storage selected/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/medium resource use/i)).not.toBeInTheDocument();
+});
+
+test("changed storage and resource choices stay visible without preset-name narration", () => {
+  renderPage(plan({ textureStorage: "fastest" }), {
+    textureStorage: "fastest",
+    resourcePreset: "eager",
+  });
+
+  expect(screen.getByText("Uses more disk for a small startup gain · Uses more preparation resources.")).toBeInTheDocument();
+  expect(screen.queryByText(/Fastest raw storage selected/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/high resource use/i)).not.toBeInTheDocument();
 });
