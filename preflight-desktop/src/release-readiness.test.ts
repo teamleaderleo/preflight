@@ -80,7 +80,7 @@ test("explicit Home state modifiers own recovery and preparation composition", (
   style.remove();
 });
 
-test("narrow exceptional states reserve action rows locally", () => {
+test("narrow exceptional states reserve Options space without inferring note layout", () => {
   const style = installReadinessStyles();
   const media = Array.from(style.sheet?.cssRules ?? []).find((rule) =>
     rule instanceof CSSMediaRule && rule.conditionText === "(max-width: 720px)",
@@ -93,7 +93,7 @@ test("narrow exceptional states reserve action rows locally", () => {
   const optionsRule = rules.find((rule) =>
     rule.selectorText === ".launch-console--options-open:has(.launch-console__actions .launch-console__stop) .quick-settings",
   );
-  expect(noteRule?.style.bottom).toBe("132px");
+  expect(noteRule).toBeUndefined();
   expect(optionsRule?.style.bottom).toBe("200px");
   style.remove();
 });
