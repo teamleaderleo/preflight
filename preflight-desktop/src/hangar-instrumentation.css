@@ -506,6 +506,12 @@
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 24%, transparent);
 }
 
+@media (max-height: 600px) {
+  .hangar-hull-combobox__list {
+    max-height: min(196px, 35vh);
+  }
+}
+
 @container (max-width: 600px) {
   .hangar-identity {
     max-width: min(76%, 470px);

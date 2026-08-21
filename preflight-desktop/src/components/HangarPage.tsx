@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { PauseIcon, PlayIcon, RefreshIcon, RotateClockwiseIcon, RotateCounterClockwiseIcon } from "../icons";
 import type { useInstrumentHull } from "../useInstrumentHull";
 import type { WireframeHull } from "../types";
@@ -23,6 +23,13 @@ function hullMatches(hull: WireframeHull, query: string): boolean {
   );
 }
 
+function findExactHull(hulls: WireframeHull[], value: string): WireframeHull | undefined {
+  return hulls.find((hull) =>
+    hull.name.localeCompare(value, undefined, { sensitivity: "accent" }) === 0
+    || hull.id.localeCompare(value, undefined, { sensitivity: "accent" }) === 0
+  );
+}
+
 interface HangarHullChooserProps {
   hulls: WireframeHull[];
   selected: WireframeHull;
@@ -32,6 +39,7 @@ interface HangarHullChooserProps {
 
 function HangarHullChooser({ hulls, selected, onChoose, catalogStatus }: HangarHullChooserProps) {
   const listId = useId();
+  const listRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState(selected.name);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -42,23 +50,30 @@ function HangarHullChooser({ hulls, selected, onChoose, catalogStatus }: HangarH
   }, [selected.id, selected.name]);
 
   const results = useMemo(() => {
-    const selectedName = selected.name.toLowerCase();
-    const needle = query.trim().toLowerCase();
-    const candidates = !needle || needle === selectedName
-      ? hulls
-      : hulls.filter((hull) => hullMatches(hull, query));
+    const exact = findExactHull(hulls, query);
+    if (exact?.id === selected.id) {
+      return [selected, ...hulls.filter((hull) => hull.id !== selected.id)].slice(0, HULL_RESULT_LIMIT);
+    }
+
+    const candidates = query.trim()
+      ? hulls.filter((hull) => hullMatches(hull, query))
+      : hulls;
     return candidates.slice(0, HULL_RESULT_LIMIT);
-  }, [hulls, query, selected.name]);
+  }, [hulls, query, selected]);
 
   const activeHull = results[activeIndex] ?? results[0];
 
-  const findExact = (value: string) => hulls.find((hull) =>
-    hull.name.localeCompare(value, undefined, { sensitivity: "accent" }) === 0
-    || hull.id.localeCompare(value, undefined, { sensitivity: "accent" }) === 0
-  );
+  useEffect(() => {
+    if (!open) return;
+    listRef.current
+      ?.querySelector<HTMLElement>('[data-active="true"]')
+      ?.scrollIntoView?.({ block: "nearest" });
+  }, [activeIndex, open, results]);
 
   const choose = (hull: WireframeHull) => {
-    onChoose(hull.id);
+    if (hull.id !== selected.id) {
+      onChoose(hull.id);
+    }
     setQuery(hull.name);
     setOpen(false);
     setActiveIndex(0);
@@ -84,7 +99,7 @@ function HangarHullChooser({ hulls, selected, onChoose, catalogStatus }: HangarH
       return;
     }
     if (event.key === "Enter") {
-      const exact = findExact(query);
+      const exact = findExactHull(hulls, query);
       const chosen = open ? activeHull ?? exact : exact;
       if (chosen) {
         event.preventDefault();
@@ -128,7 +143,7 @@ function HangarHullChooser({ hulls, selected, onChoose, catalogStatus }: HangarH
         }}
         onKeyDown={handleKeyDown}
         onBlur={() => {
-          const exact = findExact(query);
+          const exact = findExactHull(hulls, query);
           if (exact && exact.id !== selected.id) {
             choose(exact);
           } else if (!exact) {
@@ -141,7 +156,13 @@ function HangarHullChooser({ hulls, selected, onChoose, catalogStatus }: HangarH
       />
 
       {open ? (
-        <div id={listId} className="hangar-hull-combobox__list" role="listbox" aria-label="Display ships">
+        <div
+          ref={listRef}
+          id={listId}
+          className="hangar-hull-combobox__list"
+          role="listbox"
+          aria-label="Display ships"
+        >
           {results.length > 0 ? results.map((hull, index) => (
             <button
               id={`${listId}-option-${index}`}
