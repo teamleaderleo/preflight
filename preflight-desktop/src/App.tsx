@@ -582,7 +582,9 @@ export default function App() {
   const benchmarkNotice = latestNotice(["installation", "benchmark"]);
   const helpNotice = latestNotice(["installation", "support"]);
   const settingsNotice = latestNotice(["installation", "updates", "removal"]);
-  const title = pageTitle(page, status, preparing, isReady, needsPreparation);
+  const title = page === "home" && runFailure
+    ? "Needs attention"
+    : pageTitle(page, status, preparing, isReady, needsPreparation);
   return (
     <DesktopShell
       page={page}
