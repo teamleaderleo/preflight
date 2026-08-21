@@ -63,10 +63,16 @@ class SourceBoundaryTest(unittest.TestCase):
     def test_cli_audits_current_tree_and_reachable_history(self):
         result = subprocess.run(
             [sys.executable, str(MODULE_PATH)],
-            check=True,
+            check=False,
             text=True,
             capture_output=True,
         )
+        if result.returncode != 0:
+            self.fail(
+                "source-boundary verifier failed:\n"
+                f"stdout:\n{result.stdout}\n"
+                f"stderr:\n{result.stderr}"
+            )
         report = json.loads(result.stdout)
         self.assertGreater(report["trackedFiles"], 0)
         self.assertGreater(report["historicalBlobs"], 0)
