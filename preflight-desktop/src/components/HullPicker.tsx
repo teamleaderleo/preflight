@@ -31,6 +31,10 @@ function boundedSelection(found: WireframeHull[], selectedId: string): Wireframe
   return [...first.slice(0, VISIBLE_LIMIT - 1), selected];
 }
 
+function hullSizeLabel(hullSize: string): string {
+  return hullSize === "CAPITAL_SHIP" ? "capital" : hullSize.replaceAll("_", " ").toLowerCase();
+}
+
 export function HullPicker({ hulls, selectedId, onChoose }: HullPickerProps) {
   const [query, setQuery] = useState("");
   const found = useMemo(() => hulls.filter((hull) => matches(hull, query)), [hulls, query]);
@@ -64,7 +68,7 @@ export function HullPicker({ hulls, selectedId, onChoose }: HullPickerProps) {
               onClick={() => onChoose(hull.id)}
             >
               <span>{hull.name}</span>
-              <small>{hull.hullSize.replaceAll("_", " ").toLowerCase()}</small>
+              <small>{hullSizeLabel(hull.hullSize)}</small>
             </button>
           ))}
         </div>
