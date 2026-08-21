@@ -38,7 +38,7 @@ describe("blockingWorkflow", () => {
     ["settings write", { launcherSaving: true }, "launch", "Saving game settings"],
     ["profile mutation", { profileBusy: true }, "mods", "Updating the saved mod profile"],
     ["support export", { diagnosticsBusy: true }, "help", "Creating a support file"],
-    ["report upload", { reportUploading: true }, "help", "Sending the run report"],
+    ["report upload", { reportUploading: true }, "help", "Sending the support file"],
     ["removal", { removalBusy: true }, "settings", "Reviewing or removing Preflight data"],
     ["update installation", { updateInstalling: true }, "settings", "Installing the verified Preflight update"],
   ] as const)("%s has one owner and reason", (_name, patch, owner, reason) => {
@@ -49,9 +49,9 @@ describe("blockingWorkflow", () => {
     expect(blockingWorkflow({ ...idle, desktopSmokeRunning: true, desktopSmokeCancelling: true }))
       .toEqual({ owner: "benchmark", reason: "Stopping the startup benchmark" });
     expect(blockingWorkflow({ ...idle, reportUploading: true, reportFinalizing: true }))
-      .toEqual({ owner: "help", reason: "Finishing the signed run-report receipt" });
+      .toEqual({ owner: "help", reason: "Finishing the report receipt" });
     expect(blockingWorkflow({ ...idle, reportUploading: true, reportCancelling: true }))
-      .toEqual({ owner: "help", reason: "Stopping the run report upload" });
+      .toEqual({ owner: "help", reason: "Stopping the support upload" });
   });
 
   test("priority is explicit when more than one renderer flag is stale at once", () => {
