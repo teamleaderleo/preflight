@@ -1,3 +1,4 @@
+import homePresentationStyles from "../homePresentation.css?raw";
 import { render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import type { usePreparation } from "../usePreparation";
@@ -88,8 +89,8 @@ const preparation = {
   stopPreparation: vi.fn(),
 } as unknown as ReturnType<typeof usePreparation>;
 
-test("Home explains a preparation recovered after restart without inventing a percentage", () => {
-  render(<HomePage
+function renderHome(currentPreparation: ReturnType<typeof usePreparation>, operationBlocked = false) {
+  return render(<HomePage
     snapshot={snapshot}
     status="ready"
     message=""
@@ -97,14 +98,14 @@ test("Home explains a preparation recovered after restart without inventing a pe
     isReady
     needsPreparation
     optimizationPreset="recommended"
-    preparation={preparation}
+    preparation={currentPreparation}
     updateStatus={null}
     launcherSettings={null}
     launcherDraft={null}
     launcherSettingsLoading={false}
     launcherSettingsSaving={false}
     launchSettingsDirty={false}
-    operationBlocked
+    operationBlocked={operationBlocked}
     launchSettingsEditingBlocked={false}
     launchSettingsSaveBlocked={false}
     theme="light"
@@ -124,10 +125,44 @@ test("Home explains a preparation recovered after restart without inventing a pe
     instrumentHull={hull}
     launchProfileName="Exploration"
   />);
+}
+
+test("Home explains a preparation recovered after restart without inventing a percentage", () => {
+  renderHome(preparation, true);
 
   expect(screen.getByText("Preparation in progress")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Preparation in progress…" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Stop safely" })).toBeEnabled();
   expect(screen.getByText(/Reconnected after restart\. Starsector stays closed/)).toBeInTheDocument();
   expect(document.body).not.toHaveTextContent("0%");
+});
+
+test("Home keeps storage-mode taxonomy out of the default low-disk decision", () => {
+  const lowDiskPreparation = {
+    ...preparation,
+    preparing: false,
+    preparationPlan: {
+      safeToPrepare: false,
+      predictedAdditionalBytes: 4_000_000_000,
+      requiredFreeBytes: 5_000_000_000,
+      usableBytes: 3_000_000_000,
+    },
+  } as unknown as ReturnType<typeof usePreparation>;
+
+  renderHome(lowDiskPreparation);
+
+  const noteText = screen.getByText(/Preparation needs .* free; .* is available\./);
+  const lessDisk = screen.getByRole("button", { name: "Prepare with less disk" });
+  expect(screen.getByRole("button", { name: "Launch at normal speed" })).toBeEnabled();
+  expect(document.body).not.toHaveTextContent(/Full preparation|Balanced|Fastest/);
+
+  const note = noteText.closest(".launch-console__note");
+  const actions = lessDisk.closest(".launch-console__actions");
+  expect(note).not.toBeNull();
+  expect(actions).not.toBeNull();
+  expect(note!.compareDocumentPosition(actions!) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+});
+
+test("compact preparation keeps its note immediately above the real action row", () => {
+  expect(homePresentationStyles).toMatch(/@media\s*\(max-width:\s*720px\)[\s\S]*\.launch-console--layout-preparation\.launch-console--ready:has\(\.launch-console__actions \.launch-console__stop\) \.launch-console__note\s*\{[^}]*bottom:\s*82px;/);
 });
