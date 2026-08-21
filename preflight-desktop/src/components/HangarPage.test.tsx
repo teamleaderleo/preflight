@@ -70,21 +70,34 @@ test("motion direction and reset read as one locally coherent control group", ()
   render(<HangarPage instrumentHull={state()} />);
 
   const controls = screen.getByRole("group", { name: "Display motion and appearance" });
+  expect(controls).toHaveAttribute("data-motion", "rotate");
+  expect(controls).toHaveAttribute("data-direction", "clockwise");
+
   const counterClockwise = within(controls).getByRole("button", { name: "Use counter-clockwise" });
   expect(counterClockwise).toHaveAttribute("title", "Rotate counter-clockwise");
+  expect(counterClockwise).toHaveAttribute("data-motion", "rotate");
+  expect(counterClockwise).toHaveAttribute("data-direction", "clockwise");
   fireEvent.click(counterClockwise);
-  expect(within(controls).getByRole("button", { name: "Use clockwise" })).toBeEnabled();
+
+  const clockwise = within(controls).getByRole("button", { name: "Use clockwise" });
+  expect(clockwise).toBeEnabled();
+  expect(clockwise).toHaveAttribute("data-direction", "counter-clockwise");
+  expect(controls).toHaveAttribute("data-direction", "counter-clockwise");
 
   const pause = within(controls).getByRole("button", { name: "Pause rotation" });
   expect(pause).toHaveAttribute("title", "Pause decorative hull rotation");
+  expect(pause).toHaveAttribute("data-motion", "rotate");
   expect(within(controls).queryByText("Pause rotation")).not.toBeInTheDocument();
   fireEvent.click(pause);
 
   const resume = within(controls).getByRole("button", { name: "Resume rotation" });
   expect(resume).toHaveAttribute("title", "Resume decorative hull rotation");
+  expect(resume).toHaveAttribute("data-motion", "still");
+  expect(controls).toHaveAttribute("data-motion", "still");
   const pausedDirection = within(controls).getByRole("button", { name: "Use clockwise" });
   expect(pausedDirection).toBeEnabled();
   expect(pausedDirection).toHaveAttribute("title", "Use clockwise when rotation resumes");
+  expect(pausedDirection).toHaveAttribute("data-motion", "still");
 
   fireEvent.click(pausedDirection);
   expect(within(controls).getByRole("button", { name: "Use counter-clockwise" })).toBeEnabled();
