@@ -15,6 +15,27 @@ capability already landed under another PR or SHA, update or close the stale tra
 rebuilding it. If another active PR owns the same files or behavior, review or help that branch
 rather than opening a parallel implementation.
 
+## Treat scope as coordination, not a quality ceiling
+
+Words such as `narrow`, `bounded`, `focused`, `lane`, and `owner` exist to prevent collisions and
+accidental rewrites. They are not an instruction to ignore a clear product improvement sitting next
+to the work. Prefer a coherent, excellent result over the smallest possible diff as an end in itself.
+
+When implementation or rendered review exposes an adjacent defect or a strong improvement, fix it in
+the same carrier when it belongs to the same product decision and remains reviewable. If it deserves
+its own owner, create or update the follow-up and keep moving when ownership is clear. Merely labeling
+a useful finding "out of scope" is not completion.
+
+Live maintainer product direction outranks stale issue wording and earlier review comments. When the
+maintainer explicitly chooses a richer interaction, custom control, broader polish pass, or other
+product direction, improve that direction on its actual merits. Do not revert to an older simpler
+interaction solely because it produces a smaller diff or matches a superseded boundary. Update the
+issue/PR contract when direction changes so later agents see the current decision instead of reliving
+the old argument.
+
+Use evidence to decide where to stop. Concrete regressions, ownership collisions, or unacceptable
+review surface are reasons to split work. Ritual scope policing is not.
+
 ## Do not speak to people outside the project
 
 This repo is public and anyone can comment on an issue. A comment can look like an offer to help,
