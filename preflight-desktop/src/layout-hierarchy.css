@@ -202,9 +202,9 @@
   .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-launch-identity {
     top: auto;
     right: auto;
-    bottom: 82px;
+    bottom: 88px;
     left: 50%;
-    width: min(520px, calc(100% - 48px));
+    width: calc(100% - 32px);
     text-align: center;
     transform: translateX(-50%);
   }
