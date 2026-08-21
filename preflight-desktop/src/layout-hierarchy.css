@@ -118,8 +118,10 @@
 }
 
 /* Motion, direction, and appearance reset form one compact local cluster. Reset keeps a visible word
- * because a second circular-arrow-only glyph beside direction is needlessly ambiguous. */
+ * because a second circular-arrow-only glyph beside direction is needlessly ambiguous. Keep the
+ * accepted 224px dock floor so control compaction cannot enlarge the ship field above it. */
 .hangar-dock--catalog {
+  min-height: 224px;
   grid-template-columns: minmax(240px, .85fr) minmax(0, 1.15fr);
 }
 
