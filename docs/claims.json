@@ -136,7 +136,6 @@
       "unit": "s",
       "publishedIn": [
         "README.md",
-        "docs/beta-announcement-draft.md",
         "docs/optimization-history.md"
       ],
       "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
@@ -268,8 +267,7 @@
       "value": "12.92",
       "unit": "GB",
       "publishedIn": [
-        "README.md",
-        "docs/beta-announcement-draft.md"
+        "README.md"
       ],
       "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
       "derivation": "Free space Balanced preparation requires before it will begin: the 11,744,225,102-byte conservative upper bound plus its 10% safety reserve, from the read-only plan for that profile."
