@@ -30,6 +30,19 @@ function findExactHull(hulls: WireframeHull[], value: string): WireframeHull | u
   );
 }
 
+function keepActiveHullVisible(list: HTMLDivElement, activeOption: HTMLElement) {
+  const optionTop = activeOption.offsetTop;
+  const optionBottom = optionTop + activeOption.offsetHeight;
+  const visibleTop = list.scrollTop;
+  const visibleBottom = visibleTop + list.clientHeight;
+
+  if (optionTop < visibleTop) {
+    list.scrollTop = optionTop;
+  } else if (optionBottom > visibleBottom) {
+    list.scrollTop = optionBottom - list.clientHeight;
+  }
+}
+
 interface HangarHullChooserProps {
   hulls: WireframeHull[];
   selected: WireframeHull;
@@ -65,9 +78,11 @@ function HangarHullChooser({ hulls, selected, onChoose, catalogStatus }: HangarH
 
   useEffect(() => {
     if (!open) return;
-    listRef.current
-      ?.querySelector<HTMLElement>('[data-active="true"]')
-      ?.scrollIntoView?.({ block: "nearest" });
+    const list = listRef.current;
+    const activeOption = list?.querySelector<HTMLElement>('[data-active="true"]');
+    if (list && activeOption) {
+      keepActiveHullVisible(list, activeOption);
+    }
   }, [activeIndex, open, results]);
 
   const choose = (hull: WireframeHull) => {
