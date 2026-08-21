@@ -4,10 +4,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
 import test from "node:test";
-import { runtimeInventory, verifyEngineBoundary, verifyRuntimeInventory } from "./engine-boundary.mjs";
+import {
+  runtimeInventory,
+  verifyEngineBoundary,
+  verifyEngineIntegrity,
+  verifyRuntimeInventory,
+} from "./engine-boundary.mjs";
 
 test("prepared desktop engine stays inside the reviewed resource boundary", () => {
   const report = verifyEngineBoundary();
+  assert.ok(report.runtimeFiles > 0);
+  assert.ok(report.runtimeBytes > 0);
+});
+
+test("prepared desktop engine also carries a self-contained integrity proof", () => {
+  const report = verifyEngineIntegrity();
   assert.ok(report.runtimeFiles > 0);
   assert.ok(report.runtimeBytes > 0);
 });

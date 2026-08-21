@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { verifyEngineBoundary } from "./engine-boundary.mjs";
+import { verifyEngineBoundary, verifyEngineIntegrity } from "./engine-boundary.mjs";
 
 const desktopDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const bundleDirectory = join(desktopDirectory, "src-tauri", "target", "release", "bundle");
@@ -183,11 +183,13 @@ export function verifyExtractedPayload(root, engineOptions = {}) {
   if (JSON.stringify(packagedFontLicenseNames) !== JSON.stringify(expectedFontLicenses)) {
     throw new Error(`Extracted package font licenses differ: ${packagedFontLicenseNames.join(", ")}`);
   }
-  for (const fontLicense of fontLicenses) {
-    assertSameFile(
-      fontLicense.path,
-      join(desktopDirectory, "src-tauri", "licenses", basename(fontLicense.path)),
-    );
+  if (engineOptions.verifyReviewedSources !== false) {
+    for (const fontLicense of fontLicenses) {
+      assertSameFile(
+        fontLicense.path,
+        join(desktopDirectory, "src-tauri", "licenses", basename(fontLicense.path)),
+      );
+    }
   }
   const engine = verifyPackagedEngine(engineDirectories[0].path, engineOptions);
   return { extractedEntries: entries.length, engine };
@@ -298,7 +300,9 @@ function verifyMacApp(appDirectory, signatureRequired) {
 }
 
 function verifyPackagedEngine(engineDirectory, options = {}) {
-  const boundary = verifyEngineBoundary(engineDirectory, options);
+  const boundary = options.verifyReviewedSources === false
+    ? verifyEngineIntegrity(engineDirectory, options)
+    : verifyEngineBoundary(engineDirectory, options);
   for (const [relativePath, expectedRpath] of Object.entries(options.expectedRuntimeRpaths ?? {})) {
     const path = join(engineDirectory, "runtime", ...relativePath.split("/"));
     const bytes = readFileSync(path);
