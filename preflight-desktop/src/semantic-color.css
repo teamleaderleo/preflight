@@ -73,7 +73,7 @@
   background: var(--success-soft);
 }
 
-/* Light-mode focus stays tied to the active palette and clears the non-text contrast target. */
-:root[data-theme="light"] :where(button, input, select, summary, a):focus-visible {
+/* Shared keyboard focus follows the active palette in light and dark. */
+:root[data-theme] :where(button, input, select, summary, a):focus-visible {
   outline-color: var(--accent);
 }
