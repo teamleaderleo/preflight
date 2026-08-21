@@ -60,6 +60,8 @@ test("installed hulls stay in the searchable picker while featured selection rem
   const instrumentHull = state();
   render(<HangarPage instrumentHull={instrumentHull} />);
 
+  expect(screen.getByText("Display hull")).toBeInTheDocument();
+  expect(screen.getByText("2 installed")).toBeInTheDocument();
   const select = screen.getByRole("combobox", { name: "Display ship" });
   expect(select).toHaveTextContent("Odyssey");
   expect(select).not.toHaveTextContent("Modded Hull");
@@ -72,15 +74,23 @@ test("motion direction and reset read as one locally coherent control group", ()
   render(<HangarPage instrumentHull={state()} />);
 
   const controls = screen.getByRole("group", { name: "Display motion and appearance" });
+  expect(controls).toHaveAttribute("data-motion", "rotate");
+  expect(controls).toHaveAttribute("data-direction", "clockwise");
+  expect(within(controls).getByText("Rotating · CW")).toBeInTheDocument();
+
   const counterClockwise = within(controls).getByRole("button", { name: "Use counter-clockwise" });
   expect(counterClockwise).toHaveAttribute("title", "Rotate counter-clockwise");
   fireEvent.click(counterClockwise);
+  expect(controls).toHaveAttribute("data-direction", "counter-clockwise");
+  expect(within(controls).getByText("Rotating · CCW")).toBeInTheDocument();
   expect(within(controls).getByRole("button", { name: "Use clockwise" })).toBeEnabled();
 
   const pause = within(controls).getByRole("button", { name: "Pause rotation" });
   expect(pause).toHaveAttribute("title", "Pause decorative hull rotation");
   expect(within(controls).queryByText("Pause rotation")).not.toBeInTheDocument();
   fireEvent.click(pause);
+  expect(controls).toHaveAttribute("data-motion", "still");
+  expect(within(controls).getByText("Paused · CCW")).toBeInTheDocument();
 
   const resume = within(controls).getByRole("button", { name: "Resume rotation" });
   expect(resume).toHaveAttribute("title", "Resume decorative hull rotation");
@@ -89,6 +99,8 @@ test("motion direction and reset read as one locally coherent control group", ()
   expect(pausedDirection).toHaveAttribute("title", "Use clockwise when rotation resumes");
 
   fireEvent.click(pausedDirection);
+  expect(controls).toHaveAttribute("data-direction", "clockwise");
+  expect(within(controls).getByText("Paused · CW")).toBeInTheDocument();
   expect(within(controls).getByRole("button", { name: "Use counter-clockwise" })).toBeEnabled();
   expect(JSON.parse(window.localStorage.getItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY) ?? "null"))
     .toEqual({ motion: "still", direction: "clockwise" });
@@ -98,19 +110,24 @@ test("motion direction and reset read as one locally coherent control group", ()
   expect(reset).toHaveTextContent("Reset");
 });
 
-test("interior tuning remains independently editable after the shared appearance dials", () => {
+test("appearance dials expose palette-progress state and keep interior tuning independently editable", () => {
   const instrumentHull = state();
   render(<HangarPage instrumentHull={instrumentHull} />);
 
-  fireEvent.change(screen.getByRole("slider", { name: "Detail" }), { target: { value: "0.04" } });
+  const appearance = screen.getByRole("group", { name: "Wireframe appearance" });
+  const detail = within(appearance).getByRole("slider", { name: "Detail" });
+  const detailDial = detail.closest(".hangar-dial") as HTMLElement;
+  expect(parseFloat(detailDial.style.getPropertyValue("--hangar-range"))).toBeCloseTo(33.333, 2);
+
+  fireEvent.change(detail, { target: { value: "0.04" } });
   expect(instrumentHull.customize).toHaveBeenLastCalledWith({ outerDetail: 0.04, innerDetail: 0.04 });
 
-  fireEvent.change(screen.getByRole("slider", { name: "Interior detail" }), { target: { value: "0.05" } });
+  fireEvent.change(within(appearance).getByRole("slider", { name: "Interior detail" }), { target: { value: "0.05" } });
   expect(instrumentHull.customize).toHaveBeenLastCalledWith({ innerDetail: 0.05 });
 
-  fireEvent.change(screen.getByRole("slider", { name: "Smooth" }), { target: { value: "0.4" } });
+  fireEvent.change(within(appearance).getByRole("slider", { name: "Smooth" }), { target: { value: "0.4" } });
   expect(instrumentHull.customize).toHaveBeenLastCalledWith({ outerSmooth: 0.4, innerSmooth: 0.4 });
 
-  fireEvent.change(screen.getByRole("slider", { name: "Interior smooth" }), { target: { value: "0.6" } });
+  fireEvent.change(within(appearance).getByRole("slider", { name: "Interior smooth" }), { target: { value: "0.6" } });
   expect(instrumentHull.customize).toHaveBeenLastCalledWith({ innerSmooth: 0.6 });
 });

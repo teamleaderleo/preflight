@@ -1,0 +1,440 @@
+/*
+ * Hangar-specific instrumentation. The ship keeps the stage; this layer makes the controls read
+ * like the same machine, using the active palette for current values, focus, and live motion.
+ */
+.hangar-dock--catalog {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px 16px 14px;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 34%, var(--line-strong));
+  background: color-mix(in srgb, var(--paper-solid) 94%, var(--accent) 6%);
+  box-shadow: inset 0 1px color-mix(in srgb, var(--paper-solid) 72%, transparent);
+}
+
+.hangar-dock--catalog::before {
+  position: absolute;
+  top: -1px;
+  left: 16px;
+  width: 58px;
+  height: 2px;
+  background: var(--accent);
+  opacity: 0.8;
+  content: "";
+}
+
+.hangar-selection {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  min-width: 0;
+}
+
+.hangar-hull-field {
+  display: grid;
+  grid-template-rows: 13px 44px;
+  gap: 3px;
+  min-width: 0;
+}
+
+.hangar-control-heading,
+.hangar-motion-status {
+  color: var(--ink-faint);
+  font-family: var(--font-data);
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.hangar-control-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hangar-control-heading > span:first-child::before {
+  display: inline-block;
+  width: 11px;
+  height: 1px;
+  margin: 0 6px 3px 0;
+  background: color-mix(in srgb, var(--accent) 68%, var(--line-strong));
+  content: "";
+}
+
+.hangar-catalog-status {
+  position: static;
+  width: auto;
+  color: var(--ink-faint);
+  font-family: var(--font-data);
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hangar-hull-select {
+  appearance: none;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 38px 0 13px;
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--line-strong));
+  border-radius: 2px;
+  color: var(--ink);
+  background-color: color-mix(in srgb, var(--paper-solid) 92%, var(--accent) 8%);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--accent-strong) 50%),
+    linear-gradient(135deg, var(--accent-strong) 50%, transparent 50%),
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--accent) 28%, var(--line)),
+      color-mix(in srgb, var(--accent) 28%, var(--line))
+    );
+  background-position:
+    calc(100% - 17px) 19px,
+    calc(100% - 12px) 19px,
+    calc(100% - 32px) 8px;
+  background-size: 5px 5px, 5px 5px, 1px 26px;
+  background-repeat: no-repeat;
+  box-shadow: inset 2px 0 var(--accent);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.005em;
+  transition: border-color 100ms ease, background-color 100ms ease, box-shadow 100ms ease;
+}
+
+.hangar-hull-field:hover .hangar-hull-select {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--line-strong));
+  background-color: color-mix(in srgb, var(--paper-solid) 88%, var(--accent) 12%);
+}
+
+.hangar-hull-field:has(.hangar-hull-select:focus-visible) .hangar-control-heading {
+  color: var(--accent-strong);
+}
+
+.hangar-hull-select:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: inset 3px 0 var(--accent);
+}
+
+.hangar-hull-select:active {
+  background-color: color-mix(in srgb, var(--paper-solid) 80%, var(--accent) 20%);
+}
+
+.hangar-motion-controls {
+  display: grid;
+  grid-template-columns: 44px 44px auto;
+  grid-template-rows: 13px 44px;
+  align-items: center;
+  gap: 3px 6px;
+  min-width: 191px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.hangar-motion-status {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.hangar-motion-status__state {
+  color: var(--accent-strong);
+}
+
+.hangar-motion-controls .icon-button,
+.hangar-reset-action {
+  position: relative;
+  min-height: 44px;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line-strong));
+  border-radius: 2px;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--paper-solid) 88%, transparent);
+  box-shadow: none;
+  transition:
+    color 90ms ease,
+    border-color 90ms ease,
+    background-color 90ms ease,
+    transform 70ms ease,
+    box-shadow 90ms ease;
+}
+
+.hangar-motion-controls .icon-button:hover,
+.hangar-reset-action:not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--line-strong));
+  color: var(--accent-strong);
+  background: color-mix(in srgb, var(--paper-solid) 82%, var(--accent) 18%);
+}
+
+.hangar-motion-controls .icon-button:active,
+.hangar-reset-action:not(:disabled):active {
+  transform: translateY(1px);
+  background: color-mix(in srgb, var(--paper-solid) 72%, var(--accent) 28%);
+}
+
+.hangar-motion-controls .icon-button:focus-visible,
+.hangar-reset-action:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.hangar-motion-controls[data-motion="rotate"] .hangar-motion-action,
+.hangar-motion-controls[data-motion="still"] .hangar-motion-action,
+.hangar-motion-controls[data-motion="rotate"] .hangar-direction-action {
+  color: var(--accent-strong);
+  background: color-mix(in srgb, var(--paper-solid) 86%, var(--accent) 14%);
+  box-shadow: inset 0 -2px color-mix(in srgb, var(--accent) 72%, transparent);
+}
+
+.hangar-reset-action {
+  min-width: 77px;
+  margin-left: 4px;
+  border-color: var(--line);
+  color: var(--ink-soft);
+  background: transparent;
+}
+
+.hangar-reset-action::before {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: -7px;
+  width: 1px;
+  background: var(--line);
+  content: "";
+}
+
+.hangar-reset-action:disabled {
+  opacity: 0.42;
+  background: transparent;
+}
+
+.hangar-dock--catalog .hangar-dials {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-rows: auto;
+  gap: 10px;
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 13%, var(--line));
+}
+
+.hangar-dock--catalog .hangar-dial {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: 12px 20px;
+  gap: 2px 6px;
+  min-width: 0;
+  padding: 0 2px;
+  color: var(--ink-faint);
+  font-family: var(--font-data);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  white-space: nowrap;
+  transition: color 90ms ease, background-color 90ms ease, box-shadow 90ms ease;
+}
+
+.hangar-dock--catalog .hangar-dial > span {
+  grid-column: 1;
+  grid-row: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+}
+
+.hangar-dock--catalog .hangar-dial > input {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.hangar-dock--catalog .hangar-dial > output {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: var(--accent-strong);
+  background: transparent;
+  font-family: var(--font-data);
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  text-align: right;
+}
+
+.hangar-dial input {
+  width: 100%;
+  min-width: 0;
+  min-height: 20px;
+  margin: 0;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--line-strong) 45%, transparent) 0 1px,
+      transparent 1px 25%
+    ) center / 100% 7px no-repeat;
+  cursor: ew-resize;
+}
+
+.hangar-dial input::-webkit-slider-runnable-track {
+  height: 2px;
+  border-radius: 0;
+  background: linear-gradient(
+    90deg,
+    var(--accent) 0 var(--hangar-range, 0%),
+    color-mix(in srgb, var(--ink) 22%, transparent) var(--hangar-range, 0%) 100%
+  );
+}
+
+.hangar-dial input::-moz-range-track {
+  height: 2px;
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(
+    90deg,
+    var(--accent) 0 var(--hangar-range, 0%),
+    color-mix(in srgb, var(--ink) 22%, transparent) var(--hangar-range, 0%) 100%
+  );
+}
+
+.hangar-dial input::-webkit-slider-thumb {
+  appearance: none;
+  width: 8px;
+  height: 14px;
+  margin-top: -6px;
+  border: 1px solid var(--paper-solid);
+  border-radius: 1px;
+  background: var(--accent-strong);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 48%, transparent);
+  transition: box-shadow 90ms ease, transform 90ms ease;
+}
+
+.hangar-dial input::-moz-range-thumb {
+  width: 7px;
+  height: 13px;
+  border: 1px solid var(--paper-solid);
+  border-radius: 1px;
+  background: var(--accent-strong);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 48%, transparent);
+}
+
+.hangar-dial:hover {
+  color: var(--ink-soft);
+}
+
+.hangar-dial:hover input::-webkit-slider-thumb {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.hangar-dial:hover input::-moz-range-thumb {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.hangar-dial:has(input:focus-visible) {
+  color: var(--accent-strong);
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.hangar-dial input:focus-visible {
+  outline: none;
+}
+
+.hangar-dial input:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px var(--accent);
+}
+
+.hangar-dial input:active::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.hangar-dial input:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px var(--accent);
+}
+
+.hangar-dial input:active::-moz-range-thumb {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.hangar-selection > .hull-picker {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  border-top-color: color-mix(in srgb, var(--accent) 18%, var(--line));
+}
+
+.hangar-dock--catalog .hull-picker__search input {
+  min-height: 44px;
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--line-strong));
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--paper-solid) 92%, var(--accent) 8%);
+}
+
+.hangar-dock--catalog .hull-picker__search input:hover {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--line-strong));
+}
+
+.hangar-dock--catalog .hull-picker__search input:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.hangar-dock--catalog .hull-picker__hull {
+  border-radius: 2px;
+  transition: border-color 90ms ease, background-color 90ms ease, box-shadow 90ms ease;
+}
+
+.hangar-dock--catalog .hull-picker__hull:is(:hover, :focus-visible) {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--line-strong));
+  outline: 2px solid color-mix(in srgb, var(--accent) 26%, transparent);
+  outline-offset: 1px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.hangar-dock--catalog .hull-picker__hull:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+}
+
+.hangar-dock--catalog .hull-picker__hull--selected {
+  border-color: color-mix(in srgb, var(--accent) 66%, var(--line-strong));
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: inset 2px 0 var(--accent);
+}
+
+@container (max-width: 600px) {
+  .hangar-selection {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .hangar-motion-controls {
+    width: max-content;
+    min-width: 0;
+  }
+
+  .hangar-dock--catalog .hangar-dials {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 420px) {
+  .hangar-dock--catalog .hangar-dials {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

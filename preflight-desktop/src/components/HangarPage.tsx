@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { PauseIcon, PlayIcon, RefreshIcon, RotateClockwiseIcon, RotateCounterClockwiseIcon } from "../icons";
 import type { useInstrumentHull } from "../useInstrumentHull";
 import { FEATURED_HULL_IDS } from "../useInstrumentHull";
@@ -24,8 +25,14 @@ interface HangarDialProps {
 }
 
 function HangarDial({ label, value, valueText, minimum, maximum, step, onChange }: HangarDialProps) {
+  const range = maximum === minimum ? 0 : ((value - minimum) / (maximum - minimum)) * 100;
+  const boundedRange = Math.min(100, Math.max(0, range));
+
   return (
-    <label className="hangar-dial">
+    <label
+      className="hangar-dial"
+      style={{ "--hangar-range": `${boundedRange}%` } as CSSProperties}
+    >
       <span>{label}</span>
       <input
         type="range"
@@ -59,6 +66,7 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
   const directionTitle = motion === "still"
     ? `${directionLabel} when rotation resumes`
     : direction === "clockwise" ? "Rotate counter-clockwise" : "Rotate clockwise";
+  const motionStatus = `${motion === "rotate" ? "Rotating" : "Paused"} · ${direction === "clockwise" ? "CW" : "CCW"}`;
 
   return (
     <div className="hangar-page">
@@ -76,24 +84,40 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
 
         <div className="hangar-dock hangar-dock--catalog">
           <div className="hangar-selection">
-            <select
-              className="hangar-hull-select"
-              aria-label="Display ship"
-              value={instrumentHull.selectedId}
-              onChange={(event) => instrumentHull.choose(event.target.value)}
+            <div className="hangar-hull-field">
+              <div className="hangar-control-heading">
+                <span>Display hull</span>
+                <span className="hangar-catalog-status" aria-live="polite">
+                  {instrumentHull.catalog
+                    ? `${instrumentHull.catalog.hulls.length.toLocaleString()} installed`
+                    : instrumentHull.catalogLoaded ? "Included ships" : "Finding installed ships…"}
+                </span>
+              </div>
+              <select
+                className="hangar-hull-select"
+                aria-label="Display ship"
+                value={instrumentHull.selectedId}
+                onChange={(event) => instrumentHull.choose(event.target.value)}
+              >
+                {quickHulls.map((hull) => (
+                  <option key={hull.id} value={hull.id}>{hull.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div
+              className="hangar-motion-controls"
+              role="group"
+              aria-label="Display motion and appearance"
+              data-motion={motion}
+              data-direction={direction}
             >
-              {quickHulls.map((hull) => (
-                <option key={hull.id} value={hull.id}>{hull.name}</option>
-              ))}
-            </select>
-            <span className="hangar-catalog-status" aria-live="polite">
-              {instrumentHull.catalog
-                ? `${instrumentHull.catalog.hulls.length.toLocaleString()} installed`
-                : instrumentHull.catalogLoaded ? "Included ships" : "Finding installed ships…"}
-            </span>
-            <div className="hangar-motion-controls" role="group" aria-label="Display motion and appearance">
+              <div className="hangar-motion-status" aria-live="polite">
+                <span>Motion</span>
+                <span className="hangar-motion-status__state">{motionStatus}</span>
+              </div>
               <button
-                className="icon-button icon-button--small"
+                className="icon-button icon-button--small hangar-motion-action"
                 type="button"
                 aria-label={motionLabel}
                 title={motion === "rotate" ? "Pause decorative hull rotation" : "Resume decorative hull rotation"}
@@ -102,7 +126,7 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
                 {motion === "rotate" ? <PauseIcon /> : <PlayIcon />}
               </button>
               <button
-                className="icon-button icon-button--small"
+                className="icon-button icon-button--small hangar-direction-action"
                 type="button"
                 aria-label={directionLabel}
                 title={directionTitle}
@@ -122,6 +146,7 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
                 <span>Reset</span>
               </button>
             </div>
+
             {additional.length > 0 ? (
               <HullPicker
                 hulls={additional}
@@ -131,7 +156,7 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
             ) : null}
           </div>
 
-          <div className="hangar-dials" aria-label="Wireframe appearance">
+          <div className="hangar-dials" role="group" aria-label="Wireframe appearance">
             <HangarDial
               label="Smooth"
               value={instrumentHull.tuning.outerSmooth}
