@@ -164,15 +164,14 @@ test("Home keeps storage-mode taxonomy out of the default low-disk decision", ()
 });
 
 test("compact preparation keeps its note immediately above the real action row", () => {
-  const compactStyles = homePresentationStyles.replace(/\s+/g, " ");
-  const media = "@media (max-width: 720px)";
-  const selector = ".launch-console--layout-preparation.launch-console--ready:has(.launch-console__actions .launch-console__stop) .launch-console__note";
-  const mediaIndex = compactStyles.indexOf(media);
-  const selectorIndex = compactStyles.indexOf(selector, mediaIndex);
-  const ruleEnd = compactStyles.indexOf("}", selectorIndex);
+  const styles = homePresentationStyles.replace(/\/\*[\s\S]*?\*\//g, "");
+  const mediaIndex = styles.search(/@media\s*\(\s*max-width\s*:\s*720px\s*\)/);
+  const rule = styles.match(
+    /\.launch-console--layout-preparation\.launch-console--ready:has\(\s*\.launch-console__actions\s+\.launch-console__stop\s*\)\s+\.launch-console__note\s*\{([^}]*)\}/,
+  );
 
   expect(mediaIndex).toBeGreaterThanOrEqual(0);
-  expect(selectorIndex).toBeGreaterThan(mediaIndex);
-  expect(ruleEnd).toBeGreaterThan(selectorIndex);
-  expect(compactStyles.slice(selectorIndex, ruleEnd)).toContain("bottom: 82px;");
+  expect(rule).not.toBeNull();
+  expect(rule?.index ?? -1).toBeGreaterThan(mediaIndex);
+  expect(rule?.[1]).toMatch(/bottom\s*:\s*82px\s*;?/);
 });
