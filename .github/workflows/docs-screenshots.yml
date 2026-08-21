@@ -1,0 +1,147 @@
+name: Canonical docs screenshots
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/docs-screenshots.yml
+      - preflight-desktop/scripts/capture-doc-screenshots.py
+      - docs/evidence/2026-08-21-canonical-ui-screenshots.md
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  capture:
+    if: github.head_ref == 'docs/1000-canonical-screenshots-final'
+    runs-on: ubuntu-latest
+    env:
+      SOURCE_MAIN_SHA: 67b44d0ff28148847ac8a3788bd446d94c490614
+      SOURCE_TREE_SHA: 48aaeae9973887a02dee368c6099a05489cedfb8
+      FRONTEND_ARTIFACT_ID: '9452137462'
+      FRONTEND_ARTIFACT_SHA256: cffd8e2adb6d30e01475908d6c788baf7b8451e96ef1dc151ea377ec34f8acdd
+      FRONTEND_BASE_URL: http://127.0.0.1:4173
+
+    steps:
+      - name: Check out screenshot carrier
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Verify carrier and accepted frontend source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse "${SOURCE_MAIN_SHA}^{tree}")" = "${SOURCE_TREE_SHA}"
+          unexpected="$({
+            git diff --name-only "${SOURCE_MAIN_SHA}"...HEAD \
+              | grep -Ev '^(\.github/workflows/docs-screenshots\.yml|preflight-desktop/scripts/capture-doc-screenshots\.py|docs/evidence/2026-08-21-canonical-ui-screenshots\.md)$' \
+              || true
+          })"
+          if [[ -n "${unexpected}" ]]; then
+            echo "Screenshot carrier contains unexpected pre-capture changes:" >&2
+            echo "${unexpected}" >&2
+            exit 1
+          fi
+
+      - name: Download and verify exact frontend artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            --output /tmp/preflight-frontend.zip \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${FRONTEND_ARTIFACT_ID}/zip"
+          echo "${FRONTEND_ARTIFACT_SHA256}  /tmp/preflight-frontend.zip" | sha256sum --check --strict
+          mkdir -p /tmp/preflight-frontend
+          unzip -q /tmp/preflight-frontend.zip -d /tmp/preflight-frontend
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          root = Path('/tmp/preflight-frontend/dist')
+          manifest = json.loads(Path('/tmp/preflight-frontend/frontend-dist.json').read_text())
+          if manifest.get('format') != 'preflight-frontend-dist-v1':
+              raise SystemExit('unexpected frontend artifact manifest format')
+          for entry in manifest['files']:
+              data = (root / entry['path']).read_bytes()
+              if len(data) != entry['bytes'] or hashlib.sha256(data).hexdigest() != entry['sha256']:
+                  raise SystemExit(f"frontend artifact mismatch: {entry['path']}")
+          PY
+
+      - name: Install Chromium capture runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check 'playwright==1.55.0'
+          python -m playwright install --with-deps chromium
+
+      - name: Serve exact frontend artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m http.server 4173 --bind 127.0.0.1 --directory /tmp/preflight-frontend/dist >/tmp/preflight-http.log 2>&1 &
+          echo "$!" >/tmp/preflight-http.pid
+          for _ in $(seq 1 30); do
+            curl --fail --silent "${FRONTEND_BASE_URL}/" >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/preflight-http.log >&2
+          exit 1
+
+      - name: Capture canonical README images
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'kill "$(cat /tmp/preflight-http.pid)" 2>/dev/null || true' EXIT
+          python preflight-desktop/scripts/capture-doc-screenshots.py \
+            --base-url "${FRONTEND_BASE_URL}" \
+            --output-dir docs/images \
+            --source-boundary-file scripts/verify_source_boundary.py
+
+      - name: Record captured image identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, struct
+          from pathlib import Path
+          names = (
+              'desktop-home-dark.png', 'desktop-home-light.png', 'desktop-profiles-light.png',
+              'walkthrough-benchmark.png', 'walkthrough-ready.png', 'walkthrough-setup.png',
+          )
+          rows = ['| Image | Pixels | Bytes | SHA-256 |', '| --- | ---: | ---: | --- |']
+          for name in names:
+              path = Path('docs/images') / name
+              data = path.read_bytes()
+              if data[:8] != b'\x89PNG\r\n\x1a\n' or data[12:16] != b'IHDR':
+                  raise SystemExit(f'not a PNG: {path}')
+              width, height = struct.unpack('>II', data[16:24])
+              rows.append(f'| `{path.as_posix()}` | {width}×{height} | {len(data):,} | `{hashlib.sha256(data).hexdigest()}` |')
+          path = Path('docs/evidence/2026-08-21-canonical-ui-screenshots.md')
+          text = path.read_text()
+          a = '<!-- canonical-screenshot-identities:start -->'
+          b = '<!-- canonical-screenshot-identities:end -->'
+          start, end = text.index(a) + len(a), text.index(b)
+          path.write_text(text[:start] + '\n' + '\n'.join(rows) + '\n' + text[end:])
+          PY
+
+      - name: Verify and commit canonical screenshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/verify_source_boundary.py --repository .
+          git diff --check
+          git add docs/images/*.png docs/evidence/2026-08-21-canonical-ui-screenshots.md scripts/verify_source_boundary.py
+          if git diff --cached --quiet; then
+            echo 'Canonical screenshots already match the accepted artifact.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Refresh canonical UI screenshots (#1000)'
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
