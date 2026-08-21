@@ -135,6 +135,12 @@
   color: var(--attention);
 }
 
+/* The launch-path control is a focusable span, outside the shared button/input/select focus rule.
+ * Use the same full palette accent so its keyboard indicator keeps the accepted light-mode contrast. */
+.home-launch-path:focus-visible {
+  outline-color: var(--accent);
+}
+
 /* Keep the installation-path focus ring tied to its readable label. These alignment rules only
  * change the interactive hit/focus box; current-main ship, identity, and action coordinates stay put. */
 .launch-console--layout-settled .home-launch-path {
