@@ -68,7 +68,7 @@ test("resolved Home cascade follows explicit state modifiers", () => {
   style.remove();
 });
 
-test("failed-run recovery floats above a stable adjacent Home field", () => {
+test("failed-run recovery is an overlay on settled Home geometry", () => {
   expect(layoutStyles).toMatch(
     /\.page-viewport--home > \.run-recovery\[role="alert"\]\s*\{[^}]*position:\s*absolute;[^}]*z-index:\s*8;[^}]*top:\s*0;[^}]*margin-bottom:\s*0;/s,
   );
@@ -76,14 +76,19 @@ test("failed-run recovery floats above a stable adjacent Home field", () => {
     /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery\s*\{[^}]*height:\s*100%;[^}]*min-height:\s*100%;/s,
   );
   expect(layoutStyles).toMatch(
-    /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-flight-instrument\s*\{[^}]*inset:\s*120px 30px 54px;[^}]*opacity:\s*\.72;/s,
+    /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-flight-instrument\s*\{[^}]*inset:\s*-34px 30px 100px;[^}]*opacity:\s*1;/s,
   );
   expect(layoutStyles).toMatch(
-    /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-launch-identity\s*\{[^}]*top:\s*auto;[^}]*bottom:\s*18px;/s,
+    /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-launch-identity\s*\{[^}]*top:\s*auto;[^}]*bottom:\s*82px;[^}]*left:\s*50%;[^}]*text-align:\s*center;[^}]*transform:\s*translateX\(-50%\);/s,
   );
   expect(layoutStyles).toMatch(
-    /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-launch-path::after\s*\{[^}]*top:\s*auto;[^}]*bottom:\s*calc\(100% \+ 7px\);/s,
+    /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-ship-name\s*\{[^}]*right:\s*auto;[^}]*bottom:\s*24px;[^}]*left:\s*28px;[^}]*text-align:\s*left;/s,
   );
+  expect(layoutStyles).toMatch(
+    /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-launch-path::after\s*\{[^}]*top:\s*auto;[^}]*bottom:\s*calc\(100% \+ 7px\);[^}]*left:\s*50%;[^}]*transform:\s*translate\(-50%, -2px\);/s,
+  );
+  expect(layoutStyles).not.toContain("inset: 120px 30px 54px");
+  expect(layoutStyles).not.toContain("inset: 105px 8px 24px");
 });
 
 test("launch identity keeps the setup first while the path remains an interactive disclosure", () => {
