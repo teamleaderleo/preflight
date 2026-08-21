@@ -1,0 +1,11 @@
+/*
+ * Settled Speed is a compact readout. At the narrow desktop layout, three 16px inter-card gaps
+ * were enough to manufacture a 9px scrollbar at 800×900 even though every card otherwise fit.
+ * Tighten only those outer gaps; content, controls, and intentionally scrollable busy states keep
+ * their existing dimensions.
+ */
+@media (max-width: 1000px) {
+  .page-viewport--speed .prepare-page--settled {
+    gap: 12px;
+  }
+}
