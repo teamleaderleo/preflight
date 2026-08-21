@@ -37,6 +37,8 @@ test("filters the additional catalog by name and reports what the filter left", 
   await user.type(screen.getByRole("searchbox", { name: "Filter installed hulls" }), "do");
   expect(screen.getByText("2 of 4 additional hulls")).toBeInTheDocument();
   expect(list().getByRole("button", { name: /Dominator/ })).toBeInTheDocument();
+  expect(within(list().getByRole("button", { name: /Dominator/ })).getByText("capital")).toBeInTheDocument();
+  expect(within(list().getByRole("button", { name: /Dominator/ })).queryByText("capital ship")).not.toBeInTheDocument();
   expect(list().getByRole("button", { name: /Doom/ })).toBeInTheDocument();
   expect(list().queryByRole("button", { name: /Lasher/ })).not.toBeInTheDocument();
 
