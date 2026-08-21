@@ -28,6 +28,12 @@ test("Hangar controls have authored hover focus and pressed states", () => {
   expect(focusStyles).toMatch(/\.hangar-page \.hangar-dial:has\(input:focus-visible\)\s*\{[^}]*outline:\s*2px solid var\(--accent\);/s);
 });
 
+test("short Hangar windows bound the chooser list inside the usable workspace", () => {
+  expect(hangarStyles).toMatch(
+    /@media \(max-height: 600px\)[\s\S]*\.hangar-hull-combobox__list\s*\{[^}]*max-height:\s*min\(196px, 35vh\);/s,
+  );
+});
+
 test("Hangar tuning compacts into one five-channel instrument bank at the shipped desktop widths", () => {
   expect(hangarStyles).toMatch(/\.hangar-dock--catalog \.hangar-dials\s*\{[^}]*grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\);/s);
   expect(hangarStyles).toContain("@container (max-width: 600px)");
