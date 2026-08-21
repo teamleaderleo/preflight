@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { PauseIcon, PlayIcon, RefreshIcon, RotateClockwiseIcon, RotateCounterClockwiseIcon } from "../icons";
 import type { useInstrumentHull } from "../useInstrumentHull";
 import type { WireframeHull } from "../types";
@@ -8,6 +8,9 @@ import { FlightInstrument } from "./FlightInstrument";
 type InstrumentHullState = ReturnType<typeof useInstrumentHull>;
 
 const HULL_RESULT_LIMIT = 8;
+const HULL_POPUP_GAP = 9;
+
+type HullPopupDirection = "up" | "down";
 
 function hullSizeLabel(hullSize: string): string {
   return hullSize === "CAPITAL_SHIP" ? "capital" : hullSize.replaceAll("_", " ").toLowerCase();
@@ -43,6 +46,14 @@ function keepActiveHullVisible(list: HTMLDivElement, activeOption: HTMLElement) 
   }
 }
 
+function hullPopupHeightCap(): number {
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+  if (viewportHeight <= 0) return 250;
+  return viewportHeight <= 600
+    ? Math.min(196, viewportHeight * 0.35)
+    : Math.min(250, viewportHeight * 0.48);
+}
+
 interface HangarHullChooserProps {
   hulls: WireframeHull[];
   selected: WireframeHull;
@@ -52,10 +63,13 @@ interface HangarHullChooserProps {
 
 function HangarHullChooser({ hulls, selected, onChoose, catalogStatus }: HangarHullChooserProps) {
   const listId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState(selected.name);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [popupDirection, setPopupDirection] = useState<HullPopupDirection>("up");
+  const [popupMaxHeight, setPopupMaxHeight] = useState<number | null>(null);
 
   useEffect(() => {
     setQuery(selected.name);
@@ -75,6 +89,46 @@ function HangarHullChooser({ hulls, selected, onChoose, catalogStatus }: HangarH
   }, [hulls, query, selected]);
 
   const activeHull = results[activeIndex] ?? results[0];
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const input = inputRef.current;
+    const list = listRef.current;
+    const workspace = input?.closest<HTMLElement>(".page-viewport");
+    if (!input || !list || !workspace) return;
+
+    const placePopup = () => {
+      const inputRect = input.getBoundingClientRect();
+      const workspaceRect = workspace.getBoundingClientRect();
+      const listRect = list.getBoundingClientRect();
+      const desiredHeight = Math.min(
+        list.scrollHeight > 0 ? list.scrollHeight : listRect.height,
+        hullPopupHeightCap(),
+      );
+      const availableAbove = Math.max(0, inputRect.top - workspaceRect.top - HULL_POPUP_GAP);
+      const availableBelow = Math.max(0, workspaceRect.bottom - inputRect.bottom - HULL_POPUP_GAP);
+      const nextDirection: HullPopupDirection = availableAbove >= desiredHeight
+        ? "up"
+        : availableBelow >= desiredHeight
+          ? "down"
+          : availableBelow > availableAbove
+            ? "down"
+            : "up";
+      const availableHeight = nextDirection === "up" ? availableAbove : availableBelow;
+      const nextMaxHeight = Math.max(0, Math.min(desiredHeight, availableHeight));
+
+      setPopupDirection((current) => current === nextDirection ? current : nextDirection);
+      setPopupMaxHeight((current) => current === nextMaxHeight ? current : nextMaxHeight);
+    };
+
+    placePopup();
+    workspace.addEventListener("scroll", placePopup, { passive: true });
+    window.addEventListener("resize", placePopup);
+    return () => {
+      workspace.removeEventListener("scroll", placePopup);
+      window.removeEventListener("resize", placePopup);
+    };
+  }, [open, results.length]);
 
   useEffect(() => {
     if (!open) return;
@@ -129,10 +183,20 @@ function HangarHullChooser({ hulls, selected, onChoose, catalogStatus }: HangarH
   };
 
   const activeOptionId = open && activeHull ? `${listId}-option-${activeIndex}` : undefined;
+  const popupStyle = popupMaxHeight === null ? undefined : {
+    maxHeight: `${popupMaxHeight}px`,
+    top: popupDirection === "down" ? `calc(100% + ${HULL_POPUP_GAP}px)` : "auto",
+    bottom: popupDirection === "up" ? `calc(100% + ${HULL_POPUP_GAP}px)` : "auto",
+  };
 
   return (
-    <div className="hangar-hull-combobox" data-open={open ? "true" : "false"}>
+    <div
+      className="hangar-hull-combobox"
+      data-open={open ? "true" : "false"}
+      data-placement={popupDirection}
+    >
       <input
+        ref={inputRef}
         id={`${listId}-input`}
         className="hangar-hull-combobox__input"
         type="text"
@@ -177,6 +241,7 @@ function HangarHullChooser({ hulls, selected, onChoose, catalogStatus }: HangarH
           className="hangar-hull-combobox__list"
           role="listbox"
           aria-label="Display ships"
+          style={popupStyle}
         >
           {results.length > 0 ? results.map((hull, index) => (
             <button

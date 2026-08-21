@@ -56,6 +56,11 @@
   opacity: 1;
 }
 
+.hangar-stage:has(.hangar-hull-combobox[data-open="true"][data-placement="down"]) {
+  z-index: 2;
+  overflow: visible;
+}
+
 .hangar-hull-combobox__input {
   appearance: none;
   display: block;
