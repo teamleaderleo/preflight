@@ -37,5 +37,12 @@ The helper `preflight-desktop/scripts/capture-doc-screenshots.py` treats browser
 The screenshot-generation run replaces the rows below with the final PNG dimensions, byte sizes, and SHA-256 values before committing the images.
 
 <!-- canonical-screenshot-identities:start -->
-_Pending capture._
+| Image | Pixels | Bytes | SHA-256 |
+| --- | ---: | ---: | --- |
+| `docs/images/desktop-home-dark.png` | 1040×700 | 311,930 | `859f8d551d125c66fa18db8ccba26721921b636bab3040c47e68df5c70bef946` |
+| `docs/images/desktop-home-light.png` | 1040×700 | 342,496 | `3dc2b399c72b86a6d3b2a0c17c37058b7d8071abe4cd3523e387cc71c2667334` |
+| `docs/images/desktop-profiles-light.png` | 1040×700 | 226,973 | `6e77c165b13bbdf37a60411b25ee403ceba64f0f65b7eb9595b2751abc66afe4` |
+| `docs/images/walkthrough-benchmark.png` | 1040×700 | 231,566 | `c6ebe3ef8608ef53ddb7c820bc6027357600e7115e4afafeb0cba5c752b68250` |
+| `docs/images/walkthrough-ready.png` | 720×560 | 213,139 | `8b7480017ea29c025b1514ef3dee2a1eec8e5b82c216eec30004c4d91348c549` |
+| `docs/images/walkthrough-setup.png` | 720×560 | 188,622 | `499bbae8c9abb22f283a78af097fba7d5fc3f88fd3135790fd59056f267b4611` |
 <!-- canonical-screenshot-identities:end -->
