@@ -312,7 +312,11 @@ final class PrepareCommand {
                                     options.memoryMib() * 1024L * 1024L,
                                     options.textureStorage().codec(),
                                     options.textureStorage().rawWhenCompressionIsIneffective()));
-                    TextureManifestValidator.Result validation = TextureManifestValidator.validate(cache, built.manifest());
+                    boolean exactPackOnly = PackedTextureRetention.isExactPackOnly(cache, built.manifest());
+                    TextureManifestValidator.Result validation = exactPackOnly
+                            ? null
+                            : TextureManifestValidator.validate(cache, built.manifest());
+                    boolean texturesValid = exactPackOnly || validation.valid();
                     Map<String, Object> details = new LinkedHashMap<>();
                     details.put("manifest", built.manifestPath());
                     details.put("pack", built.packPath());
@@ -337,11 +341,27 @@ final class PrepareCommand {
                     details.put("textureStorage", options.textureStorage().optionValue());
                     details.put("memoryEstimate", TextureMemoryEstimator.estimate(built.manifest()).toReportValues());
                     details.put("buildDiagnostics", built.diagnostics());
-                    details.put("valid", validation.valid());
-                    details.put("checkedEntries", validation.checkedEntries());
-                    details.put("invalidEntries", validation.invalidEntries());
-                    details.put("validationProblems", validation.problems());
-                    textureStage = validation.valid() && built.failedBlobs() == 0
+                    details.put("valid", texturesValid);
+                    details.put("packOnly", exactPackOnly);
+                    details.put("checkedEntries", exactPackOnly
+                            ? built.manifest().entryCount()
+                            : validation.checkedEntries());
+                    details.put("invalidEntries", exactPackOnly ? 0 : validation.invalidEntries());
+                    details.put("validationProblems", exactPackOnly ? List.of() : validation.problems());
+                    if (texturesValid && built.failedBlobs() == 0) {
+                        try {
+                            PackedTextureRetention.Result retention =
+                                    PackedTextureRetention.release(cache, built.manifest());
+                            details.put("releasedLooseBlobs", retention.releasedBlobs());
+                            details.put("releasedLooseBytes", retention.releasedBytes());
+                            details.put("protectedLooseBlobs", retention.protectedBlobs());
+                        } catch (IOException error) {
+                            diagnostics.add("Loose texture copies were kept: " + message(error));
+                            details.put("releasedLooseBlobs", 0);
+                            details.put("releasedLooseBytes", 0);
+                        }
+                    }
+                    textureStage = texturesValid && built.failedBlobs() == 0
                             ? Stage.success(details, System.nanoTime() - stageStarted)
                             : Stage.failed(details, List.of("Texture cache preparation or validation failed"), System.nanoTime() - stageStarted);
                 } catch (Exception error) {

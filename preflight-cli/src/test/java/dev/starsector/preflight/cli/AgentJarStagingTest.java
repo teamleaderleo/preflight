@@ -117,7 +117,8 @@ class AgentJarStagingTest {
         Path injected = AgentJarStaging.readableByTheChildJvm(
                 jar, StandardCharsets.US_ASCII, List.of(unusable, usable));
 
-        assertTrue(injected.startsWith(usable), "staging into an unreadable folder would fix nothing");
+        assertTrue(Files.isSameFile(injected.getParent().getParent(), usable),
+                "staging into an unreadable folder would fix nothing");
     }
 
     @Test
@@ -135,7 +136,8 @@ class AgentJarStagingTest {
         Path injected = AgentJarStaging.readableByTheChildJvm(
                 jar, StandardCharsets.US_ASCII, List.of(link, usable));
 
-        assertTrue(injected.startsWith(usable));
+        assertTrue(Files.isSameFile(injected.getParent().getParent(), usable),
+                "macOS may return the /private/var spelling for the same usable root");
         try (var entries = Files.list(outside)) {
             assertEquals(0, entries.count(), "a symlinked shared root must remain untouched");
         }

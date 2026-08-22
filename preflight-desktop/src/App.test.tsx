@@ -142,7 +142,7 @@ test("the default cold-profile action prepares with balanced settings and then l
   const action = await screen.findByRole("button", { name: "Prepare and launch" });
   await waitFor(() => expect(action).toBeEnabled());
   expect(screen.getByText("First launch setup")).toBeInTheDocument();
-  expect(screen.getByText(/Uses about .* free required; .* available/))
+  expect(screen.getByText(/Keeps about .* free needed to build it; .* available/))
     .toBeInTheDocument();
   expect(screen.getByLabelText("186h played across 78 recorded sessions")).toBeInTheDocument();
   expect(within(screen.getByRole("main")).queryByText(/^for Starsector$/i)).not.toBeInTheDocument();

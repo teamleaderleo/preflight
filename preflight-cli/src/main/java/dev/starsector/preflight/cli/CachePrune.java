@@ -38,7 +38,8 @@ import java.util.Set;
  * the survivor set. Texture and prepared-audio blobs are not like that: they are content-addressed
  * and <b>shared</b>, so the same blob is routinely referenced by several profiles and its name says
  * nothing about who needs it. Deleting one is only safe after reading every surviving manifest and
- * confirming none of them points at it.
+ * confirming none of them points at it without also having an exact readable pack. A complete pack
+ * is the durable copy; keeping the same SPFT payload loose as well is redundant.
  *
  * <p>That asymmetry drives the safety rule here: <b>a manifest that cannot be read aborts the whole
  * plan.</b> An unreadable survivor means an incomplete reachable set, and an incomplete reachable
@@ -106,8 +107,9 @@ final class CachePrune {
             }
             try {
                 TextureManifest read = TextureManifestIO.read(manifest);
-                for (TextureManifest.Entry entry : read.entries().values()) {
-                    reachable.add(entry.blobRelativePath());
+                List<String> blobs = PackedTextureRetention.blobPaths(read);
+                if (!PackedTextureRetention.hasExactPack(cache, read, blobs)) {
+                    reachable.addAll(blobs);
                 }
             } catch (Exception unreadable) {
                 refusals.add("manifest for surviving profile " + survivor.substring(0, 16)

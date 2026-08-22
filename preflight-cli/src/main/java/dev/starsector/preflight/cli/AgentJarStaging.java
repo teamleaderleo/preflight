@@ -159,6 +159,9 @@ final class AgentJarStaging {
                 || !Files.isDirectory(ownedRoot, LinkOption.NOFOLLOW_LINKS)) {
             throw new IOException("staging root is not a real directory: " + ownedRoot);
         }
+        // macOS exposes the same temporary volume through /var and /private/var. Use its real
+        // spelling before creating the child path so the wrapper and child JVM agree on identity.
+        ownedRoot = ownedRoot.toRealPath();
 
         Path directory = createPrivateDirectory(ownedRoot);
         Path staged = directory.resolve(name);

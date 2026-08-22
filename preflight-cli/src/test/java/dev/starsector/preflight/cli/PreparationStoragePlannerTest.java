@@ -44,6 +44,7 @@ class PreparationStoragePlannerTest {
         assertEquals(10L * 8 * 4, plan.uniquePixelBytes());
         assertTrue(plan.predictedLooseBytes() > plan.uniquePixelBytes());
         assertTrue(plan.predictedPackBytes() > plan.uniquePixelBytes());
+        assertEquals(plan.predictedPackBytes(), plan.predictedRetainedTextureBytes());
         assertEquals(GIB, plan.safetyReserveBytes());
         assertTrue(plan.safeToPrepare());
         assertFalse(Files.exists(cache));
@@ -103,10 +104,66 @@ class PreparationStoragePlannerTest {
                 index, cache, TextureStoragePolicy.FASTEST, 1, () -> 20 * GIB);
 
         assertTrue(plan.packHit());
+        assertFalse(plan.packOnlyHit());
         assertEquals(0, plan.predictedLooseBytes());
         assertEquals(0, plan.predictedPackBytes());
         assertEquals(0, plan.predictedMetadataBytes());
         assertTrue(plan.reusableLooseBytes() > 0);
+    }
+
+    @Test
+    void exactPackOnlyProfileNeedsNoDuplicateTextureBuild() throws Exception {
+        Path root = temporaryDirectory.resolve("root-pack-only");
+        Path image = root.resolve("graphics/image.png");
+        writeImage(image, true);
+        String profile = "fa".repeat(32);
+        ResourceIndex index = index(root, profile, List.of("graphics/image.png"));
+        Path cache = temporaryDirectory.resolve("pack-only-cache");
+        TextureBatchBuilder.Result built = TextureBatchBuilder.build(
+                index, cache, new TextureBatchBuilder.Options(1, 16L * 1024 * 1024));
+        PackedTextureRetention.release(cache, built.manifest());
+        Path resourceIndex = cache.resolve("resource-indexes").resolve(profile + ".spfi");
+        Files.createDirectories(resourceIndex.getParent());
+        Files.writeString(resourceIndex, "present");
+
+        PreparationStoragePlanner.Plan plan = PreparationStoragePlanner.plan(
+                index, cache, TextureStoragePolicy.BALANCED, 1, () -> 20 * GIB);
+
+        assertTrue(plan.packHit());
+        assertTrue(plan.packOnlyHit());
+        assertEquals(0, plan.predictedLooseBytes());
+        assertEquals(0, plan.upperLooseBytes());
+        assertEquals(0, plan.predictedPackBytes());
+        assertTrue(plan.predictedRetainedTextureBytes() > 0);
+        assertEquals(0, plan.predictedAdditionalBytes());
+    }
+
+    @Test
+    void exactPackOnlyProfileAllowsAnUnsupportedCandidateWithoutARebuild() throws Exception {
+        Path root = temporaryDirectory.resolve("root-pack-only-unsupported");
+        Path image = root.resolve("graphics/image.png");
+        Path unsupported = root.resolve("graphics/unsupported.tga");
+        writeImage(image, true);
+        Files.write(unsupported, new byte[] {0, 0, 0, 0});
+        String profile = "fb".repeat(32);
+        ResourceIndex index = index(
+                root, profile, List.of("graphics/image.png", "graphics/unsupported.tga"));
+        Path cache = temporaryDirectory.resolve("pack-only-unsupported-cache");
+        TextureBatchBuilder.Result built = TextureBatchBuilder.build(
+                index, cache, new TextureBatchBuilder.Options(1, 16L * 1024 * 1024));
+        PackedTextureRetention.release(cache, built.manifest());
+        Path resourceIndex = cache.resolve("resource-indexes").resolve(profile + ".spfi");
+        Files.createDirectories(resourceIndex.getParent());
+        Files.writeString(resourceIndex, "present");
+
+        PreparationStoragePlanner.Plan plan = PreparationStoragePlanner.plan(
+                index, cache, TextureStoragePolicy.BALANCED, 1, () -> 20 * GIB);
+
+        assertTrue(plan.packHit());
+        assertTrue(plan.packOnlyHit());
+        assertEquals(0, plan.hashedEntries());
+        assertEquals(1, plan.unsupportedContent());
+        assertEquals(0, plan.predictedAdditionalBytes());
     }
 
     private static ResourceIndex index(Path root, String fingerprint, List<String> paths) throws Exception {

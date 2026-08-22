@@ -14,16 +14,21 @@ import dev.starsector.preflight.core.PreparedAudioCache;
 import dev.starsector.preflight.core.PreparedAudioManifest;
 import dev.starsector.preflight.core.PreparedAudioManifestIO;
 import dev.starsector.preflight.core.PreparedTexture;
+import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.TextureManifest;
 import dev.starsector.preflight.core.TextureManifestIO;
+import java.awt.Color;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -62,6 +67,42 @@ class CachePruneTest {
                 preflight.cache().resolve("manifests").resolve(discarded + ".spfm")));
         assertFalse(Files.exists(
                 preflight.cache().resolve("resource-indexes").resolve(discarded + ".spfi")));
+    }
+
+    @Test
+    void aSurvivingExactPackMakesItsLoosePayloadPrunable() throws Exception {
+        PreflightHome preflight = home();
+        String kept = "0".repeat(64);
+        Path root = home.resolve("texture-source");
+        Path source = root.resolve("graphics/ship.png");
+        Files.createDirectories(source.getParent());
+        BufferedImage image = new BufferedImage(8, 8, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                image.setRGB(x, y, new Color(x * 20, y * 20, 80, 180).getRGB());
+            }
+        }
+        assertTrue(ImageIO.write(image, "png", source.toFile()));
+        BasicFileAttributes attributes = Files.readAttributes(source, BasicFileAttributes.class);
+        ResourceIndex index = new ResourceIndex(
+                kept,
+                List.of(new ResourceIndex.Root("root", root, false)),
+                Map.of("graphics/ship.png", List.of(new ResourceIndex.Provider(
+                        0,
+                        "graphics/ship.png",
+                        attributes.size(),
+                        attributes.lastModifiedTime().toMillis()))));
+        TextureBatchBuilder.Result built = TextureBatchBuilder.build(
+                index, preflight.cache(), new TextureBatchBuilder.Options(1, 16L * 1024 * 1024));
+        Path loose = preflight.cache().resolve(
+                built.manifest().entries().values().iterator().next().blobRelativePath());
+
+        CachePrune.Plan plan = CachePrune.plan(preflight, Set.of(kept), Set.of());
+
+        assertTrue(plan.safe(), plan.refusals().toString());
+        assertEquals(0, plan.reachableBlobs());
+        assertTrue(plan.removals().stream().anyMatch(removal -> removal.path().equals(loose)
+                && "unreferenced blob".equals(removal.reason())));
     }
 
     @Test

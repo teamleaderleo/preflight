@@ -65,6 +65,40 @@ final class PreparationStoragePlanner {
         });
         try {
             List<TextureBatchBuilder.Candidate> candidates = TextureBatchBuilder.collectCandidates(index);
+            TextureBatchBuilder.ExactPackReuse exactPack =
+                    TextureBatchBuilder.inspectExactCompletePack(
+                            index,
+                            cacheRoot,
+                            storage.codec(),
+                            storage.rawWhenCompressionIsIneffective(),
+                            candidates);
+            if (exactPack != null) {
+                boolean profileMetadataPresent = Files.isRegularFile(ResourceIndexIO.directory(cacheRoot)
+                        .resolve(index.profileFingerprint() + ".spfi"));
+                long predictedMetadata = profileMetadataPresent ? 0 : PREDICTED_METADATA_BYTES;
+                long upperMetadata = profileMetadataPresent ? 0 : UPPER_METADATA_BYTES;
+                long margin = Math.max(GIB, Math.min(4L * GIB, upperMetadata / 10));
+                long required = saturatedAdd(upperMetadata, margin);
+                long usable = Math.max(0, usableSpace.getAsLong());
+                return new Plan(
+                        index.profileFingerprint(), storage.optionValue(), cacheRoot,
+                        exactPack.packPath(), candidates.size(), 0,
+                        exactPack.packedBlobs() + exactPack.unsupportedCandidates(),
+                        exactPack.packedBlobs(), exactPack.unsupportedCandidates(), 0,
+                        0, exactPack.pixelBytes(), 0, 0, 0, 0, 0, 0,
+                        exactPack.packBytes(), predictedMetadata, upperMetadata,
+                        predictedMetadata, upperMetadata, margin, required, usable,
+                        Math.max(0, usable - upperMetadata), true, true, true,
+                        usable >= required,
+                        usable < required
+                                ? "Preparation needs up to " + humanBytes(upperMetadata)
+                                        + " plus a " + humanBytes(margin)
+                                        + " free-space reserve; only " + humanBytes(usable)
+                                        + " is available."
+                                : null,
+                        List.of("The exact prepared texture pack is already complete."),
+                        System.nanoTime() - started);
+            }
             List<TextureBatchBuilder.HashedCandidate> hashed = TextureBatchBuilder.hashCandidates(
                     candidates, diagnostics, executor, dev.starsector.preflight.core.Hashes::sha256);
             Map<TextureBatchBuilder.BlobKey, TextureBatchBuilder.HashedCandidate> unique =
@@ -145,24 +179,45 @@ final class PreparationStoragePlanner {
                     cacheRoot, index.profileFingerprint(), logicalPackOrder);
 
             boolean packHit = false;
+            boolean packOnlyHit = false;
             long predictedPack = 0;
             long upperPack = 0;
+            long predictedRetainedTexture = 0;
             Path packPath = PreparedTexturePackIO.path(cacheRoot, index.profileFingerprint());
             if (!predictedPackEntries.isEmpty()) {
+                predictedRetainedTexture = PreparedTexturePackIO.estimatedFileBytes(
+                        index.profileFingerprint(), predictedPackEntries);
                 if (Files.isRegularFile(packPath)) {
                     try (PreparedTexturePack existing = PreparedTexturePackIO.open(
                             packPath, index.profileFingerprint(), expectedPackOrder)) {
                         packHit = existing.hasEntryOrder(expectedPackOrder);
                     } catch (IOException ignored) {
-                        // Loose content remains authoritative; preparation will replace this pack.
+                        // Preparation will replace an unusable pack from source or retained blobs.
                     }
                 }
                 if (!packHit) {
-                    predictedPack = PreparedTexturePackIO.estimatedFileBytes(
-                            index.profileFingerprint(), predictedPackEntries);
+                    predictedPack = predictedRetainedTexture;
                     upperPack = PreparedTexturePackIO.estimatedFileBytes(
                             index.profileFingerprint(), upperPackEntries);
+                } else {
+                    Path manifestPath = TextureManifestIO.directory(cacheRoot)
+                            .resolve(index.profileFingerprint() + ".spfm");
+                    if (Files.isRegularFile(manifestPath)) {
+                        try {
+                            packOnlyHit = PackedTextureRetention.isExactPackOnly(
+                                    cacheRoot, TextureManifestIO.read(manifestPath));
+                        } catch (IOException | RuntimeException ignored) {
+                            // The builder will inspect and repair this state during preparation.
+                        }
+                    }
                 }
+            }
+
+            // An exact pack-only profile is already the finished representation. The builder does
+            // not recreate its former loose duplicates merely to delete them again.
+            if (packOnlyHit) {
+                predictedLoose = 0;
+                upperLoose = 0;
             }
 
             boolean profileMetadataPresent = Files.isRegularFile(ResourceIndexIO.directory(cacheRoot)
@@ -192,9 +247,10 @@ final class PreparationStoragePlanner {
                     candidates.size(), hashed.size(), unique.size(), supported, unsupported, failed,
                     uniqueSourceBytes, uniquePixelBytes, reusableLoose, selectedReusableLoose,
                     predictedLoose, upperLoose, predictedPack, upperPack,
+                    predictedRetainedTexture,
                     predictedMetadata, upperMetadata, predictedAdditional, upperAdditional,
                     margin, required, usable, Math.max(0, usable - upperAdditional),
-                    packHit, complete, safe, refusal, List.copyOf(diagnostics),
+                    packHit, packOnlyHit, complete, safe, refusal, List.copyOf(diagnostics),
                     System.nanoTime() - started);
         } finally {
             executor.shutdownNow();
@@ -396,6 +452,7 @@ final class PreparationStoragePlanner {
             long upperLooseBytes,
             long predictedPackBytes,
             long upperPackBytes,
+            long predictedRetainedTextureBytes,
             long predictedMetadataBytes,
             long upperMetadataBytes,
             long predictedAdditionalBytes,
@@ -405,6 +462,7 @@ final class PreparationStoragePlanner {
             long usableBytes,
             long remainingAfterUpperBoundBytes,
             boolean packHit,
+            boolean packOnlyHit,
             boolean complete,
             boolean safeToPrepare,
             String refusalReason,
@@ -432,6 +490,7 @@ final class PreparationStoragePlanner {
             values.put("upperLooseBytes", upperLooseBytes);
             values.put("predictedPackBytes", predictedPackBytes);
             values.put("upperPackBytes", upperPackBytes);
+            values.put("predictedRetainedTextureBytes", predictedRetainedTextureBytes);
             values.put("predictedMetadataBytes", predictedMetadataBytes);
             values.put("upperMetadataBytes", upperMetadataBytes);
             values.put("predictedAdditionalBytes", predictedAdditionalBytes);
@@ -441,6 +500,7 @@ final class PreparationStoragePlanner {
             values.put("usableBytes", usableBytes);
             values.put("remainingAfterUpperBoundBytes", remainingAfterUpperBoundBytes);
             values.put("packHit", packHit);
+            values.put("packOnlyHit", packOnlyHit);
             values.put("complete", complete);
             values.put("safeToPrepare", safeToPrepare);
             values.put("refusalReason", refusalReason);

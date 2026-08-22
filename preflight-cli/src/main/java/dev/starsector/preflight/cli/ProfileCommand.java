@@ -315,7 +315,7 @@ final class ProfileCommand {
         String fingerprint = ResourceIndexBuilder.build(layout.installRoot()).index().profileFingerprint();
         return new SavedProfile(
                 name,
-                layout.installRoot(),
+                canonicalInstallIdentity(layout.installRoot()),
                 enabled,
                 fingerprint,
                 Instant.now().toString(),
@@ -342,7 +342,7 @@ final class ProfileCommand {
         plan.put("proposedInstallRoot", proposed.installRoot());
         plan.put("proposedModCount", proposed.enabledMods().size());
         plan.put("proposedProfileFingerprint", proposed.profileFingerprint());
-        plan.put("active", existing.installRoot().equals(layout.installRoot())
+        plan.put("active", sameInstall(existing.installRoot(), layout.installRoot())
                 && existing.enabledMods().equals(current));
         plan.put("applied", false);
         plan.put("preparedDataKept", true);
@@ -759,7 +759,7 @@ final class ProfileCommand {
         plan.put("targetName", targetName);
         plan.put("profileFingerprint", mutationFingerprint(profile));
         plan.put("sourceProfileFingerprint", profile.profileFingerprint());
-        plan.put("active", profile.installRoot().equals(layout.installRoot())
+        plan.put("active", sameInstall(profile.installRoot(), layout.installRoot())
                 && profile.enabledMods().equals(current));
         plan.put("modCount", profile.enabledMods().size());
         plan.put("applied", false);
@@ -867,7 +867,7 @@ final class ProfileCommand {
         List<String> missing = profile.enabledMods().stream().filter(id -> !installed.contains(id)).toList();
         List<String> enable = difference(profile.enabledMods(), current);
         List<String> disable = difference(current, profile.enabledMods());
-        boolean sameInstall = profile.installRoot().equals(layout.installRoot());
+        boolean sameInstall = sameInstall(profile.installRoot(), layout.installRoot());
         boolean active = current.equals(profile.enabledMods());
         boolean canActivate = sameInstall && missing.isEmpty();
 
@@ -965,7 +965,7 @@ final class ProfileCommand {
         List<String> missing = profile.enabledMods().stream().filter(id -> !installed.contains(id)).toList();
         List<String> enable = difference(profile.enabledMods(), current);
         List<String> disable = difference(current, profile.enabledMods());
-        boolean sameInstall = profile.installRoot().equals(layout.installRoot());
+        boolean sameInstall = sameInstall(profile.installRoot(), layout.installRoot());
         boolean active = current.equals(profile.enabledMods());
         boolean canActivate = sameInstall && missing.isEmpty();
         boolean profileChanged = !profile.profileFingerprint().equals(reviewedProfile.profileFingerprint());
@@ -1042,7 +1042,7 @@ final class ProfileCommand {
 
     private static Path activationReviewPath(PreflightHome home, Path installRoot, String name) {
         String caller = callerIdentity();
-        String key = caller + "\n" + installRoot.toAbsolutePath().normalize() + "\n" + name;
+        String key = caller + "\n" + canonicalInstallIdentity(installRoot) + "\n" + name;
         return home.state()
                 .resolve("profile-activation-reviews")
                 .resolve(Hashes.sha256(key.getBytes(StandardCharsets.UTF_8)) + ".json")
@@ -1096,8 +1096,7 @@ final class ProfileCommand {
             String reviewedAtText = JsonText.string(json, "reviewedAt");
             if (!name.equals(reviewedName)
                     || reviewedInstall == null
-                    || !installRoot.toAbsolutePath().normalize().equals(
-                            Path.of(reviewedInstall).toAbsolutePath().normalize())
+                    || !sameInstall(installRoot, Path.of(reviewedInstall))
                     || profileFingerprint == null
                     || !profileFingerprint.matches("[0-9a-fA-F]{64}")
                     || sourceStateSha256 == null
@@ -1121,6 +1120,29 @@ final class ProfileCommand {
     private static void deleteActivationReview(PreflightHome home, Path installRoot, String name)
             throws IOException {
         Files.deleteIfExists(activationReviewPath(home, installRoot, name));
+    }
+
+    /** One installation may have both a display spelling and a canonical platform spelling. */
+    private static Path canonicalInstallIdentity(Path installRoot) {
+        Path absolute = installRoot.toAbsolutePath().normalize();
+        try {
+            return absolute.toRealPath();
+        } catch (IOException unavailable) {
+            return absolute;
+        }
+    }
+
+    private static boolean sameInstall(Path left, Path right) {
+        Path normalizedLeft = left.toAbsolutePath().normalize();
+        Path normalizedRight = right.toAbsolutePath().normalize();
+        if (normalizedLeft.equals(normalizedRight)) {
+            return true;
+        }
+        try {
+            return Files.isSameFile(normalizedLeft, normalizedRight);
+        } catch (IOException unavailable) {
+            return false;
+        }
     }
 
     private static Path backup(PreflightHome home, byte[] original) throws IOException {
@@ -1475,7 +1497,7 @@ final class ProfileCommand {
         }
 
         Map<String, Object> view(Path currentInstallRoot, List<String> current, Set<String> installed) {
-            boolean sameInstall = installRoot.equals(currentInstallRoot);
+            boolean sameInstall = ProfileCommand.sameInstall(installRoot, currentInstallRoot);
             List<String> missing = enabledMods.stream().filter(id -> !installed.contains(id)).toList();
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("name", name);

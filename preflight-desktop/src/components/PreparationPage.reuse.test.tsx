@@ -113,7 +113,7 @@ test("compatible prepared texture bytes are described as present without promisi
   expect(screen.getByText("Compatible prepared texture data on disk")).toBeInTheDocument();
   expect(screen.getByText(/alternate encodings that remain on disk while preparation uses another/)).toBeInTheDocument();
   expect(screen.queryByText(/will be reused/i)).not.toBeInTheDocument();
-  expect(screen.getByText("Preparing this profile adds")).toBeInTheDocument();
+  expect(screen.getByText("Finished texture data")).toBeInTheDocument();
 });
 
 test("pack hit reserves reuse wording for the exact current profile pack", () => {
@@ -131,7 +131,7 @@ test("pack hit reserves reuse wording for the exact current profile pack", () =>
   expect(screen.getByText("Current profile texture pack")).toBeInTheDocument();
   expect(screen.getByText("Will be reused")).toBeInTheDocument();
   expect(screen.getByText(/builder’s required entry order/)).toBeInTheDocument();
-  expect(screen.getByText("Preparing this profile adds")).toBeInTheDocument();
+  expect(screen.getByText("Finished texture data")).toBeInTheDocument();
 });
 
 test("cold preparation stays silent about already-present texture data and pack reuse", () => {
@@ -140,7 +140,7 @@ test("cold preparation stays silent about already-present texture data and pack 
   expect(screen.queryByText(/compatible prepared texture data is already on disk/)).not.toBeInTheDocument();
   expect(screen.queryByText("Compatible prepared texture data on disk")).not.toBeInTheDocument();
   expect(screen.queryByText("Current profile texture pack")).not.toBeInTheDocument();
-  expect(screen.getByText("Preparing this profile adds")).toBeInTheDocument();
+  expect(screen.getByText("Finished texture data")).toBeInTheDocument();
 });
 
 test("default preparation stays quiet while advanced overrides state their consequences", () => {
