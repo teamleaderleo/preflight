@@ -26,9 +26,10 @@ import { errorMessage } from "./uiFormat";
 export type { TextureStorage } from "./types";
 
 /**
- * `minimal` prepares everything except textures, which is the whole of the disk cost and almost all
- * of the time. It has no storage plan to show: the engine skips the space gate entirely for a
- * textures-free preparation, and `prepare --plan` refuses to describe one.
+ * `minimal` prepares the exact profile index without building texture artifacts. The launch can
+ * still use and learn the small content-addressed caches keyed from that index. It has no texture
+ * storage plan to show: the engine skips that space gate, and `prepare --plan` refuses to describe
+ * a textures-free preparation.
  */
 export function storagePlanApplies(
   storage: TextureStorage,
@@ -52,13 +53,26 @@ interface PreparationPlanEnvelope {
 
 type PreparationOwnership = "local" | "recovered";
 
-export function isCurrentProfilePrepared(cache: CacheSnapshot | null): boolean {
+export function isCurrentProfilePrepared(
+  cache: CacheSnapshot | null,
+  textureStorage: TextureStorage = "balanced",
+): boolean {
   if (!cache?.currentProfileFingerprint) return false;
   return cache.profiles.some((profile) =>
     profile.current
     && profile.fingerprint === cache.currentProfileFingerprint
     && profile.indexBytes > 0
-    && profile.manifestBytes > 0);
+    && (textureStorage === "minimal" || profile.manifestBytes > 0));
+}
+
+export function preparationModeMatchesStorage(
+  health: CacheHealth | null,
+  textureStorage: TextureStorage,
+): boolean {
+  if (health?.status !== "ready") return false;
+  return textureStorage === "minimal"
+    ? health.preparedTextures === false
+    : health.preparedTextures !== false;
 }
 
 export function usePreparation(
@@ -92,6 +106,7 @@ export function usePreparation(
   const [preparationPlanLoading, setPreparationPlanLoading] = useState(false);
   const launchAfterPreparation = useRef(false);
   const [textureStorage, setTextureStorage] = useState<TextureStorage>("balanced");
+  const inferredTextureStorageForGame = useRef<string | null>(null);
   const [resourcePreset, setResourcePreset] = useState<keyof typeof resourcePresets>("balanced");
   const gameRef = useRef(game);
   gameRef.current = game;
@@ -225,8 +240,17 @@ export function usePreparation(
 
   const currentCache = cacheInstallRoot === game ? cache : null;
   const currentCacheHealth = cacheInstallRoot === game ? cacheHealth : null;
-  const profilePrepared = isCurrentProfilePrepared(currentCache)
-    && currentCacheHealth?.status === "ready";
+  useEffect(() => {
+    if (!game) {
+      inferredTextureStorageForGame.current = null;
+      return;
+    }
+    if (inferredTextureStorageForGame.current === game || currentCacheHealth?.status !== "ready") return;
+    inferredTextureStorageForGame.current = game;
+    if (currentCacheHealth.preparedTextures === false) setTextureStorage("minimal");
+  }, [currentCacheHealth, game]);
+  const profilePrepared = isCurrentProfilePrepared(currentCache, textureStorage)
+    && preparationModeMatchesStorage(currentCacheHealth, textureStorage);
   const resources = resourcePresets[resourcePreset];
   const preparationPlan = preparationPlanEnvelope
     && preparationPlanEnvelope.game === game
@@ -410,6 +434,7 @@ export function usePreparation(
         format: "starsector-preflight-cache-health-v1",
         status: "cold",
         profileFingerprint: repair.profileFingerprint,
+        preparedTextures: null,
         issues: [],
         repairBytes: 0,
         repairFiles: 0,

@@ -42,7 +42,7 @@ final class CacheHealth {
             String summary = identityDiagnostic == null || identityDiagnostic.isBlank()
                     ? "Preflight couldn't derive the current profile from this installation."
                     : identityDiagnostic;
-            return new Report("unknown", null, List.of(new Issue(
+            return new Report("unknown", null, null, List.of(new Issue(
                     "profile-identity",
                     summary,
                     home.cache())), List.of());
@@ -56,10 +56,11 @@ final class CacheHealth {
         Path index = ResourceIndexIO.directory(cache).resolve(profile + ".spfi").normalize();
         Path manifest = TextureManifestIO.directory(cache).resolve(profile + ".spfm").normalize();
         Path pack = PreparedTexturePackIO.path(cache, profile).normalize();
+        Path minimal = MinimalPreparationMarker.path(cache, profile).normalize();
         Path audio = PreparedAudioCache.manifestDirectory(cache)
                 .resolve(profile + ".spam").toAbsolutePath().normalize();
         try {
-            requireSafeArtifactPaths(cache, index, manifest, pack, audio);
+            requireSafeArtifactPaths(cache, index, manifest, pack, minimal, audio);
         } catch (IOException | IllegalArgumentException error) {
             return unsafe(profile, cache, "Prepared-data paths couldn't be verified: " + message(error));
         }
@@ -68,9 +69,50 @@ final class CacheHealth {
         LinkedHashSet<Target> targets = new LinkedHashSet<>();
         boolean indexPresent = exists(index);
         boolean manifestPresent = exists(manifest);
+        boolean minimalPresent = exists(minimal);
+        boolean minimalValid = false;
         TextureManifest textureManifest = null;
 
-        if (!indexPresent && !manifestPresent) {
+        if (minimalPresent) {
+            try {
+                if (!regularFile(minimal)) {
+                    throw new IOException("minimal-profile marker isn't a regular cache file");
+                }
+                MinimalPreparationMarker.validate(minimal, profile);
+                minimalValid = true;
+            } catch (Exception error) {
+                issues.add(new Issue(
+                        "preparation-mode",
+                        "The profile's Minimal preparation marker is unreadable: " + message(error),
+                        minimal));
+                addTargetIfPresent(targets, "minimal-profile", minimal);
+            }
+        }
+
+        if (minimalValid) {
+            if (!indexPresent || !regularFile(index)) {
+                issues.add(new Issue(
+                        "minimal-preparation",
+                        "Minimal preparation is incomplete for this profile.",
+                        index));
+                addTargetIfPresent(targets, "resource-index", index);
+                addTargetIfPresent(targets, "minimal-profile", minimal);
+            } else {
+                try {
+                    ResourceIndex stored = ResourceIndexIO.read(index);
+                    if (!profile.equals(stored.profileFingerprint())) {
+                        throw new IOException("resource index profile identity differs");
+                    }
+                } catch (Exception error) {
+                    issues.add(new Issue(
+                            "minimal-preparation",
+                            "Minimal preparation metadata is unreadable: " + message(error),
+                            index));
+                    addTargetIfPresent(targets, "resource-index", index);
+                    addTargetIfPresent(targets, "minimal-profile", minimal);
+                }
+            }
+        } else if (!indexPresent && !manifestPresent) {
             if (exists(pack)) {
                 textureIssue(issues, targets, index, manifest, pack,
                         "The texture pack exists without its profile index and manifest.");
@@ -97,7 +139,7 @@ final class CacheHealth {
             }
         }
 
-        if (textureManifest != null && !textureManifest.entries().isEmpty()) {
+        if (!minimalValid && textureManifest != null && !textureManifest.entries().isEmpty()) {
             List<String> blobs = textureManifest.entries().values().stream()
                     .map(TextureManifest.Entry::blobRelativePath)
                     .distinct()
@@ -158,12 +200,15 @@ final class CacheHealth {
             status = "unknown";
         } else if (!issues.isEmpty()) {
             status = "repair-needed";
+        } else if (minimalValid && indexPresent) {
+            status = "ready";
         } else if (indexPresent && manifestPresent) {
             status = "ready";
         } else {
             status = "cold";
         }
-        return new Report(status, profile, List.copyOf(issues), List.copyOf(targets));
+        Boolean preparedTextures = "ready".equals(status) ? !minimalValid : null;
+        return new Report(status, profile, preparedTextures, List.copyOf(issues), List.copyOf(targets));
     }
 
     static Repair repair(PreflightHome home, String profile, boolean apply) throws IOException {
@@ -215,6 +260,7 @@ final class CacheHealth {
         value.put("format", "starsector-preflight-cache-health-v1");
         value.put("status", report.status());
         value.put("profileFingerprint", report.profileFingerprint());
+        value.put("preparedTextures", report.preparedTextures());
         value.put("issues", report.issues().stream().map(issue -> {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("artifact", issue.artifact());
@@ -306,7 +352,7 @@ final class CacheHealth {
     }
 
     private static Report unsafe(String profile, Path path, String summary) {
-        return new Report("unsafe", profile,
+        return new Report("unsafe", profile, null,
                 List.of(new Issue("cache-boundary", summary, path)), List.of());
     }
 
@@ -321,7 +367,12 @@ final class CacheHealth {
     record Target(String artifact, Path path, long bytes) {
     }
 
-    record Report(String status, String profileFingerprint, List<Issue> issues, List<Target> targets) {
+    record Report(
+            String status,
+            String profileFingerprint,
+            Boolean preparedTextures,
+            List<Issue> issues,
+            List<Target> targets) {
     }
 
     record Repair(

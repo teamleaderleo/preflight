@@ -6,7 +6,7 @@ import App from "./App";
 import { failedRunSummary } from "./uiFormat";
 import { adapterHealthLine } from "./adapterHealthText";
 import { HOME_OPTIONS_STORAGE_KEY } from "./desktopStorage";
-import { isCurrentProfilePrepared } from "./usePreparation";
+import { isCurrentProfilePrepared, preparationModeMatchesStorage } from "./usePreparation";
 import * as bridge from "./bridge";
 import type { CacheHealth, CacheSnapshot, LaunchSettings } from "./types";
 
@@ -57,6 +57,40 @@ test("requires both the exact current index and texture manifest before calling 
   }))).toBe(false);
   expect(isCurrentProfilePrepared(cacheSnapshot({ currentProfileFingerprint: "changed-profile" }))).toBe(false);
   expect(isCurrentProfilePrepared(null)).toBe(false);
+});
+
+test("minimal preparation needs the exact current index but intentionally has no texture manifest", () => {
+  expect(isCurrentProfilePrepared(cacheSnapshot({
+    profiles: [{
+      ...cacheSnapshot().profiles[0],
+      manifestBytes: 0,
+    }],
+  }), "minimal")).toBe(true);
+  expect(isCurrentProfilePrepared(cacheSnapshot({
+    profiles: [{
+      ...cacheSnapshot().profiles[0],
+      indexBytes: 0,
+      manifestBytes: 0,
+    }],
+  }), "minimal")).toBe(false);
+});
+
+test("the selected disk mode must match the preparation that is actually ready", () => {
+  const full = {
+    format: "starsector-preflight-cache-health-v1" as const,
+    status: "ready" as const,
+    profileFingerprint: "current-profile",
+    preparedTextures: true,
+    issues: [],
+    repairBytes: 0,
+    repairFiles: 0,
+  };
+  const minimal = { ...full, preparedTextures: false };
+
+  expect(preparationModeMatchesStorage(full, "balanced")).toBe(true);
+  expect(preparationModeMatchesStorage(full, "minimal")).toBe(false);
+  expect(preparationModeMatchesStorage(minimal, "minimal")).toBe(true);
+  expect(preparationModeMatchesStorage(minimal, "fastest")).toBe(false);
 });
 
 test("a failed game process keeps the first useful native detail bounded", () => {

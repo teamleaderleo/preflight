@@ -37,6 +37,13 @@ final class DesktopSmokeLaunch {
             DesktopSmokeDriver driver,
             Clock clock) throws Exception {
         requireSupportedLaunch(scenario);
+        requirePreparedStorage(
+                scenario,
+                PreflightHome.resolve(
+                        Platform.current(),
+                        Path.of(System.getProperty("user.home")),
+                        System.getenv()),
+                game);
         Path run = freshRunDirectory(runDirectory);
         Path runtimeProcess = run.resolve("runtime-process.json");
         Path launcherOutput = run.resolve("smoke-launcher.txt");
@@ -180,6 +187,8 @@ final class DesktopSmokeLaunch {
         requireSupportedLaunch(scenario);
         List<String> command = new ArrayList<>();
         command.add(java.toAbsolutePath().normalize().toString());
+        command.add("-Duser.home=" + Path.of(System.getProperty("user.home"))
+                .toAbsolutePath().normalize());
         command.add("-jar");
         command.add(selfJar.toAbsolutePath().normalize().toString());
         command.add("run");
@@ -205,6 +214,23 @@ final class DesktopSmokeLaunch {
             command.add(launcher.toAbsolutePath().normalize().toString());
         }
         return List.copyOf(command);
+    }
+
+    static void requirePreparedStorage(
+            DesktopSmokeScenario scenario,
+            PreflightHome home,
+            Path game) throws Exception {
+        if (!"minimal".equals(scenario.textureStorage())) return;
+        if (game == null) {
+            throw new IllegalArgumentException(
+                    "A Minimal startup benchmark needs an explicit Starsector installation");
+        }
+        String profile = ResourceIndexBuilder.build(game).index().profileFingerprint();
+        CacheHealth.Report health = CacheHealth.inspect(home, profile);
+        if (!"ready".equals(health.status()) || !Boolean.FALSE.equals(health.preparedTextures())) {
+            throw new IllegalStateException(
+                    "Minimal startup benchmark requires this exact profile to be prepared with Minimal disk first");
+        }
     }
 
     private static void requireSupportedLaunch(DesktopSmokeScenario scenario) {

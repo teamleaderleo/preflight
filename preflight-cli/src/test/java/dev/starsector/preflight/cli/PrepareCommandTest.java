@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.starsector.preflight.core.ResourceIndex;
+import dev.starsector.preflight.core.ResourceIndexIO;
+import dev.starsector.preflight.core.TextureManifestIO;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
@@ -194,6 +197,36 @@ class PrepareCommandTest {
         assertTrue(json.contains("\"textures\":{\"status\":\"SKIPPED\""), json);
         assertTrue(json.contains("\"parallelStages\":false"), json);
         assertEquals(before, Files.getLastModifiedTime(install.resolve("mods/enabled_mods.json")).toMillis());
+    }
+
+    @Test
+    void minimalPreparationRecordsItsIntentForLaterHealthChecksAndLaunches() throws Exception {
+        Path install = fixture();
+        Path cache = temporaryDirectory.resolve("minimal-profile-cache");
+
+        assertEquals(0, PreflightCli.run(new String[] {
+                "prepare",
+                "--game", install.toString(),
+                "--cache-dir", cache.toString(),
+                "--no-textures"
+        }));
+
+        ResourceIndex prepared = Files.list(ResourceIndexIO.directory(cache))
+                .filter(path -> path.toString().endsWith(".spfi"))
+                .findFirst()
+                .map(path -> {
+                    try {
+                        return ResourceIndexIO.read(path);
+                    } catch (Exception error) {
+                        throw new RuntimeException(error);
+                    }
+                })
+                .orElseThrow();
+        Path marker = MinimalPreparationMarker.path(cache, prepared.profileFingerprint());
+        assertTrue(Files.isRegularFile(marker));
+        MinimalPreparationMarker.validate(marker, prepared.profileFingerprint());
+        assertFalse(Files.exists(TextureManifestIO.directory(cache)
+                .resolve(prepared.profileFingerprint() + ".spfm")));
     }
 
     private Path fixture() throws Exception {

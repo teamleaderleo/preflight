@@ -158,9 +158,9 @@ final class DesktopSmokeScenario {
                     "launch.preset must be fast or measurement-only");
         }
         String storage = requireString(value, "textureStorage");
-        if (!Set.of("balanced", "fastest").contains(storage)) {
+        if (!Set.of("balanced", "fastest", "minimal").contains(storage)) {
             throw new IllegalArgumentException(
-                    "launch.textureStorage must be balanced or fastest");
+                    "launch.textureStorage must be balanced, fastest, or minimal");
         }
         String profile = optionalString(value, "profile");
         if (profile != null && (profile.isBlank() || profile.length() > 100)) {

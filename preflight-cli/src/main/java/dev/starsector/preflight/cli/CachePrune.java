@@ -88,6 +88,7 @@ final class CachePrune {
 
         removals.addAll(byFingerprint(ResourceIndexIO.directory(cache), ".spfi", survivors));
         removals.addAll(byFingerprint(TextureManifestIO.directory(cache), ".spfm", survivors));
+        removals.addAll(byFingerprint(MinimalPreparationMarker.directory(cache), ".spmn", survivors));
         removals.addAll(byFingerprint(PreparedTexturePackIO.directory(cache), ".spfp", survivors));
         removals.addAll(byFingerprint(PreparedTexturePackIO.directory(cache), ".spfo", survivors));
         removals.addAll(byFingerprint(

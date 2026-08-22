@@ -38,19 +38,13 @@ final class CurrentTextureCache {
         Path index = Files.isRegularFile(indexCandidate)
                 ? artifact(realCache, indexCandidate)
                 : firstArtifact(realCache, fingerprint + ".spfi", List.of("indexes"));
-        Path manifest = artifact(realCache,
-                TextureManifestIO.directory(realCache).resolve(fingerprint + ".spfm"));
         ResourceIndex stored = ResourceIndexIO.read(index);
-        TextureManifest prepared = TextureManifestIO.read(manifest);
-
-        if (!fingerprint.equals(stored.profileFingerprint())
-                || !fingerprint.equals(prepared.profileFingerprint())) {
-            throw new IOException("Prepared texture artifacts do not match the current profile fingerprint "
+        if (!fingerprint.equals(stored.profileFingerprint())) {
+            throw new IOException("Prepared resource index does not match the current profile fingerprint "
                     + fingerprint);
         }
         if (stored.entryCount() > TextureCompatibilityRuntime.MAX_MANIFEST_ENTRIES
-                || stored.providerCount() > TextureCompatibilityRuntime.MAX_INDEX_PROVIDERS
-                || prepared.entryCount() > TextureCompatibilityRuntime.MAX_MANIFEST_ENTRIES) {
+                || stored.providerCount() > TextureCompatibilityRuntime.MAX_INDEX_PROVIDERS) {
             throw new IOException("Prepared texture artifacts exceed the live adapter safety limits");
         }
         if (!stored.roots().equals(current.roots()) || !stored.entries().equals(current.entries())) {
@@ -73,6 +67,33 @@ final class CurrentTextureCache {
         // Carry the checksummed stored index forward. RunCommand's dependency identities need the
         // same object immediately after this; reading and decoding the 8 MB artifact again added
         // about 0.21 s while proving nothing the equality check above had not already proved.
+        Path minimalCandidate = MinimalPreparationMarker.path(realCache, fingerprint);
+        if (Files.exists(minimalCandidate)) {
+            Path minimal = artifact(realCache, minimalCandidate);
+            MinimalPreparationMarker.validate(minimal, fingerprint);
+            return new Resolution(
+                    realCache,
+                    null,
+                    index,
+                    stored,
+                    fingerprint,
+                    null,
+                    Hashes.sha256(index),
+                    current.providerCount(),
+                    currentBuild.durationMillis(),
+                    true);
+        }
+
+        Path manifest = artifact(realCache,
+                TextureManifestIO.directory(realCache).resolve(fingerprint + ".spfm"));
+        TextureManifest prepared = TextureManifestIO.read(manifest);
+        if (!fingerprint.equals(prepared.profileFingerprint())) {
+            throw new IOException("Prepared texture manifest does not match the current profile fingerprint "
+                    + fingerprint);
+        }
+        if (prepared.entryCount() > TextureCompatibilityRuntime.MAX_MANIFEST_ENTRIES) {
+            throw new IOException("Prepared texture artifacts exceed the live adapter safety limits");
+        }
         return new Resolution(
                 realCache,
                 manifest,
@@ -82,7 +103,8 @@ final class CurrentTextureCache {
                 Hashes.sha256(manifest),
                 Hashes.sha256(index),
                 current.providerCount(),
-                currentBuild.durationMillis());
+                currentBuild.durationMillis(),
+                false);
     }
 
     private static Path firstArtifact(Path cache, String fileName, List<String> directories) throws IOException {
@@ -117,6 +139,7 @@ final class CurrentTextureCache {
             String manifestSha256,
             String indexSha256,
             long checkedProviders,
-            double indexBuildMillis) {
+            double indexBuildMillis,
+            boolean minimal) {
     }
 }

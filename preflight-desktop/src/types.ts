@@ -435,6 +435,7 @@ export interface CacheHealth {
   format: "starsector-preflight-cache-health-v1";
   status: "unknown" | "unsafe" | "cold" | "ready" | "repair-needed";
   profileFingerprint: string | null;
+  preparedTextures?: boolean | null;
   issues: Array<{
     artifact: string;
     summary: string;
