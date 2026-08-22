@@ -410,6 +410,9 @@ final class AdapterTransformationRegistry {
             if (AssetProgressLogRuntime.suppress()) {
                 AssetProgressLogPlan.apply(signature, owner);
             }
+            if (StartupPhaseRuntime.phaseProbeEnabled()) {
+                WeaponHydrationBreakdownPlan.apply(signature, owner);
+            }
             return WeaponJsonCachePlan.write(owner);
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
