@@ -255,6 +255,7 @@ export interface PreparationStoragePlan {
   upperLooseBytes: number;
   predictedPackBytes: number;
   upperPackBytes: number;
+  predictedRetainedTextureBytes?: number;
   predictedMetadataBytes: number;
   upperMetadataBytes: number;
   predictedAdditionalBytes: number;
@@ -264,6 +265,7 @@ export interface PreparationStoragePlan {
   usableBytes: number;
   remainingAfterUpperBoundBytes: number;
   packHit: boolean;
+  packOnlyHit?: boolean;
   complete: boolean;
   safeToPrepare: boolean;
   refusalReason: string | null;
