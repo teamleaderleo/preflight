@@ -31,6 +31,23 @@ The internal loading phases differed by more than the expected pre-main gain and
 direction, so this pair is a noisy functional check rather than comparative timing evidence. The
 isolated JVM rounds establish the removed work.
 
+A later exact-control campaign used candidate JAR
+`9d8c51401bd6a9171ba3c2db8b4a7545b5d5c390e8c16345a87df3966657d4ff`, the same prepared
+cache, shuffled conditions, and a 240-second cooldown before every launch. Five launches per
+condition measured:
+
+| policy | median | minimum | maximum |
+| --- | ---: | ---: | ---: |
+| on demand | 15.73 s | 15.59 s | 15.88 s |
+| eager control | 15.89 s | 15.76 s | 16.06 s |
+
+The 0.16-second median difference had an exact permutation p-value of 0.048. The machine still
+drifted by an estimated 0.23 seconds across the ten-launch campaign, which is larger than the
+measured effect. The benchmark therefore rejects this as release evidence. It establishes that
+the candidate still reaches the low-15-second range and gives no sign of a startup regression;
+it does not establish a reportable 0.16-second improvement. The complete session is
+`~/.starsector-preflight/benchmarks/20260823-055326`.
+
 ## Candidate boundary
 
 The Recommended preset requests on-demand commitment by appending `-XX:-AlwaysPreTouch` after the
@@ -50,6 +67,5 @@ sealed a skipped result before loading the save. The run was cleaned up. A real 
 exercise still needs to compare first-use frame tails before this candidate is accepted as the
 Recommended default.
 
-The repository-wide Maven gate also currently has four reproducible failures on pristine `main` in
-the profile-activation and staged-agent-cleanup tests. The new command-line and policy tests pass;
-the base failures need their own repair before this carrier can merge green.
+The rebased candidate passes the repository-wide Maven gate. A real campaign and combat exercise
+still needs to compare first-use frame tails before this policy can become the Recommended default.

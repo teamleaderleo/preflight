@@ -347,6 +347,24 @@ class ReportTest(unittest.TestCase):
             summary["comparisons"],
         )
 
+    def test_fast_eager_compares_only_the_heap_commit_policy(self):
+        summary = report.summarize(runs(
+            *[("fast-eager", i, 16.0, "accepted") for i in range(1, 6)],
+            *[("fast", i, 15.5, "accepted") for i in range(1, 6)],
+        ))
+        comparison = summary["comparisons"]["fast vs fast-eager"]
+        self.assertEqual(-0.5, comparison["deltaSeconds"])
+        self.assertIn("heap commitment", comparison["isolates"])
+        self.assertTrue(comparison["meetsCampaignMinimum"])
+
+    def test_fast_profile_is_diagnostic_too(self):
+        summary = report.summarize(runs(
+            *[("vanilla", i, 100.0, "accepted") for i in range(1, 6)],
+            *[("fast", i, 80.0, "accepted") for i in range(1, 6)],
+            ("fast-profile", 1, 120.0, "accepted"),
+        ))
+        self.assertTrue(summary["benchmarkAccepted"])
+
     def test_two_launch_protocols_in_one_file_produce_no_comparison(self):
         # `direct` never builds a launcher; `clicked` does. The launcher's OpenGL context, font
         # loading and window creation are in one and not the other, so a median across them is

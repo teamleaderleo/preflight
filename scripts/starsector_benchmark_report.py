@@ -26,8 +26,10 @@ ORDER = [
     "prepared",
     "full",
     "fast",
+    "fast-eager",
     "prepared-unpadded",
     "profile",
+    "fast-profile",
 ]
 LABELS = {
     "vanilla": "vanilla (no preflight)",
@@ -35,6 +37,7 @@ LABELS = {
     "enabled": "preflight + recorder",
     "compatibility": "compatibility textures, no recorder",
     "fast": "current --fast preset",
+    "fast-eager": "current --fast, eager heap",
     "full": "legacy 2026-08-03 full stack",
     "prepared": "prepared pixels",
     "prepared-unpadded": "prepared pixels, unpadded",
@@ -45,12 +48,13 @@ LABELS = {
 # visible, but they never enter a comparison and never hold back the campaign gate: a
 # sampling run is slower than an ordinary one by construction, so reading its median as a
 # result would be a mistake, and requiring five of them would block a finished campaign.
-DIAGNOSTIC = {"profile"}
+DIAGNOSTIC = {"profile", "fast-profile"}
 # Comparisons worth naming, because the interesting ones are not against the baseline.
 # The 2026-07-31 campaign reported only "enabled vs vanilla" and so reported -2.4%, hiding
 # a texture cache worth -15% behind a recorder worth +24%. A comparison is only clean when
 # the two conditions differ in one thing.
 INTERESTING = [
+    ("fast-eager", "fast", "on-demand heap commitment, everything else held constant"),
     ("compatibility", "prepared", "the pixel conversion, cache and recorder held constant"),
     ("prepared", "prepared-unpadded", "removing the power-of-two padding"),
     ("agent", "enabled", "the texture cache, recorder held constant"),
