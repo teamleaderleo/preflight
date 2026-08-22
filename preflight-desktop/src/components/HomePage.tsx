@@ -322,7 +322,7 @@ export function HomePage({
                   ? "Damaged prepared data will be rebuilt. Game files, mods, and saves stay unchanged."
                 : needsPreparation
                 ? !storagePlanApplies(textureStorage)
-                  ? "This preparation uses a few megabytes. Starsector opens when it’s ready."
+                  ? "Prepared textures are skipped. The other startup caches keep working."
                   : preparationPlanLoading
                   ? "Inspecting this mod setup and calculating a safe disk requirement…"
                   : preparationPlan?.safeToPrepare

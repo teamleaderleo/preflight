@@ -27,7 +27,7 @@ export type { TextureStorage } from "./types";
 
 /**
  * `minimal` prepares the exact profile index without building texture artifacts. The launch can
- * still use and learn the small content-addressed caches keyed from that index. It has no texture
+ * still use and learn content-addressed caches keyed from that index. It has no texture
  * storage plan to show: the engine skips that space gate, and `prepare --plan` refuses to describe
  * a textures-free preparation.
  */
