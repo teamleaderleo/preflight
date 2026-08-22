@@ -70,8 +70,8 @@ history.
 That is also why the benchmark became part of the product. A convincing number can still be measuring
 the wrong thing.
 
-On the reviewed 83-mod development profile, one preparation measurement left **4.76 GB** in
-Balanced, **10.9 MB** in Minimal disk, and **10.03 GB** in Fastest immediately after preparation.
+On the reviewed 83-mod development profile, current preparation left about **2.3 GB** in Balanced,
+**11 MB** in Minimal disk before its first launch, and **5.2 GB** in the advanced Uncompressed mode.
 Minimal later grew to about 204 MiB when its first launch learned the non-texture runtime caches.
 Those are examples from one setup, not requirements; the desktop calculates the current
 installation's own plan before starting.
