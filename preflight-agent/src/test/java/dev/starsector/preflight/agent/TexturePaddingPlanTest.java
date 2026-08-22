@@ -36,16 +36,18 @@ class TexturePaddingPlanTest {
     }
 
     @Test
-    void returnsTheDimensionUntouchedWhenTheGateIsOn() throws Exception {
+    void propertyAndTransformDoNotBypassAStandaloneFold() throws Exception {
         Method fold = transformedFold(get2Fold());
         System.setProperty(TexturePaddingRuntime.UNPADDED_PROPERTY, "true");
 
-        // This is the whole lever: 288 stops becoming 512, so a 288x384 sprite stops allocating
-        // 512x512 and the 1.86 GiB of never-sampled pixels is never asked for.
-        assertEquals(1, fold.invoke(instance(fold), 1));
-        assertEquals(3, fold.invoke(instance(fold), 3));
-        assertEquals(288, fold.invoke(instance(fold), 288));
-        assertEquals(3L, TexturePaddingRuntime.report().get("dimensionsBypassed"));
+        // The property used to affect every allocation in the loader. Now it is only permission
+        // for a verified prepared upload to claim the exact pair of folds that follows its buffer.
+        // A standalone invocation models a miss and remains bit-for-bit vanilla.
+        assertEquals(2, fold.invoke(instance(fold), 1));
+        assertEquals(4, fold.invoke(instance(fold), 3));
+        assertEquals(512, fold.invoke(instance(fold), 288));
+        assertEquals(0L, TexturePaddingRuntime.report().get("dimensionsBypassed"));
+        assertEquals(3L, TexturePaddingRuntime.report().get("dimensionsFolded"));
     }
 
     @Test
