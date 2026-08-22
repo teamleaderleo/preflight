@@ -52,8 +52,8 @@ Usage: scripts/run-startup-benchmark.sh [options]
   --rounds N          Rounds of every condition (default 5, the campaign threshold for
                       a reportable claim). Fewer rounds cannot reach significance: with
                       three per condition the smallest possible p-value is 0.1.
-  --conditions LIST   Comma-separated subset of vanilla,agent,enabled,compatibility,fast,full,
-                      profile,fast-profile,prepared
+  --conditions LIST   Comma-separated subset of vanilla,agent,enabled,compatibility,fast,
+                      fast-eager,full,profile,fast-profile,prepared
                       (default vanilla,agent,enabled,fast; every other condition is opt-in).
   --unattended        Start the game without its launcher and stop it once the main menu is
                       up, so the campaign needs no clicks at all. Uses Starsector's own
@@ -94,6 +94,10 @@ Conditions:
             retained for component comparisons, but does not represent a normal user launch.
   fast      the CLI's actual --fast preset: every startup and gameplay optimization that has
             passed its live gate. Installed Preflight launchers use this mode.
+  fast-eager
+            the same preset with --eager-heap-commit, an exact control for the Recommended
+            preset's on-demand heap commitment. This is a diagnostic condition, not a player
+            configuration.
   full      the frozen 2026-08-03 explicit stack (prepared pixels plus the two rule caches).
             It remains available to reproduce the accepted historical campaign, but newer
             live-gated optimizations are present only in `fast`.
@@ -274,7 +278,7 @@ done
 IFS=',' read -r -a CONDITION_LIST <<< "$CONDITIONS"
 for condition in "${CONDITION_LIST[@]}"; do
     case "$condition" in
-        vanilla|agent|enabled|compatibility|fast|full|profile|fast-profile|prepared|prepared-unpadded) ;;
+        vanilla|agent|enabled|compatibility|fast|fast-eager|full|profile|fast-profile|prepared|prepared-unpadded) ;;
         *) bad "Unknown condition: $condition"; exit 2 ;;
     esac
 done
@@ -831,6 +835,10 @@ launch_once() {
         fast)
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --fast --texture-cache-dir "$CACHE") ;;
+        fast-eager)
+            command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
+                     --trace-dir "$run_dir" --fast --eager-heap-commit
+                     --texture-cache-dir "$CACHE") ;;
         profile)
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
@@ -970,7 +978,8 @@ launch_once() {
     elif [[ "$fingerprint" != "$EXPECTED_FINGERPRINT" ]]; then
         status=excluded; reason="profile-drift"
     elif [[ "$condition" == prepared || "$condition" == prepared-unpadded \
-            || "$condition" == fast || "$condition" == fast-profile || "$condition" == full ]] \
+            || "$condition" == fast || "$condition" == fast-eager \
+            || "$condition" == fast-profile || "$condition" == full ]] \
             && { ! served_prepared_textures "$run_dir" || ! bypassed_pixel_conversions "$run_dir"; }; then
         status=excluded; reason="prepared-pixels-served-nothing"
     elif [[ "$condition" == enabled || "$condition" == compatibility \

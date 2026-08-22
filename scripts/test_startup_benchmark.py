@@ -67,6 +67,14 @@ class ConditionTest(unittest.TestCase):
         self.assertIn("--adapter", body)
         self.assertIn("--texture-auto", body)
 
+    def test_fast_eager_is_an_exact_heap_policy_control(self):
+        block = re.search(r"fast-eager\)\n(?P<body>.*?);;", SCRIPT_TEXT, re.DOTALL)
+        self.assertIsNotNone(block, "fast-eager condition not found")
+        body = block.group("body")
+        self.assertIn("--fast", body)
+        self.assertIn("--eager-heap-commit", body)
+        self.assertNotIn("--defer-heap-commit", body)
+
 
 class OrderTest(unittest.TestCase):
     def shuffle(self, seed: int, offset: int, items: list[str]) -> list[str]:
