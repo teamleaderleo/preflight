@@ -102,6 +102,23 @@ class CachePruneTest {
     }
 
     @Test
+    void minimalPreparationMarkersFollowTheirProfileThroughPruning() throws Exception {
+        PreflightHome preflight = home();
+        String kept = "1".repeat(64);
+        String discarded = "2".repeat(64);
+        MinimalPreparationMarker.write(preflight.cache(), kept);
+        MinimalPreparationMarker.write(preflight.cache(), discarded);
+
+        CachePrune.Plan plan = CachePrune.plan(preflight, Set.of(kept), Set.of());
+
+        assertTrue(plan.safe());
+        assertFalse(plan.removals().stream().anyMatch(
+                removal -> removal.path().equals(MinimalPreparationMarker.path(preflight.cache(), kept))));
+        assertTrue(plan.removals().stream().anyMatch(
+                removal -> removal.path().equals(MinimalPreparationMarker.path(preflight.cache(), discarded))));
+    }
+
+    @Test
     void specStoreArtifactsAreLeftAloneWhenTheLiveIdentitiesAreUnknown() throws Exception {
         // Spec-store artifacts are keyed by dependency identity, not profile fingerprint, so an
         // empty keep-set means "could not work it out" -- keeping stale megabytes beats guessing.

@@ -52,6 +52,22 @@ final class DesktopSmokeScenarioTest {
     }
 
     @Test
+    void acceptsMinimalDiskAsABenchmarkIdentity() {
+        DesktopSmokeScenario scenario = DesktopSmokeScenario.parse("""
+                {
+                  "format":"starsector-preflight-smoke-v1",
+                  "name":"minimal",
+                  "timeoutSeconds":60,
+                  "launch":{"preset":"fast","textureStorage":"minimal","profile":null},
+                  "steps":[{"id":"menu","kind":"wait-state","state":"main-menu-ready",
+                    "timeoutSeconds":30}]
+                }
+                """);
+
+        assertEquals("minimal", scenario.textureStorage());
+    }
+
+    @Test
     void rejectsUnknownTargetsAndDuplicateStepIds() {
         String invalidTarget = scenario("""
                 {"id":"click","kind":"click","target":"main-menu.destroy-save"}

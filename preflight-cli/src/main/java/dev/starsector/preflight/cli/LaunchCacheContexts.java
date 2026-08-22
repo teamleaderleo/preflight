@@ -53,6 +53,9 @@ final class LaunchCacheContexts {
             System.out.println("Preflight is matching prepared textures to the current installed profile...");
             CurrentTextureCache.Resolution resolved = CurrentTextureCache.resolve(
                     target.installRoot(), options.textureCacheDirectory());
+            if (resolved.minimal()) {
+                System.out.println("Preflight is using Minimal preparation; prepared textures remain off.");
+            }
             return new Texture(
                     resolved.cacheDirectory(),
                     resolved.manifest(),
@@ -63,7 +66,8 @@ final class LaunchCacheContexts {
                     resolved.manifestSha256(),
                     resolved.indexSha256(),
                     resolved.checkedProviders(),
-                    resolved.indexBuildMillis());
+                    resolved.indexBuildMillis(),
+                    !resolved.minimal());
         }
         if (options.textureManifest() == null) {
             return null;
@@ -78,7 +82,8 @@ final class LaunchCacheContexts {
                 null,
                 null,
                 0,
-                0);
+                0,
+                true);
     }
 
     /**
@@ -597,7 +602,8 @@ final class LaunchCacheContexts {
             String manifestSha256,
             String indexSha256,
             long checkedProviders,
-            double indexBuildMillis) {
+            double indexBuildMillis,
+            boolean preparedTextures) {
     }
 
     record VariantJson(Path artifact) {

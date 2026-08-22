@@ -406,6 +406,19 @@ final class PrepareCommand {
         allEnabledStagesSuccessful &= verificationStage.successful();
         diagnostics.addAll(verificationStage.diagnostics());
 
+        if (allEnabledStagesSuccessful && resourceIndex != null) {
+            try {
+                if (options.textures()) {
+                    MinimalPreparationMarker.remove(cache, resourceIndex.profileFingerprint());
+                } else {
+                    MinimalPreparationMarker.write(cache, resourceIndex.profileFingerprint());
+                }
+            } catch (IOException error) {
+                allEnabledStagesSuccessful = false;
+                diagnostics.add("The profile's preparation mode could not be recorded: " + message(error));
+            }
+        }
+
         Map<String, Object> readiness = PreparationReadiness.toMap(allEnabledStagesSuccessful);
 
         Map<String, Object> output = new LinkedHashMap<>();

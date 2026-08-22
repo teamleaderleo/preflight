@@ -397,6 +397,7 @@ export async function getCacheHealth(game: string): Promise<CacheHealth> {
         format: "starsector-preflight-cache-health-v1",
         status: "repair-needed",
         profileFingerprint: "preview-profile",
+        preparedTextures: null,
         issues: [{
           artifact: "prepared-textures",
           summary: "Prepared texture metadata is incomplete.",
@@ -410,6 +411,7 @@ export async function getCacheHealth(game: string): Promise<CacheHealth> {
       format: "starsector-preflight-cache-health-v1",
       status: "ready",
       profileFingerprint: "preview-profile",
+      preparedTextures: true,
       issues: [],
       repairBytes: 0,
       repairFiles: 0,

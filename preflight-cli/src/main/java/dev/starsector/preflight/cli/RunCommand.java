@@ -1,5 +1,6 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.agent.TextureAdapterMode;
 import dev.starsector.preflight.core.Json;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -117,14 +118,23 @@ final class RunCommand {
                 .adapterMode(options.adapterMode())
                 .adapterReport(adapterReport)
                 .adapterTargets(options.adapterTargets())
+                // The agent cache root also holds transformed-class, source-hash, and GraphicsLib
+                // artifacts. Minimal suppresses only the texture manifest/index, not that shared
+                // non-texture storage.
                 .textureCacheDirectory(textureContext == null ? null : textureContext.cacheDirectory())
-                .textureManifest(textureContext == null ? null : textureContext.manifest())
-                .textureIndex(textureContext == null ? null : textureContext.index())
-                .textureAdapterMode(options.textureAdapterMode())
+                .textureManifest(textureContext == null || !textureContext.preparedTextures()
+                        ? null : textureContext.manifest())
+                .textureIndex(textureContext == null || !textureContext.preparedTextures()
+                        ? null : textureContext.index())
+                .textureAdapterMode(textureContext == null || textureContext.preparedTextures()
+                        ? options.textureAdapterMode()
+                        : TextureAdapterMode.COMPATIBILITY)
                 .exhaustiveFileReads(options.exhaustiveFileReads())
                 .recordingMode(options.recordingMode())
-                .npotDirect(options.npotDirect())
-                .unpadded(options.unpadded())
+                .npotDirect(options.npotDirect()
+                        && (textureContext == null || textureContext.preparedTextures()))
+                .unpadded(options.unpadded()
+                        && (textureContext == null || textureContext.preparedTextures()))
                 .singleChunkRecording(options.singleChunkRecording())
                 .campaignEntityIndex(options.campaignEntityIndex())
                 .startupPhaseProbe(options.startupPhaseProbe())
@@ -604,11 +614,16 @@ final class RunCommand {
             System.out.println("  adapter targets: " + options.adapterTargets().toAbsolutePath().normalize());
         }
         if (textureContext != null) {
-            System.out.println("  texture mode: " + options.textureAdapterMode());
-            System.out.println("  texture artifacts: " + (textureContext.automatic() ? "CURRENT_PROFILE_AUTO" : "EXPLICIT"));
-            System.out.println("  texture cache: " + textureContext.cacheDirectory());
-            System.out.println("  texture manifest: " + textureContext.manifest());
-            System.out.println("  texture index: " + textureContext.index());
+            if (textureContext.preparedTextures()) {
+                System.out.println("  texture mode: " + options.textureAdapterMode());
+                System.out.println("  texture artifacts: "
+                        + (textureContext.automatic() ? "CURRENT_PROFILE_AUTO" : "EXPLICIT"));
+                System.out.println("  texture cache: " + textureContext.cacheDirectory());
+                System.out.println("  texture manifest: " + textureContext.manifest());
+                System.out.println("  texture index: " + textureContext.index());
+            } else {
+                System.out.println("  prepared textures: OFF (Minimal preparation)");
+            }
             if (textureContext.profileFingerprint() != null) {
                 System.out.println("  texture profile: " + textureContext.profileFingerprint());
             }
@@ -803,11 +818,15 @@ final class RunCommand {
         values.put("adapterHealthReport", Files.isRegularFile(adapterHealth) ? adapterHealth : null);
         values.put("adapterAnalysis", Files.isRegularFile(adapterAnalysis) ? adapterAnalysis : null);
         values.put("adapterTargets", options.adapterTargets());
-        values.put("textureAdapterMode", options.textureAdapterMode());
+        values.put("textureAdapterMode", textureContext != null && !textureContext.preparedTextures()
+                ? TextureAdapterMode.COMPATIBILITY
+                : options.textureAdapterMode());
         values.put("textureAuto", options.textureAuto());
+        boolean preparedTextures = textureContext != null && textureContext.preparedTextures();
+        values.put("preparedTextures", preparedTextures);
         values.put("textureCacheDirectory", textureContext == null ? null : textureContext.cacheDirectory());
-        values.put("textureManifest", textureContext == null ? null : textureContext.manifest());
-        values.put("textureIndex", textureContext == null ? null : textureContext.index());
+        values.put("textureManifest", preparedTextures ? textureContext.manifest() : null);
+        values.put("textureIndex", preparedTextures ? textureContext.index() : null);
         values.put("textureProfileFingerprint", textureContext == null ? null : textureContext.profileFingerprint());
         values.put("textureManifestSha256", textureContext == null ? null : textureContext.manifestSha256());
         values.put("textureIndexSha256", textureContext == null ? null : textureContext.indexSha256());

@@ -214,6 +214,42 @@ class RunCommandIT {
     }
 
     @Test
+    void automaticLaunchUsesMinimalPreparationWithoutInjectingTextureArtifacts() throws Exception {
+        Path game = temporaryDirectory.resolve("Minimal Prepared Starsector");
+        Path source = game.resolve("starsector-core/graphics/test.png");
+        Path mods = game.resolve("mods");
+        Files.createDirectories(source.getParent());
+        Files.createDirectories(mods);
+        Files.writeString(source, "texture");
+        Files.writeString(mods.resolve("enabled_mods.json"), "{\"enabledMods\":[]}");
+        Path launcher = fakeLauncher(game, LauncherMode.CLEAN_ZERO);
+
+        var current = ResourceIndexBuilder.build(game).index();
+        Path cache = temporaryDirectory.resolve("minimal-prepared-cache");
+        Path index = cache.resolve("resource-indexes/" + current.profileFingerprint() + ".spfi");
+        dev.starsector.preflight.core.ResourceIndexIO.write(index, current);
+        MinimalPreparationMarker.write(cache, current.profileFingerprint());
+        Path trace = temporaryDirectory.resolve("minimal-prepared-trace");
+
+        ProcessResult result = run(game, launcher, trace, List.of(
+                "--adapter", "--texture-auto", "--texture-cache-dir", cache.toString()));
+
+        assertTrue(result.completed(), result.output());
+        assertEquals(0, result.exitCode(), result.output());
+        Map<String, Object> report = StrictJson.object(Files.readString(trace.resolve("run.json")));
+        assertEquals(Boolean.FALSE, report.get("preparedTextures"));
+        assertEquals(cache.toRealPath().toString(), report.get("textureCacheDirectory"));
+        assertEquals(null, report.get("textureManifest"));
+        assertEquals(null, report.get("textureIndex"));
+        assertEquals(current.profileFingerprint(), report.get("textureProfileFingerprint"));
+        String injected = Files.readString(game.resolve("java-tool-options.txt"));
+        assertTrue(injected.contains("textureCache64="), injected);
+        assertFalse(injected.contains("textureManifest64="), injected);
+        assertFalse(injected.contains("textureIndex64="), injected);
+        assertTrue(injected.contains("textureMode=compatibility"), injected);
+    }
+
+    @Test
     void singleChunkRecordingPolicyReachesTheLauncherAndRunReceipt() throws Exception {
         Path game = temporaryDirectory.resolve("Single Chunk Starsector");
         Files.createDirectories(game.resolve("logs"));

@@ -94,6 +94,25 @@ class CacheCommandTest {
     }
 
     @Test
+    void cacheHealthTreatsAnExactMinimalProfileAsReadyWithoutTextureArtifacts() throws Exception {
+        PreflightHome home = PreflightHome.resolve(Platform.OTHER, directory, Map.of());
+        String profile = "d".repeat(64);
+        Path index = ResourceIndexIO.directory(home.cache()).resolve(profile + ".spfi");
+        ResourceIndexIO.write(index, new ResourceIndex(
+                profile,
+                List.of(new ResourceIndex.Root("core", Path.of("core"), true)),
+                Map.of()));
+        MinimalPreparationMarker.write(home.cache(), profile);
+
+        CacheHealth.Report report = CacheHealth.inspect(home, profile);
+
+        assertEquals("ready", report.status());
+        assertEquals(Boolean.FALSE, report.preparedTextures());
+        assertEquals(List.of(), report.issues());
+        assertFalse(Files.exists(TextureManifestIO.directory(home.cache()).resolve(profile + ".spfm")));
+    }
+
+    @Test
     void cacheRepairRefusesWhenTheCurrentProfileIsUnknown() throws Exception {
         PreflightHome home = PreflightHome.resolve(Platform.OTHER, directory, Map.of());
         CacheHealth.Repair repair = CacheHealth.repair(home, null, true);
