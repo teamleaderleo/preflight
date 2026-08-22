@@ -26,6 +26,7 @@ class CommandLineAdapterTest {
         assertEquals(OptimizationPreset.RECOMMENDED, recommended.optimizationPreset());
         assertEquals(fast, recommended);
         assertEquals(AdapterPlanScope.FULL, recommended.adapterPlanScope());
+        assertEquals(HeapCommitPolicy.ON_DEMAND, recommended.heapCommitPolicy());
 
         assertEquals(OptimizationPreset.CONSERVATIVE, conservative.optimizationPreset());
         assertEquals(AdapterPlanScope.PORTABLE_STARTUP, conservative.adapterPlanScope());
@@ -36,17 +37,29 @@ class CommandLineAdapterTest {
         assertEquals(false, conservative.campaignEntityIndex());
         assertEquals(false, conservative.graphicsLibCompactReplay());
         assertEquals(false, conservative.graphicsLibInsigniaManagerCache());
+        assertEquals(HeapCommitPolicy.LAUNCHER_DEFAULT, conservative.heapCommitPolicy());
 
         assertEquals(OptimizationPreset.OFF, off.optimizationPreset());
         assertEquals(AdapterMode.OFF, off.adapterMode());
         assertEquals(RecordingMode.OFF, off.recordingMode());
         assertEquals(false, off.scan());
         assertEquals(false, off.summarize());
+        assertEquals(HeapCommitPolicy.LAUNCHER_DEFAULT, off.heapCommitPolicy());
 
         assertThrows(
                 IllegalArgumentException.class,
                 () -> CommandLine.parse(
                         new String[] {"run", "--optimization-preset", "experimental"}, 1));
+    }
+
+    @Test
+    void heapCommitPolicyIsExplicitlyReversibleAndLastChoiceWins() {
+        assertEquals(HeapCommitPolicy.ON_DEMAND, CommandLine.parse(
+                new String[] {"run", "--defer-heap-commit"}, 1).heapCommitPolicy());
+        assertEquals(HeapCommitPolicy.LAUNCHER_DEFAULT, CommandLine.parse(
+                new String[] {"run", "--fast", "--eager-heap-commit"}, 1).heapCommitPolicy());
+        assertEquals(HeapCommitPolicy.ON_DEMAND, CommandLine.parse(
+                new String[] {"run", "--eager-heap-commit", "--defer-heap-commit"}, 1).heapCommitPolicy());
     }
 
     @Test

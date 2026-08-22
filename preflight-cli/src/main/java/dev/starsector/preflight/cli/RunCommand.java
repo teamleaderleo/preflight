@@ -188,6 +188,8 @@ final class RunCommand {
         }
         String javaOptions = CombatJvmSafeguard.appendOptions(
                 System.getenv("_JAVA_OPTIONS"), combatJvmSafeguard);
+        HeapCommitPolicy.Resolution heapCommitPolicy = options.heapCommitPolicy().resolve(target);
+        javaOptions = heapCommitPolicy.appendTo(javaOptions);
 
         List<String> command = new ArrayList<>(target.command());
         command.addAll(options.forwardedArgs());
@@ -203,6 +205,7 @@ final class RunCommand {
                 directSettings,
                 janinoBytecodeCache,
                 combatJvmSafeguard,
+                heapCommitPolicy,
                 javaOptions);
         if (options.dryRun()) {
             return 0;
@@ -244,7 +247,7 @@ final class RunCommand {
             writeMetadata(
                     metadata, target, command, runIdentity, launchId, started, null, null, null, null, outcome, null,
                     null, options, directSettings, textureContext, adapterReport, adapterAnalysis, console, null,
-                    postprocessingFailures, null, combatJvmSafeguard);
+                    postprocessingFailures, null, combatJvmSafeguard, heapCommitPolicy);
 
             ProcessBuilder builder = new ProcessBuilder(command);
             builder.directory(target.workingDirectory().toFile());
@@ -374,7 +377,8 @@ final class RunCommand {
                         measuredElapsedMillis, exitCode, launcherExitCode, outcome,
                         lifecycleEvidence, collectCensus(census, postprocessingFailures),
                         options, directSettings, textureContext, adapterReport, adapterAnalysis,
-                        console, childOutput, postprocessingFailures, executionFailure, combatJvmSafeguard);
+                        console, childOutput, postprocessingFailures, executionFailure,
+                        combatJvmSafeguard, heapCommitPolicy);
             } catch (IOException error) {
                 System.err.println("Preflight could not finalize run metadata: " + message(error));
             }
@@ -567,6 +571,7 @@ final class RunCommand {
             DirectLaunchSettings directSettings,
             LaunchCacheContexts.Janino janinoBytecodeCache,
             CombatJvmSafeguard.Resolution combatJvmSafeguard,
+            HeapCommitPolicy.Resolution heapCommitPolicy,
             String javaOptions) {
         System.out.println("Preflight selected:");
         System.out.println("  install:  " + target.installRoot());
@@ -577,6 +582,8 @@ final class RunCommand {
                 + (ownership.evidence().isEmpty() ? "" : " " + ownership.evidence()));
         System.out.println("  run data: " + runDirectory);
         System.out.println("  optimization preset: " + options.optimizationPreset().optionValue());
+        System.out.println("  heap commit: " + heapCommitPolicy.requested().reportValue()
+                + (heapCommitPolicy.active() ? " (active)" : " (inactive: " + heapCommitPolicy.reason() + ")"));
         System.out.println("  disabled optimization domains: "
                 + options.disabledOptimizationDomains().stream()
                         .map(OptimizationDomain::optionValue)
@@ -750,7 +757,8 @@ final class RunCommand {
             ChildProcessOutput.Result childOutput,
             List<String> postprocessingFailures,
             String executionFailure,
-            CombatJvmSafeguard.Resolution combatJvmSafeguard) throws IOException {
+            CombatJvmSafeguard.Resolution combatJvmSafeguard,
+            HeapCommitPolicy.Resolution heapCommitPolicy) throws IOException {
         Map<String, Object> values = new LinkedHashMap<>();
         ProcessHandle wrapper = ProcessHandle.current();
         values.put("launchId", launchId);
@@ -796,6 +804,7 @@ final class RunCommand {
         values.put("janinoBytecodeCache", options.janinoBytecodeCache());
         values.put("graphicsLibInsigniaManagerCache", options.graphicsLibInsigniaManagerCache());
         values.put("combatJvmSafeguard", combatJvmSafeguard.toReportValues());
+        values.put("heapCommitPolicy", heapCommitPolicy.toReportValues());
         values.put("quietLogs", options.quietLogs());
         values.put("fileOnlyLogs", options.fileOnlyLogs());
         values.put("assetProgressLogsSuppressed", options.suppressAssetProgressLogs());
