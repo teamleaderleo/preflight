@@ -137,6 +137,14 @@ good()   { printf '%s%s%s\n' "$GREEN" "$*" "$RESET"; }
 bad()    { printf '%s%s%s\n' "$RED" "$*" "$RESET" >&2; }
 note()   { printf '%s%s%s\n' "$DIM" "$*" "$RESET"; }
 
+# Compare measurement inputs by the filesystem object they name, not by their spelling. macOS
+# exposes the same temporary directory as both /tmp and /private/tmp, and operator-created
+# symlinks are common for installations and extracted candidates. os.path.realpath also resolves
+# aliases in an existing parent when the final cache directory has not been created yet.
+physical_path() {
+    python3 -c 'import os, sys; print(os.path.realpath(os.path.abspath(sys.argv[1])))' "$1"
+}
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --rounds) ROUNDS="$2"; shift 2 ;;
@@ -191,6 +199,15 @@ for command in git java mvn jq python3 shasum; do
     command -v "$command" >/dev/null 2>&1 || { bad "Missing required command: $command"; exit 1; }
 done
 
+GAME="$(physical_path "$GAME")"
+CACHE="$(physical_path "$CACHE")"
+if [[ -n "$SESSION" ]]; then
+    SESSION="$(physical_path "$SESSION")"
+fi
+if [[ -n "$ENGINE" ]]; then
+    ENGINE="$(physical_path "$ENGINE")"
+fi
+
 # A benchmark session is a measurement contract, not merely a directory of partial results.
 # Resuming must restore every input that can change what is launched or how samples are ordered.
 # Explicit conflicting arguments are rejected rather than silently mixing unlike runs.
@@ -208,14 +225,17 @@ if [[ -n "$SESSION" ]]; then
     RECORDED_CONDITIONS="$(jq -er '.conditions' "$SESSION_CONFIG")"
     RECORDED_UNATTENDED="$(jq -er '.unattended' "$SESSION_CONFIG")"
     RECORDED_COOLDOWN="$(jq -er '.cooldownSeconds' "$SESSION_CONFIG")"
-    RECORDED_GAME="$(jq -er '.game' "$SESSION_CONFIG")"
-    RECORDED_CACHE="$(jq -er '.cache' "$SESSION_CONFIG")"
+    RECORDED_GAME="$(physical_path "$(jq -er '.game' "$SESSION_CONFIG")")"
+    RECORDED_CACHE="$(physical_path "$(jq -er '.cache' "$SESSION_CONFIG")")"
     RECORDED_SEED="$(jq -er '.seed' "$SESSION_CONFIG")"
     RECORDED_PROTOCOL="$(jq -er '.protocol' "$SESSION_CONFIG")"
     # Version 1 sessions predate --engine, so their engine was necessarily the checkout build.
     # That is a fact about the format rather than an assumption about the session.
     RECORDED_ENGINE_SOURCE="$(jq -er '.engineSource // "checkout"' "$SESSION_CONFIG")"
     RECORDED_ENGINE="$(jq -er '.engine // ""' "$SESSION_CONFIG")"
+    if [[ -n "$RECORDED_ENGINE" ]]; then
+        RECORDED_ENGINE="$(physical_path "$RECORDED_ENGINE")"
+    fi
 
     if [[ "$CONDITIONS_WERE_SET" == true && "$CONDITIONS" != "$RECORDED_CONDITIONS" ]]; then
         bad "--conditions conflicts with this session: $CONDITIONS != $RECORDED_CONDITIONS"

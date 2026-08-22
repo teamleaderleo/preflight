@@ -97,6 +97,38 @@ class OrderTest(unittest.TestCase):
 
 
 class ResilienceTest(unittest.TestCase):
+    def test_path_aliases_share_one_measurement_identity(self):
+        body = re.search(r"physical_path\(\) \{(?P<body>.*?)\n\}", SCRIPT_TEXT, re.DOTALL)
+        self.assertIsNotNone(body, "physical_path not found")
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            real = directory / "real"
+            alias = directory / "alias"
+            real.mkdir()
+            alias.symlink_to(real, target_is_directory=True)
+            script = (
+                f'physical_path() {{{body.group("body")}\n}}\n'
+                f'physical_path "{alias / "future-cache"}"\n'
+            )
+            result = subprocess.run(
+                ["bash", "-c", script], capture_output=True, text=True, check=True
+            )
+            self.assertEqual(
+                str(Path(real).resolve() / "future-cache"), result.stdout.strip()
+            )
+
+    def test_resume_normalizes_paths_before_comparing_them(self):
+        self.assertIn('GAME="$(physical_path "$GAME")"', SCRIPT_TEXT)
+        self.assertIn('CACHE="$(physical_path "$CACHE")"', SCRIPT_TEXT)
+        self.assertIn(
+            'RECORDED_GAME="$(physical_path "$(jq -er \'.game\' "$SESSION_CONFIG")")"',
+            SCRIPT_TEXT,
+        )
+        self.assertIn(
+            'RECORDED_CACHE="$(physical_path "$(jq -er \'.cache\' "$SESSION_CONFIG")")"',
+            SCRIPT_TEXT,
+        )
+
     def test_one_bad_launch_does_not_abort_the_campaign(self):
         loop = re.search(
             r"for round in \$\(seq 1 \"\$ROUNDS\"\); do(?P<body>.*?)\ndone", SCRIPT_TEXT, re.DOTALL
