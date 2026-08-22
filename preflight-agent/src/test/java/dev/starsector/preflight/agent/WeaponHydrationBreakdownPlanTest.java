@@ -23,7 +23,7 @@ class WeaponHydrationBreakdownPlanTest {
         ClassNode owner = node(original);
 
         assertTrue(WeaponHydrationBreakdownPlan.apply(exact, owner));
-        assertEquals(94, runtimeCalls(owner));
+        assertEquals(424, runtimeCalls(owner));
         assertFalse(WeaponHydrationBreakdownPlan.apply(exact, owner));
     }
 
@@ -40,19 +40,40 @@ class WeaponHydrationBreakdownPlanTest {
         assertEquals(0, runtimeCalls(owner));
     }
 
+    @Test
+    void refusesChangedProjectileCategoryBeforeEditingTheClass() throws Exception {
+        byte[] original = fixture(24, 23, 54, 21, 78, 11);
+        ClassSignature parsed = ClassSignature.parse(original);
+        ClassSignature exact = new ClassSignature(parsed.internalName(),
+                WeaponHydrationBreakdownPlan.ORIGINAL_SHA256, parsed.majorVersion(),
+                parsed.access(), parsed.methods());
+        ClassNode owner = node(original);
+
+        assertFalse(WeaponHydrationBreakdownPlan.apply(exact, owner));
+        assertEquals(0, runtimeCalls(owner));
+    }
+
     private static byte[] fixture(int weaponCalls, int projectileCalls) {
+        return fixture(weaponCalls, projectileCalls, 55, 21, 78, 11);
+    }
+
+    private static byte[] fixture(int weaponCalls, int projectileCalls,
+            int jsonOtherCalls, int schemaCalls, int specCalls, int helperCalls) {
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
                 WeaponLoaderPhasePlan.TARGET_CLASS, null, "java/lang/Object", null);
         method(writer, WeaponLoaderPhasePlan.LOAD_ONE_METHOD,
-                WeaponLoaderPhasePlan.LOAD_ONE_DESCRIPTOR, weaponCalls);
+                WeaponLoaderPhasePlan.LOAD_ONE_DESCRIPTOR, weaponCalls, 0, 0, 0, 0);
         method(writer, ProjectileLoaderPhasePlan.LOAD_ONE_METHOD,
-                ProjectileLoaderPhasePlan.LOAD_ONE_DESCRIPTOR, projectileCalls);
+                ProjectileLoaderPhasePlan.LOAD_ONE_DESCRIPTOR, projectileCalls,
+                jsonOtherCalls, schemaCalls, specCalls, helperCalls);
         writer.visitEnd();
         return writer.toByteArray();
     }
 
-    private static void method(ClassWriter writer, String name, String descriptor, int calls) {
+    private static void method(
+            ClassWriter writer, String name, String descriptor, int calls,
+            int jsonOtherCalls, int schemaCalls, int specCalls, int helperCalls) {
         MethodVisitor method = writer.visitMethod(
                 Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, name, descriptor, null, null);
         method.visitCode();
@@ -64,9 +85,19 @@ class WeaponHydrationBreakdownPlanTest {
                     "(Ljava/lang/String;D)D", false);
             method.visitInsn(Opcodes.POP2);
         }
+        calls(method, "org/json/JSONObject", "has", jsonOtherCalls);
+        calls(method, "com/fs/starfarer/loading/D", "decode", schemaCalls);
+        calls(method, "com/fs/starfarer/loading/specs/Example", "setValue", specCalls);
+        calls(method, "com/fs/starfarer/loading/scripts/ScriptStore", "load", helperCalls);
         method.visitInsn(Opcodes.RETURN);
         method.visitMaxs(0, 0);
         method.visitEnd();
+    }
+
+    private static void calls(MethodVisitor method, String owner, String name, int count) {
+        for (int index = 0; index < count; index++) {
+            method.visitMethodInsn(Opcodes.INVOKESTATIC, owner, name, "()V", false);
+        }
     }
 
     private static ClassNode node(byte[] bytes) {

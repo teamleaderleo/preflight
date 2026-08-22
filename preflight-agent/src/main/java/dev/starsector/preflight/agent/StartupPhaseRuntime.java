@@ -31,7 +31,12 @@ public final class StartupPhaseRuntime {
     private static final int MAX_MERGED_READ_GROUPS = 512;
     private static final int SAMPLED_HOT_CALL_RATE = 16;
     private static final String[] SAMPLED_HOT_CALL_LABELS = {
-        "weapon-json-numeric-conversion", "projectile-json-numeric-conversion"
+        "weapon-json-numeric-conversion",
+        "projectile-json-numeric-conversion",
+        "projectile-json-other",
+        "projectile-schema-decode",
+        "projectile-spec-methods",
+        "projectile-game-helpers"
     };
     private static final long NO_SAMPLE = Long.MIN_VALUE;
     private static final int[] PROGRESS_MILESTONES = {1, 5, 10, 25, 50, 75, 90, 95, 99, 100};
@@ -56,6 +61,8 @@ public final class StartupPhaseRuntime {
     private static final long[] sampledHotCallNanos =
             new long[SAMPLED_HOT_CALL_LABELS.length];
     private static final long[] sampledHotCallMaxNanos =
+            new long[SAMPLED_HOT_CALL_LABELS.length];
+    private static final long[] sampledHotCallFirstNanos =
             new long[SAMPLED_HOT_CALL_LABELS.length];
     private static volatile boolean mergedReadProbe;
     private static String activePlugin;
@@ -89,6 +96,7 @@ public final class StartupPhaseRuntime {
         Arrays.fill(sampledHotCallSamples, 0L);
         Arrays.fill(sampledHotCallNanos, 0L);
         Arrays.fill(sampledHotCallMaxNanos, 0L);
+        Arrays.fill(sampledHotCallFirstNanos, 0L);
         activePlugin = null;
         activePluginNanos = 0L;
         activeSpecLoader = null;
@@ -340,7 +348,8 @@ public final class StartupPhaseRuntime {
                 return NO_SAMPLE;
             }
             long call = ++sampledHotCallCalls[slot];
-            return call % SAMPLED_HOT_CALL_RATE == 0L ? System.nanoTime() : NO_SAMPLE;
+            return call == 1L || call % SAMPLED_HOT_CALL_RATE == 0L
+                    ? System.nanoTime() : NO_SAMPLE;
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
         } catch (Throwable ignored) {
@@ -361,6 +370,9 @@ public final class StartupPhaseRuntime {
             sampledHotCallSamples[slot]++;
             sampledHotCallNanos[slot] = Math.addExact(sampledHotCallNanos[slot], duration);
             sampledHotCallMaxNanos[slot] = Math.max(sampledHotCallMaxNanos[slot], duration);
+            if (sampledHotCallSamples[slot] == 1L) {
+                sampledHotCallFirstNanos[slot] = duration;
+            }
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
         } catch (Throwable ignored) {
@@ -419,8 +431,18 @@ public final class StartupPhaseRuntime {
             timing.put("sampledDurationMillis", millis(nanos));
             timing.put("sampledMeanNanos", samples == 0L ? 0L : nanos / samples);
             timing.put("sampledMaxNanos", sampledHotCallMaxNanos[slot]);
-            timing.put("estimatedDurationMillis", samples == 0L ? 0L
-                    : millis((long) ((double) nanos * calls / samples)));
+            long firstNanos = sampledHotCallFirstNanos[slot];
+            long recurringSamples = Math.max(0L, samples - (firstNanos == 0L ? 0L : 1L));
+            long recurringNanos = Math.max(0L, nanos - firstNanos);
+            long recurringMean = recurringSamples == 0L ? 0L : recurringNanos / recurringSamples;
+            long estimatedNanos = firstNanos;
+            if (calls > 1L && recurringSamples > 0L) {
+                estimatedNanos = Math.addExact(firstNanos,
+                        Math.multiplyExact(recurringMean, calls - 1L));
+            }
+            timing.put("firstCallNanos", firstNanos);
+            timing.put("recurringSampledMeanNanos", recurringMean);
+            timing.put("estimatedDurationMillis", millis(estimatedNanos));
             result.add(timing);
         }
         return result;

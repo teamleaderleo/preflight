@@ -40,10 +40,10 @@ consistent with repeated hydration rather than another hidden disk read.
 
 ## Exact-call sampler
 
-The profile-only adapter now recognizes the reviewed `WeaponSpecLoader` identity and exact 24
-weapon plus 23 projectile numeric JSON call sites. It counts every `optDouble`/`getDouble` call and
-times one in sixteen. Normal launches do not install this sampler. Changed class identity or call
-shape leaves the class untouched.
+The profile-only adapter now recognizes the reviewed `WeaponSpecLoader` identity and exact call
+shape. It counts every matched call, times the first call, and then times one in sixteen. Normal
+launches do not install this sampler. Changed class identity or call shape leaves the class
+untouched.
 
 The first noisy diagnostic is:
 
@@ -55,9 +55,6 @@ The first noisy diagnostic is:
 | weapon | 3,077 | 319ms | 32,583 | 1.02us | about 33ms |
 
 The extrapolation is a diagnostic estimate from sampled calls. It is not a retained startup claim.
-The projectile path runs first and pays cold class/JIT work; a pause inside a sampled call can skew
-the estimate. A later probe records the sampled maximum explicitly so that this can be separated
-from ordinary conversion cost.
 
 The useful facts are stable enough to guide the next experiment:
 
@@ -65,6 +62,23 @@ The useful facts are stable enough to guide the next experiment:
 - Numeric conversion alone is not the whole unexplained interval.
 - The smaller projectile corpus costs much more than the later, larger weapon corpus, so first-use
   initialization and other projectile construction work need their own ownership.
+
+The follow-up split is:
+
+`~/.starsector-preflight/runs/projectile-hydration-split-noisy-20260822-191618`
+
+| projectile work | calls | first call | recurring sampled mean | extrapolated wall |
+| --- | ---: | ---: | ---: | ---: |
+| numeric JSON conversion | 13,454 | 0.07ms | 8.50us | about 114ms |
+| spec methods | 39,038 | less than 0.01ms | 2.93us | about 114ms |
+| other direct JSON access | 27,888 | 0.01ms | 3.32us | about 93ms |
+| game helpers | 3,725 | 1.89ms | 9.27us | about 36ms |
+| enum/color/vector schema helpers | 11,476 | 1.45ms | 2.00us | about 23ms |
+
+The loader took 796ms. Its separately measured file listing and JSON merge took 13ms and 91ms.
+The sampled direct-call groups account for about 380ms, leaving roughly 310ms in constructors,
+branches, loops, derived calculations, and sampling error. No first measured call had a pause large
+enough to explain the loader by itself. Cold initialization exists, but it is not the main owner.
 
 ## What not to repeat
 
@@ -77,10 +91,10 @@ replay because it reflectively walked the tree after decode. Neither design shou
 The remaining step-change candidate is a prepared, schema-specific intermediate at the decode and
 construction boundary. It must avoid a second reflective walk, retain fresh game objects, preserve
 the original JSON values available to mods, run setters and registrations in the original order,
-and decline on any unknown class, archive, schema, or prepared identity. The first experiment should
-attribute projectile JSON access, enum/color/vector decoding, object construction, setter work, and
-first-use initialization separately. Only then is it worth deciding whether a typed sidecar or a
-smaller call-site shortcut can credibly remove at least 100ms.
+and decline on any unknown class, archive, schema, or prepared identity. The projectile result puts
+the credible ceiling for a generated typed replay in the low hundreds of milliseconds. Applying the
+same design to the other measured spec families could become a one-second-class change; another
+projectile-only numeric cache cannot.
 
 The other large current lane is mod startup. GraphicsLib, Nexerelin, MagicLib, and AshLib together
 owned about 2.7 seconds in the adjacent probe. They already have exact subphase attribution, so any

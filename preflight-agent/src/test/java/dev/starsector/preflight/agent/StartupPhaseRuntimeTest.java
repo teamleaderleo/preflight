@@ -100,7 +100,9 @@ class StartupPhaseRuntimeTest {
         assertTrue(json.contains("\"label\":\"weapon-json-numeric-conversion\""));
         assertTrue(json.contains("\"sampleRate\":16"));
         assertTrue(json.contains("\"calls\":32"));
-        assertTrue(json.contains("\"samples\":2"));
+        assertTrue(json.contains("\"samples\":3"));
+        assertTrue(json.contains("\"firstCallNanos\":"));
+        assertTrue(json.contains("\"recurringSampledMeanNanos\":"));
     }
 
     private static final class ExamplePlugin {

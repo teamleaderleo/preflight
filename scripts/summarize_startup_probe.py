@@ -90,7 +90,8 @@ def main() -> int:
             print(f"  ~{call.get('estimatedDurationMillis', 0) / 1000:>6.2f}s  "
                   f"{call.get('calls', 0):>7} calls  "
                   f"1/{call.get('sampleRate', 0)} sampled  "
-                  f"{call.get('sampledMeanNanos', 0) / 1000:>7.2f} us mean  "
+                  f"{call.get('recurringSampledMeanNanos', call.get('sampledMeanNanos', 0)) / 1000:>7.2f} us recurring  "
+                  f"{call.get('firstCallNanos', 0) / 1_000_000:>7.2f} ms first  "
                   f"{call.get('sampledMaxNanos', 0) / 1_000_000:>7.2f} ms max  "
                   f"{call['label']}")
 

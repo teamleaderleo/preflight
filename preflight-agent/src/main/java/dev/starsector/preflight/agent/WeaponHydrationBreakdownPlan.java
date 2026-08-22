@@ -17,11 +17,19 @@ final class WeaponHydrationBreakdownPlan {
             "c1e7a8a4c33d7ee7f714b05ac94dfa20745142d72ce868e954e8e6a04dc0544c";
     static final int WEAPON_SLOT = 0;
     static final int PROJECTILE_SLOT = 1;
+    static final int PROJECTILE_JSON_OTHER_SLOT = 2;
+    static final int PROJECTILE_SCHEMA_SLOT = 3;
+    static final int PROJECTILE_SPEC_METHOD_SLOT = 4;
+    static final int PROJECTILE_GAME_HELPER_SLOT = 5;
     private static final String JSON_OBJECT = "org/json/JSONObject";
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/StartupPhaseRuntime";
     private static final int WEAPON_CALL_SITES = 24;
     private static final int PROJECTILE_CALL_SITES = 23;
+    private static final int PROJECTILE_JSON_OTHER_CALL_SITES = 55;
+    private static final int PROJECTILE_SCHEMA_CALL_SITES = 21;
+    private static final int PROJECTILE_SPEC_METHOD_CALL_SITES = 78;
+    private static final int PROJECTILE_GAME_HELPER_CALL_SITES = 11;
 
     private WeaponHydrationBreakdownPlan() {
     }
@@ -43,12 +51,28 @@ final class WeaponHydrationBreakdownPlan {
         }
         List<MethodInsnNode> weaponCalls = numericCalls(weapon);
         List<MethodInsnNode> projectileCalls = numericCalls(projectile);
+        List<MethodInsnNode> projectileJsonOtherCalls = matchingCalls(projectile,
+                WeaponHydrationBreakdownPlan::isOtherJsonCall);
+        List<MethodInsnNode> projectileSchemaCalls = matchingCalls(projectile,
+                WeaponHydrationBreakdownPlan::isSchemaCall);
+        List<MethodInsnNode> projectileSpecMethodCalls = matchingCalls(projectile,
+                WeaponHydrationBreakdownPlan::isSpecMethodCall);
+        List<MethodInsnNode> projectileGameHelperCalls = matchingCalls(projectile,
+                WeaponHydrationBreakdownPlan::isGameHelperCall);
         if (weaponCalls.size() != WEAPON_CALL_SITES
-                || projectileCalls.size() != PROJECTILE_CALL_SITES) {
+                || projectileCalls.size() != PROJECTILE_CALL_SITES
+                || projectileJsonOtherCalls.size() != PROJECTILE_JSON_OTHER_CALL_SITES
+                || projectileSchemaCalls.size() != PROJECTILE_SCHEMA_CALL_SITES
+                || projectileSpecMethodCalls.size() != PROJECTILE_SPEC_METHOD_CALL_SITES
+                || projectileGameHelperCalls.size() != PROJECTILE_GAME_HELPER_CALL_SITES) {
             return false;
         }
         wrap(weapon, weaponCalls, WEAPON_SLOT);
         wrap(projectile, projectileCalls, PROJECTILE_SLOT);
+        wrap(projectile, projectileJsonOtherCalls, PROJECTILE_JSON_OTHER_SLOT);
+        wrap(projectile, projectileSchemaCalls, PROJECTILE_SCHEMA_SLOT);
+        wrap(projectile, projectileSpecMethodCalls, PROJECTILE_SPEC_METHOD_SLOT);
+        wrap(projectile, projectileGameHelperCalls, PROJECTILE_GAME_HELPER_SLOT);
         return true;
     }
 
@@ -66,6 +90,45 @@ final class WeaponHydrationBreakdownPlan {
             }
         }
         return result;
+    }
+
+    private static List<MethodInsnNode> matchingCalls(
+            MethodNode method, java.util.function.Predicate<MethodInsnNode> predicate) {
+        List<MethodInsnNode> result = new ArrayList<>();
+        for (AbstractInsnNode instruction = method.instructions.getFirst();
+                instruction != null; instruction = instruction.getNext()) {
+            if (instruction instanceof MethodInsnNode call && predicate.test(call)) {
+                result.add(call);
+            }
+        }
+        return result;
+    }
+
+    private static boolean isOtherJsonCall(MethodInsnNode call) {
+        return call.owner.startsWith("org/json/")
+                && !"<init>".equals(call.name)
+                && !(JSON_OBJECT.equals(call.owner)
+                    && (("optDouble".equals(call.name)
+                            && "(Ljava/lang/String;D)D".equals(call.desc))
+                        || ("getDouble".equals(call.name)
+                            && "(Ljava/lang/String;)D".equals(call.desc))));
+    }
+
+    private static boolean isSchemaCall(MethodInsnNode call) {
+        return "com/fs/starfarer/loading/D".equals(call.owner);
+    }
+
+    private static boolean isSpecMethodCall(MethodInsnNode call) {
+        return call.owner.startsWith("com/fs/starfarer/loading/specs/")
+                && !"<init>".equals(call.name);
+    }
+
+    private static boolean isGameHelperCall(MethodInsnNode call) {
+        return call.owner.startsWith("com/fs/")
+                && !"<init>".equals(call.name)
+                && !"com/fs/starfarer/loading/LoadingUtils".equals(call.owner)
+                && !isSchemaCall(call)
+                && !isSpecMethodCall(call);
     }
 
     private static void wrap(MethodNode method, List<MethodInsnNode> calls, int slot) {
