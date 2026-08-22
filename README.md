@@ -110,7 +110,7 @@ The development measurements and their context are collected in
 Preflight calculates the requirement before writing anything. If the default does not fit, it can
 offer **Prepare with minimal disk** instead.
 
-| Mode | Finished cache on this 83-mod profile | Observed preparation |
+| Mode | Immediately after preparation on this 83-mod profile | Observed preparation |
 | --- | ---: | ---: |
 | **Balanced** (default) | **4.76 GB** | 3m21s in one measured run |
 | **Minimal disk** | **10.9 MB** | 5.6s |
@@ -119,8 +119,10 @@ offer **Prepare with minimal disk** instead.
 Balanced needed **12.92 GB** free before starting because the safety check assumes a worst-case
 preparation bound; that larger number is not the finished cache size. Actual costs depend on the
 artwork in the enabled mods, and the app calculates them for the current profile. Minimal skips
-prepared textures while keeping the smaller startup indexes and caches. The measurements and CLI
-controls are in [Performance and storage tradeoffs](docs/performance-storage-tradeoffs.md).
+prepared textures while keeping the other startup indexes and caches. Those caches continue
+learning on the first launch. In a later measurement, Minimal grew from about 11 MB after
+preparation to about 204 MB after that learning launch. The measurements and CLI controls are in
+[Performance and storage tradeoffs](docs/performance-storage-tradeoffs.md).
 
 Those preparation times came from one development session. The files were already warm in the OS
 cache, while temperature, system load, and competing processes were not recorded. They show what

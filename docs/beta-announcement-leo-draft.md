@@ -70,9 +70,11 @@ history.
 That is also why the benchmark became part of the product. A convincing number can still be measuring
 the wrong thing.
 
-On the reviewed 83-mod development profile, one preparation measurement retained **4.76 GB** in
-Balanced, **10.9 MB** in Minimal disk, and **10.03 GB** in Fastest. Those are examples from one setup,
-not requirements; the desktop calculates the current installation's own plan before starting.
+On the reviewed 83-mod development profile, one preparation measurement left **4.76 GB** in
+Balanced, **10.9 MB** in Minimal disk, and **10.03 GB** in Fastest immediately after preparation.
+Minimal later grew to about 204 MiB when its first launch learned the non-texture runtime caches.
+Those are examples from one setup, not requirements; the desktop calculates the current
+installation's own plan before starting.
 
 The read-only linter was calibrated over 86 installed mod directories. The median was zero findings
 and 44 of 86 were completely clean. The point is useful signal when a measurable problem exists, not

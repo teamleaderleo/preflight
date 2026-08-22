@@ -114,10 +114,12 @@ The readable chronology is in [Optimization history](optimization-history.md) an
 
 ## A few development reference points
 
-On the reviewed 83-mod profile, one preparation measurement retained **4.76 GB** in Balanced,
-**10.9 MB** in Minimal disk, and **10.03 GB** in Fastest. Balanced needed 12.92 GB free before starting
-in that measurement because the preflight check kept extra room for worst-case preparation. The app
-calculates the current installation's own plan rather than treating those numbers as universal.
+On the reviewed 83-mod profile, one preparation measurement left **4.76 GB** in Balanced,
+**10.9 MB** in Minimal disk, and **10.03 GB** in Fastest immediately after preparation. Minimal later
+grew to about 204 MiB when its first launch learned the non-texture runtime caches. Balanced needed
+12.92 GB free before starting in that measurement because the preflight check kept extra room for
+worst-case preparation. The app calculates the current installation's own plan rather than treating
+those numbers as universal.
 
 The read-only linter was calibrated over 86 installed mod directories. The median was zero findings
 and 44 of 86 were completely clean. That is the intended shape of the tool: useful signal when a

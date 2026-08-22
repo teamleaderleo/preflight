@@ -4,7 +4,7 @@
 
 **Reference profile:** Starsector 0.98a-RC8 with 83 enabled mods
 
-**Updated:** 2026-08-15
+**Updated:** 2026-08-22
 
 Preflight moves repeatable work out of launch and into checked artifacts. Disk use is therefore a
 visible product tradeoff rather than an implementation detail. The desktop estimates the selected
@@ -68,6 +68,19 @@ competing processes, so this is not a quiet-machine preparation benchmark either
 Fastest took 205.19 seconds in the single corresponding preparation. One run per policy is not
 enough to claim a preparation-speed difference; the storage policy is intended to change replay
 cost, not preparation time.
+
+## Minimal disk after launch
+
+Minimal skips prepared textures while retaining the smaller resource, classpath, merged-data,
+spec-data, rules, and generated-bytecode caches. On the reviewed profile, preparation took 5.14
+seconds and left about 11 MB on disk. The first game launch then learned the runtime-only caches and
+grew that directory to about 204 MiB. A following warm launch reached the main menu in 56.51
+seconds on a busy development machine.
+
+The 10.9 MB reference figure measures the directory immediately after preparation. It is not the
+ongoing footprint. Minimal still avoids the multi-gigabyte prepared texture corpus, but product copy
+must not describe it as using only a few megabytes after the game has launched. The follow-up is in
+[the Minimal launch report](evidence/2026-08-22-minimal-disk-launch.md).
 
 ## Other cache contributors
 

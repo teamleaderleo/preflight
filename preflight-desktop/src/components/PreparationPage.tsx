@@ -32,7 +32,7 @@ function preparationOverrideSummary(
 ): string | null {
   const consequences: string[] = [];
   if (textureStorage === "fastest") consequences.push("Uses more disk for a small startup gain");
-  if (textureStorage === "minimal") consequences.push("Skips prepared textures to use almost no disk");
+  if (textureStorage === "minimal") consequences.push("Skips prepared textures to use much less disk");
   if (resourcePreset === "gentle") consequences.push("Uses fewer preparation resources");
   if (resourcePreset === "eager") consequences.push("Uses more preparation resources");
   return consequences.length > 0 ? `${consequences.join(" · ")}.` : null;
@@ -193,7 +193,7 @@ export function PreparationPage({
             ? "Reconnected after restart · finished work stays reusable"
             : `${preparationPercent}% complete · finished work stays reusable`}</span>
             : storageBlocked
-              ? <span>Minimal preparation uses a few megabytes and still speeds up startup.</span>
+              ? <span>Minimal skips prepared textures and keeps the other startup caches.</span>
               : overrideSummary
                 ? <span>{overrideSummary}</span>
                 : null}
@@ -270,7 +270,7 @@ export function PreparationPage({
             </label>
             <label className={`choice-card ${textureStorage === "minimal" ? "choice-card--selected" : ""}`}>
               <input type="radio" name="texture-storage" aria-label="Minimal disk use" checked={textureStorage === "minimal"} onChange={() => setTextureStorage("minimal")} disabled={operationBlocked} />
-              <span><strong>Use almost no disk</strong><small>Skips prepared textures: megabytes instead of gigabytes, and a smaller speedup</small></span>
+              <span><strong>Minimal disk</strong><small>Skips prepared textures for much lower disk use and a smaller speedup</small></span>
             </label>
           </section>
 
