@@ -55,6 +55,31 @@ class PackedTextureRetentionTest {
     }
 
     @Test
+    void exactPackAlsoReleasesAnUnreferencedCodecCandidate() throws Exception {
+        Path root = directory.resolve("loser-root");
+        Path source = root.resolve("graphics/ship.png");
+        writeImage(source);
+        Path cache = directory.resolve("loser-cache");
+        TextureBatchBuilder.Result built = TextureBatchBuilder.build(
+                index(root, "7".repeat(64), source), cache,
+                new TextureBatchBuilder.Options(1, 16 * MIB));
+        String selected = built.manifest().entries().values().iterator().next().blobRelativePath();
+        Path selectedBlob = cache.resolve(selected);
+        Path loser = cache.resolve("blobs/ff/unreferenced-codec-candidate.spft");
+        Files.createDirectories(loser.getParent());
+        Files.copy(selectedBlob, loser);
+        long expectedBytes = Files.size(selectedBlob) + Files.size(loser);
+
+        PackedTextureRetention.Result released =
+                PackedTextureRetention.release(cache, built.manifest());
+
+        assertEquals(2, released.releasedBlobs());
+        assertEquals(expectedBytes, released.releasedBytes());
+        assertFalse(Files.exists(selectedBlob));
+        assertFalse(Files.exists(loser));
+    }
+
+    @Test
     void looseCopyStaysWhenAnotherProfileHasNoUsablePack() throws Exception {
         Path root = directory.resolve("shared-root");
         Path source = root.resolve("graphics/shared.png");
