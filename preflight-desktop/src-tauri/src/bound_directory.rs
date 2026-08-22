@@ -390,6 +390,11 @@ mod imp {
     static NEXT_DELETE_QUARANTINE: AtomicU64 = AtomicU64::new(1);
 
     #[cfg(target_os = "macos")]
+    const ACL_TYPE_EXTENDED: libc::c_int = 0x0000_0100;
+    #[cfg(target_os = "macos")]
+    const ACL_FIRST_ENTRY: libc::c_int = 0;
+
+    #[cfg(target_os = "macos")]
     unsafe extern "C" {
         fn renameatx_np(
             from_fd: libc::c_int,
@@ -398,6 +403,13 @@ mod imp {
             to: *const libc::c_char,
             flags: libc::c_uint,
         ) -> libc::c_int;
+        fn acl_get_fd_np(fd: libc::c_int, acl_type: libc::c_int) -> *mut libc::c_void;
+        fn acl_get_entry(
+            acl: *mut libc::c_void,
+            entry_id: libc::c_int,
+            entry: *mut *mut libc::c_void,
+        ) -> libc::c_int;
+        fn acl_free(object: *mut libc::c_void) -> libc::c_int;
     }
 
     pub(super) fn open_anchor(path: &Path) -> io::Result<File> {
@@ -667,6 +679,7 @@ mod imp {
                 "protected component does not have private mode 0700",
             ));
         }
+        require_no_extended_acl(directory)?;
         Ok(())
     }
 
@@ -690,6 +703,41 @@ mod imp {
                 "child permissions are broader than owner-only",
             ));
         }
+        require_no_extended_acl(file)?;
+        Ok(())
+    }
+
+    #[cfg(target_os = "macos")]
+    fn require_no_extended_acl(file: &File) -> io::Result<()> {
+        unsafe {
+            *errno_location() = 0;
+        }
+        let acl = unsafe { acl_get_fd_np(file.as_raw_fd(), ACL_TYPE_EXTENDED) };
+        if acl.is_null() {
+            let errno = unsafe { *errno_location() };
+            return if errno == 0 || errno == libc::ENOENT || errno == libc::EOPNOTSUPP {
+                Ok(())
+            } else {
+                Err(io::Error::from_raw_os_error(errno))
+            };
+        }
+
+        let mut entry: *mut libc::c_void = std::ptr::null_mut();
+        let has_entry = unsafe { acl_get_entry(acl, ACL_FIRST_ENTRY, &mut entry) } == 0;
+        if unsafe { acl_free(acl) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+        if has_entry {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "opened generation has an extended ACL",
+            ));
+        }
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    fn require_no_extended_acl(_file: &File) -> io::Result<()> {
         Ok(())
     }
 

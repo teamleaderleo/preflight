@@ -1,0 +1,182 @@
+name: Temporary #957 macOS ACL fail-closed repair
+
+# One-shot PR carrier. The job applies/formats/tests durable source, refreshes the lock, then removes itself.
+on:
+  pull_request:
+    branches: [main]
+    types: [synchronize]
+    paths:
+      - '.github/workflows/tmp-bracken-957-acl-fail-closed.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'fix/bound-directory-macos-acl'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/bound-directory-macos-acl
+      - name: Apply fail-closed ACL validation and review lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+
+          source = Path('preflight-desktop/src-tauri/src/bound_directory.rs')
+          text = source.read_text(encoding='utf-8')
+
+          old_ffi = '''        fn acl_get_entry(
+              acl: *mut libc::c_void,
+              entry_id: libc::c_int,
+              entry: *mut *mut libc::c_void,
+          ) -> libc::c_int;
+          fn acl_free(object: *mut libc::c_void) -> libc::c_int;'''
+          new_ffi = '''        fn acl_get_entry(
+              acl: *mut libc::c_void,
+              entry_id: libc::c_int,
+              entry: *mut *mut libc::c_void,
+          ) -> libc::c_int;
+          fn acl_valid(acl: *mut libc::c_void) -> libc::c_int;
+          fn acl_free(object: *mut libc::c_void) -> libc::c_int;'''
+          if old_ffi not in text:
+              raise SystemExit('macOS ACL FFI block changed unexpectedly')
+          text = text.replace(old_ffi, new_ffi, 1)
+
+          old_fn = '''    #[cfg(target_os = "macos")]
+          fn require_no_extended_acl(file: &File) -> io::Result<()> {
+              unsafe {
+                  *errno_location() = 0;
+              }
+              let acl = unsafe { acl_get_fd_np(file.as_raw_fd(), ACL_TYPE_EXTENDED) };
+              if acl.is_null() {
+                  let errno = unsafe { *errno_location() };
+                  return if errno == 0 || errno == libc::ENOENT || errno == libc::EOPNOTSUPP {
+                      Ok(())
+                  } else {
+                      Err(io::Error::from_raw_os_error(errno))
+                  };
+              }
+
+              let mut entry: *mut libc::c_void = std::ptr::null_mut();
+              let has_entry = unsafe { acl_get_entry(acl, ACL_FIRST_ENTRY, &mut entry) } == 0;
+              if unsafe { acl_free(acl) } != 0 {
+                  return Err(io::Error::last_os_error());
+              }
+              if has_entry {
+                  return Err(io::Error::new(
+                      io::ErrorKind::PermissionDenied,
+                      "opened generation has an extended ACL",
+                  ));
+              }
+              Ok(())
+          }'''
+          new_fn = '''    #[cfg(target_os = "macos")]
+          fn require_no_extended_acl(file: &File) -> io::Result<()> {
+              unsafe {
+                  *errno_location() = 0;
+              }
+              let acl = unsafe { acl_get_fd_np(file.as_raw_fd(), ACL_TYPE_EXTENDED) };
+              if acl.is_null() {
+                  let errno = unsafe { *errno_location() };
+                  return Err(if errno == 0 {
+                      io::Error::new(
+                          io::ErrorKind::Other,
+                          "could not inspect extended ACL on opened generation",
+                      )
+                  } else {
+                      io::Error::from_raw_os_error(errno)
+                  });
+              }
+
+              let result = (|| -> io::Result<()> {
+                  unsafe {
+                      *errno_location() = 0;
+                  }
+                  if unsafe { acl_valid(acl) } != 0 {
+                      let errno = unsafe { *errno_location() };
+                      return Err(if errno == 0 {
+                          io::Error::new(
+                              io::ErrorKind::InvalidData,
+                              "opened generation returned an invalid extended ACL",
+                          )
+                      } else {
+                          io::Error::from_raw_os_error(errno)
+                      });
+                  }
+
+                  let mut entry: *mut libc::c_void = std::ptr::null_mut();
+                  unsafe {
+                      *errno_location() = 0;
+                  }
+                  let status = unsafe { acl_get_entry(acl, ACL_FIRST_ENTRY, &mut entry) };
+                  if status == 0 {
+                      return Err(io::Error::new(
+                          io::ErrorKind::PermissionDenied,
+                          "opened generation has an extended ACL",
+                      ));
+                  }
+
+                  let errno = unsafe { *errno_location() };
+                  if status == -1 && errno == libc::EINVAL {
+                      return Ok(());
+                  }
+                  Err(if errno == 0 {
+                      io::Error::new(
+                          io::ErrorKind::Other,
+                          "could not enumerate extended ACL on opened generation",
+                      )
+                  } else {
+                      io::Error::from_raw_os_error(errno)
+                  })
+              })();
+
+              let free_status = unsafe { acl_free(acl) };
+              if free_status != 0 && result.is_ok() {
+                  return Err(io::Error::last_os_error());
+              }
+              result
+          }'''
+          if old_fn not in text:
+              raise SystemExit('macOS ACL validation function changed unexpectedly')
+          source.write_text(text.replace(old_fn, new_fn, 1), encoding='utf-8')
+          PY
+
+          cd preflight-desktop/src-tauri
+          cargo fmt
+          cargo test --test bound_directory
+          cd ../..
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+
+          source = Path('preflight-desktop/src-tauri/src/bound_directory.rs')
+          normalized = source.read_text(encoding='utf-8').replace('\r\n', '\n').encode('utf-8')
+          digest = hashlib.sha256(normalized).hexdigest()
+          lock_path = Path('preflight-desktop/capabilities/release-receipt-source-lock.json')
+          lock = json.loads(lock_path.read_text(encoding='utf-8'))
+          key = 'preflight-desktop/src-tauri/src/bound_directory.rs'
+          if key not in lock['sources']:
+              raise SystemExit('BoundDirectory source is no longer capability locked')
+          lock['sources'][key] = digest
+          lock_path.write_text(json.dumps(lock, indent=2) + '\n', encoding='utf-8')
+          print('BOUND_DIRECTORY_SHA256=' + digest)
+          PY
+
+          node .github/scripts/review-capability-lock.mjs
+
+          rm .github/workflows/tmp-bracken-957-acl-fail-closed.yml
+          git config user.name 'Bracken'
+          git config user.email 'actions@users.noreply.github.com'
+          git add preflight-desktop/src-tauri/src/bound_directory.rs \
+                  preflight-desktop/src-tauri/tests/bound_directory.rs \
+                  preflight-desktop/capabilities/release-receipt-source-lock.json \
+                  .github/workflows/tmp-bracken-957-acl-fail-closed.yml
+          git diff --cached --check
+          git commit -m 'Fail closed on macOS ACL inspection errors'
+          git push origin HEAD:fix/bound-directory-macos-acl

@@ -293,6 +293,53 @@ fn existing_broad_mode_protected_component_is_refused() {
     fs::remove_dir_all(base).unwrap();
 }
 
+#[cfg(target_os = "macos")]
+#[test]
+fn extended_acl_is_rejected_despite_private_mode_bits() {
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Command;
+
+    let base = temp_root("extended-acl");
+    let root = base.join("owned").join("authority");
+    let directory = BoundDirectory::open_or_create(&base, Path::new("owned/authority")).unwrap();
+    let file_path = root.join("secret.bin");
+    let file = directory
+        .create_new(OsStr::new("secret.bin"), 0o600)
+        .unwrap();
+    drop(file);
+
+    let file_acl = Command::new("/bin/chmod")
+        .arg("+a")
+        .arg("everyone allow read")
+        .arg(&file_path)
+        .status()
+        .unwrap();
+    assert!(file_acl.success());
+    assert_eq!(
+        0,
+        fs::metadata(&file_path).unwrap().permissions().mode() & 0o077
+    );
+    let error = directory.open_regular(OsStr::new("secret.bin")).unwrap_err();
+    assert_eq!(std::io::ErrorKind::PermissionDenied, error.kind());
+
+    let directory_acl = Command::new("/bin/chmod")
+        .arg("+a")
+        .arg("everyone allow list,search")
+        .arg(&root)
+        .status()
+        .unwrap();
+    assert!(directory_acl.success());
+    assert_eq!(
+        0o700,
+        fs::metadata(&root).unwrap().permissions().mode() & 0o7777
+    );
+    let error = BoundDirectory::open_existing(&base, Path::new("owned/authority")).unwrap_err();
+    assert_eq!(std::io::ErrorKind::PermissionDenied, error.kind());
+
+    drop(directory);
+    fs::remove_dir_all(base).unwrap();
+}
+
 #[cfg(unix)]
 #[test]
 fn public_winner_before_missing_component_publish_is_never_adopted() {
