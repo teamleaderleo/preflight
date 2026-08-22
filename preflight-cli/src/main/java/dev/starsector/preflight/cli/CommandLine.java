@@ -48,6 +48,7 @@ record CommandLine(
         boolean suppressAssetProgressLogs,
         boolean trustValidatedTextureIndex,
         boolean desktopSmoke,
+        HeapCommitPolicy heapCommitPolicy,
         List<String> forwardedArgs) {
     static CommandLine parse(String[] args, int offset) {
         Path game = null;
@@ -80,6 +81,7 @@ record CommandLine(
         boolean suppressAssetProgressLogs = false;
         boolean trustValidatedTextureIndex = false;
         boolean desktopSmoke = false;
+        HeapCommitPolicy heapCommitPolicy = HeapCommitPolicy.LAUNCHER_DEFAULT;
         AdapterMode adapterMode = AdapterMode.OFF;
         boolean adapterModeSpecified = false;
         Path adapterTargets = null;
@@ -123,6 +125,12 @@ record CommandLine(
                 quietLogs = preset.quietLogs();
                 suppressAssetProgressLogs = preset.suppressAssetProgressLogs();
                 trustValidatedTextureIndex = preset.trustValidatedTextureIndex();
+                // This stays independently reversible while its startup win is checked against
+                // first-use campaign and combat latency. Conservative and Off preserve the
+                // launcher's eager heap commitment.
+                heapCommitPolicy = optimizationPreset == OptimizationPreset.RECOMMENDED
+                        ? HeapCommitPolicy.ON_DEMAND
+                        : HeapCommitPolicy.LAUNCHER_DEFAULT;
                 continue;
             }
             switch (arg) {
@@ -184,6 +192,8 @@ record CommandLine(
                 case "--trust-validated-texture-index" -> trustValidatedTextureIndex = true;
                 case "--recheck-texture-sources" -> trustValidatedTextureIndex = false;
                 case "--desktop-smoke" -> desktopSmoke = true;
+                case "--defer-heap-commit" -> heapCommitPolicy = HeapCommitPolicy.ON_DEMAND;
+                case "--eager-heap-commit" -> heapCommitPolicy = HeapCommitPolicy.LAUNCHER_DEFAULT;
                 case "--texture-mode" -> {
                     textureAdapterMode = TextureAdapterMode.valueOf(
                             requireValue(args, ++i, arg).trim().toUpperCase(java.util.Locale.ROOT).replace('-', '_'));
@@ -351,6 +361,7 @@ record CommandLine(
                 suppressAssetProgressLogs,
                 trustValidatedTextureIndex,
                 desktopSmoke,
+                heapCommitPolicy,
                 List.copyOf(forwarded));
     }
 
