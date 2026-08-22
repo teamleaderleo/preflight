@@ -173,10 +173,11 @@ the story naturally reads.
 
 ## Storage language
 
-On the reviewed 83-mod development profile, one preparation measurement retained **4.76 GB** in
-Balanced, **10.9 MB** in Minimal disk, and **10.03 GB** in Fastest. Balanced needed 12.92 GB free
-before starting in that measurement because the preflight check kept extra room for worst-case
-preparation; the desktop calculates the current installation's own plan.
+On the reviewed 83-mod development profile, one preparation measurement left **4.76 GB** in
+Balanced, **10.9 MB** in Minimal disk, and **10.03 GB** in Fastest immediately after preparation.
+Minimal later grew to about 204 MiB when its first launch learned the non-texture runtime caches.
+Balanced needed 12.92 GB free before starting in that measurement because the preflight check kept
+extra room for worst-case preparation; the desktop calculates the current installation's own plan.
 
 Use a table when the three storage modes are being compared directly. Use the sentence above when the
 point is simply that disk use is visible and installation-specific.

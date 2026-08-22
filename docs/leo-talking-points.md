@@ -397,7 +397,8 @@ sending is separate and disclosed; automatic failed-run reporting is opt-in and 
 
 The default Balanced preparation kept 4.76 GB on the reviewed 83-mod profile. It is trading disk for
 work the game otherwise repeats. Preflight calculates the local requirement before writing and can
-offer a 10.9 MB minimal-disk route on that reference profile when the default cannot fit.
+skip prepared textures when the default cannot fit. That route used 10.9 MB immediately after
+preparation and about 204 MiB after its first launch learned the remaining runtime caches.
 
 **"Was this written with AI?"**
 

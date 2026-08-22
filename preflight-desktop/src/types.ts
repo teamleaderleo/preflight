@@ -231,8 +231,8 @@ export interface DesktopBenchmarkRuntimeContext {
 
 /**
  * What preparation is asked to build. `balanced` and `fastest` choose how prepared textures are
- * stored; `minimal` skips them, which is the whole of the disk cost. A plan only ever describes the
- * two that build textures — `minimal` has nothing to plan.
+ * stored; `minimal` skips them. Runtime-learned data and bytecode caches still use disk. A plan only
+ * describes the two modes that build textures because `minimal` has no texture plan.
  */
 export type TextureStorage = "balanced" | "fastest" | "minimal";
 

@@ -292,7 +292,7 @@
         "docs/beta-announcement-draft.md"
       ],
       "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
-      "derivation": "Whole cache directory produced by a cold `prepare --no-textures` of the same 83-mod profile; the texture stage is the entire remainder of the 4.76 GB Balanced footprint."
+      "derivation": "Cache directory immediately after a cold `prepare --no-textures` of the same 83-mod profile. This is preparation output, not a steady-state footprint. A later measured first launch learned generated-bytecode and spec-data caches and grew the directory to about 204 MiB."
     }
   ]
 }
