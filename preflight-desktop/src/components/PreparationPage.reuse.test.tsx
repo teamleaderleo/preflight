@@ -157,7 +157,7 @@ test("changed storage and resource choices stay visible without preset-name narr
     resourcePreset: "eager",
   });
 
-  expect(screen.getByText("Uses more disk for a small startup gain · Uses more preparation resources.")).toBeInTheDocument();
+  expect(screen.getByText("Keeps textures uncompressed and uses more disk · Uses more preparation resources.")).toBeInTheDocument();
   expect(screen.queryByText(/Fastest raw storage selected/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/high resource use/i)).not.toBeInTheDocument();
 });

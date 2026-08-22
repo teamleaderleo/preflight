@@ -4,7 +4,7 @@
 
 **Reference profile:** Starsector 0.98a-RC8 with 83 enabled mods
 
-**Updated:** 2026-08-22
+**Updated:** 2026-08-23
 
 Preflight moves repeatable work out of launch and into checked artifacts. Disk use is therefore a
 visible product tradeoff rather than an implementation detail. The desktop estimates the selected
@@ -12,62 +12,58 @@ profile before writing and the CLI enforces the same conservative free-space bou
 
 ## Current storage choices
 
-The default texture policy is **Balanced**. **Fastest** keeps the same upload-ready pixels without
-lossless compression, trading substantially more disk for less texture replay CPU.
+The default texture policy is **Balanced**. It keeps one checked, startup-ordered texture pack and
+uses lossless LZ4 when compression helps. The CLI's historical `fastest` option keeps the same
+upload-ready pixels uncompressed. The desktop calls that option **Uncompressed** because current
+whole-launch measurements do not support calling it faster.
 
-The latest cold-preparation measurement on the reviewed 83-mod profile found:
+The latest cold preparations on the reviewed 83-mod profile found:
 
-| | Balanced | Fastest |
-| --- | ---: | ---: |
-| Complete cache directory | **4.76 GB** | **10.03 GB** |
-| Unique prepared-texture blob bytes | 2.256 GB | 5.335 GB |
-| Cold preparation wall clock | 200.77s | 205.19s |
-| Texture stage | 195.28s | 200.84s |
+| | Balanced | Uncompressed | Minimal |
+| --- | ---: | ---: | ---: |
+| Finished cache directory | **2.3 GB** | **5.2 GB** | **11 MB before first launch** |
+| Prepared texture pack | 2,259,086,856 bytes | 5,338,090,204 bytes | none |
+| Tool-reported cold preparation | 195.08s | 184.35s | 3.69s |
+| Following warm preparation | 4.09s | not measured | 2.76s |
 
-That means **Fastest used about 5.27 GB more disk for the complete cache directory** in this
-measurement. The older **3.08 GB** figure is still meaningful, but it describes only the difference
-between the two sets of prepared-texture blob bytes. It is not the amount of extra free disk a user
-should budget for the complete cache.
+Balanced used to retain the final pack and every loose texture blob used to make it. That was the
+source of the older 4.76 GB figure. Pack-only retention removed the redundant copy after opening and
+authenticating the complete pack, reducing the same profile to about 2.3 GB. Uncompressed now costs
+about 2.9 GB more than Balanced, almost entirely in its larger pack.
 
-The evidence and caveats are in
-[the 2026-08-15 cold-preparation report](evidence/2026-08-15-cold-preparation-cost.md).
+The pack-only boundary and launch observations are in
+[the 2026-08-23 frontier report](evidence/2026-08-23-pack-only-balanced-frontier.md). The older
+[cold-preparation report](evidence/2026-08-15-cold-preparation-cost.md) remains the record of the
+previous loose-plus-pack layout.
 
-## What Fastest buys
+## What Uncompressed buys
 
 Balanced stores most prepared texture data as lossless LZ4 blocks and retains raw storage where
-compression saves little. Fastest stores every prepared pixel array raw.
+compression saves little. Uncompressed stores every prepared pixel array raw.
 
 A controlled exact-replay experiment on the same profile measured the startup access sequence at:
 
 | Texture representation | Pack bytes | Median exact replay |
 | --- | ---: | ---: |
 | Balanced comparison pack | 2.214 GB | 1,137.457ms |
-| Fastest raw pack | 5.338 GB | **691.143ms** |
+| Uncompressed raw pack | 5.338 GB | **691.143ms** |
 
-The **446.314ms** difference is a measured improvement at the texture replay seam. It is not a
-promise that every whole launch will improve by that amount; whole-launch impact depends on the
-machine, profile, and what else is on the critical path.
-
-For product copy, describe Fastest as a high-disk option and show the locally calculated estimate.
-When using the reference profile as an example, distinguish these two statements explicitly:
-
-- texture representation: about **3.08 GB** more prepared-texture blob data;
-- observed complete cache directory: about **5.27 GB** more disk in the August 15 cold preparation.
-
-Do not use the 3.08 GB texture-only delta as a whole-cache sizing claim.
+The **446.314ms** difference is real at the isolated texture replay seam. It did not produce a
+whole-launch win in the current test. A 5.2 GB uncompressed cache measured a 15.97-second median,
+while current Balanced repeatedly reached the low-15 to low-16-second range on the same machine.
+Uncompressed remains useful for experiments and machines where decompression behaves differently.
+It should not be the default, and the UI should not promise a startup gain.
 
 ## Preparation cost
 
-The same cold preparation measured **200.77 seconds** for Balanced: 3 minutes 21 seconds. The
-texture stage accounted for 195.28 seconds, roughly 97% of the measured preparation work. The game
-and mod files were already warm in the operating-system page cache from preceding launches, so this
-is a floor for that profile on that hardware, not a general first-run promise.
-The retained report did not record ambient temperature, thermal state, memory pressure, or
-competing processes, so this is not a quiet-machine preparation benchmark either.
+The current cold Balanced preparation reported **195.08 seconds**, with 193.16 seconds inside the
+texture stage. External wall time was 198.56 seconds. Uncompressed reported 184.35 seconds in its
+single corresponding preparation. Minimal reported 3.69 seconds because it skips textures.
 
-Fastest took 205.19 seconds in the single corresponding preparation. One run per policy is not
-enough to claim a preparation-speed difference; the storage policy is intended to change replay
-cost, not preparation time.
+These are one-run diagnostics on a development machine, not a ranking of preparation resource
+presets or a promise for another profile. The useful conclusion is the scale: texture preparation
+dominates the first Balanced build, then matching preparation becomes cheap. A warm pack-only
+Balanced preparation completed in 4.09 seconds after applying its stable learned order.
 
 ## Minimal disk after launch
 
@@ -147,7 +143,7 @@ machine is not enough evidence for a universal worker count.
 
 BC1/BC3 preparation remains experimental. It can reduce GPU-resident bytes substantially, but it is
 lossy and requires per-texture fidelity gates plus cross-driver validation. It is not part of the
-Balanced/Fastest lossless product choice and has no accepted runtime consumer yet.
+Balanced/Uncompressed lossless product choice and has no accepted runtime consumer yet.
 
 See the retained capability and fidelity evidence under `docs/evidence/` for that experimental work.
 

@@ -31,7 +31,7 @@ function preparationOverrideSummary(
   resourcePreset: PreparationState["resourcePreset"],
 ): string | null {
   const consequences: string[] = [];
-  if (textureStorage === "fastest") consequences.push("Uses more disk for a small startup gain");
+  if (textureStorage === "fastest") consequences.push("Keeps textures uncompressed and uses more disk");
   if (textureStorage === "minimal") consequences.push("Skips prepared textures to use much less disk");
   if (resourcePreset === "gentle") consequences.push("Uses fewer preparation resources");
   if (resourcePreset === "eager") consequences.push("Uses more preparation resources");
@@ -265,8 +265,9 @@ export function PreparationPage({
               <b>Default</b>
             </label>
             <label className={`choice-card ${textureStorage === "fastest" ? "choice-card--selected" : ""}`}>
-              <input type="radio" name="texture-storage" aria-label="Fastest texture storage" checked={textureStorage === "fastest"} onChange={() => setTextureStorage("fastest")} disabled={operationBlocked} />
-              <span><strong>Fastest</strong><small>Several GB more for a small startup gain</small></span>
+              <input type="radio" name="texture-storage" aria-label="Uncompressed texture storage" checked={textureStorage === "fastest"} onChange={() => setTextureStorage("fastest")} disabled={operationBlocked} />
+              <span><strong>Uncompressed</strong><small>More disk; useful for comparison and unusual hardware</small></span>
+              <b>Advanced</b>
             </label>
             <label className={`choice-card ${textureStorage === "minimal" ? "choice-card--selected" : ""}`}>
               <input type="radio" name="texture-storage" aria-label="Minimal disk use" checked={textureStorage === "minimal"} onChange={() => setTextureStorage("minimal")} disabled={operationBlocked} />

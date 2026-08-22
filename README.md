@@ -112,16 +112,19 @@ offer **Prepare with minimal disk** instead.
 
 | Mode | Immediately after preparation on this 83-mod profile | Observed preparation |
 | --- | ---: | ---: |
-| **Balanced** (default) | **4.76 GB** | 3m21s in one measured run |
-| **Minimal disk** | **10.9 MB** | 5.6s |
-| **Fastest** | **10.03 GB** | More disk for a small texture-replay gain |
+| **Balanced** (default) | **2.3 GB** | 3m15s in one measured run |
+| **Minimal disk** | **11 MB** | 3.7s |
+| **Uncompressed** | **5.2 GB** | 3m04s; no whole-launch win measured |
 
-Balanced needed **12.92 GB** free before starting because the safety check assumes a worst-case
-preparation bound; that larger number is not the finished cache size. Actual costs depend on the
-artwork in the enabled mods, and the app calculates them for the current profile. Minimal skips
-prepared textures while keeping the other startup indexes and caches. Those caches continue
-learning on the first launch. In a later measurement, Minimal grew from about 11 MB after
-preparation to about 204 MB after that learning launch. The measurements and CLI controls are in
+Balanced briefly writes checked loose texture data while constructing its final 2.3 GB pack, then
+removes the redundant copies after the pack opens successfully. The app therefore checks for more
+free space than the finished cache occupies. Actual costs depend on the artwork in the enabled
+mods, and the app calculates them for the current profile. Minimal skips prepared textures while
+keeping the other startup indexes and caches. Those caches continue learning on the first launch;
+on this profile, Minimal grew from about 11 MB after preparation to about 204 MB after that launch.
+The uncompressed option remains available as an advanced comparison and compatibility control. It
+used about 2.9 GB more than Balanced here without improving the measured whole launch. The current
+measurements and CLI controls are in
 [Performance and storage tradeoffs](docs/performance-storage-tradeoffs.md).
 
 Those preparation times came from one development session. The files were already warm in the OS
@@ -324,15 +327,14 @@ live in [Optimization history](docs/optimization-history.md), the
 ## Storage choices
 
 Balanced is the default. It keeps upload-ready texture pixels in LZ4 blocks when compression saves
-meaningful space and retains raw storage where compression buys little. Fastest keeps every pixel
-array raw and trades disk space for less decode CPU.
+meaningful space and retains raw storage where compression buys little. The advanced Uncompressed
+option keeps every pixel array raw and trades disk space for less decode CPU.
 
 On the 83-mod development profile, Balanced reduced the texture pack from 5.34 GB to 2.26 GB. Ten
 fresh-JVM replays measured the exact startup access order at 1,137ms for Balanced and 691ms for
-Fastest. The raw texture representation itself is about **3.08 GB** larger, and a later cold
-preparation measured the complete cache directories at about 4.76 GB for Balanced and 10.03 GB for
-Fastest, a roughly **5.27 GB** whole-cache difference on that profile. The exact replay seam improved
-by about 446ms; whole-launch impact varies with the machine and profile.
+Uncompressed. Current pack-only retention leaves about **2.3 GB** for Balanced and **5.2 GB** for
+Uncompressed on this profile. The exact replay seam improved by about 446ms, but Uncompressed did
+not improve the measured whole launch. Balanced remains the default.
 
 Preparation calculates decoded texture size, deduplication, reusable blobs, pack duplication, a
 conservative upper bound, and current filesystem space. It keeps at least 1 GiB in reserve and
