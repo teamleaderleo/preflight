@@ -42,6 +42,28 @@ class PreparedTexturePackOrderUtf8CanonicalTest {
     }
 
     @Test
+    void requiresTwoConsecutiveObservationsBeforeChangingAcceptedOrder() throws Exception {
+        String profile = "11".repeat(32);
+        Path file = temporaryDirectory.resolve("stable.spfo");
+        List<String> first = List.of("blobs/aa.spft", "blobs/bb.spft");
+        List<String> second = List.of("blobs/bb.spft", "blobs/aa.spft");
+
+        PreparedTexturePackOrderIO.observe(file, profile, first);
+        assertEquals(List.of(), PreparedTexturePackOrderIO.read(file, profile));
+        PreparedTexturePackOrderIO.observe(file, profile, first);
+        assertEquals(first, PreparedTexturePackOrderIO.read(file, profile));
+
+        PreparedTexturePackOrderIO.observe(file, profile, second);
+        assertEquals(first, PreparedTexturePackOrderIO.read(file, profile));
+        PreparedTexturePackOrderIO.observe(file, profile, first);
+        assertEquals(first, PreparedTexturePackOrderIO.read(file, profile));
+        PreparedTexturePackOrderIO.observe(file, profile, second);
+        assertEquals(first, PreparedTexturePackOrderIO.read(file, profile));
+        PreparedTexturePackOrderIO.observe(file, profile, second);
+        assertEquals(second, PreparedTexturePackOrderIO.read(file, profile));
+    }
+
+    @Test
     void rejectsGrowthDuringTheActualStreamRead() throws Exception {
         String profile = "12".repeat(32);
         Path file = temporaryDirectory.resolve("growing.spfo");

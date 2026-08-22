@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.PreparedTexturePackIO;
+import dev.starsector.preflight.core.PreparedTexturePackOrderIO;
 import dev.starsector.preflight.core.ResourceIndex;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
@@ -149,6 +150,44 @@ class PackedTextureRetentionTest {
     }
 
     @Test
+    void packOnlyHitCanApplyAStableOrderWithoutLooseBlobs() throws Exception {
+        Path root = directory.resolve("ordered-root");
+        Path first = root.resolve("graphics/first.png");
+        Path second = root.resolve("graphics/second.png");
+        writeImage(first, 0);
+        writeImage(second, 1);
+        Path cache = directory.resolve("ordered-cache");
+        ResourceIndex index = index(root, "8".repeat(64), List.of(first, second));
+        TextureBatchBuilder.Result built = TextureBatchBuilder.build(
+                index, cache, new TextureBatchBuilder.Options(1, 16 * MIB));
+        List<String> reversed = new java.util.ArrayList<>(
+                PackedTextureRetention.blobPaths(built.manifest()));
+        java.util.Collections.reverse(reversed);
+        PreparedTexturePackOrderIO.write(
+                PreparedTexturePackOrderIO.path(cache, built.manifest().profileFingerprint()),
+                built.manifest().profileFingerprint(), reversed);
+        PackedTextureRetention.release(cache, built.manifest());
+
+        TextureBatchBuilder.Result reused = TextureBatchBuilder.build(
+                index,
+                cache,
+                new TextureBatchBuilder.Options(1, 16 * MIB),
+                (path, expectedBytes, maximumBytes) -> {
+                    throw new AssertionError("pack-only reorder decoded its installed source");
+                },
+                path -> {
+                    throw new AssertionError("pack-only reorder hashed its installed source");
+                });
+
+        assertTrue(reused.packHit());
+        try (var pack = PreparedTexturePackIO.open(
+                reused.packPath(), built.manifest().profileFingerprint(), reversed)) {
+            assertTrue(pack.hasEntryOrder(reversed));
+        }
+        assertTrue(reused.diagnostics().stream().anyMatch(value -> value.contains("Reordered")));
+    }
+
+    @Test
     void packOnlyHitProbesButDoesNotRebuildAnUnsupportedCandidate() throws Exception {
         Path root = directory.resolve("unsupported-warm-root");
         Path source = root.resolve("graphics/warm.png");
@@ -232,11 +271,15 @@ class PackedTextureRetentionTest {
     }
 
     private static void writeImage(Path path) throws Exception {
+        writeImage(path, 0);
+    }
+
+    private static void writeImage(Path path, int seed) throws Exception {
         Files.createDirectories(path.getParent());
         BufferedImage image = new BufferedImage(8, 8, BufferedImage.TYPE_INT_ARGB);
         for (int y = 0; y < image.getHeight(); y++) {
             for (int x = 0; x < image.getWidth(); x++) {
-                image.setRGB(x, y, new Color(x * 20, y * 20, 80, 180).getRGB());
+                image.setRGB(x, y, new Color(x * 20, y * 20, 80 + seed, 180).getRGB());
             }
         }
         assertTrue(ImageIO.write(image, "png", path.toFile()));

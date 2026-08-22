@@ -239,6 +239,82 @@ public final class PreparedTexturePackIO {
         }
     }
 
+    /** Atomically rewrites an exact pack into a different physical order without loose blobs. */
+    public static boolean reorder(
+            Path target, String profileFingerprint, Collection<String> blobRelativePaths)
+            throws IOException {
+        validateProfile(profileFingerprint);
+        List<String> normalized = List.copyOf(normalizeOrderedPaths(blobRelativePaths));
+        if (normalized.isEmpty()) {
+            throw new IOException("Prepared texture pack cannot be empty");
+        }
+        Path absolute = target.toAbsolutePath().normalize();
+        Path temporary = absolute.resolveSibling(
+                absolute.getFileName() + ".tmp-" + ProcessHandle.current().pid() + "-" + System.nanoTime());
+        boolean moved = false;
+        try {
+            try (PreparedTexturePack source = open(absolute, profileFingerprint, normalized)) {
+                if (source.hasEntryOrder(normalized)) {
+                    return false;
+                }
+
+                List<Source> placeholders = new ArrayList<>(normalized.size());
+                long payloadLength = 0;
+                for (String relative : normalized) {
+                    // The exact lengths are filled while the authenticated source pack is copied.
+                    // A positive placeholder keeps the index shape fixed until then.
+                    placeholders.add(new Source(relative, absolute, payloadLength, 1, 0));
+                    payloadLength = Math.addExact(payloadLength, 1);
+                }
+                byte[] shape = encodeIndex(profileFingerprint, placeholders);
+
+                try (FileChannel output = FileChannel.open(temporary,
+                        StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+                    output.position(FIXED_HEADER_BYTES + (long) shape.length);
+                    ByteBuffer copyBuffer = ByteBuffer.allocate(
+                            PreparedTexturePackIntegrity.COPY_BUFFER_BYTES);
+                    List<Source> verified = new ArrayList<>(normalized.size());
+                    long offset = 0;
+                    for (String relative : normalized) {
+                        PreparedTexturePack.CopiedEntry copied =
+                                source.copyVerifiedEntry(relative, output, copyBuffer);
+                        verified.add(new Source(
+                                relative, absolute, offset, copied.length(), copied.crc32c()));
+                        offset = Math.addExact(offset, copied.length());
+                    }
+
+                    byte[] index = encodeIndex(profileFingerprint, verified);
+                    if (index.length != shape.length) {
+                        throw new IOException("Prepared texture pack index size changed during reorder");
+                    }
+                    output.position(0);
+                    ByteBuffer header = ByteBuffer.allocate(FIXED_HEADER_BYTES).order(ByteOrder.BIG_ENDIAN);
+                    header.put(MAGIC);
+                    header.putInt(FORMAT_VERSION);
+                    header.putInt(index.length);
+                    header.putLong(offset);
+                    header.put(Hashes.sha256Bytes(index));
+                    header.flip();
+                    writeFully(output, header);
+                    writeFully(output, ByteBuffer.wrap(index));
+                    output.force(true);
+                }
+            }
+            try (PreparedTexturePack reordered = open(temporary, profileFingerprint, normalized)) {
+                if (!reordered.hasEntryOrder(normalized)) {
+                    throw new IOException("Prepared texture pack reorder did not preserve requested order");
+                }
+            }
+            AtomicPublish.replace(temporary, absolute);
+            moved = true;
+            return true;
+        } finally {
+            if (!moved) {
+                Files.deleteIfExists(temporary);
+            }
+        }
+    }
+
     private static byte[] encodeIndex(String profile, List<Source> sources) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (DataOutputStream output = new DataOutputStream(bytes)) {

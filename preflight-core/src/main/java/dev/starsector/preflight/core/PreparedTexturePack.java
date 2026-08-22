@@ -2,6 +2,7 @@ package dev.starsector.preflight.core;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -82,6 +83,30 @@ public final class PreparedTexturePack implements AutoCloseable {
                 path + "!" + normalized);
     }
 
+    CopiedEntry copyVerifiedEntry(
+            String blobRelativePath, FileChannel output, ByteBuffer copyBuffer) throws IOException {
+        if (closed.get()) {
+            throw new IOException("Prepared texture pack is closed");
+        }
+        String normalized = ResourceIndex.normalizeRelativePath(blobRelativePath);
+        Range range = entries.get(normalized);
+        if (range == null) {
+            throw new IOException("Prepared texture pack has no entry for " + normalized);
+        }
+        int copiedCrc32c = PreparedTexturePackIntegrity.copyVerifiedSpftRange(
+                channel,
+                Math.addExact(payloadOffset, range.offset()),
+                range.length(),
+                fileBytes,
+                output,
+                copyBuffer,
+                path + "!" + normalized);
+        if (copiedCrc32c != range.crc32c()) {
+            throw new IOException("Prepared texture pack entry CRC32C mismatch: " + normalized);
+        }
+        return new CopiedEntry(range.length(), range.crc32c());
+    }
+
     @Override
     public void close() throws IOException {
         if (closed.compareAndSet(false, true)) {
@@ -95,5 +120,8 @@ public final class PreparedTexturePack implements AutoCloseable {
                 throw new IllegalArgumentException("Prepared texture pack range is invalid");
             }
         }
+    }
+
+    record CopiedEntry(int length, int crc32c) {
     }
 }

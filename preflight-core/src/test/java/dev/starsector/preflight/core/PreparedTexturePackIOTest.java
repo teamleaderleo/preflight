@@ -45,6 +45,40 @@ class PreparedTexturePackIOTest {
     }
 
     @Test
+    void reordersAnExactPackAfterLooseBlobsAreGone() throws Exception {
+        Path cache = temporaryDirectory.resolve("reorder-cache");
+        Files.createDirectories(cache.resolve("blobs"));
+        String profile = "31".repeat(32);
+        String firstPath = "blobs/first.spft";
+        String secondPath = "blobs/second.spft";
+        PreparedTexture first = texture("41".repeat(32), new byte[] {
+                1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
+        });
+        PreparedTexture second = texture("42".repeat(32), new byte[] {
+                12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1
+        });
+        PreparedTextureIO.write(cache.resolve(firstPath), first);
+        PreparedTextureIO.write(cache.resolve(secondPath), second);
+        Path pack = PreparedTexturePackIO.path(cache, profile);
+        PreparedTexturePackIO.write(
+                pack, profile, cache, List.of(firstPath, secondPath));
+        Files.delete(cache.resolve(firstPath));
+        Files.delete(cache.resolve(secondPath));
+
+        assertEquals(true, PreparedTexturePackIO.reorder(
+                pack, profile, List.of(secondPath, firstPath)));
+
+        try (PreparedTexturePack opened = PreparedTexturePackIO.open(
+                pack, profile, List.of(firstPath, secondPath))) {
+            assertEquals(true, opened.hasEntryOrder(List.of(secondPath, firstPath)));
+            assertArrayEquals(first.pixels(), opened.readTrusted(firstPath).pixels());
+            assertArrayEquals(second.pixels(), opened.readTrusted(secondPath).pixels());
+        }
+        assertEquals(false, PreparedTexturePackIO.reorder(
+                pack, profile, List.of(secondPath, firstPath)));
+    }
+
+    @Test
     void observedOrderRoundTripsDistinctPathsAndRejectsCorruption() throws Exception {
         String profile = "ef".repeat(32);
         Path order = PreparedTexturePackOrderIO.path(temporaryDirectory, profile);
