@@ -84,6 +84,17 @@ class TextureCompatibilityRuntimeTest {
 
         TextureCompatibilityRuntime.beginSession();
         assertEquals(
+                List.of(),
+                PreparedTexturePackOrderIO.read(
+                        PreparedTexturePackOrderIO.path(
+                                fixture.cache(), manifest.profileFingerprint()),
+                        manifest.profileFingerprint()));
+
+        assertTrue(TextureCompatibilityRuntime.configure(
+                fixture.cache(), fixture.manifest(), fixture.index()));
+        assertNotNull(TextureCompatibilityRuntime.load("graphics/test.png"));
+        TextureCompatibilityRuntime.beginSession();
+        assertEquals(
                 List.of(relative),
                 PreparedTexturePackOrderIO.read(
                         PreparedTexturePackOrderIO.path(

@@ -38,6 +38,7 @@ import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 
 final class TextureBatchBuilder {
+    private static final long PACK_REORDER_RESERVE_BYTES = 1024L * 1024L * 1024L;
     private static final Set<String> IMAGE_EXTENSIONS = Set.of(
             "png", "jpg", "jpeg", "bmp", "gif", "wbmp", "webp", "tga");
     private static final Set<String> IMAGE_IO_READER_EXTENSIONS = imageIoReaderExtensions();
@@ -219,6 +220,37 @@ final class TextureBatchBuilder {
         if (reuse == null) {
             return null;
         }
+        List<String> logicalOrder = reuse.manifest().entries().values().stream()
+                .map(TextureManifest.Entry::blobRelativePath)
+                .distinct()
+                .toList();
+        List<String> preferredOrder = preferredPackOrder(
+                cacheRoot, reuse.manifest().profileFingerprint(), logicalOrder);
+        String diagnostic = "Reused the exact complete prepared texture pack.";
+        try (PreparedTexturePack pack = PreparedTexturePackIO.open(
+                reuse.packPath(), reuse.manifest().profileFingerprint(), logicalOrder)) {
+            if (pack.hasEntryOrder(preferredOrder)) {
+                preferredOrder = List.of();
+            }
+        } catch (IOException | ArithmeticException ignored) {
+            // Physical tuning is optional. The already-validated pack remains authoritative.
+        }
+        if (!preferredOrder.isEmpty()) {
+            try {
+                long required = Math.addExact(reuse.packBytes(), PACK_REORDER_RESERVE_BYTES);
+                long usable = Files.getFileStore(reuse.packPath()).getUsableSpace();
+                if (usable >= required && PreparedTexturePackIO.reorder(
+                        reuse.packPath(), reuse.manifest().profileFingerprint(), preferredOrder)) {
+                    diagnostic = "Reordered the exact complete prepared texture pack after the"
+                            + " access order repeated.";
+                } else if (usable < required) {
+                    diagnostic = "Reused the exact complete prepared texture pack; its optional"
+                            + " physical reorder needs more temporary disk space.";
+                }
+            } catch (IOException | ArithmeticException ignored) {
+                // Physical tuning is optional. The already-validated pack remains authoritative.
+            }
+        }
         long packDuration = System.nanoTime() - packStarted;
         return new Result(
                 reuse.manifest(),
@@ -240,7 +272,7 @@ final class TextureBatchBuilder {
                 0,
                 reuse.pixelBytes(),
                 0,
-                List.of("Reused the exact complete prepared texture pack."),
+                List.of(diagnostic),
                 System.nanoTime() - started);
     }
 

@@ -25,7 +25,8 @@ import java.util.List;
 /** Checksummed observed access order used to lay out a profile's next texture pack. */
 public final class PreparedTexturePackOrderIO {
     private static final byte[] MAGIC = {'S', 'P', 'F', 'O'};
-    public static final int FORMAT_VERSION = 1;
+    public static final int FORMAT_VERSION = 2;
+    private static final int LEGACY_FORMAT_VERSION = 1;
     private static final int CHECKSUM_BYTES = 32;
     private static final int HEADER_BYTES = MAGIC.length + Integer.BYTES * 2;
     private static final int MAX_FILE_BYTES = 64 * 1024 * 1024;
@@ -44,7 +45,44 @@ public final class PreparedTexturePackOrderIO {
     public static void write(
             Path target, String profileFingerprint, Collection<String> blobRelativePaths)
             throws IOException {
-        byte[] payload = encode(profileFingerprint, blobRelativePaths);
+        List<String> accepted = normalizePaths(blobRelativePaths);
+        byte[] payload = encode(profileFingerprint, accepted, List.of());
+        writePayload(target, payload);
+    }
+
+    /**
+     * Records one launch's order without letting a single atypical launch replace established
+     * tuning. A new or changed order must be observed twice consecutively before {@link #read}
+     * exposes it to preparation.
+     */
+    public static void observe(
+            Path target, String profileFingerprint, Collection<String> blobRelativePaths)
+            throws IOException {
+        List<String> observed = normalizePaths(blobRelativePaths);
+        History current;
+        try {
+            current = Files.isRegularFile(target)
+                    ? readHistory(target, profileFingerprint, MAX_FILE_BYTES)
+                    : History.empty();
+        } catch (IOException | IllegalArgumentException ignored) {
+            current = History.empty();
+        }
+
+        History next;
+        if (observed.equals(current.accepted())) {
+            if (current.candidate().isEmpty()) {
+                return;
+            }
+            next = new History(current.accepted(), List.of());
+        } else if (observed.equals(current.candidate())) {
+            next = new History(observed, List.of());
+        } else {
+            next = new History(current.accepted(), observed);
+        }
+        writePayload(target, encode(profileFingerprint, next.accepted(), next.candidate()));
+    }
+
+    private static void writePayload(Path target, byte[] payload) throws IOException {
         long total = HEADER_BYTES + (long) payload.length + CHECKSUM_BYTES;
         if (total > MAX_FILE_BYTES) {
             throw new IOException("Prepared texture pack order exceeds its safety limit");
@@ -96,6 +134,26 @@ public final class PreparedTexturePackOrderIO {
             String expectedProfile,
             int maximumBytes,
             String sourceLabel) throws IOException {
+        return readHistory(input, expectedProfile, maximumBytes, sourceLabel).accepted();
+    }
+
+    private static History readHistory(
+            Path source, String expectedProfile, int maximumBytes) throws IOException {
+        validateReadLimit(maximumBytes);
+        long size = Files.size(source);
+        if (size < minimumFileBytes() || size > maximumBytes) {
+            throw new IOException("Prepared texture pack order size is invalid: " + source);
+        }
+        try (InputStream input = Files.newInputStream(source, StandardOpenOption.READ)) {
+            return readHistory(input, expectedProfile, maximumBytes, source.toString());
+        }
+    }
+
+    private static History readHistory(
+            InputStream input,
+            String expectedProfile,
+            int maximumBytes,
+            String sourceLabel) throws IOException {
         validateReadLimit(maximumBytes);
         byte[] bytes = input.readNBytes(Math.addExact(maximumBytes, 1));
         if (bytes.length > maximumBytes) {
@@ -110,7 +168,8 @@ public final class PreparedTexturePackOrderIO {
             if (!java.util.Arrays.equals(MAGIC, data.readNBytes(MAGIC.length))) {
                 throw new IOException("Prepared texture pack order magic header is invalid");
             }
-            if (data.readInt() != FORMAT_VERSION) {
+            int version = data.readInt();
+            if (version != FORMAT_VERSION && version != LEGACY_FORMAT_VERSION) {
                 throw new IOException("Unsupported prepared texture pack order version");
             }
             int payloadLength = data.readInt();
@@ -124,12 +183,12 @@ public final class PreparedTexturePackOrderIO {
                     || !MessageDigest.isEqual(checksum, Hashes.sha256Bytes(payload))) {
                 throw new IOException("Prepared texture pack order checksum mismatch");
             }
-            return decode(payload, expectedProfile);
+            return decode(payload, expectedProfile, version);
         }
     }
 
-    private static byte[] encode(String profile, Collection<String> paths) throws IOException {
-        if (profile == null || profile.isEmpty() || paths == null || paths.size() > MAX_ENTRIES) {
+    private static List<String> normalizePaths(Collection<String> paths) {
+        if (paths == null || paths.size() > MAX_ENTRIES) {
             throw new IllegalArgumentException("Prepared texture pack order is invalid");
         }
         LinkedHashSet<String> normalized = new LinkedHashSet<>();
@@ -139,40 +198,74 @@ public final class PreparedTexturePackOrderIO {
         if (normalized.isEmpty()) {
             throw new IllegalArgumentException("Prepared texture pack order cannot be empty");
         }
+        return List.copyOf(normalized);
+    }
+
+    private static byte[] encode(
+            String profile, Collection<String> accepted, Collection<String> candidate)
+            throws IOException {
+        if (profile == null || profile.isEmpty()
+                || accepted == null || accepted.size() > MAX_ENTRIES
+                || candidate == null || candidate.size() > MAX_ENTRIES
+                || (accepted.isEmpty() && candidate.isEmpty())) {
+            throw new IllegalArgumentException("Prepared texture pack order is invalid");
+        }
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (DataOutputStream output = new DataOutputStream(bytes)) {
             writeString(output, profile);
-            output.writeInt(normalized.size());
-            for (String path : normalized) {
-                writeString(output, path);
-            }
+            writePaths(output, accepted);
+            writePaths(output, candidate);
         }
         return bytes.toByteArray();
     }
 
-    private static List<String> decode(byte[] payload, String expectedProfile) throws IOException {
+    private static void writePaths(DataOutputStream output, Collection<String> paths)
+            throws IOException {
+        output.writeInt(paths.size());
+        for (String path : paths) {
+            String normalized = ResourceIndex.normalizeRelativePath(path);
+            if (!path.equals(normalized)) {
+                throw new IllegalArgumentException("Prepared texture pack order path is not canonical");
+            }
+            writeString(output, path);
+        }
+    }
+
+    private static History decode(byte[] payload, String expectedProfile, int version) throws IOException {
         try (DataInputStream input = new DataInputStream(new ByteArrayInputStream(payload))) {
             if (!readString(input).equals(expectedProfile)) {
                 throw new IOException("Prepared texture pack order profile does not match");
             }
-            int count = input.readInt();
-            if (count <= 0 || count > MAX_ENTRIES) {
-                throw new IOException("Prepared texture pack order entry count is invalid");
-            }
-            LinkedHashSet<String> paths = new LinkedHashSet<>();
-            for (int index = 0; index < count; index++) {
-                String path = readCanonicalRelativePath(input);
-                if (!paths.add(path)) {
-                    throw new IOException("Prepared texture pack order contains a duplicate path");
-                }
-            }
+            List<String> accepted = readPaths(input, version != LEGACY_FORMAT_VERSION);
+            List<String> candidate = version == LEGACY_FORMAT_VERSION
+                    ? List.of()
+                    : readPaths(input, true);
             if (input.available() != 0) {
                 throw new IOException("Prepared texture pack order contains trailing data");
             }
-            return List.copyOf(paths);
+            if (accepted.isEmpty() && candidate.isEmpty()) {
+                throw new IOException("Prepared texture pack order contains no observations");
+            }
+            return new History(accepted, candidate);
         } catch (IllegalArgumentException error) {
             throw new IOException("Prepared texture pack order is invalid", error);
         }
+    }
+
+    private static List<String> readPaths(DataInputStream input, boolean allowEmpty)
+            throws IOException {
+        int count = input.readInt();
+        if (count < 0 || count > MAX_ENTRIES || !allowEmpty && count == 0) {
+            throw new IOException("Prepared texture pack order entry count is invalid");
+        }
+        LinkedHashSet<String> paths = new LinkedHashSet<>();
+        for (int index = 0; index < count; index++) {
+            String path = readCanonicalRelativePath(input);
+            if (!paths.add(path)) {
+                throw new IOException("Prepared texture pack order contains a duplicate path");
+            }
+        }
+        return List.copyOf(paths);
     }
 
     private static void writeString(DataOutputStream output, String value) throws IOException {
@@ -232,5 +325,11 @@ public final class PreparedTexturePackOrderIO {
 
     private static int minimumFileBytes() {
         return HEADER_BYTES + CHECKSUM_BYTES;
+    }
+
+    private record History(List<String> accepted, List<String> candidate) {
+        private static History empty() {
+            return new History(List.of(), List.of());
+        }
     }
 }

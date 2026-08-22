@@ -614,7 +614,7 @@ public final class TextureCompatibilityRuntime {
                 snapshot = List.copyOf(packAccessOrder);
             }
             try {
-                PreparedTexturePackOrderIO.write(
+                PreparedTexturePackOrderIO.observe(
                         PreparedTexturePackOrderIO.path(cacheRoot, manifest.profileFingerprint()),
                         manifest.profileFingerprint(), snapshot);
             } catch (IOException | IllegalArgumentException ignored) {
