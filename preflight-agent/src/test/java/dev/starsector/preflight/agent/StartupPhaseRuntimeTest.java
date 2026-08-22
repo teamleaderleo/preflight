@@ -83,6 +83,26 @@ class StartupPhaseRuntimeTest {
         assertTrue(json.contains("\"label\":\"loader-category-23\""));
     }
 
+    @Test
+    void samplesReviewedHotCallsWithoutTimingEveryCall() throws Exception {
+        Path report = temporaryDirectory.resolve("sampled-hot-calls.json");
+        StartupPhaseRuntime.beginSession(report);
+        StartupPhaseRuntime.installed();
+        for (int index = 0; index < 32; index++) {
+            long token = StartupPhaseRuntime.sampledHotCallStart(
+                    WeaponHydrationBreakdownPlan.WEAPON_SLOT);
+            StartupPhaseRuntime.sampledHotCallEnd(
+                    WeaponHydrationBreakdownPlan.WEAPON_SLOT, token);
+        }
+        StartupPhaseRuntime.mark("flush");
+
+        String json = Files.readString(report);
+        assertTrue(json.contains("\"label\":\"weapon-json-numeric-conversion\""));
+        assertTrue(json.contains("\"sampleRate\":16"));
+        assertTrue(json.contains("\"calls\":32"));
+        assertTrue(json.contains("\"samples\":2"));
+    }
+
     private static final class ExamplePlugin {
     }
 }

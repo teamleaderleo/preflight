@@ -80,6 +80,20 @@ def main() -> int:
             print(f"  {cost / 1000:>7.2f}s  {call.get('calls', 0):>7} calls  "
                   f"{maximum / 1000:>7.2f}s max  {call['label']}")
 
+    sampled_hot_calls = data.get("sampledHotCalls", [])
+    if sampled_hot_calls and any(call.get("calls", 0) for call in sampled_hot_calls):
+        print("\n== sampled exact loader calls ==")
+        for call in sorted(sampled_hot_calls,
+                           key=lambda item: -item.get("estimatedDurationMillis", 0)):
+            if not call.get("calls", 0):
+                continue
+            print(f"  ~{call.get('estimatedDurationMillis', 0) / 1000:>6.2f}s  "
+                  f"{call.get('calls', 0):>7} calls  "
+                  f"1/{call.get('sampleRate', 0)} sampled  "
+                  f"{call.get('sampledMeanNanos', 0) / 1000:>7.2f} us mean  "
+                  f"{call.get('sampledMaxNanos', 0) / 1_000_000:>7.2f} ms max  "
+                  f"{call['label']}")
+
     hot_paths = data.get("hotPaths", [])
     if hot_paths:
         print("\n== exact callback path cardinality ==")
