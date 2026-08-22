@@ -69,6 +69,8 @@ class TexturePaddingRuntimeGateTest {
         TexturePaddingRuntime.foldBypassInstalled();
 
         assertTrue(TexturePaddingRuntime.enabled());
+        assertFalse(TexturePaddingRuntime.unpadded(),
+                "capability alone cannot change a fallback allocation");
         assertEquals("supported", TexturePaddingRuntime.report().get("npotCapability"));
         assertEquals(true, TexturePaddingRuntime.report().get("openGl20"));
     }
@@ -80,6 +82,8 @@ class TexturePaddingRuntimeGateTest {
         TexturePaddingRuntime.foldBypassInstalled();
 
         assertTrue(TexturePaddingRuntime.enabled());
+        assertFalse(TexturePaddingRuntime.unpadded(),
+                "the fold opens only for an in-flight prepared upload");
         assertEquals(true, TexturePaddingRuntime.report().get("arbTextureNonPowerOfTwo"));
     }
 
