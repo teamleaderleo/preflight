@@ -792,6 +792,36 @@ pub(crate) fn get_mod_readiness(app: AppHandle, game: String) -> Result<Value, S
 }
 
 #[tauri::command]
+pub(crate) async fn check_setup(app: AppHandle, game: String) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || check_setup_blocking(&app, &game))
+        .await
+        .map_err(|error| format!("The setup check stopped unexpectedly: {error}"))?
+}
+
+fn check_setup_blocking(app: &AppHandle, game: &str) -> Result<Value, String> {
+    let directory = canonical_game_directory(game)?;
+    let paths = EnginePaths::resolve(app)?;
+    let mut command = paths.command();
+    command
+        .arg("analyze")
+        .arg("setup")
+        .arg("--game")
+        .arg(directory)
+        .arg("--json");
+    let output = command
+        .output_within(READ_BUDGET)
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    if !output.status.success() {
+        return Err(child_error(
+            "Preflight could not check the mod setup",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned unreadable setup-check data: {error}"))
+}
+
+#[tauri::command]
 pub(crate) fn get_cache(app: AppHandle, game: String) -> Result<Value, String> {
     let directory = canonical_game_directory(&game)?;
     let paths = EnginePaths::resolve(&app)?;

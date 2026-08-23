@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "vitest";
 import {
   browserPreviewScenario,
+  checkSetup,
   checkForUpdate,
   deleteProfile,
   getCache,
@@ -87,6 +88,22 @@ test("setup, low-disk, and cache-repair previews expose safe failure states", as
   expect(await getCacheHealth("preview")).toMatchObject({
     status: "repair-needed",
     repairFiles: 3,
+  });
+});
+
+test("setup analysis previews cover clean and broken mod sets", async () => {
+  useScenario("ready");
+  expect(await checkSetup("preview")).toMatchObject({
+    format: "starsector-preflight-setup-analysis-v1",
+    ready: true,
+    findings: [],
+  });
+
+  useScenario("mod-problems");
+  expect(await checkSetup("preview")).toMatchObject({
+    ready: false,
+    counts: { blocking: 1 },
+    findings: [{ code: "mod-metadata.required-dependency-disabled" }],
   });
 });
 

@@ -7,6 +7,7 @@ import type {
   CacheInspection,
   DesktopHomeState,
   ModReadiness,
+  SetupAnalysisResult,
   CacheRepair,
   CacheSnapshot,
   CacheCleanupPlan,
@@ -294,6 +295,29 @@ export async function getModReadiness(game: string): Promise<ModReadiness> {
   if (!isDesktopHost()) return previewModReadiness();
   return firstHomeStateField(game, "modReadiness")
     ?? invoke<ModReadiness>("get_mod_readiness", { game });
+}
+
+export async function checkSetup(game: string): Promise<SetupAnalysisResult> {
+  if (!isDesktopHost()) {
+    const finding = browserPreviewScenario() === "mod-problems"
+      ? previewModReadiness().findings[0]
+      : undefined;
+    return {
+      format: "starsector-preflight-setup-analysis-v1",
+      installationIdentity: "install-v1:preview",
+      profileFingerprint: "preview-profile",
+      ready: !finding,
+      counts: {
+        blocking: finding ? 1 : 0,
+        warning: 0,
+        info: 0,
+        unknown: 0,
+      },
+      findings: finding ? [finding] : [],
+      unavailableProviders: [],
+    };
+  }
+  return invoke<SetupAnalysisResult>("check_setup", { game });
 }
 
 export async function getOperationState(includeDurable = false): Promise<OperationSnapshot> {

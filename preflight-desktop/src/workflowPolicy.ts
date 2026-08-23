@@ -18,6 +18,7 @@ export interface WorkflowState {
   cleanupBusy: boolean;
   launcherSaving: boolean;
   profileBusy: boolean;
+  setupChecking: boolean;
   diagnosticsBusy: boolean;
   reportUploading: boolean;
   reportFinalizing: boolean;
@@ -73,6 +74,9 @@ export function blockingWorkflow(state: WorkflowState): BlockingWorkflow | null 
   }
   if (state.profileBusy) {
     return { reason: "Updating the saved mod profile", owner: "mods" };
+  }
+  if (state.setupChecking) {
+    return { reason: "Checking the mod setup", owner: "mods" };
   }
   if (state.diagnosticsBusy) {
     return { reason: "Creating a support file", owner: "help" };

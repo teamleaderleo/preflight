@@ -2953,6 +2953,72 @@ h2 {
   align-items: start;
 }
 
+.setup-check-card {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 20px 24px;
+}
+
+.setup-check-card__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.setup-check-card__heading h2,
+.setup-check-card__heading p {
+  margin: 0;
+}
+
+.setup-check-card__heading p {
+  margin-top: 4px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.setup-check-card__heading .button {
+  min-width: 148px;
+}
+
+.setup-check-result {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface);
+}
+
+.setup-check-result--ready {
+  border-color: color-mix(in srgb, var(--success) 42%, var(--line));
+}
+
+.setup-check-result--warning {
+  border-color: color-mix(in srgb, var(--warning) 42%, var(--line));
+}
+
+.setup-check-result--blocking {
+  border-color: color-mix(in srgb, var(--danger) 46%, var(--line));
+}
+
+.setup-check-result ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.setup-check-result small {
+  color: var(--ink-soft);
+}
+
+.setup-check-result li span,
+.setup-check-result li small {
+  display: block;
+}
+
 .mod-readiness {
   margin-bottom: 12px;
   border: 1px solid color-mix(in srgb, var(--warning) 38%, var(--line));
@@ -4043,6 +4109,15 @@ footer {
   .profiles-grid,
   .launch-settings-grid {
     grid-template-columns: 1fr;
+  }
+
+  .setup-check-card__heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .setup-check-card__heading .button {
+    width: 100%;
   }
 
   .settings-grid {

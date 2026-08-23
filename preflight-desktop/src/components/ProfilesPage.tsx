@@ -4,10 +4,12 @@ import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
 import { formatSavedAt, shortPath } from "../uiFormat";
 import type { useProfiles } from "../useProfiles";
+import type { useSetupCheck } from "../useSetupCheck";
 import { filterProfileNames, useProfileSearch } from "../useProfileSearch";
 import type { NoticeTone } from "../types";
 
 type ProfilesState = ReturnType<typeof useProfiles>;
+type SetupCheckState = ReturnType<typeof useSetupCheck>;
 
 type ReviewReturnTarget = {
   profileName: string;
@@ -18,10 +20,11 @@ interface ProfilesPageProps {
   message: string;
   messageTone: NoticeTone;
   profilesState: ProfilesState;
+  setupCheck: SetupCheckState;
   operationBlocked: boolean;
 }
 
-export function ProfilesPage({ message, messageTone, profilesState, operationBlocked }: ProfilesPageProps) {
+export function ProfilesPage({ message, messageTone, profilesState, setupCheck, operationBlocked }: ProfilesPageProps) {
   const profileSearch = useProfileSearch();
   const activationReviewRef = useRef<HTMLElement>(null);
   const mutationReviewRef = useRef<HTMLElement>(null);
@@ -82,6 +85,18 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
   const modProblemLabel = blockingModProblems > 0
     ? `${blockingModProblems} mod problem${blockingModProblems === 1 ? "" : "s"}`
     : `${otherModProblems} mod warning${otherModProblems === 1 ? "" : "s"}`;
+  const checkedFindings = setupCheck.result?.findings.filter((finding) => finding.severity !== "info") ?? [];
+  const checkedProblemCount = setupCheck.result?.counts.blocking ?? 0;
+  const checkedReviewCount = (setupCheck.result?.counts.warning ?? 0)
+    + (setupCheck.result?.counts.unknown ?? 0);
+  const setupCheckIncomplete = (setupCheck.result?.unavailableProviders.length ?? 0) > 0;
+  const setupCheckLabel = checkedProblemCount > 0
+    ? `${checkedProblemCount} problem${checkedProblemCount === 1 ? "" : "s"} found`
+    : checkedReviewCount > 0
+      ? `${checkedReviewCount} item${checkedReviewCount === 1 ? "" : "s"} to review`
+      : setupCheckIncomplete
+        ? "Check incomplete"
+        : "No problems found";
 
   useEffect(() => {
     if (activationPlan) {
@@ -129,26 +144,44 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
   return (
     <div className="profiles-page">
       <NoticeBanner message={message} tone={messageTone} />
-      {modReadinessLoading && !modReadiness ? (
-        <div className="mod-readiness mod-readiness--loading" role="status">Checking dependencies…</div>
-      ) : modProblemCount > 0 ? (
-        <section className={`mod-readiness ${blockingModProblems > 0 ? "mod-readiness--blocking" : "mod-readiness--warning"}`} aria-label="Current mod setup needs attention">
-          <details>
-            <summary>{modProblemLabel}<span>Review</span></summary>
-            <ul>
-              {visibleModProblems.slice(0, 8).map((finding) => (
+      <section className="card setup-check-card" aria-label="Mod check">
+        <div className="setup-check-card__heading">
+          <div><h2>Mod check</h2><p>Checks dependencies and common broken references.</p></div>
+          <button className="button button--primary" type="button" onClick={() => void setupCheck.run()} disabled={operationBlocked}>
+            {setupCheck.checking ? "Checking…" : setupCheck.result ? "Check again" : "Check setup"}
+          </button>
+        </div>
+        {setupCheck.result ? (
+          <div className={`setup-check-result ${checkedProblemCount > 0 ? "setup-check-result--blocking" : checkedReviewCount > 0 || setupCheckIncomplete ? "setup-check-result--warning" : "setup-check-result--ready"}`} role="status">
+            <strong>{setupCheckLabel}</strong>
+            {checkedFindings.length > 0 ? (
+              <ul>{checkedFindings.slice(0, 20).map((finding) => (
                 <li key={`${finding.code}:${finding.summary}`}>
-                  <strong>{finding.summary}</strong>
+                  <span>{finding.summary}</span>
+                  {finding.actions[0] ? <small>{finding.actions[0]}</small> : null}
                 </li>
-              ))}
-            </ul>
-            {visibleModProblems.length > 8 ? <small>{visibleModProblems.length - 8} more</small> : null}
-            <button className="button button--quiet button--compact" type="button" onClick={() => void refreshModReadiness()} disabled={modReadinessLoading}>
-              {modReadinessLoading ? "Checking…" : "Check again"}
-            </button>
-          </details>
-        </section>
-      ) : null}
+              ))}</ul>
+            ) : null}
+            {checkedFindings.length > 20 ? <small>{checkedFindings.length - 20} more</small> : null}
+            {setupCheck.result.unavailableProviders.length > 0 ? <small>Some checks couldn't finish. Try again after closing other mod tools.</small> : null}
+          </div>
+        ) : modProblemCount > 0 ? (
+          <div className={`mod-readiness ${blockingModProblems > 0 ? "mod-readiness--blocking" : "mod-readiness--warning"}`}>
+            <details>
+              <summary>{modProblemLabel}<span>Review</span></summary>
+              <ul>
+                {visibleModProblems.slice(0, 8).map((finding) => (
+                  <li key={`${finding.code}:${finding.summary}`}><strong>{finding.summary}</strong></li>
+                ))}
+              </ul>
+              {visibleModProblems.length > 8 ? <small>{visibleModProblems.length - 8} more</small> : null}
+              <button className="button button--quiet button--compact" type="button" onClick={() => void refreshModReadiness()} disabled={modReadinessLoading}>
+                {modReadinessLoading ? "Checking…" : "Refresh"}
+              </button>
+            </details>
+          </div>
+        ) : null}
+      </section>
       <div className="profiles-grid">
         <section className="card profile-list-card">
           <div className="card__heading">
