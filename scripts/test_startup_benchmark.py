@@ -21,6 +21,8 @@ SCRIPT_PATH = Path(__file__).with_name("run-startup-benchmark.sh")
 SCRIPT_TEXT = SCRIPT_PATH.read_text(encoding="utf-8")
 PUBLIC_SCRIPT_PATH = Path(__file__).with_name("benchmark-startup.sh")
 PUBLIC_SCRIPT_TEXT = PUBLIC_SCRIPT_PATH.read_text(encoding="utf-8")
+PROBE_SCRIPT_PATH = Path(__file__).with_name("probe-launch.sh")
+PROBE_SCRIPT_TEXT = PROBE_SCRIPT_PATH.read_text(encoding="utf-8")
 
 MODULE_PATH = Path(__file__).with_name("starsector_benchmark_report.py")
 spec = importlib.util.spec_from_file_location("starsector_benchmark_report", MODULE_PATH)
@@ -93,6 +95,32 @@ class PublicEntryPointTest(unittest.TestCase):
             SCRIPT_TEXT.count('kill "$watchdog" >/dev/null 2>&1 || true'),
             SCRIPT_TEXT.count('wait "$watchdog" >/dev/null 2>&1 || true'),
         )
+
+    def test_detailed_probe_reuses_the_same_cheap_engine_boundaries(self):
+        self.assertIn('find pom.xml preflight-*/pom.xml preflight-*/src', PROBE_SCRIPT_TEXT)
+        self.assertIn('doctor --game "$GAME" --no-scan', PROBE_SCRIPT_TEXT)
+        self.assertIn('--engine) ENGINE="$2"', PROBE_SCRIPT_TEXT)
+
+    def test_detailed_probe_stops_the_exact_published_runtime(self):
+        stop = re.search(
+            r"^stop_owned_game\(\) \{(?P<body>.*?)\n\}",
+            PROBE_SCRIPT_TEXT,
+            re.DOTALL | re.M,
+        )
+        self.assertIsNotNone(stop, "stop_owned_game not found")
+        body = stop.group("body")
+        self.assertIn('runtime-process.json', body)
+        self.assertIn('grep -qx "$runtime_pid" <<< "$tree"', body)
+        self.assertLess(body.index('kill "$runtime_pid"'), body.index('for target in $tree'))
+
+    def test_detailed_probe_does_not_rescan_every_java_process_while_waiting(self):
+        cleanup = re.search(
+            r"^cleanup\(\) \{(?P<body>.*?)\n\}",
+            PROBE_SCRIPT_TEXT,
+            re.DOTALL | re.M,
+        )
+        self.assertIsNotNone(cleanup, "cleanup not found")
+        self.assertNotIn('for _ in $(seq 1 15)', cleanup.group("body"))
 
 
 class ConditionTest(unittest.TestCase):

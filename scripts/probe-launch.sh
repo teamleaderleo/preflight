@@ -4,6 +4,7 @@
 set -euo pipefail
 
 GAME="${STARSECTOR_HOME:-/Applications/Starsector.app}"
+ENGINE=""
 LABEL=""
 MODE="fast"
 TIMEOUT_SECONDS=400
@@ -15,6 +16,7 @@ while [[ $# -gt 0 ]]; do
         --mode) MODE="$2"; shift 2 ;;
         --label) LABEL="$2"; shift 2 ;;
         --game) GAME="$2"; shift 2 ;;
+        --engine) ENGINE="$2"; shift 2 ;;
         --timeout-seconds) TIMEOUT_SECONDS="$2"; shift 2 ;;
         --) shift; EXTRA=("$@"); break ;;
         -h|--help)
@@ -24,6 +26,7 @@ Usage: scripts/benchmark-startup.sh --details [OPTIONS]
   --mode NAME         fast, enabled, adapter, or prepared (default: fast)
   --label NAME        Name the saved diagnostic run
   --game PATH         Starsector installation
+  --engine PATH       Existing preflight.jar or installed Preflight app
   --timeout-seconds N Stop waiting after N seconds
   -- EXTRA_FLAGS      Append diagnostic engine flags
 USAGE
@@ -56,9 +59,52 @@ esac
 [[ -f pom.xml ]] || { echo "Run this from the Preflight repository root." >&2; exit 1; }
 [[ -d "$GAME" ]] || { echo "Starsector installation not found: $GAME" >&2; exit 1; }
 
-JAR=preflight-cli/target/preflight.jar
+CHECKOUT_JAR=preflight-cli/target/preflight.jar
 DETECTOR=scripts/starsector_log_ready_detector.py
 LOG_DIR="$GAME/logs"
+
+resolve_engine() {
+    local requested="$1" candidate
+    if [[ -f "$requested" ]]; then
+        [[ "$requested" == *.jar ]] || return 1
+        printf '%s\n' "$requested"
+        return 0
+    fi
+    [[ -d "$requested" ]] || return 1
+    for candidate in \
+            "$requested/engine/preflight.jar" \
+            "$requested/Contents/Resources/engine/preflight.jar" \
+            "$requested"/*.app/Contents/Resources/engine/preflight.jar \
+            "$requested"/usr/lib/*/engine/preflight.jar \
+            "$requested"/lib/*/engine/preflight.jar; do
+        if [[ -f "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+if [[ -n "$ENGINE" ]]; then
+    JAR="$(resolve_engine "$ENGINE")" || {
+        echo "No Preflight engine under: $ENGINE" >&2
+        exit 1
+    }
+else
+    checkout_is_current=false
+    if [[ -f "$CHECKOUT_JAR" ]] \
+            && ! find pom.xml preflight-*/pom.xml preflight-*/src \
+                -type f -newer "$CHECKOUT_JAR" -print -quit | grep -q .; then
+        checkout_is_current=true
+    fi
+    if [[ "$checkout_is_current" != true ]]; then
+        echo "Building diagnostic engine..."
+        mvn -q -DskipTests package
+    fi
+    JAR="$CHECKOUT_JAR"
+fi
+JAR="$(cd "$(dirname "$JAR")" && pwd -P)/$(basename "$JAR")"
+[[ -f "$JAR" ]] || { echo "Runnable JAR was not produced: $JAR" >&2; exit 1; }
 
 # Finding the game process is the part that has to be right, and matching its command line is not
 # the way to do it. The launcher script execs java from inside the game directory using a *relative*
@@ -74,7 +120,7 @@ game_pids() {
     for pid in $(pgrep -x java 2>/dev/null; pgrep -f '[j]ava$|/java ' 2>/dev/null); do
         [[ "$pid" == "$$" ]] && continue
         cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
-        [[ -n "$cwd" && "$cwd" == "$resolved"* ]] && echo "$pid"
+        [[ -n "$cwd" && ("$cwd" == "$resolved" || "$cwd" == "$resolved/"*) ]] && echo "$pid"
     done | sort -u
 }
 
@@ -85,48 +131,66 @@ if [[ -n "$(game_pids)" ]]; then
 fi
 
 WRAPPER_PID=""
+CLEANED=false
+
+descendants() {
+    local pid="$1" child
+    for child in $(pgrep -P "$pid" 2>/dev/null); do
+        descendants "$child"
+        printf '%s\n' "$child"
+    done
+}
+
+stop_owned_game() {
+    [[ -n "$WRAPPER_PID" ]] || return 0
+    local tree runtime_pid="" target
+    tree="$(descendants "$WRAPPER_PID")"
+    if [[ -f "$OUT/runtime-process.json" ]]; then
+        runtime_pid="$(jq -r '.pid // empty' "$OUT/runtime-process.json" 2>/dev/null || true)"
+    fi
+    if [[ "$runtime_pid" =~ ^[0-9]+$ ]] && grep -qx "$runtime_pid" <<< "$tree"; then
+        kill "$runtime_pid" 2>/dev/null || true
+        for _ in $(seq 1 40); do
+            kill -0 "$runtime_pid" 2>/dev/null || return 0
+            sleep 0.25
+        done
+        kill -9 "$runtime_pid" 2>/dev/null || true
+        return 0
+    fi
+    for target in $tree; do
+        kill "$target" 2>/dev/null || true
+    done
+}
+
 cleanup() {
     local status=$?
-    local pids
-    pids="$(game_pids)"
-    if [[ -n "$pids" ]]; then
-        echo "Stopping the game (pids: $(echo "$pids" | tr '\n' ' '))..."
-        # SIGTERM first so the JVM runs its shutdown hooks and flushes any recording.
-        echo "$pids" | xargs -r kill -TERM 2>/dev/null || true
-        for _ in $(seq 1 15); do
-            [[ -z "$(game_pids)" ]] && break
-            sleep 1
+    [[ "$CLEANED" == true ]] && return "$status"
+    CLEANED=true
+    stop_owned_game
+    if [[ -n "$WRAPPER_PID" ]]; then
+        for _ in $(seq 1 40); do
+            kill -0 "$WRAPPER_PID" 2>/dev/null || break
+            sleep 0.25
         done
-        pids="$(game_pids)"
-        if [[ -n "$pids" ]]; then
-            echo "The game ignored SIGTERM; forcing."
-            echo "$pids" | xargs -r kill -9 2>/dev/null || true
-            sleep 2
-        fi
+        kill -0 "$WRAPPER_PID" 2>/dev/null && kill -TERM "$WRAPPER_PID" 2>/dev/null || true
+        wait "$WRAPPER_PID" 2>/dev/null || true
     fi
-    [[ -n "$WRAPPER_PID" ]] && kill -TERM "$WRAPPER_PID" 2>/dev/null || true
-    if [[ -n "$(game_pids)" ]]; then
-        echo "WARNING: a game process survived cleanup: $(game_pids | tr '\n' ' ')" >&2
-    else
-        echo "game stopped"
+    local survivors
+    survivors="$(game_pids)"
+    if [[ -n "$survivors" ]]; then
+        echo "A game process survived cleanup: $(tr '\n' ' ' <<< "$survivors")" >&2
+        echo "$survivors" | xargs -r kill -9 2>/dev/null || true
     fi
-    return $status
+    return "$status"
 }
 trap cleanup EXIT INT TERM
 
-echo "== Building =="
-mvn -q -DskipTests package
-[[ -f "$JAR" ]] || { echo "Runnable JAR was not produced: $JAR" >&2; exit 1; }
-
 OUT="$HOME/.starsector-preflight/runs/$LABEL-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$OUT"
-LAUNCHER="$(java -jar "$JAR" doctor --game "$GAME" 2>/dev/null | awk '/^Selected: /{print substr($0, 11); exit}')"
+LAUNCHER="$(java -jar "$JAR" doctor --game "$GAME" --no-scan 2>/dev/null | awk '/^Selected: /{print substr($0, 11); exit}')"
 [[ -n "$LAUNCHER" && -f "$LAUNCHER" ]] || { echo "Could not resolve the launcher under $GAME" >&2; exit 1; }
 
-echo "run:      $OUT"
-echo "head:     $(git rev-parse --short HEAD)"
-echo "mode:     $MODE"
-echo "flags:    --direct ${MODE_FLAGS[*]} --startup-phase-probe --no-record ${EXTRA[*]:-}"
+echo "Diagnostic: $OUT"
 
 python3 "$DETECTOR" snapshot --log-dir "$LOG_DIR" --output "$OUT/before.json"
 
