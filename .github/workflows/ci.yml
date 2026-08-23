@@ -7,12 +7,16 @@ on:
       - '**/*.md'
       - 'docs/**'
       - 'LICENSE'
+      # Desktop application owns renderer, native-host, release-contract, and package validation.
+      # If a change also touches Java or shared operator code, any non-ignored path still runs CI.
+      - 'preflight-desktop/**'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
       - 'LICENSE'
+      - 'preflight-desktop/**'
   schedule:
     - cron: '23 10 * * 1'
   workflow_dispatch:
