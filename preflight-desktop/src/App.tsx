@@ -316,7 +316,11 @@ export default function App() {
   useEffect(() => {
     const rememberedGame = readLastInstallRoot();
     void refresh(rememberedGame ?? undefined, {
-      bootstrap: true,
+      // A remembered installation can be confirmed by the small discovery document first. Home's
+      // cache/profile/settings readers then share one background home-state request. This keeps the
+      // launch action fenced until the current setup is known while replacing most of the opening
+      // "Finding Starsector" wait with the real Home composition.
+      bootstrap: rememberedGame === null,
       fallbackDiscovery: rememberedGame !== null,
     });
   }, [refresh]);
