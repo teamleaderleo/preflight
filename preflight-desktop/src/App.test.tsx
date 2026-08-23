@@ -606,6 +606,20 @@ test("page navigation resets the viewport that actually owns desktop scrolling",
   });
 });
 
+test("page navigation commits the destination workspace in the click interaction", async () => {
+  const { container } = render(<App />);
+
+  await screen.findByRole("heading", { name: "Ready", level: 1 });
+
+  fireEvent.click(screen.getByRole("button", { name: "Speed" }));
+  expect(container.querySelector(".page-viewport--speed")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Speed", level: 1 })).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Home" }));
+  expect(container.querySelector(".page-viewport--home")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Ready", level: 1 })).toBeInTheDocument();
+});
+
 test("pointer drafting feedback performs at most one style write per display frame", () => {
   let frame: FrameRequestCallback | null = null;
   const requestFrame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
