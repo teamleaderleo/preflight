@@ -100,6 +100,7 @@ The detailed evidence remains in the linked documents and dated `docs/evidence/`
 Useful current references:
 
 - [Startup benchmark](startup-benchmark.md)
+- [Canonical UI screenshots](evidence/2026-08-24-canonical-ui-screenshots.md)
 - [Cross-platform evidence plan](cross-platform-evidence-plan.md)
 - [Package lifecycle rehearsal](package-lifecycle-rehearsal.md)
 - [Packaged report canary](evidence/2026-08-08-packaged-report-canary.md)
