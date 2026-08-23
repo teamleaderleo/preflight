@@ -10,10 +10,12 @@ GAME_WAS_SET=false
 [[ -n "${GAME+x}" ]] && GAME_WAS_SET=true
 CACHE_WAS_SET=false
 [[ -n "${CACHE+x}" ]] && CACHE_WAS_SET=true
+TEXTURE_STORAGE_WAS_SET=false
 SEED_WAS_SET=false
 [[ -n "${SEED+x}" ]] && SEED_WAS_SET=true
 GAME="${GAME:-/Applications/Starsector.app}"
 CACHE="${CACHE:-$HOME/.starsector-preflight/cache}"
+TEXTURE_STORAGE="balanced"
 ROUNDS=5
 CONDITIONS="vanilla,agent,enabled,fast"
 UNATTENDED=false
@@ -68,6 +70,10 @@ Usage: scripts/run-startup-benchmark.sh [options]
                       which is ten times the effect it was trying to measure. 240 is a
                       reasonable starting point.
   --reprepare         Rebuild the caches even when they already match this profile.
+  --cache PATH        Use this cache directory. The CACHE environment variable remains accepted.
+  --texture-storage MODE
+                      Prepare and measure balanced, compact, or fastest texture storage.
+                      Compact requires a prior successful launch observation in this cache.
   --resume DIR        Continue an interrupted session, keeping its completed runs and restoring
                       its conditions, protocol, display/sound settings, cooldown, cache, and seed.
                       Conflicting explicit arguments or code/environment drift are rejected.
@@ -152,6 +158,9 @@ while [[ $# -gt 0 ]]; do
         --unattended) UNATTENDED=true; UNATTENDED_WAS_SET=true; shift ;;
         --cooldown-seconds) COOLDOWN_SECONDS="$2"; COOLDOWN_WAS_SET=true; shift 2 ;;
         --reprepare) REPREPARE=true; shift ;;
+        --cache) CACHE="$2"; CACHE_WAS_SET=true; shift 2 ;;
+        --texture-storage)
+            TEXTURE_STORAGE="$2"; TEXTURE_STORAGE_WAS_SET=true; shift 2 ;;
         # Removed rather than aliased. --auto-play searched the launcher for a Swing button to
         # press, and current Starsector draws its launcher in OpenGL, so there was never a button
         # to find. The replacement measures a different interval -- no launcher phase at all --
@@ -190,6 +199,13 @@ if [[ -n "$ENGINE_SHA256" && ! "$ENGINE_SHA256" =~ ^[0-9a-fA-F]{64}$ ]]; then
     echo "--engine-sha256 must be a 64-character hex SHA-256." >&2
     exit 2
 fi
+case "$TEXTURE_STORAGE" in
+    balanced|compact|fastest) ;;
+    *)
+        echo "--texture-storage must be balanced, compact, or fastest." >&2
+        exit 2
+        ;;
+esac
 if [[ "$ENGINE_WAS_SET" == true ]]; then
     [[ -n "$ENGINE" ]] || { echo "--engine needs a path." >&2; exit 2; }
     ENGINE_SOURCE=candidate
@@ -227,6 +243,7 @@ if [[ -n "$SESSION" ]]; then
     RECORDED_COOLDOWN="$(jq -er '.cooldownSeconds' "$SESSION_CONFIG")"
     RECORDED_GAME="$(physical_path "$(jq -er '.game' "$SESSION_CONFIG")")"
     RECORDED_CACHE="$(physical_path "$(jq -er '.cache' "$SESSION_CONFIG")")"
+    RECORDED_TEXTURE_STORAGE="$(jq -er '.textureStorage // "balanced"' "$SESSION_CONFIG")"
     RECORDED_SEED="$(jq -er '.seed' "$SESSION_CONFIG")"
     RECORDED_PROTOCOL="$(jq -er '.protocol' "$SESSION_CONFIG")"
     # Version 1 sessions predate --engine, so their engine was necessarily the checkout build.
@@ -258,6 +275,11 @@ if [[ -n "$SESSION" ]]; then
         bad "CACHE conflicts with this session: $CACHE != $RECORDED_CACHE"
         exit 2
     fi
+    if [[ "$TEXTURE_STORAGE_WAS_SET" == true \
+            && "$TEXTURE_STORAGE" != "$RECORDED_TEXTURE_STORAGE" ]]; then
+        bad "--texture-storage conflicts with this session: $TEXTURE_STORAGE != $RECORDED_TEXTURE_STORAGE"
+        exit 2
+    fi
     if [[ "$SEED_WAS_SET" == true && "$SEED" != "$RECORDED_SEED" ]]; then
         bad "SEED conflicts with this session: $SEED != $RECORDED_SEED"
         exit 2
@@ -280,9 +302,17 @@ if [[ -n "$SESSION" ]]; then
     COOLDOWN_SECONDS="$RECORDED_COOLDOWN"
     GAME="$RECORDED_GAME"
     CACHE="$RECORDED_CACHE"
+    TEXTURE_STORAGE="$RECORDED_TEXTURE_STORAGE"
     SEED="$RECORDED_SEED"
     ENGINE="$RECORDED_ENGINE"
     ENGINE_SOURCE="$RECORDED_ENGINE_SOURCE"
+fi
+
+PREPARE_TEXTURE_STORAGE="$TEXTURE_STORAGE"
+TEXTURE_SCOPE=full
+if [[ "$TEXTURE_STORAGE" == compact ]]; then
+    PREPARE_TEXTURE_STORAGE=balanced
+    TEXTURE_SCOPE=learned
 fi
 
 [[ -f pom.xml ]] || { bad "Run this from the Preflight repository root."; exit 1; }
@@ -489,6 +519,7 @@ else
     jq -n \
         --arg game "$GAME" \
         --arg cache "$CACHE" \
+        --arg textureStorage "$TEXTURE_STORAGE" \
         --arg conditions "$CONDITIONS" \
         --arg protocol "$PROTOCOL" \
         --argjson unattended "$UNATTENDED" \
@@ -497,7 +528,8 @@ else
         --arg scenarioId "$SCENARIO_ID" \
         --arg engineSource "$ENGINE_SOURCE" \
         --arg engine "$ENGINE" \
-        '{version: 2, game: $game, cache: $cache, conditions: $conditions,
+        '{version: 3, game: $game, cache: $cache, textureStorage: $textureStorage,
+          conditions: $conditions,
           protocol: $protocol, unattended: $unattended, cooldownSeconds: $cooldownSeconds,
           seed: $seed, scenarioId: $scenarioId,
           engineSource: $engineSource, engine: $engine}' > "$ROOT/session-config.json"
@@ -536,6 +568,7 @@ note "profile:         $EXPECTED_FINGERPRINT"
 # stamp means the artifacts on disk are the ones this profile needs.
 PREPARE_REPORT="$ROOT/prepare.json"
 PREPARE_STAMP="$CACHE/prepared-profile.txt"
+PREPARE_STAMP_VALUE="$EXPECTED_FINGERPRINT:$TEXTURE_STORAGE"
 prepare_caches() {
     local reason="$1"
     banner "== Preparing the caches (offline, one time) =="
@@ -543,13 +576,14 @@ prepare_caches() {
     local prepare_start prepare_end
     prepare_start="$(python3 -c 'import time; print(time.time_ns())')"
     java -jar "$JAR" prepare --game "$GAME" --cache-dir "$CACHE" --deep --verify-lookups \
+        --texture-storage "$PREPARE_TEXTURE_STORAGE" --texture-scope "$TEXTURE_SCOPE" \
         --report "$PREPARE_REPORT" >/dev/null
     prepare_end="$(python3 -c 'import time; print(time.time_ns())')"
     PREPARE_MS=$(( (prepare_end - prepare_start) / 1000000 ))
     echo "$PREPARE_MS" > "$ROOT/prepare-millis.txt"
     # Written only after prepare returns zero, so a failed or interrupted preparation leaves the
     # stamp stale and the next campaign rebuilds rather than trusting a half-built cache.
-    printf '%s\n' "$EXPECTED_FINGERPRINT" > "$PREPARE_STAMP"
+    printf '%s\n' "$PREPARE_STAMP_VALUE" > "$PREPARE_STAMP"
     good "Caches prepared in $(( PREPARE_MS / 1000 ))s."
 }
 
@@ -559,7 +593,10 @@ if [[ -f "$PREPARE_REPORT" ]]; then
     note "Reusing the preparation from this session ($(( PREPARE_MS / 1000 ))s)."
 elif [[ "$REPREPARE" == true ]]; then
     prepare_caches "Rebuilding because --reprepare was given."
-elif [[ -f "$PREPARE_STAMP" && "$(cat "$PREPARE_STAMP")" == "$EXPECTED_FINGERPRINT" ]]; then
+elif [[ -f "$PREPARE_STAMP" \
+        && ( "$(cat "$PREPARE_STAMP")" == "$PREPARE_STAMP_VALUE" \
+            || ( "$TEXTURE_STORAGE" == balanced \
+                && "$(cat "$PREPARE_STAMP")" == "$EXPECTED_FINGERPRINT" ) ) ]]; then
     note "Caches already prepared for this profile; skipping. Force with --reprepare."
 else
     prepare_caches "No cache on disk matches this profile."
@@ -579,6 +616,7 @@ if [[ -n "$SESSION" ]]; then
             --arg game "$GAME" \
             --arg launcher "$LAUNCHER" \
             --arg profile "$EXPECTED_FINGERPRINT" \
+            --arg textureStorage "$TEXTURE_STORAGE" \
             --arg scenario "$SCENARIO_ID" \
             --arg hardware "$HARDWARE" \
             --arg os "$OS_VERSION" \
@@ -587,6 +625,7 @@ if [[ -n "$SESSION" ]]; then
             '.repositoryHead == $head and .preflightJarSha256 == $jar
              and .game == $game and .launcher == $launcher
              and .profileFingerprint == $profile and .scenarioId == $scenario
+             and (.textureStorage // "balanced") == $textureStorage
              and .hardware == $hardware and .os == $os and .java == $java
              and (.engineSource // "checkout") == $engineSource' \
             "$ROOT/identity.json" >/dev/null; then
@@ -605,6 +644,7 @@ cat > "$ROOT/identity.json" <<IDENTITY
   "game": "$GAME",
   "launcher": "$LAUNCHER",
   "profileFingerprint": "$EXPECTED_FINGERPRINT",
+  "textureStorage": "$TEXTURE_STORAGE",
   "scenarioId": "$SCENARIO_ID",
   "seed": $SEED,
   "hardware": $(jq -Rs 'rtrimstr("\n")' <<< "$HARDWARE"),
@@ -1035,8 +1075,10 @@ launch_once() {
             # new fingerprint without rebuilding would fail every later enabled run.
             note "Rebuilding the caches for the settled profile so enabled runs still launch..."
             if java -jar "$JAR" prepare --game "$GAME" --cache-dir "$CACHE" --deep --verify-lookups \
+                    --texture-storage "$PREPARE_TEXTURE_STORAGE" --texture-scope "$TEXTURE_SCOPE" \
                     --report "$ROOT/prepare-reprepared.json" >/dev/null 2>&1; then
-                printf '%s\n' "$EXPECTED_FINGERPRINT" > "$PREPARE_STAMP"
+                PREPARE_STAMP_VALUE="$EXPECTED_FINGERPRINT:$TEXTURE_STORAGE"
+                printf '%s\n' "$PREPARE_STAMP_VALUE" > "$PREPARE_STAMP"
                 note "Rebuilt. The campaign continues from the settled profile."
             else
                 # The stamp still names the old profile, and it must stay that way: the next

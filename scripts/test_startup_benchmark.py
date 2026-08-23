@@ -151,6 +151,7 @@ class ResilienceTest(unittest.TestCase):
             "RECORDED_COOLDOWN",
             "RECORDED_GAME",
             "RECORDED_CACHE",
+            "RECORDED_TEXTURE_STORAGE",
             "RECORDED_SEED",
             "RECORDED_PROTOCOL",
         ):
@@ -158,6 +159,27 @@ class ResilienceTest(unittest.TestCase):
         self.assertIn('CONDITIONS="$RECORDED_CONDITIONS"', SCRIPT_TEXT)
         self.assertIn('UNATTENDED="$RECORDED_UNATTENDED"', SCRIPT_TEXT)
         self.assertIn('SEED="$RECORDED_SEED"', SCRIPT_TEXT)
+        self.assertIn('TEXTURE_STORAGE="$RECORDED_TEXTURE_STORAGE"', SCRIPT_TEXT)
+
+    def test_storage_policy_is_part_of_preparation_and_session_identity(self):
+        self.assertIn('PREPARE_TEXTURE_STORAGE=balanced', SCRIPT_TEXT)
+        self.assertIn('TEXTURE_SCOPE=learned', SCRIPT_TEXT)
+        self.assertIn(
+            '--texture-storage "$PREPARE_TEXTURE_STORAGE" --texture-scope "$TEXTURE_SCOPE"',
+            SCRIPT_TEXT,
+        )
+        self.assertIn('PREPARE_STAMP_VALUE="$EXPECTED_FINGERPRINT:$TEXTURE_STORAGE"', SCRIPT_TEXT)
+        self.assertIn('--arg textureStorage "$TEXTURE_STORAGE"', SCRIPT_TEXT)
+        self.assertIn('"textureStorage": "$TEXTURE_STORAGE"', SCRIPT_TEXT)
+
+    def test_legacy_preparation_stamp_is_balanced_only(self):
+        stamp_guard = re.search(
+            r'elif \[\[ -f "\$PREPARE_STAMP"(?P<body>.*?)\]\]; then',
+            SCRIPT_TEXT,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(stamp_guard, "preparation stamp guard not found")
+        self.assertIn('"$TEXTURE_STORAGE" == balanced', stamp_guard.group("body"))
 
     def test_resume_never_overwrites_immutable_launch_settings(self):
         settings = re.search(
@@ -276,7 +298,7 @@ class CandidateEngineTest(unittest.TestCase):
         # Version 1 sessions could only ever have been checkout builds; the default is a fact
         # about the format, not a guess about the session.
         self.assertIn("jq -er '.engineSource // \"checkout\"'", SCRIPT_TEXT)
-        self.assertIn("{version: 2,", SCRIPT_TEXT)
+        self.assertIn("{version: 3,", SCRIPT_TEXT)
 
     def test_a_checkout_campaign_says_it_is_development_evidence(self):
         self.assertIn(

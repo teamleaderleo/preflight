@@ -106,6 +106,30 @@ pixel conversions, and took the same three ordinary source fallbacks. Its checko
 `7a2e0c4b50f88caed043f322d9566ccb5857430efa43fbaa7551ab056c4a97a8`. MagicLib is the latest
 chapter, not the explanation for the earlier fourteen-second results.
 
+## Fresh Balanced to Compact, exercised end to end
+
+A later run exercised the actual transition rather than reusing an already ordered pack. Cold
+Balanced preparation completed in 34.81 seconds, including 27.77 seconds in the texture stage. Its
+first launch took 32.74 seconds even though it served all 15,469 expected prepared textures and
+took only the same three ordinary source fallbacks. The complete cache coverage was present; the
+new pack had not yet learned startup's physical access order.
+
+That successful launch supplied the learned set. Preparing the same cache as Compact then completed
+in **16.21 seconds**, including 10.33 seconds in the texture stage, and retained 1,070,008,288
+planned texture-pack bytes. After a 120-second cooldown, the next exact-marker launch took
+**14.79 seconds**. It served all 15,469 expected prepared textures, took three source fallbacks,
+bypassed all 15,469 pixel conversions, and hit the MagicLib catalog cache with a 66-millisecond
+replay.
+
+The Balanced first-launch summary is
+`~/.starsector-preflight/benchmarks/20260823-164833/benchmark-summary.json`, SHA-256
+`71618608de927ddb753534034fd17ea121edb7f15db4602d4cef957b45fce463`. The Compact summary is
+`~/.starsector-preflight/benchmarks/20260823-165728/benchmark-summary.json`, SHA-256
+`154df3442eb4688bfcb9b009c033588b2b1161a84569d48cfc89ef7388db7a7c`.
+
+This is the product transition Automatic should perform after the first successful launch. Leaving
+the complete but unordered bootstrap pack active would keep the slower first-launch layout.
+
 ## Why Balanced still exists
 
 Balanced is the current bootstrap default because a fresh profile has no observed startup access
