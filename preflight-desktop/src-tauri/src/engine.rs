@@ -989,6 +989,50 @@ pub(crate) fn apply_cache_cleanup(
     result
 }
 
+#[tauri::command]
+pub(crate) fn apply_discardable_cache_cleanup(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+) -> Result<Value, String> {
+    let running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The process tracker is unavailable.".to_string())?;
+    refuse_update_install(&running)?;
+    if running.game.is_some() {
+        return Err("Close Starsector before cleaning acceleration data.".to_string());
+    }
+    if running.preparation.is_some() {
+        return Err(
+            "Wait for profile preparation to finish before cleaning acceleration data.".to_string(),
+        );
+    }
+    let paths = EnginePaths::resolve(&app)?;
+    let mut command = paths.command();
+    configure_discardable_cache_cleanup_command(&mut command);
+    let output = command
+        .output_within(MUTATION_BUDGET)
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    drop(running);
+    if !output.status.success() && output.status.code() != Some(3) {
+        return Err(child_error(
+            "Preflight could not remove replaced cache data",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned an unreadable cleanup result: {error}"))
+}
+
+pub(crate) fn configure_discardable_cache_cleanup_command(command: &mut EngineCommand) {
+    command
+        .arg("cache")
+        .arg("prune")
+        .arg("--discardable-only")
+        .arg("--json")
+        .arg("--yes");
+}
+
 fn cache_cleanup_json(app: &AppHandle, game: &str, apply: bool) -> Result<Value, String> {
     let directory = canonical_game_directory(game)?;
     let paths = EnginePaths::resolve(app)?;

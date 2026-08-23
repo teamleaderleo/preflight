@@ -263,7 +263,7 @@ public final class PreflightCli {
                 "preflight cache repair [--game <path>] [--launcher <path>] [--expected-profile <sha256>] [--json] [--yes]",
                 "  Plans a profile-scoped repair. --yes removes only unreadable current-profile",
                 "  metadata/packs; shared blobs remain available for preparation to reuse or quarantine.",
-                "preflight cache prune [--keep-named] [--json] [--yes]",
+                "preflight cache prune [--keep-named | --discardable-only] [--json] [--yes]",
                 "  Removes every profile except the current one; --keep-named also preserves every",
                 "  readable named profile. This includes profile texture packs,",
                 "  texture and prepared-audio blobs no survivor references, stale Janino contexts,",

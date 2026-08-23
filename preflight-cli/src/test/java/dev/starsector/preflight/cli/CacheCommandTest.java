@@ -320,6 +320,34 @@ class CacheCommandTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void discardableCleanupNeedsNoGameIdentityAndRemovesOnlyRecognizedRejects() throws Exception {
+        PreflightHome home = PreflightHome.resolve(Platform.OTHER, directory, Map.of());
+        Path quarantine = home.cache().resolve("quarantine");
+        Files.createDirectories(quarantine);
+        Path rejected = quarantine.resolve(
+                "a".repeat(64) + "-identity.spft.corrupt.1787390000000");
+        Path unknown = quarantine.resolve("operator-note.txt");
+        Files.writeString(rejected, "rejected");
+        Files.writeString(unknown, "keep");
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+        assertEquals(0, CacheCommand.pruneDiscardable(
+                home, true, true, new PrintStream(bytes, true, StandardCharsets.UTF_8)));
+        Map<String, Object> report = StrictJson.object(bytes.toString(StandardCharsets.UTF_8));
+
+        assertEquals(Boolean.TRUE, report.get("safe"));
+        assertEquals(Boolean.TRUE, report.get("applied"));
+        assertNull(report.get("currentProfileFingerprint"));
+        assertEquals(1L, ((Number) report.get("files")).longValue());
+        assertEquals(List.of(), report.get("survivingProfileFingerprints"));
+        List<Map<String, Object>> groups = (List<Map<String, Object>>) report.get("groups");
+        assertEquals("replaced cache artifact", groups.get(0).get("reason"));
+        assertFalse(Files.exists(rejected));
+        assertTrue(Files.isRegularFile(unknown));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void cleanupJsonSummarizesEveryRemovalAndBoundsThePathSample() {
         List<CachePrune.Removal> removals = IntStream.range(0, 105)
                 .mapToObj(index -> new CachePrune.Removal(

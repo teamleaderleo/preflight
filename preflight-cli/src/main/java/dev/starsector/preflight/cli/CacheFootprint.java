@@ -53,6 +53,8 @@ final class CacheFootprint {
                     "exact-context transformed game and mod classes")),
             Map.entry(relative(ClasspathCacheDirectories.root(Path.of("cache"))),
                     acceleration("mod jar and class inventories")),
+            Map.entry("cache/quarantine", discardable(
+                    "replaced or unreadable prepared data awaiting cleanup")),
             Map.entry("cache/comparison-state-snapshots", evidence(
                     "benchmark comparison inputs")),
             Map.entry("cache/reports", evidence("generated diagnostic reports")),
@@ -106,6 +108,11 @@ final class CacheFootprint {
                 for (Map.Entry<String, Category> category : CATEGORIES.entrySet()) {
                     String categoryPath = category.getKey();
                     if (!fileRelative.startsWith(categoryPath + "/")) {
+                        continue;
+                    }
+                    if ("cache/quarantine".equals(categoryPath)
+                            && !CachePrune.isDiscardedQuarantineArtifactName(
+                                    file.getFileName().toString())) {
                         continue;
                     }
                     long[] totals = categoryTotals.get(categoryPath);
@@ -168,6 +175,10 @@ final class CacheFootprint {
 
     private static Category evidence(String description) {
         return new Category("evidence", description);
+    }
+
+    private static Category discardable(String description) {
+        return new Category("discardable", description);
     }
 
     private static Category history(String description) {

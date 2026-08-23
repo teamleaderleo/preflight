@@ -567,12 +567,15 @@ export default function App() {
     void refreshCache();
     invalidatePreparationPlan();
   }, [invalidatePreparationPlan, refreshCache]);
+  const discardableCache = preparation.cache?.groups.find((group) => group.id === "discardable");
   useAutomaticMaintenance(
     status === "ready" && isReady && !operationBlocked && !preparation.preparationPlanLoading,
     maintenanceEpoch,
     {
       game: snapshot?.selected?.installRoot,
       cacheBytes: preparation.cache?.total.bytes,
+      discardableBytes: discardableCache?.bytes,
+      discardableFiles: discardableCache?.files,
       onCacheCleaned: refreshAfterAutomaticCacheCleanup,
     },
   );

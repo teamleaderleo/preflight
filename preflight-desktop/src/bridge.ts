@@ -933,6 +933,27 @@ export async function applyCacheCleanup(game: string): Promise<CacheCleanupPlan>
   return invoke<CacheCleanupPlan>("apply_cache_cleanup", { game });
 }
 
+export async function applyDiscardableCacheCleanup(): Promise<CacheCleanupPlan> {
+  if (!isDesktopHost()) {
+    return {
+      format: "starsector-preflight-cache-prune-v1",
+      safe: true,
+      applied: true,
+      currentProfileFingerprint: null,
+      survivingProfileFingerprints: [],
+      bytes: 0,
+      files: 0,
+      reachableTextureBlobs: 0,
+      reachablePreparedAudioBlobs: 0,
+      refusals: [],
+      groups: [],
+      removals: [],
+      removalsTruncated: false,
+    };
+  }
+  return invoke<CacheCleanupPlan>("apply_discardable_cache_cleanup");
+}
+
 export async function getEvidenceCleanup(): Promise<EvidenceCleanupPlan> {
   if (!isDesktopHost()) {
     await new Promise((resolve) => window.setTimeout(resolve, 80));

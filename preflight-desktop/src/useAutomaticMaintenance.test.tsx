@@ -3,6 +3,8 @@ import * as bridge from "./bridge";
 import type { CacheCleanupPlan } from "./types";
 import {
   AUTOMATIC_CACHE_LIMIT_BYTES,
+  AUTOMATIC_DISCARDABLE_LIMIT_BYTES,
+  AUTOMATIC_DISCARDABLE_LIMIT_FILES,
   AUTOMATIC_MAINTENANCE_SETTLE_MS,
   useAutomaticMaintenance,
 } from "./useAutomaticMaintenance";
@@ -141,4 +143,58 @@ test("an unsafe automatic cache plan removes nothing", async () => {
   await act(async () => vi.advanceTimersByTimeAsync(AUTOMATIC_MAINTENANCE_SETTLE_MS));
 
   expect(apply).not.toHaveBeenCalled();
+});
+
+test.each([
+  { discardableBytes: AUTOMATIC_DISCARDABLE_LIMIT_BYTES + 1, discardableFiles: 0 },
+  { discardableBytes: 0, discardableFiles: AUTOMATIC_DISCARDABLE_LIMIT_FILES + 1 },
+])("replaced cache data is pruned before the whole cache reaches 12 GB", async (discardable) => {
+  vi.spyOn(bridge, "isDesktopHost").mockReturnValue(true);
+  vi.spyOn(bridge, "applyEvidenceCleanup").mockRejectedValue(new Error("irrelevant"));
+  const cachePlan: CacheCleanupPlan = {
+    format: "starsector-preflight-cache-prune-v1",
+    safe: true,
+    applied: false,
+    currentProfileFingerprint: "a".repeat(64),
+    survivingProfileFingerprints: ["a".repeat(64)],
+    bytes: 1024,
+    files: 1,
+    reachableTextureBlobs: 0,
+    reachablePreparedAudioBlobs: 0,
+    refusals: [],
+    groups: [{ reason: "replaced cache artifact", bytes: 1024, files: 1 }],
+    removals: [],
+    removalsTruncated: false,
+  };
+  const plan = vi.spyOn(bridge, "getCacheCleanup");
+  const apply = vi.spyOn(bridge, "applyDiscardableCacheCleanup").mockResolvedValue({
+    ...cachePlan,
+    applied: true,
+  });
+
+  renderHook(() => useAutomaticMaintenance(true, 0, {
+    game: "/Applications/Starsector",
+    cacheBytes: 1024,
+    ...discardable,
+  }));
+  await act(async () => vi.advanceTimersByTimeAsync(AUTOMATIC_MAINTENANCE_SETTLE_MS));
+
+  expect(plan).not.toHaveBeenCalled();
+  expect(apply).toHaveBeenCalledTimes(1);
+});
+
+test("replaced cache thresholds do not trigger cleanup at the boundary", async () => {
+  vi.spyOn(bridge, "isDesktopHost").mockReturnValue(true);
+  vi.spyOn(bridge, "applyEvidenceCleanup").mockRejectedValue(new Error("irrelevant"));
+  const plan = vi.spyOn(bridge, "getCacheCleanup");
+
+  renderHook(() => useAutomaticMaintenance(true, 0, {
+    game: "/Applications/Starsector",
+    cacheBytes: 1024,
+    discardableBytes: AUTOMATIC_DISCARDABLE_LIMIT_BYTES,
+    discardableFiles: AUTOMATIC_DISCARDABLE_LIMIT_FILES,
+  }));
+  await act(async () => vi.advanceTimersByTimeAsync(AUTOMATIC_MAINTENANCE_SETTLE_MS));
+
+  expect(plan).not.toHaveBeenCalled();
 });
