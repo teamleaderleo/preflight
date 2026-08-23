@@ -478,13 +478,6 @@ export async function exportDiagnostics(output: string): Promise<DiagnosticsExpo
   return invoke<DiagnosticsExport>("export_diagnostics", { output });
 }
 
-export async function exportAutomaticDiagnostics(runId: string): Promise<DiagnosticsExport> {
-  if (!isDesktopHost()) {
-    return exportDiagnostics(`/Users/captain/Desktop/auto-failed-run-${runId}.zip`);
-  }
-  return invoke<DiagnosticsExport>("export_automatic_diagnostics", { runId });
-}
-
 export async function getReportIntakeStatus(): Promise<ReportIntakeStatus> {
   if (!isDesktopHost()) {
     return { configured: true, origin: "https://reports.preview.invalid", reason: null };
