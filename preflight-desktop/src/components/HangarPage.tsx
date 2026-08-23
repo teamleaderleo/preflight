@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
-import { PauseIcon, PlayIcon, RefreshIcon, RotateClockwiseIcon, RotateCounterClockwiseIcon } from "../icons";
+import { ArrowIcon, PauseIcon, PlayIcon, RefreshIcon } from "../icons";
 import type { useInstrumentHull } from "../useInstrumentHull";
 import type { WireframeHull } from "../types";
 import { useInstrumentMotion } from "../useInstrumentMotion";
@@ -318,11 +318,6 @@ interface HangarPageProps {
 export function HangarPage({ instrumentHull }: HangarPageProps) {
   const { motion, direction, setMotion, setDirection } = useInstrumentMotion();
   const motionLabel = motion === "rotate" ? "Pause rotation" : "Resume rotation";
-  const directionLabel = direction === "clockwise" ? "Use counter-clockwise" : "Use clockwise";
-  const directionTitle = motion === "still"
-    ? `${directionLabel} when rotation resumes`
-    : direction === "clockwise" ? "Rotate counter-clockwise" : "Rotate clockwise";
-  const motionStatus = `${motion === "rotate" ? "Rotating" : "Paused"} · ${direction === "clockwise" ? "CW" : "CCW"}`;
   const catalogStatus = instrumentHull.catalog
     ? `${instrumentHull.catalog.hulls.length.toLocaleString()} installed`
     : instrumentHull.catalogLoaded ? "Included ships" : "Finding installed ships…";
@@ -332,7 +327,7 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
       <section className="hangar-display hangar-display--minimal" aria-label="Selected display ship">
         <div className="hangar-stage hangar-stage--minimal">
           <div className="hangar-stage__instrument">
-            <FlightInstrument hull={instrumentHull.selected} variant="stage" />
+            <FlightInstrument hull={instrumentHull.selected} variant="stage" interactive />
           </div>
 
           <div className="hangar-identity">
@@ -355,10 +350,6 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
               data-motion={motion}
               data-direction={direction}
             >
-              <div className="hangar-motion-status" aria-live="polite">
-                <span>Motion</span>
-                <span className="hangar-motion-status__state">{motionStatus}</span>
-              </div>
               <button
                 className="icon-button icon-button--small hangar-motion-action"
                 type="button"
@@ -369,13 +360,24 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
                 {motion === "rotate" ? <PauseIcon /> : <PlayIcon />}
               </button>
               <button
+                className="icon-button icon-button--small hangar-direction-action hangar-direction-action--left"
+                type="button"
+                aria-label="Rotate left"
+                title="Rotate left"
+                aria-pressed={direction === "counter-clockwise"}
+                onClick={() => setDirection("counter-clockwise")}
+              >
+                <ArrowIcon />
+              </button>
+              <button
                 className="icon-button icon-button--small hangar-direction-action"
                 type="button"
-                aria-label={directionLabel}
-                title={directionTitle}
-                onClick={() => setDirection(direction === "clockwise" ? "counter-clockwise" : "clockwise")}
+                aria-label="Rotate right"
+                title="Rotate right"
+                aria-pressed={direction === "clockwise"}
+                onClick={() => setDirection("clockwise")}
               >
-                {direction === "clockwise" ? <RotateCounterClockwiseIcon /> : <RotateClockwiseIcon />}
+                <ArrowIcon />
               </button>
               <button
                 className="button button--quiet button--compact hangar-reset-action"

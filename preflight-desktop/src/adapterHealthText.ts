@@ -3,9 +3,9 @@ import type { AdapterHealthSummary } from "./types";
 export function adapterHealthLine(health: AdapterHealthSummary): string {
   switch (health.status) {
     case "ACTIVE":
-      return "Last run: acceleration active";
+      return "Fast launch ready";
     case "PARTIAL":
-      return "Last run: acceleration active, with safe fallback";
+      return "Fast launch ready · fallback used";
     case "SAFE_FALLBACK":
       return "Last run: original game code used safely";
     case "DISABLED":

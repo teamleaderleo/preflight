@@ -9,11 +9,12 @@ import { projectHull } from "../wireframeHullGeometry";
 interface FlightInstrumentProps {
   hull?: WireframeHull;
   /**
-   * `badge` is the small one pinned beside a number, and keeps the targeting reticle it is read
-   * against. `stage` fills its container and drops the reticle: at that size the ship is the
-   * subject rather than a readout, and the chrome would be competing with it.
+   * `badge` is the compact readout. `stage` fills its container so the ship can be the subject.
+   * Neither adds a targeting reticle; the surrounding page already supplies enough structure.
    */
   variant?: "badge" | "stage";
+  /** Lets the large Home and Hangar displays rotate directly under pointer or arrow-key input. */
+  interactive?: boolean;
 }
 
 interface InstrumentPalette {
@@ -216,7 +217,8 @@ function drawHull(
 }
 
 /** Draws bounded hull geometry derived locally from the user's Starsector installation. */
-export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge" }: FlightInstrumentProps) {
+export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge", interactive = false }: FlightInstrumentProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { motion, direction } = useInstrumentMotion();
   const directionRef = useRef(direction);
@@ -227,11 +229,14 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || typeof ResizeObserver === "undefined") return;
+    const root = rootRef.current;
+    if (!canvas || !root || typeof ResizeObserver === "undefined") return;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let frame: number | null = null;
     let visible = true;
     let previous = 0;
+    let dragging = false;
+    let dragX = 0;
     let palette = readPalette(canvas);
 
     /*
@@ -252,16 +257,15 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
 
     const render = (time: number) => {
       frame = null;
-      if (!visible || motion !== "rotate" || reducedMotion.matches) return;
+      if (!visible || dragging || motion !== "rotate" || reducedMotion.matches) return;
       if (previous === 0) previous = time;
-      if (time - previous >= 1000 / 24) {
-        // Advance by elapsed time rather than per frame, so a dropped frame or a background tab
-        // does not change how fast the ship appears to turn.
-        const directionSign = directionRef.current === "clockwise" ? 1 : -1;
-        yaw += Math.min(time - previous, 250) / 1000 * RATE * directionSign;
-        previous = time;
-        drawHull(canvas, hull, yaw, palette, variant);
-      }
+      // Advance by elapsed time rather than per frame, so a dropped frame or a background tab
+      // does not change how fast the ship appears to turn. Drawing on each display frame avoids
+      // the visible 24 fps cadence the first version imposed on otherwise smooth WebView motion.
+      const directionSign = directionRef.current === "clockwise" ? 1 : -1;
+      yaw += Math.min(time - previous, 250) / 1000 * RATE * directionSign;
+      previous = time;
+      drawHull(canvas, hull, yaw, palette, variant);
       schedule();
     };
     const resize = new ResizeObserver(drawStill);
@@ -315,6 +319,44 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       attributeFilter: [...INSTRUMENT_APPEARANCE_ATTRIBUTES],
     });
     reducedMotion.addEventListener("change", updateMotion);
+    const beginDrag = (event: PointerEvent) => {
+      if (!interactive || event.button !== 0) return;
+      dragging = true;
+      dragX = event.clientX;
+      previous = 0;
+      root.dataset.dragging = "true";
+      root.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+    };
+    const moveDrag = (event: PointerEvent) => {
+      if (!dragging) return;
+      const delta = event.clientX - dragX;
+      dragX = event.clientX;
+      yaw += delta * 0.012;
+      drawHull(canvas, hull, yaw, palette, variant);
+      event.preventDefault();
+    };
+    const finishDrag = (event: PointerEvent) => {
+      if (!dragging) return;
+      dragging = false;
+      previous = 0;
+      delete root.dataset.dragging;
+      if (root.hasPointerCapture?.(event.pointerId)) root.releasePointerCapture?.(event.pointerId);
+      schedule();
+    };
+    const turnFromKeyboard = (event: KeyboardEvent) => {
+      if (!interactive || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
+      yaw += event.key === "ArrowLeft" ? -0.16 : 0.16;
+      previous = 0;
+      drawHull(canvas, hull, yaw, palette, variant);
+      event.preventDefault();
+    };
+    root.addEventListener("pointerdown", beginDrag);
+    root.addEventListener("pointermove", moveDrag);
+    root.addEventListener("pointerup", finishDrag);
+    root.addEventListener("pointercancel", finishDrag);
+    root.addEventListener("lostpointercapture", finishDrag);
+    root.addEventListener("keydown", turnFromKeyboard);
     updateMotion();
     return () => {
       if (frame !== null) window.cancelAnimationFrame(frame);
@@ -323,28 +365,27 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       intersection?.disconnect();
       theme.disconnect();
       reducedMotion.removeEventListener("change", updateMotion);
+      root.removeEventListener("pointerdown", beginDrag);
+      root.removeEventListener("pointermove", moveDrag);
+      root.removeEventListener("pointerup", finishDrag);
+      root.removeEventListener("pointercancel", finishDrag);
+      root.removeEventListener("lostpointercapture", finishDrag);
+      root.removeEventListener("keydown", turnFromKeyboard);
     };
-  }, [hull, motion, variant]);
+  }, [hull, interactive, motion, variant]);
 
   return (
     <div
-      className={`flight-instrument flight-instrument--${variant}`}
+      ref={rootRef}
+      className={`flight-instrument flight-instrument--${variant}${interactive ? " flight-instrument--interactive" : ""}`}
       data-motion={motion}
       data-direction={direction}
-      aria-hidden="true"
+      aria-hidden={interactive ? undefined : true}
+      aria-label={interactive ? "Ship display. Drag or use the left and right arrow keys to turn it." : undefined}
+      role={interactive ? "group" : undefined}
+      tabIndex={interactive ? 0 : undefined}
     >
       <div className="flight-instrument__drift">
-        {variant === "badge" ? (
-          <svg viewBox="0 0 240 150" focusable="false">
-            <g className="flight-instrument__scope">
-              <ellipse cx="124" cy="76" rx="96" ry="48" />
-              <ellipse cx="124" cy="76" rx="70" ry="34" />
-              <path d="M18 76h212M124 18v116" />
-              <path className="flight-instrument__arc" d="M38 105c33 34 111 40 162-2" />
-              <path className="flight-instrument__tick" d="M31 70v12m186-12v12M118 25h12m-12 102h12" />
-            </g>
-          </svg>
-        ) : null}
         <canvas ref={canvasRef} />
       </div>
     </div>

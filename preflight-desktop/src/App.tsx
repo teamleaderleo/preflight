@@ -123,7 +123,7 @@ export default function App() {
   const speedStanding = useSpeedRecord();
   const instrumentHull = useInstrumentHull(
     snapshot?.selected?.installRoot,
-    page === "home" || page === "speed" || page === "hangar",
+    page === "hangar",
   );
   const { countFastLaunch, rememberBenchmark } = speedStanding;
   const currentProfileFingerprint = useRef<string | null>(null);
@@ -645,7 +645,7 @@ export default function App() {
             runFailure={runFailure}
             onDismissRunFailure={() => setRunFailure(null)}
             onNavigate={setPage}
-            instrumentHull={instrumentHull.selected}
+            instrumentHull={instrumentHull}
             launchProfileName={launchProfileName}
           />
         ) : page === "launch" ? (

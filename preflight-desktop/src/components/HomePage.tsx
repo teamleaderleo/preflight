@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowIcon, CheckIcon, FolderIcon, PlayIcon, SparklesIcon } from "../icons";
+import { ArrowIcon, CheckIcon, ClockIcon, FocusIcon, FolderIcon, PauseIcon, PlayIcon, SparklesIcon } from "../icons";
 import { adapterHealthLine } from "../adapterHealthText";
 import { HOME_OPTIONS_STORAGE_KEY } from "../desktopStorage";
 import type { Page } from "./DesktopShell";
@@ -12,6 +12,9 @@ import { storagePlanApplies, type usePreparation } from "../usePreparation";
 import { lastRunForCurrentProfile, launchSetupApplicability } from "../lastRunApplicability";
 import { formatBytes, formatPlaytime, splitPlaytime } from "../uiFormat";
 import { FlightInstrument } from "./FlightInstrument";
+import { useHomePresentation } from "../useHomePresentation";
+import { useInstrumentMotion } from "../useInstrumentMotion";
+import type { useInstrumentHull } from "../useInstrumentHull";
 import type {
   AppStatus,
   DesktopSnapshot,
@@ -20,10 +23,10 @@ import type {
   NoticeTone,
   OptimizationPreset,
   UpdateStatus,
-  WireframeHull,
 } from "../types";
 
 type PreparationState = ReturnType<typeof usePreparation>;
+type InstrumentHullState = ReturnType<typeof useInstrumentHull>;
 
 interface HomePageProps {
   snapshot: DesktopSnapshot | null;
@@ -63,7 +66,7 @@ interface HomePageProps {
   } | null;
   onDismissRunFailure: () => void;
   onNavigate: (page: Page) => void;
-  instrumentHull: WireframeHull;
+  instrumentHull: InstrumentHullState;
   launchProfileName: string | null;
 }
 
@@ -110,6 +113,8 @@ export function HomePage({
       return false;
     }
   });
+  const homePresentation = useHomePresentation();
+  const instrumentMotion = useInstrumentMotion();
   const {
     cache,
     cacheHealth,
@@ -213,6 +218,22 @@ export function HomePage({
                     : optimizationPreset === "off"
                       ? "Optimizations off"
                       : null;
+  const selectedHullIndex = instrumentHull.hulls.findIndex((hull) => hull.id === instrumentHull.selected.id);
+  const cycleHull = (offset: number) => {
+    if (instrumentHull.hulls.length < 2) return;
+    const current = selectedHullIndex >= 0 ? selectedHullIndex : 0;
+    const next = (current + offset + instrumentHull.hulls.length) % instrumentHull.hulls.length;
+    instrumentHull.choose(instrumentHull.hulls[next].id);
+  };
+  const playtimeVisible = homePresentation.mode !== "compact" && homePresentation.showPlaytime;
+  const togglePlaytime = () => {
+    if (homePresentation.mode === "compact") {
+      homePresentation.setMode("hangar");
+      homePresentation.setShowPlaytime(true);
+      return;
+    }
+    homePresentation.setShowPlaytime(!homePresentation.showPlaytime);
+  };
 
   const notice = (
     <NoticeBanner
@@ -265,7 +286,7 @@ export function HomePage({
         <div className="launch-console__primary">
           {isReady ? (
             <div className="home-flight-instrument">
-              <FlightInstrument hull={instrumentHull} variant="stage" />
+              <FlightInstrument hull={instrumentHull.selected} variant="stage" interactive />
             </div>
           ) : null}
           {isReady ? (
@@ -276,6 +297,28 @@ export function HomePage({
                   {statusLabel}
                 </div>
               ) : null}
+              <button
+                className="home-display-toggle"
+                type="button"
+                aria-label={playtimeVisible ? "Hide time" : "Show time"}
+                title={playtimeVisible ? "Hide time" : "Show time"}
+                aria-pressed={playtimeVisible}
+                onClick={togglePlaytime}
+              >
+                <ClockIcon />
+                <span>{playtimeVisible ? "Hide time" : "Show time"}</span>
+              </button>
+              <button
+                className="home-display-toggle"
+                type="button"
+                aria-label={homePresentation.mode === "compact" ? "Show ship" : "Hide ship"}
+                title={homePresentation.mode === "compact" ? "Show ship" : "Hide ship"}
+                aria-pressed={homePresentation.mode === "compact"}
+                onClick={() => homePresentation.setMode(homePresentation.mode === "compact" ? "hangar" : "compact")}
+              >
+                <FocusIcon />
+                <span>{homePresentation.mode === "compact" ? "Show ship" : "Hide ship"}</span>
+              </button>
               <button
                 className="home-options-toggle"
                 type="button"
@@ -384,7 +427,25 @@ export function HomePage({
               <button className="button button--primary" type="button" onClick={onChooseInstall} disabled={status === "loading" || operationBlocked}><FolderIcon />Choose game folder</button>
             )}
           </div>
-          {isReady ? <span className="home-ship-name">{instrumentHull.name}</span> : null}
+          {isReady ? (
+            <div className="home-ship-picker" aria-label="Display ship">
+              <button type="button" aria-label="Previous display ship" title="Previous ship" onClick={() => cycleHull(-1)} disabled={instrumentHull.hulls.length < 2}><ArrowIcon /></button>
+              <button className="home-ship-name" type="button" title="Choose a display ship" onClick={() => onNavigate("hangar")}>{instrumentHull.selected.name}</button>
+              <button type="button" aria-label="Next display ship" title="Next ship" onClick={() => cycleHull(1)} disabled={instrumentHull.hulls.length < 2}><ArrowIcon /></button>
+            </div>
+          ) : null}
+          {isReady && homeLayoutState === "settled" ? (
+            <button
+              className="home-motion-toggle"
+              type="button"
+              aria-label={instrumentMotion.motion === "rotate" ? "Pause ship rotation" : "Resume ship rotation"}
+              title={instrumentMotion.motion === "rotate" ? "Pause ship rotation" : "Resume ship rotation"}
+              aria-pressed={instrumentMotion.motion === "still"}
+              onClick={() => instrumentMotion.setMotion(instrumentMotion.motion === "rotate" ? "still" : "rotate")}
+            >
+              {instrumentMotion.motion === "rotate" ? <PauseIcon /> : <PlayIcon />}
+            </button>
+          ) : null}
         </div>
         {isReady && optionsOpen && launcherDraft && launcherSettings ? (
           <QuickGameSettings

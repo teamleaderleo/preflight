@@ -5,8 +5,8 @@ import { SIDEBAR_STORAGE_KEY } from "../desktopStorage";
 import {
   HomeIcon,
   LayersIcon,
-  LifebuoyIcon,
   MoonIcon,
+  QuestionIcon,
   SettingsIcon,
   ShipIcon,
   SidebarIcon,
@@ -191,7 +191,7 @@ export function DesktopShell({
             <ShipIcon /><span>Hangar</span>
           </button>
           <button className={`nav__item ${page === "help" ? "nav__item--active" : ""}`} type="button" title="Help" aria-current={page === "help" ? "page" : undefined} onClick={() => onPageChange("help")}>
-            <LifebuoyIcon /><span>Help</span>
+            <QuestionIcon /><span>Help</span>
           </button>
         </nav>
         <div className="sidebar__footer">
@@ -203,7 +203,7 @@ export function DesktopShell({
       </aside>
 
       <main className="main" id="main-content" tabIndex={-1}>
-        <header className="topbar">
+        <header className={`topbar${homeActive ? " topbar--home" : ""}`}>
           <h1 id="page-title" className="page-title" ref={pageTitle} tabIndex={-1} onKeyDown={handOffWorkspaceScroll}>{title}</h1>
           <div className="topbar__actions">
             <div className="palette-switch" role="group" aria-label="Color palette">
@@ -213,6 +213,7 @@ export function DesktopShell({
                   className={`palette-switch__button ${palette === choice ? "palette-switch__button--active" : ""}`}
                   type="button"
                   title={`Use ${PALETTE_NAMES[choice]} palette`}
+                  data-tooltip={PALETTE_NAMES[choice]}
                   aria-label={`Use ${PALETTE_NAMES[choice]} palette`}
                   aria-pressed={palette === choice}
                   onClick={() => onPaletteChange(choice)}
@@ -222,9 +223,9 @@ export function DesktopShell({
               ))}
             </div>
             <div className="theme-switch" role="group" aria-label="Color theme">
-              <button className={theme === "system" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use system theme" aria-label="Use system theme" aria-pressed={theme === "system"} onClick={() => onThemeChange("system")}><SystemThemeIcon /></button>
-              <button className={theme === "light" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use light theme" aria-label="Use light theme" aria-pressed={theme === "light"} onClick={() => onThemeChange("light")}><SunIcon /></button>
-              <button className={theme === "dark" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use dark theme" aria-label="Use dark theme" aria-pressed={theme === "dark"} onClick={() => onThemeChange("dark")}><MoonIcon /></button>
+              <button className={theme === "system" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use system theme" data-tooltip="System" aria-label="Use system theme" aria-pressed={theme === "system"} onClick={() => onThemeChange("system")}><SystemThemeIcon /></button>
+              <button className={theme === "light" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use light theme" data-tooltip="Light" aria-label="Use light theme" aria-pressed={theme === "light"} onClick={() => onThemeChange("light")}><SunIcon /></button>
+              <button className={theme === "dark" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use dark theme" data-tooltip="Dark" aria-label="Use dark theme" aria-pressed={theme === "dark"} onClick={() => onThemeChange("dark")}><MoonIcon /></button>
             </div>
           </div>
         </header>

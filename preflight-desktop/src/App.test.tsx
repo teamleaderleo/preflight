@@ -113,13 +113,13 @@ test("latest-run compatibility stays short and treats fallback as a safe result"
     suggestedActions: [],
   };
 
-  expect(adapterHealthLine({ ...base, status: "ACTIVE" })).toBe("Last run: acceleration active");
+  expect(adapterHealthLine({ ...base, status: "ACTIVE" })).toBe("Fast launch ready");
   expect(adapterHealthLine({
     ...base,
     status: "PARTIAL",
     originalCodeRetained: true,
     reviewRecommended: true,
-  })).toBe("Last run: acceleration active, with safe fallback");
+  })).toBe("Fast launch ready · fallback used");
   expect(adapterHealthLine({
     ...base,
     status: "SAFE_FALLBACK",
@@ -403,7 +403,7 @@ test("home surfaces the latest compatibility verdict without exposing the raw re
 
   render(<App />);
 
-  expect(await screen.findByText("Last run: acceleration active, with safe fallback"))
+  expect(await screen.findByText("Fast launch ready · fallback used"))
     .toHaveAttribute("title", "Keep playing if the game is otherwise healthy.");
   expect(screen.queryByText("VERSION_OR_TARGET_MISMATCH")).not.toBeInTheDocument();
   snapshot.mockRestore();
@@ -438,7 +438,7 @@ test("home and speed omit launch evidence from another profile", async () => {
   render(<App />);
 
   await screen.findByText("Ready");
-  expect(screen.queryByText("Last run: acceleration active")).not.toBeInTheDocument();
+  expect(screen.queryByText("Fast launch ready")).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Speed" }));
   expect(screen.queryByText("Last fast launch: 15.3s to the menu.")).not.toBeInTheDocument();
   snapshot.mockRestore();
@@ -465,8 +465,8 @@ test("setup keeps a single installation action and hides unavailable ready-state
   await user.click(screen.getByRole("button", { name: "Help" }));
   expect(await screen.findByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Make a support file" })).toBeEnabled();
-  expect(screen.getByText(/Never attach a support ZIP there/)).toBeVisible();
-  expect(screen.getByText(/quote only the case number/)).toBeVisible();
+  expect(screen.getByText(/Don’t attach a support ZIP there/)).toBeVisible();
+  expect(screen.getByText(/include the case number instead/)).toBeVisible();
 
   snapshot.mockRestore();
 });
@@ -1193,9 +1193,9 @@ test("diagnostics disclose their boundary and export a bounded bundle", async ()
   await user.click(screen.getByRole("button", { name: "Send this exact file" }));
 
   expect(await screen.findByRole("heading", { name: /Case ed6ca0c8/ })).toBeInTheDocument();
-  expect(screen.getByText(/was accepted/)).toBeInTheDocument();
+  expect(screen.getByText(/arrived intact/)).toBeInTheDocument();
   await waitFor(() => expect(window.localStorage.getItem("preflight.reportReceipt")).not.toBeNull());
-  await user.click(screen.getByRole("button", { name: "Delete uploaded report" }));
+  await user.click(screen.getByRole("button", { name: "Delete uploaded file" }));
   expect(await screen.findByText(/was deleted/)).toBeInTheDocument();
   await waitFor(() => expect(window.localStorage.getItem("preflight.reportReceipt")).toBeNull());
 });
@@ -1225,8 +1225,8 @@ test("restores an unexpired report deletion receipt after restart", async () => 
   await user.click(screen.getByRole("button", { name: "Help" }));
 
   expect(await screen.findByRole("heading", { name: `Case ${caseId}` })).toBeInTheDocument();
-  expect(screen.getByText(/The deletion receipt stays here/)).toBeInTheDocument();
-  expect(screen.getByText(/Use this case number in an issue/)).toBeInTheDocument();
+  expect(screen.getByText(/Keep this card if you may want to delete the upload/)).toBeInTheDocument();
+  expect(screen.getByText(/Add this case number to your issue/)).toBeInTheDocument();
 });
 
 test("discards an expired local report deletion receipt", async () => {

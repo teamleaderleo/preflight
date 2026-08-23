@@ -104,6 +104,7 @@ export function HelpPage({
             <button className={`button ${setupCopy.state === "copied" ? "button--quiet" : "button--primary"} button--support`} type="button" onClick={() => void setupCopy.copySetup()} disabled={operationBlocked || setupCopy.state === "copying"}>
               {setupCopy.state === "copying" ? "Copying…" : setupCopy.state === "copied" ? "Setup copied" : "Copy setup"}
             </button>
+            <button className="button button--quiet button--support" type="button" onClick={() => void openProjectLink("report-issue")}>Open issue<ArrowIcon /></button>
             <button className="button button--quiet button--support" type="button" onClick={() => void saveDiagnostics()} disabled={operationBlocked || diagnosticsBusy || reportUploading}>
               <FolderIcon />{diagnosticsBusy ? "Creating…" : diagnosticsExport ? "Make another one" : "Make a support file"}
             </button>
@@ -191,27 +192,27 @@ export function HelpPage({
 
       {reportReceipt ? (
         <section className="card report-receipt" aria-label="Run report receipt">
-          <div className="card__heading"><div><p className="eyebrow">Accepted</p><h2>Case {reportReceipt.caseId}</h2></div><CheckIcon className="settings-check" /></div>
-          <p>{formatBytes(reportReceipt.bytes)} arrived with the same SHA-256. Use this case number in an issue. The deletion receipt stays here until you dismiss it, delete the report, or its deadline passes.</p>
+          <div className="card__heading"><div><p className="eyebrow">Upload complete</p><h2>Case {reportReceipt.caseId}</h2></div><CheckIcon className="settings-check" /></div>
+          <p>Your {formatBytes(reportReceipt.bytes)} support file arrived intact. Add this case number to your issue. Keep this card if you may want to delete the upload before its deadline.</p>
           <div className="report-facts">
             <div><span>Received</span><strong>{new Date(reportReceipt.receivedAt).toLocaleString()}</strong></div>
             <div><span>Retention deadline</span><strong>{new Date(reportReceipt.retentionDeadline).toLocaleString()}</strong></div>
             <div className="report-facts__digest"><span>SHA-256</span><code>{reportReceipt.sha256}</code></div>
           </div>
           <div className="update-actions">
-            <button className="icon-button icon-button--small" type="button" aria-label="Copy receipt" title="Copy case receipt" onClick={() => void copyRunReportReceipt()}><CopyIcon /></button>
-            <button className="button button--quiet button--compact" type="button" onClick={dismissRunReportReceipt}>I saved this receipt</button>
-            <button className="button button--danger button--compact" type="button" onClick={() => void removeRunReport()} disabled={reportDeleting}>{reportDeleting ? "Deleting…" : "Delete uploaded report"}</button>
+            <button className="button button--quiet button--compact" type="button" onClick={() => void copyRunReportReceipt()}><CopyIcon />Copy case details</button>
+            <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("report-issue")}>Open issue<ArrowIcon /></button>
+            <button className="button button--quiet button--compact" type="button" onClick={dismissRunReportReceipt}>Dismiss</button>
+            <button className="button button--danger button--compact" type="button" onClick={() => void removeRunReport()} disabled={reportDeleting}>{reportDeleting ? "Deleting…" : "Delete uploaded file"}</button>
           </div>
         </section>
       ) : null}
 
       <section className="card help-links-card">
         <div className="card__heading"><div><h2>More help</h2></div></div>
-        <p>Paste the Copy setup summary into a public issue. Never attach a support ZIP there. If you sent one through Preflight, quote only the case number.</p>
+        <p>Paste the copied setup into an issue. Don’t attach a support ZIP there. If you sent one through Preflight, include the case number instead.</p>
         <div className="privacy-links">
           <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("getting-started")}>Getting started</button>
-          <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("report-issue")}>Open an issue</button>
         </div>
         <small>These open Preflight’s pages in your browser.</small>
       </section>

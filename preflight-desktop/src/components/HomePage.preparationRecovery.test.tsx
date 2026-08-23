@@ -2,6 +2,7 @@ import homePresentationStyles from "../homePresentation.css?raw";
 import { render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import type { usePreparation } from "../usePreparation";
+import type { useInstrumentHull } from "../useInstrumentHull";
 import type { DesktopSnapshot, WireframeHull } from "../types";
 import { HomePage } from "./HomePage";
 
@@ -19,6 +20,19 @@ const hull: WireframeHull = {
   engines: [],
   mounts: [],
 };
+
+const hullState = {
+  catalog: null,
+  catalogLoaded: false,
+  hulls: [hull],
+  selected: hull,
+  selectedId: hull.id,
+  tuning: { outerSmooth: 0, outerDetail: 0, innerSmooth: 0, innerDetail: 0, height: 1 },
+  customized: false,
+  choose: vi.fn(),
+  customize: vi.fn(),
+  resetCustomization: vi.fn(),
+} as ReturnType<typeof useInstrumentHull>;
 
 const snapshot: DesktopSnapshot = {
   protocol: 1,
@@ -122,7 +136,7 @@ function renderHome(currentPreparation: ReturnType<typeof usePreparation>, opera
     runFailure={null}
     onDismissRunFailure={vi.fn()}
     onNavigate={vi.fn()}
-    instrumentHull={hull}
+    instrumentHull={hullState}
     launchProfileName="Exploration"
   />);
 }

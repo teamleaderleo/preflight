@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { HOME_PRESENTATION_STORAGE_KEY } from "./desktopStorage";
 
 export type HomePresentationMode = "hangar" | "compact";
@@ -77,18 +77,21 @@ function persistHomePresentation(preference: HomePresentationPreference): void {
 
 export function useHomePresentation() {
   const [preference, setPreference] = useState(readHomePresentation);
+  const preferenceRef = useRef(preference);
 
   useEffect(() => {
     const sync = (event: Event) => {
       const detail = (event as CustomEvent<HomePresentationPreference>).detail;
       const next = detail ?? readHomePresentation();
       applyHomePresentation(next);
+      preferenceRef.current = next;
       setPreference(next);
     };
     const syncStorage = (event: StorageEvent) => {
       if (event.key === HOME_PRESENTATION_STORAGE_KEY) {
         const next = readHomePresentation();
         applyHomePresentation(next);
+        preferenceRef.current = next;
         setPreference(next);
       }
     };
@@ -100,14 +103,21 @@ export function useHomePresentation() {
     };
   }, []);
 
-  const commit = (next: HomePresentationPreference) => {
+  const commit = (
+    update: (current: HomePresentationPreference) => HomePresentationPreference,
+  ) => {
+    const next = update(preferenceRef.current);
+    preferenceRef.current = next;
     persistHomePresentation(next);
     publishHomePresentation(next);
     setPreference(next);
   };
 
-  const setMode = (mode: HomePresentationMode) => commit({ ...preference, mode });
-  const setShowPlaytime = (showPlaytime: boolean) => commit({ ...preference, showPlaytime });
+  const setMode = (mode: HomePresentationMode) => commit((current) => ({ ...current, mode }));
+  const setShowPlaytime = (showPlaytime: boolean) => commit((current) => ({
+    ...current,
+    showPlaytime,
+  }));
 
   return {
     mode: preference.mode,

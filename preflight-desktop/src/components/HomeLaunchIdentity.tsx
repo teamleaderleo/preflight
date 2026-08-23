@@ -6,10 +6,9 @@ interface HomeLaunchIdentityProps {
 }
 
 export function HomeLaunchIdentity({ installRoot, profileName }: HomeLaunchIdentityProps) {
-  const name = profileName ?? "Current mod setup";
   return (
     <div className="home-launch-identity">
-      <strong title={profileName ?? undefined}>{name}</strong>
+      {profileName ? <strong title={profileName}>{profileName}</strong> : null}
       <span
         className="home-launch-path"
         tabIndex={0}

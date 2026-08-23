@@ -168,6 +168,12 @@ button {
   min-height: 0;
   overflow: hidden;
   isolation: isolate;
+  background-color: var(--cream);
+  background-image: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--paper-solid) 94%, var(--accent) 6%),
+    var(--cream)
+  );
   transition: grid-template-columns 140ms cubic-bezier(0.2, 0, 0, 1);
 }
 
@@ -181,11 +187,11 @@ button {
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(rgba(148, 120, 95, 0.28) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 120, 95, 0.28) 1px, transparent 1px);
+    linear-gradient(color-mix(in srgb, var(--accent) 30%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 30%, transparent) 1px, transparent 1px);
   background-size: 24px 24px;
-  mask-image: radial-gradient(220px circle at var(--grid-x) var(--grid-y), black 0%, transparent 72%);
-  opacity: 0.32;
+  mask-image: radial-gradient(190px circle at var(--grid-x) var(--grid-y), black 0 24%, transparent 72%);
+  opacity: 0.48;
   transition: opacity 180ms ease;
   content: "";
 }
@@ -232,7 +238,9 @@ button {
 }
 
 .sidebar__collapse svg {
-  width: 18px;
+  width: 26px;
+  height: 26px;
+  stroke-width: 2;
   transition: transform 140ms cubic-bezier(0.2, 0, 0, 1);
 }
 
@@ -423,6 +431,10 @@ button {
   min-width: 0;
 }
 
+.topbar--home .page-title {
+  color: var(--accent-strong);
+}
+
 .theme-switch {
   display: flex;
   align-items: center;
@@ -454,6 +466,43 @@ button {
   border-radius: 3px;
   background: transparent;
   cursor: pointer;
+}
+
+.palette-switch__button,
+.theme-switch__button {
+  position: relative;
+}
+
+.palette-switch__button::after,
+.theme-switch__button::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  left: 50%;
+  padding: 4px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  color: var(--ink);
+  background: var(--paper-solid);
+  box-shadow: var(--shadow);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -2px);
+  transition: opacity 80ms ease, transform 80ms ease;
+}
+
+.palette-switch__button:hover::after,
+.palette-switch__button:focus-visible::after,
+.theme-switch__button:hover::after,
+.theme-switch__button:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .palette-switch__button--active {
@@ -651,7 +700,7 @@ h2 {
   position: absolute;
   z-index: 0;
   inset: 12px 48px 58px;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .home-flight-instrument .flight-instrument {
@@ -680,6 +729,39 @@ h2 {
   inset: 22px 24px auto;
   width: auto;
   margin: 0;
+}
+
+.home-display-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 4px;
+  padding: 0 10px;
+  color: var(--console-soft);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.launch-console__status-line .home-display-toggle:first-of-type {
+  margin-left: auto;
+}
+
+.launch-console__status-line .home-options-toggle {
+  margin-left: 0;
+}
+
+.home-display-toggle:hover,
+.home-display-toggle[aria-pressed="true"] {
+  color: var(--console-ink);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.home-display-toggle svg {
+  width: 18px;
 }
 
 .home-options-toggle {
@@ -713,8 +795,8 @@ h2 {
 .home-playtime {
   position: absolute !important;
   z-index: 2 !important;
-  top: 78px;
-  left: 30px;
+  top: 42px;
+  left: 24px;
   display: flex;
   align-items: baseline;
   flex-direction: column;
@@ -756,9 +838,127 @@ h2 {
 }
 
 .home-ship-name {
+  min-height: 44px;
+  border: 0;
+  min-width: 152px;
+  max-width: 152px;
+  overflow: hidden;
+  padding: 0 4px;
+  color: var(--console-ink);
+  background: transparent;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 580;
+  letter-spacing: .015em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.home-ship-picker {
   position: absolute !important;
-  bottom: 24px;
-  left: 28px;
+  z-index: 3 !important;
+  bottom: 30px;
+  left: 4px;
+  display: flex;
+  align-items: center;
+  width: 244px;
+  padding: 2px;
+  border: 1px solid var(--console-line);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--console-control) 72%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.home-ship-picker > button:not(.home-ship-name) {
+  display: grid;
+  width: 44px;
+  min-height: 44px;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  color: var(--console-soft);
+  background: transparent;
+  cursor: pointer;
+}
+
+.home-ship-picker > button:first-child svg {
+  transform: rotate(180deg);
+}
+
+.home-ship-picker button:hover:not(:disabled) {
+  color: var(--console-ink);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.home-ship-picker svg {
+  width: 17px;
+}
+
+.home-motion-toggle {
+  position: absolute !important;
+  z-index: 4 !important;
+  right: 24px;
+  bottom: 32px;
+  display: grid;
+  width: 44px;
+  min-height: 44px;
+  place-items: center;
+  border: 1px solid var(--console-line);
+  border-radius: 4px;
+  color: var(--console-soft);
+  background: color-mix(in srgb, var(--console-control) 72%, transparent);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+}
+
+.home-motion-toggle:hover,
+.home-motion-toggle[aria-pressed="true"] {
+  color: var(--console-ink);
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--console-line));
+  background: color-mix(in srgb, var(--accent) 10%, var(--console-control));
+}
+
+.home-motion-toggle svg {
+  width: 17px;
+}
+
+.home-launch-identity {
+  position: absolute !important;
+  z-index: 3 !important;
+  bottom: 94px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 5px;
+  width: max-content;
+  max-width: min(440px, calc(100% - 48px));
+  color: var(--console-soft);
+  transform: translateX(-50%);
+}
+
+.home-launch-identity strong {
+  color: var(--console-ink);
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.home-launch-path {
+  display: block;
+  max-width: 100%;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: var(--font-data);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.home-launch-path__short {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .launch-console__status-line .status-chip {
@@ -1041,6 +1241,10 @@ h2 {
   color: var(--ink-soft);
   font-family: var(--font-data);
   font-size: 12px;
+}
+
+.last-run-health:not(.last-run-health--review) {
+  color: var(--success);
 }
 
 .last-run-health--review {
@@ -2094,6 +2298,31 @@ h2 {
   height: 100%;
   aspect-ratio: auto;
   transform: none;
+}
+
+.flight-instrument--interactive {
+  cursor: grab;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.flight-instrument--interactive[data-dragging="true"] {
+  cursor: grabbing;
+}
+
+.flight-instrument--interactive:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--instrument-accent) 58%, transparent);
+  outline-offset: -4px;
+}
+
+.hangar-direction-action[aria-pressed="true"] {
+  color: var(--accent-strong);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  background: var(--accent-soft);
+}
+
+.hangar-direction-action--left svg {
+  transform: rotate(180deg);
 }
 
 @media (min-width: 761px) {
@@ -3699,9 +3928,32 @@ footer {
     font-size: clamp(32px, 15vw, 52px);
   }
 
+  .home-ship-picker {
+    right: auto;
+    bottom: 78px;
+    left: 50%;
+    width: 208px;
+    transform: translateX(-50%);
+  }
+
   .home-ship-name {
-    bottom: 16px;
-    left: 10px;
+    min-width: 116px;
+    max-width: 116px;
+    font-size: 16px;
+  }
+
+  .home-motion-toggle {
+    display: none;
+  }
+
+  .home-display-toggle {
+    width: 44px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .home-display-toggle span {
+    display: none;
   }
 
   .launch-console--ready .launch-console__actions {
@@ -3711,7 +3963,8 @@ footer {
   }
 
   .launch-console--ready .button--launch {
-    width: min(300px, 100%);
+    width: min(280px, 100%);
+    min-width: min(280px, 100%);
   }
 
   .launch-console--ready .launch-console__note {

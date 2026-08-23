@@ -164,8 +164,7 @@ test("refocus on another page invalidates stale launch identity before returning
     await user.click(screen.getByRole("button", { name: "Home" }));
     expect(screen.queryByText("Main campaign", { selector: ".home-launch-identity strong" }))
       .not.toBeInTheDocument();
-    expect(await screen.findByText("Current mod setup", { selector: ".home-launch-identity strong" }))
-      .toBeInTheDocument();
+    expect(screen.queryByText("Current mod setup")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Installation /Applications/Starsector")).toBeInTheDocument();
     expect(getProfiles).toHaveBeenCalledTimes(2);
 
@@ -199,8 +198,9 @@ test("failed refocus revalidation never restores the old saved profile name", as
 
     window.dispatchEvent(new Event("focus"));
 
-    expect(await screen.findByText("Current mod setup", { selector: ".home-launch-identity strong" }))
-      .toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Main campaign", { selector: ".home-launch-identity strong" }))
+      .not.toBeInTheDocument());
+    expect(screen.queryByText("Current mod setup")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Installation /Applications/Starsector")).toBeInTheDocument();
     await waitFor(() => expect(getProfiles).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(getCache).toHaveBeenCalledTimes(2));
