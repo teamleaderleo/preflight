@@ -1,5 +1,6 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.agent.RecordingMode;
 import dev.starsector.preflight.agent.TextureAdapterMode;
 import dev.starsector.preflight.core.Json;
 import java.io.IOException;
@@ -52,10 +53,7 @@ final class RunCommand {
                 ? null
                 : OperationLease.acquire(PreflightHome.current(), "launching", target.installRoot());
         if (operationOwnership != null && operationOwnership.recovered() != null) {
-            System.err.println("Preflight recovered ownership left by interrupted "
-                    + operationOwnership.recovered().operation() + " process "
-                    + operationOwnership.recovered().pid() + "; removed "
-                    + operationOwnership.recoveredTemporaryFiles() + " incomplete temporary files.");
+            System.err.println("Recovered an interrupted Preflight operation.");
         }
         try (OperationLease ignored = operationOwnership == null ? null : operationOwnership.lease()) {
             return executeOwned(options, discovery, target, platform);
@@ -75,10 +73,6 @@ final class RunCommand {
                         platform, target, options.optimizationPreset(), System.getenv());
         LaunchOwnership ownership = LaunchOwnership.detect(target);
         boolean janinoCacheOwned = options.janinoBytecodeCache() && !ownership.fastRendering();
-        if (options.janinoBytecodeCache() && ownership.fastRendering()) {
-            System.out.println("Preflight left Janino compilation to Fast Rendering's custom "
-                    + "system classloader (" + String.join(", ", ownership.evidence()) + ").");
-        }
         LaunchCacheContexts.Result cacheContexts =
                 LaunchCacheContexts.select(options, target, janinoCacheOwned);
         LaunchCacheContexts.Texture textureContext = cacheContexts.texture();
@@ -199,21 +193,21 @@ final class RunCommand {
 
         List<String> command = new ArrayList<>(target.command());
         command.addAll(options.forwardedArgs());
-        printPlan(
-                target,
-                runDirectory,
-                adapterReport,
-                command,
-                javaToolOptions,
-                discovery,
-                options,
-                textureContext,
-                directSettings,
-                janinoBytecodeCache,
-                combatJvmSafeguard,
-                macRosettaGcPolicy,
-                javaOptions);
         if (options.dryRun()) {
+            printPlan(
+                    target,
+                    runDirectory,
+                    adapterReport,
+                    command,
+                    javaToolOptions,
+                    discovery,
+                    options,
+                    textureContext,
+                    directSettings,
+                    janinoBytecodeCache,
+                    combatJvmSafeguard,
+                    macRosettaGcPolicy,
+                    javaOptions);
             return 0;
         }
 
@@ -333,7 +327,7 @@ final class RunCommand {
                     addPostprocessingFailure(postprocessingFailures, "summary", error);
                     System.err.println("Preflight summary skipped: " + message(error));
                 }
-            } else if (!Files.exists(recording)) {
+            } else if (options.recordingMode() != RecordingMode.OFF && !Files.exists(recording)) {
                 System.err.println("Preflight recording was not created. Run `doctor` and inspect the selected launcher.");
             }
             if (Files.isRegularFile(adapterReport)) {
