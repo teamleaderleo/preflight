@@ -70,9 +70,28 @@ export function preparationModeMatchesStorage(
   textureStorage: TextureStorage,
 ): boolean {
   if (health?.status !== "ready") return false;
-  return textureStorage === "minimal"
-    ? health.preparedTextures === false
-    : health.preparedTextures !== false;
+  if (textureStorage === "minimal") return health.preparedTextures === false;
+  if (health.preparedTextures === false) return false;
+  if (textureStorage === "compact") {
+    return health.textureStorage === "balanced" && health.textureScope === "learned";
+  }
+  if (textureStorage === "fastest") {
+    return health.textureStorage === "fastest" && health.textureScope !== "learned";
+  }
+  // Receipts were added after prepared packs. A valid legacy pack remains launchable and is
+  // treated as Balanced, while every newly prepared pack is matched exactly.
+  return health.textureStorage === undefined
+    || health.textureStorage === null
+    || (health.textureStorage === "balanced" && health.textureScope !== "learned");
+}
+
+export function canGraduateToCompact(health: CacheHealth | null): boolean {
+  return health?.status === "ready"
+    && health.preparedTextures === true
+    && health.compactAvailable === true
+    && ((health.textureStorage === "balanced" && health.textureScope === "full")
+      || ((health.textureStorage === undefined || health.textureStorage === null)
+        && (health.textureScope === undefined || health.textureScope === null)));
 }
 
 export function usePreparation(
@@ -81,6 +100,7 @@ export function usePreparation(
   optimizationPreset: OptimizationPreset,
   launch: () => Promise<void>,
   announce: Announce,
+  automaticCompactionGeneration = 0,
 ) {
   const [cache, setCache] = useState<CacheSnapshot | null>(null);
   const [cacheHealth, setCacheHealth] = useState<CacheHealth | null>(null);
@@ -106,6 +126,7 @@ export function usePreparation(
   const [preparationPlanLoading, setPreparationPlanLoading] = useState(false);
   const launchAfterPreparation = useRef(false);
   const [textureStorage, setTextureStorage] = useState<TextureStorage>("balanced");
+  const automaticCompactAttempts = useRef(new Set<string>());
   const inferredTextureStorageForGame = useRef<string | null>(null);
   const [resourcePreset, setResourcePreset] = useState<keyof typeof resourcePresets>("balanced");
   const gameRef = useRef(game);
@@ -247,7 +268,14 @@ export function usePreparation(
     }
     if (inferredTextureStorageForGame.current === game || currentCacheHealth?.status !== "ready") return;
     inferredTextureStorageForGame.current = game;
-    if (currentCacheHealth.preparedTextures === false) setTextureStorage("minimal");
+    if (currentCacheHealth.preparedTextures === false) {
+      setTextureStorage("minimal");
+    } else if (currentCacheHealth.textureStorage === "balanced"
+      && currentCacheHealth.textureScope === "learned") {
+      setTextureStorage("compact");
+    } else if (currentCacheHealth.textureStorage === "fastest") {
+      setTextureStorage("fastest");
+    }
   }, [currentCacheHealth, game]);
   const profilePrepared = isCurrentProfilePrepared(currentCache, textureStorage)
     && preparationModeMatchesStorage(currentCacheHealth, textureStorage);
@@ -313,7 +341,11 @@ export function usePreparation(
         setTextureStorage(requestedStorage);
         setPreparationPlanEnvelope(null);
       }
-      let plan = forcePlan || !storagePlanApplies(requestedStorage) ? null : preparationPlan;
+      let plan = forcePlan
+        || !storagePlanApplies(requestedStorage)
+        || requestedStorage !== textureStorage
+        ? null
+        : preparationPlan;
       if (!plan && storagePlanApplies(requestedStorage)) {
         setPreparationPlanLoading(true);
         plan = await getPreparationPlan(game, requestedStorage, resources.workers);
@@ -407,6 +439,31 @@ export function usePreparation(
     launchWhenReady = false,
     requestedStorage: TextureStorage = textureStorage,
   ) => runPreparation(launchWhenReady, false, requestedStorage);
+
+  useEffect(() => {
+    const profile = currentCacheHealth?.profileFingerprint;
+    if (automaticCompactionGeneration <= 0
+      || !isDesktopHost()
+      || !game
+      || !profile
+      || preparing
+      || cacheRepairing
+      || preparationPlanLoading
+      || !canGraduateToCompact(currentCacheHealth)) return;
+    const attempt = `${game}\0${profile}\0${automaticCompactionGeneration}`;
+    if (automaticCompactAttempts.current.has(attempt)) return;
+    automaticCompactAttempts.current.add(attempt);
+    announce("Trimming prepared data for faster launches with less disk…");
+    void runPreparation(false, false, "compact");
+  }, [
+    announce,
+    automaticCompactionGeneration,
+    cacheRepairing,
+    currentCacheHealth,
+    game,
+    preparationPlanLoading,
+    preparing,
+  ]);
 
   const repairAndPrepare = async (launchWhenReady = false) => {
     if (!game || cacheRepairing) return;

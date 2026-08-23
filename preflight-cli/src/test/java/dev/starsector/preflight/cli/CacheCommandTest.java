@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import dev.starsector.preflight.core.PreparedAudioCache;
 import dev.starsector.preflight.core.PreparedAudioManifest;
 import dev.starsector.preflight.core.PreparedAudioManifestIO;
+import dev.starsector.preflight.core.PreparedTextureAccessOrderIO;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import dev.starsector.preflight.core.TextureManifest;
@@ -110,6 +111,40 @@ class CacheCommandTest {
         assertEquals(Boolean.FALSE, report.preparedTextures());
         assertEquals(List.of(), report.issues());
         assertFalse(Files.exists(TextureManifestIO.directory(home.cache()).resolve(profile + ".spfm")));
+    }
+
+    @Test
+    void cacheHealthReportsFullAndCompactPreparationLifecycleState() throws Exception {
+        PreflightHome home = PreflightHome.resolve(Platform.OTHER, directory, Map.of());
+        String profile = "e".repeat(64);
+        Path index = ResourceIndexIO.directory(home.cache()).resolve(profile + ".spfi");
+        Path manifest = TextureManifestIO.directory(home.cache()).resolve(profile + ".spfm");
+        ResourceIndexIO.write(index, new ResourceIndex(
+                profile,
+                List.of(new ResourceIndex.Root("core", Path.of("core"), true)),
+                Map.of()));
+        TextureManifestIO.write(manifest, new TextureManifest(profile, Map.of()));
+        TexturePreparationReceipt.write(
+                home.cache(), profile, TextureStoragePolicy.BALANCED, TexturePreparationScope.FULL);
+
+        CacheHealth.Report bootstrap = CacheHealth.inspect(home, profile);
+        assertEquals("balanced", bootstrap.textureStorage());
+        assertEquals("full", bootstrap.textureScope());
+        assertFalse(bootstrap.compactAvailable());
+
+        PreparedTextureAccessOrderIO.write(
+                PreparedTextureAccessOrderIO.path(home.cache(), profile),
+                profile,
+                List.of("graphics/ships/example.png"));
+        CacheHealth.Report learned = CacheHealth.inspect(home, profile);
+        assertTrue(learned.compactAvailable());
+
+        TexturePreparationReceipt.write(
+                home.cache(), profile, TextureStoragePolicy.BALANCED, TexturePreparationScope.LEARNED);
+        CacheHealth.Report compact = CacheHealth.inspect(home, profile);
+        assertEquals("balanced", compact.textureStorage());
+        assertEquals("learned", compact.textureScope());
+        assertTrue(compact.compactAvailable());
     }
 
     @Test

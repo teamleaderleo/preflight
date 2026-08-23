@@ -52,6 +52,42 @@ function mockCacheInspection() {
   } as never);
 }
 
+function mockBalancedCacheReadyForCompact() {
+  const profile = "a".repeat(64);
+  vi.spyOn(bridge, "getCacheInspection").mockResolvedValue({
+    format: "starsector-preflight-cache-inspection-v1",
+    cache: {
+      format: "starsector-preflight-cache-v1",
+      root: "/cache",
+      present: true,
+      total: { bytes: 2_000_000_000, files: 20_000 },
+      groups: [],
+      uncategorizedBytes: 0,
+      currentProfileFingerprint: profile,
+      profiles: [{
+        fingerprint: profile,
+        current: true,
+        bytes: 2_000_000_000,
+        indexBytes: 10_000_000,
+        manifestBytes: 5_000_000,
+        lastModifiedMillis: 1,
+      }],
+    },
+    health: {
+      format: "starsector-preflight-cache-health-v1",
+      status: "ready",
+      profileFingerprint: profile,
+      preparedTextures: true,
+      textureStorage: "balanced",
+      textureScope: "full",
+      compactAvailable: true,
+      issues: [],
+      repairBytes: 0,
+      repairFiles: 0,
+    },
+  });
+}
+
 function capturePreparationListeners() {
   let state: ((event: { payload: PreparationStateEvent }) => void) | null = null;
   let progress: ((event: { payload: PreparationProgressEvent }) => void) | null = null;
@@ -104,6 +140,40 @@ test("restart reconnects active preparation without inventing progress or auto-l
   await waitFor(() => expect(result.current.preparing).toBe(false));
   expect(launch).not.toHaveBeenCalled();
   expect(announce).toHaveBeenCalledWith("Preparation is complete. The current profile is ready.", "success");
+  unmount();
+});
+
+test("a completed run graduates learned Balanced data with a fresh Compact plan", async () => {
+  vi.spyOn(bridge, "isDesktopHost").mockReturnValue(true);
+  vi.spyOn(bridge, "getOperationState").mockResolvedValue(idleOperation());
+  mockBalancedCacheReadyForCompact();
+  vi.spyOn(tauriEvents, "listenWhileMounted")
+    .mockImplementation((() => () => undefined) as typeof tauriEvents.listenWhileMounted);
+  const basePlan = await bridge.getPreparationPlan("preview", "compact", 4);
+  const plan = vi.spyOn(bridge, "getPreparationPlan").mockResolvedValue({
+    ...basePlan,
+    profileFingerprint: "a".repeat(64),
+  });
+  const start = vi.spyOn(bridge, "startPreparation").mockResolvedValue({ pid: 88 });
+  const announce = vi.fn();
+
+  const { unmount } = renderHook(() => usePreparation(
+    "/Applications/Starsector",
+    false,
+    "recommended",
+    vi.fn().mockResolvedValue(undefined),
+    announce,
+    1,
+  ));
+
+  await waitFor(() => expect(start).toHaveBeenCalledWith(
+    "/Applications/Starsector",
+    "compact",
+    4,
+    256,
+  ));
+  expect(plan).toHaveBeenCalledWith("/Applications/Starsector", "compact", 4);
+  expect(announce).toHaveBeenCalledWith("Trimming prepared data for faster launches with less disk…");
   unmount();
 });
 

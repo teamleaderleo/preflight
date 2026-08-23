@@ -230,6 +230,7 @@ export default function App() {
     optimizationPreset,
     launch,
     announcePreparation,
+    status === "ready" && !restoringOperation ? maintenanceEpoch : 0,
   );
   const {
     preparing,
@@ -369,7 +370,7 @@ export default function App() {
               setForceStopAvailable(false);
               setMaintenanceEpoch((epoch) => epoch + 1);
               setStatus("ready");
-              void refresh().then((refreshed) => {
+              void Promise.all([refresh(), refreshCache()]).then(([refreshed]) => {
                 if (refreshed) announceGame("Starsector closed. The run report is ready.", "success");
               });
             },
@@ -431,7 +432,7 @@ export default function App() {
         if (!payload.success && game) {
           void diagnostics.submitAutomaticFailedRunReport({ game, wrapperPid: payload.pid });
         }
-        void refresh(game).then((refreshed) => {
+        void Promise.all([refresh(game), refreshCache()]).then(([refreshed]) => {
           if (refreshed) announceGame(outcome, payload.success ? "success" : "error");
         });
       }
@@ -450,7 +451,10 @@ export default function App() {
             previousPid = null;
             setMaintenanceEpoch((current) => current + 1);
             setStatus(snapshot?.ready ? "ready" : "setup");
-            void refresh(snapshot?.selected?.installRoot).then((refreshed) => {
+            void Promise.all([
+              refresh(snapshot?.selected?.installRoot),
+              refreshCache(),
+            ]).then(([refreshed]) => {
               if (refreshed) announceGame("Starsector closed. The exact outcome is available in run reports.", "warning");
             });
           } else {
@@ -465,7 +469,7 @@ export default function App() {
       stopListening();
       stopReconciliation();
     };
-  }, [announceGame, countFastLaunch, diagnostics.submitAutomaticFailedRunReport, refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
+  }, [announceGame, countFastLaunch, diagnostics.submitAutomaticFailedRunReport, refresh, refreshCache, snapshot?.ready, snapshot?.selected?.installRoot]);
 
   const chooseInstall = async (): Promise<boolean> => {
     if (choosingInstallRef.current) return false;
@@ -555,7 +559,7 @@ export default function App() {
     invalidatePreparationPlan();
   }, [invalidatePreparationPlan, refreshCache]);
   useAutomaticMaintenance(
-    status === "ready" && isReady && !operationBlocked,
+    status === "ready" && isReady && !operationBlocked && !preparation.preparationPlanLoading,
     maintenanceEpoch,
     {
       game: snapshot?.selected?.installRoot,

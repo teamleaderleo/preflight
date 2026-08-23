@@ -41,6 +41,8 @@ final class CacheFootprint {
                     acceleration("one per prepared profile")),
             Map.entry(relative(MinimalPreparationMarker.directory(Path.of("cache"))),
                     acceleration("profiles intentionally prepared without textures")),
+            Map.entry(relative(TexturePreparationReceipt.directory(Path.of("cache"))),
+                    acceleration("the storage and coverage of each prepared texture profile")),
             Map.entry("cache/spec-store", acceleration(
                     "prepared JSON, rules and command-class artifacts")),
             Map.entry(relative(PreparedAudioCache.root(Path.of("cache"))), acceleration(

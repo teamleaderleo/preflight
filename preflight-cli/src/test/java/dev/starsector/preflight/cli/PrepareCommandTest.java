@@ -94,6 +94,22 @@ class PrepareCommandTest {
         assertTrue(Files.list(cache.resolve("classpath/profiles")).anyMatch(path -> path.toString().endsWith(".spfc")));
         assertTrue(Files.list(cache.resolve("spec-store/profiles")).anyMatch(path -> path.toString().endsWith(".json")));
         assertTrue(Files.list(cache.resolve("manifests")).anyMatch(path -> path.toString().endsWith(".spfm")));
+        ResourceIndex prepared = Files.list(ResourceIndexIO.directory(cache))
+                .filter(path -> path.toString().endsWith(".spfi"))
+                .findFirst()
+                .map(path -> {
+                    try {
+                        return ResourceIndexIO.read(path);
+                    } catch (Exception error) {
+                        throw new RuntimeException(error);
+                    }
+                })
+                .orElseThrow();
+        TexturePreparationReceipt.Receipt receipt = TexturePreparationReceipt.read(
+                TexturePreparationReceipt.path(cache, prepared.profileFingerprint()),
+                prepared.profileFingerprint());
+        assertEquals(TextureStoragePolicy.BALANCED, receipt.storage());
+        assertEquals(TexturePreparationScope.FULL, receipt.scope());
     }
 
     @Test
@@ -225,6 +241,7 @@ class PrepareCommandTest {
         Path marker = MinimalPreparationMarker.path(cache, prepared.profileFingerprint());
         assertTrue(Files.isRegularFile(marker));
         MinimalPreparationMarker.validate(marker, prepared.profileFingerprint());
+        assertFalse(Files.exists(TexturePreparationReceipt.path(cache, prepared.profileFingerprint())));
         assertFalse(Files.exists(TextureManifestIO.directory(cache)
                 .resolve(prepared.profileFingerprint() + ".spfm")));
     }
