@@ -18,7 +18,7 @@ installation, mods, saves, launcher, game preferences, and VM parameter files re
 Before any write, the command scans the winning texture set and calculates a storage plan from
 encoded content hashes, decoded dimensions and alpha channels, deduplication, reusable checked
 blobs, the profile pack, and filesystem free space. The initial gate uses the expected temporary
-build peak plus a 512 MiB to 1 GiB reserve. The writer checks live free space again before every
+build peak plus a 128 MiB to 512 MiB reserve. The writer checks live free space again before every
 large blob write and before publishing the exact pack, so an unusual corpus stops safely instead
 of filling the disk. The same checks run whether preparation starts from the desktop app, the CLI,
 or installation.
@@ -33,10 +33,9 @@ java -jar preflight.jar prepare --plan --json --texture-storage balanced
 The player-facing plan shows the expected temporary requirement and finished retained size.
 `predictedAdditionalBytes`, `safetyReserveBytes`, and `usableBytes` remain in the JSON report for
 diagnostics. Existing loose blobs count as reusable
-only after their full checked read succeeds. On the reviewed 83-mod cold profile, the expected
-temporary peak is about 5.2 GiB and the finished full texture pack is about 2.26 GB. Compact needs
-about 2.59 GB temporarily and finishes at about 1.09 GB. The
-read-only plan leaves a nonexistent target directory nonexistent.
+only after their full checked read succeeds. On the reviewed 83-mod cold profile, Balanced needs
+about 2.32 GiB free while preparing and finishes at about 2.26 GB. Compact needs about 1.15 GiB free
+and finishes at about 1.09 GB. The read-only plan leaves a nonexistent target directory nonexistent.
 
 ## Pipeline
 

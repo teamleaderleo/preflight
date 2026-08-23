@@ -47,6 +47,9 @@ final class CacheDeletionBoundary {
 
     /** Deletes one planned regular file only while every ancestor is still a real cache directory. */
     static boolean deleteOwnedRegularFile(Path cache, Path candidate) throws IOException {
+        if (!Files.exists(candidate.toAbsolutePath().normalize(), LinkOption.NOFOLLOW_LINKS)) {
+            return false;
+        }
         Path file = requireOwnedPath(cache, candidate, false);
         if (!Files.exists(file, LinkOption.NOFOLLOW_LINKS)) return false;
         if (Files.isSymbolicLink(file)
@@ -66,12 +69,16 @@ final class CacheDeletionBoundary {
 
     private static Path requireOwnedPath(Path cache, Path candidate, boolean directory)
             throws IOException {
-        Path root = cache.toAbsolutePath().normalize();
-        Path target = candidate.toAbsolutePath().normalize();
+        Path requestedRoot = cache.toAbsolutePath().normalize();
+        Path requestedTarget = candidate.toAbsolutePath().normalize();
+        requireRealDirectory(requestedRoot, "cache root");
+        Path root = requestedRoot.toRealPath();
+        Path target = directory
+                ? requestedTarget.toRealPath()
+                : requestedTarget.getParent().toRealPath().resolve(requestedTarget.getFileName());
         if (!target.startsWith(root) || target.equals(root)) {
             throw unsafe("planned deletion is outside the cache root", target);
         }
-        requireRealDirectory(root, "cache root");
 
         Path relative = root.relativize(target);
         Path current = root;

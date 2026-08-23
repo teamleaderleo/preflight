@@ -111,6 +111,7 @@ final class TextureBatchBuilder {
                         snapshotReader,
                         options.storageCodec(),
                         options.rawWhenCompressionIsIneffective(),
+                        options.consumePackInputs(),
                         diskSpace));
             }
 
@@ -178,7 +179,8 @@ final class TextureBatchBuilder {
                     .resolve(index.profileFingerprint() + ".spfm");
             TextureManifestIO.write(manifestPath, manifest);
             PackResult pack = ensurePack(
-                    cacheRoot, manifest, diskSpace, options.selectedLogicalPaths());
+                    cacheRoot, manifest, diskSpace, options.selectedLogicalPaths(),
+                    options.consumePackInputs());
 
             long sourceBytes = hashed.stream().mapToLong(HashedCandidate::sourceBytes).sum();
             return new Result(
@@ -373,7 +375,8 @@ final class TextureBatchBuilder {
             Path cacheRoot,
             TextureManifest manifest,
             PreparationDiskSpaceGuard diskSpace,
-            List<String> selectedLogicalPaths) throws IOException {
+            List<String> selectedLogicalPaths,
+            boolean consumePackInputs) throws IOException {
         long started = System.nanoTime();
         List<String> logicalOrder = logicalBlobOrder(manifest, selectedLogicalPaths);
         List<String> blobs = preferredPackOrder(cacheRoot, manifest.profileFingerprint(), logicalOrder);
@@ -399,9 +402,35 @@ final class TextureBatchBuilder {
         }
         long packBytes = PreparedTexturePackIO.estimatedFileBytes(
                 manifest.profileFingerprint(), entryBytes);
-        try (PreparationDiskSpaceGuard.Lease ignored =
-                diskSpace.reserve(packBytes, "writing the prepared texture pack")) {
-            PreparedTexturePackIO.write(path, manifest.profileFingerprint(), cacheRoot, blobs);
+        if (consumePackInputs) {
+            Set<String> protectedBlobs = PackedTextureRetention.protectedByOtherProfiles(
+                    cacheRoot, manifest.profileFingerprint());
+            PreparedTexturePackIO.writeConsumingSources(
+                    path,
+                    manifest.profileFingerprint(),
+                    cacheRoot,
+                    blobs,
+                    new PreparedTexturePackIO.SourceCopyObserver() {
+                        @Override
+                        public void beforeCopy(String relativePath, Path source, long bytes)
+                                throws IOException {
+                            diskSpace.requireTransient(
+                                    bytes, "adding a texture to the prepared pack");
+                        }
+
+                        @Override
+                        public void afterCopy(String relativePath, Path source, long bytes)
+                                throws IOException {
+                            if (!protectedBlobs.contains(relativePath)) {
+                                CacheDeletionBoundary.deleteOwnedRegularFile(cacheRoot, source);
+                            }
+                        }
+                    });
+        } else {
+            try (PreparationDiskSpaceGuard.Lease ignored =
+                    diskSpace.reserve(packBytes, "writing the prepared texture pack")) {
+                PreparedTexturePackIO.write(path, manifest.profileFingerprint(), cacheRoot, blobs);
+            }
         }
         try (PreparedTexturePack built =
                 PreparedTexturePackIO.open(path, manifest.profileFingerprint(), blobs)) {
@@ -584,6 +613,7 @@ final class TextureBatchBuilder {
             SnapshotReader snapshotReader,
             PreparedTextureIO.StorageCodec storageCodec,
             boolean rawWhenCompressionIsIneffective,
+            boolean releaseRejectedCandidate,
             PreparationDiskSpaceGuard diskSpace) {
         return () -> {
             PreparedTextureIO.StorageCodec selectedCodec = selectedStorageCodec(
@@ -632,6 +662,7 @@ final class TextureBatchBuilder {
                                 key,
                                 selectedCodec,
                                 rawWhenCompressionIsIneffective,
+                                releaseRejectedCandidate,
                                 relative,
                                 blob,
                                 blobSize,
@@ -719,6 +750,7 @@ final class TextureBatchBuilder {
                         key,
                         selectedCodec,
                         rawWhenCompressionIsIneffective,
+                        releaseRejectedCandidate,
                         relative,
                         blob,
                         Files.size(blob),
@@ -772,6 +804,7 @@ final class TextureBatchBuilder {
             BlobKey key,
             PreparedTextureIO.StorageCodec selectedCodec,
             boolean rawWhenCompressionIsIneffective,
+            boolean releaseRejectedCandidate,
             String relative,
             Path blob,
             long blobSize,
@@ -795,6 +828,12 @@ final class TextureBatchBuilder {
         try (PreparationDiskSpaceGuard.Lease ignored =
                 diskSpace.reserve(maximumRawBytes, "writing a raw prepared texture")) {
             PreparedTextureIO.writePackIntermediate(raw, texture, PreparedTextureIO.StorageCodec.RAW);
+        }
+        // The LZ4 candidate was only a measurement input. Once the selected raw representation is
+        // complete, retaining every rejected candidate until final pack publication needlessly
+        // adds hundreds of megabytes to the preparation peak.
+        if (releaseRejectedCandidate) {
+            CacheDeletionBoundary.deleteOwnedRegularFile(cacheRoot, blob);
         }
         return new SelectedBlob(rawRelative, Files.size(raw), false, quarantined);
     }
@@ -953,13 +992,14 @@ final class TextureBatchBuilder {
             long memoryBudgetBytes,
             PreparedTextureIO.StorageCodec storageCodec,
             boolean rawWhenCompressionIsIneffective,
-            List<String> selectedLogicalPaths) {
+            List<String> selectedLogicalPaths,
+            boolean consumePackInputs) {
         Options(int workers, long memoryBudgetBytes) {
-            this(workers, memoryBudgetBytes, PreparedTextureIO.StorageCodec.RAW, false, List.of());
+            this(workers, memoryBudgetBytes, PreparedTextureIO.StorageCodec.RAW, false, List.of(), false);
         }
 
         Options(int workers, long memoryBudgetBytes, PreparedTextureIO.StorageCodec storageCodec) {
-            this(workers, memoryBudgetBytes, storageCodec, false, List.of());
+            this(workers, memoryBudgetBytes, storageCodec, false, List.of(), false);
         }
 
         Options(
@@ -967,7 +1007,18 @@ final class TextureBatchBuilder {
                 long memoryBudgetBytes,
                 PreparedTextureIO.StorageCodec storageCodec,
                 boolean rawWhenCompressionIsIneffective) {
-            this(workers, memoryBudgetBytes, storageCodec, rawWhenCompressionIsIneffective, List.of());
+            this(workers, memoryBudgetBytes, storageCodec, rawWhenCompressionIsIneffective,
+                    List.of(), false);
+        }
+
+        Options(
+                int workers,
+                long memoryBudgetBytes,
+                PreparedTextureIO.StorageCodec storageCodec,
+                boolean rawWhenCompressionIsIneffective,
+                List<String> selectedLogicalPaths) {
+            this(workers, memoryBudgetBytes, storageCodec, rawWhenCompressionIsIneffective,
+                    selectedLogicalPaths, false);
         }
 
         Options {

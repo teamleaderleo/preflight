@@ -48,16 +48,19 @@ Standalone prepared-texture writes keep their original durable atomic contract.
 
 ## Storage admission
 
-The current planner estimates the representation this build will actually write, keeps a 512 MiB
-to 1 GiB free-space reserve, and large writes retain live free-space guards. The raw pixel ceiling is
-diagnostic data, not the player-facing requirement or the initial admission threshold.
+The pack now consumes each checked loose input as it copies it, so the temporary pack grows while
+the rebuildable loose set shrinks. Rejected LZ4 candidates are removed as soon as the selected raw
+representation is complete. The planner therefore uses the larger live representation instead of
+adding every intermediate together. It adds a 128 MiB to 512 MiB reserve, and every large write
+still checks exact live free space.
 
-On these cold runs:
+For the current cold profile:
 
 | | Finished pack | Measured loose inputs | Current required-free estimate |
 | --- | ---: | ---: | ---: |
-| Compact | 1,087,894,442 B | 1,498,567,832 B | 3,207,042,449 B |
-| Balanced | 2,259,086,856 B | 2,758,182,590 B | 6,221,258,874 B |
+| Compact | 1,087,894,442 B | 1,498,567,832 B | **1,237,780,448 B** |
+| Balanced | 2,259,086,856 B | 2,758,182,590 B | **2,489,961,720 B** |
 
-The required-free number includes metadata and the reserve. The app presents the finished data and
-temporary requirement separately. It does not show the raw codec ceiling.
+The required-free number includes metadata and the reserve. It can be below the old measured loose
+total because rejected encodings and copied pack inputs no longer coexist until the end. The app
+presents the finished data and temporary requirement separately.

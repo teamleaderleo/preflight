@@ -319,7 +319,8 @@ final class PrepareCommand {
                                     options.textureStorage().codec(),
                                     options.textureStorage().rawWhenCompressionIsIneffective(),
                                     options.textureScope().selectedLogicalPaths(
-                                            cache, resourceIndex.profileFingerprint())));
+                                            cache, resourceIndex.profileFingerprint()),
+                                    true));
                     boolean exactPackOnly = PackedTextureRetention.isExactPackOnly(cache, built.manifest());
                     TextureManifestValidator.Result validation = exactPackOnly
                             ? null

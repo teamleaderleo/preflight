@@ -121,17 +121,13 @@ the expected first-install footprint.
 
 Before preparation, Preflight calculates the exact profile's expected temporary peak, finished
 retained size, current reusable artifacts, and filesystem free space. The initial gate keeps a
-512 MiB to 1 GiB reserve. Every large blob write checks live free space again, and the pack writer
-checks its exact byte count immediately before atomic publication. The raw codec ceiling stays in
-the JSON report for diagnosis; it is not presented as the normal requirement and does not control
-the initial gate.
+128 MiB to 512 MiB reserve. Every large blob write checks live free space again, and the pack writer
+checks its exact byte count immediately before atomic publication.
 
 On the reviewed 83-mod cold profile, Balanced reports about 2.3 GB of finished texture data and
-about 5.2 GiB needed while preparing before the 512 MiB free-space reserve. Compact finishes at
-1.09 GB; its measured loose build data plus pack require about 2.59 GB before the same reserve. The
-former 16.56 GiB requirement
-came from stacking every raw fallback and temporary representation. It is no longer shown or used
-as the admission threshold.
+about 2.32 GiB free while preparing. Compact finishes at 1.09 GB and needs about 1.15 GiB free. The
+former 16.56 GiB requirement came from stacking every raw fallback and temporary representation.
+It is no longer shown or used as the admission threshold.
 
 A new manifest becomes active only after preparation succeeds. Interrupted or failed preparation
 must leave the previous valid profile usable. Existing checked blobs can remain reusable, and

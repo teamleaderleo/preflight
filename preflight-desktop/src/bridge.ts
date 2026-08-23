@@ -794,9 +794,11 @@ export async function getPreparationPlan(
     const lowDisk = browserPreviewScenario() === "low-disk";
     const compact = textureStorage === "compact";
     const balanced = textureStorage === "balanced";
-    const predictedAdditionalBytes = compact ? 2_670_171_537 : balanced ? 5_655_689_886 : 10_699_754_432;
-    const safetyReserveBytes = compact || balanced ? 536_870_912 : 1_073_741_824;
+    const predictedAdditionalBytes = compact ? 1_103_562_720 : balanced ? 2_263_601_564 : 5_368_554_432;
+    const safetyReserveBytes = compact ? 134_217_728 : balanced ? 226_360_156 : 512_000_000;
     const requiredFreeBytes = predictedAdditionalBytes + safetyReserveBytes;
+    const usableBytes = lowDisk ? 2_147_483_648 : 82_000_000_000;
+    const safeToPrepare = usableBytes >= requiredFreeBytes;
     return {
       format: "preflight-preparation-storage-plan-v1",
       profileFingerprint: "preview-profile",
@@ -812,19 +814,19 @@ export async function getPreparationPlan(
       uniqueSourceBytes: compact ? 655_884_863 : 1_344_722_319,
       uniquePixelBytes: compact ? 2_074_073_333 : 5_331_135_254,
       reusableLooseBytes: 0,
-      predictedLooseBytes: compact ? 1_566_608_817 : balanced ? 3_392_088_322 : 5_331_200_000,
+      predictedLooseBytes: compact ? 1_068_402_906 : balanced ? 2_226_725_910 : 5_331_200_000,
       predictedPackBytes: compact ? 1_070_008_288 : balanced ? 2_230_047_132 : 5_335_000_000,
       predictedRetainedTextureBytes: compact ? 1_070_008_288 : balanced ? 2_230_047_132 : 5_335_000_000,
       predictedMetadataBytes: 33_554_432,
       predictedAdditionalBytes,
       safetyReserveBytes,
       requiredFreeBytes,
-      usableBytes: lowDisk ? 2_147_483_648 : 82_000_000_000,
+      usableBytes,
       packHit: false,
       packOnlyHit: false,
       complete: true,
-      safeToPrepare: !lowDisk,
-      refusalReason: lowDisk ? `Preparation needs about ${compact ? "2.99" : balanced ? "5.79" : "11.0"} GiB free right now; only 2.00 GiB is available.` : null,
+      safeToPrepare,
+      refusalReason: safeToPrepare ? null : `Preparation needs about ${balanced ? "2.32" : "5.48"} GiB free right now; only 2.00 GiB is available.`,
       diagnostics: [],
       durationMs: 740,
     };

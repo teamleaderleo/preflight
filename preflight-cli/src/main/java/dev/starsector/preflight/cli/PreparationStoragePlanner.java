@@ -32,10 +32,9 @@ final class PreparationStoragePlanner {
     private static final long MIB = 1024L * 1024L;
     private static final long GIB = 1024L * MIB;
     private static final long PREDICTED_METADATA_BYTES = 32L * MIB;
-    private static final long UPPER_METADATA_BYTES = 128L * MIB;
     // Calibrated against both the complete and access-learned packs from the reviewed 83-mod
-    // profile. This predicts the bytes the current LZ4/raw selection actually retains. The raw
-    // pixel ceiling is still calculated separately for diagnostics and live per-write guards.
+    // profile. This predicts the bytes the current LZ4/raw selection actually retains. Exact live
+    // free space is checked before every large write.
     private static final double BALANCED_ENCODED_FACTOR = 1.92;
 
     private PreparationStoragePlanner() {
@@ -99,7 +98,6 @@ final class PreparationStoragePlanner {
                 boolean profileMetadataPresent = Files.isRegularFile(ResourceIndexIO.directory(cacheRoot)
                         .resolve(index.profileFingerprint() + ".spfi"));
                 long predictedMetadata = profileMetadataPresent ? 0 : PREDICTED_METADATA_BYTES;
-                long upperMetadata = profileMetadataPresent ? 0 : UPPER_METADATA_BYTES;
                 long margin = safetyReserve(predictedMetadata);
                 long required = saturatedAdd(predictedMetadata, margin);
                 long usable = Math.max(0, usableSpace.getAsLong());
@@ -108,10 +106,9 @@ final class PreparationStoragePlanner {
                         exactPack.packPath(), candidates.size(), 0,
                         exactPack.packedBlobs() + exactPack.unsupportedCandidates(),
                         exactPack.packedBlobs(), exactPack.unsupportedCandidates(), 0,
-                        0, exactPack.pixelBytes(), 0, 0, 0, 0, 0, 0,
-                        exactPack.packBytes(), predictedMetadata, upperMetadata,
-                        predictedMetadata, upperMetadata, margin, required, usable,
-                        Math.max(0, usable - upperMetadata), true, true, true,
+                        0, exactPack.pixelBytes(), 0, 0, 0, 0,
+                        exactPack.packBytes(), predictedMetadata,
+                        predictedMetadata, margin, required, usable, true, true, true,
                         usable >= required,
                         usable < required
                                 ? "Preparation needs about " + humanBytes(required)
@@ -150,7 +147,6 @@ final class PreparationStoragePlanner {
             }
 
             long predictedLoose = 0;
-            long upperLoose = 0;
             long reusableLoose = 0;
             long selectedReusableLoose = 0;
             long uniqueSourceBytes = 0;
@@ -159,7 +155,6 @@ final class PreparationStoragePlanner {
             int unsupported = 0;
             int failed = 0;
             Map<String, Long> predictedPackEntries = new LinkedHashMap<>();
-            Map<String, Long> upperPackEntries = new LinkedHashMap<>();
             Map<TextureBatchBuilder.BlobKey, String> selectedPackPaths = new LinkedHashMap<>();
 
             for (Map.Entry<TextureBatchBuilder.BlobKey, TextureBatchBuilder.HashedCandidate> entry
@@ -181,12 +176,10 @@ final class PreparationStoragePlanner {
                 BlobEstimate estimate = estimateBlob(
                         cacheRoot, entry.getKey(), entry.getValue().sourceBytes(), probe.pixelBytes(), storage);
                 predictedLoose = saturatedAdd(predictedLoose, estimate.predictedAdditionalBytes());
-                upperLoose = saturatedAdd(upperLoose, estimate.upperAdditionalBytes());
                 reusableLoose = saturatedAdd(reusableLoose, estimate.reusableBytes());
                 selectedReusableLoose = saturatedAdd(
                         selectedReusableLoose, estimate.selectedReusableBytes());
                 predictedPackEntries.put(estimate.selectedPath(), estimate.predictedSelectedFileBytes());
-                upperPackEntries.put(estimate.selectedPath(), estimate.upperSelectedFileBytes());
                 selectedPackPaths.put(entry.getKey(), estimate.selectedPath());
             }
 
@@ -203,7 +196,6 @@ final class PreparationStoragePlanner {
             boolean packHit = false;
             boolean packOnlyHit = false;
             long predictedPack = 0;
-            long upperPack = 0;
             long predictedRetainedTexture = 0;
             Path packPath = PreparedTexturePackIO.path(cacheRoot, index.profileFingerprint());
             if (!predictedPackEntries.isEmpty()) {
@@ -219,8 +211,6 @@ final class PreparationStoragePlanner {
                 }
                 if (!packHit) {
                     predictedPack = predictedRetainedTexture;
-                    upperPack = PreparedTexturePackIO.estimatedFileBytes(
-                            index.profileFingerprint(), upperPackEntries);
                 } else {
                     Path manifestPath = TextureManifestIO.directory(cacheRoot)
                             .resolve(index.profileFingerprint() + ".spfm");
@@ -239,7 +229,6 @@ final class PreparationStoragePlanner {
             // not recreate its former loose duplicates merely to delete them again.
             if (packOnlyHit) {
                 predictedLoose = 0;
-                upperLoose = 0;
             }
 
             boolean profileMetadataPresent = Files.isRegularFile(ResourceIndexIO.directory(cacheRoot)
@@ -247,11 +236,12 @@ final class PreparationStoragePlanner {
                     && Files.isRegularFile(TextureManifestIO.directory(cacheRoot)
                             .resolve(index.profileFingerprint() + ".spfm"));
             long predictedMetadata = profileMetadataPresent ? 0 : PREDICTED_METADATA_BYTES;
-            long upperMetadata = profileMetadataPresent ? 0 : UPPER_METADATA_BYTES;
+            // The pack publisher consumes checked loose inputs as it copies them. Its temporary
+            // pack grows while the rebuildable loose set shrinks, so admission needs the larger
+            // representation rather than their sum. Loose blobs retained for another profile are
+            // already reflected in live usable space; adding them here would count them twice.
             long predictedAdditional = saturatedAdd(
-                    saturatedAdd(predictedLoose, predictedPack), predictedMetadata);
-            long upperAdditional = saturatedAdd(
-                    saturatedAdd(upperLoose, upperPack), upperMetadata);
+                    Math.max(predictedLoose, predictedPack), predictedMetadata);
             long margin = safetyReserve(predictedAdditional);
             long required = saturatedAdd(predictedAdditional, margin);
             long usable = Math.max(0, usableSpace.getAsLong());
@@ -268,11 +258,11 @@ final class PreparationStoragePlanner {
                     index.profileFingerprint(), storage.optionValue(), cacheRoot, packPath,
                     candidates.size(), hashed.size(), unique.size(), supported, unsupported, failed,
                     uniqueSourceBytes, uniquePixelBytes, reusableLoose, selectedReusableLoose,
-                    predictedLoose, upperLoose, predictedPack, upperPack,
+                    predictedLoose, predictedPack,
                     predictedRetainedTexture,
-                    predictedMetadata, upperMetadata, predictedAdditional, upperAdditional,
-                    margin, required, usable, Math.max(0, usable - upperAdditional),
-                    packHit, packOnlyHit, complete, safe, refusal, List.copyOf(diagnostics),
+                    predictedMetadata, predictedAdditional,
+                    margin, required, usable, packHit, packOnlyHit, complete, safe,
+                    refusal, List.copyOf(diagnostics),
                     System.nanoTime() - started);
         } finally {
             executor.shutdownNow();
@@ -312,11 +302,10 @@ final class PreparationStoragePlanner {
             ExistingBlob existingRaw = existingBlob(raw, key, pixelBytes);
             if (existingRaw != null) {
                 return new BlobEstimate(
-                        rawPath, existingRaw.fileBytes(), rawFileBytes, 0, 0,
+                        rawPath, existingRaw.fileBytes(), 0,
                         existingRaw.fileBytes(), existingRaw.fileBytes());
             }
-            return new BlobEstimate(rawPath, rawFileBytes, rawFileBytes,
-                    rawFileBytes, rawFileBytes, 0, 0);
+            return new BlobEstimate(rawPath, rawFileBytes, rawFileBytes, 0, 0);
         }
 
         String lz4Path = TextureBatchBuilder.blobRelativePath(key, PreparedTextureIO.StorageCodec.LZ4);
@@ -325,17 +314,17 @@ final class PreparationStoragePlanner {
         if (existingLz4 != null) {
             if (TextureBatchBuilder.compressionRatio(pixelBytes, existingLz4.storedPixelBytes())
                     >= TextureBatchBuilder.BALANCED_RAW_BELOW_RATIO) {
-                return new BlobEstimate(lz4Path, existingLz4.fileBytes(), rawFileBytes,
-                        0, 0, existingLz4.fileBytes(), existingLz4.fileBytes());
+                return new BlobEstimate(lz4Path, existingLz4.fileBytes(), 0,
+                        existingLz4.fileBytes(), existingLz4.fileBytes());
             }
             ExistingBlob existingRaw = existingBlob(raw, key, pixelBytes);
             if (existingRaw != null) {
-                return new BlobEstimate(rawPath, existingRaw.fileBytes(), rawFileBytes,
-                        0, 0, saturatedAdd(existingLz4.fileBytes(), existingRaw.fileBytes()),
+                return new BlobEstimate(rawPath, existingRaw.fileBytes(), 0,
+                        saturatedAdd(existingLz4.fileBytes(), existingRaw.fileBytes()),
                         existingRaw.fileBytes());
             }
-            return new BlobEstimate(rawPath, rawFileBytes, rawFileBytes,
-                    rawFileBytes, rawFileBytes, existingLz4.fileBytes(), 0);
+            return new BlobEstimate(
+                    rawPath, rawFileBytes, rawFileBytes, existingLz4.fileBytes(), 0);
         }
 
         long predictedLz4 = Math.min(rawFileBytes,
@@ -343,20 +332,15 @@ final class PreparationStoragePlanner {
         long predictedStoredPixels = Math.max(1, predictedLz4 - 120);
         boolean predictedEffective = TextureBatchBuilder.compressionRatio(pixelBytes, predictedStoredPixels)
                 >= TextureBatchBuilder.BALANCED_RAW_BELOW_RATIO;
-        long lz4Upper = saturatedAdd(rawFileBytes, Math.max(64, pixelBytes / 255 + 16));
         if (predictedEffective) {
-            // The encoded-size heuristic affects the prediction only. The builder still has to
-            // write the LZ4 candidate before measuring it and may then write a raw fallback.
-            return new BlobEstimate(lz4Path, predictedLz4, rawFileBytes,
-                    predictedLz4, saturatedAdd(lz4Upper, rawFileBytes), 0, 0);
+            return new BlobEstimate(lz4Path, predictedLz4, predictedLz4, 0, 0);
         }
-        // Balanced has to write the LZ4 candidate before it can prove raw is preferable.
+        // Balanced writes the LZ4 candidate before it can prove raw is preferable, then releases
+        // that rejected candidate as soon as the selected raw representation is complete.
         ExistingBlob existingRaw = existingBlob(raw, key, pixelBytes);
         long retainedReusable = existingRaw == null ? 0 : existingRaw.fileBytes();
-        return new BlobEstimate(rawPath, rawFileBytes, rawFileBytes,
-                saturatedAdd(predictedLz4, rawFileBytes),
-                saturatedAdd(lz4Upper, rawFileBytes),
-                retainedReusable, 0);
+        return new BlobEstimate(rawPath, rawFileBytes,
+                Math.max(predictedLz4, rawFileBytes), retainedReusable, 0);
     }
 
     private static ExistingBlob existingBlob(
@@ -447,7 +431,7 @@ final class PreparationStoragePlanner {
         if (predictedAdditional == 0) {
             return 0;
         }
-        return Math.max(512L * MIB, Math.min(GIB, predictedAdditional / 10));
+        return Math.max(128L * MIB, Math.min(512L * MIB, predictedAdditional / 10));
     }
 
     static String humanBytes(long bytes) {
@@ -478,18 +462,13 @@ final class PreparationStoragePlanner {
             long reusableLooseBytes,
             long selectedReusableLooseBytes,
             long predictedLooseBytes,
-            long upperLooseBytes,
             long predictedPackBytes,
-            long upperPackBytes,
             long predictedRetainedTextureBytes,
             long predictedMetadataBytes,
-            long upperMetadataBytes,
             long predictedAdditionalBytes,
-            long upperBoundAdditionalBytes,
             long safetyReserveBytes,
             long requiredFreeBytes,
             long usableBytes,
-            long remainingAfterUpperBoundBytes,
             boolean packHit,
             boolean packOnlyHit,
             boolean complete,
@@ -552,9 +531,7 @@ final class PreparationStoragePlanner {
     private record BlobEstimate(
             String selectedPath,
             long predictedSelectedFileBytes,
-            long upperSelectedFileBytes,
             long predictedAdditionalBytes,
-            long upperAdditionalBytes,
             long reusableBytes,
             long selectedReusableBytes) {
     }
