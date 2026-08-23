@@ -719,14 +719,27 @@ terminate() {
     done
 }
 
-# Stop only the launched game tree and leave the Preflight wrapper alive long enough to observe
-# the child exit, inspect the finished JFR, and finalize run.json. Killing the wrapper alongside
-# the game made unattended profile runs look accepted to the harness while their own receipts
-# remained permanently RUNNING and their single-chunk postcondition was never checked.
+# Stop the exact game JVM when the agent published its identity. Its launcher shell then waits for
+# JVM shutdown hooks and exits naturally, and the Preflight wrapper can see the finished reports
+# before it finalizes run.json. Signalling the shell at the same time made the wrapper race those
+# hooks and occasionally claim adapter.json was missing even though it appeared milliseconds later.
+# Baseline launches have no agent identity, so they retain the bounded whole-tree fallback.
 terminate_descendants() {
-    local pid="$1" target
+    local pid="$1" runtime_process="${2:-}" target runtime_pid=""
     local tree
     tree="$(descendants "$pid")"
+    if [[ -f "$runtime_process" ]]; then
+        runtime_pid="$(jq -r '.pid // empty' "$runtime_process" 2>/dev/null || true)"
+    fi
+    if [[ "$runtime_pid" =~ ^[0-9]+$ ]] && grep -qx "$runtime_pid" <<< "$tree"; then
+        kill "$runtime_pid" >/dev/null 2>&1 || true
+        for _ in $(seq 1 40); do
+            kill -0 "$runtime_pid" >/dev/null 2>&1 || return 0
+            sleep 0.25
+        done
+        kill -9 "$runtime_pid" >/dev/null 2>&1 || true
+        return 0
+    fi
     for target in $tree; do
         kill "$target" >/dev/null 2>&1 || true
     done
@@ -980,7 +993,7 @@ launch_once() {
         if [[ "$condition" == profile || "$condition" == fast-profile ]]; then
             finish_live_recording "$run_dir" || recording_ready=false
         fi
-        terminate_descendants "$pid"
+        terminate_descendants "$pid" "$run_dir/runtime-process.json"
     else
         act "QUIT from the main menu now  (close the launcher if it reappears)"
     fi

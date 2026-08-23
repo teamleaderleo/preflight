@@ -839,7 +839,10 @@ class UnattendedTest(unittest.TestCase):
             re.DOTALL,
         )
         self.assertIsNotNone(direct_stop, "unattended stop block not found")
-        self.assertIn('terminate_descendants "$pid"', direct_stop.group("body"))
+        self.assertIn(
+            'terminate_descendants "$pid" "$run_dir/runtime-process.json"',
+            direct_stop.group("body"),
+        )
         self.assertNotIn('terminate "$pid"', direct_stop.group("body"))
 
 
@@ -1020,6 +1023,18 @@ class ProcessTreeTest(unittest.TestCase):
         self.assertIsNotNone(body, "terminate_descendants not found")
         self.assertIn('tree="$(descendants "$pid")"', body.group("body"))
         self.assertNotIn('printf \'%s\\n\' "$pid"', body.group("body"))
+
+    def test_descendant_stop_prefers_the_published_game_jvm(self):
+        body = re.search(
+            r"^terminate_descendants\(\) \{(?P<body>.*?)\n\}",
+            SCRIPT_TEXT,
+            re.DOTALL | re.M,
+        )
+        self.assertIsNotNone(body, "terminate_descendants not found")
+        exact = body.group("body").index('kill "$runtime_pid"')
+        fallback = body.group("body").index('for target in $tree; do')
+        self.assertLess(exact, fallback)
+        self.assertIn('grep -qx "$runtime_pid" <<< "$tree"', body.group("body"))
 
     def test_descendants_finds_a_real_grandchild(self):
         source = re.search(r"^descendants\(\) \{.*?\n\}", SCRIPT_TEXT, re.DOTALL | re.M)
