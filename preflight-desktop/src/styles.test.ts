@@ -20,10 +20,12 @@ test("the drafting surface supports explicit themes while motion preferences rem
   expect(styles).toMatch(/prefers-reduced-motion:[\s\S]*?\.flight-instrument__drift\s*\{[^}]*animation:\s*none;/);
 });
 
-test("navigation motion stays brief and the home instrument cannot intercept input", () => {
+test("navigation motion stays brief and the home instrument supports direct manipulation", () => {
   expect(styles).toMatch(/\.page-viewport--entering\s*\{[^}]*animation:\s*workspace-enter 80ms/s);
   expect(styles).toContain("@keyframes workspace-enter");
-  expect(styles).toMatch(/\.home-flight-instrument\s*\{[^}]*pointer-events:\s*none;/s);
+  expect(styles).toMatch(/\.home-flight-instrument\s*\{[^}]*pointer-events:\s*auto;/s);
+  expect(styles).toMatch(/\.flight-instrument--interactive\s*\{[^}]*cursor:\s*grab;[^}]*pointer-events:\s*auto;[^}]*touch-action:\s*none;/s);
+  expect(styles).toMatch(/\.flight-instrument--interactive:focus-visible\s*\{/);
 });
 
 test("the Hangar reference colors are locked by exact value", () => {

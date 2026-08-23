@@ -36,7 +36,7 @@ summary:active {
 .home-launch-identity {
   position: absolute !important;
   z-index: 3 !important;
-  bottom: 82px;
+  bottom: 102px;
   left: 50%;
   display: flex;
   flex-direction: column;
@@ -117,12 +117,10 @@ summary:active {
   transform: translate(-50%, 0);
 }
 
-/* Keep even a deliberately long decorative hull label clear of the centered launch button. */
-.home-ship-name {
-  max-width: max(0px, calc(50% - 210px));
+/* Keep the direct hull switcher bounded and clear of the centered launch button. */
+.home-ship-picker {
+  max-width: 244px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* Preparation makes the current setup more useful than playtime or the previous run summary. */
@@ -160,7 +158,7 @@ summary:active {
 }
 
 /* Exceptional actions own this space; the decorative hull caption yields to them. */
-.launch-console--ready:has(.launch-console__actions .launch-console__stop) .home-ship-name {
+.launch-console--ready:has(.launch-console__actions .launch-console__stop) :is(.home-ship-picker, .home-motion-toggle) {
   display: none;
 }
 
@@ -258,7 +256,7 @@ summary:active {
   }
 
   .home-launch-identity {
-    bottom: 88px;
+    bottom: 142px;
     width: calc(100% - 32px);
   }
 

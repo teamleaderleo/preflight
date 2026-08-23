@@ -87,6 +87,14 @@ test("the Hangar stage keeps the ship and drops the small targeting reticle", ()
   expect(container.querySelector(".flight-instrument--stage svg")).toBeNull();
 });
 
+test("an interactive ship display advertises direct pointer and keyboard control", () => {
+  const { getByRole } = render(createElement(FlightInstrument, { variant: "stage", interactive: true }));
+  const display = getByRole("group", { name: "Ship display. Drag or use the left and right arrow keys to turn it." });
+
+  expect(display).toHaveAttribute("tabindex", "0");
+  expect(display).toHaveClass("flight-instrument--interactive");
+});
+
 test("saved motion and direction preferences reach the shared renderer", () => {
   window.localStorage.setItem(
     INSTRUMENT_HULL_MOTION_STORAGE_KEY,

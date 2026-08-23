@@ -147,37 +147,31 @@ test("invalid free text restores the current hull on blur", () => {
   expect(instrumentHull.choose).not.toHaveBeenCalled();
 });
 
-test("motion direction and reset read as one locally coherent control group", () => {
+test("motion direction uses direct left and right controls in one coherent group", () => {
   render(<HangarPage instrumentHull={state()} />);
 
   const controls = screen.getByRole("group", { name: "Display motion and appearance" });
   expect(controls).toHaveAttribute("data-motion", "rotate");
   expect(controls).toHaveAttribute("data-direction", "clockwise");
-  expect(within(controls).getByText("Rotating · CW")).toBeInTheDocument();
-
-  const counterClockwise = within(controls).getByRole("button", { name: "Use counter-clockwise" });
-  expect(counterClockwise).toHaveAttribute("title", "Rotate counter-clockwise");
-  fireEvent.click(counterClockwise);
+  const left = within(controls).getByRole("button", { name: "Rotate left" });
+  const right = within(controls).getByRole("button", { name: "Rotate right" });
+  expect(left).toHaveAttribute("aria-pressed", "false");
+  expect(right).toHaveAttribute("aria-pressed", "true");
+  fireEvent.click(left);
   expect(controls).toHaveAttribute("data-direction", "counter-clockwise");
-  expect(within(controls).getByText("Rotating · CCW")).toBeInTheDocument();
-  expect(within(controls).getByRole("button", { name: "Use clockwise" })).toBeEnabled();
+  expect(left).toHaveAttribute("aria-pressed", "true");
+  expect(right).toHaveAttribute("aria-pressed", "false");
 
   const pause = within(controls).getByRole("button", { name: "Pause rotation" });
   expect(pause).toHaveAttribute("title", "Pause decorative hull rotation");
   fireEvent.click(pause);
   expect(controls).toHaveAttribute("data-motion", "still");
-  expect(within(controls).getByText("Paused · CCW")).toBeInTheDocument();
 
   const resume = within(controls).getByRole("button", { name: "Resume rotation" });
   expect(resume).toHaveAttribute("title", "Resume decorative hull rotation");
-  const pausedDirection = within(controls).getByRole("button", { name: "Use clockwise" });
-  expect(pausedDirection).toBeEnabled();
-  expect(pausedDirection).toHaveAttribute("title", "Use clockwise when rotation resumes");
-
-  fireEvent.click(pausedDirection);
+  fireEvent.click(right);
   expect(controls).toHaveAttribute("data-direction", "clockwise");
-  expect(within(controls).getByText("Paused · CW")).toBeInTheDocument();
-  expect(within(controls).getByRole("button", { name: "Use counter-clockwise" })).toBeEnabled();
+  expect(right).toHaveAttribute("aria-pressed", "true");
   expect(JSON.parse(window.localStorage.getItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY) ?? "null"))
     .toEqual({ motion: "still", direction: "clockwise" });
 

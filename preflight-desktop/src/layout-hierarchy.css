@@ -48,7 +48,7 @@
   width: min(420px, calc(100% - 36px));
 }
 
-.launch-console--layout-recovery .home-ship-name {
+.launch-console--layout-recovery .home-ship-picker {
   right: 16px;
   bottom: 10px;
   left: auto;
@@ -96,11 +96,11 @@
   transform: translateX(-50%);
 }
 
-.page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-ship-name {
+.page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-ship-picker {
   right: auto;
   bottom: 24px;
   left: 28px;
-  max-width: max(0px, calc(50% - 210px));
+  max-width: 194px;
   text-align: left;
 }
 
@@ -181,7 +181,7 @@
     width: calc(100% - 28px);
   }
 
-  .launch-console--layout-recovery .home-ship-name {
+  .launch-console--layout-recovery .home-ship-picker {
     right: 12px;
     bottom: 8px;
     max-width: 46%;
@@ -211,11 +211,11 @@
     transform: translateX(-50%);
   }
 
-  .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-ship-name {
+  .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-ship-picker {
     right: auto;
     bottom: 16px;
     left: 10px;
-    max-width: max(0px, calc(50% - 210px));
+    max-width: 194px;
     text-align: left;
   }
 }

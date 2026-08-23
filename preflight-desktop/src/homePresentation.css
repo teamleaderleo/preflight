@@ -9,7 +9,8 @@
 :root[data-home-mode="compact"] .launch-console--layout-settled .home-flight-instrument,
 :root[data-home-mode="compact"] .launch-console--layout-settled .home-playtime,
 :root[data-home-mode="compact"] .launch-console--layout-settled .last-run-health:not(.last-run-health--review),
-:root[data-home-mode="compact"] .launch-console--layout-settled .home-ship-name {
+:root[data-home-mode="compact"] .launch-console--layout-settled .home-ship-picker,
+:root[data-home-mode="compact"] .launch-console--layout-settled .home-motion-toggle {
   display: none !important;
 }
 

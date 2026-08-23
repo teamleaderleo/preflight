@@ -85,7 +85,7 @@ test("failed-run recovery is an overlay on settled Home geometry", () => {
     /@media \(max-width: 720px\)[\s\S]*?\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-launch-identity\s*\{[^}]*bottom:\s*88px;[^}]*width:\s*calc\(100% - 32px\);/s,
   );
   expect(layoutStyles).toMatch(
-    /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-ship-name\s*\{[^}]*right:\s*auto;[^}]*bottom:\s*24px;[^}]*left:\s*28px;[^}]*text-align:\s*left;/s,
+    /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-ship-picker\s*\{[^}]*right:\s*auto;[^}]*bottom:\s*24px;[^}]*left:\s*28px;[^}]*text-align:\s*left;/s,
   );
   expect(layoutStyles).toMatch(
     /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-launch-path::after\s*\{[^}]*top:\s*auto;[^}]*bottom:\s*calc\(100% \+ 7px\);[^}]*left:\s*50%;[^}]*transform:\s*translate\(-50%, -2px\);/s,

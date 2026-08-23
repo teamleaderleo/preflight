@@ -65,14 +65,16 @@ test("explicit Home state modifiers own recovery and preparation composition", (
 
   const settled = document.createElement("section");
   settled.className = "launch-console launch-console--ready launch-console--layout-settled";
-  const shipName = document.createElement("span");
+  const shipPicker = document.createElement("div");
+  shipPicker.className = "home-ship-picker";
+  const shipName = document.createElement("button");
   shipName.className = "home-ship-name";
-  settled.append(shipName);
+  shipPicker.append(shipName);
+  settled.append(shipPicker);
   document.body.append(settled);
-  const shipStyle = getComputedStyle(shipName);
-  expect(shipStyle.overflow).toBe("hidden");
-  expect(shipStyle.textOverflow).toBe("ellipsis");
-  expect(shipStyle.whiteSpace).toBe("nowrap");
+  const pickerStyle = getComputedStyle(shipPicker);
+  expect(pickerStyle.maxWidth).toBe("244px");
+  expect(pickerStyle.overflow).toBe("hidden");
 
   recovery.remove();
   preparation.remove();
