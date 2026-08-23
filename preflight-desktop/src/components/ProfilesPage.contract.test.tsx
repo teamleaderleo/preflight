@@ -2,7 +2,26 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import type { useProfiles } from "../useProfiles";
-import { ProfilesPage } from "./ProfilesPage";
+import type { useSetupCheck } from "../useSetupCheck";
+import { ProfilesPage as ProfilesPageComponent } from "./ProfilesPage";
+
+function setupCheckState(overrides: Partial<ReturnType<typeof useSetupCheck>> = {}) {
+  return {
+    checking: false,
+    result: null,
+    run: vi.fn(),
+    ...overrides,
+  } as ReturnType<typeof useSetupCheck>;
+}
+
+function ProfilesPage({
+  setupCheck = setupCheckState(),
+  ...props
+}: Omit<React.ComponentProps<typeof ProfilesPageComponent>, "setupCheck"> & {
+  setupCheck?: ReturnType<typeof useSetupCheck>;
+}) {
+  return <ProfilesPageComponent {...props} setupCheck={setupCheck} />;
+}
 
 function profilesState(overrides: Record<string, unknown> = {}) {
   return {
@@ -58,7 +77,7 @@ function profilesState(overrides: Record<string, unknown> = {}) {
   } as unknown as ReturnType<typeof useProfiles>;
 }
 
-test("the automatic mod check stays quiet when the current setup is clean", () => {
+test("the automatic mod check stays quiet while the deeper check remains available", () => {
   render(
     <ProfilesPage
       message=""
@@ -70,6 +89,7 @@ test("the automatic mod check stays quiet when the current setup is clean", () =
 
   expect(screen.queryByLabelText("Current mod setup needs attention")).not.toBeInTheDocument();
   expect(screen.queryByText("Dependencies checked")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Check setup" })).toBeEnabled();
 });
 
 test("a broken dependency is concise before review and actionable after expansion", async () => {
@@ -107,9 +127,72 @@ test("a broken dependency is concise before review and actionable after expansio
   expect(screen.queryByText("Nexerelin requires LazyLib, but LazyLib is disabled.")).not.toBeVisible();
   await user.click(screen.getByText("1 mod problem"));
   expect(screen.getByText("Nexerelin requires LazyLib, but LazyLib is disabled.")).toBeVisible();
-  expect(screen.getByRole("button", { name: "Check again" })).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "Check again" }));
+  expect(screen.getByRole("button", { name: "Refresh" })).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Refresh" }));
   expect(refreshModReadiness).toHaveBeenCalledOnce();
+});
+
+test("the explicit setup check reports a clean result without proof language", async () => {
+  const user = userEvent.setup();
+  const run = vi.fn();
+  render(
+    <ProfilesPage
+      message=""
+      messageTone="info"
+      profilesState={profilesState()}
+      setupCheck={setupCheckState({
+        run,
+        result: {
+          format: "starsector-preflight-setup-analysis-v1",
+          installationIdentity: "install-v1:test",
+          profileFingerprint: "profile:test",
+          ready: true,
+          counts: { blocking: 0, warning: 0, info: 0, unknown: 0 },
+          findings: [],
+          unavailableProviders: [],
+        },
+      })}
+      operationBlocked={false}
+    />,
+  );
+
+  expect(screen.getByText("No problems found")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Check again" }));
+  expect(run).toHaveBeenCalledOnce();
+});
+
+test("the explicit setup check puts broken references beside the rerun action", () => {
+  render(
+    <ProfilesPage
+      message=""
+      messageTone="info"
+      profilesState={profilesState()}
+      setupCheck={setupCheckState({
+        result: {
+          format: "starsector-preflight-setup-analysis-v1",
+          installationIdentity: "install-v1:test",
+          profileFingerprint: "profile:test",
+          ready: false,
+          counts: { blocking: 1, warning: 0, info: 0, unknown: 0 },
+          findings: [{
+            code: "variant.missing-hull",
+            provider: "variant",
+            severity: "blocking",
+            summary: "A ship variant refers to a hull that is not installed.",
+            parameters: {},
+            affectedModIds: ["example"],
+            actions: [],
+          }],
+          unavailableProviders: [],
+        },
+      })}
+      operationBlocked={false}
+    />,
+  );
+
+  expect(screen.getByText("1 problem found")).toBeVisible();
+  expect(screen.getByText("A ship variant refers to a hull that is not installed.")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Check again" })).toBeVisible();
 });
 
 const inactiveProfiles = {

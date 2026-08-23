@@ -45,6 +45,7 @@ test("restart restores native update installation as the Settings-owned blocking
     cleanupBusy: false,
     launcherSaving: false,
     profileBusy: false,
+    setupChecking: false,
     diagnosticsBusy: false,
     reportUploading: false,
     reportFinalizing: false,

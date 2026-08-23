@@ -154,6 +154,16 @@ export interface ModReadiness {
   elapsedMillis: number;
 }
 
+export interface SetupAnalysisResult {
+  format: "starsector-preflight-setup-analysis-v1";
+  installationIdentity: string;
+  profileFingerprint: string;
+  ready: boolean;
+  counts: Record<SetupFindingSeverity, number>;
+  findings: SetupFinding[];
+  unavailableProviders: string[];
+}
+
 export interface RunStarted {
   pid: number;
 }

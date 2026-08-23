@@ -33,6 +33,7 @@ import { useInstrumentHull } from "./useInstrumentHull";
 import { useOptimizationPolicy } from "./useOptimizationPolicy";
 import { usePreparation } from "./usePreparation";
 import { useProfiles } from "./useProfiles";
+import { useSetupCheck } from "./useSetupCheck";
 import { useRemoval } from "./useRemoval";
 import { useSignedUpdates } from "./useSignedUpdates";
 import { useSpeedRecord } from "./useSpeedRecord";
@@ -252,6 +253,11 @@ export default function App() {
     page === "home" || page === "mods",
     refresh,
     refreshCache,
+    announceProfiles,
+  );
+  const setupCheck = useSetupCheck(
+    snapshot?.selected?.installRoot,
+    profilesState.profiles?.enabledMods.join("\0") ?? "unavailable",
     announceProfiles,
   );
   const launchProfileName = launchProfileNameFor(
@@ -510,6 +516,7 @@ export default function App() {
     cleanupBusy: cleanup.busy,
     launcherSaving: launcher.saving,
     profileBusy: profilesState.profileBusy,
+    setupChecking: setupCheck.checking,
     diagnosticsBusy: diagnostics.diagnosticsBusy,
     reportUploading: diagnostics.reportUploading,
     reportFinalizing: diagnostics.reportFinalizing,
@@ -688,7 +695,7 @@ export default function App() {
             onOpenBenchmark={() => setPage("benchmark")}
           />
         ) : page === "mods" ? (
-          <ProfilesPage message={profilesNotice?.message ?? ""} messageTone={profilesNotice?.tone ?? "info"} profilesState={profilesState} operationBlocked={operationBlocked} />
+          <ProfilesPage message={profilesNotice?.message ?? ""} messageTone={profilesNotice?.tone ?? "info"} profilesState={profilesState} setupCheck={setupCheck} operationBlocked={operationBlocked} />
         ) : page === "hangar" ? (
           <HangarPage instrumentHull={instrumentHull} />
         ) : page === "benchmark" ? (
