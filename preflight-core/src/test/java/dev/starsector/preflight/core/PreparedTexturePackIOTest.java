@@ -2,11 +2,14 @@ package dev.starsector.preflight.core;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -133,6 +136,79 @@ class PreparedTexturePackIOTest {
         PreparedTexturePackIO.write(pack, profile, cache, sizes.keySet());
 
         assertEquals(Files.size(pack), PreparedTexturePackIO.estimatedFileBytes(profile, sizes));
+    }
+
+    @Test
+    void consumingWriteReleasesEachCheckedSourceAndPublishesAReadablePack() throws Exception {
+        Path cache = temporaryDirectory.resolve("consuming-cache");
+        Files.createDirectories(cache.resolve("blobs"));
+        String profile = "51".repeat(32);
+        String first = "blobs/first.spft";
+        String second = "blobs/second.spft";
+        PreparedTexture firstTexture = texture("61".repeat(32), new byte[] {
+                1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
+        });
+        PreparedTexture secondTexture = texture("62".repeat(32), new byte[] {
+                12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1
+        });
+        PreparedTextureIO.write(cache.resolve(first), firstTexture);
+        PreparedTextureIO.write(cache.resolve(second), secondTexture);
+        AtomicInteger released = new AtomicInteger();
+
+        Path pack = PreparedTexturePackIO.path(cache, profile);
+        PreparedTexturePackIO.writeConsumingSources(
+                pack,
+                profile,
+                cache,
+                List.of(first, second),
+                new PreparedTexturePackIO.SourceCopyObserver() {
+                    @Override
+                    public void afterCopy(String relativePath, Path source, long bytes)
+                            throws java.io.IOException {
+                        assertTrue(Files.deleteIfExists(source));
+                        released.incrementAndGet();
+                    }
+                });
+
+        assertEquals(2, released.get());
+        assertFalse(Files.exists(cache.resolve(first)));
+        assertFalse(Files.exists(cache.resolve(second)));
+        try (PreparedTexturePack opened = PreparedTexturePackIO.open(
+                pack, profile, List.of(first, second))) {
+            assertArrayEquals(firstTexture.pixels(), opened.readTrusted(first).pixels());
+            assertArrayEquals(secondTexture.pixels(), opened.readTrusted(second).pixels());
+        }
+    }
+
+    @Test
+    void consumingWriteDoesNotReleaseACorruptSourceOrPublishItsPack() throws Exception {
+        Path cache = temporaryDirectory.resolve("corrupt-consuming-cache");
+        Files.createDirectories(cache.resolve("blobs"));
+        String profile = "71".repeat(32);
+        String relative = "blobs/corrupt.spft";
+        Path source = cache.resolve(relative);
+        PreparedTextureIO.write(source, texture("72".repeat(32), new byte[12]));
+        byte[] corrupt = Files.readAllBytes(source);
+        corrupt[corrupt.length - 1] ^= 0x40;
+        Files.write(source, corrupt);
+        AtomicInteger released = new AtomicInteger();
+        Path pack = PreparedTexturePackIO.path(cache, profile);
+
+        assertThrows(java.io.IOException.class, () -> PreparedTexturePackIO.writeConsumingSources(
+                pack,
+                profile,
+                cache,
+                List.of(relative),
+                new PreparedTexturePackIO.SourceCopyObserver() {
+                    @Override
+                    public void afterCopy(String path, Path checkedSource, long bytes) {
+                        released.incrementAndGet();
+                    }
+                }));
+
+        assertEquals(0, released.get());
+        assertTrue(Files.isRegularFile(source));
+        assertFalse(Files.exists(pack));
     }
 
     private static PreparedTexture texture(String hash, byte[] pixels) {

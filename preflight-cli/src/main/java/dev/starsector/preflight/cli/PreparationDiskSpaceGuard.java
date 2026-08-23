@@ -42,6 +42,24 @@ final class PreparationDiskSpaceGuard {
         return new Lease(writeBytes);
     }
 
+    /**
+     * Checks a serial exchange write that immediately releases at least the same amount of
+     * rebuildable data. The ordinary reserve remains available as headroom during the copy rather
+     * than being counted twice as permanently unavailable space.
+     */
+    synchronized void requireTransient(long writeBytes, String operation) throws IOException {
+        if (writeBytes < 0) {
+            throw new IllegalArgumentException("Write size cannot be negative");
+        }
+        long usable = Math.max(0, usableSpace.get());
+        long required = Math.addExact(concurrentlyReservedBytes, writeBytes);
+        if (usable < required) {
+            throw new IOException("Preparation stopped before " + operation + ": "
+                    + PreparationStoragePlanner.humanBytes(required) + " is needed now, with "
+                    + PreparationStoragePlanner.humanBytes(usable) + " available");
+        }
+    }
+
     @FunctionalInterface
     interface UsableSpaceSupplier {
         long get() throws IOException;

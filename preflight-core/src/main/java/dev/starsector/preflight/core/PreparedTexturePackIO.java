@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -159,6 +160,36 @@ public final class PreparedTexturePackIO {
             String profileFingerprint,
             Path cacheRoot,
             Collection<String> blobRelativePaths) throws IOException {
+        write(target, profileFingerprint, cacheRoot, blobRelativePaths, SourceCopyObserver.NONE);
+    }
+
+    /**
+     * Publishes a pack while allowing rebuildable source blobs to be released as each checked copy
+     * enters the temporary pack.
+     *
+     * <p>The observer runs before and after every source copy. The after callback is reached only
+     * after the complete SPFT has passed its structural, checksum, and CRC checks. Callers may
+     * therefore delete a rebuildable loose source there without waiting for every other entry,
+     * reducing peak disk use from loose-plus-pack to roughly the larger representation. A failed
+     * publication can require the consumed entries to be rebuilt from their authoritative sources;
+     * callers must not use this overload for irreplaceable data.
+     */
+    public static void writeConsumingSources(
+            Path target,
+            String profileFingerprint,
+            Path cacheRoot,
+            Collection<String> blobRelativePaths,
+            SourceCopyObserver observer) throws IOException {
+        write(target, profileFingerprint, cacheRoot, blobRelativePaths,
+                Objects.requireNonNull(observer, "observer"));
+    }
+
+    private static void write(
+            Path target,
+            String profileFingerprint,
+            Path cacheRoot,
+            Collection<String> blobRelativePaths,
+            SourceCopyObserver observer) throws IOException {
         validateProfile(profileFingerprint);
         Path realRoot = PathContainment.realDirectory(cacheRoot);
         Collection<String> normalized = normalizeOrderedPaths(blobRelativePaths);
@@ -198,6 +229,7 @@ public final class PreparedTexturePackIO {
                 ByteBuffer copyBuffer = ByteBuffer.allocate(PreparedTexturePackIntegrity.COPY_BUFFER_BYTES);
                 List<Source> verified = new ArrayList<>(sources.size());
                 for (Source source : sources) {
+                    observer.beforeCopy(source.relativePath(), source.path(), source.length());
                     try (FileChannel input = FileChannel.open(source.path(), StandardOpenOption.READ)) {
                         int crc32c = PreparedTexturePackIntegrity.copyVerifiedSpft(
                                 input,
@@ -212,6 +244,7 @@ public final class PreparedTexturePackIO {
                                 source.length(),
                                 crc32c));
                     }
+                    observer.afterCopy(source.relativePath(), source.path(), source.length());
                 }
 
                 byte[] index = encodeIndex(profileFingerprint, verified);
@@ -236,6 +269,16 @@ public final class PreparedTexturePackIO {
             if (!moved) {
                 Files.deleteIfExists(temporary);
             }
+        }
+    }
+
+    public interface SourceCopyObserver {
+        SourceCopyObserver NONE = new SourceCopyObserver() {};
+
+        default void beforeCopy(String relativePath, Path source, long bytes) throws IOException {
+        }
+
+        default void afterCopy(String relativePath, Path source, long bytes) throws IOException {
         }
     }
 

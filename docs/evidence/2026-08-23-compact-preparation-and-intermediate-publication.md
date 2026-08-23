@@ -6,7 +6,8 @@
 
 **Result:** Compact keeps the launch-observed texture frontier in 1.09 GB. Removing per-file durable
 flushes reduced its cold preparation from 92.30 seconds to 16.51 seconds and full Balanced from
-198.56 seconds to 44.62 seconds.
+198.56 seconds to 44.62 seconds. Streaming checked inputs into the pack then measured 17.25 seconds
+for Compact and 38.33 seconds for Balanced while removing loose-pack duplication from the peak.
 
 ## Compact frontier
 
@@ -35,29 +36,35 @@ The first product build used four workers and a 256 MiB memory budget:
 | Compact, 8 workers / 512 MiB | 92.45s | 87.82s | 51.07s | 47.32s |
 | Compact, build intermediates | **16.51s** | **11.96s** | 33.31s | 16.31s |
 | Full Balanced, build intermediates | **44.62s** | **39.12s** | 76.44s | 28.78s |
+| Compact, consuming pack publication | **17.25s** | **12.58s** | not recorded | not recorded |
+| Full Balanced, consuming pack publication | **38.33s** | **32.81s** | not recorded | not recorded |
 
 Doubling workers and memory did nothing. The builder was forcing each content-addressed loose SPFT
 to stable storage, then reading all of them into one pack and deleting them after validation. With
 14,774 Compact blobs and 30,638 full-profile blobs, filesystem publication dominated the run.
 
 Loose SPFTs are now explicitly rebuildable pack inputs. A successful write is still a complete
-checksummed SPFT. Pack construction verifies every SPFT payload while copying it, forces the single
-finished pack, reopens it, checks its exact identity and order, and only then releases the loose
-inputs. An interrupted or damaged intermediate is validated before reuse and rebuilt when invalid.
-Standalone prepared-texture writes keep their original durable atomic contract.
+checksummed SPFT. Pack construction verifies each complete SPFT payload while copying it and can
+then release that rebuildable input. It forces the single finished pack, reopens it, and checks its
+exact identity and order before publication completes. A failed publication rebuilds any consumed
+inputs from the authoritative game or mod sources on the next preparation. Standalone
+prepared-texture writes keep their original durable atomic contract.
 
 ## Storage admission
 
-The current planner estimates the representation this build will actually write, keeps a 512 MiB
-to 1 GiB free-space reserve, and large writes retain live free-space guards. The raw pixel ceiling is
-diagnostic data, not the player-facing requirement or the initial admission threshold.
+The pack now consumes each checked loose input as it copies it, so the temporary pack grows while
+the rebuildable loose set shrinks. Rejected LZ4 candidates are removed as soon as the selected raw
+representation is complete. The planner therefore uses the larger live representation instead of
+adding every intermediate together. It adds a 128 MiB to 512 MiB reserve, and every large write
+still checks exact live free space.
 
-On these cold runs:
+For the current cold profile:
 
 | | Finished pack | Measured loose inputs | Current required-free estimate |
 | --- | ---: | ---: | ---: |
-| Compact | 1,087,894,442 B | 1,498,567,832 B | 3,207,042,449 B |
-| Balanced | 2,259,086,856 B | 2,758,182,590 B | 6,221,258,874 B |
+| Compact | 1,087,894,442 B | 1,498,567,832 B | **1,237,780,448 B** |
+| Balanced | 2,259,086,856 B | 2,758,182,590 B | **2,489,961,720 B** |
 
-The required-free number includes metadata and the reserve. The app presents the finished data and
-temporary requirement separately. It does not show the raw codec ceiling.
+The required-free number includes metadata and the reserve. It can be below the old measured loose
+total because rejected encodings and copied pack inputs no longer coexist until the end. The app
+presents the finished data and temporary requirement separately.

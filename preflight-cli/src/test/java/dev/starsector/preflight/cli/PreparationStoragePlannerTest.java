@@ -45,7 +45,7 @@ class PreparationStoragePlannerTest {
         assertTrue(plan.predictedLooseBytes() > plan.uniquePixelBytes());
         assertTrue(plan.predictedPackBytes() > plan.uniquePixelBytes());
         assertEquals(plan.predictedPackBytes(), plan.predictedRetainedTextureBytes());
-        assertEquals(512L * 1024 * 1024, plan.safetyReserveBytes());
+        assertEquals(128L * 1024 * 1024, plan.safetyReserveBytes());
         assertTrue(plan.safeToPrepare());
         assertFalse(Files.exists(cache));
     }
@@ -78,7 +78,7 @@ class PreparationStoragePlannerTest {
         PreparationStoragePlanner.Plan measured = PreparationStoragePlanner.plan(
                 index, cache, TextureStoragePolicy.BALANCED, 1, () -> 20 * GIB);
         assertEquals(
-                measured.predictedAdditionalBytes() + 512L * 1024 * 1024,
+                measured.predictedAdditionalBytes() + 128L * 1024 * 1024,
                 measured.requiredFreeBytes());
 
         PreparationStoragePlanner.Plan fitsExpected = PreparationStoragePlanner.plan(
@@ -93,7 +93,7 @@ class PreparationStoragePlannerTest {
     }
 
     @Test
-    void balancedUpperBoundIncludesRawFallbackWhenHeuristicPredictsEffectiveCompression() throws Exception {
+    void balancedPredictionUsesTheReviewedCompressedSizeModel() throws Exception {
         Path root = temporaryDirectory.resolve("root-balanced");
         Path image = root.resolve("graphics/image.png");
         Files.createDirectories(image.getParent());
@@ -107,7 +107,6 @@ class PreparationStoragePlannerTest {
 
         long rawFileBytes = PreparedTextureIO.rawFileBytes(plan.uniquePixelBytes());
         assertTrue(plan.predictedLooseBytes() < rawFileBytes);
-        assertTrue(plan.upperLooseBytes() >= 2 * rawFileBytes);
     }
 
     @Test
@@ -157,7 +156,6 @@ class PreparationStoragePlannerTest {
         assertTrue(plan.packHit());
         assertTrue(plan.packOnlyHit());
         assertEquals(0, plan.predictedLooseBytes());
-        assertEquals(0, plan.upperLooseBytes());
         assertEquals(0, plan.predictedPackBytes());
         assertTrue(plan.predictedRetainedTextureBytes() > 0);
         assertEquals(0, plan.predictedAdditionalBytes());

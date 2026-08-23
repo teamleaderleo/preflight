@@ -38,4 +38,16 @@ class PreparationDiskSpaceGuardTest {
             assertThrows(IOException.class, () -> guard.reserve(1, "next blob"));
         }
     }
+
+    @Test
+    void serialExchangeUsesTheReserveAsCopyHeadroom() throws Exception {
+        AtomicLong usable = new AtomicLong(150);
+        PreparationDiskSpaceGuard guard = new PreparationDiskSpaceGuard(usable::get, 100);
+
+        assertDoesNotThrow(() -> guard.requireTransient(150, "copying a checked blob"));
+        try (PreparationDiskSpaceGuard.Lease ignored = guard.reserve(40, "another worker")) {
+            assertThrows(IOException.class,
+                    () -> guard.requireTransient(111, "copying the next checked blob"));
+        }
+    }
 }

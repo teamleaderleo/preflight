@@ -33,30 +33,8 @@ final class PackedTextureRetention {
         // header, identity, index and entry-set checks.
         requireExactPack(cache, current, currentBlobs);
 
-        Set<String> looseRequiredByAnotherProfile = new HashSet<>();
-        if (Files.isDirectory(manifests, LinkOption.NOFOLLOW_LINKS)) {
-            try (var files = Files.list(manifests)) {
-                for (Path file : files
-                        .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
-                        .filter(path -> path.getFileName().toString().endsWith(".spfm"))
-                        .toList()) {
-                    TextureManifest manifest = TextureManifestIO.read(file);
-                    String fileName = file.getFileName().toString();
-                    String fileProfile = fileName.substring(0, fileName.length() - ".spfm".length());
-                    if (!fileProfile.equals(manifest.profileFingerprint())) {
-                        throw new IOException("Texture manifest profile does not match its filename: " + file);
-                    }
-                    if (current.profileFingerprint().equals(fileProfile)) {
-                        continue;
-                    }
-                    List<String> blobs = blobPaths(manifest);
-                    if (!hasExactPack(cache, manifest, blobs)) {
-                        looseRequiredByAnotherProfile.addAll(blobs);
-                    }
-                }
-            }
-        }
-
+        Set<String> looseRequiredByAnotherProfile = protectedByOtherProfiles(
+                cache, current.profileFingerprint());
         // Balanced may encode LZ4 first and then choose RAW when compression is ineffective. The
         // losing LZ4 blob is not named by the final manifest, so deleting only currentBlobs leaves
         // hundreds of megabytes of redundant cache data behind. Once every surviving manifest has been
@@ -73,6 +51,37 @@ final class PackedTextureRetention {
             }
         }
         return new Result(releasedBlobs, releasedBytes, looseRequiredByAnotherProfile.size());
+    }
+
+    /** Loose blobs that another profile still needs because it has no complete pack of its own. */
+    static Set<String> protectedByOtherProfiles(Path cacheDirectory, String currentProfile)
+            throws IOException {
+        Path cache = cacheDirectory.toAbsolutePath().normalize();
+        Path manifests = TextureManifestIO.directory(cache);
+        Set<String> protectedBlobs = new HashSet<>();
+        if (Files.isDirectory(manifests, LinkOption.NOFOLLOW_LINKS)) {
+            try (var files = Files.list(manifests)) {
+                for (Path file : files
+                        .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
+                        .filter(path -> path.getFileName().toString().endsWith(".spfm"))
+                        .toList()) {
+                    TextureManifest manifest = TextureManifestIO.read(file);
+                    String fileName = file.getFileName().toString();
+                    String fileProfile = fileName.substring(0, fileName.length() - ".spfm".length());
+                    if (!fileProfile.equals(manifest.profileFingerprint())) {
+                        throw new IOException("Texture manifest profile does not match its filename: " + file);
+                    }
+                    if (currentProfile.equals(fileProfile)) {
+                        continue;
+                    }
+                    List<String> blobs = blobPaths(manifest);
+                    if (!hasExactPack(cache, manifest, blobs)) {
+                        protectedBlobs.addAll(blobs);
+                    }
+                }
+            }
+        }
+        return Set.copyOf(protectedBlobs);
     }
 
     private static List<LooseBlob> redundantLooseBlobs(Path cache, Set<String> required)
