@@ -11,21 +11,21 @@ import java.time.format.DateTimeParseException;
 import java.util.Map;
 import java.util.Set;
 
-/** Strict reader for the live semantic state published by the injected JVM. */
+/** Bounded reader for the live semantic state published by the injected JVM. */
 final class RuntimeSemanticStateIdentity {
     private static final String FORMAT = "starsector-preflight-runtime-state-v1";
     private static final long MAX_BYTES = 64 * 1024;
     private static final long MAX_STARTUP_MILLIS = Duration.ofHours(24).toMillis();
     private static final Set<String> REQUIRED_FIELDS = Set.of(
             "format", "pid", "processStartedAt", "state", "sequence", "observedAt");
-    private static final Set<String> FIELDS = Set.of(
-            "format", "pid", "processStartedAt", "mainMenuReadyAt", "state", "sequence", "observedAt");
     private static final Set<String> STATES = Set.of(
-            "starting", "main-menu-ready", "campaign-ready", "combat-ready", "stopped");
+            "starting", "main-menu-ready", "main-menu-interactive",
+            "campaign-ready", "combat-ready", "stopped");
 
     private final long pid;
     private final Instant processStartedAt;
     private final Instant mainMenuReadyAt;
+    private final Instant mainMenuInteractiveAt;
     private final String state;
     private final long sequence;
     private final Instant observedAt;
@@ -34,12 +34,14 @@ final class RuntimeSemanticStateIdentity {
             long pid,
             Instant processStartedAt,
             Instant mainMenuReadyAt,
+            Instant mainMenuInteractiveAt,
             String state,
             long sequence,
             Instant observedAt) {
         this.pid = pid;
         this.processStartedAt = processStartedAt;
         this.mainMenuReadyAt = mainMenuReadyAt;
+        this.mainMenuInteractiveAt = mainMenuInteractiveAt;
         this.state = state;
         this.sequence = sequence;
         this.observedAt = observedAt;
@@ -65,11 +67,6 @@ final class RuntimeSemanticStateIdentity {
         }
         Map<String, Object> root = StrictJson.object(
                 Files.readString(absolute, StandardCharsets.UTF_8));
-        for (String field : root.keySet()) {
-            if (!FIELDS.contains(field)) {
-                throw new IllegalArgumentException("Runtime semantic state contains unknown field: " + field);
-            }
-        }
         for (String field : REQUIRED_FIELDS) {
             if (!root.containsKey(field)) {
                 throw new IllegalArgumentException("Runtime semantic state is missing field: " + field);
@@ -81,6 +78,7 @@ final class RuntimeSemanticStateIdentity {
         long pid = integer(root, "pid", 1L);
         Instant processStartedAt = instant(root, "processStartedAt");
         Instant mainMenuReadyAt = nullableInstant(root, "mainMenuReadyAt");
+        Instant mainMenuInteractiveAt = nullableInstant(root, "mainMenuInteractiveAt");
         String state = string(root, "state");
         if (!STATES.contains(state)) {
             throw new IllegalArgumentException("Runtime semantic state is unsupported: " + state);
@@ -101,12 +99,32 @@ final class RuntimeSemanticStateIdentity {
                 throw new IllegalArgumentException("Runtime main-menu time is after its observation");
             }
         }
+        if (mainMenuInteractiveAt != null) {
+            if (mainMenuReadyAt == null || mainMenuInteractiveAt.isBefore(mainMenuReadyAt)) {
+                throw new IllegalArgumentException(
+                        "Runtime interactive main-menu time precedes main-menu readiness");
+            }
+            if (mainMenuInteractiveAt.isAfter(observedAt)) {
+                throw new IllegalArgumentException(
+                        "Runtime interactive main-menu time is after its observation");
+            }
+        }
         return new RuntimeSemanticStateIdentity(
-                pid, processStartedAt, mainMenuReadyAt, state, sequence, observedAt);
+                pid, processStartedAt, mainMenuReadyAt, mainMenuInteractiveAt,
+                state, sequence, observedAt);
     }
 
     boolean is(String expected) {
         return state.equals(expected);
+    }
+
+    boolean reached(String expected) {
+        if (is(expected)) return true;
+        return switch (expected) {
+            case "main-menu-ready" -> mainMenuReadyAt != null;
+            case "main-menu-interactive" -> mainMenuInteractiveAt != null;
+            default -> false;
+        };
     }
 
     String state() {

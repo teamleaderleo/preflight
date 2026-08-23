@@ -633,6 +633,22 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    static AdapterTarget mainMenuInteractiveTarget() {
+        return new AdapterTarget(
+                "vanilla-title-0.98a-rc8-main-menu-interactive",
+                MainMenuInteractivePlan.TARGET_CLASS,
+                MainMenuInteractivePlan.ORIGINAL_SHA256,
+                MainMenuInteractivePlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        MainMenuInteractivePlan.ADVANCE_METHOD,
+                        MainMenuInteractivePlan.ADVANCE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** Starsector reprioritizes a large resource list with a quadratic ArrayList.removeAll. */
     static AdapterTarget resourcePriorityTarget() {
         return new AdapterTarget(
@@ -1812,6 +1828,10 @@ final class AdapterTargetRegistry {
 
     AdapterTargetRegistry withFrameTimeStartupCompletionTarget() {
         return withTarget(frameTimeStartupCompletionTarget());
+    }
+
+    AdapterTargetRegistry withMainMenuInteractiveTarget() {
+        return withTarget(mainMenuInteractiveTarget());
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {

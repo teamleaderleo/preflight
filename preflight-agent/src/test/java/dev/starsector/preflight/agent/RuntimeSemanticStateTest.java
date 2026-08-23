@@ -33,15 +33,25 @@ final class RuntimeSemanticStateTest {
         assertEquals(firstMainMenuTime,
                 String.valueOf(RuntimeSemanticState.telemetry().get("mainMenuReadyAt")));
 
+        RuntimeSemanticState.mainMenuInteractive();
+        assertState(destination, "main-menu-interactive", 2L);
+        String firstInteractiveTime =
+                String.valueOf(RuntimeSemanticState.telemetry().get("mainMenuInteractiveAt"));
+        RuntimeSemanticState.mainMenuInteractive();
+        assertState(destination, "main-menu-interactive", 2L);
+        assertEquals(firstInteractiveTime,
+                String.valueOf(RuntimeSemanticState.telemetry().get("mainMenuInteractiveAt")));
+
         RuntimeSemanticState.campaignReady();
-        assertState(destination, "campaign-ready", 2L);
+        assertState(destination, "campaign-ready", 3L);
         RuntimeSemanticState.combatReady();
-        assertState(destination, "combat-ready", 3L);
+        assertState(destination, "combat-ready", 4L);
         RuntimeSemanticState.campaignReady();
-        assertState(destination, "campaign-ready", 4L);
+        assertState(destination, "campaign-ready", 5L);
         RuntimeSemanticState.stopped();
-        assertState(destination, "stopped", 5L);
+        assertState(destination, "stopped", 6L);
         assertTrue(Files.readString(destination).contains("\"mainMenuReadyAt\":"));
+        assertTrue(Files.readString(destination).contains("\"mainMenuInteractiveAt\":"));
         assertTrue(RuntimeSemanticState.telemetry().get("writeProblem") == null);
     }
 

@@ -363,6 +363,9 @@ final class AdapterTransformationRegistry {
         if (FrameTimeStartupCompletionPlan.PLAN_ID.equals(target.planId())) {
             return FrameTimeStartupCompletionPlan.transform(signature, originalBytes);
         }
+        if (MainMenuInteractivePlan.PLAN_ID.equals(target.planId())) {
+            return MainMenuInteractivePlan.transform(signature, originalBytes);
+        }
         if (CombatRuntimeIntegrityRuntime.PLAN_ID.equals(target.planId())) {
             return CombatRuntimeIntegrityPlan.transform(signature, originalBytes);
         }
@@ -904,6 +907,9 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (FrameTimeStartupCompletionPlan.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (MainMenuInteractivePlan.PLAN_ID.equals(planId)) {
             return true;
         }
         if (CombatRuntimeIntegrityRuntime.PLAN_ID.equals(planId)) {
