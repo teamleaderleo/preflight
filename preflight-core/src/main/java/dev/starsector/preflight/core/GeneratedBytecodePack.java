@@ -160,6 +160,36 @@ public final class GeneratedBytecodePack {
         return true;
     }
 
+    /** Removes older per-request bundles only when this checked pack contains the exact bytes. */
+    public ReleaseResult releaseExactBundles(Path cacheRoot) {
+        Objects.requireNonNull(cacheRoot, "cacheRoot");
+        long releasedBytes = 0;
+        int releasedBundles = 0;
+        int retainedBundles = 0;
+        for (String requestedClassName : requests.keySet()) {
+            GeneratedBytecodeCache.Lookup lookup = GeneratedBytecodeCache.lookup(
+                    cacheRoot, contextKeySha256, requestedClassName);
+            if (lookup.status() != GeneratedBytecodeCache.Status.HIT
+                    || !exactlyContains(lookup.bundle())) {
+                retainedBundles++;
+                continue;
+            }
+            try {
+                long bytes = Files.size(lookup.path());
+                if (Files.deleteIfExists(lookup.path())) {
+                    releasedBundles++;
+                    releasedBytes = Math.addExact(releasedBytes, bytes);
+                }
+            } catch (IOException | RuntimeException error) {
+                retainedBundles++;
+            }
+        }
+        return new ReleaseResult(releasedBundles, releasedBytes, retainedBundles);
+    }
+
+    public record ReleaseResult(long releasedBundles, long releasedBytes, long retainedBundles) {
+    }
+
     public static Path path(Path cacheRoot, String contextKeySha256) {
         Hashes.decodeSha256(contextKeySha256);
         String context = contextKeySha256.toLowerCase(Locale.ROOT);
