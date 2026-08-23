@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Activity, useCallback, useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   getSnapshot,
@@ -619,7 +619,7 @@ export default function App() {
             onAction={() => navigate(activeOperation.owner)}
           />
         ) : null}
-        {page === "home" ? (
+        <Activity name="home-page" mode={page === "home" ? "visible" : "hidden"}>
           <HomePage
             snapshot={snapshot}
             status={status}
@@ -657,7 +657,8 @@ export default function App() {
             launchProfileName={launchProfileName}
             modReadiness={profilesState.modReadiness}
           />
-        ) : page === "launch" ? (
+        </Activity>
+        <Activity name="launch-settings-page" mode={page === "launch" ? "visible" : "hidden"}>
           <>
             <NoticeBanner message={launchNotice?.message ?? ""} tone={launchNotice?.tone ?? "info"} />
             <GameSettingsPage
@@ -673,7 +674,8 @@ export default function App() {
               onSave={(settingsToolsClosed) => void launcher.save(settingsToolsClosed)}
             />
           </>
-        ) : page === "speed" ? (
+        </Activity>
+        <Activity name="speed-page" mode={page === "speed" ? "visible" : "hidden"}>
           <PreparationPage
             message={preparationNotice?.message ?? ""}
             messageTone={preparationNotice?.tone ?? "info"}
@@ -695,11 +697,14 @@ export default function App() {
             onDismissCleanup={cleanup.dismiss}
             onOpenBenchmark={() => navigate("benchmark")}
           />
-        ) : page === "mods" ? (
+        </Activity>
+        <Activity name="mods-page" mode={page === "mods" ? "visible" : "hidden"}>
           <ProfilesPage message={profilesNotice?.message ?? ""} messageTone={profilesNotice?.tone ?? "info"} profilesState={profilesState} setupCheck={setupCheck} operationBlocked={operationBlocked} />
-        ) : page === "hangar" ? (
+        </Activity>
+        <Activity name="hangar-page" mode={page === "hangar" ? "visible" : "hidden"}>
           <HangarPage instrumentHull={instrumentHull} />
-        ) : page === "benchmark" ? (
+        </Activity>
+        <Activity name="benchmark-page" mode={page === "benchmark" ? "visible" : "hidden"}>
           <BenchmarkPage
             message={benchmarkNotice?.message ?? ""}
             messageTone={benchmarkNotice?.tone ?? "info"}
@@ -710,7 +715,8 @@ export default function App() {
             nativeBlockReason={nativeBenchmarkBlockReason}
             automation={automation}
           />
-        ) : page === "help" ? (
+        </Activity>
+        <Activity name="help-page" mode={page === "help" ? "visible" : "hidden"}>
           <HelpPage
             message={helpNotice?.message ?? ""}
             messageTone={helpNotice?.tone ?? "info"}
@@ -725,7 +731,8 @@ export default function App() {
             }}
             onNavigate={navigate}
           />
-        ) : (
+        </Activity>
+        <Activity name="settings-page" mode={page === "settings" ? "visible" : "hidden"}>
           <SettingsPage
             message={settingsNotice?.message ?? ""}
             messageTone={settingsNotice?.tone ?? "info"}
@@ -744,7 +751,7 @@ export default function App() {
             onDismissRemoval={removal.dismiss}
             onRemove={() => void removal.remove()}
           />
-        )}
-    </DesktopShell>
+        </Activity>
+      </DesktopShell>
   );
 }

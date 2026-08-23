@@ -196,7 +196,7 @@ export function DesktopShell({
         <div className="sidebar__footer">
           <button className={`nav__item ${page === "settings" ? "nav__item--active" : ""}`} type="button" title="Settings" aria-current={page === "settings" ? "page" : undefined} onClick={() => onPageChange("settings")}>
             <SettingsIcon /><span>Settings</span>
-            {updateAvailable ? <span className="nav__badge">Update</span> : null}
+            {updateAvailable ? <span className="nav__badge" aria-hidden="true">Update</span> : null}
           </button>
         </div>
       </aside>
@@ -229,7 +229,6 @@ export function DesktopShell({
           </div>
         </header>
         <div
-          key={page}
           id="page-workspace"
           ref={pageViewport}
           role="region"
