@@ -70,6 +70,9 @@ final class RunCommand {
         Path home = Path.of(System.getProperty("user.home"));
         CombatJvmSafeguard.Resolution combatJvmSafeguard =
                 CombatJvmSafeguard.resolve(platform, target, System.getenv());
+        MacRosettaGcPolicy.Resolution macRosettaGcPolicy =
+                MacRosettaGcPolicy.resolve(
+                        platform, target, options.optimizationPreset(), System.getenv());
         LaunchOwnership ownership = LaunchOwnership.detect(target);
         boolean janinoCacheOwned = options.janinoBytecodeCache() && !ownership.fastRendering();
         if (options.janinoBytecodeCache() && ownership.fastRendering()) {
@@ -186,8 +189,9 @@ final class RunCommand {
                     javaToolOptions,
                     List.of("-Dpreflight.desktopSmoke=true", "-Dpreflight.frameTimes=true"));
         }
-        String javaOptions = CombatJvmSafeguard.appendOptions(
-                System.getenv("_JAVA_OPTIONS"), combatJvmSafeguard);
+        String javaOptions = MacRosettaGcPolicy.appendOptions(
+                System.getenv("_JAVA_OPTIONS"), macRosettaGcPolicy);
+        javaOptions = CombatJvmSafeguard.appendOptions(javaOptions, combatJvmSafeguard);
 
         List<String> command = new ArrayList<>(target.command());
         command.addAll(options.forwardedArgs());
@@ -203,6 +207,7 @@ final class RunCommand {
                 directSettings,
                 janinoBytecodeCache,
                 combatJvmSafeguard,
+                macRosettaGcPolicy,
                 javaOptions);
         if (options.dryRun()) {
             return 0;
@@ -244,7 +249,7 @@ final class RunCommand {
             writeMetadata(
                     metadata, target, command, runIdentity, launchId, started, null, null, null, null, outcome, null,
                     null, options, directSettings, textureContext, adapterReport, adapterAnalysis, console, null,
-                    postprocessingFailures, null, combatJvmSafeguard);
+                    postprocessingFailures, null, combatJvmSafeguard, macRosettaGcPolicy);
 
             ProcessBuilder builder = new ProcessBuilder(command);
             builder.directory(target.workingDirectory().toFile());
@@ -374,7 +379,8 @@ final class RunCommand {
                         measuredElapsedMillis, exitCode, launcherExitCode, outcome,
                         lifecycleEvidence, collectCensus(census, postprocessingFailures),
                         options, directSettings, textureContext, adapterReport, adapterAnalysis,
-                        console, childOutput, postprocessingFailures, executionFailure, combatJvmSafeguard);
+                        console, childOutput, postprocessingFailures, executionFailure,
+                        combatJvmSafeguard, macRosettaGcPolicy);
             } catch (IOException error) {
                 System.err.println("Preflight could not finalize run metadata: " + message(error));
             }
@@ -567,6 +573,7 @@ final class RunCommand {
             DirectLaunchSettings directSettings,
             LaunchCacheContexts.Janino janinoBytecodeCache,
             CombatJvmSafeguard.Resolution combatJvmSafeguard,
+            MacRosettaGcPolicy.Resolution macRosettaGcPolicy,
             String javaOptions) {
         System.out.println("Preflight selected:");
         System.out.println("  install:  " + target.installRoot());
@@ -601,6 +608,9 @@ final class RunCommand {
         System.out.println("  combat JVM safeguard: "
                 + (combatJvmSafeguard.active() ? "active — " : "inactive — ")
                 + combatJvmSafeguard.reason());
+        System.out.println("  macOS startup collector: "
+                + (macRosettaGcPolicy.active() ? "G1 active: " : "launcher default: ")
+                + macRosettaGcPolicy.reason());
         System.out.println("  quiet logs: " + (options.quietLogs()
                 ? QuietLogConfiguration.path(runDirectory)
                 : "off"));
@@ -750,7 +760,8 @@ final class RunCommand {
             ChildProcessOutput.Result childOutput,
             List<String> postprocessingFailures,
             String executionFailure,
-            CombatJvmSafeguard.Resolution combatJvmSafeguard) throws IOException {
+            CombatJvmSafeguard.Resolution combatJvmSafeguard,
+            MacRosettaGcPolicy.Resolution macRosettaGcPolicy) throws IOException {
         Map<String, Object> values = new LinkedHashMap<>();
         ProcessHandle wrapper = ProcessHandle.current();
         values.put("launchId", launchId);
@@ -796,6 +807,7 @@ final class RunCommand {
         values.put("janinoBytecodeCache", options.janinoBytecodeCache());
         values.put("graphicsLibInsigniaManagerCache", options.graphicsLibInsigniaManagerCache());
         values.put("combatJvmSafeguard", combatJvmSafeguard.toReportValues());
+        values.put("macRosettaGcPolicy", macRosettaGcPolicy.toReportValues());
         values.put("quietLogs", options.quietLogs());
         values.put("fileOnlyLogs", options.fileOnlyLogs());
         values.put("assetProgressLogsSuppressed", options.suppressAssetProgressLogs());
