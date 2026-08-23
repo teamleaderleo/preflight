@@ -20,6 +20,9 @@ PACKAGE_PREFIXES = (
     "preflight-desktop/scripts/",
     "preflight-desktop/src-tauri/",
 )
+PACKAGE_NEUTRAL_EXACT = {
+    "preflight-desktop/scripts/capture-doc-screenshots.py",
+}
 
 NATIVE_EXACT = {
     ".github/workflows/desktop-ci.yml",
@@ -33,6 +36,11 @@ def needs_package_matrix(paths: Iterable[str]) -> bool:
     for raw_path in paths:
         path = raw_path.strip().replace("\\", "/")
         if not path:
+            continue
+        if path in PACKAGE_NEUTRAL_EXACT or (
+            path.startswith("preflight-desktop/scripts/")
+            and path.endswith(".node-test.mjs")
+        ):
             continue
         if path in PACKAGE_EXACT or path.startswith(PACKAGE_PREFIXES):
             return True
