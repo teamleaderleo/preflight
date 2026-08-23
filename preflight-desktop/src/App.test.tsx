@@ -637,6 +637,49 @@ test("page navigation commits the destination workspace in the click interaction
   expect(screen.getByRole("heading", { name: "Ready", level: 1 })).toBeInTheDocument();
 });
 
+test("page navigation paints before optional native reads and reuses their results", async () => {
+  render(<App />);
+  await screen.findByRole("heading", { name: "Ready", level: 1 });
+
+  const plan = vi.spyOn(bridge, "getPreparationPlan");
+  const hulls = vi.spyOn(bridge, "getWireframeHulls");
+  const reportIntake = vi.spyOn(bridge, "getReportIntakeStatus");
+
+  fireEvent.click(screen.getByRole("button", { name: "Speed" }));
+  expect(screen.getByRole("heading", { name: "Speed", level: 1 })).toBeInTheDocument();
+  expect(plan).not.toHaveBeenCalled();
+  await waitFor(() => expect(plan).toHaveBeenCalledTimes(1));
+
+  fireEvent.click(screen.getByRole("button", { name: "Home" }));
+  fireEvent.click(screen.getByRole("button", { name: "Speed" }));
+  expect(screen.getByRole("heading", { name: "Speed", level: 1 })).toBeInTheDocument();
+  expect(plan).toHaveBeenCalledTimes(1);
+
+  fireEvent.click(screen.getByRole("button", { name: "Hangar" }));
+  expect(screen.getByRole("heading", { name: "Hangar", level: 1 })).toBeInTheDocument();
+  expect(hulls).not.toHaveBeenCalled();
+  await waitFor(() => expect(hulls).toHaveBeenCalledTimes(1));
+
+  fireEvent.click(screen.getByRole("button", { name: "Home" }));
+  fireEvent.click(screen.getByRole("button", { name: "Hangar" }));
+  expect(screen.getByRole("heading", { name: "Hangar", level: 1 })).toBeInTheDocument();
+  expect(hulls).toHaveBeenCalledTimes(1);
+
+  fireEvent.click(screen.getByRole("button", { name: "Help" }));
+  expect(screen.getByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
+  expect(reportIntake).not.toHaveBeenCalled();
+  await waitFor(() => expect(reportIntake).toHaveBeenCalledTimes(1));
+
+  fireEvent.click(screen.getByRole("button", { name: "Home" }));
+  fireEvent.click(screen.getByRole("button", { name: "Help" }));
+  expect(screen.getByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
+  expect(reportIntake).toHaveBeenCalledTimes(1);
+
+  plan.mockRestore();
+  hulls.mockRestore();
+  reportIntake.mockRestore();
+});
+
 test("pointer drafting feedback performs at most one style write per display frame", () => {
   let frame: FrameRequestCallback | null = null;
   const requestFrame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {

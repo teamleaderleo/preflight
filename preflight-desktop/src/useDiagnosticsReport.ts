@@ -22,6 +22,8 @@ import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
 import { errorMessage, localDateStamp } from "./uiFormat";
 
+export const REPORT_INTAKE_NAVIGATION_IDLE_MS = 180;
+
 function savedRunReportReceipt(): ReportReceipt | null {
   try {
     const raw = window.localStorage.getItem(REPORT_RECEIPT_STORAGE_KEY);
@@ -88,17 +90,22 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
   useEffect(() => {
     if (!active || reportIntake !== null) return;
     let cancelled = false;
-    void getReportIntakeStatus()
-      .then((status) => {
-        if (!cancelled) setReportIntake(status);
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setReportIntake({ configured: false, origin: null, reason: errorMessage(error) });
-        }
-      });
+    // Opening Help or Settings is navigation, not a request to contact the report service. Let the
+    // retained page paint first, then fill this optional status in once and keep it for the session.
+    const timer = window.setTimeout(() => {
+      void getReportIntakeStatus()
+        .then((status) => {
+          if (!cancelled) setReportIntake(status);
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            setReportIntake({ configured: false, origin: null, reason: errorMessage(error) });
+          }
+        });
+    }, REPORT_INTAKE_NAVIGATION_IDLE_MS);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [active, reportIntake]);
 

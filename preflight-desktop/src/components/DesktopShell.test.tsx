@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import { DesktopShell } from "./DesktopShell";
@@ -62,7 +62,7 @@ function makeScrollable(workspace: HTMLElement) {
   Object.defineProperty(workspace, "scrollHeight", { configurable: true, value: 900 });
 }
 
-test("scroll keys hand focus from the newly focused page title to the named workspace", () => {
+test("scroll keys hand focus from the newly focused page title to the named workspace", async () => {
   const rendered = render(shell("home", "Home"));
   rendered.rerender(shell("help", "Help"));
 
@@ -70,7 +70,7 @@ test("scroll keys hand focus from the newly focused page title to the named work
   const workspace = screen.getByRole("region", { name: "Help" });
   makeScrollable(workspace);
 
-  expect(title).toHaveFocus();
+  await waitFor(() => expect(title).toHaveFocus());
   expect(workspace).toHaveAttribute("id", "page-workspace");
   expect(workspace).toHaveAttribute("aria-labelledby", "page-title");
 
@@ -79,13 +79,14 @@ test("scroll keys hand focus from the newly focused page title to the named work
   expect(workspace).toHaveFocus();
 });
 
-test("ordinary keys and effectively non-scrollable pages keep focus on the page title", () => {
+test("ordinary keys and effectively non-scrollable pages keep focus on the page title", async () => {
   const rendered = render(shell("home", "Home"));
   rendered.rerender(shell("help", "Help"));
 
   const title = screen.getByRole("heading", { name: "Help" });
   const workspace = screen.getByRole("region", { name: "Help" });
   makeScrollable(workspace);
+  await waitFor(() => expect(title).toHaveFocus());
 
   fireEvent.keyDown(title, { key: "a" });
   expect(title).toHaveFocus();
