@@ -10,14 +10,18 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 /** Cheap read-only dependency/metadata readiness pass for the currently enabled mod set. */
 final class ModMetadataCheck {
+    static final String FORMAT = "starsector-preflight-mod-readiness-v1";
     private static final String PROVIDER = "mod-metadata";
     private static final int MAX_MOD_DIRECTORIES = 1_024;
     private static final int MAX_ENABLED_MODS = 1_024;
@@ -339,6 +343,27 @@ final class ModMetadataCheck {
             int modDirectories,
             long metadataBytes,
             long elapsedNanos) {
+        Map<String, Object> view() {
+            Map<SetupAnalysis.Severity, Long> bySeverity = new EnumMap<>(SetupAnalysis.Severity.class);
+            for (SetupAnalysis.Severity severity : SetupAnalysis.Severity.values()) {
+                bySeverity.put(
+                        severity,
+                        findings.stream().filter(finding -> finding.severity() == severity).count());
+            }
+            Map<String, Object> counts = new LinkedHashMap<>();
+            for (SetupAnalysis.Severity severity : SetupAnalysis.Severity.values()) {
+                counts.put(severity.name().toLowerCase(Locale.ROOT), bySeverity.get(severity));
+            }
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("format", FORMAT);
+            value.put("ready", bySeverity.get(SetupAnalysis.Severity.BLOCKING) == 0L);
+            value.put("counts", counts);
+            value.put("findings", findings.stream().map(SetupAnalysis::view).toList());
+            value.put("modDirectories", modDirectories);
+            value.put("metadataBytes", metadataBytes);
+            value.put("elapsedMillis", elapsedNanos / 1_000_000L);
+            return value;
+        }
     }
 
     enum ConversionMode {

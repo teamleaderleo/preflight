@@ -965,6 +965,14 @@ h2 {
   margin-bottom: 0;
 }
 
+.status-chip--mod-attention {
+  min-height: 44px;
+  border: 1px solid color-mix(in srgb, var(--warning) 34%, transparent);
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  cursor: pointer;
+}
+
 .launch-console__primary > h2 {
   margin: 0 0 12px;
   color: var(--console-ink);
@@ -2943,6 +2951,59 @@ h2 {
   grid-template-columns: minmax(0, 1.35fr) minmax(250px, 0.65fr);
   gap: 16px;
   align-items: start;
+}
+
+.mod-readiness {
+  margin-bottom: 12px;
+  border: 1px solid color-mix(in srgb, var(--warning) 38%, var(--line));
+  border-radius: 5px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface));
+}
+
+.mod-readiness--loading {
+  padding: 10px 13px;
+  color: var(--ink-soft);
+  border-color: var(--line);
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.mod-readiness details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 0 13px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.mod-readiness details > summary span {
+  color: var(--accent-strong);
+  font-size: 12px;
+}
+
+.mod-readiness ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0 13px 13px 30px;
+}
+
+.mod-readiness li strong,
+.mod-readiness li span {
+  display: block;
+}
+
+.mod-readiness li span,
+.mod-readiness small {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.mod-readiness details > .button {
+  margin: 0 13px 13px;
 }
 
 .profile-list-card,

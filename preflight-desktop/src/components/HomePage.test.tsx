@@ -152,6 +152,7 @@ function props(overrides: Partial<ComponentProps<typeof HomePage>> = {}): Compon
     onNavigate: vi.fn(),
     instrumentHull: instrumentHullState,
     launchProfileName: "Exploration",
+    modReadiness: null,
     ...overrides,
   };
 }
@@ -213,6 +214,27 @@ test("settled Home omits an invented label for an unsaved active mod set", () =>
 
   expect(screen.queryByText("Current mod setup")).not.toBeInTheDocument();
   expect(screen.getByLabelText("Installation /Applications/Starsector")).toBeInTheDocument();
+});
+
+test("Home surfaces a broken mod setup without blocking launch", async () => {
+  const user = userEvent.setup();
+  const onNavigate = vi.fn();
+  render(<HomePage {...props({
+    onNavigate,
+    modReadiness: {
+      format: "starsector-preflight-mod-readiness-v1",
+      ready: false,
+      counts: { blocking: 2, warning: 0, info: 0, unknown: 0 },
+      findings: [],
+      modDirectories: 83,
+      metadataBytes: 131_072,
+      elapsedMillis: 6,
+    },
+  })} />);
+
+  expect(screen.getByRole("button", { name: "Launch Starsector" })).toBeEnabled();
+  await user.click(screen.getByRole("button", { name: "2 mod problems" }));
+  expect(onNavigate).toHaveBeenCalledWith("mods");
 });
 
 test("Home exposes direct display controls without conflicting compact and playtime states", async () => {

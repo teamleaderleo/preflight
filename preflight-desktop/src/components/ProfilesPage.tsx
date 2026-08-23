@@ -34,6 +34,8 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
     profileName,
     profiles,
     profilesLoading,
+    modReadiness,
+    modReadinessLoading,
     renameDraft,
     renameTarget,
     duplicateDraft,
@@ -54,6 +56,7 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
     submitRename,
     setDuplicateDraft,
     submitDuplicate,
+    refreshModReadiness,
   } = profilesState;
   const trimmedProfileName = profileName.trim();
   const profileNameAlreadySaved = Boolean(
@@ -72,6 +75,13 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
     : profileSearch.query.trim()
       ? `${visibleProfiles.length} of ${savedProfiles.length}`
       : `${savedProfiles.length} saved`;
+  const blockingModProblems = modReadiness?.counts.blocking ?? 0;
+  const otherModProblems = (modReadiness?.counts.warning ?? 0) + (modReadiness?.counts.unknown ?? 0);
+  const visibleModProblems = modReadiness?.findings.filter((finding) => finding.severity !== "info") ?? [];
+  const modProblemCount = blockingModProblems + otherModProblems;
+  const modProblemLabel = blockingModProblems > 0
+    ? `${blockingModProblems} mod problem${blockingModProblems === 1 ? "" : "s"}`
+    : `${otherModProblems} mod warning${otherModProblems === 1 ? "" : "s"}`;
 
   useEffect(() => {
     if (activationPlan) {
@@ -119,10 +129,30 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
   return (
     <div className="profiles-page">
       <NoticeBanner message={message} tone={messageTone} />
+      {modReadinessLoading && !modReadiness ? (
+        <div className="mod-readiness mod-readiness--loading" role="status">Checking dependencies…</div>
+      ) : modProblemCount > 0 ? (
+        <section className={`mod-readiness ${blockingModProblems > 0 ? "mod-readiness--blocking" : "mod-readiness--warning"}`} aria-label="Current mod setup needs attention">
+          <details>
+            <summary>{modProblemLabel}<span>Review</span></summary>
+            <ul>
+              {visibleModProblems.slice(0, 8).map((finding) => (
+                <li key={`${finding.code}:${finding.summary}`}>
+                  <strong>{finding.summary}</strong>
+                </li>
+              ))}
+            </ul>
+            {visibleModProblems.length > 8 ? <small>{visibleModProblems.length - 8} more</small> : null}
+            <button className="button button--quiet button--compact" type="button" onClick={() => void refreshModReadiness()} disabled={modReadinessLoading}>
+              {modReadinessLoading ? "Checking…" : "Check again"}
+            </button>
+          </details>
+        </section>
+      ) : null}
       <div className="profiles-grid">
         <section className="card profile-list-card">
           <div className="card__heading">
-            <div className="heading-with-info"><h2>Saved profiles</h2><InfoTip label="About mod profiles">A profile remembers enabled mods and their load order. Switching is previewed before Preflight changes the mod list, and matching prepared data is reused automatically.</InfoTip></div>
+            <div className="heading-with-info"><h2>Saved profiles</h2><InfoTip label="About mod profiles">A profile remembers enabled mods and their load order. Preflight notices changes made in another launcher when you return. Switching is previewed before it changes the mod list. Mod files stay where they are.</InfoTip></div>
             <span className="field-note">{profileCount}</span>
           </div>
           {savedProfiles.length > 0 || profileSearch.query ? (

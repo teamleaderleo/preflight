@@ -128,7 +128,30 @@ export interface DesktopHomeState {
   cacheInspection: CacheInspection | null;
   profiles: ProfileList | null;
   launchSettings: LaunchSettings | null;
-  errors: Partial<Record<"cacheInspection" | "profiles" | "launchSettings", string>>;
+  modReadiness: ModReadiness | null;
+  errors: Partial<Record<"cacheInspection" | "profiles" | "launchSettings" | "modReadiness", string>>;
+}
+
+export type SetupFindingSeverity = "blocking" | "warning" | "info" | "unknown";
+
+export interface SetupFinding {
+  code: string;
+  provider: string;
+  severity: SetupFindingSeverity;
+  summary: string;
+  parameters: Record<string, string | number | boolean | null>;
+  affectedModIds: string[];
+  actions: string[];
+}
+
+export interface ModReadiness {
+  format: "starsector-preflight-mod-readiness-v1";
+  ready: boolean;
+  counts: Record<SetupFindingSeverity, number>;
+  findings: SetupFinding[];
+  modDirectories: number;
+  metadataBytes: number;
+  elapsedMillis: number;
 }
 
 export interface RunStarted {

@@ -20,6 +20,7 @@ import type {
   DesktopSnapshot,
   LaunchSettings,
   LaunchSettingsUpdate,
+  ModReadiness,
   NoticeTone,
   OptimizationPreset,
   UpdateStatus,
@@ -68,6 +69,7 @@ interface HomePageProps {
   onNavigate: (page: Page) => void;
   instrumentHull: InstrumentHullState;
   launchProfileName: string | null;
+  modReadiness: ModReadiness | null;
 }
 
 export function HomePage({
@@ -105,6 +107,7 @@ export function HomePage({
   onNavigate,
   instrumentHull,
   launchProfileName,
+  modReadiness,
 }: HomePageProps) {
   const [optionsOpen, setOptionsOpen] = useState(() => {
     try {
@@ -185,6 +188,8 @@ export function HomePage({
     && !cacheNeedsRepair
     && !cacheInspectionBlocked
     && optimizationPreset !== "off";
+  const modBlockingCount = modReadiness?.counts.blocking ?? 0;
+  const modWarningCount = (modReadiness?.counts.warning ?? 0) + (modReadiness?.counts.unknown ?? 0);
   const toggleOptions = () => {
     setOptionsOpen((current) => {
       const next = !current;
@@ -296,6 +301,13 @@ export function HomePage({
                   {settledReady ? <CheckIcon /> : <SparklesIcon />}
                   {statusLabel}
                 </div>
+              ) : null}
+              {status !== "running" && status !== "launching" && (modBlockingCount > 0 || modWarningCount > 0) ? (
+                <button className="status-chip status-chip--mod-attention" type="button" onClick={() => onNavigate("mods")}>
+                  {modBlockingCount > 0
+                    ? `${modBlockingCount} mod problem${modBlockingCount === 1 ? "" : "s"}`
+                    : `${modWarningCount} mod warning${modWarningCount === 1 ? "" : "s"}`}
+                </button>
               ) : null}
               <button
                 className="home-display-toggle"

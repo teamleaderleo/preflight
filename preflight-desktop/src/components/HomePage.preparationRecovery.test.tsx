@@ -138,6 +138,7 @@ function renderHome(currentPreparation: ReturnType<typeof usePreparation>, opera
     onNavigate={vi.fn()}
     instrumentHull={hullState}
     launchProfileName="Exploration"
+    modReadiness={null}
   />);
 }
 
