@@ -12,17 +12,16 @@ profile before writing and the CLI enforces the same live free-space checks.
 
 ## Current storage choices
 
-The default texture policy is **Balanced**. It keeps one checked, startup-ordered texture pack and
-uses lossless LZ4 when compression helps. The CLI's historical `fastest` option keeps the same
-upload-ready pixels uncompressed. The desktop calls that option **Uncompressed** because current
-whole-launch measurements do not support calling it faster.
+Fresh profiles start with **Balanced**. It keeps one checked texture pack and uses lossless LZ4 when
+compression helps. The CLI's historical `fastest` option keeps the same upload-ready pixels
+uncompressed. The desktop calls that option **Uncompressed** because current whole-launch
+measurements do not support calling it faster.
 
-Balanced is the current default because it can prepare a fresh profile before any launch has been
-observed. It is a bootstrap policy rather than the best measured steady state. Compact needs one
-successful launch to learn the required access set, then retains less than half as much texture data,
-prepares in less than half the time, and produced the faster whole-launch result on this profile.
-Automatic graduation from complete bootstrap coverage to Compact is tracked in
-[#1084](https://github.com/teamleaderleo/preflight/issues/1084).
+Balanced can prepare a fresh profile before any launch has been observed. It is the bootstrap rather
+than the best measured steady state. Compact needs one successful launch to learn the required access
+set and physical order. It then retains less than half as much texture data, prepares in less than
+half the time, and produced the faster whole-launch result on this profile. The desktop now performs
+that graduation automatically during a later idle window.
 
 The latest cold preparations on the reviewed 83-mod profile found:
 
@@ -42,7 +41,8 @@ about 2.9 GB more than Balanced, almost entirely in its larger pack.
 Compact keeps only the 16,013 logical textures observed during a real launch, representing 14,774
 distinct source images. Its pack is byte-for-byte identical to the ordered prototype that launched
 in 14.17 seconds with 15,469 prepared hits, three safe source fallbacks, and no pixel-conversion
-fallbacks. It is an advanced option because a first observed launch is required to learn the set.
+fallbacks. It remains selectable in advanced settings and is the automatic steady state once the
+profile has a successful observed launch.
 
 The pack-only boundary and launch observations are in
 [the 2026-08-23 frontier report](evidence/2026-08-23-pack-only-balanced-frontier.md).
