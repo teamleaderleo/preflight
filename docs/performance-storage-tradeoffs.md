@@ -21,9 +21,9 @@ The latest cold preparations on the reviewed 83-mod profile found:
 
 | | Balanced | Compact | Uncompressed | Minimal |
 | --- | ---: | ---: | ---: | ---: |
-| Finished cache directory | **2.3 GB** | **1.1 GB** | **5.2 GB** | **about 50 MB expected after learning** |
+| Finished cache directory | **2.3 GB** | **1.1 GB** | **5.2 GB** | **11 MB immediately after preparation** |
 | Prepared texture pack | 2,259,086,856 bytes | 1,087,894,442 bytes | 5,338,090,204 bytes | none |
-| Tool-reported cold preparation | 32.81s texture stage | 12.58s texture stage | 184.35s older path | 3.69s |
+| Tool-reported cold preparation | 32.81s texture stage | 12.58s texture stage | not measured on current path | 3.69s |
 | External cold wall time | 38.33s | 17.25s | not recorded on current path | not recorded |
 | Following warm preparation | 4.09s | not measured | not measured | 2.76s |
 
@@ -38,9 +38,7 @@ in 14.17 seconds with 15,469 prepared hits, three safe source fallbacks, and no 
 fallbacks. It is an advanced option because a first observed launch is required to learn the set.
 
 The pack-only boundary and launch observations are in
-[the 2026-08-23 frontier report](evidence/2026-08-23-pack-only-balanced-frontier.md). The older
-[cold-preparation report](evidence/2026-08-15-cold-preparation-cost.md) remains the record of the
-previous loose-plus-pack layout.
+[the 2026-08-23 frontier report](evidence/2026-08-23-pack-only-balanced-frontier.md).
 
 The Compact corpus, preparation measurements, and corrected intermediate-publication boundary are
 recorded in [the Compact preparation report](evidence/2026-08-23-compact-preparation-and-intermediate-publication.md).
@@ -67,31 +65,26 @@ It should not be the default, and the UI should not promise a startup gain.
 
 The current cold Balanced preparation completed in **38.33 seconds**, with 32.81 seconds inside the
 texture stage. Compact completed in **17.25 seconds**, with 12.58 seconds inside its texture stage.
-The same exact corpora previously took 198.56 and 92.30 seconds. The difference was per-blob durable
-publication: thousands of checked loose files were forced to storage even though preparation then
-packed, authenticated, and deleted them. They are now explicit build intermediates. The final pack
-is still forced once, reopened, and validated before publication; a damaged leftover intermediate
-is rejected or rebuilt on the next preparation.
+Checked loose files are build intermediates rather than separately retained output. The final pack
+is forced once, reopened, and validated before publication; a damaged leftover intermediate is
+rejected or rebuilt on the next preparation.
 
-The 184.35-second Uncompressed measurement predates that correction and has not been rerun. Minimal
-reported 3.69 seconds because it skips textures.
+Uncompressed has not been rerun on the current preparation path. Minimal reported 3.69 seconds
+because it skips textures.
 
-These are one-run diagnostics on a development machine, not a promise for another profile. Raising
-the Compact build from four workers and 256 MiB to eight workers and 512 MiB did not change its old
-path: 92.45 seconds versus 92.30. That ruled out the resource preset and led to the filesystem fix.
-A warm pack-only Balanced preparation completed in 4.09 seconds after applying its stable learned
-order.
+These are measurements from the development profile rather than fixed estimates for other mod sets.
+Changing the Compact worker and memory preset did not explain the old delay; removing per-file
+durable publication did. A warm pack-only Balanced preparation completed in 4.09 seconds after
+applying its stable learned order.
 
 ## Minimal disk after launch
 
 Minimal skips prepared textures while retaining the smaller resource, classpath, merged-data,
 spec-data, rules, and generated-bytecode caches. On the reviewed profile, preparation took 5.14
-seconds and left about 11 MB on disk. The measured first launch grew an older build to about 204 MiB.
-Of that, 152,606,335 bytes were per-request generated-bytecode bundles duplicated exactly by a
-1,183,935-byte session pack. Current source deletes each duplicate only after writing, reopening,
-and byte-checking the pack. The same corpus should therefore settle around 50 MB, pending a real
-launch remeasurement. A following warm launch with the older layout reached the main menu in 56.51
-seconds on a busy development machine.
+seconds and left about 11 MB on disk. A first launch also teaches and stores reusable work. Current
+source removes each per-request generated-bytecode duplicate only after writing, reopening, and
+byte-checking the complete session pack. The post-launch size still needs a current-path
+remeasurement.
 
 The 10.9 MB reference figure measures the directory immediately after preparation. It is not the
 ongoing footprint. Minimal still avoids the multi-gigabyte prepared texture corpus. The historical

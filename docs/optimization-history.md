@@ -6,7 +6,7 @@
 
 **Updated:** 2026-08-15
 
-The development installation's observed worst case reached roughly 101 seconds. In the latest
+The development installation's observed high reached roughly 101 seconds. In the latest
 same-profile campaign, ordinary launches had an 89.00-second median and Preflight launches had a
 15.53-second median; the fastest reached 15.25 seconds. **101 seconds to 15.25 seconds** is the
 chronological headline. The final package still needs its own benchmark pass.
