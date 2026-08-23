@@ -53,6 +53,7 @@ export type Page = "home" | "launch" | "speed" | "mods" | "hangar" | "benchmark"
 
 interface DesktopShellProps {
   page: Page;
+  workspacePage?: Page;
   title: string;
   status: AppStatus;
   isReady: boolean;
@@ -68,6 +69,7 @@ interface DesktopShellProps {
 
 export function DesktopShell({
   page,
+  workspacePage = page,
   title,
   status,
   isReady,
@@ -94,7 +96,6 @@ export function DesktopShell({
   const previousPage = useRef(page);
   const pointerFrame = useRef<number | null>(null);
   const pointerPosition = useRef({ x: -1000, y: -1000 });
-  const pageChanged = previousPage.current !== page;
   const moveGridHighlight = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     const shell = event.currentTarget;
     pointerPosition.current = { x: event.clientX, y: event.clientY };
@@ -139,9 +140,9 @@ export function DesktopShell({
     if (pageViewport.current) pageViewport.current.scrollTop = 0;
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
-    if (previousPage.current !== page) pageTitle.current?.focus({ preventScroll: true });
-    previousPage.current = page;
-  }, [page]);
+    if (previousPage.current !== workspacePage) pageTitle.current?.focus({ preventScroll: true });
+    previousPage.current = workspacePage;
+  }, [workspacePage]);
   useEffect(() => () => {
     if (pointerFrame.current !== null) window.cancelAnimationFrame(pointerFrame.current);
   }, []);
@@ -230,13 +231,13 @@ export function DesktopShell({
           </div>
         </header>
         <div
-          key={page}
+          key={workspacePage}
           id="page-workspace"
           ref={pageViewport}
           role="region"
           aria-labelledby="page-title"
           tabIndex={-1}
-          className={`page-viewport page-viewport--${page}${pageChanged ? " page-viewport--entering" : ""}`}
+          className={`page-viewport page-viewport--${workspacePage}`}
         >
           {children}
         </div>

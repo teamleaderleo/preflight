@@ -48,6 +48,11 @@ export const resourcePresets = {
 // cancels this timer through the effect cleanup.
 export const AUTOMATIC_COMPACTION_QUIET_MS = 30_000;
 
+// Opening Speed is navigation, not a request to interrogate the installation. A prepared profile
+// can show the page first and fill in its storage plan shortly afterward. Cold profiles still plan
+// immediately because Home needs the result before it can offer safe preparation.
+export const STORAGE_PLAN_NAVIGATION_IDLE_MS = 180;
+
 interface PreparationPlanEnvelope {
   game: string;
   profileFingerprint: string;
@@ -299,38 +304,50 @@ export function usePreparation(
       && optimizationPreset !== "off"
       && storagePlanApplies(textureStorage)
       && (showStoragePlan || !profilePrepared);
-    if (!game || !shouldPlan) {
+    if (!game || optimizationPreset === "off" || !storagePlanApplies(textureStorage)) {
       setPreparationPlanEnvelope(null);
       setPreparationPlanLoading(false);
       return;
     }
+    if (!shouldPlan || preparationPlan) {
+      setPreparationPlanLoading(false);
+      return;
+    }
     let cancelled = false;
-    setPreparationPlanLoading(true);
-    void getPreparationPlan(game, textureStorage, resources.workers)
-      .then((plan) => {
-        if (!cancelled) {
-          setPreparationPlanEnvelope({
-            game,
-            profileFingerprint: plan.profileFingerprint,
-            textureStorage,
-            workers: resources.workers,
-            plan,
-          });
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setPreparationPlanEnvelope(null);
-          announce(errorMessage(error), "error");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setPreparationPlanLoading(false);
-      });
+    const load = () => {
+      if (cancelled) return;
+      setPreparationPlanLoading(true);
+      void getPreparationPlan(game, textureStorage, resources.workers)
+        .then((plan) => {
+          if (!cancelled) {
+            setPreparationPlanEnvelope({
+              game,
+              profileFingerprint: plan.profileFingerprint,
+              textureStorage,
+              workers: resources.workers,
+              plan,
+            });
+          }
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            setPreparationPlanEnvelope(null);
+            announce(errorMessage(error), "error");
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setPreparationPlanLoading(false);
+        });
+    };
+    const timer = profilePrepared && showStoragePlan
+      ? window.setTimeout(load, STORAGE_PLAN_NAVIGATION_IDLE_MS)
+      : null;
+    if (timer === null) load();
     return () => {
       cancelled = true;
+      if (timer !== null) window.clearTimeout(timer);
     };
-  }, [announce, cacheInstallRoot, cacheLoading, game, optimizationPreset, profilePrepared, resources.workers, showStoragePlan, textureStorage]);
+  }, [announce, cacheInstallRoot, cacheLoading, game, optimizationPreset, preparationPlan, profilePrepared, resources.workers, showStoragePlan, textureStorage]);
 
   const runPreparation = async (
     launchWhenReady = false,
