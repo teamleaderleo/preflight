@@ -118,6 +118,7 @@ class SourceBoundaryTest(unittest.TestCase):
             capture_output=True,
         )
         report = json.loads(result.stdout)
+        self.assertEqual(result.stderr, "")
         self.assertGreater(report["trackedFiles"], 0)
         self.assertGreater(report["historicalBlobs"], 0)
         self.assertGreater(report["reviewedBinaryFiles"], 0)
