@@ -45,8 +45,9 @@ On first open, Preflight looks in the usual install locations. If it finds your 
 nothing to do.
 
 If it doesn't, choose the folder that contains `Starsector.app`, `starsector.exe`, or
-`starsector.sh`. Preflight reads the mod profile you already have enabled — it doesn't manage or
-change your mod list.
+`starsector.sh`. Preflight starts with the mod list you already have enabled. It does not install,
+remove, or toggle individual mods during setup. If you later use a saved profile, Preflight previews
+the exact enabled-mod change and saves a backup before applying it.
 
 ![Preflight asking for a Starsector installation](images/walkthrough-setup.png)
 
