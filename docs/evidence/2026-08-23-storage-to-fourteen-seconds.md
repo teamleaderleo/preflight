@@ -94,13 +94,17 @@ Later one-run exact observations on the current texture path recorded:
 | Balanced, summary `bba6eaf4...38d45` | 15.49s |
 | Compact, summary `c57d5fd9...1277d` | **14.49s** |
 | Current path after pack publication changes, summary `0d7bf5ef...9790` | **14.84s** |
+| Current merged path after the MagicLib cache, Balanced pack, summary `7e4127a8...67fa` | **15.23s** |
 
 These single observations establish that the current code retained the fourteen-second regime. They
 are not a replacement for a release-candidate campaign.
 
 MagicLib's paintjob catalog was the next measured callback reduction. Its loader moved from 650 to
-52 milliseconds on a direct miss/hit comparison. That is the latest chapter, not the explanation
-for the earlier fourteen-second results.
+52 milliseconds on a direct miss/hit comparison. The later 15.23-second launch used the current
+2,259,086,856-byte Balanced pack, served all 15,469 expected prepared textures, bypassed all 15,469
+pixel conversions, and took the same three ordinary source fallbacks. Its checkout JAR SHA-256 was
+`7a2e0c4b50f88caed043f322d9566ccb5857430efa43fbaa7551ab056c4a97a8`. MagicLib is the latest
+chapter, not the explanation for the earlier fourteen-second results.
 
 ## Why Balanced still exists
 
