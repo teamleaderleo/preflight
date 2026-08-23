@@ -6,7 +6,8 @@
 
 **Result:** Compact keeps the launch-observed texture frontier in 1.09 GB. Removing per-file durable
 flushes reduced its cold preparation from 92.30 seconds to 16.51 seconds and full Balanced from
-198.56 seconds to 44.62 seconds.
+198.56 seconds to 44.62 seconds. Streaming checked inputs into the pack then measured 17.25 seconds
+for Compact and 38.33 seconds for Balanced while removing loose-pack duplication from the peak.
 
 ## Compact frontier
 
@@ -35,16 +36,19 @@ The first product build used four workers and a 256 MiB memory budget:
 | Compact, 8 workers / 512 MiB | 92.45s | 87.82s | 51.07s | 47.32s |
 | Compact, build intermediates | **16.51s** | **11.96s** | 33.31s | 16.31s |
 | Full Balanced, build intermediates | **44.62s** | **39.12s** | 76.44s | 28.78s |
+| Compact, consuming pack publication | **17.25s** | **12.58s** | not recorded | not recorded |
+| Full Balanced, consuming pack publication | **38.33s** | **32.81s** | not recorded | not recorded |
 
 Doubling workers and memory did nothing. The builder was forcing each content-addressed loose SPFT
 to stable storage, then reading all of them into one pack and deleting them after validation. With
 14,774 Compact blobs and 30,638 full-profile blobs, filesystem publication dominated the run.
 
 Loose SPFTs are now explicitly rebuildable pack inputs. A successful write is still a complete
-checksummed SPFT. Pack construction verifies every SPFT payload while copying it, forces the single
-finished pack, reopens it, checks its exact identity and order, and only then releases the loose
-inputs. An interrupted or damaged intermediate is validated before reuse and rebuilt when invalid.
-Standalone prepared-texture writes keep their original durable atomic contract.
+checksummed SPFT. Pack construction verifies each complete SPFT payload while copying it and can
+then release that rebuildable input. It forces the single finished pack, reopens it, and checks its
+exact identity and order before publication completes. A failed publication rebuilds any consumed
+inputs from the authoritative game or mod sources on the next preparation. Standalone
+prepared-texture writes keep their original durable atomic contract.
 
 ## Storage admission
 

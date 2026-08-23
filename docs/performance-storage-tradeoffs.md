@@ -23,8 +23,8 @@ The latest cold preparations on the reviewed 83-mod profile found:
 | --- | ---: | ---: | ---: | ---: |
 | Finished cache directory | **2.3 GB** | **1.1 GB** | **5.2 GB** | **about 50 MB expected after learning** |
 | Prepared texture pack | 2,259,086,856 bytes | 1,087,894,442 bytes | 5,338,090,204 bytes | none |
-| Tool-reported cold preparation | 39.12s texture stage | 11.96s texture stage | 184.35s older path | 3.69s |
-| External cold wall time | 44.62s | 16.51s | not recorded on current path | not recorded |
+| Tool-reported cold preparation | 32.81s texture stage | 12.58s texture stage | 184.35s older path | 3.69s |
+| External cold wall time | 38.33s | 17.25s | not recorded on current path | not recorded |
 | Following warm preparation | 4.09s | not measured | not measured | 2.76s |
 
 Balanced used to retain the final pack and every loose texture blob used to make it. That was the
@@ -65,8 +65,8 @@ It should not be the default, and the UI should not promise a startup gain.
 
 ## Preparation cost
 
-The current cold Balanced preparation completed in **44.62 seconds**, with 39.12 seconds inside the
-texture stage. Compact completed in **16.51 seconds**, with 11.96 seconds inside its texture stage.
+The current cold Balanced preparation completed in **38.33 seconds**, with 32.81 seconds inside the
+texture stage. Compact completed in **17.25 seconds**, with 12.58 seconds inside its texture stage.
 The same exact corpora previously took 198.56 and 92.30 seconds. The difference was per-blob durable
 publication: thousands of checked loose files were forced to storage even though preparation then
 packed, authenticated, and deleted them. They are now explicit build intermediates. The final pack

@@ -22,12 +22,12 @@ profile or machine.
 | Retained state | Finished directory | Texture pack | Tool-reported cold preparation | Measured warm launch |
 | --- | ---: | ---: | ---: | ---: |
 | Minimal | 11 MB before first launch; 204 MB observed after learning | none | 3.690s | 54.38s to 56.51s in noisy diagnostics |
-| Balanced | 2.3 GB | 2,259,086,856 bytes | **44.62s current path** | low-15 to low-16-second regime |
-| Compact | 1.1 GB | 1,087,894,442 bytes | **16.51s current path** | 14.17s accepted launch |
+| Balanced | 2.3 GB | 2,259,086,856 bytes | **38.33s current path** | low-15 to low-16-second regime |
+| Compact | 1.1 GB | 1,087,894,442 bytes | **17.25s current path** | 14.17s accepted launch |
 | Uncompressed | 5.2 GB | 5,338,090,204 bytes | 184.346s | 15.97s median |
 
-Balanced's current texture stage took 39.123 seconds and external wall time was 44.62 seconds.
-Compact's texture stage took 11.955 seconds and external wall time was 16.51 seconds. The same
+Balanced's current texture stage took 32.814 seconds and external wall time was 38.33 seconds.
+Compact's texture stage took 12.576 seconds and external wall time was 17.25 seconds. The same
 corpora previously took 198.56 and 92.30 seconds because every checked loose pack input was forced
 to storage individually. Build intermediates are no longer forced; the completed pack is still
 forced once, reopened, and validated before publication. The 184.346-second Uncompressed result
@@ -42,10 +42,10 @@ texture blobs.
 The earlier 4.76 GB Balanced directory retained every prepared texture twice: a loose checked SPFT
 blob and the startup-ordered SPFP pack built from those blobs. The launch path reads the pack.
 
-Current preparation opens the complete pack against the exact manifest, verifies it, and then
-removes loose texture copies that no other surviving profile needs. That reduces this profile to
-about 2.3 GB without changing the successful upload set. The first build still needs temporary
-space for the loose inputs while the pack is under construction.
+Current preparation checks each loose input while copying it into the pack, then releases the input
+when no other surviving profile needs it. The completed pack is reopened against the exact manifest
+before publication completes. That reduces this profile to about 2.3 GB without changing the
+successful upload set or requiring the complete loose set and pack to coexist.
 
 The earlier 10.03 GB high-disk figure had the same duplication. Its current pack-only equivalent is
 about 5.2 GB.
