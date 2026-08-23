@@ -8,9 +8,13 @@ import type {
   PreparationStateEvent,
   RunStarted,
 } from "./types";
-import { usePreparation } from "./usePreparation";
+import {
+  AUTOMATIC_COMPACTION_QUIET_MS,
+  usePreparation,
+} from "./usePreparation";
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -156,6 +160,15 @@ test("a completed run graduates learned Balanced data with a fresh Compact plan"
   });
   const start = vi.spyOn(bridge, "startPreparation").mockResolvedValue({ pid: 88 });
   const announce = vi.fn();
+  const nativeSetTimeout = window.setTimeout.bind(window);
+  let startCompaction: (() => void) | undefined;
+  vi.spyOn(window, "setTimeout").mockImplementation(((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+    if (timeout === AUTOMATIC_COMPACTION_QUIET_MS && typeof handler === "function") {
+      startCompaction = () => handler(...args);
+      return 88;
+    }
+    return nativeSetTimeout(handler, timeout, ...args);
+  }) as typeof window.setTimeout);
 
   const { unmount } = renderHook(() => usePreparation(
     "/Applications/Starsector",
@@ -166,6 +179,11 @@ test("a completed run graduates learned Balanced data with a fresh Compact plan"
     1,
   ));
 
+  await waitFor(() => expect(startCompaction).toBeDefined());
+  expect(start).not.toHaveBeenCalled();
+  expect(announce).not.toHaveBeenCalledWith("Trimming prepared data for faster launches with less disk…");
+
+  await act(async () => startCompaction?.());
   await waitFor(() => expect(start).toHaveBeenCalledWith(
     "/Applications/Starsector",
     "compact",
@@ -174,6 +192,44 @@ test("a completed run graduates learned Balanced data with a fresh Compact plan"
   ));
   expect(plan).toHaveBeenCalledWith("/Applications/Starsector", "compact", 4);
   expect(announce).toHaveBeenCalledWith("Trimming prepared data for faster launches with less disk…");
+  unmount();
+});
+
+test("leaving the ready state cancels Compact maintenance without consuming the next attempt", async () => {
+  vi.spyOn(bridge, "isDesktopHost").mockReturnValue(true);
+  vi.spyOn(bridge, "getOperationState").mockResolvedValue(idleOperation());
+  mockBalancedCacheReadyForCompact();
+  vi.spyOn(tauriEvents, "listenWhileMounted")
+    .mockImplementation((() => () => undefined) as typeof tauriEvents.listenWhileMounted);
+  const start = vi.spyOn(bridge, "startPreparation").mockResolvedValue({ pid: 88 });
+  const nativeSetTimeout = window.setTimeout.bind(window);
+  const scheduledCompactions: Array<() => void> = [];
+  vi.spyOn(window, "setTimeout").mockImplementation(((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+    if (timeout === AUTOMATIC_COMPACTION_QUIET_MS && typeof handler === "function") {
+      scheduledCompactions.push(() => handler(...args));
+      return 9_000 + scheduledCompactions.length;
+    }
+    return nativeSetTimeout(handler, timeout, ...args);
+  }) as typeof window.setTimeout);
+  const clearTimeout = vi.spyOn(window, "clearTimeout");
+
+  const { rerender, unmount } = renderHook(({ generation }) => usePreparation(
+    "/Applications/Starsector",
+    false,
+    "recommended",
+    vi.fn().mockResolvedValue(undefined),
+    vi.fn(),
+    generation,
+  ), { initialProps: { generation: 1 } });
+
+  await waitFor(() => expect(scheduledCompactions).toHaveLength(1));
+  rerender({ generation: 0 });
+  expect(clearTimeout).toHaveBeenCalledWith(9_001);
+  expect(start).not.toHaveBeenCalled();
+
+  rerender({ generation: 1 });
+  await waitFor(() => expect(scheduledCompactions).toHaveLength(2));
+  expect(start).not.toHaveBeenCalled();
   unmount();
 });
 

@@ -43,6 +43,11 @@ export const resourcePresets = {
   eager: { workers: 8, memoryMib: 512, label: "High" },
 } as const;
 
+// A completed run teaches Balanced preparation which textures were actually used. Keep the
+// automatic Compact conversion out of the immediate relaunch window; changing app or game state
+// cancels this timer through the effect cleanup.
+export const AUTOMATIC_COMPACTION_QUIET_MS = 30_000;
+
 interface PreparationPlanEnvelope {
   game: string;
   profileFingerprint: string;
@@ -452,9 +457,12 @@ export function usePreparation(
       || !canGraduateToCompact(currentCacheHealth)) return;
     const attempt = `${game}\0${profile}\0${automaticCompactionGeneration}`;
     if (automaticCompactAttempts.current.has(attempt)) return;
-    automaticCompactAttempts.current.add(attempt);
-    announce("Trimming prepared data for faster launches with less disk…");
-    void runPreparation(false, false, "compact");
+    const timer = window.setTimeout(() => {
+      automaticCompactAttempts.current.add(attempt);
+      announce("Trimming prepared data for faster launches with less disk…");
+      void runPreparation(false, false, "compact");
+    }, AUTOMATIC_COMPACTION_QUIET_MS);
+    return () => window.clearTimeout(timer);
   }, [
     announce,
     automaticCompactionGeneration,
