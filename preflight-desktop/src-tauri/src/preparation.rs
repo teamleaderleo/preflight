@@ -152,8 +152,7 @@ pub(crate) fn get_preparation_plan(
         .arg("--json")
         .arg("--game")
         .arg(directory)
-        .arg("--texture-storage")
-        .arg(texture_storage)
+        .args(texture_storage_args(&texture_storage))
         .arg("--workers")
         .arg(workers.to_string())
         .output_within(READ_BUDGET)
@@ -171,21 +170,30 @@ pub(crate) fn get_preparation_plan(
 /// `minimal` prepares everything except textures. It is not a texture format, so it is spelled as
 /// `--no-textures` rather than as a `--texture-storage` value, and the engine has no plan for it.
 const MINIMAL_STORAGE: &str = "minimal";
+const COMPACT_STORAGE: &str = "compact";
 
 fn validate_texture_storage(texture_storage: &str) -> Result<(), String> {
     if texture_storage == "balanced"
         || texture_storage == "fastest"
         || texture_storage == MINIMAL_STORAGE
+        || texture_storage == COMPACT_STORAGE
     {
         Ok(())
     } else {
-        Err("Texture storage must be balanced, fastest, or minimal.".to_string())
+        Err("Texture storage must be compact, balanced, uncompressed, or minimal.".to_string())
     }
 }
 
 fn texture_storage_args(texture_storage: &str) -> Vec<&str> {
     if texture_storage == MINIMAL_STORAGE {
         vec!["--no-textures"]
+    } else if texture_storage == COMPACT_STORAGE {
+        vec![
+            "--texture-storage",
+            "balanced",
+            "--texture-scope",
+            "learned",
+        ]
     } else {
         vec!["--texture-storage", texture_storage]
     }
@@ -345,7 +353,7 @@ mod tests {
         assert!(validate_texture_storage("balanced").is_ok());
         assert!(validate_texture_storage("fastest").is_ok());
         assert!(validate_texture_storage("minimal").is_ok());
-        assert!(validate_texture_storage("compact").is_err());
+        assert!(validate_texture_storage("compact").is_ok());
         assert!(validate_workers(1).is_ok());
         assert!(validate_workers(64).is_ok());
         assert!(validate_workers(0).is_err());
@@ -360,6 +368,15 @@ mod tests {
         // `minimal` is a Preflight-side name for "prepare everything but textures". The engine has
         // no such texture-storage value, so passing it through as one would fail the preparation.
         assert_eq!(vec!["--no-textures"], texture_storage_args("minimal"));
+        assert_eq!(
+            vec![
+                "--texture-storage",
+                "balanced",
+                "--texture-scope",
+                "learned"
+            ],
+            texture_storage_args("compact")
+        );
         assert_eq!(
             vec!["--texture-storage", "balanced"],
             texture_storage_args("balanced")

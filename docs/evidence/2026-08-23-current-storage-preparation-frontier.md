@@ -21,14 +21,17 @@ profile or machine.
 
 | Retained state | Finished directory | Texture pack | Tool-reported cold preparation | Measured warm launch |
 | --- | ---: | ---: | ---: | ---: |
-| Minimal | 11 MB before first launch; about 50 MB expected after current exact-pack cleanup | none | 3.690s | 54.38s to 56.51s in noisy diagnostics |
-| Balanced | 2.3 GB | 2,259,086,856 bytes | 177.060s with High resources; 195.079s with Medium | low-15 to low-16-second regime |
+| Minimal | 11 MB before first launch; 204 MB observed after learning | none | 3.690s | 54.38s to 56.51s in noisy diagnostics |
+| Balanced | 2.3 GB | 2,259,086,856 bytes | **44.62s current path** | low-15 to low-16-second regime |
+| Compact | 1.1 GB | 1,087,894,442 bytes | **16.51s current path** | 14.17s accepted launch |
 | Uncompressed | 5.2 GB | 5,338,090,204 bytes | 184.346s | 15.97s median |
 
-Balanced's texture stage took 193.163 seconds. External wall time for that command was 198.56
-seconds with Medium resources. High resources reduced the tool-reported preparation to 177.060
-seconds and external wall time to 180.245 seconds. The corresponding Uncompressed texture stage
-took 181.468 seconds. Minimal skips the texture stage entirely.
+Balanced's current texture stage took 39.123 seconds and external wall time was 44.62 seconds.
+Compact's texture stage took 11.955 seconds and external wall time was 16.51 seconds. The same
+corpora previously took 198.56 and 92.30 seconds because every checked loose pack input was forced
+to storage individually. Build intermediates are no longer forced; the completed pack is still
+forced once, reopened, and validated before publication. The 184.346-second Uncompressed result
+predates this correction. Minimal skips the texture stage entirely.
 
 One matching Balanced preparation completed in 4.092 seconds after the pack already existed. Its
 texture stage took 2.369 seconds to apply and verify a stable learned order without recreating loose

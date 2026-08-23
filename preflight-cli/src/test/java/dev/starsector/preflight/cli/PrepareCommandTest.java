@@ -125,7 +125,7 @@ class PrepareCommandTest {
         String json = stdout.toString(StandardCharsets.UTF_8);
         assertTrue(json.startsWith("{\"format\":\"preflight-preparation-storage-plan-v1\""), json);
         assertTrue(json.contains("\"predictedAdditionalBytes\":"), json);
-        assertTrue(json.contains("\"upperBoundAdditionalBytes\":"), json);
+        assertFalse(json.contains("upperBoundAdditionalBytes"), json);
         assertTrue(json.contains("\"safeToPrepare\":true"), json);
         assertFalse(Files.exists(cache));
         assertTrue(stderr.toString(StandardCharsets.UTF_8).contains("prepare: storage-plan completed"));

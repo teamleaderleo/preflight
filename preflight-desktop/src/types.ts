@@ -231,10 +231,11 @@ export interface DesktopBenchmarkRuntimeContext {
 
 /**
  * What preparation is asked to build. `balanced` and `fastest` choose how prepared textures are
- * stored; `minimal` skips them. Runtime-learned data and bytecode caches still use disk. A plan only
- * describes the two modes that build textures because `minimal` has no texture plan.
+ * stored; `compact` uses the paths observed during a real launch; `minimal` skips them.
+ * Runtime-learned data and bytecode caches still use disk. A plan describes the three modes that
+ * build textures because `minimal` has no texture plan.
  */
-export type TextureStorage = "balanced" | "fastest" | "minimal";
+export type TextureStorage = "compact" | "balanced" | "fastest" | "minimal";
 
 export interface PreparationStoragePlan {
   format: "preflight-preparation-storage-plan-v1";
@@ -252,18 +253,13 @@ export interface PreparationStoragePlan {
   uniquePixelBytes: number;
   reusableLooseBytes: number;
   predictedLooseBytes: number;
-  upperLooseBytes: number;
   predictedPackBytes: number;
-  upperPackBytes: number;
   predictedRetainedTextureBytes?: number;
   predictedMetadataBytes: number;
-  upperMetadataBytes: number;
   predictedAdditionalBytes: number;
-  upperBoundAdditionalBytes: number;
   safetyReserveBytes: number;
   requiredFreeBytes: number;
   usableBytes: number;
-  remainingAfterUpperBoundBytes: number;
   packHit: boolean;
   packOnlyHit?: boolean;
   complete: boolean;

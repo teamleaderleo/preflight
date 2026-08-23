@@ -31,11 +31,11 @@ java -jar preflight.jar prepare --plan --json --texture-storage balanced
 ```
 
 The player-facing plan shows the expected temporary requirement and finished retained size.
-`predictedAdditionalBytes`, `upperBoundAdditionalBytes`, `safetyReserveBytes`, and `usableBytes`
-remain in the JSON report for diagnostics. The upper value is a raw codec ceiling, not a normal
-disk requirement and does not control the initial gate. Existing loose blobs count as reusable
+`predictedAdditionalBytes`, `safetyReserveBytes`, and `usableBytes` remain in the JSON report for
+diagnostics. Existing loose blobs count as reusable
 only after their full checked read succeeds. On the reviewed 83-mod cold profile, the expected
-temporary peak is about 4.9 to 5.0 GB and the finished full texture pack is about 2.26 GB. The
+temporary peak is about 5.2 GiB and the finished full texture pack is about 2.26 GB. Compact needs
+about 2.59 GB temporarily and finishes at about 1.09 GB. The
 read-only plan leaves a nonexistent target directory nonexistent.
 
 ## Pipeline

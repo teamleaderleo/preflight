@@ -60,8 +60,11 @@ final class PrepareCommand {
             emitProgress("storage-plan", "started", null, null, Map.of());
             System.err.println("prepare: storage-plan started");
             plannedResourceBuild = ResourceIndexBuilder.build(target.installRoot());
+            List<String> selectedTextures = options.textureScope().selectedLogicalPaths(
+                    cache, plannedResourceBuild.index().profileFingerprint());
             storagePlan = PreparationStoragePlanner.plan(
-                    plannedResourceBuild.index(), cache, options.textureStorage(), options.workers());
+                    plannedResourceBuild.index(), cache, options.textureStorage(), options.workers(),
+                    selectedTextures);
             System.err.printf(
                     Locale.ROOT,
                     "prepare: storage-plan completed safe=%s required=%d retained=%d usable=%d durationMs=%.3f%n",
@@ -105,8 +108,11 @@ final class PrepareCommand {
             PreparationFaultInjection.afterLeaseAcquired();
             if (plannedResourceBuild != null) {
                 plannedResourceBuild = ResourceIndexBuilder.build(target.installRoot());
+                List<String> selectedTextures = options.textureScope().selectedLogicalPaths(
+                        cache, plannedResourceBuild.index().profileFingerprint());
                 storagePlan = PreparationStoragePlanner.plan(
-                        plannedResourceBuild.index(), cache, options.textureStorage(), options.workers());
+                        plannedResourceBuild.index(), cache, options.textureStorage(), options.workers(),
+                        selectedTextures);
                 System.err.printf(
                         Locale.ROOT,
                         "prepare: storage-plan revalidated under ownership safe=%s required=%d retained=%d usable=%d durationMs=%.3f%n",
@@ -311,7 +317,9 @@ final class PrepareCommand {
                                     options.workers(),
                                     options.memoryMib() * 1024L * 1024L,
                                     options.textureStorage().codec(),
-                                    options.textureStorage().rawWhenCompressionIsIneffective()));
+                                    options.textureStorage().rawWhenCompressionIsIneffective(),
+                                    options.textureScope().selectedLogicalPaths(
+                                            cache, resourceIndex.profileFingerprint())));
                     boolean exactPackOnly = PackedTextureRetention.isExactPackOnly(cache, built.manifest());
                     TextureManifestValidator.Result validation = exactPackOnly
                             ? null
@@ -339,6 +347,7 @@ final class PrepareCommand {
                     details.put("uniquePixelBytes", built.uniquePixelBytes());
                     details.put("uniqueBlobBytes", built.uniqueBlobBytes());
                     details.put("textureStorage", options.textureStorage().optionValue());
+                    details.put("textureScope", options.textureScope().optionValue());
                     details.put("memoryEstimate", TextureMemoryEstimator.estimate(built.manifest()).toReportValues());
                     details.put("buildDiagnostics", built.diagnostics());
                     details.put("valid", texturesValid);
@@ -652,6 +661,7 @@ final class PrepareCommand {
         boolean plan = false;
         boolean json = false;
         TextureStoragePolicy textureStorage = TextureStoragePolicy.DEFAULT;
+        TexturePreparationScope textureScope = TexturePreparationScope.FULL;
         for (int i = offset; i < args.length; i++) {
             switch (args[i]) {
                 case "--game" -> game = Path.of(requireValue(args, ++i, "--game"));
@@ -671,6 +681,8 @@ final class PrepareCommand {
                 case "--serial-stages" -> parallelStages = false;
                 case "--texture-storage" -> textureStorage =
                         TextureStoragePolicy.parse(requireValue(args, ++i, "--texture-storage"));
+                case "--texture-scope" -> textureScope =
+                        TexturePreparationScope.parse(requireValue(args, ++i, "--texture-scope"));
                 case "--plan" -> plan = true;
                 case "--json" -> json = true;
                 default -> throw new IllegalArgumentException("Unknown prepare option: " + args[i]);
@@ -688,7 +700,7 @@ final class PrepareCommand {
         return new Options(
                 game, launcher, cache, report, workers, memoryMib, deep, verifyLookups,
                 lookupQueries, seed, resourceIndex, classpath, textures, parallelStages, textureStorage,
-                plan, json);
+                textureScope, plan, json);
     }
 
     private static String requireValue(String[] args, int index, String option) {
@@ -739,6 +751,7 @@ final class PrepareCommand {
             boolean textures,
             boolean parallelStages,
             TextureStoragePolicy textureStorage,
+            TexturePreparationScope textureScope,
             boolean plan,
             boolean json) {
         Map<String, Object> toMap() {
@@ -754,6 +767,7 @@ final class PrepareCommand {
             values.put("textures", textures);
             values.put("parallelStages", parallelStages);
             values.put("textureStorage", textureStorage.optionValue());
+            values.put("textureScope", textureScope.optionValue());
             values.put("plan", plan);
             return values;
         }

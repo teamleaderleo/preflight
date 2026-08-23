@@ -15,6 +15,7 @@ final class AgentLaunchConfig {
     private final Path adapterReport;
     private final Path adapterTargets;
     private final Path textureCacheDirectory;
+    private final String textureProfile;
     private final Path textureManifest;
     private final Path textureIndex;
     private final TextureAdapterMode textureAdapterMode;
@@ -53,6 +54,7 @@ final class AgentLaunchConfig {
         adapterReport = builder.adapterReport;
         adapterTargets = builder.adapterTargets;
         textureCacheDirectory = builder.textureCacheDirectory;
+        textureProfile = builder.textureProfile;
         textureManifest = builder.textureManifest;
         textureIndex = builder.textureIndex;
         textureAdapterMode = builder.textureAdapterMode;
@@ -99,6 +101,7 @@ final class AgentLaunchConfig {
     Path adapterReport() { return adapterReport; }
     Path adapterTargets() { return adapterTargets; }
     Path textureCacheDirectory() { return textureCacheDirectory; }
+    String textureProfile() { return textureProfile; }
     Path textureManifest() { return textureManifest; }
     Path textureIndex() { return textureIndex; }
     TextureAdapterMode textureAdapterMode() { return textureAdapterMode; }
@@ -137,6 +140,7 @@ final class AgentLaunchConfig {
         private Path adapterReport;
         private Path adapterTargets;
         private Path textureCacheDirectory;
+        private String textureProfile;
         private Path textureManifest;
         private Path textureIndex;
         private TextureAdapterMode textureAdapterMode = TextureAdapterMode.COMPATIBILITY;
@@ -177,6 +181,7 @@ final class AgentLaunchConfig {
         Builder adapterReport(Path value) { adapterReport = value; return this; }
         Builder adapterTargets(Path value) { adapterTargets = value; return this; }
         Builder textureCacheDirectory(Path value) { textureCacheDirectory = value; return this; }
+        Builder textureProfile(String value) { textureProfile = value; return this; }
         Builder textureManifest(Path value) { textureManifest = value; return this; }
         Builder textureIndex(Path value) { textureIndex = value; return this; }
         Builder textureAdapterMode(TextureAdapterMode value) { textureAdapterMode = Objects.requireNonNull(value); return this; }

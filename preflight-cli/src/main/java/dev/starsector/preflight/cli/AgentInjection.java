@@ -33,6 +33,9 @@ final class AgentInjection {
         appendPath(arguments, "adapterReport64", config.adapterReport());
         appendPath(arguments, "targets64", config.adapterTargets());
         appendPath(arguments, "textureCache64", config.textureCacheDirectory());
+        if (config.textureProfile() != null) {
+            arguments.append(",textureProfile=").append(config.textureProfile());
+        }
         appendPath(arguments, "textureManifest64", config.textureManifest());
         appendPath(arguments, "textureIndex64", config.textureIndex());
         appendPath(arguments, "variantJsonCache64", config.variantJsonCache());

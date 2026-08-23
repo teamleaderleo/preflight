@@ -19,22 +19,31 @@ whole-launch measurements do not support calling it faster.
 
 The latest cold preparations on the reviewed 83-mod profile found:
 
-| | Balanced | Uncompressed | Minimal |
-| --- | ---: | ---: | ---: |
-| Finished cache directory | **2.3 GB** | **5.2 GB** | **about 50 MB expected after learning** |
-| Prepared texture pack | 2,259,086,856 bytes | 5,338,090,204 bytes | none |
-| Tool-reported cold preparation | 195.08s | 184.35s | 3.69s |
-| Following warm preparation | 4.09s | not measured | 2.76s |
+| | Balanced | Compact | Uncompressed | Minimal |
+| --- | ---: | ---: | ---: | ---: |
+| Finished cache directory | **2.3 GB** | **1.1 GB** | **5.2 GB** | **about 50 MB expected after learning** |
+| Prepared texture pack | 2,259,086,856 bytes | 1,087,894,442 bytes | 5,338,090,204 bytes | none |
+| Tool-reported cold preparation | 39.12s texture stage | 11.96s texture stage | 184.35s older path | 3.69s |
+| External cold wall time | 44.62s | 16.51s | not recorded on current path | not recorded |
+| Following warm preparation | 4.09s | not measured | not measured | 2.76s |
 
 Balanced used to retain the final pack and every loose texture blob used to make it. That was the
 source of the older 4.76 GB figure. Pack-only retention removed the redundant copy after opening and
 authenticating the complete pack, reducing the same profile to about 2.3 GB. Uncompressed now costs
 about 2.9 GB more than Balanced, almost entirely in its larger pack.
 
+Compact keeps only the 16,013 logical textures observed during a real launch, representing 14,774
+distinct source images. Its pack is byte-for-byte identical to the ordered prototype that launched
+in 14.17 seconds with 15,469 prepared hits, three safe source fallbacks, and no pixel-conversion
+fallbacks. It is an advanced option because a first observed launch is required to learn the set.
+
 The pack-only boundary and launch observations are in
 [the 2026-08-23 frontier report](evidence/2026-08-23-pack-only-balanced-frontier.md). The older
 [cold-preparation report](evidence/2026-08-15-cold-preparation-cost.md) remains the record of the
 previous loose-plus-pack layout.
+
+The Compact corpus, preparation measurements, and corrected intermediate-publication boundary are
+recorded in [the Compact preparation report](evidence/2026-08-23-compact-preparation-and-intermediate-publication.md).
 
 ## What Uncompressed buys
 
@@ -56,14 +65,22 @@ It should not be the default, and the UI should not promise a startup gain.
 
 ## Preparation cost
 
-The current cold Balanced preparation reported **195.08 seconds**, with 193.16 seconds inside the
-texture stage. External wall time was 198.56 seconds. Uncompressed reported 184.35 seconds in its
-single corresponding preparation. Minimal reported 3.69 seconds because it skips textures.
+The current cold Balanced preparation completed in **44.62 seconds**, with 39.12 seconds inside the
+texture stage. Compact completed in **16.51 seconds**, with 11.96 seconds inside its texture stage.
+The same exact corpora previously took 198.56 and 92.30 seconds. The difference was per-blob durable
+publication: thousands of checked loose files were forced to storage even though preparation then
+packed, authenticated, and deleted them. They are now explicit build intermediates. The final pack
+is still forced once, reopened, and validated before publication; a damaged leftover intermediate
+is rejected or rebuilt on the next preparation.
 
-These are one-run diagnostics on a development machine, not a ranking of preparation resource
-presets or a promise for another profile. The useful conclusion is the scale: texture preparation
-dominates the first Balanced build, then matching preparation becomes cheap. A warm pack-only
-Balanced preparation completed in 4.09 seconds after applying its stable learned order.
+The 184.35-second Uncompressed measurement predates that correction and has not been rerun. Minimal
+reported 3.69 seconds because it skips textures.
+
+These are one-run diagnostics on a development machine, not a promise for another profile. Raising
+the Compact build from four workers and 256 MiB to eight workers and 512 MiB did not change its old
+path: 92.45 seconds versus 92.30. That ruled out the resource preset and led to the filesystem fix.
+A warm pack-only Balanced preparation completed in 4.09 seconds after applying its stable learned
+order.
 
 ## Minimal disk after launch
 
@@ -109,9 +126,12 @@ checks its exact byte count immediately before atomic publication. The raw codec
 the JSON report for diagnosis; it is not presented as the normal requirement and does not control
 the initial gate.
 
-On the reviewed 83-mod cold profile, the current plan reports 1.88 GiB of finished texture data and
-5.08 GiB needed while preparing. The former 16.56 GiB requirement came from stacking every raw
-fallback and temporary representation. It was a ceiling, not a useful admission threshold.
+On the reviewed 83-mod cold profile, Balanced reports about 2.3 GB of finished texture data and
+about 5.2 GiB needed while preparing before the 512 MiB free-space reserve. Compact finishes at
+1.09 GB; its measured loose build data plus pack require about 2.59 GB before the same reserve. The
+former 16.56 GiB requirement
+came from stacking every raw fallback and temporary representation. It is no longer shown or used
+as the admission threshold.
 
 A new manifest becomes active only after preparation succeeds. Interrupted or failed preparation
 must leave the previous valid profile usable. Existing checked blobs can remain reusable, and

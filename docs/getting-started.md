@@ -56,17 +56,18 @@ Click **Prepare and launch**. Preflight automatically uses the reviewed optimiza
 storage choice, then opens Starsector when preparation finishes. You don't need to choose a mode.
 
 Before it writes anything, Preflight calculates how much disk the prepared data will need and
-refuses to start if the conservative estimate wouldn't leave at least 1 GiB free. On the 83-mod
-profile used in development the finished cache was about 4.5 GB. If that doesn't fit, the same
-screen offers a much smaller preparation instead.
+refuses to start if the current build wouldn't leave its safety reserve free. On the 83-mod profile
+used in development the finished Balanced cache was about 2.3 GB. Compact finished at about 1.1 GB
+after one observed launch. If that doesn't fit, the same screen offers a much smaller preparation.
 
 ## 5. Let the first preparation finish
 
 Preparation is the slow step, and it only happens when your game or mod profile changes. It shows
 which phase it's on and can be cancelled at any point without leaving anything half-written.
 
-Expect a couple of minutes on a large profile. This is the work you're moving off every future
-launch.
+On the development profile, a cold Balanced preparation took 44.6 seconds and Compact took 16.5
+seconds. This is the work you're moving off future launches; matching preparation becomes much
+faster once the data already exists.
 
 Preflight isn't linking or rewriting the installation. It reads the game build, enabled mods, and
 the files those mods contribute, gives that exact combination an identity, then writes reusable

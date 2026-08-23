@@ -29,6 +29,7 @@ final class AdapterRuntime {
         SourceArchiveHashes.beginSession();
         AdapterTransformationCache.beginSession();
         TextureCompatibilityRuntime.beginSession();
+        TextureAccessLearningRuntime.beginSession();
         TexturePreparedPixelRuntime.beginSession();
         TexturePaddingRuntime.beginSession();
         VariantJsonCacheRuntime.beginSession();
@@ -143,6 +144,8 @@ final class AdapterRuntime {
                     options.textureCacheDirectory(),
                     options.textureManifest(),
                     options.textureIndex());
+            TextureAccessLearningRuntime.configure(
+                    options.textureCacheDirectory(), options.textureProfile());
             VariantJsonCacheRuntime.configure(options.variantJsonCache());
             WeaponJsonCacheRuntime.configure(options.weaponJsonCache());
             ProjectileJsonCacheRuntime.configure(options.projectileJsonCache());
@@ -541,6 +544,14 @@ final class AdapterRuntime {
                 throw fatal;
             } catch (Throwable error) {
                 System.err.println("[Preflight] Failed to publish lazy read cache: "
+                        + error.getMessage());
+            }
+            try {
+                TextureAccessLearningRuntime.complete();
+            } catch (ThreadDeath | VirtualMachineError fatal) {
+                throw fatal;
+            } catch (Throwable error) {
+                System.err.println("[Preflight] Failed to publish texture access order: "
                         + error.getMessage());
             }
             try {

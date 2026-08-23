@@ -33,7 +33,10 @@ final class PreparationStoragePlanner {
     private static final long GIB = 1024L * MIB;
     private static final long PREDICTED_METADATA_BYTES = 32L * MIB;
     private static final long UPPER_METADATA_BYTES = 128L * MIB;
-    private static final double BALANCED_ENCODED_FACTOR = 1.68;
+    // Calibrated against both the complete and access-learned packs from the reviewed 83-mod
+    // profile. This predicts the bytes the current LZ4/raw selection actually retains. The raw
+    // pixel ceiling is still calculated separately for diagnostics and live per-write guards.
+    private static final double BALANCED_ENCODED_FACTOR = 1.92;
 
     private PreparationStoragePlanner() {
     }
@@ -43,11 +46,20 @@ final class PreparationStoragePlanner {
             Path cacheDirectory,
             TextureStoragePolicy storage,
             int workers) throws IOException, InterruptedException {
+        return plan(index, cacheDirectory, storage, workers, List.of());
+    }
+
+    static Plan plan(
+            ResourceIndex index,
+            Path cacheDirectory,
+            TextureStoragePolicy storage,
+            int workers,
+            List<String> selectedLogicalPaths) throws IOException, InterruptedException {
         Path cacheRoot = cacheDirectory.toAbsolutePath().normalize();
         Path volumePath = nearestExisting(cacheRoot);
         FileStore store = Files.getFileStore(volumePath);
         long usableBytes = store.getUsableSpace();
-        return plan(index, cacheRoot, storage, workers, () -> usableBytes);
+        return plan(index, cacheRoot, storage, workers, selectedLogicalPaths, () -> usableBytes);
     }
 
     static Plan plan(
@@ -55,6 +67,16 @@ final class PreparationStoragePlanner {
             Path cacheRoot,
             TextureStoragePolicy storage,
             int workers,
+            LongSupplier usableSpace) throws IOException, InterruptedException {
+        return plan(index, cacheRoot, storage, workers, List.of(), usableSpace);
+    }
+
+    static Plan plan(
+            ResourceIndex index,
+            Path cacheRoot,
+            TextureStoragePolicy storage,
+            int workers,
+            List<String> selectedLogicalPaths,
             LongSupplier usableSpace) throws IOException, InterruptedException {
         long started = System.nanoTime();
         List<String> diagnostics = new ArrayList<>();
@@ -64,7 +86,8 @@ final class PreparationStoragePlanner {
             return thread;
         });
         try {
-            List<TextureBatchBuilder.Candidate> candidates = TextureBatchBuilder.collectCandidates(index);
+            List<TextureBatchBuilder.Candidate> candidates =
+                    TextureBatchBuilder.collectCandidates(index, selectedLogicalPaths);
             TextureBatchBuilder.ExactPackReuse exactPack =
                     TextureBatchBuilder.inspectExactCompletePack(
                             index,
@@ -493,18 +516,13 @@ final class PreparationStoragePlanner {
             values.put("reusableLooseBytes", reusableLooseBytes);
             values.put("selectedReusableLooseBytes", selectedReusableLooseBytes);
             values.put("predictedLooseBytes", predictedLooseBytes);
-            values.put("upperLooseBytes", upperLooseBytes);
             values.put("predictedPackBytes", predictedPackBytes);
-            values.put("upperPackBytes", upperPackBytes);
             values.put("predictedRetainedTextureBytes", predictedRetainedTextureBytes);
             values.put("predictedMetadataBytes", predictedMetadataBytes);
-            values.put("upperMetadataBytes", upperMetadataBytes);
             values.put("predictedAdditionalBytes", predictedAdditionalBytes);
-            values.put("upperBoundAdditionalBytes", upperBoundAdditionalBytes);
             values.put("safetyReserveBytes", safetyReserveBytes);
             values.put("requiredFreeBytes", requiredFreeBytes);
             values.put("usableBytes", usableBytes);
-            values.put("remainingAfterUpperBoundBytes", remainingAfterUpperBoundBytes);
             values.put("packHit", packHit);
             values.put("packOnlyHit", packOnlyHit);
             values.put("complete", complete);
