@@ -944,6 +944,22 @@ h2 {
   font-weight: 620;
 }
 
+.home-launch-profile {
+  min-height: 44px;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--console-ink);
+  background: transparent;
+  cursor: pointer;
+}
+
+.home-launch-profile:hover {
+  border-color: color-mix(in srgb, var(--console-ink) 22%, transparent);
+  background: color-mix(in srgb, var(--console-ink) 7%, transparent);
+}
+
 .home-launch-path {
   display: block;
   max-width: 100%;
