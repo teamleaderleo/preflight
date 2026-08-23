@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   getSnapshot,
@@ -90,6 +90,8 @@ export default function App() {
   const [runFailure, setRunFailure] = useState<RunFailure | null>(previewRunFailure);
   const [maintenanceEpoch, setMaintenanceEpoch] = useState(0);
   const [page, setPage] = useState<Page>("home");
+  const workspacePage = useDeferredValue(page);
+  const navigate = useCallback((next: Page) => setPage(next), []);
   const [choosingInstall, setChoosingInstall] = useState(false);
   const [stoppingGame, setStoppingGame] = useState(false);
   const [forceStopAvailable, setForceStopAvailable] = useState(false);
@@ -124,7 +126,7 @@ export default function App() {
   const speedStanding = useSpeedRecord();
   const instrumentHull = useInstrumentHull(
     snapshot?.selected?.installRoot,
-    page === "hangar",
+    workspacePage === "hangar",
   );
   const { countFastLaunch, rememberBenchmark } = speedStanding;
   const currentProfileFingerprint = useRef<string | null>(null);
@@ -227,7 +229,7 @@ export default function App() {
   }, [announceGame, forceStopAvailable, stoppingGame]);
   const preparation = usePreparation(
     snapshot?.selected?.installRoot,
-    page === "speed",
+    workspacePage === "speed",
     optimizationPreset,
     launch,
     announcePreparation,
@@ -250,7 +252,7 @@ export default function App() {
   );
   const profilesState = useProfiles(
     snapshot?.selected?.installRoot,
-    page === "home" || page === "mods",
+    workspacePage === "home" || workspacePage === "mods",
     refresh,
     refreshCache,
     announceProfiles,
@@ -280,10 +282,10 @@ export default function App() {
     refreshInstallation: refresh,
     setStatus,
   });
-  const diagnostics = useDiagnosticsReport(page === "help" || page === "settings", announceSupport);
+  const diagnostics = useDiagnosticsReport(workspacePage === "help" || workspacePage === "settings", announceSupport);
   const launcher = useLauncherSettings(
     snapshot?.selected?.installRoot,
-    page === "home" || page === "launch",
+    workspacePage === "home" || workspacePage === "launch",
     announceGameSettings,
   );
   const needsPreparation = optimizationPreset !== "off" && !profilePrepared;
@@ -292,7 +294,7 @@ export default function App() {
     const instruction = launcher.settings?.applyBoundary.instruction
       ?? "Close Starsector, its launcher, settings editors, and mod managers before Apply.";
     announceGameSettings(`Apply your changed global game settings before launching. ${instruction}`, "warning");
-    setPage("launch");
+    navigate("launch");
     return false;
   };
   const primaryLaunch = async () => {
@@ -600,6 +602,7 @@ export default function App() {
   return (
     <DesktopShell
       page={page}
+      workspacePage={workspacePage}
       title={title}
       status={status}
       isReady={isReady}
@@ -607,18 +610,18 @@ export default function App() {
       engineVersion={snapshot?.engineVersion ?? "…"}
       theme={theme.preference}
       palette={theme.palette}
-      onPageChange={setPage}
+      onPageChange={navigate}
       onThemeChange={theme.setPreference}
       onPaletteChange={theme.setPalette}
     >
-        {activeOperation && page !== activeOperation.owner ? (
+        {activeOperation && workspacePage !== activeOperation.owner ? (
           <WorkflowLockNotice
             reason={`${activeOperation.reason}. Other changes wait until it finishes.`}
             actionLabel={activeOperation.owner === "home" ? "View progress" : `Open ${pageTitle(activeOperation.owner, status, preparing, isReady, needsPreparation)}`}
-            onAction={() => setPage(activeOperation.owner)}
+            onAction={() => navigate(activeOperation.owner)}
           />
         ) : null}
-        {page === "home" ? (
+        {workspacePage === "home" ? (
           <HomePage
             snapshot={snapshot}
             status={status}
@@ -651,12 +654,12 @@ export default function App() {
             onRetry={retryFailedOperation}
             runFailure={runFailure}
             onDismissRunFailure={() => setRunFailure(null)}
-            onNavigate={setPage}
+            onNavigate={navigate}
             instrumentHull={instrumentHull}
             launchProfileName={launchProfileName}
             modReadiness={profilesState.modReadiness}
           />
-        ) : page === "launch" ? (
+        ) : workspacePage === "launch" ? (
           <>
             <NoticeBanner message={launchNotice?.message ?? ""} tone={launchNotice?.tone ?? "info"} />
             <GameSettingsPage
@@ -672,7 +675,7 @@ export default function App() {
               onSave={(settingsToolsClosed) => void launcher.save(settingsToolsClosed)}
             />
           </>
-        ) : page === "speed" ? (
+        ) : workspacePage === "speed" ? (
           <PreparationPage
             message={preparationNotice?.message ?? ""}
             messageTone={preparationNotice?.tone ?? "info"}
@@ -692,13 +695,13 @@ export default function App() {
             onReviewCleanup={() => void cleanup.review()}
             onCleanCache={() => void cleanup.clean()}
             onDismissCleanup={cleanup.dismiss}
-            onOpenBenchmark={() => setPage("benchmark")}
+            onOpenBenchmark={() => navigate("benchmark")}
           />
-        ) : page === "mods" ? (
+        ) : workspacePage === "mods" ? (
           <ProfilesPage message={profilesNotice?.message ?? ""} messageTone={profilesNotice?.tone ?? "info"} profilesState={profilesState} setupCheck={setupCheck} operationBlocked={operationBlocked} />
-        ) : page === "hangar" ? (
+        ) : workspacePage === "hangar" ? (
           <HangarPage instrumentHull={instrumentHull} />
-        ) : page === "benchmark" ? (
+        ) : workspacePage === "benchmark" ? (
           <BenchmarkPage
             message={benchmarkNotice?.message ?? ""}
             messageTone={benchmarkNotice?.tone ?? "info"}
@@ -709,7 +712,7 @@ export default function App() {
             nativeBlockReason={nativeBenchmarkBlockReason}
             automation={automation}
           />
-        ) : page === "help" ? (
+        ) : workspacePage === "help" ? (
           <HelpPage
             message={helpNotice?.message ?? ""}
             messageTone={helpNotice?.tone ?? "info"}
@@ -719,10 +722,10 @@ export default function App() {
             onTurnOffOptimizations={() => setOptimizationPreset("off")}
             onChooseInstall={() => {
               void chooseInstall().then((changed) => {
-                if (changed) setPage("home");
+                if (changed) navigate("home");
               });
             }}
-            onNavigate={setPage}
+            onNavigate={navigate}
           />
         ) : (
           <SettingsPage
