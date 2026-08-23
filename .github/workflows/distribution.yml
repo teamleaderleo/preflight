@@ -528,6 +528,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.signed_candidate
     needs: [distribution, desktop, desktop-linux]
     runs-on: ubuntu-latest
+    environment:
+      name: release-signing
     permissions:
       contents: read
     steps:

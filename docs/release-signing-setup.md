@@ -145,16 +145,17 @@ The encrypted rehearsal artifact is named:
 
 This proves the release configuration and hosted candidate pipeline. It does **not** replace the later evidence from the exact tagged final candidate.
 
-## 9. Remove legacy repository-level signing credentials and rehearse again
+## 9. Remove legacy repository-level release credentials and rehearse again
 
 After the first private signed rehearsal succeeds:
 
 1. inspect repository-level Actions secrets for legacy updater-key copies;
 2. delete repository-level `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if present;
 3. delete repository-level duplicates named `RELEASE_TAURI_SIGNING_PRIVATE_KEY` / `RELEASE_TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if present;
-4. keep the Environment copies as the release-signing authority;
-5. rerun the private signed Distribution from `main` and its candidate lifecycle;
-6. require the post-cleanup rehearsal to succeed before source freeze.
+4. delete the repository-level `PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD` duplicate;
+5. keep the Environment copies as the release-signing authority;
+6. rerun the private signed Distribution from `main` and its candidate lifecycle;
+7. require the post-cleanup rehearsal to succeed before source freeze.
 
 Never copy secret values into #965 while documenting this cleanup. Record only names removed, run IDs, source SHA, and conclusions.
 
