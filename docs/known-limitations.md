@@ -55,9 +55,8 @@ instead of resolving what the game would decline. The detail for both is in
 [Java runtime support](java-runtime-support.md).
 
 There are no accounts or usage telemetry. A configured build can send a support ZIP after the user
-reviews and confirms it. Automatic failed-run reports are a separate setting and start off; when
-enabled, a failed Starsector run can send the same support ZIP automatically. Ordinary builds can
-save that ZIP locally.
+reviews and confirms it. The first beta does not send failed-run reports automatically. Ordinary
+builds can save that ZIP locally.
 
 There is no remote runtime kill switch. If a reviewed adapter is implicated, select **Off /
 troubleshooting** and follow the [rollback and incident path](rollback.md). An updated package is

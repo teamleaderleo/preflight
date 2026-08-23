@@ -6,6 +6,7 @@ export const REPORT_RECEIPT_STORAGE_KEY = "preflight.reportReceipt";
 export const SPEED_RECORD_STORAGE_KEY = "preflight.speedRecord";
 export const AFTER_LAUNCH_BEHAVIOR_STORAGE_KEY = "preflight.afterLaunchBehavior";
 export const AUTOMATIC_UPDATE_CHECK_STORAGE_KEY = "preflight.automaticUpdateChecks";
+// Retained so full removal clears preferences written by pre-beta development builds.
 export const AUTOMATIC_RUN_REPORTS_STORAGE_KEY = "preflight.automaticRunReports";
 export const AUTOMATIC_RUN_REPORT_HISTORY_STORAGE_KEY = "preflight.automaticRunReportHistory.v1";
 export const INSTRUMENT_HULL_STORAGE_KEY = "preflight.instrumentHull";

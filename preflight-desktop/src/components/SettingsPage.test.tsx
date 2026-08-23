@@ -36,9 +36,7 @@ function props(overrides: Partial<ComponentProps<typeof SettingsPage>> = {}): Co
     removalPlan: null,
     removalBusy: false,
     afterLaunchBehavior: "minimize",
-    automaticRunReports: false,
     installation: "/Applications/Starsector",
-    onAutomaticRunReportsChange: vi.fn(),
     onAfterLaunchBehaviorChange: vi.fn(),
     onChooseInstall: vi.fn(),
     onReviewRemoval: vi.fn(),
@@ -78,15 +76,13 @@ test("installation changes follow the app-wide workflow lock", () => {
   expect(screen.getByRole("button", { name: "Change folder" })).toHaveAttribute("title", "Updating the saved mod profile");
 });
 
-test("automatic failed-run reports describe their run-scoped support ZIP", () => {
+test("support files remain manual even when report intake is configured", () => {
   render(<SettingsPage {...props({
-    automaticRunReports: true,
     reportIntake: { configured: true, origin: "https://reports.example", reason: null },
   })} />);
 
-  expect(screen.getByText("If Starsector closes with an error, Preflight creates a support ZIP for that failed run and tries to send it.")).toBeInTheDocument();
-  expect(screen.getByText("Failed-run reports are on. A failed launch can send a support ZIP for that run automatically.")).toBeInTheDocument();
-  expect(screen.queryByText(/same support ZIP/i)).not.toBeInTheDocument();
+  expect(screen.queryByRole("checkbox", { name: /failed-run reports/i })).not.toBeInTheDocument();
+  expect(screen.getByText("Update checks fetch version metadata. A support ZIP is sent only when you press Send.")).toBeInTheDocument();
 });
 
 test("removal review takes focus and Cancel returns to the initiating control", async () => {

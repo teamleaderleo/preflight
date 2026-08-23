@@ -238,9 +238,9 @@ it leaves it alone. I tried to get the app itself to also be as performant as po
 be better than Microsoft Teams.
 
 Preflight does not modify saves. Ordinary game launches upload no logs or telemetry. Support-report
-sending is a separate disclosed action using the bounded ZIP shown in Help, and automatic failed-run
-reporting stays off until you enable it. This is still a beta. If you find a problem, please report
-it. I will investigate.
+sending is a separate disclosed action using the bounded ZIP shown in Help. The first beta does not
+send failed-run reports automatically. This is still a beta. If you find a problem, please report it.
+I will investigate.
 
 Every package also carries a [machine-checked capability receipt](docs/capability-receipt.md) listing
 the commands, writes, child processes, links, and network endpoints available to that exact package.

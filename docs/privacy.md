@@ -81,7 +81,6 @@ post private diagnostics, credentials, personal data, or security exploit detail
 use the bounded support flow and [security policy](../SECURITY.md) as applicable.
 **Privacy notice effective date:** 2026-08-13.
 
-Automatic failed-run reports are off by default. Enabling them is a separate remembered choice.
-After an exact failed launch, Preflight exports and sends the same bounded ZIP disclosed in Help.
-The run ID, wrapper PID, and wrapper start time must all match before it sends. At most three local
-automatic ZIPs are retained. Ordinary launch, preparation, and Worker observability can't enable it.
+The first beta does not send failed-run reports automatically. A support ZIP is sent only after you
+review it and press Send in Help. Ordinary launch, preparation, and Worker observability can't send
+one.

@@ -44,7 +44,6 @@ export function HelpPage({
     reportReview,
     reportUploadedBytes,
     reportUploading,
-    automaticRunReports,
     copyRunReportReceipt,
     dismissRunReportReceipt,
     removeRunReport,
@@ -99,9 +98,7 @@ export function HelpPage({
             <p>{diagnosticsExport
               ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}`
               : "Copy your setup for a public post, or make a redacted support ZIP with more detailed run information."}</p>
-            <small>{automaticRunReports
-              ? "Failed-run reports are on. A failed launch can send the separate support ZIP automatically."
-              : "Copy setup stays on your clipboard. Support files stay local until you choose Send."}</small>
+            <small>Copy setup stays on your clipboard. Support files stay local until you choose Send.</small>
           </div>
           <div className="report-actions">
             <button className={`button ${setupCopy.state === "copied" ? "button--quiet" : "button--primary"} button--support`} type="button" onClick={() => void setupCopy.copySetup()} disabled={operationBlocked || setupCopy.state === "copying"}>

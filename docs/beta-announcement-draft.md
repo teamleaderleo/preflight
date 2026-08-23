@@ -61,8 +61,8 @@ went through the same desktop acceptance pass as the rest of the app.
 
 Support is deliberately separate from ordinary game use. **Copy setup** gives a small summary for a
 conversation. Help can create a deeper support ZIP and show what it contains before anything is sent.
-There are no accounts or usage telemetry, and automatic failed-run reporting is a separate remembered
-setting that starts off.
+There are no accounts or usage telemetry. The first beta sends a support file only when you press
+Send.
 
 The desktop packages include the reviewed Preflight Java runtime, so ordinary desktop users do not
 need to install a system JDK first. Supported in-app updates use the project's updater signing key;
