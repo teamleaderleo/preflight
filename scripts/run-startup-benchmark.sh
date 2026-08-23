@@ -399,10 +399,18 @@ else
 fi
 note "preflight.jar:   $JAR_SHA"
 
-LAUNCHER="$(java -jar "$JAR" doctor --game "$GAME" --no-scan 2>/dev/null \
-    | awk '/^Selected: /{print substr($0, 11); exit}')"
-[[ -n "$LAUNCHER" && -f "$LAUNCHER" ]] || { bad "Could not resolve the game launcher under $GAME"; exit 1; }
-note "launcher:        $LAUNCHER"
+LAUNCHER=""
+# A concise fast launch never executes the launcher itself. The run command performs the same
+# discovery and records the selected launcher in run.json, so starting a separate Java process
+# here only to pass that path back into the next Java process duplicates discovery before the
+# measurement. Comparisons still resolve it here because vanilla and clicked conditions use it.
+if [[ "$CONCISE" != true || "$CONDITIONS" != fast ]]; then
+    LAUNCHER="$(java -jar "$JAR" doctor --game "$GAME" --no-scan 2>/dev/null \
+        | awk '/^Selected: /{print substr($0, 11); exit}')"
+    [[ -n "$LAUNCHER" && -f "$LAUNCHER" ]] \
+        || { bad "Could not resolve the game launcher under $GAME"; exit 1; }
+    note "launcher:        $LAUNCHER"
+fi
 
 # Two protocols, and a results file may only ever hold one. `clicked` waits for the launcher and
 # an operator; `direct` uses Starsector's own launchDirect path, where no launcher is built at
@@ -889,8 +897,11 @@ launch_once() {
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
                      --no-record) ;;
         fast)
-            command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
-                     --trace-dir "$run_dir" --fast --texture-cache-dir "$CACHE") ;;
+            command=(java -jar "$JAR" run --game "$GAME")
+            if [[ -n "$LAUNCHER" ]]; then
+                command+=(--launcher "$LAUNCHER")
+            fi
+            command+=(--trace-dir "$run_dir" --fast --texture-cache-dir "$CACHE") ;;
         profile)
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
