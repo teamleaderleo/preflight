@@ -82,7 +82,7 @@ Preflight launches had a 15.53-second median, and the lowest recorded launch too
 
 | Reference point | Main-menu time | Meaning |
 | --- | ---: | --- |
-| Observed early high | **~101s** | Worst case seen on the development installation |
+| Observed early high | **~101s** | Highest launch observed on the development installation |
 | Initial five-run baseline | **88.13s** | Median of five unaccelerated launches, on the earlier 77-mod profile |
 | Earlier validated warm gate | **15.88s** | Previous production gate on the later 83-mod profile |
 | Controlled baseline, one session | **89.00s** | Median of five vanilla launches, interleaved with the row below |
@@ -112,10 +112,10 @@ offer **Prepare with minimal disk** instead.
 
 | Mode | Immediately after preparation on this 83-mod profile | Observed preparation |
 | --- | ---: | ---: |
-| **Balanced** (default) | **2.3 GB** | 44.6s |
-| **Compact** | **1.1 GB** | 16.5s after an observed launch |
-| **Minimal disk** | **11 MB** | 3.7s |
-| **Uncompressed** | **5.2 GB** | Older 3m04s measurement; no whole-launch win measured |
+| **Balanced** (default) | **2.3 GB** | 38.3s |
+| **Compact** | **1.1 GB** | 17.3s after an observed launch |
+| **Minimal disk** | **11 MB** | 5.1s |
+| **Uncompressed** | **5.2 GB** | Not remeasured on the current preparation path |
 
 Balanced briefly writes checked loose texture data while constructing its final 2.3 GB pack, then
 removes the redundant copies after the pack opens successfully. The app therefore checks for more
