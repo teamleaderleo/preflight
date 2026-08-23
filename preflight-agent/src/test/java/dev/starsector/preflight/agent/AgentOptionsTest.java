@@ -215,6 +215,14 @@ class AgentOptionsTest {
         assertEquals(Path.of("build/cache/profile.sprk"), options.ruleCommandClassCache());
     }
 
+    @Test
+    void parsesMagicLibPaintjobCacheArtifact() {
+        AgentOptions options = AgentOptions.parse(
+                "adapter=enabled,magicPaintjobCache64="
+                        + encoded("build/cache/profile.spmp"));
+        assertEquals(Path.of("build/cache/profile.spmp"), options.magicPaintjobCache());
+    }
+
     private static String encoded(String value) {
         return Base64.getUrlEncoder()
                 .withoutPadding()

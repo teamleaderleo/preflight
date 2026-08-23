@@ -40,6 +40,7 @@ final class AgentLaunchConfig {
     private final Path preparedAudioManifest;
     private final String preparedAudioManifestIdentity;
     private final Path mergedReadCache;
+    private final Path magicPaintjobCache;
     private final boolean quietLogs;
     private final boolean graphicsLibCompactReplay;
     private final Path janinoBytecodeCache;
@@ -79,6 +80,7 @@ final class AgentLaunchConfig {
         preparedAudioManifest = builder.preparedAudioManifest;
         preparedAudioManifestIdentity = builder.preparedAudioManifestIdentity;
         mergedReadCache = builder.mergedReadCache;
+        magicPaintjobCache = builder.magicPaintjobCache;
         quietLogs = builder.quietLogs;
         graphicsLibCompactReplay = builder.graphicsLibCompactReplay;
         janinoBytecodeCache = builder.janinoBytecodeCache;
@@ -126,6 +128,7 @@ final class AgentLaunchConfig {
     Path preparedAudioManifest() { return preparedAudioManifest; }
     String preparedAudioManifestIdentity() { return preparedAudioManifestIdentity; }
     Path mergedReadCache() { return mergedReadCache; }
+    Path magicPaintjobCache() { return magicPaintjobCache; }
     boolean quietLogs() { return quietLogs; }
     boolean graphicsLibCompactReplay() { return graphicsLibCompactReplay; }
     Path janinoBytecodeCache() { return janinoBytecodeCache; }
@@ -165,6 +168,7 @@ final class AgentLaunchConfig {
         private Path preparedAudioManifest;
         private String preparedAudioManifestIdentity;
         private Path mergedReadCache;
+        private Path magicPaintjobCache;
         private boolean quietLogs;
         private boolean graphicsLibCompactReplay;
         private Path janinoBytecodeCache;
@@ -206,6 +210,7 @@ final class AgentLaunchConfig {
         Builder preparedAudioManifest(Path value) { preparedAudioManifest = value; return this; }
         Builder preparedAudioManifestIdentity(String value) { preparedAudioManifestIdentity = value; return this; }
         Builder mergedReadCache(Path value) { mergedReadCache = value; return this; }
+        Builder magicPaintjobCache(Path value) { magicPaintjobCache = value; return this; }
         Builder quietLogs(boolean value) { quietLogs = value; return this; }
         Builder graphicsLibCompactReplay(boolean value) { graphicsLibCompactReplay = value; return this; }
         Builder janinoBytecodeCache(Path value) { janinoBytecodeCache = value; return this; }
@@ -232,6 +237,9 @@ final class AgentLaunchConfig {
             requireEnabledAdapter(
                     mergedReadCache != null,
                     "Merged read cache requires the enabled adapter");
+            requireEnabledAdapter(
+                    magicPaintjobCache != null,
+                    "MagicLib paintjob cache requires the enabled adapter");
             if ((preparedAudioCache == null) != (audioDecoderIdentity == null)) {
                 throw new IllegalArgumentException(
                         "Prepared audio cache and decoder identity must be supplied together");
