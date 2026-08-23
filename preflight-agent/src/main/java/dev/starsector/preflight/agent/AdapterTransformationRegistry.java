@@ -308,6 +308,12 @@ final class AdapterTransformationRegistry {
                     : null;
             boolean changed = notification != null || optionalJson != null;
             current = optionalJson == null ? current : optionalJson;
+            byte[] catalog = MagicLibPaintjobCacheRuntime.ready()
+                            && AdapterPlanControl.allows(MagicLibPaintjobCacheRuntime.PLAN_ID)
+                    ? MagicLibPaintjobCachePlan.transform(signature, current)
+                    : null;
+            changed |= catalog != null;
+            current = catalog == null ? current : catalog;
             if (changed && AdapterPlanControl.allows(StartupPhaseRuntime.PLAN_ID)
                     && StartupPhaseRuntime.phaseProbeEnabled()) {
                 byte[] timed = StartupCallBreakdownPlan.transform(signature, current);

@@ -89,6 +89,7 @@ final class RunCommand {
         LaunchCacheContexts.RulesCsv rulesCsvCache = cacheContexts.rulesCsv();
         LaunchCacheContexts.RuleCommand ruleCommandCache = cacheContexts.ruleCommand();
         LaunchCacheContexts.MergedRead mergedReadCache = cacheContexts.mergedRead();
+        LaunchCacheContexts.MagicPaintjobs magicPaintjobCache = cacheContexts.magicPaintjobs();
         LaunchCacheContexts.Janino janinoBytecodeCache = cacheContexts.janino();
         DirectLaunchSettings directSettings = directLaunchSettings(options);
 
@@ -157,6 +158,8 @@ final class RunCommand {
                 .preparedAudioManifestIdentity(
                         preparedAudio == null ? null : preparedAudio.manifestIdentity())
                 .mergedReadCache(mergedReadCache == null ? null : mergedReadCache.artifact())
+                .magicPaintjobCache(
+                        magicPaintjobCache == null ? null : magicPaintjobCache.artifact())
                 .quietLogs(options.quietLogs())
                 .graphicsLibCompactReplay(options.graphicsLibCompactReplay())
                 .janinoBytecodeCache(

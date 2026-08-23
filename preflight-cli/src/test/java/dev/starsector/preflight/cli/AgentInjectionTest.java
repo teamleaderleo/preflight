@@ -35,6 +35,7 @@ class AgentInjectionTest {
         Path audio = Path.of("cache/audio");
         Path audioManifest = Path.of("cache/audio/profile.spam");
         Path mergedRead = Path.of("cache/merged-read.json");
+        Path magicPaintjobs = Path.of("cache/magic-paintjobs/profile.spmp");
         Path janino = Path.of("cache/janino");
 
         AgentLaunchConfig config = AgentLaunchConfig.builder(agent, recording)
@@ -67,6 +68,7 @@ class AgentInjectionTest {
                 .preparedAudioManifest(audioManifest)
                 .preparedAudioManifestIdentity("manifest-id")
                 .mergedReadCache(mergedRead)
+                .magicPaintjobCache(magicPaintjobs)
                 .quietLogs(true)
                 .graphicsLibCompactReplay(true)
                 .janinoBytecodeCache(janino)
@@ -94,6 +96,7 @@ class AgentInjectionTest {
                 + ",rulesCsvCache64=" + encodedPath(rules)
                 + ",ruleCommandCache64=" + encodedPath(ruleCommands)
                 + ",mergedReadCache64=" + encodedPath(mergedRead)
+                + ",magicPaintjobCache64=" + encodedPath(magicPaintjobs)
                 + ",janinoBytecodeCache64=" + encodedPath(janino)
                 + ",janinoBytecodeContext=janino-context"
                 + ",fileReads=all"

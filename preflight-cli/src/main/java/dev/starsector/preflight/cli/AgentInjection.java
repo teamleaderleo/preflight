@@ -45,6 +45,7 @@ final class AgentInjection {
         appendPath(arguments, "rulesCsvCache64", config.rulesCsvCache());
         appendPath(arguments, "ruleCommandCache64", config.ruleCommandClassCache());
         appendPath(arguments, "mergedReadCache64", config.mergedReadCache());
+        appendPath(arguments, "magicPaintjobCache64", config.magicPaintjobCache());
         appendPath(arguments, "janinoBytecodeCache64", config.janinoBytecodeCache());
         if (config.janinoBytecodeContext() != null) {
             arguments.append(",janinoBytecodeContext=").append(config.janinoBytecodeContext());

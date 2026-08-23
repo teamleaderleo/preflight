@@ -59,6 +59,7 @@ final class AdapterRuntime {
         GraphicsLibInsigniaManagerCacheRuntime.beginSession();
         GraphicsLibHotSettingsRuntime.reset();
         MagicLibPaintjobLoadRuntime.reset();
+        MagicLibPaintjobCacheRuntime.beginSession();
         EntityLookupRuntime.beginSession();
         RadarRenderRuntime.beginSession();
         DeploymentIconCacheRuntime.beginSession();
@@ -153,6 +154,7 @@ final class AdapterRuntime {
             RulesCsvCacheRuntime.configure(options.rulesCsvCache());
             RuleCommandClassCacheRuntime.configure(options.ruleCommandClassCache());
             MergedReadCacheRuntime.configure(options.mergedReadCache());
+            MagicLibPaintjobCacheRuntime.configure(options.magicPaintjobCache());
             GraphicsLibCompactReplayPlan.configure(
                     options.graphicsLibCompactReplay(), options.textureCacheDirectory());
             JaninoBytecodeCacheRuntime.configure(
@@ -189,6 +191,10 @@ final class AdapterRuntime {
                 report.diagnostic("Loaded the exact resource source-hint isolation target");
                 report.diagnostic("Loaded the exact MagicLib unlocked-paintjob set target");
                 report.diagnostic("Loaded the exact MagicLib optional-paintjob JSON shortcut");
+                if (MagicLibPaintjobCacheRuntime.ready()) {
+                    report.diagnostic("Loaded the exact MagicLib paintjob catalog target ("
+                            + MagicLibPaintjobCacheRuntime.status() + ")");
+                }
                 report.diagnostic("Loaded the exact GraphicsLib hot-settings cache target");
                 if (AudioStreamSourceErrorRuntime.disabled()) {
                     report.diagnostic("Skipped the streaming-audio OpenAL error-order target by diagnostic property");

@@ -157,6 +157,13 @@ why the work changed direction. This page accounts for each abandoned branch.
 | Distribution | Make paid Apple and Windows publisher identities block the first beta | **Rejected as release gate** | Packages will publish checksums and explicit OS-warning instructions. The separate free Tauri updater signature remains mandatory. | [Package trust](evidence/2026-08-08-package-trust-and-report-boundary.md) |
 | Diagnostics | Trust a report because it came through the desktop client | **Rejected by design** | The client carries no durable credential. The Worker treats every request as anonymous hostile input and accepts only bounded, parsed JSON/JSONL evidence into private storage. | [Report boundary](evidence/2026-08-08-package-trust-and-report-boundary.md) |
 
+## August 23: current callback frontier
+
+| Area | Experiment | Disposition | Result and retained decision | Evidence |
+| --- | --- | --- | --- | --- |
+| MagicLib | Rebuild the complete paintjob catalog on every launch | **Accepted with limit** | An unchanged ordered resource corpus replays fresh mutable objects and the original registry mutations. The paintjob loader moved from 650 to 52 milliseconds; any identity, structure or artifact failure runs MagicLib's original loader. | [Paintjob catalog](evidence/2026-08-23-magiclib-paintjob-catalog-cache.md) |
+| Measurement | Use wrapper lifetime or UI automation as the startup clock | **Rejected** | Startup numbers require the canonical game-log start and GraphicsLib preload markers. Missing either marker means there is no result. | [Paintjob catalog process correction](evidence/2026-08-23-magiclib-paintjob-catalog-cache.md#process-correction) |
+
 ## Limits on current claims
 
 Rosetta makes CPU and allocation reductions especially visible on the reference machine. Windows
