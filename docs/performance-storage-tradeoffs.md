@@ -17,6 +17,13 @@ uses lossless LZ4 when compression helps. The CLI's historical `fastest` option 
 upload-ready pixels uncompressed. The desktop calls that option **Uncompressed** because current
 whole-launch measurements do not support calling it faster.
 
+Balanced is the current default because it can prepare a fresh profile before any launch has been
+observed. It is a bootstrap policy rather than the best measured steady state. Compact needs one
+successful launch to learn the required access set, then retains less than half as much texture data,
+prepares in less than half the time, and produced the faster whole-launch result on this profile.
+Automatic graduation from complete bootstrap coverage to Compact is tracked in
+[#1084](https://github.com/teamleaderleo/preflight/issues/1084).
+
 The latest cold preparations on the reviewed 83-mod profile found:
 
 | | Balanced | Compact | Uncompressed | Minimal |
@@ -42,6 +49,8 @@ The pack-only boundary and launch observations are in
 
 The Compact corpus, preparation measurements, and corrected intermediate-publication boundary are
 recorded in [the Compact preparation report](evidence/2026-08-23-compact-preparation-and-intermediate-publication.md).
+The complete progression into the fourteen-second launch regime is recorded in
+[the storage and startup chronology](evidence/2026-08-23-storage-to-fourteen-seconds.md).
 
 ## What Uncompressed buys
 

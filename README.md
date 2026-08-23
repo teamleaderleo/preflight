@@ -333,6 +333,12 @@ Balanced is the default. It keeps upload-ready texture pixels in LZ4 blocks when
 meaningful space and retains raw storage where compression buys little. The advanced Uncompressed
 option keeps every pixel array raw and trades disk space for less decode CPU.
 
+Balanced is currently the fresh-profile bootstrap. After one successful observed launch, Compact
+can retain the startup access set in about 1.1 GB on the development profile. It prepared in 17.25
+seconds and launched in 14.17 seconds there, compared with about 2.3 GB and 38.33 seconds of cold
+preparation for Balanced. Automatic graduation from complete bootstrap coverage to Compact is
+planned; until then Compact is an explicit post-observation option.
+
 On the 83-mod development profile, Balanced reduced the texture pack from 5.34 GB to 2.26 GB. Ten
 fresh-JVM replays measured the exact startup access order at 1,137ms for Balanced and 691ms for
 Uncompressed. Current pack-only retention leaves about **2.3 GB** for Balanced and **5.2 GB** for
@@ -343,6 +349,10 @@ Preparation calculates decoded texture size, deduplication, reusable blobs, temp
 current filesystem space. It keeps at least 512 MiB in reserve and refuses before writing when the
 current build does not fit. Existing manifests stay active until a new
 preparation completes.
+
+The [storage and startup chronology](docs/evidence/2026-08-23-storage-to-fourteen-seconds.md)
+records how the earlier three-minute preparation path was corrected and why physical pack order
+matters to the launch result.
 
 ```bash
 java -jar preflight-cli/target/preflight.jar prepare --plan --json
