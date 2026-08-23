@@ -479,6 +479,7 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
 
     static String windowBoundsScript(long pid) {
         return processHeader(pid) + "\n"
+                + windowReadyScript()
                 + "set win to window 1 of targetProcess\n"
                 + "set winPosition to position of win\n"
                 + "set winSize to size of win\n"
@@ -496,6 +497,7 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
 
     static String observationScript(long pid) {
         return processHeader(pid) + "\n"
+                + windowReadyScript()
                 + "set win to window 1 of targetProcess\n"
                 + "set winPosition to position of win\n"
                 + "set winSize to size of win\n"
@@ -509,6 +511,7 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     static String clickScript(long pid, TargetPoint point) {
         return processHeader(pid) + "\n"
                 + "set frontmost of targetProcess to true\n"
+                + windowReadyScript()
                 + "set win to window 1 of targetProcess\n"
                 + "set winPosition to position of win\n"
                 + "set winSize to size of win\n"
@@ -560,6 +563,15 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
                 + "set matches to (every application process whose unix id is " + pid + ")\n"
                 + "if (count of matches) is not 1 then error \"exact PID unavailable\" number 1728\n"
                 + "set targetProcess to item 1 of matches";
+    }
+
+    private static String windowReadyScript() {
+        return "repeat with attempt from 1 to 20\n"
+                + "if (count of windows of targetProcess) > 0 then exit repeat\n"
+                + "delay 0.2\n"
+                + "end repeat\n"
+                + "if (count of windows of targetProcess) is 0 then "
+                + "error \"game window unavailable\" number 1728\n";
     }
 
     private static Map<String, TargetPoint> targets() {
