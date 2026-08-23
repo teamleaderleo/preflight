@@ -29,7 +29,8 @@ test("settled Home keeps launch identity without repeating readiness beside the 
 
   expect(await screen.findByRole("heading", { level: 1, name: "Ready" })).toBeInTheDocument();
   expect(await screen.findByRole("button", { name: "Launch Starsector" })).toBeInTheDocument();
-  expect(screen.getByText("Main campaign")).toBeInTheDocument();
+  expect(screen.getByText("Main campaign", { selector: ".home-launch-identity strong" }))
+    .toBeInTheDocument();
   expect(screen.getByLabelText("Installation /Applications/Starsector")).toBeInTheDocument();
   expect(screen.queryByText("Ready to launch")).not.toBeInTheDocument();
 });

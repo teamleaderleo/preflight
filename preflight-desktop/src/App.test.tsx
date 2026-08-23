@@ -47,6 +47,23 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+function elementIsOnCurrentPage(element: HTMLElement): boolean {
+  let current: HTMLElement | null = element;
+  while (current) {
+    if (current.hidden || current.style.display === "none") return false;
+    current = current.parentElement;
+  }
+  return true;
+}
+
+function visibleText(text: Parameters<typeof screen.queryAllByText>[0]): HTMLElement[] {
+  return screen.queryAllByText(text).filter(elementIsOnCurrentPage);
+}
+
+function visibleLabel(text: Parameters<typeof screen.queryAllByLabelText>[0]): HTMLElement[] {
+  return screen.queryAllByLabelText(text).filter(elementIsOnCurrentPage);
+}
+
 test("requires both the exact current index and texture manifest before calling a profile prepared", () => {
   expect(isCurrentProfilePrepared(cacheSnapshot())).toBe(true);
   expect(isCurrentProfilePrepared(cacheSnapshot({
@@ -336,8 +353,8 @@ test("shows a useful ready-state home screen in browser preview", async () => {
   expect(screen.getByLabelText("Home resolution")).toHaveValue("1440x932");
   expect(screen.queryByLabelText("Mod profile")).not.toBeInTheDocument();
   expect(screen.queryByText(/Named by you/)).not.toBeInTheDocument();
-  expect(screen.queryByText("Recommended")).not.toBeInTheDocument();
-  expect(screen.queryByText(/Recommended optimizations/)).not.toBeInTheDocument();
+  expect(visibleText("Recommended")).toHaveLength(0);
+  expect(visibleText(/Recommended optimizations/)).toHaveLength(0);
   expect(screen.queryByText(/Prepared ·/)).not.toBeInTheDocument();
   expect(screen.queryByText("Game setup")).not.toBeInTheDocument();
 });
@@ -586,7 +603,7 @@ test("returning to the window does not re-read the installation while the game r
   game.mockRestore();
 });
 
-test("page navigation resets the viewport that actually owns desktop scrolling", async () => {
+test("page navigation reuses and resets the viewport that owns desktop scrolling", async () => {
   const user = userEvent.setup();
   const { container } = render(<App />);
 
@@ -601,7 +618,7 @@ test("page navigation resets the viewport that actually owns desktop scrolling",
   await user.click(screen.getByRole("button", { name: "Home" }));
   await waitFor(() => {
     const homeViewport = container.querySelector<HTMLElement>(".page-viewport");
-    expect(homeViewport).not.toBe(viewport);
+    expect(homeViewport).toBe(viewport);
     expect(homeViewport?.scrollTop).toBe(0);
   });
 });
@@ -685,7 +702,7 @@ test("common game settings are editable beside launch", async () => {
   expect(apply).toBeEnabled();
   await user.click(apply);
 
-  expect(await screen.findByText(/Global game settings applied and verified/)).toBeInTheDocument();
+  await waitFor(() => expect(visibleText(/Global game settings applied and verified/)).toHaveLength(1));
 });
 
 test("the primary action requires an explicit Apply before launching edited global settings", async () => {
@@ -707,7 +724,7 @@ test("the primary action requires an explicit Apply before launching edited glob
   expect(update).not.toHaveBeenCalled();
   expect(game).not.toHaveBeenCalled();
   expect(await screen.findByRole("heading", { name: "Game settings", level: 1 })).toBeInTheDocument();
-  expect(screen.getByText(/Apply your changed global game settings before launching/)).toBeInTheDocument();
+  expect(visibleText(/Apply your changed global game settings before launching/)).toHaveLength(1);
 
   const apply = screen.getByRole("button", { name: "Apply changes" });
   expect(apply).toBeDisabled();
@@ -719,7 +736,7 @@ test("the primary action requires an explicit Apply before launching edited glob
     expect.objectContaining({ battleSize: 300 }),
     true,
   ));
-  expect(await screen.findByText(/Global game settings applied and verified/)).toBeInTheDocument();
+  await waitFor(() => expect(visibleText(/Global game settings applied and verified/)).toHaveLength(1));
   expect(game).not.toHaveBeenCalled();
 
   await user.click(screen.getByRole("button", { name: "Home" }));
@@ -751,7 +768,7 @@ test("a refused explicit Apply keeps launch blocked", async () => {
   await user.click(screen.getByRole("checkbox", { name: /I closed Starsector/ }));
   await user.click(screen.getByRole("button", { name: "Apply changes" }));
 
-  expect(await screen.findByText("settings write refused")).toBeInTheDocument();
+  await waitFor(() => expect(visibleText("settings write refused")).toHaveLength(1));
   expect(screen.getByRole("alert")).toHaveTextContent("settings write refused");
   expect(update).toHaveBeenCalledWith(
     "/Applications/Starsector",
@@ -891,7 +908,7 @@ test("the Hangar keeps the ship central and its compact customization local to t
   render(<App />);
 
   await user.click(await screen.findByRole("button", { name: "Hangar" }));
-  expect(screen.queryByLabelText("186h played across 78 recorded sessions")).not.toBeInTheDocument();
+  expect(visibleLabel("186h played across 78 recorded sessions")).toHaveLength(0);
   expect(screen.queryByText("Longest")).not.toBeInTheDocument();
   expect(screen.queryByText("Featured hulls")).not.toBeInTheDocument();
   const ship = screen.getByRole("combobox", { name: "Display ship" });
@@ -988,7 +1005,7 @@ test("the running preview keeps next-launch drafts editable while blocking the w
 
   await user.click(sound);
   expect(screen.getByRole("button", { name: "Apply changes" })).toBeDisabled();
-  expect(screen.getByText("Changes can be applied after Starsector closes.")).toBeInTheDocument();
+  expect(visibleText("Changes can be applied after Starsector closes.")).toHaveLength(1);
 });
 
 test("storage totals disclose data outside the active cache categories", async () => {
@@ -1051,20 +1068,20 @@ test("launch settings mirror vanilla display and battle controls", async () => {
   await user.click(screen.getByRole("button", { name: "All settings" }));
 
   expect(await screen.findByRole("heading", { name: "Game settings", level: 1 })).toBeInTheDocument();
-  expect(screen.getByLabelText("Resolution")).toHaveValue("1440x932");
-  expect(screen.getByLabelText("Fullscreen")).not.toBeChecked();
-  expect(screen.getByLabelText("Sound")).toBeChecked();
-  expect(screen.getByLabelText("Antialiasing")).toHaveValue("0");
-  expect(screen.getByLabelText("UI size")).toHaveValue("1");
-  expect(screen.getByLabelText("Battle size")).toHaveValue("400");
-  expect(screen.getByLabelText("Battle size")).toHaveAttribute("max", "2000");
-  expect(screen.getByLabelText("Game memory")).toHaveValue("6144");
-  await user.selectOptions(screen.getByLabelText("Game memory"), "8192");
+  expect(screen.getByRole("combobox", { name: "Resolution" })).toHaveValue("1440x932");
+  expect(screen.getByRole("checkbox", { name: "Fullscreen" })).not.toBeChecked();
+  expect(screen.getByRole("checkbox", { name: "Sound" })).toBeChecked();
+  expect(screen.getByRole("combobox", { name: "Antialiasing" })).toHaveValue("0");
+  expect(screen.getByRole("combobox", { name: "UI size" })).toHaveValue("1");
+  expect(screen.getByRole("slider", { name: "Battle size" })).toHaveValue("400");
+  expect(screen.getByRole("slider", { name: "Battle size" })).toHaveAttribute("max", "2000");
+  expect(screen.getByRole("combobox", { name: "Game memory" })).toHaveValue("6144");
+  await user.selectOptions(screen.getByRole("combobox", { name: "Game memory" }), "8192");
   const apply = screen.getByRole("button", { name: "Apply changes" });
   expect(apply).toBeDisabled();
   await user.click(screen.getByRole("checkbox", { name: /I closed Starsector/ }));
   await user.click(apply);
-  expect(await screen.findByText(/Global game settings applied and verified/)).toBeInTheDocument();
+  await waitFor(() => expect(visibleText(/Global game settings applied and verified/)).toHaveLength(1));
 });
 
 test("profiles are preview-first and show the exact switch before applying", async () => {
@@ -1075,7 +1092,7 @@ test("profiles are preview-first and show the exact switch before applying", asy
   await user.click(screen.getByRole("button", { name: "Mods" }));
 
   expect(await screen.findByRole("heading", { name: "Mods", level: 1 })).toBeInTheDocument();
-  expect(screen.getByText("Main campaign")).toBeInTheDocument();
+  expect(visibleText("Main campaign")).toHaveLength(1);
   expect(screen.getByText("Active")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Current" })).not.toBeInTheDocument();
 
@@ -1085,7 +1102,7 @@ test("profiles are preview-first and show the exact switch before applying", asy
   expect(screen.getByText("Disable (2)")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Apply switch" }));
 
-  expect(await screen.findByText(/Switched to “Utilities only”/)).toBeInTheDocument();
+  await waitFor(() => expect(visibleText(/Switched to “Utilities only”/)).toHaveLength(1));
   expect(screen.queryByRole("heading", { name: "Switch to Utilities only?" })).not.toBeInTheDocument();
 });
 
@@ -1136,7 +1153,8 @@ test("named profiles can be renamed or deleted only after an exact review", asyn
 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Mods" }));
-  const mainCampaign = (await screen.findByText("Main campaign")).closest("article");
+  await waitFor(() => expect(visibleText("Main campaign")).toHaveLength(1));
+  const mainCampaign = visibleText("Main campaign")[0].closest("article");
   expect(mainCampaign).not.toBeNull();
   if (!mainCampaign) return;
 
@@ -1164,7 +1182,7 @@ test("named profiles can be renamed or deleted only after an exact review", asyn
     "preview-profile",
     true,
   ));
-  expect(await screen.findByText("Renamed “Main campaign” to “Long campaign”.")).toBeInTheDocument();
+  await waitFor(() => expect(visibleText("Renamed “Main campaign” to “Long campaign”.")).toHaveLength(1));
 
   await user.click(within(mainCampaign).getByText("Manage"));
   await user.click(within(mainCampaign).getByRole("button", { name: "Delete" }));
@@ -1177,7 +1195,7 @@ test("named profiles can be renamed or deleted only after an exact review", asyn
     "preview-profile",
     true,
   ));
-  expect(await screen.findByText("Deleted “Main campaign”. Its prepared data was kept.")).toBeInTheDocument();
+  await waitFor(() => expect(visibleText("Deleted “Main campaign”. Its prepared data was kept.")).toHaveLength(1));
 
   rename.mockRestore();
   remove.mockRestore();
@@ -1398,7 +1416,7 @@ test("a measured benchmark becomes the scoreboard and survives reopening Preflig
   expect(await screen.findByText("Personal best")).toBeInTheDocument();
   expect(screen.getByText("82%")).toBeInTheDocument();
   expect(screen.getByText("Latest benchmark: Faster")).toBeInTheDocument();
-  expect(screen.getByText(/82\.0% less startup time/)).toBeInTheDocument();
+  expect(visibleText(/82\.0% less startup time/)).toHaveLength(1);
   expect(screen.getByLabelText("186h recorded playtime across 78 sessions")).toBeInTheDocument();
   first.unmount();
 
@@ -1532,7 +1550,7 @@ test("a folder-picker failure stays in context and explains the failure", async 
   await user.click(screen.getByRole("button", { name: "Help" }));
   await user.click(await screen.findByRole("button", { name: "Choose folder" }));
 
-  expect(await screen.findByText(/Couldn’t open the folder picker.*picker unavailable/)).toBeVisible();
+  await waitFor(() => expect(visibleText(/Couldn’t open the folder picker.*picker unavailable/)).toHaveLength(1));
   expect(screen.getByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Choose folder" })).toBeEnabled();
 

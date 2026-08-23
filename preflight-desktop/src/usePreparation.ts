@@ -266,7 +266,10 @@ export function usePreparation(
       setCacheLoading(false);
       return;
     }
-    if (cacheInstallRoot !== game && cacheRequestRoot.current !== game) void refreshCache();
+    const finishingRequest = cacheLoading && cacheRequestRoot.current === null;
+    if (cacheInstallRoot !== game && !finishingRequest && cacheRequestRoot.current !== game) {
+      void refreshCache();
+    }
   }, [cacheInstallRoot, cacheLoading, game, refreshCache]);
 
   const currentCache = cacheInstallRoot === game ? cache : null;
