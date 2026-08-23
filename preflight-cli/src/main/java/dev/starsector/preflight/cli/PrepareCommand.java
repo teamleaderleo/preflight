@@ -64,10 +64,10 @@ final class PrepareCommand {
                     plannedResourceBuild.index(), cache, options.textureStorage(), options.workers());
             System.err.printf(
                     Locale.ROOT,
-                    "prepare: storage-plan completed safe=%s predicted=%d upper=%d usable=%d durationMs=%.3f%n",
+                    "prepare: storage-plan completed safe=%s required=%d retained=%d usable=%d durationMs=%.3f%n",
                     storagePlan.safeToPrepare(),
-                    storagePlan.predictedAdditionalBytes(),
-                    storagePlan.upperBoundAdditionalBytes(),
+                    storagePlan.requiredFreeBytes(),
+                    storagePlan.predictedRetainedTextureBytes(),
                     storagePlan.usableBytes(),
                     storagePlan.durationNanos() / 1_000_000.0);
             emitProgress(
@@ -76,8 +76,8 @@ final class PrepareCommand {
                     storagePlan.safeToPrepare() ? "SUCCESS" : "FAILED",
                     storagePlan.durationNanos(),
                     Map.of(
-                            "predictedAdditionalBytes", storagePlan.predictedAdditionalBytes(),
-                            "upperBoundAdditionalBytes", storagePlan.upperBoundAdditionalBytes(),
+                            "requiredFreeBytes", storagePlan.requiredFreeBytes(),
+                            "predictedRetainedTextureBytes", storagePlan.predictedRetainedTextureBytes(),
                             "usableBytes", storagePlan.usableBytes()));
             if (options.plan()) {
                 if (options.json()) {
@@ -109,10 +109,10 @@ final class PrepareCommand {
                         plannedResourceBuild.index(), cache, options.textureStorage(), options.workers());
                 System.err.printf(
                         Locale.ROOT,
-                        "prepare: storage-plan revalidated under ownership safe=%s predicted=%d upper=%d usable=%d durationMs=%.3f%n",
+                        "prepare: storage-plan revalidated under ownership safe=%s required=%d retained=%d usable=%d durationMs=%.3f%n",
                         storagePlan.safeToPrepare(),
-                        storagePlan.predictedAdditionalBytes(),
-                        storagePlan.upperBoundAdditionalBytes(),
+                        storagePlan.requiredFreeBytes(),
+                        storagePlan.predictedRetainedTextureBytes(),
                         storagePlan.usableBytes(),
                         storagePlan.durationNanos() / 1_000_000.0);
                 if (!storagePlan.safeToPrepare()) {
@@ -466,12 +466,10 @@ final class PrepareCommand {
 
     private static void printStoragePlan(PreparationStoragePlanner.Plan plan) {
         System.out.println("Preparation storage plan");
-        System.out.println("  Predicted additional: "
-                + PreparationStoragePlanner.humanBytes(plan.predictedAdditionalBytes()));
-        System.out.println("  Conservative upper bound: "
-                + PreparationStoragePlanner.humanBytes(plan.upperBoundAdditionalBytes()));
-        System.out.println("  Safety reserve: "
-                + PreparationStoragePlanner.humanBytes(plan.safetyReserveBytes()));
+        System.out.println("  Finished texture data: "
+                + PreparationStoragePlanner.humanBytes(plan.predictedRetainedTextureBytes()));
+        System.out.println("  Temporary space needed: "
+                + PreparationStoragePlanner.humanBytes(plan.requiredFreeBytes()));
         System.out.println("  Available: "
                 + PreparationStoragePlanner.humanBytes(plan.usableBytes()));
         System.out.println("  Reusable loose blobs: "

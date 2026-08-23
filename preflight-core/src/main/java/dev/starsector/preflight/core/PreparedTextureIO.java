@@ -99,6 +99,21 @@ public final class PreparedTextureIO {
         return fileBytes;
     }
 
+    /** Maximum complete SPFT file size for a prospective upload-ready pixel array. */
+    public static long maximumFileBytes(long pixelBytes, StorageCodec codec) {
+        Objects.requireNonNull(codec, "codec");
+        long rawBytes = rawFileBytes(pixelBytes);
+        if (codec == StorageCodec.RAW) {
+            return rawBytes;
+        }
+        int maximumStored = new Lz4Compressor().maxCompressedLength(Math.toIntExact(pixelBytes));
+        long fileBytes = Math.addExact(minimumFileBytes() + PAYLOAD_FIXED_BYTES, maximumStored);
+        if (fileBytes > MAX_FILE_BYTES) {
+            throw new IllegalArgumentException("Prepared texture file length is invalid: " + fileBytes);
+        }
+        return fileBytes;
+    }
+
     /** Reads one complete SPFT blob stored at an indexed range in a shared pack channel. */
     public static PreparedTexture readTrusted(
             FileChannel channel, long offset, long size, String sourceLabel) throws IOException {

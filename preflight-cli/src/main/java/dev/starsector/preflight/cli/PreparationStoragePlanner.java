@@ -27,7 +27,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
-/** Read-only prediction and conservative free-space gate for profile preparation. */
+/** Read-only prediction and free-space gate for profile preparation. */
 final class PreparationStoragePlanner {
     private static final long MIB = 1024L * 1024L;
     private static final long GIB = 1024L * MIB;
@@ -77,8 +77,8 @@ final class PreparationStoragePlanner {
                         .resolve(index.profileFingerprint() + ".spfi"));
                 long predictedMetadata = profileMetadataPresent ? 0 : PREDICTED_METADATA_BYTES;
                 long upperMetadata = profileMetadataPresent ? 0 : UPPER_METADATA_BYTES;
-                long margin = Math.max(GIB, Math.min(4L * GIB, upperMetadata / 10));
-                long required = saturatedAdd(upperMetadata, margin);
+                long margin = safetyReserve(predictedMetadata);
+                long required = saturatedAdd(predictedMetadata, margin);
                 long usable = Math.max(0, usableSpace.getAsLong());
                 return new Plan(
                         index.profileFingerprint(), storage.optionValue(), cacheRoot,
@@ -91,9 +91,8 @@ final class PreparationStoragePlanner {
                         Math.max(0, usable - upperMetadata), true, true, true,
                         usable >= required,
                         usable < required
-                                ? "Preparation needs up to " + humanBytes(upperMetadata)
-                                        + " plus a " + humanBytes(margin)
-                                        + " free-space reserve; only " + humanBytes(usable)
+                                ? "Preparation needs about " + humanBytes(required)
+                                        + " free right now; only " + humanBytes(usable)
                                         + " is available."
                                 : null,
                         List.of("The exact prepared texture pack is already complete."),
@@ -230,17 +229,17 @@ final class PreparationStoragePlanner {
                     saturatedAdd(predictedLoose, predictedPack), predictedMetadata);
             long upperAdditional = saturatedAdd(
                     saturatedAdd(upperLoose, upperPack), upperMetadata);
-            long margin = Math.max(GIB, Math.min(4L * GIB, upperAdditional / 10));
-            long required = saturatedAdd(upperAdditional, margin);
+            long margin = safetyReserve(predictedAdditional);
+            long required = saturatedAdd(predictedAdditional, margin);
             long usable = Math.max(0, usableSpace.getAsLong());
             boolean complete = failed == 0;
             boolean safe = complete && usable >= required;
             String refusal = !complete
                     ? "Some winning textures could not be measured safely."
                     : usable < required
-                            ? "Preparation needs up to " + humanBytes(upperAdditional)
-                                    + " plus a " + humanBytes(margin) + " free-space reserve; only "
-                                    + humanBytes(usable) + " is available."
+                            ? "Preparation needs about " + humanBytes(required)
+                                    + " free right now; only " + humanBytes(usable)
+                                    + " is available."
                             : null;
             return new Plan(
                     index.profileFingerprint(), storage.optionValue(), cacheRoot, packPath,
@@ -419,6 +418,13 @@ final class PreparationStoragePlanner {
 
     private static long saturatedAdd(long left, long right) {
         return left > Long.MAX_VALUE - right ? Long.MAX_VALUE : left + right;
+    }
+
+    private static long safetyReserve(long predictedAdditional) {
+        if (predictedAdditional == 0) {
+            return 0;
+        }
+        return Math.max(512L * MIB, Math.min(GIB, predictedAdditional / 10));
     }
 
     static String humanBytes(long bytes) {

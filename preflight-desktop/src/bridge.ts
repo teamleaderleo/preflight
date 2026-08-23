@@ -792,6 +792,10 @@ export async function getPreparationPlan(
   if (!isDesktopHost()) {
     await new Promise((resolve) => window.setTimeout(resolve, 100));
     const lowDisk = browserPreviewScenario() === "low-disk";
+    const balanced = textureStorage === "balanced";
+    const predictedAdditionalBytes = balanced ? 4_912_256_954 : 10_699_754_432;
+    const safetyReserveBytes = balanced ? 536_870_912 : 1_073_741_824;
+    const requiredFreeBytes = predictedAdditionalBytes + safetyReserveBytes;
     return {
       format: "preflight-preparation-storage-plan-v1",
       profileFingerprint: "preview-profile",
@@ -807,24 +811,24 @@ export async function getPreparationPlan(
       uniqueSourceBytes: 1_344_722_319,
       uniquePixelBytes: 5_331_135_254,
       reusableLooseBytes: 0,
-      predictedLooseBytes: textureStorage === "balanced" ? 2_255_699_674 : 5_331_200_000,
-      upperLooseBytes: textureStorage === "balanced" ? 5_600_000_000 : 5_331_200_000,
-      predictedPackBytes: textureStorage === "balanced" ? 2_258_964_304 : 5_335_000_000,
+      predictedLooseBytes: balanced ? 2_862_079_925 : 5_331_200_000,
+      upperLooseBytes: balanced ? 10_691_422_548 : 5_331_200_000,
+      predictedPackBytes: balanced ? 2_016_622_597 : 5_335_000_000,
       upperPackBytes: 5_600_000_000,
-      predictedRetainedTextureBytes: textureStorage === "balanced" ? 2_258_964_304 : 5_335_000_000,
+      predictedRetainedTextureBytes: balanced ? 2_016_622_597 : 5_335_000_000,
       predictedMetadataBytes: 33_554_432,
       upperMetadataBytes: 134_217_728,
-      predictedAdditionalBytes: textureStorage === "balanced" ? 4_548_218_410 : 10_699_754_432,
-      upperBoundAdditionalBytes: textureStorage === "balanced" ? 11_334_217_728 : 11_065_217_728,
-      safetyReserveBytes: 1_133_421_772,
-      requiredFreeBytes: 12_467_639_500,
+      predictedAdditionalBytes,
+      upperBoundAdditionalBytes: balanced ? 16_163_781_820 : 11_065_217_728,
+      safetyReserveBytes,
+      requiredFreeBytes,
       usableBytes: lowDisk ? 2_147_483_648 : 82_000_000_000,
       remainingAfterUpperBoundBytes: lowDisk ? -9_186_734_080 : 70_665_782_272,
       packHit: false,
       packOnlyHit: false,
       complete: true,
       safeToPrepare: !lowDisk,
-      refusalReason: lowDisk ? "Preparation needs up to 11.6 GB; only 2.0 GB is available after the safety reserve." : null,
+      refusalReason: lowDisk ? `Preparation needs about ${balanced ? "5.08" : "11.0"} GiB free right now; only 2.00 GiB is available.` : null,
       diagnostics: [],
       durationMs: 740,
     };

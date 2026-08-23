@@ -39,6 +39,7 @@ import javax.imageio.stream.ImageInputStream;
 
 final class TextureBatchBuilder {
     private static final long PACK_REORDER_RESERVE_BYTES = 1024L * 1024L * 1024L;
+    private static final long BUILD_FREE_SPACE_RESERVE_BYTES = 512L * 1024L * 1024L;
     private static final Set<String> IMAGE_EXTENSIONS = Set.of(
             "png", "jpg", "jpeg", "bmp", "gif", "wbmp", "webp", "tga");
     private static final Set<String> IMAGE_IO_READER_EXTENSIONS = imageIoReaderExtensions();
@@ -81,6 +82,8 @@ final class TextureBatchBuilder {
 
         ExecutorService executor = Executors.newFixedThreadPool(options.workers(), workerFactory());
         try {
+            PreparationDiskSpaceGuard diskSpace = PreparationDiskSpaceGuard.forCache(
+                    cacheRoot, BUILD_FREE_SPACE_RESERVE_BYTES);
             List<String> diagnostics = new ArrayList<>();
             List<Candidate> candidates = collectCandidates(index);
             Result packedHit = reuseExactCompletePack(
@@ -107,7 +110,8 @@ final class TextureBatchBuilder {
                         budget,
                         snapshotReader,
                         options.storageCodec(),
-                        options.rawWhenCompressionIsIneffective()));
+                        options.rawWhenCompressionIsIneffective(),
+                        diskSpace));
             }
 
             Map<BlobKey, BlobResult> blobs = new HashMap<>();
@@ -173,7 +177,7 @@ final class TextureBatchBuilder {
             Path manifestPath = TextureManifestIO.directory(cacheRoot)
                     .resolve(index.profileFingerprint() + ".spfm");
             TextureManifestIO.write(manifestPath, manifest);
-            PackResult pack = ensurePack(cacheRoot, manifest);
+            PackResult pack = ensurePack(cacheRoot, manifest, diskSpace);
 
             long sourceBytes = hashed.stream().mapToLong(HashedCandidate::sourceBytes).sum();
             return new Result(
@@ -366,7 +370,10 @@ final class TextureBatchBuilder {
         return true;
     }
 
-    private static PackResult ensurePack(Path cacheRoot, TextureManifest manifest) throws IOException {
+    private static PackResult ensurePack(
+            Path cacheRoot,
+            TextureManifest manifest,
+            PreparationDiskSpaceGuard diskSpace) throws IOException {
         long started = System.nanoTime();
         List<String> logicalOrder = manifest.entries().values().stream()
                 .map(TextureManifest.Entry::blobRelativePath)
@@ -389,7 +396,16 @@ final class TextureBatchBuilder {
                 // Preparation rebuilds an unusable pack from source or any retained loose blobs.
             }
         }
-        PreparedTexturePackIO.write(path, manifest.profileFingerprint(), cacheRoot, blobs);
+        Map<String, Long> entryBytes = new LinkedHashMap<>();
+        for (String blob : blobs) {
+            entryBytes.put(blob, Files.size(cacheRoot.resolve(blob)));
+        }
+        long packBytes = PreparedTexturePackIO.estimatedFileBytes(
+                manifest.profileFingerprint(), entryBytes);
+        try (PreparationDiskSpaceGuard.Lease ignored =
+                diskSpace.reserve(packBytes, "writing the prepared texture pack")) {
+            PreparedTexturePackIO.write(path, manifest.profileFingerprint(), cacheRoot, blobs);
+        }
         try (PreparedTexturePack built =
                 PreparedTexturePackIO.open(path, manifest.profileFingerprint(), blobs)) {
             return new PackResult(
@@ -543,7 +559,8 @@ final class TextureBatchBuilder {
             MemoryBudget budget,
             SnapshotReader snapshotReader,
             PreparedTextureIO.StorageCodec storageCodec,
-            boolean rawWhenCompressionIsIneffective) {
+            boolean rawWhenCompressionIsIneffective,
+            PreparationDiskSpaceGuard diskSpace) {
         return () -> {
             PreparedTextureIO.StorageCodec selectedCodec = selectedStorageCodec(
                     cacheRoot, key, storageCodec, rawWhenCompressionIsIneffective);
@@ -594,7 +611,8 @@ final class TextureBatchBuilder {
                                 relative,
                                 blob,
                                 blobSize,
-                                existing);
+                                existing,
+                                diskSpace);
                         return BlobResult.success(
                                 key,
                                 selected.relativePath(),
@@ -666,7 +684,12 @@ final class TextureBatchBuilder {
                         encoded,
                         key.sourceSha256(),
                         key.transformation());
-                PreparedTextureIO.write(blob, texture, selectedCodec);
+                long maximumBlobBytes = PreparedTextureIO.maximumFileBytes(
+                        texture.pixelBytes(), selectedCodec);
+                try (PreparationDiskSpaceGuard.Lease ignored =
+                        diskSpace.reserve(maximumBlobBytes, "writing a prepared texture")) {
+                    PreparedTextureIO.write(blob, texture, selectedCodec);
+                }
                 SelectedBlob selected = finalizeBalancedSelection(
                         cacheRoot,
                         key,
@@ -675,7 +698,8 @@ final class TextureBatchBuilder {
                         relative,
                         blob,
                         Files.size(blob),
-                        texture);
+                        texture,
+                        diskSpace);
                 return BlobResult.success(
                         key,
                         selected.relativePath(),
@@ -727,7 +751,8 @@ final class TextureBatchBuilder {
             String relative,
             Path blob,
             long blobSize,
-            PreparedTexture texture) throws IOException {
+            PreparedTexture texture,
+            PreparationDiskSpaceGuard diskSpace) throws IOException {
         if (!rawWhenCompressionIsIneffective
                 || selectedCodec != PreparedTextureIO.StorageCodec.LZ4
                 || compressionRatio(texture.pixelBytes(), PreparedTextureIO.storedPixelBytes(blob))
@@ -741,7 +766,12 @@ final class TextureBatchBuilder {
         }
         boolean quarantined = Files.isRegularFile(raw)
                 && quarantine(cacheRoot, raw, "superseded-or-corrupt");
-        PreparedTextureIO.write(raw, texture, PreparedTextureIO.StorageCodec.RAW);
+        long maximumRawBytes = PreparedTextureIO.maximumFileBytes(
+                texture.pixelBytes(), PreparedTextureIO.StorageCodec.RAW);
+        try (PreparationDiskSpaceGuard.Lease ignored =
+                diskSpace.reserve(maximumRawBytes, "writing a raw prepared texture")) {
+            PreparedTextureIO.write(raw, texture, PreparedTextureIO.StorageCodec.RAW);
+        }
         return new SelectedBlob(rawRelative, Files.size(raw), false, quarantined);
     }
 

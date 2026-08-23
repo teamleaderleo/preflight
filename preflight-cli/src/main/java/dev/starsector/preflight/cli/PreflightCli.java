@@ -270,8 +270,8 @@ public final class PreflightCli {
                 "preflight prepare --plan [--json] [--game <path>] [--cache-dir <path>] [--workers <count>] [--texture-storage fastest|balanced]",
                 "  balanced (default) uses exact lossless LZ4 except where compression saves under"
                         + " 23.1%; fastest stores every upload-ready pixel array raw.",
-                "  --plan is read-only. Every real preparation refuses before writing when its"
-                        + " conservative upper bound and safety reserve do not fit."));
+                "  --plan is read-only. Every real preparation checks its expected temporary"
+                        + " requirement before writing, then checks live free space during the build."));
         usage.put("stop", List.of(
                 "preflight stop [--pid <process-id>] [--dry-run] [--force] [--timeout-seconds <n>] [--json]",
                 "  Stops a Starsector process Preflight started. `preflight run` stays attached"
