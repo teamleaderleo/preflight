@@ -3,6 +3,7 @@ import * as bridge from "./bridge";
 import type { CacheCleanupPlan } from "./types";
 import {
   AUTOMATIC_CACHE_LIMIT_BYTES,
+  AUTOMATIC_MAINTENANCE_SETTLE_MS,
   useAutomaticMaintenance,
 } from "./useAutomaticMaintenance";
 
@@ -30,16 +31,18 @@ test("routine evidence is pruned after startup and each completed launch", async
   });
 
   rerender({ enabled: true, epoch: 0 });
-  await act(async () => vi.advanceTimersByTimeAsync(1_500));
+  await act(async () => vi.advanceTimersByTimeAsync(AUTOMATIC_MAINTENANCE_SETTLE_MS - 1));
+  expect(apply).not.toHaveBeenCalled();
+  await act(async () => vi.advanceTimersByTimeAsync(1));
   expect(apply).toHaveBeenCalledTimes(1);
 
   rerender({ enabled: false, epoch: 0 });
   rerender({ enabled: true, epoch: 0 });
-  await act(async () => vi.advanceTimersByTimeAsync(1_500));
+  await act(async () => vi.advanceTimersByTimeAsync(AUTOMATIC_MAINTENANCE_SETTLE_MS));
   expect(apply).toHaveBeenCalledTimes(1);
 
   rerender({ enabled: true, epoch: 1 });
-  await act(async () => vi.advanceTimersByTimeAsync(1_500));
+  await act(async () => vi.advanceTimersByTimeAsync(AUTOMATIC_MAINTENANCE_SETTLE_MS));
   expect(apply).toHaveBeenCalledTimes(2);
 });
 
@@ -50,14 +53,14 @@ test("maintenance failure stays silent and does not retry in a loop", async () =
     initialProps: { enabled: true, epoch: 0 },
   });
 
-  await act(async () => vi.advanceTimersByTimeAsync(1_500));
+  await act(async () => vi.advanceTimersByTimeAsync(AUTOMATIC_MAINTENANCE_SETTLE_MS));
   rerender({ enabled: false, epoch: 0 });
   rerender({ enabled: true, epoch: 0 });
-  await act(async () => vi.advanceTimersByTimeAsync(1_500));
+  await act(async () => vi.advanceTimersByTimeAsync(AUTOMATIC_MAINTENANCE_SETTLE_MS));
   expect(apply).toHaveBeenCalledTimes(1);
 
   rerender({ enabled: true, epoch: 1 });
-  await act(async () => vi.advanceTimersByTimeAsync(1_500));
+  await act(async () => vi.advanceTimersByTimeAsync(AUTOMATIC_MAINTENANCE_SETTLE_MS));
   expect(apply).toHaveBeenCalledTimes(2);
 });
 
@@ -100,12 +103,12 @@ test("old prepared profiles are pruned only above the automatic storage limit", 
     onCacheCleaned: cleaned,
   }), { initialProps: { cacheBytes: AUTOMATIC_CACHE_LIMIT_BYTES } });
 
-  await act(async () => vi.advanceTimersByTimeAsync(1_500));
+  await act(async () => vi.advanceTimersByTimeAsync(AUTOMATIC_MAINTENANCE_SETTLE_MS));
   expect(plan).not.toHaveBeenCalled();
   expect(apply).not.toHaveBeenCalled();
 
   rerender({ cacheBytes: AUTOMATIC_CACHE_LIMIT_BYTES + 1 });
-  await act(async () => vi.advanceTimersByTimeAsync(1_500));
+  await act(async () => vi.advanceTimersByTimeAsync(AUTOMATIC_MAINTENANCE_SETTLE_MS));
   expect(plan).toHaveBeenCalledWith("/Applications/Starsector");
   expect(apply).toHaveBeenCalledWith("/Applications/Starsector");
   expect(cleaned).toHaveBeenCalledTimes(1);
@@ -135,7 +138,7 @@ test("an unsafe automatic cache plan removes nothing", async () => {
     game: "/Applications/Starsector",
     cacheBytes: AUTOMATIC_CACHE_LIMIT_BYTES + 1,
   }));
-  await act(async () => vi.advanceTimersByTimeAsync(1_500));
+  await act(async () => vi.advanceTimersByTimeAsync(AUTOMATIC_MAINTENANCE_SETTLE_MS));
 
   expect(apply).not.toHaveBeenCalled();
 });

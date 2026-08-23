@@ -345,33 +345,35 @@ test("shows a useful ready-state home screen in browser preview", async () => {
 test("starts from the remembered installation instead of rediscovering it", async () => {
   window.localStorage.setItem("preflight.lastInstallRoot", "/Games/Starsector");
   const initial = await bridge.getSnapshot();
-  const bootstrap = vi.spyOn(bridge, "getBootstrapSnapshot").mockResolvedValue(initial);
+  const snapshot = vi.spyOn(bridge, "getSnapshot").mockResolvedValue(initial);
+  const bootstrap = vi.spyOn(bridge, "getBootstrapSnapshot");
 
   render(<App />);
 
   expect(await screen.findByText("Ready")).toBeInTheDocument();
-  expect(bootstrap).toHaveBeenCalledWith("/Games/Starsector");
+  expect(snapshot).toHaveBeenCalledWith("/Games/Starsector");
+  expect(bootstrap).not.toHaveBeenCalled();
   expect(window.localStorage.getItem("preflight.lastInstallRoot"))
     .toBe(initial.selected?.installRoot);
+  snapshot.mockRestore();
   bootstrap.mockRestore();
 });
 
 test("a stale remembered installation falls back to normal discovery", async () => {
   window.localStorage.setItem("preflight.lastInstallRoot", "/Moved/Starsector");
   const initial = await bridge.getSnapshot();
-  const bootstrap = vi.spyOn(bridge, "getBootstrapSnapshot")
-    .mockResolvedValueOnce({ ...initial, ready: false, selected: null })
-    .mockResolvedValueOnce(initial);
+  const snapshot = vi.spyOn(bridge, "getSnapshot")
+    .mockResolvedValueOnce({ ...initial, ready: false, selected: null });
+  const bootstrap = vi.spyOn(bridge, "getBootstrapSnapshot").mockResolvedValue(initial);
 
   render(<App />);
 
   expect(await screen.findByText("Ready")).toBeInTheDocument();
-  expect(bootstrap.mock.calls.slice(0, 2)).toEqual([
-    ["/Moved/Starsector"],
-    [],
-  ]);
+  expect(snapshot).toHaveBeenCalledWith("/Moved/Starsector");
+  expect(bootstrap).toHaveBeenCalledWith();
   expect(window.localStorage.getItem("preflight.lastInstallRoot"))
     .toBe(initial.selected?.installRoot);
+  snapshot.mockRestore();
   bootstrap.mockRestore();
 });
 

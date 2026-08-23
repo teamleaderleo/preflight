@@ -7,6 +7,9 @@ import {
 } from "./bridge";
 
 export const AUTOMATIC_CACHE_LIMIT_BYTES = 12 * 1024 * 1024 * 1024;
+// Housekeeping starts after the opening interaction window. It is bounded maintenance, not part of
+// deciding whether Home can launch, and each engine request briefly starts a child JVM.
+export const AUTOMATIC_MAINTENANCE_SETTLE_MS = 15_000;
 
 interface AutomaticMaintenanceOptions {
   game?: string;
@@ -30,7 +33,7 @@ export function useAutomaticMaintenance(
       void applyEvidenceCleanup().catch(() => {
         // Maintenance is optional. The explicit cleanup review is the recovery path.
       });
-    }, 1_500);
+    }, AUTOMATIC_MAINTENANCE_SETTLE_MS);
     return () => window.clearTimeout(timer);
   }, [enabled, epoch]);
 
@@ -52,7 +55,7 @@ export function useAutomaticMaintenance(
       }).catch(() => {
         // Unsafe, busy, or unreadable data stays put. Review cleanup remains the visible retry.
       });
-    }, 1_500);
+    }, AUTOMATIC_MAINTENANCE_SETTLE_MS);
     return () => window.clearTimeout(timer);
   }, [enabled, epoch, options.cacheBytes, options.game, options.onCacheCleaned]);
 }
