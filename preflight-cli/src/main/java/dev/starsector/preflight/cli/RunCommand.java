@@ -125,6 +125,7 @@ final class RunCommand {
                 // artifacts. Minimal suppresses only the texture manifest/index, not that shared
                 // non-texture storage.
                 .textureCacheDirectory(textureContext == null ? null : textureContext.cacheDirectory())
+                .textureProfile(textureContext == null ? null : textureContext.profileFingerprint())
                 .textureManifest(textureContext == null || !textureContext.preparedTextures()
                         ? null : textureContext.manifest())
                 .textureIndex(textureContext == null || !textureContext.preparedTextures()

@@ -50,8 +50,8 @@ signed updates, and a mod linter.
   enabled profile. The separate read-only deep setup check can report missing enabled mods, broken
   metadata, duplicate mod IDs, missing or disabled required dependencies, and resolved variants that
   point at hulls absent from the active profile.
-- **Know the storage cost before writing.** Preflight calculates the current profile's predicted and
-  conservative requirements, reuses matching data, keeps a reserve, and offers a tiny minimal-disk
+- **Know the storage cost before writing.** Preflight calculates the current profile's finished and
+  temporary requirements, reuses matching data, keeps a reserve, and offers a tiny minimal-disk
   route when the normal preparation does not fit.
 - **Recover without guessing.** Preparation can stop safely, damaged prepared data can be repaired
   for the exact profile, cleanup is previewed before deletion, and failed runs offer **Copy setup**,
@@ -112,14 +112,17 @@ offer **Prepare with minimal disk** instead.
 
 | Mode | Immediately after preparation on this 83-mod profile | Observed preparation |
 | --- | ---: | ---: |
-| **Balanced** (default) | **2.3 GB** | 3m15s in one measured run |
+| **Balanced** (default) | **2.3 GB** | 44.6s |
+| **Compact** | **1.1 GB** | 16.5s after an observed launch |
 | **Minimal disk** | **11 MB** | 3.7s |
-| **Uncompressed** | **5.2 GB** | 3m04s; no whole-launch win measured |
+| **Uncompressed** | **5.2 GB** | Older 3m04s measurement; no whole-launch win measured |
 
 Balanced briefly writes checked loose texture data while constructing its final 2.3 GB pack, then
 removes the redundant copies after the pack opens successfully. The app therefore checks for more
-free space than the finished cache occupies. Actual costs depend on the artwork in the enabled
-mods, and the app calculates them for the current profile. Minimal skips prepared textures while
+free space than the finished cache occupies. Compact uses the texture paths observed during a real
+launch and produced the same 14.17-second startup pack while halving this profile's preparation time
+and finished texture data. Actual costs depend on the artwork in the enabled mods, and the app
+calculates them for the current profile. Minimal skips prepared textures while
 keeping the other startup indexes and caches. Those caches continue learning on the first launch;
 on this profile, Minimal grew from about 11 MB after preparation to about 204 MB after that launch.
 The uncompressed option remains available as an advanced comparison and compatibility control. It
@@ -145,7 +148,7 @@ happened in that run rather than what another machine should expect.
 - **Profiles.** Named mod profiles retain their own identities and prepared data. Switching a profile
   previews the exact `enabled_mods.json` change and saves a backup. Saved profiles can be searched,
   renamed, duplicated, and deleted without copying mods, saves, or cache bytes.
-- **Storage.** The desktop calculates a conservative disk requirement before writing, separates
+- **Storage.** The desktop calculates the current build's disk requirement before writing, separates
   prepared data from evidence, and previews cleanup before anything is removed. Cleanup keeps the
   current and readable saved profiles reachable.
 - **Game settings.** Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and battle size are
@@ -199,7 +202,7 @@ features can update game-owned preferences: profile activation and the launch-se
 | A prepared entry is missing or invalid | The original loader handles that request |
 | A reviewed class fingerprint changes | That runtime transformation declines |
 | Preparation is interrupted | Completed immutable blobs remain reusable |
-| The conservative disk bound does not fit | Preparation refuses before writing |
+| The current build does not fit with its safety reserve | Preparation refuses before writing |
 | Cleanup or removal is requested | Preflight shows the exact owned targets first |
 
 Anything Preflight does not recognize continues through the game's original path. A future launcher
@@ -336,9 +339,9 @@ Uncompressed. Current pack-only retention leaves about **2.3 GB** for Balanced a
 Uncompressed on this profile. The exact replay seam improved by about 446ms, but Uncompressed did
 not improve the measured whole launch. Balanced remains the default.
 
-Preparation calculates decoded texture size, deduplication, reusable blobs, pack duplication, a
-conservative upper bound, and current filesystem space. It keeps at least 1 GiB in reserve and
-refuses before writing when the bound does not fit. Existing manifests stay active until a new
+Preparation calculates decoded texture size, deduplication, reusable blobs, temporary packing, and
+current filesystem space. It keeps at least 512 MiB in reserve and refuses before writing when the
+current build does not fit. Existing manifests stay active until a new
 preparation completes.
 
 ```bash

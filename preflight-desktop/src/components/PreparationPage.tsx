@@ -32,6 +32,7 @@ function preparationOverrideSummary(
 ): string | null {
   const consequences: string[] = [];
   if (textureStorage === "fastest") consequences.push("Keeps textures uncompressed and uses more disk");
+  if (textureStorage === "compact") consequences.push("Keeps the textures observed during a real launch");
   if (textureStorage === "minimal") consequences.push("Skips prepared textures to use much less disk");
   if (resourcePreset === "gentle") consequences.push("Uses fewer preparation resources");
   if (resourcePreset === "eager") consequences.push("Uses more preparation resources");
@@ -259,6 +260,11 @@ export function PreparationPage({
 
           <section>
             <h2>Texture storage</h2>
+            <label className={`choice-card ${textureStorage === "compact" ? "choice-card--selected" : ""}`}>
+              <input type="radio" name="texture-storage" aria-label="Compact texture storage" checked={textureStorage === "compact"} onChange={() => setTextureStorage("compact")} disabled={operationBlocked} />
+              <span><strong>Compact</strong><small>About a third of the preparation time and half the disk after one observed launch</small></span>
+              <b>Efficient</b>
+            </label>
             <label className={`choice-card ${textureStorage === "balanced" ? "choice-card--selected" : ""}`}>
               <input type="radio" name="texture-storage" aria-label="Balanced texture storage" checked={textureStorage === "balanced"} onChange={() => setTextureStorage("balanced")} disabled={operationBlocked} />
               <span><strong>Balanced</strong><small>Lossless LZ4; raw only when compression doesn’t help</small></span>

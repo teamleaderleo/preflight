@@ -230,6 +230,7 @@ public final class TextureCompatibilityRuntime {
 
     /** Shared exact lookup used by independently selectable texture consumers. */
     static PreparedTexture lookup(String logicalPath) {
+        TextureAccessLearningRuntime.observe(logicalPath);
         TELEMETRY.attempt();
         State current = state;
         if (!current.ready || current.circuitBreaker.get()) {

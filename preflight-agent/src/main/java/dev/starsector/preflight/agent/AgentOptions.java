@@ -18,6 +18,7 @@ record AgentOptions(
         Path adapterReport,
         Path adapterTargets,
         Path textureCacheDirectory,
+        String textureProfile,
         Path textureManifest,
         Path textureIndex,
         TextureAdapterMode textureAdapterMode,
@@ -94,6 +95,7 @@ record AgentOptions(
         }
         Path adapterTargets = decodedPath(values, "targets64");
         Path textureCacheDirectory = decodedPath(values, "textureCache64");
+        String textureProfile = values.get("textureProfile");
         Path textureManifest = decodedPath(values, "textureManifest64");
         Path textureIndex = decodedPath(values, "textureIndex64");
         TextureAdapterMode textureAdapterMode = TextureAdapterMode.parse(values.get("textureMode"));
@@ -150,6 +152,7 @@ record AgentOptions(
                 adapterReport,
                 adapterTargets,
                 textureCacheDirectory,
+                textureProfile,
                 textureManifest,
                 textureIndex,
                 textureAdapterMode,

@@ -85,7 +85,7 @@ final class TextureBatchBuilder {
             PreparationDiskSpaceGuard diskSpace = PreparationDiskSpaceGuard.forCache(
                     cacheRoot, BUILD_FREE_SPACE_RESERVE_BYTES);
             List<String> diagnostics = new ArrayList<>();
-            List<Candidate> candidates = collectCandidates(index);
+            List<Candidate> candidates = collectCandidates(index, options.selectedLogicalPaths());
             Result packedHit = reuseExactCompletePack(
                     index, cacheRoot, options, candidates, started);
             if (packedHit != null) {
@@ -177,7 +177,8 @@ final class TextureBatchBuilder {
             Path manifestPath = TextureManifestIO.directory(cacheRoot)
                     .resolve(index.profileFingerprint() + ".spfm");
             TextureManifestIO.write(manifestPath, manifest);
-            PackResult pack = ensurePack(cacheRoot, manifest, diskSpace);
+            PackResult pack = ensurePack(
+                    cacheRoot, manifest, diskSpace, options.selectedLogicalPaths());
 
             long sourceBytes = hashed.stream().mapToLong(HashedCandidate::sourceBytes).sum();
             return new Result(
@@ -224,10 +225,8 @@ final class TextureBatchBuilder {
         if (reuse == null) {
             return null;
         }
-        List<String> logicalOrder = reuse.manifest().entries().values().stream()
-                .map(TextureManifest.Entry::blobRelativePath)
-                .distinct()
-                .toList();
+        List<String> logicalOrder = logicalBlobOrder(
+                reuse.manifest(), options.selectedLogicalPaths());
         List<String> preferredOrder = preferredPackOrder(
                 cacheRoot, reuse.manifest().profileFingerprint(), logicalOrder);
         String diagnostic = "Reused the exact complete prepared texture pack.";
@@ -373,12 +372,10 @@ final class TextureBatchBuilder {
     private static PackResult ensurePack(
             Path cacheRoot,
             TextureManifest manifest,
-            PreparationDiskSpaceGuard diskSpace) throws IOException {
+            PreparationDiskSpaceGuard diskSpace,
+            List<String> selectedLogicalPaths) throws IOException {
         long started = System.nanoTime();
-        List<String> logicalOrder = manifest.entries().values().stream()
-                .map(TextureManifest.Entry::blobRelativePath)
-                .distinct()
-                .toList();
+        List<String> logicalOrder = logicalBlobOrder(manifest, selectedLogicalPaths);
         List<String> blobs = preferredPackOrder(cacheRoot, manifest.profileFingerprint(), logicalOrder);
         Path path = PreparedTexturePackIO.path(cacheRoot, manifest.profileFingerprint());
         if (blobs.isEmpty()) {
@@ -412,6 +409,18 @@ final class TextureBatchBuilder {
                     path, false, built.fileBytes(), built.entryCount(),
                     System.nanoTime() - started);
         }
+    }
+
+    private static List<String> logicalBlobOrder(
+            TextureManifest manifest, List<String> selectedLogicalPaths) {
+        LinkedHashSet<String> order = new LinkedHashSet<>();
+        for (String logicalPath : selectedLogicalPaths) {
+            manifest.entry(logicalPath).ifPresent(entry -> order.add(entry.blobRelativePath()));
+        }
+        manifest.entries().values().stream()
+                .map(TextureManifest.Entry::blobRelativePath)
+                .forEach(order::add);
+        return List.copyOf(order);
     }
 
     private static List<String> preferredPackOrder(
@@ -467,8 +476,23 @@ final class TextureBatchBuilder {
     }
 
     static List<Candidate> collectCandidates(ResourceIndex index) {
+        return collectCandidates(index, List.of());
+    }
+
+    static List<Candidate> collectCandidates(
+            ResourceIndex index, List<String> selectedLogicalPaths) {
+        LinkedHashSet<String> selected = new LinkedHashSet<>();
+        for (String logicalPath : selectedLogicalPaths) {
+            selected.add(ResourceIndex.normalizeLogicalPath(logicalPath));
+        }
         List<Candidate> candidates = new ArrayList<>();
-        for (Map.Entry<String, List<ResourceIndex.Provider>> entry : index.entries().entrySet()) {
+        Iterable<Map.Entry<String, List<ResourceIndex.Provider>>> entries = selected.isEmpty()
+                ? index.entries().entrySet()
+                : selected.stream()
+                        .map(path -> Map.entry(path, index.providers(path)))
+                        .filter(entry -> !entry.getValue().isEmpty())
+                        .toList();
+        for (Map.Entry<String, List<ResourceIndex.Provider>> entry : entries) {
             if (!IMAGE_EXTENSIONS.contains(extension(entry.getKey()))) {
                 continue;
             }
@@ -688,7 +712,7 @@ final class TextureBatchBuilder {
                         texture.pixelBytes(), selectedCodec);
                 try (PreparationDiskSpaceGuard.Lease ignored =
                         diskSpace.reserve(maximumBlobBytes, "writing a prepared texture")) {
-                    PreparedTextureIO.write(blob, texture, selectedCodec);
+                    PreparedTextureIO.writePackIntermediate(blob, texture, selectedCodec);
                 }
                 SelectedBlob selected = finalizeBalancedSelection(
                         cacheRoot,
@@ -770,7 +794,7 @@ final class TextureBatchBuilder {
                 texture.pixelBytes(), PreparedTextureIO.StorageCodec.RAW);
         try (PreparationDiskSpaceGuard.Lease ignored =
                 diskSpace.reserve(maximumRawBytes, "writing a raw prepared texture")) {
-            PreparedTextureIO.write(raw, texture, PreparedTextureIO.StorageCodec.RAW);
+            PreparedTextureIO.writePackIntermediate(raw, texture, PreparedTextureIO.StorageCodec.RAW);
         }
         return new SelectedBlob(rawRelative, Files.size(raw), false, quarantined);
     }
@@ -928,13 +952,22 @@ final class TextureBatchBuilder {
             int workers,
             long memoryBudgetBytes,
             PreparedTextureIO.StorageCodec storageCodec,
-            boolean rawWhenCompressionIsIneffective) {
+            boolean rawWhenCompressionIsIneffective,
+            List<String> selectedLogicalPaths) {
         Options(int workers, long memoryBudgetBytes) {
-            this(workers, memoryBudgetBytes, PreparedTextureIO.StorageCodec.RAW, false);
+            this(workers, memoryBudgetBytes, PreparedTextureIO.StorageCodec.RAW, false, List.of());
         }
 
         Options(int workers, long memoryBudgetBytes, PreparedTextureIO.StorageCodec storageCodec) {
-            this(workers, memoryBudgetBytes, storageCodec, false);
+            this(workers, memoryBudgetBytes, storageCodec, false, List.of());
+        }
+
+        Options(
+                int workers,
+                long memoryBudgetBytes,
+                PreparedTextureIO.StorageCodec storageCodec,
+                boolean rawWhenCompressionIsIneffective) {
+            this(workers, memoryBudgetBytes, storageCodec, rawWhenCompressionIsIneffective, List.of());
         }
 
         Options {
@@ -945,6 +978,7 @@ final class TextureBatchBuilder {
                 throw new IllegalArgumentException("Texture memory budget must be at least 16 MiB");
             }
             Objects.requireNonNull(storageCodec, "storageCodec");
+            selectedLogicalPaths = List.copyOf(selectedLogicalPaths);
         }
     }
 

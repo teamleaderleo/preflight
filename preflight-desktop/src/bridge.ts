@@ -792,43 +792,39 @@ export async function getPreparationPlan(
   if (!isDesktopHost()) {
     await new Promise((resolve) => window.setTimeout(resolve, 100));
     const lowDisk = browserPreviewScenario() === "low-disk";
+    const compact = textureStorage === "compact";
     const balanced = textureStorage === "balanced";
-    const predictedAdditionalBytes = balanced ? 4_912_256_954 : 10_699_754_432;
-    const safetyReserveBytes = balanced ? 536_870_912 : 1_073_741_824;
+    const predictedAdditionalBytes = compact ? 2_670_171_537 : balanced ? 5_655_689_886 : 10_699_754_432;
+    const safetyReserveBytes = compact || balanced ? 536_870_912 : 1_073_741_824;
     const requiredFreeBytes = predictedAdditionalBytes + safetyReserveBytes;
     return {
       format: "preflight-preparation-storage-plan-v1",
       profileFingerprint: "preview-profile",
-      textureStorage,
+      textureStorage: textureStorage === "compact" ? "balanced" : textureStorage,
       cacheDirectory: "~/.starsector-preflight/cache",
       packPath: "~/.starsector-preflight/cache/packs/preview.spfp",
-      candidateEntries: 32_920,
-      hashedEntries: 32_920,
-      uniqueContent: 30_639,
-      supportedContent: 30_639,
+      candidateEntries: compact ? 16_013 : 32_920,
+      hashedEntries: compact ? 16_013 : 32_920,
+      uniqueContent: compact ? 14_774 : 30_639,
+      supportedContent: compact ? 14_774 : 30_639,
       unsupportedContent: 0,
       failedContent: 0,
-      uniqueSourceBytes: 1_344_722_319,
-      uniquePixelBytes: 5_331_135_254,
+      uniqueSourceBytes: compact ? 655_884_863 : 1_344_722_319,
+      uniquePixelBytes: compact ? 2_074_073_333 : 5_331_135_254,
       reusableLooseBytes: 0,
-      predictedLooseBytes: balanced ? 2_862_079_925 : 5_331_200_000,
-      upperLooseBytes: balanced ? 10_691_422_548 : 5_331_200_000,
-      predictedPackBytes: balanced ? 2_016_622_597 : 5_335_000_000,
-      upperPackBytes: 5_600_000_000,
-      predictedRetainedTextureBytes: balanced ? 2_016_622_597 : 5_335_000_000,
+      predictedLooseBytes: compact ? 1_566_608_817 : balanced ? 3_392_088_322 : 5_331_200_000,
+      predictedPackBytes: compact ? 1_070_008_288 : balanced ? 2_230_047_132 : 5_335_000_000,
+      predictedRetainedTextureBytes: compact ? 1_070_008_288 : balanced ? 2_230_047_132 : 5_335_000_000,
       predictedMetadataBytes: 33_554_432,
-      upperMetadataBytes: 134_217_728,
       predictedAdditionalBytes,
-      upperBoundAdditionalBytes: balanced ? 16_163_781_820 : 11_065_217_728,
       safetyReserveBytes,
       requiredFreeBytes,
       usableBytes: lowDisk ? 2_147_483_648 : 82_000_000_000,
-      remainingAfterUpperBoundBytes: lowDisk ? -9_186_734_080 : 70_665_782_272,
       packHit: false,
       packOnlyHit: false,
       complete: true,
       safeToPrepare: !lowDisk,
-      refusalReason: lowDisk ? `Preparation needs about ${balanced ? "5.08" : "11.0"} GiB free right now; only 2.00 GiB is available.` : null,
+      refusalReason: lowDisk ? `Preparation needs about ${compact ? "2.99" : balanced ? "5.79" : "11.0"} GiB free right now; only 2.00 GiB is available.` : null,
       diagnostics: [],
       durationMs: 740,
     };

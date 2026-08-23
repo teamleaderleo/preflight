@@ -23,6 +23,7 @@ class AgentOptionsTest {
         assertEquals(Path.of("build/adapter.json"), options.adapterReport());
         assertNull(options.adapterTargets());
         assertNull(options.textureCacheDirectory());
+        assertNull(options.textureProfile());
         assertNull(options.textureManifest());
         assertNull(options.textureIndex());
         assertEquals(TextureAdapterMode.COMPATIBILITY, options.textureAdapterMode());
@@ -81,10 +82,12 @@ class AgentOptionsTest {
                 "adapter=enabled"
                         + ",textureMode=prepared-pixels"
                         + ",textureCache64=" + encoded("build/cache")
+                        + ",textureProfile=" + "ab".repeat(32)
                         + ",textureManifest64=" + encoded("build/cache/manifests/profile.spfm")
                         + ",textureIndex64=" + encoded("build/cache/indexes/profile.spfi"));
 
         assertEquals(Path.of("build/cache"), options.textureCacheDirectory());
+        assertEquals("ab".repeat(32), options.textureProfile());
         assertEquals(Path.of("build/cache/manifests/profile.spfm"), options.textureManifest());
         assertEquals(Path.of("build/cache/indexes/profile.spfi"), options.textureIndex());
         assertEquals(TextureAdapterMode.PREPARED_PIXELS, options.textureAdapterMode());

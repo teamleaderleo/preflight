@@ -244,6 +244,7 @@ class RunCommandIT {
         assertEquals(current.profileFingerprint(), report.get("textureProfileFingerprint"));
         String injected = Files.readString(game.resolve("java-tool-options.txt"));
         assertTrue(injected.contains("textureCache64="), injected);
+        assertTrue(injected.contains("textureProfile=" + current.profileFingerprint()), injected);
         assertFalse(injected.contains("textureManifest64="), injected);
         assertFalse(injected.contains("textureIndex64="), injected);
         assertTrue(injected.contains("textureMode=compatibility"), injected);

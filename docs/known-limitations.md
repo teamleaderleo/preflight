@@ -33,7 +33,8 @@ retained benchmark result before the first public beta release goes live.
 Preparation uses additional disk space. Balanced stores lossless LZ4 data and keeps raw data when
 compression barely helps; Fastest keeps every upload-ready pixel array raw and can use several
 gigabytes more for a small warm-launch difference. The desktop estimates the selected profile's
-predicted and conservative requirements before writing, and cleanup remains preview-first.
+temporary build and finished retained sizes before writing, keeps a free-space reserve, and leaves
+raw codec ceilings internal. Cleanup remains preview-first.
 
 Preflight builds and passes its full test suite on JDK 17, 21, and 26, and everything ships as Java
 17 bytecode, so any runtime from 17 up loads it. Paths and profile names containing characters a
