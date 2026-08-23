@@ -81,6 +81,63 @@ class PublicEntryPointTest(unittest.TestCase):
         self.assertIn('if [[ "$CONCISE" == true ]]; then\n        # A one-shot result', SCRIPT_TEXT)
         self.assertIn('fingerprint="$EXPECTED_FINGERPRINT"', SCRIPT_TEXT)
 
+    def test_one_shot_identifies_the_enabled_profile_instead_of_trusting_a_stamp(self):
+        baseline = re.search(
+            r'BASELINE_PROFILE="\$ROOT/profile-baseline.json"(?P<body>.*?)\nnote "profile:',
+            SCRIPT_TEXT,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(baseline, "baseline profile setup not found")
+        body = baseline.group("body")
+        self.assertIn('EXPECTED_FINGERPRINT="$(scan_fingerprint "$BASELINE_PROFILE")"', body)
+        self.assertNotIn('EXPECTED_FINGERPRINT="${stamp_value%%:*}"', body)
+
+    def test_default_storage_follows_the_exact_profiles_learned_access_order(self):
+        self.assertIn('TEXTURE_STORAGE=""', SCRIPT_TEXT)
+        selection = re.search(
+            r'resolve_texture_storage\(\) \{(?P<body>.*?)\n\}',
+            SCRIPT_TEXT,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(selection, "automatic storage selection not found")
+        body = selection.group("body")
+        self.assertIn('$cache/packs/$profile.spta', body)
+        with tempfile.TemporaryDirectory() as name:
+            cache = Path(name)
+            profile = "a" * 64
+            function = f'resolve_texture_storage() {{{body}\n}}\n'
+            fresh = subprocess.run(
+                ["bash", "-c", function + 'resolve_texture_storage "" "$1" "$2"', "-", str(cache), profile],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertEqual("balanced", fresh.stdout.strip())
+            (cache / "packs").mkdir()
+            (cache / "packs" / f"{profile}.spta").touch()
+            learned = subprocess.run(
+                ["bash", "-c", function + 'resolve_texture_storage "" "$1" "$2"', "-", str(cache), profile],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertEqual("compact", learned.stdout.strip())
+            explicit = subprocess.run(
+                ["bash", "-c", function + 'resolve_texture_storage fastest "$1" "$2"', "-", str(cache), profile],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertEqual("fastest", explicit.stdout.strip())
+        self.assertLess(
+            SCRIPT_TEXT.index('EXPECTED_FINGERPRINT="$(scan_fingerprint "$BASELINE_PROFILE")"'),
+            SCRIPT_TEXT.index('TEXTURE_STORAGE="$(resolve_texture_storage'),
+        )
+        self.assertLess(
+            SCRIPT_TEXT.index('TEXTURE_STORAGE="$(resolve_texture_storage'),
+            SCRIPT_TEXT.index('--arg textureStorage "$TEXTURE_STORAGE"'),
+        )
+
     def test_one_shot_direct_launch_does_not_start_a_settings_jvm_first(self):
         settings = re.search(
             r'LAUNCH_SETTINGS="\$ROOT/launch-settings.json"(?P<body>.*?)\n\nPROTOCOL=clicked',

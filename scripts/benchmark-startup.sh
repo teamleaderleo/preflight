@@ -27,6 +27,8 @@ Usage:
       A repeated, resumable comparison campaign.
 
 One-launch options such as --game, --engine, --cache, and --texture-storage pass through.
+Without an explicit storage option, the benchmark follows Preflight's normal lifecycle: Compact
+for a learned profile, or Balanced for a new profile's first complete preparation.
 EOF
         exit 0
         ;;

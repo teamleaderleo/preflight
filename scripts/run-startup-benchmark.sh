@@ -17,7 +17,10 @@ SEED_WAS_SET=false
 [[ -n "${SEED+x}" ]] && SEED_WAS_SET=true
 GAME="${GAME:-/Applications/Starsector.app}"
 CACHE="${CACHE:-$HOME/.starsector-preflight/cache}"
-TEXTURE_STORAGE="balanced"
+# Empty means "follow the product lifecycle": use Compact when this exact profile has a learned
+# access order, otherwise use Balanced for the first complete bootstrap. An explicit option and a
+# resumed session remain exact measurement inputs rather than being re-resolved.
+TEXTURE_STORAGE=""
 ROUNDS=5
 CONDITIONS="vanilla,agent,enabled,fast"
 UNATTENDED=false
@@ -91,6 +94,17 @@ physical_path() {
     python3 -c 'import os, sys; print(os.path.realpath(os.path.abspath(sys.argv[1])))' "$1"
 }
 
+resolve_texture_storage() {
+    local requested="$1" cache="$2" profile="$3"
+    if [[ -n "$requested" ]]; then
+        printf '%s\n' "$requested"
+    elif [[ -f "$cache/packs/$profile.spta" ]]; then
+        printf '%s\n' compact
+    else
+        printf '%s\n' balanced
+    fi
+}
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --rounds) ROUNDS="$2"; shift 2 ;;
@@ -159,7 +173,7 @@ if [[ -n "$ENGINE_SHA256" && ! "$ENGINE_SHA256" =~ ^[0-9a-fA-F]{64}$ ]]; then
     exit 2
 fi
 case "$TEXTURE_STORAGE" in
-    balanced|compact|fastest) ;;
+    ""|balanced|compact|fastest) ;;
     *)
         echo "--texture-storage must be balanced, compact, or fastest." >&2
         exit 2
@@ -265,13 +279,6 @@ if [[ -n "$SESSION" ]]; then
     SEED="$RECORDED_SEED"
     ENGINE="$RECORDED_ENGINE"
     ENGINE_SOURCE="$RECORDED_ENGINE_SOURCE"
-fi
-
-PREPARE_TEXTURE_STORAGE="$TEXTURE_STORAGE"
-TEXTURE_SCOPE=full
-if [[ "$TEXTURE_STORAGE" == compact ]]; then
-    PREPARE_TEXTURE_STORAGE=balanced
-    TEXTURE_SCOPE=learned
 fi
 
 [[ -f pom.xml ]] || { bad "Run this from the Preflight repository root."; exit 1; }
@@ -498,7 +505,50 @@ if [[ -n "$SESSION" ]]; then
         bad "Protocol drift: this invocation resolved $PROTOCOL, session requires $RECORDED_PROTOCOL."
         exit 2
     fi
+fi
+
+scan_fingerprint() {
+    local output="$1"
+    java -jar "$JAR" scan --game "$GAME" --json "$output" >/dev/null 2>&1 || return 1
+    jq -er '.profileFingerprint' "$output"
+}
+
+PREPARE_REPORT="$ROOT/prepare.json"
+PREPARE_STAMP="$CACHE/prepared-profile.txt"
+BASELINE_PROFILE="$ROOT/profile-baseline.json"
+if [[ ! -f "$BASELINE_PROFILE" ]]; then
+    # The enabled profile is cheap enough to identify once and is the authority for both cache
+    # selection and the receipt. The former concise shortcut trusted a benchmark-owned stamp;
+    # changing enabled mods elsewhere could leave that stamp stale while the run still reported
+    # itself as accepted against the old profile.
+    EXPECTED_FINGERPRINT="$(scan_fingerprint "$BASELINE_PROFILE")"
+    echo "$EXPECTED_FINGERPRINT" > "$ROOT/expected-fingerprint.txt"
 else
+    EXPECTED_FINGERPRINT="$(cat "$ROOT/expected-fingerprint.txt")"
+    if [[ -n "$SESSION" ]]; then
+        RESUME_FINGERPRINT="$(scan_fingerprint "$ROOT/profile-resume-check.json")"
+        if [[ "$RESUME_FINGERPRINT" != "$EXPECTED_FINGERPRINT" ]]; then
+            bad "The enabled mod profile changed since this session began."
+            bad "Refusing to combine profile $RESUME_FINGERPRINT with $EXPECTED_FINGERPRINT."
+            exit 2
+        fi
+    fi
+fi
+
+# Compact is the normal steady state once successful launches have established a checked access
+# order. A new profile has no such observation and needs one complete Balanced bootstrap first.
+# The preparation command validates the observation before publishing.
+TEXTURE_STORAGE="$(resolve_texture_storage \
+    "$TEXTURE_STORAGE" "$CACHE" "$EXPECTED_FINGERPRINT")"
+
+PREPARE_TEXTURE_STORAGE="$TEXTURE_STORAGE"
+TEXTURE_SCOPE=full
+if [[ "$TEXTURE_STORAGE" == compact ]]; then
+    PREPARE_TEXTURE_STORAGE=balanced
+    TEXTURE_SCOPE=learned
+fi
+
+if [[ -z "$SESSION" ]]; then
     jq -n \
         --arg game "$GAME" \
         --arg cache "$CACHE" \
@@ -516,37 +566,6 @@ else
           protocol: $protocol, unattended: $unattended, cooldownSeconds: $cooldownSeconds,
           seed: $seed, scenarioId: $scenarioId,
           engineSource: $engineSource, engine: $engine}' > "$ROOT/session-config.json"
-fi
-
-scan_fingerprint() {
-    local output="$1"
-    java -jar "$JAR" scan --game "$GAME" --json "$output" >/dev/null 2>&1 || return 1
-    jq -er '.profileFingerprint' "$output"
-}
-
-PREPARE_REPORT="$ROOT/prepare.json"
-PREPARE_STAMP="$CACHE/prepared-profile.txt"
-BASELINE_PROFILE="$ROOT/profile-baseline.json"
-if [[ ! -f "$BASELINE_PROFILE" ]]; then
-    stamp_value="$(cat "$PREPARE_STAMP" 2>/dev/null || true)"
-    if [[ "$CONCISE" == true && "$REPREPARE" != true \
-            && ( "$stamp_value" =~ ^[0-9a-f]{64}:$TEXTURE_STORAGE$ \
-                || ( "$TEXTURE_STORAGE" == balanced && "$stamp_value" =~ ^[0-9a-f]{64}$ ) ) ]]; then
-        EXPECTED_FINGERPRINT="${stamp_value%%:*}"
-    else
-        EXPECTED_FINGERPRINT="$(scan_fingerprint "$BASELINE_PROFILE")"
-    fi
-    echo "$EXPECTED_FINGERPRINT" > "$ROOT/expected-fingerprint.txt"
-else
-    EXPECTED_FINGERPRINT="$(cat "$ROOT/expected-fingerprint.txt")"
-    if [[ -n "$SESSION" ]]; then
-        RESUME_FINGERPRINT="$(scan_fingerprint "$ROOT/profile-resume-check.json")"
-        if [[ "$RESUME_FINGERPRINT" != "$EXPECTED_FINGERPRINT" ]]; then
-            bad "The enabled mod profile changed since this session began."
-            bad "Refusing to combine profile $RESUME_FINGERPRINT with $EXPECTED_FINGERPRINT."
-            exit 2
-        fi
-    fi
 fi
 note "profile:         $EXPECTED_FINGERPRINT"
 
