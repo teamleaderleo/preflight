@@ -365,6 +365,7 @@ export function HomePage({
             <HomeLaunchIdentity
               installRoot={snapshot.selected.installRoot}
               profileName={launchProfileName}
+              onOpenProfiles={() => onNavigate("mods")}
             />
           ) : null}
           {isReady && (preparing || needsPreparation || !profilePrepared) ? (

@@ -49,14 +49,20 @@ summary:active {
   transform: translateX(-50%);
 }
 
-.home-launch-identity > strong,
+.home-launch-profile strong,
 .home-launch-path__short {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.home-launch-identity > strong {
+.home-launch-profile {
+  max-width: 100%;
+  pointer-events: auto;
+}
+
+.home-launch-profile strong {
+  display: block;
   color: var(--console-ink);
   font-size: 14px;
   font-weight: 680;
@@ -260,7 +266,7 @@ summary:active {
     width: calc(100% - 32px);
   }
 
-  .home-launch-identity > strong {
+  .home-launch-profile strong {
     font-size: 13px;
   }
 

@@ -3,12 +3,23 @@ import { shortPath } from "../uiFormat";
 interface HomeLaunchIdentityProps {
   installRoot: string;
   profileName: string | null;
+  onOpenProfiles: () => void;
 }
 
-export function HomeLaunchIdentity({ installRoot, profileName }: HomeLaunchIdentityProps) {
+export function HomeLaunchIdentity({ installRoot, profileName, onOpenProfiles }: HomeLaunchIdentityProps) {
   return (
     <div className="home-launch-identity">
-      {profileName ? <strong title={profileName}>{profileName}</strong> : null}
+      {profileName ? (
+        <button
+          className="home-launch-profile"
+          type="button"
+          aria-label={`Open saved profiles. Current profile: ${profileName}`}
+          title="Open saved profiles"
+          onClick={onOpenProfiles}
+        >
+          <strong>{profileName}</strong>
+        </button>
+      ) : null}
       <span
         className="home-launch-path"
         tabIndex={0}
