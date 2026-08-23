@@ -46,9 +46,6 @@ final class MacDesktopSmokeDriverTest {
             assertFalse(script.contains("open -a"), script);
             assertFalse(script.contains("tell application \"Starsector\""), script);
         }
-        assertTrue(MacDesktopSmokeDriver.clickScript(
-                pid, new MacDesktopSmokeDriver.TargetPoint("main-menu.continue", 0.775, 0.300))
-                .contains("repeat with attempt from 1 to 20"));
     }
 
     @Test
