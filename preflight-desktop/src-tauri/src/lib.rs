@@ -23,12 +23,12 @@ use automation::{
     start_desktop_smoke,
 };
 use engine::{
-    EnginePaths, activate_profile, apply_cache_cleanup, apply_evidence_cleanup, apply_removal,
-    canonical_game_directory, check_setup, delete_profile, duplicate_profile, export_diagnostics,
-    get_bootstrap, get_cache, get_cache_cleanup, get_cache_health, get_cache_inspection,
-    get_evidence_cleanup, get_home_state, get_launch_settings, get_mod_readiness, get_profiles,
-    get_removal_plan, get_snapshot, rename_profile, repair_cache, save_profile,
-    update_launch_settings,
+    EnginePaths, activate_profile, apply_cache_cleanup, apply_discardable_cache_cleanup,
+    apply_evidence_cleanup, apply_removal, canonical_game_directory, check_setup, delete_profile,
+    duplicate_profile, export_diagnostics, get_bootstrap, get_cache, get_cache_cleanup,
+    get_cache_health, get_cache_inspection, get_evidence_cleanup, get_home_state,
+    get_launch_settings, get_mod_readiness, get_profiles, get_removal_plan, get_snapshot,
+    rename_profile, repair_cache, save_profile, update_launch_settings,
 };
 use hulls::get_wireframe_hulls;
 use operations::{OperationCoordinator, OperationSnapshot, OperationState, refuse_update_install};
@@ -666,6 +666,7 @@ pub fn run() {
             repair_cache,
             get_cache_cleanup,
             apply_cache_cleanup,
+            apply_discardable_cache_cleanup,
             get_evidence_cleanup,
             apply_evidence_cleanup,
             get_removal_plan,
@@ -734,8 +735,9 @@ mod tests {
     };
     use crate::engine::{
         EngineCommand, LaunchSettingsInput, configure_cache_health_command,
-        configure_evidence_cleanup_command, diagnostic_output_path, validate_cache_repair_state,
-        validate_launch_settings, validate_profile_mutation_state, validate_removal_scope,
+        configure_discardable_cache_cleanup_command, configure_evidence_cleanup_command,
+        diagnostic_output_path, validate_cache_repair_state, validate_launch_settings,
+        validate_profile_mutation_state, validate_removal_scope,
     };
     use crate::operations::{
         DesktopSmokeProcess, OperationCoordinator, OperationState, PreparationProcess,
@@ -1082,6 +1084,16 @@ mod tests {
         configure_evidence_cleanup_command(&mut apply, true);
         let arguments = apply.arguments();
         assert_eq!(Some("--yes"), arguments.last().map(String::as_str));
+    }
+
+    #[test]
+    fn discardable_cache_cleanup_cannot_prune_live_profiles() {
+        let mut command = EngineCommand::for_test("preflight-engine");
+        configure_discardable_cache_cleanup_command(&mut command);
+        assert_eq!(
+            vec!["cache", "prune", "--discardable-only", "--json", "--yes"],
+            command.arguments()
+        );
     }
 
     #[test]

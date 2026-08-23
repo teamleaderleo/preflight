@@ -35,6 +35,10 @@ const storageGroups: Record<string, { label: string; detail: string }> = {
     label: "Reports and recordings",
     detail: "Launch timings, benchmarks, and diagnostics.",
   },
+  discardable: {
+    label: "Replaced cache data",
+    detail: "Rejected cache files that Preflight can remove safely.",
+  },
   configuration: {
     label: "Profiles and backups",
     detail: "Saved mod profiles, and the backup taken each time one is switched.",

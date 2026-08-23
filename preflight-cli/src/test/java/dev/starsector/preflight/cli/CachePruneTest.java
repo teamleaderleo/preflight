@@ -143,6 +143,43 @@ class CachePruneTest {
     }
 
     @Test
+    void onlyAppOwnedQuarantineArtifactsAreRemoved() throws Exception {
+        PreflightHome preflight = home();
+        Path quarantine = preflight.cache().resolve("quarantine");
+        Files.createDirectories(quarantine);
+        Path identity = quarantine.resolve(
+                "1".repeat(64) + "-identity.spft.superseded-or-corrupt.1787390000000");
+        Path classpath = quarantine.resolve(
+                "2".repeat(64) + ".spfc.stale-profile.1787390000001");
+        Path jar = quarantine.resolve(
+                "3".repeat(64) + ".spfj.corrupt-archive.1787390000002");
+        Path unfamiliar = quarantine.resolve("notes.txt");
+        Path almostKnown = quarantine.resolve(
+                "4".repeat(64) + ".spfc.stale-profile.not-a-timestamp");
+        Files.writeString(identity, "identity");
+        Files.writeString(classpath, "classpath");
+        Files.writeString(jar, "jar");
+        Files.writeString(unfamiliar, "mine");
+        Files.writeString(almostKnown, "also mine");
+
+        CachePrune.Plan plan = CachePrune.planDiscardable(preflight);
+
+        assertTrue(plan.safe(), plan.refusals().toString());
+        assertEquals(Set.of(identity, classpath, jar), plan.removals().stream()
+                .filter(removal -> "replaced cache artifact".equals(removal.reason()))
+                .map(CachePrune.Removal::path)
+                .collect(java.util.stream.Collectors.toSet()));
+        assertEquals(20, plan.bytes());
+
+        CachePrune.apply(plan);
+        assertFalse(Files.exists(identity));
+        assertFalse(Files.exists(classpath));
+        assertFalse(Files.exists(jar));
+        assertTrue(Files.isRegularFile(unfamiliar));
+        assertTrue(Files.isRegularFile(almostKnown));
+    }
+
+    @Test
     void minimalPreparationMarkersFollowTheirProfileThroughPruning() throws Exception {
         PreflightHome preflight = home();
         String kept = "1".repeat(64);
