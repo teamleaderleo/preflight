@@ -232,37 +232,37 @@ def historical_blobs(repository: Path) -> dict[str, set[str]]:
 def read_blobs(repository: Path, object_ids: list[str]) -> dict[str, bytes]:
     if not object_ids:
         return {}
-    process = subprocess.Popen(
+    result: dict[str, bytes] = {}
+    with subprocess.Popen(
         ["git", "cat-file", "--batch"],
         cwd=repository,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-    )
-    assert process.stdin is not None and process.stdout is not None
-    result: dict[str, bytes] = {}
-    try:
-        for oid in object_ids:
-            process.stdin.write(f"{oid}\n".encode())
-            process.stdin.flush()
-            header = process.stdout.readline().decode("ascii").strip()
-            actual_oid, object_type, size_text = header.split(" ", 2)
-            if object_type != "blob":
-                raise SourceBoundaryError(f"historical object isn't a blob: {oid}")
-            size = int(size_text)
-            data = process.stdout.read(size)
-            terminator = process.stdout.read(1)
-            if len(data) != size or terminator != b"\n":
-                raise SourceBoundaryError(f"truncated historical blob: {oid}")
-            result[actual_oid] = data
-    finally:
-        process.stdin.close()
-        stderr = process.stderr.read() if process.stderr is not None else b""
-        return_code = process.wait()
-        if return_code != 0:
-            raise SourceBoundaryError(
-                f"git cat-file --batch failed: {stderr.decode('utf-8', errors='replace').strip()}"
-            )
+    ) as process:
+        assert process.stdin is not None and process.stdout is not None
+        try:
+            for oid in object_ids:
+                process.stdin.write(f"{oid}\n".encode())
+                process.stdin.flush()
+                header = process.stdout.readline().decode("ascii").strip()
+                actual_oid, object_type, size_text = header.split(" ", 2)
+                if object_type != "blob":
+                    raise SourceBoundaryError(f"historical object isn't a blob: {oid}")
+                size = int(size_text)
+                data = process.stdout.read(size)
+                terminator = process.stdout.read(1)
+                if len(data) != size or terminator != b"\n":
+                    raise SourceBoundaryError(f"truncated historical blob: {oid}")
+                result[actual_oid] = data
+        finally:
+            process.stdin.close()
+            stderr = process.stderr.read() if process.stderr is not None else b""
+            return_code = process.wait()
+            if return_code != 0:
+                raise SourceBoundaryError(
+                    f"git cat-file --batch failed: {stderr.decode('utf-8', errors='replace').strip()}"
+                )
     return result
 
 

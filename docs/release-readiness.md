@@ -40,7 +40,7 @@ must stay tied to one accepted candidate generation:
   ZIP, cancel after a partial upload, prove remote cleanup while the local ZIP remains, retry the same
   ZIP, verify the accepted size/SHA and retained receipt, then delete it and prove cleanup.
 
-Release-facing maintenance through #1112 landed after the completed private rehearsals. Startup
+Release-facing maintenance through #1119 landed after the completed private rehearsals. Startup
 entry points are consolidated, Compact is the normal prepared texture layout, redundant child-JVM
 work is removed, benchmark shutdown targets the exact game process, and patched `time` and
 `serde_with` dependencies build at the verified Rust 1.88 floor across all three hosted package
@@ -49,8 +49,9 @@ failed-run upload is absent from the native command surface, and the public capa
 so. Home now exposes its time, ship, motion, installation, support, and saved-profile controls
 directly, and the canonical public screenshots match the accepted responsive layout. A bounded
 dependency check runs automatically for the active mod setup, while Mods offers the deeper explicit
-analysis. Page navigation commits before destination work, and repeated Speed visits reuse the
-loaded storage plan instead of requesting it again. The remaining Linux GTK/glib advisory is tracked
+analysis. Page navigation commits before destination work, and repeated visits reuse optional
+native reads instead of requesting them again. Desktop-only changes no longer duplicate
+repository-wide Maven CI. The remaining Linux GTK/glib advisory is tracked
 by #1097 until the supported Tauri stack can move beyond GTK 0.18; the native Linux candidate
 exercise remains required.
 
