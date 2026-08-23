@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   getSnapshot,
@@ -90,7 +90,6 @@ export default function App() {
   const [runFailure, setRunFailure] = useState<RunFailure | null>(previewRunFailure);
   const [maintenanceEpoch, setMaintenanceEpoch] = useState(0);
   const [page, setPage] = useState<Page>("home");
-  const workspacePage = useDeferredValue(page);
   const navigate = useCallback((next: Page) => setPage(next), []);
   const [choosingInstall, setChoosingInstall] = useState(false);
   const [stoppingGame, setStoppingGame] = useState(false);
@@ -126,7 +125,7 @@ export default function App() {
   const speedStanding = useSpeedRecord();
   const instrumentHull = useInstrumentHull(
     snapshot?.selected?.installRoot,
-    workspacePage === "hangar",
+    page === "hangar",
   );
   const { countFastLaunch, rememberBenchmark } = speedStanding;
   const currentProfileFingerprint = useRef<string | null>(null);
@@ -229,7 +228,7 @@ export default function App() {
   }, [announceGame, forceStopAvailable, stoppingGame]);
   const preparation = usePreparation(
     snapshot?.selected?.installRoot,
-    workspacePage === "speed",
+    page === "speed",
     optimizationPreset,
     launch,
     announcePreparation,
@@ -252,7 +251,7 @@ export default function App() {
   );
   const profilesState = useProfiles(
     snapshot?.selected?.installRoot,
-    workspacePage === "home" || workspacePage === "mods",
+    page === "home" || page === "mods",
     refresh,
     refreshCache,
     announceProfiles,
@@ -282,10 +281,10 @@ export default function App() {
     refreshInstallation: refresh,
     setStatus,
   });
-  const diagnostics = useDiagnosticsReport(workspacePage === "help" || workspacePage === "settings", announceSupport);
+  const diagnostics = useDiagnosticsReport(page === "help" || page === "settings", announceSupport);
   const launcher = useLauncherSettings(
     snapshot?.selected?.installRoot,
-    workspacePage === "home" || workspacePage === "launch",
+    page === "home" || page === "launch",
     announceGameSettings,
   );
   const needsPreparation = optimizationPreset !== "off" && !profilePrepared;
@@ -602,7 +601,6 @@ export default function App() {
   return (
     <DesktopShell
       page={page}
-      workspacePage={workspacePage}
       title={title}
       status={status}
       isReady={isReady}
@@ -614,14 +612,14 @@ export default function App() {
       onThemeChange={theme.setPreference}
       onPaletteChange={theme.setPalette}
     >
-        {activeOperation && workspacePage !== activeOperation.owner ? (
+        {activeOperation && page !== activeOperation.owner ? (
           <WorkflowLockNotice
             reason={`${activeOperation.reason}. Other changes wait until it finishes.`}
             actionLabel={activeOperation.owner === "home" ? "View progress" : `Open ${pageTitle(activeOperation.owner, status, preparing, isReady, needsPreparation)}`}
             onAction={() => navigate(activeOperation.owner)}
           />
         ) : null}
-        {workspacePage === "home" ? (
+        {page === "home" ? (
           <HomePage
             snapshot={snapshot}
             status={status}
@@ -659,7 +657,7 @@ export default function App() {
             launchProfileName={launchProfileName}
             modReadiness={profilesState.modReadiness}
           />
-        ) : workspacePage === "launch" ? (
+        ) : page === "launch" ? (
           <>
             <NoticeBanner message={launchNotice?.message ?? ""} tone={launchNotice?.tone ?? "info"} />
             <GameSettingsPage
@@ -675,7 +673,7 @@ export default function App() {
               onSave={(settingsToolsClosed) => void launcher.save(settingsToolsClosed)}
             />
           </>
-        ) : workspacePage === "speed" ? (
+        ) : page === "speed" ? (
           <PreparationPage
             message={preparationNotice?.message ?? ""}
             messageTone={preparationNotice?.tone ?? "info"}
@@ -697,11 +695,11 @@ export default function App() {
             onDismissCleanup={cleanup.dismiss}
             onOpenBenchmark={() => navigate("benchmark")}
           />
-        ) : workspacePage === "mods" ? (
+        ) : page === "mods" ? (
           <ProfilesPage message={profilesNotice?.message ?? ""} messageTone={profilesNotice?.tone ?? "info"} profilesState={profilesState} setupCheck={setupCheck} operationBlocked={operationBlocked} />
-        ) : workspacePage === "hangar" ? (
+        ) : page === "hangar" ? (
           <HangarPage instrumentHull={instrumentHull} />
-        ) : workspacePage === "benchmark" ? (
+        ) : page === "benchmark" ? (
           <BenchmarkPage
             message={benchmarkNotice?.message ?? ""}
             messageTone={benchmarkNotice?.tone ?? "info"}
@@ -712,7 +710,7 @@ export default function App() {
             nativeBlockReason={nativeBenchmarkBlockReason}
             automation={automation}
           />
-        ) : workspacePage === "help" ? (
+        ) : page === "help" ? (
           <HelpPage
             message={helpNotice?.message ?? ""}
             messageTone={helpNotice?.tone ?? "info"}

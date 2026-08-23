@@ -53,7 +53,6 @@ export type Page = "home" | "launch" | "speed" | "mods" | "hangar" | "benchmark"
 
 interface DesktopShellProps {
   page: Page;
-  workspacePage?: Page;
   title: string;
   status: AppStatus;
   isReady: boolean;
@@ -69,7 +68,6 @@ interface DesktopShellProps {
 
 export function DesktopShell({
   page,
-  workspacePage = page,
   title,
   status,
   isReady,
@@ -140,9 +138,9 @@ export function DesktopShell({
     if (pageViewport.current) pageViewport.current.scrollTop = 0;
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
-    if (previousPage.current !== workspacePage) pageTitle.current?.focus({ preventScroll: true });
-    previousPage.current = workspacePage;
-  }, [workspacePage]);
+    if (previousPage.current !== page) pageTitle.current?.focus({ preventScroll: true });
+    previousPage.current = page;
+  }, [page]);
   useEffect(() => () => {
     if (pointerFrame.current !== null) window.cancelAnimationFrame(pointerFrame.current);
   }, []);
@@ -231,13 +229,13 @@ export function DesktopShell({
           </div>
         </header>
         <div
-          key={workspacePage}
+          key={page}
           id="page-workspace"
           ref={pageViewport}
           role="region"
           aria-labelledby="page-title"
           tabIndex={-1}
-          className={`page-viewport page-viewport--${workspacePage}`}
+          className={`page-viewport page-viewport--${page}`}
         >
           {children}
         </div>
