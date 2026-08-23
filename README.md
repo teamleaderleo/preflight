@@ -112,17 +112,18 @@ offer **Prepare with minimal disk** instead.
 
 | Mode | Immediately after preparation on this 83-mod profile | Observed preparation |
 | --- | ---: | ---: |
-| **Balanced** (default) | **2.3 GB** | 38.3s |
-| **Compact** | **1.1 GB** | 17.3s after an observed launch |
+| **Balanced** (fresh-profile bootstrap) | **2.3 GB** | 38.3s |
+| **Compact** (automatic steady state) | **1.1 GB** | 17.3s after an observed launch |
 | **Minimal disk** | **11 MB** | 5.1s |
 | **Uncompressed** | **5.2 GB** | Not remeasured on the current preparation path |
 
 Balanced briefly writes checked loose texture data while constructing its final 2.3 GB pack, then
 removes the redundant copies after the pack opens successfully. The app therefore checks for more
-free space than the finished cache occupies. Compact uses the texture paths observed during a real
-launch and produced the same 14.17-second startup pack while halving this profile's preparation time
-and finished texture data. Actual costs depend on the artwork in the enabled mods, and the app
-calculates them for the current profile. Minimal skips prepared textures while
+free space than the finished cache occupies. After a successful first launch, Preflight learns the
+texture access order and prepares Compact during a later idle window. Compact produced a
+14.17-second startup pack while halving this profile's preparation time and finished texture data.
+Actual costs depend on the artwork in the enabled mods, and the app calculates them for the current
+profile. Minimal skips prepared textures while
 keeping the other startup indexes and caches. Those caches continue learning on the first launch;
 on this profile, Minimal grew from about 11 MB after preparation to about 204 MB after that launch.
 The uncompressed option remains available as an advanced comparison and compatibility control. It
@@ -329,21 +330,22 @@ live in [Optimization history](docs/optimization-history.md), the
 
 ## Storage choices
 
-Balanced is the default. It keeps upload-ready texture pixels in LZ4 blocks when compression saves
-meaningful space and retains raw storage where compression buys little. The advanced Uncompressed
-option keeps every pixel array raw and trades disk space for less decode CPU.
+Fresh profiles start with Balanced. It keeps upload-ready texture pixels in LZ4 blocks when
+compression saves meaningful space and retains raw storage where compression buys little. The
+advanced Uncompressed option keeps every pixel array raw and trades disk space for less decode CPU.
 
 Balanced is currently the fresh-profile bootstrap. After one successful observed launch, Compact
 can retain the startup access set in about 1.1 GB on the development profile. It prepared in 17.25
 seconds and launched in 14.17 seconds there, compared with about 2.3 GB and 38.33 seconds of cold
-preparation for Balanced. Automatic graduation from complete bootstrap coverage to Compact is
-planned; until then Compact is an explicit post-observation option.
+preparation for Balanced. After a successful observed launch, the desktop waits for an idle window
+and graduates the profile to Compact automatically. The existing valid pack and original source
+path remain available if that maintenance cannot finish.
 
 On the 83-mod development profile, Balanced reduced the texture pack from 5.34 GB to 2.26 GB. Ten
 fresh-JVM replays measured the exact startup access order at 1,137ms for Balanced and 691ms for
 Uncompressed. Current pack-only retention leaves about **2.3 GB** for Balanced and **5.2 GB** for
 Uncompressed on this profile. The exact replay seam improved by about 446ms, but Uncompressed did
-not improve the measured whole launch. Balanced remains the default.
+not improve the measured whole launch. Compact is the normal learned steady state.
 
 Preparation calculates decoded texture size, deduplication, reusable blobs, temporary packing, and
 current filesystem space. It keeps at least 512 MiB in reserve and refuses before writing when the
