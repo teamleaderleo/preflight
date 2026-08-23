@@ -326,7 +326,7 @@ export function HomePage({
                   : preparationPlanLoading
                   ? "Inspecting this mod setup and calculating a safe disk requirement…"
                   : preparationPlan?.safeToPrepare
-                    ? `${firstSetup ? "Initial setup" : "Preparation needed"} · Keeps about ${formatBytes(preparationPlan.predictedRetainedTextureBytes ?? preparationPlan.predictedPackBytes)}. ${formatBytes(preparationPlan.requiredFreeBytes)} free needed to build it; ${formatBytes(preparationPlan.usableBytes)} available.`
+                    ? `${firstSetup ? "Initial setup" : "Preparation needed"} · Keeps about ${formatBytes(preparationPlan.predictedRetainedTextureBytes ?? preparationPlan.predictedPackBytes)}. Needs about ${formatBytes(preparationPlan.requiredFreeBytes)} free while preparing; ${formatBytes(preparationPlan.usableBytes)} available.`
                     : preparationPlan
                       ? `Preparation needs ${formatBytes(preparationPlan.requiredFreeBytes)} free; ${formatBytes(preparationPlan.usableBytes)} is available.`
                       : "Storage must be calculated before preparation."

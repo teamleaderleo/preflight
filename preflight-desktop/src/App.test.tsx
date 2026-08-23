@@ -142,7 +142,7 @@ test("the default cold-profile action prepares with balanced settings and then l
   const action = await screen.findByRole("button", { name: "Prepare and launch" });
   await waitFor(() => expect(action).toBeEnabled());
   expect(screen.getByText("First launch setup")).toBeInTheDocument();
-  expect(screen.getByText(/Keeps about .* free needed to build it; .* available/))
+  expect(screen.getByText(/Keeps about .* Needs about .* free while preparing; .* available/))
     .toBeInTheDocument();
   expect(screen.getByLabelText("186h played across 78 recorded sessions")).toBeInTheDocument();
   expect(within(screen.getByRole("main")).queryByText(/^for Starsector$/i)).not.toBeInTheDocument();
@@ -288,7 +288,7 @@ test("a refused preparation offers the preparation that barely uses disk", async
 test("the Preflight page offers the same direct minimal-disk recovery", async () => {
   const cold = cacheSnapshot({ profiles: [] });
   const basePlan = await bridge.getPreparationPlan("/Applications/Starsector", "balanced", 4);
-  const reason = "Preparation needs up to 11.0 GB plus a 1.0 GB reserve; only 2.0 GB is available.";
+  const reason = "Preparation needs about 5.08 GiB free right now; only 2.00 GiB is available.";
   const cache = vi.spyOn(bridge, "getCache").mockResolvedValue(cold);
   const plan = vi.spyOn(bridge, "getPreparationPlan").mockResolvedValue({
     ...basePlan,
@@ -308,7 +308,7 @@ test("the Preflight page offers the same direct minimal-disk recovery", async ()
   await userEvent.setup().click(screen.getByRole("button", { name: "Speed" }));
   expect(await screen.findByRole("heading", { name: "Speed", level: 1 })).toBeInTheDocument();
   await screen.findByText(reason);
-  expect(screen.getByText("Free space needed to prepare")).toBeInTheDocument();
+  expect(screen.getByText("Space needed while preparing")).toBeInTheDocument();
   const action = await screen.findByRole("button", { name: "Prepare with less disk" });
   await userEvent.setup().click(action);
   await waitFor(() => expect(preparation)
@@ -818,8 +818,8 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   expect(window.localStorage.getItem("preflight.disabledOptimizationDomains"))
     .toBe('["prepared-audio"]');
   expect(screen.getAllByText("3.50 GB").length).toBeGreaterThan(0);
-  expect(screen.queryByText("Free space needed to prepare")).not.toBeInTheDocument();
-  expect(screen.queryByText("Finished data uses much less.")).not.toBeInTheDocument();
+  expect(screen.queryByText("Space needed while preparing")).not.toBeInTheDocument();
+  expect(screen.queryByText("Includes temporary build files and free-space reserve.")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Medium4 workers/ })).toBeEnabled();
   expect(screen.queryByRole("button", { name: "Prepare current profile" })).not.toBeInTheDocument();
   const storageInfo = screen.getByRole("button", { name: "About Preflight storage" });

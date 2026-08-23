@@ -8,7 +8,7 @@
 
 Preflight moves repeatable work out of launch and into checked artifacts. Disk use is therefore a
 visible product tradeoff rather than an implementation detail. The desktop estimates the selected
-profile before writing and the CLI enforces the same conservative free-space bound.
+profile before writing and the CLI enforces the same live free-space checks.
 
 ## Current storage choices
 
@@ -21,7 +21,7 @@ The latest cold preparations on the reviewed 83-mod profile found:
 
 | | Balanced | Uncompressed | Minimal |
 | --- | ---: | ---: | ---: |
-| Finished cache directory | **2.3 GB** | **5.2 GB** | **11 MB before first launch** |
+| Finished cache directory | **2.3 GB** | **5.2 GB** | **about 50 MB expected after learning** |
 | Prepared texture pack | 2,259,086,856 bytes | 5,338,090,204 bytes | none |
 | Tool-reported cold preparation | 195.08s | 184.35s | 3.69s |
 | Following warm preparation | 4.09s | not measured | 2.76s |
@@ -69,13 +69,16 @@ Balanced preparation completed in 4.09 seconds after applying its stable learned
 
 Minimal skips prepared textures while retaining the smaller resource, classpath, merged-data,
 spec-data, rules, and generated-bytecode caches. On the reviewed profile, preparation took 5.14
-seconds and left about 11 MB on disk. The first game launch then learned the runtime-only caches and
-grew that directory to about 204 MiB. A following warm launch reached the main menu in 56.51
+seconds and left about 11 MB on disk. The measured first launch grew an older build to about 204 MiB.
+Of that, 152,606,335 bytes were per-request generated-bytecode bundles duplicated exactly by a
+1,183,935-byte session pack. Current source deletes each duplicate only after writing, reopening,
+and byte-checking the pack. The same corpus should therefore settle around 50 MB, pending a real
+launch remeasurement. A following warm launch with the older layout reached the main menu in 56.51
 seconds on a busy development machine.
 
 The 10.9 MB reference figure measures the directory immediately after preparation. It is not the
-ongoing footprint. Minimal still avoids the multi-gigabyte prepared texture corpus, but product copy
-must not describe it as using only a few megabytes after the game has launched. The follow-up is in
+ongoing footprint. Minimal still avoids the multi-gigabyte prepared texture corpus. The historical
+measurement and current cleanup boundary are recorded in
 [the Minimal launch report](evidence/2026-08-22-minimal-disk-launch.md).
 
 ## Other cache contributors
@@ -99,9 +102,16 @@ the expected first-install footprint.
 
 ## Free-space safety
 
-Before preparation, Preflight calculates the exact profile's predicted additional bytes, a more
-conservative upper bound, current reusable artifacts, and filesystem free space. It keeps at least
-1 GiB in reserve and refuses before writing when the bound does not fit.
+Before preparation, Preflight calculates the exact profile's expected temporary peak, finished
+retained size, current reusable artifacts, and filesystem free space. The initial gate keeps a
+512 MiB to 1 GiB reserve. Every large blob write checks live free space again, and the pack writer
+checks its exact byte count immediately before atomic publication. The raw codec ceiling stays in
+the JSON report for diagnosis; it is not presented as the normal requirement and does not control
+the initial gate.
+
+On the reviewed 83-mod cold profile, the current plan reports 1.88 GiB of finished texture data and
+5.08 GiB needed while preparing. The former 16.56 GiB requirement came from stacking every raw
+fallback and temporary representation. It was a ceiling, not a useful admission threshold.
 
 A new manifest becomes active only after preparation succeeds. Interrupted or failed preparation
 must leave the previous valid profile usable. Existing checked blobs can remain reusable, and

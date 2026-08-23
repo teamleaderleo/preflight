@@ -313,7 +313,7 @@ final class DesktopSmokeRunner {
                         RuntimeSemanticStateIdentity.read(runtimeState, expectedTarget);
                 lastState = state.state();
                 lastProblem = null;
-                if (state.is(expected)) return;
+                if (state.reached(expected)) return;
                 if ("stopped".equals(lastState)) {
                     throw new IllegalStateException("Runtime stopped while waiting for " + expected);
                 }

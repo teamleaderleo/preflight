@@ -9,6 +9,7 @@ import dev.starsector.preflight.core.PreparedTexture;
 import dev.starsector.preflight.core.PreparedTextureIO;
 import dev.starsector.preflight.core.PreparedTexturePack;
 import dev.starsector.preflight.core.PreparedTexturePackIO;
+import dev.starsector.preflight.core.PreparedTexturePackOrderIO;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import dev.starsector.preflight.core.TextureManifest;
@@ -41,6 +42,7 @@ class SelectivePreparedTextureExperimentTest {
 
         assertEquals(1, report.selectedEntries());
         assertEquals(1, report.selectedBlobs());
+        assertEquals(report.looseBytes(), report.releasedLooseBytes());
         assertFalse(Files.exists(MinimalPreparationMarker.path(
                 fixture.outputCache(), fixture.profile())));
         TextureManifest manifest = TextureManifestIO.read(report.manifest());
@@ -66,6 +68,25 @@ class SelectivePreparedTextureExperimentTest {
                 fixture.outputCache(), fixture.profile())));
         assertFalse(Files.exists(TextureManifestIO.directory(fixture.outputCache())
                 .resolve(fixture.profile() + ".spfm")));
+    }
+
+    @Test
+    void publishesEntriesFromTheLearnedPackOrder() throws Exception {
+        Fixture fixture = fixture();
+        PreparedTexturePackOrderIO.write(
+                PreparedTexturePackOrderIO.path(
+                        fixture.sourceCache(), fixture.profile()),
+                fixture.profile(),
+                List.of(fixture.firstBlob()));
+
+        SelectivePreparedTextureExperiment.Report report =
+                SelectivePreparedTextureExperiment.buildLearned(
+                        fixture.sourceCache(), fixture.profile(), fixture.outputCache());
+
+        assertEquals(1, report.selectedEntries());
+        assertEquals(1, report.selectedBlobs());
+        TextureManifest manifest = TextureManifestIO.read(report.manifest());
+        assertEquals(List.of("graphics/first.jpg"), List.copyOf(manifest.entries().keySet()));
     }
 
     private Fixture fixture() throws Exception {

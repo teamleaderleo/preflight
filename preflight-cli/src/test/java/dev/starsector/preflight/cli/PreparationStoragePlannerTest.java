@@ -45,13 +45,13 @@ class PreparationStoragePlannerTest {
         assertTrue(plan.predictedLooseBytes() > plan.uniquePixelBytes());
         assertTrue(plan.predictedPackBytes() > plan.uniquePixelBytes());
         assertEquals(plan.predictedPackBytes(), plan.predictedRetainedTextureBytes());
-        assertEquals(GIB, plan.safetyReserveBytes());
+        assertEquals(512L * 1024 * 1024, plan.safetyReserveBytes());
         assertTrue(plan.safeToPrepare());
         assertFalse(Files.exists(cache));
     }
 
     @Test
-    void refusesBeforeWritingWhenTheConservativeBoundDoesNotFit() throws Exception {
+    void refusesBeforeWritingWhenTheExpectedRequirementDoesNotFit() throws Exception {
         Path root = temporaryDirectory.resolve("root-low");
         Path image = root.resolve("graphics/image.png");
         writeImage(image, false);
@@ -65,6 +65,31 @@ class PreparationStoragePlannerTest {
         assertNotNull(plan.refusalReason());
         assertTrue(plan.requiredFreeBytes() > plan.usableBytes());
         assertFalse(Files.exists(cache));
+    }
+
+    @Test
+    void gatesOnTheExpectedBuildPeakAndKeepsTheRawCeilingDiagnostic() throws Exception {
+        Path root = temporaryDirectory.resolve("root-expected");
+        Path image = root.resolve("graphics/image.png");
+        writeImage(image, true);
+        ResourceIndex index = index(root, "ce".repeat(32), List.of("graphics/image.png"));
+        Path cache = temporaryDirectory.resolve("expected-cache");
+
+        PreparationStoragePlanner.Plan measured = PreparationStoragePlanner.plan(
+                index, cache, TextureStoragePolicy.BALANCED, 1, () -> 20 * GIB);
+        assertEquals(
+                measured.predictedAdditionalBytes() + 512L * 1024 * 1024,
+                measured.requiredFreeBytes());
+
+        PreparationStoragePlanner.Plan fitsExpected = PreparationStoragePlanner.plan(
+                index, cache, TextureStoragePolicy.BALANCED, 1, measured::requiredFreeBytes);
+        assertTrue(fitsExpected.safeToPrepare());
+
+        PreparationStoragePlanner.Plan shortByOne = PreparationStoragePlanner.plan(
+                index, cache, TextureStoragePolicy.BALANCED, 1,
+                () -> measured.requiredFreeBytes() - 1);
+        assertFalse(shortByOne.safeToPrepare());
+        assertTrue(shortByOne.refusalReason().contains("needs about"));
     }
 
     @Test

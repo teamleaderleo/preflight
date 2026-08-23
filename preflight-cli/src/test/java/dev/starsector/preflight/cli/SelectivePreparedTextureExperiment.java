@@ -5,6 +5,7 @@ import dev.starsector.preflight.core.PreparedTexture;
 import dev.starsector.preflight.core.PreparedTextureIO;
 import dev.starsector.preflight.core.PreparedTexturePack;
 import dev.starsector.preflight.core.PreparedTexturePackIO;
+import dev.starsector.preflight.core.PreparedTexturePackOrderIO;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import dev.starsector.preflight.core.TextureManifest;
@@ -30,18 +31,104 @@ final class SelectivePreparedTextureExperiment {
     }
 
     public static void main(String[] args) throws Exception {
+        if (args.length == 3 && args[2].equals("--release-loose")) {
+            Path cache = Path.of(args[0]).toAbsolutePath().normalize();
+            TextureManifest manifest = TextureManifestIO.read(
+                    TextureManifestIO.directory(cache).resolve(args[1] + ".spfm"));
+            PackedTextureRetention.Result released =
+                    PackedTextureRetention.release(cache, manifest);
+            System.out.println(Json.object(Map.of(
+                    "releasedLooseBlobs", released.releasedBlobs(),
+                    "releasedLooseBytes", released.releasedBytes())));
+            return;
+        }
+        if (args.length == 4 && args[2].equals("--reorder-learned")) {
+            Path source = Path.of(args[0]).toAbsolutePath().normalize();
+            Path cache = Path.of(args[3]).toAbsolutePath().normalize();
+            String profile = args[1];
+            TextureManifest manifest = TextureManifestIO.read(
+                    TextureManifestIO.directory(cache).resolve(profile + ".spfm"));
+            List<String> currentBlobs = manifest.entries().values().stream()
+                    .map(TextureManifest.Entry::blobRelativePath)
+                    .distinct()
+                    .toList();
+            List<String> learnedOrder = learnedCurrentOrder(
+                    PreparedTexturePackOrderIO.read(
+                            PreparedTexturePackOrderIO.path(source, profile),
+                            profile),
+                    currentBlobs);
+            boolean changed = PreparedTexturePackIO.reorder(
+                    PreparedTexturePackIO.path(cache, profile), profile, learnedOrder);
+            System.out.println(Json.object(Map.of(
+                    "changed", changed,
+                    "entries", learnedOrder.size())));
+            return;
+        }
         if (args.length != 4) {
             throw new IllegalArgumentException(
-                    "Usage: SOURCE_FULL_CACHE PROFILE LOGICAL_PATHS_FILE OUTPUT_MINIMAL_CACHE");
+                    "Usage: SOURCE_FULL_CACHE PROFILE LOGICAL_PATHS_FILE|--learned-order"
+                            + " OUTPUT_MINIMAL_CACHE | CACHE PROFILE --release-loose |"
+                            + " SOURCE_FULL_CACHE PROFILE --reorder-learned TARGET_CACHE");
         }
-        Report report = build(Path.of(args[0]), args[1], Path.of(args[2]), Path.of(args[3]));
+        Path source = Path.of(args[0]);
+        Report report = args[2].equals("--learned-order")
+                ? buildLearned(source, args[1], Path.of(args[3]))
+                : build(source, args[1], Path.of(args[2]), Path.of(args[3]));
         System.out.println(Json.object(report.asMap()));
+    }
+
+    static Report buildLearned(Path sourceCache, String profile, Path outputCache)
+            throws Exception {
+        Path source = sourceCache.toAbsolutePath().normalize();
+        TextureManifest manifest = TextureManifestIO.read(
+                TextureManifestIO.directory(source).resolve(profile + ".spfm"));
+        if (!profile.equals(manifest.profileFingerprint())) {
+            throw new IllegalArgumentException("Source texture manifest does not match the profile");
+        }
+        List<String> observedBlobs = PreparedTexturePackOrderIO.read(
+                PreparedTexturePackOrderIO.path(source, profile), profile);
+        Set<String> observedBlobSet = Set.copyOf(observedBlobs);
+        Set<String> logicalPaths = new LinkedHashSet<>();
+        for (Map.Entry<String, TextureManifest.Entry> entry : manifest.entries().entrySet()) {
+            if (observedBlobSet.contains(entry.getValue().blobRelativePath())) {
+                logicalPaths.add(entry.getKey());
+            }
+        }
+        if (logicalPaths.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Learned texture access order has no current manifest entries");
+        }
+        List<String> currentBlobs = manifest.entries().values().stream()
+                .map(TextureManifest.Entry::blobRelativePath)
+                .distinct()
+                .filter(observedBlobSet::contains)
+                .toList();
+        return buildSelected(
+                source,
+                profile,
+                logicalPaths,
+                learnedCurrentOrder(observedBlobs, currentBlobs),
+                outputCache);
     }
 
     static Report build(
             Path sourceCache,
             String profile,
             Path logicalPathsFile,
+            Path outputCache) throws Exception {
+        return buildSelected(
+                sourceCache,
+                profile,
+                readLogicalPaths(logicalPathsFile),
+                null,
+                outputCache);
+    }
+
+    private static Report buildSelected(
+            Path sourceCache,
+            String profile,
+            Set<String> requested,
+            List<String> preferredBlobOrder,
             Path outputCache) throws Exception {
         Path source = sourceCache.toAbsolutePath().normalize();
         Path output = outputCache.toAbsolutePath().normalize();
@@ -67,7 +154,6 @@ final class SelectivePreparedTextureExperiment {
             throw new IllegalArgumentException("Source texture artifacts do not match the profile");
         }
 
-        Set<String> requested = readLogicalPaths(logicalPathsFile);
         Map<String, TextureManifest.Entry> selectedEntries = new LinkedHashMap<>();
         Set<String> missing = new LinkedHashSet<>();
         for (String logicalPath : requested) {
@@ -89,10 +175,13 @@ final class SelectivePreparedTextureExperiment {
                 .map(TextureManifest.Entry::blobRelativePath)
                 .distinct()
                 .toList();
-        List<String> selectedBlobPaths = selectedEntries.values().stream()
+        List<String> manifestBlobPaths = selectedEntries.values().stream()
                 .map(TextureManifest.Entry::blobRelativePath)
                 .distinct()
                 .toList();
+        List<String> selectedBlobPaths = preferredBlobOrder == null
+                ? manifestBlobPaths
+                : learnedCurrentOrder(preferredBlobOrder, manifestBlobPaths);
         Map<String, TextureManifest.Entry> entriesByBlob = new LinkedHashMap<>();
         for (TextureManifest.Entry entry : selectedEntries.values()) {
             TextureManifest.Entry previous = entriesByBlob.putIfAbsent(entry.blobRelativePath(), entry);
@@ -138,9 +227,11 @@ final class SelectivePreparedTextureExperiment {
         Path outputManifestPath = TextureManifestIO.directory(output).resolve(profile + ".spfm");
         Path outputPackPath = PreparedTexturePackIO.path(output, profile);
         ResourceIndexIO.write(outputIndexPath, sourceIndex);
-        TextureManifestIO.write(
-                outputManifestPath, new TextureManifest(profile, selectedEntries));
+        TextureManifest selectedManifest = new TextureManifest(profile, selectedEntries);
+        TextureManifestIO.write(outputManifestPath, selectedManifest);
         PreparedTexturePackIO.write(outputPackPath, profile, output, selectedBlobPaths);
+        PackedTextureRetention.Result retention =
+                PackedTextureRetention.release(output, selectedManifest);
 
         Files.deleteIfExists(minimalMarker);
         return new Report(
@@ -148,6 +239,7 @@ final class SelectivePreparedTextureExperiment {
                 selectedEntries.size(),
                 selectedBlobPaths.size(),
                 looseBytes,
+                retention.releasedBytes(),
                 Files.size(outputPackPath),
                 outputManifestPath,
                 outputPackPath,
@@ -164,6 +256,19 @@ final class SelectivePreparedTextureExperiment {
             paths.add(dev.starsector.preflight.core.ResourceIndex.normalizeLogicalPath(line));
         }
         return Set.copyOf(paths);
+    }
+
+    private static List<String> learnedCurrentOrder(
+            List<String> learned, List<String> current) {
+        Set<String> available = Set.copyOf(current);
+        LinkedHashSet<String> ordered = new LinkedHashSet<>();
+        for (String path : learned) {
+            if (available.contains(path)) {
+                ordered.add(path);
+            }
+        }
+        ordered.addAll(current);
+        return List.copyOf(ordered);
     }
 
     private static boolean matches(TextureManifest.Entry entry, PreparedTexture texture) {
@@ -191,6 +296,7 @@ final class SelectivePreparedTextureExperiment {
             int selectedEntries,
             int selectedBlobs,
             long looseBytes,
+            long releasedLooseBytes,
             long packBytes,
             Path manifest,
             Path pack,
@@ -201,6 +307,7 @@ final class SelectivePreparedTextureExperiment {
             values.put("selectedEntries", selectedEntries);
             values.put("selectedBlobs", selectedBlobs);
             values.put("looseBytes", looseBytes);
+            values.put("releasedLooseBytes", releasedLooseBytes);
             values.put("packBytes", packBytes);
             values.put("manifest", manifest);
             values.put("pack", pack);

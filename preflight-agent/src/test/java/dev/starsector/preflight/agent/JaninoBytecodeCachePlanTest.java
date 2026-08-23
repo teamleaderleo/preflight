@@ -104,10 +104,20 @@ class JaninoBytecodeCachePlanTest {
         Method populationCompile = populationLoader.getClass().getMethod("compile", String.class);
 
         Map<?, ?> populated = (Map<?, ?>) populationCompile.invoke(populationLoader, "scripts.Example");
+        Path separateBundle = GeneratedBytecodeCache.bundlePath(
+                temporaryDirectory, context.keySha256(), "scripts.Example");
+        assertTrue(Files.isRegularFile(separateBundle));
         JaninoBytecodeCacheRuntime.complete();
         Path packPath = GeneratedBytecodePack.path(temporaryDirectory, context.keySha256());
         assertTrue(Files.isRegularFile(packPath));
         assertEquals(1, GeneratedBytecodePack.read(packPath).requestCount());
+        assertFalse(Files.exists(separateBundle));
+        assertEquals(1L, JaninoBytecodeCacheRuntime.telemetry().get("packReleasedBundles"));
+
+        Map<?, ?> sameSessionHit = (Map<?, ?>) populationCompile.invoke(
+                populationLoader, "scripts.Example");
+        assertEquals(populated.keySet(), sameSessionHit.keySet());
+        assertEquals(1, populationLoader.getClass().getField("originalCalls").getInt(populationLoader));
 
         JaninoBytecodeCacheRuntime.beginSession();
         JaninoBytecodeCacheRuntime.configure(temporaryDirectory, context.portableToken());

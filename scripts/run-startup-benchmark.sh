@@ -302,6 +302,28 @@ done
 LOG_DIR="$GAME/logs"
 [[ -d "$LOG_DIR" ]] || { bad "Starsector log directory not found: $LOG_DIR"; exit 1; }
 
+# Starsector's launcher starts its JVM from inside the installation with a relative executable
+# path, so matching the process command line misses the real game. Ask every Java process for its
+# working directory instead. A surviving game holds a multi-gigabyte heap and invalidates every
+# timing that follows, even when its launcher shell is already gone.
+game_pids() {
+    local resolved pid cwd
+    resolved="$(cd "$GAME" && pwd -P)"
+    for pid in $(pgrep -x java 2>/dev/null; pgrep -f '[j]ava$|/java ' 2>/dev/null); do
+        [[ "$pid" == "$$" ]] && continue
+        cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
+        if [[ -n "$cwd" && ( "$cwd" == "$resolved" || "$cwd" == "$resolved/"* ) ]]; then
+            echo "$pid"
+        fi
+    done | sort -u
+}
+
+if [[ -n "$(game_pids)" ]]; then
+    bad "A Starsector process is already running inside this installation (pids: $(game_pids | tr '\n' ' '))."
+    bad "Stop it before benchmarking; otherwise its heap, GPU context, and background work poison the result."
+    exit 1
+fi
+
 if [[ -n "$ROOT" ]]; then
     banner "Resuming session $ROOT"
 else

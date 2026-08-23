@@ -925,6 +925,17 @@ class FatalJvmErrorTest(unittest.TestCase):
 
 
 class ProcessTreeTest(unittest.TestCase):
+    def test_existing_game_detection_uses_java_working_directory(self):
+        body = re.search(r"^game_pids\(\) \{(?P<body>.*?)\n\}", SCRIPT_TEXT, re.DOTALL | re.M)
+        self.assertIsNotNone(body, "game_pids not found")
+        self.assertIn("lsof -a -p", body.group("body"))
+        self.assertIn('cwd" == "$resolved/"*', body.group("body"))
+
+    def test_existing_game_is_refused_before_a_session_is_created(self):
+        refusal = SCRIPT_TEXT.index("A Starsector process is already running inside this installation")
+        session = SCRIPT_TEXT.index('ROOT="$HOME/.starsector-preflight/benchmarks/')
+        self.assertLess(refusal, session)
+
     def test_terminate_signals_descendants_not_only_the_wrapper(self):
         # The game is a grandchild: this script -> wrapper -> starsector_mac.sh -> JVM.
         # Signalling only the wrapper left a crashed JVM alive past its own timeout.

@@ -123,6 +123,19 @@ class PreparedTextureIOTest {
     }
 
     @Test
+    void reportsAnExactRawAndSafeLz4WriteCeiling() throws Exception {
+        PreparedTexture texture = fixture();
+
+        assertEquals(
+                PreparedTextureIO.toBytes(texture, PreparedTextureIO.StorageCodec.RAW).length,
+                PreparedTextureIO.maximumFileBytes(
+                        texture.pixelBytes(), PreparedTextureIO.StorageCodec.RAW));
+        assertTrue(PreparedTextureIO.maximumFileBytes(
+                        texture.pixelBytes(), PreparedTextureIO.StorageCodec.LZ4)
+                >= PreparedTextureIO.toBytes(texture, PreparedTextureIO.StorageCodec.LZ4).length);
+    }
+
+    @Test
     void rejectsCorruptionAndTruncation() throws Exception {
         byte[] bytes = PreparedTextureIO.toBytes(fixture());
         byte[] corrupt = bytes.clone();

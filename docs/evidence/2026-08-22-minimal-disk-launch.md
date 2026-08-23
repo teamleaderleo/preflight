@@ -54,6 +54,12 @@ were 147 MiB of generated-bytecode storage and 45 MiB of spec-store data. Those 
 classes and parsed-data caches, not 147 MiB of unique compiled bytecode. The Janino pack contained
 about 1.0 MB of unique class bytes and 149.7 MB when expanded.
 
+Current source now removes an individual generated-bytecode bundle only after publishing, reopening,
+and byte-checking an exact session pack that contains it. On this corpus, 152,606,335 bytes of request
+bundles duplicate a 1,183,935-byte pack. The expected steady footprint is therefore roughly 50 MB,
+pending a new real launch measurement; the 204 MiB figure remains the measured result for the older
+layout above.
+
 ## Interpretation
 
 Minimal is the non-texture mode. It retains resource routing, classpath, merged JSON, dedicated spec
