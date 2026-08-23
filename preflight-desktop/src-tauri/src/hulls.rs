@@ -242,7 +242,7 @@ fn validate_hull(raw: RawHull, hull_directory: &Path) -> Option<WireframeHull> {
         || !valid_label(&raw.hull_size)
         || !valid_optional_label(&raw.style)
         || raw.bounds.len() < 6
-        || raw.bounds.len() % 2 != 0
+        || !raw.bounds.len().is_multiple_of(2)
         || raw.bounds.len() / 2 > MAX_BOUND_POINTS
         || raw.engine_slots.len() > MAX_SLOTS
         || raw.weapon_slots.len() > MAX_SLOTS
@@ -251,7 +251,9 @@ fn validate_hull(raw: RawHull, hull_directory: &Path) -> Option<WireframeHull> {
     }
     let mut bounds = raw
         .bounds
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|point| checked_point(point[0], point[1]))
         .collect::<Option<Vec<_>>>()?;
     let featured = featured_rank(&raw.hull_id) != usize::MAX;
