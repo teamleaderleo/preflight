@@ -12,7 +12,7 @@ use std::io::{ErrorKind, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Manager, State};
 
@@ -1132,30 +1132,13 @@ pub(crate) fn export_diagnostics(
 ) -> Result<Value, String> {
     let _export = begin_diagnostics_export(&tracker.0)?;
     let destination = diagnostic_output_path(&output)?;
-    export_diagnostics_to(&app, destination, None)
+    export_diagnostics_to(&app, destination)
 }
 
-#[tauri::command]
-pub(crate) fn export_automatic_diagnostics(
-    app: AppHandle,
-    tracker: State<'_, OperationCoordinator>,
-    run_id: String,
-) -> Result<Value, String> {
-    let _export = begin_diagnostics_export(&tracker.0)?;
-    let destination = automatic_report_output_path(&app, &run_id)?;
-    let result = export_diagnostics_to(&app, destination, Some(&run_id))?;
-    retain_automatic_reports(&app, 3)?;
-    Ok(result)
-}
-
-fn export_diagnostics_to(
-    app: &AppHandle,
-    destination: PathBuf,
-    run_id: Option<&str>,
-) -> Result<Value, String> {
+fn export_diagnostics_to(app: &AppHandle, destination: PathBuf) -> Result<Value, String> {
     let paths = EnginePaths::resolve(app)?;
     let mut command = paths.command();
-    command.args(diagnostic_export_arguments(&destination, run_id));
+    command.args(diagnostic_export_arguments(&destination));
     let output = command
         .output_within(MUTATION_BUDGET)
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
@@ -1169,121 +1152,15 @@ fn export_diagnostics_to(
         .map_err(|error| format!("Preflight returned an unreadable diagnostics receipt: {error}"))
 }
 
-fn diagnostic_export_arguments(destination: &Path, run_id: Option<&str>) -> Vec<OsString> {
-    let mut arguments = vec![
+fn diagnostic_export_arguments(destination: &Path) -> Vec<OsString> {
+    vec![
         OsString::from("evidence"),
         OsString::from("export"),
         OsString::from("--output"),
         destination.as_os_str().to_owned(),
         OsString::from("--overwrite"),
         OsString::from("--json"),
-    ];
-    if let Some(run_id) = run_id {
-        arguments.push(OsString::from("--run-session"));
-        arguments.push(OsString::from(run_id));
-    }
-    arguments
-}
-
-fn automatic_report_output_path(app: &AppHandle, run_id: &str) -> Result<PathBuf, String> {
-    let home = app
-        .path()
-        .home_dir()
-        .map_err(|error| format!("Could not locate the home directory: {error}"))?;
-    automatic_report_output_path_in(&home, run_id, SystemTime::now())
-}
-
-fn automatic_report_output_path_in(
-    home: &Path,
-    run_id: &str,
-    now: SystemTime,
-) -> Result<PathBuf, String> {
-    if run_id.is_empty()
-        || run_id.len() > 160
-        || !run_id
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-    {
-        return Err("The failed-run identity is invalid.".to_string());
-    }
-    let reports = automatic_report_directory_in(home)?;
-    let timestamp = now
-        .duration_since(UNIX_EPOCH)
-        .map_err(|_| "The system clock is before 1970.".to_string())?
-        .as_millis();
-    Ok(reports.join(format!("auto-failed-run-{timestamp}-{run_id}.zip")))
-}
-
-fn automatic_report_directory_in(home: &Path) -> Result<PathBuf, String> {
-    let home = home
-        .canonicalize()
-        .map_err(|error| format!("Could not inspect the home directory: {error}"))?;
-    let preflight = home.join(".starsector-preflight");
-    if preflight
-        .symlink_metadata()
-        .is_ok_and(|metadata| metadata.file_type().is_symlink())
-    {
-        return Err("The Preflight data folder is a symbolic link.".to_string());
-    }
-    std::fs::create_dir_all(&preflight)
-        .map_err(|error| format!("Could not create the Preflight data folder: {error}"))?;
-    if !preflight
-        .symlink_metadata()
-        .is_ok_and(|metadata| metadata.is_dir())
-    {
-        return Err("The Preflight data location is not a folder.".to_string());
-    }
-    let reports = preflight.join("reports");
-    if reports
-        .symlink_metadata()
-        .is_ok_and(|metadata| metadata.file_type().is_symlink())
-    {
-        return Err("The automatic-report folder is a symbolic link.".to_string());
-    }
-    std::fs::create_dir_all(&reports)
-        .map_err(|error| format!("Could not create the automatic-report folder: {error}"))?;
-    let metadata = reports
-        .symlink_metadata()
-        .map_err(|error| format!("Could not inspect the automatic-report folder: {error}"))?;
-    if !metadata.is_dir() {
-        return Err("The automatic-report location is not a folder.".to_string());
-    }
-    Ok(reports)
-}
-
-fn retain_automatic_reports(app: &AppHandle, keep: usize) -> Result<(), String> {
-    let home = app
-        .path()
-        .home_dir()
-        .map_err(|error| format!("Could not locate the home directory: {error}"))?;
-    retain_automatic_reports_in(&home, keep)
-}
-
-fn retain_automatic_reports_in(home: &Path, keep: usize) -> Result<(), String> {
-    let reports = automatic_report_directory_in(home)?;
-    let mut files = std::fs::read_dir(&reports)
-        .map_err(|error| format!("Could not inspect automatic reports: {error}"))?
-        .filter_map(Result::ok)
-        .filter_map(|entry| {
-            let name = entry.file_name();
-            let name = name.to_str()?;
-            if !name.starts_with("auto-failed-run-") || !name.ends_with(".zip") {
-                return None;
-            }
-            let metadata = entry.path().symlink_metadata().ok()?;
-            if !metadata.file_type().is_file() {
-                return None;
-            }
-            Some((metadata.modified().unwrap_or(UNIX_EPOCH), entry.path()))
-        })
-        .collect::<Vec<_>>();
-    files.sort_by_key(|(modified, path)| (*modified, path.clone()));
-    let remove = files.len().saturating_sub(keep);
-    for (_, path) in files.into_iter().take(remove) {
-        std::fs::remove_file(&path)
-            .map_err(|error| format!("Could not remove an old automatic report: {error}"))?;
-    }
-    Ok(())
+    ]
 }
 
 #[cfg(windows)]
@@ -1427,12 +1304,8 @@ mod bounded_request_tests {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        UTF8_ARGV_SENTINEL, ascii_locale_rescue, automatic_report_output_path_in, base64_url,
-        diagnostic_export_arguments, encode_argv, retain_automatic_reports_in,
-    };
+    use super::{UTF8_ARGV_SENTINEL, ascii_locale_rescue, base64_url, encode_argv};
     use std::ffi::OsString;
-    use std::time::{Duration, UNIX_EPOCH};
 
     fn vector(args: &[&str]) -> Vec<OsString> {
         args.iter().map(OsString::from).collect()
@@ -1449,27 +1322,6 @@ mod tests {
                 .find(|(key, _)| key == name)
                 .map(|(_, value)| value.clone())
         })
-    }
-
-    #[test]
-    fn automatic_report_exports_only_the_exact_failed_run() {
-        let arguments = diagnostic_export_arguments(
-            std::path::Path::new("/tmp/automatic.zip"),
-            Some("20260817-010203-abcd1234"),
-        );
-        assert_eq!(
-            arguments,
-            vector(&[
-                "evidence",
-                "export",
-                "--output",
-                "/tmp/automatic.zip",
-                "--overwrite",
-                "--json",
-                "--run-session",
-                "20260817-010203-abcd1234",
-            ])
-        );
     }
 
     #[test]
@@ -1576,102 +1428,5 @@ mod tests {
         let encoded = encode_argv(vector(&["cache", "prune", "--game", "Ω"]));
         assert_eq!(encoded[1], OsString::from(base64_url(b"cache")));
         assert_eq!(encoded[4], OsString::from(base64_url("Ω".as_bytes())));
-    }
-
-    #[test]
-    fn automatic_report_names_are_bounded_and_run_scoped() {
-        let home =
-            std::env::temp_dir().join(format!("preflight-auto-report-name-{}", std::process::id()));
-        std::fs::remove_dir_all(&home).ok();
-        std::fs::create_dir_all(&home).expect("temporary home");
-
-        let output = automatic_report_output_path_in(
-            &home,
-            "20260817-010203-abcd1234",
-            UNIX_EPOCH + Duration::from_millis(42),
-        )
-        .expect("reviewed run identity");
-
-        assert_eq!(
-            output.file_name().and_then(|value| value.to_str()),
-            Some("auto-failed-run-42-20260817-010203-abcd1234.zip")
-        );
-        assert!(
-            output.starts_with(
-                home.canonicalize()
-                    .expect("canonical home")
-                    .join(".starsector-preflight/reports")
-            )
-        );
-        assert!(automatic_report_output_path_in(&home, "../escape", UNIX_EPOCH).is_err());
-        assert!(automatic_report_output_path_in(&home, "", UNIX_EPOCH).is_err());
-        std::fs::remove_dir_all(&home).ok();
-    }
-
-    #[test]
-    fn automatic_report_retention_only_removes_its_own_oldest_zips() {
-        let home = std::env::temp_dir().join(format!(
-            "preflight-auto-report-retention-{}",
-            std::process::id()
-        ));
-        let reports = home.join(".starsector-preflight/reports");
-        std::fs::remove_dir_all(&home).ok();
-        std::fs::create_dir_all(&reports).expect("report directory");
-        for index in 0..5 {
-            std::fs::write(
-                reports.join(format!("auto-failed-run-{index}-run{index}.zip")),
-                [index],
-            )
-            .expect("automatic report");
-            std::thread::sleep(Duration::from_millis(5));
-        }
-        std::fs::write(reports.join("manual-support.zip"), b"keep").expect("manual report");
-
-        retain_automatic_reports_in(&home, 3).expect("bounded retention");
-
-        let mut names = std::fs::read_dir(&reports)
-            .expect("report directory")
-            .map(|entry| entry.expect("entry").file_name())
-            .collect::<Vec<_>>();
-        names.sort();
-        assert_eq!(names.len(), 4);
-        assert!(names.iter().any(|name| name == "manual-support.zip"));
-        assert!(
-            !names
-                .iter()
-                .any(|name| name == "auto-failed-run-0-run0.zip")
-        );
-        assert!(
-            !names
-                .iter()
-                .any(|name| name == "auto-failed-run-1-run1.zip")
-        );
-        std::fs::remove_dir_all(&home).ok();
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn automatic_reports_refuse_a_symlinked_preflight_root() {
-        use std::os::unix::fs::symlink;
-
-        let base = std::env::temp_dir().join(format!(
-            "preflight-auto-report-symlink-{}",
-            std::process::id()
-        ));
-        let home = base.join("home");
-        let outside = base.join("outside");
-        std::fs::remove_dir_all(&base).ok();
-        std::fs::create_dir_all(&home).expect("temporary home");
-        std::fs::create_dir_all(outside.join("reports")).expect("outside report directory");
-        let sentinel = outside.join("reports/auto-failed-run-0-outside.zip");
-        std::fs::write(&sentinel, b"outside stays").expect("outside sentinel");
-        symlink(&outside, home.join(".starsector-preflight")).expect("preflight symlink");
-
-        assert!(retain_automatic_reports_in(&home, 0).is_err());
-        assert_eq!(
-            std::fs::read(&sentinel).expect("outside sentinel"),
-            b"outside stays"
-        );
-        std::fs::remove_dir_all(&base).ok();
     }
 }
