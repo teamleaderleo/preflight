@@ -21,13 +21,14 @@ profile or machine.
 
 | Retained state | Finished directory | Texture pack | Tool-reported cold preparation | Measured warm launch |
 | --- | ---: | ---: | ---: | ---: |
-| Minimal | 11 MB before first launch; about 204 MiB after learning | none | 3.690s | 54.38s to 56.51s in noisy diagnostics |
-| Balanced | 2.3 GB | 2,259,086,856 bytes | 195.079s | low-15 to low-16-second regime |
+| Minimal | 11 MB before first launch; about 50 MB expected after current exact-pack cleanup | none | 3.690s | 54.38s to 56.51s in noisy diagnostics |
+| Balanced | 2.3 GB | 2,259,086,856 bytes | 177.060s with High resources; 195.079s with Medium | low-15 to low-16-second regime |
 | Uncompressed | 5.2 GB | 5,338,090,204 bytes | 184.346s | 15.97s median |
 
 Balanced's texture stage took 193.163 seconds. External wall time for that command was 198.56
-seconds. The corresponding Uncompressed texture stage took 181.468 seconds. Minimal skips the
-texture stage entirely.
+seconds with Medium resources. High resources reduced the tool-reported preparation to 177.060
+seconds and external wall time to 180.245 seconds. The corresponding Uncompressed texture stage
+took 181.468 seconds. Minimal skips the texture stage entirely.
 
 One matching Balanced preparation completed in 4.092 seconds after the pack already existed. Its
 texture stage took 2.369 seconds to apply and verify a stable learned order without recreating loose
@@ -56,7 +57,7 @@ available for compatibility; the desktop and current documentation call it **Unc
 Balanced remains the useful knee on this profile. It uses about 2.9 GB less than Uncompressed and
 delivers the same whole-launch regime.
 
-## Sub-gigabyte exploration
+## Compact learned-set exploration
 
 Selective pack observations established this rough shape:
 
@@ -66,24 +67,38 @@ Selective pack observations established this rough shape:
 | 746 MB, loose plus pack | 33.45s |
 | 726 MB, pack only | 26.80s |
 | 987 MB, pack only | 22.20s |
+| 1,087,894,442-byte learned pack | **14.17s** |
 
 Those packs were selected with knowledge of the observed startup access corpus. Two deterministic
 600 MB selectors based on texture count and decode cost both landed around 36.9 seconds because a
 small number of expensive misses dominated the result. Hit count was not a useful objective.
 
-A sub-gigabyte option may still be worthwhile for players who value disk more than the last six
-seconds. It is not ready as a preparation choice yet. A real product tier needs a deterministic
-first-launch policy, an exact partial-pack health contract, and a clear fallback when later startup
-paths need an omitted texture. Adding a label before those boundaries exist would disguise an
-experiment as a supported mode.
+The later learned-order prototype retained 14,774 blobs in a 1,087,894,442-byte pack. Its accepted
+launch clock was 14.174 seconds with 15,469 prepared hits, 3 source fallbacks, and no pixel
+conversion fallbacks. Writing the same contents alphabetically produced a 33.53-second launch;
+reordering the pack into observed access order took 2.02 seconds and restored the 14.17-second
+result. Physical order is part of the performance contract even when the logical contents match.
+
+The prototype's extract-and-repack path took 76.65 seconds. That is not an optimized preparation
+pipeline, but it establishes that the current three-minute full conversion is not fundamental to a
+smaller tier.
+
+A roughly 1 GB option is now credible. It is not ready as a preparation choice yet. The successful
+pack learned from a previous complete profile; a fresh install still needs a bounded access
+observer that records logical misses before manifest lookup. A real product tier also needs an
+exact partial-pack health contract and a clear fallback when a later startup path needs an omitted
+texture.
+
+The Minimal footprint is awaiting a real launch remeasurement. Its previous 204 MiB result included
+152,606,335 bytes of generated-bytecode request bundles duplicated exactly by a 1,183,935-byte pack.
+Current source removes those bundles only after the pack is written, reopened, and byte-checked.
 
 ## Product decision
 
 - Keep Balanced as the default.
 - Keep Minimal as the automatic low-space escape hatch.
 - Present raw storage as Uncompressed and advanced, with no promised whole-launch gain.
-- Do not add a fourth storage choice until a deterministic sub-gigabyte plan earns it in a repeated
-  launch comparison.
+- Build the fresh-install learning boundary before exposing the learned compact tier.
 
 The older codec and loose-plus-pack measurements remain useful history. They no longer describe the
 finished directory written by current source.
