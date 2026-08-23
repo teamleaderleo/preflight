@@ -317,12 +317,13 @@ class TextureCompatibilityRuntimeTest {
     @Test
     void launcherValidatedSnapshotDoesNotWalkEveryProviderAgain() throws Exception {
         Fixture fixture = fixture();
-        Files.write(fixture.source(), new byte[] {7});
+        Files.write(fixture.index(), new byte[] {7});
         System.setProperty(TextureCompatibilityRuntime.TRUST_VALIDATED_INDEX_PROPERTY, "true");
 
         assertTrue(TextureCompatibilityRuntime.configure(
                 fixture.cache(), fixture.manifest(), fixture.index()));
         assertTrue(TextureCompatibilityRuntime.ready());
+        assertNotNull(TextureCompatibilityRuntime.load("graphics/test.png"));
         assertEquals(true, TextureCompatibilityRuntime.telemetry().get("trustedValidatedIndex"));
     }
 

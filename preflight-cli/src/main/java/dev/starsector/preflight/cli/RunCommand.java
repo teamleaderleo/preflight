@@ -177,7 +177,7 @@ final class RunCommand {
                     javaToolOptions,
                     List.of("-Dpreflight.assetProgressLogs=off"));
         }
-        if (options.trustValidatedTextureIndex()) {
+        if (trustsLauncherValidatedTextureIndex(options, textureContext)) {
             javaToolOptions = appendJavaOptions(
                     javaToolOptions,
                     List.of("-Dpreflight.texture.trustValidatedIndex=true"));
@@ -417,6 +417,14 @@ final class RunCommand {
                 .resolve(".starsector-preflight")
                 .resolve("runs")
                 .resolve(RUN_ID.format(started) + "-" + nonce);
+    }
+
+    static boolean trustsLauncherValidatedTextureIndex(
+            CommandLine options, LaunchCacheContexts.Texture textureContext) {
+        return options.trustValidatedTextureIndex()
+                && textureContext != null
+                && textureContext.automatic()
+                && textureContext.preparedTextures();
     }
 
     static int doctor(CommandLine options) throws IOException {
@@ -809,7 +817,8 @@ final class RunCommand {
         values.put("quietLogs", options.quietLogs());
         values.put("fileOnlyLogs", options.fileOnlyLogs());
         values.put("assetProgressLogsSuppressed", options.suppressAssetProgressLogs());
-        values.put("trustedValidatedTextureIndex", options.trustValidatedTextureIndex());
+        values.put("trustedValidatedTextureIndex",
+                trustsLauncherValidatedTextureIndex(options, textureContext));
         values.put("desktopSmoke", options.desktopSmoke());
         values.put("quietLogConfiguration", options.fileOnlyLogs()
                 ? QuietLogConfiguration.path(path.getParent(), options.quietLogs())
