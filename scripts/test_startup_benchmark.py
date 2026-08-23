@@ -75,6 +75,17 @@ class PublicEntryPointTest(unittest.TestCase):
         self.assertIn('checkout_is_current=false', SCRIPT_TEXT)
         self.assertIn('-newer "$CHECKOUT_JAR"', SCRIPT_TEXT)
 
+    def test_concise_repreparation_hides_progress_but_preserves_failure_details(self):
+        prepare = re.search(
+            r"prepare_caches\(\) \{(?P<body>.*?)\n\}", SCRIPT_TEXT, re.DOTALL,
+        )
+        self.assertIsNotNone(prepare, "prepare_caches function not found")
+        body = prepare.group("body")
+        self.assertIn('prepare_log="$ROOT/prepare-console.txt"', body)
+        self.assertIn('>"$prepare_log" 2>&1', body)
+        self.assertIn('cat "$prepare_log" >&2', body)
+        self.assertIn('--report "$PREPARE_REPORT" >/dev/null', body)
+
     def test_stopped_watchdog_is_reaped_without_shell_noise(self):
         self.assertEqual(
             SCRIPT_TEXT.count('kill "$watchdog" >/dev/null 2>&1 || true'),

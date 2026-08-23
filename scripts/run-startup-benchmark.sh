@@ -528,11 +528,21 @@ prepare_caches() {
     local reason="$1"
     banner "== Preparing the caches (offline, one time) =="
     note "$reason"
-    local prepare_start prepare_end
+    local prepare_start prepare_end prepare_log
     prepare_start="$(python3 -c 'import time; print(time.time_ns())')"
-    java -jar "$JAR" prepare --game "$GAME" --cache-dir "$CACHE" --deep --verify-lookups \
-        --texture-storage "$PREPARE_TEXTURE_STORAGE" --texture-scope "$TEXTURE_SCOPE" \
-        --report "$PREPARE_REPORT" >/dev/null
+    prepare_log="$ROOT/prepare-console.txt"
+    if [[ "$CONCISE" == true ]]; then
+        if ! java -jar "$JAR" prepare --game "$GAME" --cache-dir "$CACHE" --deep --verify-lookups \
+                --texture-storage "$PREPARE_TEXTURE_STORAGE" --texture-scope "$TEXTURE_SCOPE" \
+                --report "$PREPARE_REPORT" >"$prepare_log" 2>&1; then
+            cat "$prepare_log" >&2
+            return 1
+        fi
+    else
+        java -jar "$JAR" prepare --game "$GAME" --cache-dir "$CACHE" --deep --verify-lookups \
+            --texture-storage "$PREPARE_TEXTURE_STORAGE" --texture-scope "$TEXTURE_SCOPE" \
+            --report "$PREPARE_REPORT" >/dev/null
+    fi
     prepare_end="$(python3 -c 'import time; print(time.time_ns())')"
     PREPARE_MS=$(( (prepare_end - prepare_start) / 1000000 ))
     echo "$PREPARE_MS" > "$ROOT/prepare-millis.txt"
