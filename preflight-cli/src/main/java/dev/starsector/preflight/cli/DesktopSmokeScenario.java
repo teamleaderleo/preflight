@@ -22,7 +22,8 @@ final class DesktopSmokeScenario {
             Set.of("preset", "textureStorage", "profile");
     private static final Set<String> COMMON_STEP_FIELDS = Set.of("id", "kind");
     private static final Set<String> STATES = Set.of(
-            "main-menu-ready", "campaign-ready", "refit-ready", "simulation-ready", "combat-ready");
+            "main-menu-ready", "main-menu-interactive", "campaign-ready",
+            "refit-ready", "simulation-ready", "combat-ready");
     private static final Set<String> TARGETS = Set.of(
             "main-menu.continue",
             "main-menu.load-game",

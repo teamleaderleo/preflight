@@ -12,7 +12,8 @@ public enum AdapterPlanScope {
     private static final Set<String> MEASUREMENT_ONLY_PLANS = Set.of(
             FrameTimeRuntime.PLAN_ID,
             FrameTimeStatePlan.PLAN_ID,
-            FrameTimeStartupCompletionPlan.PLAN_ID);
+            FrameTimeStartupCompletionPlan.PLAN_ID,
+            MainMenuInteractivePlan.PLAN_ID);
 
     private static final Set<String> PORTABLE_STARTUP_PLANS = Set.of(
             TextureCompatibilityRuntime.PLAN_ID,

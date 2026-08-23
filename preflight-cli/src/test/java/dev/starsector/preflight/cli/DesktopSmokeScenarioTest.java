@@ -27,6 +27,7 @@ final class DesktopSmokeScenarioTest {
         assertTrue(capabilities.contains("window-control"));
         assertTrue(capabilities.contains("screen-capture"));
         assertTrue(capabilities.contains("evidence-read"));
+        assertTrue(view.get("steps").toString().contains("main-menu-interactive"));
     }
 
     @Test

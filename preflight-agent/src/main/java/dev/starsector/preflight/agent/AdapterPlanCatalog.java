@@ -40,6 +40,7 @@ final class AdapterPlanCatalog {
             JaninoBytecodeCacheRuntime.PLAN_ID,
             LoadJsonMemoRuntime.PLAN_ID,
             LogisticsNotificationsFuelRuntime.PLAN_ID,
+            MainMenuInteractivePlan.PLAN_ID,
             MacMemoryWarningRuntime.PLAN_ID,
             MagicLibPaintjobNotificationRuntime.PLAN_ID,
             MagicLibPaintjobRuntime.PLAN_ID,

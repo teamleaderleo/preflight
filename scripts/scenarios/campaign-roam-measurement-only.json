@@ -11,7 +11,7 @@
     {
       "id": "menu",
       "kind": "wait-state",
-      "state": "main-menu-ready",
+      "state": "main-menu-interactive",
       "timeoutSeconds": 90
     },
     {

@@ -253,7 +253,8 @@ final class AdapterTransformationCache {
                 && !CampaignLocationEconomyTimeRuntime.PLAN_ID.equals(plan)
                 && !CampaignMarketFleetTimeRuntime.PLAN_ID.equals(plan)
                 && !FrameTimeStatePlan.PLAN_ID.equals(plan)
-                && !FrameTimeStartupCompletionPlan.PLAN_ID.equals(plan);
+                && !FrameTimeStartupCompletionPlan.PLAN_ID.equals(plan)
+                && !MainMenuInteractivePlan.PLAN_ID.equals(plan);
     }
 
     private static boolean validIdentity(String internalName, byte[] transformed) {

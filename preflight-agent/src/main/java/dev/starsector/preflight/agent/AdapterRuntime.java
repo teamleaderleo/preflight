@@ -219,6 +219,10 @@ final class AdapterRuntime {
                     registry = registry.withFrameTimeStartupCompletionTarget();
                     report.diagnostic("Loaded the exact lightweight runtime startup-completion target");
                 }
+                if (RuntimeSemanticState.enabled()) {
+                    registry = registry.withMainMenuInteractiveTarget();
+                    report.diagnostic("Loaded the exact interactive main-menu state target");
+                }
                 if (options.startupPhaseProbe()) {
                     registry = registry.withStartupPhaseTarget();
                     report.diagnostic("Loaded the exact ResourceLoaderState and SpecStore startup-phase probe targets");

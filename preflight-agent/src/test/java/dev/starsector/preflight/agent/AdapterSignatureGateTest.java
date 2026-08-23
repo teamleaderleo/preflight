@@ -361,7 +361,8 @@ class AdapterSignatureGateTest {
                 .withCampaignEngineTimeTarget()
                 .withCampaignLocationEconomyTimeTargets()
                 .withCampaignMarketFleetTimeTargets()
-                .withFrameTimeStartupCompletionTarget();
+                .withFrameTimeStartupCompletionTarget()
+                .withMainMenuInteractiveTarget();
 
         List<AdapterTarget> targets = new ArrayList<>(registry.targets());
         targets.addAll(AdapterTargetRegistry.empty().withFrameTimeTarget().targets());
