@@ -12,13 +12,13 @@ Use the current owners instead:
 - [#652](https://github.com/teamleaderleo/preflight/issues/652) — live release convergence, current
   beta blockers, merge order, collision control, and moving `main` coordination;
 - [Release readiness](release-readiness.md) — documentation mirror of the current candidate gate;
-- [Public beta roadmap](beta-roadmap.md) — current operational sequence from signing rehearsal through
-  frozen-package acceptance;
+- [Public beta roadmap](beta-roadmap.md) — current operational sequence from release-source selection
+  through frozen-package acceptance;
 - [#950](https://github.com/teamleaderleo/preflight/issues/950) — the 2026-08-20 publication decision;
   the Fractal Softworks request is courtesy correspondence and a reply is outside the publication
   gate;
-- [#720](https://github.com/teamleaderleo/preflight/issues/720) — current `release-signing`
-  Environment, release-tag admission, and signing-secret work;
+- [#720](https://github.com/teamleaderleo/preflight/issues/720) — completed `release-signing`
+  Environment setup, private rehearsals, and signing-secret cleanup;
 - [Product contract](product-contract.md) — current product, compatibility, cache, update, and
   support-upload behavior;
 - [Optimization history](optimization-history.md) — readable development-performance chronology and

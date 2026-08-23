@@ -1,6 +1,6 @@
 # Public beta roadmap
 
-**Updated:** 2026-08-21
+**Updated:** 2026-08-23
 
 This page explains the remaining release sequence. The live coordination board is
 [#652](https://github.com/teamleaderleo/preflight/issues/652), which owns current blocker status,
@@ -12,14 +12,12 @@ checklist mirror is [Release readiness](release-readiness.md).
 The source and rendered desktop UI have converged for the first beta. What remains is operational
 candidate work rather than another general source-polish or hardening wave:
 
-1. finish the `release-signing` Environment setup and private signed rehearsal owned by
-   [#720](https://github.com/teamleaderleo/preflight/issues/720);
-2. freeze one immutable candidate generation after that rehearsal succeeds;
-3. exercise the exact frozen package on a licensed native Windows installation;
-4. exercise the same candidate on native x86-64 Linux;
-5. retain the packaged-candidate startup benchmark, hosted lifecycle/update evidence, and exact-tag
+1. select and freeze one immutable candidate generation;
+2. exercise the exact frozen package on a licensed native Windows installation;
+3. exercise the same candidate on native x86-64 Linux;
+4. retain the packaged-candidate startup benchmark, hosted lifecycle/update evidence, and exact-tag
    production report-canary receipt against that same generation; and
-6. complete the hands-on packaged report-intake cancel, cleanup, retry, receipt, and delete sequence
+5. complete the hands-on packaged report-intake cancel, cleanup, retry, receipt, and delete sequence
    owned by [#965](https://github.com/teamleaderleo/preflight/issues/965).
 
 Keep this sequence synchronized with #652 instead of extending it from open engineering issues. A
@@ -27,20 +25,20 @@ private rehearsal, a green source tree, or a complete candidate does not by itse
 the first public beta GitHub release and downloadable packages live; final candidate creation and
 public release remain explicit maintainer decisions.
 
-## 1. Finish signing setup and the private rehearsal
+## 1. Signing setup and private rehearsals complete
 
-Configure the `release-signing` Environment and the secrets/configuration required by the signed
-Distribution path, then run the private three-platform rehearsal from current accepted source. The
-rehearsal proves that the signing and package machinery can produce and exercise a candidate before
-source is frozen.
+The `release-signing` Environment is configured and the signed Distribution plus three-platform
+lifecycle sequence succeeded twice, including once after removing the legacy repository-level key
+copies. #720 owns the completed administration record. Those packages prove the signing and package
+machinery only; they are not final release evidence, and current source has moved since they were
+generated.
 
 The repository intentionally has no current `main`/tag ruleset. [#607](https://github.com/teamleaderleo/preflight/issues/607)
 is closed `not planned` under that owner-selected policy. Before any tagged deployment is approved,
 the `release-signing` Environment remains the human admission boundary: verify that the tag/commit is
 the intended frozen accepted `main` identity.
 
-**Exit:** #720's private rehearsal and signing-secret cleanup are accepted, with no demonstrated
-source blocker or explicit maintainer change still requiring new release bytes.
+**Exit:** complete. #720's private rehearsal and signing-secret cleanup are accepted.
 
 ## 2. Freeze one immutable candidate generation
 
