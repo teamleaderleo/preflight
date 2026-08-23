@@ -68,6 +68,8 @@ class PublicEntryPointTest(unittest.TestCase):
 
     def test_concise_mode_avoids_the_expensive_convenience_run_scans(self):
         self.assertIn('doctor --game "$GAME" --no-scan', SCRIPT_TEXT)
+        self.assertIn('if [[ "$CONCISE" != true || "$CONDITIONS" != fast ]]', SCRIPT_TEXT)
+        self.assertIn('if [[ -n "$LAUNCHER" ]]; then\n                command+=(--launcher "$LAUNCHER")', SCRIPT_TEXT)
         self.assertIn('if [[ "$CONCISE" == true ]]; then\n        # A one-shot result', SCRIPT_TEXT)
         self.assertIn('fingerprint="$EXPECTED_FINGERPRINT"', SCRIPT_TEXT)
 
