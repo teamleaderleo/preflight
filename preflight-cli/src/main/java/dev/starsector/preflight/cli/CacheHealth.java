@@ -5,6 +5,7 @@ import dev.starsector.preflight.core.PreparedAudioManifest;
 import dev.starsector.preflight.core.PreparedAudioManifestIO;
 import dev.starsector.preflight.core.PreparedTexturePack;
 import dev.starsector.preflight.core.PreparedTexturePackIO;
+import dev.starsector.preflight.core.PreparedTextureAccessOrderIO;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import dev.starsector.preflight.core.TextureManifest;
@@ -42,7 +43,7 @@ final class CacheHealth {
             String summary = identityDiagnostic == null || identityDiagnostic.isBlank()
                     ? "Preflight couldn't derive the current profile from this installation."
                     : identityDiagnostic;
-            return new Report("unknown", null, null, List.of(new Issue(
+            return new Report("unknown", null, null, null, null, false, List.of(new Issue(
                     "profile-identity",
                     summary,
                     home.cache())), List.of());
@@ -57,10 +58,13 @@ final class CacheHealth {
         Path manifest = TextureManifestIO.directory(cache).resolve(profile + ".spfm").normalize();
         Path pack = PreparedTexturePackIO.path(cache, profile).normalize();
         Path minimal = MinimalPreparationMarker.path(cache, profile).normalize();
+        Path preparation = TexturePreparationReceipt.path(cache, profile).normalize();
+        Path accessOrder = PreparedTextureAccessOrderIO.path(cache, profile).normalize();
         Path audio = PreparedAudioCache.manifestDirectory(cache)
                 .resolve(profile + ".spam").toAbsolutePath().normalize();
         try {
-            requireSafeArtifactPaths(cache, index, manifest, pack, minimal, audio);
+            requireSafeArtifactPaths(
+                    cache, index, manifest, pack, minimal, preparation, accessOrder, audio);
         } catch (IOException | IllegalArgumentException error) {
             return unsafe(profile, cache, "Prepared-data paths couldn't be verified: " + message(error));
         }
@@ -71,7 +75,23 @@ final class CacheHealth {
         boolean manifestPresent = exists(manifest);
         boolean minimalPresent = exists(minimal);
         boolean minimalValid = false;
+        TexturePreparationReceipt.Receipt texturePreparation = null;
         TextureManifest textureManifest = null;
+
+        if (exists(preparation)) {
+            try {
+                if (!regularFile(preparation)) {
+                    throw new IOException("texture-preparation receipt isn't a regular cache file");
+                }
+                texturePreparation = TexturePreparationReceipt.read(preparation, profile);
+            } catch (Exception error) {
+                issues.add(new Issue(
+                        "texture-preparation",
+                        "The profile's texture preparation receipt is unreadable: " + message(error),
+                        preparation));
+                addTargetIfPresent(targets, "texture-preparation", preparation);
+            }
+        }
 
         if (minimalPresent) {
             try {
@@ -90,6 +110,14 @@ final class CacheHealth {
         }
 
         if (minimalValid) {
+            if (texturePreparation != null) {
+                issues.add(new Issue(
+                        "preparation-mode",
+                        "The profile is marked as both Minimal and prepared-texture storage.",
+                        preparation));
+                addTargetIfPresent(targets, "texture-preparation", preparation);
+                texturePreparation = null;
+            }
             if (!indexPresent || !regularFile(index)) {
                 issues.add(new Issue(
                         "minimal-preparation",
@@ -162,6 +190,21 @@ final class CacheHealth {
             }
         }
 
+        if (issues.stream().anyMatch(issue -> "prepared-textures".equals(issue.artifact()))) {
+            addTargetIfPresent(targets, "texture-preparation", preparation);
+            texturePreparation = null;
+        }
+
+        boolean compactAvailable = false;
+        if (regularFile(accessOrder)) {
+            try {
+                compactAvailable = !PreparedTextureAccessOrderIO.read(accessOrder, profile).isEmpty();
+            } catch (IOException | IllegalArgumentException ignored) {
+                // Access observations are optional. An unreadable observation cannot make a
+                // healthy pack unsafe; it only prevents automatic Compact graduation.
+            }
+        }
+
         boolean audioCompatibilityUnknown = false;
         if (exists(audio) && (expectedAudioBuild == null || expectedAudioDecoder == null)) {
             audioCompatibilityUnknown = true;
@@ -208,7 +251,21 @@ final class CacheHealth {
             status = "cold";
         }
         Boolean preparedTextures = "ready".equals(status) ? !minimalValid : null;
-        return new Report(status, profile, preparedTextures, List.copyOf(issues), List.copyOf(targets));
+        String textureStorage = "ready".equals(status) && texturePreparation != null
+                ? texturePreparation.storage().optionValue()
+                : null;
+        String textureScope = "ready".equals(status) && texturePreparation != null
+                ? texturePreparation.scope().optionValue()
+                : null;
+        return new Report(
+                status,
+                profile,
+                preparedTextures,
+                textureStorage,
+                textureScope,
+                compactAvailable,
+                List.copyOf(issues),
+                List.copyOf(targets));
     }
 
     static Repair repair(PreflightHome home, String profile, boolean apply) throws IOException {
@@ -261,6 +318,9 @@ final class CacheHealth {
         value.put("status", report.status());
         value.put("profileFingerprint", report.profileFingerprint());
         value.put("preparedTextures", report.preparedTextures());
+        value.put("textureStorage", report.textureStorage());
+        value.put("textureScope", report.textureScope());
+        value.put("compactAvailable", report.compactAvailable());
         value.put("issues", report.issues().stream().map(issue -> {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("artifact", issue.artifact());
@@ -352,7 +412,7 @@ final class CacheHealth {
     }
 
     private static Report unsafe(String profile, Path path, String summary) {
-        return new Report("unsafe", profile, null,
+        return new Report("unsafe", profile, null, null, null, false,
                 List.of(new Issue("cache-boundary", summary, path)), List.of());
     }
 
@@ -371,6 +431,9 @@ final class CacheHealth {
             String status,
             String profileFingerprint,
             Boolean preparedTextures,
+            String textureStorage,
+            String textureScope,
+            boolean compactAvailable,
             List<Issue> issues,
             List<Target> targets) {
     }

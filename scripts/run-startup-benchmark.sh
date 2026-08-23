@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Repeated real startup benchmark: vanilla versus agent-only versus preflight-enabled.
-#
-# You do exactly two things per launch: click Play Starsector when told, and quit from
-# the main menu when told. Everything else is automatic, and the session survives a bad
-# run -- one launch that drifts or crashes is excluded and the campaign continues.
+# Internal benchmark engine. Use scripts/benchmark-startup.sh for the public one-shot,
+# diagnostic, and campaign commands.
 set -euo pipefail
+
+# The public one-shot entry point sets this. All evidence still lands on disk; stdout carries the
+# requested result instead of the campaign narration. Errors are never suppressed.
+CONCISE="${PREFLIGHT_BENCHMARK_CONCISE:-false}"
 
 GAME_WAS_SET=false
 [[ -n "${GAME+x}" ]] && GAME_WAS_SET=true
@@ -49,85 +50,23 @@ SCENARIO_ID="main-menu-v1"
 
 usage() {
     cat <<'USAGE'
-Usage: scripts/run-startup-benchmark.sh [options]
+Usage: scripts/benchmark-startup.sh --campaign [OPTIONS]
 
-  --rounds N          Rounds of every condition (default 5, the campaign threshold for
-                      a reportable claim). Fewer rounds cannot reach significance: with
-                      three per condition the smallest possible p-value is 0.1.
-  --conditions LIST   Comma-separated subset of vanilla,agent,enabled,compatibility,fast,full,
-                      profile,fast-profile,prepared
-                      (default vanilla,agent,enabled,fast; every other condition is opt-in).
-  --unattended        Start the game without its launcher and stop it once the main menu is
-                      up, so the campaign needs no clicks at all. Uses Starsector's own
-                      launchDirect path with the resolution, fullscreen and sound settings
-                      the launcher itself would have used, and applies to every condition
-                      including vanilla. Refuses up front, with a reason, if the install
-                      cannot support it.
-  --cooldown-seconds N
-                      Idle for N seconds before every launch, so each one starts from the same
-                      thermal state. A fanless machine loading this game repeatedly slows as it
-                      heats: the 2026-08-01 campaign drifted +19.6s across fifteen launches,
-                      which is ten times the effect it was trying to measure. 240 is a
-                      reasonable starting point.
-  --reprepare         Rebuild the caches even when they already match this profile.
-  --cache PATH        Use this cache directory. The CACHE environment variable remains accepted.
-  --texture-storage MODE
-                      Prepare and measure balanced, compact, or fastest texture storage.
-                      Compact requires a prior successful launch observation in this cache.
-  --resume DIR        Continue an interrupted session, keeping its completed runs and restoring
-                      its conditions, protocol, display/sound settings, cooldown, cache, and seed.
-                      Conflicting explicit arguments or code/environment drift are rejected.
-  --skip-warmup       Skip the discarded settling launch (only if you just ran one).
-  --game PATH         Starsector installation (default /Applications/Starsector.app).
-  --engine PATH       Measure the engine a release candidate actually carries instead of
-                      building this checkout. PATH is a runnable preflight.jar, an installed
-                      or extracted Preflight (a .app, or any directory holding
-                      engine/preflight.jar), and the checkout build is not consulted at all:
-                      there is no fallback to preflight-cli/target/preflight.jar. Without it
-                      a campaign measures checkout bytes and says so, which makes it
-                      development evidence rather than a release-candidate result.
-  --engine-sha256 HEX Additionally require the resolved engine to hash to this SHA-256.
-                      Packaged engines are already pinned by the bundle.json beside them;
-                      this accepts an independently recorded expected digest as well.
-  -h, --help          Show this message.
+  --conditions LIST       vanilla, agent, enabled, compatibility, fast, full,
+                          profile, fast-profile, prepared, or prepared-unpadded
+  --rounds N              Runs per condition (default: 5)
+  --unattended            Start and stop every launch automatically
+  --cooldown-seconds N    Wait before each launch
+  --skip-warmup           Skip the discarded settling launch
+  --resume DIR            Continue a saved campaign
+  --reprepare             Rebuild prepared data first
+  --game PATH             Starsector installation
+  --cache PATH            Prepared-data directory
+  --texture-storage MODE  balanced, compact, or fastest
+  --engine PATH           Candidate app, directory, or preflight.jar
+  --engine-sha256 HEX     Require this engine digest
 
-Conditions:
-  vanilla   the game's own launcher, no preflight at all -- the true baseline
-  agent     preflight run --no-adapter -- isolates what the JFR recorder itself costs
-  enabled   preflight run --adapter --texture-auto -- the prepared texture path, recorded
-  compatibility
-            the historical `fast` condition: compatibility textures and no recorder. It is
-            retained for component comparisons, but does not represent a normal user launch.
-  fast      the CLI's actual --fast preset: every startup and gameplay optimization that has
-            passed its live gate. Installed Preflight launchers use this mode.
-  full      the frozen 2026-08-03 explicit stack (prepared pixels plus the two rule caches).
-            It remains available to reproduce the accepted historical campaign, but newer
-            live-gated optimizations are present only in `fast`.
-  prepared  --texture-mode prepared-pixels --prepared-npot --no-record -- hands the game
-            upload-ready bytes instead of a BufferedImage it has to unpack a pixel at a
-            time. The flag is not optional: without it the bridge declines every texture
-            needing power-of-two padding, which was 6,165 of 6,706 on the reviewed profile.
-            Compare against `fast`, the same launch in compatibility mode.
-  prepared-unpadded
-            additionally serves textures at their true size. This needs the fold bypass to
-            be installed in the loader, and nothing installs it yet -- the two plans target
-            the same class and have not been composed. Without it the runtime fails closed
-            and this condition just behaves like `prepared`. See
-            docs/evidence/2026-07-31-half-an-invariant-kills-the-launcher.md.
-  profile   the same, plus --profile sampling, for asking where the time goes. The harness
-            asks the live agent to finish its recording at the main-menu boundary before it
-            stops the JVM, so the active tail cannot be lost to shutdown-hook ordering. Not a
-            timing condition: it records, so it is slower than fast.
-  fast-profile
-            the current --fast preset plus sampling. Use this to find the next hotspot in the
-            actual user configuration; like `profile`, its wall clock is diagnostic only.
-
-Each launch costs about 90 seconds plus your two clicks, so the default 5 rounds across
-four conditions is roughly 45 minutes. Ctrl-C is safe at any point: completed runs are
-kept, and --resume picks the session back up where it stopped.
-
-To answer only "is Preflight worth it", drop the two diagnostic conditions:
-  --conditions vanilla,fast
+Common comparison: --unattended --conditions vanilla,fast
 USAGE
 }
 
@@ -137,11 +76,11 @@ if [[ ! -t 1 ]]; then
     BOLD=""; DIM=""; GREEN=""; YELLOW=""; RED=""; CYAN=""; RESET=""
 fi
 
-banner() { printf '\n%s%s%s\n' "$BOLD$CYAN" "$*" "$RESET"; }
+banner() { [[ "$CONCISE" == true ]] || printf '\n%s%s%s\n' "$BOLD$CYAN" "$*" "$RESET"; }
 act()    { printf '\a\n%s  >>> %s  <<<%s\n\n' "$BOLD$YELLOW" "$*" "$RESET"; }
-good()   { printf '%s%s%s\n' "$GREEN" "$*" "$RESET"; }
+good()   { [[ "$CONCISE" == true ]] || printf '%s%s%s\n' "$GREEN" "$*" "$RESET"; }
 bad()    { printf '%s%s%s\n' "$RED" "$*" "$RESET" >&2; }
-note()   { printf '%s%s%s\n' "$DIM" "$*" "$RESET"; }
+note()   { [[ "$CONCISE" == true ]] || printf '%s%s%s\n' "$DIM" "$*" "$RESET"; }
 
 # Compare measurement inputs by the filesystem object they name, not by their spelling. macOS
 # exposes the same temporary directory as both /tmp and /private/tmp, and operator-created
@@ -418,8 +357,16 @@ if [[ "$ENGINE_SOURCE" == candidate ]]; then
         fi
     fi
 else
-    banner "== Building the checkout =="
-    mvn -q -DskipTests package
+    checkout_is_current=false
+    if [[ "$CONCISE" == true && -f "$CHECKOUT_JAR" ]] \
+            && ! find pom.xml preflight-*/pom.xml preflight-*/src \
+                -type f -newer "$CHECKOUT_JAR" -print -quit | grep -q .; then
+        checkout_is_current=true
+    fi
+    if [[ "$checkout_is_current" != true ]]; then
+        banner "== Building the checkout =="
+        mvn -q -DskipTests package
+    fi
     JAR="$CHECKOUT_JAR"
     [[ -f "$JAR" ]] || { bad "Runnable JAR was not produced: $JAR"; exit 1; }
 fi
@@ -452,7 +399,8 @@ else
 fi
 note "preflight.jar:   $JAR_SHA"
 
-LAUNCHER="$(java -jar "$JAR" doctor --game "$GAME" 2>/dev/null | awk '/^Selected: /{print substr($0, 11); exit}')"
+LAUNCHER="$(java -jar "$JAR" doctor --game "$GAME" --no-scan 2>/dev/null \
+    | awk '/^Selected: /{print substr($0, 11); exit}')"
 [[ -n "$LAUNCHER" && -f "$LAUNCHER" ]] || { bad "Could not resolve the game launcher under $GAME"; exit 1; }
 note "launcher:        $LAUNCHER"
 
@@ -541,9 +489,18 @@ scan_fingerprint() {
     jq -er '.profileFingerprint' "$output"
 }
 
+PREPARE_REPORT="$ROOT/prepare.json"
+PREPARE_STAMP="$CACHE/prepared-profile.txt"
 BASELINE_PROFILE="$ROOT/profile-baseline.json"
 if [[ ! -f "$BASELINE_PROFILE" ]]; then
-    EXPECTED_FINGERPRINT="$(scan_fingerprint "$BASELINE_PROFILE")"
+    stamp_value="$(cat "$PREPARE_STAMP" 2>/dev/null || true)"
+    if [[ "$CONCISE" == true && "$REPREPARE" != true \
+            && ( "$stamp_value" =~ ^[0-9a-f]{64}:$TEXTURE_STORAGE$ \
+                || ( "$TEXTURE_STORAGE" == balanced && "$stamp_value" =~ ^[0-9a-f]{64}$ ) ) ]]; then
+        EXPECTED_FINGERPRINT="${stamp_value%%:*}"
+    else
+        EXPECTED_FINGERPRINT="$(scan_fingerprint "$BASELINE_PROFILE")"
+    fi
     echo "$EXPECTED_FINGERPRINT" > "$ROOT/expected-fingerprint.txt"
 else
     EXPECTED_FINGERPRINT="$(cat "$ROOT/expected-fingerprint.txt")"
@@ -566,8 +523,6 @@ note "profile:         $EXPECTED_FINGERPRINT"
 # --resume: every new campaign paid 16s to rebuild nothing. The stamp lives beside the cache
 # because that is what it describes -- the caches are keyed by profile fingerprint, so a matching
 # stamp means the artifacts on disk are the ones this profile needs.
-PREPARE_REPORT="$ROOT/prepare.json"
-PREPARE_STAMP="$CACHE/prepared-profile.txt"
 PREPARE_STAMP_VALUE="$EXPECTED_FINGERPRINT:$TEXTURE_STORAGE"
 prepare_caches() {
     local reason="$1"
@@ -966,6 +921,7 @@ launch_once() {
                 --output "$launcher_detection" --pid "$pid" --process-start-ns "$start_ns" \
                 --timeout-seconds "$LAUNCHER_TIMEOUT_SECONDS" --quiet-seconds "$LAUNCHER_QUIET_SECONDS"; then
             kill "$watchdog" >/dev/null 2>&1 || true
+            wait "$watchdog" >/dev/null 2>&1 || true
             if [[ -s "$fatal_flag" ]]; then
                 report_fatal_jvm_error "$fatal_flag"
                 record_run "$condition" "$iteration" "excluded" "jvm-crash" "null" "null" "null"
@@ -993,6 +949,7 @@ launch_once() {
             --output "$menu_detection" --pid "$pid" \
             --timeout-seconds "$MAIN_MENU_TIMEOUT_SECONDS" --quiet-seconds "$MAIN_MENU_QUIET_SECONDS"; then
         kill "$watchdog" >/dev/null 2>&1 || true
+        wait "$watchdog" >/dev/null 2>&1 || true
         terminate "$pid"
         if [[ -s "$fatal_flag" ]]; then
             report_fatal_jvm_error "$fatal_flag"
@@ -1008,7 +965,11 @@ launch_once() {
     # The preload marker, not the last line before the quiet window: the trailing chatter
     # after preload ranged 0.0-9.3s across otherwise identical runs on 2026-07-31.
     menu_ms="$(jq -er '.gameLogStartToGraphicsPreloadMs' "$menu_detection")"
-    good "$(awk -v ms="$menu_ms" 'BEGIN { printf "Main menu ready in %.1fs", ms / 1000 }')"
+    if [[ "$CONCISE" == true ]]; then
+        awk -v ms="$menu_ms" 'BEGIN { printf "Startup: %.2fs\n", ms / 1000 }'
+    else
+        good "$(awk -v ms="$menu_ms" 'BEGIN { printf "Main menu ready in %.1fs", ms / 1000 }')"
+    fi
     local deliberate_stop=false recording_ready=true
     if [[ "$auto" == true ]]; then
         # The measurement ended at the marker above, so there is nothing left to observe.
@@ -1034,12 +995,20 @@ launch_once() {
         exit_code=0
     fi
     kill "$watchdog" >/dev/null 2>&1 || true
+    wait "$watchdog" >/dev/null 2>&1 || true
     # The game outlives the wrapper, so a crash can still be sitting on the message-box
     # prompt after the wrapper returns. Clear the tree before the next run starts.
     terminate "$pid"
 
     local fingerprint status reason
-    fingerprint="$(scan_fingerprint "$profile_after" || echo unknown)"
+    if [[ "$CONCISE" == true ]]; then
+        # A one-shot result is not combined with another condition, and every prepared condition
+        # is still rejected below unless its exact cache reports real hits. The full campaign keeps
+        # the second corpus walk because cross-run profile identity is part of its comparison.
+        fingerprint="$EXPECTED_FINGERPRINT"
+    else
+        fingerprint="$(scan_fingerprint "$profile_after" || echo unknown)"
+    fi
     status=accepted
     reason=""
     if [[ -s "$fatal_flag" ]]; then
@@ -1207,7 +1176,9 @@ fi
 
 TOTAL=$(( ROUNDS * ${#CONDITION_LIST[@]} ))
 banner "== $TOTAL measured launches: ${#CONDITION_LIST[@]} conditions x $ROUNDS rounds =="
-if [[ "$PROTOCOL" == direct ]]; then
+if [[ "$CONCISE" == true ]]; then
+    :
+elif [[ "$PROTOCOL" == direct ]]; then
 cat <<'PROTOCOL'
 Nothing to do per launch. The game starts itself and is stopped once its own log says the
 load finished, so you can leave this running.
@@ -1237,14 +1208,21 @@ for round in $(seq 1 "$ROUNDS"); do
         fi
         launch_once "$condition" "$round" \
             "[$INDEX/$TOTAL]  ROUND $round/$ROUNDS  --  $(tr '[:lower:]' '[:upper:]' <<< "$condition")" || true
-        python3 "$REPORTER" progress --results "$RESULTS"
+        if [[ "$CONCISE" != true ]]; then
+            python3 "$REPORTER" progress --results "$RESULTS"
+        fi
     done < <(shuffle_conditions "$round")
 done
 
 banner "== Campaign result =="
-python3 "$REPORTER" summary --results "$RESULTS" --identity "$ROOT/identity.json" \
-    --output "$ROOT/benchmark-summary.json"
+if [[ "$CONCISE" == true ]]; then
+    python3 "$REPORTER" summary --results "$RESULTS" --identity "$ROOT/identity.json" \
+        --output "$ROOT/benchmark-summary.json" >/dev/null
+else
+    python3 "$REPORTER" summary --results "$RESULTS" --identity "$ROOT/identity.json" \
+        --output "$ROOT/benchmark-summary.json"
 
-echo
-good "Session directory: $ROOT"
-note "Resume or add rounds with: scripts/run-startup-benchmark.sh --resume '$ROOT' --rounds N"
+    echo
+    good "Session directory: $ROOT"
+    note "Resume or add rounds with: scripts/benchmark-startup.sh --campaign --resume '$ROOT' --rounds N"
+fi

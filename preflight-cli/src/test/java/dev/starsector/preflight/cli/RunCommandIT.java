@@ -315,7 +315,7 @@ class RunCommandIT {
 
         assertTrue(result.completed(), result.output());
         assertEquals(0, result.exitCode(), result.output());
-        assertTrue(result.output().contains("left Janino compilation to Fast Rendering"),
+        assertFalse(result.output().contains("left Janino compilation to Fast Rendering"),
                 result.output());
         String injected = Files.readString(game.resolve("java-tool-options.txt"));
         assertTrue(injected.contains("adapter=enabled"), injected);
@@ -324,6 +324,37 @@ class RunCommandIT {
         assertEquals("FAST_RENDERING", report.get("runtimeOwner"));
         assertEquals(Boolean.TRUE, report.get("janinoBytecodeCache"),
                 "the receipt preserves that the user requested it even though ownership suppressed it");
+    }
+
+    @Test
+    void ordinaryRunDoesNotDumpItsInternalLaunchPlan() throws Exception {
+        Path game = temporaryDirectory.resolve("Quiet Starsector");
+        Files.createDirectories(game.resolve("logs"));
+        Path launcher = fakeLauncher(game, LauncherMode.CLEAN_ZERO);
+        Path trace = temporaryDirectory.resolve("quiet-trace");
+
+        ProcessResult result = run(game, launcher, trace, List.of("--no-adapter", "--no-record"));
+
+        assertTrue(result.completed(), result.output());
+        assertEquals(0, result.exitCode(), result.output());
+        assertFalse(result.output().contains("Preflight selected:"), result.output());
+        assertFalse(result.output().contains("recording was not created"), result.output());
+    }
+
+    @Test
+    void dryRunShowsTheInternalLaunchPlanWithoutStartingTheGame() throws Exception {
+        Path game = temporaryDirectory.resolve("Dry Run Starsector");
+        Files.createDirectories(game.resolve("logs"));
+        Path launcher = fakeLauncher(game, LauncherMode.CLEAN_ZERO);
+        Path trace = temporaryDirectory.resolve("dry-run-trace");
+
+        ProcessResult result = run(game, launcher, trace, List.of("--no-adapter", "--dry-run"));
+
+        assertTrue(result.completed(), result.output());
+        assertEquals(0, result.exitCode(), result.output());
+        assertTrue(result.output().contains("Preflight selected:"), result.output());
+        assertTrue(result.output().contains("optimization preset:"), result.output());
+        assertFalse(Files.exists(game.resolve("java-tool-options.txt")));
     }
 
     private static Path fakeLauncher(Path game, LauncherMode mode) throws Exception {

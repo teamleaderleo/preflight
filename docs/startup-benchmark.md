@@ -6,7 +6,7 @@ rather than promoting a one-off record into a general claim. [benchmarking.md](b
 records why earlier measurement approaches failed.
 
 ```bash
-scripts/run-startup-benchmark.sh --unattended
+scripts/benchmark-startup.sh --campaign --unattended
 ```
 
 With `--unattended` you do nothing at all: the game starts itself and is stopped once its own
@@ -208,11 +208,11 @@ per run just as `agent` does, so its overhead is present in both and cancels in 
 ## Options
 
 ```bash
-scripts/run-startup-benchmark.sh --rounds 5              # default
-scripts/run-startup-benchmark.sh --conditions vanilla,enabled
-scripts/run-startup-benchmark.sh --resume ~/.starsector-preflight/benchmarks/20260730-...
-scripts/run-startup-benchmark.sh --skip-warmup           # only if you just settled one
-scripts/run-startup-benchmark.sh --engine /Applications/Preflight.app
+scripts/benchmark-startup.sh --campaign --rounds 5              # default
+scripts/benchmark-startup.sh --campaign --conditions vanilla,enabled
+scripts/benchmark-startup.sh --campaign --resume ~/.starsector-preflight/benchmarks/20260730-...
+scripts/benchmark-startup.sh --campaign --skip-warmup           # only if you just settled one
+scripts/benchmark-startup.sh --campaign --engine /Applications/Preflight.app
 ```
 
 ## Measuring a release candidate rather than the checkout

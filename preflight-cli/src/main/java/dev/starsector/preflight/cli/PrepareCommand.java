@@ -440,7 +440,13 @@ final class PrepareCommand {
             try {
                 if (options.textures()) {
                     MinimalPreparationMarker.remove(cache, resourceIndex.profileFingerprint());
+                    TexturePreparationReceipt.write(
+                            cache,
+                            resourceIndex.profileFingerprint(),
+                            options.textureStorage(),
+                            options.textureScope());
                 } else {
+                    TexturePreparationReceipt.remove(cache, resourceIndex.profileFingerprint());
                     MinimalPreparationMarker.write(cache, resourceIndex.profileFingerprint());
                 }
             } catch (IOException error) {

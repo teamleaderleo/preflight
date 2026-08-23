@@ -1,40 +1,6 @@
 #!/usr/bin/env bash
 #
-# One probed direct launch that stops itself, then prints where the time went.
-#
-# The benchmark harness already does cooled, shuffled, repeated campaigns. This is the other thing
-# you want: a single launch with `--startup-phase-probe`, run to the main-menu marker, stopped, and
-# summarised as a phase table and a per-plugin callback table. Use it to find out *where* time goes.
-# Use the harness to prove a change moved it.
-#
-# The game must always stop. It is a grandchild of the wrapper process, so killing the wrapper's
-# direct children never reaches it, and a launch left running holds ~4 GB and a GPU context and
-# poisons every measurement that follows. Cleanup therefore runs from an EXIT trap -- it happens on
-# success, on failure, on a detector timeout, and on Ctrl-C alike.
-#
-# Usage:
-#   scripts/probe-launch.sh [--mode NAME] [--label NAME] [--game DIR]
-#                           [--timeout-seconds N] [-- EXTRA_FLAGS...]
-#
-# --mode names the same conditions the benchmark harness uses, with the same flags, so a probe and
-# a campaign mean the same thing by the same word:
-#
-#   fast       the shipped preset -- what an installed Preflight launcher runs. Use this to ask
-#              where time goes for a real user. (default)
-#   enabled    --adapter --texture-auto: the prepared texture path.
-#   adapter    --adapter alone. The least-optimized launch a probe can measure, which is NOT a
-#              baseline: adapters are on, because the phase probe is implemented by the adapter.
-#   prepared   enabled plus prepared pixels with power-of-two padding retained.
-#
-#   vanilla    refused, with a pointer. The game's own launcher cannot carry the phase probe, so
-#              there is no such thing as a probed baseline. Use the harness:
-#                  scripts/run-startup-benchmark.sh --unattended --conditions vanilla,fast
-#              which is also how to compare two conditions: it shuffles them inside each round
-#              rather than running them back to back, because a launch on a hot machine is slower.
-#              The 2026-08-01 campaign drifted +19.6s across fifteen launches from heat alone.
-#
-# Any flags after `--` are appended to the mode, so conditions still compose:
-#   scripts/probe-launch.sh --mode enabled --label npot -- --texture-mode prepared-pixels --prepared-npot
+# Internal diagnostic engine. Use scripts/benchmark-startup.sh --details.
 set -euo pipefail
 
 GAME="${STARSECTOR_HOME:-/Applications/Starsector.app}"
@@ -51,7 +17,18 @@ while [[ $# -gt 0 ]]; do
         --game) GAME="$2"; shift 2 ;;
         --timeout-seconds) TIMEOUT_SECONDS="$2"; shift 2 ;;
         --) shift; EXTRA=("$@"); break ;;
-        -h|--help) sed -n '2,41p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help)
+            cat <<'USAGE'
+Usage: scripts/benchmark-startup.sh --details [OPTIONS]
+
+  --mode NAME         fast, enabled, adapter, or prepared (default: fast)
+  --label NAME        Name the saved diagnostic run
+  --game PATH         Starsector installation
+  --timeout-seconds N Stop waiting after N seconds
+  -- EXTRA_FLAGS      Append diagnostic engine flags
+USAGE
+            exit 0
+            ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
 done
@@ -66,18 +43,8 @@ case "$MODE" in
     prepared) MODE_FLAGS=(--adapter --texture-auto --texture-mode prepared-pixels --prepared-npot) ;;
     vanilla)
         cat >&2 <<'REFUSED'
-There is no probed vanilla launch, and a number from one would be a lie.
-
-`--startup-phase-probe` is implemented by the adapter -- preflight run refuses the two together
-(CommandLine.java) -- so the least-optimized launch this script can measure still has adapters on.
-It is not a baseline and must not be reported as one.
-
-For a real baseline, and for comparing it against an optimized launch:
-
-    scripts/run-startup-benchmark.sh --unattended --conditions vanilla,fast
-
-That runs the game's own launcher for `vanilla`, shuffles the conditions inside every round so
-neither gets a hotter machine than the other, and refuses a result below five runs per condition.
+The phase probe requires Preflight, so it cannot measure vanilla.
+Use: scripts/benchmark-startup.sh --campaign --unattended --conditions vanilla,fast
 REFUSED
         exit 2 ;;
     *)

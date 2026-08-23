@@ -19,6 +19,8 @@ from pathlib import Path
 
 SCRIPT_PATH = Path(__file__).with_name("run-startup-benchmark.sh")
 SCRIPT_TEXT = SCRIPT_PATH.read_text(encoding="utf-8")
+PUBLIC_SCRIPT_PATH = Path(__file__).with_name("benchmark-startup.sh")
+PUBLIC_SCRIPT_TEXT = PUBLIC_SCRIPT_PATH.read_text(encoding="utf-8")
 
 MODULE_PATH = Path(__file__).with_name("starsector_benchmark_report.py")
 spec = importlib.util.spec_from_file_location("starsector_benchmark_report", MODULE_PATH)
@@ -42,6 +44,42 @@ def runs(*specs) -> list[dict]:
             "exitCode": 0,
         })
     return records
+
+
+class PublicEntryPointTest(unittest.TestCase):
+    def test_default_is_one_unattended_fast_launch(self):
+        for argument in (
+            "--unattended",
+            "--conditions fast",
+            "--rounds 1",
+            "--skip-warmup",
+            "--cooldown-seconds 0",
+        ):
+            self.assertIn(argument, PUBLIC_SCRIPT_TEXT)
+        self.assertIn("PREFLIGHT_BENCHMARK_CONCISE=true", PUBLIC_SCRIPT_TEXT)
+
+    def test_diagnostics_and_campaign_are_explicit_modes(self):
+        self.assertIn("--details)", PUBLIC_SCRIPT_TEXT)
+        self.assertIn("--campaign)", PUBLIC_SCRIPT_TEXT)
+
+    def test_concise_mode_keeps_the_exact_main_menu_clock(self):
+        self.assertIn("gameLogStartToGraphicsPreloadMs", SCRIPT_TEXT)
+        self.assertIn('printf "Startup: %.2fs', SCRIPT_TEXT)
+
+    def test_concise_mode_avoids_the_expensive_convenience_run_scans(self):
+        self.assertIn('doctor --game "$GAME" --no-scan', SCRIPT_TEXT)
+        self.assertIn('if [[ "$CONCISE" == true ]]; then\n        # A one-shot result', SCRIPT_TEXT)
+        self.assertIn('fingerprint="$EXPECTED_FINGERPRINT"', SCRIPT_TEXT)
+
+    def test_concise_mode_reuses_a_current_checkout_jar(self):
+        self.assertIn('checkout_is_current=false', SCRIPT_TEXT)
+        self.assertIn('-newer "$CHECKOUT_JAR"', SCRIPT_TEXT)
+
+    def test_stopped_watchdog_is_reaped_without_shell_noise(self):
+        self.assertEqual(
+            SCRIPT_TEXT.count('kill "$watchdog" >/dev/null 2>&1 || true'),
+            SCRIPT_TEXT.count('wait "$watchdog" >/dev/null 2>&1 || true'),
+        )
 
 
 class ConditionTest(unittest.TestCase):

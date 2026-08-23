@@ -87,6 +87,19 @@ The reviewed policy became the current macOS Rosetta path: G1, Shenandoah disabl
 deferred instead of touching the complete configured heap before launch. Other platforms keep their
 launcher policy.
 
+A same-machine control later ran the archived candidate JAR against the current Compact cache,
+immediately after a current-engine launch. The current engine took 15.48 seconds and the archived
+candidate took 15.50 seconds. Both used the same G1 and deferred heap-commit flags, served 15,469
+prepared textures, bypassed 15,469 pixel conversions, and took three source fallbacks. The two
+summaries are `~/.starsector-preflight/benchmarks/20260823-171607/benchmark-summary.json` and
+`~/.starsector-preflight/benchmarks/20260823-172544/benchmark-summary.json`, with SHA-256 identities
+`fdaaa6a260aaeb81f00d68c16b4306ce275745888679145a691e5e4337eccaae` and
+`733b575d78ce7d45c4c1bd59dde7910909df73f97cf1be80a3bb183d57947dac`.
+
+That control rules out a missing JVM optimization in the current engine. The difference between the
+earlier 13.69-second best and these later 15.5-second observations is machine and run variance, not a
+reverted collector or heap policy.
+
 Later one-run exact observations on the current texture path recorded:
 
 | Storage state | Exact startup |
@@ -127,17 +140,28 @@ The Balanced first-launch summary is
 `~/.starsector-preflight/benchmarks/20260823-165728/benchmark-summary.json`, SHA-256
 `154df3442eb4688bfcb9b009c033588b2b1161a84569d48cfc89ef7388db7a7c`.
 
-This is the product transition Automatic should perform after the first successful launch. Leaving
-the complete but unordered bootstrap pack active would keep the slower first-launch layout.
+This is the product transition Preflight now performs after the first successful launch. Leaving the
+complete but unordered bootstrap pack active would keep the slower first-launch layout.
+
+The current automatic path was also exercised directly against the 1.1 GB Compact cache. The report
+recorded 16.93 seconds for preparation, including 12.77 seconds in textures, with 1,274 reusable
+blobs and 13,500 rebuilt blobs. The external process lifetime was 20.07 seconds because it also
+included the storage-plan pass before the preparation report began. The resulting exact-profile
+receipt records `balanced` storage with `learned` scope. The report is
+`/private/tmp/preflight-auto-compact-prepare.json`, SHA-256
+`b6b690b5c19bb3f2e2e6e8227ce4403867c39f3ede2e3b1e2e2722842202ac8f`.
 
 ## Why Balanced still exists
 
-Balanced is the current bootstrap default because a fresh profile has no observed startup access
-set. It prepares the complete reviewed texture corpus and works before any learning launch.
+Balanced is the bootstrap because a fresh profile has no observed startup access set. It prepares
+the complete reviewed texture corpus and works before any learning launch. Starting with Minimal
+would prepare quickly, but it would make the first game launch do substantially more work. Starting
+with Compact is impossible until a real launch has established which paths belong in the pack and
+in what order.
 
 Compact is the better measured steady state on this profile. It retains less than half the texture
 data, prepares in less than half the time, and produced the faster whole launch. The intended product
-policy is therefore **Automatic**:
+policy is therefore automatic:
 
 1. start a new profile with complete coverage;
 2. observe a successful launch;
@@ -145,8 +169,12 @@ policy is therefore **Automatic**:
 4. activate it only after the complete pack passes its identity and health checks;
 5. keep ordinary source fallback and the previous valid pack as recovery paths.
 
-That automatic graduation is tracked in
-[#1084](https://github.com/teamleaderleo/preflight/issues/1084). Until it lands, Balanced remains the
-fresh-profile default and Compact remains an explicit post-observation choice. Minimal remains the
-low-space option, and Uncompressed remains an advanced experiment with no established whole-launch
-advantage.
+The desktop now records the exact storage and scope of every successfully published texture pack.
+After Starsector closes, it refreshes the learned access order, verifies that the current full
+Balanced pack is healthy, requests a fresh Compact storage plan, and publishes Compact through the
+same validated preparation path. Installation changes and ordinary navigation cannot trigger the
+conversion. A failed conversion leaves the existing pack and ordinary source fallbacks available,
+then becomes eligible again after a later completed run.
+
+Minimal remains the low-space option, and Uncompressed remains an advanced experiment with no
+established whole-launch advantage.

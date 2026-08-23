@@ -434,6 +434,9 @@ export interface CacheHealth {
   status: "unknown" | "unsafe" | "cold" | "ready" | "repair-needed";
   profileFingerprint: string | null;
   preparedTextures?: boolean | null;
+  textureStorage?: "balanced" | "fastest" | null;
+  textureScope?: "full" | "learned" | null;
+  compactAvailable?: boolean;
   issues: Array<{
     artifact: string;
     summary: string;
