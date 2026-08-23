@@ -3,9 +3,10 @@
 # diagnostic, and campaign commands.
 set -euo pipefail
 
-# The public one-shot entry point sets this. All evidence still lands on disk; stdout carries the
-# requested result instead of the campaign narration. Errors are never suppressed.
-CONCISE="${PREFLIGHT_BENCHMARK_CONCISE:-false}"
+# The public one-shot entry point sets this. The old direct invocation also recognizes the exact
+# one-shot shape so a remembered command cannot fall back to campaign narration. All evidence still
+# lands on disk; stdout carries the requested result instead. Errors are never suppressed.
+CONCISE="${PREFLIGHT_BENCHMARK_CONCISE:-auto}"
 
 GAME_WAS_SET=false
 [[ -n "${GAME+x}" ]] && GAME_WAS_SET=true
@@ -117,6 +118,25 @@ while [[ $# -gt 0 ]]; do
         *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
     esac
 done
+
+if [[ "$CONCISE" != true && "$CONCISE" != false && "$CONCISE" != auto ]]; then
+    echo "PREFLIGHT_BENCHMARK_CONCISE must be true, false, or unset." >&2
+    exit 2
+fi
+if [[ "$CONCISE" == auto ]]; then
+    if [[ "$UNATTENDED" == true && "$CONDITIONS" == fast && "$ROUNDS" == 1
+            && "$SKIP_WARMUP" == true && "$COOLDOWN_SECONDS" == 0 && -z "$SESSION" ]]; then
+        CONCISE=true
+    else
+        CONCISE=false
+    fi
+fi
+ONE_SHOT_DIRECT=false
+if [[ "$CONCISE" == true && "$UNATTENDED" == true && "$CONDITIONS" == fast
+        && "$ROUNDS" == 1 && "$SKIP_WARMUP" == true && "$COOLDOWN_SECONDS" == 0
+        && -z "$SESSION" ]]; then
+    ONE_SHOT_DIRECT=true
+fi
 
 if [[ ! "$ROUNDS" =~ ^[0-9]+$ ]] || (( ROUNDS < 1 )); then
     echo "--rounds must be a positive integer." >&2
@@ -418,7 +438,12 @@ fi
 # window creation exist in one and not the other -- so mixing them in a single comparison would
 # be reading two quantities as one.
 LAUNCH_SETTINGS="$ROOT/launch-settings.json"
-if [[ -n "$SESSION" ]]; then
+if [[ "$ONE_SHOT_DIRECT" == true ]]; then
+    # `run --direct` reads the launcher's saved settings in the same JVM that starts the game.
+    # A one-shot has no later launch to compare against, so starting a separate JVM merely to
+    # snapshot those settings adds latency without strengthening the measurement.
+    :
+elif [[ -n "$SESSION" ]]; then
     [[ -f "$LAUNCH_SETTINGS" ]] || {
         bad "The session has no immutable launch-settings snapshot: $LAUNCH_SETTINGS"
         exit 2
@@ -428,7 +453,9 @@ else
 fi
 
 PROTOCOL=clicked
-if [[ "$UNATTENDED" == true ]]; then
+if [[ "$ONE_SHOT_DIRECT" == true ]]; then
+    PROTOCOL=direct
+elif [[ "$UNATTENDED" == true ]]; then
     if [[ "$(jq -r '.directLaunchAvailable' "$LAUNCH_SETTINGS")" != true ]]; then
         # Failing here rather than falling back: someone who asked for an unattended campaign
         # should learn it cannot be one now, not forty minutes in at the first unanswered prompt.
@@ -925,6 +952,15 @@ launch_once() {
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
                      --texture-mode prepared-pixels --prepared-unpadded --no-record) ;;
     esac
+    # The profile census is a post-launch diagnostic. Running it beside the game makes the
+    # benchmark compete with a full installation walk for CPU and disk, then makes the harness
+    # wait for that unrelated work after it has stopped the game.
+    if [[ "$condition" != vanilla ]]; then
+        command+=(--no-scan)
+    fi
+    if [[ "$ONE_SHOT_DIRECT" == true ]]; then
+        command+=(--direct)
+    fi
 
     banner "$label"
     # Before the snapshot and before the launch: the point is that every launch begins from the

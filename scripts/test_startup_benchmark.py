@@ -63,6 +63,12 @@ class PublicEntryPointTest(unittest.TestCase):
     def test_diagnostics_and_campaign_are_explicit_modes(self):
         self.assertIn("--details)", PUBLIC_SCRIPT_TEXT)
         self.assertIn("--campaign)", PUBLIC_SCRIPT_TEXT)
+        self.assertIn("PREFLIGHT_BENCHMARK_CONCISE=false", PUBLIC_SCRIPT_TEXT)
+
+    def test_legacy_one_shot_shape_is_concise_without_the_public_wrapper(self):
+        self.assertIn('CONCISE="${PREFLIGHT_BENCHMARK_CONCISE:-auto}"', SCRIPT_TEXT)
+        self.assertIn('if [[ "$CONCISE" == auto ]]', SCRIPT_TEXT)
+        self.assertIn('"$UNATTENDED" == true && "$CONDITIONS" == fast && "$ROUNDS" == 1', SCRIPT_TEXT)
 
     def test_concise_mode_keeps_the_exact_main_menu_clock(self):
         self.assertIn("gameLogStartToGraphicsPreloadMs", SCRIPT_TEXT)
@@ -74,6 +80,20 @@ class PublicEntryPointTest(unittest.TestCase):
         self.assertIn('if [[ -n "$LAUNCHER" ]]; then\n                command+=(--launcher "$LAUNCHER")', SCRIPT_TEXT)
         self.assertIn('if [[ "$CONCISE" == true ]]; then\n        # A one-shot result', SCRIPT_TEXT)
         self.assertIn('fingerprint="$EXPECTED_FINGERPRINT"', SCRIPT_TEXT)
+
+    def test_one_shot_direct_launch_does_not_start_a_settings_jvm_first(self):
+        settings = re.search(
+            r'LAUNCH_SETTINGS="\$ROOT/launch-settings.json"(?P<body>.*?)\n\nPROTOCOL=clicked',
+            SCRIPT_TEXT,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(settings, "launch settings setup not found")
+        self.assertIn('if [[ "$ONE_SHOT_DIRECT" == true ]]', settings.group("body"))
+        self.assertIn('command+=(--direct)', SCRIPT_TEXT)
+
+    def test_benchmarked_preflight_launches_do_not_run_the_profile_census(self):
+        self.assertIn('if [[ "$condition" != vanilla ]]', SCRIPT_TEXT)
+        self.assertIn('command+=(--no-scan)', SCRIPT_TEXT)
 
     def test_concise_mode_reuses_a_current_checkout_jar(self):
         self.assertIn('checkout_is_current=false', SCRIPT_TEXT)

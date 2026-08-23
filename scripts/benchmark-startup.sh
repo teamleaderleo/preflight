@@ -8,7 +8,7 @@ cd "$ROOT"
 case "${1:-}" in
     --campaign)
         shift
-        exec scripts/run-startup-benchmark.sh "$@"
+        exec env PREFLIGHT_BENCHMARK_CONCISE=false scripts/run-startup-benchmark.sh "$@"
         ;;
     --details)
         shift
