@@ -21,8 +21,9 @@ owners.
 - [#950](https://github.com/teamleaderleo/preflight/issues/950) records the maintainer's publication
   decision. The 2026-08-07 Fractal Softworks request is courtesy correspondence and a reply is outside
   the publication gate.
-- [#720](https://github.com/teamleaderleo/preflight/issues/720) owns the `release-signing`
-  Environment, release-tag admission, private signed rehearsal, and updater-signing secret migration.
+- [#720](https://github.com/teamleaderleo/preflight/issues/720) records the completed
+  `release-signing` Environment setup, private signed rehearsals, and updater-signing secret
+  migration.
 - [#607](https://github.com/teamleaderleo/preflight/issues/607) is closed `not planned`: the owner
   intentionally removed the repository rulesets/branch protection on 2026-08-21. It is retained as
   the decision record, not as a current release gate.
@@ -33,10 +34,10 @@ of documentation commits.
 ## Current beta gate
 
 Source and rendered-UI convergence are complete for the first beta. The remaining work is the
-operational candidate sequence owned by #652: finish #720's signing setup/private rehearsal, freeze
-one immutable candidate generation, exercise that exact package on native Windows and x86-64 Linux,
-retain package-bound benchmark/lifecycle/exact-tag canary evidence, and complete #965's hands-on
-report-intake cancel/retry/delete sequence.
+operational candidate sequence owned by #652: select and freeze one immutable tagged candidate
+generation, exercise that exact package on native Windows and x86-64 Linux, retain package-bound
+benchmark/lifecycle/exact-tag canary evidence, and complete #965's hands-on report-intake
+cancel/retry/delete sequence.
 
 A private rehearsal, green source tree, or complete candidate does not itself authorize making the
 first public beta GitHub release and downloadable packages live. Final candidate creation and public

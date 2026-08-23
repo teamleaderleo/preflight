@@ -4,9 +4,9 @@ Preflight is designed to ship as a desktop application plus a runnable and agent
 same Java engine provides the CLI, launch wrapper, profile census, preparation, diagnostics, and
 startup measurement tools.
 
-> **No public download yet.** Current beta readiness is operational candidate work: release-signing
-> setup/private rehearsal, freezing one candidate generation, native Windows/Linux game exercise,
-> and the package-bound benchmark/lifecycle/report evidence in
+> **No public download yet.** Signing setup and private rehearsals are complete. Current beta
+> readiness is selecting one immutable tagged candidate generation, exercising it on native
+> Windows and x86-64 Linux, and collecting its package-bound benchmark/lifecycle/report evidence in
 > [Release readiness](release-readiness.md) and the live coordination board
 > [#652](https://github.com/teamleaderleo/preflight/issues/652). The 2026-08-07 Fractal Softworks
 > request is courtesy correspondence under the publication decision in
@@ -41,9 +41,9 @@ acceptance is tied to package hashes, one reviewed source revision, capability r
 dependency/SBOM material, legal/privacy/install text, and the candidate-specific evidence listed in
 [Release readiness](release-readiness.md).
 
-Updater signing and release-secret administration have a live owner in
+Updater signing and release-secret administration are completed and recorded in
 [#720](https://github.com/teamleaderleo/preflight/issues/720). Repository rulesets are intentionally
-not part of the current release gate; #607 was retired on 2026-08-21 under the owner-selected policy.
+outside the current release gate; #607 was retired on 2026-08-21 under the owner-selected policy.
 Before approving a tagged deployment, verify through the `release-signing` Environment that the
 selected tag/commit is the intended frozen accepted `main` identity.
 

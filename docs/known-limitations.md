@@ -1,11 +1,12 @@
 # Known limitations
 
 Preflight is in operational release-candidate execution. Source and rendered-UI convergence are
-complete; the remaining beta work is release-signing setup/private rehearsal, freezing one candidate
-generation, native Windows/Linux game exercise, and the package-bound benchmark/lifecycle/report
-evidence tracked in [#652](https://github.com/teamleaderleo/preflight/issues/652) and mirrored in
-[Release readiness](release-readiness.md). Broader engineering stays parked unless a concrete
-candidate failure or explicit maintainer decision promotes it.
+complete, and the private signing rehearsals are done. The remaining beta work is selecting one
+release source, producing its immutable tagged package generation, exercising that exact package on
+native Windows and x86-64 Linux, and collecting the package-bound benchmark/lifecycle/report evidence
+tracked in [#652](https://github.com/teamleaderleo/preflight/issues/652) and mirrored in [Release
+readiness](release-readiness.md). Broader engineering stays parked unless a concrete candidate
+failure or explicit maintainer decision promotes it.
 
 The first beta's macOS and Windows packages will lack paid platform identities. macOS will require
 the user's explicit **Open Anyway** approval, and Windows may show SmartScreen's unrecognized-app

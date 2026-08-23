@@ -2,7 +2,7 @@
 
 **Status:** operational candidate execution; source and rendered-UI convergence complete
 
-**Updated:** 2026-08-22
+**Updated:** 2026-08-23
 
 This page mirrors the current beta gate. The live owner for blocker status, freeze order, collision
 control, and any promotion caused by a demonstrated candidate failure or explicit maintainer decision
@@ -39,6 +39,13 @@ must stay tied to one accepted candidate generation:
 - [ ] **Complete the hands-on packaged report-intake canary (#965).** Review the disclosed support
   ZIP, cancel after a partial upload, prove remote cleanup while the local ZIP remains, retry the same
   ZIP, verify the accepted size/SHA and retained receipt, then delete it and prove cleanup.
+
+Release-facing maintenance through #1096 landed after the completed private rehearsals. Startup
+entry points are consolidated, Compact is the normal prepared texture layout, redundant child-JVM
+work is removed, benchmark shutdown targets the exact game process, and patched `time` and
+`serde_with` dependencies build at the verified Rust 1.88 floor across all three hosted package
+jobs. The remaining Linux GTK/glib advisory is tracked by #1097 until the supported Tauri stack can
+move beyond GTK 0.18; the native Linux candidate exercise remains required.
 
 A private rehearsal does not authorize a release tag, and a successful tagged candidate does not by
 itself authorize making the first public beta GitHub release and downloadable packages live. Final
