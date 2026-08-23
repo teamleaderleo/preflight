@@ -479,11 +479,11 @@ fn read_run_stderr(
                     if let Some(game_pid) = parse_desktop_run_event(&line_prefix) {
                         if !event_seen {
                             event_seen = true;
-                            if let Ok(mut running) = app.state::<OperationCoordinator>().0.lock() {
-                                if running.game == Some(wrapper_pid) {
-                                    running.game = Some(game_pid);
-                                    running.game_recovered = false;
-                                }
+                            if let Ok(mut running) = app.state::<OperationCoordinator>().0.lock()
+                                && running.game == Some(wrapper_pid)
+                            {
+                                running.game = Some(game_pid);
+                                running.game_recovered = false;
                             }
                             let _ = app.emit(
                                 "run-state",
