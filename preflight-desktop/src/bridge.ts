@@ -6,6 +6,7 @@ import type {
   CacheHealth,
   CacheInspection,
   DesktopHomeState,
+  ModReadiness,
   CacheRepair,
   CacheSnapshot,
   CacheCleanupPlan,
@@ -48,6 +49,7 @@ export type BrowserPreviewScenario =
   | "setup"
   | "low-disk"
   | "cache-repair"
+  | "mod-problems"
   | "profile-mismatch"
   | "benchmark-unavailable"
   | "update-error"
@@ -60,6 +62,7 @@ const browserPreviewScenarios = new Set<BrowserPreviewScenario>([
   "setup",
   "low-disk",
   "cache-repair",
+  "mod-problems",
   "profile-mismatch",
   "benchmark-unavailable",
   "update-error",
@@ -180,7 +183,7 @@ interface HomeStateFlight {
   claimed: Set<HomeStateField>;
 }
 
-type HomeStateField = "cacheInspection" | "profiles" | "launchSettings";
+type HomeStateField = "cacheInspection" | "profiles" | "launchSettings" | "modReadiness";
 
 let homeStateFlight: HomeStateFlight | null = null;
 const homeStateBootstrapped = new Set<string>();
@@ -195,7 +198,7 @@ function primeHomeState(state: DesktopHomeState): void {
   };
 }
 
-/** Discovers the installation and primes Home's three reads from one engine process. */
+/** Discovers the installation and primes Home's first reads from one engine process. */
 export async function getBootstrapSnapshot(game?: string): Promise<DesktopSnapshot> {
   if (!isDesktopHost()) return getSnapshot(game);
   const expectedGame = game ?? null;
@@ -241,7 +244,7 @@ function firstHomeStateField<K extends HomeStateField>(
   const flight = homeStateFlight;
   if (flight.claimed.has(field)) return null;
   flight.claimed.add(field);
-  if (flight.claimed.size === 3) homeStateBootstrapped.add(game);
+  if (flight.claimed.size === 4) homeStateBootstrapped.add(game);
   return flight.promise.then((state) => {
     const value = state[field];
     if (value === null) throw new Error(state.errors[field] ?? `Preflight couldn't read ${field}.`);
@@ -254,6 +257,43 @@ export async function getWireframeHulls(game: string): Promise<WireframeHullCata
     return previewWireframeHulls;
   }
   return invoke<WireframeHullCatalog>("get_wireframe_hulls", { game });
+}
+
+function previewModReadiness(): ModReadiness {
+  if (browserPreviewScenario() === "mod-problems") {
+    return {
+      format: "starsector-preflight-mod-readiness-v1",
+      ready: false,
+      counts: { blocking: 1, warning: 0, info: 0, unknown: 0 },
+      findings: [{
+        code: "mod-metadata.required-dependency-disabled",
+        provider: "mod-metadata",
+        severity: "blocking",
+        summary: "Nexerelin requires LazyLib, but LazyLib is disabled.",
+        parameters: { modId: "nexerelin", dependencyId: "lw_lazylib" },
+        affectedModIds: ["lw_lazylib", "nexerelin"],
+        actions: [],
+      }],
+      modDirectories: 83,
+      metadataBytes: 131_072,
+      elapsedMillis: 7,
+    };
+  }
+  return {
+    format: "starsector-preflight-mod-readiness-v1",
+    ready: true,
+    counts: { blocking: 0, warning: 0, info: 0, unknown: 0 },
+    findings: [],
+    modDirectories: 83,
+    metadataBytes: 131_072,
+    elapsedMillis: 7,
+  };
+}
+
+export async function getModReadiness(game: string): Promise<ModReadiness> {
+  if (!isDesktopHost()) return previewModReadiness();
+  return firstHomeStateField(game, "modReadiness")
+    ?? invoke<ModReadiness>("get_mod_readiness", { game });
 }
 
 export async function getOperationState(includeDurable = false): Promise<OperationSnapshot> {

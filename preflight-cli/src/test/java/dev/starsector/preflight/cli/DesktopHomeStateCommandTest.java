@@ -18,7 +18,7 @@ final class DesktopHomeStateCommandTest {
     Path temporaryDirectory;
 
     @Test
-    void combinesTheThreeIndependentHomeReads() throws Exception {
+    void combinesTheIndependentHomeReads() throws Exception {
         Path game = Files.createDirectories(temporaryDirectory.resolve("game"));
         Path mods = Files.createDirectories(game.resolve("mods"));
         Files.writeString(
@@ -36,6 +36,7 @@ final class DesktopHomeStateCommandTest {
         assertNotNull(state.get("cacheInspection"));
         assertNotNull(state.get("profiles"));
         assertNotNull(state.get("launchSettings"));
+        assertNotNull(state.get("modReadiness"));
         assertEquals(Map.of(), state.get("errors"));
     }
 
@@ -51,9 +52,11 @@ final class DesktopHomeStateCommandTest {
         assertNotNull(state.get("cacheInspection"));
         assertNull(state.get("profiles"));
         assertNotNull(state.get("launchSettings"));
+        assertNull(state.get("modReadiness"));
         @SuppressWarnings("unchecked")
         Map<String, Object> errors = (Map<String, Object>) state.get("errors");
         assertTrue(errors.containsKey("profiles"));
-        assertEquals(1, errors.size());
+        assertTrue(errors.containsKey("modReadiness"));
+        assertEquals(2, errors.size());
     }
 }

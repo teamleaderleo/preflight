@@ -647,6 +647,7 @@ export default function App() {
             onNavigate={setPage}
             instrumentHull={instrumentHull}
             launchProfileName={launchProfileName}
+            modReadiness={profilesState.modReadiness}
           />
         ) : page === "launch" ? (
           <>

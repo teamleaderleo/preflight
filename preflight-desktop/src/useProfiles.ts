@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   deleteProfile,
   duplicateProfile,
+  getModReadiness,
   getProfiles,
   renameProfile,
   saveProfile,
@@ -12,6 +13,7 @@ import {
 } from "./profileActivationBridge";
 import type {
   Announce,
+  ModReadiness,
   ProfileList,
   ProfileMutationPlan,
 } from "./types";
@@ -26,6 +28,8 @@ export function useProfiles(
 ) {
   const [profiles, setProfiles] = useState<ProfileList | null>(null);
   const [profilesLoading, setProfilesLoading] = useState(false);
+  const [modReadiness, setModReadiness] = useState<ModReadiness | null>(null);
+  const [modReadinessLoading, setModReadinessLoading] = useState(false);
   const [profileName, setProfileName] = useState("");
   const [profileBusy, setProfileBusy] = useState(false);
   const [activationPlan, setActivationPlan] = useState<ReviewedProfileActivationPlan | null>(null);
@@ -39,6 +43,7 @@ export function useProfiles(
   const [duplicateTarget, setDuplicateTarget] = useState<string | null>(null);
   const [duplicateDraft, setDuplicateDraft] = useState("");
   const profilesRequest = useRef(0);
+  const modReadinessRequest = useRef(0);
   const actionRequest = useRef(0);
   const busyRef = useRef(false);
   const profileNameRevision = useRef(0);
@@ -64,14 +69,40 @@ export function useProfiles(
     }
   }, [announce, game]);
 
+  const refreshModReadiness = useCallback(async () => {
+    const request = ++modReadinessRequest.current;
+    if (!game) {
+      setModReadiness(null);
+      setModReadinessLoading(false);
+      return;
+    }
+    setModReadinessLoading(true);
+    try {
+      const next = await getModReadiness(game);
+      if (request === modReadinessRequest.current && currentGame.current === game) {
+        setModReadiness(next);
+      }
+    } catch (error) {
+      if (request === modReadinessRequest.current && currentGame.current === game) {
+        setModReadiness(null);
+        announce(errorMessage(error), "warning");
+      }
+    } finally {
+      if (request === modReadinessRequest.current) setModReadinessLoading(false);
+    }
+  }, [announce, game]);
+
   useEffect(() => {
     profilesRequest.current += 1;
+    modReadinessRequest.current += 1;
     actionRequest.current += 1;
     busyRef.current = false;
     profileNameRevision.current += 1;
     launchIdentityRefreshing.current = false;
     setProfiles(null);
     setProfilesLoading(false);
+    setModReadiness(null);
+    setModReadinessLoading(false);
     setProfileBusy(false);
     setProfileName("");
     setActivationPlan(null);
@@ -99,6 +130,16 @@ export function useProfiles(
   }, [game, profiles?.installRoot, refreshProfiles, visible]);
 
   useEffect(() => {
+    if (visible && game && !modReadiness && !launchIdentityRefreshing.current) {
+      void refreshModReadiness();
+    } else if (!game) {
+      modReadinessRequest.current += 1;
+      setModReadiness(null);
+      setModReadinessLoading(false);
+    }
+  }, [game, modReadiness, refreshModReadiness, visible]);
+
+  useEffect(() => {
     if (!game) return;
     // Another mod manager can change enabled_mods.json while Preflight is open. Refocus is the
     // launch-facing freshness boundary regardless of which Preflight page is currently visible.
@@ -109,13 +150,14 @@ export function useProfiles(
       if (launchIdentityRefreshing.current) return;
       launchIdentityRefreshing.current = true;
       setProfiles(null);
-      void Promise.all([refreshProfiles(), refreshCache()]).finally(() => {
+      setModReadiness(null);
+      void Promise.all([refreshProfiles(), refreshModReadiness(), refreshCache()]).finally(() => {
         launchIdentityRefreshing.current = false;
       });
     };
     window.addEventListener("focus", refreshLaunchIdentity);
     return () => window.removeEventListener("focus", refreshLaunchIdentity);
-  }, [game, refreshCache, refreshProfiles]);
+  }, [game, refreshCache, refreshModReadiness, refreshProfiles]);
 
   const saveCurrentProfile = async () => {
     const name = profileName.trim();
@@ -276,7 +318,12 @@ export function useProfiles(
           };
         });
       }
-      await Promise.all([refreshInstallation(expectedGame), refreshProfiles(), refreshCache()]);
+      await Promise.all([
+        refreshInstallation(expectedGame),
+        refreshProfiles(),
+        refreshModReadiness(),
+        refreshCache(),
+      ]);
       if (request !== actionRequest.current || currentGame.current !== expectedGame) return;
       if (result.reviewChanged) {
         setActivationPlan(result);
@@ -350,11 +397,14 @@ export function useProfiles(
 
   const clearProfiles = () => {
     profilesRequest.current += 1;
+    modReadinessRequest.current += 1;
     actionRequest.current += 1;
     busyRef.current = false;
     launchIdentityRefreshing.current = false;
     setProfiles(null);
     setProfilesLoading(false);
+    setModReadiness(null);
+    setModReadinessLoading(false);
     setProfileBusy(false);
     setActivationPlan(null);
     setActivationPlanGame(null);
@@ -394,6 +444,8 @@ export function useProfiles(
     profileName,
     profiles: currentProfiles,
     profilesLoading,
+    modReadiness,
+    modReadinessLoading,
     renameDraft,
     renameTarget,
     duplicateDraft,
@@ -406,6 +458,7 @@ export function useProfiles(
     cancelDuplicate,
     clearProfiles,
     refreshProfiles,
+    refreshModReadiness,
     reviewProfile,
     setRenameDraft,
     submitRename,

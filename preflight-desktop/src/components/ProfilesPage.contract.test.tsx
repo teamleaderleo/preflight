@@ -23,6 +23,16 @@ function profilesState(overrides: Record<string, unknown> = {}) {
       diagnostics: [],
     },
     profilesLoading: false,
+    modReadiness: {
+      format: "starsector-preflight-mod-readiness-v1",
+      ready: true,
+      counts: { blocking: 0, warning: 0, info: 0, unknown: 0 },
+      findings: [],
+      modDirectories: 83,
+      metadataBytes: 131_072,
+      elapsedMillis: 6,
+    },
+    modReadinessLoading: false,
     renameDraft: "",
     renameTarget: null,
     duplicateDraft: "",
@@ -43,9 +53,64 @@ function profilesState(overrides: Record<string, unknown> = {}) {
     submitRename: vi.fn(),
     setDuplicateDraft: vi.fn(),
     submitDuplicate: vi.fn(),
+    refreshModReadiness: vi.fn(),
     ...overrides,
   } as unknown as ReturnType<typeof useProfiles>;
 }
+
+test("the automatic mod check stays quiet when the current setup is clean", () => {
+  render(
+    <ProfilesPage
+      message=""
+      messageTone="info"
+      profilesState={profilesState()}
+      operationBlocked={false}
+    />,
+  );
+
+  expect(screen.queryByLabelText("Current mod setup needs attention")).not.toBeInTheDocument();
+  expect(screen.queryByText("Dependencies checked")).not.toBeInTheDocument();
+});
+
+test("a broken dependency is concise before review and actionable after expansion", async () => {
+  const user = userEvent.setup();
+  const refreshModReadiness = vi.fn();
+  render(
+    <ProfilesPage
+      message=""
+      messageTone="info"
+      profilesState={profilesState({
+        refreshModReadiness,
+        modReadiness: {
+          format: "starsector-preflight-mod-readiness-v1",
+          ready: false,
+          counts: { blocking: 1, warning: 0, info: 0, unknown: 0 },
+          findings: [{
+            code: "mod-metadata.required-dependency-disabled",
+            provider: "mod-metadata",
+            severity: "blocking",
+            summary: "Nexerelin requires LazyLib, but LazyLib is disabled.",
+            parameters: {},
+            affectedModIds: ["nexerelin", "lw_lazylib"],
+            actions: ["Enable LazyLib, then check again."],
+          }],
+          modDirectories: 83,
+          metadataBytes: 131_072,
+          elapsedMillis: 6,
+        },
+      })}
+      operationBlocked={false}
+    />,
+  );
+
+  expect(screen.getByText("1 mod problem")).toBeInTheDocument();
+  expect(screen.queryByText("Nexerelin requires LazyLib, but LazyLib is disabled.")).not.toBeVisible();
+  await user.click(screen.getByText("1 mod problem"));
+  expect(screen.getByText("Nexerelin requires LazyLib, but LazyLib is disabled.")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Check again" })).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Check again" }));
+  expect(refreshModReadiness).toHaveBeenCalledOnce();
+});
 
 const inactiveProfiles = {
   profiles: [{
