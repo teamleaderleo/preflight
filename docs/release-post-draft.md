@@ -115,8 +115,9 @@ them as work that can simply happen later in beta.
   targets are reviewed.
 - Development performance numbers describe the stated machine and 83-mod profile. Other installations
   can differ substantially; the accepted package gets its own benchmark before the release goes live.
-- First preparation can take several minutes and gigabytes on a large profile. The desktop calculates
-  the current installation's own storage plan before starting.
+- On the 83-mod development profile, first preparation measured about 38 seconds in Balanced and
+  17 seconds in Compact. The desktop measures the local storage requirement before starting.
+  Preparation time varies with the installed content and machine.
 
 See [Known limitations](known-limitations.md) for the complete list.
 
