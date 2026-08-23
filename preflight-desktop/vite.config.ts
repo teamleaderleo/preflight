@@ -23,5 +23,10 @@ export default defineConfig({
     setupFiles: "./src/test/setup.ts",
     css: true,
     globals: true,
+    // GitHub's hosted runner can report enough parallelism for several jsdom workers while only
+    // sustaining one App integration worker at full speed. The result is slower than a serialized
+    // run and makes one-second readiness assertions depend on neighboring test files. Local runs
+    // keep their normal parallelism; CI gives the integration suite the CPU it was promised.
+    maxWorkers: process.env.CI ? 1 : undefined,
   },
 });

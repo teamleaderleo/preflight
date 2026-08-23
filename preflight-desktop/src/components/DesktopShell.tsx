@@ -135,11 +135,19 @@ export function DesktopShell({
     workspace.focus({ preventScroll: true });
   }, []);
   useEffect(() => {
-    if (pageViewport.current) pageViewport.current.scrollTop = 0;
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
-    if (previousPage.current !== page) pageTitle.current?.focus({ preventScroll: true });
+    const changed = previousPage.current !== page;
     previousPage.current = page;
+    // Route housekeeping is useful, but none of it belongs in the interaction that reveals the
+    // destination. React may run an interaction-triggered effect before the browser paints. Yield
+    // one task so the browser gets a paint opportunity for the selected tab and retained page,
+    // then reset scroll and announce the heading to keyboard and assistive-technology users.
+    const timer = window.setTimeout(() => {
+      if (pageViewport.current) pageViewport.current.scrollTop = 0;
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      if (changed) pageTitle.current?.focus({ preventScroll: true });
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [page]);
   useEffect(() => () => {
     if (pointerFrame.current !== null) window.cancelAnimationFrame(pointerFrame.current);
