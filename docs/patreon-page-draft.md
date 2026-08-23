@@ -119,8 +119,8 @@ The support ZIP is its own rabbit hole. It uses a fixed allowlist, has hard size
 saves, game and mod assets, screenshots, audio, caches, arbitrary logs, and credentials, and tells
 you what it contains before you choose whether to send it. Sending has progress, cancellation and
 retry. An accepted upload gets a receipt with retention and deletion information, and the supported
-intake path can delete the uploaded report through that scoped receipt. Automatic failed-run
-reporting is a separate setting and starts off.
+intake path can delete the uploaded report through that scoped receipt. The first beta does not send
+failed-run reports automatically.
 
 The updater became another rabbit hole. Releases use a signed in-app update path, and the release
 process exercises installation, upgrade, rollback, and removal across macOS, Windows, and Linux.

@@ -125,8 +125,8 @@ See [Known limitations](known-limitations.md) for the complete list.
 
 If something fails, start with **Copy setup**, which produces a small support summary suitable for a
 forum, Discord, or issue report. When deeper diagnostics are useful, Help can create a support ZIP and
-show what it contains before sending. There are no accounts or usage telemetry. Automatic failed-run
-reporting is a separate remembered setting and starts off.
+show what it contains before sending. There are no accounts or usage telemetry. The first beta sends
+a support file only when you press Send.
 
 The release intake path still has candidate-specific facts that cannot be written ahead of the
 candidate. Fill these only from the accepted packaged run:

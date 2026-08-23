@@ -74,7 +74,7 @@ Lead with behavior:
 - Copy setup is bounded public-support text;
 - the ZIP is a separate fixed allowlist with explicit exclusions;
 - sending is separate from creation and review;
-- automatic failed-run reporting starts off;
+- the first beta does not send failed-run reports automatically;
 - upload has progress/cancel/retry;
 - accepted uploads receive a receipt with retention/deletion information;
 - when enabled by the release intake, the app can delete the uploaded report through its scoped

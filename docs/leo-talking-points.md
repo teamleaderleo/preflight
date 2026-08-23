@@ -195,9 +195,9 @@ own manifest of included/skipped entries, enforced limits, sizes, and SHA-256 va
 It never considers prepared caches, Starsector or mod files, saves, decoded assets, class bodies,
 console/game/wrapper logs, crash dumps, JFR recordings, screenshots, or audio captures.
 
-Sending is another separate action after disclosure. Automatic failed-run reporting is another
-separate setting and starts off. Accepted reports carry retention/deletion information; the supported
-intake path can delete an accepted upload through its scoped deletion authorization.
+Sending is another separate action after disclosure. The first beta does not send failed-run reports
+automatically. Accepted reports carry retention/deletion information; the supported intake path can
+delete an accepted upload through its scoped deletion authorization.
 
 The server side deliberately does not pretend a secret embedded in a desktop binary proves an
 untampered official client. Such a secret is extractable. The intake treats requests/archives as
@@ -391,7 +391,7 @@ maximum.
 **"What gets sent anywhere?"**
 
 Ordinary game launches upload no logs or telemetry. The app can check for updates. Support-report
-sending is separate and disclosed; automatic failed-run reporting is opt-in and starts off.
+sending is separate and disclosed. The first beta sends only when the player presses Send.
 
 **"Why is the cache so large?"**
 

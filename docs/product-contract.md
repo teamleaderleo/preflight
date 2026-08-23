@@ -140,9 +140,9 @@ storage policy stay separate, preview-first actions.
 
 “Send diagnostics” should upload the exact bounded ZIP already produced by `evidence export`; it
 must not create a broader telemetry path. The consent screen shows the existing inclusion/exclusion
-list, the byte count, and the ZIP SHA-256 before sending. Automatic failed-run reports are a
-separate, remembered setting that starts off and sends the same bounded ZIP only after an exact
-failed wrapper identity is confirmed.
+list, the byte count, and the ZIP SHA-256 before sending. The first beta keeps this manual. Automatic
+failed-run reporting remains unavailable until native background ownership, exact-run deduplication,
+and durable case-scoped deletion authority satisfy #662, #669, and #679.
 
 The service flow is:
 
@@ -179,8 +179,8 @@ allowlist.
 
 Cloudflare's own Worker Logs cover request, custom, and exception logs inside the intake service;
 they don't replace desktop consent, disclosure, redaction, bundle construction, or the separate
-choice to upload a report. Automatic failed-run reports are therefore their own remembered,
-default-off toggle rather than a side effect of enabling server observability.
+choice to upload a report. Server observability never enables desktop reporting. The first beta has
+no automatic failed-run reporting control.
 
 ## Update, removal, and storage contract
 

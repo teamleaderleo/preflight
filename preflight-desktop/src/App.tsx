@@ -429,9 +429,6 @@ export default function App() {
           profileFingerprint: target?.profileFingerprint ?? undefined,
         });
         const game = target?.installRoot ?? snapshot?.selected?.installRoot;
-        if (!payload.success && game) {
-          void diagnostics.submitAutomaticFailedRunReport({ game, wrapperPid: payload.pid });
-        }
         void Promise.all([refresh(game), refreshCache()]).then(([refreshed]) => {
           if (refreshed) announceGame(outcome, payload.success ? "success" : "error");
         });
@@ -469,7 +466,7 @@ export default function App() {
       stopListening();
       stopReconciliation();
     };
-  }, [announceGame, countFastLaunch, diagnostics.submitAutomaticFailedRunReport, refresh, refreshCache, snapshot?.ready, snapshot?.selected?.installRoot]);
+  }, [announceGame, countFastLaunch, refresh, refreshCache, snapshot?.ready, snapshot?.selected?.installRoot]);
 
   const chooseInstall = async (): Promise<boolean> => {
     if (choosingInstallRef.current) return false;
@@ -726,10 +723,8 @@ export default function App() {
             removalPlan={removal.plan}
             removalBusy={removal.busy}
             afterLaunchBehavior={afterLaunchBehavior}
-            automaticRunReports={diagnostics.automaticRunReports}
             installation={snapshot?.selected?.installRoot ?? null}
             installationChangeBlockedReason={activeOperation?.reason ?? null}
-            onAutomaticRunReportsChange={diagnostics.setAutomaticRunReports}
             onAfterLaunchBehaviorChange={setAfterLaunchBehavior}
             onChooseInstall={() => void chooseInstall()}
             onReviewRemoval={(scope) => void removal.review(scope)}

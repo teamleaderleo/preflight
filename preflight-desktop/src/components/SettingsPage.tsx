@@ -20,10 +20,8 @@ interface SettingsPageProps {
   removalPlan: RemovalPlan | null;
   removalBusy: boolean;
   afterLaunchBehavior: AfterLaunchBehavior;
-  automaticRunReports: boolean;
   installation: string | null;
   installationChangeBlockedReason?: string | null;
-  onAutomaticRunReportsChange: (enabled: boolean) => void;
   onAfterLaunchBehaviorChange: (behavior: AfterLaunchBehavior) => void;
   onChooseInstall: () => void;
   onReviewRemoval: (scope: RemovalScope) => void;
@@ -41,10 +39,8 @@ export function SettingsPage({
   removalPlan,
   removalBusy,
   afterLaunchBehavior,
-  automaticRunReports,
   installation,
   installationChangeBlockedReason,
-  onAutomaticRunReportsChange,
   onAfterLaunchBehaviorChange,
   onChooseInstall,
   onReviewRemoval,
@@ -204,15 +200,6 @@ export function SettingsPage({
             />
             <span>Check for updates automatically<small>Checks the release feed when Preflight starts.</small></span>
           </label>
-          <label className="settings-toggle">
-            <input
-              type="checkbox"
-              checked={automaticRunReports}
-              disabled={!reportIntake?.configured}
-              onChange={(event) => onAutomaticRunReportsChange(event.target.checked)}
-            />
-            <span>Send failed-run reports automatically<small>{reportIntake?.configured ? "If Starsector closes with an error, Preflight creates a support ZIP for that failed run and tries to send it." : "Report intake is unavailable in this build."}</small></span>
-          </label>
         </section>
 
         {/*
@@ -231,9 +218,7 @@ export function SettingsPage({
               * would advertise a feature this build doesn't have -- and understate the actual
               * privacy position, which in that case is stronger, not weaker.
               */}
-            {automaticRunReports ? (
-              <li>Failed-run reports are on. A failed launch can send a support ZIP for that run automatically.</li>
-            ) : reportIntake && !reportIntake.configured ? (
+            {reportIntake && !reportIntake.configured ? (
               <li>Update checks fetch version metadata. Support ZIPs stay here until you share one.</li>
             ) : (
               <li>Update checks fetch version metadata. A support ZIP is sent only when you press Send.</li>
