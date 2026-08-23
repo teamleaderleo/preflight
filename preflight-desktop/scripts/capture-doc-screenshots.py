@@ -87,6 +87,10 @@ def open_preview(
         window.localStorage.setItem("preflight.sidebar", "expanded");
         """
     )
+    # Chromium asks for a conventional favicon even though the packaged Tauri frontend does not
+    # use one. Keep that browser-owned request out of the artifact server so a missing favicon
+    # cannot masquerade as a product console failure.
+    context.route("**/favicon.ico", lambda route: route.fulfill(status=204, body=""))
     page = context.new_page()
     errors: list[str] = []
     page.on("pageerror", lambda error: errors.append(f"page error: {error}"))

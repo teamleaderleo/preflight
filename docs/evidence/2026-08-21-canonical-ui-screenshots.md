@@ -1,5 +1,9 @@
 # Canonical UI screenshots — 2026-08-21
 
+Superseded by the [2026-08-24 refresh](2026-08-24-canonical-ui-screenshots.md) after the accepted
+Home, Hangar, Speed, and Help controls changed in #1105. The identities below remain the record for
+the earlier public set.
+
 This note binds the README/walkthrough screenshot refresh owned by #1000 to the accepted combined desktop frontend after the final defrumping/accessibility pass.
 
 ## Accepted frontend source

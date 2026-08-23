@@ -37,6 +37,7 @@ REVIEWED_DOCUMENTATION_IMAGES = {
             (61_109, "6b8308d1b71cb8e85a350bfb6d31956c51556ee5"),
             (56_247, "ca01e532a00e804e5cca00c6f85028ab81b0fbdb"),
             (311_930, "cc60150e4eab29122b717b3dc2c3cbcbdd239111"),
+            (276_824, "f1d0360b221694c0fc233c31fe5b1e2fa28d2800"),
         }
     ),
     "docs/images/desktop-home-light.png": frozenset(
@@ -44,6 +45,7 @@ REVIEWED_DOCUMENTATION_IMAGES = {
             (64_418, "1c4517a2161186f34a79ea9fffa66db79f28f167"),
             (62_880, "a042bb65181efe99c41e2f7132a96f6ec8ca9c4e"),
             (342_496, "fea75bae343a0352cc5ee7d11c60218289645f0e"),
+            (225_729, "8e2cd80e328c2a6d00f11ea4df7df6b42017a405"),
         }
     ),
     "docs/images/desktop-profiles-light.png": frozenset(
@@ -51,6 +53,7 @@ REVIEWED_DOCUMENTATION_IMAGES = {
             (59_424, "b206041df4ee61123b3a6a47b492270bbcae4ac6"),
             (56_409, "4402dd545b806b5667f442e7370bfa3b3f3f8cf9"),
             (226_973, "056ce6773da636d6d98b261f9b347a7b2a7099e0"),
+            (145_567, "7c01323ab0b7f55d6b9387ca674458353f54f225"),
         }
     ),
     "docs/images/walkthrough-benchmark.png": frozenset(
@@ -58,6 +61,7 @@ REVIEWED_DOCUMENTATION_IMAGES = {
             (56_692, "69fb4cf05512f189151cf1e0f58085a6be6162fe"),
             (56_508, "b36aa4e523f1f850179093388f5ea38a18deb066"),
             (231_566, "304629870fc89b19b0a913efa70df4beb131c7be"),
+            (135_908, "3cc5d7a2a7fcf7d6054040dc64e067a6380f710c"),
         }
     ),
     "docs/images/walkthrough-ready.png": frozenset(
@@ -65,6 +69,7 @@ REVIEWED_DOCUMENTATION_IMAGES = {
             (61_105, "7e413e9e2e55678192dd4c9f5a04673fc20f4cfa"),
             (56_016, "e8676673464db9e897c831e69813bb08d7bb83c4"),
             (213_139, "57e61befeba4174c4ef2dd5a454623248200cbfa"),
+            (125_297, "7d87378f447f9e9532ef214d1d636280199e0922"),
         }
     ),
     "docs/images/walkthrough-setup.png": frozenset(
@@ -72,6 +77,7 @@ REVIEWED_DOCUMENTATION_IMAGES = {
             (50_674, "f41cfd715b7129a3439e3d3deb9e8886d52e90fd"),
             (49_295, "2922b4b63d94ac7a3f1eaca5adc886914199deb1"),
             (188_622, "c606b45a65933bb5ff35dc792bbd19ccc80936d3"),
+            (124_928, "44c2f93da0cf6846cb6325b41c402fcbc565df92"),
         }
     ),
 }
