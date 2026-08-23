@@ -39,7 +39,7 @@ public final class TextureCompatibilityRuntime {
     public static final String VERIFY_SOURCE_HASH_PROPERTY = "preflight.texture.verifySourceHash";
     /** Opt back in to hashing every prepared blob's pixels on the loading thread. */
     public static final String VERIFY_BLOB_CHECKSUM_PROPERTY = "preflight.texture.verifyBlobChecksum";
-    /** Diagnostic: use the configure-time full index validation as the launch snapshot. */
+    /** Trust the launcher's exact live-index comparison instead of walking every provider again. */
     public static final String TRUST_VALIDATED_INDEX_PROPERTY = "preflight.texture.trustValidatedIndex";
     public static final int MAX_MANIFEST_ENTRIES = 100_000;
     public static final long MAX_INDEX_PROVIDERS = 500_000;
@@ -87,10 +87,16 @@ public final class TextureCompatibilityRuntime {
                 disable(DisableReason.MANIFEST_INDEX_MISMATCH);
                 return false;
             }
-            ResourceIndexValidator.Result validation = ResourceIndexValidator.validate(index, 16);
-            if (!validation.valid()) {
-                disable(DisableReason.INDEX_STALE);
-                return false;
+            // Recommended launches arrive here only after CurrentTextureCache rebuilt the live
+            // installation index and compared every root and provider with this artifact. Walking
+            // the same providers again in the child JVM adds no new observation. Custom launches
+            // remain fail-closed unless they explicitly opt into the same snapshot contract.
+            if (!trustValidatedIndex()) {
+                ResourceIndexValidator.Result validation = ResourceIndexValidator.validate(index, 16);
+                if (!validation.valid()) {
+                    disable(DisableReason.INDEX_STALE);
+                    return false;
+                }
             }
             List<Path> sourceRoots = new ArrayList<>(index.roots().size());
             for (ResourceIndex.Root root : index.roots()) {
