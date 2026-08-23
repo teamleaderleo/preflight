@@ -3947,13 +3947,13 @@ footer {
   }
 
   .home-display-toggle {
-    width: 44px;
+    width: auto;
     justify-content: center;
-    padding: 0;
+    padding: 0 8px;
   }
 
   .home-display-toggle span {
-    display: none;
+    display: inline;
   }
 
   .launch-console--ready .launch-console__actions {
@@ -4076,6 +4076,17 @@ footer {
     width: 100%;
   }
 
+}
+
+@media (max-width: 480px) {
+  .home-display-toggle {
+    width: 44px;
+    padding: 0;
+  }
+
+  .home-display-toggle span {
+    display: none;
+  }
 }
 
 :root[data-theme="dark"] {

@@ -18,6 +18,17 @@ The artifact's internal manifest verified nine files and 718,186 bytes before ca
 `main` tree and reviewed PR-head tree are identical. The screenshot carrier changes only the
 documentation images, their reviewed source-boundary identities, and the capture helper.
 
+The minimum-window Ready image was refreshed once more from PR #1107 after its responsive Home
+controls kept the words `Hide time` and `Hide ship` visible at the supported 720×560 size:
+
+- base `main`: `6a643d17d0d2ee9ec1975cd1ece887c97f061619`;
+- reviewed head: `89da2cc21d3e0ddc9b748faa948cbb3ab8d021ee`;
+- Desktop application run: `32654586077`, success;
+- frontend artifact: `preflight-desktop-frontend-32654586077` / `9497109591`;
+- artifact digest: `sha256:0ddd5da51a42f6cbdc872aa830ffd34652ce47861af0c257c95b0649c1604133`.
+
+That artifact's internal manifest verified nine files and 718,299 bytes before capture.
+
 ## Canonical capture set
 
 | Image | State | Window | Theme |
@@ -43,10 +54,11 @@ still fail the capture.
 | `docs/images/desktop-home-light.png` | 1040×700 | 225,729 | `896be46058c0cd3efc6e9724c91ce6da7f6a0bee2489268ec76ef11155c74a93` |
 | `docs/images/desktop-profiles-light.png` | 1040×700 | 145,567 | `4b4140268eddd2ff94fa7d0338e535265ecafb52fe6840ca665f0890bce55366` |
 | `docs/images/walkthrough-benchmark.png` | 1040×700 | 135,908 | `ab50968c284585cc63f6398b252716d42db0a284a36eb7f7c4d1010949d2c6ca` |
-| `docs/images/walkthrough-ready.png` | 720×560 | 125,297 | `8f184466636b8ae351df68f267e4029686df5ed9da35a5ea8f5e4d3ff4786b02` |
+| `docs/images/walkthrough-ready.png` | 720×560 | 126,779 | `a038a648e11f523a3408b62685da711aa8b9a5966be0c3eb381332b45509c2a8` |
 | `docs/images/walkthrough-setup.png` | 720×560 | 124,928 | `485239763fbfaaf0d6a6c595bb8c1893fca5c79b58856a0f983e4da0dc330bbd` |
 
 All six images were inspected at original resolution. The settled Home captures show the accepted
 ship selector, playtime and ship visibility controls, launch action, installation identity, and
 motion control. The minimum-window captures remain contained at 720×560. The benchmark image stays
-in its pre-run state, so fixture timing cannot be mistaken for a measured result.
+in its pre-run state, so fixture timing cannot be mistaken for a measured result. The minimum-window
+Ready image keeps the time and ship controls labelled instead of relying on icons alone.

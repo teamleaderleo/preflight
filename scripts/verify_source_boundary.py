@@ -70,6 +70,7 @@ REVIEWED_DOCUMENTATION_IMAGES = {
             (56_016, "e8676673464db9e897c831e69813bb08d7bb83c4"),
             (213_139, "57e61befeba4174c4ef2dd5a454623248200cbfa"),
             (125_297, "7d87378f447f9e9532ef214d1d636280199e0922"),
+            (126_779, "0448bd1d2daad5dd90496dfe80a406c59dd434e4"),
         }
     ),
     "docs/images/walkthrough-setup.png": frozenset(
