@@ -241,6 +241,16 @@
     },
     {
       "type": "storage",
+      "value": "1.1",
+      "unit": "GB",
+      "publishedIn": [
+        "README.md"
+      ],
+      "evidence": "docs/evidence/2026-08-23-compact-preparation-and-intermediate-publication.md",
+      "derivation": "Compact pack on the reviewed 83-mod profile, rounded from the measured 1,087,894,442-byte finished pack."
+    },
+    {
+      "type": "storage",
       "value": "5.2",
       "unit": "GB",
       "publishedIn": [
