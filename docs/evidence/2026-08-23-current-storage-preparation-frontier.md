@@ -86,11 +86,14 @@ The prototype's extract-and-repack path took 76.65 seconds. That is not an optim
 pipeline, but it establishes that the current three-minute full conversion is not fundamental to a
 smaller tier.
 
-A roughly 1 GB option is now credible. It is not ready as a preparation choice yet. The successful
-pack learned from a previous complete profile; a fresh install still needs a bounded access
-observer that records logical misses before manifest lookup. A real product tier also needs an
-exact partial-pack health contract and a clear fallback when a later startup path needs an omitted
-texture.
+Compact is now a real preparation choice after a successful launch has recorded the required access
+set. Current source rejects the choice when that observation does not exist. The finished partial
+pack has an exact manifest and health boundary, while a later omitted path uses the ordinary source
+fallback.
+
+A fresh profile still cannot start with Compact because it has no learned access set. Automatic
+graduation from complete bootstrap coverage to Compact steady state is tracked in
+[#1084](https://github.com/teamleaderleo/preflight/issues/1084).
 
 The Minimal footprint is awaiting a real launch remeasurement. Its previous 204 MiB result included
 152,606,335 bytes of generated-bytecode request bundles duplicated exactly by a 1,183,935-byte pack.
@@ -98,10 +101,17 @@ Current source removes those bundles only after the pack is written, reopened, a
 
 ## Product decision
 
-- Keep Balanced as the default.
-- Keep Minimal as the automatic low-space escape hatch.
+- Balanced remains the current fresh-profile bootstrap because it requires no prior observation.
+- Compact is the measured efficient steady state after observation.
+- The intended ordinary policy is Automatic: bootstrap complete coverage, observe one successful
+  launch, build and validate Compact off the launch path, then activate it with the previous valid
+  pack and source fallback retained for recovery.
+- Minimal remains the low-space escape hatch.
 - Present raw storage as Uncompressed and advanced, with no promised whole-launch gain.
-- Build the fresh-install learning boundary before exposing the learned compact tier.
+
+The preparation correction, physical-order result, 13.69-second JVM campaign, and current
+Balanced/Compact launch observations are collected in
+[From three-minute preparation to fourteen-second launches](2026-08-23-storage-to-fourteen-seconds.md).
 
 The older codec and loose-plus-pack measurements remain useful history. They no longer describe the
 finished directory written by current source.
