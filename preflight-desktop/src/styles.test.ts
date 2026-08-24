@@ -155,6 +155,7 @@ test("supporting copy stays legible while dense evidence remains compact", () =>
 
 test("the sidebar mark keeps the app artwork legible at icon size", () => {
   expect(styles).toMatch(/\.brand__mark\s*\{[^}]*width:\s*44px;[^}]*border-radius:\s*10px;/s);
+  expect(styles).toMatch(/\.brand__type small\s*\{[^}]*white-space:\s*nowrap;/s);
 });
 
 test("focus and pointer targets cover every native desktop control", () => {
