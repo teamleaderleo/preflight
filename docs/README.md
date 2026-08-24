@@ -15,6 +15,9 @@ current answer.
   and diagnostics boundaries.
 - [Project overview](../README.md): what Preflight does, current measured results, and development
   status.
+- [Engineering overview](engineering-overview.md): the main performance and architecture story,
+  including shared data reads, texture critical paths, storage/layout, Janino, campaign runtime,
+  fallback boundaries, and desktop productization.
 - [Publication decision #950](https://github.com/teamleaderleo/preflight/issues/950): the 2026-08-20
   maintainer decision that the Fractal Softworks request is courtesy correspondence and a reply is
   outside the publication gate.
@@ -91,7 +94,8 @@ completed `release-signing` Environment setup, private rehearsals, and signing-s
 
 ## Engineering record
 
-The [roadmap](roadmap.md), [optimization north star](optimization-north-star.md), focused cache,
+Start with the [engineering overview](engineering-overview.md) for the current high-level technical
+story. The [roadmap](roadmap.md), [optimization north star](optimization-north-star.md), focused cache,
 audio, texture, resource-index, JFR, bytecode documents, and the
 [historical implementation handoff](next-llm-handoff.md) record how the current implementation was
 reached. Some contain headings such as “current,” “next,” or “release program” that were accurate on
