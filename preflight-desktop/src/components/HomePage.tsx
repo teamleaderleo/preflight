@@ -221,6 +221,14 @@ export function HomePage({
     }, 2200);
     return clearHudTimer;
   }, [homeLayoutState, optionsOpen]);
+  useEffect(() => {
+    const root = document.documentElement;
+    if (homeLayoutState === "settled") root.dataset.homeHud = hudVisible ? "visible" : "idle";
+    else delete root.dataset.homeHud;
+    return () => {
+      delete root.dataset.homeHud;
+    };
+  }, [homeLayoutState, hudVisible]);
   const recoveryFirst = Boolean(visibleRunFailure || cacheInspectionBlocked || status === "error");
   const settledReady = isReady
     && !needsPreparation

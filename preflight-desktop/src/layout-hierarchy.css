@@ -377,6 +377,17 @@
   pointer-events: none;
 }
 
+/* Appearance controls belong to the same transient Home HUD. Their invisible hit area remains
+ * available, so hovering the familiar top-right dock brings it back without moving anything. */
+:root[data-home-hud="idle"] .topbar--home .topbar__actions {
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+:root[data-home-hud="idle"] .topbar--home .topbar__actions:is(:hover, :focus-within) {
+  opacity: 1;
+}
+
 /* The chosen game remains reviewable while the controls are present. It is intentionally absent
  * from the idle composition, where the ship and launch action are the only subjects. */
 .launch-console--layout-settled .home-launch-path {
@@ -473,4 +484,9 @@
   .launch-console--layout-settled .home-playtime span {
     display: none;
   }
+}
+
+/* With no ship picker to clear, the launch identity becomes a caption for the primary action. */
+:root[data-home-mode="compact"] .launch-console--layout-settled .home-launch-identity {
+  bottom: 92px;
 }

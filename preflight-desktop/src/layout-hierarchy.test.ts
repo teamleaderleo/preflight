@@ -199,6 +199,12 @@ test("Hide ship removes only ship controls without creating another Home composi
     /:root\[data-home-mode="compact"\] \.launch-console--ready \.home-flight-instrument/,
   );
   expect(homePresentationStyles).not.toContain(":has(");
+  expect(layoutStyles).toMatch(
+    /:root\[data-home-mode="compact"\] \.launch-console--layout-settled \.home-launch-identity\s*\{[^}]*bottom:\s*92px;/s,
+  );
+  expect(layoutStyles).toMatch(
+    /:root\[data-home-hud="idle"\] \.topbar--home \.topbar__actions\s*\{[^}]*opacity:\s*0;/s,
+  );
 });
 
 test("compact rules exist for the required 720px review width", () => {

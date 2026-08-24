@@ -161,6 +161,12 @@ def assert_home_geometry(page: Page, label: str) -> dict[str, object]:
         raise RuntimeError(f"{label}: launch action is not centered: {measurement}")
 
     rects = visible_rects(page)
+    compact = page.evaluate("document.documentElement.dataset.homeMode === 'compact'")
+    if compact and ".home-launch-identity" in rects:
+        identity = rects[".home-launch-identity"]
+        gap = measurement["launch"]["y"] - (identity["y"] + identity["height"])
+        if gap < 6 or gap > 28:
+            raise RuntimeError(f"{label}: hidden-ship launch caption gap is awkward ({gap:.1f}px): {rects}")
     names = list(rects)
     for index, name in enumerate(names):
         for other in names[index + 1 :]:
@@ -284,10 +290,11 @@ def main() -> int:
                             """() => ({
                               idle: document.querySelector('.launch-console--layout-settled')?.classList.contains('home-hud--idle'),
                               hudOpacity: getComputedStyle(document.querySelector('.home-playtime')).opacity,
+                              appearanceOpacity: getComputedStyle(document.querySelector('.topbar__actions')).opacity,
                               launchOpacity: getComputedStyle(document.querySelector('.button--launch')).opacity,
                             })"""
                         )
-                        if idle != {"idle": True, "hudOpacity": "0", "launchOpacity": "1"}:
+                        if idle != {"idle": True, "hudOpacity": "0", "appearanceOpacity": "0", "launchOpacity": "1"}:
                             raise RuntimeError(f"{label} idle: HUD did not recede while launch remained visible: {idle}")
                         capture(page, args.output_dir, f"home-idle-{label}.png")
 
