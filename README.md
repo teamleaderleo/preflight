@@ -1,20 +1,23 @@
 # Preflight
 
 **A free, open-source performance launcher for Starsector. On my 83-mod setup, a controlled
-comparison measured an 89.00-second normal-launch median and a 15.53-second Preflight median.**
+comparison measured an 89.00-second normal-launch median and a 15.53-second Preflight median. Later
+development evidence retained the fourteen-second regime, with a 13.69-second best observation.**
 
 > Preflight is an independent, unofficial project. It isn't affiliated with or endorsed by Fractal
 > Softworks.
 
-> **Release candidate.** Public downloads are coming after the packaged Windows, macOS, and Linux
-> releases finish their final checks. Progress is tracked in [Release readiness](docs/release-readiness.md).
+> **Release candidate.** Source and rendered-UI convergence are complete. Public downloads follow
+> maintainer authorization of one immutable candidate plus the remaining native/package evidence.
+> Progress is tracked in [Release readiness](docs/release-readiness.md).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/desktop-home-dark.png">
   <img alt="Preflight ready to launch Starsector" src="docs/images/desktop-home-light.png">
 </picture>
 
-**101 seconds → 15.25 seconds on the 83-mod development installation.**
+**89.00 seconds → 15.53 seconds in the controlled 83-mod comparison; 13.69 seconds is the best later
+development observation.**
 
 Preflight started as an attempt to answer one question: why can heavily modded Starsector spend so
 long getting to the main menu, and how much of that work is the same every single launch?
@@ -77,8 +80,16 @@ once, then press **Launch Starsector** on later runs. The rest is there when you
 
 ## The measured result
 
-In the latest same-session comparison, five ordinary launches had an 89.00-second median. Five
-Preflight launches had a 15.53-second median, and the lowest recorded launch took 15.25 seconds.
+The clean controlled before/after campaign remains the strongest direct comparison: five ordinary
+launches had an 89.00-second median and five Preflight launches had a 15.53-second median, with a
+15.25-second low in that accelerated set.
+
+Later storage and JVM work moved the development profile into a fourteen-second regime. A reviewed
+five-run G1/deferred-heap-commit condition measured a 14.04-second median and a 13.69-second best.
+Later current-engine observations included 14.49, 14.84, 14.79, and roughly 15.5 seconds under
+nearby conditions. Those runs show that the current code retained the improvement while also showing
+meaningful machine/run variance. They do not replace the controlled before/after campaign or the
+pending packaged-candidate benchmark.
 
 | Reference point | Main-menu time | Meaning |
 | --- | ---: | --- |
@@ -88,22 +99,22 @@ Preflight launches had a 15.53-second median, and the lowest recorded launch too
 | Controlled baseline, one session | **89.00s** | Median of five vanilla launches, interleaved with the row below |
 | Controlled result, one session | **15.53s** | Median of five Preflight launches in that same session |
 | Lowest run in that controlled session | **15.25s** | Lowest of the five accelerated launches |
+| Reviewed later candidate condition | **14.04s median** | Five-run G1/deferred-heap-commit development condition |
+| Best later development observation | **13.69s** | Best run in that five-run candidate condition |
 
-The first three rows show the development history. They were measured months apart, and the mod
-list grew from 77 to 83 along the way. The last two rows come from one comparison on the same
-83-mod profile. The order was shuffled inside every round, the machine cooled for 240 seconds
-before each launch, and none of the ten runs were excluded. The medians are **73.47 seconds** apart.
+The early rows show the development history. The clean controlled 89.00/15.53 pair came from one
+83-mod session: order was shuffled inside every round, the machine cooled for 240 seconds before
+each launch, and none of the ten runs were excluded. The medians are **73.47 seconds** apart.
 
-All of it is one M5 MacBook Air running Starsector 0.98a-RC8 and the game's bundled x86-64 Java
-runtime through Rosetta. The latest production gates were 16.66 seconds cold, 16.28 seconds warm,
-and 15.88 seconds warm. Current whole-launch run-to-run spread on the reviewed machine is roughly
-±0.6 seconds. The 15.88-second gate retained all 42 transformed-class cache hits, 15,469 prepared
-texture and pixel-conversion hits, healthy adapters, and no adapter decline or failure.
+All of these development measurements are from one M5 MacBook Air running Starsector 0.98a-RC8 and
+the game's bundled x86-64 Java runtime through Rosetta. Hardware, mods, storage, cache warmth,
+memory pressure, translation, temperature, and other machine state affect the result. Preflight's
+benchmark lets each installation measure its own normal and accelerated launch. The development
+measurements and their context are collected in [Optimization history](docs/optimization-history.md)
+and [From three-minute preparation to fourteen-second launches](docs/evidence/2026-08-23-storage-to-fourteen-seconds.md).
 
-Hardware, mods, storage, cache warmth, memory pressure, translation, and temperature all affect the
-result. Preflight's benchmark lets each installation measure its own normal and accelerated launch.
-The development measurements and their context are collected in
-[Optimization history](docs/optimization-history.md).
+The first public beta still needs its benchmark run against the exact accepted package bytes. That
+packaged result will sit beside the development record instead of silently replacing it.
 
 ## Disk and preparation
 
@@ -391,17 +402,21 @@ See [Diagnostics export](docs/diagnostics.md), [Privacy](docs/privacy.md),
 
 ## Before the public beta
 
-The desktop product is largely there. The remaining gates establish the release claim and platform
-boundary:
+Source and rendered-UI convergence are complete, and the private signing/package rehearsals have
+succeeded across Linux, macOS, and Windows. The remaining beta gates establish the exact candidate
+claim and native platform boundary:
 
-1. Resolve the publication policy after the requested Fractal Softworks guidance window.
-2. Exercise clean real-game installations on Windows and Linux. CI, synthetic installs, native
-   package boot, and VMware Fusion acceptance already cover substantial portable-engine and package
-   behavior.
-3. Freeze and exercise the exact hosted candidate, including signed update, rollback, report,
-   cleanup, removal, recovery, and final package identity.
-4. Run the final benchmark pass on the exact candidate and publish that result beside the
-   established development record.
+1. The maintainer selects the accepted source and authorizes one immutable tagged candidate generation.
+2. Exercise that frozen package on native Windows with a licensed Starsector installation.
+3. Exercise the same frozen package on native x86-64 Linux with a licensed installation.
+4. Collect package-bound startup, lifecycle/update, production-report, and identity evidence against
+   that same generation.
+5. Complete the hands-on packaged report-intake cancel/retry/delete canary.
+6. Make the final public-release decision after the candidate evidence is retained.
+
+Private rehearsals prove the release machinery; they do not authorize the release tag. The final
+startup benchmark will use the engine extracted from the accepted package bytes and sit beside the
+established development record above.
 
 The complete publication checklist is in [Release readiness](docs/release-readiness.md). The ordered
 product and evidence work is in the [Public beta roadmap](docs/beta-roadmap.md).
