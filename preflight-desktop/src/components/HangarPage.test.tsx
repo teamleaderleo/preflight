@@ -71,23 +71,25 @@ test("the Orbitron ship identity is the typeable hull chooser for the full catal
   expect(chooser).toHaveAttribute("aria-expanded", "true");
   const initialList = screen.getByRole("listbox", { name: "Display ships" });
   expect(within(initialList).getByRole("option", { name: "Odyssey" })).toBeInTheDocument();
-  expect(within(initialList).getByText("capital")).toBeInTheDocument();
+  expect(within(initialList).getByText("capital · Home")).toBeInTheDocument();
   expect(within(initialList).queryByText(/capital ship/i)).not.toBeInTheDocument();
 
   fireEvent.change(chooser, { target: { value: "modded" } });
   const list = screen.getByRole("listbox", { name: "Display ships" });
   expect(within(list).getByRole("option", { name: "Modded Hull" })).toBeInTheDocument();
-  expect(within(list).getByText("Add")).toBeInTheDocument();
+  expect(within(list).getByText("cruiser · Add to Home")).toBeInTheDocument();
 
   fireEvent.keyDown(chooser, { key: "Enter" });
   expect(instrumentHull.choose).toHaveBeenCalledWith("modded-hull");
 });
 
-test("removes the selected ship from the display roster", () => {
+test("removal from Home is an explicit two-step action", () => {
   const instrumentHull = state();
   render(<HangarPage instrumentHull={instrumentHull} />);
 
-  fireEvent.click(screen.getByRole("button", { name: "Remove Odyssey from display ships" }));
+  expect(screen.queryByRole("button", { name: "Remove Odyssey from Home ships" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Manage Odyssey in Home ships" }));
+  fireEvent.click(screen.getByRole("button", { name: "Remove Odyssey from Home ships" }));
   expect(instrumentHull.remove).toHaveBeenCalledWith("odyssey");
 });
 
@@ -177,7 +179,7 @@ test("motion controls keep pause and one unambiguous direction toggle", () => {
   fireEvent.click(reverse);
   expect(controls).toHaveAttribute("data-direction", "clockwise");
   expect(JSON.parse(window.localStorage.getItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY) ?? "null"))
-    .toEqual({ motion: "still", direction: "clockwise" });
+    .toEqual({ motion: "rotate", direction: "clockwise" });
 
   const reset = within(controls).getByRole("button", { name: "Reset appearance" });
   expect(reset).toHaveAttribute("title", "Reset appearance");

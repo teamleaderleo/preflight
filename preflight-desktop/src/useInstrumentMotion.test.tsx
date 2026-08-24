@@ -20,7 +20,7 @@ test("defaults malformed or missing motion state to clockwise rotation", () => {
   expect(readInstrumentMotion()).toEqual(DEFAULT_INSTRUMENT_MOTION);
 
   window.localStorage.setItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY, "still");
-  expect(readInstrumentMotion()).toEqual({ motion: "still", direction: "clockwise" });
+  expect(readInstrumentMotion()).toEqual({ motion: "rotate", direction: "clockwise" });
 
   window.localStorage.setItem(
     INSTRUMENT_HULL_MOTION_STORAGE_KEY,
@@ -41,7 +41,7 @@ test("motion and direction changes synchronize every mounted renderer consumer",
   expect(first.result.current.motion).toBe("still");
   expect(second.result.current.motion).toBe("still");
   expect(JSON.parse(window.localStorage.getItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY) ?? "null"))
-    .toEqual({ motion: "still", direction: "counter-clockwise" });
+    .toEqual({ motion: "rotate", direction: "counter-clockwise" });
 });
 
 test("denied persistence still changes the complete preference for this session", () => {

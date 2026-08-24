@@ -160,6 +160,12 @@
   display: none;
 }
 
+.hangar-roster-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .hangar-identity__meta > span + span {
   display: flex;
   align-items: center;

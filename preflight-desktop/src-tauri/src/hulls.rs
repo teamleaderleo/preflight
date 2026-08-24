@@ -132,9 +132,13 @@ impl WireframeHullCatalog {
 }
 
 #[tauri::command]
-pub(crate) fn get_wireframe_hulls(game: String) -> Result<WireframeHullCatalog, String> {
-    let game = canonical_game_directory(&game)?;
-    read_wireframe_hulls(&game)
+pub(crate) async fn get_wireframe_hulls(game: String) -> Result<WireframeHullCatalog, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let game = canonical_game_directory(&game)?;
+        read_wireframe_hulls(&game)
+    })
+    .await
+    .map_err(|error| format!("Could not finish reading Starsector's hull catalog: {error}"))?
 }
 
 pub fn read_wireframe_hulls(game: &Path) -> Result<WireframeHullCatalog, String> {
@@ -257,9 +261,10 @@ fn validate_hull(raw: RawHull, hull_directory: &Path) -> Option<WireframeHull> {
         .map(|point| checked_point(point[0], point[1]))
         .collect::<Option<Vec<_>>>()?;
     let featured = featured_rank(&raw.hull_id) != usize::MAX;
-    let trace = featured
-        .then(|| trace_featured_sprite(&raw, hull_directory, &bounds))
-        .flatten();
+    // "Featured" only chooses the initial roster and ordering. Every installed hull goes through
+    // the same sprite tracer, otherwise adding a seventh ship silently falls back to the coarse
+    // bounds polygon while the first six use the richer derived geometry.
+    let trace = trace_sprite(&raw, hull_directory, &bounds);
     if let Some((outline, _)) = trace.as_ref() {
         bounds = outline.clone();
     }
@@ -313,7 +318,7 @@ fn validate_hull(raw: RawHull, hull_directory: &Path) -> Option<WireframeHull> {
     })
 }
 
-fn trace_featured_sprite(
+fn trace_sprite(
     raw: &RawHull,
     hull_directory: &Path,
     bounds: &[WireframePoint],
@@ -504,7 +509,7 @@ mod tests {
     }
 
     #[test]
-    fn featured_hulls_derive_richer_lines_from_the_selected_installation_only() {
+    fn installed_hulls_derive_richer_lines_from_the_selected_installation_only() {
         let root = temporary_directory("local-sprite");
         let hulls = root.join("data/hulls");
         let sprites = root.join("graphics/ships");
@@ -524,12 +529,38 @@ mod tests {
             }"#,
         )
         .expect("hull");
+        write_test_sprite(&sprites.join("afflictor.png"));
+        fs::write(
+            hulls.join("afflictor.ship"),
+            r#"{
+                "hullId":"afflictor",
+                "hullName":"Afflictor",
+                "hullSize":"FRIGATE",
+                "style":"HIGH_TECH",
+                "center":[8,8],
+                "spriteName":"graphics/ships/afflictor.png",
+                "bounds":[10,0,-5,8,-5,-8]
+            }"#,
+        )
+        .expect("hull");
 
         let catalog = read_wireframe_hulls(&root).expect("catalog");
-        let odyssey = &catalog.hulls[0];
+        let odyssey = catalog
+            .hulls
+            .iter()
+            .find(|hull| hull.id == "odyssey")
+            .expect("odyssey");
         assert_eq!(odyssey.id, "odyssey");
         assert!(odyssey.bounds.len() > 3);
         assert!(odyssey.trace.is_some());
+        let afflictor = catalog
+            .hulls
+            .iter()
+            .find(|hull| hull.id == "afflictor")
+            .expect("afflictor");
+        assert!(!afflictor.featured);
+        assert!(afflictor.bounds.len() > 3);
+        assert!(afflictor.trace.is_some());
         fs::remove_dir_all(root).expect("cleanup");
     }
 
