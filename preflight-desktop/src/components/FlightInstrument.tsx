@@ -307,8 +307,29 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
     const updateMotion = () => {
       if (frame !== null) window.cancelAnimationFrame(frame);
       frame = null;
+      previous = 0;
       drawStill();
       schedule();
+    };
+    const suspendWhileHidden = () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      frame = null;
+      previous = 0;
+      if (dragging) {
+        dragging = false;
+        delete root.dataset.dragging;
+        instrumentView.setView({ yaw: normalizeYaw(yaw), pitch });
+      }
+    };
+    const resumeAfterFocus = () => {
+      // WKWebView may discard a queued animation frame while its window is inactive without
+      // delivering a callback. Clear our bookkeeping when the app returns so rotation resumes
+      // on the first available frame.
+      updateMotion();
+    };
+    const updateVisibility = () => {
+      if (document.visibilityState === "hidden") suspendWhileHidden();
+      else resumeAfterFocus();
     };
     const theme = new MutationObserver(() => {
       palette = readPalette(canvas);
@@ -362,10 +383,12 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       event.preventDefault();
     };
     root.addEventListener("pointerdown", beginDrag);
-    root.addEventListener("pointermove", moveDrag);
-    root.addEventListener("pointerup", finishDrag);
-    root.addEventListener("pointercancel", finishDrag);
-    root.addEventListener("lostpointercapture", finishDrag);
+    window.addEventListener("pointermove", moveDrag);
+    window.addEventListener("pointerup", finishDrag);
+    window.addEventListener("pointercancel", finishDrag);
+    window.addEventListener("blur", suspendWhileHidden);
+    window.addEventListener("focus", resumeAfterFocus);
+    document.addEventListener("visibilitychange", updateVisibility);
     root.addEventListener("keydown", turnFromKeyboard);
     updateMotion();
     return () => {
@@ -376,10 +399,12 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       theme.disconnect();
       reducedMotion.removeEventListener("change", updateMotion);
       root.removeEventListener("pointerdown", beginDrag);
-      root.removeEventListener("pointermove", moveDrag);
-      root.removeEventListener("pointerup", finishDrag);
-      root.removeEventListener("pointercancel", finishDrag);
-      root.removeEventListener("lostpointercapture", finishDrag);
+      window.removeEventListener("pointermove", moveDrag);
+      window.removeEventListener("pointerup", finishDrag);
+      window.removeEventListener("pointercancel", finishDrag);
+      window.removeEventListener("blur", suspendWhileHidden);
+      window.removeEventListener("focus", resumeAfterFocus);
+      document.removeEventListener("visibilitychange", updateVisibility);
       root.removeEventListener("keydown", turnFromKeyboard);
     };
   }, [hull, interactive, instrumentView.pitch, instrumentView.yaw, motion, variant]);

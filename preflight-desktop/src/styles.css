@@ -2327,7 +2327,7 @@ h2 {
   transform: none;
 }
 
-.flight-instrument--interactive {
+.flight-instrument.flight-instrument--interactive {
   cursor: grab;
   pointer-events: auto;
   touch-action: none;

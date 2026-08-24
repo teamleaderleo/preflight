@@ -73,10 +73,12 @@ function HangarHullChooser({ catalogHulls, rosterIds, selected, onChoose, onRemo
   const [activeIndex, setActiveIndex] = useState(0);
   const [popupDirection, setPopupDirection] = useState<HullPopupDirection>("up");
   const [popupMaxHeight, setPopupMaxHeight] = useState<number | null>(null);
+  const [removeArmed, setRemoveArmed] = useState(false);
 
   useEffect(() => {
     setQuery(selected.name);
     setActiveIndex(0);
+    setRemoveArmed(false);
   }, [selected.id, selected.name]);
 
   const results = useMemo(() => {
@@ -263,7 +265,7 @@ function HangarHullChooser({ catalogHulls, rosterIds, selected, onChoose, onRemo
             >
               <span className="hangar-hull-combobox__name">{hull.name}</span>
               <span className="hangar-hull-combobox__meta">
-                {rosterIds.has(hull.id) ? hullSizeLabel(hull.hullSize) : "Add"}
+                {hullSizeLabel(hull.hullSize)} · {rosterIds.has(hull.id) ? "Home" : "Add to Home"}
               </span>
             </button>
           )) : (
@@ -274,15 +276,29 @@ function HangarHullChooser({ catalogHulls, rosterIds, selected, onChoose, onRemo
 
       <div className="hangar-identity__meta">
         <span>{hullSizeLabel(selected.hullSize)}</span>
-        <button
-          type="button"
-          disabled={!canRemove}
-          aria-label={`Remove ${selected.name} from display ships`}
-          title={canRemove ? "Remove ship" : "Keep at least one ship"}
-          onClick={() => onRemove(selected.id)}
-        >
-          Remove
-        </button>
+        {canRemove ? removeArmed ? (
+          <span className="hangar-roster-actions">
+            <button
+              type="button"
+              aria-label={`Remove ${selected.name} from Home ships`}
+              onClick={() => onRemove(selected.id)}
+            >
+              Remove?
+            </button>
+            <button type="button" aria-label="Cancel ship removal" onClick={() => setRemoveArmed(false)}>
+              Cancel
+            </button>
+          </span>
+        ) : (
+          <button
+            type="button"
+            aria-label={`Manage ${selected.name} in Home ships`}
+            title="Manage Home ships"
+            onClick={() => setRemoveArmed(true)}
+          >
+            Home ✓
+          </button>
+        ) : null}
       </div>
     </div>
   );

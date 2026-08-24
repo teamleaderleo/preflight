@@ -132,9 +132,30 @@ test("saved motion and direction preferences reach the shared renderer", () => {
   const { container } = render(createElement(FlightInstrument, { variant: "stage" }));
 
   expect(container.querySelector(".flight-instrument--stage"))
-    .toHaveAttribute("data-motion", "still");
+    .toHaveAttribute("data-motion", "rotate");
   expect(container.querySelector(".flight-instrument--stage"))
     .toHaveAttribute("data-direction", "counter-clockwise");
+});
+
+test("a rotating display immediately schedules a fresh frame when the app regains focus", () => {
+  installMatchMediaMock();
+  installCanvasMock();
+  vi.stubGlobal("ResizeObserver", class {
+    observe = vi.fn();
+    unobserve = vi.fn();
+    disconnect = vi.fn();
+  });
+  let nextFrame = 0;
+  const requestFrame = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => ++nextFrame);
+  const cancelFrame = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => undefined);
+
+  render(createElement(FlightInstrument, { variant: "stage", interactive: true }));
+  expect(requestFrame).toHaveBeenCalledTimes(1);
+
+  fireEvent.blur(window);
+  expect(cancelFrame).toHaveBeenCalledWith(1);
+  fireEvent.focus(window);
+  expect(requestFrame).toHaveBeenCalledTimes(2);
 });
 
 test("DPR changes redraw at the same CSS size and re-arm the resolution listener", () => {
