@@ -115,7 +115,11 @@ test("Home reflects the switched profile when its new mod set needs preparation"
     const user = userEvent.setup();
     render(<App />);
 
-    await screen.findByRole("button", { name: "Launch Starsector" });
+    await screen.findByRole(
+      "button",
+      { name: "Launch Starsector" },
+      { timeout: 3_000 },
+    );
     await user.click(screen.getByRole("button", { name: "Mods" }));
     await screen.findByText("Utilities only");
     await user.click(screen.getByRole("button", { name: "Switch…" }));

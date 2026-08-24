@@ -692,7 +692,6 @@ export default function App() {
             speedStanding={speedStanding}
             playtime={snapshot?.playtime}
             lastRun={applicableLastRun}
-            instrumentHull={instrumentHull.selected}
             onOptimizationPresetChange={setOptimizationPreset}
             onOptimizationDomainChange={setOptimizationDomainEnabled}
             onReviewCleanup={() => void cleanup.review()}

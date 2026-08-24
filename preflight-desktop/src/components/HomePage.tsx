@@ -3,12 +3,12 @@ import {
   ArrowIcon,
   CheckIcon,
   ClockIcon,
-  FocusIcon,
   FolderIcon,
   OrbitClockwiseIcon,
   OrbitCounterClockwiseIcon,
   PauseIcon,
   PlayIcon,
+  ShipIcon,
   SparklesIcon,
 } from "../icons";
 import { adapterHealthLine } from "../adapterHealthText";
@@ -397,7 +397,7 @@ export function HomePage({
                 <button
                   className="home-display-toggle"
                   type="button"
-                  aria-label={playtimeVisible ? "Hide time" : "Show time"}
+                  aria-label="Playtime"
                   title={playtimeVisible ? "Hide time" : "Show time"}
                   aria-pressed={playtimeVisible}
                   onClick={(event) => {
@@ -412,16 +412,16 @@ export function HomePage({
               <button
                 className="home-display-toggle"
                 type="button"
-                aria-label={homePresentation.mode === "compact" ? "Show ship" : "Hide ship"}
+                aria-label="Ship"
                 title={homePresentation.mode === "compact" ? "Show ship" : "Hide ship"}
-                aria-pressed={homePresentation.mode === "compact"}
+                aria-pressed={homePresentation.mode !== "compact"}
                 onClick={(event) => {
                   homePresentation.setMode(homePresentation.mode === "compact" ? "hangar" : "compact");
                   event.currentTarget.blur();
                   scheduleHudFade();
                 }}
               >
-                <FocusIcon />
+                <ShipIcon />
               </button>
               <button
                 className="home-options-toggle"

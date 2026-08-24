@@ -1,18 +1,16 @@
 import { useState } from "react";
 import { ArrowIcon, CheckIcon, CopyIcon, GaugeIcon } from "../icons";
 import { createPlaytimeShareText } from "../playtimeShare";
-import type { LastRun, PlaytimeSnapshot, WireframeHull } from "../types";
+import type { LastRun, PlaytimeSnapshot } from "../types";
 import type { SpeedMeasurement, SpeedStanding } from "../useSpeedRecord";
 import { formatDuration, formatPlaytime } from "../uiFormat";
 import { startupComparisonPresentation } from "../speedScoreboardFormat";
-import { FlightInstrument } from "./FlightInstrument";
 
 interface SpeedScoreboardProps {
   standing: SpeedStanding;
   isReady: boolean;
   playtime?: PlaytimeSnapshot;
   lastRun?: LastRun | null;
-  hull: WireframeHull;
   onOpenBenchmark: () => void;
 }
 
@@ -88,13 +86,12 @@ function ResultFigure({ measurement }: { measurement: SpeedMeasurement }) {
   );
 }
 
-export function SpeedScoreboard({ standing, isReady, playtime, lastRun, hull, onOpenBenchmark }: SpeedScoreboardProps) {
+export function SpeedScoreboard({ standing, isReady, playtime, lastRun, onOpenBenchmark }: SpeedScoreboardProps) {
   const { record } = standing;
 
   if (!record) {
     return (
       <section className="card scoreboard scoreboard--unmeasured" aria-label="Startup speed">
-        <FlightInstrument hull={hull} animate={false} />
         <div className="scoreboard__headline">
           <p className="eyebrow">Your startup</p>
           <strong className="scoreboard__figure scoreboard__figure--unknown" aria-hidden="true">—</strong>
@@ -121,7 +118,6 @@ export function SpeedScoreboard({ standing, isReady, playtime, lastRun, hull, on
   const latestMeasuredOn = new Date(latest.recordedAt);
   return (
     <section className="card scoreboard" aria-label="Startup speed">
-      <FlightInstrument hull={hull} animate={false} />
       <div className="scoreboard__headline">
         <p className="eyebrow">Personal best</p>
         <strong className="scoreboard__figure"><ResultFigure measurement={best} /></strong>

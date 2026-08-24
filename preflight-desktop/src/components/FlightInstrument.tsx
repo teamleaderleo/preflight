@@ -1,4 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { isDesktopHost } from "../bridge";
 import { INSTRUMENT_APPEARANCE_ATTRIBUTES } from "../flightInstrumentAppearance";
 import { useInstrumentMotion } from "../useInstrumentMotion";
 import {
@@ -293,6 +295,9 @@ export function FlightInstrument({
     if (!canvas || !root || typeof ResizeObserver === "undefined") return;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let frame: number | null = null;
+    let disposed = false;
+    let nativeFocusUnlisten: (() => void) | null = null;
+    const focusPaintTimers = new Set<number>();
     let visible = true;
     let lastPaint = performance.now();
     let dragging = false;
@@ -391,6 +396,22 @@ export function FlightInstrument({
       drawStill();
       schedule();
     };
+    const resumeAfterFocus = () => {
+      /*
+       * WKWebView can report focus one turn before it starts presenting canvas frames again.
+       * Paint now, on the next frame, and across that short handoff. Each pass reads wall time,
+       * so the ship resumes at its current angle rather than replaying the inactive interval.
+       */
+      resumeImmediately();
+      window.requestAnimationFrame(resumeImmediately);
+      for (const delay of [0, 32, 96]) {
+        const timer = window.setTimeout(() => {
+          focusPaintTimers.delete(timer);
+          if (!disposed) resumeImmediately();
+        }, delay);
+        focusPaintTimers.add(timer);
+      }
+    };
     const repairStaleFrame = () => {
       if (performance.now() - lastPaint > 50) resumeImmediately();
     };
@@ -460,15 +481,27 @@ export function FlightInstrument({
     window.addEventListener("pointermove", moveDrag);
     window.addEventListener("pointerup", finishDrag);
     window.addEventListener("pointercancel", finishDrag);
-    window.addEventListener("focus", resumeImmediately);
-    window.addEventListener("pageshow", resumeImmediately);
-    document.addEventListener("visibilitychange", resumeImmediately);
+    window.addEventListener("focus", resumeAfterFocus);
+    window.addEventListener("pageshow", resumeAfterFocus);
+    document.addEventListener("visibilitychange", resumeAfterFocus);
+    if (isDesktopHost()) {
+      void getCurrentWindow().onFocusChanged(({ payload }) => {
+        if (payload) resumeAfterFocus();
+      }).then((unlisten) => {
+        if (disposed) unlisten();
+        else nativeFocusUnlisten = unlisten;
+      });
+    }
     root.addEventListener("pointerenter", repairStaleFrame);
     window.addEventListener("pointerdown", repairStaleFrame, true);
     root.addEventListener("keydown", turnFromKeyboard);
     updateMotion();
     return () => {
+      disposed = true;
       if (frame !== null) window.cancelAnimationFrame(frame);
+      for (const timer of focusPaintTimers) window.clearTimeout(timer);
+      focusPaintTimers.clear();
+      nativeFocusUnlisten?.();
       resize.disconnect();
       clearPixelRatioListener();
       intersection?.disconnect();
@@ -479,9 +512,9 @@ export function FlightInstrument({
       window.removeEventListener("pointermove", moveDrag);
       window.removeEventListener("pointerup", finishDrag);
       window.removeEventListener("pointercancel", finishDrag);
-      window.removeEventListener("focus", resumeImmediately);
-      window.removeEventListener("pageshow", resumeImmediately);
-      document.removeEventListener("visibilitychange", resumeImmediately);
+      window.removeEventListener("focus", resumeAfterFocus);
+      window.removeEventListener("pageshow", resumeAfterFocus);
+      document.removeEventListener("visibilitychange", resumeAfterFocus);
       root.removeEventListener("pointerenter", repairStaleFrame);
       window.removeEventListener("pointerdown", repairStaleFrame, true);
       root.removeEventListener("keydown", turnFromKeyboard);

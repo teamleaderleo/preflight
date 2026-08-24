@@ -159,6 +159,7 @@ test("a rotating display paints synchronously and schedules a fresh frame when t
 
   render(createElement(FlightInstrument, { variant: "stage", interactive: true }));
   expect(requestFrame).toHaveBeenCalledTimes(1);
+  const framesBeforeFocus = requestFrame.mock.calls.length;
   const strokesBeforeFocus = vi.mocked(context.stroke).mock.calls.length;
   const positionBeforeFocus = vi.mocked(context.moveTo).mock.calls.at(-1);
 
@@ -169,13 +170,14 @@ test("a rotating display paints synchronously and schedules a fresh frame when t
   expect(cancelFrame).toHaveBeenCalledWith(1);
   expect(vi.mocked(context.stroke).mock.calls.length).toBeGreaterThan(strokesBeforeFocus);
   expect(vi.mocked(context.moveTo).mock.calls.at(-1)).not.toEqual(positionBeforeFocus);
-  expect(requestFrame).toHaveBeenCalledTimes(2);
+  expect(requestFrame.mock.calls.length).toBeGreaterThan(framesBeforeFocus);
 
   const strokesBeforeVisibilityRestore = vi.mocked(context.stroke).mock.calls.length;
+  const framesBeforeVisibilityRestore = requestFrame.mock.calls.length;
   now += 5_000;
   fireEvent(document, new Event("visibilitychange"));
   expect(vi.mocked(context.stroke).mock.calls.length).toBeGreaterThan(strokesBeforeVisibilityRestore);
-  expect(requestFrame).toHaveBeenCalledTimes(3);
+  expect(requestFrame.mock.calls.length).toBeGreaterThan(framesBeforeVisibilityRestore);
 });
 
 test("DPR changes redraw at the same CSS size and re-arm the resolution listener", () => {
