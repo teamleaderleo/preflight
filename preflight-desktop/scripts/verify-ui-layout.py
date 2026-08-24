@@ -224,7 +224,7 @@ def render_contact_sheet(browser: Browser, output_dir: Path) -> None:
     cards: list[str] = []
     for width, height in VIEWPORTS:
         label = f"{width}x{height}"
-        for state in ("full", "compact", "minimal"):
+        for state in ("full", "idle", "compact", "minimal"):
             filename = f"home-{state}-{label}.png"
             cards.append(
                 f'<figure><figcaption>{html.escape(label)} · {state}</figcaption>'
@@ -236,7 +236,7 @@ def render_contact_sheet(browser: Browser, output_dir: Path) -> None:
   * {{ box-sizing: border-box; }}
   body {{ margin: 0; padding: 20px; color: #dce5f7; background: #080c16; font: 14px system-ui, sans-serif; }}
   h1 {{ margin: 0 0 16px; font-size: 22px; }}
-  main {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }}
+  main {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }}
   figure {{ margin: 0; overflow: hidden; border: 1px solid #273149; border-radius: 8px; background: #101727; }}
   figcaption {{ padding: 8px 10px; font-weight: 650; }}
   img {{ display: block; width: 100%; height: auto; background: #070b14; }}
@@ -277,6 +277,24 @@ def main() -> int:
                             assert_ship_moves(page, f"{label} full")
                         capture(page, args.output_dir, f"home-full-{label}.png")
 
+                        page.evaluate("document.activeElement instanceof HTMLElement && document.activeElement.blur()")
+                        page.mouse.move(width - 2, height - 2)
+                        page.wait_for_timeout(2400)
+                        idle = page.evaluate(
+                            """() => ({
+                              idle: document.querySelector('.launch-console--layout-settled')?.classList.contains('home-hud--idle'),
+                              hudOpacity: getComputedStyle(document.querySelector('.home-playtime')).opacity,
+                              launchOpacity: getComputedStyle(document.querySelector('.button--launch')).opacity,
+                            })"""
+                        )
+                        if idle != {"idle": True, "hudOpacity": "0", "launchOpacity": "1"}:
+                            raise RuntimeError(f"{label} idle: HUD did not recede while launch remained visible: {idle}")
+                        capture(page, args.output_dir, f"home-idle-{label}.png")
+
+                        page.mouse.move(width / 2, height / 2)
+                        page.wait_for_function(
+                            "document.querySelector('.launch-console--layout-settled')?.classList.contains('home-hud--visible')",
+                        )
                         page.get_by_role("button", name="Hide ship").click()
                         page.locator(".home-flight-instrument").wait_for(state="hidden")
                         if not page.locator(".home-playtime").is_visible():

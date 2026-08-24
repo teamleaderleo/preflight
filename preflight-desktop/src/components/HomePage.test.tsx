@@ -258,8 +258,8 @@ test("Home exposes direct display controls without conflicting compact and playt
   await user.click(screen.getByRole("button", { name: "Odyssey" }));
   expect(navigate).toHaveBeenCalledWith("hangar");
 
-  await user.click(screen.getByRole("button", { name: "Reverse ship rotation" }));
-  expect(screen.getByRole("button", { name: "Reverse ship rotation" })).toBeEnabled();
+  await user.click(screen.getByRole("button", { name: "Pause ship rotation" }));
+  expect(screen.getByRole("button", { name: "Resume ship rotation" })).toHaveAttribute("aria-pressed", "true");
 
   await user.click(screen.getByRole("button", { name: "Hide time" }));
   expect(screen.getByRole("button", { name: "Show time" })).toHaveAttribute("aria-pressed", "false");

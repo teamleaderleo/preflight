@@ -57,9 +57,9 @@ test("resolved Home cascade follows explicit state modifiers", () => {
   // jsdom can report older declarations after parsing the modern production cascade. Pin those late
   // owners directly; real scrolling and pixel placement belong to the Chromium acceptance pass.
   expect(layoutStyles).toMatch(/\.page-viewport\.page-viewport--home\s*\{[^}]*position:\s*relative;[^}]*overflow-y:\s*auto;/s);
-  expect(getComputedStyle(settled.instrument).inset).toBe("auto");
-  expect(getComputedStyle(settled.primary).display).toBe("grid");
-  expect(getComputedStyle(settled.instrument).gridRow).toBe("2");
+  expect(getComputedStyle(settled.instrument).inset).toBe("-34px 28px 112px");
+  expect(getComputedStyle(settled.primary).display).toBe("block");
+  expect(getComputedStyle(settled.instrument).position).toBe("absolute");
   expect(getComputedStyle(preparation.instrument).inset).toBe("6px 36px 104px");
   expect(getComputedStyle(recovery.console).minHeight).toBe("220px");
   expect(getComputedStyle(recovery.primary).minHeight).toBe("220px");
@@ -96,24 +96,21 @@ test("failed-run recovery is an overlay on settled Home geometry", () => {
   expect(layoutStyles).not.toContain("inset: 105px 8px 24px");
 });
 
-test("settled Home gives the ship picker and launch action separate intrinsic tracks", () => {
+test("settled Home anchors the launch action while secondary controls adapt around it", () => {
   expect(layoutStyles).toMatch(
-    /\.launch-console--layout-settled \.launch-console__primary\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*240px minmax\(400px, 620px\) 240px;/s,
+    /\.launch-console--layout-settled \.launch-console__primary\s*\{[^}]*position:\s*relative;[^}]*display:\s*block;/s,
   );
   expect(layoutStyles).toMatch(
-    /\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*position:\s*relative !important;[^}]*grid-column:\s*1;[^}]*grid-row:\s*4;/s,
+    /\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*position:\s*absolute !important;[^}]*bottom:\s*22px;[^}]*left:\s*20px;/s,
   );
   expect(layoutStyles).toMatch(
-    /\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*position:\s*relative;[^}]*display:\s*grid;[^}]*grid-column:\s*2;[^}]*grid-row:\s*4;[^}]*grid-template-columns:\s*44px minmax\(0, 1fr\) 44px;[^}]*justify-self:\s*center;[^}]*width:\s*min\(680px, 100%\);/s,
+    /\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*position:\s*absolute;[^}]*bottom:\s*20px;[^}]*left:\s*50%;[^}]*display:\s*grid;[^}]*grid-template-columns:\s*44px minmax\(260px, 520px\) 44px;[^}]*transform:\s*translateX\(-50%\);/s,
   );
   expect(layoutStyles).toMatch(
-    /@container \(min-width: 641px\) and \(max-width: 920px\)[\s\S]*?\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*3;[\s\S]*?\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*grid-column:\s*1 \/ -1;[^}]*grid-row:\s*4;/s,
+    /@container \(max-width: 1000px\)[\s\S]*?\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*bottom:\s*88px;[^}]*left:\s*50%;[^}]*transform:\s*translateX\(-50%\);/s,
   );
   expect(layoutStyles).toMatch(
-    /@container \(max-width: 640px\)[\s\S]*?\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*grid-row:\s*4;[\s\S]*?\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*grid-row:\s*5;[^}]*justify-self:\s*center;/s,
-  );
-  expect(layoutStyles).toMatch(
-    /@container \(max-width: 500px\)[\s\S]*?\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*grid-row:\s*5;[\s\S]*?\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*grid-row:\s*6;/s,
+    /@container \(max-width: 640px\)[\s\S]*?\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*bottom:\s*14px;[^}]*grid-template-columns:\s*44px minmax\(0, 1fr\) 44px;/s,
   );
   expect(styles).toMatch(
     /\.home-motion-toggle\s*\{[^}]*flex:\s*0 0 44px;[^}]*width:\s*44px;/s,
@@ -191,17 +188,13 @@ test("prepared-data attention uses preparation composition while review actions 
   style.remove();
 });
 
-test("Hide ship removes only ship controls and owns a compact intrinsic composition", () => {
+test("Hide ship removes only ship controls without creating another Home composition", () => {
   expect(homePresentationStyles).toMatch(
     /:root\[data-home-mode="compact"\] \.launch-console--layout-settled \.home-flight-instrument/,
   );
   expect(homePresentationStyles).not.toMatch(/data-home-mode="compact"[^}]*\.home-playtime/);
-  expect(layoutStyles).toMatch(
-    /:root\[data-home-mode="compact"\] \.launch-console--layout-settled\.launch-console--minimal\s*\{[^}]*height:\s*330px;/s,
-  );
-  expect(layoutStyles).toMatch(
-    /:root\[data-home-mode="compact"\][\s\S]*?\.launch-console__primary\s*\{[^}]*grid-template-columns:\s*240px minmax\(400px, 620px\) 240px;[^}]*grid-template-rows:\s*auto auto auto auto;/,
-  );
+  expect(layoutStyles).not.toMatch(/data-home-mode="compact"[^}]*height:/);
+  expect(layoutStyles).not.toMatch(/data-home-mode="compact"[\s\S]*?grid-template/);
   expect(homePresentationStyles).not.toMatch(
     /:root\[data-home-mode="compact"\] \.launch-console--ready \.home-flight-instrument/,
   );

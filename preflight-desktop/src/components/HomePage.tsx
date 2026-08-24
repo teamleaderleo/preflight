@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { ArrowIcon, CheckIcon, ClockIcon, FocusIcon, FolderIcon, PlayIcon, RotateClockwiseIcon, RotateCounterClockwiseIcon, SparklesIcon } from "../icons";
+import { useEffect, useRef, useState } from "react";
+import { ArrowIcon, CheckIcon, ClockIcon, FocusIcon, FolderIcon, PauseIcon, PlayIcon, RotateClockwiseIcon, RotateCounterClockwiseIcon, SparklesIcon } from "../icons";
 import { adapterHealthLine } from "../adapterHealthText";
 import { HOME_OPTIONS_STORAGE_KEY } from "../desktopStorage";
 import type { Page } from "./DesktopShell";
@@ -116,6 +116,8 @@ export function HomePage({
       return false;
     }
   });
+  const [hudVisible, setHudVisible] = useState(true);
+  const hudTimer = useRef<number | null>(null);
   const homePresentation = useHomePresentation();
   const instrumentMotion = useInstrumentMotion();
   const {
@@ -182,6 +184,43 @@ export function HomePage({
         : preparationLayout
           ? "preparation"
           : "settled";
+  const clearHudTimer = () => {
+    if (hudTimer.current !== null) {
+      window.clearTimeout(hudTimer.current);
+      hudTimer.current = null;
+    }
+  };
+  const keepHudVisible = () => {
+    clearHudTimer();
+    setHudVisible(true);
+  };
+  const scheduleHudFade = () => {
+    clearHudTimer();
+    if (homeLayoutState !== "settled" || optionsOpen) {
+      setHudVisible(true);
+      return;
+    }
+    hudTimer.current = window.setTimeout(() => {
+      setHudVisible(false);
+      hudTimer.current = null;
+    }, 2200);
+  };
+  const revealHud = () => {
+    keepHudVisible();
+    scheduleHudFade();
+  };
+  useEffect(() => {
+    clearHudTimer();
+    if (homeLayoutState !== "settled" || optionsOpen) {
+      setHudVisible(true);
+      return clearHudTimer;
+    }
+    hudTimer.current = window.setTimeout(() => {
+      setHudVisible(false);
+      hudTimer.current = null;
+    }, 2200);
+    return clearHudTimer;
+  }, [homeLayoutState, optionsOpen]);
   const recoveryFirst = Boolean(visibleRunFailure || cacheInspectionBlocked || status === "error");
   const settledReady = isReady
     && !needsPreparation
@@ -280,7 +319,16 @@ export function HomePage({
     <>
       {recoveryFirst ? recoveryContent : null}
 
-      <section className={`launch-console ${isReady ? "launch-console--ready" : "card launch-console--setup"} launch-console--${status} launch-console--layout-${homeLayoutState} ${cacheNeedsRepair ? "launch-console--repair-state" : ""} ${cacheInspectionBlocked ? "launch-console--attention-state" : ""} ${isReady && optionsOpen ? "launch-console--options-open" : "launch-console--minimal"} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""} ${hasPlaytime && playtimeVisible ? "launch-console--has-playtime" : ""}`}>
+      <section
+        className={`launch-console ${isReady ? "launch-console--ready" : "card launch-console--setup"} launch-console--${status} launch-console--layout-${homeLayoutState} ${cacheNeedsRepair ? "launch-console--repair-state" : ""} ${cacheInspectionBlocked ? "launch-console--attention-state" : ""} ${isReady && optionsOpen ? "launch-console--options-open" : "launch-console--minimal"} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""} ${hasPlaytime && playtimeVisible ? "launch-console--has-playtime" : ""} ${hudVisible ? "home-hud--visible" : "home-hud--idle"}`}
+        onPointerMove={revealHud}
+        onPointerDown={keepHudVisible}
+        onPointerLeave={scheduleHudFade}
+        onFocusCapture={keepHudVisible}
+        onBlurCapture={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) scheduleHudFade();
+        }}
+      >
         <div className="launch-console__primary">
           {isReady ? (
             <div className="home-flight-instrument">
@@ -288,7 +336,7 @@ export function HomePage({
             </div>
           ) : null}
           {isReady ? (
-            <div className="launch-console__status-line">
+            <div className="launch-console__status-line home-hud-layer">
               {status !== "running" && status !== "launching" && statusLabel ? (
                 <div className={`status-chip ${settledReady ? "status-chip--ready" : ""}`}>
                   {settledReady ? <CheckIcon /> : <SparklesIcon />}
@@ -309,10 +357,13 @@ export function HomePage({
                   aria-label={playtimeVisible ? "Hide time" : "Show time"}
                   title={playtimeVisible ? "Hide time" : "Show time"}
                   aria-pressed={playtimeVisible}
-                  onClick={togglePlaytime}
+                  onClick={(event) => {
+                    togglePlaytime();
+                    event.currentTarget.blur();
+                    scheduleHudFade();
+                  }}
                 >
                   <ClockIcon />
-                  <span>{playtimeVisible ? "Hide time" : "Show time"}</span>
                 </button>
               ) : null}
               <button
@@ -321,10 +372,13 @@ export function HomePage({
                 aria-label={homePresentation.mode === "compact" ? "Show ship" : "Hide ship"}
                 title={homePresentation.mode === "compact" ? "Show ship" : "Hide ship"}
                 aria-pressed={homePresentation.mode === "compact"}
-                onClick={() => homePresentation.setMode(homePresentation.mode === "compact" ? "hangar" : "compact")}
+                onClick={(event) => {
+                  homePresentation.setMode(homePresentation.mode === "compact" ? "hangar" : "compact");
+                  event.currentTarget.blur();
+                  scheduleHudFade();
+                }}
               >
                 <FocusIcon />
-                <span>{homePresentation.mode === "compact" ? "Show ship" : "Hide ship"}</span>
               </button>
               <button
                 className="home-options-toggle"
@@ -338,14 +392,14 @@ export function HomePage({
             </div>
           ) : null}
           {isReady && playtime && hasPlaytime && playtimeTotal ? (
-            <div className="home-playtime" aria-label={`${formatPlaytime(playtime.totalMillis)} played across ${playtime.launches.toLocaleString()} recorded sessions`}>
+            <div className="home-playtime home-hud-layer" aria-label={`${formatPlaytime(playtime.totalMillis)} played across ${playtime.launches.toLocaleString()} recorded sessions`}>
               <strong>{playtimeTotal.value}<i>{playtimeTotal.unit}</i></strong>
               <span>{playtime.launches.toLocaleString()} sessions</span>
             </div>
           ) : null}
-          {isReady && lastAdapterHealth && status !== "running" && status !== "launching" ? (
+          {isReady && lastAdapterHealth?.reviewRecommended && status !== "running" && status !== "launching" ? (
             <span
-              className={`last-run-health ${lastAdapterHealth.reviewRecommended ? "last-run-health--review" : ""}`}
+              className="last-run-health last-run-health--review home-hud-layer"
               title={lastAdapterHealth.suggestedActions[0] ?? "Exact compatibility evidence from the latest Preflight launch"}
             >
               {adapterHealthLine(lastAdapterHealth)}
@@ -401,13 +455,18 @@ export function HomePage({
                 </button>
                 {homeLayoutState === "settled" && homePresentation.mode !== "compact" ? (
                   <button
-                    className="home-motion-toggle"
+                    className="home-motion-toggle home-hud-layer"
                     type="button"
-                    aria-label="Reverse ship rotation"
-                    title="Reverse ship rotation"
-                    onClick={() => instrumentMotion.setDirection(instrumentMotion.direction === "clockwise" ? "counter-clockwise" : "clockwise")}
+                    aria-label={instrumentMotion.motion === "rotate" ? "Pause ship rotation" : "Resume ship rotation"}
+                    title={instrumentMotion.motion === "rotate" ? "Pause rotation" : "Resume rotation"}
+                    aria-pressed={instrumentMotion.motion === "still"}
+                    onClick={() => instrumentMotion.setMotion(instrumentMotion.motion === "rotate" ? "still" : "rotate")}
                   >
-                    {instrumentMotion.direction === "clockwise" ? <RotateClockwiseIcon /> : <RotateCounterClockwiseIcon />}
+                    {instrumentMotion.motion === "rotate"
+                      ? <PauseIcon />
+                      : instrumentMotion.direction === "clockwise"
+                        ? <RotateClockwiseIcon />
+                        : <RotateCounterClockwiseIcon />}
                   </button>
                 ) : null}
                 {preparing ? (
@@ -444,7 +503,7 @@ export function HomePage({
             )}
           </div>
           {isReady ? (
-            <div className="home-ship-picker" aria-label="Display ship">
+            <div className="home-ship-picker home-hud-layer" aria-label="Display ship">
               <button type="button" aria-label="Previous display ship" title="Previous ship" onClick={() => cycleHull(-1)} disabled={instrumentHull.hulls.length < 2}><ArrowIcon /></button>
               <button className="home-ship-name" type="button" title="Choose a display ship" onClick={() => onNavigate("hangar")}>{instrumentHull.selected.name}</button>
               <button type="button" aria-label="Next display ship" title="Next ship" onClick={() => cycleHull(1)} disabled={instrumentHull.hulls.length < 2}><ArrowIcon /></button>
