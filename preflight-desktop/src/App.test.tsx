@@ -156,10 +156,11 @@ test("the default cold-profile action prepares with balanced settings and then l
 
   render(<App />);
 
-  const action = await screen.findByRole("button", { name: "Prepare and launch" });
+  const action = await screen.findByRole("button", { name: "Set up and launch" });
   await waitFor(() => expect(action).toBeEnabled());
-  expect(screen.getByText("First launch setup")).toBeInTheDocument();
-  expect(screen.getByText(/Keeps about .* Needs about .* free while preparing; .* available/))
+  expect(screen.getByRole("heading", { name: "Fast launch setup", level: 1 })).toBeInTheDocument();
+  expect(screen.queryByText("First launch setup")).not.toBeInTheDocument();
+  expect(screen.getByText(/Uses about .* · .* free\./))
     .toBeInTheDocument();
   expect(screen.getByLabelText("186h played across 78 recorded sessions")).toBeInTheDocument();
   expect(within(screen.getByRole("main")).queryByText(/^for Starsector$/i)).not.toBeInTheDocument();
@@ -171,6 +172,18 @@ test("the default cold-profile action prepares with balanced settings and then l
   cache.mockRestore();
   preparation.mockRestore();
   game.mockRestore();
+});
+
+test("the first-run preview keeps empty history out of the setup flow", async () => {
+  window.history.replaceState(null, "", "/?scenario=first-run");
+
+  render(<App />);
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Set up and launch" })).toBeEnabled());
+  expect(screen.getByRole("heading", { name: "Fast launch setup", level: 1 })).toBeInTheDocument();
+  expect(visibleLabel(/recorded playtime/i)).toHaveLength(0);
+  expect(visibleLabel("Hide time")).toHaveLength(0);
+  expect(visibleLabel("Show time")).toHaveLength(0);
 });
 
 test("repairs only the reviewed profile before rebuilding and launching", async () => {
@@ -228,7 +241,7 @@ test("preparation started on Home remains visible and can be stopped safely", as
   const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 4242 });
   render(<App />);
 
-  const action = await screen.findByRole("button", { name: "Prepare and launch" });
+  const action = await screen.findByRole("button", { name: "Set up and launch" });
   await waitFor(() => expect(action).toBeEnabled());
   await user.click(action);
   expect(await screen.findByRole("button", { name: "Stop safely" })).toBeEnabled();
@@ -473,7 +486,7 @@ test("setup keeps a single installation action and hides unavailable ready-state
 
   expect(await screen.findByRole("heading", { name: "Setup", level: 1 })).toBeInTheDocument();
   expect(screen.getAllByRole("button", { name: "Choose game folder" })).toHaveLength(1);
-  expect(screen.getByText("Preflight creates reusable startup data for your current mod setup, then opens Starsector. Your game, mods, and saves stay unchanged.")).toBeVisible();
+  expect(screen.getByText("Choose it once. Fast-launch setup stays on Home.")).toBeVisible();
   expect(screen.queryByRole("region", { name: "Current Preflight setup" })).not.toBeInTheDocument();
   expect(screen.queryByText("Unavailable")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Speed" })).toBeDisabled();

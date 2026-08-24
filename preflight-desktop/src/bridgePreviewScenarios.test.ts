@@ -91,6 +91,22 @@ test("setup, low-disk, and cache-repair previews expose safe failure states", as
   });
 });
 
+test("the first-run preview is a detected installation with no prepared profile", async () => {
+  useScenario("first-run");
+
+  const snapshot = await getSnapshot();
+  const cache = await getCache("/Applications/Starsector");
+  const health = await getCacheHealth("/Applications/Starsector");
+  const profiles = await getProfiles("/Applications/Starsector");
+
+  expect(snapshot.ready).toBe(true);
+  expect(snapshot.selected?.installRoot).toBe("/Applications/Starsector");
+  expect(snapshot.playtime).toMatchObject({ totalMillis: 0, launches: 0 });
+  expect(cache).toMatchObject({ present: false, total: { bytes: 0, files: 0 }, profiles: [] });
+  expect(health).toMatchObject({ status: "cold", preparedTextures: false });
+  expect(profiles.profiles).toEqual([]);
+});
+
 test("setup analysis previews cover clean and broken mod sets", async () => {
   useScenario("ready");
   expect(await checkSetup("preview")).toMatchObject({
