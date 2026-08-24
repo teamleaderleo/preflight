@@ -20,15 +20,14 @@ This is **Preflight**, a free, open-source fast launcher for Starsector.
 On my 83-mod M5 MacBook Air, startup went from roughly **101 seconds to 13.69 seconds**, a **7.4×
 speedup**. That's Starsector's x86-64 Java running through Rosetta.
 
-**Dramatically faster launch times.** The app has its own normal-vs-Preflight benchmark, so **you can
-measure it yourself!**
+**Dramatically faster launch times** (and you can measure it yourself!).
 
 **Download:** [RELEASE URL]
 
 Features:
 
 - **Tracked playtime!!!!!**
-- Faster campaign-map movement. *(On my setup.)*
+- Faster campaign-map movement *(on my setup)*.
 - Battle size up to **2,147,483,647 deployment points** (`INT32_MAX`).
 - Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and battle size right beside Launch.
 - Checks for missing/broken mod dependencies and other setup weirdness.
