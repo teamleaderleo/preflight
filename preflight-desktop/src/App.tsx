@@ -591,7 +591,7 @@ export default function App() {
     : retryIntent?.kind === "installation"
       ? "Try this folder again"
       : "Scan again";
-  const homeNotice = latestNotice(["installation", "game", "game-settings", "preparation", "profiles", "cache"]);
+  const homeNotice = latestNotice(["installation", "game", "game-settings", "preparation", "cache"]);
   const launchNotice = latestNotice(["installation", "game-settings"]);
   const preparationNotice = latestNotice(["installation", "preparation", "cache"]);
   const profilesNotice = latestNotice(["installation", "profiles"]);

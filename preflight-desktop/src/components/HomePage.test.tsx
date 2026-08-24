@@ -25,12 +25,14 @@ const instrumentHull: WireframeHull = {
 const instrumentHullState = {
   catalog: null,
   catalogLoaded: false,
+  catalogHulls: [instrumentHull],
   hulls: [instrumentHull],
   selected: instrumentHull,
   selectedId: instrumentHull.id,
   tuning: { outerSmooth: 0, outerDetail: 0, innerSmooth: 0, innerDetail: 0, height: 1 },
   customized: false,
   choose: vi.fn(),
+  remove: vi.fn(),
   customize: vi.fn(),
   resetCustomization: vi.fn(),
 } as ReturnType<typeof useInstrumentHull>;
@@ -256,8 +258,8 @@ test("Home exposes direct display controls without conflicting compact and playt
   await user.click(screen.getByRole("button", { name: "Odyssey" }));
   expect(navigate).toHaveBeenCalledWith("hangar");
 
-  await user.click(screen.getByRole("button", { name: "Pause ship rotation" }));
-  expect(screen.getByRole("button", { name: "Resume ship rotation" })).toHaveAttribute("aria-pressed", "true");
+  await user.click(screen.getByRole("button", { name: "Reverse ship rotation" }));
+  expect(screen.getByRole("button", { name: "Reverse ship rotation" })).toBeEnabled();
 
   await user.click(screen.getByRole("button", { name: "Hide time" }));
   expect(screen.getByRole("button", { name: "Show time" })).toHaveAttribute("aria-pressed", "false");

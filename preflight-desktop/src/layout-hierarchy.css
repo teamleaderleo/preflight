@@ -158,9 +158,7 @@
   }
 }
 
-/* The desktop sidebar can leave Home with less horizontal room than the compact top navigation.
- * Keep the three bottom controls in separate lanes instead of letting the centred launch action
- * overlap the hull picker. */
+/* The desktop sidebar can leave Home with less horizontal room than the compact top navigation. */
 @media (min-width: 1001px) and (max-width: 1140px) {
   .app-shell:not(.app-shell--sidebar-collapsed) .launch-console--layout-settled .home-ship-picker {
     width: 208px;
@@ -177,9 +175,6 @@
     left: 224px;
   }
 
-  .app-shell:not(.app-shell--sidebar-collapsed) .launch-console--layout-settled .home-motion-toggle {
-    right: 4px;
-  }
 }
 
 /* Browser previews and unusually short desktop windows still need a reachable launch action. The

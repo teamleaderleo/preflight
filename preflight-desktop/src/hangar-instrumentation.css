@@ -132,6 +132,34 @@
   text-transform: uppercase;
 }
 
+.hangar-identity__meta button {
+  min-height: 24px;
+  margin: -6px 0 -6px 2px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 1px;
+  color: var(--ink-faint);
+  background: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: uppercase;
+}
+
+.hangar-identity__meta button:not(:disabled):hover,
+.hangar-identity__meta button:not(:disabled):focus-visible {
+  color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.hangar-identity__meta button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.hangar-identity__meta button:disabled {
+  display: none;
+}
+
 .hangar-identity__meta > span + span {
   display: flex;
   align-items: center;
@@ -276,7 +304,7 @@
 
 .hangar-motion-controls {
   display: grid;
-  grid-template-columns: auto 44px 44px auto;
+  grid-template-columns: auto 44px auto;
   align-items: center;
   gap: 6px;
   min-width: 0;
@@ -368,7 +396,7 @@
 }
 
 .hangar-dock--catalog .hangar-dials {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   grid-template-rows: auto;
   gap: 10px;
   min-width: 0;
@@ -512,6 +540,18 @@
 }
 
 @media (max-height: 600px) {
+  .hangar-display {
+    grid-template-rows: minmax(270px, 1fr) auto;
+  }
+
+  .hangar-stage {
+    min-height: 270px;
+  }
+
+  .hangar-dock--catalog {
+    min-height: 116px;
+  }
+
   .hangar-hull-combobox__list {
     max-height: min(196px, 35vh);
   }
@@ -562,7 +602,7 @@
   }
 
   .hangar-motion-controls {
-    grid-template-columns: auto 44px 44px auto;
+    grid-template-columns: auto 44px auto;
     width: 100%;
   }
 

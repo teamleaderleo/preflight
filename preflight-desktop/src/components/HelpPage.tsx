@@ -2,7 +2,6 @@ import { ArrowIcon, CheckIcon, CopyIcon, FolderIcon, ShieldIcon } from "../icons
 import type { Page } from "./DesktopShell";
 import type { useDiagnosticsReport } from "../useDiagnosticsReport";
 import { useCopySetup } from "../useCopySetup";
-import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
 import { openProjectLink } from "../bridge";
 import { formatBytes, shortPath } from "../uiFormat";
@@ -58,32 +57,27 @@ export function HelpPage({
       <NoticeBanner message={reportError && message.includes(reportError) ? "" : message} tone={messageTone} />
 
       <section className="card fixes-card">
-        <h2>Try this first</h2>
+        <h2>Common fixes</h2>
         <ul className="fixes-list">
           <li>
             <div>
-              <strong>Starsector won’t open, or closes straight away</strong>
-              <p>{optimizationPreset === "off"
-                ? "Optimizations are off. Your prepared data is still there."
-                : "Turn optimizations off and try again. Your prepared data stays put."}</p>
+              <strong>Wrong game folder</strong>
+            </div>
+            <button className="button button--quiet button--compact" type="button" onClick={onChooseInstall} disabled={operationBlocked}>Choose folder<ArrowIcon /></button>
+          </li>
+          <li>
+            <div>
+              <strong>Launch still feels slow</strong>
+            </div>
+            <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("speed")}>Open Speed<ArrowIcon /></button>
+          </li>
+          <li>
+            <div>
+              <strong>Starsector won’t open</strong>
             </div>
             {optimizationPreset === "off"
               ? <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("home")}>Go to launch<ArrowIcon /></button>
-              : <button className="button button--quiet button--compact" type="button" onClick={onTurnOffOptimizations} disabled={operationBlocked}>Turn off<ArrowIcon /></button>}
-          </li>
-          <li>
-            <div>
-              <strong>It doesn’t feel any faster</strong>
-              <p>Changed mods? The first launch prepares them. Time the next one.</p>
-            </div>
-            <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("benchmark")}>Run benchmark<ArrowIcon /></button>
-          </li>
-          <li>
-            <div>
-              <strong>Preflight is using the wrong copy of the game</strong>
-              <p>Choose the Starsector folder you actually use. Preflight won’t move anything.</p>
-            </div>
-            <button className="button button--quiet button--compact" type="button" onClick={onChooseInstall} disabled={operationBlocked}>Choose folder<ArrowIcon /></button>
+              : <button className="button button--quiet button--compact" type="button" onClick={onTurnOffOptimizations} disabled={operationBlocked}>Try without optimizations<ArrowIcon /></button>}
           </li>
         </ul>
       </section>
@@ -92,13 +86,11 @@ export function HelpPage({
         <div className="support-card__main">
           <div>
             <div className="heading-with-info">
-              <h2>{diagnosticsExport ? "Support file ready" : "Still stuck?"}</h2>
-              <InfoTip label="About support sharing">Copy setup makes a compact text summary for public posts. The support file is a separate redacted ZIP with more detailed run information.</InfoTip>
+              <h2>{diagnosticsExport ? "Support file ready" : "Report a problem"}</h2>
             </div>
             <p>{diagnosticsExport
               ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}`
-              : "Copy your setup for a public post, or make a redacted support ZIP with more detailed run information."}</p>
-            <small>Copy setup stays on your clipboard. Support files stay local until you choose Send.</small>
+              : "Copy your setup into an issue. Make a support file if needed."}</p>
           </div>
           <div className="report-actions">
             <button className={`button ${setupCopy.state === "copied" ? "button--quiet" : "button--primary"} button--support`} type="button" onClick={() => void setupCopy.copySetup()} disabled={operationBlocked || setupCopy.state === "copying"}>
@@ -123,7 +115,7 @@ export function HelpPage({
         ) : null}
 
         <details className="settings-disclosure support-contents">
-          <summary><span><strong>What’s inside?</strong><small>Included and left out</small></span></summary>
+          <summary><span><strong>What’s inside?</strong></span></summary>
           <div className="settings-grid settings-disclosure__body">
             <section className="diagnostics-card">
               <div className="card__heading"><div><p className="eyebrow">Included</p><h2>Run details</h2></div><CheckIcon className="settings-check" /></div>
@@ -208,14 +200,6 @@ export function HelpPage({
         </section>
       ) : null}
 
-      <section className="card help-links-card">
-        <div className="card__heading"><div><h2>More help</h2></div></div>
-        <p>Paste the copied setup into an issue. Don’t attach a support ZIP there. If you sent one through Preflight, include the case number instead.</p>
-        <div className="privacy-links">
-          <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("getting-started")}>Getting started</button>
-        </div>
-        <small>These open Preflight’s pages in your browser.</small>
-      </section>
     </div>
   );
 }

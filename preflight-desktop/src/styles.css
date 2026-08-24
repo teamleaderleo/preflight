@@ -404,6 +404,7 @@ button {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   padding: 0 5px 2px 0;
   overscroll-behavior: contain;
 }
@@ -743,6 +744,12 @@ h2 {
   cursor: pointer;
 }
 
+.home-display-toggle span {
+  display: inline-block;
+  width: 58px;
+  text-align: left;
+}
+
 .launch-console__status-line .home-display-toggle:first-of-type {
   margin-left: auto;
 }
@@ -774,6 +781,8 @@ h2 {
   font: inherit;
   font-size: 12px;
   font-weight: 650;
+  min-width: 116px;
+  justify-content: flex-end;
 }
 
 .home-options-toggle:hover {
@@ -893,11 +902,8 @@ h2 {
 }
 
 .home-motion-toggle {
-  position: absolute !important;
-  z-index: 4 !important;
-  right: 24px;
-  bottom: 32px;
   display: grid;
+  flex: 0 0 44px;
   width: 44px;
   min-height: 44px;
   place-items: center;
@@ -923,7 +929,7 @@ h2 {
 .home-launch-identity {
   position: absolute !important;
   z-index: 3 !important;
-  bottom: 94px;
+  bottom: 116px;
   left: 50%;
   display: flex;
   align-items: center;
@@ -4068,10 +4074,6 @@ footer {
     min-width: 116px;
     max-width: 116px;
     font-size: 16px;
-  }
-
-  .home-motion-toggle {
-    display: none;
   }
 
   .home-display-toggle {

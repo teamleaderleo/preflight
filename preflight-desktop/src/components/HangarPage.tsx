@@ -1,8 +1,9 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
-import { ArrowIcon, PauseIcon, PlayIcon, RefreshIcon } from "../icons";
+import { PauseIcon, PlayIcon, RefreshIcon, RotateClockwiseIcon, RotateCounterClockwiseIcon } from "../icons";
 import type { useInstrumentHull } from "../useInstrumentHull";
 import type { WireframeHull } from "../types";
 import { useInstrumentMotion } from "../useInstrumentMotion";
+import { MAX_INSTRUMENT_PITCH, MIN_INSTRUMENT_PITCH, useInstrumentView } from "../useInstrumentView";
 import { FlightInstrument } from "./FlightInstrument";
 
 type InstrumentHullState = ReturnType<typeof useInstrumentHull>;
@@ -55,13 +56,15 @@ function hullPopupHeightCap(): number {
 }
 
 interface HangarHullChooserProps {
-  hulls: WireframeHull[];
+  catalogHulls: WireframeHull[];
+  rosterIds: Set<string>;
   selected: WireframeHull;
   onChoose: (id: string) => void;
-  catalogStatus: string;
+  onRemove: (id: string) => void;
+  canRemove: boolean;
 }
 
-function HangarHullChooser({ hulls, selected, onChoose, catalogStatus }: HangarHullChooserProps) {
+function HangarHullChooser({ catalogHulls, rosterIds, selected, onChoose, onRemove, canRemove }: HangarHullChooserProps) {
   const listId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -77,16 +80,16 @@ function HangarHullChooser({ hulls, selected, onChoose, catalogStatus }: HangarH
   }, [selected.id, selected.name]);
 
   const results = useMemo(() => {
-    const exact = findExactHull(hulls, query);
+    const exact = findExactHull(catalogHulls, query);
     if (exact?.id === selected.id) {
-      return [selected, ...hulls.filter((hull) => hull.id !== selected.id)].slice(0, HULL_RESULT_LIMIT);
+      return [selected, ...catalogHulls.filter((hull) => hull.id !== selected.id)].slice(0, HULL_RESULT_LIMIT);
     }
 
     const candidates = query.trim()
-      ? hulls.filter((hull) => hullMatches(hull, query))
-      : hulls;
+      ? catalogHulls.filter((hull) => hullMatches(hull, query))
+      : catalogHulls;
     return candidates.slice(0, HULL_RESULT_LIMIT);
-  }, [hulls, query, selected]);
+  }, [catalogHulls, query, selected]);
 
   const activeHull = results[activeIndex] ?? results[0];
 
@@ -168,7 +171,7 @@ function HangarHullChooser({ hulls, selected, onChoose, catalogStatus }: HangarH
       return;
     }
     if (event.key === "Enter") {
-      const exact = findExactHull(hulls, query);
+      const exact = findExactHull(catalogHulls, query);
       const chosen = open ? activeHull ?? exact : exact;
       if (chosen) {
         event.preventDefault();
@@ -222,7 +225,7 @@ function HangarHullChooser({ hulls, selected, onChoose, catalogStatus }: HangarH
         }}
         onKeyDown={handleKeyDown}
         onBlur={() => {
-          const exact = findExactHull(hulls, query);
+          const exact = findExactHull(catalogHulls, query);
           if (exact && exact.id !== selected.id) {
             choose(exact);
           } else if (!exact) {
@@ -259,7 +262,9 @@ function HangarHullChooser({ hulls, selected, onChoose, catalogStatus }: HangarH
               onClick={() => choose(hull)}
             >
               <span className="hangar-hull-combobox__name">{hull.name}</span>
-              <span className="hangar-hull-combobox__meta">{hullSizeLabel(hull.hullSize)}</span>
+              <span className="hangar-hull-combobox__meta">
+                {rosterIds.has(hull.id) ? hullSizeLabel(hull.hullSize) : "Add"}
+              </span>
             </button>
           )) : (
             <div className="hangar-hull-combobox__empty">No hull matches “{query}”</div>
@@ -269,7 +274,15 @@ function HangarHullChooser({ hulls, selected, onChoose, catalogStatus }: HangarH
 
       <div className="hangar-identity__meta">
         <span>{hullSizeLabel(selected.hullSize)}</span>
-        <span aria-live="polite">{catalogStatus}</span>
+        <button
+          type="button"
+          disabled={!canRemove}
+          aria-label={`Remove ${selected.name} from display ships`}
+          title={canRemove ? "Remove ship" : "Keep at least one ship"}
+          onClick={() => onRemove(selected.id)}
+        >
+          Remove
+        </button>
       </div>
     </div>
   );
@@ -317,10 +330,13 @@ interface HangarPageProps {
 
 export function HangarPage({ instrumentHull }: HangarPageProps) {
   const { motion, direction, setMotion, setDirection } = useInstrumentMotion();
+  const instrumentView = useInstrumentView();
   const motionLabel = motion === "rotate" ? "Pause rotation" : "Resume rotation";
-  const catalogStatus = instrumentHull.catalog
-    ? `${instrumentHull.catalog.hulls.length.toLocaleString()} installed`
-    : instrumentHull.catalogLoaded ? "Included ships" : "Finding installed ships…";
+  const rosterIds = useMemo(() => new Set(instrumentHull.hulls.map((hull) => hull.id)), [instrumentHull.hulls]);
+  const detailMaximum = 0.06;
+  const detailValue = (tolerance: number) => Number((detailMaximum - tolerance).toFixed(3));
+  const detailText = (value: number) => `${Math.round(value / detailMaximum * 100)}%`;
+  const detailTolerance = (value: number) => Number((detailMaximum - value).toFixed(3));
 
   return (
     <div className="hangar-page">
@@ -332,10 +348,12 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
 
           <div className="hangar-identity">
             <HangarHullChooser
-              hulls={instrumentHull.hulls}
+              catalogHulls={instrumentHull.catalogHulls}
+              rosterIds={rosterIds}
               selected={instrumentHull.selected}
               onChoose={instrumentHull.choose}
-              catalogStatus={catalogStatus}
+              onRemove={instrumentHull.remove}
+              canRemove={instrumentHull.hulls.length > 1}
             />
           </div>
         </div>
@@ -360,24 +378,13 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
                 {motion === "rotate" ? <PauseIcon /> : <PlayIcon />}
               </button>
               <button
-                className="icon-button icon-button--small hangar-direction-action hangar-direction-action--left"
-                type="button"
-                aria-label="Rotate left"
-                title="Rotate left"
-                aria-pressed={direction === "counter-clockwise"}
-                onClick={() => setDirection("counter-clockwise")}
-              >
-                <ArrowIcon />
-              </button>
-              <button
                 className="icon-button icon-button--small hangar-direction-action"
                 type="button"
-                aria-label="Rotate right"
-                title="Rotate right"
-                aria-pressed={direction === "clockwise"}
-                onClick={() => setDirection("clockwise")}
+                aria-label="Reverse rotation"
+                title="Reverse rotation"
+                onClick={() => setDirection(direction === "clockwise" ? "counter-clockwise" : "clockwise")}
               >
-                <ArrowIcon />
+                {direction === "clockwise" ? <RotateClockwiseIcon /> : <RotateCounterClockwiseIcon />}
               </button>
               <button
                 className="button button--quiet button--compact hangar-reset-action"
@@ -395,25 +402,36 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
 
           <div className="hangar-dials" role="group" aria-label="Wireframe appearance">
             <HangarDial
-              label="Smooth"
+              label="Outline detail"
+              value={detailValue(instrumentHull.tuning.outerDetail)}
+              valueText={detailText(detailValue(instrumentHull.tuning.outerDetail))}
+              minimum={0}
+              maximum={detailMaximum}
+              step={0.001}
+              onChange={(value) => instrumentHull.customize({ outerDetail: detailTolerance(value) })}
+            />
+            <HangarDial
+              label="Interior detail"
+              displayLabel="Inner detail"
+              value={detailValue(instrumentHull.tuning.innerDetail)}
+              valueText={detailText(detailValue(instrumentHull.tuning.innerDetail))}
+              minimum={0}
+              maximum={detailMaximum}
+              step={0.001}
+              onChange={(value) => instrumentHull.customize({ innerDetail: detailTolerance(value) })}
+            />
+            <HangarDial
+              label="Outline smoothing"
+              displayLabel="Outline smooth"
               value={instrumentHull.tuning.outerSmooth}
               valueText={instrumentHull.tuning.outerSmooth === 0 ? "None" : instrumentHull.tuning.outerSmooth.toFixed(2)}
               minimum={0}
               maximum={0.9}
               step={0.02}
-              onChange={(value) => instrumentHull.customize({ outerSmooth: value, innerSmooth: value })}
+              onChange={(value) => instrumentHull.customize({ outerSmooth: value })}
             />
             <HangarDial
-              label="Detail"
-              value={instrumentHull.tuning.outerDetail}
-              valueText={instrumentHull.tuning.outerDetail === 0 ? "Full" : instrumentHull.tuning.outerDetail.toFixed(3)}
-              minimum={0}
-              maximum={0.06}
-              step={0.001}
-              onChange={(value) => instrumentHull.customize({ outerDetail: value, innerDetail: value })}
-            />
-            <HangarDial
-              label="Interior smooth"
+              label="Interior smoothing"
               displayLabel="Inner smooth"
               value={instrumentHull.tuning.innerSmooth}
               valueText={instrumentHull.tuning.innerSmooth === 0 ? "None" : instrumentHull.tuning.innerSmooth.toFixed(2)}
@@ -423,16 +441,6 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
               onChange={(value) => instrumentHull.customize({ innerSmooth: value })}
             />
             <HangarDial
-              label="Interior detail"
-              displayLabel="Inner detail"
-              value={instrumentHull.tuning.innerDetail}
-              valueText={instrumentHull.tuning.innerDetail === 0 ? "Full" : instrumentHull.tuning.innerDetail.toFixed(3)}
-              minimum={0}
-              maximum={0.06}
-              step={0.001}
-              onChange={(value) => instrumentHull.customize({ innerDetail: value })}
-            />
-            <HangarDial
               label="Depth"
               value={instrumentHull.tuning.height}
               valueText={`${instrumentHull.tuning.height.toFixed(2)}×`}
@@ -440,6 +448,16 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
               maximum={2.2}
               step={0.05}
               onChange={(value) => instrumentHull.customize({ height: value })}
+            />
+            <HangarDial
+              label="View angle"
+              displayLabel="View"
+              value={instrumentView.pitch}
+              valueText={`${Math.round((instrumentView.pitch - MIN_INSTRUMENT_PITCH) / (MAX_INSTRUMENT_PITCH - MIN_INSTRUMENT_PITCH) * 100)}%`}
+              minimum={MIN_INSTRUMENT_PITCH}
+              maximum={MAX_INSTRUMENT_PITCH}
+              step={0.02}
+              onChange={(pitch) => instrumentView.setView({ yaw: instrumentView.yaw, pitch })}
             />
           </div>
         </div>

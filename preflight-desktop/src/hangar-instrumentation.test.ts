@@ -39,9 +39,9 @@ test("short Hangar windows bound the chooser list inside the usable workspace", 
   );
 });
 
-test("Hangar tuning compacts into one five-channel instrument bank at the shipped desktop widths", () => {
-  expect(hangarStyles).toMatch(/\.hangar-dock--catalog \.hangar-dials\s*\{[^}]*grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\);/s);
+test("Hangar tuning compacts into one six-channel instrument bank at the shipped desktop widths", () => {
+  expect(hangarStyles).toMatch(/\.hangar-dock--catalog \.hangar-dials\s*\{[^}]*grid-template-columns:\s*repeat\(6, minmax\(0, 1fr\)\);/s);
   expect(hangarStyles).toContain("@container (max-width: 600px)");
   expect(hangarStyles).toMatch(/@container \(max-width: 600px\)[\s\S]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);/s);
-  expect(hangarStyles).not.toMatch(/\.hangar-stage(?:\s|\{|:)[^{]*\{[^}]*min-height:/s);
+  expect(hangarStyles).toMatch(/@media \(max-height: 600px\)[\s\S]*\.hangar-stage\s*\{[^}]*min-height:\s*270px;/s);
 });

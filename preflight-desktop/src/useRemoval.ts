@@ -3,6 +3,7 @@ import { applyRemoval, getRemovalPlan } from "./bridge";
 import { clearPreflightLocalStorage } from "./desktopStorage";
 import { resetHomePresentation } from "./useHomePresentation";
 import { resetInstrumentMotion } from "./useInstrumentMotion";
+import { resetInstrumentView } from "./useInstrumentView";
 import { resetProfileSearch } from "./useProfileSearch";
 import type { Announce, DesktopSnapshot, RemovalPlan, RemovalScope } from "./types";
 import { errorMessage } from "./uiFormat";
@@ -62,6 +63,7 @@ export function useRemoval(
         localStorageFailures = clearPreflightLocalStorage();
         resetHomePresentation();
         resetInstrumentMotion();
+        resetInstrumentView();
         resetProfileSearch();
         clearCache();
         clearProfiles();

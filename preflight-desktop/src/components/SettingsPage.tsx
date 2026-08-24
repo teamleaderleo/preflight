@@ -35,7 +35,6 @@ export function SettingsPage({
   removalBlockedReason,
   updateInstallBlockedReason,
   updates,
-  reportIntake,
   removalPlan,
   removalBusy,
   afterLaunchBehavior,
@@ -117,11 +116,6 @@ export function SettingsPage({
               <option value="keep">Keep open</option>
               <option value="quit">Quit</option>
             </select>
-            <small>{afterLaunchBehavior === "minimize"
-              ? "Restore it for logs or to stop Starsector."
-              : afterLaunchBehavior === "quit"
-                ? "Playtime still records."
-                : "Useful while testing."}</small>
           </label>
         </div>
         <div className="preference-block">
@@ -138,9 +132,6 @@ export function SettingsPage({
               <option value="hangar">Hangar</option>
               <option value="compact">Compact</option>
             </select>
-            <small>{homePresentation.mode === "compact"
-              ? "Launch-first Home without the decorative hull and history readouts."
-              : "Hull-led Home with the full settled display."}</small>
           </label>
           <label className="setting-field preference-field">
             <span>Recorded playtime</span>
@@ -152,7 +143,6 @@ export function SettingsPage({
               <option value="show">Show</option>
               <option value="hide">Hide</option>
             </select>
-            <small>Display only. Launch history and playtime recording continue either way.</small>
           </label>
         </div>
       </section>
@@ -191,14 +181,13 @@ export function SettingsPage({
             ? <small role="status">{updateInstallBlockedReason}</small>
             : null}
           {updateStatus?.available ? <small>Prepared profiles stay in place. If the cache format changed, the previous copy is kept for rollback.</small> : null}
-          <small>Updates are verified before installation. A failed check leaves this version untouched.</small>
           <label className="settings-toggle">
             <input
               type="checkbox"
               checked={automaticUpdateChecks}
               onChange={(event) => setAutomaticUpdateChecks(event.target.checked)}
             />
-            <span>Check for updates automatically<small>Checks the release feed when Preflight starts.</small></span>
+            <span>Check for updates automatically</span>
           </label>
         </section>
 
@@ -210,21 +199,7 @@ export function SettingsPage({
           */}
         <section className="card privacy-card">
           <div className="card__heading"><div><h2>Privacy</h2></div><ShieldIcon className="settings-check" /></div>
-          <ul className="privacy-facts">
-            <li><strong>No accounts. No usage telemetry.</strong></li>
-            {/*
-              * A build without a configured intake cannot send a report at all, and the Benchmark
-              * page already says so where the button would be. Describing the send flow here anyway
-              * would advertise a feature this build doesn't have -- and understate the actual
-              * privacy position, which in that case is stronger, not weaker.
-              */}
-            {reportIntake && !reportIntake.configured ? (
-              <li>Update checks fetch version metadata. Support ZIPs stay here until you share one.</li>
-            ) : (
-              <li>Update checks fetch version metadata. A support ZIP is sent only when you press Send.</li>
-            )}
-            <li>Saves, mods, screenshots, and game files stay out.</li>
-          </ul>
+          <p className="privacy-summary"><strong>Nothing is sent automatically.</strong></p>
           <div className="privacy-links">
             <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("privacy")}>Full privacy statement</button>
             <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("capabilities")}>What Preflight can access</button>

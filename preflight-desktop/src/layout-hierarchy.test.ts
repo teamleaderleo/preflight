@@ -94,12 +94,12 @@ test("failed-run recovery is an overlay on settled Home geometry", () => {
   expect(layoutStyles).not.toContain("inset: 105px 8px 24px");
 });
 
-test("expanded desktop navigation keeps Home launch controls in separate lanes", () => {
+test("expanded desktop navigation keeps the launch row clear of the ship picker", () => {
   expect(layoutStyles).toMatch(
     /@media \(min-width: 1001px\) and \(max-width: 1140px\)[\s\S]*?\.app-shell:not\(\.app-shell--sidebar-collapsed\) \.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*right:\s*68px;[^}]*left:\s*224px;/s,
   );
-  expect(layoutStyles).toMatch(
-    /@media \(min-width: 1001px\) and \(max-width: 1140px\)[\s\S]*?\.app-shell:not\(\.app-shell--sidebar-collapsed\) \.launch-console--layout-settled \.home-motion-toggle\s*\{[^}]*right:\s*4px;/s,
+  expect(styles).toMatch(
+    /\.home-motion-toggle\s*\{[^}]*flex:\s*0 0 44px;[^}]*width:\s*44px;/s,
   );
 });
 
