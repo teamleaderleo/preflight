@@ -158,25 +158,6 @@
   }
 }
 
-/* The desktop sidebar can leave Home with less horizontal room than the compact top navigation. */
-@media (min-width: 1001px) and (max-width: 1140px) {
-  .app-shell:not(.app-shell--sidebar-collapsed) .launch-console--layout-settled .home-ship-picker {
-    width: 208px;
-  }
-
-  .app-shell:not(.app-shell--sidebar-collapsed) .launch-console--layout-settled .home-ship-name {
-    min-width: 116px;
-    max-width: 116px;
-    font-size: 16px;
-  }
-
-  .app-shell:not(.app-shell--sidebar-collapsed) .launch-console--layout-settled .launch-console__actions {
-    right: 68px;
-    left: 224px;
-  }
-
-}
-
 /* Browser previews and unusually short desktop windows still need a reachable launch action. The
  * console keeps its compact working height and the Home viewport supplies the small amount of
  * vertical scrolling instead of clipping absolutely positioned controls. */
@@ -262,7 +243,7 @@
 
 .launch-console--layout-settled .launch-console__primary {
   display: grid;
-  grid-template-columns: 244px minmax(380px, 1fr);
+  grid-template-columns: 280px minmax(344px, 1fr);
   grid-template-rows: auto minmax(150px, 1fr) auto auto auto;
   gap: 7px 18px;
   align-items: center;
@@ -314,14 +295,14 @@
   grid-column: 1;
   grid-row: 4;
   justify-self: start;
-  width: 244px;
+  width: 280px;
   max-width: 100%;
   transform: none;
 }
 
 .launch-console--layout-settled .home-ship-name {
-  min-width: 152px;
-  max-width: 152px;
+  min-width: 188px;
+  max-width: 188px;
   font-size: 18px;
 }
 

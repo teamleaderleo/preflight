@@ -98,7 +98,7 @@ test("failed-run recovery is an overlay on settled Home geometry", () => {
 
 test("settled Home gives the ship picker and launch action separate intrinsic tracks", () => {
   expect(layoutStyles).toMatch(
-    /\.launch-console--layout-settled \.launch-console__primary\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*244px minmax\(380px, 1fr\);/s,
+    /\.launch-console--layout-settled \.launch-console__primary\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*280px minmax\(344px, 1fr\);/s,
   );
   expect(layoutStyles).toMatch(
     /\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*position:\s*relative !important;[^}]*grid-column:\s*1;[^}]*grid-row:\s*4;/s,
