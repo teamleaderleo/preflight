@@ -137,9 +137,9 @@ test("saved motion and direction preferences reach the shared renderer", () => {
     .toHaveAttribute("data-direction", "counter-clockwise");
 });
 
-test("a rotating display immediately schedules a fresh frame when the app regains focus", () => {
+test("a rotating display paints synchronously and schedules a fresh frame when the app regains focus", () => {
   installMatchMediaMock();
-  installCanvasMock();
+  const context = installCanvasMock();
   vi.stubGlobal("ResizeObserver", class {
     observe = vi.fn();
     unobserve = vi.fn();
@@ -151,10 +151,13 @@ test("a rotating display immediately schedules a fresh frame when the app regain
 
   render(createElement(FlightInstrument, { variant: "stage", interactive: true }));
   expect(requestFrame).toHaveBeenCalledTimes(1);
+  const strokesBeforeFocus = vi.mocked(context.stroke).mock.calls.length;
 
   fireEvent.blur(window);
-  expect(cancelFrame).toHaveBeenCalledWith(1);
+  expect(cancelFrame).not.toHaveBeenCalled();
   fireEvent.focus(window);
+  expect(cancelFrame).toHaveBeenCalledWith(1);
+  expect(vi.mocked(context.stroke).mock.calls.length).toBeGreaterThan(strokesBeforeFocus);
   expect(requestFrame).toHaveBeenCalledTimes(2);
 });
 

@@ -250,3 +250,219 @@
     text-align: left;
   }
 }
+
+/*
+ * Settled Home is a real layout, not a pile of coordinates. The status controls, ship field,
+ * installation, hull picker, launch action, and run health each own a grid track. This keeps every
+ * intermediate window width collision-free instead of patching only the screenshot breakpoints.
+ */
+.launch-console--layout-settled {
+  container-type: inline-size;
+}
+
+.launch-console--layout-settled .launch-console__primary {
+  display: grid;
+  grid-template-columns: 244px minmax(380px, 1fr);
+  grid-template-rows: auto minmax(150px, 1fr) auto auto auto;
+  gap: 7px 18px;
+  align-items: center;
+  padding: 18px 20px 16px;
+}
+
+.launch-console--layout-settled .launch-console__status-line {
+  position: relative;
+  inset: auto;
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: stretch;
+  width: 100%;
+  min-width: 0;
+}
+
+.launch-console--layout-settled .home-playtime {
+  position: relative !important;
+  inset: auto;
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+  justify-self: start;
+}
+
+.launch-console--layout-settled .home-flight-instrument {
+  position: relative;
+  inset: auto !important;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  width: 100%;
+  height: 100%;
+  min-height: 150px;
+}
+
+.launch-console--layout-settled .home-launch-identity {
+  position: relative !important;
+  inset: auto;
+  grid-column: 2;
+  grid-row: 3;
+  justify-self: center;
+  width: min(520px, 100%);
+  transform: none;
+}
+
+.launch-console--layout-settled .home-ship-picker {
+  position: relative !important;
+  inset: auto;
+  grid-column: 1;
+  grid-row: 4;
+  justify-self: start;
+  width: 244px;
+  max-width: 100%;
+  transform: none;
+}
+
+.launch-console--layout-settled .home-ship-name {
+  min-width: 152px;
+  max-width: 152px;
+  font-size: 18px;
+}
+
+.launch-console--layout-settled .launch-console__actions {
+  position: relative;
+  inset: auto;
+  grid-column: 2;
+  grid-row: 4;
+  justify-self: stretch;
+  width: 100%;
+  min-width: 0;
+}
+
+.launch-console--layout-settled .launch-console__actions .button--launch {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
+.launch-console--layout-settled .last-run-health {
+  position: relative !important;
+  inset: auto;
+  grid-column: 2;
+  grid-row: 5;
+  justify-self: end;
+  max-width: 100%;
+  text-align: right;
+}
+
+@container (max-width: 660px) {
+  .launch-console--layout-settled {
+    height: auto;
+    min-height: 460px;
+  }
+
+  .launch-console--layout-settled .launch-console__primary {
+    height: auto;
+    min-height: 460px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(180px, 1fr) auto auto auto auto;
+    gap: 5px;
+    padding-inline: 14px;
+  }
+
+  .launch-console--layout-settled .launch-console__status-line {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: end;
+    width: auto;
+    max-width: calc(100% - 118px);
+  }
+
+  .launch-console--layout-settled .home-playtime {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .launch-console--layout-settled .home-playtime strong {
+    font-size: 44px;
+  }
+
+  .launch-console--layout-settled .home-flight-instrument {
+    grid-column: 1;
+    grid-row: 2;
+    min-height: 180px;
+  }
+
+  .launch-console--layout-settled .home-launch-identity {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .launch-console--layout-settled .home-ship-picker {
+    grid-column: 1;
+    grid-row: 4;
+    justify-self: center;
+  }
+
+  .launch-console--layout-settled .launch-console__actions {
+    grid-column: 1;
+    grid-row: 5;
+    justify-content: center;
+  }
+
+  .launch-console--layout-settled .last-run-health {
+    grid-column: 1;
+    grid-row: 6;
+    justify-self: center;
+    text-align: center;
+  }
+}
+
+@container (max-width: 500px) {
+  .launch-console--layout-settled .launch-console__primary {
+    grid-template-rows: auto auto minmax(120px, 1fr) auto auto auto auto;
+  }
+
+  .launch-console--layout-settled .launch-console__status-line {
+    grid-row: 1;
+    justify-self: stretch;
+    width: 100%;
+    max-width: none;
+  }
+
+  .launch-console--layout-settled .home-playtime {
+    grid-row: 2;
+  }
+
+  .launch-console--layout-settled .home-flight-instrument {
+    grid-row: 3;
+    min-height: 120px;
+  }
+
+  .launch-console--layout-settled .home-launch-identity {
+    grid-row: 4;
+  }
+
+  .launch-console--layout-settled .home-ship-picker {
+    grid-row: 5;
+  }
+
+  .launch-console--layout-settled .launch-console__actions {
+    grid-row: 6;
+  }
+
+  .launch-console--layout-settled .last-run-health {
+    grid-row: 7;
+  }
+}
+
+@container (max-width: 430px) {
+  .launch-console--layout-settled .home-display-toggle {
+    width: 44px;
+    padding: 0;
+  }
+
+  .launch-console--layout-settled .home-display-toggle span {
+    display: none;
+  }
+
+  .launch-console--layout-settled .home-options-toggle {
+    min-width: 96px;
+  }
+}
