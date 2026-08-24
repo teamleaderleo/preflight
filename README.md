@@ -1,6 +1,6 @@
 # Preflight
 
-**A free, open-source performance launcher for Starsector. On my 83-mod development setup, startup has gone from about 101 seconds at the observed high end to a 13.69-second best run on the current reviewed macOS Rosetta path.**
+**A free, open-source cross-platform performance launcher and mod-analysis toolkit for Starsector. On my 83-mod development setup, startup moved from roughly 101 seconds to a 13.69-second best run.**
 
 > Preflight is an independent, unofficial project. It isn't affiliated with or endorsed by Fractal
 > Softworks.
@@ -14,22 +14,25 @@
   <img alt="Preflight ready to launch Starsector" src="docs/images/desktop-home-light.png">
 </picture>
 
-**~101 seconds → 13.69 seconds on the 83-mod development installation.**
-
-Preflight started as an attempt to answer one question: why can heavily modded Starsector spend so
-long getting to the main menu, and how much of that work is the same every single launch?
-
-Quite a lot of it.
+Preflight started with a straightforward question: why did heavily modded Starsector repeat so much
+work every launch? Profiling and bytecode-level investigation found repeated data parsing, a texture
+cache on the wrong side of a single-threaded prefetch wait, rebuildable texture data made needlessly
+durable, repeated generated-code compilation, and high-frequency campaign scans and recomputations.
+Moving those costs to better boundaries produced the current development arc.
 
 Preflight prepares repeatable texture, data, generated-code, and audio work ahead of launch, binds
-that prepared work to the game and ordered mod inputs that produced it, and reuses it while those
-inputs still match. Runtime shortcuts are checked against the exact code they were reviewed against.
-If something is missing, changed, damaged, or unfamiliar, the original game path handles it.
+that prepared work to the exact game and ordered mod inputs that produced it, and reuses it while
+those inputs still match. Runtime shortcuts are checked against the code they were reviewed against.
+If something is changed, missing, damaged, unsupported, or ambiguous, the original game path remains
+available.
 
-That investigation also turned into a much larger Starsector companion app: a before-and-after
-startup benchmark, local playtime tracking, named mod profiles, common and extended game settings,
-storage planning and recovery, deep read-only setup analysis, privacy-conscious support tools,
-signed updates, and a mod linter.
+The same Java engine now powers a Windows/macOS/Linux desktop app with a React UI over a Rust/Tauri
+host, a bundled Java runtime, durable launch/playtime history, named mod profiles, storage and
+recovery tools, privacy-conscious diagnostics, signed updates with rollback, and source-side
+analysis tools for large mod setups.
+
+For the engineering story, start with [Engineering overview](docs/engineering-overview.md). For the
+measurement chronology and experimental context, see [Optimization history](docs/optimization-history.md).
 
 ## A lot more than a launch button
 
