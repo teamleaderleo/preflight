@@ -45,15 +45,5 @@ export function useSetupCheck(
     setResult(null);
   }, [game, currentSetupKey]);
 
-  useEffect(() => {
-    if (!game) return;
-    const discardStaleResult = () => {
-      request.current += 1;
-      setResult(null);
-    };
-    window.addEventListener("focus", discardStaleResult);
-    return () => window.removeEventListener("focus", discardStaleResult);
-  }, [game]);
-
   return { checking, result, run };
 }

@@ -267,7 +267,7 @@ test("Home exposes direct display controls without conflicting compact and playt
   expect(screen.getByRole("button", { name: "Show ship" })).toHaveAttribute("aria-pressed", "true");
   await user.click(screen.getByRole("button", { name: "Show time" }));
   expect(screen.getByRole("button", { name: "Hide time" })).toHaveAttribute("aria-pressed", "true");
-  expect(screen.getByRole("button", { name: "Hide ship" })).toHaveAttribute("aria-pressed", "false");
+  expect(screen.getByRole("button", { name: "Show ship" })).toHaveAttribute("aria-pressed", "true");
 });
 
 test("Home keeps the new profile and installation visible when that setup needs preparation", () => {

@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
-import { PauseIcon, PlayIcon, RefreshIcon, RotateClockwiseIcon, RotateCounterClockwiseIcon } from "../icons";
+import { RefreshIcon, RotateClockwiseIcon, RotateCounterClockwiseIcon } from "../icons";
 import type { useInstrumentHull } from "../useInstrumentHull";
 import type { WireframeHull } from "../types";
 import { useInstrumentMotion } from "../useInstrumentMotion";
@@ -345,9 +345,8 @@ interface HangarPageProps {
 }
 
 export function HangarPage({ instrumentHull }: HangarPageProps) {
-  const { motion, direction, setMotion, setDirection } = useInstrumentMotion();
+  const { motion, direction, setDirection } = useInstrumentMotion();
   const instrumentView = useInstrumentView();
-  const motionLabel = motion === "rotate" ? "Pause rotation" : "Resume rotation";
   const rosterIds = useMemo(() => new Set(instrumentHull.hulls.map((hull) => hull.id)), [instrumentHull.hulls]);
   const detailMaximum = 0.06;
   const detailValue = (tolerance: number) => Number((detailMaximum - tolerance).toFixed(3));
@@ -384,15 +383,6 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
               data-motion={motion}
               data-direction={direction}
             >
-              <button
-                className="icon-button icon-button--small hangar-motion-action"
-                type="button"
-                aria-label={motionLabel}
-                title={motion === "rotate" ? "Pause decorative hull rotation" : "Resume decorative hull rotation"}
-                onClick={() => setMotion(motion === "rotate" ? "still" : "rotate")}
-              >
-                {motion === "rotate" ? <PauseIcon /> : <PlayIcon />}
-              </button>
               <button
                 className="icon-button icon-button--small hangar-direction-action"
                 type="button"
