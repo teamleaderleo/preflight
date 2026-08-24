@@ -124,13 +124,7 @@
       "type": "seconds",
       "value": "15.25",
       "unit": "s",
-      "publishedIn": [
-        "README.md",
-        "docs/beta-announcement-draft.md",
-        "docs/beta-announcement-leo-draft.md",
-        "docs/release-post-draft.md",
-        "docs/optimization-history.md"
-      ],
+      "publishedIn": ["README.md", "docs/beta-announcement-draft.md", "docs/beta-announcement-leo-draft.md", "docs/release-post-draft.md", "docs/optimization-history.md"],
       "evidence": "docs/evidence/2026-08-15-controlled-vanilla-fast-campaign.md",
       "derivation": "Fastest of five accepted accelerated launches in the controlled interleaved campaign."
     },
@@ -138,11 +132,7 @@
       "type": "seconds",
       "value": "101",
       "unit": "s",
-      "publishedIn": [
-        "README.md",
-        "docs/release-post-draft.md",
-        "docs/optimization-history.md"
-      ],
+      "publishedIn": ["README.md", "docs/release-post-draft.md", "docs/optimization-history.md"],
       "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
       "derivation": "Initial accepted chronology high end, human-reviewed from the retained scorecard."
     },
@@ -150,19 +140,15 @@
       "type": "seconds",
       "value": "13.69",
       "unit": "s",
-      "publishedIn": [
-        "README.md"
-      ],
+      "publishedIn": ["README.md"],
       "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
-      "derivation": "Best observed run in the reviewed five-run G1/deferred-heap-commit candidate condition on the current 83-mod development profile; this is the current best observed startup and remains distinct from the controlled vanilla/Preflight campaign."
+      "derivation": "Best observed run in the reviewed five-run G1/deferred-heap-commit candidate condition on the current 83-mod development profile."
     },
     {
       "type": "seconds",
       "value": "88.13",
       "unit": "s",
-      "publishedIn": [
-        "README.md"
-      ],
+      "publishedIn": ["README.md"],
       "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
       "derivation": "Initial five-run unaccelerated baseline median."
     },
@@ -170,60 +156,169 @@
       "type": "storage",
       "value": "2.3",
       "unit": "GB",
-      "publishedIn": [
-        "README.md",
-        "docs/beta-announcement-draft.md",
-        "docs/beta-announcement-leo-draft.md",
-        "docs/release-post-draft.md"
-      ],
+      "publishedIn": ["README.md", "docs/beta-announcement-draft.md", "docs/beta-announcement-leo-draft.md", "docs/release-post-draft.md"],
       "evidence": "docs/evidence/2026-08-23-current-storage-preparation-frontier.md",
-      "derivation": "Current pack-only Balanced directory on the reviewed 83-mod profile, rounded from the measured 2,427,540 KiB directory."
+      "derivation": "Current pack-only Balanced directory on the reviewed 83-mod profile."
     },
     {
       "type": "storage",
       "value": "1.1",
       "unit": "GB",
-      "publishedIn": [
-        "README.md"
-      ],
+      "publishedIn": ["README.md"],
       "evidence": "docs/evidence/2026-08-23-compact-preparation-and-intermediate-publication.md",
-      "derivation": "Compact pack on the reviewed 83-mod profile, rounded from the measured 1,087,894,442-byte finished pack."
+      "derivation": "Compact pack on the reviewed 83-mod profile."
     },
     {
       "type": "storage",
       "value": "5.2",
       "unit": "GB",
-      "publishedIn": [
-        "README.md",
-        "docs/beta-announcement-draft.md",
-        "docs/beta-announcement-leo-draft.md",
-        "docs/release-post-draft.md"
-      ],
+      "publishedIn": ["README.md", "docs/beta-announcement-draft.md", "docs/beta-announcement-leo-draft.md", "docs/release-post-draft.md"],
       "evidence": "docs/evidence/2026-08-23-current-storage-preparation-frontier.md",
-      "derivation": "Current pack-only Uncompressed directory on the reviewed 83-mod profile, rounded from the measured 5,431,864 KiB directory."
+      "derivation": "Current pack-only Uncompressed directory on the reviewed 83-mod profile."
     },
     {
       "type": "count",
       "value": "77",
       "unit": "mod",
-      "publishedIn": [
-        "docs/optimization-history.md"
-      ],
+      "publishedIn": ["docs/optimization-history.md"],
       "evidence": "docs/evidence/2026-08-01-twenty-nine-percent-when-they-compose.md",
-      "derivation": "Profile size behind the 88.13-second baseline chronology, read from that campaign's install header. Published as a headline because the gates after it were measured on 83 mods, and the difference is what makes the older rows a chronology rather than a before/after."
+      "derivation": "Profile size behind the 88.13-second baseline chronology."
     },
     {
       "type": "storage",
       "value": "11",
       "unit": "MB",
-      "publishedIn": [
-        "README.md",
-        "docs/beta-announcement-draft.md",
-        "docs/beta-announcement-leo-draft.md",
-        "docs/release-post-draft.md"
-      ],
+      "publishedIn": ["README.md", "docs/beta-announcement-draft.md", "docs/beta-announcement-leo-draft.md", "docs/release-post-draft.md"],
       "evidence": "docs/evidence/2026-08-23-current-storage-preparation-frontier.md",
-      "derivation": "Cache directory immediately after current cold `prepare --no-textures` on the reviewed profile, rounded from 11,140 KiB. This is preparation output, not the steady-state footprint after learning."
+      "derivation": "Cache directory immediately after current cold prepare --no-textures on the reviewed profile."
+    },
+    {
+      "type": "seconds",
+      "value": "19.8",
+      "unit": "s",
+      "publishedIn": ["README.md"],
+      "evidence": "docs/evidence/2026-08-03-spec-store-is-no-longer-a-reading-problem.md",
+      "derivation": "SpecStore before the five loader-specific JSON/CSV cache sequence."
+    },
+    {
+      "type": "seconds",
+      "value": "9.8",
+      "unit": "s",
+      "publishedIn": ["README.md"],
+      "evidence": "docs/evidence/2026-08-03-spec-store-is-no-longer-a-reading-problem.md",
+      "derivation": "SpecStore after the five loader-specific JSON/CSV cache sequence."
+    },
+    {
+      "type": "seconds",
+      "value": "2.172",
+      "unit": "s",
+      "publishedIn": ["README.md"],
+      "evidence": "docs/evidence/2026-08-03-spec-store-is-no-longer-a-reading-problem.md",
+      "derivation": "Remaining merged-read seam before the shared memoized layer."
+    },
+    {
+      "type": "seconds",
+      "value": "0.300",
+      "unit": "s",
+      "publishedIn": ["README.md"],
+      "evidence": "docs/evidence/2026-08-03-spec-store-is-no-longer-a-reading-problem.md",
+      "derivation": "Remaining merged-read seam after the shared memoized layer."
+    },
+    {
+      "type": "seconds",
+      "value": "27",
+      "unit": "s",
+      "publishedIn": ["README.md"],
+      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
+      "derivation": "Approximate single-threaded texture-prefetch wait observed on the startup critical path."
+    },
+    {
+      "type": "storage",
+      "value": "1.22",
+      "unit": "GiB",
+      "publishedIn": ["README.md"],
+      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
+      "derivation": "Measured power-of-two texture upload padding removed from the full load."
+    },
+    {
+      "type": "seconds",
+      "value": "200.77",
+      "unit": "s",
+      "publishedIn": ["README.md"],
+      "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
+      "derivation": "Earlier retained texture-preparation endpoint before publication-path corrections."
+    },
+    {
+      "type": "seconds",
+      "value": "16.21",
+      "unit": "s",
+      "publishedIn": ["README.md"],
+      "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
+      "derivation": "Current retained Compact preparation endpoint on the reviewed profile."
+    },
+    {
+      "type": "storage",
+      "value": "4.76",
+      "unit": "GB",
+      "publishedIn": ["README.md"],
+      "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
+      "derivation": "Earlier retained texture storage footprint in the preparation chronology."
+    },
+    {
+      "type": "seconds",
+      "value": "33.53",
+      "unit": "s",
+      "publishedIn": ["README.md"],
+      "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
+      "derivation": "Launch with the same logical Compact texture corpus in alphabetical physical order."
+    },
+    {
+      "type": "seconds",
+      "value": "14.174",
+      "unit": "s",
+      "publishedIn": ["README.md"],
+      "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
+      "derivation": "Launch with the same logical Compact texture corpus in observed startup order."
+    },
+    {
+      "type": "seconds",
+      "value": "18.014",
+      "unit": "s",
+      "publishedIn": ["README.md"],
+      "evidence": "docs/evidence/2026-08-04-janino-bytecode-live-pilot.md",
+      "derivation": "Measured Janino compilation seam before request memoization."
+    },
+    {
+      "type": "seconds",
+      "value": "2.364",
+      "unit": "s",
+      "publishedIn": ["README.md"],
+      "evidence": "docs/evidence/2026-08-04-janino-bytecode-live-pilot.md",
+      "derivation": "Measured Janino compilation seam after request memoization."
+    },
+    {
+      "type": "storage",
+      "value": "145.96",
+      "unit": "MiB",
+      "publishedIn": ["README.md"],
+      "evidence": "docs/evidence/2026-08-05-janino-deduplicated-pack.md",
+      "derivation": "Expanded generated-class map size before persisted representation deduplication."
+    },
+    {
+      "type": "storage",
+      "value": "1.13",
+      "unit": "MiB",
+      "publishedIn": ["README.md"],
+      "evidence": "docs/evidence/2026-08-05-janino-deduplicated-pack.md",
+      "derivation": "Generated-class map size after persisted representation deduplication."
+    },
+    {
+      "type": "seconds",
+      "value": "1.501",
+      "unit": "s",
+      "publishedIn": ["README.md"],
+      "evidence": "docs/evidence/2026-08-05-janino-deduplicated-pack.md",
+      "derivation": "Warm generated-class replay before persisted representation deduplication."
     }
   ]
 }
