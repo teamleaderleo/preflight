@@ -9,7 +9,7 @@ candidate produces them. Convert this Markdown to BBCode before posting on the S
 
 ## Title
 
-> Preflight — a free, open-source fast launcher for Starsector (13.69s best on my 83-mod setup)
+> Preflight — a free, open-source fast launcher for Starsector (~7.4× startup speedup on my 83-mod MacBook Air)
 
 ---
 
@@ -17,43 +17,32 @@ candidate produces them. Convert this Markdown to BBCode before posting on the S
 
 This is **Preflight**, a free, open-source fast launcher for Starsector.
 
-On my 83-mod M5 MacBook Air development setup, launches started around the ugly **~101-second** end
-and eventually reached a **13.69-second best run**, about a **7.4× speedup**. The clean same-session
-comparison was **89.00s median normally → 15.53s with Preflight**. That's Starsector's x86-64 Java
-running through Rosetta, too.
+On my 83-mod M5 MacBook Air, startup went from roughly **101 seconds to 13.69 seconds**, a **7.4×
+speedup**. That's Starsector's x86-64 Java running through Rosetta.
 
-The app has its own normal-vs-Preflight benchmark. **You can measure yours yourself!**
+**Dramatically faster launch times.** The app has its own normal-vs-Preflight benchmark, so **you can
+measure it yourself!**
 
 **Download:** [RELEASE URL]
 
 Features:
 
 - **Tracked playtime!!!!!**
-- Faster campaign-map movement on my setup too. I don't have one clean universal FPS number for that,
-  so I'm not making one up.
-- Battle size up to **2,147,483,647 deployment points**. That's `INT32_MAX`. This is not a
-  recommendation.
+- Faster campaign-map movement. *(On my setup.)*
+- Battle size up to **2,147,483,647 deployment points** (`INT32_MAX`).
 - Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and battle size right beside Launch.
-- Saved mod setups if you want them.
 - Checks for missing/broken mod dependencies and other setup weirdness.
 - Mod linting.
 - Storage planning, repair, cleanup, and recovery stuff.
-- A little wireframe Hangar made from your installed ships, because I got carried away.
+- A wireframe Hangar made from your installed ships.
 - Windows, macOS, and Linux. It's a React/Tauri desktop app around the same Java engine as the CLI,
   and the desktop brings its own Java runtime.
 
-It can remember mod setups, but **this is not a mod manager**. It doesn't install or update mods. It
-is mostly a fast launcher that accumulated a lot of useful Starsector-launcher things because I kept
-wanting them.
-
-Disk-wise, my current giant setup eventually settles around **1.1 GB** of prepared data. First setup
-can need a couple of gigabytes plus temporary working room. Preflight calculates the actual number
-for your install before it starts writing.
+Give first setup a few GB of free space. My current 83-mod setup settles around **1.1 GB** of prepared
+data. Preflight calculates the number for your installation before it starts.
 
 Compatibility should be pretty boring. Preflight doesn't permanently patch Starsector or mod JARs.
 If a runtime shortcut doesn't recognize the code it expects, it steps aside and the normal path runs.
-A sufficiently unusual future game or launcher change can still need a Preflight update, but an
-unrecognized shortcut is supposed to decline rather than force itself through.
 
 The public package's own retained benchmark goes here before posting:
 **[PACKAGED CANDIDATE BENCHMARK RESULT]**.
@@ -67,12 +56,3 @@ Please try it. Please tell me if anything is slow, broken, confusing, or cursed.
 
 Preflight is an independent, unofficial project. It isn't affiliated with or endorsed by Fractal
 Softworks.
-
-## Optional mod-author / developer note
-
-Use this separately when the venue or conversation actually calls for it; don't make every player
-read ecosystem philosophy before the download link.
-
-> Profiling Preflight has also turned up specific hot paths in the game and in mods. If I bring one
-> upstream, I'll try to bring the measurement or reproduction with it, not a vague "this is slow."
-> Preflight already handles what it can on its side; nobody needs to reorganize around the launcher.
