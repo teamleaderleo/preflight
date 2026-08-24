@@ -6,6 +6,8 @@ test("Hangar active values and motion stay on the current palette", () => {
   expect(hangarStyles).toContain("var(--hangar-range, 0%)");
   expect(hangarStyles).toContain("var(--accent) 0 var(--hangar-range, 0%)");
   expect(hangarStyles).toMatch(/\.hangar-motion-status__state\s*\{[^}]*color:\s*var\(--accent-strong\);/s);
+  expect(hangarStyles).toMatch(/\.hangar-console-heading,\s*\.hangar-motion-status\s*\{[^}]*font-size:\s*9\.5px;/s);
+  expect(hangarStyles).toMatch(/\.hangar-dock--catalog \.hangar-dial\s*\{[^}]*font-size:\s*10px;/s);
   expect(hangarStyles).not.toMatch(/#[0-9a-f]{3,8}/i);
 });
 

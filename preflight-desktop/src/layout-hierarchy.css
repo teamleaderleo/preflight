@@ -2,7 +2,7 @@
  * base styles, release-readiness behavior, and Home presentation preferences have loaded. */
 
 /* Keep every Home state scroll-reachable; #982 removed the dead base launch-console tracks. */
-.page-viewport--home {
+.page-viewport.page-viewport--home {
   position: relative;
   overflow-y: auto;
   padding-right: 5px;
@@ -102,6 +102,7 @@
   left: 28px;
   max-width: 194px;
   text-align: left;
+  transform: none;
 }
 
 /* The settled path disclosure opens upward. Restore its centered transform here because the generic
@@ -154,6 +155,41 @@
 @container (max-width: 760px) {
   .hangar-dock--catalog {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The desktop sidebar can leave Home with less horizontal room than the compact top navigation.
+ * Keep the three bottom controls in separate lanes instead of letting the centred launch action
+ * overlap the hull picker. */
+@media (min-width: 1001px) and (max-width: 1140px) {
+  .app-shell:not(.app-shell--sidebar-collapsed) .launch-console--layout-settled .home-ship-picker {
+    width: 208px;
+  }
+
+  .app-shell:not(.app-shell--sidebar-collapsed) .launch-console--layout-settled .home-ship-name {
+    min-width: 116px;
+    max-width: 116px;
+    font-size: 16px;
+  }
+
+  .app-shell:not(.app-shell--sidebar-collapsed) .launch-console--layout-settled .launch-console__actions {
+    right: 68px;
+    left: 224px;
+  }
+
+  .app-shell:not(.app-shell--sidebar-collapsed) .launch-console--layout-settled .home-motion-toggle {
+    right: 4px;
+  }
+}
+
+/* Browser previews and unusually short desktop windows still need a reachable launch action. The
+ * console keeps its compact working height and the Home viewport supplies the small amount of
+ * vertical scrolling instead of clipping absolutely positioned controls. */
+@media (max-height: 520px) {
+  .launch-console--ready,
+  .launch-console--ready .launch-console__primary {
+    height: 320px;
+    min-height: 320px;
   }
 }
 

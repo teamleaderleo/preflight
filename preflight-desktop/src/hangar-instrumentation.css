@@ -125,7 +125,7 @@
   margin-top: 5px;
   color: var(--accent-strong);
   font-family: var(--font-data);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0.12em;
@@ -225,7 +225,7 @@
 .hangar-hull-combobox__meta {
   color: var(--ink-faint);
   font-family: var(--font-data);
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -251,7 +251,7 @@
 .hangar-motion-status {
   color: var(--ink-faint);
   font-family: var(--font-data);
-  font-size: 8.5px;
+  font-size: 9.5px;
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0.1em;
@@ -385,7 +385,7 @@
   padding: 0 2px;
   color: var(--ink-faint);
   font-family: var(--font-data);
-  font-size: 8.5px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.035em;
   white-space: nowrap;
@@ -415,7 +415,7 @@
   color: var(--accent-strong);
   background: transparent;
   font-family: var(--font-data);
-  font-size: 8.5px;
+  font-size: 10px;
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0;
