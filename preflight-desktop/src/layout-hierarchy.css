@@ -243,17 +243,18 @@
 
 .launch-console--layout-settled .launch-console__primary {
   display: grid;
-  grid-template-columns: 280px minmax(344px, 1fr);
+  grid-template-columns: 240px minmax(400px, 620px) 240px;
   grid-template-rows: auto minmax(150px, 1fr) auto auto auto;
   gap: 7px 18px;
   align-items: center;
+  justify-content: center;
   padding: 18px 20px 16px;
 }
 
 .launch-console--layout-settled .launch-console__status-line {
   position: relative;
   inset: auto;
-  grid-column: 2;
+  grid-column: 2 / 4;
   grid-row: 1;
   justify-self: stretch;
   width: 100%;
@@ -295,31 +296,37 @@
   grid-column: 1;
   grid-row: 4;
   justify-self: start;
-  width: 280px;
+  width: 240px;
   max-width: 100%;
   transform: none;
 }
 
 .launch-console--layout-settled .home-ship-name {
-  min-width: 188px;
-  max-width: 188px;
+  min-width: 148px;
+  max-width: 148px;
   font-size: 18px;
 }
 
 .launch-console--layout-settled .launch-console__actions {
   position: relative;
   inset: auto;
+  display: grid;
   grid-column: 2;
   grid-row: 4;
-  justify-self: stretch;
-  width: 100%;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  justify-self: center;
+  width: min(680px, 100%);
   min-width: 0;
 }
 
 .launch-console--layout-settled .launch-console__actions .button--launch {
-  flex: 1 1 auto;
+  grid-column: 2;
   width: auto;
   min-width: 0;
+}
+
+.launch-console--layout-settled .launch-console__actions .home-motion-toggle {
+  grid-column: 3;
 }
 
 .launch-console--layout-settled .last-run-health {
@@ -332,15 +339,159 @@
   text-align: right;
 }
 
-@container (max-width: 660px) {
+/* Hide ship means exactly that. Keep playtime and launch state, then remove the ship-only row and
+ * place the remaining controls in a compact intrinsic composition. */
+:root[data-home-mode="compact"] .launch-console--layout-settled.launch-console--minimal {
+  height: 330px;
+  min-height: 330px;
+}
+
+:root[data-home-mode="compact"]
+  .launch-console--layout-settled.launch-console--minimal
+  .launch-console__primary {
+  height: 330px;
+  min-height: 330px;
+  grid-template-columns: 240px minmax(400px, 620px) 240px;
+  grid-template-rows: auto auto auto auto;
+  align-content: center;
+  justify-content: center;
+  gap: 8px 18px;
+}
+
+:root[data-home-mode="compact"] .launch-console--layout-settled .home-playtime {
+  grid-column: 1;
+  grid-row: 1 / 4;
+  align-self: center;
+}
+
+:root[data-home-mode="compact"] .launch-console--layout-settled .launch-console__status-line {
+  grid-column: 2 / 4;
+  grid-row: 1;
+}
+
+:root[data-home-mode="compact"] .launch-console--layout-settled .home-launch-identity {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+:root[data-home-mode="compact"] .launch-console--layout-settled .launch-console__actions {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+:root[data-home-mode="compact"] .launch-console--layout-settled .last-run-health {
+  grid-column: 2;
+  grid-row: 4;
+}
+
+/* The middle width is still wide enough for the hull picker and launch action to share a row.
+ * Keeping that row intact makes the primary action visible at the 720x560 minimum instead of
+ * placing it below the fold. */
+@container (min-width: 641px) and (max-width: 920px) {
+  .launch-console--layout-settled .launch-console__primary {
+    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-rows: auto minmax(130px, 1fr) auto auto auto;
+    gap: 5px 14px;
+    padding-inline: 14px;
+  }
+
+  .launch-console--layout-settled .launch-console__status-line {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .launch-console--layout-settled .home-playtime {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .launch-console--layout-settled .home-playtime strong {
+    font-size: 44px;
+  }
+
+  .launch-console--layout-settled .home-flight-instrument {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    min-height: 130px;
+  }
+
+  .launch-console--layout-settled .home-launch-identity {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  .launch-console--layout-settled .home-ship-picker {
+    grid-column: 1;
+    grid-row: 3;
+    justify-self: stretch;
+    width: 220px;
+  }
+
+  .launch-console--layout-settled .launch-console__actions {
+    grid-column: 1 / -1;
+    grid-row: 4;
+    width: min(520px, 100%);
+  }
+
+  .launch-console--layout-settled .last-run-health {
+    grid-column: 2;
+    grid-row: 5;
+  }
+
+  :root[data-home-mode="compact"] .launch-console--layout-settled.launch-console--minimal,
+  :root[data-home-mode="compact"]
+    .launch-console--layout-settled.launch-console--minimal
+    .launch-console__primary {
+    height: 300px;
+    min-height: 300px;
+  }
+
+  :root[data-home-mode="compact"]
+    .launch-console--layout-settled.launch-console--minimal
+    .launch-console__primary {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto auto;
+    align-content: center;
+  }
+
+  :root[data-home-mode="compact"] .launch-console--layout-settled .home-playtime {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: center;
+  }
+
+  :root[data-home-mode="compact"] .launch-console--layout-settled .launch-console__status-line {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  :root[data-home-mode="compact"] .launch-console--layout-settled .home-launch-identity {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  :root[data-home-mode="compact"] .launch-console--layout-settled .launch-console__actions {
+    grid-column: 1;
+    grid-row: 4;
+  }
+
+  :root[data-home-mode="compact"] .launch-console--layout-settled .last-run-health {
+    grid-column: 1;
+    grid-row: 5;
+  }
+}
+
+@container (max-width: 640px) {
   .launch-console--layout-settled {
     height: auto;
-    min-height: 460px;
+    min-height: 500px;
   }
 
   .launch-console--layout-settled .launch-console__primary {
     height: auto;
-    min-height: 460px;
+    min-height: 500px;
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(180px, 1fr) auto auto auto auto;
     gap: 5px;
@@ -384,7 +535,8 @@
   .launch-console--layout-settled .launch-console__actions {
     grid-column: 1;
     grid-row: 5;
-    justify-content: center;
+    justify-self: center;
+    width: min(680px, 100%);
   }
 
   .launch-console--layout-settled .last-run-health {
@@ -393,42 +545,84 @@
     justify-self: center;
     text-align: center;
   }
+
+  :root[data-home-mode="compact"] .launch-console--layout-settled.launch-console--minimal,
+  :root[data-home-mode="compact"]
+    .launch-console--layout-settled.launch-console--minimal
+    .launch-console__primary {
+    height: auto;
+    min-height: 390px;
+  }
+
+  :root[data-home-mode="compact"]
+    .launch-console--layout-settled.launch-console--minimal
+    .launch-console__primary {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto auto;
+    align-content: center;
+  }
+
+  :root[data-home-mode="compact"] .launch-console--layout-settled .launch-console__status-line {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  :root[data-home-mode="compact"] .launch-console--layout-settled .home-playtime {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: center;
+  }
+
+  :root[data-home-mode="compact"] .launch-console--layout-settled .home-launch-identity {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  :root[data-home-mode="compact"] .launch-console--layout-settled .launch-console__actions {
+    grid-column: 1;
+    grid-row: 4;
+  }
+
+  :root[data-home-mode="compact"] .launch-console--layout-settled .last-run-health {
+    grid-column: 1;
+    grid-row: 5;
+  }
 }
 
 @container (max-width: 500px) {
-  .launch-console--layout-settled .launch-console__primary {
+  :root:not([data-home-mode="compact"]) .launch-console--layout-settled .launch-console__primary {
     grid-template-rows: auto auto minmax(120px, 1fr) auto auto auto auto;
   }
 
-  .launch-console--layout-settled .launch-console__status-line {
+  :root:not([data-home-mode="compact"]) .launch-console--layout-settled .launch-console__status-line {
     grid-row: 1;
     justify-self: stretch;
     width: 100%;
     max-width: none;
   }
 
-  .launch-console--layout-settled .home-playtime {
+  :root:not([data-home-mode="compact"]) .launch-console--layout-settled .home-playtime {
     grid-row: 2;
   }
 
-  .launch-console--layout-settled .home-flight-instrument {
+  :root:not([data-home-mode="compact"]) .launch-console--layout-settled .home-flight-instrument {
     grid-row: 3;
     min-height: 120px;
   }
 
-  .launch-console--layout-settled .home-launch-identity {
+  :root:not([data-home-mode="compact"]) .launch-console--layout-settled .home-launch-identity {
     grid-row: 4;
   }
 
-  .launch-console--layout-settled .home-ship-picker {
+  :root:not([data-home-mode="compact"]) .launch-console--layout-settled .home-ship-picker {
     grid-row: 5;
   }
 
-  .launch-console--layout-settled .launch-console__actions {
+  :root:not([data-home-mode="compact"]) .launch-console--layout-settled .launch-console__actions {
     grid-row: 6;
   }
 
-  .launch-console--layout-settled .last-run-health {
+  :root:not([data-home-mode="compact"]) .launch-console--layout-settled .last-run-health {
     grid-row: 7;
   }
 }

@@ -230,15 +230,8 @@ export function HomePage({
     const next = (current + offset + instrumentHull.hulls.length) % instrumentHull.hulls.length;
     instrumentHull.choose(instrumentHull.hulls[next].id);
   };
-  const playtimeVisible = homePresentation.mode !== "compact" && homePresentation.showPlaytime;
-  const togglePlaytime = () => {
-    if (homePresentation.mode === "compact") {
-      homePresentation.setMode("hangar");
-      homePresentation.setShowPlaytime(true);
-      return;
-    }
-    homePresentation.setShowPlaytime(!homePresentation.showPlaytime);
-  };
+  const playtimeVisible = homePresentation.showPlaytime;
+  const togglePlaytime = () => homePresentation.setShowPlaytime(!homePresentation.showPlaytime);
 
   const notice = (
     <NoticeBanner
@@ -287,7 +280,7 @@ export function HomePage({
     <>
       {recoveryFirst ? recoveryContent : null}
 
-      <section className={`launch-console ${isReady ? "launch-console--ready" : "card launch-console--setup"} launch-console--${status} launch-console--layout-${homeLayoutState} ${cacheNeedsRepair ? "launch-console--repair-state" : ""} ${cacheInspectionBlocked ? "launch-console--attention-state" : ""} ${isReady && optionsOpen ? "launch-console--options-open" : "launch-console--minimal"} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""}`}>
+      <section className={`launch-console ${isReady ? "launch-console--ready" : "card launch-console--setup"} launch-console--${status} launch-console--layout-${homeLayoutState} ${cacheNeedsRepair ? "launch-console--repair-state" : ""} ${cacheInspectionBlocked ? "launch-console--attention-state" : ""} ${isReady && optionsOpen ? "launch-console--options-open" : "launch-console--minimal"} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""} ${hasPlaytime && playtimeVisible ? "launch-console--has-playtime" : ""}`}>
         <div className="launch-console__primary">
           {isReady ? (
             <div className="home-flight-instrument">
@@ -394,7 +387,6 @@ export function HomePage({
             {isReady ? (
               <>
                 <button
-                  key={theme}
                   className="button button--primary button--launch"
                   type="button"
                   onClick={storageBlocked

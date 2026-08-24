@@ -98,16 +98,19 @@ test("failed-run recovery is an overlay on settled Home geometry", () => {
 
 test("settled Home gives the ship picker and launch action separate intrinsic tracks", () => {
   expect(layoutStyles).toMatch(
-    /\.launch-console--layout-settled \.launch-console__primary\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*280px minmax\(344px, 1fr\);/s,
+    /\.launch-console--layout-settled \.launch-console__primary\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*240px minmax\(400px, 620px\) 240px;/s,
   );
   expect(layoutStyles).toMatch(
     /\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*position:\s*relative !important;[^}]*grid-column:\s*1;[^}]*grid-row:\s*4;/s,
   );
   expect(layoutStyles).toMatch(
-    /\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*position:\s*relative;[^}]*grid-column:\s*2;[^}]*grid-row:\s*4;/s,
+    /\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*position:\s*relative;[^}]*display:\s*grid;[^}]*grid-column:\s*2;[^}]*grid-row:\s*4;[^}]*grid-template-columns:\s*44px minmax\(0, 1fr\) 44px;[^}]*justify-self:\s*center;[^}]*width:\s*min\(680px, 100%\);/s,
   );
   expect(layoutStyles).toMatch(
-    /@container \(max-width: 660px\)[\s\S]*?\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*grid-row:\s*4;[\s\S]*?\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*grid-row:\s*5;/s,
+    /@container \(min-width: 641px\) and \(max-width: 920px\)[\s\S]*?\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*3;[\s\S]*?\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*grid-column:\s*1 \/ -1;[^}]*grid-row:\s*4;/s,
+  );
+  expect(layoutStyles).toMatch(
+    /@container \(max-width: 640px\)[\s\S]*?\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*grid-row:\s*4;[\s\S]*?\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*grid-row:\s*5;[^}]*justify-self:\s*center;/s,
   );
   expect(layoutStyles).toMatch(
     /@container \(max-width: 500px\)[\s\S]*?\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*grid-row:\s*5;[\s\S]*?\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*grid-row:\s*6;/s,
@@ -188,12 +191,16 @@ test("prepared-data attention uses preparation composition while review actions 
   style.remove();
 });
 
-test("Compact Home is scoped to the explicit settled composition", () => {
+test("Hide ship removes only ship controls and owns a compact intrinsic composition", () => {
   expect(homePresentationStyles).toMatch(
     /:root\[data-home-mode="compact"\] \.launch-console--layout-settled \.home-flight-instrument/,
   );
-  expect(homePresentationStyles).toMatch(
-    /:root\[data-home-mode="compact"\][\s\S]*?\.launch-console--layout-settled\.launch-console--minimal\s*\{[^}]*height:\s*260px;/,
+  expect(homePresentationStyles).not.toMatch(/data-home-mode="compact"[^}]*\.home-playtime/);
+  expect(layoutStyles).toMatch(
+    /:root\[data-home-mode="compact"\] \.launch-console--layout-settled\.launch-console--minimal\s*\{[^}]*height:\s*330px;/s,
+  );
+  expect(layoutStyles).toMatch(
+    /:root\[data-home-mode="compact"\][\s\S]*?\.launch-console__primary\s*\{[^}]*grid-template-columns:\s*240px minmax\(400px, 620px\) 240px;[^}]*grid-template-rows:\s*auto auto auto auto;/,
   );
   expect(homePresentationStyles).not.toMatch(
     /:root\[data-home-mode="compact"\] \.launch-console--ready \.home-flight-instrument/,

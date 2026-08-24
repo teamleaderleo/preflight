@@ -1,6 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
-import { INSTRUMENT_HULL_MOTION_STORAGE_KEY } from "../desktopStorage";
 import type { useInstrumentHull } from "../useInstrumentHull";
 import type { WireframeHull, WireframeTuning } from "../types";
 import { HangarPage } from "./HangarPage";
@@ -159,7 +158,7 @@ test("invalid free text restores the current hull on blur", () => {
   expect(instrumentHull.choose).not.toHaveBeenCalled();
 });
 
-test("motion controls keep pause and one unambiguous direction toggle", () => {
+test("motion controls keep the display alive with one direction toggle", () => {
   render(<HangarPage instrumentHull={state()} />);
 
   const controls = screen.getByRole("group", { name: "Display motion and appearance" });
@@ -169,17 +168,9 @@ test("motion controls keep pause and one unambiguous direction toggle", () => {
   fireEvent.click(reverse);
   expect(controls).toHaveAttribute("data-direction", "counter-clockwise");
 
-  const pause = within(controls).getByRole("button", { name: "Pause rotation" });
-  expect(pause).toHaveAttribute("title", "Pause decorative hull rotation");
-  fireEvent.click(pause);
-  expect(controls).toHaveAttribute("data-motion", "still");
-
-  const resume = within(controls).getByRole("button", { name: "Resume rotation" });
-  expect(resume).toHaveAttribute("title", "Resume decorative hull rotation");
   fireEvent.click(reverse);
   expect(controls).toHaveAttribute("data-direction", "clockwise");
-  expect(JSON.parse(window.localStorage.getItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY) ?? "null"))
-    .toEqual({ motion: "rotate", direction: "clockwise" });
+  expect(within(controls).queryByRole("button", { name: /pause|resume/i })).not.toBeInTheDocument();
 
   const reset = within(controls).getByRole("button", { name: "Reset appearance" });
   expect(reset).toHaveAttribute("title", "Reset appearance");

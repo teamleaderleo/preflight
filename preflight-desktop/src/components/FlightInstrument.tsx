@@ -61,6 +61,51 @@ function normalizeYaw(yaw: number): number {
   return Math.atan2(Math.sin(yaw), Math.cos(yaw));
 }
 
+const ROTATION_RATE = 0.34;
+let sharedRotationYaw: number | null = null;
+let sharedRotationTime: number | null = null;
+let sharedRotationDirection: "clockwise" | "counter-clockwise" = "clockwise";
+
+function rotationSign(direction: "clockwise" | "counter-clockwise"): number {
+  return direction === "clockwise" ? 1 : -1;
+}
+
+/**
+ * Home and Hangar are two views of one display, so they read one clock. The angle advances by
+ * wall time rather than by frames. WebKit may stop delivering animation frames to an inactive
+ * window, but the first paint after returning still lands at the angle the ship has reached.
+ */
+function readSharedRotation(
+  now: number,
+  direction: "clockwise" | "counter-clockwise",
+  seed: number,
+): number {
+  if (sharedRotationYaw === null || sharedRotationTime === null) {
+    sharedRotationYaw = normalizeYaw(seed);
+    sharedRotationTime = now;
+    sharedRotationDirection = direction;
+    return sharedRotationYaw;
+  }
+  const elapsed = Math.max(0, now - sharedRotationTime);
+  sharedRotationYaw = normalizeYaw(
+    sharedRotationYaw + elapsed / 1000 * ROTATION_RATE * rotationSign(sharedRotationDirection),
+  );
+  sharedRotationTime = now;
+  sharedRotationDirection = direction;
+  return sharedRotationYaw;
+}
+
+function writeSharedRotation(
+  yaw: number,
+  now: number,
+  direction: "clockwise" | "counter-clockwise",
+): number {
+  sharedRotationYaw = normalizeYaw(yaw);
+  sharedRotationTime = now;
+  sharedRotationDirection = direction;
+  return sharedRotationYaw;
+}
+
 function readPalette(canvas: HTMLCanvasElement): InstrumentPalette {
   const probe = canvas.ownerDocument.createElement("span");
   probe.style.display = "none";
@@ -233,7 +278,6 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let frame: number | null = null;
     let visible = true;
-    let previous = 0;
     let lastPaint = performance.now();
     let dragging = false;
     let dragX = 0;
@@ -245,11 +289,17 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
      * seconds. Rocking it back and forth through a narrow arc was tried and reads as a fidget --
      * the ship looks stuck rather than displayed, and half the hull is never shown at all.
      */
-    const RATE = 0.34;
-    /* The angle a still frame is parked at, for reduced motion and the first paint. */
-    let yaw = variant === "stage" ? instrumentView.yaw : instrumentView.yaw - 0.14;
+    /* Every mounted display begins at the shared current angle, not at a page-local phase. */
+    let yaw = readSharedRotation(
+      performance.now(),
+      directionRef.current,
+      variant === "stage" ? instrumentView.yaw : instrumentView.yaw - 0.14,
+    );
     let pitch = instrumentView.pitch;
     const drawStill = () => {
+      if (!dragging && motion === "rotate" && !reducedMotion.matches) {
+        yaw = readSharedRotation(performance.now(), directionRef.current, yaw);
+      }
       drawHull(canvas, hull, yaw, pitch, palette, variant);
       lastPaint = performance.now();
     };
@@ -262,13 +312,7 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
     const render = (time: number) => {
       frame = null;
       if (!visible || dragging || motion !== "rotate" || reducedMotion.matches) return;
-      if (previous === 0) previous = time;
-      // Advance by elapsed time rather than per frame, so a dropped frame or a background tab
-      // does not change how fast the ship appears to turn. Drawing on each display frame avoids
-      // the visible 24 fps cadence the first version imposed on otherwise smooth WebView motion.
-      const directionSign = directionRef.current === "clockwise" ? 1 : -1;
-      yaw += Math.min(time - previous, 250) / 1000 * RATE * directionSign;
-      previous = time;
+      yaw = readSharedRotation(time, directionRef.current, yaw);
       drawHull(canvas, hull, yaw, pitch, palette, variant);
       lastPaint = performance.now();
       schedule();
@@ -312,41 +356,20 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
     const updateMotion = () => {
       if (frame !== null) window.cancelAnimationFrame(frame);
       frame = null;
-      previous = 0;
       drawStill();
       schedule();
     };
-    const suspendWhileHidden = () => {
-      if (frame !== null) window.cancelAnimationFrame(frame);
-      frame = null;
-      previous = 0;
-      if (dragging) {
-        dragging = false;
-        delete root.dataset.dragging;
-        instrumentView.setView({ yaw: normalizeYaw(yaw), pitch });
-      }
-    };
     const resumeImmediately = () => {
-      // WKWebView may discard a queued frame while its window is inactive. Painting only the old
-      // angle here made the first visible frame look frozen, and the next RAF also had a zero
-      // delta. Advance once and paint synchronously before returning from the focus event.
+      // WKWebView may discard a queued frame while its window is inactive. Read the shared
+      // wall-time clock and paint it synchronously before returning from the focus event.
       if (!visible || dragging || motion !== "rotate" || reducedMotion.matches) return;
       if (frame !== null) window.cancelAnimationFrame(frame);
       frame = null;
-      const now = performance.now();
-      const directionSign = directionRef.current === "clockwise" ? 1 : -1;
-      yaw += Math.min(Math.max(now - lastPaint, 16), 250) / 1000 * RATE * directionSign;
-      previous = now;
-      drawHull(canvas, hull, yaw, pitch, palette, variant);
-      lastPaint = now;
+      drawStill();
       schedule();
     };
     const repairStaleFrame = () => {
       if (performance.now() - lastPaint > 50) resumeImmediately();
-    };
-    const updateVisibility = () => {
-      if (document.visibilityState === "hidden") suspendWhileHidden();
-      else resumeImmediately();
     };
     const theme = new MutationObserver(() => {
       palette = readPalette(canvas);
@@ -360,9 +383,9 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
     const beginDrag = (event: PointerEvent) => {
       if (!interactive || event.button !== 0) return;
       dragging = true;
+      yaw = readSharedRotation(performance.now(), directionRef.current, yaw);
       dragX = event.clientX;
       dragY = event.clientY;
-      previous = 0;
       root.dataset.dragging = "true";
       root.setPointerCapture?.(event.pointerId);
       event.preventDefault();
@@ -375,15 +398,16 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       dragY = event.clientY;
       yaw += delta * 0.012;
       pitch = Math.min(1.46, Math.max(0.08, pitch - vertical * 0.008));
+      yaw = writeSharedRotation(yaw, performance.now(), directionRef.current);
       drawHull(canvas, hull, yaw, pitch, palette, variant);
       event.preventDefault();
     };
     const finishDrag = (event: PointerEvent) => {
       if (!dragging) return;
       dragging = false;
-      previous = 0;
       delete root.dataset.dragging;
       if (root.hasPointerCapture?.(event.pointerId)) root.releasePointerCapture?.(event.pointerId);
+      yaw = writeSharedRotation(yaw, performance.now(), directionRef.current);
       instrumentView.setView({ yaw: normalizeYaw(yaw), pitch });
       schedule();
     };
@@ -394,7 +418,7 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       } else {
         pitch = Math.min(1.46, Math.max(0.08, pitch + (event.key === "ArrowUp" ? 0.1 : -0.1)));
       }
-      previous = 0;
+      yaw = writeSharedRotation(yaw, performance.now(), directionRef.current);
       drawHull(canvas, hull, yaw, pitch, palette, variant);
       instrumentView.setView({ yaw: normalizeYaw(yaw), pitch });
       event.preventDefault();
@@ -406,7 +430,6 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
     window.addEventListener("focus", resumeImmediately);
     window.addEventListener("pageshow", resumeImmediately);
     window.addEventListener("pointerdown", repairStaleFrame, true);
-    document.addEventListener("visibilitychange", updateVisibility);
     root.addEventListener("keydown", turnFromKeyboard);
     updateMotion();
     return () => {
@@ -423,7 +446,6 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       window.removeEventListener("focus", resumeImmediately);
       window.removeEventListener("pageshow", resumeImmediately);
       window.removeEventListener("pointerdown", repairStaleFrame, true);
-      document.removeEventListener("visibilitychange", updateVisibility);
       root.removeEventListener("keydown", turnFromKeyboard);
     };
   }, [hull, interactive, instrumentView.pitch, instrumentView.yaw, motion, variant]);
