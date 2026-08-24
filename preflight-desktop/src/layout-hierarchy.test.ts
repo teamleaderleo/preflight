@@ -57,7 +57,9 @@ test("resolved Home cascade follows explicit state modifiers", () => {
   // jsdom can report older declarations after parsing the modern production cascade. Pin those late
   // owners directly; real scrolling and pixel placement belong to the Chromium acceptance pass.
   expect(layoutStyles).toMatch(/\.page-viewport\.page-viewport--home\s*\{[^}]*position:\s*relative;[^}]*overflow-y:\s*auto;/s);
-  expect(getComputedStyle(settled.instrument).inset).toBe("-34px 30px 100px");
+  expect(getComputedStyle(settled.instrument).inset).toBe("auto");
+  expect(getComputedStyle(settled.primary).display).toBe("grid");
+  expect(getComputedStyle(settled.instrument).gridRow).toBe("2");
   expect(getComputedStyle(preparation.instrument).inset).toBe("6px 36px 104px");
   expect(getComputedStyle(recovery.console).minHeight).toBe("220px");
   expect(getComputedStyle(recovery.primary).minHeight).toBe("220px");
@@ -94,9 +96,21 @@ test("failed-run recovery is an overlay on settled Home geometry", () => {
   expect(layoutStyles).not.toContain("inset: 105px 8px 24px");
 });
 
-test("expanded desktop navigation keeps the launch row clear of the ship picker", () => {
+test("settled Home gives the ship picker and launch action separate intrinsic tracks", () => {
   expect(layoutStyles).toMatch(
-    /@media \(min-width: 1001px\) and \(max-width: 1140px\)[\s\S]*?\.app-shell:not\(\.app-shell--sidebar-collapsed\) \.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*right:\s*68px;[^}]*left:\s*224px;/s,
+    /\.launch-console--layout-settled \.launch-console__primary\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*244px minmax\(380px, 1fr\);/s,
+  );
+  expect(layoutStyles).toMatch(
+    /\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*position:\s*relative !important;[^}]*grid-column:\s*1;[^}]*grid-row:\s*4;/s,
+  );
+  expect(layoutStyles).toMatch(
+    /\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*position:\s*relative;[^}]*grid-column:\s*2;[^}]*grid-row:\s*4;/s,
+  );
+  expect(layoutStyles).toMatch(
+    /@container \(max-width: 660px\)[\s\S]*?\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*grid-row:\s*4;[\s\S]*?\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*grid-row:\s*5;/s,
+  );
+  expect(layoutStyles).toMatch(
+    /@container \(max-width: 500px\)[\s\S]*?\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*grid-row:\s*5;[\s\S]*?\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*grid-row:\s*6;/s,
   );
   expect(styles).toMatch(
     /\.home-motion-toggle\s*\{[^}]*flex:\s*0 0 44px;[^}]*width:\s*44px;/s,

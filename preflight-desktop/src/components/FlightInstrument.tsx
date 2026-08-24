@@ -145,7 +145,7 @@ function drawHull(
    * pumps the whole picture on every frame. The geometry is already normalised to one frame,
    * which is what makes a constant work here for a stubby Hammerhead and a long Conquest alike.
    */
-  const scale = Math.min(width, height) * (variant === "stage" ? 0.56 : 0.46);
+  const scale = Math.min(width, height) * (variant === "stage" ? 0.7 : 0.46);
   const map = (point: WireframePoint) => ({
     x: width / 2 + point.x * scale,
     y: height / 2 + point.y * scale,
@@ -234,6 +234,7 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
     let frame: number | null = null;
     let visible = true;
     let previous = 0;
+    let lastPaint = performance.now();
     let dragging = false;
     let dragX = 0;
     let dragY = 0;
@@ -248,7 +249,10 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
     /* The angle a still frame is parked at, for reduced motion and the first paint. */
     let yaw = variant === "stage" ? instrumentView.yaw : instrumentView.yaw - 0.14;
     let pitch = instrumentView.pitch;
-    const drawStill = () => drawHull(canvas, hull, yaw, pitch, palette, variant);
+    const drawStill = () => {
+      drawHull(canvas, hull, yaw, pitch, palette, variant);
+      lastPaint = performance.now();
+    };
     const schedule = () => {
       if (frame === null && visible && motion === "rotate" && !reducedMotion.matches) {
         frame = window.requestAnimationFrame(render);
@@ -266,6 +270,7 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       yaw += Math.min(time - previous, 250) / 1000 * RATE * directionSign;
       previous = time;
       drawHull(canvas, hull, yaw, pitch, palette, variant);
+      lastPaint = performance.now();
       schedule();
     };
     const resize = new ResizeObserver(drawStill);
@@ -321,15 +326,27 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
         instrumentView.setView({ yaw: normalizeYaw(yaw), pitch });
       }
     };
-    const resumeAfterFocus = () => {
-      // WKWebView may discard a queued animation frame while its window is inactive without
-      // delivering a callback. Clear our bookkeeping when the app returns so rotation resumes
-      // on the first available frame.
-      updateMotion();
+    const resumeImmediately = () => {
+      // WKWebView may discard a queued frame while its window is inactive. Painting only the old
+      // angle here made the first visible frame look frozen, and the next RAF also had a zero
+      // delta. Advance once and paint synchronously before returning from the focus event.
+      if (!visible || dragging || motion !== "rotate" || reducedMotion.matches) return;
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      frame = null;
+      const now = performance.now();
+      const directionSign = directionRef.current === "clockwise" ? 1 : -1;
+      yaw += Math.min(Math.max(now - lastPaint, 16), 250) / 1000 * RATE * directionSign;
+      previous = now;
+      drawHull(canvas, hull, yaw, pitch, palette, variant);
+      lastPaint = now;
+      schedule();
+    };
+    const repairStaleFrame = () => {
+      if (performance.now() - lastPaint > 50) resumeImmediately();
     };
     const updateVisibility = () => {
       if (document.visibilityState === "hidden") suspendWhileHidden();
-      else resumeAfterFocus();
+      else resumeImmediately();
     };
     const theme = new MutationObserver(() => {
       palette = readPalette(canvas);
@@ -386,8 +403,9 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
     window.addEventListener("pointermove", moveDrag);
     window.addEventListener("pointerup", finishDrag);
     window.addEventListener("pointercancel", finishDrag);
-    window.addEventListener("blur", suspendWhileHidden);
-    window.addEventListener("focus", resumeAfterFocus);
+    window.addEventListener("focus", resumeImmediately);
+    window.addEventListener("pageshow", resumeImmediately);
+    window.addEventListener("pointerdown", repairStaleFrame, true);
     document.addEventListener("visibilitychange", updateVisibility);
     root.addEventListener("keydown", turnFromKeyboard);
     updateMotion();
@@ -402,8 +420,9 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       window.removeEventListener("pointermove", moveDrag);
       window.removeEventListener("pointerup", finishDrag);
       window.removeEventListener("pointercancel", finishDrag);
-      window.removeEventListener("blur", suspendWhileHidden);
-      window.removeEventListener("focus", resumeAfterFocus);
+      window.removeEventListener("focus", resumeImmediately);
+      window.removeEventListener("pageshow", resumeImmediately);
+      window.removeEventListener("pointerdown", repairStaleFrame, true);
       document.removeEventListener("visibilitychange", updateVisibility);
       root.removeEventListener("keydown", turnFromKeyboard);
     };
