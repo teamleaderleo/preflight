@@ -247,7 +247,9 @@ export function DesktopShell({
           {children}
         </div>
         <footer>
-          <span>Preflight {engineVersion}</span>
+          <span title={`Source ${__PREFLIGHT_SOURCE_REVISION__}`}>
+            Preflight {engineVersion} · {__PREFLIGHT_SOURCE_REVISION__}
+          </span>
           {/* Quiet and optional, at the very bottom rather than in the launch flow. */}
           <span className="footer__links">
             <button type="button" onClick={() => void openProjectLink("tip-patreon")}>Support on Patreon</button>
