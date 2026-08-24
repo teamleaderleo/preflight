@@ -11,8 +11,8 @@ excessive hook reservoir is [Public-writing sales inventory](public-writing-sale
 
 Preflight is a free, open-source performance launcher for Starsector that took the controlled median
 on my 83-mod setup from **89.00 seconds normally to 15.53 seconds with Preflight**, then somehow grew
-a built-in benchmark, playtime tracking, named mod profiles, launch settings through 2,000-point
-battles, storage/recovery tools, deep setup analysis, signed updates, an installed-ship wireframe
+a built-in benchmark, playtime tracking, named mod profiles, custom battle sizes, storage/recovery
+tools, deep setup analysis, signed updates, an installed-ship wireframe
 Hangar, and a mod linter around that job.
 
 ## The personal version
@@ -118,8 +118,8 @@ These are finished on current `main` unless a note says otherwise.
   the exact `enabled_mods.json` change and saves a backup. Duplicate profiles do not duplicate mods,
   saves, or prepared bytes.
 - **Game settings beside Launch.** Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and
-  battle size. The extended battle-size controls can offer 600/1000/1500/2000 deployment-point
-  presets on an ordinary installation while writing Starsector's own preference.
+  custom battle size. The shortcuts include 600/1000/1500/2000 deployment points on an ordinary
+  installation while the numeric field accepts larger values through Starsector's integer range.
 - **High-DPI-aware resolution choices.** The desktop reasons from the physical panel behind OS
   scaling rather than assuming the scaled desktop size is the display's real pixel ceiling.
 - **Storage planning.** The app calculates the current profile before writing, shows predicted and
@@ -309,7 +309,7 @@ Use for deep setup analysis. Missing or disabled dependencies, duplicate mod IDs
 and a variant pointing at an absent hull are concrete and understandable. The hook is that none of
 this requires launching Starsector or dumping a giant log.
 
-### "Yes, the battle-size button goes to 2000"
+### "The vanilla battle-size slider isn't the actual limit"
 
 Use for a lighter player-facing settings post: extended battle size, physical-pixel/high-DPI
 resolution handling, RAM editing with backup/refusal, and why these are still Starsector's own
@@ -384,9 +384,9 @@ Preflight Java runtime. A system JDK is for the standalone JAR/development path.
 **"Why can the battle-size control go past the vanilla slider?"**
 
 Preflight writes Starsector's own `battleSize` preference. The vanilla `maxBattleSize` value is the
-settings-slider ceiling, not the only value the game preference can hold. Preflight still bounds its
-extended control and opening the vanilla slider later can reset a value above that installed slider
-maximum.
+settings-slider ceiling, not the only value the game preference can hold. Preflight accepts custom
+values through the positive Java-integer range; opening the vanilla slider later can reset a value
+above that installed slider maximum.
 
 **"What gets sent anywhere?"**
 

@@ -101,8 +101,8 @@ That was supposed to be the project. It was not the end of the project.
 Preflight now tracks Starsector playtime locally. It has named mod profiles that preview the exact
 mod-list change and make a backup before switching. It can duplicate and search saved profiles. It
 puts resolution, fullscreen, sound, antialiasing, UI scale, RAM, and battle size beside the launch
-button. The battle-size shortcuts are not limited to the vanilla settings slider either: on an
-ordinary installation they include 600, 1000, 1500, and 2000 deployment-point choices while still
+button. Battle size is not limited to the vanilla settings slider either: the shortcuts include 600,
+1000, 1500, and 2000 deployment points, and the numeric field accepts larger values while still
 using Starsector's own `battleSize` preference.
 
 It calculates the current profile's storage requirement before preparation, offers a tiny
@@ -215,7 +215,7 @@ search and duplication, launch settings, extended battle size, storage planning,
 setup, cleanup, updates, removal, and the fact that it can disappear after launch while playtime keeps
 recording.
 
-### Yes, the battle-size button goes to 2000
+### The vanilla battle-size slider isn't the actual limit
 
 A lighter player-facing post about launch settings: the ordinary settings beside Launch, why the
 battle-size range can go beyond the vanilla slider, high-DPI resolution handling, RAM editing, and
