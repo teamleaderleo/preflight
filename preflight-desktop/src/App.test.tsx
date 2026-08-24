@@ -482,8 +482,8 @@ test("setup keeps a single installation action and hides unavailable ready-state
   await user.click(screen.getByRole("button", { name: "Help" }));
   expect(await screen.findByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Make a support file" })).toBeEnabled();
-  expect(screen.getByText(/Don’t attach a support ZIP there/)).toBeVisible();
-  expect(screen.getByText(/include the case number instead/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "Copy setup" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Open issue" })).toBeVisible();
 
   snapshot.mockRestore();
 });
@@ -976,12 +976,12 @@ test("the Hangar keeps the ship central and its compact customization local to t
   expect(screen.getByRole("button", { name: "Reset appearance" })).toBeEnabled();
   await waitFor(() => expect(JSON.parse(window.localStorage.getItem("preflight.instrumentHullTuning.v1") ?? "{}")["/Applications/Starsector::odyssey"].height).toBe(1.35));
 
-  const detail = screen.getByRole("slider", { name: "Detail" });
+  const detail = screen.getByRole("slider", { name: "Outline detail" });
   fireEvent.change(detail, { target: { value: "0.04" } });
   await waitFor(() => {
     const saved = JSON.parse(window.localStorage.getItem("preflight.instrumentHullTuning.v1") ?? "{}");
-    expect(saved["/Applications/Starsector::odyssey"].outerDetail).toBe(0.04);
-    expect(saved["/Applications/Starsector::odyssey"].innerDetail).toBe(0.04);
+    expect(saved["/Applications/Starsector::odyssey"].outerDetail).toBe(0.02);
+    expect(saved["/Applications/Starsector::odyssey"].innerDetail).toBe(0.016);
   });
 
   await user.clear(ship);
@@ -995,7 +995,7 @@ test("the Hangar keeps the ship central and its compact customization local to t
   await user.keyboard("{Enter}");
   await waitFor(() => expect(ship).toHaveValue("Odyssey"));
   expect(screen.getByRole("slider", { name: "Depth" })).toHaveValue("1.35");
-  expect(screen.getByRole("slider", { name: "Detail" })).toHaveValue("0.04");
+  expect(screen.getByRole("slider", { name: "Outline detail" })).toHaveValue("0.04");
 });
 
 test("the desktop sidebar collapses to icon navigation without losing its destinations", async () => {
@@ -1534,11 +1534,10 @@ test("help performs its fixes instead of only pointing at other pages", async ()
 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Help" }));
-  await screen.findByRole("heading", { name: "Try this first", level: 2 });
+  await screen.findByRole("heading", { name: "Common fixes", level: 2 });
 
-  await user.click(screen.getByRole("button", { name: "Turn off" }));
+  await user.click(screen.getByRole("button", { name: "Try without optimizations" }));
   expect(screen.getByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
-  expect(screen.getByText("Optimizations are off. Your prepared data is still there.")).toBeVisible();
   expect(screen.getByRole("button", { name: "Go to launch" })).toBeEnabled();
   await waitFor(() => expect(window.localStorage.getItem("preflight.optimizationPreset")).toBe("off"));
 
@@ -1547,8 +1546,8 @@ test("help performs its fixes instead of only pointing at other pages", async ()
   expect(screen.getByText("Optimizations off")).toBeVisible();
 
   await user.click(screen.getByRole("button", { name: "Help" }));
-  await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
-  expect(await screen.findByRole("heading", { name: "Benchmark", level: 1 })).toBeInTheDocument();
+  await user.click(await screen.findByRole("button", { name: "Open Speed" }));
+  expect(await screen.findByRole("heading", { name: "Speed", level: 1 })).toBeInTheDocument();
 });
 
 test("cancelling an installation change stays in Help and a valid change returns Home", async () => {
@@ -1733,7 +1732,7 @@ test("a reviewed removal cannot be applied while the game is running", async () 
  * cannot send a report at all, and describing the send flow there anyway would advertise a feature
  * it doesn't have while understating a privacy position that is stronger, not weaker.
  */
-test("the privacy panel describes the build's actual sending ability", async () => {
+test("the privacy panel states the default without narrating its implementation", async () => {
   const user = userEvent.setup();
   const unconfigured = vi.spyOn(bridge, "getReportIntakeStatus").mockResolvedValue({
     configured: false,
@@ -1743,16 +1742,14 @@ test("the privacy panel describes the build's actual sending ability", async () 
 
   const { unmount } = render(<App />);
   await user.click(await screen.findByRole("button", { name: "Settings" }));
-  expect(await screen.findByText(/Support ZIPs stay here until you share one/))
-    .toBeInTheDocument();
+  expect(await screen.findByText("Nothing is sent automatically.")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "What Preflight can access" })).toBeEnabled();
-  expect(screen.queryByText(/sent only when you press Send/)).not.toBeInTheDocument();
   unmount();
 
   unconfigured.mockResolvedValue({ configured: true, origin: "https://reports.invalid", reason: null });
   render(<App />);
   await user.click(await screen.findByRole("button", { name: "Settings" }));
-  expect(await screen.findByText(/sent only when you press Send/)).toBeInTheDocument();
+  expect(await screen.findByText("Nothing is sent automatically.")).toBeInTheDocument();
 
   unconfigured.mockRestore();
 });

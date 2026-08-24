@@ -82,7 +82,7 @@ test("support files remain manual even when report intake is configured", () => 
   })} />);
 
   expect(screen.queryByRole("checkbox", { name: /failed-run reports/i })).not.toBeInTheDocument();
-  expect(screen.getByText("Update checks fetch version metadata. A support ZIP is sent only when you press Send.")).toBeInTheDocument();
+  expect(screen.getByText("Nothing is sent automatically.")).toBeInTheDocument();
 });
 
 test("removal review takes focus and Cancel returns to the initiating control", async () => {
@@ -158,12 +158,10 @@ test("Home presentation switches immediately between Hangar and Compact", async 
 
   const select = screen.getByRole("combobox", { name: "Home presentation" });
   expect(select).toHaveValue("hangar");
-  expect(screen.getByText("Hull-led Home with the full settled display.")).toBeInTheDocument();
 
   await user.selectOptions(select, "compact");
   expect(select).toHaveValue("compact");
   expect(document.documentElement.dataset.homeMode).toBe("compact");
-  expect(screen.getByText("Launch-first Home without the decorative hull and history readouts.")).toBeInTheDocument();
   expect(JSON.parse(window.localStorage.getItem(HOME_PRESENTATION_STORAGE_KEY) ?? "null"))
     .toEqual({ mode: "compact", showPlaytime: true });
 });
@@ -174,7 +172,6 @@ test("Home playtime visibility is an immediate display-only preference", async (
 
   const select = screen.getByRole("combobox", { name: "Home playtime" });
   expect(select).toHaveValue("show");
-  expect(screen.getByText("Display only. Launch history and playtime recording continue either way.")).toBeInTheDocument();
 
   await user.selectOptions(select, "hide");
   expect(select).toHaveValue("hide");

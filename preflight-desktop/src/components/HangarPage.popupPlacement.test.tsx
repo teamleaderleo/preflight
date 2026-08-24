@@ -38,12 +38,14 @@ function state() {
   return {
     catalog: { format: "preflight-wireframe-hulls-v1" as const, hulls, skipped: 0 },
     catalogLoaded: true,
+    catalogHulls: hulls,
     hulls,
     selected: hulls[0],
     selectedId: hulls[0].id,
     tuning,
     customized: false,
     choose: vi.fn(),
+    remove: vi.fn(),
     customize: vi.fn(),
     resetCustomization: vi.fn(),
   } as ReturnType<typeof useInstrumentHull>;

@@ -12,6 +12,8 @@ export const AUTOMATIC_RUN_REPORT_HISTORY_STORAGE_KEY = "preflight.automaticRunR
 export const INSTRUMENT_HULL_STORAGE_KEY = "preflight.instrumentHull";
 export const INSTRUMENT_HULL_TUNING_STORAGE_KEY = "preflight.instrumentHullTuning.v1";
 export const INSTRUMENT_HULL_MOTION_STORAGE_KEY = "preflight.instrumentHullMotion.v1";
+export const INSTRUMENT_HULL_ROSTER_STORAGE_KEY = "preflight.instrumentHullRoster.v1";
+export const INSTRUMENT_HULL_VIEW_STORAGE_KEY = "preflight.instrumentHullView.v1";
 export const HOME_PRESENTATION_STORAGE_KEY = "preflight.homePresentation.v1";
 export const PROFILE_SEARCH_STORAGE_KEY = "preflight.profileSearch.v1";
 export const LAST_INSTALL_ROOT_STORAGE_KEY = "preflight.lastInstallRoot";
@@ -33,6 +35,8 @@ export const PREFLIGHT_LOCAL_STORAGE_KEYS = Object.freeze([
   INSTRUMENT_HULL_STORAGE_KEY,
   INSTRUMENT_HULL_TUNING_STORAGE_KEY,
   INSTRUMENT_HULL_MOTION_STORAGE_KEY,
+  INSTRUMENT_HULL_ROSTER_STORAGE_KEY,
+  INSTRUMENT_HULL_VIEW_STORAGE_KEY,
   HOME_PRESENTATION_STORAGE_KEY,
   PROFILE_SEARCH_STORAGE_KEY,
   LAST_INSTALL_ROOT_STORAGE_KEY,

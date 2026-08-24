@@ -56,7 +56,7 @@ test("resolved Home cascade follows explicit state modifiers", () => {
 
   // jsdom can report older declarations after parsing the modern production cascade. Pin those late
   // owners directly; real scrolling and pixel placement belong to the Chromium acceptance pass.
-  expect(layoutStyles).toMatch(/\.page-viewport--home\s*\{[^}]*position:\s*relative;[^}]*overflow-y:\s*auto;/s);
+  expect(layoutStyles).toMatch(/\.page-viewport\.page-viewport--home\s*\{[^}]*position:\s*relative;[^}]*overflow-y:\s*auto;/s);
   expect(getComputedStyle(settled.instrument).inset).toBe("-34px 30px 100px");
   expect(getComputedStyle(preparation.instrument).inset).toBe("6px 36px 104px");
   expect(getComputedStyle(recovery.console).minHeight).toBe("220px");
@@ -85,13 +85,28 @@ test("failed-run recovery is an overlay on settled Home geometry", () => {
     /@media \(max-width: 720px\)[\s\S]*?\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-launch-identity\s*\{[^}]*bottom:\s*88px;[^}]*width:\s*calc\(100% - 32px\);/s,
   );
   expect(layoutStyles).toMatch(
-    /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-ship-picker\s*\{[^}]*right:\s*auto;[^}]*bottom:\s*24px;[^}]*left:\s*28px;[^}]*text-align:\s*left;/s,
+    /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-ship-picker\s*\{[^}]*right:\s*auto;[^}]*bottom:\s*24px;[^}]*left:\s*28px;[^}]*text-align:\s*left;[^}]*transform:\s*none;/s,
   );
   expect(layoutStyles).toMatch(
     /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-launch-path::after\s*\{[^}]*top:\s*auto;[^}]*bottom:\s*calc\(100% \+ 7px\);[^}]*left:\s*50%;[^}]*transform:\s*translate\(-50%, -2px\);/s,
   );
   expect(layoutStyles).not.toContain("inset: 120px 30px 54px");
   expect(layoutStyles).not.toContain("inset: 105px 8px 24px");
+});
+
+test("expanded desktop navigation keeps the launch row clear of the ship picker", () => {
+  expect(layoutStyles).toMatch(
+    /@media \(min-width: 1001px\) and \(max-width: 1140px\)[\s\S]*?\.app-shell:not\(\.app-shell--sidebar-collapsed\) \.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*right:\s*68px;[^}]*left:\s*224px;/s,
+  );
+  expect(styles).toMatch(
+    /\.home-motion-toggle\s*\{[^}]*flex:\s*0 0 44px;[^}]*width:\s*44px;/s,
+  );
+});
+
+test("short windows scroll Home instead of clipping its launch action", () => {
+  expect(layoutStyles).toMatch(
+    /@media \(max-height: 520px\)[\s\S]*?\.launch-console--ready,[\s\S]*?\.launch-console--ready \.launch-console__primary\s*\{[^}]*height:\s*320px;[^}]*min-height:\s*320px;/s,
+  );
 });
 
 test("launch identity keeps the setup first while the path remains an interactive disclosure", () => {

@@ -4,7 +4,7 @@
  * owned elsewhere while the five tuning controls become easier to grab.
  */
 .hangar-dock--catalog .hangar-dial {
-  grid-template-rows: 12px 44px;
+  grid-template-rows: 14px 44px;
 }
 
 .hangar-dock--catalog .hangar-dial > input {

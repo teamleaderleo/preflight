@@ -6,6 +6,8 @@ test("Hangar active values and motion stay on the current palette", () => {
   expect(hangarStyles).toContain("var(--hangar-range, 0%)");
   expect(hangarStyles).toContain("var(--accent) 0 var(--hangar-range, 0%)");
   expect(hangarStyles).toMatch(/\.hangar-motion-status__state\s*\{[^}]*color:\s*var\(--accent-strong\);/s);
+  expect(hangarStyles).toMatch(/\.hangar-console-heading,\s*\.hangar-motion-status\s*\{[^}]*font-size:\s*9\.5px;/s);
+  expect(hangarStyles).toMatch(/\.hangar-dock--catalog \.hangar-dial\s*\{[^}]*font-size:\s*10px;/s);
   expect(hangarStyles).not.toMatch(/#[0-9a-f]{3,8}/i);
 });
 
@@ -37,9 +39,9 @@ test("short Hangar windows bound the chooser list inside the usable workspace", 
   );
 });
 
-test("Hangar tuning compacts into one five-channel instrument bank at the shipped desktop widths", () => {
-  expect(hangarStyles).toMatch(/\.hangar-dock--catalog \.hangar-dials\s*\{[^}]*grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\);/s);
+test("Hangar tuning compacts into one six-channel instrument bank at the shipped desktop widths", () => {
+  expect(hangarStyles).toMatch(/\.hangar-dock--catalog \.hangar-dials\s*\{[^}]*grid-template-columns:\s*repeat\(6, minmax\(0, 1fr\)\);/s);
   expect(hangarStyles).toContain("@container (max-width: 600px)");
   expect(hangarStyles).toMatch(/@container \(max-width: 600px\)[\s\S]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);/s);
-  expect(hangarStyles).not.toMatch(/\.hangar-stage(?:\s|\{|:)[^{]*\{[^}]*min-height:/s);
+  expect(hangarStyles).toMatch(/@media \(max-height: 600px\)[\s\S]*\.hangar-stage\s*\{[^}]*min-height:\s*270px;/s);
 });

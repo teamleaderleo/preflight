@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { INSTRUMENT_HULL_MOTION_STORAGE_KEY } from "../desktopStorage";
@@ -89,10 +89,39 @@ test("the Hangar stage keeps the ship and drops the small targeting reticle", ()
 
 test("an interactive ship display advertises direct pointer and keyboard control", () => {
   const { getByRole } = render(createElement(FlightInstrument, { variant: "stage", interactive: true }));
-  const display = getByRole("group", { name: "Ship display. Drag or use the left and right arrow keys to turn it." });
+  const display = getByRole("group", { name: "Ship display. Drag it or use the arrow keys to change the view." });
 
   expect(display).toHaveAttribute("tabindex", "0");
   expect(display).toHaveClass("flight-instrument--interactive");
+});
+
+test("an interactive ship display responds to dragging and arrow keys", () => {
+  window.localStorage.setItem(
+    INSTRUMENT_HULL_MOTION_STORAGE_KEY,
+    JSON.stringify({ motion: "still", direction: "clockwise" }),
+  );
+  installMatchMediaMock();
+  const context = installCanvasMock();
+  vi.stubGlobal("ResizeObserver", class {
+    observe = vi.fn();
+    unobserve = vi.fn();
+    disconnect = vi.fn();
+  });
+
+  const { getByRole } = render(createElement(FlightInstrument, { variant: "stage", interactive: true }));
+  const display = getByRole("group", { name: "Ship display. Drag it or use the arrow keys to change the view." });
+  const strokesBefore = vi.mocked(context.stroke).mock.calls.length;
+
+  fireEvent.pointerDown(display, { button: 0, clientX: 40, clientY: 40, pointerId: 1 });
+  expect(display).toHaveAttribute("data-dragging", "true");
+  fireEvent.pointerMove(display, { clientX: 80, clientY: 20, pointerId: 1 });
+  expect(vi.mocked(context.stroke).mock.calls.length).toBeGreaterThan(strokesBefore);
+  fireEvent.pointerUp(display, { clientX: 80, clientY: 20, pointerId: 1 });
+  expect(display).not.toHaveAttribute("data-dragging");
+
+  const strokesAfterDrag = vi.mocked(context.stroke).mock.calls.length;
+  fireEvent.keyDown(display, { key: "ArrowRight" });
+  expect(vi.mocked(context.stroke).mock.calls.length).toBeGreaterThan(strokesAfterDrag);
 });
 
 test("saved motion and direction preferences reach the shared renderer", () => {

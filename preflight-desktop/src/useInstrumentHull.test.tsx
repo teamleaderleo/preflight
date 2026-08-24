@@ -1,10 +1,15 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 import { getWireframeHulls } from "./bridge";
-import { INSTRUMENT_HULL_STORAGE_KEY, INSTRUMENT_HULL_TUNING_STORAGE_KEY } from "./desktopStorage";
+import {
+  INSTRUMENT_HULL_ROSTER_STORAGE_KEY,
+  INSTRUMENT_HULL_STORAGE_KEY,
+  INSTRUMENT_HULL_TUNING_STORAGE_KEY,
+} from "./desktopStorage";
 import type { WireframeHullCatalog } from "./types";
 import {
   DEFAULT_HULL_ID,
+  FEATURED_HULL_IDS,
   useInstrumentHull,
   validateWireframeTuning,
 } from "./useInstrumentHull";
@@ -116,6 +121,25 @@ test("restores and persists an available local hull", async () => {
   expect(window.localStorage.getItem(INSTRUMENT_HULL_STORAGE_KEY)).toBe("onslaught");
 });
 
+test("adds installed hulls to a small saved roster and removes them again", async () => {
+  const modded = hull("uaf-solvernia", "Solvernia", false);
+  vi.mocked(getWireframeHulls).mockResolvedValue({ ...catalog, hulls: [...catalog.hulls, modded] });
+  const { result } = renderHook(() => useInstrumentHull("/game", true));
+
+  await waitFor(() => expect(result.current.catalogHulls.some((candidate) => candidate.id === modded.id)).toBe(true));
+  expect(result.current.hulls.some((candidate) => candidate.id === modded.id)).toBe(false);
+
+  act(() => result.current.choose(modded.id));
+  expect(result.current.selectedId).toBe(modded.id);
+  expect(result.current.hulls.some((candidate) => candidate.id === modded.id)).toBe(true);
+  await waitFor(() => expect(JSON.parse(window.localStorage.getItem(INSTRUMENT_HULL_ROSTER_STORAGE_KEY) ?? "{}")["/game"])
+    .toContain(modded.id));
+
+  act(() => result.current.remove(modded.id));
+  expect(result.current.hulls.some((candidate) => candidate.id === modded.id)).toBe(false);
+  expect(result.current.selectedId).toBe(DEFAULT_HULL_ID);
+});
+
 test("drops a legacy courier preference after the local catalog loads", async () => {
   window.localStorage.setItem(INSTRUMENT_HULL_STORAGE_KEY, "preflight-courier");
   vi.mocked(getWireframeHulls).mockResolvedValue(catalog);
@@ -131,6 +155,18 @@ test("falls back to Odyssey when a saved hull disappeared", async () => {
   const { result } = renderHook(() => useInstrumentHull("/game", true));
 
   await waitFor(() => expect(result.current.catalog).toEqual(catalog));
+  expect(result.current.selectedId).toBe(DEFAULT_HULL_ID);
+});
+
+test("repairs a roster whose modded hulls all disappeared", async () => {
+  window.localStorage.setItem(INSTRUMENT_HULL_ROSTER_STORAGE_KEY, JSON.stringify({
+    "/game": ["missing-one", "missing-two"],
+  }));
+  vi.mocked(getWireframeHulls).mockResolvedValue(catalog);
+  const { result } = renderHook(() => useInstrumentHull("/game", true));
+
+  await waitFor(() => expect(result.current.catalog).toEqual(catalog));
+  expect(result.current.hulls.map((candidate) => candidate.id)).toEqual([...FEATURED_HULL_IDS]);
   expect(result.current.selectedId).toBe(DEFAULT_HULL_ID);
 });
 

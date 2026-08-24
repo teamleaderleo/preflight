@@ -24,12 +24,14 @@ const hull: WireframeHull = {
 const hullState = {
   catalog: null,
   catalogLoaded: false,
+  catalogHulls: [hull],
   hulls: [hull],
   selected: hull,
   selectedId: hull.id,
   tuning: { outerSmooth: 0, outerDetail: 0, innerSmooth: 0, innerDetail: 0, height: 1 },
   customized: false,
   choose: vi.fn(),
+  remove: vi.fn(),
   customize: vi.fn(),
   resetCustomization: vi.fn(),
 } as ReturnType<typeof useInstrumentHull>;

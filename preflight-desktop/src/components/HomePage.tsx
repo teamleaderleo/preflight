@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowIcon, CheckIcon, ClockIcon, FocusIcon, FolderIcon, PauseIcon, PlayIcon, SparklesIcon } from "../icons";
+import { ArrowIcon, CheckIcon, ClockIcon, FocusIcon, FolderIcon, PlayIcon, RotateClockwiseIcon, RotateCounterClockwiseIcon, SparklesIcon } from "../icons";
 import { adapterHealthLine } from "../adapterHealthText";
 import { HOME_OPTIONS_STORAGE_KEY } from "../desktopStorage";
 import type { Page } from "./DesktopShell";
@@ -407,6 +407,17 @@ export function HomePage({
                   {needsPreparation ? <SparklesIcon /> : <PlayIcon />}
                   <span>{status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? preparationPercent === null ? "Preparation in progress…" : `Preparing ${preparationPercent}%…` : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review prepared data" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Prepare with less disk" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}</span>
                 </button>
+                {homeLayoutState === "settled" && homePresentation.mode !== "compact" ? (
+                  <button
+                    className="home-motion-toggle"
+                    type="button"
+                    aria-label="Reverse ship rotation"
+                    title="Reverse ship rotation"
+                    onClick={() => instrumentMotion.setDirection(instrumentMotion.direction === "clockwise" ? "counter-clockwise" : "clockwise")}
+                  >
+                    {instrumentMotion.direction === "clockwise" ? <RotateClockwiseIcon /> : <RotateCounterClockwiseIcon />}
+                  </button>
+                ) : null}
                 {preparing ? (
                   <button className="button button--quiet launch-console__stop" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>
                     {preparationCancelling ? "Stopping…" : "Stop safely"}
@@ -446,18 +457,6 @@ export function HomePage({
               <button className="home-ship-name" type="button" title="Choose a display ship" onClick={() => onNavigate("hangar")}>{instrumentHull.selected.name}</button>
               <button type="button" aria-label="Next display ship" title="Next ship" onClick={() => cycleHull(1)} disabled={instrumentHull.hulls.length < 2}><ArrowIcon /></button>
             </div>
-          ) : null}
-          {isReady && homeLayoutState === "settled" ? (
-            <button
-              className="home-motion-toggle"
-              type="button"
-              aria-label={instrumentMotion.motion === "rotate" ? "Pause ship rotation" : "Resume ship rotation"}
-              title={instrumentMotion.motion === "rotate" ? "Pause ship rotation" : "Resume ship rotation"}
-              aria-pressed={instrumentMotion.motion === "still"}
-              onClick={() => instrumentMotion.setMotion(instrumentMotion.motion === "rotate" ? "still" : "rotate")}
-            >
-              {instrumentMotion.motion === "rotate" ? <PauseIcon /> : <PlayIcon />}
-            </button>
           ) : null}
         </div>
         {isReady && optionsOpen && launcherDraft && launcherSettings ? (

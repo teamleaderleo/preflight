@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { INSTRUMENT_APPEARANCE_ATTRIBUTES } from "../flightInstrumentAppearance";
 import { useInstrumentMotion } from "../useInstrumentMotion";
+import { useInstrumentView } from "../useInstrumentView";
 import type { HullSegmentKind } from "../wireframeHullGeometry";
 import type { WireframeHull, WireframePoint } from "../types";
 import { BUNDLED_DEFAULT_HULL } from "../bundledWireframeHulls";
@@ -56,6 +57,10 @@ function toRgb(colour: string, fallback: [number, number, number]): [number, num
     : fallback;
 }
 
+function normalizeYaw(yaw: number): number {
+  return Math.atan2(Math.sin(yaw), Math.cos(yaw));
+}
+
 function readPalette(canvas: HTMLCanvasElement): InstrumentPalette {
   const probe = canvas.ownerDocument.createElement("span");
   probe.style.display = "none";
@@ -109,6 +114,7 @@ function drawHull(
   canvas: HTMLCanvasElement,
   hull: WireframeHull,
   yaw: number,
+  pitch: number,
   palette: InstrumentPalette,
   variant: "badge" | "stage",
 ) {
@@ -128,7 +134,7 @@ function drawHull(
   context.clearRect(0, 0, width, height);
 
   const detail = width < 170 ? "small" : width < 300 ? "medium" : "showcase";
-  const projected = projectHull(hull, yaw, detail);
+  const projected = projectHull(hull, yaw, detail, pitch);
   if (projected.segments.length === 0) return;
 
   /*
@@ -206,14 +212,6 @@ function drawHull(
     context.stroke();
   }
 
-  // The bow: the one bright point, so which way the ship is facing is never in question.
-  if (projected.nose) {
-    const nose = map(projected.nose);
-    context.fillStyle = palette.accent;
-    context.beginPath();
-    context.arc(nose.x, nose.y, detail === "small" ? 1.8 : 2.4, 0, Math.PI * 2);
-    context.fill();
-  }
 }
 
 /** Draws bounded hull geometry derived locally from the user's Starsector installation. */
@@ -221,6 +219,7 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { motion, direction } = useInstrumentMotion();
+  const instrumentView = useInstrumentView();
   const directionRef = useRef(direction);
 
   useEffect(() => {
@@ -237,6 +236,7 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
     let previous = 0;
     let dragging = false;
     let dragX = 0;
+    let dragY = 0;
     let palette = readPalette(canvas);
 
     /*
@@ -246,9 +246,9 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
      */
     const RATE = 0.34;
     /* The angle a still frame is parked at, for reduced motion and the first paint. */
-    const RESTING = variant === "stage" ? 0.52 : 0.38;
-    let yaw = RESTING;
-    const drawStill = () => drawHull(canvas, hull, yaw, palette, variant);
+    let yaw = variant === "stage" ? instrumentView.yaw : instrumentView.yaw - 0.14;
+    let pitch = instrumentView.pitch;
+    const drawStill = () => drawHull(canvas, hull, yaw, pitch, palette, variant);
     const schedule = () => {
       if (frame === null && visible && motion === "rotate" && !reducedMotion.matches) {
         frame = window.requestAnimationFrame(render);
@@ -265,7 +265,7 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       const directionSign = directionRef.current === "clockwise" ? 1 : -1;
       yaw += Math.min(time - previous, 250) / 1000 * RATE * directionSign;
       previous = time;
-      drawHull(canvas, hull, yaw, palette, variant);
+      drawHull(canvas, hull, yaw, pitch, palette, variant);
       schedule();
     };
     const resize = new ResizeObserver(drawStill);
@@ -323,6 +323,7 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       if (!interactive || event.button !== 0) return;
       dragging = true;
       dragX = event.clientX;
+      dragY = event.clientY;
       previous = 0;
       root.dataset.dragging = "true";
       root.setPointerCapture?.(event.pointerId);
@@ -331,9 +332,12 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
     const moveDrag = (event: PointerEvent) => {
       if (!dragging) return;
       const delta = event.clientX - dragX;
+      const vertical = event.clientY - dragY;
       dragX = event.clientX;
+      dragY = event.clientY;
       yaw += delta * 0.012;
-      drawHull(canvas, hull, yaw, palette, variant);
+      pitch = Math.min(1.46, Math.max(0.08, pitch - vertical * 0.008));
+      drawHull(canvas, hull, yaw, pitch, palette, variant);
       event.preventDefault();
     };
     const finishDrag = (event: PointerEvent) => {
@@ -342,13 +346,19 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       previous = 0;
       delete root.dataset.dragging;
       if (root.hasPointerCapture?.(event.pointerId)) root.releasePointerCapture?.(event.pointerId);
+      instrumentView.setView({ yaw: normalizeYaw(yaw), pitch });
       schedule();
     };
     const turnFromKeyboard = (event: KeyboardEvent) => {
-      if (!interactive || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
-      yaw += event.key === "ArrowLeft" ? -0.16 : 0.16;
+      if (!interactive || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        yaw += event.key === "ArrowLeft" ? -0.16 : 0.16;
+      } else {
+        pitch = Math.min(1.46, Math.max(0.08, pitch + (event.key === "ArrowUp" ? 0.1 : -0.1)));
+      }
       previous = 0;
-      drawHull(canvas, hull, yaw, palette, variant);
+      drawHull(canvas, hull, yaw, pitch, palette, variant);
+      instrumentView.setView({ yaw: normalizeYaw(yaw), pitch });
       event.preventDefault();
     };
     root.addEventListener("pointerdown", beginDrag);
@@ -372,7 +382,7 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       root.removeEventListener("lostpointercapture", finishDrag);
       root.removeEventListener("keydown", turnFromKeyboard);
     };
-  }, [hull, interactive, motion, variant]);
+  }, [hull, interactive, instrumentView.pitch, instrumentView.yaw, motion, variant]);
 
   return (
     <div
@@ -381,7 +391,8 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       data-motion={motion}
       data-direction={direction}
       aria-hidden={interactive ? undefined : true}
-      aria-label={interactive ? "Ship display. Drag or use the left and right arrow keys to turn it." : undefined}
+      aria-label={interactive ? "Ship display. Drag it or use the arrow keys to change the view." : undefined}
+      title={interactive ? "Drag to turn" : undefined}
       role={interactive ? "group" : undefined}
       tabIndex={interactive ? 0 : undefined}
     >
