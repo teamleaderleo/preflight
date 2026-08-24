@@ -207,10 +207,10 @@ def assert_ship_moves(page: Page, label: str) -> None:
     if first == second:
         raise RuntimeError(f"{label}: ship did not rotate")
 
-    page.get_by_role("button", name="Hide ship").click()
+    page.get_by_role("button", name="Ship", exact=True).click()
     canvas.wait_for(state="hidden")
     page.wait_for_timeout(160)
-    page.get_by_role("button", name="Show ship").click()
+    page.get_by_role("button", name="Ship", exact=True).click()
     canvas.wait_for(state="visible")
     resumed = canvas.evaluate("canvas => canvas.toDataURL()")
     page.wait_for_timeout(160)
@@ -393,7 +393,7 @@ def main() -> int:
                         page.wait_for_function(
                             "document.querySelector('.launch-console--layout-settled')?.classList.contains('home-hud--visible')",
                         )
-                        page.get_by_role("button", name="Hide ship").click()
+                        page.get_by_role("button", name="Ship", exact=True).click()
                         page.locator(".home-flight-instrument").wait_for(state="hidden")
                         if not page.locator(".home-playtime").is_visible():
                             raise RuntimeError(f"{label} compact: hiding the ship also hid playtime")
@@ -401,7 +401,7 @@ def main() -> int:
                         assert_focus_stable(page, f"{label} compact")
                         capture(page, args.output_dir, f"home-compact-{label}.png")
 
-                        page.get_by_role("button", name="Hide time").click()
+                        page.get_by_role("button", name="Playtime", exact=True).click()
                         page.locator(".home-playtime").wait_for(state="hidden")
                         geometry[f"{label}-minimal"] = assert_home_geometry(page, f"{label} minimal")
                         assert_focus_stable(page, f"{label} minimal")

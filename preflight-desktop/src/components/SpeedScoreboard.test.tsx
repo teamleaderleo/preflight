@@ -1,21 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { vi } from "vitest";
-import type { WireframeHull } from "../types";
 import type { SpeedStanding } from "../useSpeedRecord";
 import { SpeedScoreboard } from "./SpeedScoreboard";
-
-vi.mock("./FlightInstrument", () => ({ FlightInstrument: () => <div data-testid="instrument" /> }));
-
-const hull: WireframeHull = {
-  id: "test",
-  name: "Test hull",
-  hullSize: "FRIGATE",
-  style: "MIDLINE",
-  bounds: [],
-  engines: [],
-  mounts: [],
-  featured: true,
-};
 
 function standing(): SpeedStanding {
   return {
@@ -47,7 +33,6 @@ test("keeps the personal best trophy while showing an unfavorable latest benchma
     <SpeedScoreboard
       standing={standing()}
       isReady
-      hull={hull}
       onOpenBenchmark={vi.fn()}
     />,
   );
@@ -65,7 +50,6 @@ test("unmeasured startup uses a neutral figure instead of implying a multiplier"
     <SpeedScoreboard
       standing={{ ...standing(), record: null }}
       isReady
-      hull={hull}
       onOpenBenchmark={vi.fn()}
     />,
   );
@@ -80,7 +64,6 @@ test("keeps playtime session detail on hover and in the named accessible group w
     <SpeedScoreboard
       standing={standing()}
       isReady
-      hull={hull}
       playtime={{
         readable: true,
         totalMillis: 12_600_000,

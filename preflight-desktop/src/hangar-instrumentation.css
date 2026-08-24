@@ -156,6 +156,10 @@
   text-transform: uppercase;
 }
 
+.hangar-identity__meta button[aria-label="Add a display ship"] {
+  color: var(--accent-strong);
+}
+
 .hangar-identity__meta button:not(:disabled):hover,
 .hangar-identity__meta button:not(:disabled):focus-visible {
   color: var(--accent-strong);

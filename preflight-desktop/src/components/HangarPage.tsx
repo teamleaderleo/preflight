@@ -173,6 +173,16 @@ function HangarHullChooser({ catalogHulls, rosterIds, selected, onChoose, onRemo
     setActiveIndex(0);
   };
 
+  const beginAdding = () => {
+    setQuery("");
+    setOpen(true);
+    setActiveIndex(0);
+    window.requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    });
+  };
+
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -290,6 +300,9 @@ function HangarHullChooser({ catalogHulls, rosterIds, selected, onChoose, onRemo
 
       <div className="hangar-identity__meta">
         <span>{hullSizeLabel(selected.hullSize)}</span>
+        <button type="button" aria-label="Add a display ship" onClick={beginAdding}>
+          + Add ship
+        </button>
         {canRemove ? removeArmed ? (
           <span className="hangar-roster-actions">
             <button

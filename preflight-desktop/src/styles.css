@@ -4935,7 +4935,7 @@ footer {
   justify-content: center;
   gap: 14px;
   min-width: 0;
-  padding-right: min(27%, 210px);
+  padding-right: 0;
 }
 
 .scoreboard__playtime {
@@ -5015,9 +5015,6 @@ footer {
     width: 210px;
   }
 
-  .scoreboard__body {
-    padding-right: 130px;
-  }
 }
 
 @media (max-width: 720px) {

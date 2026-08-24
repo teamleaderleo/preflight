@@ -82,6 +82,19 @@ test("the Orbitron ship identity is the typeable hull chooser for the full catal
   expect(instrumentHull.choose).toHaveBeenCalledWith("modded-hull");
 });
 
+test("Add ship opens the full installed catalog with an empty search", () => {
+  const instrumentHull = state({ hulls: [featured] });
+  render(<HangarPage instrumentHull={instrumentHull} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Add a display ship" }));
+  const chooser = screen.getByRole("combobox", { name: "Display ship" });
+  expect(chooser).toHaveValue("");
+  expect(chooser).toHaveAttribute("aria-expanded", "true");
+  const list = screen.getByRole("listbox", { name: "Display ships" });
+  expect(within(list).getByRole("option", { name: "Odyssey" })).toBeInTheDocument();
+  expect(within(list).getByRole("option", { name: "Modded Hull" })).toBeInTheDocument();
+});
+
 test("removal from Home is an explicit two-step action", () => {
   const instrumentHull = state();
   render(<HangarPage instrumentHull={instrumentHull} />);
