@@ -217,7 +217,7 @@ export function HomePage({
               : cacheNeedsRepair
                 ? "Prepared data needs repair"
                 : firstSetup
-                  ? "First launch setup"
+                  ? null
                   : needsPreparation
                     ? "Preparation needed"
                     : optimizationPreset === "off"
@@ -309,17 +309,19 @@ export function HomePage({
                     : `${modWarningCount} mod warning${modWarningCount === 1 ? "" : "s"}`}
                 </button>
               ) : null}
-              <button
-                className="home-display-toggle"
-                type="button"
-                aria-label={playtimeVisible ? "Hide time" : "Show time"}
-                title={playtimeVisible ? "Hide time" : "Show time"}
-                aria-pressed={playtimeVisible}
-                onClick={togglePlaytime}
-              >
-                <ClockIcon />
-                <span>{playtimeVisible ? "Hide time" : "Show time"}</span>
-              </button>
+              {hasPlaytime ? (
+                <button
+                  className="home-display-toggle"
+                  type="button"
+                  aria-label={playtimeVisible ? "Hide time" : "Show time"}
+                  title={playtimeVisible ? "Hide time" : "Show time"}
+                  aria-pressed={playtimeVisible}
+                  onClick={togglePlaytime}
+                >
+                  <ClockIcon />
+                  <span>{playtimeVisible ? "Hide time" : "Show time"}</span>
+                </button>
+              ) : null}
               <button
                 className="home-display-toggle"
                 type="button"
@@ -342,12 +344,10 @@ export function HomePage({
               </button>
             </div>
           ) : null}
-          {isReady ? (
-            <div className={playtimeTotal ? "home-playtime" : "home-playtime home-playtime--empty"} aria-label={playtime && hasPlaytime
-              ? `${formatPlaytime(playtime.totalMillis)} played across ${playtime.launches.toLocaleString()} recorded sessions`
-              : "No recorded playtime yet"}>
-              <strong>{playtimeTotal?.value ?? "0"}<i>{playtimeTotal?.unit ?? "h"}</i></strong>
-              <span>{playtime && hasPlaytime ? `${playtime.launches.toLocaleString()} sessions` : "played"}</span>
+          {isReady && playtime && hasPlaytime && playtimeTotal ? (
+            <div className="home-playtime" aria-label={`${formatPlaytime(playtime.totalMillis)} played across ${playtime.launches.toLocaleString()} recorded sessions`}>
+              <strong>{playtimeTotal.value}<i>{playtimeTotal.unit}</i></strong>
+              <span>{playtime.launches.toLocaleString()} sessions</span>
             </div>
           ) : null}
           {isReady && lastAdapterHealth && status !== "running" && status !== "launching" ? (
@@ -358,9 +358,9 @@ export function HomePage({
               {adapterHealthLine(lastAdapterHealth)}
             </span>
           ) : null}
-          {!isReady ? <h2>{status === "loading" ? "Finding Starsector…" : "Choose your Starsector installation"}</h2> : null}
+          {!isReady ? <h2>{status === "loading" ? "Finding Starsector…" : "Choose Starsector"}</h2> : null}
           {!isReady ? <p>{status === "loading" ? "Checking the usual installation locations." : "Select the folder containing Starsector.app, starsector.exe, or starsector.sh."}</p> : null}
-          {!isReady && status !== "loading" ? <p className="setup-next">Preflight creates reusable startup data for your current mod setup, then opens Starsector. Your game, mods, and saves stay unchanged.</p> : null}
+          {!isReady && status !== "loading" ? <p className="setup-next">Choose it once. Fast-launch setup stays on Home.</p> : null}
           {isReady && !visibleRunFailure && (status === "ready" || status === "error") && snapshot?.selected ? (
             <HomeLaunchIdentity
               installRoot={snapshot.selected.installRoot}
@@ -382,7 +382,7 @@ export function HomePage({
                   : preparationPlanLoading
                   ? "Inspecting this mod setup and calculating a safe disk requirement…"
                   : preparationPlan?.safeToPrepare
-                    ? `${firstSetup ? "Initial setup" : "Preparation needed"} · Keeps about ${formatBytes(preparationPlan.predictedRetainedTextureBytes ?? preparationPlan.predictedPackBytes)}. Needs about ${formatBytes(preparationPlan.requiredFreeBytes)} free while preparing; ${formatBytes(preparationPlan.usableBytes)} available.`
+                    ? `Uses about ${formatBytes(preparationPlan.predictedRetainedTextureBytes ?? preparationPlan.predictedPackBytes)} · ${formatBytes(preparationPlan.usableBytes)} free.`
                     : preparationPlan
                       ? `Preparation needs ${formatBytes(preparationPlan.requiredFreeBytes)} free; ${formatBytes(preparationPlan.usableBytes)} is available.`
                       : "Storage must be calculated before preparation."
@@ -405,7 +405,7 @@ export function HomePage({
                   disabled={preparing || cacheRepairing || operationBlocked || status === "loading" || status === "error" || cacheLoading || (!storageBlocked && needsPreparation && !cacheNeedsRepair && !cacheInspectionBlocked && awaitingStoragePlan)}
                 >
                   {needsPreparation ? <SparklesIcon /> : <PlayIcon />}
-                  <span>{status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? preparationPercent === null ? "Preparation in progress…" : `Preparing ${preparationPercent}%…` : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review prepared data" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Prepare with less disk" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}</span>
+                  <span>{status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? preparationPercent === null ? "Preparation in progress…" : `Preparing ${preparationPercent}%…` : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review prepared data" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Prepare with less disk" : firstSetup ? "Set up and launch" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}</span>
                 </button>
                 {homeLayoutState === "settled" && homePresentation.mode !== "compact" ? (
                   <button

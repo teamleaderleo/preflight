@@ -48,6 +48,7 @@ export type BrowserPreviewScenario =
   | "ready"
   | "running"
   | "setup"
+  | "first-run"
   | "low-disk"
   | "cache-repair"
   | "mod-problems"
@@ -61,6 +62,7 @@ const browserPreviewScenarios = new Set<BrowserPreviewScenario>([
   "ready",
   "running",
   "setup",
+  "first-run",
   "low-disk",
   "cache-repair",
   "mod-problems",
@@ -159,6 +161,21 @@ export async function getSnapshot(game?: string): Promise<DesktopSnapshot> {
           "Searched ~/Applications/Starsector.app (not present)",
           "Searched ~/Games/Starsector.app (no launcher in it)",
         ],
+      };
+    }
+    if (browserPreviewScenario() === "first-run") {
+      return {
+        ...previewSnapshot,
+        playtime: {
+          readable: true,
+          totalMillis: 0,
+          longestSessionMillis: 0,
+          averageMillis: 0,
+          launches: 0,
+          sessionsWithoutDuration: 0,
+          first: null,
+          last: null,
+        },
       };
     }
     return previewSnapshot;
@@ -418,13 +435,18 @@ export async function stopGame(force = false): Promise<StopGameResult> {
 
 export async function getCache(game: string): Promise<CacheSnapshot> {
   if (!isDesktopHost()) {
-    if (browserPreviewScenario() === "low-disk") {
+    const scenario = browserPreviewScenario();
+    if (scenario === "low-disk" || scenario === "first-run") {
       return {
         format: "starsector-preflight-cache-v1",
         root: "~/.starsector-preflight",
-        present: true,
-        total: { bytes: 536_870_912, files: 1_204 },
-        groups: [{ id: "acceleration", bytes: 536_870_912, files: 1_204 }],
+        present: scenario === "low-disk",
+        total: scenario === "low-disk"
+          ? { bytes: 536_870_912, files: 1_204 }
+          : { bytes: 0, files: 0 },
+        groups: scenario === "low-disk"
+          ? [{ id: "acceleration", bytes: 536_870_912, files: 1_204 }]
+          : [],
         uncategorizedBytes: 0,
         currentProfileFingerprint: "preview-profile",
         profiles: [],
@@ -472,6 +494,20 @@ export async function getCacheHealth(game: string): Promise<CacheHealth> {
         }],
         repairBytes: 18_874_368,
         repairFiles: 3,
+      };
+    }
+    if (browserPreviewScenario() === "first-run") {
+      return {
+        format: "starsector-preflight-cache-health-v1",
+        status: "cold",
+        profileFingerprint: "preview-profile",
+        preparedTextures: false,
+        textureStorage: "balanced",
+        textureScope: "full",
+        compactAvailable: false,
+        issues: [],
+        repairBytes: 0,
+        repairFiles: 0,
       };
     }
     return {
@@ -681,7 +717,10 @@ export async function updateLaunchSettings(
 
 export async function getProfiles(game: string): Promise<ProfileList> {
   if (!isDesktopHost()) {
-    const profiles = browserPreviewScenario() === "profile-mismatch"
+    const scenario = browserPreviewScenario();
+    const profiles = scenario === "first-run"
+      ? []
+      : scenario === "profile-mismatch"
       ? previewProfiles.map((profile) => profile.name === "Utilities only"
         ? { ...profile, canActivate: false, missingMods: ["graphicslib"] }
         : profile)

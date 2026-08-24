@@ -71,7 +71,7 @@ function pageTitle(page: Page, status: AppStatus, preparing: boolean, isReady: b
   if (status === "launching") return "Opening Starsector…";
   if (status === "running") return "Running";
   if (!isReady) return "Setup";
-  return needsPreparation ? "Preparation needed" : "Ready";
+  return needsPreparation ? "Fast launch setup" : "Ready";
 }
 
 interface RunFailure {
