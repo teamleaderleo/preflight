@@ -133,6 +133,28 @@ export function RotateCounterClockwiseIcon(props: IconProps) {
   );
 }
 
+export function OrbitClockwiseIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <circle cx="12" cy="12" r="2.4" />
+      <path d="M4.4 13.8A8 8 0 0 1 18.8 7" />
+      <path d="m19.2 3.8-.4 3.3-3.3-.4" />
+      <path d="M19.6 10.2A8 8 0 0 1 5.2 17" opacity=".55" />
+    </svg>
+  );
+}
+
+export function OrbitCounterClockwiseIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <circle cx="12" cy="12" r="2.4" />
+      <path d="M19.6 13.8A8 8 0 0 0 5.2 7" />
+      <path d="m4.8 3.8.4 3.3 3.3-.4" />
+      <path d="M4.4 10.2A8 8 0 0 0 18.8 17" opacity=".55" />
+    </svg>
+  );
+}
+
 export function SystemThemeIcon(props: IconProps) {
   return (
     <svg {...defaults} {...props}>

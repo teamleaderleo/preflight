@@ -8,7 +8,7 @@
  * affect the player's launch decision. */
 :root[data-home-mode="compact"] .launch-console--layout-settled .home-flight-instrument,
 :root[data-home-mode="compact"] .launch-console--layout-settled .home-ship-picker,
-:root[data-home-mode="compact"] .launch-console--layout-settled .home-motion-toggle {
+:root[data-home-mode="compact"] .launch-console--layout-settled .home-motion-controls {
   display: none !important;
 }
 

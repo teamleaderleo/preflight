@@ -1,7 +1,11 @@
 import { useEffect, useRef } from "react";
 import { INSTRUMENT_APPEARANCE_ATTRIBUTES } from "../flightInstrumentAppearance";
 import { useInstrumentMotion } from "../useInstrumentMotion";
-import { useInstrumentView } from "../useInstrumentView";
+import {
+  MAX_INSTRUMENT_ZOOM,
+  MIN_INSTRUMENT_ZOOM,
+  useInstrumentView,
+} from "../useInstrumentView";
 import type { HullSegmentKind } from "../wireframeHullGeometry";
 import type { WireframeHull, WireframePoint } from "../types";
 import { BUNDLED_DEFAULT_HULL } from "../bundledWireframeHulls";
@@ -16,6 +20,10 @@ interface FlightInstrumentProps {
   variant?: "badge" | "stage";
   /** Lets the large Home and Hangar displays rotate directly under pointer or arrow-key input. */
   interactive?: boolean;
+  /** Composition-specific breathing room without changing the player's saved zoom. */
+  framing?: number;
+  /** Static secondary readouts should not compete with the primary Home and Hangar displays. */
+  animate?: boolean;
 }
 
 interface InstrumentPalette {
@@ -162,6 +170,8 @@ function drawHull(
   pitch: number,
   palette: InstrumentPalette,
   variant: "badge" | "stage",
+  zoom: number,
+  framing: number,
 ) {
   const context = canvas.getContext("2d");
   if (!context) return;
@@ -190,7 +200,7 @@ function drawHull(
    * pumps the whole picture on every frame. The geometry is already normalised to one frame,
    * which is what makes a constant work here for a stubby Hammerhead and a long Conquest alike.
    */
-  const scale = Math.min(width, height) * (variant === "stage" ? 0.7 : 0.46);
+  const scale = Math.min(width, height) * (variant === "stage" ? 0.7 : 0.46) * zoom * framing;
   const map = (point: WireframePoint) => ({
     x: width / 2 + point.x * scale,
     y: height / 2 + point.y * scale,
@@ -260,7 +270,13 @@ function drawHull(
 }
 
 /** Draws bounded hull geometry derived locally from the user's Starsector installation. */
-export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge", interactive = false }: FlightInstrumentProps) {
+export function FlightInstrument({
+  hull = BUNDLED_DEFAULT_HULL,
+  variant = "badge",
+  interactive = false,
+  framing = 1,
+  animate = true,
+}: FlightInstrumentProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { motion, direction } = useInstrumentMotion();
@@ -282,6 +298,7 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
     let dragging = false;
     let dragX = 0;
     let dragY = 0;
+    let zoom = instrumentView.zoom;
     let palette = readPalette(canvas);
 
     /*
@@ -297,23 +314,23 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
     );
     let pitch = instrumentView.pitch;
     const drawStill = () => {
-      if (!dragging && motion === "rotate" && !reducedMotion.matches) {
+      if (!dragging && animate && motion === "rotate" && !reducedMotion.matches) {
         yaw = readSharedRotation(performance.now(), directionRef.current, yaw);
       }
-      drawHull(canvas, hull, yaw, pitch, palette, variant);
+      drawHull(canvas, hull, yaw, pitch, palette, variant, zoom, framing);
       lastPaint = performance.now();
     };
     const schedule = () => {
-      if (frame === null && visible && motion === "rotate" && !reducedMotion.matches) {
+      if (frame === null && visible && animate && motion === "rotate" && !reducedMotion.matches) {
         frame = window.requestAnimationFrame(render);
       }
     };
 
     const render = (time: number) => {
       frame = null;
-      if (!visible || dragging || motion !== "rotate" || reducedMotion.matches) return;
+      if (!visible || dragging || !animate || motion !== "rotate" || reducedMotion.matches) return;
       yaw = readSharedRotation(time, directionRef.current, yaw);
-      drawHull(canvas, hull, yaw, pitch, palette, variant);
+      drawHull(canvas, hull, yaw, pitch, palette, variant, zoom, framing);
       lastPaint = performance.now();
       schedule();
     };
@@ -362,7 +379,13 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
     const resumeImmediately = () => {
       // WKWebView may discard a queued frame while its window is inactive. Read the shared
       // wall-time clock and paint it synchronously before returning from the focus event.
-      if (!visible || dragging || motion !== "rotate" || reducedMotion.matches) return;
+      if (dragging || !animate || motion !== "rotate" || reducedMotion.matches) return;
+      const bounds = canvas.getBoundingClientRect();
+      visible = (bounds.width > 0 && bounds.height > 0
+          && bounds.bottom > 0 && bounds.right > 0
+          && bounds.top < window.innerHeight && bounds.left < window.innerWidth)
+        || (bounds.width === 0 && bounds.height === 0 && canvas.clientWidth > 0 && canvas.clientHeight > 0);
+      if (!visible) return;
       if (frame !== null) window.cancelAnimationFrame(frame);
       frame = null;
       drawStill();
@@ -399,7 +422,7 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       yaw += delta * 0.012;
       pitch = Math.min(1.46, Math.max(0.08, pitch - vertical * 0.008));
       yaw = writeSharedRotation(yaw, performance.now(), directionRef.current);
-      drawHull(canvas, hull, yaw, pitch, palette, variant);
+      drawHull(canvas, hull, yaw, pitch, palette, variant, zoom, framing);
       event.preventDefault();
     };
     const finishDrag = (event: PointerEvent) => {
@@ -408,8 +431,17 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       delete root.dataset.dragging;
       if (root.hasPointerCapture?.(event.pointerId)) root.releasePointerCapture?.(event.pointerId);
       yaw = writeSharedRotation(yaw, performance.now(), directionRef.current);
-      instrumentView.setView({ yaw: normalizeYaw(yaw), pitch });
+      instrumentView.setView({ yaw: normalizeYaw(yaw), pitch, zoom });
       schedule();
+    };
+    const zoomFromWheel = (event: WheelEvent) => {
+      if (!interactive) return;
+      const direction = Math.sign(event.deltaY);
+      if (direction === 0) return;
+      zoom = Math.min(MAX_INSTRUMENT_ZOOM, Math.max(MIN_INSTRUMENT_ZOOM, zoom - direction * 0.08));
+      drawHull(canvas, hull, yaw, pitch, palette, variant, zoom, framing);
+      instrumentView.setView({ yaw: normalizeYaw(yaw), pitch, zoom });
+      event.preventDefault();
     };
     const turnFromKeyboard = (event: KeyboardEvent) => {
       if (!interactive || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
@@ -419,16 +451,19 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
         pitch = Math.min(1.46, Math.max(0.08, pitch + (event.key === "ArrowUp" ? 0.1 : -0.1)));
       }
       yaw = writeSharedRotation(yaw, performance.now(), directionRef.current);
-      drawHull(canvas, hull, yaw, pitch, palette, variant);
-      instrumentView.setView({ yaw: normalizeYaw(yaw), pitch });
+      drawHull(canvas, hull, yaw, pitch, palette, variant, zoom, framing);
+      instrumentView.setView({ yaw: normalizeYaw(yaw), pitch, zoom });
       event.preventDefault();
     };
     root.addEventListener("pointerdown", beginDrag);
+    root.addEventListener("wheel", zoomFromWheel, { passive: false });
     window.addEventListener("pointermove", moveDrag);
     window.addEventListener("pointerup", finishDrag);
     window.addEventListener("pointercancel", finishDrag);
     window.addEventListener("focus", resumeImmediately);
     window.addEventListener("pageshow", resumeImmediately);
+    document.addEventListener("visibilitychange", resumeImmediately);
+    root.addEventListener("pointerenter", repairStaleFrame);
     window.addEventListener("pointerdown", repairStaleFrame, true);
     root.addEventListener("keydown", turnFromKeyboard);
     updateMotion();
@@ -440,15 +475,18 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       theme.disconnect();
       reducedMotion.removeEventListener("change", updateMotion);
       root.removeEventListener("pointerdown", beginDrag);
+      root.removeEventListener("wheel", zoomFromWheel);
       window.removeEventListener("pointermove", moveDrag);
       window.removeEventListener("pointerup", finishDrag);
       window.removeEventListener("pointercancel", finishDrag);
       window.removeEventListener("focus", resumeImmediately);
       window.removeEventListener("pageshow", resumeImmediately);
+      document.removeEventListener("visibilitychange", resumeImmediately);
+      root.removeEventListener("pointerenter", repairStaleFrame);
       window.removeEventListener("pointerdown", repairStaleFrame, true);
       root.removeEventListener("keydown", turnFromKeyboard);
     };
-  }, [hull, interactive, instrumentView.pitch, instrumentView.yaw, motion, variant]);
+  }, [animate, framing, hull, interactive, instrumentView.pitch, instrumentView.yaw, instrumentView.zoom, motion, variant]);
 
   return (
     <div
@@ -457,8 +495,8 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       data-motion={motion}
       data-direction={direction}
       aria-hidden={interactive ? undefined : true}
-      aria-label={interactive ? "Ship display. Drag it or use the arrow keys to change the view." : undefined}
-      title={interactive ? "Drag to turn" : undefined}
+      aria-label={interactive ? "Ship display. Drag to turn, scroll to zoom, or use the arrow keys." : undefined}
+      title={interactive ? "Drag to turn · scroll to zoom" : undefined}
       role={interactive ? "group" : undefined}
       tabIndex={interactive ? 0 : undefined}
     >

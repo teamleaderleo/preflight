@@ -118,46 +118,6 @@
   transform: translate(-50%, 0);
 }
 
-/* Motion, direction, and appearance reset form one compact local cluster. Reset keeps a visible word
- * because a second circular-arrow-only glyph beside direction is needlessly ambiguous. Keep the
- * accepted 224px dock floor so control compaction cannot enlarge the ship field above it. */
-.hangar-dock--catalog {
-  min-height: 224px;
-  grid-template-columns: minmax(240px, .85fr) minmax(0, 1.15fr);
-}
-
-.hangar-motion-controls {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: max-content;
-  max-width: 100%;
-  padding: 4px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--paper-solid) 58%, transparent);
-}
-
-.hangar-reset-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: 2px;
-  padding-inline: 10px;
-  white-space: nowrap;
-}
-
-.hangar-reset-action svg {
-  width: 15px;
-  height: 15px;
-}
-
-@container (max-width: 760px) {
-  .hangar-dock--catalog {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 /* Browser previews and unusually short desktop windows still need a reachable launch action. The
  * console keeps its compact working height and the Home viewport supplies the small amount of
  * vertical scrolling instead of clipping absolutely positioned controls. */
@@ -322,10 +282,10 @@
   bottom: 20px;
   left: 50%;
   display: grid;
-  grid-template-columns: 44px minmax(260px, 520px) 44px;
+  grid-template-columns: 94px minmax(260px, 520px) 94px;
   gap: 10px;
   justify-content: center;
-  width: min(648px, calc(100% - 24px));
+  width: min(748px, calc(100% - 24px));
   min-width: 0;
   transform: translateX(-50%);
 }
@@ -352,9 +312,14 @@
   pointer-events: none;
 }
 
-.launch-console--layout-settled .launch-console__actions .home-motion-toggle {
+.launch-console--layout-settled .launch-console__actions .home-motion-controls {
   grid-column: 3;
   align-self: center;
+}
+
+.home-motion-controls {
+  display: flex;
+  gap: 6px;
 }
 
 .launch-console--layout-settled .last-run-health {
@@ -460,9 +425,18 @@
 
   .launch-console--layout-settled .launch-console__actions {
     bottom: 14px;
-    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    grid-template-columns: 86px minmax(0, 1fr) 86px;
     gap: 6px;
     width: calc(100% - 16px);
+  }
+
+  .home-motion-controls {
+    gap: 2px;
+  }
+
+  .home-motion-controls .home-motion-toggle {
+    width: 42px;
+    min-height: 42px;
   }
 
   .launch-console--layout-settled .launch-console__actions .button--launch {

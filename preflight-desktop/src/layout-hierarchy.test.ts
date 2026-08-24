@@ -104,13 +104,13 @@ test("settled Home anchors the launch action while secondary controls adapt arou
     /\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*position:\s*absolute !important;[^}]*bottom:\s*22px;[^}]*left:\s*20px;/s,
   );
   expect(layoutStyles).toMatch(
-    /\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*position:\s*absolute;[^}]*bottom:\s*20px;[^}]*left:\s*50%;[^}]*display:\s*grid;[^}]*grid-template-columns:\s*44px minmax\(260px, 520px\) 44px;[^}]*transform:\s*translateX\(-50%\);/s,
+    /\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*position:\s*absolute;[^}]*bottom:\s*20px;[^}]*left:\s*50%;[^}]*display:\s*grid;[^}]*grid-template-columns:\s*94px minmax\(260px, 520px\) 94px;[^}]*transform:\s*translateX\(-50%\);/s,
   );
   expect(layoutStyles).toMatch(
     /@container \(max-width: 1000px\)[\s\S]*?\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*bottom:\s*88px;[^}]*left:\s*50%;[^}]*transform:\s*translateX\(-50%\);/s,
   );
   expect(layoutStyles).toMatch(
-    /@container \(max-width: 640px\)[\s\S]*?\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*bottom:\s*14px;[^}]*grid-template-columns:\s*44px minmax\(0, 1fr\) 44px;/s,
+    /@container \(max-width: 640px\)[\s\S]*?\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*bottom:\s*14px;[^}]*grid-template-columns:\s*86px minmax\(0, 1fr\) 86px;/s,
   );
   expect(styles).toMatch(
     /\.home-motion-toggle\s*\{[^}]*flex:\s*0 0 44px;[^}]*width:\s*44px;/s,
@@ -140,32 +140,6 @@ test("launch identity keeps the setup first while the path remains an interactiv
   expect(layoutStyles).not.toContain(":has(");
 
   settled.console.remove();
-  style.remove();
-});
-
-test("Hangar resolves motion direction and reset as one compact cluster", () => {
-  const style = installCascade();
-  const dock = document.createElement("div");
-  dock.className = "hangar-dock hangar-dock--catalog";
-  const controls = document.createElement("div");
-  controls.className = "hangar-motion-controls";
-  const reset = document.createElement("button");
-  reset.className = "button button--quiet button--compact hangar-reset-action";
-  reset.textContent = "Reset";
-  controls.append(reset);
-  dock.append(controls);
-  document.body.append(dock);
-
-  expect(getComputedStyle(controls).display).toBe("flex");
-  // jsdom misreports modern shorthand/container layout in the complete cascade. Pin the authored
-  // compact ownership and leave painted geometry to Chromium in the rendered acceptance matrix.
-  expect(layoutStyles).toMatch(/\.hangar-motion-controls\s*\{[^}]*width:\s*max-content;[^}]*border:\s*1px solid var\(--line\);/s);
-  expect(layoutStyles).not.toMatch(/@container \(max-width: 760px\)[\s\S]*?\.hangar-motion-controls\s*\{/);
-  expect(layoutStyles).not.toMatch(/@container \(max-width: 760px\)[\s\S]*?\.hangar-reset-action\s*\{/);
-  expect(getComputedStyle(reset).display).toBe("inline-flex");
-  expect(reset).toHaveTextContent("Reset");
-
-  dock.remove();
   style.remove();
 });
 

@@ -94,7 +94,7 @@ export function SpeedScoreboard({ standing, isReady, playtime, lastRun, hull, on
   if (!record) {
     return (
       <section className="card scoreboard scoreboard--unmeasured" aria-label="Startup speed">
-        <FlightInstrument hull={hull} />
+        <FlightInstrument hull={hull} animate={false} />
         <div className="scoreboard__headline">
           <p className="eyebrow">Your startup</p>
           <strong className="scoreboard__figure scoreboard__figure--unknown" aria-hidden="true">—</strong>
@@ -121,7 +121,7 @@ export function SpeedScoreboard({ standing, isReady, playtime, lastRun, hull, on
   const latestMeasuredOn = new Date(latest.recordedAt);
   return (
     <section className="card scoreboard" aria-label="Startup speed">
-      <FlightInstrument hull={hull} />
+      <FlightInstrument hull={hull} animate={false} />
       <div className="scoreboard__headline">
         <p className="eyebrow">Personal best</p>
         <strong className="scoreboard__figure"><ResultFigure measurement={best} /></strong>
