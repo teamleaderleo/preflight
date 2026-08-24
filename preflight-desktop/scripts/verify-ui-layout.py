@@ -28,9 +28,21 @@ VIEWPORTS = (
     (1440, 800),
 )
 
+PAGE_SWEEP_WIDTHS = {720, 1040, 1440}
+PRIMARY_PAGES = ("Speed", "Mods", "Help", "Settings")
+HOME_RECOVERY_SCENARIOS = ("setup", "cache-repair", "run-failure", "running")
+PAGE_RECOVERY_SCENARIOS = (
+    "benchmark-unavailable",
+    "mod-problems",
+    "profile-mismatch",
+    "update-error",
+    "report-error",
+)
+
 GEOMETRY_SELECTORS = (
     ".home-playtime",
     ".launch-console__status-line",
+    ".launch-console__note",
     ".home-launch-identity",
     ".home-ship-picker",
     ".launch-console__actions",
@@ -70,7 +82,14 @@ def frontend_url(base_url: str | None, dist_dir: Path) -> Iterator[str]:
         server.server_close()
 
 
-def open_ready(browser: Browser, base_url: str, width: int, height: int) -> tuple[BrowserContext, Page, list[str]]:
+def open_preview(
+    browser: Browser,
+    base_url: str,
+    width: int,
+    height: int,
+    scenario: str = "ready",
+    wait_selector: str = ".button--launch",
+) -> tuple[BrowserContext, Page, list[str]]:
     context = browser.new_context(
         viewport={"width": width, "height": height},
         device_scale_factor=1,
@@ -97,9 +116,9 @@ def open_ready(browser: Browser, base_url: str, width: int, height: int) -> tupl
         if message.type == "error"
         else None,
     )
-    page.goto(f"{base_url}/?scenario=ready", wait_until="networkidle")
+    page.goto(f"{base_url}/?scenario={scenario}", wait_until="networkidle")
     page.evaluate("document.fonts.ready")
-    page.get_by_role("button", name="Launch Starsector").wait_for()
+    page.locator(wait_selector).wait_for()
     return context, page, errors
 
 
@@ -287,6 +306,131 @@ def assert_hangar_interaction(page: Page, label: str) -> None:
         raise RuntimeError(f"{label}: dragging the ship did not save its view")
 
 
+def assert_page_width(page: Page, label: str) -> dict[str, object]:
+    measurement = page.evaluate(
+        """() => {
+          const workspace = document.querySelector('#page-workspace');
+          if (!(workspace instanceof HTMLElement)) return null;
+          const workspaceRect = workspace.getBoundingClientRect();
+          const clippedControls = [...workspace.querySelectorAll('button, input, select, textarea, summary, [role="slider"]')]
+            .flatMap((element) => {
+              if (!(element instanceof HTMLElement)) return [];
+              const style = getComputedStyle(element);
+              const rect = element.getBoundingClientRect();
+              if (style.display === 'none' || style.visibility === 'hidden' || rect.width === 0 || rect.height === 0) return [];
+              if (rect.right <= workspaceRect.left || rect.left >= workspaceRect.right) return [];
+              return rect.left < workspaceRect.left - 1 || rect.right > workspaceRect.right + 1
+                ? [{ tag: element.tagName, text: element.getAttribute('aria-label') || element.textContent?.trim().slice(0, 80),
+                    left: rect.left, right: rect.right }]
+                : [];
+            });
+          return {
+            viewportWidth: innerWidth,
+            documentScrollWidth: document.documentElement.scrollWidth,
+            workspaceClientWidth: workspace.clientWidth,
+            workspaceScrollWidth: workspace.scrollWidth,
+            workspace: { left: workspaceRect.left, right: workspaceRect.right },
+            clippedControls,
+          };
+        }"""
+    )
+    if measurement is None:
+        raise RuntimeError(f"{label}: page workspace is missing")
+    if measurement["documentScrollWidth"] > measurement["viewportWidth"] + 1:
+        raise RuntimeError(f"{label}: document has horizontal overflow: {measurement}")
+    if measurement["workspaceScrollWidth"] > measurement["workspaceClientWidth"] + 1:
+        raise RuntimeError(f"{label}: workspace has horizontal overflow: {measurement}")
+    if measurement["clippedControls"]:
+        raise RuntimeError(f"{label}: interactive controls are clipped horizontally: {measurement}")
+    return measurement
+
+
+def assert_benchmark_composition(page: Page, label: str) -> dict[str, object]:
+    measurement = page.evaluate(
+        """() => {
+          const card = document.querySelector('.benchmark-card');
+          const intro = card?.querySelector(':scope > div:first-child');
+          const actions = card?.querySelector('.benchmark-card__actions');
+          if (!(card instanceof HTMLElement) || !(intro instanceof HTMLElement) || !(actions instanceof HTMLElement)) return null;
+          const rect = (element) => {
+            const value = element.getBoundingClientRect();
+            return { x: value.x, y: value.y, width: value.width, height: value.height, right: value.right };
+          };
+          return {
+            direction: getComputedStyle(card).flexDirection,
+            card: rect(card),
+            intro: rect(intro),
+            actions: rect(actions),
+          };
+        }"""
+    )
+    if measurement is None:
+        raise RuntimeError(f"{label}: benchmark composition is missing")
+    if measurement["direction"] == "row":
+        if measurement["intro"]["width"] < 220:
+            raise RuntimeError(f"{label}: benchmark explanation collapsed into a narrow column: {measurement}")
+        if measurement["actions"]["width"] > 310:
+            raise RuntimeError(f"{label}: benchmark recovery actions consumed the card: {measurement}")
+    return measurement
+
+
+def exercise_recovery_state(
+    browser: Browser,
+    base_url: str,
+    width: int,
+    height: int,
+    scenario: str,
+    output_dir: Path | None,
+) -> tuple[dict[str, object], list[str]]:
+    label = f"{width}x{height} {scenario}"
+    context, page, errors = open_preview(
+        browser,
+        base_url,
+        width,
+        height,
+        scenario,
+        "#page-workspace",
+    )
+    try:
+        if scenario == "benchmark-unavailable":
+            page.get_by_role("button", name="Speed", exact=True).click()
+            page.get_by_role("button", name="Measure speed", exact=True).click()
+            page.get_by_role("button", name="Run benchmark", exact=True).click()
+            page.get_by_text("Benchmark files are missing.", exact=False).wait_for()
+            result = assert_page_width(page, label)
+            result["composition"] = assert_benchmark_composition(page, label)
+        elif scenario == "mod-problems":
+            page.get_by_role("button", name="Mods", exact=True).click()
+            page.get_by_role("button", name="Check setup", exact=True).click()
+            page.get_by_text("1 problem found", exact=True).wait_for()
+            result = assert_page_width(page, label)
+        elif scenario == "profile-mismatch":
+            page.get_by_role("button", name="Mods", exact=True).click()
+            page.get_by_text("Missing: graphicslib", exact=True).wait_for()
+            result = assert_page_width(page, label)
+        elif scenario == "update-error":
+            page.get_by_role("button", name="Settings", exact=True).click()
+            page.get_by_role("button", name="Check for updates", exact=True).click()
+            page.get_by_role("alert").wait_for()
+            if page.get_by_text("Update status hasn’t been checked yet.", exact=True).count() != 0:
+                raise RuntimeError(f"{label}: stale update status remained beside the failure")
+            result = assert_page_width(page, label)
+        elif scenario == "report-error":
+            page.get_by_role("button", name="Help", exact=True).click()
+            page.get_by_role("button", name="Make a support file", exact=True).click()
+            page.get_by_role("button", name="Review and send", exact=True).click()
+            page.get_by_role("button", name="Send this exact file", exact=True).click()
+            page.get_by_text("It wasn’t sent", exact=True).wait_for()
+            page.get_by_role("button", name="Try sending again", exact=True).wait_for()
+            result = assert_page_width(page, label)
+        else:
+            raise RuntimeError(f"unknown recovery scenario: {scenario}")
+        capture(page, output_dir, f"state-{scenario}-{width}x{height}.png")
+        return result, errors
+    finally:
+        context.close()
+
+
 def settle_hangar_for_capture(page: Page) -> None:
     """Put every captured Hangar at the same saved view and animation phase."""
     page.evaluate("localStorage.removeItem('preflight.instrumentHullView.v1')")
@@ -308,7 +452,7 @@ def render_contact_sheet(browser: Browser, output_dir: Path) -> None:
     cards: list[str] = []
     for width, height in VIEWPORTS:
         label = f"{width}x{height}"
-        for state in ("full", "idle", "compact", "minimal"):
+        for state in ("full", "idle", "compact", "minimal", "first-run", "low-disk"):
             filename = f"home-{state}-{label}.png"
             cards.append(
                 f'<figure><figcaption>{html.escape(label)} · {state}</figcaption>'
@@ -319,6 +463,20 @@ def render_contact_sheet(browser: Browser, output_dir: Path) -> None:
             f'<figure><figcaption>{html.escape(label)} · Hangar</figcaption>'
             f'<img src="{html.escape(filename)}" alt="Hangar at {html.escape(label)}"></figure>'
         )
+        if width in PAGE_SWEEP_WIDTHS:
+            for page_name in (*PRIMARY_PAGES, "Benchmark"):
+                slug = page_name.lower()
+                filename = f"page-{slug}-{label}.png"
+                cards.append(
+                    f'<figure><figcaption>{html.escape(label)} · {html.escape(page_name)}</figcaption>'
+                    f'<img src="{html.escape(filename)}" alt="{html.escape(page_name)} at {html.escape(label)}"></figure>'
+                )
+            for scenario in (*HOME_RECOVERY_SCENARIOS, *PAGE_RECOVERY_SCENARIOS):
+                filename = f"state-{scenario}-{label}.png"
+                cards.append(
+                    f'<figure><figcaption>{html.escape(label)} · {html.escape(scenario)}</figcaption>'
+                    f'<img src="{html.escape(filename)}" alt="{html.escape(scenario)} at {html.escape(label)}"></figure>'
+                )
     document = f"""<!doctype html>
 <html lang="en"><meta charset="utf-8"><title>Preflight UI matrix</title>
 <style>
@@ -358,7 +516,7 @@ def main() -> int:
             try:
                 for width, height in VIEWPORTS:
                     label = f"{width}x{height}"
-                    context, page, errors = open_ready(browser, base_url, width, height)
+                    context, page, errors = open_preview(browser, base_url, width, height)
                     try:
                         geometry[f"{label}-full"] = assert_home_geometry(page, f"{label} full")
                         assert_focus_stable(page, f"{label} full")
@@ -370,7 +528,8 @@ def main() -> int:
                         page.mouse.move(width - 2, height - 2)
                         page.wait_for_timeout(2400)
                         page.wait_for_function(
-                            "Number.parseFloat(getComputedStyle(document.querySelector('.home-playtime')).opacity) < 0.01",
+                            """Number.parseFloat(getComputedStyle(document.querySelector('.home-playtime')).opacity) < 0.01
+                            && Number.parseFloat(getComputedStyle(document.querySelector('.topbar__actions')).opacity) < 0.01""",
                         )
                         idle = page.evaluate(
                             """() => ({
@@ -416,10 +575,90 @@ def main() -> int:
                         geometry[f"{label}-hangar-capture"] = assert_hangar_geometry(page, f"{label} Hangar capture")
                         capture(page, args.output_dir, f"hangar-{label}.png")
 
+                        for page_name in PRIMARY_PAGES:
+                            page.get_by_role("button", name=page_name, exact=True).click()
+                            page.get_by_role("heading", name=page_name, exact=True).wait_for()
+                            geometry[f"{label}-page-{page_name.lower()}"] = assert_page_width(
+                                page,
+                                f"{label} {page_name}",
+                            )
+                            if width in PAGE_SWEEP_WIDTHS:
+                                capture(page, args.output_dir, f"page-{page_name.lower()}-{label}.png")
+
+                        page.get_by_role("button", name="Speed", exact=True).click()
+                        page.get_by_role("button", name="Measure speed").click()
+                        page.get_by_role("heading", name="Benchmark", exact=True).wait_for()
+                        geometry[f"{label}-page-benchmark"] = assert_page_width(
+                            page,
+                            f"{label} Benchmark",
+                        )
+                        if width in PAGE_SWEEP_WIDTHS:
+                            capture(page, args.output_dir, f"page-benchmark-{label}.png")
+
                         if errors:
                             raise RuntimeError(f"{label}: browser errors: {' | '.join(errors)}")
                     finally:
                         context.close()
+
+                    for scenario in ("first-run", "low-disk"):
+                        context, page, errors = open_preview(browser, base_url, width, height, scenario)
+                        try:
+                            geometry[f"{label}-{scenario}"] = assert_home_geometry(
+                                page,
+                                f"{label} {scenario}",
+                            )
+                            assert_focus_stable(page, f"{label} {scenario}")
+                            capture(page, args.output_dir, f"home-{scenario}-{label}.png")
+                            if errors:
+                                raise RuntimeError(
+                                    f"{label} {scenario}: browser errors: {' | '.join(errors)}"
+                                )
+                        finally:
+                            context.close()
+
+                    if width in PAGE_SWEEP_WIDTHS:
+                        for scenario in HOME_RECOVERY_SCENARIOS:
+                            context, page, errors = open_preview(
+                                browser,
+                                base_url,
+                                width,
+                                height,
+                                scenario,
+                                "#page-workspace",
+                            )
+                            try:
+                                page.get_by_role("heading", name={
+                                    "setup": "Setup",
+                                    "cache-repair": "Fast launch",
+                                    "run-failure": "Needs attention",
+                                    "running": "Running",
+                                }[scenario], exact=True).wait_for()
+                                key = f"{label}-{scenario}"
+                                geometry[key] = assert_page_width(page, f"{label} {scenario}")
+                                if scenario in ("cache-repair", "running"):
+                                    geometry[key]["home"] = assert_home_geometry(page, f"{label} {scenario}")
+                                capture(page, args.output_dir, f"state-{scenario}-{label}.png")
+                                if errors:
+                                    raise RuntimeError(
+                                        f"{label} {scenario}: browser errors: {' | '.join(errors)}"
+                                    )
+                            finally:
+                                context.close()
+
+                        for scenario in PAGE_RECOVERY_SCENARIOS:
+                            result, errors = exercise_recovery_state(
+                                browser,
+                                base_url,
+                                width,
+                                height,
+                                scenario,
+                                args.output_dir,
+                            )
+                            geometry[f"{label}-{scenario}"] = result
+                            if errors:
+                                raise RuntimeError(
+                                    f"{label} {scenario}: browser errors: {' | '.join(errors)}"
+                                )
                 if args.output_dir is not None:
                     args.output_dir.mkdir(parents=True, exist_ok=True)
                     (args.output_dir / "geometry.json").write_text(

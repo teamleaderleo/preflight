@@ -19,6 +19,7 @@ interface BenchmarkPageProps {
   operationBlocked: boolean;
   nativeBlockReason: string | null;
   automation: AutomationState;
+  onOpenHelp: () => void;
 }
 
 /*
@@ -35,6 +36,7 @@ export function BenchmarkPage({
   operationBlocked,
   nativeBlockReason,
   automation,
+  onOpenHelp,
 }: BenchmarkPageProps) {
   const [benchmarkCopyState, setBenchmarkCopyState] = useState<"idle" | "copied" | "error">("idle");
   const {
@@ -105,7 +107,12 @@ export function BenchmarkPage({
             </button>
           )}
           {nativeBlockReason ? <small id="benchmark-native-block">{nativeBlockReason}</small> : null}
-          {desktopSmokeProbe && !desktopSmokeProbe.probe.ready ? <small>This build can’t run the startup benchmark. Reinstall Preflight, or open Help to make a support file.</small> : null}
+          {desktopSmokeProbe && !desktopSmokeProbe.probe.ready ? (
+            <>
+              <small>Benchmark files are missing. Reinstall Preflight or make a support file.</small>
+              <button className="button button--quiet button--compact" type="button" onClick={onOpenHelp}>Open Help</button>
+            </>
+          ) : null}
         </div>
       </section>
 

@@ -158,7 +158,7 @@ test("the default cold-profile action prepares with balanced settings and then l
 
   const action = await screen.findByRole("button", { name: "Set up and launch" });
   await waitFor(() => expect(action).toBeEnabled());
-  expect(screen.getByRole("heading", { name: "Fast launch setup", level: 1 })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Fast launch", level: 1 })).toBeInTheDocument();
   expect(screen.queryByText("First launch setup")).not.toBeInTheDocument();
   expect(screen.getByText(/Uses about .* · .* free\./))
     .toBeInTheDocument();
@@ -180,7 +180,7 @@ test("the first-run preview keeps empty history out of the setup flow", async ()
   render(<App />);
 
   await waitFor(() => expect(screen.getByRole("button", { name: "Set up and launch" })).toBeEnabled());
-  expect(screen.getByRole("heading", { name: "Fast launch setup", level: 1 })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Fast launch", level: 1 })).toBeInTheDocument();
   expect(visibleLabel(/recorded playtime/i)).toHaveLength(0);
   expect(visibleLabel("Hide time")).toHaveLength(0);
   expect(visibleLabel("Show time")).toHaveLength(0);
@@ -486,7 +486,7 @@ test("setup keeps a single installation action and hides unavailable ready-state
 
   expect(await screen.findByRole("heading", { name: "Setup", level: 1 })).toBeInTheDocument();
   expect(screen.getAllByRole("button", { name: "Choose game folder" })).toHaveLength(1);
-  expect(screen.getByText("Choose it once. Fast-launch setup stays on Home.")).toBeVisible();
+  expect(screen.queryByText("Choose it once. Fast-launch setup stays on Home.")).not.toBeInTheDocument();
   expect(screen.queryByRole("region", { name: "Current Preflight setup" })).not.toBeInTheDocument();
   expect(screen.queryByText("Unavailable")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Speed" })).toBeDisabled();
@@ -1442,10 +1442,13 @@ test("an unavailable startup benchmark reports the packaged-contract failure wit
   await user.click(await screen.findByRole("button", { name: "Measure speed" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
 
-  expect(await screen.findByText("This build can’t run the startup benchmark. Reinstall Preflight, or open Help to make a support file.")).toBeInTheDocument();
+  expect(await screen.findByText("Benchmark files are missing. Reinstall Preflight or make a support file.")).toBeInTheDocument();
   expect(screen.queryByText("A packaged startup benchmark scenario is missing.")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Check again" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Open Help" })).toBeEnabled();
   expect(screen.queryByRole("button", { name: /Accessibility/i })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Open Help" }));
+  expect(screen.getByRole("heading", { name: "Help" })).toBeVisible();
   expect(smoke).not.toHaveBeenCalled();
   probe.mockRestore();
   smoke.mockRestore();

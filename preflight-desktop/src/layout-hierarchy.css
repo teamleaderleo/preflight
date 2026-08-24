@@ -25,6 +25,85 @@
   inset: 6px 36px 104px;
 }
 
+/* Preparation is about the current mod setup and required storage. The hull switcher competes with
+ * that decision and used to overlap both the storage note and the launch action at ordinary widths. */
+.launch-console--layout-preparation .home-ship-picker {
+  display: none;
+}
+
+/* Treat the selected installation as one centred caption. Earlier layers centred the profile name
+ * while leaving the path at the far left, so the two lines looked unrelated. */
+.launch-console.launch-console--layout-preparation .home-launch-identity {
+  right: auto;
+  left: 50%;
+  align-items: center;
+  width: min(520px, calc(100% - 36px));
+  text-align: center;
+  transform: translateX(-50%);
+}
+
+.launch-console.launch-console--layout-preparation .home-launch-path {
+  align-self: center;
+}
+
+.launch-console.launch-console--layout-preparation .home-launch-path::after {
+  left: 50%;
+  transform: translate(-50%, -2px);
+}
+
+.launch-console.launch-console--layout-preparation .home-launch-path:is(:hover, :focus-visible)::after {
+  transform: translate(-50%, 0);
+}
+
+/* Keep the primary setup action on the console centreline when a fallback launch is also offered. */
+.launch-console--layout-preparation .launch-console__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px) minmax(0, 1fr);
+}
+
+.launch-console--layout-preparation .launch-console__actions .button--launch {
+  grid-column: 2;
+  width: 100%;
+  min-width: 0;
+}
+
+.launch-console--layout-preparation .launch-console__actions .launch-console__stop {
+  grid-column: 3;
+  justify-self: start;
+  min-width: 0;
+}
+
+/* Starting and running keep the primary action on the same centreline as Ready. A companion stop
+ * action uses the spare right-hand track instead of pushing the launch state sideways. */
+.launch-console--layout-active .launch-console__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px) minmax(0, 1fr);
+}
+
+.launch-console--layout-active .launch-console__actions .button--launch {
+  grid-column: 2;
+  width: 100%;
+  min-width: 0;
+}
+
+.launch-console--layout-active .launch-console__actions .launch-console__stop {
+  grid-column: 3;
+  justify-self: start;
+  min-width: 0;
+}
+
+.launch-console--layout-active .launch-console__status-line {
+  top: 18px;
+  right: 18px;
+  left: 172px;
+  justify-content: flex-end;
+}
+
+.launch-console--layout-active .home-playtime {
+  top: 28px;
+  left: 28px;
+}
+
 /* Recovery already precedes the console in DOM order. Collapse the console into a companion portrait. */
 .launch-console--layout-recovery {
   height: clamp(220px, 34vh, 280px);
@@ -136,6 +215,10 @@
 
   .launch-console--layout-preparation .home-flight-instrument {
     inset: 16px 8px 110px;
+  }
+
+  .launch-console--layout-preparation .launch-console__actions {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 320px) minmax(0, 1fr);
   }
 
   .launch-console--layout-recovery {

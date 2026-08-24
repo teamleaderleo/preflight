@@ -29,6 +29,7 @@ test("benchmark unavailability uses stable recovery guidance instead of raw prob
       preparing={false}
       operationBlocked={false}
       nativeBlockReason={null}
+      onOpenHelp={() => undefined}
       automation={{
         desktopSmokeProbe: {
           protocol: 1,
@@ -46,7 +47,8 @@ test("benchmark unavailability uses stable recovery guidance instead of raw prob
     />,
   );
 
-  expect(screen.getByText("This build can’t run the startup benchmark. Reinstall Preflight, or open Help to make a support file.")).toBeInTheDocument();
+  expect(screen.getByText("Benchmark files are missing. Reinstall Preflight or make a support file.")).toBeInTheDocument();
   expect(screen.queryByText(staleProbeDiagnostic)).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Check again" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Open Help" })).toBeInTheDocument();
 });

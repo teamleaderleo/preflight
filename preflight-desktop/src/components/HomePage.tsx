@@ -450,7 +450,6 @@ export function HomePage({
           ) : null}
           {!isReady ? <h2>{status === "loading" ? "Finding Starsector…" : "Choose Starsector"}</h2> : null}
           {!isReady ? <p>{status === "loading" ? "Checking the usual installation locations." : "Select the folder containing Starsector.app, starsector.exe, or starsector.sh."}</p> : null}
-          {!isReady && status !== "loading" ? <p className="setup-next">Choose it once. Fast-launch setup stays on Home.</p> : null}
           {isReady && !visibleRunFailure && (status === "ready" || status === "error") && snapshot?.selected ? (
             <HomeLaunchIdentity
               installRoot={snapshot.selected.installRoot}

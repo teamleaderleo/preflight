@@ -145,7 +145,7 @@ summary:active {
 }
 
 .launch-console:is(.launch-console--layout-preparation, .launch-console--layout-recovery) .home-launch-identity {
-  top: 64px;
+  top: 72px;
   right: auto;
   bottom: auto;
   left: 18px;
