@@ -164,47 +164,8 @@ summary:active {
 }
 
 /* Exceptional actions own this space; the decorative hull caption yields to them. */
-.launch-console--ready:has(.launch-console__actions .launch-console__stop) :is(.home-ship-picker, .home-motion-toggle) {
+.launch-console--ready:has(.launch-console__actions .launch-console__stop) :is(.home-ship-picker, .home-motion-controls) {
   display: none;
-}
-
-.hangar-dock--catalog {
-  align-items: start;
-  grid-template-columns: minmax(240px, .85fr) minmax(0, 1.15fr) auto;
-}
-
-.hangar-selection {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-.hangar-catalog-status {
-  color: var(--ink-faint);
-  font-family: var(--font-data);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-}
-
-/* Keep appearance labels and values distinct instead of squeezing a fourth dial into the row. */
-.hangar-dock--catalog .hangar-dials {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  align-self: center;
-}
-
-.hangar-dock--catalog .hangar-dial {
-  grid-template-columns: auto minmax(44px, 1fr) auto;
-}
-
-.hangar-dock--catalog .hangar-dial output {
-  min-width: 38px;
-  color: var(--accent-strong);
-  font-family: var(--font-data);
-  font-size: 9px;
-  text-align: right;
 }
 
 /* The profile filter is a first-class desktop control, not a browser-default text box. */
@@ -224,21 +185,6 @@ summary:active {
 .profile-list-card > input:focus-visible {
   border-color: rgba(144, 116, 90, .5);
   outline: 3px solid rgba(144, 116, 90, .14);
-}
-
-@container (max-width: 760px) {
-  .hangar-dock--catalog {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .hangar-dock--catalog .hangar-selection,
-  .hangar-dock--catalog .hangar-dials {
-    grid-column: 1 / -1;
-  }
-
-  .hangar-dock--catalog .hangar-dials {
-    grid-row: auto;
-  }
 }
 
 @media (max-width: 720px) {

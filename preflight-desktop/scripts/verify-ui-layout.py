@@ -219,6 +219,84 @@ def assert_ship_moves(page: Page, label: str) -> None:
         raise RuntimeError(f"{label}: reopened ship did not resume rotation")
 
 
+def assert_hangar_geometry(page: Page, label: str) -> dict[str, object]:
+    measurement = page.evaluate(
+        """() => {
+          const display = document.querySelector('.hangar-display')?.getBoundingClientRect();
+          const controls = document.querySelector('.hangar-stage-controls')?.getBoundingClientRect();
+          const reset = document.querySelector('.hangar-reset-action')?.getBoundingClientRect();
+          const groups = [...document.querySelectorAll('.hangar-control-group')]
+            .map((element) => element.getBoundingClientRect());
+          if (!display || !controls || !reset || groups.length !== 3) return null;
+          const rect = (value) => ({ x: value.x, y: value.y, width: value.width, height: value.height,
+            right: value.right, bottom: value.bottom });
+          return {
+            viewportWidth: innerWidth,
+            viewportHeight: innerHeight,
+            documentScrollWidth: document.documentElement.scrollWidth,
+            display: rect(display),
+            controls: rect(controls),
+            reset: rect(reset),
+            groups: groups.map(rect),
+            sliderCount: document.querySelectorAll('.hangar-control-group input[type="range"]').length,
+          };
+        }"""
+    )
+    if measurement is None:
+        raise RuntimeError(f"{label}: Hangar geometry is missing")
+    if measurement["documentScrollWidth"] > measurement["viewportWidth"] + 1:
+        raise RuntimeError(f"{label}: document has horizontal overflow: {measurement}")
+    display = measurement["display"]
+    if display["right"] > measurement["viewportWidth"] + 1 or display["bottom"] > measurement["viewportHeight"] + 1:
+        raise RuntimeError(f"{label}: Hangar is clipped by the initial viewport: {measurement}")
+    if measurement["sliderCount"] != 7:
+        raise RuntimeError(f"{label}: expected seven independent Hangar sliders: {measurement}")
+    reset = measurement["reset"]
+    if reset["width"] < 44 or reset["height"] < 44 or reset["right"] > display["right"] or reset["bottom"] > display["bottom"]:
+        raise RuntimeError(f"{label}: reset is clipped or undersized: {measurement}")
+    for group in measurement["groups"]:
+        if group["right"] > display["right"] + 1 or group["bottom"] > display["bottom"] + 1:
+            raise RuntimeError(f"{label}: a Hangar control group is clipped: {measurement}")
+
+    for outline, interior in (("Outline detail", "Interior detail"), ("Outline smoothing", "Interior smoothing")):
+        first = page.get_by_role("slider", name=outline).bounding_box()
+        second = page.get_by_role("slider", name=interior).bounding_box()
+        if first is None or second is None or first["y"] >= second["y"]:
+            raise RuntimeError(f"{label}: {outline} is not stacked above {interior}")
+    return measurement
+
+
+def assert_hangar_interaction(page: Page, label: str) -> None:
+    canvas = page.locator(".hangar-stage__instrument canvas")
+    canvas.wait_for(state="visible")
+    bounds = canvas.bounding_box()
+    if bounds is None:
+        raise RuntimeError(f"{label}: interactive ship canvas is missing")
+    before = page.evaluate("localStorage.getItem('preflight.instrumentHullView.v1')")
+    page.mouse.move(bounds["x"] + bounds["width"] / 2, bounds["y"] + bounds["height"] / 2)
+    page.mouse.wheel(0, -120)
+    after_zoom = page.evaluate("localStorage.getItem('preflight.instrumentHullView.v1')")
+    if before == after_zoom:
+        raise RuntimeError(f"{label}: scrolling the ship did not save zoom")
+    page.mouse.move(bounds["x"] + bounds["width"] * .45, bounds["y"] + bounds["height"] * .5)
+    page.mouse.down()
+    page.mouse.move(bounds["x"] + bounds["width"] * .60, bounds["y"] + bounds["height"] * .42, steps=4)
+    page.mouse.up()
+    after_drag = page.evaluate("localStorage.getItem('preflight.instrumentHullView.v1')")
+    if after_zoom == after_drag:
+        raise RuntimeError(f"{label}: dragging the ship did not save its view")
+
+
+def settle_hangar_for_capture(page: Page) -> None:
+    """Put every captured Hangar at the same saved view and animation phase."""
+    page.evaluate("localStorage.removeItem('preflight.instrumentHullView.v1')")
+    page.emulate_media(reduced_motion="reduce")
+    page.reload(wait_until="networkidle")
+    page.get_by_role("button", name="Hangar", exact=True).click()
+    page.get_by_role("slider", name="Ship zoom").wait_for()
+    page.evaluate("document.fonts.ready")
+
+
 def capture(page: Page, output_dir: Path | None, name: str) -> None:
     if output_dir is None:
         return
@@ -236,6 +314,11 @@ def render_contact_sheet(browser: Browser, output_dir: Path) -> None:
                 f'<figure><figcaption>{html.escape(label)} · {state}</figcaption>'
                 f'<img src="{html.escape(filename)}" alt="Home {html.escape(state)} at {html.escape(label)}"></figure>'
             )
+        filename = f"hangar-{label}.png"
+        cards.append(
+            f'<figure><figcaption>{html.escape(label)} · Hangar</figcaption>'
+            f'<img src="{html.escape(filename)}" alt="Hangar at {html.escape(label)}"></figure>'
+        )
     document = f"""<!doctype html>
 <html lang="en"><meta charset="utf-8"><title>Preflight UI matrix</title>
 <style>
@@ -247,7 +330,7 @@ def render_contact_sheet(browser: Browser, output_dir: Path) -> None:
   figcaption {{ padding: 8px 10px; font-weight: 650; }}
   img {{ display: block; width: 100%; height: auto; background: #070b14; }}
 </style>
-<body><h1>Home viewport and visibility matrix</h1><main>{''.join(cards)}</main></body></html>"""
+<body><h1>Home and Hangar viewport matrix</h1><main>{''.join(cards)}</main></body></html>"""
     index = output_dir / "index.html"
     index.write_text(document, encoding="utf-8")
 
@@ -315,6 +398,15 @@ def main() -> int:
                         geometry[f"{label}-minimal"] = assert_home_geometry(page, f"{label} minimal")
                         assert_focus_stable(page, f"{label} minimal")
                         capture(page, args.output_dir, f"home-minimal-{label}.png")
+
+                        page.get_by_role("button", name="Hangar", exact=True).click()
+                        page.get_by_role("slider", name="Ship zoom").wait_for()
+                        geometry[f"{label}-hangar"] = assert_hangar_geometry(page, f"{label} Hangar")
+                        if (width, height) in ((720, 560), (1040, 700)):
+                            assert_hangar_interaction(page, f"{label} Hangar")
+                        settle_hangar_for_capture(page)
+                        geometry[f"{label}-hangar-capture"] = assert_hangar_geometry(page, f"{label} Hangar capture")
+                        capture(page, args.output_dir, f"hangar-{label}.png")
 
                         if errors:
                             raise RuntimeError(f"{label}: browser errors: {' | '.join(errors)}")

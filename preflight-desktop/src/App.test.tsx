@@ -984,9 +984,9 @@ test("the Hangar keeps the ship central and its compact customization local to t
   await user.keyboard("{Escape}");
   expect(ship).toHaveValue("Odyssey");
 
-  const height = screen.getByRole("slider", { name: "Depth" });
+  const height = screen.getByRole("slider", { name: "Wireframe height" });
   fireEvent.change(height, { target: { value: "1.35" } });
-  expect(screen.getByRole("button", { name: "Reset appearance" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Reset ship appearance and view" })).toBeEnabled();
   await waitFor(() => expect(JSON.parse(window.localStorage.getItem("preflight.instrumentHullTuning.v1") ?? "{}")["/Applications/Starsector::odyssey"].height).toBe(1.35));
 
   const detail = screen.getByRole("slider", { name: "Outline detail" });
@@ -1001,13 +1001,13 @@ test("the Hangar keeps the ship central and its compact customization local to t
   await user.type(ship, "Onslaught");
   await user.keyboard("{Enter}");
   await waitFor(() => expect(ship).toHaveValue("Onslaught"));
-  expect(screen.getByRole("button", { name: "Reset appearance" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Reset ship appearance and view" })).toBeDisabled();
 
   await user.clear(ship);
   await user.type(ship, "Odyssey");
   await user.keyboard("{Enter}");
   await waitFor(() => expect(ship).toHaveValue("Odyssey"));
-  expect(screen.getByRole("slider", { name: "Depth" })).toHaveValue("1.35");
+  expect(screen.getByRole("slider", { name: "Wireframe height" })).toHaveValue("1.35");
   expect(screen.getByRole("slider", { name: "Outline detail" })).toHaveValue("0.04");
 });
 

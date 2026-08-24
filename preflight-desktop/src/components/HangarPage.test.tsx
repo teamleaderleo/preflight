@@ -161,7 +161,7 @@ test("invalid free text restores the current hull on blur", () => {
 test("motion controls keep the display alive with one direction toggle", () => {
   render(<HangarPage instrumentHull={state()} />);
 
-  const controls = screen.getByRole("group", { name: "Display motion and appearance" });
+  const controls = screen.getByRole("group", { name: "Ship rotation" });
   expect(controls).toHaveAttribute("data-motion", "rotate");
   expect(controls).toHaveAttribute("data-direction", "clockwise");
   const reverse = within(controls).getByRole("button", { name: "Reverse rotation" });
@@ -170,11 +170,13 @@ test("motion controls keep the display alive with one direction toggle", () => {
 
   fireEvent.click(reverse);
   expect(controls).toHaveAttribute("data-direction", "clockwise");
-  expect(within(controls).queryByRole("button", { name: /pause|resume/i })).not.toBeInTheDocument();
+  const pause = within(controls).getByRole("button", { name: "Pause ship rotation" });
+  fireEvent.click(pause);
+  expect(within(controls).getByRole("button", { name: "Resume ship rotation" })).toBeInTheDocument();
 
-  const reset = within(controls).getByRole("button", { name: "Reset appearance" });
-  expect(reset).toHaveAttribute("title", "Reset appearance");
-  expect(reset).toHaveTextContent("Reset");
+  const reset = screen.getByRole("button", { name: "Reset ship appearance and view" });
+  expect(reset).toHaveAttribute("title", "Reset ship appearance and view");
+  expect(within(controls).getByRole("button", { name: "Reset ship appearance and view" })).toBe(reset);
 });
 
 test("appearance dials expose palette-progress state and keep interior tuning independently editable", () => {

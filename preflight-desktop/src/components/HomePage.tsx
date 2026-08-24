@@ -1,5 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowIcon, CheckIcon, ClockIcon, FocusIcon, FolderIcon, PauseIcon, PlayIcon, RotateClockwiseIcon, RotateCounterClockwiseIcon, SparklesIcon } from "../icons";
+import {
+  ArrowIcon,
+  CheckIcon,
+  ClockIcon,
+  FocusIcon,
+  FolderIcon,
+  OrbitClockwiseIcon,
+  OrbitCounterClockwiseIcon,
+  PauseIcon,
+  PlayIcon,
+  SparklesIcon,
+} from "../icons";
 import { adapterHealthLine } from "../adapterHealthText";
 import { HOME_OPTIONS_STORAGE_KEY } from "../desktopStorage";
 import type { Page } from "./DesktopShell";
@@ -222,6 +233,20 @@ export function HomePage({
     return clearHudTimer;
   }, [homeLayoutState, optionsOpen]);
   useEffect(() => {
+    const resumeHud = () => {
+      if (hudTimer.current !== null) window.clearTimeout(hudTimer.current);
+      setHudVisible(true);
+      if (homeLayoutState === "settled" && !optionsOpen) {
+        hudTimer.current = window.setTimeout(() => {
+          setHudVisible(false);
+          hudTimer.current = null;
+        }, 2200);
+      }
+    };
+    window.addEventListener("focus", resumeHud);
+    return () => window.removeEventListener("focus", resumeHud);
+  }, [homeLayoutState, optionsOpen]);
+  useEffect(() => {
     const root = document.documentElement;
     if (homeLayoutState === "settled") root.dataset.homeHud = hudVisible ? "visible" : "idle";
     else delete root.dataset.homeHud;
@@ -340,7 +365,7 @@ export function HomePage({
         <div className="launch-console__primary">
           {isReady ? (
             <div className="home-flight-instrument">
-              <FlightInstrument hull={instrumentHull.selected} variant="stage" interactive />
+              <FlightInstrument hull={instrumentHull.selected} variant="stage" interactive framing={0.84} />
             </div>
           ) : null}
           {isReady ? (
@@ -462,20 +487,27 @@ export function HomePage({
                   <span>{status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? preparationPercent === null ? "Preparation in progress…" : `Preparing ${preparationPercent}%…` : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review prepared data" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Prepare with less disk" : firstSetup ? "Set up and launch" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}</span>
                 </button>
                 {homeLayoutState === "settled" && homePresentation.mode !== "compact" ? (
-                  <button
-                    className="home-motion-toggle home-hud-layer"
-                    type="button"
-                    aria-label={instrumentMotion.motion === "rotate" ? "Pause ship rotation" : "Resume ship rotation"}
-                    title={instrumentMotion.motion === "rotate" ? "Pause rotation" : "Resume rotation"}
-                    aria-pressed={instrumentMotion.motion === "still"}
-                    onClick={() => instrumentMotion.setMotion(instrumentMotion.motion === "rotate" ? "still" : "rotate")}
-                  >
-                    {instrumentMotion.motion === "rotate"
-                      ? <PauseIcon />
-                      : instrumentMotion.direction === "clockwise"
-                        ? <RotateClockwiseIcon />
-                        : <RotateCounterClockwiseIcon />}
-                  </button>
+                  <div className="home-motion-controls home-hud-layer" role="group" aria-label="Ship rotation">
+                    <button
+                      className="home-motion-toggle"
+                      type="button"
+                      aria-label="Reverse rotation"
+                      title={instrumentMotion.direction === "clockwise" ? "Rotate counter-clockwise" : "Rotate clockwise"}
+                      onClick={() => instrumentMotion.setDirection(instrumentMotion.direction === "clockwise" ? "counter-clockwise" : "clockwise")}
+                    >
+                      {instrumentMotion.direction === "clockwise" ? <OrbitClockwiseIcon /> : <OrbitCounterClockwiseIcon />}
+                    </button>
+                    <button
+                      className="home-motion-toggle"
+                      type="button"
+                      aria-label={instrumentMotion.motion === "rotate" ? "Pause ship rotation" : "Resume ship rotation"}
+                      title={instrumentMotion.motion === "rotate" ? "Pause rotation" : "Resume rotation"}
+                      aria-pressed={instrumentMotion.motion === "still"}
+                      onClick={() => instrumentMotion.setMotion(instrumentMotion.motion === "rotate" ? "still" : "rotate")}
+                    >
+                      {instrumentMotion.motion === "rotate" ? <PauseIcon /> : <PlayIcon />}
+                    </button>
+                  </div>
                 ) : null}
                 {preparing ? (
                   <button className="button button--quiet launch-console__stop" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>
