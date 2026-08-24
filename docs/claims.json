@@ -148,6 +148,16 @@
     },
     {
       "type": "seconds",
+      "value": "13.69",
+      "unit": "s",
+      "publishedIn": [
+        "README.md"
+      ],
+      "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
+      "derivation": "Best observed run in the reviewed five-run G1/deferred-heap-commit candidate condition on the current 83-mod development profile; this is the current best observed startup and remains distinct from the controlled vanilla/Preflight campaign."
+    },
+    {
+      "type": "seconds",
       "value": "88.13",
       "unit": "s",
       "publishedIn": [
