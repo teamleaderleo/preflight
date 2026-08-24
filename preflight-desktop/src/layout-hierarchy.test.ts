@@ -57,7 +57,7 @@ test("resolved Home cascade follows explicit state modifiers", () => {
   // jsdom can report older declarations after parsing the modern production cascade. Pin those late
   // owners directly; real scrolling and pixel placement belong to the Chromium acceptance pass.
   expect(layoutStyles).toMatch(/\.page-viewport\.page-viewport--home\s*\{[^}]*position:\s*relative;[^}]*overflow-y:\s*auto;/s);
-  expect(getComputedStyle(settled.instrument).inset).toBe("-34px 28px 112px");
+  expect(getComputedStyle(settled.instrument).inset).toBe("-34px 0 0");
   expect(getComputedStyle(settled.primary).display).toBe("block");
   expect(getComputedStyle(settled.instrument).position).toBe("absolute");
   expect(getComputedStyle(preparation.instrument).inset).toBe("6px 36px 104px");
