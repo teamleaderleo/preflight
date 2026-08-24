@@ -734,11 +734,13 @@ h2 {
   align-items: center;
   gap: 7px;
   min-height: 44px;
-  border: 0;
+  border: 1px solid color-mix(in srgb, var(--console-line) 72%, transparent);
   border-radius: 4px;
   padding: 0 10px;
   color: var(--console-soft);
-  background: transparent;
+  background: color-mix(in srgb, var(--console-control) 58%, transparent);
+  box-shadow: inset 0 1px color-mix(in srgb, white 24%, transparent);
+  backdrop-filter: blur(16px) saturate(1.12);
   font-size: 11px;
   font-weight: 650;
   cursor: pointer;
@@ -775,9 +777,11 @@ h2 {
   min-height: 44px;
   margin-left: auto;
   padding: 0 8px 0 12px;
-  border: 0;
+  border: 1px solid color-mix(in srgb, var(--console-line) 72%, transparent);
   color: var(--console-soft);
-  background: transparent;
+  background: color-mix(in srgb, var(--console-control) 58%, transparent);
+  box-shadow: inset 0 1px color-mix(in srgb, white 24%, transparent);
+  backdrop-filter: blur(16px) saturate(1.12);
   font: inherit;
   font-size: 12px;
   font-weight: 650;
@@ -910,8 +914,11 @@ h2 {
   border: 1px solid var(--console-line);
   border-radius: 4px;
   color: var(--console-soft);
-  background: color-mix(in srgb, var(--console-control) 72%, transparent);
-  backdrop-filter: blur(10px);
+  background: color-mix(in srgb, var(--console-control) 60%, transparent);
+  box-shadow:
+    0 8px 22px color-mix(in srgb, var(--ink) 9%, transparent),
+    inset 0 1px color-mix(in srgb, white 24%, transparent);
+  backdrop-filter: blur(16px) saturate(1.12);
   cursor: pointer;
 }
 
@@ -2315,7 +2322,7 @@ h2 {
 
 .hangar-stage__instrument {
   position: absolute;
-  inset: 24px 34px 30px;
+  inset: 0;
 }
 
 .hangar-stage__instrument .flight-instrument {
@@ -2368,7 +2375,7 @@ h2 {
   }
 
   .hangar-stage__instrument {
-    inset: 16px 30px 20px;
+    inset: 0;
   }
 }
 

@@ -369,6 +369,9 @@ def main() -> int:
                         page.evaluate("document.activeElement instanceof HTMLElement && document.activeElement.blur()")
                         page.mouse.move(width - 2, height - 2)
                         page.wait_for_timeout(2400)
+                        page.wait_for_function(
+                            "Number.parseFloat(getComputedStyle(document.querySelector('.home-playtime')).opacity) < 0.01",
+                        )
                         idle = page.evaluate(
                             """() => ({
                               idle: document.querySelector('.launch-console--layout-settled')?.classList.contains('home-hud--idle'),
@@ -377,7 +380,12 @@ def main() -> int:
                               launchOpacity: getComputedStyle(document.querySelector('.button--launch')).opacity,
                             })"""
                         )
-                        if idle != {"idle": True, "hudOpacity": "0", "appearanceOpacity": "0", "launchOpacity": "1"}:
+                        if (
+                            idle["idle"] is not True
+                            or float(idle["hudOpacity"]) >= 0.01
+                            or float(idle["appearanceOpacity"]) >= 0.01
+                            or idle["launchOpacity"] != "1"
+                        ):
                             raise RuntimeError(f"{label} idle: HUD did not recede while launch remained visible: {idle}")
                         capture(page, args.output_dir, f"home-idle-{label}.png")
 

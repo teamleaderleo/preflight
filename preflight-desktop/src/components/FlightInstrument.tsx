@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { INSTRUMENT_APPEARANCE_ATTRIBUTES } from "../flightInstrumentAppearance";
 import { useInstrumentMotion } from "../useInstrumentMotion";
 import {
@@ -287,7 +287,7 @@ export function FlightInstrument({
     directionRef.current = direction;
   }, [direction]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const canvas = canvasRef.current;
     const root = rootRef.current;
     if (!canvas || !root || typeof ResizeObserver === "undefined") return;

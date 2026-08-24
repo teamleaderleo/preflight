@@ -235,6 +235,7 @@ export function HomePage({
   useEffect(() => {
     const resumeHud = () => {
       if (hudTimer.current !== null) window.clearTimeout(hudTimer.current);
+      document.documentElement.dataset.homeHud = "visible";
       setHudVisible(true);
       if (homeLayoutState === "settled" && !optionsOpen) {
         hudTimer.current = window.setTimeout(() => {
@@ -243,8 +244,17 @@ export function HomePage({
         }, 2200);
       }
     };
+    const holdHudWhileInactive = () => {
+      clearHudTimer();
+      document.documentElement.dataset.homeHud = "visible";
+      setHudVisible(true);
+    };
     window.addEventListener("focus", resumeHud);
-    return () => window.removeEventListener("focus", resumeHud);
+    window.addEventListener("blur", holdHudWhileInactive);
+    return () => {
+      window.removeEventListener("focus", resumeHud);
+      window.removeEventListener("blur", holdHudWhileInactive);
+    };
   }, [homeLayoutState, optionsOpen]);
   useEffect(() => {
     const root = document.documentElement;

@@ -212,7 +212,7 @@
 
 .launch-console--layout-settled .home-flight-instrument {
   position: absolute;
-  inset: -34px 28px 112px !important;
+  inset: -34px 0 0 !important;
   width: auto;
   height: auto;
   min-height: 0;
@@ -334,7 +334,7 @@
 /* Decorative controls recede after pointer idle. Moving anywhere over Home or focusing a control
  * restores them without mounting, moving, or replacing the launch action. */
 .launch-console--layout-settled .home-hud-layer {
-  transition: opacity 180ms ease;
+  transition: opacity 620ms cubic-bezier(.22, .61, .36, 1);
 }
 
 .launch-console--layout-settled.home-hud--idle:not(:focus-within):not(.launch-console--options-open) .home-hud-layer {
@@ -346,7 +346,7 @@
  * available, so hovering the familiar top-right dock brings it back without moving anything. */
 :root[data-home-hud="idle"] .topbar--home .topbar__actions {
   opacity: 0;
-  transition: opacity 180ms ease;
+  transition: opacity 620ms cubic-bezier(.22, .61, .36, 1);
 }
 
 :root[data-home-hud="idle"] .topbar--home .topbar__actions:is(:hover, :focus-within) {
@@ -361,7 +361,7 @@
 
 @container (max-width: 1000px) {
   .launch-console--layout-settled .home-flight-instrument {
-    inset: -22px 16px 184px !important;
+    inset: -22px 0 0 !important;
   }
 
   .launch-console--layout-settled .home-launch-identity {
@@ -410,7 +410,7 @@
   }
 
   .launch-console--layout-settled .home-flight-instrument {
-    inset: 48px 4px 196px !important;
+    inset: 48px 0 0 !important;
   }
 
   .launch-console--layout-settled .home-launch-identity {
