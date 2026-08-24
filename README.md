@@ -1,7 +1,6 @@
 # Preflight
 
-**A free, open-source performance launcher for Starsector. On my 83-mod setup, a controlled
-comparison measured an 89.00-second normal-launch median and a 15.53-second Preflight median.**
+**A free, open-source performance launcher for Starsector. On my 83-mod development setup, startup has gone from about 101 seconds at the observed high end to a 13.69-second best run on the current reviewed macOS Rosetta path.**
 
 > Preflight is an independent, unofficial project. It isn't affiliated with or endorsed by Fractal
 > Softworks.
@@ -15,7 +14,7 @@ comparison measured an 89.00-second normal-launch median and a 15.53-second Pref
   <img alt="Preflight ready to launch Starsector" src="docs/images/desktop-home-light.png">
 </picture>
 
-**89.00 seconds → 15.53 seconds in the controlled 83-mod comparison.**
+**~101 seconds → 13.69 seconds on the 83-mod development installation.**
 
 Preflight started as an attempt to answer one question: why can heavily modded Starsector spend so
 long getting to the main menu, and how much of that work is the same every single launch?
@@ -78,9 +77,16 @@ once, then press **Launch Starsector** on later runs. The rest is there when you
 
 ## The measured result
 
-The clean controlled before/after campaign remains the public direct comparison: five ordinary
-launches had an 89.00-second median and five Preflight launches had a 15.53-second median, with a
-15.25-second low in that accelerated set.
+The current development headline is the observed arc: roughly 101 seconds at the early high end to a
+13.69-second best observed run after the reviewed G1/deferred-heap-commit policy became the current
+macOS Rosetta path. That is a development chronology, so the exact experimental context stays visible
+below instead of pretending the endpoints came from one A/B session.
+
+For the clean direct comparison, five ordinary launches had an 89.00-second median and five Preflight
+launches had a 15.53-second median, with a 15.25-second low in that accelerated set. A later five-run
+candidate condition measured a 14.04-second median and the 13.69-second best. Later same-machine
+current-engine controls around 15.5 seconds show the remaining machine/run variance while confirming
+that the reviewed JVM policy is still present in current code.
 
 | Reference point | Main-menu time | Meaning |
 | --- | ---: | --- |
@@ -90,17 +96,17 @@ launches had an 89.00-second median and five Preflight launches had a 15.53-seco
 | Controlled baseline, one session | **89.00s** | Median of five vanilla launches, interleaved with the row below |
 | Controlled result, one session | **15.53s** | Median of five Preflight launches in that same session |
 | Lowest run in that controlled session | **15.25s** | Lowest of the five accelerated launches |
+| Later reviewed JVM condition | 14.04s median | Five exact-marker runs with G1 and deferred heap commit |
+| Best current development observation | **13.69s** | Best run in that later five-run condition |
 
-The first three rows show the development history. The last two campaign rows come from one
-comparison on the same 83-mod profile. The order was shuffled inside every round, the machine cooled
-for 240 seconds before each launch, and none of the ten runs were excluded. The medians are **73.47
-seconds** apart.
+The controlled 89.00/15.53 pair came from one 83-mod session. The order was shuffled inside every
+round, the machine cooled for 240 seconds before each launch, and none of the ten runs were excluded.
+The medians are **73.47 seconds** apart.
 
-Later storage and JVM work moved the same development profile further. The retained August 23
-evidence records that later fourteen-second development regime, its surrounding run variance, and
-the storage/preparation changes that produced it. Those observations remain in the evidence record
-until they are promoted through the repository's reviewed claim path; they do not silently replace
-the controlled public comparison above.
+The later 13.69-second result used the same 83-mod M5 MacBook Air development profile and the log-marker
+clock documented in the August 23 evidence. That evidence also records the current-engine control,
+Compact physical-order work, and the difference between best-observed development timing and the
+packaged candidate result still owed before release.
 
 All of these development measurements are from one M5 MacBook Air running Starsector 0.98a-RC8 and
 the game's bundled x86-64 Java runtime through Rosetta. Hardware, mods, storage, cache warmth,
