@@ -1129,8 +1129,8 @@ test("launch settings mirror vanilla display and battle controls", async () => {
   expect(screen.getByRole("checkbox", { name: "Sound" })).toBeChecked();
   expect(screen.getByRole("combobox", { name: "Antialiasing" })).toHaveValue("0");
   expect(screen.getByRole("combobox", { name: "UI size" })).toHaveValue("1");
-  expect(screen.getByRole("slider", { name: "Battle size" })).toHaveValue("400");
-  expect(screen.getByRole("slider", { name: "Battle size" })).toHaveAttribute("max", "2000");
+  expect(screen.getByRole("spinbutton", { name: "Battle size" })).toHaveValue(400);
+  expect(screen.getByRole("spinbutton", { name: "Battle size" })).toHaveAttribute("max", "2147483647");
   expect(screen.getByRole("combobox", { name: "Game memory" })).toHaveValue("6144");
   await user.selectOptions(screen.getByRole("combobox", { name: "Game memory" }), "8192");
   const apply = screen.getByRole("button", { name: "Apply changes" });

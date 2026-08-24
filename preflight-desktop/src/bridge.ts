@@ -664,7 +664,7 @@ export async function getLaunchSettings(game: string): Promise<LaunchSettings> {
         battleSizeMin: 200,
         battleSizeDefault: 400,
         battleSizeMax: 400,
-        battleSizeExtendedMax: 2000,
+        battleSizeExtendedMax: 2_147_483_647,
         diagnostics: [],
       },
       memory: {

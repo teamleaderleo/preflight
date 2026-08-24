@@ -32,7 +32,7 @@ Lead with:
 - the built-in benchmark, so they can measure their own installation;
 - named/searchable/duplicable mod profiles;
 - game settings beside Launch;
-- battle-size presets that can extend beyond the vanilla slider to 2,000 deployment points;
+- custom battle sizes beyond the vanilla slider;
 - disk planning before preparation and the minimal-disk route;
 - recovery that does not require deleting everything and starting again;
 - playtime tracking that Starsector itself does not expose;
@@ -151,9 +151,10 @@ fund unusually deep public work.
 
 ### Battle size beyond the vanilla slider
 
-The desktop derives its controls from the installation's own limits but has an extended ceiling of
-2,000 deployment points. On an ordinary installation, the current presets are Minimum, Default,
-Larger (600), Big (1000), Huge (1500), and Maximum (2000).
+The desktop derives its minimum and shortcuts from the installation's own limits, then accepts a
+custom value through the positive Java-integer range used by the game. On an ordinary installation,
+the current shortcuts include Minimum, Default, Larger (600), Big (1000), Huge (1500), and Extreme
+(2000).
 
 This is a very strong Starsector-specific hook because it is immediately understandable and has
 nothing to do with explaining cache internals.
@@ -395,8 +396,8 @@ Weak:
 
 Stronger:
 
-> Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and battle size live beside Launch,
-> including battle-size presets through 2,000 deployment points.
+> Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and custom battle size live beside
+> Launch.
 
 Weak:
 
@@ -433,7 +434,7 @@ Stronger:
 - “The first cache had perfect hit counters and broke the screen”
 - “I pointed a profiler at 86 Starsector mods”
 - “Starsector has no playtime counter, so now Preflight does”
-- “Yes, the battle-size button goes to 2,000”
+- “The vanilla battle-size slider isn't the actual limit”
 - “What exactly is this launcher allowed to touch?”
 - “Why does a game launcher rehearse rollback?”
 - “What is actually inside a privacy-conscious support ZIP?”

@@ -57,9 +57,9 @@ export function uiScaleMaximum(settings: LaunchSettings, resolution: string): nu
 }
 
 export function battleSizeUpperBound(settings: LaunchSettings, current: number): number {
-  return settings.limits.battleSizeExtendedMax
-    ?? settings.limits.battleSizeMax
-    ?? Math.max(current, 400);
+  void settings;
+  void current;
+  return 2_147_483_647;
 }
 
 export function battleSizePresets(settings: LaunchSettings): Array<{ value: number; label: string }> {
@@ -76,7 +76,7 @@ export function battleSizePresets(settings: LaunchSettings): Array<{ value: numb
   name(600, "Larger");
   name(1000, "Big");
   name(1500, "Huge");
-  name(upperBound, "Maximum");
+  name(2000, "Extreme");
   return [...named.entries()]
     .sort(([left], [right]) => left - right)
     .map(([value, label]) => ({ value, label }));

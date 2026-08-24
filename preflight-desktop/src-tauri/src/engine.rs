@@ -506,8 +506,8 @@ pub(crate) fn validate_launch_settings(settings: &LaunchSettingsInput) -> Result
     {
         return Err("UI scale must be from 1.00 to 3.00 in 0.05 steps.".to_string());
     }
-    if settings.battle_size == 0 {
-        return Err("Battle size must be positive.".to_string());
+    if settings.battle_size == 0 || settings.battle_size > i32::MAX as u32 {
+        return Err("Battle size must be a positive Java integer.".to_string());
     }
     if settings
         .memory_mib

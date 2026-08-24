@@ -161,8 +161,8 @@ the story naturally reads.
   history as JSON or spreadsheet-safe CSV.
 - **Named mod profiles.** Save, search, switch, rename, duplicate, and delete profiles; switching
   previews the mod change and saves a backup first.
-- **Launch settings.** Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and battle size
-  live beside Launch, with battle-size presets through 2,000 deployment points on a standard setup.
+- **Launch settings.** Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and custom battle
+  size live beside Launch.
 - **Storage planning and recovery.** See the preparation requirement before writing, use a minimal-disk
   route when needed, stop safely, and repair damaged prepared data.
 - **Setup analysis and mod linting.** Inspect the active stack for missing mods, metadata/dependency
