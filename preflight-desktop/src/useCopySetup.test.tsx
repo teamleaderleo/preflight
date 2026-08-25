@@ -83,6 +83,39 @@ test("save failure retains the exact summary and retry neither rescans nor overw
   expect(getCacheInspection).toHaveBeenCalledTimes(1);
 });
 
+test("a failed save exposes clipboard failure and success without rescanning", async () => {
+  vi.mocked(isDesktopHost).mockReturnValue(true);
+  vi.mocked(saveFile).mockResolvedValue("/tmp/existing.txt");
+  vi.mocked(saveSetupSummaryFile).mockRejectedValue(new Error("That file already exists."));
+  const writeText = vi.fn()
+    .mockRejectedValueOnce(new Error("clipboard denied"))
+    .mockResolvedValueOnce(undefined);
+  installClipboard(writeText);
+
+  const { result } = renderHook(() => useCopySetup("recommended"));
+  await act(async () => {
+    await result.current.saveSetupSummary();
+  });
+  const generated = result.current.text;
+
+  await act(async () => {
+    await result.current.retryCopySetup();
+  });
+  expect(result.current.saveState).toBe("error");
+  expect(result.current.copyState).toBe("error");
+  expect(result.current.text).toBe(generated);
+
+  await act(async () => {
+    await result.current.retryCopySetup();
+  });
+  expect(result.current.saveState).toBe("error");
+  expect(result.current.copyState).toBe("copied");
+  expect(result.current.text).toBe(generated);
+  expect(writeText).toHaveBeenNthCalledWith(1, generated);
+  expect(writeText).toHaveBeenNthCalledWith(2, generated);
+  expect(getSnapshot).toHaveBeenCalledTimes(1);
+});
+
 test("clipboard failure retains the exact generated summary and retry does not rescan", async () => {
   const writeText = vi.fn()
     .mockRejectedValueOnce(new Error("clipboard denied"))

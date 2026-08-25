@@ -5295,6 +5295,28 @@ footer {
   height: 18px;
 }
 
+.report-recovery .support-summary-copy-status,
+.report-recovery .support-summary-copy-error {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  font-size: var(--text-support);
+}
+
+.report-recovery .support-summary-copy-status {
+  color: var(--success);
+}
+
+.report-recovery .support-summary-copy-error {
+  color: var(--danger);
+}
+
+.support-summary-copy-status svg {
+  width: 16px;
+  height: 16px;
+}
+
 .button--support {
   flex: 0 0 auto;
   width: 100%;

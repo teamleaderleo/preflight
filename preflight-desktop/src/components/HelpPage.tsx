@@ -113,9 +113,13 @@ export function HelpPage({
             <strong>Setup summary wasn’t saved</strong>
             <p>{setupCopy.saveError} The exact public summary is still available; choose another filename or copy these same bytes.</p>
             <textarea aria-label="Save setup summary" readOnly rows={10} value={setupCopy.text} />
+            {setupCopy.copyState === "copied" ? <p className="support-summary-copy-status" role="status"><CheckIcon /> Copied the exact summary.</p> : null}
+            {setupCopy.copyState === "error" ? <p className="support-summary-copy-error" role="alert">Clipboard access failed. Select and copy the text above, or try again.</p> : null}
             <div className="report-actions">
-              <button className="button button--quiet button--compact" type="button" onClick={() => void setupCopy.retrySaveSetup()}>Choose another file…</button>
-              <button className="button button--quiet button--compact" type="button" onClick={() => void setupCopy.retryCopySetup()}>Copy same summary</button>
+              <button className="button button--quiet button--compact" type="button" onClick={() => void setupCopy.retrySaveSetup()} disabled={setupSummaryBusy}>Choose another file…</button>
+              <button className="button button--quiet button--compact" type="button" onClick={() => void setupCopy.retryCopySetup()} disabled={setupSummaryBusy}>
+                {setupCopy.copyState === "copying" ? "Copying…" : setupCopy.copyState === "copied" ? "Summary copied" : setupCopy.copyState === "error" ? "Try clipboard again" : "Copy same summary"}
+              </button>
             </div>
           </div>
         ) : setupCopy.saveState === "error" ? (
