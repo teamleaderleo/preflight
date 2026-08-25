@@ -55,6 +55,50 @@ final class EvidenceRetentionTest {
     }
 
     @Test
+    void newestCompletedPairOccupiesOneBoundedRunSlot() throws Exception {
+        PreflightHome home = home();
+        Path paired = completedPair(home.runs(), "paired", 1_000);
+        Path middle = session(home.runs(), "middle", 2_000, "middle");
+        Path newest = session(home.runs(), "newest", 3_000, "newest");
+
+        EvidenceRetention.Plan plan = EvidenceRetention.plan(
+                EvidenceRetention.inventory(home), 2, null);
+
+        assertEquals(List.of(middle.toAbsolutePath()),
+                plan.removals().stream().map(EvidenceRetention.Session::path).toList());
+        EvidenceRetention.apply(plan);
+        assertTrue(Files.isDirectory(paired));
+        assertFalse(Files.exists(middle));
+        assertTrue(Files.isDirectory(newest));
+    }
+
+    @Test
+    void explicitZeroRunRetentionCanStillRemoveACompletedPair() throws Exception {
+        PreflightHome home = home();
+        Path paired = completedPair(home.runs(), "paired", 1_000);
+
+        EvidenceRetention.Plan plan = EvidenceRetention.plan(
+                EvidenceRetention.inventory(home), 0, null);
+
+        assertEquals(List.of(paired.toAbsolutePath()),
+                plan.removals().stream().map(EvidenceRetention.Session::path).toList());
+    }
+
+    @Test
+    void incompletePairDoesNotDisplaceARecentRun() throws Exception {
+        PreflightHome home = home();
+        Path incomplete = pairResult(home.runs(), "incomplete", 1_000, false);
+        session(home.runs(), "middle", 2_000, "middle");
+        session(home.runs(), "newest", 3_000, "newest");
+
+        EvidenceRetention.Plan plan = EvidenceRetention.plan(
+                EvidenceRetention.inventory(home), 2, null);
+
+        assertEquals(List.of(incomplete.toAbsolutePath()),
+                plan.removals().stream().map(EvidenceRetention.Session::path).toList());
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void jsonContractsSeparateInventoryFromPreviewAndApplication() throws Exception {
         PreflightHome home = home();
@@ -97,6 +141,25 @@ final class EvidenceRetentionTest {
         Files.writeString(evidence, contents);
         FileTime time = FileTime.fromMillis(modifiedMillis);
         Files.setLastModifiedTime(evidence, time);
+        Files.setLastModifiedTime(session, time);
+        return session;
+    }
+
+    private static Path completedPair(Path root, String name, long modifiedMillis)
+            throws IOException {
+        return pairResult(root, name, modifiedMillis, true);
+    }
+
+    private static Path pairResult(
+            Path root, String name, long modifiedMillis, boolean complete) throws IOException {
+        Path session = session(root, name, modifiedMillis, "ordinary evidence");
+        Path result = session.resolve(DesktopBenchmarkLaunch.RESULT_FILE);
+        Files.writeString(result, """
+                {"format":"starsector-preflight-desktop-benchmark-v1","status":"passed",
+                 "complete":%s,"comparison":{"available":true}}
+                """.formatted(complete));
+        FileTime time = FileTime.fromMillis(modifiedMillis);
+        Files.setLastModifiedTime(result, time);
         Files.setLastModifiedTime(session, time);
         return session;
     }

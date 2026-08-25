@@ -124,7 +124,7 @@ export function PreparationPage({
             <button className="text-button" type="button" onClick={onDismissCleanup} disabled={cleanupBusy}>Close</button>
           </div>
           {!cleanupPlan.cache.safe ? <p className="activation-warning">{cleanupPlan.cache.refusals.join(" ")}</p> : null}
-          <p className="cleanup-summary">Keeps the current profile, saved profiles, {cleanupPlan.evidence.keepRuns} recent launch reports, and {cleanupPlan.evidence.keepBenchmarks} benchmarks. Game files, mods, saves, and settings aren’t touched.</p>
+          <p className="cleanup-summary">Keeps the current profile, saved profiles, {cleanupPlan.evidence.keepRuns} launch reports—including the latest completed comparison when available—and {cleanupPlan.evidence.keepBenchmarks} benchmark campaigns. Game files, mods, saves, and settings aren’t touched.</p>
           <div className="cleanup-groups">
             {cleanupPlan.cache.bytes > 0 ? <div><span>Unused or replaced prepared data</span><strong>{formatBytes(cleanupPlan.cache.bytes)} · {cleanupPlan.cache.files.toLocaleString()} files</strong></div> : null}
             {cleanupPlan.evidence.bytes > 0 ? <div><span>Old reports and benchmarks</span><strong>{formatBytes(cleanupPlan.evidence.bytes)} · {cleanupPlan.evidence.files.toLocaleString()} files</strong></div> : null}
