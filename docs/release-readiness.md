@@ -2,7 +2,7 @@
 
 **Status:** operational candidate execution; source and rendered-UI convergence complete
 
-**Updated:** 2026-08-23
+**Updated:** 2026-08-25
 
 This page mirrors the current beta gate. The live owner for blocker status, freeze order, collision
 control, and any promotion caused by a demonstrated candidate failure or explicit maintainer decision
@@ -40,14 +40,14 @@ must stay tied to one accepted candidate generation:
   ZIP, cancel after a partial upload, prove remote cleanup while the local ZIP remains, retry the same
   ZIP, verify the accepted size/SHA and retained receipt, then delete it and prove cleanup.
 
-Release-facing maintenance through #1119 landed after the completed private rehearsals. Startup
+Release-facing maintenance through #1123 landed after the completed private rehearsals. Startup
 entry points are consolidated, Compact is the normal prepared texture layout, redundant child-JVM
 work is removed, benchmark shutdown targets the exact game process, and patched `time` and
 `serde_with` dependencies build at the verified Rust 1.88 floor across all three hosted package
 jobs. Failed-run support is manual: players review and explicitly send a support ZIP, automatic
 failed-run upload is absent from the native command surface, and the public capability receipt says
-so. Home now exposes its time, ship, motion, installation, support, and saved-profile controls
-directly, and the canonical public screenshots match the accepted responsive layout. A bounded
+so. First-launch, Home, Hangar, recovery, and support-copy polish through #1133 is accepted, and the
+canonical public screenshots now match that responsive layout. A bounded
 dependency check runs automatically for the active mod setup, while Mods offers the deeper explicit
 analysis. Page navigation commits before destination work, and repeated visits reuse optional
 native reads instead of requesting them again. Desktop-only changes no longer duplicate
@@ -106,7 +106,7 @@ The detailed evidence remains in the linked documents and dated `docs/evidence/`
 Useful current references:
 
 - [Startup benchmark](startup-benchmark.md)
-- [Canonical UI screenshots](evidence/2026-08-24-canonical-ui-screenshots.md)
+- [Canonical UI screenshots](evidence/2026-08-25-canonical-ui-screenshots.md)
 - [Cross-platform evidence plan](cross-platform-evidence-plan.md)
 - [Package lifecycle rehearsal](package-lifecycle-rehearsal.md)
 - [Packaged report canary](evidence/2026-08-08-packaged-report-canary.md)
