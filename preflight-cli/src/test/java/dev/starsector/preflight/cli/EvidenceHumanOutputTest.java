@@ -37,7 +37,7 @@ class EvidenceHumanOutputTest {
 
     private static EvidenceRetention.Plan plan() {
         EvidenceRetention.Session session = new EvidenceRetention.Session(
-                "run", Path.of("run-20260818"), 1024, 1, 1L, false);
+                "run", Path.of("run-20260818"), 1024, 1, 1L, false, false);
         return new EvidenceRetention.Plan(List.of(session), 0, null);
     }
 

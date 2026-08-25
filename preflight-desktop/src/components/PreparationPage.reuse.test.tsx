@@ -158,7 +158,7 @@ test("changed storage and resource choices stay visible without preset-name narr
   expect(screen.queryByText(/high resource use/i)).not.toBeInTheDocument();
 });
 
-test("cleanup explains that the latest completed comparison occupies a bounded report slot", () => {
+test("cleanup explains that completed comparison and save/reload evidence occupy bounded report slots", () => {
   renderPage(plan(), {}, {
     cache: {
       format: "starsector-preflight-cache-prune-v1",
@@ -189,5 +189,5 @@ test("cleanup explains that the latest completed comparison occupies a bounded r
     files: 1,
   });
 
-  expect(screen.getByText(/10 launch reports—including the latest completed comparison when available—and 5 benchmark campaigns/)).toBeInTheDocument();
+  expect(screen.getByText(/10 launch reports—including the latest completed comparison and save\/reload check when available—and 5 benchmark campaigns/)).toBeInTheDocument();
 });

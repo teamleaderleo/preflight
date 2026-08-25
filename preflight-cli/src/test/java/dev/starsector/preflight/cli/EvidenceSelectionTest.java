@@ -40,6 +40,6 @@ final class EvidenceSelectionTest {
 
     private static EvidenceRetention.Session session(String kind, String name, long modifiedMillis) {
         return new EvidenceRetention.Session(
-                kind, Path.of("evidence").resolve(name), 100, 1, modifiedMillis, false);
+                kind, Path.of("evidence").resolve(name), 100, 1, modifiedMillis, false, false);
     }
 }

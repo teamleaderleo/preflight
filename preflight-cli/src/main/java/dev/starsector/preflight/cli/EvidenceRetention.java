@@ -15,6 +15,10 @@ import java.util.Map;
 /** Preview-first retention for top-level run and benchmark evidence sessions. */
 final class EvidenceRetention {
     private static final long MAX_BENCHMARK_RESULT_BYTES = 1024 * 1024;
+    private static final long MAX_PILOT_ATTESTATION_BYTES = 1024 * 1024;
+    private static final String PILOT_ATTESTATION_FILE = "operator-attestation.json";
+    private static final String PILOT_ATTESTATION_FORMAT =
+            "preflight-gameplay-pilot-operator-attestation-v4";
 
     private EvidenceRetention() {
     }
@@ -83,13 +87,26 @@ final class EvidenceRetention {
         if (keep == 0 || keep >= sessions.size()) {
             return after(sessions, keep);
         }
-        List<Session> retained = new ArrayList<>(sessions.subList(0, keep));
+        List<Session> retained = new ArrayList<>();
         Session newestCompletedPair = sessions.stream()
                 .filter(Session::completedPairedBenchmark)
                 .findFirst()
                 .orElse(null);
-        if (newestCompletedPair != null && !retained.contains(newestCompletedPair)) {
-            retained.set(retained.size() - 1, newestCompletedPair);
+        if (newestCompletedPair != null) {
+            retained.add(newestCompletedPair);
+        }
+        Session newestCompletedPilot = sessions.stream()
+                .filter(Session::completedSaveLifecycle)
+                .findFirst()
+                .orElse(null);
+        if (newestCompletedPilot != null
+                && retained.size() < keep
+                && !retained.contains(newestCompletedPilot)) {
+            retained.add(newestCompletedPilot);
+        }
+        for (Session session : sessions) {
+            if (retained.size() == keep) break;
+            if (!retained.contains(session)) retained.add(session);
         }
         return sessions.stream().filter(session -> !retained.contains(session)).toList();
     }
@@ -124,7 +141,8 @@ final class EvidenceRetention {
                 totals[0],
                 totals[1],
                 totals[2],
-                completedPairedBenchmark(absolute));
+                completedPairedBenchmark(absolute),
+                completedSaveLifecycle(absolute));
     }
 
     private static boolean completedPairedBenchmark(Path session) {
@@ -138,6 +156,19 @@ final class EvidenceRetention {
                     && Boolean.TRUE.equals(result.get("complete"))
                     && comparison instanceof Map<?, ?> comparisonMap
                     && Boolean.TRUE.equals(comparisonMap.get("available"));
+        } catch (IOException | IllegalArgumentException unreadable) {
+            return false;
+        }
+    }
+
+    private static boolean completedSaveLifecycle(Path session) {
+        Path attestationPath = session.resolve(PILOT_ATTESTATION_FILE);
+        try {
+            Map<String, Object> attestation = BoundedEvidenceJson.readObject(
+                    attestationPath, MAX_PILOT_ATTESTATION_BYTES, "Gameplay pilot attestation");
+            return PILOT_ATTESTATION_FORMAT.equals(attestation.get("format"))
+                    && Boolean.TRUE.equals(attestation.get("complete"))
+                    && Boolean.TRUE.equals(attestation.get("attested"));
         } catch (IOException | IllegalArgumentException unreadable) {
             return false;
         }
@@ -170,14 +201,16 @@ final class EvidenceRetention {
             long bytes,
             long files,
             long modifiedMillis,
-            boolean completedPairedBenchmark) {
+            boolean completedPairedBenchmark,
+            boolean completedSaveLifecycle) {
         boolean sameSnapshot(Session other) {
             return kind.equals(other.kind)
                     && path.equals(other.path)
                     && bytes == other.bytes
                     && files == other.files
                     && modifiedMillis == other.modifiedMillis
-                    && completedPairedBenchmark == other.completedPairedBenchmark;
+                    && completedPairedBenchmark == other.completedPairedBenchmark
+                    && completedSaveLifecycle == other.completedSaveLifecycle;
         }
     }
 

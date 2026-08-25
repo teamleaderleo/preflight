@@ -160,6 +160,7 @@ class SaveStateGuardTest(unittest.TestCase):
         self.assertEqual(hashlib.sha256(after.read_bytes()).hexdigest(), result["evidence"]["saveStateAfter"]["sha256"])
         self.assertTrue(result["evidence"]["saveBoundaryAccepted"])
         self.assertEqual("COMPLETED", result["evidence"]["run"]["outcome"])
+        self.assertEqual("aa" * 32, result["evidence"]["profile"]["profileFingerprint"])
         self.assertEqual("ACTIVE", result["evidence"]["adapterHealth"]["status"])
         self.assertEqual(2400, result["evidence"]["routeCoverage"]["combatFrames"])
         self.assertEqual(self.configuration(), result["configuration"])
@@ -405,6 +406,29 @@ class SaveStateGuardTest(unittest.TestCase):
                 configuration=self.configuration(),
             )
 
+    def test_pilot_rejects_a_run_report_for_another_profile(self):
+        engine = Path(self.temporary.name) / "preflight.jar"
+        engine.write_bytes(b"engine")
+        pilot_evidence = self.pilot_evidence(engine)
+        run = json.loads(pilot_evidence["run_path"].read_text(encoding="utf-8"))
+        run["profile"] = str(Path(self.temporary.name) / "other-profile.json")
+        pilot_evidence["run_path"].write_text(json.dumps(run), encoding="utf-8")
+
+        with self.assertRaisesRegex(module.GuardError, "different profile report"):
+            module.pilot_attestation(
+                before_path=self.snapshot_file(),
+                after_path=Path(self.temporary.name) / "missing.json",
+                engine_path=engine,
+                **pilot_evidence,
+                selected_save=self.selected.name,
+                source_revision="96" * 20,
+                source_dirty=False,
+                process_exit_status=0,
+                reload_attested=False,
+                recorded_at="2026-08-26T04:33:52Z",
+                configuration=self.configuration(),
+            )
+
     def test_no_adapter_diagnostic_can_still_bind_a_complete_save_lifecycle(self):
         before = self.snapshot_file()
         (self.selected / "campaign.xml").write_text("after", encoding="utf-8")
@@ -413,11 +437,18 @@ class SaveStateGuardTest(unittest.TestCase):
         engine = Path(self.temporary.name) / "preflight.jar"
         engine.write_bytes(b"engine")
         run_path = Path(self.temporary.name) / "run.json"
+        profile_path = Path(self.temporary.name) / "profile.json"
+        profile_path.write_text(json.dumps({
+            "profileFingerprint": "aa" * 32,
+            "installRoot": "/Applications/Starsector.app",
+        }), encoding="utf-8")
         run_path.write_text(json.dumps({
             "outcome": "COMPLETED",
             "exitCode": 0,
             "adapterMode": "OFF",
             "preflightJarSha256": hashlib.sha256(engine.read_bytes()).hexdigest(),
+            "profile": str(profile_path.absolute()),
+            "installRoot": "/Applications/Starsector.app",
         }), encoding="utf-8")
 
         result = module.pilot_attestation(
@@ -425,6 +456,7 @@ class SaveStateGuardTest(unittest.TestCase):
             after_path=after,
             engine_path=engine,
             run_path=run_path,
+            profile_path=profile_path,
             adapter_path=Path(self.temporary.name) / "missing-adapter.json",
             adapter_health_path=Path(self.temporary.name) / "missing-health.json",
             selected_save=self.selected.name,
@@ -461,6 +493,7 @@ class SaveStateGuardTest(unittest.TestCase):
             "--after", str(after),
             "--engine", str(engine),
             "--run", str(pilot_evidence["run_path"]),
+            "--profile-report", str(pilot_evidence["profile_path"]),
             "--adapter-report", str(pilot_evidence["adapter_path"]),
             "--adapter-health", str(pilot_evidence["adapter_health_path"]),
             "--selected", self.selected.name,
@@ -496,6 +529,7 @@ class SaveStateGuardTest(unittest.TestCase):
             "--after", str(Path(self.temporary.name) / "missing-after.json"),
             "--engine", str(engine),
             "--run", str(pilot_evidence["run_path"]),
+            "--profile-report", str(pilot_evidence["profile_path"]),
             "--adapter-report", str(pilot_evidence["adapter_path"]),
             "--adapter-health", str(pilot_evidence["adapter_health_path"]),
             "--selected", self.selected.name,
@@ -541,6 +575,7 @@ class SaveStateGuardTest(unittest.TestCase):
     ):
         root = Path(self.temporary.name)
         run_path = root / "run.json"
+        profile_path = root / "profile.json"
         adapter_path = root / "adapter.json"
         adapter_health_path = root / "adapter-health.json"
         adapter = {
@@ -569,14 +604,21 @@ class SaveStateGuardTest(unittest.TestCase):
             "exitCode": process_exit_status,
             "adapterMode": "ENABLED",
             "preflightJarSha256": hashlib.sha256(engine.read_bytes()).hexdigest(),
+            "profile": str(profile_path.absolute()),
+            "installRoot": "/Applications/Starsector.app",
             "adapterReport": str(adapter_path.absolute()),
             "adapterHealthReport": str(adapter_health_path.absolute()),
         }
         adapter_path.write_text(json.dumps(adapter), encoding="utf-8")
         adapter_health_path.write_text(json.dumps(health), encoding="utf-8")
+        profile_path.write_text(json.dumps({
+            "profileFingerprint": "aa" * 32,
+            "installRoot": "/Applications/Starsector.app",
+        }), encoding="utf-8")
         run_path.write_text(json.dumps(run), encoding="utf-8")
         return {
             "run_path": run_path,
+            "profile_path": profile_path,
             "adapter_path": adapter_path,
             "adapter_health_path": adapter_health_path,
         }

@@ -15,10 +15,11 @@ from pathlib import Path
 
 
 FORMAT = "preflight-campaign-save-state-v1"
-ATTESTATION_FORMAT = "preflight-gameplay-pilot-operator-attestation-v3"
+ATTESTATION_FORMAT = "preflight-gameplay-pilot-operator-attestation-v4"
 MAX_SNAPSHOT_BYTES = 4 * 1024 * 1024
 MAX_ENGINE_BYTES = 256 * 1024 * 1024
 MAX_RUN_REPORT_BYTES = 1024 * 1024
+MAX_PROFILE_REPORT_BYTES = 32 * 1024 * 1024
 MAX_ADAPTER_REPORT_BYTES = 32 * 1024 * 1024
 MAX_ADAPTER_HEALTH_BYTES = 1024 * 1024
 MAX_DISABLED_PLANS_BYTES = 4 * 1024
@@ -310,11 +311,33 @@ def _frame_count(adapter: dict[str, object], section: str) -> int:
     return _whole_number(distribution.get("frames"), f"{section} frames")
 
 
+def _profile_evidence(
+        path: Path,
+) -> tuple[dict[str, object], dict[str, object]]:
+    profile, identity = _json_object_evidence(
+        path, "pilot profile report", MAX_PROFILE_REPORT_BYTES
+    )
+    fingerprint = profile.get("profileFingerprint")
+    if not isinstance(fingerprint, str) or SOURCE_REVISION_PATTERN.fullmatch(fingerprint) is None \
+            or len(fingerprint) != 64:
+        raise GuardError("pilot profile report lacks a lowercase SHA-256 fingerprint")
+    install_root = profile.get("installRoot")
+    if not isinstance(install_root, str) or not install_root:
+        raise GuardError("pilot profile report lacks its installation root")
+    return profile, {
+        **identity,
+        "profileFingerprint": fingerprint,
+        "installRoot": install_root,
+    }
+
+
 def _run_evidence(
         path: Path,
         engine_identity: dict[str, object],
         process_exit_status: int,
         adapter_expected: bool,
+        profile_path: Path,
+        profile: dict[str, object],
         adapter_path: Path,
         adapter_health_path: Path,
 ) -> dict[str, object]:
@@ -326,6 +349,10 @@ def _run_evidence(
     expected_mode = "ENABLED" if adapter_expected else "OFF"
     if run.get("adapterMode") != expected_mode:
         raise GuardError("pilot run report adapter mode differs from the requested configuration")
+    if run.get("profile") != str(profile_path.absolute()):
+        raise GuardError("pilot run report names a different profile report")
+    if run.get("installRoot") != profile["installRoot"]:
+        raise GuardError("pilot run and profile reports disagree about the installation root")
     if adapter_expected:
         expected_adapter = str(adapter_path.absolute())
         expected_health = str(adapter_health_path.absolute())
@@ -409,6 +436,7 @@ def pilot_attestation(
         after_path: Path,
         engine_path: Path,
         run_path: Path,
+        profile_path: Path,
         adapter_path: Path,
         adapter_health_path: Path,
         selected_save: str,
@@ -463,13 +491,19 @@ def pilot_attestation(
     engine_identity = _evidence_identity(
         engine_path, maximum_bytes=MAX_ENGINE_BYTES, label="pilot engine JAR"
     )
+    profile = None
+    profile_identity = None
+    if profile_path.exists():
+        profile, profile_identity = _profile_evidence(profile_path)
     run_identity = None
-    if run_path.exists():
+    if run_path.exists() and profile is not None:
         run_identity = _run_evidence(
             run_path,
             engine_identity,
             process_exit_status,
             bool(configuration["adapter"]),
+            profile_path,
+            profile,
             adapter_path,
             adapter_health_path,
         )
@@ -489,8 +523,10 @@ def pilot_attestation(
     reasons = []
     if process_exit_status != 0:
         reasons.append("the pilot process did not exit successfully")
-    if run_identity is None:
+    if not run_path.exists():
         reasons.append("the pilot run report was not produced")
+    if profile_identity is None:
+        reasons.append("the pilot profile report was not produced")
     if boundary is None:
         reasons.append("the save-state comparison was not produced")
     elif boundary["accepted"] is not True:
@@ -539,6 +575,7 @@ def pilot_attestation(
             "saveStateAfter": boundary_identity,
             "saveBoundaryAccepted": boundary["accepted"] if boundary is not None else None,
             "run": run_identity,
+            "profile": profile_identity,
             "adapter": adapter_identity,
             "adapterHealth": adapter_health_identity,
             "routeCoverage": route_coverage,
@@ -571,6 +608,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     attest_parser.add_argument("--after", type=Path, required=True)
     attest_parser.add_argument("--engine", type=Path, required=True)
     attest_parser.add_argument("--run", type=Path, required=True)
+    attest_parser.add_argument("--profile-report", type=Path, required=True)
     attest_parser.add_argument("--adapter-report", type=Path, required=True)
     attest_parser.add_argument("--adapter-health", type=Path, required=True)
     attest_parser.add_argument("--selected", required=True)
@@ -605,6 +643,7 @@ def main(argv: list[str] | None = None) -> int:
             after_path=args.after,
             engine_path=args.engine,
             run_path=args.run,
+            profile_path=args.profile_report,
             adapter_path=args.adapter_report,
             adapter_health_path=args.adapter_health,
             selected_save=args.selected,

@@ -353,6 +353,7 @@ python3 "$SAVE_GUARD" attest \
     --after "$SAVE_STATE_AFTER" \
     --engine "$JAR" \
     --run "$OUT/run.json" \
+    --profile-report "$OUT/profile.json" \
     --adapter-report "$OUT/adapter.json" \
     --adapter-health "$OUT/adapter-health.json" \
     --selected "$DISPOSABLE_SAVE" \

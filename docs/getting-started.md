@@ -121,9 +121,9 @@ current and saved profiles ready, keeps a small recent set of reports and benchm
 older unreachable data. Nothing is removed until you confirm the measured plan.
 
 Routine reports don't accumulate indefinitely: while the desktop is open and idle, Preflight keeps
-10 launch reports—including the latest completed paired comparison when available—and the 5 newest
-benchmark campaigns automatically. **Free space** remains useful for inspecting prepared-data
-cleanup or retrying maintenance that couldn't run earlier.
+10 launch reports—including the latest completed paired comparison and identity-bound save/reload
+check when available—and the 5 newest benchmark campaigns automatically. **Free space** remains
+useful for inspecting prepared-data cleanup or retrying maintenance that couldn't run earlier.
 
 Two separate choices, both preview-first:
 

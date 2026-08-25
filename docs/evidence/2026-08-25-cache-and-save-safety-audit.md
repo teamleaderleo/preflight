@@ -58,14 +58,14 @@ is create-once. Its separate operator attestation records whether the changed co
 title screen, reloaded, resumed play, and exited normally, then binds that statement to the exact
 before/after report bytes, tested engine JAR, source revision and dirty state, probe configuration,
 and process exit status. Stable regular-file reads prevent the evidence from changing between
-validation and hashing. It also binds the bounded `run.json`, `adapter.json`, and
-`adapter-health.json` bytes, rejects a run report for another engine or adapter mode, and checks that
-the adapter and health verdict agree. With the adapter enabled, the receipt cannot be complete
-unless frame telemetry covers campaign warm-up, settled campaign, and combat in addition to a
-successful process, accepted save boundary, and exact reload/resume confirmation. Neither check
-edits a save. The content comparison proves the write boundary; frame telemetry proves the broad
-route sections occurred; the human interaction still establishes whether the selected copy remained
-usable after reload.
+validation and hashing. It also binds the bounded `run.json`, `profile.json`, `adapter.json`, and
+`adapter-health.json` bytes, rejects a run report for another engine, mod profile, installation, or
+adapter mode, and checks that the adapter and health verdict agree. With the adapter enabled, the
+receipt cannot be complete unless frame telemetry covers campaign warm-up, settled campaign, and
+combat in addition to a successful process, accepted save boundary, and exact reload/resume
+confirmation. Neither check edits a save. The content comparison proves the write boundary; frame
+telemetry proves the broad route sections occurred; the human interaction still establishes whether
+the selected copy remained usable after reload.
 
 That run can show that one reviewed profile completes the lifecycle. It cannot prove every possible
 mod's serialization behavior. The structural protection remains that prepared caches are never

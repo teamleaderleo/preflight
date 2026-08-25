@@ -150,11 +150,12 @@ only after reachability is complete. Unknown profiles, unreadable manifests, dam
 identity ambiguity retain data instead of guessing.
 
 Launch reports and benchmark sessions have a separate retention plan because deleting them cannot
-affect launch speed. The desktop keeps 10 launch reports, reserving one of those bounded slots for
-the newest completed paired comparison when one exists, plus the 5 newest benchmark campaigns when
-a player chooses **Free space**. It shows acceleration and evidence separately, combines both safe
-plans into one review, and recalculates each plan before deletion. Current and named profiles remain
-reachable; Starsector, mods, saves, and settings are outside both cleanup roots.
+affect launch speed. The desktop keeps 10 launch reports, reserving bounded slots for the newest
+completed paired comparison and identity-bound save/reload check when they exist, plus the 5 newest
+benchmark campaigns when a player chooses **Free space**. It shows acceleration and evidence
+separately, combines both safe plans into one review, and recalculates each plan before deletion.
+Current and named profiles remain reachable; Starsector, mods, saves, and settings are outside both
+cleanup roots.
 
 The same evidence retention runs quietly once the desktop is ready and idle. When the complete
 cache grows beyond 12 GiB, the desktop also applies the fail-closed prune plan once: current and
