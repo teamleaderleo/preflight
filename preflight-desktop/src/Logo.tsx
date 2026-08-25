@@ -2,7 +2,11 @@ import preflightMark from "./assets/preflight-mark-v12-sidebar.png";
 
 export default function Logo({ compact = false }: { compact?: boolean }) {
   return (
-    <div className={`brand ${compact ? "brand--compact" : ""}`} aria-label="Preflight">
+    <div
+      className={`brand ${compact ? "brand--compact" : ""}`}
+      role="img"
+      aria-label={compact ? "Preflight" : "Preflight for Starsector"}
+    >
       <img className="brand__mark" src={preflightMark} alt="" />
       {/*
         * The wordmark alone never says what this launches. The subtitle is label-sized and lives

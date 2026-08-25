@@ -162,7 +162,7 @@ test("the default cold-profile action prepares with balanced settings and then l
   expect(screen.queryByText("First launch setup")).not.toBeInTheDocument();
   expect(screen.getByText(/Uses about .* · .* free\./))
     .toBeInTheDocument();
-  expect(screen.getByLabelText("186h played across 78 recorded sessions")).toBeInTheDocument();
+  expect(screen.getByRole("group", { name: "186h played across 78 recorded sessions" })).toBeInTheDocument();
   expect(within(screen.getByRole("main")).queryByText(/^for Starsector$/i)).not.toBeInTheDocument();
   expect(screen.getByText(/^for Starsector$/i)).toBeInTheDocument();
   await user.click(action);
@@ -366,7 +366,7 @@ test("shows a useful ready-state home screen in browser preview", async () => {
   expect(screen.getAllByText("Launch Starsector")).toHaveLength(1);
   expect(screen.queryByRole("button", { name: "Choose another" })).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Active profile")).not.toBeInTheDocument();
-  expect(screen.getByLabelText("186h played across 78 recorded sessions")).toBeInTheDocument();
+  expect(screen.getByRole("group", { name: "186h played across 78 recorded sessions" })).toBeInTheDocument();
   expect(screen.queryByLabelText("Mod profile")).not.toBeInTheDocument();
   expect(window.localStorage.getItem(HOME_OPTIONS_STORAGE_KEY)).toBeNull();
   await user.click(screen.getByRole("button", { name: "Options" }));

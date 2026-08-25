@@ -17,7 +17,7 @@ test("puts the player-named setup first and opens saved profiles from it", async
   await user.click(screen.getByRole("button", { name: "Open saved profiles. Current profile: Main campaign" }));
   expect(onOpenProfiles).toHaveBeenCalledOnce();
 
-  const path = screen.getByLabelText("Installation /Applications/Starsector");
+  const path = screen.getByRole("note", { name: "Installation /Applications/Starsector" });
   expect(path).toHaveAttribute("tabindex", "0");
   expect(path).toHaveAttribute("data-full-path", "/Applications/Starsector");
   expect(path).toHaveAttribute("title", "/Applications/Starsector");

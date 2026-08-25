@@ -415,7 +415,7 @@ export function HomePage({
             </div>
           ) : null}
           {isReady && playtime && hasPlaytime && playtimeTotal ? (
-            <div className="home-playtime home-hud-layer" aria-label={`${formatPlaytime(playtime.totalMillis)} played across ${playtime.launches.toLocaleString()} recorded sessions`}>
+            <div className="home-playtime home-hud-layer" role="group" aria-label={`${formatPlaytime(playtime.totalMillis)} played across ${playtime.launches.toLocaleString()} recorded sessions`}>
               <strong>{playtimeTotal.value}<i>{playtimeTotal.unit}</i></strong>
               <span>{playtime.launches.toLocaleString()} sessions</span>
             </div>
@@ -532,7 +532,7 @@ export function HomePage({
             )}
           </div>
           {isReady && homeLayoutState === "settled" ? (
-            <div className="home-ship-picker home-hud-layer" aria-label="Display ship">
+            <div className="home-ship-picker home-hud-layer" role="group" aria-label="Display ship">
               <button type="button" aria-label="Previous display ship" title="Previous ship" onClick={() => cycleHull(-1)} disabled={instrumentHull.hulls.length < 2}><ArrowIcon /></button>
               <button className="home-ship-name" type="button" title="Choose a display ship" onClick={() => onNavigate("hangar")}>{instrumentHull.selected.name}</button>
               <button type="button" aria-label="Next display ship" title="Next ship" onClick={() => cycleHull(1)} disabled={instrumentHull.hulls.length < 2}><ArrowIcon /></button>

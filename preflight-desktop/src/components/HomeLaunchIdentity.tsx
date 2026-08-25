@@ -22,6 +22,7 @@ export function HomeLaunchIdentity({ installRoot, profileName, onOpenProfiles }:
       ) : null}
       <span
         className="home-launch-path"
+        role="note"
         tabIndex={0}
         aria-label={`Installation ${installRoot}`}
         data-full-path={installRoot}
