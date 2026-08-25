@@ -100,7 +100,7 @@ export function HelpPage({
             <button className="button button--quiet button--support" type="button" onClick={() => void saveDiagnostics()} disabled={operationBlocked || diagnosticsBusy || reportUploading}>
               <FolderIcon />{diagnosticsBusy ? "Creating…" : diagnosticsExport ? "Make another one" : "Make a support file"}
             </button>
-            {diagnosticsExport ? <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>{reportReceipt ? "Receipt below" : "Review and send"}</button> : null}
+            {diagnosticsExport ? <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>{reportReceipt ? "Sent" : "Review and send"}</button> : null}
           </div>
         </div>
         {setupCopy.state === "error" && setupCopy.text ? (
@@ -122,7 +122,7 @@ export function HelpPage({
               <ul>
                 <li>Run outcome, runtime, adapter health and timing summaries</li>
                 <li>Enabled-mod and resource names, counts, sizes and content hashes</li>
-                <li>Benchmark identity, settings and result metadata</li>
+                <li>Benchmark settings and results</li>
                 <li>A list of every file included or skipped</li>
               </ul>
             </section>
@@ -156,7 +156,7 @@ export function HelpPage({
           </div>
           <div className="report-contents">
             <strong>Included entries ({diagnosticsExport.included.length})</strong>
-            {diagnosticsExport.included.length > 0 ? <ul>{diagnosticsExport.included.map((entry) => <li key={entry.entry}><span>{entry.entry}</span><small>{formatBytes(entry.bytes)}</small></li>)}</ul> : <p>No run or benchmark details were found. The file contains only this list and its manifest.</p>}
+            {diagnosticsExport.included.length > 0 ? <ul>{diagnosticsExport.included.map((entry) => <li key={entry.entry}><span>{entry.entry}</span><small>{formatBytes(entry.bytes)}</small></li>)}</ul> : <p>No run or benchmark details were found. The file contains only its contents list.</p>}
           </div>
           <p>Personal paths are hidden.</p>
           {diagnosticsExport.skipped.length > 0 ? <p>{diagnosticsExport.skipped.length} source file{diagnosticsExport.skipped.length === 1 ? " was" : "s were"} skipped.</p> : null}

@@ -136,10 +136,10 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
         if (payload.state === "failed") {
           const detail = payload.detail ?? "The report could not be sent.";
           setReportError(detail);
-          announce(`Report wasn’t sent. The diagnostics ZIP is still on this computer. ${detail}`, "error");
+          announce(`Report wasn’t sent. The support file is still on this computer. ${detail}`, "error");
           return;
         }
-        announce(payload.detail ?? "The local diagnostics ZIP is unchanged.", "warning");
+        announce(payload.detail ?? "The support file on this computer is unchanged.", "warning");
         return;
       }
       if (payload.state === "finished" && payload.receipt) {
@@ -233,10 +233,10 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
       const nativeError = nativeCommandError(error);
       const detail = nativeError?.message ?? errorMessage(error);
       if (nativeError?.code === "report-upload-cancelled") {
-        announce("Report upload stopped. The diagnostics ZIP is still on this computer.", "warning");
+        announce("Upload stopped. The support file is still on this computer.", "warning");
       } else {
         setReportError(detail);
-        announce(`Report wasn’t sent. The diagnostics ZIP is still on this computer. ${detail}`, "error");
+        announce(`Report wasn’t sent. The support file is still on this computer. ${detail}`, "error");
       }
     } finally {
       reportUploadingRef.current = false;
@@ -290,7 +290,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
       await deleteRunReport(reportReceipt.deletion);
       const caseId = reportReceipt.caseId;
       setReportReceipt(null);
-      announce(`Run report ${caseId} was deleted. Your local diagnostics ZIP is unchanged.`, "success");
+      announce(`Uploaded file ${caseId} was deleted. The support file on this computer is unchanged.`, "success");
     } catch (error) {
       announce(errorMessage(error), "error");
     } finally {
