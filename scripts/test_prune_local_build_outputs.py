@@ -12,7 +12,7 @@ import prune_local_build_outputs as prune
 
 
 class SelectionTest(unittest.TestCase):
-    def test_default_cli_does_not_reserve_a_completed_build_set(self):
+    def test_default_cli_does_not_reserve_a_completed_worktree(self):
         with patch.object(sys, "argv", ["prune_local_build_outputs.py"]):
             self.assertEqual(0, prune.parse_args().keep_completed)
 
@@ -100,6 +100,62 @@ class SelectionTest(unittest.TestCase):
             self.assertIn(current_isolated_runtime, prune.rebuildable_outputs(current, current))
             self.assertIn(sibling_dependencies, prune.rebuildable_outputs(sibling, current))
 
+    def test_discovery_ages_generated_outputs_independently(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            current = base / "current"
+            current.mkdir()
+            sibling = base / "sibling"
+            old_target = sibling / "preflight-cli" / "target"
+            old_binary = old_target / "preflight.jar"
+            old_binary.parent.mkdir(parents=True)
+            old_binary.write_bytes(b"old binary")
+            source = sibling / "preflight-cli" / "src" / "Keep.java"
+            source.parent.mkdir(parents=True)
+            source.write_text("class Keep {}", encoding="utf-8")
+            recent_cache = sibling / "scripts" / "__pycache__"
+            recent_bytecode = recent_cache / "operator.pyc"
+            recent_bytecode.parent.mkdir(parents=True)
+            recent_bytecode.write_bytes(b"recent bytecode")
+            now = time.time()
+            old = now - 100 * 3600
+            recent = now - 2 * 3600
+            os.utime(old_binary, (old, old))
+            os.utime(old_target, (old, old))
+            os.utime(recent_bytecode, (recent, recent))
+            os.utime(recent_cache, (recent, recent))
+
+            with (
+                patch.object(prune, "registered_worktrees", return_value=[sibling]),
+                patch.object(prune, "has_source_changes", return_value=True),
+            ):
+                builds = prune.discover_build_sets(current)
+
+            self.assertEqual(2, len(builds))
+            decisions = prune.choose_build_sets(
+                builds,
+                now=now,
+                keep_completed=0,
+                minimum_age_hours=24,
+                maximum_age_hours=72,
+            )
+            by_output = {
+                decision.build.outputs[0].relative_to(sibling).as_posix(): decision
+                for decision in decisions
+            }
+            self.assertEqual("remove", by_output["preflight-cli/target"].action)
+            self.assertIn(
+                "source changes remain untouched",
+                by_output["preflight-cli/target"].reason,
+            )
+            self.assertEqual("keep", by_output["scripts/__pycache__"].action)
+
+            prune.remove_outputs(by_output["preflight-cli/target"].build)
+
+            self.assertFalse(old_target.exists())
+            self.assertTrue(recent_cache.exists())
+            self.assertEqual("class Keep {}", source.read_text(encoding="utf-8"))
+
     def test_parent_dependency_tree_replaces_nested_generated_output(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary).resolve()
@@ -177,6 +233,66 @@ class SelectionTest(unittest.TestCase):
 
         self.assertEqual("remove", decision.action)
         self.assertIn("beyond 72-hour retention limit", decision.reason)
+
+    def test_completed_slots_retain_distinct_worktrees_not_individual_outputs(self):
+        now = 1_000_000.0
+        first_root = Path("/worktrees/first")
+        second_root = Path("/worktrees/second")
+        builds = [
+            prune.BuildSet(
+                first_root,
+                (first_root / "preflight-cli/target",),
+                now - 30 * 3600,
+            ),
+            prune.BuildSet(
+                first_root,
+                (first_root / "scripts/__pycache__",),
+                now - 31 * 3600,
+            ),
+            prune.BuildSet(
+                second_root,
+                (second_root / "preflight-cli/target",),
+                now - 32 * 3600,
+            ),
+        ]
+
+        decisions = prune.choose_build_sets(
+            builds,
+            now=now,
+            keep_completed=2,
+            minimum_age_hours=24,
+        )
+
+        self.assertTrue(all(decision.action == "keep" for decision in decisions))
+
+    def test_retained_worktree_does_not_extend_an_individual_output_past_hard_limit(self):
+        now = 1_000_000.0
+        root = Path("/worktrees/retained")
+        builds = [
+            prune.BuildSet(
+                root,
+                (root / "preflight-cli/target",),
+                now - 100 * 3600,
+            ),
+            prune.BuildSet(
+                root,
+                (root / "scripts/__pycache__",),
+                now - 30 * 3600,
+            ),
+        ]
+
+        decisions = prune.choose_build_sets(
+            builds,
+            now=now,
+            keep_completed=1,
+            minimum_age_hours=24,
+            maximum_age_hours=72,
+        )
+        by_output = {decision.build.outputs[0].name: decision for decision in decisions}
+
+        self.assertEqual("remove", by_output["target"].action)
+        self.assertEqual("keep", by_output["__pycache__"].action)
+        self.assertIn("retained clean worktree", by_output["__pycache__"].reason)
 
     def test_expired_dirty_build_preserves_its_source_changes(self):
         decision = prune.choose_build_sets(

@@ -164,15 +164,19 @@ def discover_build_sets(current_root: Path) -> list[BuildSet]:
         if symlinks:
             joined = ", ".join(str(path) for path in symlinks)
             raise RuntimeError(f"refusing symlinked build output: {joined}")
-        metrics = [output_metrics(path) for path in outputs]
-        builds.append(BuildSet(
-            root=root,
-            outputs=outputs,
-            newest_mtime=max(newest_mtime for _, newest_mtime in metrics),
-            current=root == current_root,
-            dirty=has_source_changes(root),
-            total_bytes=sum(total_bytes for total_bytes, _ in metrics),
-        ))
+        dirty = has_source_changes(root)
+        # Age each top-level output independently. A freshly touched small cache must not extend
+        # the retention of an unrelated old compiler or package tree in the same worktree.
+        for output in outputs:
+            total_bytes, newest_mtime = output_metrics(output)
+            builds.append(BuildSet(
+                root=root,
+                outputs=(output,),
+                newest_mtime=newest_mtime,
+                current=root == current_root,
+                dirty=dirty,
+                total_bytes=total_bytes,
+            ))
     return builds
 
 
@@ -192,15 +196,25 @@ def choose_build_sets(
     if maximum_age_hours < minimum_age_hours:
         raise ValueError("maximum_age_hours must be at least minimum_age_hours")
 
-    completed = sorted(
-        (build for build in builds if not build.current and not build.dirty),
-        key=lambda build: (build.newest_mtime, str(build.root)),
+    completed_by_root: dict[Path, float] = {}
+    for build in builds:
+        if not build.current and not build.dirty:
+            completed_by_root[build.root] = max(
+                completed_by_root.get(build.root, float("-inf")),
+                build.newest_mtime,
+            )
+    completed_roots = sorted(
+        completed_by_root,
+        key=lambda root: (completed_by_root[root], str(root)),
         reverse=True,
     )
-    retained = {build.root for build in completed[:keep_completed]}
+    retained = set(completed_roots[:keep_completed])
     minimum_age_seconds = minimum_age_hours * 60 * 60
     decisions = []
-    for build in sorted(builds, key=lambda candidate: str(candidate.root)):
+    for build in sorted(
+        builds,
+        key=lambda candidate: (str(candidate.root), tuple(map(str, candidate.outputs))),
+    ):
         age_hours = max(0.0, now - build.newest_mtime) / 3600
         if build.current:
             if retire_current and build.dirty:
@@ -219,7 +233,7 @@ def choose_build_sets(
                 build,
                 "keep",
                 (
-                    f"newest completed build set; {age_hours:.1f} hours old, "
+                    f"retained clean worktree; output is {age_hours:.1f} hours old and "
                     f"expires at {maximum_age_hours:g} hours"
                 ),
             ))
@@ -266,7 +280,7 @@ def parse_args() -> argparse.Namespace:
         "--keep-completed",
         type=int,
         default=0,
-        help="number of newest clean, non-current build sets to retain after 24 hours (default: 0)",
+        help="number of newest clean, non-current worktrees to retain after 24 hours (default: 0)",
     )
     parser.add_argument(
         "--minimum-age-hours",
