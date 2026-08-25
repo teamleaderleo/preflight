@@ -86,7 +86,7 @@ see the run status or stop a frozen game. **Stop Starsector** first requests a n
 the run report can finish; force stop appears only if that exact process doesn't respond. Settings
 also lets Preflight stay open or quit after launch. Playtime and run evidence continue recording
 in every mode. If you enable **Record frame pacing** in Settings, ordinary Recommended or
-Compatibility launches also leave a bounded local FPS/frame-time summary on Speed after the game
+Conservative launches also leave a bounded local FPS/frame-time summary on Speed after the game
 exits. Starsector's own counter remains the live display; Preflight's summary does not read or write
 your save. Recording pauses while optimizations are Off.
 

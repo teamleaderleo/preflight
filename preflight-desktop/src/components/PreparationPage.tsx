@@ -178,12 +178,12 @@ export function PreparationPage({
           <p>{optimizationPreset === "off"
             ? "Preflight won’t apply optimizations. Prepared data stays here for when you turn them back on."
             : optimizationPreset === "conservative"
-              ? "Compatibility mode uses startup caches with the game’s original code. Try it if the default mode causes trouble."
+              ? "Conservative mode uses startup caches with the game’s original code. Try it if the default mode causes trouble."
               : "Preflight creates reusable startup data for your current mod setup, then reuses it on later launches."}</p>
         </div>
         <label className="simple-switch">
           <input type="checkbox" aria-label="Use Preflight optimizations" checked={optimizationPreset !== "off"} onChange={(event) => onOptimizationPresetChange(event.target.checked ? "recommended" : "off")} disabled={operationBlocked} />
-          <span>{optimizationPreset === "off" ? "Off" : optimizationPreset === "conservative" ? "Compatibility" : "On"}</span>
+          <span>{optimizationPreset === "off" ? "Off" : optimizationPreset === "conservative" ? "Conservative" : "On"}</span>
         </label>
       </section>
 

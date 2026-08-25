@@ -38,7 +38,7 @@ frame boundary without enabling desktop-smoke automation or its one-second live 
 Do not inject a second counter into Starsector as the first feature. It would duplicate a display
 the game already owns while adding render-hook, fullscreen, scaling, and compatibility risk.
 
-The desktop now has an optional **Record frame pacing** preference. Recommended and Compatibility
+The desktop now has an optional **Record frame pacing** preference. Recommended and Conservative
 launches reuse the existing exact-pinned frame boundary, then the latest run snapshot exposes only
 a compact average-FPS, one-percent-low, and p95/p99 summary. The desktop prefers settled campaign
 frames when available, labels that warm-up exclusion, shows campaign and combat separately, and

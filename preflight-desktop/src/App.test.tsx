@@ -1015,7 +1015,8 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   await user.click(screen.getByRole("radio", { name: "Conservative optimizations" }));
   expect(screen.getByRole("radio", { name: "Conservative optimizations" })).toBeChecked();
   expect(screen.getByRole("checkbox", { name: "Use Preflight optimizations" }).closest("label"))
-    .toHaveTextContent("Compatibility");
+    .toHaveTextContent("Conservative");
+  expect(screen.getByText(/Conservative mode uses startup caches/)).toBeInTheDocument();
   expect(screen.getByRole("radio", { name: /Balanced/ })).toBeChecked();
   expect(screen.getByRole("checkbox", { name: /Prepared textures/ })).toBeChecked();
   expect(screen.getByRole("checkbox", { name: /Prepared audio/ })).toBeChecked();
