@@ -2,6 +2,8 @@
 
 Date: 2026-08-25
 
+Updated: 2026-08-26
+
 Status: source, product copy, development automation, and retained evidence reviewed
 
 ## What the current design establishes
@@ -20,6 +22,20 @@ artifact falls back to the game's normal work rather than becoming authoritative
 This is a containment argument, not a promise that every future game/mod combination is correct.
 The remaining confidence comes from exact-target tests, installed-archive transforms, live adapter
 health, and save/reload exercises.
+
+## Optimized launch checks the cache boundary itself
+
+The read-only health view is not the launch authority. Before selecting any prepared texture,
+generated-code, spec-store, or audio context, the common CLI launch selector now canonicalizes each
+cache root it will actually use and refuses a symbolic or non-directory root. The texture resolver
+repeats that check before opening its current-profile index. This covers desktop launches and direct
+`preflight run` use rather than depending on the renderer to have inspected the same path first.
+
+An optimized CLI launch that cannot verify the boundary stops before profile scanning and names
+`--optimization-preset off` as the no-prepared-data route. Off / troubleshooting does not inspect or
+open the unsafe cache root at all. Regression coverage places a default cache behind a symlink,
+proves optimized selection refuses it, and proves the Off selector returns no prepared contexts
+without touching it.
 
 ## Repair stays inside Preflight's owned profile
 

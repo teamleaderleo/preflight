@@ -3,16 +3,20 @@ package dev.starsector.preflight.cli;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import dev.starsector.preflight.core.TextureManifest;
 import dev.starsector.preflight.core.TextureManifestIO;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.jar.JarOutputStream;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -68,6 +72,36 @@ class LaunchCacheContextsTest {
     }
 
     @Test
+    void optimizedSelectionRefusesASymlinkedDefaultCacheBeforeOpeningAProfile() throws Exception {
+        Path outside = Files.createDirectory(temporaryDirectory.resolve("outside-cache"));
+        Path cache = symlinkOrSkip(temporaryDirectory.resolve("cache-link"), outside);
+        CommandLine options = CommandLine.parse(new String[] {
+                "run", "--adapter", "--janino-bytecode-cache"
+        }, 1);
+
+        IOException error = assertThrows(IOException.class, () ->
+                LaunchCacheContexts.select(options, target(), true, cache));
+
+        assertTrue(error.getMessage().contains("cache root isn't a real directory"), error.getMessage());
+        assertTrue(error.getMessage().contains("--optimization-preset off"), error.getMessage());
+    }
+
+    @Test
+    void unoptimizedSelectionDoesNotTouchAnUnsafePreparedDataRoot() throws Exception {
+        Path outside = Files.createDirectory(temporaryDirectory.resolve("outside-off-cache"));
+        Path cache = symlinkOrSkip(temporaryDirectory.resolve("off-cache-link"), outside);
+        CommandLine options = CommandLine.parse(new String[] {
+                "run", "--optimization-preset", "off"
+        }, 1);
+
+        LaunchCacheContexts.Result selected =
+                LaunchCacheContexts.select(options, target(), false, cache);
+
+        assertNull(selected.texture());
+        assertNoProfileCaches(selected);
+    }
+
+    @Test
     void serialAndParallelSelectionProduceTheSameTypedContexts() throws Exception {
         Path game = temporaryDirectory.resolve("synthetic-game");
         Path source = game.resolve("starsector-core/graphics/test.png");
@@ -112,6 +146,15 @@ class LaunchCacheContextsTest {
     private LaunchTarget target() {
         Path missingInstall = temporaryDirectory.resolve("missing-install");
         return target(missingInstall);
+    }
+
+    private static Path symlinkOrSkip(Path link, Path target) throws Exception {
+        try {
+            return Files.createSymbolicLink(link, target);
+        } catch (UnsupportedOperationException | java.nio.file.FileSystemException error) {
+            Assumptions.assumeTrue(false, "symbolic links are unavailable: " + error.getMessage());
+            throw error;
+        }
     }
 
     private LaunchTarget target(Path install) {
