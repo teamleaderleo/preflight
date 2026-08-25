@@ -44,7 +44,7 @@ the reports that carry a finding and omit redundant success receipts.
 
 Launch claims and their exact conditions live under `docs/evidence/`. Preparation time is separate
 from launch time. Phase-probe time also uses a different clock and cannot be compared directly.
-| `run-gameplay-pilot.sh [--game DIR] [--label NAME]` | One combat pilot with every beta probe on. Needs a human: load a campaign, open a simulation, raise the DP cap, deploy capitals, fight three to five minutes, exit normally. Reports which exact adapters applied and what their paths cost. |
+| `run-gameplay-pilot.sh [--game DIR] [--label NAME]` | One campaign/save/combat pilot with every beta probe on. Needs a human and a disposable save copy: roam through warm-up and steady state, fight a three-to-five-minute simulation, save, return to the title screen, reload, resume play, and exit normally. Reports which exact adapters applied and what their paths cost. |
 
 ## Read what a launch produced
 

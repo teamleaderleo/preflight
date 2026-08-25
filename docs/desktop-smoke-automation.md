@@ -220,9 +220,12 @@ leaves the game running. App exit also cancels an owned cache-preparation child 
 
 The product comparison contains process-to-main-menu time, its delta and percentage change, exact
 run identities, and post-run prepared-data disk usage. The separate `campaign-roam` scenarios remain
-available for development measurements of campaign readiness, FPS, frame-time tails, runtime cache
-health, and save identity. Those interactive scenarios use a platform driver and may require the
-operating system's automation permissions; they aren't part of the benchmark users run.
+available for development measurements of campaign readiness, a short movement sample, FPS,
+frame-time tails, runtime cache health, a screenshot, and a bounded log tail. They do not save,
+reload, or prove save compatibility. Those interactive scenarios use a platform driver and may
+require the operating system's automation permissions; they aren't part of the benchmark users run.
+Save/reload remains a human-operated check with a disposable save copy in
+`scripts/run-gameplay-pilot.sh`.
 
 The macOS command probes current Accessibility permission before attachment. Screen Recording is
 proved by the first bounded capture; a denial becomes `skipped`. Preflight's Info.plist explains the

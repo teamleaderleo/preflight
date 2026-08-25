@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# Launch one manually played combat pilot with every relevant beta probe enabled.
+# Launch one manually played campaign, save, and combat pilot with every relevant beta probe enabled.
 #
 # Usage:
 #   scripts/run-gameplay-pilot.sh [--game DIR] [--label NAME] [--safer-jvm] [--without-audio-repair] [--without-profile] [--without-adapter] [--disable-plans IDS]
 #
-# Load a representative campaign, open a simulation, raise the DP cap, deploy many capitals,
-# fight for three to five minutes, then exit Starsector normally. Preflight keeps a coherent JFR
-# and reports whether each exact adapter applied, how often it ran, and what its measured paths cost.
+# Load a disposable copy of a representative campaign, exercise campaign and combat play, save and
+# reload that copy, then exit Starsector normally. Preflight keeps a coherent JFR and reports whether
+# each exact adapter applied, how often it ran, and what its measured paths cost.
 set -euo pipefail
 
 GAME="${STARSECTOR_HOME:-/Applications/Starsector.app}"
@@ -174,10 +174,11 @@ echo "Adapter:          $ADAPTER"
 echo "Disabled plans:   ${DISABLED_PLANS:-none}"
 echo
 echo "In Starsector:"
-echo "  1. Load a representative campaign."
-echo "  2. Open a battle simulation and raise the DP limit."
-echo "  3. Deploy lots of capitals and fight for 3-5 minutes."
-echo "  4. Exit Starsector normally when done."
+echo "  1. Load a disposable copy of a representative campaign. Do not use the only copy of a save."
+echo "  2. Roam the campaign map long enough to include its first 30 seconds and steady state."
+echo "  3. Open a battle simulation, raise the DP limit, deploy lots of capitals, and fight for 3-5 minutes."
+echo "  4. Save the disposable campaign, return to the title screen, and reload it."
+echo "  5. Confirm campaign play resumes normally, then exit Starsector normally."
 echo
 echo "Launching now; wrapper output is being saved to $OUT/wrapper.log"
 

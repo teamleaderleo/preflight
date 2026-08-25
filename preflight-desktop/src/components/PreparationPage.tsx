@@ -165,7 +165,7 @@ export function PreparationPage({
         <div>
           <div className="heading-with-info">
             <h2>Optimizations</h2>
-            <InfoTip label="About Preflight optimizations">Preflight checks each optimization against the installed code before using it. Anything unfamiliar is left alone.</InfoTip>
+            <InfoTip label="About Preflight optimizations">Preflight checks that a runtime shortcut recognizes the installed code before applying it. If it does not, Starsector runs the original path.</InfoTip>
           </div>
           {/*
             * The switch stated its own position and nothing else, so the page named Speed opened
