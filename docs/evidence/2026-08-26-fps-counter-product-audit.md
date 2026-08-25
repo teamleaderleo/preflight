@@ -50,7 +50,8 @@ the feature neither reads nor writes campaign saves. A live desktop readout can 
 use a second display; it should reuse the same low-overhead frame boundary rather than add another
 clock to the render loop.
 
-An advanced paired campaign mode can reuse the existing measurement-only/optimized coordinator, but
-it needs a deliberately selected disposable save, a representative route longer than the current
-three-second movement smoke, and clear automation-permission review before it becomes a player
-benchmark.
+An advanced paired campaign mode can reuse the existing measurement-only/optimized coordinator.
+Both conditions launch through Preflight; the first retains measurement while withholding the
+reviewed fixes, and the second enables them. The pair still needs a deliberately selected disposable
+save, a representative route longer than the current three-second movement smoke, and clear
+automation-permission review before it becomes a player benchmark.

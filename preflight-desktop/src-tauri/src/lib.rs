@@ -16,6 +16,7 @@ mod operations;
 mod preparation;
 mod report_transport;
 mod reports;
+mod setup_summary;
 mod updates;
 
 use automation::{
@@ -34,6 +35,7 @@ use hulls::get_wireframe_hulls;
 use operations::{OperationCoordinator, OperationSnapshot, OperationState, refuse_update_install};
 use preparation::{cancel_preparation, get_preparation_plan, start_preparation};
 use reports::{cancel_run_report, delete_run_report, get_report_intake_status, send_run_report};
+use setup_summary::save_setup_summary;
 use updates::{UpdateTracker, check_for_update, install_update};
 
 #[derive(Clone, Serialize)]
@@ -684,6 +686,7 @@ pub fn run() {
             check_for_update,
             install_update,
             export_diagnostics,
+            save_setup_summary,
             get_report_intake_status,
             send_run_report,
             cancel_run_report,

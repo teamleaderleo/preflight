@@ -5281,11 +5281,31 @@ footer {
   font-size: var(--text-support);
 }
 
+.support-summary-saved {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -4px 0 4px;
+  color: var(--success);
+  font-size: var(--text-support);
+}
+
+.support-summary-saved svg {
+  width: 18px;
+  height: 18px;
+}
+
 .button--support {
   flex: 0 0 auto;
   width: 100%;
   min-width: 0;
   min-height: 52px;
+}
+
+@media (max-width: 720px) {
+  .support-card__main .report-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .setup-diagnostics__label {

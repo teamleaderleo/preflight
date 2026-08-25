@@ -1,9 +1,12 @@
 import { act, renderHook } from "@testing-library/react";
+import { save as saveFile } from "@tauri-apps/plugin-dialog";
 import {
   getCacheInspection,
   getLaunchSettings,
   getProfiles,
   getSnapshot,
+  isDesktopHost,
+  saveSetupSummary as saveSetupSummaryFile,
 } from "./bridge";
 import { readLastInstallRoot } from "./desktopStorage";
 import { useCopySetup } from "./useCopySetup";
@@ -13,7 +16,10 @@ vi.mock("./bridge", () => ({
   getLaunchSettings: vi.fn(),
   getProfiles: vi.fn(),
   getSnapshot: vi.fn(),
+  isDesktopHost: vi.fn(),
+  saveSetupSummary: vi.fn(),
 }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ save: vi.fn() }));
 vi.mock("./desktopStorage", () => ({
   readLastInstallRoot: vi.fn(),
 }));
@@ -21,6 +27,7 @@ vi.mock("./desktopStorage", () => ({
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(readLastInstallRoot).mockReturnValue("/Applications/Starsector");
+  vi.mocked(isDesktopHost).mockReturnValue(false);
   vi.mocked(getSnapshot).mockResolvedValue({
     engineVersion: "0.1.0",
     platform: "mac",
@@ -37,6 +44,43 @@ beforeEach(() => {
   } as Awaited<ReturnType<typeof getProfiles>>);
   vi.mocked(getLaunchSettings).mockRejectedValue(new Error("settings unavailable"));
   vi.mocked(getCacheInspection).mockRejectedValue(new Error("cache unavailable"));
+});
+
+test("save failure retains the exact summary and retry neither rescans nor overwrites", async () => {
+  vi.mocked(isDesktopHost).mockReturnValue(true);
+  vi.mocked(saveFile)
+    .mockResolvedValueOnce("/tmp/existing.txt")
+    .mockResolvedValueOnce("/tmp/new-name.txt");
+  vi.mocked(saveSetupSummaryFile)
+    .mockRejectedValueOnce(new Error("That file already exists."))
+    .mockImplementationOnce(async (output, text) => ({
+      format: "starsector-preflight-setup-summary-export-v1",
+      output,
+      bytes: new TextEncoder().encode(text).byteLength,
+    }));
+
+  const { result } = renderHook(() => useCopySetup("recommended"));
+  await act(async () => {
+    await result.current.saveSetupSummary();
+  });
+
+  expect(result.current.saveState).toBe("error");
+  expect(result.current.saveError).toBe("That file already exists.");
+  expect(result.current.text).toContain("Preflight setup (public)\n");
+  const generated = result.current.text!;
+  expect(saveSetupSummaryFile).toHaveBeenNthCalledWith(1, "/tmp/existing.txt", generated);
+
+  await act(async () => {
+    await result.current.retrySaveSetup();
+  });
+
+  expect(result.current.saveState).toBe("saved");
+  expect(result.current.savedOutput).toBe("/tmp/new-name.txt");
+  expect(saveSetupSummaryFile).toHaveBeenNthCalledWith(2, "/tmp/new-name.txt", generated);
+  expect(getSnapshot).toHaveBeenCalledTimes(1);
+  expect(getProfiles).toHaveBeenCalledTimes(1);
+  expect(getLaunchSettings).toHaveBeenCalledTimes(1);
+  expect(getCacheInspection).toHaveBeenCalledTimes(1);
 });
 
 test("clipboard failure retains the exact generated summary and retry does not rescan", async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  COPY_SETUP_MAX_BYTES,
   COPY_SETUP_MAX_MODS,
   createCopySetupSummary,
   createCopySetupText,
@@ -63,6 +64,21 @@ describe("Copy setup public summary", () => {
     expect(summary.mods?.[0]?.id).toBe("mod-000");
     expect(summary.mods?.at(-1)?.id).toBe(`mod-${String(COPY_SETUP_MAX_MODS - 1).padStart(3, "0")}`);
     expect(text).toContain(`${500 - COPY_SETUP_MAX_MODS} more mod IDs omitted`);
+    expect(new TextEncoder().encode(text).byteLength).toBeLessThanOrEqual(COPY_SETUP_MAX_BYTES);
+  });
+
+  it("keeps the maximum-width Unicode projection inside the native export bound", () => {
+    const text = createCopySetupText(observations({
+      preflightVersion: "界".repeat(64),
+      profileFingerprint: "a".repeat(96),
+      mods: Array.from({ length: COPY_SETUP_MAX_MODS }, (_, index) => ({
+        id: `模組${index}${"界".repeat(80)}`,
+        displayName: "界".repeat(120),
+        declaredVersion: "界".repeat(64),
+      })),
+    }));
+
+    expect(new TextEncoder().encode(text).byteLength).toBeLessThanOrEqual(COPY_SETUP_MAX_BYTES);
   });
 
   it("drops malformed metadata while preserving bounded Unicode names", () => {

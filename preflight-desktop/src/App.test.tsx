@@ -546,6 +546,7 @@ test("setup keeps a single installation action and hides unavailable ready-state
   expect(await screen.findByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Make a support file" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "Copy setup" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Save setup summary…" })).toBeVisible();
   expect(screen.getByRole("button", { name: "Open issue" })).toBeVisible();
 
   snapshot.mockRestore();

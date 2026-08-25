@@ -59,8 +59,9 @@ measurement chronology and experimental context, see [Optimization history](docs
 - **Recover without guessing.** Preparation can stop safely, damaged prepared data can be repaired
   for the exact profile, cleanup is previewed before deletion, and failed runs offer **Copy setup**,
   Relaunch, and Get help directly from Home.
-- **Share support data deliberately.** Copy setup produces useful public facts without paths,
-  credentials, saves, or arbitrary logs. The separate support ZIP is allowlisted, disclosed before
+- **Share support data deliberately.** Copy setup can copy or save useful public facts without paths,
+  credentials, saves, or arbitrary logs; saving creates a new text file and never replaces one.
+  The separate support ZIP is allowlisted, disclosed before
   sending, size-bounded, cancellable, and excludes game/mod assets, saves, screenshots, audio,
   caches, arbitrary logs, and credentials. Accepted reports carry retention/deletion information.
 - **Update through a signed path.** The desktop can review a newer release, verify it, install it, and
@@ -188,8 +189,8 @@ happened in that run rather than what another machine should expect.
   rendering rather than bundling Starsector ship art.
 - **Setup analysis.** A read-only deep pass checks mod metadata/dependencies and selected resolved
   static references without launching or changing the game.
-- **Evidence and support.** Help can copy a bounded privacy-safe setup summary for a forum, Discord,
-  or support conversation. A separate support ZIP contains disclosed allowlisted metadata and
+- **Evidence and support.** Help can copy or save a bounded privacy-safe setup summary for a forum,
+  Discord, or support conversation. A separate support ZIP contains disclosed allowlisted metadata and
   excludes saves, assets, screenshots, recordings, caches, arbitrary logs, and credentials.
 - **Updates and package identity.** The desktop release path uses the project updater key for signed
   updates, and every package carries a machine-checked capability receipt describing the commands,

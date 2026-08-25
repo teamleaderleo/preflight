@@ -80,11 +80,13 @@ paired conditions on the same installation and representative workload. The camp
 deterministic in-campaign workload.
 
 Repository history does contain the later identity-checked measurement-only/optimized campaign
-benchmark runner, including average FPS, 1% and 0.1% lows, and p95/p99 comparisons. No retained
-completed pair found in the repository binds the **9.15 → 20.45 FPS** values to those two conditions;
-the source report binds them to the first 30 seconds and the remainder of one run. A fresh paired
-campaign run can produce the missing Off/On label once an operator selects a disposable save and a
-representative route.
+benchmark runner, including average FPS, 1% and 0.1% lows, and p95/p99 comparisons. Both conditions
+are launched by Preflight: measurement-only keeps the measurement boundary while optimized also
+enables the reviewed fixes. No retained completed pair found in the repository binds the
+**9.15 → 20.45 FPS** values to those two conditions; the source report binds them to the first 30
+seconds and the remainder of one run. A fresh paired campaign run can produce the missing
+measurement-only/optimized result once an operator selects a disposable save and a representative
+route.
 
 ## Automation boundary checked today
 

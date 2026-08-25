@@ -9,6 +9,8 @@ The short version:
 - Preflight writes its own caches, profiles, evidence, settings, and backups.
 - It changes `enabled_mods.json`, Starsector's launcher preferences, or the selected launcher's
   memory file only after an explicit user action. Those paths are bounded, rechecked, and backed up.
+- **Save setup summary** writes only the same bounded public text available to **Copy setup**, to a
+  new `.txt` file chosen through the operating-system dialog. It refuses to replace an existing file.
 - It doesn't write saves, game JARs, mod archives, game assets, or activation data.
 - It launches its bundled Java engine and the Starsector launcher the user selected. The UI and
   network don't supply arbitrary shell commands. Stopping a frozen launch requires the recorded
@@ -23,9 +25,9 @@ The short version:
 The readable policy lives in
 `preflight-desktop/capabilities/release-receipt-policy.json`. Native command names, Tauri
 permissions, fixed links, and endpoints are derived from the code during packaging. A separate
-source lock covers the native host and Java files that own writes and child processes. If one of
-those boundaries changes, package verification fails until the capability review is deliberately
-updated.
+source lock covers the native host and Java files that own writes and child processes, plus the
+renderer allowlist that constructs the public setup summary. If one of those boundaries changes,
+package verification fails until the capability review is deliberately updated.
 
 Accepting such a change is one command, run after reading the diff it is accepting:
 

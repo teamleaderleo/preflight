@@ -31,6 +31,7 @@ export function HelpPage({
   onNavigate,
 }: HelpPageProps) {
   const setupCopy = useCopySetup(optimizationPreset);
+  const setupSummaryBusy = setupCopy.copyState === "copying" || setupCopy.saveState === "saving";
   const {
     diagnosticsBusy,
     diagnosticsExport,
@@ -90,11 +91,14 @@ export function HelpPage({
             </div>
             <p>{diagnosticsExport
               ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}`
-              : "Copy your setup into an issue. Make a support file if needed."}</p>
+              : "Copy or save a public setup summary. Make a support file only when more detail is needed."}</p>
           </div>
           <div className="report-actions">
-            <button className={`button ${setupCopy.state === "copied" ? "button--quiet" : "button--primary"} button--support`} type="button" onClick={() => void setupCopy.copySetup()} disabled={operationBlocked || setupCopy.state === "copying"}>
-              {setupCopy.state === "copying" ? "Copying…" : setupCopy.state === "copied" ? "Setup copied" : "Copy setup"}
+            <button className={`button ${setupCopy.copyState === "copied" ? "button--quiet" : "button--primary"} button--support`} type="button" onClick={() => void setupCopy.copySetup()} disabled={operationBlocked || setupSummaryBusy}>
+              {setupCopy.copyState === "copying" ? "Copying…" : setupCopy.copyState === "copied" ? "Setup copied" : "Copy setup"}
+            </button>
+            <button className="button button--quiet button--support" type="button" onClick={() => void setupCopy.saveSetupSummary()} disabled={operationBlocked || setupSummaryBusy}>
+              <FolderIcon />{setupCopy.saveState === "saving" ? "Saving…" : setupCopy.saveState === "saved" ? "Summary saved" : "Save setup summary…"}
             </button>
             <button className="button button--quiet button--support" type="button" onClick={() => void openProjectLink("report-issue")}>Open issue<ArrowIcon /></button>
             <button className="button button--quiet button--support" type="button" onClick={() => void saveDiagnostics()} disabled={operationBlocked || diagnosticsBusy || reportUploading}>
@@ -103,14 +107,27 @@ export function HelpPage({
             {diagnosticsExport ? <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>{reportReceipt ? "Sent" : "Review and send"}</button> : null}
           </div>
         </div>
-        {setupCopy.state === "error" && setupCopy.text ? (
+        {setupCopy.savedOutput && setupCopy.saveState === "saved" ? <p className="support-summary-saved"><CheckIcon /> Saved to {shortPath(setupCopy.savedOutput)}</p> : null}
+        {setupCopy.saveState === "error" && setupCopy.text ? (
+          <div className="report-recovery" role="alert">
+            <strong>Setup summary wasn’t saved</strong>
+            <p>{setupCopy.saveError} The exact public summary is still available; choose another filename or copy these same bytes.</p>
+            <textarea aria-label="Save setup summary" readOnly rows={10} value={setupCopy.text} />
+            <div className="report-actions">
+              <button className="button button--quiet button--compact" type="button" onClick={() => void setupCopy.retrySaveSetup()}>Choose another file…</button>
+              <button className="button button--quiet button--compact" type="button" onClick={() => void setupCopy.retryCopySetup()}>Copy same summary</button>
+            </div>
+          </div>
+        ) : setupCopy.saveState === "error" ? (
+          <p className="report-unavailable" role="alert"><ShieldIcon /> {setupCopy.saveError || "Preflight couldn’t build the setup summary."} Try Save setup summary again or use the separate support file action.</p>
+        ) : setupCopy.copyState === "error" && setupCopy.text ? (
           <div className="report-recovery" role="alert">
             <strong>Clipboard access failed</strong>
             <p>The setup summary is still available below. Select and copy it manually, or retry the same summary without rescanning your setup.</p>
             <textarea aria-label="Copy setup summary" readOnly rows={10} value={setupCopy.text} />
             <button className="button button--quiet button--compact" type="button" onClick={() => void setupCopy.retryCopySetup()}>Try clipboard again</button>
           </div>
-        ) : setupCopy.state === "error" ? (
+        ) : setupCopy.copyState === "error" ? (
           <p className="report-unavailable" role="alert"><ShieldIcon /> Preflight couldn’t build the setup summary. Try Copy setup again or use the separate support file action.</p>
         ) : null}
 

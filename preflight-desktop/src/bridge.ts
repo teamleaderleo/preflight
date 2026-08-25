@@ -32,6 +32,7 @@ import type {
   ReportIntakeStatus,
   ReportReceipt,
   RunStarted,
+  SetupSummaryExport,
   StopGameResult,
   UpdateStatus,
   WireframeHull,
@@ -649,6 +650,17 @@ export async function exportDiagnostics(output: string): Promise<DiagnosticsExpo
     };
   }
   return invoke<DiagnosticsExport>("export_diagnostics", { output });
+}
+
+export async function saveSetupSummary(output: string, text: string): Promise<SetupSummaryExport> {
+  if (!isDesktopHost()) {
+    return {
+      format: "starsector-preflight-setup-summary-export-v1",
+      output,
+      bytes: new TextEncoder().encode(text).byteLength,
+    };
+  }
+  return invoke<SetupSummaryExport>("save_setup_summary", { output, text });
 }
 
 export async function getReportIntakeStatus(): Promise<ReportIntakeStatus> {

@@ -335,6 +335,12 @@ export interface DiagnosticsExport {
   skipped: Array<{ entry: string; reason: string }>;
 }
 
+export interface SetupSummaryExport {
+  format: "starsector-preflight-setup-summary-export-v1";
+  output: string;
+  bytes: number;
+}
+
 export interface ReportIntakeStatus {
   configured: boolean;
   origin: string | null;
