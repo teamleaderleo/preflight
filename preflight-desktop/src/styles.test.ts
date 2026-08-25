@@ -23,7 +23,8 @@ test("the drafting surface supports explicit themes while motion preferences rem
 test("navigation does not wait on decorative motion and the home instrument supports direct manipulation", () => {
   expect(styles).not.toContain("workspace-enter");
   expect(styles).toMatch(/\.home-flight-instrument\s*\{[^}]*pointer-events:\s*auto;/s);
-  expect(styles).toMatch(/\.flight-instrument--interactive\s*\{[^}]*cursor:\s*grab;[^}]*pointer-events:\s*auto;[^}]*touch-action:\s*none;/s);
+  expect(styles).toMatch(/\.flight-instrument\.flight-instrument--interactive\s*\{[^}]*cursor:\s*grab;[^}]*pointer-events:\s*auto;[^}]*touch-action:\s*none;/s);
+  expect(styles.indexOf(".flight-instrument.flight-instrument--interactive")).toBeLessThan(styles.lastIndexOf(".flight-instrument {"));
   expect(styles).toMatch(/\.flight-instrument--interactive:focus-visible\s*\{/);
 });
 

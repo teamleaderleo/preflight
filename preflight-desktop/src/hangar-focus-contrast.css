@@ -6,7 +6,7 @@
   box-shadow: 0 2px 0 var(--accent);
 }
 
-.hangar-page .hangar-motion-controls .icon-button:focus-visible,
+.hangar-page .hangar-stage-action:focus-visible,
 .hangar-page .hangar-reset-action:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;

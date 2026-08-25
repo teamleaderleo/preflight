@@ -1,7 +1,10 @@
 import { fireEvent, render } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { INSTRUMENT_HULL_MOTION_STORAGE_KEY } from "../desktopStorage";
+import {
+  INSTRUMENT_HULL_MOTION_STORAGE_KEY,
+  INSTRUMENT_HULL_VIEW_STORAGE_KEY,
+} from "../desktopStorage";
 import { INSTRUMENT_APPEARANCE_ATTRIBUTES } from "../flightInstrumentAppearance";
 import { FlightInstrument } from "./FlightInstrument";
 
@@ -89,7 +92,7 @@ test("the Hangar stage keeps the ship and drops the small targeting reticle", ()
 
 test("an interactive ship display advertises direct pointer and keyboard control", () => {
   const { getByRole } = render(createElement(FlightInstrument, { variant: "stage", interactive: true }));
-  const display = getByRole("group", { name: "Ship display. Drag it or use the arrow keys to change the view." });
+  const display = getByRole("group", { name: "Ship display. Drag to turn, scroll to zoom, or use the arrow keys." });
 
   expect(display).toHaveAttribute("tabindex", "0");
   expect(display).toHaveClass("flight-instrument--interactive");
@@ -109,7 +112,7 @@ test("an interactive ship display responds to dragging and arrow keys", () => {
   });
 
   const { getByRole } = render(createElement(FlightInstrument, { variant: "stage", interactive: true }));
-  const display = getByRole("group", { name: "Ship display. Drag it or use the arrow keys to change the view." });
+  const display = getByRole("group", { name: "Ship display. Drag to turn, scroll to zoom, or use the arrow keys." });
   const strokesBefore = vi.mocked(context.stroke).mock.calls.length;
 
   fireEvent.pointerDown(display, { button: 0, clientX: 40, clientY: 40, pointerId: 1 });
@@ -122,6 +125,9 @@ test("an interactive ship display responds to dragging and arrow keys", () => {
   const strokesAfterDrag = vi.mocked(context.stroke).mock.calls.length;
   fireEvent.keyDown(display, { key: "ArrowRight" });
   expect(vi.mocked(context.stroke).mock.calls.length).toBeGreaterThan(strokesAfterDrag);
+
+  fireEvent.wheel(display, { deltaY: -100 });
+  expect(JSON.parse(window.localStorage.getItem(INSTRUMENT_HULL_VIEW_STORAGE_KEY) ?? "null").zoom).toBeGreaterThan(1);
 });
 
 test("saved motion and direction preferences reach the shared renderer", () => {
@@ -132,9 +138,46 @@ test("saved motion and direction preferences reach the shared renderer", () => {
   const { container } = render(createElement(FlightInstrument, { variant: "stage" }));
 
   expect(container.querySelector(".flight-instrument--stage"))
-    .toHaveAttribute("data-motion", "still");
+    .toHaveAttribute("data-motion", "rotate");
   expect(container.querySelector(".flight-instrument--stage"))
     .toHaveAttribute("data-direction", "counter-clockwise");
+});
+
+test("a rotating display paints synchronously and schedules a fresh frame when the app regains focus", () => {
+  installMatchMediaMock();
+  const context = installCanvasMock();
+  let now = 1_000_000_000_000;
+  vi.spyOn(performance, "now").mockImplementation(() => now);
+  vi.stubGlobal("ResizeObserver", class {
+    observe = vi.fn();
+    unobserve = vi.fn();
+    disconnect = vi.fn();
+  });
+  let nextFrame = 0;
+  const requestFrame = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => ++nextFrame);
+  const cancelFrame = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => undefined);
+
+  render(createElement(FlightInstrument, { variant: "stage", interactive: true }));
+  expect(requestFrame).toHaveBeenCalledTimes(1);
+  const framesBeforeFocus = requestFrame.mock.calls.length;
+  const strokesBeforeFocus = vi.mocked(context.stroke).mock.calls.length;
+  const positionBeforeFocus = vi.mocked(context.moveTo).mock.calls.at(-1);
+
+  fireEvent.blur(window);
+  expect(cancelFrame).not.toHaveBeenCalled();
+  now += 5_000;
+  fireEvent.focus(window);
+  expect(cancelFrame).toHaveBeenCalledWith(1);
+  expect(vi.mocked(context.stroke).mock.calls.length).toBeGreaterThan(strokesBeforeFocus);
+  expect(vi.mocked(context.moveTo).mock.calls.at(-1)).not.toEqual(positionBeforeFocus);
+  expect(requestFrame.mock.calls.length).toBeGreaterThan(framesBeforeFocus);
+
+  const strokesBeforeVisibilityRestore = vi.mocked(context.stroke).mock.calls.length;
+  const framesBeforeVisibilityRestore = requestFrame.mock.calls.length;
+  now += 5_000;
+  fireEvent(document, new Event("visibilitychange"));
+  expect(vi.mocked(context.stroke).mock.calls.length).toBeGreaterThan(strokesBeforeVisibilityRestore);
+  expect(requestFrame.mock.calls.length).toBeGreaterThan(framesBeforeVisibilityRestore);
 });
 
 test("DPR changes redraw at the same CSS size and re-arm the resolution listener", () => {

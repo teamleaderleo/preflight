@@ -1,5 +1,16 @@
-import { useEffect, useState } from "react";
-import { ArrowIcon, CheckIcon, ClockIcon, FocusIcon, FolderIcon, PlayIcon, RotateClockwiseIcon, RotateCounterClockwiseIcon, SparklesIcon } from "../icons";
+import { useEffect, useRef, useState } from "react";
+import {
+  ArrowIcon,
+  CheckIcon,
+  ClockIcon,
+  FolderIcon,
+  OrbitClockwiseIcon,
+  OrbitCounterClockwiseIcon,
+  PauseIcon,
+  PlayIcon,
+  ShipIcon,
+  SparklesIcon,
+} from "../icons";
 import { adapterHealthLine } from "../adapterHealthText";
 import { HOME_OPTIONS_STORAGE_KEY } from "../desktopStorage";
 import type { Page } from "./DesktopShell";
@@ -116,6 +127,8 @@ export function HomePage({
       return false;
     }
   });
+  const [hudVisible, setHudVisible] = useState(true);
+  const hudTimer = useRef<number | null>(null);
   const homePresentation = useHomePresentation();
   const instrumentMotion = useInstrumentMotion();
   const {
@@ -182,6 +195,51 @@ export function HomePage({
         : preparationLayout
           ? "preparation"
           : "settled";
+  const clearHudTimer = () => {
+    if (hudTimer.current !== null) {
+      window.clearTimeout(hudTimer.current);
+      hudTimer.current = null;
+    }
+  };
+  const keepHudVisible = () => {
+    clearHudTimer();
+    setHudVisible(true);
+  };
+  const scheduleHudFade = () => {
+    clearHudTimer();
+    if (homeLayoutState !== "settled" || optionsOpen) {
+      setHudVisible(true);
+      return;
+    }
+    hudTimer.current = window.setTimeout(() => {
+      setHudVisible(false);
+      hudTimer.current = null;
+    }, 2200);
+  };
+  const revealHud = () => {
+    keepHudVisible();
+    scheduleHudFade();
+  };
+  useEffect(() => {
+    clearHudTimer();
+    if (homeLayoutState !== "settled" || optionsOpen) {
+      setHudVisible(true);
+      return clearHudTimer;
+    }
+    hudTimer.current = window.setTimeout(() => {
+      setHudVisible(false);
+      hudTimer.current = null;
+    }, 2200);
+    return clearHudTimer;
+  }, [homeLayoutState, optionsOpen]);
+  useEffect(() => {
+    const root = document.documentElement;
+    if (homeLayoutState === "settled") root.dataset.homeHud = hudVisible ? "visible" : "idle";
+    else delete root.dataset.homeHud;
+    return () => {
+      delete root.dataset.homeHud;
+    };
+  }, [homeLayoutState, hudVisible]);
   const recoveryFirst = Boolean(visibleRunFailure || cacheInspectionBlocked || status === "error");
   const settledReady = isReady
     && !needsPreparation
@@ -217,7 +275,7 @@ export function HomePage({
               : cacheNeedsRepair
                 ? "Prepared data needs repair"
                 : firstSetup
-                  ? "First launch setup"
+                  ? null
                   : needsPreparation
                     ? "Preparation needed"
                     : optimizationPreset === "off"
@@ -230,15 +288,8 @@ export function HomePage({
     const next = (current + offset + instrumentHull.hulls.length) % instrumentHull.hulls.length;
     instrumentHull.choose(instrumentHull.hulls[next].id);
   };
-  const playtimeVisible = homePresentation.mode !== "compact" && homePresentation.showPlaytime;
-  const togglePlaytime = () => {
-    if (homePresentation.mode === "compact") {
-      homePresentation.setMode("hangar");
-      homePresentation.setShowPlaytime(true);
-      return;
-    }
-    homePresentation.setShowPlaytime(!homePresentation.showPlaytime);
-  };
+  const playtimeVisible = homePresentation.showPlaytime;
+  const togglePlaytime = () => homePresentation.setShowPlaytime(!homePresentation.showPlaytime);
 
   const notice = (
     <NoticeBanner
@@ -287,15 +338,24 @@ export function HomePage({
     <>
       {recoveryFirst ? recoveryContent : null}
 
-      <section className={`launch-console ${isReady ? "launch-console--ready" : "card launch-console--setup"} launch-console--${status} launch-console--layout-${homeLayoutState} ${cacheNeedsRepair ? "launch-console--repair-state" : ""} ${cacheInspectionBlocked ? "launch-console--attention-state" : ""} ${isReady && optionsOpen ? "launch-console--options-open" : "launch-console--minimal"} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""}`}>
+      <section
+        className={`launch-console ${isReady ? "launch-console--ready" : "card launch-console--setup"} launch-console--${status} launch-console--layout-${homeLayoutState} ${cacheNeedsRepair ? "launch-console--repair-state" : ""} ${cacheInspectionBlocked ? "launch-console--attention-state" : ""} ${isReady && optionsOpen ? "launch-console--options-open" : "launch-console--minimal"} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""} ${hasPlaytime && playtimeVisible ? "launch-console--has-playtime" : ""} ${hudVisible ? "home-hud--visible" : "home-hud--idle"}`}
+        onPointerMove={revealHud}
+        onPointerDown={keepHudVisible}
+        onPointerLeave={scheduleHudFade}
+        onFocusCapture={keepHudVisible}
+        onBlurCapture={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) scheduleHudFade();
+        }}
+      >
         <div className="launch-console__primary">
           {isReady ? (
             <div className="home-flight-instrument">
-              <FlightInstrument hull={instrumentHull.selected} variant="stage" interactive />
+              <FlightInstrument hull={instrumentHull.selected} variant="stage" interactive framing={0.84} />
             </div>
           ) : null}
           {isReady ? (
-            <div className="launch-console__status-line">
+            <div className="launch-console__status-line home-hud-layer">
               {status !== "running" && status !== "launching" && statusLabel ? (
                 <div className={`status-chip ${settledReady ? "status-chip--ready" : ""}`}>
                   {settledReady ? <CheckIcon /> : <SparklesIcon />}
@@ -309,27 +369,35 @@ export function HomePage({
                     : `${modWarningCount} mod warning${modWarningCount === 1 ? "" : "s"}`}
                 </button>
               ) : null}
+              {hasPlaytime ? (
+                <button
+                  className="home-display-toggle"
+                  type="button"
+                  aria-label="Playtime"
+                  title={playtimeVisible ? "Hide time" : "Show time"}
+                  aria-pressed={playtimeVisible}
+                  onClick={(event) => {
+                    togglePlaytime();
+                    event.currentTarget.blur();
+                    scheduleHudFade();
+                  }}
+                >
+                  <ClockIcon />
+                </button>
+              ) : null}
               <button
                 className="home-display-toggle"
                 type="button"
-                aria-label={playtimeVisible ? "Hide time" : "Show time"}
-                title={playtimeVisible ? "Hide time" : "Show time"}
-                aria-pressed={playtimeVisible}
-                onClick={togglePlaytime}
-              >
-                <ClockIcon />
-                <span>{playtimeVisible ? "Hide time" : "Show time"}</span>
-              </button>
-              <button
-                className="home-display-toggle"
-                type="button"
-                aria-label={homePresentation.mode === "compact" ? "Show ship" : "Hide ship"}
+                aria-label="Ship"
                 title={homePresentation.mode === "compact" ? "Show ship" : "Hide ship"}
-                aria-pressed={homePresentation.mode === "compact"}
-                onClick={() => homePresentation.setMode(homePresentation.mode === "compact" ? "hangar" : "compact")}
+                aria-pressed={homePresentation.mode !== "compact"}
+                onClick={(event) => {
+                  homePresentation.setMode(homePresentation.mode === "compact" ? "hangar" : "compact");
+                  event.currentTarget.blur();
+                  scheduleHudFade();
+                }}
               >
-                <FocusIcon />
-                <span>{homePresentation.mode === "compact" ? "Show ship" : "Hide ship"}</span>
+                <ShipIcon />
               </button>
               <button
                 className="home-options-toggle"
@@ -342,25 +410,22 @@ export function HomePage({
               </button>
             </div>
           ) : null}
-          {isReady ? (
-            <div className={playtimeTotal ? "home-playtime" : "home-playtime home-playtime--empty"} aria-label={playtime && hasPlaytime
-              ? `${formatPlaytime(playtime.totalMillis)} played across ${playtime.launches.toLocaleString()} recorded sessions`
-              : "No recorded playtime yet"}>
-              <strong>{playtimeTotal?.value ?? "0"}<i>{playtimeTotal?.unit ?? "h"}</i></strong>
-              <span>{playtime && hasPlaytime ? `${playtime.launches.toLocaleString()} sessions` : "played"}</span>
+          {isReady && playtime && hasPlaytime && playtimeTotal ? (
+            <div className="home-playtime home-hud-layer" aria-label={`${formatPlaytime(playtime.totalMillis)} played across ${playtime.launches.toLocaleString()} recorded sessions`}>
+              <strong>{playtimeTotal.value}<i>{playtimeTotal.unit}</i></strong>
+              <span>{playtime.launches.toLocaleString()} sessions</span>
             </div>
           ) : null}
-          {isReady && lastAdapterHealth && status !== "running" && status !== "launching" ? (
+          {isReady && lastAdapterHealth?.reviewRecommended && status !== "running" && status !== "launching" ? (
             <span
-              className={`last-run-health ${lastAdapterHealth.reviewRecommended ? "last-run-health--review" : ""}`}
+              className="last-run-health last-run-health--review home-hud-layer"
               title={lastAdapterHealth.suggestedActions[0] ?? "Exact compatibility evidence from the latest Preflight launch"}
             >
               {adapterHealthLine(lastAdapterHealth)}
             </span>
           ) : null}
-          {!isReady ? <h2>{status === "loading" ? "Finding Starsector…" : "Choose your Starsector installation"}</h2> : null}
+          {!isReady ? <h2>{status === "loading" ? "Finding Starsector…" : "Choose Starsector"}</h2> : null}
           {!isReady ? <p>{status === "loading" ? "Checking the usual installation locations." : "Select the folder containing Starsector.app, starsector.exe, or starsector.sh."}</p> : null}
-          {!isReady && status !== "loading" ? <p className="setup-next">Preflight creates reusable startup data for your current mod setup, then opens Starsector. Your game, mods, and saves stay unchanged.</p> : null}
           {isReady && !visibleRunFailure && (status === "ready" || status === "error") && snapshot?.selected ? (
             <HomeLaunchIdentity
               installRoot={snapshot.selected.installRoot}
@@ -382,7 +447,7 @@ export function HomePage({
                   : preparationPlanLoading
                   ? "Inspecting this mod setup and calculating a safe disk requirement…"
                   : preparationPlan?.safeToPrepare
-                    ? `${firstSetup ? "Initial setup" : "Preparation needed"} · Keeps about ${formatBytes(preparationPlan.predictedRetainedTextureBytes ?? preparationPlan.predictedPackBytes)}. Needs about ${formatBytes(preparationPlan.requiredFreeBytes)} free while preparing; ${formatBytes(preparationPlan.usableBytes)} available.`
+                    ? `Uses about ${formatBytes(preparationPlan.predictedRetainedTextureBytes ?? preparationPlan.predictedPackBytes)} · ${formatBytes(preparationPlan.usableBytes)} free.`
                     : preparationPlan
                       ? `Preparation needs ${formatBytes(preparationPlan.requiredFreeBytes)} free; ${formatBytes(preparationPlan.usableBytes)} is available.`
                       : "Storage must be calculated before preparation."
@@ -394,7 +459,6 @@ export function HomePage({
             {isReady ? (
               <>
                 <button
-                  key={theme}
                   className="button button--primary button--launch"
                   type="button"
                   onClick={storageBlocked
@@ -405,18 +469,30 @@ export function HomePage({
                   disabled={preparing || cacheRepairing || operationBlocked || status === "loading" || status === "error" || cacheLoading || (!storageBlocked && needsPreparation && !cacheNeedsRepair && !cacheInspectionBlocked && awaitingStoragePlan)}
                 >
                   {needsPreparation ? <SparklesIcon /> : <PlayIcon />}
-                  <span>{status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? preparationPercent === null ? "Preparation in progress…" : `Preparing ${preparationPercent}%…` : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review prepared data" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Prepare with less disk" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}</span>
+                  <span>{status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? preparationPercent === null ? "Preparation in progress…" : `Preparing ${preparationPercent}%…` : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review prepared data" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Prepare with less disk" : firstSetup ? "Set up and launch" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}</span>
                 </button>
                 {homeLayoutState === "settled" && homePresentation.mode !== "compact" ? (
-                  <button
-                    className="home-motion-toggle"
-                    type="button"
-                    aria-label="Reverse ship rotation"
-                    title="Reverse ship rotation"
-                    onClick={() => instrumentMotion.setDirection(instrumentMotion.direction === "clockwise" ? "counter-clockwise" : "clockwise")}
-                  >
-                    {instrumentMotion.direction === "clockwise" ? <RotateClockwiseIcon /> : <RotateCounterClockwiseIcon />}
-                  </button>
+                  <div className="home-motion-controls home-hud-layer" role="group" aria-label="Ship rotation">
+                    <button
+                      className="home-motion-toggle"
+                      type="button"
+                      aria-label="Reverse rotation"
+                      title={instrumentMotion.direction === "clockwise" ? "Rotate counter-clockwise" : "Rotate clockwise"}
+                      onClick={() => instrumentMotion.setDirection(instrumentMotion.direction === "clockwise" ? "counter-clockwise" : "clockwise")}
+                    >
+                      {instrumentMotion.direction === "clockwise" ? <OrbitClockwiseIcon /> : <OrbitCounterClockwiseIcon />}
+                    </button>
+                    <button
+                      className="home-motion-toggle"
+                      type="button"
+                      aria-label={instrumentMotion.motion === "rotate" ? "Pause ship rotation" : "Resume ship rotation"}
+                      title={instrumentMotion.motion === "rotate" ? "Pause rotation" : "Resume rotation"}
+                      aria-pressed={instrumentMotion.motion === "still"}
+                      onClick={() => instrumentMotion.setMotion(instrumentMotion.motion === "rotate" ? "still" : "rotate")}
+                    >
+                      {instrumentMotion.motion === "rotate" ? <PauseIcon /> : <PlayIcon />}
+                    </button>
+                  </div>
                 ) : null}
                 {preparing ? (
                   <button className="button button--quiet launch-console__stop" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>
@@ -452,7 +528,7 @@ export function HomePage({
             )}
           </div>
           {isReady ? (
-            <div className="home-ship-picker" aria-label="Display ship">
+            <div className="home-ship-picker home-hud-layer" aria-label="Display ship">
               <button type="button" aria-label="Previous display ship" title="Previous ship" onClick={() => cycleHull(-1)} disabled={instrumentHull.hulls.length < 2}><ArrowIcon /></button>
               <button className="home-ship-name" type="button" title="Choose a display ship" onClick={() => onNavigate("hangar")}>{instrumentHull.selected.name}</button>
               <button type="button" aria-label="Next display ship" title="Next ship" onClick={() => cycleHull(1)} disabled={instrumentHull.hulls.length < 2}><ArrowIcon /></button>

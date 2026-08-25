@@ -51,7 +51,7 @@ Screenshots are necessary but insufficient. Exercise the interactions whose info
 - keyboard-tab through actionable controls in meaningful order;
 - focus and hover installation-path disclosure;
 - open/close Options and any relevant details disclosure;
-- use Hangar pause/resume, direction, and Reset with keyboard and pointer;
+- drag the Home and Hangar ship, reverse its direction, and use Reset with keyboard and pointer;
 - scroll any minimum-window state that genuinely requires scrolling and verify the important control at the bottom is actually reachable;
 - check light and dark themes when a change touches contrast, overlays, shadows, or semantic colour.
 
@@ -104,6 +104,12 @@ If the browser pass exposes a concrete defect, repair that observed defect, rebu
 ## Keep the flow small and repeatable
 
 The goal is not screenshot bureaucracy. The goal is to make the browser answer questions that source and jsdom cannot answer.
+
+Run the manual **Desktop rendered layout** workflow when Home or Hangar composition changes. It
+checks every width from 720 to 1440 pixels, exercises full, compact, and minimal Home, verifies that
+refocus doesn't replace or move controls, and uploads the rendered matrix. Run the same pass locally
+from `preflight-desktop/` with `npm run ui:matrix`. It writes the individual screenshots, exact
+geometry, a browsable contact sheet, and `overview.png` under `.ui-matrix/`.
 
 A good rendered review leaves behind enough durable evidence that the next person can tell:
 

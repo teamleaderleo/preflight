@@ -3,6 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import { DesktopShell } from "./DesktopShell";
 
+test("the footer identifies the exact source behind a development or packaged build", () => {
+  render(shell("home", "Home"));
+  expect(screen.getByText(new RegExp(`Preflight test · ${__PREFLIGHT_SOURCE_REVISION__}`)))
+    .toHaveAttribute("title", `Source ${__PREFLIGHT_SOURCE_REVISION__}`);
+});
+
 test("Skip to workspace bypasses appearance controls for actionable recovery", async () => {
   const user = userEvent.setup();
   render(

@@ -7,27 +7,9 @@
  * A previous run that explicitly recommends review remains visible because that evidence can
  * affect the player's launch decision. */
 :root[data-home-mode="compact"] .launch-console--layout-settled .home-flight-instrument,
-:root[data-home-mode="compact"] .launch-console--layout-settled .home-playtime,
-:root[data-home-mode="compact"] .launch-console--layout-settled .last-run-health:not(.last-run-health--review),
 :root[data-home-mode="compact"] .launch-console--layout-settled .home-ship-picker,
-:root[data-home-mode="compact"] .launch-console--layout-settled .home-motion-toggle {
+:root[data-home-mode="compact"] .launch-console--layout-settled .home-motion-controls {
   display: none !important;
-}
-
-/* Collapse only the quiet settled state. Active work, preparation, recovery, and an open Options
- * panel retain the composition selected by HomePage, so this cosmetic preference never has to
- * rediscover page state from descendants. */
-:root[data-home-mode="compact"]
-  .launch-console--layout-settled.launch-console--minimal {
-  height: 260px;
-  min-height: 260px;
-}
-
-:root[data-home-mode="compact"]
-  .launch-console--layout-settled.launch-console--minimal
-  .launch-console__primary {
-  height: 260px;
-  min-height: 260px;
 }
 
 /* Home spends the shared semantic roles without inventing a palette of its own. The hull and page
@@ -161,6 +143,13 @@
 @media (max-width: 720px) {
   /* Preparation owns its compact note position directly; it sits above the 60px action block. */
   :root .launch-console.launch-console--layout-preparation.launch-console--ready .launch-console__note {
-    bottom: 82px;
+    bottom: 126px;
+  }
+}
+
+
+@media (max-width: 600px) {
+  :root .launch-console.launch-console--layout-preparation.launch-console--ready .launch-console__note {
+    bottom: 156px;
   }
 }

@@ -57,7 +57,9 @@ test("resolved Home cascade follows explicit state modifiers", () => {
   // jsdom can report older declarations after parsing the modern production cascade. Pin those late
   // owners directly; real scrolling and pixel placement belong to the Chromium acceptance pass.
   expect(layoutStyles).toMatch(/\.page-viewport\.page-viewport--home\s*\{[^}]*position:\s*relative;[^}]*overflow-y:\s*auto;/s);
-  expect(getComputedStyle(settled.instrument).inset).toBe("-34px 30px 100px");
+  expect(getComputedStyle(settled.instrument).inset).toBe("-34px 0 0");
+  expect(getComputedStyle(settled.primary).display).toBe("block");
+  expect(getComputedStyle(settled.instrument).position).toBe("absolute");
   expect(getComputedStyle(preparation.instrument).inset).toBe("6px 36px 104px");
   expect(getComputedStyle(recovery.console).minHeight).toBe("220px");
   expect(getComputedStyle(recovery.primary).minHeight).toBe("220px");
@@ -94,9 +96,24 @@ test("failed-run recovery is an overlay on settled Home geometry", () => {
   expect(layoutStyles).not.toContain("inset: 105px 8px 24px");
 });
 
-test("expanded desktop navigation keeps the launch row clear of the ship picker", () => {
+test("settled Home anchors the launch action while secondary controls adapt around it", () => {
   expect(layoutStyles).toMatch(
-    /@media \(min-width: 1001px\) and \(max-width: 1140px\)[\s\S]*?\.app-shell:not\(\.app-shell--sidebar-collapsed\) \.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*right:\s*68px;[^}]*left:\s*224px;/s,
+    /\.launch-console--layout-settled \.launch-console__primary\s*\{[^}]*position:\s*relative;[^}]*display:\s*block;/s,
+  );
+  expect(layoutStyles).toMatch(
+    /\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*position:\s*absolute !important;[^}]*bottom:\s*22px;[^}]*left:\s*20px;/s,
+  );
+  expect(layoutStyles).toMatch(
+    /\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*position:\s*absolute;[^}]*bottom:\s*20px;[^}]*left:\s*50%;[^}]*display:\s*grid;[^}]*grid-template-columns:\s*94px minmax\(260px, 520px\) 94px;[^}]*transform:\s*translateX\(-50%\);/s,
+  );
+  expect(layoutStyles).toMatch(
+    /@container \(max-width: 1000px\)[\s\S]*?\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*bottom:\s*88px;[^}]*left:\s*50%;[^}]*transform:\s*translateX\(-50%\);/s,
+  );
+  expect(layoutStyles).toMatch(
+    /@container \(max-width: 640px\)[\s\S]*?\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*bottom:\s*14px;[^}]*grid-template-columns:\s*minmax\(0, 1fr\);/s,
+  );
+  expect(layoutStyles).toMatch(
+    /@container \(max-width: 640px\)[\s\S]*?\.launch-console--layout-settled \.launch-console__actions \.home-motion-controls\s*\{[^}]*position:\s*absolute;[^}]*right:\s*0;[^}]*bottom:\s*72px;/s,
   );
   expect(styles).toMatch(
     /\.home-motion-toggle\s*\{[^}]*flex:\s*0 0 44px;[^}]*width:\s*44px;/s,
@@ -129,32 +146,6 @@ test("launch identity keeps the setup first while the path remains an interactiv
   style.remove();
 });
 
-test("Hangar resolves motion direction and reset as one compact cluster", () => {
-  const style = installCascade();
-  const dock = document.createElement("div");
-  dock.className = "hangar-dock hangar-dock--catalog";
-  const controls = document.createElement("div");
-  controls.className = "hangar-motion-controls";
-  const reset = document.createElement("button");
-  reset.className = "button button--quiet button--compact hangar-reset-action";
-  reset.textContent = "Reset";
-  controls.append(reset);
-  dock.append(controls);
-  document.body.append(dock);
-
-  expect(getComputedStyle(controls).display).toBe("flex");
-  // jsdom misreports modern shorthand/container layout in the complete cascade. Pin the authored
-  // compact ownership and leave painted geometry to Chromium in the rendered acceptance matrix.
-  expect(layoutStyles).toMatch(/\.hangar-motion-controls\s*\{[^}]*width:\s*max-content;[^}]*border:\s*1px solid var\(--line\);/s);
-  expect(layoutStyles).not.toMatch(/@container \(max-width: 760px\)[\s\S]*?\.hangar-motion-controls\s*\{/);
-  expect(layoutStyles).not.toMatch(/@container \(max-width: 760px\)[\s\S]*?\.hangar-reset-action\s*\{/);
-  expect(getComputedStyle(reset).display).toBe("inline-flex");
-  expect(reset).toHaveTextContent("Reset");
-
-  dock.remove();
-  style.remove();
-});
-
 test("prepared-data attention uses preparation composition while review actions stay available", () => {
   const style = installCascade();
   const cacheAttention = homeState("preparation");
@@ -174,17 +165,23 @@ test("prepared-data attention uses preparation composition while review actions 
   style.remove();
 });
 
-test("Compact Home is scoped to the explicit settled composition", () => {
+test("Hide ship removes only ship controls without creating another Home composition", () => {
   expect(homePresentationStyles).toMatch(
     /:root\[data-home-mode="compact"\] \.launch-console--layout-settled \.home-flight-instrument/,
   );
-  expect(homePresentationStyles).toMatch(
-    /:root\[data-home-mode="compact"\][\s\S]*?\.launch-console--layout-settled\.launch-console--minimal\s*\{[^}]*height:\s*260px;/,
-  );
+  expect(homePresentationStyles).not.toMatch(/data-home-mode="compact"[^}]*\.home-playtime/);
+  expect(layoutStyles).not.toMatch(/data-home-mode="compact"[^}]*height:/);
+  expect(layoutStyles).not.toMatch(/data-home-mode="compact"[\s\S]*?grid-template/);
   expect(homePresentationStyles).not.toMatch(
     /:root\[data-home-mode="compact"\] \.launch-console--ready \.home-flight-instrument/,
   );
   expect(homePresentationStyles).not.toContain(":has(");
+  expect(layoutStyles).toMatch(
+    /:root\[data-home-mode="compact"\] \.launch-console--layout-settled \.home-launch-identity\s*\{[^}]*bottom:\s*92px;/s,
+  );
+  expect(layoutStyles).toMatch(
+    /:root\[data-home-hud="idle"\] \.topbar--home \.topbar__actions\s*\{[^}]*opacity:\s*0;/s,
+  );
 });
 
 test("compact rules exist for the required 720px review width", () => {

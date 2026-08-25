@@ -85,6 +85,19 @@ test("support files remain manual even when report intake is configured", () => 
   expect(screen.getByText("Nothing is sent automatically.")).toBeInTheDocument();
 });
 
+test("an update failure replaces the stale unchecked status", () => {
+  render(<SettingsPage {...props({
+    updates: {
+      ...updates,
+      updateError: "Couldn’t check for updates. The service is unavailable.",
+      updateStatus: null,
+    } as ReturnType<typeof useSignedUpdates>,
+  })} />);
+
+  expect(screen.getByRole("alert")).toHaveTextContent("Couldn’t check for updates");
+  expect(screen.queryByText("Update status hasn’t been checked yet.")).not.toBeInTheDocument();
+});
+
 test("removal review takes focus and Cancel returns to the initiating control", async () => {
   const user = userEvent.setup();
   const onReviewRemoval = vi.fn();

@@ -1802,6 +1802,33 @@ mod tests {
             memory_mib: Some(6144),
         };
         assert!(validate_launch_settings(&valid).is_ok());
+        assert!(
+            validate_launch_settings(&LaunchSettingsInput {
+                battle_size: i32::MAX as u32,
+                ..LaunchSettingsInput {
+                    resolution: "1920x1080".to_string(),
+                    fullscreen: false,
+                    sound: true,
+                    antialiasing_samples: 12,
+                    ui_scale: 1.25,
+                    battle_size: 400,
+                    memory_mib: Some(6144),
+                }
+            })
+            .is_ok()
+        );
+        assert!(
+            validate_launch_settings(&LaunchSettingsInput {
+                resolution: "1920x1080".to_string(),
+                fullscreen: false,
+                sound: true,
+                antialiasing_samples: 12,
+                ui_scale: 1.25,
+                battle_size: i32::MAX as u32 + 1,
+                memory_mib: Some(6144),
+            })
+            .is_err()
+        );
 
         let invalid = LaunchSettingsInput {
             resolution: "1920 by 1080".to_string(),

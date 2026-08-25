@@ -1,9 +1,23 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
-import { PauseIcon, PlayIcon, RefreshIcon, RotateClockwiseIcon, RotateCounterClockwiseIcon } from "../icons";
+import {
+  OrbitClockwiseIcon,
+  OrbitCounterClockwiseIcon,
+  PauseIcon,
+  PlayIcon,
+  RefreshIcon,
+} from "../icons";
 import type { useInstrumentHull } from "../useInstrumentHull";
 import type { WireframeHull } from "../types";
 import { useInstrumentMotion } from "../useInstrumentMotion";
-import { MAX_INSTRUMENT_PITCH, MIN_INSTRUMENT_PITCH, useInstrumentView } from "../useInstrumentView";
+import {
+  DEFAULT_INSTRUMENT_VIEW,
+  MAX_INSTRUMENT_PITCH,
+  MAX_INSTRUMENT_ZOOM,
+  MIN_INSTRUMENT_PITCH,
+  MIN_INSTRUMENT_ZOOM,
+  restoreInstrumentView,
+  useInstrumentView,
+} from "../useInstrumentView";
 import { FlightInstrument } from "./FlightInstrument";
 
 type InstrumentHullState = ReturnType<typeof useInstrumentHull>;
@@ -73,10 +87,12 @@ function HangarHullChooser({ catalogHulls, rosterIds, selected, onChoose, onRemo
   const [activeIndex, setActiveIndex] = useState(0);
   const [popupDirection, setPopupDirection] = useState<HullPopupDirection>("up");
   const [popupMaxHeight, setPopupMaxHeight] = useState<number | null>(null);
+  const [removeArmed, setRemoveArmed] = useState(false);
 
   useEffect(() => {
     setQuery(selected.name);
     setActiveIndex(0);
+    setRemoveArmed(false);
   }, [selected.id, selected.name]);
 
   const results = useMemo(() => {
@@ -155,6 +171,16 @@ function HangarHullChooser({ catalogHulls, rosterIds, selected, onChoose, onRemo
     setQuery(selected.name);
     setOpen(false);
     setActiveIndex(0);
+  };
+
+  const beginAdding = () => {
+    setQuery("");
+    setOpen(true);
+    setActiveIndex(0);
+    window.requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    });
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -263,7 +289,7 @@ function HangarHullChooser({ catalogHulls, rosterIds, selected, onChoose, onRemo
             >
               <span className="hangar-hull-combobox__name">{hull.name}</span>
               <span className="hangar-hull-combobox__meta">
-                {rosterIds.has(hull.id) ? hullSizeLabel(hull.hullSize) : "Add"}
+                {hullSizeLabel(hull.hullSize)} · {rosterIds.has(hull.id) ? "Home" : "Add to Home"}
               </span>
             </button>
           )) : (
@@ -274,15 +300,32 @@ function HangarHullChooser({ catalogHulls, rosterIds, selected, onChoose, onRemo
 
       <div className="hangar-identity__meta">
         <span>{hullSizeLabel(selected.hullSize)}</span>
-        <button
-          type="button"
-          disabled={!canRemove}
-          aria-label={`Remove ${selected.name} from display ships`}
-          title={canRemove ? "Remove ship" : "Keep at least one ship"}
-          onClick={() => onRemove(selected.id)}
-        >
-          Remove
+        <button type="button" aria-label="Add a display ship" onClick={beginAdding}>
+          + Add ship
         </button>
+        {canRemove ? removeArmed ? (
+          <span className="hangar-roster-actions">
+            <button
+              type="button"
+              aria-label={`Remove ${selected.name} from Home ships`}
+              onClick={() => onRemove(selected.id)}
+            >
+              Remove?
+            </button>
+            <button type="button" aria-label="Cancel ship removal" onClick={() => setRemoveArmed(false)}>
+              Cancel
+            </button>
+          </span>
+        ) : (
+          <button
+            type="button"
+            aria-label={`Manage ${selected.name} in Home ships`}
+            title="Manage Home ships"
+            onClick={() => setRemoveArmed(true)}
+          >
+            Home ✓
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -329,21 +372,64 @@ interface HangarPageProps {
 }
 
 export function HangarPage({ instrumentHull }: HangarPageProps) {
-  const { motion, direction, setMotion, setDirection } = useInstrumentMotion();
+  const { motion, direction, setDirection, setMotion } = useInstrumentMotion();
   const instrumentView = useInstrumentView();
-  const motionLabel = motion === "rotate" ? "Pause rotation" : "Resume rotation";
   const rosterIds = useMemo(() => new Set(instrumentHull.hulls.map((hull) => hull.id)), [instrumentHull.hulls]);
   const detailMaximum = 0.06;
   const detailValue = (tolerance: number) => Number((detailMaximum - tolerance).toFixed(3));
   const detailText = (value: number) => `${Math.round(value / detailMaximum * 100)}%`;
   const detailTolerance = (value: number) => Number((detailMaximum - value).toFixed(3));
+  const viewCustomized = Math.abs(instrumentView.pitch - DEFAULT_INSTRUMENT_VIEW.pitch) > 0.001
+    || Math.abs(instrumentView.zoom - DEFAULT_INSTRUMENT_VIEW.zoom) > 0.001;
+  const resetHangar = () => {
+    instrumentHull.resetCustomization();
+    restoreInstrumentView();
+  };
 
   return (
     <div className="hangar-page">
       <section className="hangar-display hangar-display--minimal" aria-label="Selected display ship">
         <div className="hangar-stage hangar-stage--minimal">
           <div className="hangar-stage__instrument">
-            <FlightInstrument hull={instrumentHull.selected} variant="stage" interactive />
+            <FlightInstrument hull={instrumentHull.selected} variant="stage" interactive framing={1.16} />
+          </div>
+
+          <div
+            className="hangar-stage-controls"
+            role="group"
+            aria-label="Ship rotation"
+            data-motion={motion}
+            data-direction={direction}
+          >
+            <button
+              className="hangar-stage-action"
+              type="button"
+              aria-label="Reverse rotation"
+              title={direction === "clockwise" ? "Rotate counter-clockwise" : "Rotate clockwise"}
+              onClick={() => setDirection(direction === "clockwise" ? "counter-clockwise" : "clockwise")}
+            >
+              {direction === "clockwise" ? <OrbitClockwiseIcon /> : <OrbitCounterClockwiseIcon />}
+            </button>
+            <button
+              className="hangar-stage-action"
+              type="button"
+              aria-label={motion === "rotate" ? "Pause ship rotation" : "Resume ship rotation"}
+              title={motion === "rotate" ? "Pause rotation" : "Resume rotation"}
+              aria-pressed={motion === "still"}
+              onClick={() => setMotion(motion === "rotate" ? "still" : "rotate")}
+            >
+              {motion === "rotate" ? <PauseIcon /> : <PlayIcon />}
+            </button>
+            <button
+              className="hangar-stage-action hangar-reset-action"
+              type="button"
+              aria-label="Reset ship appearance and view"
+              title="Reset ship appearance and view"
+              disabled={!instrumentHull.customized && !viewCustomized}
+              onClick={resetHangar}
+            >
+              <RefreshIcon />
+            </button>
           </div>
 
           <div className="hangar-identity">
@@ -359,106 +445,86 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
         </div>
 
         <div className="hangar-dock hangar-dock--catalog">
-          <div className="hangar-console-rail">
-            <span className="hangar-console-heading">Wireframe appearance</span>
-            <div
-              className="hangar-motion-controls"
-              role="group"
-              aria-label="Display motion and appearance"
-              data-motion={motion}
-              data-direction={direction}
-            >
-              <button
-                className="icon-button icon-button--small hangar-motion-action"
-                type="button"
-                aria-label={motionLabel}
-                title={motion === "rotate" ? "Pause decorative hull rotation" : "Resume decorative hull rotation"}
-                onClick={() => setMotion(motion === "rotate" ? "still" : "rotate")}
-              >
-                {motion === "rotate" ? <PauseIcon /> : <PlayIcon />}
-              </button>
-              <button
-                className="icon-button icon-button--small hangar-direction-action"
-                type="button"
-                aria-label="Reverse rotation"
-                title="Reverse rotation"
-                onClick={() => setDirection(direction === "clockwise" ? "counter-clockwise" : "clockwise")}
-              >
-                {direction === "clockwise" ? <RotateClockwiseIcon /> : <RotateCounterClockwiseIcon />}
-              </button>
-              <button
-                className="button button--quiet button--compact hangar-reset-action"
-                type="button"
-                aria-label="Reset appearance"
-                title="Reset appearance"
-                disabled={!instrumentHull.customized}
-                onClick={instrumentHull.resetCustomization}
-              >
-                <RefreshIcon />
-                <span>Reset</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="hangar-dials" role="group" aria-label="Wireframe appearance">
-            <HangarDial
-              label="Outline detail"
-              value={detailValue(instrumentHull.tuning.outerDetail)}
-              valueText={detailText(detailValue(instrumentHull.tuning.outerDetail))}
-              minimum={0}
-              maximum={detailMaximum}
-              step={0.001}
-              onChange={(value) => instrumentHull.customize({ outerDetail: detailTolerance(value) })}
-            />
-            <HangarDial
-              label="Interior detail"
-              displayLabel="Inner detail"
-              value={detailValue(instrumentHull.tuning.innerDetail)}
-              valueText={detailText(detailValue(instrumentHull.tuning.innerDetail))}
-              minimum={0}
-              maximum={detailMaximum}
-              step={0.001}
-              onChange={(value) => instrumentHull.customize({ innerDetail: detailTolerance(value) })}
-            />
-            <HangarDial
-              label="Outline smoothing"
-              displayLabel="Outline smooth"
-              value={instrumentHull.tuning.outerSmooth}
-              valueText={instrumentHull.tuning.outerSmooth === 0 ? "None" : instrumentHull.tuning.outerSmooth.toFixed(2)}
-              minimum={0}
-              maximum={0.9}
-              step={0.02}
-              onChange={(value) => instrumentHull.customize({ outerSmooth: value })}
-            />
-            <HangarDial
-              label="Interior smoothing"
-              displayLabel="Inner smooth"
-              value={instrumentHull.tuning.innerSmooth}
-              valueText={instrumentHull.tuning.innerSmooth === 0 ? "None" : instrumentHull.tuning.innerSmooth.toFixed(2)}
-              minimum={0}
-              maximum={0.9}
-              step={0.02}
-              onChange={(value) => instrumentHull.customize({ innerSmooth: value })}
-            />
-            <HangarDial
-              label="Depth"
-              value={instrumentHull.tuning.height}
-              valueText={`${instrumentHull.tuning.height.toFixed(2)}×`}
-              minimum={0.2}
-              maximum={2.2}
-              step={0.05}
-              onChange={(value) => instrumentHull.customize({ height: value })}
-            />
-            <HangarDial
-              label="View angle"
-              displayLabel="View"
-              value={instrumentView.pitch}
-              valueText={`${Math.round((instrumentView.pitch - MIN_INSTRUMENT_PITCH) / (MAX_INSTRUMENT_PITCH - MIN_INSTRUMENT_PITCH) * 100)}%`}
-              minimum={MIN_INSTRUMENT_PITCH}
-              maximum={MAX_INSTRUMENT_PITCH}
-              step={0.02}
-              onChange={(pitch) => instrumentView.setView({ yaw: instrumentView.yaw, pitch })}
-            />
+          <div className="hangar-control-groups" role="group" aria-label="Wireframe appearance">
+            <fieldset className="hangar-control-group">
+              <legend>Detail</legend>
+              <HangarDial
+                label="Outline detail"
+                displayLabel="Outline"
+                value={detailValue(instrumentHull.tuning.outerDetail)}
+                valueText={detailText(detailValue(instrumentHull.tuning.outerDetail))}
+                minimum={0}
+                maximum={detailMaximum}
+                step={0.001}
+                onChange={(value) => instrumentHull.customize({ outerDetail: detailTolerance(value) })}
+              />
+              <HangarDial
+                label="Interior detail"
+                displayLabel="Interior"
+                value={detailValue(instrumentHull.tuning.innerDetail)}
+                valueText={detailText(detailValue(instrumentHull.tuning.innerDetail))}
+                minimum={0}
+                maximum={detailMaximum}
+                step={0.001}
+                onChange={(value) => instrumentHull.customize({ innerDetail: detailTolerance(value) })}
+              />
+            </fieldset>
+            <fieldset className="hangar-control-group">
+              <legend>Smoothing</legend>
+              <HangarDial
+                label="Outline smoothing"
+                displayLabel="Outline"
+                value={instrumentHull.tuning.outerSmooth}
+                valueText={instrumentHull.tuning.outerSmooth === 0 ? "None" : instrumentHull.tuning.outerSmooth.toFixed(2)}
+                minimum={0}
+                maximum={0.9}
+                step={0.02}
+                onChange={(value) => instrumentHull.customize({ outerSmooth: value })}
+              />
+              <HangarDial
+                label="Interior smoothing"
+                displayLabel="Interior"
+                value={instrumentHull.tuning.innerSmooth}
+                valueText={instrumentHull.tuning.innerSmooth === 0 ? "None" : instrumentHull.tuning.innerSmooth.toFixed(2)}
+                minimum={0}
+                maximum={0.9}
+                step={0.02}
+                onChange={(value) => instrumentHull.customize({ innerSmooth: value })}
+              />
+            </fieldset>
+            <fieldset className="hangar-control-group hangar-control-group--view">
+              <legend>Form and view</legend>
+              <HangarDial
+                label="Wireframe height"
+                displayLabel="Height"
+                value={instrumentHull.tuning.height}
+                valueText={`${instrumentHull.tuning.height.toFixed(2)}×`}
+                minimum={0.2}
+                maximum={2.2}
+                step={0.05}
+                onChange={(value) => instrumentHull.customize({ height: value })}
+              />
+              <HangarDial
+                label="View angle"
+                displayLabel="Angle"
+                value={instrumentView.pitch}
+                valueText={`${Math.round((instrumentView.pitch - MIN_INSTRUMENT_PITCH) / (MAX_INSTRUMENT_PITCH - MIN_INSTRUMENT_PITCH) * 100)}%`}
+                minimum={MIN_INSTRUMENT_PITCH}
+                maximum={MAX_INSTRUMENT_PITCH}
+                step={0.02}
+                onChange={(pitch) => instrumentView.setView({ ...instrumentView, pitch })}
+              />
+              <HangarDial
+                label="Ship zoom"
+                displayLabel="Zoom"
+                value={instrumentView.zoom}
+                valueText={`${Math.round(instrumentView.zoom * 100)}%`}
+                minimum={MIN_INSTRUMENT_ZOOM}
+                maximum={MAX_INSTRUMENT_ZOOM}
+                step={0.05}
+                onChange={(zoom) => instrumentView.setView({ ...instrumentView, zoom })}
+              />
+            </fieldset>
           </div>
         </div>
       </section>

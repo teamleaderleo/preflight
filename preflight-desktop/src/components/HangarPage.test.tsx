@@ -1,6 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
-import { INSTRUMENT_HULL_MOTION_STORAGE_KEY } from "../desktopStorage";
 import type { useInstrumentHull } from "../useInstrumentHull";
 import type { WireframeHull, WireframeTuning } from "../types";
 import { HangarPage } from "./HangarPage";
@@ -71,23 +70,38 @@ test("the Orbitron ship identity is the typeable hull chooser for the full catal
   expect(chooser).toHaveAttribute("aria-expanded", "true");
   const initialList = screen.getByRole("listbox", { name: "Display ships" });
   expect(within(initialList).getByRole("option", { name: "Odyssey" })).toBeInTheDocument();
-  expect(within(initialList).getByText("capital")).toBeInTheDocument();
+  expect(within(initialList).getByText("capital · Home")).toBeInTheDocument();
   expect(within(initialList).queryByText(/capital ship/i)).not.toBeInTheDocument();
 
   fireEvent.change(chooser, { target: { value: "modded" } });
   const list = screen.getByRole("listbox", { name: "Display ships" });
   expect(within(list).getByRole("option", { name: "Modded Hull" })).toBeInTheDocument();
-  expect(within(list).getByText("Add")).toBeInTheDocument();
+  expect(within(list).getByText("cruiser · Add to Home")).toBeInTheDocument();
 
   fireEvent.keyDown(chooser, { key: "Enter" });
   expect(instrumentHull.choose).toHaveBeenCalledWith("modded-hull");
 });
 
-test("removes the selected ship from the display roster", () => {
+test("Add ship opens the full installed catalog with an empty search", () => {
+  const instrumentHull = state({ hulls: [featured] });
+  render(<HangarPage instrumentHull={instrumentHull} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Add a display ship" }));
+  const chooser = screen.getByRole("combobox", { name: "Display ship" });
+  expect(chooser).toHaveValue("");
+  expect(chooser).toHaveAttribute("aria-expanded", "true");
+  const list = screen.getByRole("listbox", { name: "Display ships" });
+  expect(within(list).getByRole("option", { name: "Odyssey" })).toBeInTheDocument();
+  expect(within(list).getByRole("option", { name: "Modded Hull" })).toBeInTheDocument();
+});
+
+test("removal from Home is an explicit two-step action", () => {
   const instrumentHull = state();
   render(<HangarPage instrumentHull={instrumentHull} />);
 
-  fireEvent.click(screen.getByRole("button", { name: "Remove Odyssey from display ships" }));
+  expect(screen.queryByRole("button", { name: "Remove Odyssey from Home ships" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Manage Odyssey in Home ships" }));
+  fireEvent.click(screen.getByRole("button", { name: "Remove Odyssey from Home ships" }));
   expect(instrumentHull.remove).toHaveBeenCalledWith("odyssey");
 });
 
@@ -157,31 +171,25 @@ test("invalid free text restores the current hull on blur", () => {
   expect(instrumentHull.choose).not.toHaveBeenCalled();
 });
 
-test("motion controls keep pause and one unambiguous direction toggle", () => {
+test("motion controls keep the display alive with one direction toggle", () => {
   render(<HangarPage instrumentHull={state()} />);
 
-  const controls = screen.getByRole("group", { name: "Display motion and appearance" });
+  const controls = screen.getByRole("group", { name: "Ship rotation" });
   expect(controls).toHaveAttribute("data-motion", "rotate");
   expect(controls).toHaveAttribute("data-direction", "clockwise");
   const reverse = within(controls).getByRole("button", { name: "Reverse rotation" });
   fireEvent.click(reverse);
   expect(controls).toHaveAttribute("data-direction", "counter-clockwise");
 
-  const pause = within(controls).getByRole("button", { name: "Pause rotation" });
-  expect(pause).toHaveAttribute("title", "Pause decorative hull rotation");
-  fireEvent.click(pause);
-  expect(controls).toHaveAttribute("data-motion", "still");
-
-  const resume = within(controls).getByRole("button", { name: "Resume rotation" });
-  expect(resume).toHaveAttribute("title", "Resume decorative hull rotation");
   fireEvent.click(reverse);
   expect(controls).toHaveAttribute("data-direction", "clockwise");
-  expect(JSON.parse(window.localStorage.getItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY) ?? "null"))
-    .toEqual({ motion: "still", direction: "clockwise" });
+  const pause = within(controls).getByRole("button", { name: "Pause ship rotation" });
+  fireEvent.click(pause);
+  expect(within(controls).getByRole("button", { name: "Resume ship rotation" })).toBeInTheDocument();
 
-  const reset = within(controls).getByRole("button", { name: "Reset appearance" });
-  expect(reset).toHaveAttribute("title", "Reset appearance");
-  expect(reset).toHaveTextContent("Reset");
+  const reset = screen.getByRole("button", { name: "Reset ship appearance and view" });
+  expect(reset).toHaveAttribute("title", "Reset ship appearance and view");
+  expect(within(controls).getByRole("button", { name: "Reset ship appearance and view" })).toBe(reset);
 });
 
 test("appearance dials expose palette-progress state and keep interior tuning independently editable", () => {

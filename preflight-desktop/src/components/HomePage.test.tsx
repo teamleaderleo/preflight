@@ -258,16 +258,20 @@ test("Home exposes direct display controls without conflicting compact and playt
   await user.click(screen.getByRole("button", { name: "Odyssey" }));
   expect(navigate).toHaveBeenCalledWith("hangar");
 
-  await user.click(screen.getByRole("button", { name: "Reverse ship rotation" }));
-  expect(screen.getByRole("button", { name: "Reverse ship rotation" })).toBeEnabled();
+  await user.click(screen.getByRole("button", { name: "Pause ship rotation" }));
+  expect(screen.getByRole("button", { name: "Resume ship rotation" })).toHaveAttribute("aria-pressed", "true");
 
-  await user.click(screen.getByRole("button", { name: "Hide time" }));
-  expect(screen.getByRole("button", { name: "Show time" })).toHaveAttribute("aria-pressed", "false");
-  await user.click(screen.getByRole("button", { name: "Hide ship" }));
-  expect(screen.getByRole("button", { name: "Show ship" })).toHaveAttribute("aria-pressed", "true");
-  await user.click(screen.getByRole("button", { name: "Show time" }));
-  expect(screen.getByRole("button", { name: "Hide time" })).toHaveAttribute("aria-pressed", "true");
-  expect(screen.getByRole("button", { name: "Hide ship" })).toHaveAttribute("aria-pressed", "false");
+  const playtime = screen.getByRole("button", { name: "Playtime" });
+  const ship = screen.getByRole("button", { name: "Ship" });
+  expect(playtime).toHaveAttribute("aria-pressed", "true");
+  expect(ship).toHaveAttribute("aria-pressed", "true");
+  await user.click(playtime);
+  expect(playtime).toHaveAttribute("aria-pressed", "false");
+  await user.click(ship);
+  expect(ship).toHaveAttribute("aria-pressed", "false");
+  await user.click(playtime);
+  expect(playtime).toHaveAttribute("aria-pressed", "true");
+  expect(ship).toHaveAttribute("aria-pressed", "false");
 });
 
 test("Home keeps the new profile and installation visible when that setup needs preparation", () => {
