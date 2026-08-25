@@ -1854,6 +1854,64 @@ h2 {
   color: var(--warning);
 }
 
+.frame-pacing-card {
+  display: grid;
+  gap: 12px;
+  padding: 20px 24px;
+}
+
+.frame-pacing-card .card__heading {
+  align-items: end;
+  margin: 0;
+}
+
+.frame-pacing-card .card__heading > small,
+.frame-pacing-card > small,
+.frame-pacing-row small {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.frame-pacing-card__sessions {
+  display: grid;
+  gap: 10px;
+}
+
+.frame-pacing-row {
+  display: grid;
+  grid-template-columns: minmax(150px, .65fr) minmax(0, 2fr);
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) 78%, transparent);
+}
+
+.frame-pacing-row__heading {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 12px 14px;
+  border-right: 1px solid var(--line);
+}
+
+.frame-pacing-row__metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.frame-pacing-row__metrics > span {
+  display: grid;
+  gap: 3px;
+  padding: 12px 14px;
+  border-right: 1px solid var(--line);
+}
+
+.frame-pacing-row__metrics > span:last-child {
+  border-right: 0;
+}
+
+.frame-pacing-row__metrics strong {
+  font: 700 15px/1.2 var(--font-data);
+}
+
 .storage-card--compact {
   padding: 16px 24px;
 }
@@ -2019,6 +2077,14 @@ h2 {
 
 .preference-block + .preference-block {
   border-left: 1px solid var(--line);
+}
+
+.preferences-card > .preference-block:nth-child(odd) {
+  border-left: 0;
+}
+
+.preferences-card > .preference-block:nth-child(n + 3) {
+  border-top: 1px solid var(--line);
 }
 
 .preference-block h2,
@@ -2394,6 +2460,36 @@ h2 {
   .preferences-card,
   .preferences-card > .preference-block:only-child {
     grid-template-columns: 1fr;
+  }
+
+  .preferences-card > .preference-block,
+  .preferences-card > .preference-block:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .preferences-card > .preference-block:nth-child(n + 2) {
+    border-top: 1px solid var(--line);
+  }
+
+  .frame-pacing-row {
+    grid-template-columns: 1fr;
+  }
+
+  .frame-pacing-row__heading {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .frame-pacing-row__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .frame-pacing-row__metrics > span:nth-child(2) {
+    border-right: 0;
+  }
+
+  .frame-pacing-row__metrics > span:nth-child(n + 3) {
+    border-top: 1px solid var(--line);
   }
 }
 

@@ -2,6 +2,7 @@ import { RefreshIcon, ShieldIcon, SparklesIcon } from "../icons";
 import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
 import { SpeedScoreboard } from "./SpeedScoreboard";
+import { FramePacingCard } from "./FramePacingCard";
 import { resourcePresets, storagePlanApplies, type usePreparation } from "../usePreparation";
 import type { StorageCleanupPlan } from "../useCacheCleanup";
 import type { SpeedStanding } from "../useSpeedRecord";
@@ -141,6 +142,7 @@ export function PreparationPage({
         * it is the one thing this page is named after and used to be missing entirely.
         */}
       <SpeedScoreboard standing={speedStanding} isReady={isReady} playtime={playtime} lastRun={lastRun} onOpenBenchmark={onOpenBenchmark} />
+      <FramePacingCard framePacing={lastRun?.framePacing} />
 
       {cacheHealth?.status === "repair-needed" || cacheHealth?.status === "unsafe" || cacheHealth?.status === "unknown" ? (
         <section className="card run-recovery cache-recovery" aria-label="Prepared data needs attention">

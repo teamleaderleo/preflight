@@ -167,7 +167,7 @@ test("the default cold-profile action prepares with balanced settings and then l
   expect(screen.getByText(/^for Starsector$/i)).toBeInTheDocument();
   await user.click(action);
   await waitFor(() => expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256));
-  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize"));
+  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize", false));
 
   cache.mockRestore();
   preparation.mockRestore();
@@ -223,7 +223,7 @@ test("repairs only the reviewed profile before rebuilding and launching", async 
   await user.click(screen.getByRole("button", { name: "Repair and launch" }));
   await waitFor(() => expect(repair).toHaveBeenCalledWith("/Applications/Starsector", "preview-profile"));
   await waitFor(() => expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256));
-  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize"));
+  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize", false));
 
   health.mockRestore();
   repair.mockRestore();
@@ -282,7 +282,7 @@ test("a refused preparation still leaves a way to launch the game", async () => 
   expect(screen.getByText(/Preparation needs .* free; .* is available\./)).toBeInTheDocument();
   await user.click(launch);
 
-  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize"));
+  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize", false));
   expect(preparation).not.toHaveBeenCalled();
 
   cache.mockRestore();
@@ -840,6 +840,7 @@ test("the primary action requires an explicit Apply before launching edited glob
     "recommended",
     [],
     "minimize",
+    false,
   ));
   update.mockRestore();
   game.mockRestore();
@@ -969,6 +970,7 @@ test("advanced domain selections are validated on restore and reach the typed la
     "recommended",
     ["prepared-textures"],
     "minimize",
+    false,
   ));
   expect(window.localStorage.getItem("preflight.disabledOptimizationDomains"))
     .toBe('["prepared-textures"]');
@@ -985,6 +987,7 @@ test("after-launch behavior defaults to minimize and remains an explicit setting
   const behavior = await screen.findByRole("combobox", { name: "Preflight window" });
   expect(behavior).toHaveValue("minimize");
   await user.selectOptions(behavior, "keep");
+  await user.click(screen.getByRole("checkbox", { name: "Record frame pacing" }));
   await user.click(screen.getByRole("button", { name: "Home" }));
   await user.click(await screen.findByRole("button", { name: "Launch Starsector" }));
   await waitFor(() => expect(game).toHaveBeenCalledWith(
@@ -992,9 +995,24 @@ test("after-launch behavior defaults to minimize and remains an explicit setting
     "recommended",
     [],
     "keep",
+    true,
   ));
   expect(window.localStorage.getItem("preflight.afterLaunchBehavior")).toBe("keep");
+  expect(window.localStorage.getItem("preflight.framePacing.v1")).toBe("on");
   game.mockRestore();
+});
+
+test("an opted-in session surfaces bounded campaign and combat pacing on Speed", async () => {
+  window.history.replaceState(null, "", "/?scenario=frame-pacing");
+  const user = userEvent.setup();
+
+  render(<App />);
+  await user.click(await screen.findByRole("button", { name: "Speed" }));
+
+  const card = await screen.findByRole("region", { name: "Latest frame pacing" });
+  expect(within(card).getByRole("group", { name: "Campaign after warm-up" })).toHaveTextContent("59.4 FPS");
+  expect(within(card).getByRole("group", { name: "Combat" })).toHaveTextContent("54.2 FPS");
+  expect(card).toHaveTextContent("never reads or writes a save");
 });
 
 test("the Hangar keeps the ship central and its compact customization local to that hull", async () => {

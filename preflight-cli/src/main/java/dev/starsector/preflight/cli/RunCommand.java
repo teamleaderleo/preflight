@@ -182,10 +182,15 @@ final class RunCommand {
                     javaToolOptions,
                     List.of("-Dpreflight.texture.trustValidatedIndex=true"));
         }
+        if (options.frameTimes() || options.desktopSmoke()) {
+            javaToolOptions = appendJavaOptions(
+                    javaToolOptions,
+                    List.of("-Dpreflight.frameTimes=true"));
+        }
         if (options.desktopSmoke()) {
             javaToolOptions = appendJavaOptions(
                     javaToolOptions,
-                    List.of("-Dpreflight.desktopSmoke=true", "-Dpreflight.frameTimes=true"));
+                    List.of("-Dpreflight.desktopSmoke=true"));
         }
         String javaOptions = MacRosettaGcPolicy.appendOptions(
                 System.getenv("_JAVA_OPTIONS"), macRosettaGcPolicy);
@@ -819,6 +824,7 @@ final class RunCommand {
         values.put("assetProgressLogsSuppressed", options.suppressAssetProgressLogs());
         values.put("trustedValidatedTextureIndex",
                 trustsLauncherValidatedTextureIndex(options, textureContext));
+        values.put("frameTimes", options.frameTimes() || options.desktopSmoke());
         values.put("desktopSmoke", options.desktopSmoke());
         values.put("quietLogConfiguration", options.fileOnlyLogs()
                 ? QuietLogConfiguration.path(path.getParent(), options.quietLogs())

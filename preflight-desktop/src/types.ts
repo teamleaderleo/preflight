@@ -12,6 +12,7 @@ export interface LastRun {
   installRoot?: string | null;
   profileFingerprint?: string | null;
   adapterHealth: AdapterHealthSummary | null;
+  framePacing?: FramePacingSummary | null;
   started?: string | null;
   ended?: string | null;
   wrapperPid?: number | null;
@@ -19,6 +20,22 @@ export interface LastRun {
   startupMillis?: number | null;
   outcome?: string | null;
   exitCode?: number | null;
+}
+
+export interface FramePacingDistribution {
+  frames: number;
+  averageFps: number;
+  onePercentLowFps: number;
+  p95Micros: number;
+  p99Micros: number;
+}
+
+export interface FramePacingSummary {
+  format: "starsector-preflight-frame-pacing-summary-v1";
+  campaign: FramePacingDistribution | null;
+  settledCampaign: FramePacingDistribution | null;
+  combat: FramePacingDistribution | null;
+  measurementAverageMicros: number | null;
 }
 
 export interface AdapterHealthSummary {

@@ -153,6 +153,65 @@ class DesktopBridgeCommandTest {
     }
 
     @Test
+    void snapshotCarriesOnlyBoundedFramePacingSummariesFromTheLatestRun() throws Exception {
+        Path home = Files.createDirectories(temporaryDirectory.resolve("frame-home"));
+        Path game = Files.createDirectories(temporaryDirectory.resolve("frame-game"));
+        Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
+        Path run = Files.createDirectories(home.resolve(".starsector-preflight/runs/run-1"));
+        Files.writeString(run.resolve("run.json"), Json.object(Map.of(
+                "installRoot", game,
+                "textureProfileFingerprint", "9".repeat(64))));
+        Map<String, Object> campaign = Map.of(
+                "frames", 4091,
+                "averageFps", 55.47,
+                "onePercentLowFps", 20.45,
+                "p95Micros", 27100,
+                "p99Micros", 48900,
+                "worstFrames", List.of(Map.of("timestamp", "private-detail")));
+        Files.writeString(run.resolve("adapter.json"), Json.object(Map.of(
+                "frameTimes", Map.of(
+                        "enabled", true,
+                        "campaignActive", campaign,
+                        "campaignAfterFirst30SecondsActive", campaign,
+                        "combatAfterCampaignActive", Map.of("frames", 0),
+                        "measurementOverhead", Map.of("averageMicros", 1.78)))));
+
+        Map<String, Object> snapshot = DesktopBridgeCommand.snapshot(
+                Platform.MAC, home, temporaryDirectory, Map.of(), game, null);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> lastRun = (Map<String, Object>) snapshot.get("lastRun");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> framePacing = (Map<String, Object>) lastRun.get("framePacing");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> summary = (Map<String, Object>) framePacing.get("campaign");
+
+        assertEquals("starsector-preflight-frame-pacing-summary-v1", framePacing.get("format"));
+        assertEquals(4091L, summary.get("frames"));
+        assertEquals(55.47, summary.get("averageFps"));
+        assertEquals(20.45, summary.get("onePercentLowFps"));
+        assertEquals(1.78, framePacing.get("measurementAverageMicros"));
+        assertFalse(summary.containsKey("worstFrames"), summary.toString());
+        assertNull(framePacing.get("combat"));
+    }
+
+    @Test
+    void snapshotRejectsAnOversizedFramePacingReport() throws Exception {
+        Path home = Files.createDirectories(temporaryDirectory.resolve("oversized-frame-home"));
+        Path game = Files.createDirectories(temporaryDirectory.resolve("oversized-frame-game"));
+        Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
+        Path run = Files.createDirectories(home.resolve(".starsector-preflight/runs/run-1"));
+        Files.writeString(run.resolve("run.json"), Json.object(Map.of("installRoot", game)));
+        Files.write(run.resolve("adapter.json"), new byte[512 * 1024 + 1]);
+
+        Map<String, Object> snapshot = DesktopBridgeCommand.snapshot(
+                Platform.MAC, home, temporaryDirectory, Map.of(), game, null);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> lastRun = (Map<String, Object>) snapshot.get("lastRun");
+
+        assertNull(lastRun.get("framePacing"));
+    }
+
+    @Test
     void snapshotUsesTheNewestRunBoundToTheSelectedInstallation() throws Exception {
         Path home = Files.createDirectories(temporaryDirectory.resolve("two-install-home"));
         Path selectedGame = Files.createDirectories(temporaryDirectory.resolve("selected-game"));

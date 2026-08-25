@@ -2,7 +2,7 @@
 
 Date: 2026-08-26
 
-Status: installed game bytecode, current Preflight telemetry, and product boundary reviewed
+Status: installed game bytecode, current Preflight telemetry, product boundary, and desktop result reviewed
 
 ## Starsector already owns the on-screen counter
 
@@ -30,20 +30,25 @@ than the instantaneous game counter:
 - separate campaign, campaign warm-up, settled campaign, and combat distributions;
 - focus-loss exclusion and measurement-overhead accounting.
 
-The probe is currently explicit development/benchmark instrumentation. Normal launches do not start
-its smoke-only one-second report publisher.
+The probe remains explicit and opt-in. A normal optimized launch can now enable the same bounded
+frame boundary without enabling desktop-smoke automation or its one-second live report publisher.
 
-## Product direction
+## Product implementation
 
 Do not inject a second counter into Starsector as the first feature. It would duplicate a display
 the game already owns while adding render-hook, fullscreen, scaling, and compatibility risk.
 
-The useful Preflight feature is an optional **Frame pacing** result: explain where Starsector's own
-counter appears, then let a player explicitly record a session and show average FPS, one-percent
-low, and p95/p99 frame time in Preflight after play. Keep the recording local, bounded, visibly
-enabled, and out of campaign saves. A live desktop readout can follow if players use a second
-display; it should reuse the same low-overhead frame boundary rather than add another clock to the
-render loop.
+The desktop now has an optional **Record frame pacing** preference. Recommended and Compatibility
+launches reuse the existing exact-pinned frame boundary, then the latest run snapshot exposes only
+a compact average-FPS, one-percent-low, and p95/p99 summary. The desktop prefers settled campaign
+frames when available, labels that warm-up exclusion, shows campaign and combat separately, and
+does not expose raw worst-frame details. Reading the adapter report is size-bounded and fails closed.
+
+The preference stays visibly enabled but collection pauses under **Off / troubleshooting**, because
+that preset promises not to install the runtime adapter. Results remain in Preflight's run directory;
+the feature neither reads nor writes campaign saves. A live desktop readout can follow if players
+use a second display; it should reuse the same low-overhead frame boundary rather than add another
+clock to the render loop.
 
 An advanced paired campaign mode can reuse the existing measurement-only/optimized coordinator, but
 it needs a deliberately selected disposable save, a representative route longer than the current

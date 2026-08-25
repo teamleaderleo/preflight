@@ -20,9 +20,12 @@ interface SettingsPageProps {
   removalPlan: RemovalPlan | null;
   removalBusy: boolean;
   afterLaunchBehavior: AfterLaunchBehavior;
+  recordFramePacing: boolean;
+  framePacingPaused: boolean;
   installation: string | null;
   installationChangeBlockedReason?: string | null;
   onAfterLaunchBehaviorChange: (behavior: AfterLaunchBehavior) => void;
+  onRecordFramePacingChange: (record: boolean) => void;
   onChooseInstall: () => void;
   onReviewRemoval: (scope: RemovalScope) => void;
   onDismissRemoval: () => void;
@@ -38,9 +41,12 @@ export function SettingsPage({
   removalPlan,
   removalBusy,
   afterLaunchBehavior,
+  recordFramePacing,
+  framePacingPaused,
   installation,
   installationChangeBlockedReason,
   onAfterLaunchBehaviorChange,
+  onRecordFramePacingChange,
   onChooseInstall,
   onReviewRemoval,
   onDismissRemoval,
@@ -100,6 +106,26 @@ export function SettingsPage({
           >
             {installation ? "Change folder" : "Choose game folder"}
           </button>
+        </div>
+        <div className="preference-block">
+          <div>
+            <h2>Frame pacing</h2>
+            <p>Starsector already has a live FPS counter. Preflight can keep a local summary after the game exits.</p>
+          </div>
+          <label className="settings-toggle">
+            <input
+              type="checkbox"
+              aria-label="Record frame pacing"
+              checked={recordFramePacing}
+              onChange={(event) => onRecordFramePacingChange(event.target.checked)}
+            />
+            <span>
+              Record frame pacing
+              <small>{framePacingPaused
+                ? "Paused while optimizations are Off."
+                : "Average FPS, one-percent low, and frame-time percentiles. Never writes to saves."}</small>
+            </span>
+          </label>
         </div>
         <div className="preference-block">
           <div>

@@ -53,6 +53,7 @@ export type BrowserPreviewScenario =
   | "cache-repair"
   | "mod-problems"
   | "profile-mismatch"
+  | "frame-pacing"
   | "benchmark-unavailable"
   | "update-error"
   | "report-error"
@@ -67,6 +68,7 @@ const browserPreviewScenarios = new Set<BrowserPreviewScenario>([
   "cache-repair",
   "mod-problems",
   "profile-mismatch",
+  "frame-pacing",
   "benchmark-unavailable",
   "update-error",
   "report-error",
@@ -105,6 +107,40 @@ const previewSnapshot: DesktopSnapshot = {
     first: "2026-05-02T08:14:00Z",
     last: "2026-08-15T22:31:00Z",
   },
+};
+
+const previewFramePacingRun: NonNullable<DesktopSnapshot["lastRun"]> = {
+  directory: "~/.starsector-preflight/runs/preview-run",
+  modifiedAt: "2026-08-15T22:31:00Z",
+  installRoot: "/Applications/Starsector",
+  profileFingerprint: "preview-profile",
+  adapterHealth: null,
+  framePacing: {
+    format: "starsector-preflight-frame-pacing-summary-v1",
+    campaign: {
+      frames: 9_428,
+      averageFps: 58.7,
+      onePercentLowFps: 41.3,
+      p95Micros: 18_420,
+      p99Micros: 24_910,
+    },
+    settledCampaign: {
+      frames: 7_663,
+      averageFps: 59.4,
+      onePercentLowFps: 45.8,
+      p95Micros: 17_860,
+      p99Micros: 22_740,
+    },
+    combat: {
+      frames: 3_172,
+      averageFps: 54.2,
+      onePercentLowFps: 34.6,
+      p95Micros: 20_110,
+      p99Micros: 28_640,
+    },
+    measurementAverageMicros: 1.78,
+  },
+  startupMillis: 31_240,
 };
 
 const previewProfiles: NamedProfile[] = [
@@ -150,6 +186,9 @@ export function isDesktopHost(): boolean {
 
 export async function getSnapshot(game?: string): Promise<DesktopSnapshot> {
   if (!isDesktopHost()) {
+    if (browserPreviewScenario() === "frame-pacing") {
+      return { ...previewSnapshot, lastRun: previewFramePacingRun };
+    }
     if (browserPreviewScenario() === "setup") {
       return {
         ...previewSnapshot,
@@ -417,12 +456,19 @@ export async function startGame(
   optimizationPreset: OptimizationPreset,
   disabledOptimizationDomains: OptimizationDomain[],
   afterLaunchBehavior: AfterLaunchBehavior,
+  recordFramePacing: boolean,
 ): Promise<RunStarted> {
   if (!isDesktopHost()) {
     await new Promise((resolve) => window.setTimeout(resolve, 350));
     return { pid: 4242 };
   }
-  return invoke<RunStarted>("start_game", { game, optimizationPreset, disabledOptimizationDomains, afterLaunchBehavior });
+  return invoke<RunStarted>("start_game", {
+    game,
+    optimizationPreset,
+    disabledOptimizationDomains,
+    afterLaunchBehavior,
+    recordFramePacing,
+  });
 }
 
 export async function stopGame(force = false): Promise<StopGameResult> {

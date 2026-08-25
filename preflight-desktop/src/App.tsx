@@ -24,6 +24,7 @@ import { WorkflowLockNotice } from "./components/WorkflowLockNotice";
 import { useDesktopAutomation } from "./useDesktopAutomation";
 import { useAutomaticMaintenance } from "./useAutomaticMaintenance";
 import { useAfterLaunchBehavior } from "./useAfterLaunchBehavior";
+import { useFramePacingPreference } from "./useFramePacingPreference";
 import { lastRunForCurrentProfile } from "./lastRunApplicability";
 import { launchProfileNameFor } from "./launchProfileIdentity";
 import { useCacheCleanup } from "./useCacheCleanup";
@@ -118,6 +119,7 @@ export default function App() {
     setOptimizationDomainEnabled,
   } = useOptimizationPolicy();
   const { afterLaunchBehavior, setAfterLaunchBehavior } = useAfterLaunchBehavior();
+  const { recordFramePacing, setRecordFramePacing } = useFramePacingPreference();
   const refreshRequest = useRef(0);
   const setInstallationStatus = useCallback((next: AppStatus) => {
     setStatus((current) => (current === "running" || current === "launching" ? current : next));
@@ -181,6 +183,7 @@ export default function App() {
         optimizationPreset,
         disabledOptimizationDomains,
         afterLaunchBehavior,
+        recordFramePacing,
       );
       setForceStopAvailable(false);
       if (!isDesktopHost()) setStatus("running");
@@ -203,7 +206,7 @@ export default function App() {
       setRetryIntent({ kind: "launch" });
       announceGame(String(error), "error");
     }
-  }, [afterLaunchBehavior, announceGame, disabledOptimizationDomains, optimizationPreset, snapshot?.selected?.installRoot]);
+  }, [afterLaunchBehavior, announceGame, disabledOptimizationDomains, optimizationPreset, recordFramePacing, snapshot?.selected?.installRoot]);
 
   const stopRunningGame = useCallback(async () => {
     if (stoppingGame) return;
@@ -746,9 +749,12 @@ export default function App() {
             removalPlan={removal.plan}
             removalBusy={removal.busy}
             afterLaunchBehavior={afterLaunchBehavior}
+            recordFramePacing={recordFramePacing}
+            framePacingPaused={optimizationPreset === "off"}
             installation={snapshot?.selected?.installRoot ?? null}
             installationChangeBlockedReason={activeOperation?.reason ?? null}
             onAfterLaunchBehaviorChange={setAfterLaunchBehavior}
+            onRecordFramePacingChange={setRecordFramePacing}
             onChooseInstall={() => void chooseInstall()}
             onReviewRemoval={(scope) => void removal.review(scope)}
             onDismissRemoval={removal.dismiss}

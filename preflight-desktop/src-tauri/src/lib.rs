@@ -206,6 +206,7 @@ fn start_game(
     optimization_preset: String,
     disabled_optimization_domains: Vec<String>,
     after_launch_behavior: String,
+    record_frame_pacing: bool,
 ) -> Result<RunStarted, String> {
     let directory = canonical_game_directory(&game)?;
     let optimization_preset = validate_optimization_preset(&optimization_preset)?;
@@ -237,6 +238,11 @@ fn start_game(
         .arg(directory);
     for domain in disabled_optimization_domains {
         command.arg("--disable-optimization-domain").arg(domain);
+    }
+    // Off is the troubleshooting baseline: it must remain free of the runtime adapter. Keep the
+    // preference for later launches, but pause collection for this one.
+    if should_record_frame_pacing(optimization_preset, record_frame_pacing) {
+        command.arg("--frame-times");
     }
     command.env("PREFLIGHT_DESKTOP_EVENTS", "stderr-v1");
     command.stderr(Stdio::piped());
@@ -384,6 +390,10 @@ fn validate_optimization_preset(value: &str) -> Result<&str, String> {
         "recommended" | "conservative" | "off" => Ok(value),
         _ => Err("Optimization preset must be recommended, conservative, or off.".to_string()),
     }
+}
+
+fn should_record_frame_pacing(optimization_preset: &str, requested: bool) -> bool {
+    requested && optimization_preset != "off"
 }
 
 fn validate_optimization_domains(values: &[String]) -> Result<Vec<&str>, String> {
@@ -725,8 +735,8 @@ mod tests {
     use super::{
         AfterLaunchBehavior, DESKTOP_RUN_EVENT_MAX_BYTES, DESKTOP_RUN_EVENT_PREFIX, append_tail,
         begin_exit_cleanup, parse_active_game_pid, parse_desktop_run_event, parse_stop_game_result,
-        project_link_url, read_tail, snapshot_operation_state, take_deferred_exit,
-        validate_optimization_domains, validate_optimization_preset,
+        project_link_url, read_tail, should_record_frame_pacing, snapshot_operation_state,
+        take_deferred_exit, validate_optimization_domains, validate_optimization_preset,
     };
     use crate::automation::{
         DESKTOP_SMOKE_CANCELLATION_FILE, desktop_benchmark_comparison,
@@ -832,6 +842,14 @@ mod tests {
             AfterLaunchBehavior::parse("quit").unwrap()
         );
         assert!(AfterLaunchBehavior::parse("hide-forever").is_err());
+    }
+
+    #[test]
+    fn frame_pacing_preserves_the_uninstrumented_off_boundary() {
+        assert!(should_record_frame_pacing("recommended", true));
+        assert!(should_record_frame_pacing("conservative", true));
+        assert!(!should_record_frame_pacing("off", true));
+        assert!(!should_record_frame_pacing("recommended", false));
     }
 
     #[test]

@@ -36,8 +36,11 @@ function props(overrides: Partial<ComponentProps<typeof SettingsPage>> = {}): Co
     removalPlan: null,
     removalBusy: false,
     afterLaunchBehavior: "minimize",
+    recordFramePacing: false,
+    framePacingPaused: false,
     installation: "/Applications/Starsector",
     onAfterLaunchBehaviorChange: vi.fn(),
+    onRecordFramePacingChange: vi.fn(),
     onChooseInstall: vi.fn(),
     onReviewRemoval: vi.fn(),
     onDismissRemoval: vi.fn(),
@@ -67,6 +70,21 @@ test("Settings offers first selection when no installation is active", () => {
 
   expect(screen.getByText("No Starsector installation selected.")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Choose game folder" })).toBeEnabled();
+});
+
+test("frame pacing is an explicit local opt-in and explains the Off boundary", async () => {
+  const user = userEvent.setup();
+  const onRecordFramePacingChange = vi.fn();
+  const { rerender } = render(<SettingsPage {...props({ onRecordFramePacingChange })} />);
+
+  const toggle = screen.getByRole("checkbox", { name: "Record frame pacing" });
+  expect(toggle).not.toBeChecked();
+  expect(screen.getByText(/Never writes to saves/)).toBeInTheDocument();
+  await user.click(toggle);
+  expect(onRecordFramePacingChange).toHaveBeenCalledWith(true);
+
+  rerender(<SettingsPage {...props({ recordFramePacing: true, framePacingPaused: true })} />);
+  expect(screen.getByText("Paused while optimizations are Off.")).toBeInTheDocument();
 });
 
 test("installation changes follow the app-wide workflow lock", () => {
