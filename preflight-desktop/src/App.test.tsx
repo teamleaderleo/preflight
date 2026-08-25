@@ -644,9 +644,10 @@ test("does not rediscover a stable installation when the window regains focus", 
   await screen.findByRole("heading", { name: "Ready", level: 1 });
   const afterSetup = snapshot.mock.calls.length;
 
-  window.dispatchEvent(new Event("focus"));
-  document.dispatchEvent(new Event("visibilitychange"));
-  await Promise.resolve();
+  await act(async () => {
+    window.dispatchEvent(new Event("focus"));
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
 
   expect(snapshot.mock.calls.length).toBe(afterSetup);
   expect(screen.getByRole("heading", { name: "Ready", level: 1 })).toBeInTheDocument();
@@ -675,10 +676,11 @@ test("window focus never changes the quick game controls", async () => {
   expect(sound).toBeEnabled();
   expect(sound).toBeChecked();
 
-  window.dispatchEvent(new Event("blur"));
-  document.dispatchEvent(new Event("visibilitychange"));
-  window.dispatchEvent(new Event("focus"));
-  await Promise.resolve();
+  await act(async () => {
+    window.dispatchEvent(new Event("blur"));
+    document.dispatchEvent(new Event("visibilitychange"));
+    window.dispatchEvent(new Event("focus"));
+  });
 
   expect(sound).toBeEnabled();
   expect(sound).toBeChecked();
@@ -706,8 +708,10 @@ test("window focus does not reveal and re-hide an idle Home HUD", async () => {
     act(() => vi.advanceTimersByTime(2200));
     expect(home).toHaveClass("home-hud--idle");
 
-    fireEvent.blur(window);
-    fireEvent.focus(window);
+    await act(async () => {
+      fireEvent.blur(window);
+      fireEvent.focus(window);
+    });
     expect(home).toHaveClass("home-hud--idle");
   } finally {
     vi.useRealTimers();
@@ -724,8 +728,9 @@ test("returning to the window does not re-read the installation while the game r
   await waitFor(() => expect(game).toHaveBeenCalled());
   const whileRunning = snapshot.mock.calls.length;
 
-  window.dispatchEvent(new Event("focus"));
-  await Promise.resolve();
+  await act(async () => {
+    window.dispatchEvent(new Event("focus"));
+  });
 
   expect(snapshot.mock.calls.length).toBe(whileRunning);
   snapshot.mockRestore();
