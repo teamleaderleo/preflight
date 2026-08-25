@@ -14,6 +14,7 @@ from pathlib import Path
 
 
 GENERATED_PATHS = (
+    ".wrangler",
     "target",
     "preflight-agent/target",
     "preflight-cli/target",
@@ -24,6 +25,11 @@ GENERATED_PATHS = (
     "preflight-desktop/desktop-dist",
     "preflight-desktop/node_modules/.preflight-ui-layout",
     "preflight-desktop/scripts/__pycache__",
+    "preflight-desktop/.wrangler",
+    "preflight-desktop/src-tauri/icons/64x64.png",
+    "preflight-desktop/src-tauri/icons/StoreLogo.png",
+    "preflight-desktop/src-tauri/icons/android",
+    "preflight-desktop/src-tauri/icons/ios",
     "preflight-desktop/src-tauri/gen",
     "preflight-desktop/src-tauri/target",
     "docs/design/hangar-light/__pycache__",
@@ -34,10 +40,12 @@ GENERATED_PATHS = (
     "probe-kits/gpu-capability/__pycache__",
     "probe-kits/texture-pipeline/.probe-build",
     "report-intake/dist",
+    "report-intake/.wrangler",
     "scripts/__pycache__",
 )
 
 GENERATED_GLOBS = (
+    "preflight-desktop/src-tauri/icons/Square*Logo.png",
     "probe-kits/gpu-capability/gpu-capability-report-*.txt",
     "probe-kits/texture-pipeline/texture-pipeline-report-*.txt",
 )
@@ -243,7 +251,7 @@ def remove_outputs(build: BuildSet) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Remove rebuildable Maven, Rust, frontend, package, and duplicate dependency outputs "
+            "Remove rebuildable compiler, frontend, package, tooling, and duplicate dependency outputs "
             "from old registered worktrees. Dependencies in the current worktree are always "
             "retained; its other outputs are retained unless explicitly retired after its source "
             "is clean. Source changes are never removed."

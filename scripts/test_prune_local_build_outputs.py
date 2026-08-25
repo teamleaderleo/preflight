@@ -41,6 +41,34 @@ class SelectionTest(unittest.TestCase):
             prune.GENERATED_GLOBS,
         )
 
+    def test_ignored_wrapper_and_generated_icon_outputs_are_bounded(self):
+        self.assertIn(".wrangler", prune.GENERATED_PATHS)
+        self.assertIn("report-intake/.wrangler", prune.GENERATED_PATHS)
+        self.assertIn("preflight-desktop/.wrangler", prune.GENERATED_PATHS)
+        self.assertIn("preflight-desktop/src-tauri/icons/64x64.png", prune.GENERATED_PATHS)
+        self.assertIn("preflight-desktop/src-tauri/icons/StoreLogo.png", prune.GENERATED_PATHS)
+        self.assertIn("preflight-desktop/src-tauri/icons/android", prune.GENERATED_PATHS)
+        self.assertIn("preflight-desktop/src-tauri/icons/ios", prune.GENERATED_PATHS)
+        self.assertIn(
+            "preflight-desktop/src-tauri/icons/Square*Logo.png",
+            prune.GENERATED_GLOBS,
+        )
+
+    def test_generated_store_icon_glob_does_not_select_maintained_source_artwork(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            icons = root / "preflight-desktop" / "src-tauri" / "icons"
+            icons.mkdir(parents=True)
+            generated = icons / "Square150x150Logo.png"
+            generated.write_bytes(b"generated")
+            maintained = icons / "icon.png"
+            maintained.write_bytes(b"maintained")
+
+            outputs = prune.rebuildable_outputs(root, root)
+
+            self.assertIn(generated, outputs)
+            self.assertNotIn(maintained, outputs)
+
     def test_timestamped_probe_reports_are_selected_without_matching_source_notes(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
