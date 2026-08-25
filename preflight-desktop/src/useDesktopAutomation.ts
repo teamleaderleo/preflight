@@ -127,7 +127,7 @@ export function useDesktopAutomation({
     setDesktopSmokeRunDirectory(null);
     setDesktopBenchmarkComparison(null);
     setStatus("running");
-    announce("Starting a normal launch, then a Preflight launch…");
+    announce("Starting through Preflight with optimizations off, then on…");
     try {
       await startDesktopSmoke(game);
       if (!isDesktopHost()) {

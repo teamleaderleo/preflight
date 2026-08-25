@@ -28,7 +28,8 @@ reviewed. Preflight can't guarantee that the original game or a mod is free of i
 The 15.25-second launch is the fastest run from the current development comparison, not an expected
 result for every system. Mod count and content, cache warmth, CPU, translation, storage, memory
 pressure, and temperature all affect startup and frame time. The built-in benchmark lets each
-installation record its own normal and accelerated launch. The accepted package will get its own
+installation record both conditions through Preflight, with reviewed optimizations off and on. The
+accepted package will get its own
 retained benchmark result before the first public beta release goes live.
 
 Preparation uses additional disk space. Balanced stores lossless LZ4 data and keeps raw data when

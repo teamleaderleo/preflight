@@ -36,7 +36,8 @@ measurement chronology and experimental context, see [Optimization history](docs
 
 ## A lot more than a launch button
 
-- **Measure your own result.** The desktop benchmark compares a normal launch with a Preflight launch
+- **Measure your own result.** The desktop benchmark runs the same setup twice through Preflight,
+  first with reviewed optimizations off and then with them on,
   on the current installation. **Copy result** produces a compact shareable comparison without raw
   evidence, private paths, or logs.
 - **Track Starsector playtime.** A bounded local play-history ledger follows sessions launched through Preflight
@@ -115,7 +116,7 @@ packaged candidate result still owed before release.
 All of these development measurements are from one M5 MacBook Air running Starsector 0.98a-RC8 and
 the game's bundled x86-64 Java runtime through Rosetta. Hardware, mods, storage, cache warmth,
 memory pressure, translation, temperature, and other machine state affect the result. Preflight's
-benchmark lets each installation measure its own normal and accelerated launch. The development
+benchmark runs both conditions through Preflight, with reviewed optimizations off and on. The development
 measurements and their context are collected in [Optimization history](docs/optimization-history.md)
 and [From three-minute preparation to fourteen-second launches](docs/evidence/2026-08-23-storage-to-fourteen-seconds.md).
 
@@ -166,7 +167,7 @@ happened in that run rather than what another machine should expect.
 - **Launch.** Recommended mode applies reviewed runtime shortcuts inside the child game JVM and
   tracks which adapters ran, declined, or failed.
 - **Benchmark.** The permission-free desktop benchmark compares the same sealed installation and
-  profile through normal and Preflight launch paths, then retains one versioned result.
+  profile through Preflight with reviewed optimizations off and on, then retains one versioned result.
 - **Playtime.** A bounded local play-history ledger totals how long Starsector remains open across launches that
   Preflight can observe. It continues recording when the desktop minimizes or exits after launch.
   The UI can copy a bounded summary and the engine can export versioned JSON or CSV.
@@ -214,7 +215,8 @@ and sound can be changed beside it.
 
 ![Preflight ready to launch an 83-mod profile](docs/images/walkthrough-ready.png)
 
-The benchmark opens Starsector normally, opens it again with Preflight, and shows the difference.
+The benchmark opens Starsector twice through Preflight—first with reviewed optimizations off, then
+with them on—and shows the difference.
 It does not need Accessibility permission or click through the game on your behalf.
 
 ![Preflight startup benchmark](docs/images/walkthrough-benchmark.png)

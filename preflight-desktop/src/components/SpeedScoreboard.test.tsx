@@ -41,6 +41,9 @@ test("keeps the personal best trophy while showing an unfavorable latest benchma
   expect(screen.getByText("less startup time")).toBeInTheDocument();
   expect(screen.getByText("Latest benchmark: Slower")).toBeInTheDocument();
   expect(screen.getByText(/25\.0% more startup time/)).toBeInTheDocument();
+  expect(screen.getByText("Optimizations off")).toBeInTheDocument();
+  expect(screen.getByText("Optimizations on")).toBeInTheDocument();
+  expect(screen.queryByText("Normal")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Measure current setup/ })).toBeEnabled();
   expect(screen.queryByText(/matching launches/)).not.toBeInTheDocument();
 });
@@ -56,6 +59,7 @@ test("unmeasured startup uses a neutral figure instead of implying a multiplier"
 
   expect(screen.getByText("—")).toBeInTheDocument();
   expect(screen.queryByText("?×")).not.toBeInTheDocument();
+  expect(screen.getByText(/opens twice through Preflight/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Measure speed/ })).toBeEnabled();
 });
 

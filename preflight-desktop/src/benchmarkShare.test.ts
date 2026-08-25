@@ -13,9 +13,10 @@ test.each([
     improvementPercent: (1 - optimized / measurementOnly) * 100,
   });
 
-  expect(text).toContain(`Normal launch: ${(measurementOnly / 1_000).toFixed(2)}s`);
-  expect(text).toContain(`Preflight launch: ${(optimized / 1_000).toFixed(2)}s`);
+  expect(text).toContain(`Optimizations off: ${(measurementOnly / 1_000).toFixed(2)}s`);
+  expect(text).toContain(`Optimizations on: ${(optimized / 1_000).toFixed(2)}s`);
   expect(text).toContain(`Change: ${detail}`);
+  expect(text).toContain("Both launches ran through Preflight");
   expect(text).toContain("Results depend on hardware, mods, storage, and system load.");
   expect(text.length).toBeLessThan(1_024);
 });

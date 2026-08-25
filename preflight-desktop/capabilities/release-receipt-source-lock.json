@@ -17,7 +17,7 @@
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/StopCommand.java": "40b7e4696ebe0968066dfa7812da0de2e5998e48464593b3be1e15ca9f7887e5",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/UninstallCommand.java": "5ea2d7f7f448d12cf6f2700429c4b9d6619f163f05f58ec845ce64e57a57c560",
     "preflight-desktop/src-tauri/capabilities/default.json": "672c31fd87a1d3b116c4becdb059048605caa57978c5060a5cc2d5c28f352d13",
-    "preflight-desktop/src-tauri/src/automation.rs": "8fc92075823bd3e8a3950d15189f97b0c42a3411e5bb513d93435a95be75c3ad",
+    "preflight-desktop/src-tauri/src/automation.rs": "95806d1ef19df8b692a56a9eea56536ed83bb111fa8caff2c179fad168ab003a",
     "preflight-desktop/src-tauri/src/bound_directory.rs": "ba313aebbe61f5b6ff90c52c007f6ed11f1b2ad5782da4b493c0ee355aa591f0",
     "preflight-desktop/src-tauri/src/desktop_automation_bridge.rs": "2e61931a7b6072989dc4b73a5895ef09339ba322d9936b3c4ec05c942ab6e6e1",
     "preflight-desktop/src-tauri/src/engine.rs": "5c0b17cf91670718b038e5275042e2e4501adf1a3d80f771a7b914f0eef8ce6d",

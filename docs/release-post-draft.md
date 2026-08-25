@@ -22,15 +22,15 @@ development setup.
 
 ## Subtitle options
 
-- **A fast Starsector launcher with its own normal-versus-Preflight benchmark.**
+- **A fast Starsector launcher with a built-in benchmark for your own setup.**
 - **Faster launches, tracked playtime, launch settings, storage/recovery, setup checks, signed updates, and a mod linter.**
 
 ## Short product description
 
 Preflight is a free and open-source fast launcher for Starsector. On my 83-mod M5 MacBook Air
 development setup, startup moved from roughly **101 seconds to a 13.69-second best run**, about a
-**7.4× speedup**. The desktop includes its own normal-versus-Preflight benchmark and also tracks
-playtime, puts the useful game settings beside Launch, checks large mod setups, plans storage before
+**7.4× speedup**. The desktop runs its benchmark through Preflight with reviewed optimizations off
+and on. It also tracks playtime, puts the useful game settings beside Launch, checks large mod setups, plans storage before
 preparation, handles repair and recovery, ships signed updates, and includes a mod linter.
 
 ## GitHub Release body source
@@ -43,7 +43,8 @@ On my 83-mod M5 MacBook Air development setup, startup moved from roughly **101 
 13.69-second best run**, about a **7.4× speedup**. That development setup uses Starsector's bundled
 x86-64 Java runtime through Rosetta.
 
-The desktop includes its own normal-versus-Preflight benchmark so you can measure your installation.
+The desktop runs the same setup through Preflight with reviewed optimizations off and on, so you can
+measure your installation.
 
 The public candidate recorded **[PACKAGED CANDIDATE BENCHMARK RESULT]** on **[CANDIDATE HARDWARE /
 GAME / RUNTIME]**.
@@ -125,7 +126,7 @@ Fill it only from the frozen candidate.
 
 - **Fast launch.** Reuse matching texture, merged/spec-data, generated-bytecode, audio, and related
   startup work.
-- **Built-in benchmark.** Compare a normal launch with a Preflight launch and copy the result.
+- **Built-in benchmark.** Compare optimizations off and on through Preflight, then copy the result.
 - **Tracked playtime!!!!!** Keep a local total for sessions launched through Preflight and export the
   history as JSON or spreadsheet-safe CSV.
 - **Launch settings.** Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and custom battle

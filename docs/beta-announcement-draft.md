@@ -18,7 +18,8 @@ On my 83-mod M5 MacBook Air development setup, startup moved from roughly **101 
 13.69-second best run**, about a **7.4× speedup**. That is Starsector's x86-64 Java runtime running
 through Rosetta.
 
-The desktop has its own normal-versus-Preflight benchmark. **You can measure yours yourself.**
+The desktop runs the same setup twice through Preflight: once with reviewed optimizations off and
+once with them on. **You can measure yours yourself.**
 
 **Download:** [RELEASE URL]
 

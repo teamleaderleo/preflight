@@ -75,10 +75,10 @@ export function BenchmarkPage({
         <div>
           <div className="heading-with-info">
             <h2>Startup benchmark</h2>
-            <InfoTip label="About the benchmark">Opens Starsector twice and times each launch at the main menu: first without Preflight optimizations, then with them. Preflight closes only the Starsector process it started.</InfoTip>
+            <InfoTip label="About the benchmark">Opens Starsector twice through Preflight and times each launch at the main menu: first with reviewed optimizations off, then with them on. Preflight closes only the Starsector process it started.</InfoTip>
           </div>
           <p>{isReady
-            ? "Runs Starsector twice, once normally and once with Preflight, then compares the launch times."
+            ? "Runs Starsector twice through Preflight—first with optimizations off, then on—and compares the launch times."
             : "Choose Starsector on Home before running the benchmark."}</p>
           {isReady || desktopSmokeRunDirectory ? (
             <small>
@@ -119,7 +119,7 @@ export function BenchmarkPage({
       {desktopBenchmarkComparison?.available ? (
         <section className="card benchmark-results" aria-label="Latest benchmark result">
           <div className="card__heading">
-            <div><p className="eyebrow">Latest comparison</p><h2>Normal launch → Preflight</h2></div>
+            <div><p className="eyebrow">Latest comparison</p><h2>Optimizations off → on</h2></div>
             <CheckIcon className="settings-check" />
           </div>
           <div className="benchmark-results__grid">
@@ -206,7 +206,7 @@ export function BenchmarkResult({
       <span>{label}</span>
       <strong>{format(metric.optimized)}</strong>
       <small>
-        {format(metric.measurementOnly)} before
+        {format(metric.measurementOnly)} with optimizations off
         {comparison ? ` · ${comparison.headline} · ${comparison.detail}` : metric.improvementPercent === null ? "" : ` · ${metric.improvementPercent.toFixed(1)}% change`}
       </small>
     </div>

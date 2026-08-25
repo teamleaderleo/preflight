@@ -100,7 +100,7 @@ export function SpeedScoreboard({ standing, isReady, playtime, lastRun, onOpenBe
         <div className="scoreboard__body">
           <strong>Measure your startup time.</strong>
           {typeof lastRun?.startupMillis === "number" ? <p className="scoreboard__last-launch">Last Preflight launch: {formatDuration(lastRun.startupMillis)} to the menu.</p> : null}
-          <p className="scoreboard__prompt">Starsector opens twice so Preflight can compare launch times.</p>
+          <p className="scoreboard__prompt">Starsector opens twice through Preflight so it can compare optimizations off and on.</p>
           <div className="scoreboard__actions">
             <button className="button button--primary" type="button" onClick={onOpenBenchmark} disabled={!isReady}><GaugeIcon />Measure speed<ArrowIcon /></button>
             <PlaytimeCopyButton playtime={playtime} />
@@ -122,16 +122,16 @@ export function SpeedScoreboard({ standing, isReady, playtime, lastRun, onOpenBe
         <p className="eyebrow">Personal best</p>
         <strong className="scoreboard__figure"><ResultFigure measurement={best} /></strong>
         <div className="scoreboard__split">
-          <span><small>Normal</small>{formatDuration(best.measurementOnlyMs)}</span>
+          <span><small>Optimizations off</small>{formatDuration(best.measurementOnlyMs)}</span>
           <ArrowIcon aria-hidden="true" />
-          <span className={bestResult.kind === "faster" ? "scoreboard__split--won" : undefined}><small>Preflight</small>{formatDuration(best.optimizedMs)}</span>
+          <span className={bestResult.kind === "faster" ? "scoreboard__split--won" : undefined}><small>Optimizations on</small>{formatDuration(best.optimizedMs)}</span>
         </div>
         <RecordedPlaytime playtime={playtime} />
       </div>
       <div className="scoreboard__body">
         <div className="scoreboard__total">
           <strong>Latest benchmark: {latestResult.headline}</strong>
-          <span>{formatDuration(latest.measurementOnlyMs)} normal → {formatDuration(latest.optimizedMs)} Preflight · {latestResult.detail}.</span>
+          <span>{formatDuration(latest.measurementOnlyMs)} (optimizations off) → {formatDuration(latest.optimizedMs)} (on) · {latestResult.detail}.</span>
           <small>Controlled comparison recorded {latestMeasuredOn.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}.</small>
         </div>
         <div className="scoreboard__actions">

@@ -29,7 +29,8 @@ The announcement drafts are sources for finished prose. The deliberately larger 
 
 Preflight is a free and open-source fast launcher for Starsector. On my 83-mod M5 MacBook Air
 development setup, startup moved from roughly **101 seconds to a 13.69-second best run**, about a
-**7.4× speedup**. The desktop includes its own normal-versus-Preflight benchmark.
+**7.4× speedup**. The desktop runs the same installation through Preflight with reviewed
+optimizations off and on.
 
 The rest of the product is useful on its own: tracked playtime, launch settings beside Launch,
 custom battle size, setup checks, storage planning/recovery, signed updates, a wireframe Hangar, and
@@ -56,7 +57,7 @@ Use what fits the venue. Do not turn every post into the full inventory.
 
 - **Tracked playtime!!!!!** Durable local total for Starsector sessions Preflight launches and can
   observe.
-- **Built-in benchmark.** Normal-versus-Preflight comparison on the player's installation.
+- **Built-in benchmark.** The same installation through Preflight with reviewed optimizations off and on.
 - **Faster campaign-map movement on my setup.** Keep this as a measured player-facing claim without
   promoting it into a universal FPS number.
 - **Game settings beside Launch.** Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and

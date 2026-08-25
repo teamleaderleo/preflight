@@ -72,8 +72,9 @@ this final platform claim.
 
 ## 5. Bind performance and hosted evidence to the package
 
-Run the normal-versus-Preflight startup pair with the engine extracted from the accepted package
-bytes. The harness verifies packaged identity metadata and refuses checkout fallback in candidate
+Run the paired startup benchmark through Preflight, first with reviewed optimizations off and then
+on, using the engine extracted from the accepted package bytes. The harness verifies packaged
+identity metadata and refuses checkout fallback in candidate
 mode. Retain the hosted package lifecycle, singleton/reacquisition/update receipts and the exact-tag
 production report-canary receipt against the same generation.
 

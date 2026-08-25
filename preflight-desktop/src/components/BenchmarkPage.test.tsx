@@ -52,3 +52,44 @@ test("benchmark unavailability uses stable recovery guidance instead of raw prob
   expect(screen.getByRole("button", { name: "Check again" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Open Help" })).toBeInTheDocument();
 });
+
+test("describes the benchmark as two Preflight launches with only optimizations changing", () => {
+  render(
+    <BenchmarkPage
+      message=""
+      messageTone="info"
+      status="ready"
+      isReady
+      preparing={false}
+      operationBlocked={false}
+      nativeBlockReason={null}
+      onOpenHelp={() => undefined}
+      automation={{
+        desktopSmokeProbe: null,
+        desktopSmokeProbeBusy: false,
+        desktopSmokeRunDirectory: null,
+        desktopBenchmarkComparison: {
+          available: true,
+          metrics: {
+            processToMainMenuMs: {
+              measurementOnly: 100_000,
+              optimized: 75_000,
+              delta: -25_000,
+              improvementPercent: 25,
+            },
+          },
+        },
+        desktopSmokeCancelling: false,
+        desktopSmokeRunning: false,
+        checkDesktopAutomation: () => Promise.resolve(),
+        runDesktopAutomation: () => Promise.resolve(),
+        stopDesktopAutomation: () => Promise.resolve(),
+      } as never}
+    />,
+  );
+
+  expect(screen.getByText("Runs Starsector twice through Preflight—first with optimizations off, then on—and compares the launch times.")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Optimizations off → on" })).toBeInTheDocument();
+  expect(screen.getByText(/100\.00s with optimizations off/)).toBeInTheDocument();
+  expect(screen.queryByText(/normal launch/i)).not.toBeInTheDocument();
+});

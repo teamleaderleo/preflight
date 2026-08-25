@@ -94,7 +94,8 @@ your save. Recording pauses while optimizations are Off.
 
 ## 7. Optional: measure it
 
-The built-in benchmark runs one normal launch and one Preflight launch and compares the time each
+The built-in benchmark runs both launches through Preflight—first with reviewed optimizations off,
+then with them on—and compares the time each
 took to reach the main menu. That's your number, on your machine, with your mods — more useful than
 anyone else's.
 
