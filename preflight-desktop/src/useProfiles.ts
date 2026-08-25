@@ -320,10 +320,10 @@ export function useProfiles(
         setActivationPlanGame(expectedGame);
         announce(
           result.sourceChanged
-            ? "The current mod selection changed since you reviewed this switch. Review the updated changes, then apply again."
+            ? "Your mod selection changed. Check the updated switch, then apply it again."
             : result.profileChanged
-              ? "The saved profile changed since you reviewed this switch. Review the updated changes, then apply again."
-              : "This profile switch needs a fresh review. Review the updated changes, then apply again.",
+              ? "The saved profile changed. Check the updated switch, then apply it again."
+              : "Check this profile switch again before applying it.",
           "warning",
         );
       } else if (!result.canActivate) {

@@ -165,7 +165,7 @@ export function PreparationPage({
         <div>
           <div className="heading-with-info">
             <h2>Optimizations</h2>
-            <InfoTip label="About Preflight optimizations">Before changing runtime code, Preflight checks that it exactly matches a reviewed version. Anything unfamiliar stays untouched.</InfoTip>
+            <InfoTip label="About Preflight optimizations">Preflight checks each optimization against the installed code before using it. Anything unfamiliar is left alone.</InfoTip>
           </div>
           {/*
             * The switch stated its own position and nothing else, so the page named Speed opened
@@ -233,7 +233,7 @@ export function PreparationPage({
             })}
             {(cache?.uncategorizedBytes ?? 0) > 0 ? <div><span>Other Preflight data</span><strong>{formatBytes(cache?.uncategorizedBytes ?? 0)}</strong><small>Files that don’t fit a category above.</small></div> : null}
             {storagePlanApplies(textureStorage) && (preparationPlan?.reusableLooseBytes ?? 0) > 0 ? <div><span>Compatible prepared texture data on disk</span><strong>{formatBytes(preparationPlan?.reusableLooseBytes ?? 0)}</strong><small>Compatible texture blobs already present; this count can include alternate encodings that remain on disk while preparation uses another.</small></div> : null}
-            {storagePlanApplies(textureStorage) && preparationPlan?.packHit ? <div><span>Current profile texture pack</span><strong>Will be reused</strong><small>The exact prepared texture pack matches this profile and the builder’s required entry order, so preparation will use it without rebuilding.</small></div> : null}
+            {storagePlanApplies(textureStorage) && preparationPlan?.packHit ? <div><span>Current profile texture pack</span><strong>Will be reused</strong><small>This profile’s texture pack is ready, so it doesn’t need to be rebuilt.</small></div> : null}
             <div><span>Finished texture data</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.predictedRetainedTextureBytes ?? preparationPlan.predictedPackBytes) : "…"}</strong><small>Preflight removes the temporary copies when preparation finishes.</small></div>
             <div><span>Free on this disk</span><strong>{preparationPlan ? formatBytes(preparationPlan.usableBytes) : "…"}</strong><small>Space currently free where Preflight stores its data.</small></div>
           </div>

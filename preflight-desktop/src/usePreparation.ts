@@ -508,10 +508,10 @@ export function usePreparation(
       if (gameRef.current !== repairGame) return;
       if (!repair.safe) {
         announce(repair.status === "profile-changed"
-          ? "The mod setup changed before repair began. Nothing was removed; review the refreshed result."
+          ? "The mod setup changed before repair began. Nothing was removed. Check again."
           : repair.applied
-            ? `Repair stopped after removing ${repair.files.toLocaleString()} profile-scoped artifact${repair.files === 1 ? "" : "s"} because the cache boundary changed. Review the refreshed result.`
-            : "Preflight couldn't verify a safe repair boundary, so nothing was changed.", "error");
+            ? `Repair stopped after removing ${repair.files.toLocaleString()} damaged prepared file${repair.files === 1 ? "" : "s"} because the remaining data changed. Check the refreshed result.`
+            : "Preflight couldn't confirm which prepared files were safe to remove, so nothing changed.", "error");
         await refreshCache();
         return;
       }
@@ -525,7 +525,7 @@ export function usePreparation(
         repairFiles: 0,
       });
       setPreparationPlanEnvelope(null);
-      announce(`Removed ${repair.files.toLocaleString()} damaged profile artifact${repair.files === 1 ? "" : "s"}. Rebuilding prepared data now.`, "warning");
+      announce(`Removed ${repair.files.toLocaleString()} damaged prepared file${repair.files === 1 ? "" : "s"}. Rebuilding now.`, "warning");
       await runPreparation(launchWhenReady, true);
     } catch (error) {
       if (gameRef.current === repairGame) announce(errorMessage(error), "error");
