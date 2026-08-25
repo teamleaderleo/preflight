@@ -84,7 +84,7 @@ export function blockingWorkflow(state: WorkflowState): BlockingWorkflow | null 
   if (state.reportUploading) {
     return {
       reason: state.reportFinalizing
-        ? "Finishing the report receipt"
+        ? "Finishing the support upload"
         : state.reportCancelling
           ? "Stopping the support upload"
           : "Sending the support file",

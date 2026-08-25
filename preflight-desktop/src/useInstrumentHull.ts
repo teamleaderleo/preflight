@@ -88,14 +88,20 @@ function savedRosters(): Record<string, string[]> {
 /** Loads installation-owned cosmetic geometry only while a page that can use it is visible. */
 export function useInstrumentHull(game: string | undefined, enabled: boolean) {
   const [catalogState, setCatalogState] = useState<CatalogState | null>(null);
+  const [catalogGeneration, setCatalogGeneration] = useState(0);
   const [selectedId, setSelectedId] = useState(savedHullId);
   const [tunings, setTunings] = useState(savedTunings);
   const [rosters, setRosters] = useState(savedRosters);
   const catalogLoaded = catalogState !== null && catalogState.game === game;
   const catalog = catalogLoaded ? catalogState.catalog : null;
+  const selectedNeedsCatalog = Boolean(
+    game
+    && selectedId
+    && !BUNDLED_WIREFRAME_HULLS.hulls.some((hull) => hull.id === selectedId),
+  );
 
   useEffect(() => {
-    if (!game || !enabled || catalogState?.game === game) return;
+    if (!game || (!enabled && !selectedNeedsCatalog) || catalogState?.game === game) return;
     let current = true;
     // Six featured hulls are already bundled, so the first page frame never waits behind hundreds
     // of optional hull files. Start that cosmetic scan just after the page transition settles.
@@ -116,7 +122,13 @@ export function useInstrumentHull(game: string | undefined, enabled: boolean) {
       current = false;
       window.clearTimeout(timer);
     };
-  }, [catalogState?.game, enabled, game]);
+  }, [catalogGeneration, catalogState?.game, enabled, game, selectedNeedsCatalog]);
+
+  const reloadCatalog = () => {
+    if (!game) return;
+    setCatalogState((current) => current?.game === game ? null : current);
+    setCatalogGeneration((current) => current + 1);
+  };
 
   const catalogHulls = useMemo(
     () => {
@@ -131,6 +143,15 @@ export function useInstrumentHull(game: string | undefined, enabled: boolean) {
     },
     [catalog],
   );
+  useEffect(() => {
+    if (!catalog || !selectedId || catalogHulls.some((hull) => hull.id === selectedId)) return;
+    try {
+      window.localStorage.setItem(INSTRUMENT_HULL_STORAGE_KEY, DEFAULT_HULL_ID);
+    } catch {
+      // The in-memory repair is enough for this session when WebView storage is unavailable.
+    }
+    setSelectedId(DEFAULT_HULL_ID);
+  }, [catalog, catalogHulls, selectedId]);
   const rosterKey = game ?? "bundled";
   const rosterIds = rosters[rosterKey] ?? [
     ...FEATURED_HULL_IDS,
@@ -221,6 +242,7 @@ export function useInstrumentHull(game: string | undefined, enabled: boolean) {
   return {
     catalog,
     catalogLoaded,
+    catalogLoading: Boolean(game && !catalogLoaded),
     catalogHulls,
     hulls,
     selected,
@@ -229,6 +251,7 @@ export function useInstrumentHull(game: string | undefined, enabled: boolean) {
     customized: Boolean(selected.tuning),
     choose,
     remove,
+    reloadCatalog,
     customize,
     resetCustomization,
   };

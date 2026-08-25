@@ -112,9 +112,9 @@ test("the selected disk mode must match the preparation that is actually ready",
 
 test("a failed game process keeps the first useful native detail bounded", () => {
   expect(failedRunSummary("\njava.lang.IllegalStateException: retreat failed\n\tat example.Run.run(Run.java:42)"))
-    .toBe("Starsector closed with an error: java.lang.IllegalStateException: retreat failed The support evidence has full details.");
+    .toBe("Starsector closed with an error: java.lang.IllegalStateException: retreat failed The saved report has full details.");
   expect(failedRunSummary("x".repeat(500))).toContain(`${"x".repeat(357)}…`);
-  expect(failedRunSummary()).toBe("Starsector closed with an error. Support evidence was saved.");
+  expect(failedRunSummary()).toBe("Starsector closed with an error. Details were saved for troubleshooting.");
 });
 
 test("latest-run compatibility stays short and treats fallback as a safe result", () => {
@@ -245,7 +245,7 @@ test("preparation started on Home remains visible and can be stopped safely", as
   await waitFor(() => expect(action).toBeEnabled());
   await user.click(action);
   expect(await screen.findByRole("button", { name: "Stop safely" })).toBeEnabled();
-  expect(screen.getByText(/Starsector opens automatically/)).toBeInTheDocument();
+  expect(screen.getByText(/Starsector opens when it’s ready/)).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Stop safely" }));
   expect(cancel).toHaveBeenCalledOnce();
   pending.resolve({ pid: 4243 });
@@ -276,7 +276,7 @@ test("a refused preparation still leaves a way to launch the game", async () => 
 
   const launch = await screen.findByRole(
     "button",
-    { name: "Launch at normal speed" },
+    { name: "Launch normally" },
     { timeout: 3_000 },
   );
   expect(screen.getByText(/Preparation needs .* free; .* is available\./)).toBeInTheDocument();
@@ -614,6 +614,16 @@ test("window focus does not reveal and re-hide an idle Home HUD", async () => {
 
   vi.useFakeTimers();
   try {
+    fireEvent.pointerMove(home!);
+    act(() => vi.advanceTimersByTime(2200));
+    expect(home).toHaveClass("home-hud--idle");
+
+    const options = screen.getByRole("button", { name: "Options" });
+    fireEvent.pointerMove(options);
+    expect(home).toHaveClass("home-hud--visible");
+    act(() => vi.advanceTimersByTime(5000));
+    expect(home).toHaveClass("home-hud--visible");
+
     fireEvent.pointerMove(home!);
     act(() => vi.advanceTimersByTime(2200));
     expect(home).toHaveClass("home-hud--idle");
@@ -1299,17 +1309,17 @@ test("diagnostics disclose their boundary and export a bounded bundle", async ()
   await user.click(screen.getByRole("button", { name: "Make a support file" }));
 
   expect(await screen.findByText("Support file ready")).toBeInTheDocument();
-  expect(screen.getByText(/Saved 14 disclosed files/)).toBeInTheDocument();
+  expect(screen.getByText(/Support file saved with 14 files/)).toBeInTheDocument();
   await user.click(await screen.findByRole("button", { name: "Review and send" }));
 
-  expect(await screen.findByRole("heading", { name: "Send this exact file?" })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Send this file?" })).toBeInTheDocument();
   expect(screen.getByText("4bd6db450a131978b8f8b79d5f08d6e75670ba7e75288bb50f9a742a6d996d8d")).toBeInTheDocument();
   expect(screen.getByText("Included entries (3)")).toBeInTheDocument();
   expect(screen.getByText("runs/1/run.json")).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Send this exact file" }));
+  await user.click(screen.getByRole("button", { name: "Send file" }));
 
   expect(await screen.findByRole("heading", { name: /Case ed6ca0c8/ })).toBeInTheDocument();
-  expect(screen.getByText(/arrived intact/)).toBeInTheDocument();
+  expect(screen.getByText(/support file arrived/)).toBeInTheDocument();
   await waitFor(() => expect(window.localStorage.getItem("preflight.reportReceipt")).not.toBeNull());
   await user.click(screen.getByRole("button", { name: "Delete uploaded file" }));
   expect(await screen.findByText(/was deleted/)).toBeInTheDocument();
@@ -1341,8 +1351,8 @@ test("restores an unexpired report deletion receipt after restart", async () => 
   await user.click(screen.getByRole("button", { name: "Help" }));
 
   expect(await screen.findByRole("heading", { name: `Case ${caseId}` })).toBeInTheDocument();
-  expect(screen.getByText(/Keep this card if you may want to delete the upload/)).toBeInTheDocument();
-  expect(screen.getByText(/Add this case number to your issue/)).toBeInTheDocument();
+  expect(screen.getByText(/You can delete the upload here/)).toBeInTheDocument();
+  expect(screen.getByText(/Add the case number to your issue/)).toBeInTheDocument();
 });
 
 test("discards an expired local report deletion receipt", async () => {
@@ -1399,7 +1409,7 @@ test("a failed report send keeps one recovery alert and the local ZIP", async ()
   await user.click(screen.getByRole("button", { name: "Help" }));
   await user.click(await screen.findByRole("button", { name: "Make a support file" }));
   await user.click(await screen.findByRole("button", { name: "Review and send" }));
-  await user.click(screen.getByRole("button", { name: "Send this exact file" }));
+  await user.click(screen.getByRole("button", { name: "Send file" }));
 
   const alert = await screen.findByRole("alert");
   expect(alert).toHaveTextContent("It wasn’t sent");
@@ -1446,7 +1456,7 @@ test("a running benchmark exposes cooperative cancellation", async () => {
   await user.click(await screen.findByRole("button", { name: "Stop benchmark" }));
 
   expect(cancel).toHaveBeenCalledOnce();
-  expect(screen.getByText("Stopping the exact game process and sealing its evidence…")).toBeInTheDocument();
+  expect(screen.getByText("Stopping the benchmark…")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Stopping…" })).toBeDisabled();
   smoke.mockRestore();
   cancel.mockRestore();
@@ -1786,14 +1796,14 @@ test("the privacy panel states the default without narrating its implementation"
 
   const { unmount } = render(<App />);
   await user.click(await screen.findByRole("button", { name: "Settings" }));
-  expect(await screen.findByText("Nothing is sent automatically.")).toBeInTheDocument();
+  expect(await screen.findByText("Reports are sent only when you choose.")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "What Preflight can access" })).toBeEnabled();
   unmount();
 
   unconfigured.mockResolvedValue({ configured: true, origin: "https://reports.invalid", reason: null });
   render(<App />);
   await user.click(await screen.findByRole("button", { name: "Settings" }));
-  expect(await screen.findByText("Nothing is sent automatically.")).toBeInTheDocument();
+  expect(await screen.findByText("Reports are sent only when you choose.")).toBeInTheDocument();
 
   unconfigured.mockRestore();
 });

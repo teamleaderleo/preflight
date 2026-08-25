@@ -39,6 +39,7 @@ function state(overrides: Partial<ReturnType<typeof useInstrumentHull>> = {}) {
   return {
     catalog: { format: "preflight-wireframe-hulls-v1" as const, hulls: [featured, installed], skipped: 0 },
     catalogLoaded: true,
+    catalogLoading: false,
     catalogHulls: [featured, installed],
     hulls: [featured, installed],
     selected: featured,
@@ -47,6 +48,7 @@ function state(overrides: Partial<ReturnType<typeof useInstrumentHull>> = {}) {
     customized: true,
     choose: vi.fn(),
     remove: vi.fn(),
+    reloadCatalog: vi.fn(),
     customize: vi.fn(),
     resetCustomization: vi.fn(),
     ...overrides,
@@ -82,30 +84,56 @@ test("the Orbitron ship identity is the typeable hull chooser for the full catal
   expect(instrumentHull.choose).toHaveBeenCalledWith("modded-hull");
 });
 
-test("Add ship opens the full installed catalog with an empty search", () => {
+test("Add ship only shows installed hulls that are not already on Home", () => {
   const instrumentHull = state({ hulls: [featured] });
   render(<HangarPage instrumentHull={instrumentHull} />);
 
   fireEvent.click(screen.getByRole("button", { name: "Add a display ship" }));
   const chooser = screen.getByRole("combobox", { name: "Display ship" });
   expect(chooser).toHaveValue("");
+  expect(chooser).toHaveFocus();
+  expect(chooser).toHaveAttribute("placeholder", "Search ships");
   expect(chooser).toHaveAttribute("aria-expanded", "true");
-  const list = screen.getByRole("listbox", { name: "Display ships" });
-  expect(within(list).getByRole("option", { name: "Odyssey" })).toBeInTheDocument();
+  const list = screen.getByRole("listbox", { name: "Ships to add" });
+  expect(within(list).queryByRole("option", { name: "Odyssey" })).not.toBeInTheDocument();
   expect(within(list).getByRole("option", { name: "Modded Hull" })).toBeInTheDocument();
+  fireEvent.keyDown(chooser, { key: "Escape" });
+  expect(screen.queryByRole("listbox", { name: "Ships to add" })).not.toBeInTheDocument();
+});
+
+test("Add ship explains when every installed hull is already on Home", () => {
+  const instrumentHull = state({ catalogHulls: [featured], hulls: [featured] });
+  render(<HangarPage instrumentHull={instrumentHull} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Add a display ship" }));
+  expect(screen.getByText("All installed ships are already on Home")).toBeInTheDocument();
+});
+
+test("Add ship retries a failed installed-hull lookup", () => {
+  const instrumentHull = state({
+    catalog: null,
+    catalogLoaded: true,
+    catalogHulls: [featured],
+    hulls: [featured],
+  });
+  render(<HangarPage instrumentHull={instrumentHull} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Add a display ship" }));
+  expect(instrumentHull.reloadCatalog).toHaveBeenCalledTimes(1);
 });
 
 test("removal from Home is an explicit two-step action", () => {
   const instrumentHull = state();
   render(<HangarPage instrumentHull={instrumentHull} />);
 
-  expect(screen.queryByRole("button", { name: "Remove Odyssey from Home ships" })).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Manage Odyssey in Home ships" }));
+  fireEvent.click(screen.getByRole("button", { name: "Remove Odyssey from Home ships" }));
+  expect(instrumentHull.remove).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "Keep ship on Home" })).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Remove Odyssey from Home ships" }));
   expect(instrumentHull.remove).toHaveBeenCalledWith("odyssey");
 });
 
-test("refocus keeps a selected hull active even when it falls outside the ordinary result limit", () => {
+test("refocus keeps the selected hull active in the full installed catalog", () => {
   const distantHull: WireframeHull = {
     ...featured,
     id: "onslaught",
@@ -156,6 +184,25 @@ test("refocus keeps a selected hull active even when it falls outside the ordina
   fireEvent.keyDown(chooser, { key: "Enter" });
   expect(chooser).toHaveValue("Onslaught");
   expect(choose).not.toHaveBeenCalled();
+});
+
+test("Add ship exposes the full installed catalog instead of silently truncating it", () => {
+  const additions = Array.from({ length: 12 }, (_, index): WireframeHull => ({
+    ...installed,
+    id: `addition-${index}`,
+    name: `Addition ${index}`,
+  }));
+  const instrumentHull = state({
+    catalogHulls: [featured, ...additions],
+    hulls: [featured],
+  });
+  render(<HangarPage instrumentHull={instrumentHull} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Add a display ship" }));
+
+  const list = screen.getByRole("listbox", { name: "Ships to add" });
+  expect(within(list).getAllByRole("option")).toHaveLength(additions.length);
+  expect(within(list).getByRole("option", { name: "Addition 11" })).toBeInTheDocument();
 });
 
 test("invalid free text restores the current hull on blur", () => {

@@ -248,7 +248,7 @@ export function DesktopShell({
         </div>
         <footer>
           <span title={`Source ${__PREFLIGHT_SOURCE_REVISION__}`}>
-            Preflight {engineVersion} · {__PREFLIGHT_SOURCE_REVISION__}
+            Preflight {engineVersion}
           </span>
           {/* Quiet and optional, at the very bottom rather than in the launch flow. */}
           <span className="footer__links">

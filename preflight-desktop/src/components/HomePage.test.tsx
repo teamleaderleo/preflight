@@ -25,6 +25,7 @@ const instrumentHull: WireframeHull = {
 const instrumentHullState = {
   catalog: null,
   catalogLoaded: false,
+  catalogLoading: false,
   catalogHulls: [instrumentHull],
   hulls: [instrumentHull],
   selected: instrumentHull,
@@ -33,6 +34,7 @@ const instrumentHullState = {
   customized: false,
   choose: vi.fn(),
   remove: vi.fn(),
+  reloadCatalog: vi.fn(),
   customize: vi.fn(),
   resetCustomization: vi.fn(),
 } as ReturnType<typeof useInstrumentHull>;
@@ -272,6 +274,11 @@ test("Home exposes direct display controls without conflicting compact and playt
   await user.click(playtime);
   expect(playtime).toHaveAttribute("aria-pressed", "true");
   expect(ship).toHaveAttribute("aria-pressed", "false");
+
+  ship.focus();
+  await user.keyboard(" ");
+  expect(ship).toHaveFocus();
+  expect(ship).toHaveAttribute("aria-pressed", "true");
 });
 
 test("Home keeps the new profile and installation visible when that setup needs preparation", () => {
@@ -309,6 +316,7 @@ test("run recovery keeps Relaunch when the captured failed target still matches 
 
   expect(screen.getByText("Run needs attention")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Relaunch" })).toBeEnabled();
+  expect(screen.queryByLabelText("Display ship")).not.toBeInTheDocument();
   expect(dismiss).not.toHaveBeenCalled();
 });
 

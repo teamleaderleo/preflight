@@ -24,6 +24,7 @@ const hull: WireframeHull = {
 const hullState = {
   catalog: null,
   catalogLoaded: false,
+  catalogLoading: false,
   catalogHulls: [hull],
   hulls: [hull],
   selected: hull,
@@ -32,6 +33,7 @@ const hullState = {
   customized: false,
   choose: vi.fn(),
   remove: vi.fn(),
+  reloadCatalog: vi.fn(),
   customize: vi.fn(),
   resetCustomization: vi.fn(),
 } as ReturnType<typeof useInstrumentHull>;
@@ -150,7 +152,7 @@ test("Home explains a preparation recovered after restart without inventing a pe
   expect(screen.getByText("Preparation in progress")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Preparation in progress…" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Stop safely" })).toBeEnabled();
-  expect(screen.getByText(/Reconnected after restart\. Starsector stays closed/)).toBeInTheDocument();
+  expect(screen.getByText(/Resumed\. Starsector stays closed/)).toBeInTheDocument();
   expect(document.body).not.toHaveTextContent("0%");
 });
 
@@ -170,7 +172,7 @@ test("Home keeps storage-mode taxonomy out of the default low-disk decision", ()
 
   const noteText = screen.getByText(/Preparation needs .* free; .* is available\./);
   const lessDisk = screen.getByRole("button", { name: "Prepare with less disk" });
-  expect(screen.getByRole("button", { name: "Launch at normal speed" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Launch normally" })).toBeEnabled();
   expect(document.body).not.toHaveTextContent(/Full preparation|Balanced|Fastest/);
 
   const note = noteText.closest(".launch-console__note");

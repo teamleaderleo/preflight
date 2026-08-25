@@ -29,16 +29,19 @@ test("explicit Home state modifiers own recovery and preparation composition", (
   recovery.className = "launch-console launch-console--ready launch-console--layout-recovery";
   const status = document.createElement("div");
   status.className = "status-chip";
+  const displayToggle = document.createElement("button");
+  displayToggle.className = "home-display-toggle";
   const options = document.createElement("button");
   options.className = "home-options-toggle";
   const actions = document.createElement("div");
   actions.className = "launch-console__actions";
   const recoveryIdentity = document.createElement("div");
   recoveryIdentity.className = "home-launch-identity";
-  recovery.append(status, options, actions, recoveryIdentity);
+  recovery.append(status, displayToggle, options, actions, recoveryIdentity);
   document.body.append(recovery);
 
   expect(getComputedStyle(status).display).toBe("none");
+  expect(getComputedStyle(displayToggle).display).toBe("none");
   expect(getComputedStyle(options).display).toBe("none");
   expect(getComputedStyle(actions).display).toBe("none");
   expect(getComputedStyle(recoveryIdentity).top).toBe("64px");
@@ -98,4 +101,9 @@ test("narrow exceptional states reserve Options space without inferring note lay
   expect(noteRule).toBeUndefined();
   expect(optionsRule?.style.bottom).toBe("200px");
   style.remove();
+});
+
+test("the smallest Home keeps quick settings above launch without a nested drawer", () => {
+  expect(readinessStyles).toMatch(/@media \(max-width: 600px\)[\s\S]*?\.launch-console--options-open \.quick-settings\s*\{[^}]*bottom:\s*80px;[^}]*padding:\s*6px 14px;/);
+  expect(readinessStyles).toMatch(/\.launch-console--options-open \.home-ship-picker,\s*\.launch-console--options-open \.home-playtime\s*\{[^}]*visibility:\s*hidden;[^}]*opacity:\s*0;/);
 });

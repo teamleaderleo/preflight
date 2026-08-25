@@ -11,6 +11,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
+import re
 from threading import Thread
 from typing import Iterator
 
@@ -220,6 +221,96 @@ def assert_focus_stable(page: Page, label: str) -> None:
         raise RuntimeError(f"{label}: refocus replaced or moved Home controls: {result}")
 
 
+def assert_home_toggle_stability(page: Page, label: str) -> None:
+    """Display preferences may change the canvas, never the launch/control scaffold."""
+    page.mouse.move(page.viewport_size["width"] / 2, page.viewport_size["height"] / 2)
+    page.wait_for_function(
+        "document.querySelector('.launch-console--layout-settled')?.classList.contains('home-hud--visible')"
+    )
+
+    def scaffold() -> dict[str, list[float]]:
+        return page.evaluate(
+            """() => Object.fromEntries(['.button--launch', '.launch-console__status-line'].map((selector) => {
+              const rect = document.querySelector(selector).getBoundingClientRect();
+              return [selector, [rect.x, rect.y, rect.width, rect.height]];
+            }))"""
+        )
+
+    before = scaffold()
+    ship = page.get_by_role("button", name="Ship", exact=True)
+    time = page.get_by_role("button", name="Playtime", exact=True)
+    ship.click()
+    page.locator(".home-flight-instrument").wait_for(state="hidden")
+    after_ship = scaffold()
+    time.click()
+    page.locator(".home-playtime").wait_for(state="hidden")
+    after_both = scaffold()
+
+    for state, measurement in (("ship hidden", after_ship), ("ship and time hidden", after_both)):
+        for selector in before:
+            if any(abs(one - two) > 1 for one, two in zip(before[selector], measurement[selector])):
+                raise RuntimeError(
+                    f"{label}: {state} moved {selector}: before={before[selector]}, after={measurement[selector]}"
+                )
+
+    time.click()
+    page.locator(".home-playtime").wait_for(state="visible")
+    ship.click()
+    page.locator(".home-flight-instrument").wait_for(state="visible")
+
+
+def assert_quick_settings_geometry(page: Page, label: str) -> dict[str, object]:
+    measurement = page.evaluate(
+        """() => {
+          const panel = document.querySelector('.quick-settings');
+          const launch = document.querySelector('.button--launch');
+          const toggle = document.querySelector('.home-options-toggle');
+          const playtime = document.querySelector('.home-playtime');
+          if (!(panel instanceof HTMLElement) || !(launch instanceof HTMLElement) || !(toggle instanceof HTMLElement)) return null;
+          const rect = (element) => {
+            const value = element.getBoundingClientRect();
+            return { x: value.x, y: value.y, width: value.width, height: value.height,
+              right: value.right, bottom: value.bottom };
+          };
+          return {
+            viewportWidth: innerWidth,
+            viewportHeight: innerHeight,
+            panel: rect(panel),
+            launch: rect(launch),
+            toggle: rect(toggle),
+            clientWidth: panel.clientWidth,
+            scrollWidth: panel.scrollWidth,
+            clientHeight: panel.clientHeight,
+            scrollHeight: panel.scrollHeight,
+            playtimeVisible: playtime instanceof HTMLElement
+              && getComputedStyle(playtime).visibility !== 'hidden'
+              && getComputedStyle(playtime).opacity !== '0',
+            fields: [...panel.querySelectorAll('input:not([type="checkbox"]), select, button')].map(rect),
+          };
+        }"""
+    )
+    if measurement is None:
+        raise RuntimeError(f"{label}: quick settings geometry is missing")
+    if measurement["scrollWidth"] > measurement["clientWidth"] + 1:
+        raise RuntimeError(f"{label}: quick settings scroll horizontally: {measurement}")
+    if measurement["scrollHeight"] > measurement["clientHeight"] + 1:
+        raise RuntimeError(f"{label}: quick settings require a nested scrollbar: {measurement}")
+    if measurement["playtimeVisible"]:
+        raise RuntimeError(f"{label}: playtime remains visible behind quick settings: {measurement}")
+    panel = measurement["panel"]
+    launch = measurement["launch"]
+    toggle = measurement["toggle"]
+    if panel["x"] < -1 or panel["right"] > measurement["viewportWidth"] + 1:
+        raise RuntimeError(f"{label}: quick settings leave the viewport: {measurement}")
+    if panel["bottom"] > launch["y"] - 4:
+        raise RuntimeError(f"{label}: quick settings crowd the launch action: {measurement}")
+    if toggle["width"] < 44 or toggle["height"] < 44:
+        raise RuntimeError(f"{label}: Options toggle is undersized: {measurement}")
+    if any(field["height"] < 44 for field in measurement["fields"]):
+        raise RuntimeError(f"{label}: quick settings contain an undersized control: {measurement}")
+    return measurement
+
+
 def assert_ship_moves(page: Page, label: str) -> None:
     canvas = page.locator(".home-flight-instrument canvas")
     canvas.wait_for(state="visible")
@@ -309,6 +400,52 @@ def assert_hangar_interaction(page: Page, label: str) -> None:
         raise RuntimeError(f"{label}: dragging the ship did not save its view")
 
 
+def assert_hangar_chooser(page: Page, label: str) -> dict[str, object]:
+    add_button = page.get_by_role("button", name="Add a display ship", exact=True)
+    add_box = add_button.bounding_box()
+    remove_button = page.get_by_role("button", name=re.compile(r"^Remove .+ from Home ships$"))
+    remove_box = remove_button.bounding_box()
+    if add_box is None or min(add_box["width"], add_box["height"]) < 44:
+        raise RuntimeError(f"{label}: Add ship has an undersized target: {add_box}")
+    if remove_box is None or min(remove_box["width"], remove_box["height"]) < 44:
+        raise RuntimeError(f"{label}: Remove ship has an undersized target: {remove_box}")
+    add_button.click()
+    page.get_by_role("listbox", name="Ships to add", exact=True).wait_for()
+    measurement = page.evaluate(
+        """() => {
+          const workspace = document.querySelector('.page-viewport');
+          const input = document.querySelector('.hangar-hull-combobox__input');
+          const list = document.querySelector('.hangar-hull-combobox__list');
+          if (!(workspace instanceof HTMLElement) || !(input instanceof HTMLElement) || !(list instanceof HTMLElement)) return null;
+          const rect = (element) => {
+            const value = element.getBoundingClientRect();
+            return { x: value.x, y: value.y, width: value.width, height: value.height,
+              right: value.right, bottom: value.bottom };
+          };
+          return {
+            workspace: rect(workspace),
+            input: rect(input),
+            list: rect(list),
+            optionHeights: [...list.querySelectorAll('[role="option"]')]
+              .map((option) => option.getBoundingClientRect().height),
+          };
+        }"""
+    )
+    if measurement is None:
+        raise RuntimeError(f"{label}: ship chooser is missing")
+    workspace = measurement["workspace"]
+    popup = measurement["list"]
+    if popup["x"] < workspace["x"] - 1 or popup["right"] > workspace["right"] + 1:
+        raise RuntimeError(f"{label}: ship chooser leaves the workspace horizontally: {measurement}")
+    if popup["y"] < workspace["y"] - 1 or popup["bottom"] > workspace["bottom"] + 1:
+        raise RuntimeError(f"{label}: ship chooser leaves the workspace vertically: {measurement}")
+    if popup["height"] < 44 or any(height < 44 for height in measurement["optionHeights"]):
+        raise RuntimeError(f"{label}: ship chooser has undersized results: {measurement}")
+    page.keyboard.press("Escape")
+    page.get_by_role("listbox", name="Ships to add", exact=True).wait_for(state="hidden")
+    return measurement
+
+
 def assert_keyboard_controls(page: Page, label: str) -> None:
     launch = page.get_by_role("button", name="Launch Starsector", exact=True)
     launch.focus()
@@ -363,18 +500,56 @@ def assert_page_width(page: Page, label: str) -> dict[str, object]:
           const workspace = document.querySelector('#page-workspace');
           if (!(workspace instanceof HTMLElement)) return null;
           const workspaceRect = workspace.getBoundingClientRect();
-          const clippedControls = [...workspace.querySelectorAll('button, input, select, textarea, summary, [role="slider"]')]
-            .flatMap((element) => {
+          const controls = [...workspace.querySelectorAll('button, input, select, textarea, summary, [role="slider"]')]
+            .flatMap((element, index) => {
               if (!(element instanceof HTMLElement)) return [];
               const style = getComputedStyle(element);
               const rect = element.getBoundingClientRect();
               if (style.display === 'none' || style.visibility === 'hidden' || rect.width === 0 || rect.height === 0) return [];
               if (rect.right <= workspaceRect.left || rect.left >= workspaceRect.right) return [];
-              return rect.left < workspaceRect.left - 1 || rect.right > workspaceRect.right + 1
-                ? [{ tag: element.tagName, text: element.getAttribute('aria-label') || element.textContent?.trim().slice(0, 80),
-                    left: rect.left, right: rect.right }]
-                : [];
+              return [{
+                index,
+                element,
+                tag: element.tagName,
+                type: element instanceof HTMLInputElement ? element.type : '',
+                text: element.getAttribute('aria-label') || element.textContent?.trim().slice(0, 80),
+                left: rect.left,
+                top: rect.top,
+                right: rect.right,
+                bottom: rect.bottom,
+                width: rect.width,
+                height: rect.height,
+              }];
             });
+          const clippedControls = controls
+            .filter((control) => control.left < workspaceRect.left - 1 || control.right > workspaceRect.right + 1)
+            .map(({ element, ...control }) => control);
+          const individuallyTargeted = controls.filter((control) =>
+            control.tag === 'BUTTON'
+            || control.tag === 'SUMMARY'
+            || control.tag === 'SELECT'
+            || control.tag === 'TEXTAREA'
+            || (control.tag === 'INPUT' && !['checkbox', 'radio', 'hidden'].includes(control.type))
+          );
+          const undersizedControls = individuallyTargeted
+            .filter((control) => control.height < 43 || (['BUTTON', 'SUMMARY'].includes(control.tag) && control.width < 43))
+            .map(({ element, ...control }) => control);
+          const overlappingControls = [];
+          for (let at = 0; at < individuallyTargeted.length; at += 1) {
+            const one = individuallyTargeted[at];
+            for (let next = at + 1; next < individuallyTargeted.length; next += 1) {
+              const two = individuallyTargeted[next];
+              if (one.element.contains(two.element) || two.element.contains(one.element)) continue;
+              const overlapWidth = Math.min(one.right, two.right) - Math.max(one.left, two.left);
+              const overlapHeight = Math.min(one.bottom, two.bottom) - Math.max(one.top, two.top);
+              if (overlapWidth > 2 && overlapHeight > 2) {
+                overlappingControls.push({
+                  one: { tag: one.tag, text: one.text, left: one.left, top: one.top, right: one.right, bottom: one.bottom },
+                  two: { tag: two.tag, text: two.text, left: two.left, top: two.top, right: two.right, bottom: two.bottom },
+                });
+              }
+            }
+          }
           return {
             viewportWidth: innerWidth,
             documentScrollWidth: document.documentElement.scrollWidth,
@@ -382,6 +557,8 @@ def assert_page_width(page: Page, label: str) -> dict[str, object]:
             workspaceScrollWidth: workspace.scrollWidth,
             workspace: { left: workspaceRect.left, right: workspaceRect.right },
             clippedControls,
+            undersizedControls,
+            overlappingControls,
           };
         }"""
     )
@@ -393,6 +570,43 @@ def assert_page_width(page: Page, label: str) -> dict[str, object]:
         raise RuntimeError(f"{label}: workspace has horizontal overflow: {measurement}")
     if measurement["clippedControls"]:
         raise RuntimeError(f"{label}: interactive controls are clipped horizontally: {measurement}")
+    if measurement["undersizedControls"]:
+        raise RuntimeError(f"{label}: interactive controls have undersized targets: {measurement}")
+    if measurement["overlappingControls"]:
+        raise RuntimeError(f"{label}: interactive controls overlap: {measurement}")
+    return measurement
+
+
+def assert_help_actions(page: Page, label: str) -> dict[str, object]:
+    measurement = page.evaluate(
+        """() => {
+          const group = document.querySelector('.support-card__main .report-actions');
+          if (!(group instanceof HTMLElement)) return null;
+          const groupRect = group.getBoundingClientRect();
+          const actions = [...group.querySelectorAll('button')].flatMap((button) => {
+            if (!(button instanceof HTMLElement)) return [];
+            const rect = button.getBoundingClientRect();
+            return [{ x: rect.x, y: rect.y, width: rect.width, height: rect.height,
+              right: rect.right, bottom: rect.bottom }];
+          });
+          return {
+            display: getComputedStyle(group).display,
+            group: { x: groupRect.x, y: groupRect.y, width: groupRect.width,
+              right: groupRect.right, bottom: groupRect.bottom },
+            actions,
+          };
+        }"""
+    )
+    if measurement is None:
+        raise RuntimeError(f"{label}: report actions are missing")
+    if measurement["display"] != "grid" or len(measurement["actions"]) < 3:
+        raise RuntimeError(f"{label}: report actions are not one deliberate group: {measurement}")
+    group = measurement["group"]
+    for action in measurement["actions"]:
+        if action["x"] < group["x"] - 1 or action["right"] > group["right"] + 1:
+            raise RuntimeError(f"{label}: report action leaves its group: {measurement}")
+        if action["height"] < 44:
+            raise RuntimeError(f"{label}: report action has an undersized target: {measurement}")
     return measurement
 
 
@@ -470,7 +684,7 @@ def exercise_recovery_state(
             page.get_by_role("button", name="Help", exact=True).click()
             page.get_by_role("button", name="Make a support file", exact=True).click()
             page.get_by_role("button", name="Review and send", exact=True).click()
-            page.get_by_role("button", name="Send this exact file", exact=True).click()
+            page.get_by_role("button", name="Send file", exact=True).click()
             page.get_by_text("It wasn’t sent", exact=True).wait_for()
             page.get_by_role("button", name="Try sending again", exact=True).wait_for()
             result = assert_page_width(page, label)
@@ -503,7 +717,7 @@ def render_contact_sheet(browser: Browser, output_dir: Path) -> None:
     cards: list[str] = []
     for width, height in VIEWPORTS:
         label = f"{width}x{height}"
-        for state in ("full", "idle", "compact", "minimal", "first-run", "low-disk"):
+        for state in ("full", "options", "idle", "compact", "minimal", "first-run", "low-disk"):
             filename = f"home-{state}-{label}.png"
             cards.append(
                 f'<figure><figcaption>{html.escape(label)} · {state}</figcaption>'
@@ -513,6 +727,11 @@ def render_contact_sheet(browser: Browser, output_dir: Path) -> None:
         cards.append(
             f'<figure><figcaption>{html.escape(label)} · Hangar</figcaption>'
             f'<img src="{html.escape(filename)}" alt="Hangar at {html.escape(label)}"></figure>'
+        )
+        filename = f"hangar-chooser-{label}.png"
+        cards.append(
+            f'<figure><figcaption>{html.escape(label)} · ship chooser</figcaption>'
+            f'<img src="{html.escape(filename)}" alt="Ship chooser at {html.escape(label)}"></figure>'
         )
         if width in PAGE_SWEEP_WIDTHS:
             for state in ("long-content", "light"):
@@ -527,6 +746,12 @@ def render_contact_sheet(browser: Browser, output_dir: Path) -> None:
                 cards.append(
                     f'<figure><figcaption>{html.escape(label)} · {html.escape(page_name)}</figcaption>'
                     f'<img src="{html.escape(filename)}" alt="{html.escape(page_name)} at {html.escape(label)}"></figure>'
+                )
+            if width <= 720:
+                filename = f"page-mods-menu-{label}.png"
+                cards.append(
+                    f'<figure><figcaption>{html.escape(label)} · profile menu</figcaption>'
+                    f'<img src="{html.escape(filename)}" alt="Open profile menu at {html.escape(label)}"></figure>'
                 )
             for scenario in (*HOME_RECOVERY_SCENARIOS, *PAGE_RECOVERY_SCENARIOS):
                 filename = f"state-{scenario}-{label}.png"
@@ -577,9 +802,18 @@ def main() -> int:
                     try:
                         geometry[f"{label}-full"] = assert_home_geometry(page, f"{label} full")
                         assert_focus_stable(page, f"{label} full")
+                        assert_home_toggle_stability(page, f"{label} display toggles")
                         if (width, height) in ((1040, 700), (1280, 720)):
                             assert_ship_moves(page, f"{label} full")
                         capture(page, args.output_dir, f"home-full-{label}.png")
+
+                        page.get_by_role("button", name="Options", exact=True).click()
+                        geometry[f"{label}-options"] = assert_quick_settings_geometry(
+                            page,
+                            f"{label} Options",
+                        )
+                        capture(page, args.output_dir, f"home-options-{label}.png")
+                        page.get_by_role("button", name="Hide options", exact=True).click()
 
                         page.evaluate("document.activeElement instanceof HTMLElement && document.activeElement.blur()")
                         page.mouse.move(width - 2, height - 2)
@@ -628,6 +862,11 @@ def main() -> int:
                         geometry[f"{label}-hangar"] = assert_hangar_geometry(page, f"{label} Hangar")
                         if (width, height) in ((720, 560), (1040, 700)):
                             assert_hangar_interaction(page, f"{label} Hangar")
+                        geometry[f"{label}-hangar-chooser"] = assert_hangar_chooser(page, f"{label} Hangar")
+                        page.get_by_role("button", name="Add a display ship", exact=True).click()
+                        page.get_by_role("listbox", name="Ships to add", exact=True).wait_for()
+                        capture(page, args.output_dir, f"hangar-chooser-{label}.png")
+                        page.keyboard.press("Escape")
                         settle_hangar_for_capture(page)
                         geometry[f"{label}-hangar-capture"] = assert_hangar_geometry(page, f"{label} Hangar capture")
                         capture(page, args.output_dir, f"hangar-{label}.png")
@@ -639,6 +878,20 @@ def main() -> int:
                                 page,
                                 f"{label} {page_name}",
                             )
+                            if page_name == "Help":
+                                geometry[f"{label}-page-help-actions"] = assert_help_actions(
+                                    page,
+                                    f"{label} Help",
+                                )
+                            if page_name == "Mods" and width <= 720:
+                                manage = page.locator("summary[aria-label^='Manage ']").first
+                                manage.click()
+                                geometry[f"{label}-page-mods-menu"] = assert_page_width(
+                                    page,
+                                    f"{label} open profile menu",
+                                )
+                                capture(page, args.output_dir, f"page-mods-menu-{label}.png")
+                                manage.click()
                             if width in PAGE_SWEEP_WIDTHS:
                                 capture(page, args.output_dir, f"page-{page_name.lower()}-{label}.png")
 
@@ -725,6 +978,10 @@ def main() -> int:
                                 }[scenario], exact=True).wait_for()
                                 key = f"{label}-{scenario}"
                                 geometry[key] = assert_page_width(page, f"{label} {scenario}")
+                                if scenario == "run-failure" and page.locator(".home-ship-picker").count() != 0:
+                                    raise RuntimeError(
+                                        f"{label} {scenario}: recovery left the ship picker on screen"
+                                    )
                                 if scenario in ("cache-repair", "running"):
                                     geometry[key]["home"] = assert_home_geometry(page, f"{label} {scenario}")
                                 capture(page, args.output_dir, f"state-{scenario}-{label}.png")

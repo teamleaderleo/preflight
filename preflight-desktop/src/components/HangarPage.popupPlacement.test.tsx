@@ -38,6 +38,7 @@ function state() {
   return {
     catalog: { format: "preflight-wireframe-hulls-v1" as const, hulls, skipped: 0 },
     catalogLoaded: true,
+    catalogLoading: false,
     catalogHulls: hulls,
     hulls,
     selected: hulls[0],
@@ -46,6 +47,7 @@ function state() {
     customized: false,
     choose: vi.fn(),
     remove: vi.fn(),
+    reloadCatalog: vi.fn(),
     customize: vi.fn(),
     resetCustomization: vi.fn(),
   } as ReturnType<typeof useInstrumentHull>;
@@ -81,6 +83,7 @@ test("bottom-scrolled minimum Hangar opens the chooser into visible space below"
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
     if (this.classList.contains("page-viewport")) return rect(117, 560);
     if (this.getAttribute("role") === "combobox") return rect(247, 291, 120, 500);
+    if (this.classList.contains("hangar-hull-combobox")) return rect(247, 317, 120, 500);
     if (this.classList.contains("hangar-hull-combobox__list")) return rect(50, 246, 120, 500);
     return rect(0, 0);
   });
@@ -107,6 +110,7 @@ test("chooser keeps the established upward placement when the list fits above", 
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
     if (this.classList.contains("page-viewport")) return rect(117, 560);
     if (this.getAttribute("role") === "combobox") return rect(400, 444, 120, 500);
+    if (this.classList.contains("hangar-hull-combobox")) return rect(400, 470, 120, 500);
     if (this.classList.contains("hangar-hull-combobox__list")) return rect(195, 391, 120, 500);
     return rect(0, 0);
   });

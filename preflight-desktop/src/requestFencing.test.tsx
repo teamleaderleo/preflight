@@ -377,7 +377,7 @@ test("saving a profile preserves a newer name typed while the save completes", a
 
   await waitFor(() => expect(result.current.profileBusy).toBe(false));
   expect(result.current.profileName).toBe("Second");
-  expect(announce).toHaveBeenCalledWith("Saved the exact current mod order as “First”.", "success");
+  expect(announce).toHaveBeenCalledWith("Saved the current mod order as “First”.", "success");
   save.mockRestore();
 });
 

@@ -19,6 +19,15 @@ summary:active {
   max-height: none;
 }
 
+/* The drawer and hull picker otherwise occupy the same lower-centre band. Keep the ship itself in
+ * place while the disclosure is open, and return its picker without moving the launch action. */
+.launch-console--options-open .home-ship-picker,
+.launch-console--options-open .home-playtime {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* Preparation/recovery moves identity to the top, so options begin below that context. */
 .launch-console--options-open:is(.launch-console--layout-preparation, .launch-console--layout-recovery) .quick-settings {
   top: 108px;
@@ -148,6 +157,7 @@ summary:active {
 
 /* Recovery is already first in DOM order; the companion console yields its duplicate actions. */
 .launch-console--layout-recovery .status-chip,
+.launch-console--layout-recovery .home-display-toggle,
 .launch-console--layout-recovery .home-options-toggle,
 .launch-console--layout-recovery .home-playtime,
 .launch-console--layout-recovery .last-run-health,
@@ -230,4 +240,12 @@ summary:active {
   .home-launch-path {
     font-size: 9px;
   }
+}
+
+@media (max-width: 600px) {
+  .launch-console--options-open .quick-settings {
+    bottom: 80px;
+    padding: 6px 14px;
+  }
+
 }

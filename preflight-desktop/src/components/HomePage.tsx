@@ -340,7 +340,11 @@ export function HomePage({
 
       <section
         className={`launch-console ${isReady ? "launch-console--ready" : "card launch-console--setup"} launch-console--${status} launch-console--layout-${homeLayoutState} ${cacheNeedsRepair ? "launch-console--repair-state" : ""} ${cacheInspectionBlocked ? "launch-console--attention-state" : ""} ${isReady && optionsOpen ? "launch-console--options-open" : "launch-console--minimal"} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""} ${hasPlaytime && playtimeVisible ? "launch-console--has-playtime" : ""} ${hudVisible ? "home-hud--visible" : "home-hud--idle"}`}
-        onPointerMove={revealHud}
+        onPointerMove={(event) => {
+          const target = event.target;
+          if (target instanceof Element && target.closest(".home-hud-layer")) keepHudVisible();
+          else revealHud();
+        }}
         onPointerDown={keepHudVisible}
         onPointerLeave={scheduleHudFade}
         onFocusCapture={keepHudVisible}
@@ -378,7 +382,7 @@ export function HomePage({
                   aria-pressed={playtimeVisible}
                   onClick={(event) => {
                     togglePlaytime();
-                    event.currentTarget.blur();
+                    if (event.detail > 0) event.currentTarget.blur();
                     scheduleHudFade();
                   }}
                 >
@@ -393,7 +397,7 @@ export function HomePage({
                 aria-pressed={homePresentation.mode !== "compact"}
                 onClick={(event) => {
                   homePresentation.setMode(homePresentation.mode === "compact" ? "hangar" : "compact");
-                  event.currentTarget.blur();
+                  if (event.detail > 0) event.currentTarget.blur();
                   scheduleHudFade();
                 }}
               >
@@ -419,7 +423,7 @@ export function HomePage({
           {isReady && lastAdapterHealth?.reviewRecommended && status !== "running" && status !== "launching" ? (
             <span
               className="last-run-health last-run-health--review home-hud-layer"
-              title={lastAdapterHealth.suggestedActions[0] ?? "Exact compatibility evidence from the latest Preflight launch"}
+              title={lastAdapterHealth.suggestedActions[0] ?? "Compatibility details from the latest Preflight launch"}
             >
               {adapterHealthLine(lastAdapterHealth)}
             </span>
@@ -437,8 +441,8 @@ export function HomePage({
             <div className="launch-console__note">
               <span>{preparing
                 ? preparationPercent === null
-                  ? `${preparationPhaseLabel ?? "Preparation continues"} · Reconnected after restart. Starsector stays closed when this finishes; launch from Home when you’re ready. Finished work stays reusable if you stop.`
-                  : `${preparationPhaseLabel ?? "Preparing"} · Starsector opens automatically. Finished work stays reusable if you stop.`
+                  ? `${preparationPhaseLabel ?? "Preparation continues"} · Resumed. Starsector stays closed when this finishes.`
+                  : `${preparationPhaseLabel ?? "Preparing"} · Starsector opens when it’s ready.`
                 : cacheNeedsRepair
                   ? "Damaged prepared data will be rebuilt. Game files, mods, and saves stay unchanged."
                 : needsPreparation
@@ -519,7 +523,7 @@ export function HomePage({
                     onClick={onLaunchWithoutPreparing}
                     disabled={operationBlocked || status === "launching" || status === "running"}
                   >
-                    Launch at normal speed
+                    Launch normally
                   </button>
                 ) : null}
               </>
@@ -527,7 +531,7 @@ export function HomePage({
               <button className="button button--primary" type="button" onClick={onChooseInstall} disabled={status === "loading" || operationBlocked}><FolderIcon />Choose game folder</button>
             )}
           </div>
-          {isReady ? (
+          {isReady && homeLayoutState === "settled" ? (
             <div className="home-ship-picker home-hud-layer" aria-label="Display ship">
               <button type="button" aria-label="Previous display ship" title="Previous ship" onClick={() => cycleHull(-1)} disabled={instrumentHull.hulls.length < 2}><ArrowIcon /></button>
               <button className="home-ship-name" type="button" title="Choose a display ship" onClick={() => onNavigate("hangar")}>{instrumentHull.selected.name}</button>

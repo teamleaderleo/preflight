@@ -120,7 +120,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
       if (payload.state === "finalizing") {
         setReportFinalizing(true);
         setReportCancelling(false);
-        announce("The archive was accepted. Finishing its signed receipt…");
+        announce("Upload received. Finishing…");
         return;
       }
       if (payload.state === "cancelling") {
@@ -151,7 +151,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
         setReportReceipt(payload.receipt);
       }
     }, (error) => {
-      announce(`Live report-upload updates were interrupted: ${error}. Preflight is checking native state directly.`, "warning");
+      announce(`Preflight lost the live upload status: ${error}. Checking it again…`, "warning");
       let previousUpload: number | null | undefined;
       stopReconciliation();
       stopReconciliation = startOperationReconciliation({
@@ -168,7 +168,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
             setReportUploading(false);
             setReportFinalizing(false);
             setReportCancelling(false);
-            const detail = "Live completion details were unavailable. The diagnostics ZIP is still on this computer; check for a receipt before retrying.";
+            const detail = "Preflight couldn’t confirm whether the upload finished. The ZIP is still on this computer. Check Help before retrying.";
             setReportError(detail);
             announce(detail, "warning");
           } else {
@@ -199,13 +199,13 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
         })
         : `/Users/captain/Desktop/preflight-diagnostics-${stamp}.zip`;
       if (!destination) return;
-      announce("Collecting a small, disclosed support bundle…");
+      announce("Creating the support file…");
       const result = await exportDiagnostics(destination);
       setDiagnosticsExport(result);
       setReportReview(false);
       setReportError("");
       setReportUploadedBytes(0);
-      announce(`Saved ${result.files} disclosed files. Inspect the ZIP before sharing it.`, "success");
+      announce(`Support file saved with ${result.files} files. Review the ZIP before sharing it.`, "success");
     } catch (error) {
       announce(errorMessage(error), "error");
     } finally {
@@ -222,13 +222,13 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     setReportCancelling(false);
     setReportUploadedBytes(0);
     setReportError("");
-    announce("Creating a short-lived case for this exact diagnostics ZIP…");
+    announce("Starting upload…");
     try {
       const receipt = await sendRunReport(diagnosticsExport);
       setReportReceipt(receipt);
       setReportReview(false);
       setReportUploadedBytes(diagnosticsExport.bytes);
-      announce(`Run report ${receipt.caseId} was accepted. Keep the receipt for support or deletion.`, "success");
+      announce(`Support file sent. Case ${receipt.caseId}.`, "success");
     } catch (error) {
       const nativeError = nativeCommandError(error);
       const detail = nativeError?.message ?? errorMessage(error);
@@ -268,15 +268,15 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     if (!reportReceipt) return;
     try {
       await navigator.clipboard.writeText(JSON.stringify(supportSafeReportReceipt(reportReceipt), null, 2));
-      announce("Support-safe run-report receipt copied. Deletion authorization stayed on this computer.");
+      announce("Case details copied. Deletion access stayed on this computer.");
     } catch (error) {
-      announce(`Could not copy the receipt: ${errorMessage(error)}`, "error");
+      announce(`Could not copy the case details: ${errorMessage(error)}`, "error");
     }
   };
 
   const dismissRunReportReceipt = () => {
     setReportReceipt(null);
-    announce("Receipt dismissed. Its local deletion authorization was removed.");
+    announce("Case dismissed. This computer can no longer delete the upload.");
   };
 
   const clearReportReceipt = () => {

@@ -140,7 +140,7 @@ test("a stale activation becomes a fresh review instead of reporting success", a
   await waitFor(() => expect(result.current.activationPlan?.sourceStateSha256).toBe("2".repeat(64)));
   expect(result.current.activationPlan?.enable).toEqual(["utility", "newly-observed"]);
   expect(announce).toHaveBeenCalledWith(
-    "The current mod selection changed since you reviewed this switch. Review the updated changes, then apply again.",
+    "Your mod selection changed. Check the updated switch, then apply it again.",
     "warning",
   );
   expect(announce).not.toHaveBeenCalledWith(expect.stringContaining("Switched to"), expect.anything());

@@ -128,11 +128,23 @@
   background: var(--accent-strong);
 }
 
+.hangar-hull-combobox__input::placeholder {
+  color: var(--ink-faint);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 550;
+  letter-spacing: 0;
+  opacity: 0.9;
+}
+
 .hangar-identity__meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 9px;
+  column-gap: 7px;
+  row-gap: 0;
   min-width: 0;
+  min-height: 44px;
   margin-top: 5px;
   color: var(--accent-strong);
   font-family: var(--font-data);
@@ -144,9 +156,9 @@
 }
 
 .hangar-identity__meta button {
-  min-height: 24px;
-  margin: -6px 0 -6px 2px;
-  padding: 0 5px;
+  min-height: 44px;
+  margin: 0 0 0 2px;
+  padding: 0 3px;
   border: 0;
   border-radius: 1px;
   color: var(--ink-faint);
@@ -198,6 +210,12 @@
   flex: 0 0 auto;
   background: color-mix(in srgb, var(--accent) 46%, var(--line-strong));
   content: "";
+}
+
+@container (max-width: 480px) {
+  .hangar-identity__size {
+    display: none;
+  }
 }
 
 .hangar-hull-combobox__list {

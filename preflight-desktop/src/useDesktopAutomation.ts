@@ -45,7 +45,7 @@ export function useDesktopAutomation({
       if (payload.state === "cancelling") {
         cancellingRef.current = true;
         setDesktopSmokeCancelling(true);
-        announce(payload.detail ?? "Stopping the exact game process and sealing its evidence…");
+        announce(payload.detail ?? "Stopping the benchmark…");
         return;
       }
       if (payload.state !== "finished" && payload.state !== "cancelled") return;
@@ -56,10 +56,10 @@ export function useDesktopAutomation({
       setDesktopBenchmarkComparison(payload.comparison ?? null);
       setStatus(installationReady ? "ready" : "setup");
       const outcome = payload.state === "cancelled"
-        ? payload.detail ?? `Benchmark stopped safely. Evidence is in ${displayPath(payload.runDirectory)}.`
+        ? payload.detail ?? `Benchmark stopped. Details saved to ${displayPath(payload.runDirectory)}.`
         : payload.success
-        ? `Startup benchmark finished. Evidence is in ${displayPath(payload.runDirectory)}.`
-        : payload.detail ?? `Benchmark stopped. Evidence is in ${displayPath(payload.runDirectory)}.`;
+        ? `Startup benchmark finished. Details saved to ${displayPath(payload.runDirectory)}.`
+        : payload.detail ?? `Benchmark stopped. Details saved to ${displayPath(payload.runDirectory)}.`;
       void refreshInstallation(game).then((refreshed) => {
         if (refreshed) announce(outcome, payload.success ? "success" : "error");
       });
@@ -85,7 +85,7 @@ export function useDesktopAutomation({
             setDesktopSmokeCancelling(false);
             setStatus(installationReady ? "ready" : "setup");
             void refreshInstallation(game).then((refreshed) => {
-              if (refreshed) announce("The benchmark stopped. Its exact outcome is available in the saved run evidence.", "warning");
+              if (refreshed) announce("The benchmark stopped. Check the saved run for its result.", "warning");
             });
           } else {
             previousPid = null;
@@ -164,7 +164,7 @@ export function useDesktopAutomation({
     if (!runningRef.current || cancellingRef.current) return;
     cancellingRef.current = true;
     setDesktopSmokeCancelling(true);
-    announce("Stopping the exact game process and sealing its evidence…");
+    announce("Stopping the benchmark…");
     try {
       const requested = await cancelDesktopSmoke();
       if (!requested) {

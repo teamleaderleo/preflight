@@ -144,10 +144,10 @@ export function HelpPage({
       {reportReview && diagnosticsExport ? (
         <section className="card report-review" aria-label="Run report consent">
           <div className="activation-review__heading">
-            <div><p className="eyebrow">Send review</p><h2>Send this exact file?</h2></div>
+            <div><p className="eyebrow">Send support file</p><h2>Send this file?</h2></div>
             <button className="text-button" type="button" onClick={() => setReportReview(false)} disabled={reportUploading}>Cancel</button>
           </div>
-          <p>This sends the exact ZIP below to {reportIntake?.origin}. The service receives your IP address for delivery and rate limiting.</p>
+          <p>This sends the ZIP below to {reportIntake?.origin}. The service receives your IP address for delivery and rate limiting.</p>
           <div className="report-facts">
             <div><span>File</span><strong>{shortPath(diagnosticsExport.output)}</strong></div>
             <div><span>Size</span><strong>{formatBytes(diagnosticsExport.bytes)} ({diagnosticsExport.bytes.toLocaleString()} bytes)</strong></div>
@@ -156,9 +156,9 @@ export function HelpPage({
           </div>
           <div className="report-contents">
             <strong>Included entries ({diagnosticsExport.included.length})</strong>
-            {diagnosticsExport.included.length > 0 ? <ul>{diagnosticsExport.included.map((entry) => <li key={entry.entry}><span>{entry.entry}</span><small>{formatBytes(entry.bytes)}</small></li>)}</ul> : <p>No run or benchmark evidence is present; the file contains only its disclosure and manifest.</p>}
+            {diagnosticsExport.included.length > 0 ? <ul>{diagnosticsExport.included.map((entry) => <li key={entry.entry}><span>{entry.entry}</span><small>{formatBytes(entry.bytes)}</small></li>)}</ul> : <p>No run or benchmark details were found. The file contains only this list and its manifest.</p>}
           </div>
-          <p>Home-folder paths appear as <code>&lt;home&gt;</code>. The disclosure above lists everything left out.</p>
+          <p>Personal paths are hidden.</p>
           {diagnosticsExport.skipped.length > 0 ? <p>{diagnosticsExport.skipped.length} source file{diagnosticsExport.skipped.length === 1 ? " was" : "s were"} skipped.</p> : null}
           {reportError ? (
             <div className="report-recovery" role="alert">
@@ -170,22 +170,22 @@ export function HelpPage({
           {reportUploading ? (
             <div className="report-progress" role="progressbar" aria-label="Run report upload" aria-valuemin={0} aria-valuemax={diagnosticsExport.bytes} aria-valuenow={reportUploadedBytes}>
               <span style={{ width: `${Math.min(100, diagnosticsExport.bytes > 0 ? reportUploadedBytes / diagnosticsExport.bytes * 100 : 0)}%` }} />
-              <strong>{reportFinalizing ? "Accepted · finishing receipt…" : reportCancelling ? "Stopping…" : `${formatBytes(reportUploadedBytes)} of ${formatBytes(diagnosticsExport.bytes)}`}</strong>
+              <strong>{reportFinalizing ? "Received · finishing…" : reportCancelling ? "Stopping…" : `${formatBytes(reportUploadedBytes)} of ${formatBytes(diagnosticsExport.bytes)}`}</strong>
             </div>
           ) : null}
           <div className="activation-review__footer">
             <span><ShieldIcon /> Preflight rechecks the file, size, and SHA-256 immediately before upload.</span>
             {reportUploading
-              ? <button className="button button--quiet" type="button" onClick={() => void stopRunReport()} disabled={reportCancelling || reportFinalizing}>{reportFinalizing ? "Finishing receipt…" : reportCancelling ? "Stopping…" : "Cancel upload"}</button>
-              : <button className="button button--primary" type="button" onClick={() => void submitRunReport()} disabled={!reportIntake?.configured || diagnosticsBusy}>{reportError ? "Try sending again" : "Send this exact file"}</button>}
+              ? <button className="button button--quiet" type="button" onClick={() => void stopRunReport()} disabled={reportCancelling || reportFinalizing}>{reportFinalizing ? "Finishing…" : reportCancelling ? "Stopping…" : "Cancel upload"}</button>
+              : <button className="button button--primary" type="button" onClick={() => void submitRunReport()} disabled={!reportIntake?.configured || diagnosticsBusy}>{reportError ? "Try sending again" : "Send file"}</button>}
           </div>
         </section>
       ) : null}
 
       {reportReceipt ? (
-        <section className="card report-receipt" aria-label="Run report receipt">
+        <section className="card report-receipt" aria-label="Uploaded support file">
           <div className="card__heading"><div><p className="eyebrow">Upload complete</p><h2>Case {reportReceipt.caseId}</h2></div><CheckIcon className="settings-check" /></div>
-          <p>Your {formatBytes(reportReceipt.bytes)} support file arrived intact. Add this case number to your issue. Keep this card if you may want to delete the upload before its deadline.</p>
+          <p>Your {formatBytes(reportReceipt.bytes)} support file arrived. Add the case number to your issue. You can delete the upload here before its deadline.</p>
           <div className="report-facts">
             <div><span>Received</span><strong>{new Date(reportReceipt.receivedAt).toLocaleString()}</strong></div>
             <div><span>Retention deadline</span><strong>{new Date(reportReceipt.retentionDeadline).toLocaleString()}</strong></div>

@@ -199,7 +199,7 @@ export function SettingsPage({
           */}
         <section className="card privacy-card">
           <div className="card__heading"><div><h2>Privacy</h2></div><ShieldIcon className="settings-check" /></div>
-          <p className="privacy-summary"><strong>Nothing is sent automatically.</strong></p>
+          <p className="privacy-summary"><strong>Reports are sent only when you choose.</strong></p>
           <div className="privacy-links">
             <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("privacy")}>Full privacy statement</button>
             <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("capabilities")}>What Preflight can access</button>

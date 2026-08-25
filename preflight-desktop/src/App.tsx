@@ -463,7 +463,7 @@ export default function App() {
               refresh(snapshot?.selected?.installRoot),
               refreshCache(),
             ]).then(([refreshed]) => {
-              if (refreshed) announceGame("Starsector closed. The exact outcome is available in run reports.", "warning");
+              if (refreshed) announceGame("Starsector closed. Check run reports for the result.", "warning");
             });
           } else {
             previousPid = null;

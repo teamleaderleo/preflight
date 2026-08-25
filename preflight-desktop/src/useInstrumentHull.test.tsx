@@ -92,6 +92,21 @@ test("loads the current installation only when a hull UI is visible and reuses t
   expect(getWireframeHulls).toHaveBeenCalledTimes(2);
 });
 
+test("restores a saved installed hull on Home without making every Home load scan the catalog", async () => {
+  const modded = hull("uaf-solvernia", "Solvernia", false);
+  window.localStorage.setItem(INSTRUMENT_HULL_STORAGE_KEY, modded.id);
+  window.localStorage.setItem(INSTRUMENT_HULL_ROSTER_STORAGE_KEY, JSON.stringify({
+    "/game": [...FEATURED_HULL_IDS, modded.id],
+  }));
+  vi.mocked(getWireframeHulls).mockResolvedValue({ ...catalog, hulls: [...catalog.hulls, modded] });
+
+  const { result } = renderHook(() => useInstrumentHull("/game", false));
+
+  await waitFor(() => expect(result.current.selectedId).toBe(modded.id));
+  expect(getWireframeHulls).toHaveBeenCalledTimes(1);
+  expect(result.current.hulls.some((candidate) => candidate.id === modded.id)).toBe(true);
+});
+
 test("keeps the six included hulls when the local catalog cannot be read", async () => {
   vi.mocked(getWireframeHulls).mockRejectedValue(new Error("unreadable hull directory"));
   const { result, rerender } = renderHook(
@@ -108,6 +123,21 @@ test("keeps the six included hulls when the local catalog cannot be read", async
   rerender({ enabled: false });
   rerender({ enabled: true });
   expect(getWireframeHulls).toHaveBeenCalledTimes(1);
+});
+
+test("an explicit catalog retry recovers after a transient lookup failure", async () => {
+  vi.mocked(getWireframeHulls)
+    .mockRejectedValueOnce(new Error("installation was busy"))
+    .mockResolvedValueOnce(catalog);
+  const { result } = renderHook(() => useInstrumentHull("/game", true));
+
+  await waitFor(() => expect(result.current.catalogLoaded).toBe(true));
+  expect(result.current.catalog).toBeNull();
+
+  act(() => result.current.reloadCatalog());
+  expect(result.current.catalogLoading).toBe(true);
+  await waitFor(() => expect(result.current.catalog).toEqual(catalog));
+  expect(getWireframeHulls).toHaveBeenCalledTimes(2);
 });
 
 test("restores and persists an available local hull", async () => {
@@ -156,6 +186,7 @@ test("falls back to Odyssey when a saved hull disappeared", async () => {
 
   await waitFor(() => expect(result.current.catalog).toEqual(catalog));
   expect(result.current.selectedId).toBe(DEFAULT_HULL_ID);
+  expect(window.localStorage.getItem(INSTRUMENT_HULL_STORAGE_KEY)).toBe(DEFAULT_HULL_ID);
 });
 
 test("repairs a roster whose modded hulls all disappeared", async () => {
