@@ -71,7 +71,7 @@ function pageTitle(page: Page, status: AppStatus, preparing: boolean, isReady: b
   if (status === "launching") return "Opening Starsector…";
   if (status === "running") return "Running";
   if (!isReady) return "Setup";
-  return needsPreparation ? "Fast launch setup" : "Ready";
+  return needsPreparation ? "Fast launch" : "Ready";
 }
 
 interface RunFailure {
@@ -716,6 +716,7 @@ export default function App() {
             operationBlocked={operationBlocked}
             nativeBlockReason={nativeBenchmarkBlockReason}
             automation={automation}
+            onOpenHelp={() => navigate("help")}
           />
         </Activity>
         <Activity name="help-page" mode={page === "help" ? "visible" : "hidden"}>

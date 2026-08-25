@@ -25,6 +25,86 @@
   inset: 6px 36px 104px;
 }
 
+/* Preparation is about the current mod setup and required storage. The hull switcher competes with
+ * that decision and used to overlap both the storage note and the launch action at ordinary widths. */
+.launch-console--layout-preparation .home-ship-picker {
+  display: none;
+}
+
+/* Treat the selected installation as one centred caption. Earlier layers centred the profile name
+ * while leaving the path at the far left, so the two lines looked unrelated. */
+.launch-console.launch-console--layout-preparation .home-launch-identity {
+  top: 72px;
+  right: auto;
+  left: 50%;
+  align-items: center;
+  width: min(520px, calc(100% - 36px));
+  text-align: center;
+  transform: translateX(-50%);
+}
+
+.launch-console.launch-console--layout-preparation .home-launch-path {
+  align-self: center;
+}
+
+.launch-console.launch-console--layout-preparation .home-launch-path::after {
+  left: 50%;
+  transform: translate(-50%, -2px);
+}
+
+.launch-console.launch-console--layout-preparation .home-launch-path:is(:hover, :focus-visible)::after {
+  transform: translate(-50%, 0);
+}
+
+/* Keep the primary setup action on the console centreline when a fallback launch is also offered. */
+.launch-console--layout-preparation .launch-console__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px) minmax(0, 1fr);
+}
+
+.launch-console--layout-preparation .launch-console__actions .button--launch {
+  grid-column: 2;
+  width: 100%;
+  min-width: 0;
+}
+
+.launch-console--layout-preparation .launch-console__actions .launch-console__stop {
+  grid-column: 3;
+  justify-self: start;
+  min-width: 0;
+}
+
+/* Starting and running keep the primary action on the same centreline as Ready. A companion stop
+ * action uses the spare right-hand track instead of pushing the launch state sideways. */
+.launch-console--layout-active .launch-console__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px) minmax(0, 1fr);
+}
+
+.launch-console--layout-active .launch-console__actions .button--launch {
+  grid-column: 2;
+  width: 100%;
+  min-width: 0;
+}
+
+.launch-console--layout-active .launch-console__actions .launch-console__stop {
+  grid-column: 3;
+  justify-self: start;
+  min-width: 0;
+}
+
+.launch-console--layout-active .launch-console__status-line {
+  top: 18px;
+  right: 18px;
+  left: 172px;
+  justify-content: flex-end;
+}
+
+.launch-console--layout-active .home-playtime {
+  top: 28px;
+  left: 28px;
+}
+
 /* Recovery already precedes the console in DOM order. Collapse the console into a companion portrait. */
 .launch-console--layout-recovery {
   height: clamp(220px, 34vh, 280px);
@@ -138,6 +218,10 @@
     inset: 16px 8px 110px;
   }
 
+  .launch-console--layout-preparation .launch-console__actions {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 320px) minmax(0, 1fr);
+  }
+
   .launch-console--layout-recovery {
     height: 220px;
     min-height: 220px;
@@ -189,6 +273,20 @@
     left: 10px;
     max-width: 194px;
     text-align: left;
+  }
+}
+
+@media (max-width: 600px) {
+  :is(.launch-console--layout-preparation, .launch-console--layout-active) .launch-console__actions {
+    grid-template-columns: minmax(260px, 340px);
+    justify-content: center;
+  }
+
+  :is(.launch-console--layout-preparation, .launch-console--layout-active) .launch-console__actions .button--launch,
+  :is(.launch-console--layout-preparation, .launch-console--layout-active) .launch-console__actions .launch-console__stop {
+    grid-column: 1;
+    justify-self: stretch;
+    width: 100%;
   }
 }
 
@@ -425,9 +523,20 @@
 
   .launch-console--layout-settled .launch-console__actions {
     bottom: 14px;
-    grid-template-columns: 86px minmax(0, 1fr) 86px;
+    grid-template-columns: minmax(0, 1fr);
     gap: 6px;
     width: calc(100% - 16px);
+  }
+
+  .launch-console--layout-settled .launch-console__actions .button--launch {
+    grid-column: 1;
+  }
+
+  .launch-console--layout-settled .launch-console__actions .home-motion-controls {
+    position: absolute;
+    right: 0;
+    bottom: 72px;
+    grid-column: 1;
   }
 
   .home-motion-controls {
@@ -446,9 +555,38 @@
   }
 }
 
+/* Once the sidebar becomes the compact top navigation, short windows have less vertical room than
+ * their viewport height suggests. Keep the settled controls inside that remaining field instead of
+ * preserving the roomy 500px desktop console and pushing Launch below the fold. */
+@media (max-width: 640px) and (max-height: 700px) {
+  .launch-console--layout-settled,
+  .launch-console--layout-settled .launch-console__primary {
+    min-height: 350px;
+  }
+
+  .launch-console--layout-settled .home-flight-instrument {
+    inset: 34px 0 0 !important;
+  }
+
+  .launch-console--layout-settled .home-launch-identity {
+    bottom: 136px;
+  }
+
+  .launch-console--layout-settled .home-ship-picker {
+    bottom: 82px;
+  }
+}
+
+@media (max-width: 640px) and (max-height: 600px) {
+  .launch-console--layout-settled,
+  .launch-console--layout-settled .launch-console__primary {
+    min-height: 320px;
+  }
+}
+
 @container (max-width: 430px) {
   .launch-console--layout-settled .launch-console__status-line {
-    left: 64px;
+    left: 104px;
   }
 
   .launch-console--layout-settled .home-playtime strong {

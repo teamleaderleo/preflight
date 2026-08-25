@@ -180,16 +180,22 @@ test("Home keeps storage-mode taxonomy out of the default low-disk decision", ()
   expect(note!.nextElementSibling).toBe(actions);
 });
 
-test("compact preparation note is owned by explicit preparation state", () => {
+test("compact preparation note clears both ordinary and stacked action rows", () => {
   const styles = homePresentationStyles.replace(/\/\*[\s\S]*?\*\//g, "");
   const mediaIndex = styles.search(/@media\s*\(\s*max-width\s*:\s*720px\s*\)/);
-  const rule = styles.match(
+  const ordinaryRule = styles.match(
+    /:root\s+\.launch-console\.launch-console--layout-preparation\.launch-console--ready\s+\.launch-console__note\s*\{([^}]*)\}/,
+  );
+  const stackedMediaIndex = styles.search(/@media\s*\(\s*max-width\s*:\s*600px\s*\)/);
+  const stackedRule = styles.slice(stackedMediaIndex).match(
     /:root\s+\.launch-console\.launch-console--layout-preparation\.launch-console--ready\s+\.launch-console__note\s*\{([^}]*)\}/,
   );
 
   expect(mediaIndex).toBeGreaterThanOrEqual(0);
-  expect(rule).not.toBeNull();
-  expect(rule?.index ?? -1).toBeGreaterThan(mediaIndex);
-  expect(rule?.[1]).toMatch(/bottom\s*:\s*82px\s*;?/);
+  expect(ordinaryRule).not.toBeNull();
+  expect(ordinaryRule?.index ?? -1).toBeGreaterThan(mediaIndex);
+  expect(ordinaryRule?.[1]).toMatch(/bottom\s*:\s*126px\s*;?/);
+  expect(stackedMediaIndex).toBeGreaterThan(mediaIndex);
+  expect(stackedRule?.[1]).toMatch(/bottom\s*:\s*156px\s*;?/);
   expect(styles).not.toContain(":has(");
 });

@@ -252,7 +252,7 @@ export function DesktopShell({
           </span>
           {/* Quiet and optional, at the very bottom rather than in the launch flow. */}
           <span className="footer__links">
-            <button type="button" onClick={() => void openProjectLink("tip-patreon")}>Support on Patreon</button>
+            <button type="button" onClick={() => void openProjectLink("tip-patreon")}>Patreon</button>
           </span>
           <span>Unofficial · Not affiliated with Fractal Softworks</span>
         </footer>
