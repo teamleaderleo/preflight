@@ -433,6 +433,103 @@
       ],
       "evidence": "docs/evidence/2026-08-05-janino-deduplicated-pack.md",
       "derivation": "Warm generated-class replay before persisted representation deduplication."
+    },
+    {
+      "type": "fps",
+      "value": "46.10",
+      "unit": "FPS",
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md"
+      ],
+      "evidence": "docs/evidence/2026-08-05-campaign-engine-call-times.md",
+      "evidenceAssertions": [
+        "| first 30 seconds | 1,383 | 46.10 FPS | 58.48 FPS | 9.15 FPS"
+      ],
+      "derivation": "Average FPS across the first 1,383 campaign frames in retained run campaign-engine-times-v1-20260805-073428."
+    },
+    {
+      "type": "fps",
+      "value": "9.15",
+      "unit": "FPS",
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md"
+      ],
+      "evidence": "docs/evidence/2026-08-05-campaign-engine-call-times.md",
+      "evidenceAssertions": [
+        "| first 30 seconds | 1,383 | 46.10 FPS | 58.48 FPS | 9.15 FPS"
+      ],
+      "derivation": "One-percent-low FPS across the first 1,383 campaign frames in retained run campaign-engine-times-v1-20260805-073428."
+    },
+    {
+      "type": "fps",
+      "value": "55.47",
+      "unit": "FPS",
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md"
+      ],
+      "evidence": "docs/evidence/2026-08-05-campaign-engine-call-times.md",
+      "evidenceAssertions": [
+        "| after 30 seconds | 4,091 | 55.47 FPS | 59.52 FPS | 20.45 FPS"
+      ],
+      "derivation": "Average FPS across the 4,091 campaign frames after the first 30 seconds in retained run campaign-engine-times-v1-20260805-073428."
+    },
+    {
+      "type": "fps",
+      "value": "20.45",
+      "unit": "FPS",
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md"
+      ],
+      "evidence": "docs/evidence/2026-08-05-campaign-engine-call-times.md",
+      "evidenceAssertions": [
+        "| after 30 seconds | 4,091 | 55.47 FPS | 59.52 FPS | 20.45 FPS"
+      ],
+      "derivation": "One-percent-low FPS across the 4,091 campaign frames after the first 30 seconds in retained run campaign-engine-times-v1-20260805-073428."
+    },
+    {
+      "type": "multiplier",
+      "value": "2.2",
+      "unit": "×",
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md"
+      ],
+      "publicationAssertions": {
+        "README.md": [
+          "Both slices use the same Preflight build and the same run."
+        ],
+        "docs/beta-announcement-draft.md": [
+          "Both slices use the same Preflight build and the same run."
+        ]
+      },
+      "evidence": "docs/evidence/2026-08-05-campaign-engine-call-times.md",
+      "evidenceAssertions": [
+        "`campaign-engine-times-v1-20260805-073428`",
+        "| first 30 seconds | 1,383 | 46.10 FPS | 58.48 FPS | 9.15 FPS",
+        "| after 30 seconds | 4,091 | 55.47 FPS | 59.52 FPS | 20.45 FPS"
+      ],
+      "derivation": "The retained run's 20.45 FPS settled-campaign one-percent low divided by its 9.15 FPS first-30-seconds one-percent low, rounded to one decimal place."
+    },
+    {
+      "type": "multiplier",
+      "value": "7.4",
+      "unit": "×",
+      "publishedIn": [
+        "docs/beta-announcement-draft.md",
+        "docs/beta-announcement-leo-draft.md",
+        "docs/release-post-draft.md"
+      ],
+      "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
+      "evidenceAssertions": [
+        "public **7.4×** shorthand",
+        "101-second",
+        "13.69-second best is 7.38"
+      ],
+      "derivation": "The roughly 101-second retained development worst case divided by the later 13.69-second best, rounded from 7.38; this spans development stages rather than a same-state controlled A/B."
     }
   ]
 }

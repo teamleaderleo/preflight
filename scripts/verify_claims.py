@@ -12,7 +12,7 @@ from pathlib import Path, PurePosixPath
 FORMAT = "preflight-claims-v1"
 STATUSES = {"accepted", "rejected", "superseded", "diagnostic", "exploratory"}
 PUBLIC_ELIGIBILITY = {"development-context-only", "candidate", "not-public"}
-QUANTITY_TYPES = {"seconds", "storage", "percent", "count"}
+QUANTITY_TYPES = {"seconds", "storage", "percent", "count", "fps", "multiplier"}
 BOLD = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
 SECONDS = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?)\s*(?:s\b|seconds?\b)", re.IGNORECASE)
 STORAGE = re.compile(
@@ -20,6 +20,8 @@ STORAGE = re.compile(
     re.IGNORECASE,
 )
 PERCENT = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?)\s*(?:%|percent\b)", re.IGNORECASE)
+FPS = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?)\s*FPS\b", re.IGNORECASE)
+MULTIPLIER = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?)\s*(?:×|x\b)", re.IGNORECASE)
 COUNT = re.compile(
     r"(?<![\w.])(\d[\d,]*)\s*(?:-|\s+)(mods?|runs?|hits?|operations?|packages?|files?|artifacts?|classes?|launches?|replays?)\b",
     re.IGNORECASE,
@@ -123,6 +125,14 @@ def canonical_unit(kind: str, unit: object, name: str) -> str:
         if lowered not in COUNT_UNITS:
             raise ClaimError(f"{name} is not a supported count unit: {raw}")
         return COUNT_UNITS[lowered]
+    if kind == "fps":
+        if lowered != "fps":
+            raise ClaimError(f"{name} must be FPS")
+        return "FPS"
+    if kind == "multiplier":
+        if lowered not in {"x", "×"}:
+            raise ClaimError(f"{name} must be x/×")
+        return "×"
     raise ClaimError(f"unsupported quantity type: {kind}")
 
 
@@ -158,6 +168,10 @@ def discover_quantities(text: str) -> set[Quantity]:
             discovered.add(quantity("storage", match.group(1), match.group(2), "published storage"))
         for match in PERCENT.finditer(chunk):
             discovered.add(quantity("percent", match.group(1), "%", "published percent"))
+        for match in FPS.finditer(chunk):
+            discovered.add(quantity("fps", match.group(1), "FPS", "published FPS"))
+        for match in MULTIPLIER.finditer(chunk):
+            discovered.add(quantity("multiplier", match.group(1), "×", "published multiplier"))
         for match in COUNT.finditer(chunk):
             discovered.add(quantity("count", match.group(1), match.group(2), "published count"))
     return discovered
@@ -204,11 +218,30 @@ def reviewed_quantities(
             f"publishedQuantities {index}",
         )
         evidence = required_string(entry.get("evidence"), f"publishedQuantities {index} evidence")
-        repository_path(root, evidence, prefix="docs/evidence/")
+        evidence_path = repository_path(root, evidence, prefix="docs/evidence/")
+        evidence_assertions = entry.get("evidenceAssertions", [])
+        if not isinstance(evidence_assertions, list) or any(
+            not isinstance(assertion, str) or not assertion for assertion in evidence_assertions
+        ):
+            raise ClaimError(f"publishedQuantities {index} evidenceAssertions must be a list of strings")
+        evidence_text = evidence_path.read_text(encoding="utf-8")
+        missing_evidence = [assertion for assertion in evidence_assertions if assertion not in evidence_text]
+        if missing_evidence:
+            raise ClaimError(
+                f"publishedQuantities {index} evidence is missing assertion(s): {missing_evidence}"
+            )
         required_string(entry.get("derivation"), f"publishedQuantities {index} derivation")
         scopes = entry.get("publishedIn")
         if not isinstance(scopes, list) or not scopes:
             raise ClaimError(f"publishedQuantities {index} publishedIn must contain at least one publication")
+        publication_assertions = entry.get("publicationAssertions", {})
+        if not isinstance(publication_assertions, dict):
+            raise ClaimError(f"publishedQuantities {index} publicationAssertions must be an object")
+        unexpected_assertions = sorted(set(publication_assertions) - set(scopes))
+        if unexpected_assertions:
+            raise ClaimError(
+                f"publishedQuantities {index} has assertions outside publishedIn: {unexpected_assertions}"
+            )
         for raw_publication in scopes:
             publication = required_string(raw_publication, f"publishedQuantities {index} publication")
             if publication not in publications:
@@ -226,6 +259,20 @@ def reviewed_quantities(
                 raise ClaimError(
                     f"reviewed quantity {display_quantity(value)} is no longer published as a headline in "
                     f"{publication}"
+                )
+            assertions = publication_assertions.get(publication, [])
+            if not isinstance(assertions, list) or any(
+                not isinstance(assertion, str) or not assertion for assertion in assertions
+            ):
+                raise ClaimError(
+                    f"publishedQuantities {index} assertions for {publication} must be a list of strings"
+                )
+            publication_text = publications[publication].read_text(encoding="utf-8")
+            missing_assertions = [assertion for assertion in assertions if assertion not in publication_text]
+            if missing_assertions:
+                raise ClaimError(
+                    f"{publication} is missing reviewed context for {display_quantity(value)}: "
+                    f"{missing_assertions}"
                 )
             approved[publication].add(value)
     return approved

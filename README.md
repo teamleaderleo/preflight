@@ -122,9 +122,9 @@ Campaign play was measured separately. In one retained optimized 83-mod session,
 seconds after loading averaged **46.10 FPS** with a **9.15 FPS one-percent low**. After that initial
 catch-up, the remaining 4,091 campaign frames averaged **55.47 FPS** with a **20.45 FPS
 one-percent low** — a **2.2×** increase in the one-percent low within that session. This is a
-warm-up-versus-settled observation, not an Off-versus-On comparison; the frame-time distribution
-and route are retained in the [campaign engine
-report](docs/evidence/2026-08-05-campaign-engine-call-times.md).
+warm-up-versus-settled observation, not an implementation A/B.
+Both slices use the same Preflight build and the same run.
+The frame-time distribution and route are retained in the [campaign engine report](docs/evidence/2026-08-05-campaign-engine-call-times.md).
 
 The first public beta still needs its benchmark run against the exact accepted package bytes. That
 packaged result will sit beside the development record instead of silently replacing it.

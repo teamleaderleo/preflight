@@ -182,6 +182,57 @@ class VerifyClaimsTest(unittest.TestCase):
         report = verify_claims.validate_claims(self.root)
         self.assertEqual(2, report["publishedQuantitiesChecked"])
 
+    def test_accepts_reviewed_fps_and_multiplier_with_publication_context(self):
+        context = "Both slices use the same Preflight build and the same run."
+        self.published_quantities = [
+            self.reviewed("fps", "20.45", "FPS", "README.md"),
+            {
+                **self.reviewed("multiplier", "2.2", "×", "README.md"),
+                "publicationAssertions": {"README.md": [context]},
+            },
+        ]
+        self.write_claims()
+        (self.root / "README.md").write_text(
+            "83-mod development result: 15.88 seconds\n"
+            "**20.45 FPS and a 2.2× increase.**\n"
+            f"{context}\n",
+            encoding="utf-8",
+        )
+
+        report = verify_claims.validate_claims(self.root)
+
+        self.assertEqual(2, report["publishedQuantitiesChecked"])
+
+    def test_rejects_drift_in_reviewed_publication_context(self):
+        self.published_quantities = [{
+            **self.reviewed("multiplier", "2.2", "×", "README.md"),
+            "publicationAssertions": {
+                "README.md": ["Both slices use the same Preflight build and the same run."],
+            },
+        }]
+        self.write_claims()
+        (self.root / "README.md").write_text(
+            "83-mod development result: 15.88 seconds\n**2.2× increase.**\n",
+            encoding="utf-8",
+        )
+
+        with self.assertRaisesRegex(verify_claims.ClaimError, "missing reviewed context"):
+            verify_claims.validate_claims(self.root)
+
+    def test_rejects_drift_in_reviewed_quantity_evidence(self):
+        self.published_quantities = [{
+            **self.reviewed("fps", "20.45", "FPS", "README.md"),
+            "evidenceAssertions": ["20.45 FPS after warm-up"],
+        }]
+        self.write_claims()
+        (self.root / "README.md").write_text(
+            "83-mod development result: 15.88 seconds\n**20.45 FPS**\n",
+            encoding="utf-8",
+        )
+
+        with self.assertRaisesRegex(verify_claims.ClaimError, "evidence is missing assertion"):
+            verify_claims.validate_claims(self.root)
+
     def test_rejects_a_reviewed_quantity_whose_evidence_is_missing(self):
         self.published_quantities = [{
             "type": "seconds",
