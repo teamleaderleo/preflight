@@ -127,11 +127,14 @@ class FrameTimeRuntimeTest {
         Map<String, Object> telemetry = FrameTimeRuntime.telemetry();
         assertEquals(30_000L, telemetry.get("campaignWarmupWindowMillis"));
         assertEquals(0.00003, telemetry.get("firstCampaignBoundaryOffsetMillis"));
-        assertEquals(2L, map(telemetry.get("campaignActive")).get("frames"));
-        assertEquals(1L, map(telemetry.get("campaignFirst30SecondsActive")).get("frames"));
-        assertEquals(1L, map(telemetry.get("campaignAfter30SecondsActive")).get("frames"));
+        assertEquals(2L, map(telemetry.get(FrameTimeTelemetry.CAMPAIGN_ACTIVE)).get("frames"));
+        assertEquals(1L,
+                map(telemetry.get(FrameTimeTelemetry.CAMPAIGN_FIRST_30_SECONDS_ACTIVE)).get("frames"));
+        assertEquals(1L,
+                map(telemetry.get(FrameTimeTelemetry.CAMPAIGN_AFTER_30_SECONDS_ACTIVE)).get("frames"));
         assertEquals(2L, map(telemetry.get("combatActive")).get("frames"));
-        assertEquals(1L, map(telemetry.get("combatAfterCampaignActive")).get("frames"));
+        assertEquals(1L,
+                map(telemetry.get(FrameTimeTelemetry.COMBAT_AFTER_CAMPAIGN_ACTIVE)).get("frames"));
     }
 
     @Test

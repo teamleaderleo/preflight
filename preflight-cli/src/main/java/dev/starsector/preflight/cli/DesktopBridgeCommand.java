@@ -1,5 +1,6 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.agent.FrameTimeTelemetry;
 import dev.starsector.preflight.core.Json;
 import java.io.IOException;
 import java.io.InputStream;
@@ -534,16 +535,18 @@ final class DesktopBridgeCommand {
             }
             if (encoded.length > MAX_ADAPTER_REPORT_BYTES) return null;
             Map<String, Object> adapter = StrictJson.object(new String(encoded, StandardCharsets.UTF_8));
-            if (!(adapter.get("frameTimes") instanceof Map<?, ?> rawFrameTimes)) return null;
+            if (!(adapter.get(FrameTimeTelemetry.REPORT) instanceof Map<?, ?> rawFrameTimes)) return null;
             Map<String, Object> frameTimes = stringMap(rawFrameTimes);
-            if (!Boolean.TRUE.equals(frameTimes.get("enabled"))) return null;
+            if (!Boolean.TRUE.equals(frameTimes.get(FrameTimeTelemetry.ENABLED))) return null;
 
-            Map<String, Object> campaign = frameDistribution(frameTimes.get("campaignActive"));
+            Map<String, Object> campaign = frameDistribution(
+                    frameTimes.get(FrameTimeTelemetry.CAMPAIGN_ACTIVE));
             Map<String, Object> initialCampaign = frameDistribution(
-                    frameTimes.get("campaignFirst30SecondsActive"));
+                    frameTimes.get(FrameTimeTelemetry.CAMPAIGN_FIRST_30_SECONDS_ACTIVE));
             Map<String, Object> settledCampaign = frameDistribution(
-                    frameTimes.get("campaignAfter30SecondsActive"));
-            Map<String, Object> combat = frameDistribution(frameTimes.get("combatAfterCampaignActive"));
+                    frameTimes.get(FrameTimeTelemetry.CAMPAIGN_AFTER_30_SECONDS_ACTIVE));
+            Map<String, Object> combat = frameDistribution(
+                    frameTimes.get(FrameTimeTelemetry.COMBAT_AFTER_CAMPAIGN_ACTIVE));
             if (campaign == null && initialCampaign == null && settledCampaign == null && combat == null) return null;
 
             Map<String, Object> result = new LinkedHashMap<>();
@@ -552,9 +555,10 @@ final class DesktopBridgeCommand {
             result.put("initialCampaign", initialCampaign);
             result.put("settledCampaign", settledCampaign);
             result.put("combat", combat);
-            if (frameTimes.get("measurementOverhead") instanceof Map<?, ?> rawOverhead) {
+            if (frameTimes.get(FrameTimeTelemetry.MEASUREMENT_OVERHEAD) instanceof Map<?, ?> rawOverhead) {
                 Map<String, Object> overhead = stringMap(rawOverhead);
-                result.put("measurementAverageMicros", finiteNonNegative(overhead.get("averageMicros")));
+                result.put("measurementAverageMicros",
+                        finiteNonNegative(overhead.get(FrameTimeTelemetry.AVERAGE_MICROS)));
             } else {
                 result.put("measurementAverageMicros", null);
             }

@@ -1,5 +1,6 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.agent.FrameTimeTelemetry;
 import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.Json;
 import java.io.IOException;
@@ -386,9 +387,9 @@ final class DesktopBenchmarkLaunch {
         Instant routeStart = instant(evidence, "startedAt");
         Instant routeEnd = instant(evidence, "completedAt");
         Map<String, Object> frameTimes = frameTimes(evidence);
-        Map<String, Object> campaignFrames = object(frameTimes.get("campaignActive"));
+        Map<String, Object> campaignFrames = object(frameTimes.get(FrameTimeTelemetry.CAMPAIGN_ACTIVE));
         if (campaignFrames == null) throw new IOException("Benchmark frame report lacks campaign frames");
-        Map<String, Object> measurement = object(frameTimes.get("measurementOverhead"));
+        Map<String, Object> measurement = object(frameTimes.get(FrameTimeTelemetry.MEASUREMENT_OVERHEAD));
 
         summary.put("processToCampaignReadyMs", millis(processStart, campaign));
         summary.put("routeElapsedMs", millis(routeStart, routeEnd));
@@ -412,7 +413,9 @@ final class DesktopBenchmarkLaunch {
             Map<String, Object> measurement, long routeElapsedMs) throws IOException {
         Long samples = number(measurement, "samples");
         Long totalNanos = number(measurement, "totalNanos");
-        Object averageValue = measurement == null ? null : measurement.get("averageMicros");
+        Object averageValue = measurement == null
+                ? null
+                : measurement.get(FrameTimeTelemetry.AVERAGE_MICROS);
         Object maximumValue = measurement == null ? null : measurement.get("maximumMicros");
         if (samples == null || samples <= 0L || totalNanos == null || totalNanos < 0L
                 || !(averageValue instanceof Number average)
@@ -607,10 +610,10 @@ final class DesktopBenchmarkLaunch {
             throws IOException {
         Path frameReport = artifact(evidence, "frame-report", "frame report");
         Map<String, Object> report = boundedJson(frameReport, "frame report");
-        if (!"starsector-preflight-runtime-frame-report-v1".equals(report.get("format"))) {
+        if (!FrameTimeTelemetry.FRAME_REPORT_FORMAT.equals(report.get("format"))) {
             throw new IOException("Benchmark frame report format is unsupported");
         }
-        Map<String, Object> frameTimes = object(report.get("frameTimes"));
+        Map<String, Object> frameTimes = object(report.get(FrameTimeTelemetry.REPORT));
         if (frameTimes == null) throw new IOException("Benchmark frame report lacks frame telemetry");
         return frameTimes;
     }

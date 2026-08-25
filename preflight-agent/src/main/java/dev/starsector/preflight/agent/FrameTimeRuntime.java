@@ -201,7 +201,7 @@ public final class FrameTimeRuntime {
     static synchronized Map<String, Object> telemetry() {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("planId", PLAN_ID);
-        result.put("enabled", enabled);
+        result.put(FrameTimeTelemetry.ENABLED, enabled);
         result.put("installed", installed);
         result.put("startupComplete", startupComplete);
         result.put("boundaries", boundaries);
@@ -212,13 +212,13 @@ public final class FrameTimeRuntime {
         Map<String, Object> measurement = new LinkedHashMap<>();
         measurement.put("samples", measurementSamples);
         measurement.put("totalNanos", measurementTotalNanos);
-        measurement.put("averageMicros", measurementSamples == 0L
+        measurement.put(FrameTimeTelemetry.AVERAGE_MICROS, measurementSamples == 0L
                 ? null
                 : measurementTotalNanos / 1_000.0 / measurementSamples);
         measurement.put("maximumMicros", measurementSamples == 0L
                 ? null
                 : measurementMaximumNanos / 1_000.0);
-        result.put("measurementOverhead", measurement);
+        result.put(FrameTimeTelemetry.MEASUREMENT_OVERHEAD, measurement);
         result.put("firstBoundaryEpochMillis", firstBoundaryEpochMillis);
         result.put("campaignWarmupWindowMillis", CAMPAIGN_WARMUP_NANOS / 1_000_000L);
         result.put("firstCampaignBoundaryOffsetMillis",
@@ -230,13 +230,13 @@ public final class FrameTimeRuntime {
                 HISTOGRAM_REGULAR_BINS * HISTOGRAM_BIN_NANOS / 1_000L);
         result.put("allActive", allActive.toMap(firstBoundaryEpochMillis));
         result.put("postStartupActive", postStartupActive.toMap(firstBoundaryEpochMillis));
-        result.put("campaignActive", campaignActive.toMap(firstBoundaryEpochMillis));
-        result.put("campaignFirst30SecondsActive",
+        result.put(FrameTimeTelemetry.CAMPAIGN_ACTIVE, campaignActive.toMap(firstBoundaryEpochMillis));
+        result.put(FrameTimeTelemetry.CAMPAIGN_FIRST_30_SECONDS_ACTIVE,
                 campaignFirst30SecondsActive.toMap(firstBoundaryEpochMillis));
-        result.put("campaignAfter30SecondsActive",
+        result.put(FrameTimeTelemetry.CAMPAIGN_AFTER_30_SECONDS_ACTIVE,
                 campaignAfter30SecondsActive.toMap(firstBoundaryEpochMillis));
         result.put("combatActive", combatActive.toMap(firstBoundaryEpochMillis));
-        result.put("combatAfterCampaignActive",
+        result.put(FrameTimeTelemetry.COMBAT_AFTER_CAMPAIGN_ACTIVE,
                 combatAfterCampaignActive.toMap(firstBoundaryEpochMillis));
         return result;
     }

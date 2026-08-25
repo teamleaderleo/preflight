@@ -385,7 +385,7 @@ final class AdapterReport {
                 .append(Json.value(MacMemoryWarningRuntime.telemetry())).append(',');
         key(output, "combatRuntimeIntegrity")
                 .append(Json.value(CombatRuntimeIntegrityRuntime.telemetry())).append(',');
-        key(output, "frameTimes")
+        key(output, FrameTimeTelemetry.REPORT)
                 .append(Json.value(FrameTimeRuntime.telemetry())).append(',');
         key(output, "runtimeSemanticState")
                 .append(Json.value(RuntimeSemanticState.telemetry())).append(',');

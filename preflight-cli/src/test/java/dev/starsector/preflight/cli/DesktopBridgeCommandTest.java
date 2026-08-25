@@ -1,5 +1,6 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.agent.FrameTimeTelemetry;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -181,13 +182,14 @@ class DesktopBridgeCommandTest {
                 "p95Micros", 27100,
                 "p99Micros", 48900);
         Files.writeString(run.resolve("adapter.json"), Json.object(Map.of(
-                "frameTimes", Map.of(
-                        "enabled", true,
-                        "campaignActive", allCampaign,
-                        "campaignFirst30SecondsActive", initialCampaign,
-                        "campaignAfter30SecondsActive", settledCampaign,
-                        "combatAfterCampaignActive", Map.of("frames", 0),
-                        "measurementOverhead", Map.of("averageMicros", 1.78)))));
+                FrameTimeTelemetry.REPORT, Map.of(
+                        FrameTimeTelemetry.ENABLED, true,
+                        FrameTimeTelemetry.CAMPAIGN_ACTIVE, allCampaign,
+                        FrameTimeTelemetry.CAMPAIGN_FIRST_30_SECONDS_ACTIVE, initialCampaign,
+                        FrameTimeTelemetry.CAMPAIGN_AFTER_30_SECONDS_ACTIVE, settledCampaign,
+                        FrameTimeTelemetry.COMBAT_AFTER_CAMPAIGN_ACTIVE, Map.of("frames", 0),
+                        FrameTimeTelemetry.MEASUREMENT_OVERHEAD,
+                        Map.of(FrameTimeTelemetry.AVERAGE_MICROS, 1.78)))));
 
         Map<String, Object> snapshot = DesktopBridgeCommand.snapshot(
                 Platform.MAC, home, temporaryDirectory, Map.of(), game, null);
