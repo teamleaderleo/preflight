@@ -44,11 +44,13 @@ current runtime shortcuts while loading and playing a representative save, with 
 health and frame telemetry. They did not consistently save, return to the title screen, and reload
 under the complete current Recommended stack.
 
-The checked-in `campaign-roam` desktop scenarios are intentionally non-destructive: they press
-Continue, move briefly, collect bounded evidence, and quit. They do not measure save identity or
-save compatibility. `scripts/run-gameplay-pilot.sh` names the missing human gate explicitly: use a
-disposable save copy, exercise campaign warm-up and steady state plus combat, save, return to the
-title screen, reload, resume play, and exit normally.
+The checked-in `campaign-roam` desktop scenarios do not issue a save command: they press Continue,
+run the paired campaign route, collect bounded evidence, and quit. They still require a disposable
+selected campaign because Continue and movement can trigger game or mod autosaves. The pair binds
+both phases to the same selected descriptor but does not prove save compatibility.
+`scripts/run-gameplay-pilot.sh` names the missing human gate explicitly: use a disposable save copy,
+exercise campaign warm-up and steady state plus combat, save, return to the title screen, reload,
+resume play, and exit normally.
 
 The pilot now binds that instruction to one exact campaign directory before it launches. It hashes
 the complete contents of every `save_*` campaign without following symlinks, then rejects the run
@@ -93,14 +95,16 @@ benchmark runner, including average FPS, 1% and 0.1% lows, and p95/p99 compariso
 are launched by Preflight: measurement-only keeps the measurement boundary while optimized also
 enables the reviewed fixes. No retained completed pair found in the repository binds the
 **9.15 → 20.45 FPS** values to those two conditions; the source report binds them to the first 30
-seconds and the remainder of one run. A fresh paired campaign run can produce the missing
-measurement-only/optimized result once an operator selects a disposable save and a representative
-route.
+seconds and the remainder of one run. The checked-in pair now drives the same buffered movement
+route in both conditions and compares only the period after the first 30 seconds. It rejects either
+phase below 100 settled frames or 30 active settled seconds, so a three-second sample can no longer
+become a campaign performance result. A fresh paired run can produce the missing
+measurement-only/optimized result once an operator selects a disposable save.
 
 ## Automation boundary checked today
 
 `desktop smoke probe` reported the macOS exact-PID development driver ready, with Accessibility
-enabled and Screen Recording deferred to the first bounded capture. That makes the short
-`campaign-roam` evidence path feasible without changing it into a save-writing test. Running it
-still requires an operator-selected disposable campaign because Continue and movement can trigger
-mod autosaves. The save/reload lifecycle remains human-operated by design.
+enabled and Screen Recording deferred to the first bounded capture. That makes the paired
+`campaign-roam` evidence path feasible without changing it into a save/reload test. Running it still
+requires an operator-selected disposable campaign because Continue and movement can trigger mod
+autosaves. The save/reload lifecycle remains human-operated by design.

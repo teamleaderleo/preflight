@@ -51,6 +51,13 @@ The exact rendered matrix now carries a dedicated frame-pacing scenario. It chec
 preview distributions expose active duration and captures the result at the default and minimum
 window sizes as part of the ordinary 480–1440 pixel sweep.
 
+The separate developer A/B path now enforces the same coverage truth before it can seal campaign
+metrics. Both conditions launch through Preflight with identical steps: measurement-only keeps the
+state/frame hooks but no reviewed fixes, while optimized enables them. Each phase allows 30 seconds
+for warm-up, a 5-second transition cushion, and 30 seconds for settled collection; only the
+post-30-second distribution is compared, and fewer than 100 frames or 30 active seconds is a failed
+phase rather than an FPS result.
+
 The preference stays visibly enabled but collection pauses under **Off / troubleshooting**, because
 that preset promises not to install the runtime adapter. Results remain in Preflight's run directory;
 the feature neither reads nor writes campaign saves. A live desktop readout can follow if players

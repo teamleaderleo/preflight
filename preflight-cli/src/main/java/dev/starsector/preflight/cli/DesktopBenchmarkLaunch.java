@@ -23,6 +23,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 final class DesktopBenchmarkLaunch {
     static final String FORMAT = "starsector-preflight-desktop-benchmark-v1";
     static final String RESULT_FILE = "benchmark-result.json";
+    static final long MIN_SETTLED_CAMPAIGN_ACTIVE_NANOS = Duration.ofSeconds(30).toNanos();
+    static final long MIN_SETTLED_CAMPAIGN_FRAMES = 100L;
 
     private DesktopBenchmarkLaunch() {
     }
@@ -387,15 +389,35 @@ final class DesktopBenchmarkLaunch {
         Instant routeStart = instant(evidence, "startedAt");
         Instant routeEnd = instant(evidence, "completedAt");
         Map<String, Object> frameTimes = frameTimes(evidence);
-        Map<String, Object> campaignFrames = object(frameTimes.get(FrameTimeTelemetry.CAMPAIGN_ACTIVE));
-        if (campaignFrames == null) throw new IOException("Benchmark frame report lacks campaign frames");
+        Map<String, Object> campaignFrames = object(
+                frameTimes.get(FrameTimeTelemetry.CAMPAIGN_AFTER_30_SECONDS_ACTIVE));
+        if (campaignFrames == null) {
+            throw new IOException("Benchmark frame report lacks settled campaign frames");
+        }
+        Long settledFrames = number(campaignFrames, "frames");
+        Long settledActiveNanos = number(campaignFrames, FrameTimeTelemetry.TOTAL_ACTIVE_NANOS);
+        if (settledFrames == null || settledFrames < MIN_SETTLED_CAMPAIGN_FRAMES
+                || settledActiveNanos == null
+                || settledActiveNanos < MIN_SETTLED_CAMPAIGN_ACTIVE_NANOS) {
+            throw new IOException(
+                    "Benchmark settled campaign coverage requires at least "
+                            + MIN_SETTLED_CAMPAIGN_FRAMES + " frames and "
+                            + Duration.ofNanos(MIN_SETTLED_CAMPAIGN_ACTIVE_NANOS).toSeconds()
+                            + " active seconds");
+        }
         Map<String, Object> measurement = object(frameTimes.get(FrameTimeTelemetry.MEASUREMENT_OVERHEAD));
 
         summary.put("processToCampaignReadyMs", millis(processStart, campaign));
         summary.put("routeElapsedMs", millis(routeStart, routeEnd));
         summary.put("selectedSave", selectedSave(evidence, launch));
         summary.put("runtimeContext", healthContext(evidence));
-        copyNumber(campaignFrames, summary, "frames", "campaignFrames");
+        summary.put("campaignWindow", "after-first-30-seconds");
+        summary.put("campaignFrames", settledFrames);
+        summary.put("campaignActiveNanos", settledActiveNanos);
+        summary.put("campaignCoverage", Map.of(
+                "minimumFrames", MIN_SETTLED_CAMPAIGN_FRAMES,
+                "minimumActiveNanos", MIN_SETTLED_CAMPAIGN_ACTIVE_NANOS,
+                "accepted", true));
         copyNumber(campaignFrames, summary, "averageFps", "averageFps");
         copyNumber(campaignFrames, summary, "medianFps", "medianFps");
         copyNumber(campaignFrames, summary, "onePercentLowFps", "onePercentLowFps");

@@ -253,8 +253,9 @@ final class DesktopBenchmarkLaunchTest {
         Files.writeString(frames, Json.object(Map.of(
                 "format", "starsector-preflight-runtime-frame-report-v1",
                 "frameTimes", Map.of(
-                        "campaignActive", Map.of(
-                                "frames", 180,
+                        "campaignAfter30SecondsActive", Map.of(
+                                "frames", 1_800,
+                                "totalActiveNanos", 31_000_000_000L,
                                 "averageFps", 60.0,
                                 "medianFps", 62.0,
                                 "onePercentLowFps", 35.0,
@@ -304,6 +305,13 @@ final class DesktopBenchmarkLaunchTest {
         assertEquals(20_000L, summary.get("processToCampaignReadyMs"));
         assertEquals(60.0, summary.get("averageFps"));
         assertEquals(28_571L, summary.get("p99FrameMicros"));
+        assertEquals("after-first-30-seconds", summary.get("campaignWindow"));
+        assertEquals(1_800L, summary.get("campaignFrames"));
+        assertEquals(31_000_000_000L, summary.get("campaignActiveNanos"));
+        Map<String, Object> coverage = (Map<String, Object>) summary.get("campaignCoverage");
+        assertEquals(100L, coverage.get("minimumFrames"));
+        assertEquals(30_000_000_000L, coverage.get("minimumActiveNanos"));
+        assertEquals(true, coverage.get("accepted"));
         Map<String, Object> overhead = (Map<String, Object>) summary.get("measurementOverhead");
         assertEquals(1_200L, overhead.get("samples"));
         assertEquals(0.05, overhead.get("routeSharePercent"));
@@ -316,6 +324,69 @@ final class DesktopBenchmarkLaunchTest {
         assertEquals(8L, context.get("cacheMisses"));
         assertEquals(3L, context.get("fallbacks"));
         assertEquals(61L, context.get("memoryAvailablePercent"));
+    }
+
+    @Test
+    void refusesCampaignMetricsWithoutRepresentativeSettledCoverage(@TempDir Path temporary)
+            throws Exception {
+        Instant processStart = Instant.parse("2026-08-09T00:00:00Z");
+        Path game = temporary.resolve("game");
+        Path save = game.resolve("saves/save_Test_123");
+        Files.createDirectories(save);
+        Path descriptor = save.resolve("descriptor.xml");
+        Files.writeString(descriptor, "<save/>");
+        Path run = temporary.resolve("run");
+        Files.createDirectories(run);
+        Files.writeString(run.resolve("run.json"), Json.object(Map.of(
+                "installRoot", game.toString())));
+        Path runtime = run.resolve("runtime-process.json");
+        Map<String, Object> runtimeIdentity = new LinkedHashMap<>();
+        runtimeIdentity.put("format", "starsector-preflight-runtime-process-v1");
+        runtimeIdentity.put("pid", ProcessHandle.current().pid());
+        runtimeIdentity.put("parentPid", null);
+        runtimeIdentity.put("startedAt", processStart);
+        runtimeIdentity.put("observedAt", processStart.plusSeconds(30));
+        runtimeIdentity.put("state", "stopped");
+        runtimeIdentity.put("stoppedAt", processStart.plusSeconds(30));
+        Files.writeString(runtime, Json.object(runtimeIdentity));
+        Path frames = run.resolve("desktop-smoke-frame-report.json");
+        Files.writeString(frames, Json.object(Map.of(
+                "format", "starsector-preflight-runtime-frame-report-v1",
+                "frameTimes", Map.of(
+                        "campaignAfter30SecondsActive", Map.of(
+                                "frames", 99,
+                                "totalActiveNanos", 29_999_999_999L),
+                        "measurementOverhead", Map.of(
+                                "samples", 1_200,
+                                "totalNanos", 12_000_000,
+                                "averageMicros", 10.0,
+                                "maximumMicros", 80.0)))));
+        Path log = run.resolve("desktop-smoke-log-tail.txt");
+        Files.writeString(log, "Reading save data from [" + descriptor + "]\n");
+        Path health = run.resolve("desktop-smoke-adapter-health.json");
+        Files.writeString(health, Json.object(Map.of(
+                "format", "starsector-preflight-runtime-adapter-health-v1",
+                "adapterMode", "enabled")));
+        Map<String, Object> evidence = Map.of(
+                "startedAt", processStart.plusSeconds(1),
+                "completedAt", processStart.plusSeconds(25),
+                "steps", List.of(
+                        Map.of("id", "menu", "completedAt", processStart.plusSeconds(10)),
+                        Map.of("id", "campaign", "completedAt", processStart.plusSeconds(20))),
+                "artifacts", List.of(
+                        Map.of("kind", "frame-report", "path", frames),
+                        Map.of("kind", "log-tail", "path", log),
+                        Map.of("kind", "adapter-health", "path", health)));
+
+        Map<String, Object> phase = DesktopBenchmarkLaunch.phase("optimized", Map.of(
+                "status", "passed",
+                "runtimeProcess", runtime,
+                "runDirectory", run,
+                "evidence", evidence));
+
+        assertEquals("failed", phase.get("status"));
+        assertTrue(phase.get("summaryError").toString().contains(
+                "at least 100 frames and 30 active seconds"), phase.toString());
     }
 
     @Test

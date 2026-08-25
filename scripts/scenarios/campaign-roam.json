@@ -1,7 +1,7 @@
 {
   "format": "starsector-preflight-smoke-v1",
   "name": "campaign-roam",
-  "timeoutSeconds": 240,
+  "timeoutSeconds": 360,
   "launch": {
     "preset": "fast",
     "textureStorage": "balanced",
@@ -26,10 +26,22 @@
       "timeoutSeconds": 120
     },
     {
+      "id": "warmup",
+      "kind": "hold-key",
+      "key": "w",
+      "durationMillis": 30000
+    },
+    {
+      "id": "settle-buffer",
+      "kind": "hold-key",
+      "key": "w",
+      "durationMillis": 5000
+    },
+    {
       "id": "roam",
       "kind": "hold-key",
       "key": "w",
-      "durationMillis": 3000
+      "durationMillis": 30000
     },
     {
       "id": "capture",

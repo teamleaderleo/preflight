@@ -52,6 +52,13 @@ from launch time. Phase-probe time also uses a different clock and cannot be com
 | `run-gameplay-pilot.sh --disposable-save DIRECTORY [--game DIR] [--label NAME]` | One campaign/save/combat pilot with every beta probe on. Needs a human and a named disposable save copy: roam through warm-up and steady state, fight a three-to-five-minute simulation, save, return to the title screen, reload, resume play, and exit normally. Exact-content snapshots require that the selected copy changed and every sibling campaign stayed unchanged. The create-once operator attestation binds that result to the exact snapshots, engine JAR, run and mod-profile reports, adapter/health evidence, clean source state, probe configuration, and completed process outcome. With the adapter enabled, completion requires at least 100 frames in each phase plus 20 seconds of active campaign warm-up, 30 seconds of settled campaign, and three minutes of post-campaign combat. The final typed confirmation covers the whole route and save lifecycle; it cannot replace telemetry. The pilot refuses to run without its process-inspection tools, rejects already-running instances only under the exact selected game directory, and stops only a child process with the PID and start time it recorded. Reports which exact adapters applied and what their paths cost. |
 | `save_state_guard.py` | Exact-content before/after guard and evidence binder used by the gameplay pilot. It hashes every `save_*` campaign without following symlinks, excludes global `saves/common` mod state, accepts only a changed selected copy with byte-identical siblings, and does not edit the saves it checks. Evidence files are read through stable regular-file identities and bounded byte ceilings before their exact bytes are hashed into the operator attestation. It rejects mixed engine/run identities and disagreement between the adapter and its health verdict. |
 
+The checked-in `campaign-roam-measurement-only.json` and `campaign-roam.json` scenarios are the
+paired developer FPS route. Both launch through Preflight with the same interaction sequence; the
+first retains only the state/frame measurement boundary and the second enables the reviewed fixes.
+The coordinator now compares only the period after the first 30 seconds and refuses either phase
+unless that settled period contains at least 100 frames and 30 seconds of active frame time. Select
+a disposable campaign before running it: Continue and movement can still trigger a mod autosave.
+
 ## Read what a launch produced
 
 | | |

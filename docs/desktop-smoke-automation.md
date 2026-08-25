@@ -220,10 +220,14 @@ leaves the game running. App exit also cancels an owned cache-preparation child 
 
 The product comparison contains process-to-main-menu time, its delta and percentage change, exact
 run identities, and post-run prepared-data disk usage. The separate `campaign-roam` scenarios remain
-available for development measurements of campaign readiness, a short movement sample, FPS,
-frame-time tails, runtime cache health, a screenshot, and a bounded log tail. They do not save,
-reload, or prove save compatibility. Those interactive scenarios use a platform driver and may
-require the operating system's automation permissions; they aren't part of the benchmark users run.
+available for development measurements of campaign readiness, a paired movement route, FPS,
+frame-time tails, runtime cache health, a screenshot, and a bounded log tail. Both phases launch
+through Preflight: measurement-only retains the state/frame hooks while optimized enables the
+reviewed fixes. The route allows 30 seconds for warm-up, a 5-second transition cushion, and 30
+seconds for settled collection. The coordinator compares only the settled distribution and refuses
+fewer than 100 frames or 30 active seconds in either phase. These scenarios do not save, reload, or
+prove save compatibility. They use a platform driver and may require the operating system's
+automation permissions; they aren't part of the benchmark users run.
 Save/reload remains a human-operated check with a disposable save copy in
 `scripts/run-gameplay-pilot.sh`. Its create-once attestation binds the human result to the exact
 before/after save-boundary report, tested engine, run and exact mod-profile reports, adapter and

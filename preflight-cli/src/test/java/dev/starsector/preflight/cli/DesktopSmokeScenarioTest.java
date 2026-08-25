@@ -20,7 +20,7 @@ final class DesktopSmokeScenarioTest {
         Map<String, Object> view = scenario.view();
         assertEquals("starsector-preflight-smoke-v1", view.get("format"));
         assertEquals("campaign-roam", view.get("name"));
-        assertEquals(6, ((List<?>) view.get("steps")).size());
+        assertEquals(8, ((List<?>) view.get("steps")).size());
         Set<String> capabilities = (Set<String>) view.get("requiredCapabilities");
         assertTrue(capabilities.contains("process-control"));
         assertTrue(capabilities.contains("semantic-state"));
@@ -28,6 +28,8 @@ final class DesktopSmokeScenarioTest {
         assertTrue(capabilities.contains("screen-capture"));
         assertTrue(capabilities.contains("evidence-read"));
         assertTrue(view.get("steps").toString().contains("main-menu-interactive"));
+        assertTrue(view.get("steps").toString().contains("warmup"));
+        assertTrue(view.get("steps").toString().contains("settle-buffer"));
     }
 
     @Test
