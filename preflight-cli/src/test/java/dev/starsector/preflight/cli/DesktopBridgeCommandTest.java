@@ -164,12 +164,14 @@ class DesktopBridgeCommandTest {
                 "textureProfileFingerprint", "9".repeat(64))));
         Map<String, Object> initialCampaign = Map.of(
                 "frames", 1383,
+                FrameTimeTelemetry.TOTAL_ACTIVE_NANOS, 29_950_000_000L,
                 "averageFps", 46.10,
                 "onePercentLowFps", 9.15,
                 "p95Micros", 44500,
                 "p99Micros", 109300);
         Map<String, Object> allCampaign = Map.of(
                 "frames", 5474,
+                FrameTimeTelemetry.TOTAL_ACTIVE_NANOS, 103_800_000_000L,
                 "averageFps", 52.76,
                 "onePercentLowFps", 15.06,
                 "p95Micros", 31200,
@@ -177,6 +179,7 @@ class DesktopBridgeCommandTest {
                 "worstFrames", List.of(Map.of("timestamp", "private-detail")));
         Map<String, Object> settledCampaign = Map.of(
                 "frames", 4091,
+                FrameTimeTelemetry.TOTAL_ACTIVE_NANOS, 73_850_000_001L,
                 "averageFps", 55.47,
                 "onePercentLowFps", 20.45,
                 "p95Micros", 27100,
@@ -206,11 +209,14 @@ class DesktopBridgeCommandTest {
 
         assertEquals("starsector-preflight-frame-pacing-summary-v1", framePacing.get("format"));
         assertEquals(5474L, summary.get("frames"));
+        assertEquals(103_800L, summary.get("activeMillis"));
         assertEquals(52.76, summary.get("averageFps"));
         assertEquals(15.06, summary.get("onePercentLowFps"));
         assertEquals(1383L, initial.get("frames"));
+        assertEquals(29_950L, initial.get("activeMillis"));
         assertEquals(9.15, initial.get("onePercentLowFps"));
         assertEquals(4091L, settled.get("frames"));
+        assertEquals(73_851L, settled.get("activeMillis"));
         assertEquals(20.45, settled.get("onePercentLowFps"));
         assertEquals(1.78, framePacing.get("measurementAverageMicros"));
         assertFalse(summary.containsKey("worstFrames"), summary.toString());

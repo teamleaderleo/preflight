@@ -24,6 +24,7 @@ export interface LastRun {
 
 export interface FramePacingDistribution {
   frames: number;
+  activeMillis?: number | null;
   averageFps: number;
   onePercentLowFps: number;
   p95Micros: number;

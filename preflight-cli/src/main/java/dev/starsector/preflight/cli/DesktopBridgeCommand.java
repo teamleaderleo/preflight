@@ -572,6 +572,8 @@ final class DesktopBridgeCommand {
         if (!(value instanceof Map<?, ?> raw)) return null;
         Map<String, Object> distribution = stringMap(raw);
         Long frames = positiveLong(distribution.get("frames"));
+        Long totalActiveNanos = positiveLong(
+                distribution.get(FrameTimeTelemetry.TOTAL_ACTIVE_NANOS));
         Double averageFps = finitePositive(distribution.get("averageFps"));
         Double onePercentLowFps = finitePositive(distribution.get("onePercentLowFps"));
         Double p95Micros = finiteNonNegative(distribution.get("p95Micros"));
@@ -582,6 +584,8 @@ final class DesktopBridgeCommand {
         }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("frames", frames);
+        result.put("activeMillis", totalActiveNanos == null ? null
+                : totalActiveNanos / 1_000_000L + (totalActiveNanos % 1_000_000L == 0L ? 0L : 1L));
         result.put("averageFps", averageFps);
         result.put("onePercentLowFps", onePercentLowFps);
         result.put("p95Micros", p95Micros);

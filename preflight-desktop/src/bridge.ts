@@ -122,6 +122,7 @@ const previewFramePacingRun: NonNullable<DesktopSnapshot["lastRun"]> = {
     format: "starsector-preflight-frame-pacing-summary-v1",
     campaign: {
       frames: 9_428,
+      activeMillis: 160_613,
       averageFps: 58.7,
       onePercentLowFps: 41.3,
       p95Micros: 18_420,
@@ -129,6 +130,7 @@ const previewFramePacingRun: NonNullable<DesktopSnapshot["lastRun"]> = {
     },
     initialCampaign: {
       frames: 1_765,
+      activeMillis: 29_982,
       averageFps: 55.8,
       onePercentLowFps: 28.4,
       p95Micros: 22_610,
@@ -136,6 +138,7 @@ const previewFramePacingRun: NonNullable<DesktopSnapshot["lastRun"]> = {
     },
     settledCampaign: {
       frames: 7_663,
+      activeMillis: 130_631,
       averageFps: 59.4,
       onePercentLowFps: 45.8,
       p95Micros: 17_860,
@@ -143,6 +146,7 @@ const previewFramePacingRun: NonNullable<DesktopSnapshot["lastRun"]> = {
     },
     combat: {
       frames: 3_172,
+      activeMillis: 58_524,
       averageFps: 54.2,
       onePercentLowFps: 34.6,
       p95Micros: 20_110,

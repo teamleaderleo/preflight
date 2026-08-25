@@ -87,8 +87,9 @@ the run report can finish; force stop appears only if that exact process doesn't
 also lets Preflight stay open or quit after launch. Playtime and run evidence continue recording
 in every mode. If you enable **Record frame pacing** in Settings, ordinary Recommended or
 Conservative launches also leave a bounded local FPS/frame-time summary on Speed after the game
-exits. Starsector's own counter remains the live display; Preflight's summary does not read or write
-your save. Recording pauses while optimizations are Off.
+exits, including the measured frames and active time behind each result. Starsector's own counter
+remains the live display; Preflight's summary does not read or write your save. Recording pauses
+while optimizations are Off.
 
 ![Preflight ready to launch an 83-mod profile](images/walkthrough-ready.png)
 

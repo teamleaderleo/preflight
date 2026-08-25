@@ -1,4 +1,5 @@
 import type { FramePacingDistribution, FramePacingSummary } from "../types";
+import { formatDuration } from "../uiFormat";
 
 function fps(value: number): string {
   return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
@@ -13,11 +14,14 @@ function microseconds(value: number): string {
 }
 
 function FramePacingRow({ label, result }: { label: string; result: FramePacingDistribution }) {
+  const coverage = typeof result.activeMillis === "number"
+    ? `${result.frames.toLocaleString()} frames · ${formatDuration(result.activeMillis)} active`
+    : `${result.frames.toLocaleString()} frames`;
   return (
     <div className="frame-pacing-row" role="group" aria-label={label}>
       <div className="frame-pacing-row__heading">
         <strong>{label}</strong>
-        <small>{result.frames.toLocaleString()} frames</small>
+        <small>{coverage}</small>
       </div>
       <div className="frame-pacing-row__metrics">
         <span><small>Average</small><strong>{fps(result.averageFps)} FPS</strong></span>

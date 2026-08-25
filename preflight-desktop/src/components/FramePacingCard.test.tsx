@@ -8,6 +8,7 @@ test("shows initial, settled, and combat distributions without raw frame details
     campaign: null,
     initialCampaign: {
       frames: 1_383,
+      activeMillis: 29_950,
       averageFps: 46.10,
       onePercentLowFps: 9.15,
       p95Micros: 44_500,
@@ -15,6 +16,7 @@ test("shows initial, settled, and combat distributions without raw frame details
     },
     settledCampaign: {
       frames: 4_091,
+      activeMillis: 73_851,
       averageFps: 55.47,
       onePercentLowFps: 20.45,
       p95Micros: 27_100,
@@ -22,6 +24,7 @@ test("shows initial, settled, and combat distributions without raw frame details
     },
     combat: {
       frames: 1_802,
+      activeMillis: 180_000,
       averageFps: 60,
       onePercentLowFps: 44.2,
       p95Micros: 18_000,
@@ -33,11 +36,15 @@ test("shows initial, settled, and combat distributions without raw frame details
   const initialCampaign = screen.getByRole("group", { name: "Campaign first 30 seconds" });
   expect(within(initialCampaign).getByText("46.1 FPS")).toBeInTheDocument();
   expect(within(initialCampaign).getByText("9.2 FPS")).toBeInTheDocument();
+  expect(initialCampaign).toHaveTextContent("1,383 frames · 29.9s active");
   const campaign = screen.getByRole("group", { name: "Campaign after 30 seconds" });
   expect(within(campaign).getByText("55.5 FPS")).toBeInTheDocument();
   expect(within(campaign).getByText("20.5 FPS")).toBeInTheDocument();
   expect(within(campaign).getByText("27.1 ms")).toBeInTheDocument();
-  expect(screen.getByRole("group", { name: "Combat" })).toHaveTextContent("60 FPS");
+  expect(campaign).toHaveTextContent("4,091 frames · 1m 14s active");
+  const combat = screen.getByRole("group", { name: "Combat" });
+  expect(combat).toHaveTextContent("60 FPS");
+  expect(combat).toHaveTextContent("1,802 frames · 3m 0s active");
   expect(screen.getByText(/recording cost averaged/i)).toHaveTextContent("1.78 μs per frame");
   expect(screen.getByText(/not a game-speed comparison/i)).toBeInTheDocument();
   expect(screen.getByText(/two periods from this same session/i)).toBeInTheDocument();
@@ -60,6 +67,8 @@ test("omits recorder-cost copy when an older summary has no overhead measurement
   }} />);
 
   expect(screen.queryByText(/recording cost/i)).not.toBeInTheDocument();
+  expect(screen.getByRole("group", { name: "Campaign" })).toHaveTextContent("500 frames");
+  expect(screen.getByRole("group", { name: "Campaign" })).not.toHaveTextContent("active");
   expect(screen.getByText(/never reads or writes a save/i)).toBeInTheDocument();
 });
 

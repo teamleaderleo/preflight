@@ -40,9 +40,16 @@ the game already owns while adding render-hook, fullscreen, scaling, and compati
 
 The desktop now has an optional **Record frame pacing** preference. Recommended and Conservative
 launches reuse the existing exact-pinned frame boundary, then the latest run snapshot exposes only
-a compact average-FPS, one-percent-low, and p95/p99 summary. The desktop prefers settled campaign
-frames when available, labels that warm-up exclusion, shows campaign and combat separately, and
-does not expose raw worst-frame details. Reading the adapter report is size-bounded and fails closed.
+a compact average-FPS, one-percent-low, and p95/p99 summary. Each row also states its measured frame
+count and accumulated active time, so a short sample cannot look identical to a representative route.
+Older summaries without the duration field remain readable and show only their frame count. The
+desktop prefers settled campaign frames when available, labels that warm-up exclusion, shows
+campaign and combat separately, and does not expose raw worst-frame details. Reading the adapter
+report is size-bounded and fails closed.
+
+The exact rendered matrix now carries a dedicated frame-pacing scenario. It checks that all three
+preview distributions expose active duration and captures the result at the default and minimum
+window sizes as part of the ordinary 480–1440 pixel sweep.
 
 The preference stays visibly enabled but collection pauses under **Off / troubleshooting**, because
 that preset promises not to install the runtime adapter. Results remain in Preflight's run directory;
