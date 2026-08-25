@@ -11,14 +11,16 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** Preview-first retention for top-level run and benchmark evidence sessions. */
 final class EvidenceRetention {
     private static final long MAX_BENCHMARK_RESULT_BYTES = 1024 * 1024;
     private static final long MAX_PILOT_ATTESTATION_BYTES = 1024 * 1024;
     private static final String PILOT_ATTESTATION_FILE = "operator-attestation.json";
-    private static final String PILOT_ATTESTATION_FORMAT =
-            "preflight-gameplay-pilot-operator-attestation-v4";
+    private static final Set<String> PILOT_ATTESTATION_FORMATS = Set.of(
+            "preflight-gameplay-pilot-operator-attestation-v4",
+            "preflight-gameplay-pilot-operator-attestation-v5");
 
     private EvidenceRetention() {
     }
@@ -166,7 +168,7 @@ final class EvidenceRetention {
         try {
             Map<String, Object> attestation = BoundedEvidenceJson.readObject(
                     attestationPath, MAX_PILOT_ATTESTATION_BYTES, "Gameplay pilot attestation");
-            return PILOT_ATTESTATION_FORMAT.equals(attestation.get("format"))
+            return PILOT_ATTESTATION_FORMATS.contains(attestation.get("format"))
                     && Boolean.TRUE.equals(attestation.get("complete"))
                     && Boolean.TRUE.equals(attestation.get("attested"));
         } catch (IOException | IllegalArgumentException unreadable) {

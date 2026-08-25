@@ -340,12 +340,13 @@ else
     echo "No adapter report was produced; inspect $OUT/wrapper.log" >&2
 fi
 
-RELOAD_ATTESTED=false
+ROUTE_ATTESTED=false
 if [[ "$PILOT_STATUS" -eq 0 && "$SAVE_GUARD_STATUS" -eq 0 ]]; then
-    reload_confirmation=""
+    route_confirmation=""
     echo
-    read -r -p "If this save returned to the title screen, reloaded, resumed play, and exited normally, type SAVE RELOAD VERIFIED: " reload_confirmation || true
-    [[ "$reload_confirmation" == "SAVE RELOAD VERIFIED" ]] && RELOAD_ATTESTED=true
+    echo "Confirm only if you completed campaign warm-up, settled campaign play, and a 3-5 minute combat simulation,"
+    read -r -p "then saved, returned to the title screen, reloaded, resumed play, and exited normally. Type ROUTE AND SAVE RELOAD VERIFIED: " route_confirmation || true
+    [[ "$route_confirmation" == "ROUTE AND SAVE RELOAD VERIFIED" ]] && ROUTE_ATTESTED=true
 fi
 set +e
 python3 "$SAVE_GUARD" attest \
@@ -360,7 +361,7 @@ python3 "$SAVE_GUARD" attest \
     --source-revision "$PILOT_SOURCE_REVISION" \
     --source-dirty "$PILOT_SOURCE_DIRTY" \
     --process-exit-status "$PILOT_STATUS" \
-    --reload-attested "$RELOAD_ATTESTED" \
+    --route-attested "$ROUTE_ATTESTED" \
     --recorded-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --startup-caches "$STARTUP_CACHES" \
     --gameplay-caches "$GAMEPLAY_CACHES" \
@@ -379,8 +380,8 @@ elif [[ "$ATTESTATION_STATUS" -eq 1 ]]; then
 else
     echo "Bound complete save/reload and route attestation: $OUT/operator-attestation.json"
 fi
-if [[ "$RELOAD_ATTESTED" != true ]]; then
-    echo "Save/reload/resume was not attested; this pilot is not complete lifecycle evidence." >&2
+if [[ "$ROUTE_ATTESTED" != true ]]; then
+    echo "Campaign/combat/save/reload/resume was not attested; this pilot is not complete route and lifecycle evidence." >&2
 fi
 echo "Full pilot data: $OUT"
 
@@ -388,7 +389,7 @@ FINAL_STATUS="$PILOT_STATUS"
 if [[ "$FINAL_STATUS" -eq 0 && "$SAVE_GUARD_STATUS" -ne 0 ]]; then
     FINAL_STATUS="$SAVE_GUARD_STATUS"
 fi
-if [[ "$FINAL_STATUS" -eq 0 && "$RELOAD_ATTESTED" != true ]]; then
+if [[ "$FINAL_STATUS" -eq 0 && "$ROUTE_ATTESTED" != true ]]; then
     FINAL_STATUS=1
 fi
 if [[ "$FINAL_STATUS" -eq 0 && "$ATTESTATION_STATUS" -ne 0 ]]; then

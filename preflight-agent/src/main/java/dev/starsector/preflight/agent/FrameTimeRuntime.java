@@ -328,6 +328,7 @@ public final class FrameTimeRuntime {
             Long p99Micros = percentile(990);
             Long p999Micros = percentile(999);
             result.put("frames", count);
+            result.put(FrameTimeTelemetry.TOTAL_ACTIVE_NANOS, totalNanos);
             result.put("meanMicros", meanMicros);
             result.put("minimumMicros", count == 0L ? null : minimumNanos / 1_000L);
             result.put("maximumMicros", count == 0L ? null : maximumNanos / 1_000L);

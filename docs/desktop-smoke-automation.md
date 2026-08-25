@@ -228,9 +228,12 @@ Save/reload remains a human-operated check with a disposable save copy in
 `scripts/run-gameplay-pilot.sh`. Its create-once attestation binds the human result to the exact
 before/after save-boundary report, tested engine, run and exact mod-profile reports, adapter and
 adapter-health evidence, source state, probe configuration, and process outcome instead of leaving
-a transferable yes/no note beside the run. When the adapter is enabled, a complete receipt
-additionally requires recorded frames in campaign warm-up, settled campaign, and combat; the
-operator's reload confirmation cannot stand in for route evidence.
+a transferable yes/no note beside the run. When the adapter is enabled, a complete receipt uses
+post-campaign combat rather than the title-screen combat aggregate and requires at least 100 frames
+in each phase plus 20 seconds of active campaign warm-up, 30 seconds of settled campaign, and three
+minutes of combat. The final typed confirmation covers that route and the save lifecycle; it cannot
+stand in for telemetry. Dirty source, a non-completed run report, or contained adapter failures also
+leave the receipt incomplete.
 
 The macOS command probes current Accessibility permission before attachment. Screen Recording is
 proved by the first bounded capture; a denial becomes `skipped`. Preflight's Info.plist explains the

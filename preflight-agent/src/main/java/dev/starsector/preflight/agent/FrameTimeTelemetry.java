@@ -9,6 +9,7 @@ public final class FrameTimeTelemetry {
     public static final String CAMPAIGN_FIRST_30_SECONDS_ACTIVE = "campaignFirst30SecondsActive";
     public static final String CAMPAIGN_AFTER_30_SECONDS_ACTIVE = "campaignAfter30SecondsActive";
     public static final String COMBAT_AFTER_CAMPAIGN_ACTIVE = "combatAfterCampaignActive";
+    public static final String TOTAL_ACTIVE_NANOS = "totalActiveNanos";
     public static final String MEASUREMENT_OVERHEAD = "measurementOverhead";
     public static final String AVERAGE_MICROS = "averageMicros";
 

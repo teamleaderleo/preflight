@@ -233,6 +233,8 @@ Prepared data is a disposable acceleration layer, not game state. Preflight chec
 recorded, validates each prepared representation, and declines the prepared path when a check fails;
 the game's original loader then handles that work. The current checks and their documented limit are
 covered in the [cache and save-safety audit](docs/evidence/2026-08-25-cache-and-save-safety-audit.md).
+The human campaign gate now binds the actual route and minimum measured play time as described in
+the [gameplay route evidence boundary](docs/evidence/2026-08-26-gameplay-route-evidence-boundary.md).
 
 | Situation | Result |
 | --- | --- |

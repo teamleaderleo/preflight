@@ -130,8 +130,14 @@ class FrameTimeRuntimeTest {
         assertEquals(2L, map(telemetry.get(FrameTimeTelemetry.CAMPAIGN_ACTIVE)).get("frames"));
         assertEquals(1L,
                 map(telemetry.get(FrameTimeTelemetry.CAMPAIGN_FIRST_30_SECONDS_ACTIVE)).get("frames"));
+        assertEquals(10L,
+                map(telemetry.get(FrameTimeTelemetry.CAMPAIGN_FIRST_30_SECONDS_ACTIVE))
+                        .get(FrameTimeTelemetry.TOTAL_ACTIVE_NANOS));
         assertEquals(1L,
                 map(telemetry.get(FrameTimeTelemetry.CAMPAIGN_AFTER_30_SECONDS_ACTIVE)).get("frames"));
+        assertEquals(29_999_999_990L,
+                map(telemetry.get(FrameTimeTelemetry.CAMPAIGN_AFTER_30_SECONDS_ACTIVE))
+                        .get(FrameTimeTelemetry.TOTAL_ACTIVE_NANOS));
         assertEquals(2L, map(telemetry.get("combatActive")).get("frames"));
         assertEquals(1L,
                 map(telemetry.get(FrameTimeTelemetry.COMBAT_AFTER_CAMPAIGN_ACTIVE)).get("frames"));

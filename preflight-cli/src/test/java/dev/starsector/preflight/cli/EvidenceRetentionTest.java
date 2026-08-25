@@ -154,6 +154,29 @@ final class EvidenceRetentionTest {
     }
 
     @Test
+    void previousBoundSaveLifecycleRemainsProtectedAfterTheRouteContractTightens() throws Exception {
+        PreflightHome home = home();
+        Path previous = pilotAttestation(home.runs(), "previous-pilot", 1_000, true);
+        Path previousAttestation = previous.resolve("operator-attestation.json");
+        Files.writeString(previousAttestation, """
+                {"format":"preflight-gameplay-pilot-operator-attestation-v4",
+                 "complete":true,"attested":true}
+                """);
+        Files.setLastModifiedTime(previousAttestation, FileTime.fromMillis(1_000));
+        Files.setLastModifiedTime(previous, FileTime.fromMillis(1_000));
+        Path middle = session(home.runs(), "middle", 2_000, "middle");
+        Path newest = session(home.runs(), "newest", 3_000, "newest");
+
+        EvidenceRetention.Plan plan = EvidenceRetention.plan(
+                EvidenceRetention.inventory(home), 2, null);
+
+        assertEquals(List.of(middle.toAbsolutePath()),
+                plan.removals().stream().map(EvidenceRetention.Session::path).toList());
+        assertTrue(plan.removals().stream().noneMatch(session -> session.path().equals(previous)));
+        assertTrue(plan.removals().stream().noneMatch(session -> session.path().equals(newest)));
+    }
+
+    @Test
     void pairedComparisonKeepsPriorityWhenOnlyOneProtectedSlotExists() throws Exception {
         PreflightHome home = home();
         Path paired = completedPair(home.runs(), "paired", 1_000);
@@ -238,7 +261,7 @@ final class EvidenceRetentionTest {
         Path session = session(root, name, modifiedMillis, "ordinary evidence");
         Path attestation = session.resolve("operator-attestation.json");
         Files.writeString(attestation, """
-                {"format":"preflight-gameplay-pilot-operator-attestation-v4",
+                {"format":"preflight-gameplay-pilot-operator-attestation-v5",
                  "complete":%s,"attested":%s}
                 """.formatted(complete, complete));
         FileTime time = FileTime.fromMillis(modifiedMillis);

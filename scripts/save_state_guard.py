@@ -15,7 +15,7 @@ from pathlib import Path
 
 
 FORMAT = "preflight-campaign-save-state-v1"
-ATTESTATION_FORMAT = "preflight-gameplay-pilot-operator-attestation-v4"
+ATTESTATION_FORMAT = "preflight-gameplay-pilot-operator-attestation-v5"
 MAX_SNAPSHOT_BYTES = 4 * 1024 * 1024
 MAX_ENGINE_BYTES = 256 * 1024 * 1024
 MAX_RUN_REPORT_BYTES = 1024 * 1024
@@ -28,6 +28,10 @@ ADAPTER_HEALTH_FORMAT = "starsector-preflight-adapter-health-v1"
 ADAPTER_HEALTH_STATUSES = {
     "ACTIVE", "PARTIAL", "SAFE_FALLBACK", "DISABLED", "PROBE_ONLY", "NO_TARGETS", "ERROR",
 }
+MIN_ROUTE_FRAMES = 100
+MIN_CAMPAIGN_WARMUP_ACTIVE_NANOS = 20 * 1_000_000_000
+MIN_SETTLED_CAMPAIGN_ACTIVE_NANOS = 30 * 1_000_000_000
+MIN_COMBAT_ACTIVE_NANOS = 3 * 60 * 1_000_000_000
 
 
 class GuardError(Exception):
@@ -301,14 +305,29 @@ def _whole_number(value: object, label: str) -> int:
     return value
 
 
-def _frame_count(adapter: dict[str, object], section: str) -> int:
+def _route_section(
+        adapter: dict[str, object],
+        section: str,
+        minimum_active_nanos: int,
+) -> dict[str, object]:
     frame_times = adapter.get("frameTimes")
     if not isinstance(frame_times, dict):
         raise GuardError("pilot adapter report lacks frame telemetry")
     distribution = frame_times.get(section)
     if not isinstance(distribution, dict):
         raise GuardError(f"pilot adapter report lacks {section} frame telemetry")
-    return _whole_number(distribution.get("frames"), f"{section} frames")
+    frames = _whole_number(distribution.get("frames"), f"{section} frames")
+    active_nanos = _whole_number(
+        distribution.get("totalActiveNanos"), f"{section} total active nanoseconds"
+    )
+    return {
+        "section": section,
+        "frames": frames,
+        "activeNanos": active_nanos,
+        "minimumFrames": MIN_ROUTE_FRAMES,
+        "minimumActiveNanos": minimum_active_nanos,
+        "accepted": frames >= MIN_ROUTE_FRAMES and active_nanos >= minimum_active_nanos,
+    }
 
 
 def _profile_evidence(
@@ -369,7 +388,7 @@ def _run_evidence(
 
 def _adapter_report_evidence(
         adapter_path: Path,
-) -> tuple[dict[str, object], dict[str, object], dict[str, int]]:
+) -> tuple[dict[str, object], dict[str, object], dict[str, dict[str, object]]]:
     adapter, adapter_identity = _json_object_evidence(
         adapter_path, "pilot adapter report", MAX_ADAPTER_REPORT_BYTES
     )
@@ -382,13 +401,21 @@ def _adapter_report_evidence(
     applied = _whole_number(adapter.get("transformationsApplied"), "transformations applied")
     failures = _whole_number(adapter.get("containedFailures"), "contained failures")
     coverage = {
-        "campaignFirst30SecondsFrames": _frame_count(
-            adapter, "campaignFirst30SecondsActive"
+        "campaignWarmup": _route_section(
+            adapter,
+            "campaignFirst30SecondsActive",
+            MIN_CAMPAIGN_WARMUP_ACTIVE_NANOS,
         ),
-        "campaignAfter30SecondsFrames": _frame_count(
-            adapter, "campaignAfter30SecondsActive"
+        "settledCampaign": _route_section(
+            adapter,
+            "campaignAfter30SecondsActive",
+            MIN_SETTLED_CAMPAIGN_ACTIVE_NANOS,
         ),
-        "combatFrames": _frame_count(adapter, "combatActive"),
+        "combatAfterCampaign": _route_section(
+            adapter,
+            "combatAfterCampaignActive",
+            MIN_COMBAT_ACTIVE_NANOS,
+        ),
     }
     return adapter, {
         **adapter_identity,
@@ -443,7 +470,7 @@ def pilot_attestation(
         source_revision: str,
         source_dirty: bool,
         process_exit_status: int,
-        reload_attested: bool,
+        route_attested: bool,
         recorded_at: str,
         configuration: dict[str, object],
 ) -> dict[str, object]:
@@ -454,7 +481,7 @@ def pilot_attestation(
         datetime.strptime(recorded_at, "%Y-%m-%dT%H:%M:%SZ")
     except ValueError as error:
         raise GuardError("pilot attestation time must be a UTC second timestamp") from error
-    if not isinstance(source_dirty, bool) or not isinstance(reload_attested, bool):
+    if not isinstance(source_dirty, bool) or not isinstance(route_attested, bool):
         raise GuardError("pilot attestation flags must be booleans")
     if type(process_exit_status) is not int or not 0 <= process_exit_status <= 255:
         raise GuardError("pilot process exit status must be between 0 and 255")
@@ -521,10 +548,14 @@ def pilot_attestation(
         _require_matching_adapter_health(adapter, health)
 
     reasons = []
+    if source_dirty:
+        reasons.append("the pilot source state had uncommitted changes")
     if process_exit_status != 0:
         reasons.append("the pilot process did not exit successfully")
     if not run_path.exists():
         reasons.append("the pilot run report was not produced")
+    elif run_identity is not None and run_identity["outcome"] != "COMPLETED":
+        reasons.append("the pilot run report did not record a completed launch")
     if profile_identity is None:
         reasons.append("the pilot profile report was not produced")
     if boundary is None:
@@ -542,27 +573,42 @@ def pilot_attestation(
                 or adapter_identity["transformationsApplied"] == 0
         ):
             reasons.append("the enabled adapter did not apply the reviewed runtime stack")
-        if route_coverage is not None and not all(route_coverage.values()):
+        if adapter_identity is not None and adapter_identity["containedFailures"] != 0:
+            reasons.append("the enabled adapter reported contained runtime failures")
+        if route_coverage is not None:
+            missing_route_sections = [
+                name for name, section in route_coverage.items()
+                if section["accepted"] is not True
+            ]
+        else:
+            missing_route_sections = []
+        if missing_route_sections:
             reasons.append(
-                "frame telemetry did not cover campaign warm-up, settled campaign, and combat"
+                "frame telemetry did not meet minimum route coverage for "
+                + ", ".join(missing_route_sections)
             )
-    if not reload_attested:
-        reasons.append("the operator did not attest reload, resumed play, and normal exit")
+    if not route_attested:
+        reasons.append(
+            "the operator did not attest campaign, combat, save/reload, resumed play, and normal exit"
+        )
 
     complete = not reasons
-    reload_prerequisites_met = (
+    route_prerequisites_met = (
         process_exit_status == 0 and boundary is not None and boundary["accepted"] is True
     )
-    if reload_attested and not reload_prerequisites_met:
-        raise GuardError("reload cannot be attested without a successful process and accepted save boundary")
+    if route_attested and not route_prerequisites_met:
+        raise GuardError(
+            "the route cannot be attested without a successful process and accepted save boundary"
+        )
 
     return {
         "format": ATTESTATION_FORMAT,
         "complete": complete,
-        "attested": reload_attested,
+        "attested": route_attested,
         "statement": (
-            "The named disposable save returned to the title screen, reloaded, resumed play, "
-            "and exited normally."
+            "The named disposable save was used for campaign warm-up, settled campaign play, "
+            "and a three-to-five-minute combat simulation; it then returned to the title screen, "
+            "reloaded, resumed play, and exited normally."
         ),
         "selectedSave": selected_save,
         "recordedAt": recorded_at,
@@ -615,7 +661,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     attest_parser.add_argument("--source-revision", required=True)
     attest_parser.add_argument("--source-dirty", type=_bool_argument, required=True)
     attest_parser.add_argument("--process-exit-status", type=int, required=True)
-    attest_parser.add_argument("--reload-attested", type=_bool_argument, required=True)
+    attest_parser.add_argument("--route-attested", type=_bool_argument, required=True)
     attest_parser.add_argument("--recorded-at", required=True)
     attest_parser.add_argument("--startup-caches", type=_bool_argument, required=True)
     attest_parser.add_argument("--gameplay-caches", type=_bool_argument, required=True)
@@ -650,7 +696,7 @@ def main(argv: list[str] | None = None) -> int:
             source_revision=args.source_revision,
             source_dirty=args.source_dirty,
             process_exit_status=args.process_exit_status,
-            reload_attested=args.reload_attested,
+            route_attested=args.route_attested,
             recorded_at=args.recorded_at,
             configuration={
                 "startupCaches": args.startup_caches,
