@@ -137,9 +137,10 @@ measure, maintain, prepare, test, release, or work on. Technical documentation c
 instruction less precise.
 
 First person belongs wherever Leo is describing what he did, saw, or decided. **Made** and
-**created** are usually better front-facing verbs than **built**. Do not invent a creator persona
-around the work: avoid lines about projects getting out of hand, getting carried away, or becoming
-larger than expected unless Leo actually wants that sentence.
+**created** are usually better front-facing verbs than **built**. Creator-facing pages can carry one
+small bit of personality when it earns the space. Current form: **I make stuff. Stuff... becomes more
+stuff.** Keep that bit on creator-facing pages rather than spreading variants of it through release
+posts and technical copy.
 
 Let an interesting fact stand. Do not automatically follow it with a joke, disclaimer, personality
 tag, or explanation. Short feature copy can be blunt; a line such as **Tracked playtime!!!!!** does
