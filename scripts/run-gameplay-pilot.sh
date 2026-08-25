@@ -45,6 +45,13 @@ if [[ "$ADAPTER" != true ]]; then
     PROFILE=false
 fi
 
+for required_command in git java mvn jq python3 pgrep lsof ps awk sed tr sort grep head mv xargs seq sleep date; do
+    command -v "$required_command" >/dev/null 2>&1 || {
+        echo "Required command is unavailable: $required_command" >&2
+        exit 1
+    }
+done
+
 [[ -f pom.xml ]] || { echo "Run this from the Preflight repository root." >&2; exit 1; }
 [[ -d "$GAME" ]] || { echo "Starsector installation not found: $GAME" >&2; exit 1; }
 [[ -n "$DISPOSABLE_SAVE" ]] || {
@@ -71,7 +78,7 @@ game_pids() {
     for pid in $(pgrep -x java 2>/dev/null; pgrep -f '[j]ava$|/java ' 2>/dev/null); do
         [[ "$pid" == "$$" ]] && continue
         cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
-        [[ -n "$cwd" && "$cwd" == "$resolved"* ]] && echo "$pid"
+        [[ -n "$cwd" && ( "$cwd" == "$resolved" || "$cwd" == "$resolved/"* ) ]] && echo "$pid"
     done | sort -u
 }
 
@@ -106,18 +113,27 @@ foreign_game_pids() {
 }
 
 remember_owned_game_pids() {
-    local temporary="$OWNED_PID_FILE.tmp"
-    owned_game_pids >"$temporary"
+    local temporary="$OWNED_PID_FILE.tmp" pid started
+    : >"$temporary"
+    while read -r pid; do
+        [[ -n "$pid" ]] || continue
+        started="$(ps -o lstart= -p "$pid" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+        [[ -n "$started" ]] && printf '%s\t%s\n' "$pid" "$started" >>"$temporary"
+    done < <(owned_game_pids)
     mv "$temporary" "$OWNED_PID_FILE"
 }
 
 remembered_owned_game_pids() {
-    local live pid
+    local live pid recorded_start current_start
     [[ -f "$OWNED_PID_FILE" ]] || return 0
     live="$(game_pids)"
-    while read -r pid; do
+    while IFS=$'\t' read -r pid recorded_start; do
         [[ -n "$pid" ]] || continue
-        grep -qx "$pid" <<<"$live" && echo "$pid"
+        current_start="$(ps -o lstart= -p "$pid" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+        if [[ -n "$recorded_start" && "$current_start" == "$recorded_start" ]] \
+            && grep -qx "$pid" <<<"$live"; then
+            echo "$pid"
+        fi
     done <"$OWNED_PID_FILE"
 }
 

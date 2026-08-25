@@ -11,6 +11,7 @@ from pathlib import Path
 
 
 MODULE_PATH = Path(__file__).with_name("save_state_guard.py")
+PILOT_PATH = Path(__file__).with_name("run-gameplay-pilot.sh")
 spec = importlib.util.spec_from_file_location("save_state_guard", MODULE_PATH)
 module = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
@@ -40,6 +41,18 @@ class SaveStateGuardTest(unittest.TestCase):
         self.assertEqual({"save_Disposable", "save_Main"}, set(result["campaignSaves"]))
         self.assertNotIn("common", result["campaignSaves"])
         self.assertEqual("save_Disposable", result["selectedSave"])
+
+    def test_gameplay_pilot_binds_cleanup_to_the_exact_process_lifetime(self):
+        source = PILOT_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("python3 pgrep lsof ps awk", source)
+        self.assertIn(
+            '[[ -n "$cwd" && ( "$cwd" == "$resolved" || "$cwd" == "$resolved/"* ) ]]',
+            source,
+        )
+        self.assertGreaterEqual(source.count("ps -o lstart="), 2)
+        self.assertIn("printf '%s\\t%s\\n' \"$pid\" \"$started\"", source)
+        self.assertIn('"$current_start" == "$recorded_start"', source)
 
     def test_compare_accepts_only_the_selected_save_changing(self):
         before = self.snapshot_file()
