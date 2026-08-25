@@ -28,6 +28,15 @@ class SelectionTest(unittest.TestCase):
         self.assertIn("probe-kits/gpu-capability/__pycache__", prune.GENERATED_PATHS)
         self.assertIn("docs/design/hangar-light/__pycache__", prune.GENERATED_PATHS)
 
+    def test_probe_binaries_and_generated_native_metadata_are_generated_output(self):
+        self.assertIn("probe-kits/gpu-capability/.probe-build", prune.GENERATED_PATHS)
+        self.assertIn(
+            "probe-kits/gpu-capability/block-conformance-vector.bin",
+            prune.GENERATED_PATHS,
+        )
+        self.assertIn("probe-kits/texture-pipeline/.probe-build", prune.GENERATED_PATHS)
+        self.assertIn("preflight-desktop/src-tauri/gen", prune.GENERATED_PATHS)
+
     def test_duplicate_dependencies_are_bounded_only_outside_the_current_worktree(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary).resolve()
@@ -197,6 +206,16 @@ class SelectionTest(unittest.TestCase):
             self.assertGreaterEqual(total_bytes, len(b"binary"))
             self.assertGreater(newest_mtime, old + 48 * 3600)
 
+    def test_single_generated_file_contributes_its_bytes_and_timestamp(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            binary = Path(temporary) / "block-conformance-vector.bin"
+            binary.write_bytes(b"vector")
+
+            total_bytes, newest_mtime = prune.output_metrics(binary)
+
+            self.assertEqual(len(b"vector"), total_bytes)
+            self.assertEqual(binary.stat().st_mtime, newest_mtime)
+
 
 class RemovalTest(unittest.TestCase):
     def test_removes_only_named_output_directories(self):
@@ -214,6 +233,24 @@ class RemovalTest(unittest.TestCase):
 
             self.assertFalse(target.exists())
             self.assertEqual("class Keep {}", source.read_text(encoding="utf-8"))
+
+    def test_removes_named_generated_files_and_directories_together(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            build_directory = root / "probe-kits" / "gpu-capability" / ".probe-build"
+            build_directory.mkdir(parents=True)
+            (build_directory / "Probe.class").write_bytes(b"class")
+            vector = root / "probe-kits" / "gpu-capability" / "block-conformance-vector.bin"
+            vector.write_bytes(b"vector")
+            source = root / "probe-kits" / "gpu-capability" / "Probe.java"
+            source.write_text("class Probe {}", encoding="utf-8")
+            build = prune.BuildSet(root, (build_directory, vector), time.time())
+
+            prune.remove_outputs(build)
+
+            self.assertFalse(build_directory.exists())
+            self.assertFalse(vector.exists())
+            self.assertEqual("class Probe {}", source.read_text(encoding="utf-8"))
 
     def test_refuses_symlinked_output(self):
         with tempfile.TemporaryDirectory() as temporary:

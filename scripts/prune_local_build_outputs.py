@@ -24,9 +24,15 @@ GENERATED_PATHS = (
     "preflight-desktop/desktop-dist",
     "preflight-desktop/node_modules/.preflight-ui-layout",
     "preflight-desktop/scripts/__pycache__",
+    "preflight-desktop/src-tauri/gen",
     "preflight-desktop/src-tauri/target",
     "docs/design/hangar-light/__pycache__",
+    "probe-kits/gpu-capability/.probe-build",
+    "probe-kits/gpu-capability/block-conformance-probe",
+    "probe-kits/gpu-capability/block-conformance-vector.bin",
+    "probe-kits/gpu-capability/gl-capability-probe",
     "probe-kits/gpu-capability/__pycache__",
+    "probe-kits/texture-pipeline/.probe-build",
     "report-intake/dist",
     "scripts/__pycache__",
 )
@@ -89,6 +95,9 @@ def has_source_changes(root: Path) -> bool:
 
 
 def output_metrics(path: Path) -> tuple[int, float]:
+    if not path.is_dir():
+        stat = path.lstat()
+        return stat.st_size, stat.st_mtime
     total = 0
     newest_mtime = path.lstat().st_mtime
     for directory, child_directories, filenames in os.walk(path, followlinks=False):
@@ -213,7 +222,10 @@ def remove_outputs(build: BuildSet) -> None:
         if output.is_symlink():
             raise RuntimeError(f"refusing symlinked build output: {output}")
     for output in build.outputs:
-        shutil.rmtree(output)
+        if output.is_dir():
+            shutil.rmtree(output)
+        else:
+            output.unlink()
 
 
 def parse_args() -> argparse.Namespace:
@@ -292,7 +304,7 @@ def main() -> int:
             print("Dry run only. Pass --apply to remove the listed rebuildable outputs.")
         elif args.apply:
             print(
-                f"Removed {removed_outputs} generated output directories "
+                f"Removed {removed_outputs} generated output paths "
                 f"({format_bytes(removed_bytes)} logical bytes)."
             )
         return 0
