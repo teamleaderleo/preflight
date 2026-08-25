@@ -10,6 +10,12 @@ import prune_local_build_outputs as prune
 
 
 class SelectionTest(unittest.TestCase):
+    def test_isolated_ui_browser_runtime_is_generated_output(self):
+        self.assertIn(
+            "preflight-desktop/node_modules/.preflight-ui-layout",
+            prune.GENERATED_PATHS,
+        )
+
     def build(
         self,
         name: str,

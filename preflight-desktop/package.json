@@ -17,7 +17,7 @@
     "test:release": "npm run engine:prepare && npm run test:release:prepared",
     "test:release:prepared": "node --test scripts/*.node-test.mjs",
     "test:watch": "vitest",
-    "ui:matrix": "npm run build && python3 scripts/verify-ui-layout.py --output-dir .ui-matrix",
+    "ui:matrix": "node scripts/run-ui-layout.mjs",
     "engine:prepare": "node scripts/prepare-engine.mjs",
     "engine:prepare:verified": "node scripts/prepare-engine.mjs --use-verified-jar",
     "engine:verify": "node scripts/verify-engine.mjs",
