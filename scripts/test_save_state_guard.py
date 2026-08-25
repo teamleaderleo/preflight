@@ -137,11 +137,13 @@ class SaveStateGuardTest(unittest.TestCase):
         after.write_text(json.dumps(module.compare(before, self.saves)), encoding="utf-8")
         engine = Path(self.temporary.name) / "preflight.jar"
         engine.write_bytes(b"exact tested engine")
+        pilot_evidence = self.pilot_evidence(engine)
 
         result = module.pilot_attestation(
             before_path=before,
             after_path=after,
             engine_path=engine,
+            **pilot_evidence,
             selected_save=self.selected.name,
             source_revision="ab" * 20,
             source_dirty=False,
@@ -157,6 +159,9 @@ class SaveStateGuardTest(unittest.TestCase):
         self.assertEqual(hashlib.sha256(engine.read_bytes()).hexdigest(), result["engineJar"]["sha256"])
         self.assertEqual(hashlib.sha256(after.read_bytes()).hexdigest(), result["evidence"]["saveStateAfter"]["sha256"])
         self.assertTrue(result["evidence"]["saveBoundaryAccepted"])
+        self.assertEqual("COMPLETED", result["evidence"]["run"]["outcome"])
+        self.assertEqual("ACTIVE", result["evidence"]["adapterHealth"]["status"])
+        self.assertEqual(2400, result["evidence"]["routeCoverage"]["combatFrames"])
         self.assertEqual(self.configuration(), result["configuration"])
         self.assertEqual([], result["reasons"])
 
@@ -166,12 +171,14 @@ class SaveStateGuardTest(unittest.TestCase):
         after.write_text(json.dumps(module.compare(before, self.saves)), encoding="utf-8")
         engine = Path(self.temporary.name) / "preflight.jar"
         engine.write_bytes(b"engine")
+        pilot_evidence = self.pilot_evidence(engine, process_exit_status=1)
 
         with self.assertRaisesRegex(module.GuardError, "cannot be attested"):
             module.pilot_attestation(
                 before_path=before,
                 after_path=after,
                 engine_path=engine,
+                **pilot_evidence,
                 selected_save=self.selected.name,
                 source_revision="cd" * 20,
                 source_dirty=True,
@@ -190,12 +197,14 @@ class SaveStateGuardTest(unittest.TestCase):
         after.write_text(json.dumps(comparison), encoding="utf-8")
         engine = Path(self.temporary.name) / "preflight.jar"
         engine.write_bytes(b"engine")
+        pilot_evidence = self.pilot_evidence(engine)
 
         with self.assertRaisesRegex(module.GuardError, "does not derive"):
             module.pilot_attestation(
                 before_path=before,
                 after_path=after,
                 engine_path=engine,
+                **pilot_evidence,
                 selected_save=self.selected.name,
                 source_revision="34" * 20,
                 source_dirty=False,
@@ -209,12 +218,14 @@ class SaveStateGuardTest(unittest.TestCase):
         before = self.snapshot_file()
         engine = Path(self.temporary.name) / "preflight.jar"
         engine.write_bytes(b"engine")
+        pilot_evidence = self.pilot_evidence(engine)
 
         with self.assertRaisesRegex(module.GuardError, "UTC second timestamp"):
             module.pilot_attestation(
                 before_path=before,
                 after_path=Path(self.temporary.name) / "missing.json",
                 engine_path=engine,
+                **pilot_evidence,
                 selected_save=self.selected.name,
                 source_revision="78" * 20,
                 source_dirty=False,
@@ -228,11 +239,13 @@ class SaveStateGuardTest(unittest.TestCase):
         before = self.snapshot_file()
         engine = Path(self.temporary.name) / "preflight.jar"
         engine.write_bytes(b"engine")
+        pilot_evidence = self.pilot_evidence(engine)
 
         result = module.pilot_attestation(
             before_path=before,
             after_path=Path(self.temporary.name) / "missing.json",
             engine_path=engine,
+            **pilot_evidence,
             selected_save=self.selected.name,
             source_revision="ef" * 20,
             source_dirty=False,
@@ -255,12 +268,14 @@ class SaveStateGuardTest(unittest.TestCase):
             self.skipTest(f"hard links unavailable: {error}")
         engine = Path(self.temporary.name) / "preflight.jar"
         engine.write_bytes(b"engine")
+        pilot_evidence = self.pilot_evidence(engine)
 
         with self.assertRaisesRegex(module.GuardError, "hard-linked"):
             module.pilot_attestation(
                 before_path=linked,
                 after_path=Path(self.temporary.name) / "missing.json",
                 engine_path=engine,
+                **pilot_evidence,
                 selected_save=self.selected.name,
                 source_revision="12" * 20,
                 source_dirty=False,
@@ -287,6 +302,150 @@ class SaveStateGuardTest(unittest.TestCase):
                 evidence, maximum_bytes=3, label="test evidence"
             )
 
+    def test_complete_pilot_requires_adapter_route_coverage(self):
+        before = self.snapshot_file()
+        (self.selected / "campaign.xml").write_text("after", encoding="utf-8")
+        after = Path(self.temporary.name) / "after.json"
+        after.write_text(json.dumps(module.compare(before, self.saves)), encoding="utf-8")
+        engine = Path(self.temporary.name) / "preflight.jar"
+        engine.write_bytes(b"engine")
+        pilot_evidence = self.pilot_evidence(engine, combat_frames=0)
+
+        result = module.pilot_attestation(
+            before_path=before,
+            after_path=after,
+            engine_path=engine,
+            **pilot_evidence,
+            selected_save=self.selected.name,
+            source_revision="90" * 20,
+            source_dirty=False,
+            process_exit_status=0,
+            reload_attested=True,
+            recorded_at="2026-08-26T04:33:30Z",
+            configuration=self.configuration(),
+        )
+
+        self.assertTrue(result["attested"])
+        self.assertFalse(result["complete"])
+        self.assertIn("did not cover campaign warm-up", result["reasons"][0])
+
+    def test_complete_pilot_requires_the_actual_adapter_evidence(self):
+        before = self.snapshot_file()
+        (self.selected / "campaign.xml").write_text("after", encoding="utf-8")
+        after = Path(self.temporary.name) / "after.json"
+        after.write_text(json.dumps(module.compare(before, self.saves)), encoding="utf-8")
+        engine = Path(self.temporary.name) / "preflight.jar"
+        engine.write_bytes(b"engine")
+        pilot_evidence = self.pilot_evidence(engine)
+        pilot_evidence["adapter_path"].unlink()
+
+        result = module.pilot_attestation(
+            before_path=before,
+            after_path=after,
+            engine_path=engine,
+            **pilot_evidence,
+            selected_save=self.selected.name,
+            source_revision="91" * 20,
+            source_dirty=False,
+            process_exit_status=0,
+            reload_attested=True,
+            recorded_at="2026-08-26T04:33:40Z",
+            configuration=self.configuration(),
+        )
+
+        self.assertFalse(result["complete"])
+        self.assertIn("the pilot adapter report was not produced", result["reasons"])
+
+    def test_complete_pilot_requires_the_enabled_adapter_to_apply(self):
+        before = self.snapshot_file()
+        (self.selected / "campaign.xml").write_text("after", encoding="utf-8")
+        after = Path(self.temporary.name) / "after.json"
+        after.write_text(json.dumps(module.compare(before, self.saves)), encoding="utf-8")
+        engine = Path(self.temporary.name) / "preflight.jar"
+        engine.write_bytes(b"engine")
+        pilot_evidence = self.pilot_evidence(engine, transformations_applied=0)
+
+        result = module.pilot_attestation(
+            before_path=before,
+            after_path=after,
+            engine_path=engine,
+            **pilot_evidence,
+            selected_save=self.selected.name,
+            source_revision="93" * 20,
+            source_dirty=False,
+            process_exit_status=0,
+            reload_attested=True,
+            recorded_at="2026-08-26T04:33:45Z",
+            configuration=self.configuration(),
+        )
+
+        self.assertFalse(result["complete"])
+        self.assertIn("did not apply the reviewed runtime stack", result["reasons"][0])
+
+    def test_pilot_rejects_a_run_report_for_another_engine(self):
+        engine = Path(self.temporary.name) / "preflight.jar"
+        engine.write_bytes(b"engine")
+        pilot_evidence = self.pilot_evidence(engine)
+        run = json.loads(pilot_evidence["run_path"].read_text(encoding="utf-8"))
+        run["preflightJarSha256"] = "00" * 32
+        pilot_evidence["run_path"].write_text(json.dumps(run), encoding="utf-8")
+
+        with self.assertRaisesRegex(module.GuardError, "different engine JAR"):
+            module.pilot_attestation(
+                before_path=self.snapshot_file(),
+                after_path=Path(self.temporary.name) / "missing.json",
+                engine_path=engine,
+                **pilot_evidence,
+                selected_save=self.selected.name,
+                source_revision="92" * 20,
+                source_dirty=False,
+                process_exit_status=0,
+                reload_attested=False,
+                recorded_at="2026-08-26T04:33:50Z",
+                configuration=self.configuration(),
+            )
+
+    def test_no_adapter_diagnostic_can_still_bind_a_complete_save_lifecycle(self):
+        before = self.snapshot_file()
+        (self.selected / "campaign.xml").write_text("after", encoding="utf-8")
+        after = Path(self.temporary.name) / "after.json"
+        after.write_text(json.dumps(module.compare(before, self.saves)), encoding="utf-8")
+        engine = Path(self.temporary.name) / "preflight.jar"
+        engine.write_bytes(b"engine")
+        run_path = Path(self.temporary.name) / "run.json"
+        run_path.write_text(json.dumps({
+            "outcome": "COMPLETED",
+            "exitCode": 0,
+            "adapterMode": "OFF",
+            "preflightJarSha256": hashlib.sha256(engine.read_bytes()).hexdigest(),
+        }), encoding="utf-8")
+
+        result = module.pilot_attestation(
+            before_path=before,
+            after_path=after,
+            engine_path=engine,
+            run_path=run_path,
+            adapter_path=Path(self.temporary.name) / "missing-adapter.json",
+            adapter_health_path=Path(self.temporary.name) / "missing-health.json",
+            selected_save=self.selected.name,
+            source_revision="94" * 20,
+            source_dirty=False,
+            process_exit_status=0,
+            reload_attested=True,
+            recorded_at="2026-08-26T04:33:55Z",
+            configuration=self.configuration(
+                startupCaches=False,
+                gameplayCaches=False,
+                audioRepair=False,
+                profile=False,
+                adapter=False,
+            ),
+        )
+
+        self.assertTrue(result["complete"])
+        self.assertIsNone(result["evidence"]["adapter"])
+        self.assertIsNone(result["evidence"]["routeCoverage"])
+
     def test_attest_command_writes_one_complete_bound_receipt(self):
         before = self.snapshot_file()
         (self.selected / "campaign.xml").write_text("after", encoding="utf-8")
@@ -294,12 +453,16 @@ class SaveStateGuardTest(unittest.TestCase):
         after.write_text(json.dumps(module.compare(before, self.saves)), encoding="utf-8")
         engine = Path(self.temporary.name) / "preflight.jar"
         engine.write_bytes(b"engine")
+        pilot_evidence = self.pilot_evidence(engine)
         output = Path(self.temporary.name) / "operator-attestation.json"
         arguments = [
             "attest",
             "--before", str(before),
             "--after", str(after),
             "--engine", str(engine),
+            "--run", str(pilot_evidence["run_path"]),
+            "--adapter-report", str(pilot_evidence["adapter_path"]),
+            "--adapter-health", str(pilot_evidence["adapter_health_path"]),
             "--selected", self.selected.name,
             "--source-revision", "56" * 20,
             "--source-dirty", "false",
@@ -321,8 +484,40 @@ class SaveStateGuardTest(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(2, module.main(arguments))
 
-    def configuration(self):
-        return {
+    def test_attest_command_writes_an_incomplete_receipt_and_returns_one(self):
+        before = self.snapshot_file()
+        engine = Path(self.temporary.name) / "preflight.jar"
+        engine.write_bytes(b"engine")
+        pilot_evidence = self.pilot_evidence(engine)
+        output = Path(self.temporary.name) / "incomplete-attestation.json"
+        arguments = [
+            "attest",
+            "--before", str(before),
+            "--after", str(Path(self.temporary.name) / "missing-after.json"),
+            "--engine", str(engine),
+            "--run", str(pilot_evidence["run_path"]),
+            "--adapter-report", str(pilot_evidence["adapter_path"]),
+            "--adapter-health", str(pilot_evidence["adapter_health_path"]),
+            "--selected", self.selected.name,
+            "--source-revision", "95" * 20,
+            "--source-dirty", "false",
+            "--process-exit-status", "0",
+            "--reload-attested", "false",
+            "--recorded-at", "2026-08-26T04:34:10Z",
+            "--startup-caches", "true",
+            "--gameplay-caches", "true",
+            "--safer-jvm", "false",
+            "--audio-repair", "true",
+            "--profile", "true",
+            "--adapter", "true",
+            "--output", str(output),
+        ]
+
+        self.assertEqual(1, module.main(arguments))
+        self.assertFalse(json.loads(output.read_text(encoding="utf-8"))["complete"])
+
+    def configuration(self, **overrides):
+        result = {
             "startupCaches": True,
             "gameplayCaches": True,
             "saferJvm": False,
@@ -330,6 +525,60 @@ class SaveStateGuardTest(unittest.TestCase):
             "profile": True,
             "adapter": True,
             "disabledPlans": "",
+        }
+        result.update(overrides)
+        return result
+
+    def pilot_evidence(
+            self,
+            engine,
+            *,
+            process_exit_status=0,
+            campaign_first_frames=1800,
+            campaign_after_frames=3600,
+            combat_frames=2400,
+            transformations_applied=12,
+    ):
+        root = Path(self.temporary.name)
+        run_path = root / "run.json"
+        adapter_path = root / "adapter.json"
+        adapter_health_path = root / "adapter-health.json"
+        adapter = {
+            "mode": "ENABLED",
+            "transformerInstalled": True,
+            "killSwitchActive": False,
+            "transformationsApplied": transformations_applied,
+            "containedFailures": 0,
+            "frameTimes": {
+                "campaignFirst30SecondsActive": {"frames": campaign_first_frames},
+                "campaignAfter30SecondsActive": {"frames": campaign_after_frames},
+                "combatActive": {"frames": combat_frames},
+            },
+        }
+        health = {
+            "format": module.ADAPTER_HEALTH_FORMAT,
+            "status": "ACTIVE",
+            "mode": "ENABLED",
+            "transformerInstalled": True,
+            "killSwitchActive": False,
+            "transformationsApplied": transformations_applied,
+            "containedFailures": 0,
+        }
+        run = {
+            "outcome": "COMPLETED" if process_exit_status == 0 else "FAILED",
+            "exitCode": process_exit_status,
+            "adapterMode": "ENABLED",
+            "preflightJarSha256": hashlib.sha256(engine.read_bytes()).hexdigest(),
+            "adapterReport": str(adapter_path.absolute()),
+            "adapterHealthReport": str(adapter_health_path.absolute()),
+        }
+        adapter_path.write_text(json.dumps(adapter), encoding="utf-8")
+        adapter_health_path.write_text(json.dumps(health), encoding="utf-8")
+        run_path.write_text(json.dumps(run), encoding="utf-8")
+        return {
+            "run_path": run_path,
+            "adapter_path": adapter_path,
+            "adapter_health_path": adapter_health_path,
         }
 
     def snapshot_file(self):

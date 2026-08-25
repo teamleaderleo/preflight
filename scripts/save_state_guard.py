@@ -15,11 +15,18 @@ from pathlib import Path
 
 
 FORMAT = "preflight-campaign-save-state-v1"
-ATTESTATION_FORMAT = "preflight-gameplay-pilot-operator-attestation-v2"
+ATTESTATION_FORMAT = "preflight-gameplay-pilot-operator-attestation-v3"
 MAX_SNAPSHOT_BYTES = 4 * 1024 * 1024
 MAX_ENGINE_BYTES = 256 * 1024 * 1024
+MAX_RUN_REPORT_BYTES = 1024 * 1024
+MAX_ADAPTER_REPORT_BYTES = 32 * 1024 * 1024
+MAX_ADAPTER_HEALTH_BYTES = 1024 * 1024
 MAX_DISABLED_PLANS_BYTES = 4 * 1024
 SOURCE_REVISION_PATTERN = re.compile(r"[0-9a-f]{40,64}")
+ADAPTER_HEALTH_FORMAT = "starsector-preflight-adapter-health-v1"
+ADAPTER_HEALTH_STATUSES = {
+    "ACTIVE", "PARTIAL", "SAFE_FALLBACK", "DISABLED", "PROBE_ONLY", "NO_TARGETS", "ERROR",
+}
 
 
 class GuardError(Exception):
@@ -161,20 +168,22 @@ def _write_json_once(path: Path, value: dict[str, object]) -> None:
         os.fsync(stream.fileno())
 
 
-def _stable_json_evidence(path: Path, label: str) -> tuple[object, dict[str, object]]:
+def _stable_json_evidence(
+        path: Path, label: str, maximum_bytes: int = MAX_SNAPSHOT_BYTES
+) -> tuple[object, dict[str, object]]:
     before = path.stat(follow_symlinks=False)
     if not stat.S_ISREG(before.st_mode):
         raise GuardError(f"{label} is not a regular file")
     if before.st_nlink != 1:
         raise GuardError(f"{label} is hard-linked and not independent evidence")
-    if before.st_size > MAX_SNAPSHOT_BYTES:
-        raise GuardError(f"{label} exceeds 4 MiB")
+    if before.st_size > maximum_bytes:
+        raise GuardError(f"{label} exceeds {maximum_bytes} bytes")
     with path.open("rb") as stream:
         opened = os.fstat(stream.fileno())
-        data = stream.read(MAX_SNAPSHOT_BYTES + 1)
+        data = stream.read(maximum_bytes + 1)
         after = os.fstat(stream.fileno())
-    if len(data) > MAX_SNAPSHOT_BYTES:
-        raise GuardError(f"{label} exceeds 4 MiB")
+    if len(data) > maximum_bytes:
+        raise GuardError(f"{label} exceeds {maximum_bytes} bytes")
     identity_before = (
         before.st_dev, before.st_ino, before.st_nlink, before.st_size, before.st_mtime_ns
     )
@@ -276,11 +285,132 @@ def _load_save_boundary(path: Path) -> tuple[dict[str, object], dict[str, object
     return value, identity
 
 
+def _json_object_evidence(
+        path: Path, label: str, maximum_bytes: int
+) -> tuple[dict[str, object], dict[str, object]]:
+    value, identity = _stable_json_evidence(path, label, maximum_bytes)
+    if not isinstance(value, dict):
+        raise GuardError(f"{label} must be a JSON object")
+    return value, identity
+
+
+def _whole_number(value: object, label: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise GuardError(f"{label} must be a non-negative whole number")
+    return value
+
+
+def _frame_count(adapter: dict[str, object], section: str) -> int:
+    frame_times = adapter.get("frameTimes")
+    if not isinstance(frame_times, dict):
+        raise GuardError("pilot adapter report lacks frame telemetry")
+    distribution = frame_times.get(section)
+    if not isinstance(distribution, dict):
+        raise GuardError(f"pilot adapter report lacks {section} frame telemetry")
+    return _whole_number(distribution.get("frames"), f"{section} frames")
+
+
+def _run_evidence(
+        path: Path,
+        engine_identity: dict[str, object],
+        process_exit_status: int,
+        adapter_expected: bool,
+        adapter_path: Path,
+        adapter_health_path: Path,
+) -> dict[str, object]:
+    run, identity = _json_object_evidence(path, "pilot run report", MAX_RUN_REPORT_BYTES)
+    if run.get("preflightJarSha256") != engine_identity["sha256"]:
+        raise GuardError("pilot run report names a different engine JAR")
+    if run.get("exitCode") != process_exit_status:
+        raise GuardError("pilot run report exit status differs from the observed process")
+    expected_mode = "ENABLED" if adapter_expected else "OFF"
+    if run.get("adapterMode") != expected_mode:
+        raise GuardError("pilot run report adapter mode differs from the requested configuration")
+    if adapter_expected:
+        expected_adapter = str(adapter_path.absolute())
+        expected_health = str(adapter_health_path.absolute())
+        if run.get("adapterReport") != expected_adapter:
+            raise GuardError("pilot run report names a different adapter report")
+        if run.get("adapterHealthReport") != expected_health:
+            raise GuardError("pilot run report names a different adapter-health report")
+    return {
+        **identity,
+        "outcome": run.get("outcome"),
+        "adapterMode": run.get("adapterMode"),
+    }
+
+
+def _adapter_report_evidence(
+        adapter_path: Path,
+) -> tuple[dict[str, object], dict[str, object], dict[str, int]]:
+    adapter, adapter_identity = _json_object_evidence(
+        adapter_path, "pilot adapter report", MAX_ADAPTER_REPORT_BYTES
+    )
+    if adapter.get("mode") != "ENABLED":
+        raise GuardError("pilot adapter report was not recorded in enabled mode")
+    if not isinstance(adapter.get("transformerInstalled"), bool):
+        raise GuardError("pilot adapter transformer-installed value must be boolean")
+    if not isinstance(adapter.get("killSwitchActive"), bool):
+        raise GuardError("pilot adapter kill-switch value must be boolean")
+    applied = _whole_number(adapter.get("transformationsApplied"), "transformations applied")
+    failures = _whole_number(adapter.get("containedFailures"), "contained failures")
+    coverage = {
+        "campaignFirst30SecondsFrames": _frame_count(
+            adapter, "campaignFirst30SecondsActive"
+        ),
+        "campaignAfter30SecondsFrames": _frame_count(
+            adapter, "campaignAfter30SecondsActive"
+        ),
+        "combatFrames": _frame_count(adapter, "combatActive"),
+    }
+    return adapter, {
+        **adapter_identity,
+        "mode": adapter["mode"],
+        "transformerInstalled": adapter["transformerInstalled"],
+        "killSwitchActive": adapter["killSwitchActive"],
+        "transformationsApplied": applied,
+        "containedFailures": failures,
+    }, coverage
+
+
+def _adapter_health_evidence(
+        adapter_health_path: Path,
+) -> tuple[dict[str, object], dict[str, object]]:
+    health, identity = _json_object_evidence(
+        adapter_health_path, "pilot adapter-health report", MAX_ADAPTER_HEALTH_BYTES
+    )
+    if health.get("format") != ADAPTER_HEALTH_FORMAT:
+        raise GuardError("pilot adapter-health report has an unsupported format")
+    if health.get("mode") != "ENABLED":
+        raise GuardError("pilot adapter-health report was not recorded in enabled mode")
+    if health.get("status") not in ADAPTER_HEALTH_STATUSES:
+        raise GuardError("pilot adapter-health status is unsupported")
+    return health, {
+        **identity,
+        "status": health["status"],
+        "mode": health["mode"],
+    }
+
+
+def _require_matching_adapter_health(
+        adapter: dict[str, object], health: dict[str, object]
+) -> None:
+    for field in (
+            "transformerInstalled", "killSwitchActive", "transformationsApplied",
+            "containedFailures",
+    ):
+        if adapter.get(field) != health.get(field):
+            raise GuardError(f"pilot adapter and health reports disagree about {field}")
+
+
 def pilot_attestation(
         *,
         before_path: Path,
         after_path: Path,
         engine_path: Path,
+        run_path: Path,
+        adapter_path: Path,
+        adapter_health_path: Path,
         selected_save: str,
         source_revision: str,
         source_dirty: bool,
@@ -330,18 +460,64 @@ def pilot_attestation(
         if boundary["before"] != before["campaignSaves"]:
             raise GuardError("save-state comparison does not derive from its before snapshot")
 
+    engine_identity = _evidence_identity(
+        engine_path, maximum_bytes=MAX_ENGINE_BYTES, label="pilot engine JAR"
+    )
+    run_identity = None
+    if run_path.exists():
+        run_identity = _run_evidence(
+            run_path,
+            engine_identity,
+            process_exit_status,
+            bool(configuration["adapter"]),
+            adapter_path,
+            adapter_health_path,
+        )
+
+    adapter_identity = None
+    adapter_health_identity = None
+    route_coverage = None
+    adapter = None
+    health = None
+    if configuration["adapter"] and adapter_path.exists():
+        adapter, adapter_identity, route_coverage = _adapter_report_evidence(adapter_path)
+    if configuration["adapter"] and adapter_health_path.exists():
+        health, adapter_health_identity = _adapter_health_evidence(adapter_health_path)
+    if adapter is not None and health is not None:
+        _require_matching_adapter_health(adapter, health)
+
     reasons = []
     if process_exit_status != 0:
         reasons.append("the pilot process did not exit successfully")
+    if run_identity is None:
+        reasons.append("the pilot run report was not produced")
     if boundary is None:
         reasons.append("the save-state comparison was not produced")
     elif boundary["accepted"] is not True:
         reasons.append("the save-state comparison was not accepted")
+    if configuration["adapter"]:
+        if adapter_identity is None:
+            reasons.append("the pilot adapter report was not produced")
+        if adapter_health_identity is None:
+            reasons.append("the pilot adapter-health report was not produced")
+        if adapter_identity is not None and (
+                not adapter_identity["transformerInstalled"]
+                or adapter_identity["killSwitchActive"]
+                or adapter_identity["transformationsApplied"] == 0
+        ):
+            reasons.append("the enabled adapter did not apply the reviewed runtime stack")
+        if route_coverage is not None and not all(route_coverage.values()):
+            reasons.append(
+                "frame telemetry did not cover campaign warm-up, settled campaign, and combat"
+            )
     if not reload_attested:
         reasons.append("the operator did not attest reload, resumed play, and normal exit")
 
     complete = not reasons
-    if reload_attested and not complete:
+    reload_prerequisites_met = (
+        process_exit_status == 0 and boundary is not None and boundary["accepted"] is True
+    )
+    if reload_attested and not reload_prerequisites_met:
         raise GuardError("reload cannot be attested without a successful process and accepted save boundary")
 
     return {
@@ -355,15 +531,17 @@ def pilot_attestation(
         "selectedSave": selected_save,
         "recordedAt": recorded_at,
         "source": {"revision": source_revision, "dirty": source_dirty},
-        "engineJar": _evidence_identity(
-            engine_path, maximum_bytes=MAX_ENGINE_BYTES, label="pilot engine JAR"
-        ),
+        "engineJar": engine_identity,
         "process": {"exitStatus": process_exit_status},
         "configuration": configuration,
         "evidence": {
             "saveStateBefore": before_identity,
             "saveStateAfter": boundary_identity,
             "saveBoundaryAccepted": boundary["accepted"] if boundary is not None else None,
+            "run": run_identity,
+            "adapter": adapter_identity,
+            "adapterHealth": adapter_health_identity,
+            "routeCoverage": route_coverage,
         },
         "reasons": reasons,
     }
@@ -392,6 +570,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     attest_parser.add_argument("--before", type=Path, required=True)
     attest_parser.add_argument("--after", type=Path, required=True)
     attest_parser.add_argument("--engine", type=Path, required=True)
+    attest_parser.add_argument("--run", type=Path, required=True)
+    attest_parser.add_argument("--adapter-report", type=Path, required=True)
+    attest_parser.add_argument("--adapter-health", type=Path, required=True)
     attest_parser.add_argument("--selected", required=True)
     attest_parser.add_argument("--source-revision", required=True)
     attest_parser.add_argument("--source-dirty", type=_bool_argument, required=True)
@@ -423,6 +604,9 @@ def main(argv: list[str] | None = None) -> int:
             before_path=args.before,
             after_path=args.after,
             engine_path=args.engine,
+            run_path=args.run,
+            adapter_path=args.adapter_report,
+            adapter_health_path=args.adapter_health,
             selected_save=args.selected,
             source_revision=args.source_revision,
             source_dirty=args.source_dirty,
@@ -440,7 +624,7 @@ def main(argv: list[str] | None = None) -> int:
             },
         )
         _write_json_once(args.output, result)
-        return 0
+        return 0 if result["complete"] else 1
     except (GuardError, FileNotFoundError, json.JSONDecodeError, OSError) as error:
         print(f"Save-state guard: {error}", file=sys.stderr)
         return 2

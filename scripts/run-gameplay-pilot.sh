@@ -352,6 +352,9 @@ python3 "$SAVE_GUARD" attest \
     --before "$SAVE_STATE_BEFORE" \
     --after "$SAVE_STATE_AFTER" \
     --engine "$JAR" \
+    --run "$OUT/run.json" \
+    --adapter-report "$OUT/adapter.json" \
+    --adapter-health "$OUT/adapter-health.json" \
     --selected "$DISPOSABLE_SAVE" \
     --source-revision "$PILOT_SOURCE_REVISION" \
     --source-dirty "$PILOT_SOURCE_DIRTY" \
@@ -368,10 +371,12 @@ python3 "$SAVE_GUARD" attest \
     --output "$OUT/operator-attestation.json"
 ATTESTATION_STATUS=$?
 set -e
-if [[ "$ATTESTATION_STATUS" -ne 0 ]]; then
+if [[ "$ATTESTATION_STATUS" -eq 2 ]]; then
     echo "The save/reload attestation could not be bound to this pilot's evidence." >&2
+elif [[ "$ATTESTATION_STATUS" -eq 1 ]]; then
+    echo "Bound an incomplete pilot attestation; inspect its reasons before using this run as evidence." >&2
 else
-    echo "Bound save/reload attestation: $OUT/operator-attestation.json"
+    echo "Bound complete save/reload and route attestation: $OUT/operator-attestation.json"
 fi
 if [[ "$RELOAD_ATTESTED" != true ]]; then
     echo "Save/reload/resume was not attested; this pilot is not complete lifecycle evidence." >&2
