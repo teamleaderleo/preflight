@@ -70,9 +70,12 @@ test("resolved Home cascade follows explicit state modifiers", () => {
   style.remove();
 });
 
-test("failed-run recovery is an overlay on settled Home geometry", () => {
+test("Home recovery warnings are overlays that preserve launch geometry", () => {
   expect(layoutStyles).toMatch(
-    /\.page-viewport--home > \.run-recovery\[role="alert"\]\s*\{[^}]*position:\s*absolute;[^}]*z-index:\s*8;[^}]*top:\s*0;[^}]*margin-bottom:\s*0;/s,
+    /\.page-viewport--home > :is\(\.run-recovery\[role="alert"\], \.cache-recovery\)\s*\{[^}]*position:\s*absolute;[^}]*z-index:\s*8;[^}]*top:\s*0;[^}]*margin-bottom:\s*0;/s,
+  );
+  expect(layoutStyles).toMatch(
+    /\.cache-recovery \+ \.launch-console--layout-preparation :is\([^{]*\.launch-console__status-line,[^{]*\.home-launch-identity,[^{]*\.launch-console__note[^{]*\)\s*\{[^}]*visibility:\s*hidden;/s,
   );
   expect(layoutStyles).toMatch(
     /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery\s*\{[^}]*height:\s*100%;[^}]*min-height:\s*100%;/s,
