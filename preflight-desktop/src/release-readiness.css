@@ -135,6 +135,17 @@ summary:active {
   display: none;
 }
 
+/* Preparation is a launch decision, so its status row keeps status and Options. Display-only Home
+ * toggles return once setup is settled; retaining them here made the narrow status row wrap over
+ * the installation and recovery text. */
+.launch-console--layout-preparation .home-display-toggle {
+  display: none;
+}
+
+.launch-console--layout-preparation .home-options-toggle {
+  margin-left: auto;
+}
+
 /* Recovery is already first in DOM order; the companion console yields its duplicate actions. */
 .launch-console--layout-recovery .status-chip,
 .launch-console--layout-recovery .home-options-toggle,

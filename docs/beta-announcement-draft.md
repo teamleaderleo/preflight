@@ -1,198 +1,149 @@
 # Beta announcement draft
 
 Long source copy for the forum, Reddit, release editing, and anywhere else that needs more of the
-story than the release post. The shorter version is
+story than the short post. The shorter version is
 [beta-announcement-leo-draft.md](beta-announcement-leo-draft.md).
 
-Keep candidate-specific fields bracketed until the retained release candidate has actually produced
-them. The Starsector forum takes BBCode rather than Markdown; use the release-day link blocks in
-[downloads.md](downloads.md#release-day-link-kit) and convert the prose before posting there.
+Keep candidate-specific fields bracketed until the retained release candidate produces them. The
+Starsector forum takes BBCode rather than Markdown; use the current download names and links from
+[Downloads and installation](downloads.md) and convert the prose before posting there.
 
 ---
 
-## Preflight: a performance launcher for Starsector
+## Preflight: a free, open-source fast launcher for Starsector
 
-I have 83 mods installed.
+This is **Preflight**, a free and open-source fast launcher for Starsector.
 
-At its worst, Starsector took about 101 seconds to reach the main menu on my development setup. In
-the latest controlled comparison on that same 83-mod profile, five ordinary launches had an
-**89.00-second median** and five Preflight launches had a **15.53-second median**. The lowest launch
-in that comparison was **15.25 seconds**.
+On my 83-mod M5 MacBook Air development setup, startup moved from roughly **101 seconds to a
+13.69-second best run**, about a **7.4× speedup**. That is Starsector's x86-64 Java runtime running
+through Rosetta.
 
-Those are development numbers, not a promise about every machine. The released package gets its own
-benchmark before this post goes public:
-
-**[PACKAGED CANDIDATE BENCHMARK RESULT]** on **[CANDIDATE GAME / HARDWARE / RUNTIME]**.
+The desktop has its own normal-versus-Preflight benchmark. **You can measure yours yourself.**
 
 **Download:** [RELEASE URL]
 
-Preflight is a free, open-source performance launcher and companion app for Starsector. It prepares
-work the game and mods would otherwise repeat during startup and reuses it while the relevant inputs
-still match. When reviewed code changes, the affected runtime shortcut steps aside and Starsector
-handles that work normally.
+The public package gets its own retained benchmark before this post goes live:
 
-The project started as a loading-time investigation. It did not stay one.
+**[PACKAGED CANDIDATE BENCHMARK RESULT]** on **[CANDIDATE GAME / HARDWARE / RUNTIME]**.
 
-## Measure it on your own installation
+## Features
 
-The desktop includes a normal-versus-Preflight startup benchmark, so the useful question is not
-whether my 83-mod result sounds impressive. You can measure your own installation.
+- **Tracked playtime!!!!!**
+- Faster campaign-map movement on my setup.
+- Battle size up to **2,147,483,647 deployment points** (`INT32_MAX`).
+- Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and battle size beside Launch.
+- Mod dependency/setup checks.
+- A mod linter.
+- Storage planning before preparation.
+- Repair, cleanup, and recovery tools.
+- Signed updates.
+- A wireframe Hangar generated from installed ships.
+- Windows, macOS, and Linux desktop packages with their own Java runtime.
+- The same Java engine behind the desktop and CLI.
 
-The benchmark keeps the installation, profile, launcher, runtime and settings consistent across the
-pair, waits for the main-menu marker, and produces a compact comparison you can copy into a forum,
-Discord message or issue. The candidate result above is filled from the packaged release bytes, not a
-checkout build or an earlier rehearsal.
+The launcher also has the power-user stuff I wanted while working on it: `doctor` for launcher
+discovery, `scan` for a profile census, `--dry-run` for the exact launch command, and explicit
+launcher selection when you use another compatible wrapper.
 
-## The rest of the app grew out of the same investigation
+## Disk use
 
-Once I had a launcher sitting between a large mod setup and the game, a lot of adjacent problems were
-hard to ignore.
+On my current 83-mod setup, the learned Compact data settles around **1.1 GB**. First preparation
+needs more working room. Preflight calculates the actual requirement for the current installation
+before it starts writing.
 
-Preflight keeps local playtime for sessions it launches and can observe. It can save named mod
-profiles, preview a profile switch before changing the enabled-mod selection, and keep the common
-game settings beside Launch instead of sending you through a separate launcher ritual. Preparation
-shows the current storage plan before it writes anything, can offer a minimal-disk route when the
-normal cache is too large, and can stop safely or repair damaged prepared data.
+There is also a minimal-disk path when the normal prepared-texture route does not fit.
 
-There is also read-only setup analysis and mod linting for people who want to understand a large mod
-stack without changing it. The Hangar traces installed ship art locally into Preflight's wireframe
-presentation; the final beta UI uses the custom typeable ship selector and instrument controls that
-went through the same desktop acceptance pass as the rest of the app.
+## Compatibility
 
-Support is deliberately separate from ordinary game use. **Copy setup** gives a small summary for a
-conversation. Help can create a deeper support ZIP and show what it contains before anything is sent.
-There are no accounts or usage telemetry. The first beta sends a support file only when you press
-Send.
+Preflight leaves Starsector and mod JARs, executables, assets, and saves unchanged. Prepared data
+lives in Preflight's own area. Runtime optimizations live inside the launched game process.
 
-The desktop packages include the reviewed Preflight Java runtime, so ordinary desktop users do not
-need to install a system JDK first. Supported in-app updates use the project's updater signing key;
-Linux `.deb` installations remain package-manager-managed.
+If a runtime shortcut does not recognize the code it expects, it steps aside and the normal game
+path runs.
 
-## What Preflight changes — and what it does not
+Profile switching and launch settings are explicit game-owned preference changes. The app shows the
+change and keeps a backup.
 
-Preflight leaves Starsector's JARs, executables, assets, mod files and saves unchanged. Prepared data
-lives in Preflight's own area, and runtime optimizations exist inside the launched game process.
+## Where the speed came from
 
-Two explicit features can update game-owned preferences after showing the relevant change: named
-profile switching can change the enabled-mod selection, and the launch-settings editor can change the
-settings it owns. Both paths keep backups.
+There was not one cache that removed eighty seconds.
 
-That distinction matters to me. A performance launcher should not require turning the installation
-into its private format just to be useful.
+One early texture cache was sitting behind the single-threaded prefetch queue that was already
+blocking the loading thread for roughly 27 seconds. Moving the prepared-texture decision ahead of
+that queue changed the critical path.
 
-## Why startup changed so much
+Once texture work got cheaper, repeated JSON/CSV reconstruction became visible. Five loader-specific
+caches led to a shared lower read layer, and the remaining merged-read seam moved from **2.172s to
+0.300s**.
 
-There was no single magic cache.
+Janino compilation was another large seam. Memoizing 228 compilation requests moved that work from
+**18.014s to 2.364s**. The persisted output then showed a second problem: 36,332 generated-class
+occurrences represented only 280 unique classes. Deduplication shrank the stored class maps from
+**145.96 MiB to 1.13 MiB** and replay from **1.501s to 29ms**.
 
-Textures were an early bottleneck, but the first prepared-pixel implementation barely changed the
-whole launch because the loading thread was still waiting behind the game's serialized prefetch
-queue. Moving the reusable work in front of that wait was what changed the outcome.
+Texture storage had its own second act. Removing per-file durability from rebuildable intermediates
+brought one preparation path from **200.77s to 16.21s**. On the same logical Compact texture corpus,
+laying the files out in observed startup order produced a **14.174s** launch versus **33.53s** in
+alphabetical order.
 
-Once textures became cheaper, the visible 0-percent pause exposed stable JSON/CSV-derived game data
-being rebuilt every process. Making that cheaper exposed mod callback work, generated class maps and
-other repeated startup costs. Audio turned out to be expensive in CPU even when some of its wall time
-overlapped with other work.
+There is campaign/runtime work too. Mutation-tracked indexes removed the sector-wide validation work
+measured as **79.1M entity-reference checks → 0**, and a separate memoized path served **117.9M**
+unchanged commodity calls.
 
-That sequence is why the project ended up with several kinds of prepared work instead of one giant
-cache switch.
+The deeper technical record is in [Engineering overview](engineering-overview.md),
+[Optimization history](optimization-history.md), and the [Experiment ledger](experiment-ledger.md).
 
-## Some attractive ideas were wrong
+## The experiments that failed
 
-The repository keeps the dead ends because the final number is not very useful if the story around it
-is fiction.
+Some of the useful results were failures.
 
-Some early texture-cache pilots reported healthy hit counts while producing broken visuals. A supposed
-timing split turned out to be a stale benchmark anchor. Java Flight Recorder's clock was badly wrong
-under one runtime configuration. A GraphicsLib replay made the measured path worse and was removed.
-AppCDS did not establish a useful shipped win and was removed too.
+An early texture-cache pilot had healthy hit counters and broken visuals. A timing split turned out
+to be a stale benchmark anchor. Java Flight Recorder's clock was wrong under one runtime setting. A
+GraphicsLib replay made its measured path slower. AppCDS did not earn a place in the shipped path.
 
-The built-in benchmark exists partly because this project repeatedly demonstrated that a convincing
-number can still answer the wrong question.
+Those records remain in the repository.
 
-The readable chronology is in [Optimization history](optimization-history.md) and the
-[Experiment ledger](experiment-ledger.md).
+## Support and updates
 
-## A few development reference points
+**Copy setup** produces a compact support summary. A separate support ZIP shows what it contains
+before sending, and the first beta sends one only when you press Send.
 
-On the reviewed 83-mod profile, current preparation left about **2.3 GB** in Balanced, **11 MB** in
-Minimal disk before its first launch, and **5.2 GB** in the advanced Uncompressed mode. Minimal later
-grew to about 204 MiB when its first launch learned the non-texture runtime caches. The build briefly
-needs more room than the finished pack uses, and the app calculates the current installation's own
-plan rather than treating those numbers as universal.
+Supported in-app updates use the project's updater signing key. The release process exercises
+installation, update, rollback, and removal against the package set.
 
-The read-only linter was calibrated over 86 installed mod directories. The median was zero findings
-and 44 of 86 were completely clean. That is the intended shape of the tool: useful signal when a
-measurable problem exists, not a score that assumes every mod needs fixing.
+## Release package status
 
-## Package trust and release evidence
+The first public beta release goes live after one retained candidate package set completes the
+required package, native-machine, benchmark, lifecycle, and report checks.
 
-The first beta does not use paid Apple Developer ID or Windows Authenticode publisher identities, so
-macOS and Windows can show their normal unknown-developer warnings. The release ships checksum and
-other package-review material, and the updater signing key is separate from those platform identities.
-
-The final package-dependent claims all come from one retained candidate generation. Fill these only
-from that candidate:
-
-- **Accepted packages / checksums:** [ACCEPTED PACKAGE MATRIX / CHECKSUM SUMMARY]
-- **Hosted lifecycle and update evidence:** [HOSTED CANDIDATE EVIDENCE SUMMARY]
-- **Tagged report-intake canary:** [TAGGED REPORT CANARY RESULT]
-- **Hands-on packaged report cancel/retry/delete:** [PACKAGED REPORT CANARY RESULT]
-
-## Windows and Linux are release prerequisites, not later-beta TODOs
-
-Real-game testing has been deepest on Apple silicon macOS. The first public beta GitHub release and
-its downloadable packages do **not** go live until the retained candidate has also completed the
-required native Windows and native x86-64 Linux real-game installation exercises.
-
-Fill these lines from those runs before posting:
+Fill these from that candidate before posting:
 
 - **Windows real-game exercise:** [WINDOWS NATIVE REAL-GAME RESULT]
 - **Linux real-game exercise:** [LINUX NATIVE REAL-GAME RESULT]
+- **Accepted package/checksum summary:** [ACCEPTED PACKAGE MATRIX / CHECKSUM SUMMARY]
+- **Packaged benchmark:** [PACKAGED CANDIDATE BENCHMARK RESULT]
+- **Report/update/lifecycle evidence:** [FINAL CANDIDATE EVIDENCE SUMMARY]
 
-There is no Intel Mac package in the first beta. The reviewed game version is **0.98a-RC8**; changed
-versions or changed mods can receive fewer optimizations until the affected paths are reviewed.
+There is no Intel Mac package in the first beta. The reviewed game version is **0.98a-RC8**.
 
 ## AI assistance
 
-Yes. I used ChatGPT/Codex and Claude Code throughout development.
-
-The repository contains the source, tests, experiment history, failed approaches, review notes and
-release work. Judge the result by the product and what it actually does.
+I used ChatGPT/Codex and Claude Code throughout development. The source, tests, measurements, failed
+experiments, and release work are in the repository.
 
 ## How to use it
 
 1. Download the package for your system.
 2. Open Preflight. If it does not find Starsector, choose the game folder.
-3. Press **Prepare and launch**.
-4. On later runs, press **Launch Starsector**. Matching prepared work is reused automatically.
-
-Profiles, benchmarks, storage controls, support tools and the rest are there when you want them.
+3. Press **Set up and launch**.
+4. On later runs, press **Launch Starsector**.
 
 **Download:** [RELEASE URL]
 
-If Preflight helps, saves you a pile of waiting, or you simply want to support this kind of open-source
-work:
+If you want to support development:
 
 - GitHub Sponsors: [GITHUB SPONSORS URL]
 - Patreon: https://www.patreon.com/cw/teamleaderleo
 
 Preflight is an independent, unofficial project. It is not affiliated with or endorsed by Fractal
 Softworks.
-
----
-
-## Short version for Discord / a Reddit comment
-
-> Preflight is a free, open-source performance launcher for Starsector. On my reviewed 83-mod
-> development setup, a controlled five-v-five comparison measured 89.00s median normally and 15.53s
-> with Preflight, with a 15.25s low. The desktop includes the same before/after benchmark for your own
-> installation.
->
-> It also grew local playtime, named mod profiles, useful launch settings, storage/recovery tools,
-> read-only setup analysis and mod linting, support tools, signed updates, and a wireframe Hangar.
-> Starsector, mod files and saves remain unchanged.
->
-> The public package gets its own benchmark and the required native Windows/Linux real-game exercises
-> before the first beta release and downloads go live.
->
-> Download: [RELEASE URL]

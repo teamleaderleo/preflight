@@ -1761,6 +1761,7 @@ h2 {
   flex: 0 0 auto;
   flex-direction: column;
   gap: 5px;
+  width: min(300px, 100%);
 }
 
 .benchmark-card__actions > small,

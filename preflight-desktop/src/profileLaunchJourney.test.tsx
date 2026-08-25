@@ -133,7 +133,7 @@ test("Home reflects the switched profile when its new mod set needs preparation"
       .toBeInTheDocument();
     expect(screen.getByLabelText("Installation /Applications/Starsector"))
       .toHaveAttribute("title", "/Applications/Starsector");
-    await waitFor(() => expect(screen.getByText("Fast launch setup")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Fast launch")).toBeInTheDocument());
   } finally {
     getProfiles.mockRestore();
     getCache.mockRestore();
@@ -174,7 +174,7 @@ test("refocus revalidates profiles in the background without blanking Home", asy
     profileRefresh.resolve(externalProfiles());
     cacheRefresh.resolve(cache("external-fingerprint", false));
 
-    await waitFor(() => expect(screen.getByText("Fast launch setup")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Fast launch")).toBeInTheDocument());
     expect(getProfiles).toHaveBeenCalledTimes(2);
     expect(getCache).toHaveBeenCalledTimes(2);
   } finally {
