@@ -73,8 +73,8 @@ public final class PrepareAudioCommand {
                 }
             }
         }
+        cache = CacheRootBoundary.canonical(cache);
         Path install = InstallRoot.resolve(game);
-        cache = cache.toAbsolutePath().normalize();
         if (output == null) {
             output = PreparedAudioCache.root(cache).resolve("bake.json");
         }

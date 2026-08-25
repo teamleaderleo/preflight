@@ -17,9 +17,10 @@ final class TextureBatchCommand {
 
     static int execute(String[] args, int offset) throws Exception {
         Options options = parse(args, offset);
-        Path cacheDirectory = options.cacheDirectory() == null
-                ? PreflightHome.current().cache()
-                : options.cacheDirectory().toAbsolutePath().normalize();
+        Path cacheDirectory = CacheRootBoundary.canonical(
+                options.cacheDirectory() == null
+                        ? PreflightHome.current().cache()
+                        : options.cacheDirectory());
 
         ResourceIndex sourceIndex;
         Path sourceIndexPath;
