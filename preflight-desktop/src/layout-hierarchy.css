@@ -332,14 +332,14 @@
   right: auto;
   bottom: 22px;
   left: 20px;
-  width: 240px;
+  width: 280px;
   max-width: calc(100% - 40px);
   transform: none;
 }
 
 .launch-console--layout-settled .home-ship-name {
-  min-width: 148px;
-  max-width: 148px;
+  min-width: 188px;
+  max-width: 188px;
   font-size: 18px;
 }
 
