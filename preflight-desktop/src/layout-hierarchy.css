@@ -128,14 +128,6 @@
   width: min(420px, calc(100% - 36px));
 }
 
-.launch-console--layout-recovery .home-ship-picker {
-  right: 16px;
-  bottom: 10px;
-  left: auto;
-  max-width: 42%;
-  text-align: right;
-}
-
 /* A captured failed run is an overlay on the settled Home, not a new composition. Keep the alert
  * first in DOM order and out of flow while the underlying console, hull, launch identity, and ship
  * caption remain at their settled coordinates. The recovery controls live in the banner, so the
@@ -174,15 +166,6 @@
   width: min(520px, calc(100% - 48px));
   text-align: center;
   transform: translateX(-50%);
-}
-
-.page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-ship-picker {
-  right: auto;
-  bottom: 24px;
-  left: 28px;
-  max-width: 194px;
-  text-align: left;
-  transform: none;
 }
 
 /* The settled path disclosure opens upward. Restore its centered transform here because the generic
@@ -237,12 +220,6 @@
     width: calc(100% - 28px);
   }
 
-  .launch-console--layout-recovery .home-ship-picker {
-    right: 12px;
-    bottom: 8px;
-    max-width: 46%;
-  }
-
   .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery {
     height: 100%;
     min-height: 100%;
@@ -267,13 +244,6 @@
     transform: translateX(-50%);
   }
 
-  .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-ship-picker {
-    right: auto;
-    bottom: 16px;
-    left: 10px;
-    max-width: 194px;
-    text-align: left;
-  }
 }
 
 @media (max-width: 600px) {
@@ -518,7 +488,9 @@
 
   .launch-console--layout-settled .home-ship-picker {
     bottom: 92px;
+    left: 10px;
     max-width: calc(100% - 20px);
+    transform: none;
   }
 
   .launch-console--layout-settled .launch-console__actions {
@@ -544,8 +516,8 @@
   }
 
   .home-motion-controls .home-motion-toggle {
-    width: 42px;
-    min-height: 42px;
+    width: 44px;
+    min-height: 44px;
   }
 
   .launch-console--layout-settled .launch-console__actions .button--launch {

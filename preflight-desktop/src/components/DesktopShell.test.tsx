@@ -5,7 +5,7 @@ import { DesktopShell } from "./DesktopShell";
 
 test("the footer identifies the exact source behind a development or packaged build", () => {
   render(shell("home", "Home"));
-  expect(screen.getByText(new RegExp(`Preflight test · ${__PREFLIGHT_SOURCE_REVISION__}`)))
+  expect(screen.getByText("Preflight test"))
     .toHaveAttribute("title", `Source ${__PREFLIGHT_SOURCE_REVISION__}`);
 });
 

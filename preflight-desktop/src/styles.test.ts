@@ -84,6 +84,9 @@ test("active controls look active without relying on gradients", () => {
 test("wide, narrow, and short windows keep content inside the desktop shell", () => {
   expect(styles).toMatch(/\.main\s*\{[^}]*min-width:\s*0;/s);
   expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.launch-console--options-open \.quick-settings\s*\{[^}]*width:\s*calc\(100% - 16px\);/);
+  expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.launch-console--options-open \.quick-settings__grid\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);/);
+  expect(styles).toMatch(/@media \(max-height: 720px\)[\s\S]*?\.launch-console--options-open \.quick-settings__grid\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);/);
+  expect(styles).toMatch(/@media \(max-width: 420px\)[\s\S]*?\.quick-settings__grid\s*\{[^}]*grid-template-columns:\s*1fr;/);
   expect(styles).toMatch(/@media \(max-width: 780px\)[\s\S]*?\.brand,[\s\S]*?\.nav,[\s\S]*?\.sidebar__footer\s*\{[^}]*flex-shrink:\s*0;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.main\s*\{[^}]*padding-top:\s*20px;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.prepare-page\s*\{[^}]*gap:\s*10px;/);
@@ -154,6 +157,16 @@ test("supporting copy stays legible while dense evidence remains compact", () =>
   expect(styles).toMatch(/\.optimization-domain-card\s*\{[^}]*display:\s*flex;[^}]*padding:\s*24px;/s);
 });
 
+test("Help keeps every report action in one deliberate group", () => {
+  expect(styles).toMatch(/\.support-card__main\s*\{[^}]*align-items:\s*stretch;[^}]*flex-direction:\s*column;/s);
+  expect(styles).toMatch(/\.support-card__main \.report-actions\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*repeat\(auto-fit, minmax\(min\(100%, 180px\), 1fr\)\);/s);
+  expect(styles).toMatch(/\.button--support\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/s);
+});
+
+test("closed profile menus do not occupy the cards below them", () => {
+  expect(styles).toMatch(/\.profile-menu:not\(\[open\]\) > div\s*\{[^}]*display:\s*none;/s);
+});
+
 test("the sidebar mark keeps the app artwork legible at icon size", () => {
   expect(styles).toMatch(/\.brand__mark\s*\{[^}]*width:\s*44px;[^}]*border-radius:\s*10px;/s);
   expect(styles).toMatch(/\.brand__type small\s*\{[^}]*white-space:\s*nowrap;/s);
@@ -166,6 +179,9 @@ test("focus and pointer targets cover every native desktop control", () => {
   expect(styles).toMatch(/\.text-button\s*\{[^}]*min-height:\s*44px;/s);
   expect(styles).toMatch(/@media \(max-width: 780px\)[\s\S]*?\.nav__item\s*\{[^}]*width:\s*44px;/);
   expect(styles).toMatch(/\.page-title:focus-visible\s*\{[^}]*text-decoration-color:\s*var\(--accent\);/s);
+  expect(styles).toMatch(/\.home-ship-picker > button:not\(\.home-ship-name\)\s*\{[^}]*flex:\s*0 0 44px;[^}]*width:\s*44px;[^}]*min-height:\s*44px;/s);
+  expect(styles).toMatch(/\.home-display-toggle\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/s);
+  expect(styles).toMatch(/\.run-recovery__details summary\s*\{[^}]*min-height:\s*44px;/s);
   // The tooltip is portalled into body and positioned from JS, so hover and focus are handled in
   // InfoTip.tsx; the stylesheet only has to make the open state visible.
   expect(styles).toMatch(/\.info-tip__content\s*\{[^}]*position:\s*fixed;/s);

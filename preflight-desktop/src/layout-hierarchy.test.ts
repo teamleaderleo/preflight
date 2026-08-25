@@ -87,9 +87,6 @@ test("failed-run recovery is an overlay on settled Home geometry", () => {
     /@media \(max-width: 720px\)[\s\S]*?\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-launch-identity\s*\{[^}]*bottom:\s*88px;[^}]*width:\s*calc\(100% - 32px\);/s,
   );
   expect(layoutStyles).toMatch(
-    /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-ship-picker\s*\{[^}]*right:\s*auto;[^}]*bottom:\s*24px;[^}]*left:\s*28px;[^}]*text-align:\s*left;[^}]*transform:\s*none;/s,
-  );
-  expect(layoutStyles).toMatch(
     /\.run-recovery\[role="alert"\] \+ \.launch-console--layout-recovery \.home-launch-path::after\s*\{[^}]*top:\s*auto;[^}]*bottom:\s*calc\(100% \+ 7px\);[^}]*left:\s*50%;[^}]*transform:\s*translate\(-50%, -2px\);/s,
   );
   expect(layoutStyles).not.toContain("inset: 120px 30px 54px");
@@ -113,10 +110,16 @@ test("settled Home anchors the launch action while secondary controls adapt arou
     /@container \(max-width: 640px\)[\s\S]*?\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*bottom:\s*14px;[^}]*grid-template-columns:\s*minmax\(0, 1fr\);/s,
   );
   expect(layoutStyles).toMatch(
+    /@container \(max-width: 640px\)[\s\S]*?\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*left:\s*10px;[^}]*transform:\s*none;/s,
+  );
+  expect(layoutStyles).toMatch(
     /@container \(max-width: 640px\)[\s\S]*?\.launch-console--layout-settled \.launch-console__actions \.home-motion-controls\s*\{[^}]*position:\s*absolute;[^}]*right:\s*0;[^}]*bottom:\s*72px;/s,
   );
   expect(styles).toMatch(
     /\.home-motion-toggle\s*\{[^}]*flex:\s*0 0 44px;[^}]*width:\s*44px;/s,
+  );
+  expect(layoutStyles).toMatch(
+    /@container \(max-width: 640px\)[\s\S]*?\.home-motion-controls \.home-motion-toggle\s*\{[^}]*width:\s*44px;[^}]*min-height:\s*44px;/s,
   );
 });
 

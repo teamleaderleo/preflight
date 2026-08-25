@@ -189,8 +189,8 @@ export function PreparationPage({
         <div>
           <strong>{preparationCancelling ? "Stopping preparation" : preparing ? preparationPhaseLabel ?? "Preparation is running" : preparationPlanLoading ? "Calculating disk requirement" : storageBlocked ? "Full preparation doesn’t fit" : preparationPlan?.safeToPrepare || !storagePlanApplies(textureStorage) ? "Ready to prepare" : "Preparation needs attention"}</strong>
           {preparing ? <span>{preparationPercent === null
-            ? "Reconnected after restart · finished work stays reusable"
-            : `${preparationPercent}% complete · finished work stays reusable`}</span>
+            ? "Resumed after restart"
+            : `${preparationPercent}% complete`}</span>
             : storageBlocked
               ? <span>Minimal skips prepared textures and keeps the other startup caches.</span>
               : overrideSummary

@@ -22,7 +22,6 @@ import { FlightInstrument } from "./FlightInstrument";
 
 type InstrumentHullState = ReturnType<typeof useInstrumentHull>;
 
-const HULL_RESULT_LIMIT = 8;
 const HULL_POPUP_GAP = 9;
 
 type HullPopupDirection = "up" | "down";
@@ -71,14 +70,17 @@ function hullPopupHeightCap(): number {
 
 interface HangarHullChooserProps {
   catalogHulls: WireframeHull[];
+  catalogLoaded: boolean;
+  catalogAvailable: boolean;
   rosterIds: Set<string>;
   selected: WireframeHull;
   onChoose: (id: string) => void;
   onRemove: (id: string) => void;
+  onReloadCatalog: () => void;
   canRemove: boolean;
 }
 
-function HangarHullChooser({ catalogHulls, rosterIds, selected, onChoose, onRemove, canRemove }: HangarHullChooserProps) {
+function HangarHullChooser({ catalogHulls, catalogLoaded, catalogAvailable, rosterIds, selected, onChoose, onRemove, onReloadCatalog, canRemove }: HangarHullChooserProps) {
   const listId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -88,24 +90,32 @@ function HangarHullChooser({ catalogHulls, rosterIds, selected, onChoose, onRemo
   const [popupDirection, setPopupDirection] = useState<HullPopupDirection>("up");
   const [popupMaxHeight, setPopupMaxHeight] = useState<number | null>(null);
   const [removeArmed, setRemoveArmed] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     setQuery(selected.name);
     setActiveIndex(0);
     setRemoveArmed(false);
+    setAdding(false);
   }, [selected.id, selected.name]);
 
+  const eligibleHulls = useMemo(
+    () => adding
+      ? catalogHulls.filter((hull) => !rosterIds.has(hull.id))
+      : catalogHulls,
+    [adding, catalogHulls, rosterIds],
+  );
+
   const results = useMemo(() => {
-    const exact = findExactHull(catalogHulls, query);
+    const exact = findExactHull(eligibleHulls, query);
     if (exact?.id === selected.id) {
-      return [selected, ...catalogHulls.filter((hull) => hull.id !== selected.id)].slice(0, HULL_RESULT_LIMIT);
+      return [selected, ...eligibleHulls.filter((hull) => hull.id !== selected.id)];
     }
 
-    const candidates = query.trim()
-      ? catalogHulls.filter((hull) => hullMatches(hull, query))
-      : catalogHulls;
-    return candidates.slice(0, HULL_RESULT_LIMIT);
-  }, [catalogHulls, query, selected]);
+    return query.trim()
+      ? eligibleHulls.filter((hull) => hullMatches(hull, query))
+      : eligibleHulls;
+  }, [eligibleHulls, query, selected]);
 
   const activeHull = results[activeIndex] ?? results[0];
 
@@ -118,14 +128,15 @@ function HangarHullChooser({ catalogHulls, rosterIds, selected, onChoose, onRemo
 
     const placePopup = () => {
       const inputRect = input.getBoundingClientRect();
+      const anchorRect = input.closest<HTMLElement>(".hangar-hull-combobox")?.getBoundingClientRect() ?? inputRect;
       const workspaceRect = workspace.getBoundingClientRect();
       const listRect = list.getBoundingClientRect();
       const desiredHeight = Math.min(
         list.scrollHeight > 0 ? list.scrollHeight : listRect.height,
         hullPopupHeightCap(),
       );
-      const availableAbove = Math.max(0, inputRect.top - workspaceRect.top - HULL_POPUP_GAP);
-      const availableBelow = Math.max(0, workspaceRect.bottom - inputRect.bottom - HULL_POPUP_GAP);
+      const availableAbove = Math.max(0, anchorRect.top - workspaceRect.top - HULL_POPUP_GAP);
+      const availableBelow = Math.max(0, workspaceRect.bottom - anchorRect.bottom - HULL_POPUP_GAP);
       const nextDirection: HullPopupDirection = availableAbove >= desiredHeight
         ? "up"
         : availableBelow >= desiredHeight
@@ -165,22 +176,24 @@ function HangarHullChooser({ catalogHulls, rosterIds, selected, onChoose, onRemo
     setQuery(hull.name);
     setOpen(false);
     setActiveIndex(0);
+    setAdding(false);
   };
 
   const restoreSelected = () => {
     setQuery(selected.name);
     setOpen(false);
     setActiveIndex(0);
+    setAdding(false);
   };
 
   const beginAdding = () => {
+    if (catalogLoaded && !catalogAvailable) onReloadCatalog();
     setQuery("");
+    setAdding(true);
     setOpen(true);
     setActiveIndex(0);
-    window.requestAnimationFrame(() => {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    });
+    inputRef.current?.focus();
+    inputRef.current?.select();
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -197,7 +210,7 @@ function HangarHullChooser({ catalogHulls, rosterIds, selected, onChoose, onRemo
       return;
     }
     if (event.key === "Enter") {
-      const exact = findExactHull(catalogHulls, query);
+      const exact = findExactHull(eligibleHulls, query);
       const chosen = open ? activeHull ?? exact : exact;
       if (chosen) {
         event.preventDefault();
@@ -237,6 +250,7 @@ function HangarHullChooser({ catalogHulls, rosterIds, selected, onChoose, onRemo
         aria-activedescendant={activeOptionId}
         autoComplete="off"
         spellCheck={false}
+        placeholder="Search ships"
         value={query}
         onFocus={(event) => {
           setOpen(true);
@@ -251,7 +265,7 @@ function HangarHullChooser({ catalogHulls, rosterIds, selected, onChoose, onRemo
         }}
         onKeyDown={handleKeyDown}
         onBlur={() => {
-          const exact = findExactHull(catalogHulls, query);
+          const exact = findExactHull(eligibleHulls, query);
           if (exact && exact.id !== selected.id) {
             choose(exact);
           } else if (!exact) {
@@ -269,7 +283,7 @@ function HangarHullChooser({ catalogHulls, rosterIds, selected, onChoose, onRemo
           id={listId}
           className="hangar-hull-combobox__list"
           role="listbox"
-          aria-label="Display ships"
+          aria-label={adding ? "Ships to add" : "Display ships"}
           style={popupStyle}
         >
           {results.length > 0 ? results.map((hull, index) => (
@@ -292,14 +306,18 @@ function HangarHullChooser({ catalogHulls, rosterIds, selected, onChoose, onRemo
                 {hullSizeLabel(hull.hullSize)} · {rosterIds.has(hull.id) ? "Home" : "Add to Home"}
               </span>
             </button>
-          )) : (
+          )) : !catalogLoaded ? (
+            <div className="hangar-hull-combobox__empty">Loading ships…</div>
+          ) : adding && !query.trim() ? (
+            <div className="hangar-hull-combobox__empty">All installed ships are already on Home</div>
+          ) : (
             <div className="hangar-hull-combobox__empty">No hull matches “{query}”</div>
           )}
         </div>
       ) : null}
 
       <div className="hangar-identity__meta">
-        <span>{hullSizeLabel(selected.hullSize)}</span>
+        <span className="hangar-identity__size">{hullSizeLabel(selected.hullSize)}</span>
         <button type="button" aria-label="Add a display ship" onClick={beginAdding}>
           + Add ship
         </button>
@@ -310,20 +328,20 @@ function HangarHullChooser({ catalogHulls, rosterIds, selected, onChoose, onRemo
               aria-label={`Remove ${selected.name} from Home ships`}
               onClick={() => onRemove(selected.id)}
             >
-              Remove?
+              Remove
             </button>
-            <button type="button" aria-label="Cancel ship removal" onClick={() => setRemoveArmed(false)}>
-              Cancel
+            <button type="button" aria-label="Keep ship on Home" onClick={() => setRemoveArmed(false)}>
+              Keep
             </button>
           </span>
         ) : (
           <button
             type="button"
-            aria-label={`Manage ${selected.name} in Home ships`}
-            title="Manage Home ships"
+            aria-label={`Remove ${selected.name} from Home ships`}
+            title="Remove from Home"
             onClick={() => setRemoveArmed(true)}
           >
-            Home ✓
+            Remove
           </button>
         ) : null}
       </div>
@@ -435,10 +453,13 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
           <div className="hangar-identity">
             <HangarHullChooser
               catalogHulls={instrumentHull.catalogHulls}
+              catalogLoaded={instrumentHull.catalogLoaded}
+              catalogAvailable={instrumentHull.catalog !== null}
               rosterIds={rosterIds}
               selected={instrumentHull.selected}
               onChoose={instrumentHull.choose}
               onRemove={instrumentHull.remove}
+              onReloadCatalog={instrumentHull.reloadCatalog}
               canRemove={instrumentHull.hulls.length > 1}
             />
           </div>

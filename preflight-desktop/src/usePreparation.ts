@@ -393,8 +393,8 @@ export function usePreparation(
       setPreparationCancelling(false);
       setPreparing(true);
       announce(launchWhenReady
-        ? "Preparing the exact current profile. Starsector will open when it’s ready."
-        : "Preparing the exact current profile… You can leave this window open.");
+        ? "Preparing fast launch. Starsector will open when it’s ready."
+        : "Preparing fast launch. You can leave this window open.");
       localPreparationStarting.current = true;
       localPreparationPid.current = null;
       lastHandledTerminalPid.current = null;

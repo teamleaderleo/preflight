@@ -58,7 +58,7 @@ describe("failedRunSummary", () => {
   });
 
   test("falls back when there is no detail", () => {
-    expect(failedRunSummary(undefined)).toBe("Starsector closed with an error. Support evidence was saved.");
+    expect(failedRunSummary(undefined)).toBe("Starsector closed with an error. Details were saved for troubleshooting.");
   });
 
   test("never cuts a character in half", () => {

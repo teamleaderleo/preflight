@@ -32,7 +32,6 @@ interface InstrumentPalette {
   near: [number, number, number];
   far: [number, number, number];
   grid: string;
-  accent: string;
   fill: string;
 }
 
@@ -124,7 +123,6 @@ function readPalette(canvas: HTMLCanvasElement): InstrumentPalette {
     near: toRgb(resolveColour(probe, "--instrument-near", "#3f3a35"), [63, 58, 53]),
     far: toRgb(resolveColour(probe, "--instrument-far", "#a89e90"), [168, 158, 144]),
     grid: resolveColour(probe, "--instrument-grid", "rgba(87,81,74,.14)"),
-    accent: resolveColour(probe, "--instrument-accent", "#a76532"),
     fill: resolveColour(probe, "--instrument-fill", "rgba(167,101,50,.06)"),
   };
   probe.remove();
@@ -259,15 +257,6 @@ function drawHull(
     context.stroke();
   }
   context.globalAlpha = 1;
-
-  for (const mount of projected.mounts) {
-    const point = map(mount);
-    context.beginPath();
-    context.arc(point.x, point.y, mount.size === "LARGE" ? 3.2 : 2.2, 0, Math.PI * 2);
-    context.strokeStyle = palette.accent;
-    context.lineWidth = 1;
-    context.stroke();
-  }
 
 }
 

@@ -733,6 +733,7 @@ h2 {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  min-width: 44px;
   min-height: 44px;
   border: 1px solid color-mix(in srgb, var(--console-line) 72%, transparent);
   border-radius: 4px;
@@ -882,6 +883,7 @@ h2 {
 
 .home-ship-picker > button:not(.home-ship-name) {
   display: grid;
+  flex: 0 0 44px;
   width: 44px;
   min-height: 44px;
   place-items: center;
@@ -1533,6 +1535,9 @@ h2 {
 }
 
 .run-recovery__details summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--ink-soft);
   cursor: pointer;
   font-weight: 700;
@@ -3250,6 +3255,12 @@ h2 {
   box-shadow: 0 10px 26px rgba(35, 32, 29, 0.14);
 }
 
+/* Author styles otherwise override WebKit's closed-details rule and leave the menu actions
+   occupying the next profile even while Manage looks closed. */
+.profile-menu:not([open]) > div {
+  display: none;
+}
+
 .profile-menu button {
   min-height: 44px;
   padding: 0 13px;
@@ -4115,6 +4126,21 @@ footer {
     right: 8px;
     width: calc(100% - 16px);
     max-height: calc(100% - 72px);
+    gap: 10px;
+    padding: 18px 20px;
+  }
+
+  .launch-console--options-open .quick-settings__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .launch-console--options-open .quick-control--wide {
+    grid-column: span 2;
+  }
+
+  .launch-console--options-open .quick-control {
+    gap: 4px;
   }
 
   .profiles-grid,
@@ -4140,8 +4166,7 @@ footer {
   }
 
   .help-card__main,
-  .support-card__main,
-  .fixes-list li {
+  .support-card__main {
     align-items: stretch;
     flex-direction: column;
   }
@@ -4510,10 +4535,6 @@ footer {
     grid-column: auto;
   }
 
-  .quick-settings__grid {
-    grid-template-columns: 1fr;
-  }
-
   .setting-field,
   .setting-toggle {
     align-items: stretch;
@@ -4530,7 +4551,35 @@ footer {
   }
 }
 
+@media (max-height: 720px) {
+  .launch-console--options-open .quick-settings {
+    gap: 10px;
+    padding: 14px 20px;
+  }
+
+  .launch-console--options-open .quick-settings__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .launch-console--options-open .quick-control--wide {
+    grid-column: span 2;
+  }
+
+  .launch-console--options-open .quick-control {
+    gap: 4px;
+  }
+}
+
 @media (max-width: 420px) {
+  .quick-settings__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .launch-console--options-open .quick-control--wide {
+    grid-column: 1 / -1;
+  }
+
   .nav__item {
     gap: 5px;
     padding-inline: 7px;
@@ -5011,7 +5060,7 @@ footer {
 }
 
 @media (max-width: 980px) {
-  .flight-instrument {
+  .scoreboard .flight-instrument {
     opacity: 0.42;
     width: 210px;
   }
@@ -5091,8 +5140,9 @@ footer {
 .help-card__main,
 .support-card__main {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
+  flex-direction: column;
   gap: 24px;
   margin-bottom: 14px;
 }
@@ -5114,6 +5164,12 @@ footer {
   min-width: 0;
 }
 
+.support-card__main .report-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 10px;
+}
+
 .support-card__main small {
   display: block;
   margin-top: 8px;
@@ -5123,7 +5179,8 @@ footer {
 
 .button--support {
   flex: 0 0 auto;
-  min-width: 210px;
+  width: 100%;
+  min-width: 0;
   min-height: 52px;
 }
 

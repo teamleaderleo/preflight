@@ -161,7 +161,7 @@ export function useProfiles(
       await saveProfile(expectedGame, name);
       if (request !== actionRequest.current || currentGame.current !== expectedGame) return;
       if (profileNameRevision.current === submittedRevision) setProfileName("");
-      announce(`Saved the exact current mod order as “${name}”.`, "success");
+      announce(`Saved the current mod order as “${name}”.`, "success");
       await refreshProfiles();
     } catch (error) {
       if (request === actionRequest.current && currentGame.current === expectedGame) announce(errorMessage(error), "error");
@@ -336,7 +336,7 @@ export function useProfiles(
         setActivationPlan(null);
         setActivationPlanGame(null);
         announce(result.applied
-          ? `Switched to “${result.name}”. Its exact caches will be reused automatically when available.`
+          ? `Switched to “${result.name}”. Prepared data will be reused when available.`
           : `“${result.name}” was already active; nothing changed.`);
       }
     } catch (error) {

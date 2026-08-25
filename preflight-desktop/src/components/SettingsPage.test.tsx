@@ -82,7 +82,7 @@ test("support files remain manual even when report intake is configured", () => 
   })} />);
 
   expect(screen.queryByRole("checkbox", { name: /failed-run reports/i })).not.toBeInTheDocument();
-  expect(screen.getByText("Nothing is sent automatically.")).toBeInTheDocument();
+  expect(screen.getByText("Reports are sent only when you choose.")).toBeInTheDocument();
 });
 
 test("an update failure replaces the stale unchecked status", () => {

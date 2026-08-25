@@ -51,7 +51,7 @@ describe("blockingWorkflow", () => {
     expect(blockingWorkflow({ ...idle, desktopSmokeRunning: true, desktopSmokeCancelling: true }))
       .toEqual({ owner: "benchmark", reason: "Stopping the startup benchmark" });
     expect(blockingWorkflow({ ...idle, reportUploading: true, reportFinalizing: true }))
-      .toEqual({ owner: "help", reason: "Finishing the report receipt" });
+      .toEqual({ owner: "help", reason: "Finishing the support upload" });
     expect(blockingWorkflow({ ...idle, reportUploading: true, reportCancelling: true }))
       .toEqual({ owner: "help", reason: "Stopping the support upload" });
   });
