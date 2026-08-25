@@ -12,9 +12,13 @@ import prune_local_build_outputs as prune
 
 
 class SelectionTest(unittest.TestCase):
-    def test_default_cli_does_not_reserve_a_completed_worktree(self):
+    def test_default_cli_retires_unreserved_outputs_after_eight_hours(self):
         with patch.object(sys, "argv", ["prune_local_build_outputs.py"]):
-            self.assertEqual(0, prune.parse_args().keep_completed)
+            args = prune.parse_args()
+
+        self.assertEqual(0, args.keep_completed)
+        self.assertEqual(8, args.minimum_age_hours)
+        self.assertEqual(48, args.maximum_age_hours)
 
     def test_isolated_ui_browser_runtime_is_generated_output(self):
         self.assertIn(
@@ -209,7 +213,7 @@ class SelectionTest(unittest.TestCase):
         self.assertEqual("remove", by_name["dirty"].action)
         self.assertIn("source changes remain untouched", by_name["dirty"].reason)
         self.assertEqual("keep", by_name["newest"].action)
-        self.assertIn("expires at 72 hours", by_name["newest"].reason)
+        self.assertIn("expires at 48 hours", by_name["newest"].reason)
         self.assertEqual("remove", by_name["second"].action)
         self.assertEqual("remove", by_name["old"].action)
 

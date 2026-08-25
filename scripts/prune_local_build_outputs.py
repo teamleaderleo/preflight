@@ -186,7 +186,7 @@ def choose_build_sets(
     now: float,
     keep_completed: int,
     minimum_age_hours: float,
-    maximum_age_hours: float = 72,
+    maximum_age_hours: float = 48,
     retire_current: bool = False,
 ) -> list[Decision]:
     if keep_completed < 0:
@@ -280,19 +280,19 @@ def parse_args() -> argparse.Namespace:
         "--keep-completed",
         type=int,
         default=0,
-        help="number of newest clean, non-current worktrees to retain after 24 hours (default: 0)",
+        help="number of newest clean, non-current worktrees to retain after 8 hours (default: 0)",
     )
     parser.add_argument(
         "--minimum-age-hours",
         type=float,
-        default=24,
-        help="never remove build sets younger than this (default: 24)",
+        default=8,
+        help="never remove build sets younger than this (default: 8)",
     )
     parser.add_argument(
         "--maximum-age-hours",
         type=float,
-        default=72,
-        help="remove non-current build sets at or beyond this age, even the newest (default: 72)",
+        default=48,
+        help="remove non-current build sets at or beyond this age, even the newest (default: 48)",
     )
     parser.add_argument(
         "--retire-current",
