@@ -4787,7 +4787,7 @@ footer {
     margin-top: 0;
   }
 
-  .help-page :is(.support-card, .help-links-card) {
+  .help-page :is(.support-card, .help-links-card, .help-boundary-card) {
     padding-top: 21px;
     padding-bottom: 21px;
   }
@@ -5193,6 +5193,7 @@ footer {
 
 .support-card,
 .help-links-card,
+.help-boundary-card,
 .fixes-card {
   display: flex;
   flex-direction: column;
@@ -5239,6 +5240,38 @@ footer {
 
 .fixes-list .button {
   flex: 0 0 auto;
+}
+
+.help-boundary-card .card__heading {
+  margin-bottom: 0;
+}
+
+.help-boundary-card > p {
+  max-width: 76ch;
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.help-boundary-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.help-boundary-facts li {
+  padding: 12px 14px;
+  border-left: 2px solid var(--line-strong);
+  color: var(--ink-soft);
+  font-size: var(--text-support);
+}
+
+.help-boundary-facts strong {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--ink);
 }
 
 .help-card__main,
@@ -5327,6 +5360,10 @@ footer {
 @media (max-width: 720px) {
   .support-card__main .report-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .help-boundary-facts {
+    grid-template-columns: 1fr;
   }
 }
 
