@@ -5,8 +5,8 @@ story than the short post. The shorter version is
 [beta-announcement-leo-draft.md](beta-announcement-leo-draft.md).
 
 Keep candidate-specific fields bracketed until the retained release candidate produces them. The
-Starsector forum takes BBCode rather than Markdown; use the release-day link blocks in
-[downloads.md](downloads.md#release-day-link-kit) and convert the prose before posting there.
+Starsector forum takes BBCode rather than Markdown; use the current download names and links from
+[Downloads and installation](downloads.md) and convert the prose before posting there.
 
 ---
 
