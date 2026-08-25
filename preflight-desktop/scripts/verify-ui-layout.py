@@ -18,6 +18,8 @@ from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright
 
 
 VIEWPORTS = (
+    (480, 640),
+    (600, 560),
     (720, 560),
     (800, 600),
     (880, 640),
@@ -28,7 +30,7 @@ VIEWPORTS = (
     (1440, 800),
 )
 
-PAGE_SWEEP_WIDTHS = {720, 1040, 1440}
+PAGE_SWEEP_WIDTHS = {480, 720, 1040, 1440}
 PRIMARY_PAGES = ("Speed", "Mods", "Help", "Settings")
 HOME_RECOVERY_SCENARIOS = ("setup", "cache-repair", "run-failure", "running")
 PAGE_RECOVERY_SCENARIOS = (
@@ -158,6 +160,7 @@ def assert_home_geometry(page: Page, label: str) -> dict[str, object]:
             documentScrollWidth: document.documentElement.scrollWidth,
             workspaceClientWidth: workspace.clientWidth,
             workspaceScrollWidth: workspace.scrollWidth,
+            workspaceBottom: workspace.getBoundingClientRect().bottom,
             primary: { x: primary.x, y: primary.y, width: primary.width, height: primary.height },
             launch: { x: launch.x, y: launch.y, width: launch.width, height: launch.height },
             launchConnected: document.querySelector(".button--launch")?.isConnected === true,
@@ -172,7 +175,7 @@ def assert_home_geometry(page: Page, label: str) -> dict[str, object]:
         raise RuntimeError(f"{label}: Home workspace has horizontal overflow: {measurement}")
     if not measurement["launchConnected"] or measurement["launch"]["width"] < 260:
         raise RuntimeError(f"{label}: primary launch action disappeared or collapsed: {measurement}")
-    if measurement["launch"]["y"] < 0 or measurement["launch"]["y"] + measurement["launch"]["height"] > measurement["viewportHeight"] - 4:
+    if measurement["launch"]["y"] < 0 or measurement["launch"]["y"] + measurement["launch"]["height"] > measurement["workspaceBottom"] - 4:
         raise RuntimeError(f"{label}: primary launch action is outside the initial viewport: {measurement}")
     primary_center = measurement["primary"]["x"] + measurement["primary"]["width"] / 2
     launch_center = measurement["launch"]["x"] + measurement["launch"]["width"] / 2
@@ -304,6 +307,54 @@ def assert_hangar_interaction(page: Page, label: str) -> None:
     after_drag = page.evaluate("localStorage.getItem('preflight.instrumentHullView.v1')")
     if after_zoom == after_drag:
         raise RuntimeError(f"{label}: dragging the ship did not save its view")
+
+
+def assert_keyboard_controls(page: Page, label: str) -> None:
+    launch = page.get_by_role("button", name="Launch Starsector", exact=True)
+    launch.focus()
+    focus = launch.evaluate(
+        """element => ({
+          active: document.activeElement === element,
+          outlineWidth: getComputedStyle(element).outlineWidth,
+          outlineStyle: getComputedStyle(element).outlineStyle,
+        })"""
+    )
+    if not focus["active"] or focus["outlineStyle"] == "none" or focus["outlineWidth"] == "0px":
+        raise RuntimeError(f"{label}: Launch has no visible keyboard focus: {focus}")
+
+    page.get_by_role("button", name="Hangar", exact=True).click()
+    chooser = page.get_by_role("combobox", name="Display ship")
+    chooser.focus()
+    chooser.fill("Para")
+    results = page.get_by_role("listbox", name="Display ships")
+    results.wait_for()
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("Enter")
+    if not chooser.input_value().strip() or results.is_visible():
+        raise RuntimeError(f"{label}: the ship chooser did not complete a keyboard selection")
+
+    slider = page.get_by_role("slider", name="Ship zoom")
+    before = slider.input_value()
+    slider.focus()
+    page.keyboard.press("ArrowRight")
+    if slider.input_value() == before:
+        raise RuntimeError(f"{label}: Hangar slider ignored the keyboard")
+
+
+def install_long_content(page: Page) -> None:
+    page.evaluate(
+        """() => {
+          const replacements = {
+            '.home-launch-profile strong': 'Outer Rim Expedition With Every Faction And Several Extremely Long Mod Names Enabled',
+            '.home-launch-path__short': '/Volumes/Starsector Installations/Extremely Long Named Collection/Starsector.app',
+            '.home-ship-name': 'INTERNATIONALIZED EXPERIMENTAL COMMAND CARRIER',
+          };
+          for (const [selector, value] of Object.entries(replacements)) {
+            const element = document.querySelector(selector);
+            if (element) element.textContent = value;
+          }
+        }"""
+    )
 
 
 def assert_page_width(page: Page, label: str) -> dict[str, object]:
@@ -464,6 +515,12 @@ def render_contact_sheet(browser: Browser, output_dir: Path) -> None:
             f'<img src="{html.escape(filename)}" alt="Hangar at {html.escape(label)}"></figure>'
         )
         if width in PAGE_SWEEP_WIDTHS:
+            for state in ("long-content", "light"):
+                filename = f"home-{state}-{label}.png"
+                cards.append(
+                    f'<figure><figcaption>{html.escape(label)} · {html.escape(state)}</figcaption>'
+                    f'<img src="{html.escape(filename)}" alt="Home {html.escape(state)} at {html.escape(label)}"></figure>'
+                )
             for page_name in (*PRIMARY_PAGES, "Benchmark"):
                 slug = page_name.lower()
                 filename = f"page-{slug}-{label}.png"
@@ -599,6 +656,39 @@ def main() -> int:
                             raise RuntimeError(f"{label}: browser errors: {' | '.join(errors)}")
                     finally:
                         context.close()
+
+                    if width in PAGE_SWEEP_WIDTHS:
+                        context, page, errors = open_preview(browser, base_url, width, height)
+                        try:
+                            install_long_content(page)
+                            geometry[f"{label}-long-content"] = assert_home_geometry(page, f"{label} long content")
+                            geometry[f"{label}-long-content"]["page"] = assert_page_width(page, f"{label} long content")
+                            capture(page, args.output_dir, f"home-long-content-{label}.png")
+                            if errors:
+                                raise RuntimeError(f"{label} long content: browser errors: {' | '.join(errors)}")
+                        finally:
+                            context.close()
+
+                        context, page, errors = open_preview(browser, base_url, width, height)
+                        try:
+                            page.get_by_role("button", name="Use light theme").click()
+                            page.wait_for_function("document.documentElement.dataset.theme === 'light'")
+                            geometry[f"{label}-light"] = assert_home_geometry(page, f"{label} light")
+                            page.mouse.move(2, height - 2)
+                            capture(page, args.output_dir, f"home-light-{label}.png")
+                            if errors:
+                                raise RuntimeError(f"{label} light: browser errors: {' | '.join(errors)}")
+                        finally:
+                            context.close()
+
+                    if (width, height) == (1040, 700):
+                        context, page, errors = open_preview(browser, base_url, width, height)
+                        try:
+                            assert_keyboard_controls(page, f"{label} keyboard")
+                            if errors:
+                                raise RuntimeError(f"{label} keyboard: browser errors: {' | '.join(errors)}")
+                        finally:
+                            context.close()
 
                     for scenario in ("first-run", "low-disk"):
                         context, page, errors = open_preview(browser, base_url, width, height, scenario)

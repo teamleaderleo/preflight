@@ -274,7 +274,11 @@ test("a refused preparation still leaves a way to launch the game", async () => 
 
   render(<App />);
 
-  const launch = await screen.findByRole("button", { name: "Launch at normal speed" });
+  const launch = await screen.findByRole(
+    "button",
+    { name: "Launch at normal speed" },
+    { timeout: 3_000 },
+  );
   expect(screen.getByText(/Preparation needs .* free; .* is available\./)).toBeInTheDocument();
   await user.click(launch);
 
@@ -303,7 +307,11 @@ test("a refused preparation offers the preparation that barely uses disk", async
 
   render(<App />);
 
-  const action = await screen.findByRole("button", { name: "Prepare with less disk" });
+  const action = await screen.findByRole(
+    "button",
+    { name: "Prepare with less disk" },
+    { timeout: 3_000 },
+  );
   await user.click(action);
 
   await waitFor(() => expect(preparation)

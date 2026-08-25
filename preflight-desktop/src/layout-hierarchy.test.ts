@@ -110,7 +110,10 @@ test("settled Home anchors the launch action while secondary controls adapt arou
     /@container \(max-width: 1000px\)[\s\S]*?\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*bottom:\s*88px;[^}]*left:\s*50%;[^}]*transform:\s*translateX\(-50%\);/s,
   );
   expect(layoutStyles).toMatch(
-    /@container \(max-width: 640px\)[\s\S]*?\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*bottom:\s*14px;[^}]*grid-template-columns:\s*86px minmax\(0, 1fr\) 86px;/s,
+    /@container \(max-width: 640px\)[\s\S]*?\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*bottom:\s*14px;[^}]*grid-template-columns:\s*minmax\(0, 1fr\);/s,
+  );
+  expect(layoutStyles).toMatch(
+    /@container \(max-width: 640px\)[\s\S]*?\.launch-console--layout-settled \.launch-console__actions \.home-motion-controls\s*\{[^}]*position:\s*absolute;[^}]*right:\s*0;[^}]*bottom:\s*72px;/s,
   );
   expect(styles).toMatch(
     /\.home-motion-toggle\s*\{[^}]*flex:\s*0 0 44px;[^}]*width:\s*44px;/s,

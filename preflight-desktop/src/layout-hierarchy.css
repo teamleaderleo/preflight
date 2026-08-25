@@ -34,6 +34,7 @@
 /* Treat the selected installation as one centred caption. Earlier layers centred the profile name
  * while leaving the path at the far left, so the two lines looked unrelated. */
 .launch-console.launch-console--layout-preparation .home-launch-identity {
+  top: 72px;
   right: auto;
   left: 50%;
   align-items: center;
@@ -275,6 +276,20 @@
   }
 }
 
+@media (max-width: 600px) {
+  :is(.launch-console--layout-preparation, .launch-console--layout-active) .launch-console__actions {
+    grid-template-columns: minmax(260px, 340px);
+    justify-content: center;
+  }
+
+  :is(.launch-console--layout-preparation, .launch-console--layout-active) .launch-console__actions .button--launch,
+  :is(.launch-console--layout-preparation, .launch-console--layout-active) .launch-console__actions .launch-console__stop {
+    grid-column: 1;
+    justify-self: stretch;
+    width: 100%;
+  }
+}
+
 /* Settled Home has one composition. Hiding the ship removes the ship, picker, and motion button;
  * it never changes the field height or relocates the launch action. */
 .launch-console--layout-settled {
@@ -508,9 +523,20 @@
 
   .launch-console--layout-settled .launch-console__actions {
     bottom: 14px;
-    grid-template-columns: 86px minmax(0, 1fr) 86px;
+    grid-template-columns: minmax(0, 1fr);
     gap: 6px;
     width: calc(100% - 16px);
+  }
+
+  .launch-console--layout-settled .launch-console__actions .button--launch {
+    grid-column: 1;
+  }
+
+  .launch-console--layout-settled .launch-console__actions .home-motion-controls {
+    position: absolute;
+    right: 0;
+    bottom: 72px;
+    grid-column: 1;
   }
 
   .home-motion-controls {
@@ -529,9 +555,38 @@
   }
 }
 
+/* Once the sidebar becomes the compact top navigation, short windows have less vertical room than
+ * their viewport height suggests. Keep the settled controls inside that remaining field instead of
+ * preserving the roomy 500px desktop console and pushing Launch below the fold. */
+@media (max-width: 640px) and (max-height: 700px) {
+  .launch-console--layout-settled,
+  .launch-console--layout-settled .launch-console__primary {
+    min-height: 350px;
+  }
+
+  .launch-console--layout-settled .home-flight-instrument {
+    inset: 34px 0 0 !important;
+  }
+
+  .launch-console--layout-settled .home-launch-identity {
+    bottom: 136px;
+  }
+
+  .launch-console--layout-settled .home-ship-picker {
+    bottom: 82px;
+  }
+}
+
+@media (max-width: 640px) and (max-height: 600px) {
+  .launch-console--layout-settled,
+  .launch-console--layout-settled .launch-console__primary {
+    min-height: 320px;
+  }
+}
+
 @container (max-width: 430px) {
   .launch-console--layout-settled .launch-console__status-line {
-    left: 64px;
+    left: 104px;
   }
 
   .launch-console--layout-settled .home-playtime strong {

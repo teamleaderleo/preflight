@@ -143,6 +143,13 @@
 @media (max-width: 720px) {
   /* Preparation owns its compact note position directly; it sits above the 60px action block. */
   :root .launch-console.launch-console--layout-preparation.launch-console--ready .launch-console__note {
-    bottom: 82px;
+    bottom: 126px;
+  }
+}
+
+
+@media (max-width: 600px) {
+  :root .launch-console.launch-console--layout-preparation.launch-console--ready .launch-console__note {
+    bottom: 156px;
   }
 }
