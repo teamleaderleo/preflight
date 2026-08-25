@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -604,6 +604,26 @@ test("window focus never changes the quick game controls", async () => {
 
   expect(sound).toBeEnabled();
   expect(sound).toBeChecked();
+});
+
+test("window focus does not reveal and re-hide an idle Home HUD", async () => {
+  const { container } = render(<App />);
+  await screen.findByRole("heading", { name: "Ready", level: 1 });
+  const home = container.querySelector<HTMLElement>(".launch-console--layout-settled");
+  expect(home).not.toBeNull();
+
+  vi.useFakeTimers();
+  try {
+    fireEvent.pointerMove(home!);
+    act(() => vi.advanceTimersByTime(2200));
+    expect(home).toHaveClass("home-hud--idle");
+
+    fireEvent.blur(window);
+    fireEvent.focus(window);
+    expect(home).toHaveClass("home-hud--idle");
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("returning to the window does not re-read the installation while the game runs", async () => {

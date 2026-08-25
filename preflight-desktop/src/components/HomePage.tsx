@@ -233,30 +233,6 @@ export function HomePage({
     return clearHudTimer;
   }, [homeLayoutState, optionsOpen]);
   useEffect(() => {
-    const resumeHud = () => {
-      if (hudTimer.current !== null) window.clearTimeout(hudTimer.current);
-      document.documentElement.dataset.homeHud = "visible";
-      setHudVisible(true);
-      if (homeLayoutState === "settled" && !optionsOpen) {
-        hudTimer.current = window.setTimeout(() => {
-          setHudVisible(false);
-          hudTimer.current = null;
-        }, 2200);
-      }
-    };
-    const holdHudWhileInactive = () => {
-      clearHudTimer();
-      document.documentElement.dataset.homeHud = "visible";
-      setHudVisible(true);
-    };
-    window.addEventListener("focus", resumeHud);
-    window.addEventListener("blur", holdHudWhileInactive);
-    return () => {
-      window.removeEventListener("focus", resumeHud);
-      window.removeEventListener("blur", holdHudWhileInactive);
-    };
-  }, [homeLayoutState, optionsOpen]);
-  useEffect(() => {
     const root = document.documentElement;
     if (homeLayoutState === "settled") root.dataset.homeHud = hudVisible ? "visible" : "idle";
     else delete root.dataset.homeHud;
