@@ -225,7 +225,9 @@ frame-time tails, runtime cache health, a screenshot, and a bounded log tail. Th
 reload, or prove save compatibility. Those interactive scenarios use a platform driver and may
 require the operating system's automation permissions; they aren't part of the benchmark users run.
 Save/reload remains a human-operated check with a disposable save copy in
-`scripts/run-gameplay-pilot.sh`.
+`scripts/run-gameplay-pilot.sh`. Its create-once attestation binds the human result to the exact
+before/after save-boundary report, tested engine, source state, probe configuration, and process
+outcome instead of leaving a transferable yes/no note beside the run.
 
 The macOS command probes current Accessibility permission before attachment. Screen Recording is
 proved by the first bounded capture; a denial becomes `skipped`. Preflight's Info.plist explains the

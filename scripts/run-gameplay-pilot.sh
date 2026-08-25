@@ -55,7 +55,8 @@ fi
 
 JAR="$PWD/preflight-cli/target/preflight.jar"
 PREFLIGHT_STATE_ROOT="${STARSECTOR_PREFLIGHT_HOME:-$HOME/.starsector-preflight}"
-OUT="$PREFLIGHT_STATE_ROOT/runs/$LABEL-$(date +%Y%m%d-%H%M%S)"
+PILOT_RUNS_ROOT="$PREFLIGHT_STATE_ROOT/runs"
+OUT="$PILOT_RUNS_ROOT/$LABEL-$(date +%Y%m%d-%H%M%S)"
 SAVES_DIRECTORY="$GAME/saves"
 SAVE_GUARD="$PWD/scripts/save_state_guard.py"
 SAVE_STATE_BEFORE="$OUT/save-state-before.json"
@@ -172,7 +173,11 @@ if [[ "$save_confirmation" != "$DISPOSABLE_SAVE" ]]; then
     exit 2
 fi
 
-mkdir -p "$OUT"
+mkdir -p "$PILOT_RUNS_ROOT"
+mkdir "$OUT" || {
+    echo "Pilot directory already exists; choose another --label or wait for a new timestamp: $OUT" >&2
+    exit 1
+}
 python3 "$SAVE_GUARD" snapshot \
     --saves-dir "$SAVES_DIRECTORY" \
     --selected "$DISPOSABLE_SAVE" \
@@ -181,6 +186,9 @@ python3 "$SAVE_GUARD" snapshot \
 echo "Building the combined pilot..."
 mvn -q -DskipTests package
 [[ -f "$JAR" ]] || { echo "Runnable JAR was not produced: $JAR" >&2; exit 1; }
+PILOT_SOURCE_REVISION="$(git rev-parse HEAD)"
+PILOT_SOURCE_DIRTY=false
+[[ -n "$(git status --porcelain --untracked-files=normal)" ]] && PILOT_SOURCE_DIRTY=true
 
 LAUNCHER="$(java -jar "$JAR" doctor --game "$GAME" 2>/dev/null \
     | awk '/^Selected: /{print substr($0, 11); exit}')"
@@ -323,13 +331,32 @@ if [[ "$PILOT_STATUS" -eq 0 && "$SAVE_GUARD_STATUS" -eq 0 ]]; then
     read -r -p "If this save returned to the title screen, reloaded, resumed play, and exited normally, type SAVE RELOAD VERIFIED: " reload_confirmation || true
     [[ "$reload_confirmation" == "SAVE RELOAD VERIFIED" ]] && RELOAD_ATTESTED=true
 fi
-jq -n \
-    --arg selectedSave "$DISPOSABLE_SAVE" \
-    --arg statement "The named disposable save returned to the title screen, reloaded, resumed play, and exited normally." \
-    --arg recordedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    --argjson attested "$RELOAD_ATTESTED" \
-    '{format: "preflight-gameplay-pilot-operator-attestation-v1", selectedSave: $selectedSave, statement: $statement, attested: $attested, recordedAt: $recordedAt}' \
-    >"$OUT/operator-attestation.json"
+set +e
+python3 "$SAVE_GUARD" attest \
+    --before "$SAVE_STATE_BEFORE" \
+    --after "$SAVE_STATE_AFTER" \
+    --engine "$JAR" \
+    --selected "$DISPOSABLE_SAVE" \
+    --source-revision "$PILOT_SOURCE_REVISION" \
+    --source-dirty "$PILOT_SOURCE_DIRTY" \
+    --process-exit-status "$PILOT_STATUS" \
+    --reload-attested "$RELOAD_ATTESTED" \
+    --recorded-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --startup-caches "$STARTUP_CACHES" \
+    --gameplay-caches "$GAMEPLAY_CACHES" \
+    --safer-jvm "$SAFER_JVM" \
+    --audio-repair "$AUDIO_REPAIR" \
+    --profile "$PROFILE" \
+    --adapter "$ADAPTER" \
+    --disabled-plans "$DISABLED_PLANS" \
+    --output "$OUT/operator-attestation.json"
+ATTESTATION_STATUS=$?
+set -e
+if [[ "$ATTESTATION_STATUS" -ne 0 ]]; then
+    echo "The save/reload attestation could not be bound to this pilot's evidence." >&2
+else
+    echo "Bound save/reload attestation: $OUT/operator-attestation.json"
+fi
 if [[ "$RELOAD_ATTESTED" != true ]]; then
     echo "Save/reload/resume was not attested; this pilot is not complete lifecycle evidence." >&2
 fi
@@ -341,5 +368,8 @@ if [[ "$FINAL_STATUS" -eq 0 && "$SAVE_GUARD_STATUS" -ne 0 ]]; then
 fi
 if [[ "$FINAL_STATUS" -eq 0 && "$RELOAD_ATTESTED" != true ]]; then
     FINAL_STATUS=1
+fi
+if [[ "$FINAL_STATUS" -eq 0 && "$ATTESTATION_STATUS" -ne 0 ]]; then
+    FINAL_STATUS="$ATTESTATION_STATUS"
 fi
 exit "$FINAL_STATUS"

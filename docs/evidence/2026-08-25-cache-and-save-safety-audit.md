@@ -53,10 +53,15 @@ title screen, reload, resume play, and exit normally.
 The pilot now binds that instruction to one exact campaign directory before it launches. It hashes
 the complete contents of every `save_*` campaign without following symlinks, then rejects the run
 unless the named disposable copy changed and every sibling campaign stayed byte-identical. Global
-mod state under `saves/common` is outside that comparison and is labeled as such. A second, separate
-operator attestation records whether the changed copy returned to the title screen, reloaded,
-resumed play, and exited normally. Neither check edits a save. The content comparison proves the
-write boundary; the human interaction still establishes whether the selected copy remained usable.
+mod state under `saves/common` is outside that comparison and is labeled as such. The pilot directory
+is create-once. Its separate operator attestation records whether the changed copy returned to the
+title screen, reloaded, resumed play, and exited normally, then binds that statement to the exact
+before/after report bytes, tested engine JAR, source revision and dirty state, probe configuration,
+and process exit status. Stable regular-file reads prevent the evidence from changing between
+validation and hashing. The receipt cannot be complete unless the process succeeded, the save
+boundary was accepted, and the operator supplied the exact reload/resume confirmation. Neither
+check edits a save. The content comparison proves the write boundary; the human interaction still
+establishes whether the selected copy remained usable.
 
 That run can show that one reviewed profile completes the lifecycle. It cannot prove every possible
 mod's serialization behavior. The structural protection remains that prepared caches are never

@@ -23,8 +23,10 @@ GENERATED_PATHS = (
     "preflight-desktop/.ui-matrix",
     "preflight-desktop/desktop-dist",
     "preflight-desktop/node_modules/.preflight-ui-layout",
+    "preflight-desktop/scripts/__pycache__",
     "preflight-desktop/src-tauri/target",
     "report-intake/dist",
+    "scripts/__pycache__",
 )
 
 

@@ -22,6 +22,10 @@ class SelectionTest(unittest.TestCase):
             prune.GENERATED_PATHS,
         )
 
+    def test_python_operator_bytecode_is_generated_output(self):
+        self.assertIn("scripts/__pycache__", prune.GENERATED_PATHS)
+        self.assertIn("preflight-desktop/scripts/__pycache__", prune.GENERATED_PATHS)
+
     def build(
         self,
         name: str,

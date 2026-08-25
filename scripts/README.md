@@ -49,8 +49,8 @@ from launch time. Phase-probe time also uses a different clock and cannot be com
 
 | | |
 |---|---|
-| `run-gameplay-pilot.sh --disposable-save DIRECTORY [--game DIR] [--label NAME]` | One campaign/save/combat pilot with every beta probe on. Needs a human and a named disposable save copy: roam through warm-up and steady state, fight a three-to-five-minute simulation, save, return to the title screen, reload, resume play, and exit normally. Exact-content snapshots require that the selected copy changed and every sibling campaign stayed unchanged; a separate operator attestation records the reload/resume result. Reports which exact adapters applied and what their paths cost. |
-| `save_state_guard.py` | Exact-content before/after guard used by the gameplay pilot. It hashes every `save_*` campaign without following symlinks, excludes global `saves/common` mod state, accepts only a changed selected copy with byte-identical siblings, and does not edit the saves it checks. |
+| `run-gameplay-pilot.sh --disposable-save DIRECTORY [--game DIR] [--label NAME]` | One campaign/save/combat pilot with every beta probe on. Needs a human and a named disposable save copy: roam through warm-up and steady state, fight a three-to-five-minute simulation, save, return to the title screen, reload, resume play, and exit normally. Exact-content snapshots require that the selected copy changed and every sibling campaign stayed unchanged. The create-once operator attestation binds that result to the exact snapshots, engine JAR, source state, probe configuration, and process outcome; it cannot report a complete lifecycle unless all machine checks and the human reload/resume check pass. Reports which exact adapters applied and what their paths cost. |
+| `save_state_guard.py` | Exact-content before/after guard and evidence binder used by the gameplay pilot. It hashes every `save_*` campaign without following symlinks, excludes global `saves/common` mod state, accepts only a changed selected copy with byte-identical siblings, and does not edit the saves it checks. Evidence files are read through stable regular-file identities before their exact bytes are hashed into the operator attestation. |
 
 ## Read what a launch produced
 
@@ -75,7 +75,7 @@ from launch time. Phase-probe time also uses a different clock and cannot be com
 
 | | |
 |---|---|
-| `prune_local_build_outputs.py` | Preview rebuildable Maven, Rust, frontend, UI-matrix, and package outputs across this repository's registered worktrees. The current worktree and anything less than 24 hours old are retained; older completed build sets are removed unless `--keep-completed` explicitly reserves them, and even reserved sets expire after 72 hours. Old generated output may be removed from dirty worktrees without touching source changes. After committing a verified wave, `--retire-current` can include that clean worktree immediately. Pass `--apply` only after reviewing the plan. |
+| `prune_local_build_outputs.py` | Preview rebuildable Maven, Rust, frontend, UI-matrix, package, and operator-script bytecode outputs across this repository's registered worktrees. The current worktree and anything less than 24 hours old are retained; older completed build sets are removed unless `--keep-completed` explicitly reserves them, and even reserved sets expire after 72 hours. Old generated output may be removed from dirty worktrees without touching source changes. After committing a verified wave, `--retire-current` can include that clean worktree immediately. Pass `--apply` only after reviewing the plan. |
 
 Run this after an experiment or review wave finishes. Exact release evidence belongs in its reviewed
 artifact/evidence location; an old `target/` or `desktop-dist/` directory is not durable evidence.

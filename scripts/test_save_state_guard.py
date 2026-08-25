@@ -1,4 +1,7 @@
+import contextlib
+import hashlib
 import importlib.util
+import io
 import json
 import os
 import sys
@@ -108,9 +111,213 @@ class SaveStateGuardTest(unittest.TestCase):
             module.snapshot(self.saves, self.selected.name)
 
     def test_selected_save_must_be_one_starsector_directory_name(self):
-        for value in ("", ".", "..", "save_Disposable/campaign.xml", "Disposable"):
+        for value in (
+                "", ".", "..", "save_Disposable/campaign.xml", "Disposable", "save_" + "x" * 251
+        ):
             with self.subTest(value=value), self.assertRaises(module.GuardError):
                 module.snapshot(self.saves, value)
+
+    def test_pilot_attestation_binds_the_exact_save_boundary_engine_source_and_configuration(self):
+        before = self.snapshot_file()
+        (self.selected / "campaign.xml").write_text("after", encoding="utf-8")
+        after = Path(self.temporary.name) / "after.json"
+        after.write_text(json.dumps(module.compare(before, self.saves)), encoding="utf-8")
+        engine = Path(self.temporary.name) / "preflight.jar"
+        engine.write_bytes(b"exact tested engine")
+
+        result = module.pilot_attestation(
+            before_path=before,
+            after_path=after,
+            engine_path=engine,
+            selected_save=self.selected.name,
+            source_revision="ab" * 20,
+            source_dirty=False,
+            process_exit_status=0,
+            reload_attested=True,
+            recorded_at="2026-08-26T04:30:00Z",
+            configuration=self.configuration(),
+        )
+
+        self.assertTrue(result["complete"])
+        self.assertTrue(result["attested"])
+        self.assertEqual("ab" * 20, result["source"]["revision"])
+        self.assertEqual(hashlib.sha256(engine.read_bytes()).hexdigest(), result["engineJar"]["sha256"])
+        self.assertEqual(hashlib.sha256(after.read_bytes()).hexdigest(), result["evidence"]["saveStateAfter"]["sha256"])
+        self.assertTrue(result["evidence"]["saveBoundaryAccepted"])
+        self.assertEqual(self.configuration(), result["configuration"])
+        self.assertEqual([], result["reasons"])
+
+    def test_pilot_attestation_cannot_claim_reload_over_a_failed_run_or_boundary(self):
+        before = self.snapshot_file()
+        after = Path(self.temporary.name) / "after.json"
+        after.write_text(json.dumps(module.compare(before, self.saves)), encoding="utf-8")
+        engine = Path(self.temporary.name) / "preflight.jar"
+        engine.write_bytes(b"engine")
+
+        with self.assertRaisesRegex(module.GuardError, "cannot be attested"):
+            module.pilot_attestation(
+                before_path=before,
+                after_path=after,
+                engine_path=engine,
+                selected_save=self.selected.name,
+                source_revision="cd" * 20,
+                source_dirty=True,
+                process_exit_status=1,
+                reload_attested=True,
+                recorded_at="2026-08-26T04:31:00Z",
+                configuration=self.configuration(),
+            )
+
+    def test_pilot_attestation_rejects_a_comparison_from_another_before_snapshot(self):
+        before = self.snapshot_file()
+        (self.selected / "campaign.xml").write_text("after", encoding="utf-8")
+        comparison = module.compare(before, self.saves)
+        comparison["before"] = {}
+        after = Path(self.temporary.name) / "after.json"
+        after.write_text(json.dumps(comparison), encoding="utf-8")
+        engine = Path(self.temporary.name) / "preflight.jar"
+        engine.write_bytes(b"engine")
+
+        with self.assertRaisesRegex(module.GuardError, "does not derive"):
+            module.pilot_attestation(
+                before_path=before,
+                after_path=after,
+                engine_path=engine,
+                selected_save=self.selected.name,
+                source_revision="34" * 20,
+                source_dirty=False,
+                process_exit_status=0,
+                reload_attested=True,
+                recorded_at="2026-08-26T04:31:30Z",
+                configuration=self.configuration(),
+            )
+
+    def test_pilot_attestation_rejects_an_impossible_timestamp(self):
+        before = self.snapshot_file()
+        engine = Path(self.temporary.name) / "preflight.jar"
+        engine.write_bytes(b"engine")
+
+        with self.assertRaisesRegex(module.GuardError, "UTC second timestamp"):
+            module.pilot_attestation(
+                before_path=before,
+                after_path=Path(self.temporary.name) / "missing.json",
+                engine_path=engine,
+                selected_save=self.selected.name,
+                source_revision="78" * 20,
+                source_dirty=False,
+                process_exit_status=0,
+                reload_attested=False,
+                recorded_at="2026-99-99T04:35:00Z",
+                configuration=self.configuration(),
+            )
+
+    def test_incomplete_pilot_attestation_records_a_missing_comparison(self):
+        before = self.snapshot_file()
+        engine = Path(self.temporary.name) / "preflight.jar"
+        engine.write_bytes(b"engine")
+
+        result = module.pilot_attestation(
+            before_path=before,
+            after_path=Path(self.temporary.name) / "missing.json",
+            engine_path=engine,
+            selected_save=self.selected.name,
+            source_revision="ef" * 20,
+            source_dirty=False,
+            process_exit_status=0,
+            reload_attested=False,
+            recorded_at="2026-08-26T04:32:00Z",
+            configuration=self.configuration(),
+        )
+
+        self.assertFalse(result["complete"])
+        self.assertIsNone(result["evidence"]["saveStateAfter"])
+        self.assertIn("the save-state comparison was not produced", result["reasons"])
+
+    def test_pilot_attestation_refuses_linked_or_replaceable_evidence(self):
+        before = self.snapshot_file()
+        linked = Path(self.temporary.name) / "linked-before.json"
+        try:
+            os.link(before, linked)
+        except OSError as error:
+            self.skipTest(f"hard links unavailable: {error}")
+        engine = Path(self.temporary.name) / "preflight.jar"
+        engine.write_bytes(b"engine")
+
+        with self.assertRaisesRegex(module.GuardError, "hard-linked"):
+            module.pilot_attestation(
+                before_path=linked,
+                after_path=Path(self.temporary.name) / "missing.json",
+                engine_path=engine,
+                selected_save=self.selected.name,
+                source_revision="12" * 20,
+                source_dirty=False,
+                process_exit_status=0,
+                reload_attested=False,
+                recorded_at="2026-08-26T04:33:00Z",
+                configuration=self.configuration(),
+            )
+
+    def test_operator_attestation_is_create_once(self):
+        output = Path(self.temporary.name) / "operator-attestation.json"
+        module._write_json_once(output, {"complete": False})
+
+        with self.assertRaises(FileExistsError):
+            module._write_json_once(output, {"complete": True})
+        self.assertEqual({"complete": False}, json.loads(output.read_text(encoding="utf-8")))
+
+    def test_bounded_evidence_digest_refuses_growth_past_its_ceiling(self):
+        evidence = Path(self.temporary.name) / "evidence.bin"
+        evidence.write_bytes(b"four")
+
+        with self.assertRaisesRegex(module.GuardError, "exceeds 3 bytes"):
+            module._stable_file_digest(
+                evidence, maximum_bytes=3, label="test evidence"
+            )
+
+    def test_attest_command_writes_one_complete_bound_receipt(self):
+        before = self.snapshot_file()
+        (self.selected / "campaign.xml").write_text("after", encoding="utf-8")
+        after = Path(self.temporary.name) / "after.json"
+        after.write_text(json.dumps(module.compare(before, self.saves)), encoding="utf-8")
+        engine = Path(self.temporary.name) / "preflight.jar"
+        engine.write_bytes(b"engine")
+        output = Path(self.temporary.name) / "operator-attestation.json"
+        arguments = [
+            "attest",
+            "--before", str(before),
+            "--after", str(after),
+            "--engine", str(engine),
+            "--selected", self.selected.name,
+            "--source-revision", "56" * 20,
+            "--source-dirty", "false",
+            "--process-exit-status", "0",
+            "--reload-attested", "true",
+            "--recorded-at", "2026-08-26T04:34:00Z",
+            "--startup-caches", "true",
+            "--gameplay-caches", "true",
+            "--safer-jvm", "false",
+            "--audio-repair", "true",
+            "--profile", "true",
+            "--adapter", "true",
+            "--disabled-plans", "",
+            "--output", str(output),
+        ]
+
+        self.assertEqual(0, module.main(arguments))
+        self.assertTrue(json.loads(output.read_text(encoding="utf-8"))["complete"])
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(2, module.main(arguments))
+
+    def configuration(self):
+        return {
+            "startupCaches": True,
+            "gameplayCaches": True,
+            "saferJvm": False,
+            "audioRepair": True,
+            "profile": True,
+            "adapter": True,
+            "disabledPlans": "",
+        }
 
     def snapshot_file(self):
         path = Path(self.temporary.name) / "before.json"
