@@ -388,7 +388,12 @@ final class CacheHealth {
 
     private static Path canonicalCacheRoot(Path path) throws IOException {
         Path absolute = path.toAbsolutePath().normalize();
-        return exists(absolute) ? absolute.toRealPath() : absolute;
+        if (!exists(absolute)) return absolute;
+        if (Files.isSymbolicLink(absolute)
+                || !Files.isDirectory(absolute, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("cache root isn't a real directory: " + absolute);
+        }
+        return absolute.toRealPath();
     }
 
     private static void requireSafeArtifactPaths(Path root, Path... paths) throws IOException {

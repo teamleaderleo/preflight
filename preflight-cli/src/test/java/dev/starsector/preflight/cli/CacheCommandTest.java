@@ -243,6 +243,29 @@ class CacheCommandTest {
     }
 
     @Test
+    void cacheRepairRefusesASymlinkedRootAndPreservesTheOutsideFile() throws Exception {
+        PreflightHome home = PreflightHome.resolve(Platform.OTHER, directory, Map.of());
+        String profile = "f".repeat(64);
+        Path outside = directory.resolve("outside-cache");
+        Path externalManifest = TextureManifestIO.directory(outside).resolve(profile + ".spfm");
+        Files.createDirectories(externalManifest.getParent());
+        Files.writeString(externalManifest, "outside data must survive");
+        Files.createDirectories(home.cache().getParent());
+        try {
+            Files.createSymbolicLink(home.cache(), outside);
+        } catch (UnsupportedOperationException | SecurityException | java.io.IOException error) {
+            assumeTrue(false, "Symbolic links aren't available in this test environment: " + error);
+        }
+
+        CacheHealth.Report report = CacheHealth.inspect(home, profile);
+        assertEquals("unsafe", report.status());
+        CacheHealth.Repair repair = CacheHealth.repair(home, profile, true);
+        assertFalse(repair.safe());
+        assertFalse(repair.applied());
+        assertEquals("outside data must survive", Files.readString(externalManifest));
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void jsonReportIsAStableMachineReadableStorageAndProfileSnapshot() throws Exception {
         PreflightHome home = PreflightHome.resolve(Platform.MAC, directory, Map.of());

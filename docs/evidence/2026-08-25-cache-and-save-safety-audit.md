@@ -21,6 +21,23 @@ This is a containment argument, not a promise that every future game/mod combina
 The remaining confidence comes from exact-target tests, installed-archive transforms, live adapter
 health, and save/reload exercises.
 
+## Repair stays inside Preflight's owned profile
+
+The desktop repair action does not accept a cache path from the renderer. It sends the canonical
+game installation and the profile fingerprint that the read-only health check just reported. The
+engine acquires the ordinary mutation lease, derives the current installation and ordered-mod
+identity again, and refuses the operation if that fingerprint changed. It then considers only the
+fixed prepared-artifact names for that exact fingerprint; another profile's metadata and shared
+content are not repair targets.
+
+The filesystem boundary also fails closed. A symbolic cache root, a symbolic prepared-data
+namespace, or a non-directory cache root produces an unsafe health result and no deletion. Repair
+rechecks target presence and type before removal, then inspects the remaining profile again before
+reporting success. Regression coverage places damaged-looking prepared metadata behind both a
+namespace symlink and a cache-root symlink and verifies that the outside files survive. Separate
+coverage keeps another profile and shared content byte-identical while the damaged current profile
+is repaired.
+
 ## Texture source identity gap
 
 Current `main` rebuilds the texture resource index before launch and matches source provider path,
