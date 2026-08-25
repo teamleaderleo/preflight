@@ -96,9 +96,8 @@ unchanged commodity calls.
 The retained optimized campaign session also measured the rough period after loading instead of
 guessing from a log. Its first 30 seconds averaged **46.10 FPS** with a **9.15 FPS one-percent low**;
 the next 4,091 campaign frames averaged **55.47 FPS** with a **20.45 FPS one-percent low**. That is a
-**2.2×** increase in the one-percent low after initial catch-up.
-Both slices use the same Preflight build and the same run.
-This is a warm-up-versus-settled observation, not an implementation A/B.
+**2.2×** increase in the one-percent low after initial catch-up. The two rows are early and later
+slices of the same Preflight run, not an implementation A/B.
 
 The deeper technical record is in [Engineering overview](engineering-overview.md),
 [Optimization history](optimization-history.md), and the [Experiment ledger](experiment-ledger.md).
@@ -115,8 +114,9 @@ Those records remain in the repository.
 
 ## Support and updates
 
-**Copy setup** produces a compact support summary. A separate support ZIP shows what it contains
-before sending, and the first beta sends one only when you press Send.
+**Copy setup** and **Save setup summary** produce the same compact public support text. Saving creates
+a new `.txt` file and never replaces one. A separate support ZIP shows what it contains before
+sending, and the first beta sends one only when you press Send.
 
 Supported in-app updates use the project's updater signing key. The release process exercises
 installation, update, rollback, and removal against the package set.

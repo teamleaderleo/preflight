@@ -101,8 +101,9 @@ See [Known limitations](known-limitations.md) for the complete list.
 
 ## Support and reporting
 
-**Copy setup** produces a compact support summary. Help can create a separate support ZIP and show
-what it contains before sending. The first beta sends one only when you press Send.
+**Copy setup** and **Save setup summary** produce the same compact public support text. Saving creates
+a new `.txt` file and never replaces one. Help can create a separate support ZIP and show what it
+contains before sending. The first beta sends one only when you press Send.
 
 Fill these from the accepted packaged run:
 
@@ -134,8 +135,8 @@ Fill it only from the frozen candidate.
 - **Storage planning and recovery.** See the preparation requirement before writing, stop safely, and
   repair damaged prepared data.
 - **Setup checks and mod linting.** Inspect dependency/setup problems and measurable asset/config costs.
-- **Support and updates.** Copy a setup summary, review a deeper support ZIP before sending it, and use
-  signed desktop updates.
+- **Support and updates.** Copy or save a setup summary, review a deeper support ZIP before sending
+  it, and use signed desktop updates.
 - **Hangar.** Generate wireframe ships from the installed hull catalog and sprites.
 - **CLI.** `doctor`, `scan`, `--dry-run`, explicit launcher selection, and the same Java engine as the desktop.
 

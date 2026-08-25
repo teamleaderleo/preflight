@@ -500,10 +500,10 @@
       ],
       "publicationAssertions": {
         "README.md": [
-          "Both slices use the same Preflight build and the same run."
+          "same Preflight run, not an implementation A/B."
         ],
         "docs/beta-announcement-draft.md": [
-          "Both slices use the same Preflight build and the same run."
+          "same Preflight run, not an implementation A/B."
         ]
       },
       "evidence": "docs/evidence/2026-08-05-campaign-engine-call-times.md",

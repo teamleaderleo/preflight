@@ -85,7 +85,7 @@ Useful line:
 Use behavior:
 
 - ordinary launches upload no logs or telemetry;
-- **Copy setup** produces a small support summary;
+- **Copy setup** and **Save setup summary** produce the same small public support summary;
 - the deeper support ZIP has a fixed inclusion/exclusion contract;
 - the app shows the support file before sending;
 - sending is an explicit action;
@@ -95,6 +95,9 @@ Use behavior:
 Useful line:
 
 > The first beta sends a support file only when you press Send.
+
+> Copy the public setup summary, or save the same text to a new file that Preflight will not
+> overwrite.
 
 ## Hooks for a mod author
 

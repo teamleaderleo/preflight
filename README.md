@@ -122,9 +122,8 @@ and [From three-minute preparation to fourteen-second launches](docs/evidence/20
 Campaign play was measured separately. In one retained optimized 83-mod session, the first 30
 seconds after loading averaged **46.10 FPS** with a **9.15 FPS one-percent low**. After that initial
 catch-up, the remaining 4,091 campaign frames averaged **55.47 FPS** with a **20.45 FPS
-one-percent low** — a **2.2×** increase in the one-percent low within that session. This is a
-warm-up-versus-settled observation, not an implementation A/B.
-Both slices use the same Preflight build and the same run.
+one-percent low** — a **2.2×** increase in the one-percent low within that session. The two rows are
+early and later slices of the same Preflight run, not an implementation A/B.
 The frame-time distribution and route are retained in the [campaign engine report](docs/evidence/2026-08-05-campaign-engine-call-times.md).
 
 The first public beta still needs its benchmark run against the exact accepted package bytes. That
@@ -412,8 +411,9 @@ experiment without changing the active game profile or duplicating mods, saves, 
 The local play-history ledger can be exported as a versioned JSON document with an optional
 spreadsheet-safe CSV view.
 
-Diagnostics are managed independently from acceleration data. **Copy setup** produces a compact
-privacy-safe summary for ordinary support and is also available directly from failed-run recovery.
+Diagnostics are managed independently from acceleration data. **Copy setup** and **Save setup
+summary** produce the same compact privacy-safe text for ordinary support; Copy setup is also
+available directly from failed-run recovery.
 The separate ZIP export includes only allowlisted text metadata from recent runs and benchmarks,
 with an in-ZIP disclosure that names every included or skipped file.
 
