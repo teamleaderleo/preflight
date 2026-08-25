@@ -10,7 +10,7 @@ Preflight, software, and whatever comes next.
 
 ## About
 
-I make software and other things.
+I make stuff. Stuff... becomes more stuff.
 
 Right now, most of my public work is going into Preflight, a free and open-source fast launcher for
 Starsector.
