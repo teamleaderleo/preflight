@@ -69,10 +69,12 @@ from launch time. Phase-probe time also uses a different clock and cannot be com
 
 | | |
 |---|---|
-| `prune_local_build_outputs.py` | Preview rebuildable Maven, Rust, frontend, UI-matrix, and package outputs across this repository's registered worktrees. The current worktree, the newest completed build set, and anything less than 24 hours old are retained; old generated output may be removed from dirty worktrees without touching their source changes. Pass `--apply` after reviewing the plan. |
+| `prune_local_build_outputs.py` | Preview rebuildable Maven, Rust, frontend, UI-matrix, and package outputs across this repository's registered worktrees. The current worktree, the newest completed build set, and anything less than 24 hours old are retained; old generated output may be removed from dirty worktrees without touching their source changes. After committing a verified wave, `--retire-current` can include that clean worktree immediately. Pass `--apply` only after reviewing the plan. |
 
 Run this after an experiment or review wave finishes. Exact release evidence belongs in its reviewed
 artifact/evidence location; an old `target/` or `desktop-dist/` directory is not durable evidence.
+`--retire-current` bypasses the age and newest-build-set floors only for the current worktree, and
+refuses to act there while Git reports source changes.
 
 ## Guards that fail closed
 

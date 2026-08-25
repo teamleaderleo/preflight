@@ -67,6 +67,30 @@ class SelectionTest(unittest.TestCase):
         )[0]
         self.assertEqual("keep", decision.action)
 
+    def test_explicit_retirement_removes_clean_current_output_without_waiting(self):
+        decision = prune.choose_build_sets(
+            [self.build("current", 0, current=True)],
+            now=1_000_000.0,
+            keep_completed=1,
+            minimum_age_hours=24,
+            retire_current=True,
+        )[0]
+
+        self.assertEqual("remove", decision.action)
+        self.assertEqual("explicitly retiring clean current worktree", decision.reason)
+
+    def test_explicit_retirement_keeps_a_current_worktree_with_source_changes(self):
+        decision = prune.choose_build_sets(
+            [self.build("current", 100, current=True, dirty=True)],
+            now=1_000_000.0,
+            keep_completed=0,
+            minimum_age_hours=0,
+            retire_current=True,
+        )[0]
+
+        self.assertEqual("keep", decision.action)
+        self.assertEqual("current worktree has source changes", decision.reason)
+
     def test_age_boundary_is_fail_safe(self):
         now = 1_000_000.0
         decision = prune.choose_build_sets(

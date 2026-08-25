@@ -124,6 +124,7 @@ def choose_build_sets(
     now: float,
     keep_completed: int,
     minimum_age_hours: float,
+    retire_current: bool = False,
 ) -> list[Decision]:
     if keep_completed < 0:
         raise ValueError("keep_completed must not be negative")
@@ -141,7 +142,12 @@ def choose_build_sets(
     for build in sorted(builds, key=lambda candidate: str(candidate.root)):
         age_hours = max(0.0, now - build.newest_mtime) / 3600
         if build.current:
-            decisions.append(Decision(build, "keep", "current worktree"))
+            if retire_current and build.dirty:
+                decisions.append(Decision(build, "keep", "current worktree has source changes"))
+            elif retire_current:
+                decisions.append(Decision(build, "remove", "explicitly retiring clean current worktree"))
+            else:
+                decisions.append(Decision(build, "keep", "current worktree"))
         elif build.root in retained:
             decisions.append(Decision(build, "keep", "newest completed build set"))
         elif now - build.newest_mtime < minimum_age_seconds:
@@ -170,7 +176,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Remove rebuildable Maven, Rust, frontend, and package outputs from old registered "
-            "worktrees. The current worktree is always retained; source changes are never removed."
+            "worktrees. The current worktree is retained unless explicitly retired after its "
+            "source is clean; source changes are never removed."
         )
     )
     parser.add_argument(
@@ -190,6 +197,14 @@ def parse_args() -> argparse.Namespace:
         default=24,
         help="never remove build sets younger than this (default: 24)",
     )
+    parser.add_argument(
+        "--retire-current",
+        action="store_true",
+        help=(
+            "include generated output from the current worktree once its source tree is clean; "
+            "this explicit retirement is not subject to the age or completed-set retention floor"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -202,6 +217,7 @@ def main() -> int:
             now=time.time(),
             keep_completed=args.keep_completed,
             minimum_age_hours=args.minimum_age_hours,
+            retire_current=args.retire_current,
         )
         removed_outputs = 0
         removed_bytes = 0
