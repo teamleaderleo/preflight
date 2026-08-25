@@ -25,6 +25,38 @@ class SelectionTest(unittest.TestCase):
     def test_python_operator_bytecode_is_generated_output(self):
         self.assertIn("scripts/__pycache__", prune.GENERATED_PATHS)
         self.assertIn("preflight-desktop/scripts/__pycache__", prune.GENERATED_PATHS)
+        self.assertIn("probe-kits/gpu-capability/__pycache__", prune.GENERATED_PATHS)
+        self.assertIn("docs/design/hangar-light/__pycache__", prune.GENERATED_PATHS)
+
+    def test_duplicate_dependencies_are_bounded_only_outside_the_current_worktree(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            current = base / "current"
+            sibling = base / "sibling"
+            current_dependencies = current / "preflight-desktop" / "node_modules"
+            sibling_dependencies = sibling / "preflight-desktop" / "node_modules"
+            current_dependencies.mkdir(parents=True)
+            sibling_dependencies.mkdir(parents=True)
+            current_isolated_runtime = current_dependencies / ".preflight-ui-layout"
+            current_isolated_runtime.mkdir()
+
+            self.assertNotIn(current_dependencies, prune.rebuildable_outputs(current, current))
+            self.assertIn(current_isolated_runtime, prune.rebuildable_outputs(current, current))
+            self.assertIn(sibling_dependencies, prune.rebuildable_outputs(sibling, current))
+
+    def test_parent_dependency_tree_replaces_nested_generated_output(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            current = base / "current"
+            sibling = base / "sibling"
+            dependency_tree = sibling / "preflight-desktop" / "node_modules"
+            nested_output = dependency_tree / ".preflight-ui-layout"
+            nested_output.mkdir(parents=True)
+
+            outputs = prune.rebuildable_outputs(sibling, current)
+
+            self.assertIn(dependency_tree, outputs)
+            self.assertNotIn(nested_output, outputs)
 
     def build(
         self,

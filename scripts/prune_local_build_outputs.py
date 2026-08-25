@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bound generated binaries across this repository's local Git worktrees."""
+"""Bound generated binaries and duplicate dependencies across local Git worktrees."""
 
 from __future__ import annotations
 
@@ -25,8 +25,19 @@ GENERATED_PATHS = (
     "preflight-desktop/node_modules/.preflight-ui-layout",
     "preflight-desktop/scripts/__pycache__",
     "preflight-desktop/src-tauri/target",
+    "docs/design/hangar-light/__pycache__",
+    "probe-kits/gpu-capability/__pycache__",
     "report-intake/dist",
     "scripts/__pycache__",
+)
+
+# Dependency installs are large but useful in the worktree doing the current verification. Retire
+# them from old sibling worktrees under the same age policy without making every completed slice
+# reinstall its own dependencies.
+NON_CURRENT_DEPENDENCY_PATHS = (
+    "node_modules",
+    "preflight-desktop/node_modules",
+    "report-intake/node_modules",
 )
 
 
@@ -89,6 +100,22 @@ def output_metrics(path: Path) -> tuple[int, float]:
     return total, newest_mtime
 
 
+def rebuildable_outputs(root: Path, current_root: Path) -> tuple[Path, ...]:
+    relative_paths = GENERATED_PATHS
+    if root != current_root:
+        relative_paths += NON_CURRENT_DEPENDENCY_PATHS
+    candidates = sorted(
+        (root / relative for relative in relative_paths if (root / relative).exists()),
+        key=lambda candidate: (len(candidate.parts), str(candidate)),
+    )
+    outputs: list[Path] = []
+    for candidate in candidates:
+        if any(parent == candidate or parent in candidate.parents for parent in outputs):
+            continue
+        outputs.append(candidate)
+    return tuple(outputs)
+
+
 def format_bytes(total: int) -> str:
     value = float(total)
     for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
@@ -101,7 +128,7 @@ def format_bytes(total: int) -> str:
 def discover_build_sets(current_root: Path) -> list[BuildSet]:
     builds = []
     for root in registered_worktrees():
-        outputs = tuple(root / relative for relative in GENERATED_PATHS if (root / relative).exists())
+        outputs = rebuildable_outputs(root, current_root)
         if not outputs:
             continue
         symlinks = [path for path in outputs if path.is_symlink()]
@@ -192,9 +219,10 @@ def remove_outputs(build: BuildSet) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Remove rebuildable Maven, Rust, frontend, and package outputs from old registered "
-            "worktrees. The current worktree is retained unless explicitly retired after its "
-            "source is clean; source changes are never removed."
+            "Remove rebuildable Maven, Rust, frontend, package, and duplicate dependency outputs "
+            "from old registered worktrees. Dependencies in the current worktree are always "
+            "retained; its other outputs are retained unless explicitly retired after its source "
+            "is clean. Source changes are never removed."
         )
     )
     parser.add_argument(
