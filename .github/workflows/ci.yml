@@ -92,6 +92,8 @@ jobs:
           python3 scripts/test_desktop_ci_scope.py
           python3 -m py_compile scripts/repository_ci_scope.py scripts/test_repository_ci_scope.py
           python3 scripts/test_repository_ci_scope.py
+          python3 -m py_compile scripts/prune_local_build_outputs.py scripts/test_prune_local_build_outputs.py
+          python3 scripts/test_prune_local_build_outputs.py
           bash -n scripts/run-startup-benchmark.sh
           python3 scripts/test_startup_benchmark.py
           python3 -m py_compile scripts/starsector_log_load_times.py

@@ -56,6 +56,16 @@ Start with [LLM_HANDOFF.md](LLM_HANDOFF.md) for current project state. These are
 - Source review and jsdom tests are not visual acceptance.
 - Preserve the product's design language unless the maintainer chooses a departure.
 
+## Retire generated binaries after a worktree slice
+
+Rust and Maven outputs multiply by gigabytes when every experiment keeps its own `target/` tree.
+Before handing off a completed local worktree wave, run `python3 scripts/prune_local_build_outputs.py`
+and review the plan; use `--apply` when it names only rebuildable outputs from completed worktrees.
+The command always keeps the current worktree, worktrees with source changes, recent output, and the
+newest completed build set. Do not preserve exact release evidence by abandoning it under
+`target/` or `desktop-dist/`; move reviewed evidence to its owned artifact location and document its
+identity.
+
 ## Git
 
 - Stage files explicitly. Never use `git add -A`.

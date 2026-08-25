@@ -65,6 +65,15 @@ from launch time. Phase-probe time also uses a different clock and cannot be com
 | `verify-all.sh` | Everything the repository owns: Java reactor, desktop dependencies, packaged-engine contract, frontend, native host, and the report-intake worker and its bindings. |
 | `verify-in-container.sh [full\|focused\|analysis\|coverage\|package]` | The same work inside a memory-, CPU- and PID-limited Linux container. **This is how to reproduce a Linux-only failure from a Mac.** |
 
+## Keep local worktrees bounded
+
+| | |
+|---|---|
+| `prune_local_build_outputs.py` | Preview rebuildable Maven, Rust, frontend, UI-matrix, and package outputs across this repository's registered worktrees. The current worktree, every worktree with source changes, the newest completed build set, and anything less than 24 hours old are retained. Pass `--apply` after reviewing the plan. |
+
+Run this after an experiment or review wave finishes. Exact release evidence belongs in its reviewed
+artifact/evidence location; an old `target/` or `desktop-dist/` directory is not durable evidence.
+
 ## Guards that fail closed
 
 Each of these is a refusal, not a report: they exist to stop something reaching a release.
