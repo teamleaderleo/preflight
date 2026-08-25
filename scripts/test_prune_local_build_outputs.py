@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 
 import os
+import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import prune_local_build_outputs as prune
 
 
 class SelectionTest(unittest.TestCase):
+    def test_default_cli_does_not_reserve_a_completed_build_set(self):
+        with patch.object(sys, "argv", ["prune_local_build_outputs.py"]):
+            self.assertEqual(0, prune.parse_args().keep_completed)
+
     def test_isolated_ui_browser_runtime_is_generated_output(self):
         self.assertIn(
             "preflight-desktop/node_modules/.preflight-ui-layout",

@@ -203,8 +203,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--keep-completed",
         type=int,
-        default=1,
-        help="number of newest clean, non-current build sets to retain (default: 1)",
+        default=0,
+        help="number of newest clean, non-current build sets to retain after 24 hours (default: 0)",
     )
     parser.add_argument(
         "--minimum-age-hours",
