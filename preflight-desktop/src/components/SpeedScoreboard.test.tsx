@@ -59,7 +59,7 @@ test("unmeasured startup uses a neutral figure instead of implying a multiplier"
 
   expect(screen.getByText("—")).toBeInTheDocument();
   expect(screen.queryByText("?×")).not.toBeInTheDocument();
-  expect(screen.getByText(/opens twice through Preflight/)).toBeInTheDocument();
+  expect(screen.getByText(/Both runs use Preflight/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Measure speed/ })).toBeEnabled();
 });
 

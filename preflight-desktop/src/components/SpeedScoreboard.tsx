@@ -100,7 +100,7 @@ export function SpeedScoreboard({ standing, isReady, playtime, lastRun, onOpenBe
         <div className="scoreboard__body">
           <strong>Measure your startup time.</strong>
           {typeof lastRun?.startupMillis === "number" ? <p className="scoreboard__last-launch">Last Preflight launch: {formatDuration(lastRun.startupMillis)} to the menu.</p> : null}
-          <p className="scoreboard__prompt">Starsector opens twice through Preflight so it can compare optimizations off and on.</p>
+          <p className="scoreboard__prompt">Both runs use Preflight: the first keeps its optimizations off and the second turns them on.</p>
           <div className="scoreboard__actions">
             <button className="button button--primary" type="button" onClick={onOpenBenchmark} disabled={!isReady}><GaugeIcon />Measure speed<ArrowIcon /></button>
             <PlaytimeCopyButton playtime={playtime} />

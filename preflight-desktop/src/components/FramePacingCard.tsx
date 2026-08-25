@@ -68,7 +68,7 @@ export function FramePacingCard({ framePacing }: { framePacing?: FramePacingSumm
             Recording cost averaged <strong>{microseconds(framePacing.measurementAverageMicros)} μs per frame</strong>. That is the recorder's own work, not a game-speed comparison.
           </small>
         ) : null}
-        <small>Recorded locally after you opted in. The summary never reads or writes a save.</small>
+        <small>Recorded locally after you opted in. The recorder doesn’t open or change save files.</small>
       </div>
     </section>
   );

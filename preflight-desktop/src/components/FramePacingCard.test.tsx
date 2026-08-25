@@ -48,7 +48,7 @@ test("shows initial, settled, and combat distributions without raw frame details
   expect(screen.getByText(/recording cost averaged/i)).toHaveTextContent("1.78 μs per frame");
   expect(screen.getByText(/not a game-speed comparison/i)).toBeInTheDocument();
   expect(screen.getByText(/two periods from this same session/i)).toBeInTheDocument();
-  expect(screen.getByText(/never reads or writes a save/i)).toBeInTheDocument();
+  expect(screen.getByText(/recorder doesn’t open or change save files/i)).toBeInTheDocument();
 });
 
 test("omits recorder-cost copy when an older summary has no overhead measurement", () => {
@@ -69,7 +69,7 @@ test("omits recorder-cost copy when an older summary has no overhead measurement
   expect(screen.queryByText(/recording cost/i)).not.toBeInTheDocument();
   expect(screen.getByRole("group", { name: "Campaign" })).toHaveTextContent("500 frames");
   expect(screen.getByRole("group", { name: "Campaign" })).not.toHaveTextContent("active");
-  expect(screen.getByText(/never reads or writes a save/i)).toBeInTheDocument();
+  expect(screen.getByText(/recorder doesn’t open or change save files/i)).toBeInTheDocument();
 });
 
 test("stays absent until a valid distribution was recorded", () => {

@@ -10,7 +10,7 @@ export function createBenchmarkShareText(metric: DesktopBenchmarkMetric): string
     `Optimizations off: ${formatSeconds(metric.measurementOnly)}`,
     `Optimizations on: ${formatSeconds(metric.optimized)}`,
     `Change: ${comparison.detail}`,
-    "Both launches ran through Preflight on the same installation and profile: reviewed optimizations were off, then on. Results depend on hardware, mods, storage, and system load.",
+    "Both launches used Preflight, the same installation, and the same profile; only Preflight’s optimizations changed. Results depend on hardware, mods, storage, and system load.",
   ];
   const text = `${lines.join("\n")}\n`;
   if (text.length > MAX_SHARE_TEXT_CHARACTERS) {

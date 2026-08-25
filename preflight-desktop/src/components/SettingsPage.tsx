@@ -110,7 +110,7 @@ export function SettingsPage({
         <div className="preference-block">
           <div>
             <h2>Frame pacing</h2>
-            <p>Starsector already has a live FPS counter. Preflight can keep a local summary after the game exits.</p>
+            <p>Starsector shows live FPS while you play. Preflight can keep a local frame-pacing summary after you quit.</p>
           </div>
           <label className="settings-toggle">
             <input
@@ -123,7 +123,7 @@ export function SettingsPage({
               Record frame pacing
               <small>{framePacingPaused
                 ? "Paused while optimizations are Off."
-                : "Average FPS, one-percent low, frame-time percentiles, and recording cost. Never writes to saves."}</small>
+                : "Average FPS, one-percent low, frame-time percentiles, and recorder cost. The recorder doesn’t open or change save files."}</small>
             </span>
           </label>
         </div>

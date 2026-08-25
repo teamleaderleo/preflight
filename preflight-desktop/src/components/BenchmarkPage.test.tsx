@@ -88,7 +88,8 @@ test("describes the benchmark as two Preflight launches with only optimizations 
     />,
   );
 
-  expect(screen.getByText("Runs Starsector twice through Preflight—first with optimizations off, then on—and compares the launch times.")).toBeInTheDocument();
+  expect(screen.getByText("Both runs use Preflight: first with its optimizations off, then on. The benchmark compares time to the main menu.")).toBeInTheDocument();
+  expect(screen.getByLabelText("About the benchmark")).toHaveAccessibleDescription(/Both runs use Preflight with the same installation and mod setup/);
   expect(screen.getByRole("heading", { name: "Optimizations off → on" })).toBeInTheDocument();
   expect(screen.getByText(/100\.00s with optimizations off/)).toBeInTheDocument();
   expect(screen.queryByText(/normal launch/i)).not.toBeInTheDocument();

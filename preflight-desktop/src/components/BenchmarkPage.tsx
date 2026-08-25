@@ -75,10 +75,10 @@ export function BenchmarkPage({
         <div>
           <div className="heading-with-info">
             <h2>Startup benchmark</h2>
-            <InfoTip label="About the benchmark">Opens Starsector twice through Preflight and times each launch at the main menu: first with reviewed optimizations off, then with them on. Preflight closes only the Starsector process it started.</InfoTip>
+            <InfoTip label="About the benchmark">Both runs use Preflight with the same installation and mod setup. The first keeps Preflight’s optimizations off; the second turns them on. Preflight closes only the Starsector process it started.</InfoTip>
           </div>
           <p>{isReady
-            ? "Runs Starsector twice through Preflight—first with optimizations off, then on—and compares the launch times."
+            ? "Both runs use Preflight: first with its optimizations off, then on. The benchmark compares time to the main menu."
             : "Choose Starsector on Home before running the benchmark."}</p>
           {isReady || desktopSmokeRunDirectory ? (
             <small>

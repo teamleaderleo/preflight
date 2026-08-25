@@ -79,7 +79,7 @@ test("frame pacing is an explicit local opt-in and explains the Off boundary", a
 
   const toggle = screen.getByRole("checkbox", { name: "Record frame pacing" });
   expect(toggle).not.toBeChecked();
-  expect(screen.getByText(/Never writes to saves/)).toBeInTheDocument();
+  expect(screen.getByText(/recorder doesn’t open or change save files/)).toBeInTheDocument();
   await user.click(toggle);
   expect(onRecordFramePacingChange).toHaveBeenCalledWith(true);
 
