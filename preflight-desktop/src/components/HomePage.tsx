@@ -456,6 +456,7 @@ export function HomePage({
                       ? `Preparation needs ${formatBytes(preparationPlan.requiredFreeBytes)} free; ${formatBytes(preparationPlan.usableBytes)} is available.`
                       : "Storage must be calculated before preparation."
                 : "Optimizations are off for this launch."}</span>
+              {firstSetup ? <span>Prepared data stays in Preflight’s own folder. It isn’t written into game files, mods, or saves.</span> : null}
               {cacheInspectionBlocked ? <span>You can still launch at normal speed while Preflight leaves this prepared data alone.</span> : null}
             </div>
           ) : null}

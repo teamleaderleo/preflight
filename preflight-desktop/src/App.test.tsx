@@ -162,6 +162,8 @@ test("the default cold-profile action prepares with balanced settings and then l
   expect(screen.queryByText("First launch setup")).not.toBeInTheDocument();
   expect(screen.getByText(/Uses about .* · .* free\./))
     .toBeInTheDocument();
+  expect(screen.getByText(/Prepared data stays in Preflight’s own folder/))
+    .toHaveTextContent("It isn’t written into game files, mods, or saves.");
   expect(screen.getByRole("group", { name: "186h played across 78 recorded sessions" })).toBeInTheDocument();
   expect(within(screen.getByRole("main")).queryByText(/^for Starsector$/i)).not.toBeInTheDocument();
   expect(screen.getByText(/^for Starsector$/i)).toBeInTheDocument();
@@ -184,6 +186,7 @@ test("the first-run preview keeps empty history out of the setup flow", async ()
   expect(visibleLabel(/recorded playtime/i)).toHaveLength(0);
   expect(visibleLabel("Hide time")).toHaveLength(0);
   expect(visibleLabel("Show time")).toHaveLength(0);
+  expect(screen.getByText(/Prepared data stays in Preflight’s own folder/)).toBeVisible();
 });
 
 test("repairs only the reviewed profile before rebuilding and launching", async () => {
