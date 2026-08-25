@@ -153,6 +153,7 @@
         "G1 and deferred heap-commit condition"
       ],
       "publishedIn": [
+        "README.md",
         "docs/beta-announcement-draft.md",
         "docs/beta-announcement-leo-draft.md",
         "docs/release-post-draft.md"
@@ -210,76 +211,6 @@
       "derivation": "Initial five-run unaccelerated baseline median."
     },
     {
-      "type": "seconds",
-      "value": "25.53",
-      "unit": "s",
-      "publishedIn": [
-        "README.md"
-      ],
-      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "derivation": "25.530 seconds removed by the reviewed prepared-texture and prefetch-bypass composition."
-    },
-    {
-      "type": "seconds",
-      "value": "7.44",
-      "unit": "s",
-      "publishedIn": [
-        "README.md"
-      ],
-      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "derivation": "Human-reviewed upper end of the 7.066-7.435 second AshLib callback range."
-    },
-    {
-      "type": "seconds",
-      "value": "4.82",
-      "unit": "s",
-      "publishedIn": [
-        "README.md"
-      ],
-      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "derivation": "Rounded from the reviewed 4.821 second GraphicsLib compact replay result."
-    },
-    {
-      "type": "seconds",
-      "value": "2.7",
-      "unit": "s",
-      "publishedIn": [
-        "README.md"
-      ],
-      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "derivation": "Human-reviewed rounded net effect for merged variant JSON."
-    },
-    {
-      "type": "seconds",
-      "value": "4.8",
-      "unit": "s",
-      "publishedIn": [
-        "README.md"
-      ],
-      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "derivation": "Human-reviewed 2.000 + 1.100 + 1.700 second combined weapon, projectile, and hull JSON result."
-    },
-    {
-      "type": "seconds",
-      "value": "1.613",
-      "unit": "s",
-      "publishedIn": [
-        "README.md"
-      ],
-      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "derivation": "Reviewed cache-identity construction time before the shared identity change."
-    },
-    {
-      "type": "seconds",
-      "value": "0.452",
-      "unit": "s",
-      "publishedIn": [
-        "README.md"
-      ],
-      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "derivation": "Reviewed cache-identity construction time after the shared identity change."
-    },
-    {
       "type": "storage",
       "value": "2.3",
       "unit": "GB",
@@ -334,9 +265,30 @@
     },
     {
       "type": "seconds",
+      "value": "19.8",
+      "unit": "s",
+      "publishedIn": [
+        "README.md"
+      ],
+      "evidence": "docs/evidence/2026-08-03-spec-store-is-no-longer-a-reading-problem.md",
+      "derivation": "Five-cache preparation-path SpecStore total before the shared lower read layer."
+    },
+    {
+      "type": "seconds",
+      "value": "9.8",
+      "unit": "s",
+      "publishedIn": [
+        "README.md"
+      ],
+      "evidence": "docs/evidence/2026-08-03-spec-store-is-no-longer-a-reading-problem.md",
+      "derivation": "Five-cache preparation-path SpecStore total after the shared lower read layer."
+    },
+    {
+      "type": "seconds",
       "value": "2.172",
       "unit": "s",
       "publishedIn": [
+        "README.md",
         "docs/beta-announcement-draft.md"
       ],
       "evidence": "docs/evidence/2026-08-03-spec-store-is-no-longer-a-reading-problem.md",
@@ -347,6 +299,7 @@
       "value": "0.300",
       "unit": "s",
       "publishedIn": [
+        "README.md",
         "docs/beta-announcement-draft.md"
       ],
       "evidence": "docs/evidence/2026-08-03-spec-store-is-no-longer-a-reading-problem.md",
@@ -354,59 +307,30 @@
     },
     {
       "type": "seconds",
-      "value": "18.014",
+      "value": "27",
       "unit": "s",
       "publishedIn": [
-        "docs/beta-announcement-draft.md"
+        "README.md"
       ],
-      "evidence": "docs/evidence/2026-08-04-janino-bytecode-live-pilot.md",
-      "derivation": "Measured Janino compilation seam before request memoization."
-    },
-    {
-      "type": "seconds",
-      "value": "2.364",
-      "unit": "s",
-      "publishedIn": [
-        "docs/beta-announcement-draft.md"
-      ],
-      "evidence": "docs/evidence/2026-08-04-janino-bytecode-live-pilot.md",
-      "derivation": "Measured Janino compilation seam after request memoization."
+      "evidence": "docs/evidence/2026-08-03-the-launch-was-waiting-for-two-threads.md",
+      "derivation": "Approximate loading-thread wait behind the single-threaded texture prefetch queue before the prepared-texture decision."
     },
     {
       "type": "storage",
-      "value": "145.96",
-      "unit": "MiB",
+      "value": "1.22",
+      "unit": "GiB",
       "publishedIn": [
-        "docs/beta-announcement-draft.md"
+        "README.md"
       ],
-      "evidence": "docs/evidence/2026-08-05-janino-deduplicated-pack.md",
-      "derivation": "Expanded generated-class map size before persisted representation deduplication."
-    },
-    {
-      "type": "storage",
-      "value": "1.13",
-      "unit": "MiB",
-      "publishedIn": [
-        "docs/beta-announcement-draft.md"
-      ],
-      "evidence": "docs/evidence/2026-08-05-janino-deduplicated-pack.md",
-      "derivation": "Generated-class map size after persisted representation deduplication."
-    },
-    {
-      "type": "seconds",
-      "value": "1.501",
-      "unit": "s",
-      "publishedIn": [
-        "docs/beta-announcement-draft.md"
-      ],
-      "evidence": "docs/evidence/2026-08-05-janino-deduplicated-pack.md",
-      "derivation": "Warm generated-class replay before persisted representation deduplication."
+      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
+      "derivation": "Power-of-two texture upload padding removed on the reviewed development profile."
     },
     {
       "type": "seconds",
       "value": "200.77",
       "unit": "s",
       "publishedIn": [
+        "README.md",
         "docs/beta-announcement-draft.md"
       ],
       "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
@@ -417,16 +341,39 @@
       "value": "16.21",
       "unit": "s",
       "publishedIn": [
+        "README.md",
         "docs/beta-announcement-draft.md"
       ],
       "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
       "derivation": "Current retained Compact preparation endpoint on the reviewed profile."
     },
     {
+      "type": "storage",
+      "value": "4.76",
+      "unit": "GB",
+      "publishedIn": [
+        "README.md"
+      ],
+      "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
+      "derivation": "Earlier retained texture-cache storage endpoint before the compact publication path."
+    },
+    {
+      "type": "seconds",
+      "value": "33.53",
+      "unit": "s",
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md"
+      ],
+      "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
+      "derivation": "Launch with the same logical Compact texture corpus in alphabetical physical order."
+    },
+    {
       "type": "seconds",
       "value": "14.174",
       "unit": "s",
       "publishedIn": [
+        "README.md",
         "docs/beta-announcement-draft.md"
       ],
       "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
@@ -434,13 +381,58 @@
     },
     {
       "type": "seconds",
-      "value": "33.53",
+      "value": "18.014",
       "unit": "s",
       "publishedIn": [
+        "README.md",
         "docs/beta-announcement-draft.md"
       ],
-      "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
-      "derivation": "Launch with the same logical Compact texture corpus in alphabetical physical order."
+      "evidence": "docs/evidence/2026-08-04-janino-bytecode-live-pilot.md",
+      "derivation": "Measured Janino compilation seam before request memoization."
+    },
+    {
+      "type": "seconds",
+      "value": "2.364",
+      "unit": "s",
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md"
+      ],
+      "evidence": "docs/evidence/2026-08-04-janino-bytecode-live-pilot.md",
+      "derivation": "Measured Janino compilation seam after request memoization."
+    },
+    {
+      "type": "storage",
+      "value": "145.96",
+      "unit": "MiB",
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md"
+      ],
+      "evidence": "docs/evidence/2026-08-05-janino-deduplicated-pack.md",
+      "derivation": "Expanded generated-class map size before persisted representation deduplication."
+    },
+    {
+      "type": "storage",
+      "value": "1.13",
+      "unit": "MiB",
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md"
+      ],
+      "evidence": "docs/evidence/2026-08-05-janino-deduplicated-pack.md",
+      "derivation": "Generated-class map size after persisted representation deduplication."
+    },
+    {
+      "type": "seconds",
+      "value": "1.501",
+      "unit": "s",
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md"
+      ],
+      "evidence": "docs/evidence/2026-08-05-janino-deduplicated-pack.md",
+      "derivation": "Warm generated-class replay before persisted representation deduplication."
     }
   ]
 }

@@ -1,6 +1,6 @@
 # Preflight
 
-**A free, open-source performance launcher for Starsector. On my 83-mod development setup, startup has gone from about 101 seconds at the observed high end to a 13.69-second best run on the current reviewed macOS Rosetta path.**
+**A free, open-source cross-platform performance launcher and mod-analysis toolkit for Starsector. On my 83-mod development setup, startup moved from roughly 101 seconds to a 13.69-second best run.**
 
 > Preflight is an independent, unofficial project. It isn't affiliated with or endorsed by Fractal
 > Softworks.
@@ -14,22 +14,25 @@
   <img alt="Preflight ready to launch Starsector" src="docs/images/desktop-home-light.png">
 </picture>
 
-**~101 seconds → 13.69 seconds on the 83-mod development installation.**
-
-Preflight started as an attempt to answer one question: why can heavily modded Starsector spend so
-long getting to the main menu, and how much of that work is the same every single launch?
-
-Quite a lot of it.
+Preflight started with a straightforward question: why did heavily modded Starsector repeat so much
+work every launch? Profiling and bytecode-level investigation found repeated data parsing, a texture
+cache on the wrong side of a single-threaded prefetch wait, rebuildable texture data made needlessly
+durable, repeated generated-code compilation, and high-frequency campaign scans and recomputations.
+Moving those costs to better boundaries produced the current development arc.
 
 Preflight prepares repeatable texture, data, generated-code, and audio work ahead of launch, binds
-that prepared work to the game and ordered mod inputs that produced it, and reuses it while those
-inputs still match. Runtime shortcuts are checked against the exact code they were reviewed against.
-If something is missing, changed, damaged, or unfamiliar, the original game path handles it.
+that prepared work to the exact game and ordered mod inputs that produced it, and reuses it while
+those inputs still match. Runtime shortcuts are checked against the code they were reviewed against.
+If something is changed, missing, damaged, unsupported, or ambiguous, the original game path remains
+available.
 
-That investigation also turned into a much larger Starsector companion app: a before-and-after
-startup benchmark, local playtime tracking, named mod profiles, common and extended game settings,
-storage planning and recovery, deep read-only setup analysis, privacy-conscious support tools,
-signed updates, and a mod linter.
+The same Java engine now powers a Windows/macOS/Linux desktop app with a React UI over a Rust/Tauri
+host, a bundled Java runtime, durable launch/playtime history, named mod profiles, storage and
+recovery tools, privacy-conscious diagnostics, signed updates with rollback, and source-side
+analysis tools for large mod setups.
+
+For the engineering story, start with [Engineering overview](docs/engineering-overview.md). For the
+measurement chronology and experimental context, see [Optimization history](docs/optimization-history.md).
 
 ## A lot more than a launch button
 
@@ -72,7 +75,7 @@ to install a system JDK. The desktop host exposes a fixed set of typed commands 
 arbitrary shell. Every native package also carries a machine-readable capability receipt describing
 the commands, writes, child processes, links, and network endpoints available to that exact package.
 
-The normal path is still simple: open Preflight, let it find Starsector, press **Prepare and launch**
+The normal path is still simple: open Preflight, let it find Starsector, press **Set up and launch**
 once, then press **Launch Starsector** on later runs. The rest is there when you want it.
 
 ## The measured result
@@ -310,36 +313,35 @@ instructions are in [preflight-desktop](preflight-desktop/README.md).
 
 ## Where the time went
 
-The largest early finding was a one-thread texture prefetch queue. The loading thread could wait
-roughly 27 seconds for that queue, then repeat source hashing, image decoding, pixel conversion,
-buffer copying, color calculation, and padding. Bypassing the wait and serving validated,
-upload-ready pixels removed 25.53 seconds in the accepted controlled campaign.
+The current performance story is easier to understand as a sequence of boundaries than as one
+additive component ledger. The measurements below come from separate retained seams and development
+campaigns. They are evidence for different changes, not numbers to sum into a synthetic total.
 
-Once textures became cheap, the visible 0% pause became clear. Vanilla `SpecStore` spent roughly
-18–19 seconds rebuilding variants, weapons, projectiles, hulls, campaign rules, and related
-registries. Much of that time was repeated JSON and CSV merge-and-parse work. Prepared tagged trees
-now supply the stable input while Starsector creates fresh live objects as usual.
+- **Shared data reads.** One measured launch issued **39,017 JSON calls across 8,378 distinct paths**.
+  Five loader-specific caches exposed a lower common boundary, where repeated JSON/CSV work moved
+  into a shared memoized read layer. `SpecStore` moved **19.8s → 9.8s**, and the remaining merged-read
+  seam moved **2.172s → 0.300s**.
+- **Texture critical path.** The loading thread could wait roughly **27 seconds** behind a
+  single-threaded prefetch queue before the prepared-texture decision was consulted. Moving that
+  decision ahead of the queue fixed the placement problem, and later upload work removed **1.22 GiB
+  of VRAM padding**.
+- **Texture publication and layout.** Rebuildable intermediates no longer receive per-file durability
+  before one final pack is published. The retained preparation arc is **200.77s → 16.21s**, with
+  storage **4.76 GB → ~1.1 GB**. On the same logical Compact corpus, observed startup order moved
+  launch **33.53s → 14.174s** compared with alphabetical layout.
+- **Generated code.** Memoizing **228 Janino compilation requests** moved the compiler seam
+  **18.014s → 2.364s**. The persisted result then revealed **36,332 generated-class occurrences** but
+  only **280 unique classes**, shrinking stored class maps **145.96 MiB → 1.13 MiB** and replay
+  **1.501s → 29ms** after deduplication.
+- **Campaign runtime.** Mutation-tracked indexes removed the expensive sector-wide validation work
+  measured as **79.1M entity-reference checks → 0**, while a separate memoized path served
+  **117.9M unchanged commodity calls** without inventing a universal FPS claim.
 
-The remaining tail exposed repeated work in mod callbacks. AshLib repeatedly resolved the same hull
-and variant JSON while constructing render information. GraphicsLib repeated automatic texture-map
-discovery even when its generated files were already valid. Exact memoization and compact replay
-reduced those callback sequences without taking ownership of their live state.
-
-| Change | Measured result |
-| --- | ---: |
-| Prepared textures and prefetch bypass | **25.53s saved; 1.41× overall** |
-| AshLib ship JSON memoization | **7.07–7.44s removed from the callback** |
-| GraphicsLib compact replay | **4.82s removed from the measured sequence** |
-| Merged variant JSON | **10.15× quicker merge/parse; ~2.7s net** |
-| Merged weapon, projectile, and hull JSON | **~4.8s net combined** |
-| Shared cache-profile identity | **1.613s → 0.452s** |
-
-Texture uploads also fell from 3.65 GiB to 2.43 GiB after empty power-of-two padding was removed.
-The measured component runs contain 64,739 direct cache or memo hits and 192,089 counted operations
-removed or shortcut. The source-linked chronology, unsuccessful branches, and per-change arithmetic
-live in [Optimization history](docs/optimization-history.md), the
-[Experiment ledger](docs/experiment-ledger.md), and the
-[Accumulated scorecard](docs/evidence/2026-08-02-accumulated-startup-scorecard.md).
+The callback-specific AshLib, GraphicsLib, audio, resource-resolution, and other intermediate wins
+remain in the source-linked chronology rather than competing for equal weight here. See
+[Engineering overview](docs/engineering-overview.md) for the design story,
+[Optimization history](docs/optimization-history.md) for the measurement chronology, and the
+[Experiment ledger](docs/experiment-ledger.md) for rejected and superseded paths.
 
 ## Storage choices
 
