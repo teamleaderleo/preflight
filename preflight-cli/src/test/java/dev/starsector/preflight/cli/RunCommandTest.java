@@ -60,6 +60,40 @@ class RunCommandTest {
         assertEquals(false, RunCommand.trustsLauncherValidatedTextureIndex(fast, null));
     }
 
+    @Test
+    void launchReadinessDescribesTheRequestedPresetInsteadOfGuessing() {
+        assertEquals(
+                "Off / troubleshooting is selected. The next launch does not use prepared data.",
+                RunCommand.launchReadinessSummary(OptimizationPreset.OFF, health("ready")));
+        assertEquals(
+                "No product optimization preset is selected. Use `--optimization-preset recommended` "
+                        + "to check an optimized launch or `off` for the troubleshooting baseline.",
+                RunCommand.launchReadinessSummary(OptimizationPreset.CUSTOM, health("ready")));
+        assertEquals(
+                "The next Recommended launch can use this profile's prepared data.",
+                RunCommand.launchReadinessSummary(OptimizationPreset.RECOMMENDED, health("ready")));
+        assertEquals(
+                "Prepare this profile before a Conservative launch. `--optimization-preset off` "
+                        + "remains available and does not use prepared data.",
+                RunCommand.launchReadinessSummary(OptimizationPreset.CONSERVATIVE, health("cold")));
+        assertEquals(
+                "Rebuild prepared data before a Recommended launch. `--optimization-preset off` "
+                        + "remains available and does not use prepared data.",
+                RunCommand.launchReadinessSummary(OptimizationPreset.RECOMMENDED, health("repair-needed")));
+        assertEquals(
+                "Resolve the prepared-data issue before a Recommended launch. `--optimization-preset off` "
+                        + "remains available and does not use prepared data.",
+                RunCommand.launchReadinessSummary(OptimizationPreset.RECOMMENDED, health("unsafe")));
+        assertEquals(
+                "Resolve the prepared-data issue before a Recommended launch. `--optimization-preset off` "
+                        + "remains available and does not use prepared data.",
+                RunCommand.launchReadinessSummary(OptimizationPreset.RECOMMENDED, health("unknown")));
+    }
+
+    private static CacheHealth.Report health(String status) {
+        return new CacheHealth.Report(status, "profile", null, null, null, false, List.of(), List.of());
+    }
+
     private static LaunchCacheContexts.Texture textureContext(boolean automatic, boolean prepared) {
         return new LaunchCacheContexts.Texture(
                 Path.of("cache"),

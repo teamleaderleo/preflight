@@ -454,9 +454,9 @@ final class RunCommand {
      * Whether the next launch would be accelerated, and what is missing when it would not.
      *
      * <p>Doctor is the command someone runs after installing to find out whether this thing is
-     * working. Discovery alone does not answer that: a found launcher with no prepared data
-     * launches at vanilla speed, and nothing in the discovery block says so. Each line is a fact
-     * with a fix beside it when it is not the wanted one.
+     * working. Discovery alone does not answer that: a found launcher says nothing about whether
+     * the requested preset has matching prepared data. Each line is a fact with a fix beside it
+     * when it is not the wanted one.
      */
     private static void printLaunchReadiness(CommandLine options) {
         PreflightHome home = PreflightHome.current();
@@ -467,8 +467,6 @@ final class RunCommand {
                 profile.diagnostic(),
                 profile.audioBuild(),
                 profile.audioDecoder());
-        boolean prepared = "ready".equals(health.status());
-
         System.out.println();
         System.out.println("Launch readiness:");
         if (profile.fingerprint() == null) {
@@ -489,12 +487,35 @@ final class RunCommand {
                     + integration.path());
         }
         System.out.println();
-        System.out.println(prepared
-                ? "Next launch is accelerated. `preflight run` uses the prepared artifacts above."
-                : "Next launch runs at ordinary speed until preparation completes.");
+        System.out.println(launchReadinessSummary(options.optimizationPreset(), health));
         if (options.scan()) {
             System.out.println("Texture working-set scan follows; `--no-scan` skips it.");
         }
+    }
+
+    static String launchReadinessSummary(
+            OptimizationPreset preset, CacheHealth.Report health) {
+        if (preset == OptimizationPreset.OFF) {
+            return "Off / troubleshooting is selected. The next launch does not use prepared data.";
+        }
+        if (preset == OptimizationPreset.CUSTOM) {
+            return "No product optimization preset is selected. Use `--optimization-preset recommended` "
+                    + "to check an optimized launch or `off` for the troubleshooting baseline.";
+        }
+        String launch = preset == OptimizationPreset.CONSERVATIVE
+                ? "Conservative launch"
+                : "Recommended launch";
+        return switch (health.status()) {
+            case "ready" -> "The next " + launch + " can use this profile's prepared data.";
+            case "cold" -> "Prepare this profile before a " + launch
+                    + ". `--optimization-preset off` remains available and does not use prepared data.";
+            case "repair-needed" -> "Rebuild prepared data before a " + launch
+                    + ". `--optimization-preset off` remains available and does not use prepared data.";
+            case "unsafe", "unknown" -> "Resolve the prepared-data issue before a " + launch
+                    + ". `--optimization-preset off` remains available and does not use prepared data.";
+            default -> "Prepared-data readiness is " + health.status() + ". Review it before a "
+                    + launch + ".";
+        };
     }
 
     private static String firstIssue(CacheHealth.Report health) {
