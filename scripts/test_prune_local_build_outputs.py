@@ -36,6 +36,25 @@ class SelectionTest(unittest.TestCase):
         )
         self.assertIn("probe-kits/texture-pipeline/.probe-build", prune.GENERATED_PATHS)
         self.assertIn("preflight-desktop/src-tauri/gen", prune.GENERATED_PATHS)
+        self.assertIn(
+            "probe-kits/gpu-capability/gpu-capability-report-*.txt",
+            prune.GENERATED_GLOBS,
+        )
+
+    def test_timestamped_probe_reports_are_selected_without_matching_source_notes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            probe = root / "probe-kits" / "gpu-capability"
+            probe.mkdir(parents=True)
+            report = probe / "gpu-capability-report-20260826-120000.txt"
+            report.write_text("measurement", encoding="utf-8")
+            notes = probe / "gpu-capability-report-notes.md"
+            notes.write_text("keep", encoding="utf-8")
+
+            outputs = prune.rebuildable_outputs(root, root)
+
+            self.assertIn(report, outputs)
+            self.assertNotIn(notes, outputs)
 
     def test_duplicate_dependencies_are_bounded_only_outside_the_current_worktree(self):
         with tempfile.TemporaryDirectory() as temporary:

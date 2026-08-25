@@ -37,6 +37,11 @@ GENERATED_PATHS = (
     "scripts/__pycache__",
 )
 
+GENERATED_GLOBS = (
+    "probe-kits/gpu-capability/gpu-capability-report-*.txt",
+    "probe-kits/texture-pipeline/texture-pipeline-report-*.txt",
+)
+
 # Dependency installs are large but useful in the worktree doing the current verification. Retire
 # them from old sibling worktrees under the same age policy without making every completed slice
 # reinstall its own dependencies.
@@ -113,8 +118,15 @@ def rebuildable_outputs(root: Path, current_root: Path) -> tuple[Path, ...]:
     relative_paths = GENERATED_PATHS
     if root != current_root:
         relative_paths += NON_CURRENT_DEPENDENCY_PATHS
+    candidates = {
+        root / relative
+        for relative in relative_paths
+        if (root / relative).exists() or (root / relative).is_symlink()
+    }
+    for pattern in GENERATED_GLOBS:
+        candidates.update(root.glob(pattern))
     candidates = sorted(
-        (root / relative for relative in relative_paths if (root / relative).exists()),
+        candidates,
         key=lambda candidate: (len(candidate.parts), str(candidate)),
     )
     outputs: list[Path] = []

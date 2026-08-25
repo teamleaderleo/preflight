@@ -31,6 +31,10 @@ With no argument the usual install locations are tried. A report is written next
 script as gpu-capability-report-<timestamp>.txt, ending with a one-line JSON summary
 suitable for pasting into an issue.
 
+That timestamped report is local working output. Move any result that must remain reviewable
+into docs/evidence before running scripts/prune_local_build_outputs.py; the cleaner bounds old
+probe reports along with their compiled probe binaries.
+
 It needs a JDK 17 or newer for `javac`. Everything else comes from your Starsector
 installation.
 
