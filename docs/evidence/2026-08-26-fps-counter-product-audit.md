@@ -51,6 +51,14 @@ The exact rendered matrix now carries a dedicated frame-pacing scenario. It chec
 preview distributions expose active duration and captures the result at the default and minimum
 window sizes as part of the ordinary 480–1440 pixel sweep.
 
+The result card's recorder-cost number is deliberately narrower than a slowdown claim. It times the
+work inside the injected `Display.update` boundary and reports that average in microseconds per
+frame. Recorded frame intervals already include the previous boundary call, so the FPS distribution
+does not subtract the recorder from itself. The self-time does not cover every state/focus observer,
+however, and it is not a counterfactual recorder-off FPS result. A true on/off slowdown claim would
+need the same repeated route measured by an independent frame clock in both conditions; no such
+retained pair exists yet.
+
 The separate developer A/B path now enforces the same coverage truth before it can seal campaign
 metrics. Both conditions launch through Preflight with identical steps: measurement-only keeps the
 state/frame hooks but no reviewed fixes, while optimized enables them. Each phase allows 30 seconds
