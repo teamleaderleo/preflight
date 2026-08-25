@@ -83,12 +83,17 @@ interface RunFailure {
   profileFingerprint?: string;
 }
 
+type RetryIntent =
+  | { kind: "discovery" }
+  | { kind: "installation"; game: string }
+  | { kind: "launch"; preset: OptimizationPreset };
+
 export default function App() {
   const theme = useTheme();
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | null>(null);
   const [status, setStatus] = useState<AppStatus>(() =>
     !isDesktopHost() && browserPreviewScenario() === "running" ? "running" : "loading");
-  const [retryIntent, setRetryIntent] = useState<{ kind: "discovery" | "installation" | "launch"; game?: string } | null>(null);
+  const [retryIntent, setRetryIntent] = useState<RetryIntent | null>(null);
   const [runFailure, setRunFailure] = useState<RunFailure | null>(previewRunFailure);
   const [maintenanceEpoch, setMaintenanceEpoch] = useState(0);
   const [page, setPage] = useState<Page>("home");
@@ -206,7 +211,7 @@ export default function App() {
       launchTargetWhenFinished.current = null;
       countWhenFinished.current = null;
       setStatus("error");
-      setRetryIntent({ kind: "launch" });
+      setRetryIntent({ kind: "launch", preset: launchPreset });
       announceGame(String(error), "error");
     }
   }, [afterLaunchBehavior, announceGame, disabledOptimizationDomains, optimizationPreset, recordFramePacing, snapshot?.selected?.installRoot]);
@@ -589,7 +594,8 @@ export default function App() {
   );
   const retryFailedOperation = () => {
     if (retryIntent?.kind === "launch") {
-      void primaryLaunch();
+      if (!requireAppliedLauncherSettings()) return;
+      void launch(retryIntent.preset);
       return;
     }
     void refresh(retryIntent?.kind === "installation" ? retryIntent.game : undefined);

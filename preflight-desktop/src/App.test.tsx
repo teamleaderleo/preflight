@@ -568,6 +568,42 @@ test("a failed launch is an alert and retries the launch operation", async () =>
   game.mockRestore();
 });
 
+test("a failed normal launch retries with optimizations off", async () => {
+  const user = userEvent.setup();
+  const blocked: CacheHealth = {
+    format: "starsector-preflight-cache-health-v1",
+    status: "unsafe",
+    profileFingerprint: "preview-profile",
+    issues: [{
+      artifact: "prepared-textures",
+      summary: "The prepared data location could not be verified.",
+      path: "~/.starsector-preflight/cache/packs/preview-profile.spfp",
+    }],
+    repairBytes: 0,
+    repairFiles: 0,
+  };
+  const health = vi.spyOn(bridge, "getCacheHealth").mockResolvedValue(blocked);
+  const preparation = vi.spyOn(bridge, "startPreparation").mockResolvedValue({ pid: 4243 });
+  const game = vi.spyOn(bridge, "startGame")
+    .mockRejectedValueOnce(new Error("launcher refused"))
+    .mockResolvedValueOnce({ pid: 4242 });
+
+  render(<App />);
+
+  await user.click(await screen.findByRole("button", { name: "Launch normally" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("launcher refused");
+  await user.click(screen.getByRole("button", { name: "Try launch again" }));
+
+  await waitFor(() => expect(game).toHaveBeenCalledTimes(2));
+  expect(game).toHaveBeenNthCalledWith(1, "/Applications/Starsector", "off", [], "minimize", false);
+  expect(game).toHaveBeenNthCalledWith(2, "/Applications/Starsector", "off", [], "minimize", false);
+  expect(preparation).not.toHaveBeenCalled();
+
+  health.mockRestore();
+  preparation.mockRestore();
+  game.mockRestore();
+});
+
 test("a failed launch offers help, and help is one click away from making the file", async () => {
   const user = userEvent.setup();
   window.history.replaceState(null, "", "/?scenario=run-failure");
