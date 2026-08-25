@@ -23,8 +23,8 @@ current answer.
 - [Packaged capability receipt](capability-receipt.md): machine-checked writes, child processes,
   native commands, fixed links, and network endpoints in an exact package.
 - [Optimization history](optimization-history.md): source-linked development performance history,
-  including the controlled 89.00-second ordinary and 15.53-second Preflight medians and the
-  15.25-second low.
+  including the current ~101-second → 13.69-second arc and the controlled 89.00-second ordinary /
+  15.53-second Preflight campaign in its historical context.
 - [Startup benchmark](startup-benchmark.md): current measurement protocol and exact packaged-engine
   candidate mode.
 - [Experiment ledger](experiment-ledger.md): retained optimization families, including rejected,
@@ -132,21 +132,28 @@ measure, maintain, prepare, test, release, or work on. Technical documentation c
 "build" when it literally means a compiler/package/workflow build and another word would make the
 instruction less precise.
 
-First person belongs wherever Leo is describing what he did, saw, or decided. Creator pages can be
-personal and can use lines such as "I make stuff that tends to become much larger than I expect" or
-"I make Preflight." A technical release post should still lead with Preflight or the measured result
-because that is what the Starsector reader came for.
+First person belongs wherever Leo is describing what he did, saw, or decided. **Made** and
+**created** are usually better front-facing verbs than **built**. Do not invent a creator persona
+around the work: avoid lines about projects getting out of hand, getting carried away, or becoming
+larger than expected unless Leo actually wants that sentence.
 
-Public copy is allowed to sell the work. Do not confuse restraint with underselling. Lead with the
-strongest exact result, then reveal the breadth of the product: benchmark, playtime, profiles,
-settings, storage/recovery, support/privacy, signed updates, and the linter. The failed experiments
-and corrected measurements are also valuable public material because they explain why the current
-claims deserve confidence.
+Let an interesting fact stand. Do not automatically follow it with a joke, disclaimer, personality
+tag, or explanation. Short feature copy can be blunt; a line such as **Tracked playtime!!!!!** does
+not need a paragraph explaining why the exclamation marks are there.
+
+Public copy is allowed to sell the work. Lead with the strongest current result, then use the few
+features that matter to the venue. The general player-facing order is benchmark and speed, tracked
+playtime, campaign movement, launch settings and battle size, setup checks, storage/recovery, signed
+updates, and the linter. Saved launch profiles are useful but do not need to lead general product
+copy.
+
+Keep concrete behavior in place of abstract guarantees. For compatibility, for example: if a runtime
+shortcut does not recognize the code it expects, it steps aside and the normal game path runs. Stop
+there unless the venue actually needs the deeper boundary.
 
 Benchmark conditions, compatibility limits, write boundaries, and release-candidate status must stay
 exact even when the surrounding prose is informal. Never turn a development number into a universal
 promise. Never describe an open PR as shipped.
 
-Posts to the Starsector forum and subreddit are technical release posts. They can be enthusiastic,
-funny, and personal without reading like a startup announcement. Any clickbait-adjacent joke has to
-be unmistakably ironic.
+Posts to the Starsector forum and subreddit are technical release posts. They can be excited and
+personal without reading like a startup announcement. When the useful fact has landed, stop writing.
