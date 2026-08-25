@@ -61,12 +61,12 @@ Start with [LLM_HANDOFF.md](LLM_HANDOFF.md) for current project state. These are
 Rust and Maven outputs multiply by gigabytes when every experiment keeps its own `target/` tree.
 Before handing off a completed local worktree wave, run `python3 scripts/prune_local_build_outputs.py`
 and review the plan; use `--apply` when it names only rebuildable outputs from completed worktrees.
-The command keeps the current worktree by default, recent output, and the newest completed build
-set. After committing and verifying a wave, use `--retire-current` to include that clean current
-worktree instead of retaining its outputs until a later worktree pass. It can remove old generated
-output from a dirty non-current worktree, but never its source changes. Do not preserve exact release
-evidence by abandoning it under `target/` or `desktop-dist/`; move reviewed evidence to its owned
-artifact location and document its identity.
+The command keeps the current worktree by default, output from the last 24 hours, and the newest
+completed build set for no more than 72 hours. After committing and verifying a wave, use
+`--retire-current` to include that clean current worktree instead of retaining its outputs until a
+later worktree pass. It can remove old generated output from a dirty non-current worktree, but never
+its source changes. Do not preserve exact release evidence by abandoning it under `target/` or
+`desktop-dist/`; move reviewed evidence to its owned artifact location and document its identity.
 
 ## Git
 

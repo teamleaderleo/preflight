@@ -124,12 +124,15 @@ def choose_build_sets(
     now: float,
     keep_completed: int,
     minimum_age_hours: float,
+    maximum_age_hours: float = 72,
     retire_current: bool = False,
 ) -> list[Decision]:
     if keep_completed < 0:
         raise ValueError("keep_completed must not be negative")
     if minimum_age_hours < 0:
         raise ValueError("minimum_age_hours must not be negative")
+    if maximum_age_hours < minimum_age_hours:
+        raise ValueError("maximum_age_hours must be at least minimum_age_hours")
 
     completed = sorted(
         (build for build in builds if not build.current and not build.dirty),
@@ -148,8 +151,20 @@ def choose_build_sets(
                 decisions.append(Decision(build, "remove", "explicitly retiring clean current worktree"))
             else:
                 decisions.append(Decision(build, "keep", "current worktree"))
+        elif now - build.newest_mtime >= maximum_age_hours * 60 * 60:
+            detail = f"{age_hours:.1f} hours old; beyond {maximum_age_hours:g}-hour retention limit"
+            if build.dirty:
+                detail += "; source changes remain untouched"
+            decisions.append(Decision(build, "remove", detail))
         elif build.root in retained:
-            decisions.append(Decision(build, "keep", "newest completed build set"))
+            decisions.append(Decision(
+                build,
+                "keep",
+                (
+                    f"newest completed build set; {age_hours:.1f} hours old, "
+                    f"expires at {maximum_age_hours:g} hours"
+                ),
+            ))
         elif now - build.newest_mtime < minimum_age_seconds:
             decisions.append(Decision(build, "keep", f"only {age_hours:.1f} hours old"))
         else:
@@ -198,6 +213,12 @@ def parse_args() -> argparse.Namespace:
         help="never remove build sets younger than this (default: 24)",
     )
     parser.add_argument(
+        "--maximum-age-hours",
+        type=float,
+        default=72,
+        help="remove non-current build sets at or beyond this age, even the newest (default: 72)",
+    )
+    parser.add_argument(
         "--retire-current",
         action="store_true",
         help=(
@@ -217,6 +238,7 @@ def main() -> int:
             now=time.time(),
             keep_completed=args.keep_completed,
             minimum_age_hours=args.minimum_age_hours,
+            maximum_age_hours=args.maximum_age_hours,
             retire_current=args.retire_current,
         )
         removed_outputs = 0

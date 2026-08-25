@@ -55,6 +55,7 @@ class SelectionTest(unittest.TestCase):
         self.assertEqual("remove", by_name["dirty"].action)
         self.assertIn("source changes remain untouched", by_name["dirty"].reason)
         self.assertEqual("keep", by_name["newest"].action)
+        self.assertIn("expires at 72 hours", by_name["newest"].reason)
         self.assertEqual("remove", by_name["second"].action)
         self.assertEqual("remove", by_name["old"].action)
 
@@ -66,6 +67,40 @@ class SelectionTest(unittest.TestCase):
             minimum_age_hours=24,
         )[0]
         self.assertEqual("keep", decision.action)
+
+    def test_newest_completed_build_expires_at_the_hard_retention_limit(self):
+        decision = prune.choose_build_sets(
+            [self.build("only-completed", 72)],
+            now=1_000_000.0,
+            keep_completed=1,
+            minimum_age_hours=24,
+            maximum_age_hours=72,
+        )[0]
+
+        self.assertEqual("remove", decision.action)
+        self.assertIn("beyond 72-hour retention limit", decision.reason)
+
+    def test_expired_dirty_build_preserves_its_source_changes(self):
+        decision = prune.choose_build_sets(
+            [self.build("dirty", 96, dirty=True)],
+            now=1_000_000.0,
+            keep_completed=1,
+            minimum_age_hours=24,
+            maximum_age_hours=72,
+        )[0]
+
+        self.assertEqual("remove", decision.action)
+        self.assertIn("source changes remain untouched", decision.reason)
+
+    def test_hard_retention_limit_cannot_undercut_the_recent_build_floor(self):
+        with self.assertRaisesRegex(ValueError, "at least minimum_age_hours"):
+            prune.choose_build_sets(
+                [self.build("recent", 2)],
+                now=1_000_000.0,
+                keep_completed=1,
+                minimum_age_hours=24,
+                maximum_age_hours=12,
+            )
 
     def test_explicit_retirement_removes_clean_current_output_without_waiting(self):
         decision = prune.choose_build_sets(
