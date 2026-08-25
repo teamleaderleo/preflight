@@ -71,6 +71,13 @@ paired conditions on the same installation and representative workload. The camp
 `scripts/benchmark-startup.sh` measures repeated startup conditions; it does not automate a
 deterministic in-campaign workload.
 
+Repository history does contain the later identity-checked measurement-only/optimized campaign
+benchmark runner, including average FPS, 1% and 0.1% lows, and p95/p99 comparisons. No retained
+completed pair found in the repository binds the **9.15 → 20.45 FPS** values to those two conditions;
+the source report binds them to the first 30 seconds and the remainder of one run. A fresh paired
+campaign run can produce the missing Off/On label once an operator selects a disposable save and a
+representative route.
+
 ## Automation boundary checked today
 
 `desktop smoke probe` reported the macOS exact-PID development driver ready, with Accessibility

@@ -240,6 +240,13 @@ the preparation/storage path dramatically.
 Mutation-tracked indexes removed the sector-wide validation work measured as **79.1M entity-reference
 checks → 0**. A separate memoized path served **117.9M unchanged commodity calls**.
 
+One retained optimized 83-mod session also measured the campaign's initial catch-up directly. The
+first 30 seconds averaged **46.10 FPS** with a **9.15 FPS one-percent low**; the remaining 4,091
+frames averaged **55.47 FPS** with a **20.45 FPS one-percent low**. The one-percent low was **2.2×**
+higher after the initial 30 seconds. Say exactly that: this pair is warm-up versus settled play
+inside one run, not the measurement-only-versus-optimized pair that the campaign benchmark
+machinery can produce.
+
 ## Release/trust hooks
 
 ### Signed updates
@@ -271,6 +278,15 @@ Use:
 
 > If a runtime shortcut does not recognize the code it expects, it steps aside and the normal game
 > path runs.
+
+Weak:
+
+> Preflight won't mess up your saves.
+
+Use:
+
+> Preflight does not directly edit campaign saves or put prepared cache data into them. Starsector
+> remains responsible for its normal save writes.
 
 Weak:
 

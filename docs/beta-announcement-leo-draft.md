@@ -40,8 +40,9 @@ Features:
 Give first setup a few GB of free space. My current 83-mod setup settles around **1.1 GB** of prepared
 data. Preflight calculates the number for your installation before it starts.
 
-Compatibility should be pretty boring. Preflight doesn't permanently patch Starsector or mod JARs.
-If a runtime shortcut doesn't recognize the code it expects, it steps aside and the normal path runs.
+Compatibility should be pretty boring. Preflight doesn't permanently patch Starsector or mod JARs,
+and it doesn't directly edit campaign saves or put prepared cache data into them. If a runtime
+shortcut doesn't recognize the code it expects, it steps aside and the normal path runs.
 
 The public package's own retained benchmark goes here before posting:
 **[PACKAGED CANDIDATE BENCHMARK RESULT]**.

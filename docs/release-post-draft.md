@@ -58,8 +58,10 @@ more working room; Preflight calculates the actual requirement before it starts 
 
 ## Compatibility
 
-Preflight leaves Starsector and mod JARs, executables, assets, and saves unchanged. Prepared data
-lives in Preflight's own area. Runtime optimizations live inside the launched game process.
+Preflight leaves Starsector and mod JARs, executables, and assets unchanged. It does not directly
+edit campaign saves or put prepared data into them; Starsector still owns normal save writes.
+Prepared data lives in Preflight's own area. Runtime optimizations live inside the launched game
+process.
 
 If a runtime shortcut does not recognize the code it expects, it steps aside and the normal game
 path runs.

@@ -118,6 +118,14 @@ benchmark lets each installation measure its own normal and accelerated launch. 
 measurements and their context are collected in [Optimization history](docs/optimization-history.md)
 and [From three-minute preparation to fourteen-second launches](docs/evidence/2026-08-23-storage-to-fourteen-seconds.md).
 
+Campaign play was measured separately. In one retained optimized 83-mod session, the first 30
+seconds after loading averaged **46.10 FPS** with a **9.15 FPS one-percent low**. After that initial
+catch-up, the remaining 4,091 campaign frames averaged **55.47 FPS** with a **20.45 FPS
+one-percent low** — a **2.2×** increase in the one-percent low within that session. This is a
+warm-up-versus-settled observation, not an Off-versus-On comparison; the frame-time distribution
+and route are retained in the [campaign engine
+report](docs/evidence/2026-08-05-campaign-engine-call-times.md).
+
 The first public beta still needs its benchmark run against the exact accepted package bytes. That
 packaged result will sit beside the development record instead of silently replacing it.
 
@@ -209,15 +217,18 @@ It does not need Accessibility permission or click through the game on your beha
 
 ## Compatibility and containment
 
-Preflight does not rewrite game or mod JARs, executables, assets, or saves. Runtime
-changes exist only in the launched JVM and disappear when the game exits. Two explicit, backed-up
-features can update game-owned preferences: profile activation and the launch-settings editor.
+Preflight does not rewrite game or mod JARs, executables, or assets. It does not directly edit
+campaign saves or put prepared data into them; Starsector remains responsible for its normal save
+writes. Prepared files live in Preflight's own data area and can be rebuilt. Runtime changes exist
+only in the launched JVM and disappear when the game exits. Two explicit, backed-up features can
+update game-owned preferences: profile activation and the launch-settings editor.
 
 | Situation | Result |
 | --- | --- |
 | A game or mod file changes | A different content identity is selected |
 | A prepared entry is missing or invalid | The original loader handles that request |
 | A reviewed class fingerprint changes | That runtime transformation declines |
+| A campaign is saved | Prepared cache data is not part of the save payload |
 | Preparation is interrupted | Completed immutable blobs remain reusable |
 | The current build does not fit with its safety reserve | Preparation refuses before writing |
 | Cleanup or removal is requested | Preflight shows the exact owned targets first |

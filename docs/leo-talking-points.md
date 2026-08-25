@@ -116,6 +116,12 @@ classes**. Deduplication shrank stored class maps **145.96 MiB → 1.13 MiB** an
 Mutation-tracked indexes removed the sector-wide validation work measured as **79.1M entity-reference
 checks → 0**. A separate memoized path served **117.9M unchanged commodity calls**.
 
+The retained optimized campaign session measured the rough-after-load effect too: **9.15 FPS
+one-percent low** during the first 30 seconds and **20.45 FPS** after that initial catch-up, or
+**2.2×**, while average FPS moved from **46.10 to 55.47**. Keep the label attached: that is warm-up
+versus settled play in one run. The repository still has the measurement-only/optimized campaign
+benchmark machinery, but these exact numbers are not its retained result.
+
 ## Why the benchmark is in the product
 
 The project has retained wrong measurements and failed ideas:
@@ -130,10 +136,11 @@ The built-in benchmark gives players the same direct measurement path used durin
 
 ## Compatibility in one paragraph
 
-Preflight leaves Starsector and mod JARs, executables, assets, and saves unchanged. Prepared data
-lives in Preflight's own area. Runtime optimizations live inside the launched game process. If a
-runtime shortcut does not recognize the code it expects, it steps aside and the normal game path
-runs.
+Preflight leaves Starsector and mod JARs, executables, and assets unchanged. It does not directly
+edit campaign saves or put prepared data into them; Starsector still owns normal save writes.
+Prepared data lives in Preflight's own area. Runtime optimizations live inside the launched game
+process. If a runtime shortcut does not recognize the code it expects, it steps aside and the normal
+game path runs.
 
 ## Disk language
 

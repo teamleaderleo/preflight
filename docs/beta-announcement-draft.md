@@ -55,8 +55,10 @@ There is also a minimal-disk path when the normal prepared-texture route does no
 
 ## Compatibility
 
-Preflight leaves Starsector and mod JARs, executables, assets, and saves unchanged. Prepared data
-lives in Preflight's own area. Runtime optimizations live inside the launched game process.
+Preflight leaves Starsector and mod JARs, executables, and assets unchanged. It does not directly
+edit campaign saves or put prepared data into them; Starsector still owns normal save writes.
+Prepared data lives in Preflight's own area. Runtime optimizations live inside the launched game
+process.
 
 If a runtime shortcut does not recognize the code it expects, it steps aside and the normal game
 path runs.
@@ -89,6 +91,12 @@ alphabetical order.
 There is campaign/runtime work too. Mutation-tracked indexes removed the sector-wide validation work
 measured as **79.1M entity-reference checks → 0**, and a separate memoized path served **117.9M**
 unchanged commodity calls.
+
+The retained optimized campaign session also measured the rough period after loading instead of
+guessing from a log. Its first 30 seconds averaged **46.10 FPS** with a **9.15 FPS one-percent low**;
+the next 4,091 campaign frames averaged **55.47 FPS** with a **20.45 FPS one-percent low**. That is a
+**2.2×** increase in the one-percent low after initial catch-up within one run, not a
+normal-versus-Preflight A/B.
 
 The deeper technical record is in [Engineering overview](engineering-overview.md),
 [Optimization history](optimization-history.md), and the [Experiment ledger](experiment-ledger.md).
