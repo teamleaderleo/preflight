@@ -90,7 +90,7 @@ Each of these is a refusal, not a report: they exist to stop something reaching 
 |---|---|
 | `verify_source_boundary.py` | Audits tracked files *and reachable Git history* for private or game content. Nothing from the installation may enter the repository. |
 | `verify_release_boundary.py` | Fails when a core release archive holds an unexpected file or JAR namespace. |
-| `verify_complete_release.py` | Fails when the final merged release differs from the reviewed artifact set. |
+| `verify_complete_release.py` | Fails when the final merged release differs from the reviewed artifact set, when platform capability receipts disagree, or when their product/engine identity differs from the updater feed and standalone JAR. |
 | `starsector_core_resource_guard.py` | Discovers and validates the reviewed core mission resource root. |
 | `starsector_profile_guard.py` | Guards immutable profile inputs and bounded GraphicsLib runtime state, so a measurement cannot silently change what it measures. |
 

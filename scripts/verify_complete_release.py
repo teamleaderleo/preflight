@@ -123,21 +123,32 @@ def validate_complete_release(directory: Path) -> dict[str, int | str]:
                     f"{manifest_name} checksum doesn't match: {package_name}"
                 )
 
-    capability_source_revision = validate_capability_receipts(directory)
-    updater_platforms, updater_url_mode = validate_updater_manifest(directory)
+    capability = validate_capability_receipts(directory)
+    updater_platforms, updater_url_mode, updater_version = validate_updater_manifest(directory)
+    if capability["productVersion"] != updater_version:
+        raise CompleteReleaseError(
+            "packaged capability product version differs from latest.json"
+        )
+    core_engine_sha256 = sha256(directory / "preflight.jar")
+    if capability["engineJarSha256"] != core_engine_sha256:
+        raise CompleteReleaseError(
+            "packaged capability engine JAR differs from the standalone preflight.jar"
+        )
     return {
         "releaseFiles": len(COMPLETE_FILES),
         "desktopPackages": len(DESKTOP_PACKAGES),
         "platformChecksumManifests": len(PLATFORM_CHECKSUMS),
         "capabilityReceipts": len(CAPABILITY_RECEIPTS),
-        "capabilitySourceRevision": capability_source_revision,
+        "capabilitySourceRevision": capability["sourceRevision"],
+        "productVersion": updater_version,
+        "engineJarSha256": core_engine_sha256,
         "updaterPlatforms": updater_platforms,
         "updaterUrlMode": updater_url_mode,
         "coreArchivePayloadFiles": core["archivePayloadFiles"],
     }
 
 
-def validate_capability_receipts(directory: Path) -> str:
+def validate_capability_receipts(directory: Path) -> dict[str, str]:
     common_receipt: dict | None = None
     for receipt_name, (platform, architecture, checksum_name) in CAPABILITY_RECEIPTS.items():
         try:
@@ -206,7 +217,11 @@ def validate_capability_receipts(directory: Path) -> str:
                 raise CompleteReleaseError(f"{receipt_name} artifact identity doesn't match: {name}")
     if common_receipt is None:
         raise CompleteReleaseError("complete release has no capability receipt")
-    return common_receipt["sourceRevision"]
+    return {
+        "sourceRevision": common_receipt["sourceRevision"],
+        "productVersion": common_receipt["productVersion"],
+        "engineJarSha256": common_receipt["engineJarSha256"],
+    }
 
 
 def validate_packaged_capability(capability: dict, receipt_name: str) -> None:
@@ -228,6 +243,8 @@ def validate_packaged_capability(capability: dict, receipt_name: str) -> None:
     if (
         not isinstance(capability["sourceRevision"], str)
         or not re.fullmatch(r"[a-f0-9]{40}", capability["sourceRevision"])
+        or not isinstance(capability["productVersion"], str)
+        or not SEMVER.fullmatch(capability["productVersion"])
         or capability["sourceDirty"] is not False
         or not isinstance(capability["boundarySourceSha256"], str)
         or not re.fullmatch(r"[a-f0-9]{64}", capability["boundarySourceSha256"])
@@ -251,7 +268,7 @@ def validate_core_subset(directory: Path) -> dict[str, int]:
             raise CompleteReleaseError(f"core release boundary failed: {exc}") from exc
 
 
-def validate_updater_manifest(directory: Path) -> tuple[int, str]:
+def validate_updater_manifest(directory: Path) -> tuple[int, str, str]:
     checksum = core_boundary.parse_checksums(
         directory / "latest.json.sha256", {"latest.json"}
     )
@@ -323,7 +340,7 @@ def validate_updater_manifest(directory: Path) -> tuple[int, str]:
             raise CompleteReleaseError("latest.json mixes public and private-candidate package URLs")
     if url_mode is None:
         raise CompleteReleaseError("latest.json has no reviewed updater URL mode")
-    return len(platforms), url_mode
+    return len(platforms), url_mode, manifest["version"]
 
 
 def reviewed_updater_url_mode(parsed, version: str, package_name: str) -> str | None:
