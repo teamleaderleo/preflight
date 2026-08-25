@@ -107,10 +107,14 @@ const preparation = {
   stopPreparation: vi.fn(),
 } as unknown as ReturnType<typeof usePreparation>;
 
-function renderHome(currentPreparation: ReturnType<typeof usePreparation>, operationBlocked = false) {
+function renderHome(
+  currentPreparation: ReturnType<typeof usePreparation>,
+  operationBlocked = false,
+  status: "ready" | "running" = "ready",
+) {
   return render(<HomePage
     snapshot={snapshot}
-    status="ready"
+    status={status}
     message=""
     messageTone="info"
     isReady
@@ -180,6 +184,24 @@ test("Home keeps storage-mode taxonomy out of the default low-disk decision", ()
   expect(note).not.toBeNull();
   expect(actions).not.toBeNull();
   expect(note!.nextElementSibling).toBe(actions);
+});
+
+test("Home removes the normal-launch fallback once the game is running", () => {
+  const unsafePreparation = {
+    ...preparation,
+    preparing: false,
+    profilePrepared: false,
+    cacheHealth: {
+      ...preparation.cacheHealth,
+      status: "unsafe",
+      issues: [{ summary: "The prepared data location could not be verified." }],
+    },
+  } as unknown as ReturnType<typeof usePreparation>;
+
+  renderHome(unsafePreparation, true, "running");
+
+  expect(screen.getByRole("button", { name: "Stop Starsector" })).toBeEnabled();
+  expect(screen.queryByRole("button", { name: "Launch normally" })).toBeNull();
 });
 
 test("compact preparation note clears both ordinary and stacked action rows", () => {

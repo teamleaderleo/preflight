@@ -51,6 +51,7 @@ export type BrowserPreviewScenario =
   | "first-run"
   | "low-disk"
   | "cache-repair"
+  | "cache-unsafe"
   | "mod-problems"
   | "profile-mismatch"
   | "frame-pacing"
@@ -66,6 +67,7 @@ const browserPreviewScenarios = new Set<BrowserPreviewScenario>([
   "first-run",
   "low-disk",
   "cache-repair",
+  "cache-unsafe",
   "mod-problems",
   "profile-mismatch",
   "frame-pacing",
@@ -524,6 +526,24 @@ export async function getCache(game: string): Promise<CacheSnapshot> {
 
 export async function getCacheHealth(game: string): Promise<CacheHealth> {
   if (!isDesktopHost()) {
+    if (browserPreviewScenario() === "cache-unsafe") {
+      return {
+        format: "starsector-preflight-cache-health-v1",
+        status: "unsafe",
+        profileFingerprint: "preview-profile",
+        preparedTextures: null,
+        textureStorage: null,
+        textureScope: null,
+        compactAvailable: false,
+        issues: [{
+          artifact: "prepared-textures",
+          summary: "The prepared data location could not be verified.",
+          path: "~/.starsector-preflight/cache/packs/preview-profile.spfp",
+        }],
+        repairBytes: 0,
+        repairFiles: 0,
+      };
+    }
     if (browserPreviewScenario() === "cache-repair") {
       return {
         format: "starsector-preflight-cache-health-v1",

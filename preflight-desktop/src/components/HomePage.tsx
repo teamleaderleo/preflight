@@ -303,7 +303,7 @@ export function HomePage({
     <section className="card run-recovery cache-recovery" aria-label="Prepared data needs attention">
       <div>
         <strong>{cacheIdentityUnknown ? "Prepared data couldn't be checked" : cacheBoundaryUnsafe ? "Prepared data location needs attention" : "Prepared data needs repair"}</strong>
-        <p>{cacheHealth.issues[0]?.summary ?? "Some prepared data for this mod setup couldn't be validated."} Preflight left it in place. Starsector and your mods are unchanged.</p>
+        <p>{cacheHealth.issues[0]?.summary ?? "Some prepared data for this mod setup couldn't be validated."} Preflight left it in place. Starsector, your mods, and your saves are unchanged.</p>
         {cacheHealth.issues.length > 1 ? <small>{cacheHealth.issues.length - 1} more issue{cacheHealth.issues.length === 2 ? "" : "s"} found.</small> : null}
       </div>
       <div className="run-recovery__actions">
@@ -516,12 +516,15 @@ export function HomePage({
                 {cacheNeedsRepair && !preparing && !cacheRepairing ? (
                   <button className="button button--quiet launch-console__stop" type="button" onClick={() => onNavigate("speed")}>Repair details</button>
                 ) : null}
-                {(storageBlocked || cacheInspectionBlocked) && !preparing && !cacheRepairing ? (
+                {(storageBlocked || cacheInspectionBlocked)
+                  && !activeLayout
+                  && !preparing
+                  && !cacheRepairing ? (
                   <button
                     className="button button--quiet launch-console__stop"
                     type="button"
                     onClick={onLaunchWithoutPreparing}
-                    disabled={operationBlocked || status === "launching" || status === "running"}
+                    disabled={operationBlocked}
                   >
                     Launch normally
                   </button>

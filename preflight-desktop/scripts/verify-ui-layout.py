@@ -33,7 +33,7 @@ VIEWPORTS = (
 
 PAGE_SWEEP_WIDTHS = {480, 720, 1040, 1440}
 PRIMARY_PAGES = ("Speed", "Mods", "Help", "Settings")
-HOME_RECOVERY_SCENARIOS = ("setup", "cache-repair", "run-failure", "running")
+HOME_RECOVERY_SCENARIOS = ("setup", "cache-repair", "cache-unsafe", "run-failure", "running")
 PAGE_RECOVERY_SCENARIOS = (
     "benchmark-unavailable",
     "mod-problems",
@@ -973,6 +973,7 @@ def main() -> int:
                                 page.get_by_role("heading", name={
                                     "setup": "Setup",
                                     "cache-repair": "Fast launch",
+                                    "cache-unsafe": "Fast launch",
                                     "run-failure": "Needs attention",
                                     "running": "Running",
                                 }[scenario], exact=True).wait_for()
@@ -982,7 +983,7 @@ def main() -> int:
                                     raise RuntimeError(
                                         f"{label} {scenario}: recovery left the ship picker on screen"
                                     )
-                                if scenario in ("cache-repair", "running"):
+                                if scenario in ("cache-repair", "cache-unsafe", "running"):
                                     geometry[key]["home"] = assert_home_geometry(page, f"{label} {scenario}")
                                 capture(page, args.output_dir, f"state-{scenario}-{label}.png")
                                 if errors:

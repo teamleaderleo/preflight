@@ -55,6 +55,7 @@ import type {
   AppStatus,
   DesktopSnapshot,
   NoticeTone,
+  OptimizationPreset,
   RunStateEvent,
 } from "./types";
 
@@ -171,17 +172,19 @@ export default function App() {
       return false;
     }
   }, [announceInstallation, clearNotice, setInstallationStatus]);
-  const launch = useCallback(async () => {
+  const launch = useCallback(async (presetOverride?: OptimizationPreset) => {
     const game = snapshot?.selected?.installRoot;
     if (!game) return;
+    const launchPreset = presetOverride ?? optimizationPreset;
+    const launchDisabledDomains = launchPreset === "off" ? [] : disabledOptimizationDomains;
     setStatus("launching");
     setRetryIntent(null);
     announceGame("Opening Starsector…");
     try {
       const started = await startGame(
         game,
-        optimizationPreset,
-        disabledOptimizationDomains,
+        launchPreset,
+        launchDisabledDomains,
         afterLaunchBehavior,
         recordFramePacing,
       );
@@ -193,8 +196,8 @@ export default function App() {
         installRoot: game,
         profileFingerprint: fingerprint,
       };
-      countWhenFinished.current = optimizationPreset === "recommended"
-        && disabledOptimizationDomains.length === 0
+      countWhenFinished.current = launchPreset === "recommended"
+        && launchDisabledDomains.length === 0
         && fingerprint
         ? { pid: started.pid, profileFingerprint: fingerprint }
         : null;
@@ -307,7 +310,9 @@ export default function App() {
   };
   const launchWithoutPreparing = async () => {
     if (!requireAppliedLauncherSettings()) return;
-    await launch();
+    // This is the recovery baseline, not merely a preparation skip. In particular, an unsafe or
+    // uninspectable cache must never flow into the adapter just because the saved preference is On.
+    await launch("off");
   };
   const removal = useRemoval(
     snapshot?.platform,

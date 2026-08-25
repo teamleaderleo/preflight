@@ -258,7 +258,7 @@ test("preparation started on Home remains visible and can be stopped safely", as
   game.mockRestore();
 });
 
-test("a refused preparation still leaves a way to launch the game", async () => {
+test("a refused preparation still leaves an unoptimized way to launch the game", async () => {
   const user = userEvent.setup();
   const cold = cacheSnapshot({ profiles: [] });
   const basePlan = await bridge.getPreparationPlan("/Applications/Starsector", "balanced", 4);
@@ -282,7 +282,7 @@ test("a refused preparation still leaves a way to launch the game", async () => 
   expect(screen.getByText(/Preparation needs .* free; .* is available\./)).toBeInTheDocument();
   await user.click(launch);
 
-  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize", false));
+  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "off", [], "minimize", false));
   expect(preparation).not.toHaveBeenCalled();
 
   cache.mockRestore();
@@ -290,6 +290,48 @@ test("a refused preparation still leaves a way to launch the game", async () => 
   preparation.mockRestore();
   game.mockRestore();
 });
+
+test.each(["unsafe", "unknown"] as const)(
+  "launching normally bypasses %s prepared data with optimizations off",
+  async (status) => {
+    const user = userEvent.setup();
+    const blocked: CacheHealth = {
+      format: "starsector-preflight-cache-health-v1",
+      status,
+      profileFingerprint: "preview-profile",
+      issues: [{
+        artifact: "prepared-textures",
+        summary: status === "unsafe"
+          ? "The prepared data location could not be verified."
+          : "Prepared data could not be inspected.",
+        path: "~/.starsector-preflight/cache/packs/preview-profile.spfp",
+      }],
+      repairBytes: 0,
+      repairFiles: 0,
+    };
+    const health = vi.spyOn(bridge, "getCacheHealth").mockResolvedValue(blocked);
+    const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 4242 });
+
+    render(<App />);
+
+    expect(await screen.findByText(
+      status === "unsafe" ? "Prepared data location needs attention" : "Prepared data couldn't be checked",
+    )).toBeInTheDocument();
+    expect(screen.getByText(/Starsector, your mods, and your saves are unchanged/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Launch normally" }));
+
+    await waitFor(() => expect(game).toHaveBeenCalledWith(
+      "/Applications/Starsector",
+      "off",
+      [],
+      "minimize",
+      false,
+    ));
+
+    health.mockRestore();
+    game.mockRestore();
+  },
+);
 
 test("a refused preparation offers the preparation that barely uses disk", async () => {
   const user = userEvent.setup();
