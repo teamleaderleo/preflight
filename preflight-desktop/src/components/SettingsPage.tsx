@@ -123,7 +123,7 @@ export function SettingsPage({
               Record frame pacing
               <small>{framePacingPaused
                 ? "Paused while optimizations are Off."
-                : "Average FPS, one-percent low, and frame-time percentiles. Never writes to saves."}</small>
+                : "Average FPS, one-percent low, frame-time percentiles, and recording cost. Never writes to saves."}</small>
             </span>
           </label>
         </div>

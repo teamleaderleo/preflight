@@ -1877,6 +1877,16 @@ h2 {
   gap: 10px;
 }
 
+.frame-pacing-card__notes {
+  display: grid;
+  gap: 3px;
+}
+
+.frame-pacing-card__notes strong {
+  color: var(--ink);
+  font-family: var(--font-data);
+}
+
 .frame-pacing-row {
   display: grid;
   grid-template-columns: minmax(150px, .65fr) minmax(0, 2fr);

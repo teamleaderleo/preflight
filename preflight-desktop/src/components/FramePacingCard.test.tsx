@@ -28,6 +28,27 @@ test("shows the settled campaign and combat distributions without raw frame deta
   expect(within(campaign).getByText("20.5 FPS")).toBeInTheDocument();
   expect(within(campaign).getByText("27.1 ms")).toBeInTheDocument();
   expect(screen.getByRole("group", { name: "Combat" })).toHaveTextContent("60 FPS");
+  expect(screen.getByText(/recording cost averaged/i)).toHaveTextContent("1.78 μs per frame");
+  expect(screen.getByText(/not a game-speed comparison/i)).toBeInTheDocument();
+  expect(screen.getByText(/never reads or writes a save/i)).toBeInTheDocument();
+});
+
+test("omits recorder-cost copy when an older summary has no overhead measurement", () => {
+  render(<FramePacingCard framePacing={{
+    format: "starsector-preflight-frame-pacing-summary-v1",
+    campaign: {
+      frames: 500,
+      averageFps: 50,
+      onePercentLowFps: 30,
+      p95Micros: 22_000,
+      p99Micros: 33_000,
+    },
+    settledCampaign: null,
+    combat: null,
+    measurementAverageMicros: null,
+  }} />);
+
+  expect(screen.queryByText(/recording cost/i)).not.toBeInTheDocument();
   expect(screen.getByText(/never reads or writes a save/i)).toBeInTheDocument();
 });
 

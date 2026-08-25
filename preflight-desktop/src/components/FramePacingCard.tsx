@@ -8,6 +8,10 @@ function milliseconds(micros: number): string {
   return (micros / 1_000).toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
 
+function microseconds(value: number): string {
+  return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
 function FramePacingRow({ label, result }: { label: string; result: FramePacingDistribution }) {
   return (
     <div className="frame-pacing-row" role="group" aria-label={label}>
@@ -43,7 +47,14 @@ export function FramePacingCard({ framePacing }: { framePacing?: FramePacingSumm
         {campaign ? <FramePacingRow label={framePacing?.settledCampaign ? "Campaign after warm-up" : "Campaign"} result={campaign} /> : null}
         {combat ? <FramePacingRow label="Combat" result={combat} /> : null}
       </div>
-      <small>Recorded locally after you opted in. The summary never reads or writes a save.</small>
+      <div className="frame-pacing-card__notes">
+        {framePacing?.measurementAverageMicros !== null && framePacing?.measurementAverageMicros !== undefined ? (
+          <small>
+            Recording cost averaged <strong>{microseconds(framePacing.measurementAverageMicros)} μs per frame</strong>. That is the recorder's own work, not a game-speed comparison.
+          </small>
+        ) : null}
+        <small>Recorded locally after you opted in. The summary never reads or writes a save.</small>
+      </div>
     </section>
   );
 }
