@@ -142,14 +142,15 @@ def choose_build_sets(
         age_hours = max(0.0, now - build.newest_mtime) / 3600
         if build.current:
             decisions.append(Decision(build, "keep", "current worktree"))
-        elif build.dirty:
-            decisions.append(Decision(build, "keep", "source changes present"))
         elif build.root in retained:
             decisions.append(Decision(build, "keep", "newest completed build set"))
         elif now - build.newest_mtime < minimum_age_seconds:
             decisions.append(Decision(build, "keep", f"only {age_hours:.1f} hours old"))
         else:
-            decisions.append(Decision(build, "remove", f"{age_hours:.1f} hours old"))
+            detail = f"{age_hours:.1f} hours old"
+            if build.dirty:
+                detail += "; source changes remain untouched"
+            decisions.append(Decision(build, "remove", detail))
     return decisions
 
 
@@ -168,8 +169,8 @@ def remove_outputs(build: BuildSet) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Remove rebuildable Maven, Rust, frontend, and package outputs from old clean "
-            "worktrees. The current and dirty worktrees are always retained."
+            "Remove rebuildable Maven, Rust, frontend, and package outputs from old registered "
+            "worktrees. The current worktree is always retained; source changes are never removed."
         )
     )
     parser.add_argument(

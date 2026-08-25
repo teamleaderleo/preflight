@@ -69,7 +69,7 @@ from launch time. Phase-probe time also uses a different clock and cannot be com
 
 | | |
 |---|---|
-| `prune_local_build_outputs.py` | Preview rebuildable Maven, Rust, frontend, UI-matrix, and package outputs across this repository's registered worktrees. The current worktree, every worktree with source changes, the newest completed build set, and anything less than 24 hours old are retained. Pass `--apply` after reviewing the plan. |
+| `prune_local_build_outputs.py` | Preview rebuildable Maven, Rust, frontend, UI-matrix, and package outputs across this repository's registered worktrees. The current worktree, the newest completed build set, and anything less than 24 hours old are retained; old generated output may be removed from dirty worktrees without touching their source changes. Pass `--apply` after reviewing the plan. |
 
 Run this after an experiment or review wave finishes. Exact release evidence belongs in its reviewed
 artifact/evidence location; an old `target/` or `desktop-dist/` directory is not durable evidence.

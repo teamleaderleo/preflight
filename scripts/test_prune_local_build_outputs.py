@@ -34,7 +34,7 @@ class SelectionTest(unittest.TestCase):
             dirty=dirty,
         )
 
-    def test_current_dirty_and_newest_completed_are_retained(self):
+    def test_current_and_newest_completed_are_retained_but_old_dirty_outputs_are_not(self):
         now = 1_000_000.0
         builds = [
             self.build("current", 100, current=True),
@@ -52,7 +52,8 @@ class SelectionTest(unittest.TestCase):
         by_name = {decision.build.root.name: decision for decision in decisions}
 
         self.assertEqual("keep", by_name["current"].action)
-        self.assertEqual("keep", by_name["dirty"].action)
+        self.assertEqual("remove", by_name["dirty"].action)
+        self.assertIn("source changes remain untouched", by_name["dirty"].reason)
         self.assertEqual("keep", by_name["newest"].action)
         self.assertEqual("remove", by_name["second"].action)
         self.assertEqual("remove", by_name["old"].action)
