@@ -5,7 +5,7 @@ page changes; do not treat this document as a permanent tier contract.
 
 ## Short bio
 
-I make Preflight, a free and open-source fast launcher for Starsector, and other software.
+I make stuff. Stuff... becomes more stuff.
 
 ## Introduction
 
