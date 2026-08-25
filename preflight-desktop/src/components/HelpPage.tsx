@@ -111,9 +111,9 @@ export function HelpPage({
         {setupCopy.saveState === "error" && setupCopy.text ? (
           <div className="report-recovery" role="alert">
             <strong>Setup summary wasn’t saved</strong>
-            <p>{setupCopy.saveError} The exact public summary is still available; choose another filename or copy these same bytes.</p>
+            <p>{setupCopy.saveError} The summary is still available below; choose another filename or copy it.</p>
             <textarea aria-label="Save setup summary" readOnly rows={10} value={setupCopy.text} />
-            {setupCopy.copyState === "copied" ? <p className="support-summary-copy-status" role="status"><CheckIcon /> Copied the exact summary.</p> : null}
+            {setupCopy.copyState === "copied" ? <p className="support-summary-copy-status" role="status"><CheckIcon /> Copied the summary.</p> : null}
             {setupCopy.copyState === "error" ? <p className="support-summary-copy-error" role="alert">Clipboard access failed. Select and copy the text above, or try again.</p> : null}
             <div className="report-actions">
               <button className="button button--quiet button--compact" type="button" onClick={() => void setupCopy.retrySaveSetup()} disabled={setupSummaryBusy}>Choose another file…</button>
@@ -141,8 +141,8 @@ export function HelpPage({
             <section className="diagnostics-card">
               <div className="card__heading"><div><p className="eyebrow">Included</p><h2>Run details</h2></div><CheckIcon className="settings-check" /></div>
               <ul>
-                <li>Run outcome, runtime, adapter health and timing summaries</li>
-                <li>Enabled-mod and resource names, counts, sizes and content hashes</li>
+                <li>Whether the launch finished, which Java version ran, which optimizations were active, and timing summaries</li>
+                <li>Enabled-mod and resource names, counts, sizes and file fingerprints</li>
                 <li>Benchmark settings and results</li>
                 <li>A list of every file included or skipped</li>
               </ul>
@@ -150,10 +150,10 @@ export function HelpPage({
             <section className="diagnostics-card diagnostics-card--excluded">
               <div className="card__heading"><div><p className="eyebrow">Left out</p><h2>Your game and data</h2></div><ShieldIcon className="settings-check" /></div>
               <ul>
-                <li>Game, mod, save, texture, audio or bytecode contents</li>
-                <li>Acceleration caches, console logs and crash dumps</li>
-                <li>JFR recordings, screenshots, audio or unknown files</li>
-                <li>Symlinks or any source file larger than 512 KiB</li>
+                <li>Game, mod, save, texture, audio or compiled-code contents</li>
+                <li>Prepared data, console logs and crash dumps</li>
+                <li>Performance recordings, screenshots, audio or files Preflight doesn’t recognize</li>
+                <li>Links to other locations or any individual report file larger than 512 KiB</li>
               </ul>
             </section>
           </div>

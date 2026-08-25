@@ -40,7 +40,7 @@ measurement chronology and experimental context, see [Optimization history](docs
   first with reviewed optimizations off and then with them on,
   on the current installation. **Copy result** produces a compact shareable comparison without raw
   evidence, private paths, or logs.
-- **Track Starsector playtime.** A bounded local play-history ledger follows sessions launched through Preflight
+- **Track Starsector playtime.** A local play-history ledger follows sessions launched through Preflight
   even if the desktop minimizes or exits afterward. **Copy playtime** shares total/session context,
   and the engine can export versioned JSON plus spreadsheet-safe CSV.
 - **Keep named mod profiles.** Save, search, switch, rename, duplicate, and delete profiles. Switching
@@ -62,9 +62,9 @@ measurement chronology and experimental context, see [Optimization history](docs
   Relaunch, and Get help directly from Home.
 - **Share support data deliberately.** Copy setup can copy or save useful public facts without paths,
   credentials, saves, or arbitrary logs; saving creates a new text file and never replaces one.
-  The separate support ZIP is allowlisted, disclosed before
-  sending, size-bounded, cancellable, and excludes game/mod assets, saves, screenshots, audio,
-  caches, arbitrary logs, and credentials. Accepted reports carry retention/deletion information.
+  The separate support ZIP contains only the listed report details, shows its contents before
+  sending, can be cancelled, and excludes game/mod assets, saves, screenshots, audio, caches,
+  arbitrary logs, and credentials. Accepted reports carry retention/deletion information.
 - **Update through a signed path.** The desktop can review a newer release, verify it, install it, and
   restart when asked. The release process also exercises install, upgrade, rollback, and removal
   across macOS, Windows, and Linux.

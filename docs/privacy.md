@@ -6,9 +6,9 @@ make the update-check request described below, and run reports are sent only thr
 explicit-consent path described later in this document.
 
 Local maintenance keeps 10 launch reports—including the latest completed paired comparison and
-identity-bound save/reload check when available—and the 5 newest benchmark campaigns. It removes
-older Preflight evidence while the desktop is idle. This is local deletion only; it makes no
-network request and doesn't touch Starsector, mods, saves, screenshots, or game settings.
+save/reload check for its recorded setup when available—and the 5 newest benchmark campaigns. It
+removes older Preflight evidence while the desktop is idle. This is local deletion only; it makes
+no network request and doesn't touch Starsector, mods, saves, screenshots, or game settings.
 
 ## Update checks
 

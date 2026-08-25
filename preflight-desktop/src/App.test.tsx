@@ -1411,6 +1411,9 @@ test("diagnostics disclose their boundary and export a bounded bundle", async ()
   await user.click(screen.getByText("What’s inside?"));
   expect(screen.getByText("Run details")).toBeInTheDocument();
   expect(screen.getByText("Your game and data")).toBeInTheDocument();
+  expect(screen.getByText(/Whether the launch finished, which Java version ran/)).toBeInTheDocument();
+  expect(screen.getByText(/Game, mod, save, texture, audio or compiled-code contents/)).toBeInTheDocument();
+  expect(screen.getByText(/Performance recordings, screenshots, audio or files Preflight doesn’t recognize/)).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Make a support file" }));
 
   expect(await screen.findByText("Support file ready")).toBeInTheDocument();
