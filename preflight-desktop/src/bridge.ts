@@ -126,6 +126,13 @@ const previewFramePacingRun: NonNullable<DesktopSnapshot["lastRun"]> = {
       p95Micros: 18_420,
       p99Micros: 24_910,
     },
+    initialCampaign: {
+      frames: 1_765,
+      averageFps: 55.8,
+      onePercentLowFps: 28.4,
+      p95Micros: 22_610,
+      p99Micros: 35_210,
+    },
     settledCampaign: {
       frames: 7_663,
       averageFps: 59.4,

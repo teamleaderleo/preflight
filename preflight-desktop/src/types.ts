@@ -33,6 +33,7 @@ export interface FramePacingDistribution {
 export interface FramePacingSummary {
   format: "starsector-preflight-frame-pacing-summary-v1";
   campaign: FramePacingDistribution | null;
+  initialCampaign?: FramePacingDistribution | null;
   settledCampaign: FramePacingDistribution | null;
   combat: FramePacingDistribution | null;
   measurementAverageMicros: number | null;

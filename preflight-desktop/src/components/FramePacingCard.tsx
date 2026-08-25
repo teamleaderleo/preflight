@@ -30,7 +30,14 @@ function FramePacingRow({ label, result }: { label: string; result: FramePacingD
 }
 
 export function FramePacingCard({ framePacing }: { framePacing?: FramePacingSummary | null }) {
-  const campaign = framePacing?.settledCampaign ?? framePacing?.campaign;
+  const initialCampaign = framePacing?.initialCampaign;
+  const settledCampaign = framePacing?.settledCampaign;
+  const campaign = settledCampaign ?? framePacing?.campaign ?? initialCampaign;
+  const campaignLabel = settledCampaign
+    ? "Campaign after 30 seconds"
+    : framePacing?.campaign
+      ? "Campaign"
+      : "Campaign first 30 seconds";
   const combat = framePacing?.combat;
   if (!campaign && !combat) return null;
 
@@ -44,10 +51,14 @@ export function FramePacingCard({ framePacing }: { framePacing?: FramePacingSumm
         <small>Higher FPS and lower frame times are better.</small>
       </div>
       <div className="frame-pacing-card__sessions">
-        {campaign ? <FramePacingRow label={framePacing?.settledCampaign ? "Campaign after warm-up" : "Campaign"} result={campaign} /> : null}
+        {initialCampaign && settledCampaign ? <FramePacingRow label="Campaign first 30 seconds" result={initialCampaign} /> : null}
+        {campaign ? <FramePacingRow label={campaignLabel} result={campaign} /> : null}
         {combat ? <FramePacingRow label="Combat" result={combat} /> : null}
       </div>
       <div className="frame-pacing-card__notes">
+        {initialCampaign && settledCampaign ? (
+          <small>Campaign rows are two periods from this same session, not a comparison between Preflight versions.</small>
+        ) : null}
         {framePacing?.measurementAverageMicros !== null && framePacing?.measurementAverageMicros !== undefined ? (
           <small>
             Recording cost averaged <strong>{microseconds(framePacing.measurementAverageMicros)} μs per frame</strong>. That is the recorder's own work, not a game-speed comparison.

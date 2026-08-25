@@ -161,18 +161,31 @@ class DesktopBridgeCommandTest {
         Files.writeString(run.resolve("run.json"), Json.object(Map.of(
                 "installRoot", game,
                 "textureProfileFingerprint", "9".repeat(64))));
-        Map<String, Object> campaign = Map.of(
+        Map<String, Object> initialCampaign = Map.of(
+                "frames", 1383,
+                "averageFps", 46.10,
+                "onePercentLowFps", 9.15,
+                "p95Micros", 44500,
+                "p99Micros", 109300);
+        Map<String, Object> allCampaign = Map.of(
+                "frames", 5474,
+                "averageFps", 52.76,
+                "onePercentLowFps", 15.06,
+                "p95Micros", 31200,
+                "p99Micros", 66400,
+                "worstFrames", List.of(Map.of("timestamp", "private-detail")));
+        Map<String, Object> settledCampaign = Map.of(
                 "frames", 4091,
                 "averageFps", 55.47,
                 "onePercentLowFps", 20.45,
                 "p95Micros", 27100,
-                "p99Micros", 48900,
-                "worstFrames", List.of(Map.of("timestamp", "private-detail")));
+                "p99Micros", 48900);
         Files.writeString(run.resolve("adapter.json"), Json.object(Map.of(
                 "frameTimes", Map.of(
                         "enabled", true,
-                        "campaignActive", campaign,
-                        "campaignAfterFirst30SecondsActive", campaign,
+                        "campaignActive", allCampaign,
+                        "campaignFirst30SecondsActive", initialCampaign,
+                        "campaignAfter30SecondsActive", settledCampaign,
                         "combatAfterCampaignActive", Map.of("frames", 0),
                         "measurementOverhead", Map.of("averageMicros", 1.78)))));
 
@@ -184,11 +197,19 @@ class DesktopBridgeCommandTest {
         Map<String, Object> framePacing = (Map<String, Object>) lastRun.get("framePacing");
         @SuppressWarnings("unchecked")
         Map<String, Object> summary = (Map<String, Object>) framePacing.get("campaign");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> initial = (Map<String, Object>) framePacing.get("initialCampaign");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> settled = (Map<String, Object>) framePacing.get("settledCampaign");
 
         assertEquals("starsector-preflight-frame-pacing-summary-v1", framePacing.get("format"));
-        assertEquals(4091L, summary.get("frames"));
-        assertEquals(55.47, summary.get("averageFps"));
-        assertEquals(20.45, summary.get("onePercentLowFps"));
+        assertEquals(5474L, summary.get("frames"));
+        assertEquals(52.76, summary.get("averageFps"));
+        assertEquals(15.06, summary.get("onePercentLowFps"));
+        assertEquals(1383L, initial.get("frames"));
+        assertEquals(9.15, initial.get("onePercentLowFps"));
+        assertEquals(4091L, settled.get("frames"));
+        assertEquals(20.45, settled.get("onePercentLowFps"));
         assertEquals(1.78, framePacing.get("measurementAverageMicros"));
         assertFalse(summary.containsKey("worstFrames"), summary.toString());
         assertNull(framePacing.get("combat"));

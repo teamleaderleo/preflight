@@ -539,14 +539,17 @@ final class DesktopBridgeCommand {
             if (!Boolean.TRUE.equals(frameTimes.get("enabled"))) return null;
 
             Map<String, Object> campaign = frameDistribution(frameTimes.get("campaignActive"));
+            Map<String, Object> initialCampaign = frameDistribution(
+                    frameTimes.get("campaignFirst30SecondsActive"));
             Map<String, Object> settledCampaign = frameDistribution(
-                    frameTimes.get("campaignAfterFirst30SecondsActive"));
+                    frameTimes.get("campaignAfter30SecondsActive"));
             Map<String, Object> combat = frameDistribution(frameTimes.get("combatAfterCampaignActive"));
-            if (campaign == null && settledCampaign == null && combat == null) return null;
+            if (campaign == null && initialCampaign == null && settledCampaign == null && combat == null) return null;
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("format", "starsector-preflight-frame-pacing-summary-v1");
             result.put("campaign", campaign);
+            result.put("initialCampaign", initialCampaign);
             result.put("settledCampaign", settledCampaign);
             result.put("combat", combat);
             if (frameTimes.get("measurementOverhead") instanceof Map<?, ?> rawOverhead) {

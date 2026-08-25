@@ -2,10 +2,17 @@ import { render, screen, within } from "@testing-library/react";
 import { expect, test } from "vitest";
 import { FramePacingCard } from "./FramePacingCard";
 
-test("shows the settled campaign and combat distributions without raw frame details", () => {
+test("shows initial, settled, and combat distributions without raw frame details", () => {
   render(<FramePacingCard framePacing={{
     format: "starsector-preflight-frame-pacing-summary-v1",
     campaign: null,
+    initialCampaign: {
+      frames: 1_383,
+      averageFps: 46.10,
+      onePercentLowFps: 9.15,
+      p95Micros: 44_500,
+      p99Micros: 109_300,
+    },
     settledCampaign: {
       frames: 4_091,
       averageFps: 55.47,
@@ -23,13 +30,17 @@ test("shows the settled campaign and combat distributions without raw frame deta
     measurementAverageMicros: 1.78,
   }} />);
 
-  const campaign = screen.getByRole("group", { name: "Campaign after warm-up" });
+  const initialCampaign = screen.getByRole("group", { name: "Campaign first 30 seconds" });
+  expect(within(initialCampaign).getByText("46.1 FPS")).toBeInTheDocument();
+  expect(within(initialCampaign).getByText("9.2 FPS")).toBeInTheDocument();
+  const campaign = screen.getByRole("group", { name: "Campaign after 30 seconds" });
   expect(within(campaign).getByText("55.5 FPS")).toBeInTheDocument();
   expect(within(campaign).getByText("20.5 FPS")).toBeInTheDocument();
   expect(within(campaign).getByText("27.1 ms")).toBeInTheDocument();
   expect(screen.getByRole("group", { name: "Combat" })).toHaveTextContent("60 FPS");
   expect(screen.getByText(/recording cost averaged/i)).toHaveTextContent("1.78 μs per frame");
   expect(screen.getByText(/not a game-speed comparison/i)).toBeInTheDocument();
+  expect(screen.getByText(/two periods from this same session/i)).toBeInTheDocument();
   expect(screen.getByText(/never reads or writes a save/i)).toBeInTheDocument();
 });
 

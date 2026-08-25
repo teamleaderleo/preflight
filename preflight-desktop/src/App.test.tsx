@@ -1088,8 +1088,10 @@ test("an opted-in session surfaces bounded campaign and combat pacing on Speed",
   await user.click(await screen.findByRole("button", { name: "Speed" }));
 
   const card = await screen.findByRole("region", { name: "Latest frame pacing" });
-  expect(within(card).getByRole("group", { name: "Campaign after warm-up" })).toHaveTextContent("59.4 FPS");
+  expect(within(card).getByRole("group", { name: "Campaign first 30 seconds" })).toHaveTextContent("55.8 FPS");
+  expect(within(card).getByRole("group", { name: "Campaign after 30 seconds" })).toHaveTextContent("59.4 FPS");
   expect(within(card).getByRole("group", { name: "Combat" })).toHaveTextContent("54.2 FPS");
+  expect(card).toHaveTextContent("two periods from this same session");
   expect(card).toHaveTextContent("never reads or writes a save");
 });
 
