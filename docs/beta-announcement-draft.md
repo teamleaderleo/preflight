@@ -60,8 +60,9 @@ edit campaign saves or put prepared data into them; Starsector still owns normal
 Prepared data lives in Preflight's own area. Runtime optimizations live inside the launched game
 process.
 
-If a runtime shortcut does not recognize the code it expects, it steps aside and the normal game
-path runs.
+Prepared data is disposable acceleration, not game state. If it is missing or fails a check,
+Starsector does that work through its normal path. If a runtime shortcut does not recognize the code
+it expects, it steps aside too.
 
 Profile switching and launch settings are explicit game-owned preference changes. The app shows the
 change and keeps a backup.

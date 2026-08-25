@@ -20,11 +20,11 @@ cache on the wrong side of a single-threaded prefetch wait, rebuildable texture 
 durable, repeated generated-code compilation, and high-frequency campaign scans and recomputations.
 Moving those costs to better boundaries produced the current development arc.
 
-Preflight prepares repeatable texture, data, generated-code, and audio work ahead of launch, binds
-that prepared work to the exact game and ordered mod inputs that produced it, and reuses it while
-those inputs still match. Runtime shortcuts are checked against the code they were reviewed against.
-If something is changed, missing, damaged, unsupported, or ambiguous, the original game path remains
-available.
+Preflight prepares repeatable texture, data, generated-code, and audio work ahead of launch, records
+the game and ordered mod identity observed during preparation, and checks that identity again before
+reuse. Runtime shortcuts are checked against the code they were reviewed against. If a change is
+detected, prepared data is missing or damaged, or a target is unsupported or ambiguous, the original
+game path remains available.
 
 The same Java engine now powers a Windows/macOS/Linux desktop app with a React UI over a Rust/Tauri
 host, a bundled Java runtime, durable launch/playtime history, named mod profiles, storage and
@@ -227,9 +227,14 @@ writes. Prepared files live in Preflight's own data area and can be rebuilt. Run
 only in the launched JVM and disappear when the game exits. Two explicit, backed-up features can
 update game-owned preferences: profile activation and the launch-settings editor.
 
+Prepared data is a disposable acceleration layer, not game state. Preflight checks the identity it
+recorded, validates each prepared representation, and declines the prepared path when a check fails;
+the game's original loader then handles that work. The current checks and their documented limit are
+covered in the [cache and save-safety audit](docs/evidence/2026-08-25-cache-and-save-safety-audit.md).
+
 | Situation | Result |
 | --- | --- |
-| A game or mod file changes | A different content identity is selected |
+| A game or mod change is detected | Only matching prepared data is selected |
 | A prepared entry is missing or invalid | The original loader handles that request |
 | A reviewed class fingerprint changes | That runtime transformation declines |
 | A campaign is saved | Prepared cache data is not part of the save payload |

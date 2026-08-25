@@ -139,8 +139,9 @@ The built-in benchmark gives players the same direct measurement path used durin
 Preflight leaves Starsector and mod JARs, executables, and assets unchanged. It does not directly
 edit campaign saves or put prepared data into them; Starsector still owns normal save writes.
 Prepared data lives in Preflight's own area. Runtime optimizations live inside the launched game
-process. If a runtime shortcut does not recognize the code it expects, it steps aside and the normal
-game path runs.
+process. Prepared data is disposable acceleration, not game state. If it is missing or fails a check,
+Starsector does that work through its normal path. If a runtime shortcut does not recognize the code
+it expects, it steps aside too.
 
 ## Disk language
 

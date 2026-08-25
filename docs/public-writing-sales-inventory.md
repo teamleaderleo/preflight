@@ -66,6 +66,8 @@ Use behavior:
 
 - Starsector and mod JARs, executables, assets, and saves remain unchanged;
 - runtime optimizations live inside the launched game process;
+- prepared data is disposable acceleration rather than game state;
+- if prepared data is missing or fails a check, Starsector does that work through its normal path;
 - an optimization that does not recognize its target steps aside and the normal game path runs;
 - prepared data lives below Preflight's own area;
 - profile/settings writes are explicit and backed up;
