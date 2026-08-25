@@ -3,7 +3,7 @@
 # Launch one manually played campaign, save, and combat pilot with every relevant beta probe enabled.
 #
 # Usage:
-#   scripts/run-gameplay-pilot.sh [--game DIR] [--label NAME] [--safer-jvm] [--without-audio-repair] [--without-profile] [--without-adapter] [--disable-plans IDS]
+#   scripts/run-gameplay-pilot.sh --disposable-save DIRECTORY [--game DIR] [--label NAME] [--safer-jvm] [--without-audio-repair] [--without-profile] [--without-adapter] [--disable-plans IDS]
 #
 # Load a disposable copy of a representative campaign, exercise campaign and combat play, save and
 # reload that copy, then exit Starsector normally. Preflight keeps a coherent JFR and reports whether
@@ -19,11 +19,13 @@ AUDIO_REPAIR=true
 PROFILE=true
 ADAPTER=true
 DISABLED_PLANS=""
+DISPOSABLE_SAVE=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --game) GAME="$2"; shift 2 ;;
         --label) LABEL="$2"; shift 2 ;;
+        --disposable-save) DISPOSABLE_SAVE="$2"; shift 2 ;;
         --without-startup-caches) STARTUP_CACHES=false; shift ;;
         --without-gameplay-caches) GAMEPLAY_CACHES=false; shift ;;
         --safer-jvm) SAFER_JVM=true; shift ;;
@@ -45,10 +47,19 @@ fi
 
 [[ -f pom.xml ]] || { echo "Run this from the Preflight repository root." >&2; exit 1; }
 [[ -d "$GAME" ]] || { echo "Starsector installation not found: $GAME" >&2; exit 1; }
+[[ -n "$DISPOSABLE_SAVE" ]] || {
+    echo "Name the disposable campaign directory with --disposable-save save_Name_123." >&2
+    echo "The pilot refuses to start without an exact save boundary." >&2
+    exit 2
+}
 
 JAR="$PWD/preflight-cli/target/preflight.jar"
 PREFLIGHT_STATE_ROOT="${STARSECTOR_PREFLIGHT_HOME:-$HOME/.starsector-preflight}"
 OUT="$PREFLIGHT_STATE_ROOT/runs/$LABEL-$(date +%Y%m%d-%H%M%S)"
+SAVES_DIRECTORY="$GAME/saves"
+SAVE_GUARD="$PWD/scripts/save_state_guard.py"
+SAVE_STATE_BEFORE="$OUT/save-state-before.json"
+SAVE_STATE_AFTER="$OUT/save-state-after.json"
 WRAPPER_PID=""
 DUPLICATE_WATCHER_PID=""
 OWNED_PID_FILE="$OUT/owned-game-pids"
@@ -152,11 +163,25 @@ if [[ -n "$(game_pids)" ]]; then
     exit 1
 fi
 
+echo "Disposable campaign: $DISPOSABLE_SAVE"
+echo "Only this named save may change during the pilot; saves/common is global mod state and is excluded."
+save_confirmation=""
+read -r -p "Type $DISPOSABLE_SAVE to confirm it is a disposable copy: " save_confirmation || true
+if [[ "$save_confirmation" != "$DISPOSABLE_SAVE" ]]; then
+    echo "Disposable-save confirmation did not match; nothing was launched." >&2
+    exit 2
+fi
+
+mkdir -p "$OUT"
+python3 "$SAVE_GUARD" snapshot \
+    --saves-dir "$SAVES_DIRECTORY" \
+    --selected "$DISPOSABLE_SAVE" \
+    --output "$SAVE_STATE_BEFORE"
+
 echo "Building the combined pilot..."
 mvn -q -DskipTests package
 [[ -f "$JAR" ]] || { echo "Runnable JAR was not produced: $JAR" >&2; exit 1; }
 
-mkdir -p "$OUT"
 LAUNCHER="$(java -jar "$JAR" doctor --game "$GAME" 2>/dev/null \
     | awk '/^Selected: /{print substr($0, 11); exit}')"
 [[ -n "$LAUNCHER" && -f "$LAUNCHER" ]] \
@@ -165,6 +190,7 @@ LAUNCHER="$(java -jar "$JAR" doctor --game "$GAME" 2>/dev/null \
 echo
 echo "Pilot directory: $OUT"
 echo "Pilot commit:    $(git rev-parse --short HEAD)"
+echo "Disposable save: $DISPOSABLE_SAVE"
 echo "Startup caches:  $STARTUP_CACHES"
 echo "Gameplay caches: $GAMEPLAY_CACHES"
 echo "Safer JVM:        $SAFER_JVM"
@@ -255,8 +281,23 @@ cleanup
 WRAPPER_PID=""
 trap - EXIT INT TERM
 
+set +e
+python3 "$SAVE_GUARD" compare \
+    --before "$SAVE_STATE_BEFORE" \
+    --saves-dir "$SAVES_DIRECTORY" \
+    --output "$SAVE_STATE_AFTER"
+SAVE_GUARD_STATUS=$?
+set -e
+
 echo
 echo "Pilot process exit: $PILOT_STATUS"
+if [[ -f "$SAVE_STATE_AFTER" ]]; then
+    echo "Campaign save boundary:"
+    jq '{accepted, selectedSave, selectedSaveChanged, otherCampaignSavesUnchanged, changedCampaignSaves, unexpectedChangedCampaignSaves, reasons}' \
+        "$SAVE_STATE_AFTER"
+else
+    echo "Campaign save boundary was not produced." >&2
+fi
 for crash_report in "$OUT"/hs_err_pid*.log; do
     if [[ -f "$crash_report" ]]; then
         echo "Native JVM crash report: $crash_report" >&2
@@ -274,6 +315,31 @@ if [[ -f "$OUT/adapter.json" ]]; then
 else
     echo "No adapter report was produced; inspect $OUT/wrapper.log" >&2
 fi
+
+RELOAD_ATTESTED=false
+if [[ "$PILOT_STATUS" -eq 0 && "$SAVE_GUARD_STATUS" -eq 0 ]]; then
+    reload_confirmation=""
+    echo
+    read -r -p "If this save returned to the title screen, reloaded, resumed play, and exited normally, type SAVE RELOAD VERIFIED: " reload_confirmation || true
+    [[ "$reload_confirmation" == "SAVE RELOAD VERIFIED" ]] && RELOAD_ATTESTED=true
+fi
+jq -n \
+    --arg selectedSave "$DISPOSABLE_SAVE" \
+    --arg statement "The named disposable save returned to the title screen, reloaded, resumed play, and exited normally." \
+    --arg recordedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --argjson attested "$RELOAD_ATTESTED" \
+    '{format: "preflight-gameplay-pilot-operator-attestation-v1", selectedSave: $selectedSave, statement: $statement, attested: $attested, recordedAt: $recordedAt}' \
+    >"$OUT/operator-attestation.json"
+if [[ "$RELOAD_ATTESTED" != true ]]; then
+    echo "Save/reload/resume was not attested; this pilot is not complete lifecycle evidence." >&2
+fi
 echo "Full pilot data: $OUT"
 
-exit "$PILOT_STATUS"
+FINAL_STATUS="$PILOT_STATUS"
+if [[ "$FINAL_STATUS" -eq 0 && "$SAVE_GUARD_STATUS" -ne 0 ]]; then
+    FINAL_STATUS="$SAVE_GUARD_STATUS"
+fi
+if [[ "$FINAL_STATUS" -eq 0 && "$RELOAD_ATTESTED" != true ]]; then
+    FINAL_STATUS=1
+fi
+exit "$FINAL_STATUS"

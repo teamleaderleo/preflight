@@ -46,9 +46,17 @@ under the complete current Recommended stack.
 
 The checked-in `campaign-roam` desktop scenarios are intentionally non-destructive: they press
 Continue, move briefly, collect bounded evidence, and quit. They do not measure save identity or
-save compatibility. `scripts/run-gameplay-pilot.sh` now names the missing human gate explicitly:
-use a disposable save copy, exercise campaign warm-up and steady state plus combat, save, return to
-the title screen, reload, resume play, and exit normally.
+save compatibility. `scripts/run-gameplay-pilot.sh` names the missing human gate explicitly: use a
+disposable save copy, exercise campaign warm-up and steady state plus combat, save, return to the
+title screen, reload, resume play, and exit normally.
+
+The pilot now binds that instruction to one exact campaign directory before it launches. It hashes
+the complete contents of every `save_*` campaign without following symlinks, then rejects the run
+unless the named disposable copy changed and every sibling campaign stayed byte-identical. Global
+mod state under `saves/common` is outside that comparison and is labeled as such. A second, separate
+operator attestation records whether the changed copy returned to the title screen, reloaded,
+resumed play, and exited normally. Neither check edits a save. The content comparison proves the
+write boundary; the human interaction still establishes whether the selected copy remained usable.
 
 That run can show that one reviewed profile completes the lifecycle. It cannot prove every possible
 mod's serialization behavior. The structural protection remains that prepared caches are never

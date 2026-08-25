@@ -44,7 +44,13 @@ the reports that carry a finding and omit redundant success receipts.
 
 Launch claims and their exact conditions live under `docs/evidence/`. Preparation time is separate
 from launch time. Phase-probe time also uses a different clock and cannot be compared directly.
-| `run-gameplay-pilot.sh [--game DIR] [--label NAME]` | One campaign/save/combat pilot with every beta probe on. Needs a human and a disposable save copy: roam through warm-up and steady state, fight a three-to-five-minute simulation, save, return to the title screen, reload, resume play, and exit normally. Reports which exact adapters applied and what their paths cost. |
+
+## Exercise campaign, combat, and save lifecycle
+
+| | |
+|---|---|
+| `run-gameplay-pilot.sh --disposable-save DIRECTORY [--game DIR] [--label NAME]` | One campaign/save/combat pilot with every beta probe on. Needs a human and a named disposable save copy: roam through warm-up and steady state, fight a three-to-five-minute simulation, save, return to the title screen, reload, resume play, and exit normally. Exact-content snapshots require that the selected copy changed and every sibling campaign stayed unchanged; a separate operator attestation records the reload/resume result. Reports which exact adapters applied and what their paths cost. |
+| `save_state_guard.py` | Exact-content before/after guard used by the gameplay pilot. It hashes every `save_*` campaign without following symlinks, excludes global `saves/common` mod state, accepts only a changed selected copy with byte-identical siblings, and does not edit the saves it checks. |
 
 ## Read what a launch produced
 
