@@ -57,7 +57,6 @@
   --accent-strong: #7d5518;
   --accent-soft: rgba(154, 106, 36, 0.13);
   --action: #9a6a24;
-  --action-hover: #ac7a30;
   /*
    * Warning has to sit clear of the accent now that the accent is gold; rotated the same way the
    * two landed within a few degrees of each other. It is pushed to rust instead -- hotter and more
@@ -1047,7 +1046,7 @@ h2 {
 
 .launch-console--ready .button--launch:not(:disabled):hover {
   color: white;
-  background: var(--action-hover);
+  background: color-mix(in srgb, var(--action) 88%, black);
 }
 
 .launch-console--options-open .quick-settings {
@@ -1354,7 +1353,7 @@ h2 {
 }
 
 .button--primary:not(:disabled):hover {
-  background: var(--action-hover);
+  background: color-mix(in srgb, var(--action) 88%, black);
   box-shadow: 0 12px 26px rgba(112, 74, 37, 0.32);
 }
 
@@ -3284,7 +3283,7 @@ h2 {
   flex: 0 0 auto;
   padding: 3px 6px;
   border-radius: 3px;
-  color: #60745e;
+  color: #465b44;
   background: #e8e3df;
   font-family: var(--font-data);
   font-size: 12px;
@@ -4375,7 +4374,6 @@ footer {
   --accent-strong: #edc07a;
   --accent-soft: rgba(200, 148, 74, 0.15);
   --action: #a06c25;
-  --action-hover: #b47c31;
   --ink: #e6ded0;
   --ink-soft: #aaa198;
   --ink-faint: #888178;
@@ -5325,7 +5323,6 @@ footer {
   --accent-strong: #425f98;
   --accent-soft: rgba(86, 110, 166, 0.15);
   --action: #4f69c5;
-  --action-hover: #5a76d8;
   --warning: #ad8439;
   --success: #4c8378;
   --line: rgba(17, 59, 82, 0.17);
@@ -5433,7 +5430,6 @@ footer {
   --accent-strong: #8fa8dd;
   --accent-soft: rgba(112, 137, 194, 0.18);
   --action: #4968d4;
-  --action-hover: #5678e7;
   --ink: #e9edf5;
   --ink-soft: #aeb9ca;
   --ink-faint: #96a4b9;
@@ -5559,7 +5555,6 @@ footer {
   --accent-strong: #705283;
   --accent-soft: rgba(127, 98, 146, 0.15);
   --action: #8959a5;
-  --action-hover: #9865b6;
   --warning: #ad8439;
   --success: #4c8378;
   --line: rgba(64, 47, 74, 0.17);
@@ -5667,7 +5662,6 @@ footer {
   --accent-strong: #b79cc9;
   --accent-soft: rgba(154, 125, 173, 0.18);
   --action: #8e55af;
-  --action-hover: #9f64c1;
   --ink: #efebf2;
   --ink-soft: #bdb4c3;
   --ink-faint: #a99eb1;
@@ -5793,7 +5787,6 @@ footer {
   --accent-strong: #834d60;
   --accent-soft: rgba(146, 94, 112, 0.15);
   --action: #a45270;
-  --action-hover: #b55d7e;
   --warning: #ad8439;
   --success: #4c8378;
   --line: rgba(75, 44, 55, 0.17);
@@ -5901,7 +5894,6 @@ footer {
   --accent-strong: #cb98a8;
   --accent-soft: rgba(174, 120, 138, 0.18);
   --action: #ad4c72;
-  --action-hover: #bf5b81;
   --ink: #f2eaed;
   --ink-soft: #c4b3b8;
   --ink-faint: #b29ca3;
@@ -6031,7 +6023,6 @@ footer {
   --accent-strong: #3c6e39;
   --accent-soft: rgba(74, 126, 78, 0.15);
   --action: #15873d;
-  --action-hover: #229648;
   --warning: #ad8439;
   --success: #4c8378;
   --line: rgba(53, 59, 18, 0.17);
@@ -6138,8 +6129,7 @@ footer {
   --accent: #72a578;
   --accent-strong: #88b788;
   --accent-soft: rgba(101, 153, 104, 0.18);
-  --action: #008a37;
-  --action-hover: #099c3f;
+  --action: #008333;
   --ink: #e8efe8;
   --ink-soft: #b0bdac;
   --ink-faint: #99a894;
