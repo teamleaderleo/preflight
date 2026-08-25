@@ -206,7 +206,6 @@ class DesktopBridgeCommandTest {
         Map<String, Object> initial = (Map<String, Object>) framePacing.get("initialCampaign");
         @SuppressWarnings("unchecked")
         Map<String, Object> settled = (Map<String, Object>) framePacing.get("settledCampaign");
-
         assertEquals("starsector-preflight-frame-pacing-summary-v1", framePacing.get("format"));
         assertEquals(5474L, summary.get("frames"));
         assertEquals(103_800L, summary.get("activeMillis"));
@@ -221,6 +220,48 @@ class DesktopBridgeCommandTest {
         assertEquals(1.78, framePacing.get("measurementAverageMicros"));
         assertFalse(summary.containsKey("worstFrames"), summary.toString());
         assertNull(framePacing.get("combat"));
+    }
+
+    @Test
+    void snapshotUsesOnlyPostCampaignCombatForPlayerFramePacing() throws Exception {
+        Path home = Files.createDirectories(temporaryDirectory.resolve("combat-frame-home"));
+        Path game = Files.createDirectories(temporaryDirectory.resolve("combat-frame-game"));
+        Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
+        Path run = Files.createDirectories(home.resolve(".starsector-preflight/runs/run-1"));
+        Files.writeString(run.resolve("run.json"), Json.object(Map.of("installRoot", game)));
+        Map<String, Object> titleAndCampaignCombat = Map.of(
+                "frames", 2402,
+                FrameTimeTelemetry.TOTAL_ACTIVE_NANOS, 190_000_000_000L,
+                "averageFps", 56.1,
+                "onePercentLowFps", 42.3,
+                "p95Micros", 20100,
+                "p99Micros", 28600);
+        Map<String, Object> postCampaignCombat = Map.of(
+                "frames", 1802,
+                FrameTimeTelemetry.TOTAL_ACTIVE_NANOS, 180_000_000_000L,
+                "averageFps", 54.2,
+                "onePercentLowFps", 40.1,
+                "p95Micros", 21300,
+                "p99Micros", 30200);
+        Files.writeString(run.resolve("adapter.json"), Json.object(Map.of(
+                FrameTimeTelemetry.REPORT, Map.of(
+                        FrameTimeTelemetry.ENABLED, true,
+                        "combatActive", titleAndCampaignCombat,
+                        FrameTimeTelemetry.COMBAT_AFTER_CAMPAIGN_ACTIVE, postCampaignCombat))));
+
+        Map<String, Object> snapshot = DesktopBridgeCommand.snapshot(
+                Platform.MAC, home, temporaryDirectory, Map.of(), game, null);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> lastRun = (Map<String, Object>) snapshot.get("lastRun");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> framePacing = (Map<String, Object>) lastRun.get("framePacing");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> combat = (Map<String, Object>) framePacing.get("combat");
+
+        assertEquals(1802L, combat.get("frames"));
+        assertEquals(180_000L, combat.get("activeMillis"));
+        assertEquals(54.2, combat.get("averageFps"));
+        assertEquals(40.1, combat.get("onePercentLowFps"));
     }
 
     @Test
