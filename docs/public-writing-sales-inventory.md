@@ -18,6 +18,8 @@ when a fact changes.
 - Short feature copy can be blunt. **Tracked playtime!!!!!** is fine.
 - Use **~101s → 13.69s** as the readable development headline. Keep the old 89.00s → 15.53s campaign
   for evidence conversations rather than making every public surface carry it.
+- Keep the development chronology separate from the built-in benchmark. The current benchmark runs
+  both conditions through Preflight; it is not the source of the ~101s → 13.69s headline.
 - Use concrete behavior instead of adjectives such as safe, robust, privacy-focused, secure, or
   compatible.
 - Do not add defensive prose after campaign/runtime claims. **Faster campaign-map movement on my

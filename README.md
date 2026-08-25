@@ -115,10 +115,12 @@ packaged candidate result still owed before release.
 
 All of these development measurements are from one M5 MacBook Air running Starsector 0.98a-RC8 and
 the game's bundled x86-64 Java runtime through Rosetta. Hardware, mods, storage, cache warmth,
-memory pressure, translation, temperature, and other machine state affect the result. Preflight's
-benchmark runs both conditions through Preflight, with reviewed optimizations off and on. The development
-measurements and their context are collected in [Optimization history](docs/optimization-history.md)
-and [From three-minute preparation to fourteen-second launches](docs/evidence/2026-08-23-storage-to-fourteen-seconds.md).
+memory pressure, translation, temperature, and other machine state affect the result. The historical
+89.00/15.53-second pair used the game's launcher for its baseline and Preflight `--fast` for its
+accelerated condition. The current built-in benchmark uses a different protocol: both launches run
+through Preflight, with reviewed optimizations off and on. The development measurements and their
+context are collected in [Optimization history](docs/optimization-history.md) and
+[From three-minute preparation to fourteen-second launches](docs/evidence/2026-08-23-storage-to-fourteen-seconds.md).
 
 Campaign play was measured separately. In one retained optimized 83-mod session, the first 30
 seconds after loading averaged **46.10 FPS** with a **9.15 FPS one-percent low**. After that initial
