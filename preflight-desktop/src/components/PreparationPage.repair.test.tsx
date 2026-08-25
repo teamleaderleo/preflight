@@ -2,7 +2,6 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import type { usePreparation } from "../usePreparation";
 import type { SpeedStanding } from "../useSpeedRecord";
-import type { WireframeHull } from "../types";
 import { PreparationPage } from "./PreparationPage";
 
 vi.mock("./SpeedScoreboard", () => ({
@@ -58,7 +57,6 @@ function renderPage(status: "repair-needed" | "unsafe" | "unknown") {
       cleanupBusy={false}
       operationBlocked={false}
       speedStanding={{} as SpeedStanding}
-      instrumentHull={{} as WireframeHull}
       onOptimizationPresetChange={vi.fn()}
       onOptimizationDomainChange={vi.fn()}
       onReviewCleanup={vi.fn()}

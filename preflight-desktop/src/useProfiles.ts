@@ -47,7 +47,6 @@ export function useProfiles(
   const actionRequest = useRef(0);
   const busyRef = useRef(false);
   const profileNameRevision = useRef(0);
-  const launchIdentityRefreshing = useRef(false);
   const currentGame = useRef(game);
   currentGame.current = game;
 
@@ -84,7 +83,6 @@ export function useProfiles(
       }
     } catch (error) {
       if (request === modReadinessRequest.current && currentGame.current === game) {
-        setModReadiness(null);
         announce(errorMessage(error), "warning");
       }
     } finally {
@@ -98,7 +96,6 @@ export function useProfiles(
     actionRequest.current += 1;
     busyRef.current = false;
     profileNameRevision.current += 1;
-    launchIdentityRefreshing.current = false;
     setProfiles(null);
     setProfilesLoading(false);
     setModReadiness(null);
@@ -120,7 +117,7 @@ export function useProfiles(
     // instead of starting another JVM every time Home or Mods becomes visible again. If a refocus
     // revalidation is already supplying that read, Home consumes it instead of launching a second
     // engine request merely because the retained list was deliberately invalidated.
-    if (visible && profiles?.installRoot !== game && !launchIdentityRefreshing.current) {
+    if (visible && profiles?.installRoot !== game) {
       void refreshProfiles();
     } else if (!game) {
       profilesRequest.current += 1;
@@ -130,7 +127,7 @@ export function useProfiles(
   }, [game, profiles?.installRoot, refreshProfiles, visible]);
 
   useEffect(() => {
-    if (visible && game && !modReadiness && !launchIdentityRefreshing.current) {
+    if (visible && game && !modReadiness) {
       void refreshModReadiness();
     } else if (!game) {
       modReadinessRequest.current += 1;
@@ -141,22 +138,15 @@ export function useProfiles(
 
   useEffect(() => {
     if (!game) return;
-    // Another mod manager can change enabled_mods.json while Preflight is open. Refocus is the
-    // launch-facing freshness boundary regardless of which Preflight page is currently visible.
-    // Drop the retained profile list before the asynchronous reread so Home cannot keep projecting
-    // a saved name while freshness is unproven, and a failed profile refresh cannot restore stale
-    // certainty merely because the previous profile/cache snapshots happened to agree.
-    const refreshLaunchIdentity = () => {
-      if (launchIdentityRefreshing.current) return;
-      launchIdentityRefreshing.current = true;
-      setProfiles(null);
-      setModReadiness(null);
-      void Promise.all([refreshProfiles(), refreshModReadiness(), refreshCache()]).finally(() => {
-        launchIdentityRefreshing.current = false;
-      });
+    const refreshExternalModState = () => {
+      // A player may have changed enabled_mods.json while Preflight was in the background. Read
+      // that state again without clearing the currently painted launch identity or blocking input.
+      void refreshProfiles();
+      void refreshModReadiness();
+      void refreshCache();
     };
-    window.addEventListener("focus", refreshLaunchIdentity);
-    return () => window.removeEventListener("focus", refreshLaunchIdentity);
+    window.addEventListener("focus", refreshExternalModState);
+    return () => window.removeEventListener("focus", refreshExternalModState);
   }, [game, refreshCache, refreshModReadiness, refreshProfiles]);
 
   const saveCurrentProfile = async () => {
@@ -400,7 +390,6 @@ export function useProfiles(
     modReadinessRequest.current += 1;
     actionRequest.current += 1;
     busyRef.current = false;
-    launchIdentityRefreshing.current = false;
     setProfiles(null);
     setProfilesLoading(false);
     setModReadiness(null);

@@ -64,13 +64,14 @@ test("drops a result when the enabled mod list changes", async () => {
   expect(check).toHaveBeenCalledOnce();
 });
 
-test("drops a result when another launcher may have changed the setup", async () => {
-  vi.spyOn(bridge, "checkSetup").mockResolvedValue(cleanResult);
+test("window focus preserves an explicit setup result", async () => {
+  const check = vi.spyOn(bridge, "checkSetup").mockResolvedValue(cleanResult);
   const { result } = renderHook(() => useSetupCheck("/game", "alpha", vi.fn()));
 
   await act(async () => result.current.run());
   expect(result.current.result).toEqual(cleanResult);
 
   act(() => window.dispatchEvent(new Event("focus")));
-  expect(result.current.result).toBeNull();
+  expect(result.current.result).toEqual(cleanResult);
+  expect(check).toHaveBeenCalledOnce();
 });

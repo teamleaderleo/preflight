@@ -47,8 +47,8 @@ measurement chronology and experimental context, see [Optimization history](docs
   not duplicate mods, saves, or prepared data.
 - **Put the launch settings you actually care about beside Launch.** Resolution, fullscreen, sound,
   antialiasing, UI scale, RAM, and battle size are available without a separate launcher ritual.
-  Battle-size presets can extend past the vanilla slider through **2,000 deployment points** while
-  still using Starsector's own `battleSize` preference.
+  Battle size can extend past the vanilla slider through a custom numeric value while still using
+  Starsector's own `battleSize` preference.
 - **Understand a giant mod setup without starting the game.** `preflight scan` inventories the
   enabled profile. The separate read-only deep setup check can report missing enabled mods, broken
   metadata, duplicate mod IDs, missing or disabled required dependencies, and resolved variants that
@@ -75,7 +75,7 @@ to install a system JDK. The desktop host exposes a fixed set of typed commands 
 arbitrary shell. Every native package also carries a machine-readable capability receipt describing
 the commands, writes, child processes, links, and network endpoints available to that exact package.
 
-The normal path is still simple: open Preflight, let it find Starsector, press **Prepare and launch**
+The normal path is still simple: open Preflight, let it find Starsector, press **Set up and launch**
 once, then press **Launch Starsector** on later runs. The rest is there when you want it.
 
 ## The measured result
@@ -168,8 +168,8 @@ happened in that run rather than what another machine should expect.
 - **Storage.** The desktop calculates the current build's disk requirement before writing, separates
   prepared data from evidence, and previews cleanup before anything is removed. Cleanup keeps the
   current and readable saved profiles reachable.
-- **Game settings.** Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and battle size are
-  available beside the launch button. The extended battle-size ceiling is 2,000 deployment points.
+- **Game settings.** Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and custom battle
+  size are available beside the launch button.
 - **Presentation.** Home can use the full Hangar view or a compact launch-first view. Recorded
   playtime visibility and decorative hull motion/direction are display-only preferences. Featured
   Hangar ships can be traced locally from installed hull/sprite data into Preflight's own wireframe

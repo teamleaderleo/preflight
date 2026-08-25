@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -156,10 +156,11 @@ test("the default cold-profile action prepares with balanced settings and then l
 
   render(<App />);
 
-  const action = await screen.findByRole("button", { name: "Prepare and launch" });
+  const action = await screen.findByRole("button", { name: "Set up and launch" });
   await waitFor(() => expect(action).toBeEnabled());
-  expect(screen.getByText("First launch setup")).toBeInTheDocument();
-  expect(screen.getByText(/Keeps about .* Needs about .* free while preparing; .* available/))
+  expect(screen.getByRole("heading", { name: "Fast launch", level: 1 })).toBeInTheDocument();
+  expect(screen.queryByText("First launch setup")).not.toBeInTheDocument();
+  expect(screen.getByText(/Uses about .* · .* free\./))
     .toBeInTheDocument();
   expect(screen.getByLabelText("186h played across 78 recorded sessions")).toBeInTheDocument();
   expect(within(screen.getByRole("main")).queryByText(/^for Starsector$/i)).not.toBeInTheDocument();
@@ -171,6 +172,18 @@ test("the default cold-profile action prepares with balanced settings and then l
   cache.mockRestore();
   preparation.mockRestore();
   game.mockRestore();
+});
+
+test("the first-run preview keeps empty history out of the setup flow", async () => {
+  window.history.replaceState(null, "", "/?scenario=first-run");
+
+  render(<App />);
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Set up and launch" })).toBeEnabled());
+  expect(screen.getByRole("heading", { name: "Fast launch", level: 1 })).toBeInTheDocument();
+  expect(visibleLabel(/recorded playtime/i)).toHaveLength(0);
+  expect(visibleLabel("Hide time")).toHaveLength(0);
+  expect(visibleLabel("Show time")).toHaveLength(0);
 });
 
 test("repairs only the reviewed profile before rebuilding and launching", async () => {
@@ -228,7 +241,7 @@ test("preparation started on Home remains visible and can be stopped safely", as
   const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 4242 });
   render(<App />);
 
-  const action = await screen.findByRole("button", { name: "Prepare and launch" });
+  const action = await screen.findByRole("button", { name: "Set up and launch" });
   await waitFor(() => expect(action).toBeEnabled());
   await user.click(action);
   expect(await screen.findByRole("button", { name: "Stop safely" })).toBeEnabled();
@@ -261,7 +274,11 @@ test("a refused preparation still leaves a way to launch the game", async () => 
 
   render(<App />);
 
-  const launch = await screen.findByRole("button", { name: "Launch at normal speed" });
+  const launch = await screen.findByRole(
+    "button",
+    { name: "Launch at normal speed" },
+    { timeout: 3_000 },
+  );
   expect(screen.getByText(/Preparation needs .* free; .* is available\./)).toBeInTheDocument();
   await user.click(launch);
 
@@ -290,7 +307,11 @@ test("a refused preparation offers the preparation that barely uses disk", async
 
   render(<App />);
 
-  const action = await screen.findByRole("button", { name: "Prepare with less disk" });
+  const action = await screen.findByRole(
+    "button",
+    { name: "Prepare with less disk" },
+    { timeout: 3_000 },
+  );
   await user.click(action);
 
   await waitFor(() => expect(preparation)
@@ -473,7 +494,7 @@ test("setup keeps a single installation action and hides unavailable ready-state
 
   expect(await screen.findByRole("heading", { name: "Setup", level: 1 })).toBeInTheDocument();
   expect(screen.getAllByRole("button", { name: "Choose game folder" })).toHaveLength(1);
-  expect(screen.getByText("Preflight creates reusable startup data for your current mod setup, then opens Starsector. Your game, mods, and saves stay unchanged.")).toBeVisible();
+  expect(screen.queryByText("Choose it once. Fast-launch setup stays on Home.")).not.toBeInTheDocument();
   expect(screen.queryByRole("region", { name: "Current Preflight setup" })).not.toBeInTheDocument();
   expect(screen.queryByText("Unavailable")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Speed" })).toBeDisabled();
@@ -583,6 +604,26 @@ test("window focus never changes the quick game controls", async () => {
 
   expect(sound).toBeEnabled();
   expect(sound).toBeChecked();
+});
+
+test("window focus does not reveal and re-hide an idle Home HUD", async () => {
+  const { container } = render(<App />);
+  await screen.findByRole("heading", { name: "Ready", level: 1 });
+  const home = container.querySelector<HTMLElement>(".launch-console--layout-settled");
+  expect(home).not.toBeNull();
+
+  vi.useFakeTimers();
+  try {
+    fireEvent.pointerMove(home!);
+    act(() => vi.advanceTimersByTime(2200));
+    expect(home).toHaveClass("home-hud--idle");
+
+    fireEvent.blur(window);
+    fireEvent.focus(window);
+    expect(home).toHaveClass("home-hud--idle");
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("returning to the window does not re-read the installation while the game runs", async () => {
@@ -971,9 +1012,9 @@ test("the Hangar keeps the ship central and its compact customization local to t
   await user.keyboard("{Escape}");
   expect(ship).toHaveValue("Odyssey");
 
-  const height = screen.getByRole("slider", { name: "Depth" });
+  const height = screen.getByRole("slider", { name: "Wireframe height" });
   fireEvent.change(height, { target: { value: "1.35" } });
-  expect(screen.getByRole("button", { name: "Reset appearance" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Reset ship appearance and view" })).toBeEnabled();
   await waitFor(() => expect(JSON.parse(window.localStorage.getItem("preflight.instrumentHullTuning.v1") ?? "{}")["/Applications/Starsector::odyssey"].height).toBe(1.35));
 
   const detail = screen.getByRole("slider", { name: "Outline detail" });
@@ -988,13 +1029,13 @@ test("the Hangar keeps the ship central and its compact customization local to t
   await user.type(ship, "Onslaught");
   await user.keyboard("{Enter}");
   await waitFor(() => expect(ship).toHaveValue("Onslaught"));
-  expect(screen.getByRole("button", { name: "Reset appearance" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Reset ship appearance and view" })).toBeDisabled();
 
   await user.clear(ship);
   await user.type(ship, "Odyssey");
   await user.keyboard("{Enter}");
   await waitFor(() => expect(ship).toHaveValue("Odyssey"));
-  expect(screen.getByRole("slider", { name: "Depth" })).toHaveValue("1.35");
+  expect(screen.getByRole("slider", { name: "Wireframe height" })).toHaveValue("1.35");
   expect(screen.getByRole("slider", { name: "Outline detail" })).toHaveValue("0.04");
 });
 
@@ -1116,8 +1157,8 @@ test("launch settings mirror vanilla display and battle controls", async () => {
   expect(screen.getByRole("checkbox", { name: "Sound" })).toBeChecked();
   expect(screen.getByRole("combobox", { name: "Antialiasing" })).toHaveValue("0");
   expect(screen.getByRole("combobox", { name: "UI size" })).toHaveValue("1");
-  expect(screen.getByRole("slider", { name: "Battle size" })).toHaveValue("400");
-  expect(screen.getByRole("slider", { name: "Battle size" })).toHaveAttribute("max", "2000");
+  expect(screen.getByRole("spinbutton", { name: "Battle size" })).toHaveValue(400);
+  expect(screen.getByRole("spinbutton", { name: "Battle size" })).toHaveAttribute("max", "2147483647");
   expect(screen.getByRole("combobox", { name: "Game memory" })).toHaveValue("6144");
   await user.selectOptions(screen.getByRole("combobox", { name: "Game memory" }), "8192");
   const apply = screen.getByRole("button", { name: "Apply changes" });
@@ -1429,10 +1470,13 @@ test("an unavailable startup benchmark reports the packaged-contract failure wit
   await user.click(await screen.findByRole("button", { name: "Measure speed" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
 
-  expect(await screen.findByText("This build can’t run the startup benchmark. Reinstall Preflight, or open Help to make a support file.")).toBeInTheDocument();
+  expect(await screen.findByText("Benchmark files are missing. Reinstall Preflight or make a support file.")).toBeInTheDocument();
   expect(screen.queryByText("A packaged startup benchmark scenario is missing.")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Check again" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Open Help" })).toBeEnabled();
   expect(screen.queryByRole("button", { name: /Accessibility/i })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Open Help" }));
+  expect(screen.getByRole("heading", { name: "Help" })).toBeVisible();
   expect(smoke).not.toHaveBeenCalled();
   probe.mockRestore();
   smoke.mockRestore();

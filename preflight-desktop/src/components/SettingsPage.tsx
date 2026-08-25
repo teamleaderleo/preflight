@@ -152,11 +152,11 @@ export function SettingsPage({
             <div><h2>{updateStatus?.available ? `Preflight ${updateStatus.version}` : "Updates"}</h2></div>
             <ShieldIcon className="settings-check" />
           </div>
-          <p className={updateStatus?.available ? "update-release-notes" : undefined}>{updateStatus?.available
+          {!updateError ? <p className={updateStatus?.available ? "update-release-notes" : undefined}>{updateStatus?.available
             ? updateStatus.notes || "A newer verified release is ready. Installation starts only after confirmation."
             : updateStatus?.configured
               ? `Version ${updateStatus.currentVersion} is current.`
-              : updateStatus?.reason || "Update status hasn’t been checked yet."}</p>
+              : updateStatus?.reason || "Update status hasn’t been checked yet."}</p> : null}
           {updateError ? <p className="activation-warning" role="alert">{updateError}</p> : null}
           {updateInstalling ? (
             <div className="update-progress" role="progressbar" aria-label="Update download" aria-valuemin={0} aria-valuemax={updateProgress?.contentLength ?? undefined} aria-valuenow={updateProgress?.downloadedBytes ?? 0}>

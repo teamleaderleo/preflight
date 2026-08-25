@@ -100,9 +100,9 @@ than duplicating them:
 - battle size from the same `gameplaySettings` preference as the in-game slider.
 
 Battle size uses the selected installation's merged minimum and the same `battleSize` preference as
-the game. Preflight offers a bounded extended range up to 2,000 deployment points because
-`maxBattleSize` only defines the vanilla settings slider. It doesn't rewrite base `settings.json`;
-opening the vanilla slider can reset a value above that slider's installed maximum.
+the game. `maxBattleSize` only defines the vanilla settings slider, so Preflight accepts custom
+values through the positive Java-integer range consumed by the game. It doesn't rewrite base
+`settings.json`; opening the vanilla slider can reset a value above that slider's installed maximum.
 
 For the release candidate, these values remain global Starsector settings shared by vanilla and
 Preflight launches. Apply has an explicit quiescent boundary: the player confirms Starsector, its

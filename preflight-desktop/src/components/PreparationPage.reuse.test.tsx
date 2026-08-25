@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
-import type { PreparationStoragePlan, WireframeHull } from "../types";
+import type { PreparationStoragePlan } from "../types";
 import type { usePreparation } from "../usePreparation";
 import type { SpeedStanding } from "../useSpeedRecord";
 import { PreparationPage } from "./PreparationPage";
@@ -86,7 +86,6 @@ function renderPage(
       cleanupBusy={false}
       operationBlocked={false}
       speedStanding={{} as SpeedStanding}
-      instrumentHull={{} as WireframeHull}
       onOptimizationPresetChange={vi.fn()}
       onOptimizationDomainChange={vi.fn()}
       onReviewCleanup={vi.fn()}
