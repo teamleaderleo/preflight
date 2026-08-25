@@ -851,8 +851,8 @@ h2 {
 .home-ship-name {
   min-height: 44px;
   border: 0;
-  min-width: 152px;
-  max-width: 152px;
+  min-width: 188px;
+  max-width: 188px;
   overflow: hidden;
   padding: 0 4px;
   color: var(--console-ink);
@@ -873,7 +873,7 @@ h2 {
   left: 4px;
   display: flex;
   align-items: center;
-  width: 244px;
+  width: 280px;
   padding: 2px;
   border: 1px solid var(--console-line);
   border-radius: 4px;

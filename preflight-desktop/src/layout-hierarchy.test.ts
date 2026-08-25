@@ -98,7 +98,7 @@ test("settled Home anchors the launch action while secondary controls adapt arou
     /\.launch-console--layout-settled \.launch-console__primary\s*\{[^}]*position:\s*relative;[^}]*display:\s*block;/s,
   );
   expect(layoutStyles).toMatch(
-    /\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*position:\s*absolute !important;[^}]*bottom:\s*22px;[^}]*left:\s*20px;/s,
+    /\.launch-console--layout-settled \.home-ship-picker\s*\{[^}]*position:\s*absolute !important;[^}]*bottom:\s*22px;[^}]*left:\s*20px;[^}]*width:\s*280px;/s,
   );
   expect(layoutStyles).toMatch(
     /\.launch-console--layout-settled \.launch-console__actions\s*\{[^}]*position:\s*absolute;[^}]*bottom:\s*20px;[^}]*left:\s*50%;[^}]*display:\s*grid;[^}]*grid-template-columns:\s*94px minmax\(260px, 520px\) 94px;[^}]*transform:\s*translateX\(-50%\);/s,
