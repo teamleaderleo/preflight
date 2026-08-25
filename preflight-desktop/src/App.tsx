@@ -740,7 +740,10 @@ export default function App() {
             diagnostics={diagnostics}
             operationBlocked={operationBlocked}
             optimizationPreset={optimizationPreset}
-            onTurnOffOptimizations={() => setOptimizationPreset("off")}
+            onTurnOffOptimizations={() => {
+              setOptimizationPreset("off");
+              navigate("home");
+            }}
             onChooseInstall={() => {
               void chooseInstall().then((changed) => {
                 if (changed) navigate("home");

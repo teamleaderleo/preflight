@@ -1687,13 +1687,10 @@ test("help performs its fixes instead of only pointing at other pages", async ()
   await screen.findByRole("heading", { name: "Common fixes", level: 2 });
 
   await user.click(screen.getByRole("button", { name: "Try without optimizations" }));
-  expect(screen.getByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Go to launch" })).toBeEnabled();
-  await waitFor(() => expect(window.localStorage.getItem("preflight.optimizationPreset")).toBe("off"));
-
-  await user.click(screen.getByRole("button", { name: "Go to launch" }));
   expect(await screen.findByRole("heading", { name: "Ready", level: 1 })).toBeInTheDocument();
   expect(screen.getByText("Optimizations off")).toBeVisible();
+  expect(visibleText("Go to launch")).toHaveLength(0);
+  await waitFor(() => expect(window.localStorage.getItem("preflight.optimizationPreset")).toBe("off"));
 
   await user.click(screen.getByRole("button", { name: "Help" }));
   await user.click(await screen.findByRole("button", { name: "Open Speed" }));
