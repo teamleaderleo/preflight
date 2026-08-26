@@ -111,6 +111,16 @@ class SourceBoundaryTest(unittest.TestCase):
                 module.validate_repository(repository)
 
     def test_cli_audits_current_tree_and_reachable_history(self):
+        repository = MODULE_PATH.parent.parent
+        shallow = subprocess.run(
+            ["git", "rev-parse", "--is-shallow-repository"],
+            cwd=repository,
+            check=True,
+            text=True,
+            capture_output=True,
+        ).stdout.strip()
+        if shallow == "true":
+            self.skipTest("full-history CLI check runs in Distribution from a complete checkout")
         result = subprocess.run(
             [sys.executable, str(MODULE_PATH)],
             check=True,
