@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""Synchronize repeated public facts from docs/project-facts.json.
-
-Edit the facts file, then run:
-
-    python3 scripts/sync_project_facts.py --write
-
-CI uses --check. The script intentionally owns only repeated headline/product facts; experiment
-records and evidence remain hand-authored historical records.
-"""
+"""Sync repeated current product facts from docs/project-facts.json."""
 
 from __future__ import annotations
 
@@ -17,13 +9,11 @@ from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-FACTS_PATH = ROOT / "docs/project-facts.json"
-CLAIMS_PATH = ROOT / "docs/claims.json"
-HEADLINES_PATH = ROOT / "docs/claim-headlines.md"
+FACTS = ROOT / "docs/project-facts.json"
+CLAIMS = ROOT / "docs/claims.json"
+HEADLINES = ROOT / "docs/claim-headlines.md"
 
-# These surfaces present the current development result as current copy. Replacing the old selected
-# values here is intentional when the canonical facts change.
-PUBLIC_COPY_FILES = (
+PUBLIC_COPY = (
     "README.md",
     "docs/beta-announcement-draft.md",
     "docs/beta-announcement-leo-draft.md",
@@ -35,287 +25,179 @@ PUBLIC_COPY_FILES = (
     "docs/release-post-draft.md",
     "docs/releases/0.1.0.md",
 )
-
-# These are historical narratives. Only the current-headline phrases are rewritten; earlier values
-# elsewhere in the files remain part of the chronology.
-TECHNICAL_COPY_FILES = (
-    "docs/optimization-history.md",
-    "docs/technical-writeup-draft.md",
-)
-
-SPEEDUP_FILES = (
-    "docs/beta-announcement-draft.md",
-    "docs/beta-announcement-leo-draft.md",
-    "docs/github-sponsors-page-draft.md",
-    "docs/leo-talking-points.md",
-    "docs/patreon-page-draft.md",
-    "docs/public-writing-sales-inventory.md",
-    "docs/release-post-draft.md",
-    "docs/releases/0.1.0.md",
-)
-
-FORMAT = "preflight-project-facts-v1"
-TWO_PLACES = Decimal("0.01")
-
-
-class FactSyncError(ValueError):
-    pass
-
-
-def decimal_text(value: object, name: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise FactSyncError(f"{name} must be a decimal string")
-    try:
-        number = Decimal(value)
-    except Exception as error:  # Decimal raises several subclasses depending on input.
-        raise FactSyncError(f"{name} must be decimal: {value!r}") from error
-    if not number.is_finite() or number <= 0:
-        raise FactSyncError(f"{name} must be positive and finite")
-    return value
+TECHNICAL_COPY = ("docs/optimization-history.md", "docs/technical-writeup-draft.md")
+SPEEDUP_COPY = PUBLIC_COPY[1:3] + PUBLIC_COPY[4:]
 
 
 def q2(value: Decimal) -> str:
-    return format(value.quantize(TWO_PLACES, rounding=ROUND_HALF_UP), "f")
+    return format(value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), "f")
 
 
-def load_facts(path: Path = FACTS_PATH) -> dict:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if payload.get("format") != FORMAT:
-        raise FactSyncError(f"project facts must use format {FORMAT}")
-    startup = payload.get("startup")
-    if not isinstance(startup, dict):
-        raise FactSyncError("startup facts must be an object")
-    development = startup.get("development")
-    historical = startup.get("historicalSameProfileAB")
-    if not isinstance(development, dict) or not isinstance(historical, dict):
-        raise FactSyncError("startup development and historicalSameProfileAB must be objects")
-    decimal_text(development.get("baselineSeconds"), "development baselineSeconds")
-    decimal_text(development.get("endpointSeconds"), "development endpointSeconds")
-    decimal_text(historical.get("baselineSeconds"), "historical baselineSeconds")
-    decimal_text(historical.get("endpointSeconds"), "historical endpointSeconds")
-    decimal_text(historical.get("deltaSeconds"), "historical deltaSeconds")
-    decimal_text(historical.get("reductionPercent"), "historical reductionPercent")
-    decimal_text(startup.get("validatedAcceleratedGateSeconds"), "validatedAcceleratedGateSeconds")
-    mod_count = development.get("modCount")
-    if not isinstance(mod_count, int) or mod_count <= 0:
-        raise FactSyncError("development modCount must be a positive integer")
-    for key in ("hardware", "gameBuild", "runtime", "baselineEvidence", "endpointEvidence"):
-        if not isinstance(development.get(key), str) or not development[key].strip():
-            raise FactSyncError(f"development {key} must be a non-empty string")
-    storage = payload.get("storage")
-    if not isinstance(storage, dict):
-        raise FactSyncError("storage facts must be an object")
-    decimal_text(storage.get("compactSteadyStateGB"), "compactSteadyStateGB")
-    return payload
+def load_facts() -> dict:
+    facts = json.loads(FACTS.read_text(encoding="utf-8"))
+    if facts.get("format") != "preflight-project-facts-v1":
+        raise ValueError("unsupported docs/project-facts.json format")
+    return facts
 
 
-def derived(facts: dict) -> dict[str, str]:
-    development = facts["startup"]["development"]
-    before = Decimal(development["baselineSeconds"])
-    after = Decimal(development["endpointSeconds"])
+def metrics(facts: dict) -> dict[str, str]:
+    current = facts["startup"]["development"]
+    before = Decimal(current["baselineSeconds"])
+    after = Decimal(current["endpointSeconds"])
     return {
         "speedup": q2(before / after),
-        "savedSeconds": q2(before - after),
-        "reductionPercent": q2((Decimal(1) - after / before) * Decimal(100)),
+        "saved": q2(before - after),
+        "reduction": q2((Decimal(1) - after / before) * 100),
     }
 
 
-def current_selected_values(claims: dict) -> tuple[str, str]:
-    baseline = None
-    endpoint = None
-    entries = claims.get("publishedQuantities")
-    if not isinstance(entries, list):
-        raise FactSyncError("docs/claims.json has no publishedQuantities list")
-    for entry in entries:
-        if not isinstance(entry, dict) or entry.get("type") != "seconds":
-            continue
+def selected_claim_values(claims: dict) -> tuple[str, str]:
+    before = after = None
+    for entry in claims["publishedQuantities"]:
         derivation = str(entry.get("derivation", ""))
         if "current development/public baseline" in derivation:
-            baseline = str(entry.get("value"))
-        if "current accelerated development endpoint" in derivation:
-            endpoint = str(entry.get("value"))
-    if baseline is None or endpoint is None:
-        raise FactSyncError("could not locate current startup baseline/endpoint in docs/claims.json")
-    return baseline, endpoint
+            before = str(entry["value"])
+        elif "current accelerated development endpoint" in derivation:
+            after = str(entry["value"])
+    if before is None or after is None:
+        raise ValueError("docs/claims.json has no selected startup baseline/endpoint")
+    return before, after
 
 
 def update_claims(claims: dict, facts: dict) -> None:
-    development = facts["startup"]["development"]
-    before = development["baselineSeconds"]
-    after = development["endpointSeconds"]
+    current = facts["startup"]["development"]
+    before = current["baselineSeconds"]
+    after = current["endpointSeconds"]
     for entry in claims["publishedQuantities"]:
-        if not isinstance(entry, dict) or entry.get("type") != "seconds":
-            continue
         derivation = str(entry.get("derivation", ""))
         if "current development/public baseline" in derivation:
-            changed = str(entry.get("value")) != before or entry.get("evidence") != development["baselineEvidence"]
             entry["value"] = before
-            entry["evidence"] = development["baselineEvidence"]
-            if changed:
-                entry["derivation"] = (
-                    "Recent ordinary startup observation selected by the maintainer as the current "
-                    "development/public baseline under the same game-log startup clock."
-                )
+            entry["evidence"] = current["baselineEvidence"]
         elif "current accelerated development endpoint" in derivation:
-            changed = str(entry.get("value")) != after or entry.get("evidence") != development["endpointEvidence"]
             entry["value"] = after
-            entry["evidence"] = development["endpointEvidence"]
-            if changed:
-                entry["derivation"] = (
-                    "Retained current accelerated development endpoint under the same game-log startup "
-                    "clock used by the development record. The historical same-profile A/B campaign "
-                    "answers a separate comparison question."
-                )
-
-    # Keep the accepted accelerated development claim aligned with the selected endpoint when the
-    # evidence path is the endpoint evidence named by the facts file.
-    for claim in claims.get("claims", []):
-        if not isinstance(claim, dict):
-            continue
-        evidence = claim.get("evidence")
-        if isinstance(evidence, dict) and evidence.get("path") == development["endpointEvidence"]:
-            result = claim.get("result")
-            if isinstance(result, dict):
-                result["seconds"] = float(after)
+            entry["evidence"] = current["endpointEvidence"]
+    for claim in claims["claims"]:
+        evidence = claim.get("evidence", {})
+        if evidence.get("path") == current["endpointEvidence"]:
+            claim["result"]["seconds"] = float(after)
 
 
-def rewrite_public_copy(text: str, old_before: str, old_after: str, facts: dict) -> str:
-    development = facts["startup"]["development"]
-    new_before = development["baselineSeconds"]
-    new_after = development["endpointSeconds"]
+def rewrite_public(text: str, old_before: str, old_after: str, facts: dict) -> str:
+    current = facts["startup"]["development"]
     old_speedup = q2(Decimal(old_before) / Decimal(old_after))
-    new_speedup = derived(facts)["speedup"]
     return (
-        text.replace(old_before, new_before)
-        .replace(old_after, new_after)
-        .replace(f"{old_speedup}×", f"{new_speedup}×")
+        text.replace(old_before, current["baselineSeconds"])
+        .replace(old_after, current["endpointSeconds"])
+        .replace(f"{old_speedup}×", f"{metrics(facts)['speedup']}×")
     )
 
 
-def rewrite_technical_copy(text: str, old_before: str, old_after: str, facts: dict) -> str:
-    new_before = facts["startup"]["development"]["baselineSeconds"]
-    new_after = facts["startup"]["development"]["endpointSeconds"]
-    pairs = (
-        (f"From {old_before} seconds to {old_after}", f"From {new_before} seconds to {new_after}"),
-        (f"{old_before} seconds to {old_after} seconds", f"{new_before} seconds to {new_after} seconds"),
-        (f"{old_before} → {old_after}", f"{new_before} → {new_after}"),
-        (f"instead of {old_before}", f"instead of {new_before}"),
+def rewrite_technical(text: str, old_before: str, old_after: str, facts: dict) -> str:
+    current = facts["startup"]["development"]
+    before = current["baselineSeconds"]
+    after = current["endpointSeconds"]
+    for old, new in (
+        (f"From {old_before} seconds to {old_after}", f"From {before} seconds to {after}"),
+        (f"{old_before} seconds to {old_after} seconds", f"{before} seconds to {after} seconds"),
+        (f"{old_before} → {old_after}", f"{before} → {after}"),
+        (f"instead of {old_before}", f"instead of {before}"),
         (f"current retained accelerated development endpoint is **{old_after} seconds**",
-         f"current retained accelerated development endpoint is **{new_after} seconds**"),
+         f"current retained accelerated development endpoint is **{after} seconds**"),
         (f"current retained development endpoint is **{old_after} seconds**",
-         f"current retained development endpoint is **{new_after} seconds**"),
-    )
-    for old, new in pairs:
+         f"current retained development endpoint is **{after} seconds**"),
+    ):
         text = text.replace(old, new)
     return text
 
 
 def render_headlines(facts: dict) -> str:
-    development = facts["startup"]["development"]
+    current = facts["startup"]["development"]
     historical = facts["startup"]["historicalSameProfileAB"]
     gate = facts["startup"]["validatedAcceleratedGateSeconds"]
-    before = development["baselineSeconds"]
-    after = development["endpointSeconds"]
+    before = current["baselineSeconds"]
+    after = current["endpointSeconds"]
     return f"""# Machine-audited claim headlines
 
 This page is generated from [`project-facts.json`](project-facts.json) by `scripts/sync_project_facts.py`. The full technical history and retained evidence live elsewhere.
 
-All rows below refer to the {development['modCount']}-mod {development['hardware']} development installation running Starsector {development['gameBuild']} with {development['runtime']}.
+All rows below refer to the {current['modCount']}-mod {current['hardware']} development installation running Starsector {current['gameBuild']} with {current['runtime']}.
 
 | Claim | Result |
 | --- | ---: |
-| Earlier validated accelerated gate, {development['modCount']}-mod profile | **{gate}s** |
-| Historical same-profile ordinary baseline, {development['modCount']} mods | **{historical['baselineSeconds']}s** |
-| Historical same-profile accelerated A/B median, {development['modCount']} mods | **{historical['endpointSeconds']}s** |
+| Earlier validated accelerated gate, {current['modCount']}-mod profile | **{gate}s** |
+| Historical same-profile ordinary baseline, {current['modCount']} mods | **{historical['baselineSeconds']}s** |
+| Historical same-profile accelerated A/B median, {current['modCount']} mods | **{historical['endpointSeconds']}s** |
 | Historical A/B elapsed-time reduction | **{historical['deltaSeconds']}s** |
 | Historical A/B percentage reduction | **{historical['reductionPercent']}%** |
-| Current retained accelerated development endpoint, {development['modCount']} mods | **{after}s** |
+| Current retained accelerated development endpoint, {current['modCount']} mods | **{after}s** |
 | Current maintainer-selected ordinary development baseline | **{before}s** |
 
 The current readable development headline is **{before}s → {after}s**. The {historical['baselineSeconds']}s → {historical['endpointSeconds']}s pair remains the retained interleaved A/B comparison for the separate attribution question it measured.
 """
 
 
-def candidate_files(facts: dict) -> dict[Path, str]:
-    claims = json.loads(CLAIMS_PATH.read_text(encoding="utf-8"))
-    old_before, old_after = current_selected_values(claims)
-    outputs: dict[Path, str] = {}
-
-    for relative in PUBLIC_COPY_FILES:
+def expected_files(facts: dict) -> dict[Path, str]:
+    claims = json.loads(CLAIMS.read_text(encoding="utf-8"))
+    old_before, old_after = selected_claim_values(claims)
+    expected: dict[Path, str] = {}
+    for relative in PUBLIC_COPY:
         path = ROOT / relative
-        outputs[path] = rewrite_public_copy(path.read_text(encoding="utf-8"), old_before, old_after, facts)
-
-    for relative in TECHNICAL_COPY_FILES:
+        expected[path] = rewrite_public(path.read_text(encoding="utf-8"), old_before, old_after, facts)
+    for relative in TECHNICAL_COPY:
         path = ROOT / relative
-        outputs[path] = rewrite_technical_copy(path.read_text(encoding="utf-8"), old_before, old_after, facts)
-
+        expected[path] = rewrite_technical(path.read_text(encoding="utf-8"), old_before, old_after, facts)
     update_claims(claims, facts)
-    outputs[CLAIMS_PATH] = json.dumps(claims, indent=2, ensure_ascii=False) + "\n"
-    outputs[HEADLINES_PATH] = render_headlines(facts)
-    return outputs
+    expected[CLAIMS] = json.dumps(claims, indent=2, ensure_ascii=False) + "\n"
+    expected[HEADLINES] = render_headlines(facts)
+    return expected
 
 
-def check_expected_presence(facts: dict) -> list[str]:
-    development = facts["startup"]["development"]
-    before = development["baselineSeconds"]
-    after = development["endpointSeconds"]
-    speedup = derived(facts)["speedup"]
-    problems: list[str] = []
-    for relative in PUBLIC_COPY_FILES:
+def presence_errors(facts: dict) -> list[str]:
+    current = facts["startup"]["development"]
+    speedup = metrics(facts)["speedup"]
+    errors: list[str] = []
+    for relative in PUBLIC_COPY:
         text = (ROOT / relative).read_text(encoding="utf-8")
-        if before not in text or after not in text:
-            problems.append(f"{relative}: missing current startup range {before} / {after}")
-    for relative in SPEEDUP_FILES:
-        text = (ROOT / relative).read_text(encoding="utf-8")
-        if f"{speedup}×" not in text:
-            problems.append(f"{relative}: missing derived speedup {speedup}×")
-    return problems
+        if current["baselineSeconds"] not in text or current["endpointSeconds"] not in text:
+            errors.append(relative)
+    for relative in SPEEDUP_COPY:
+        if f"{speedup}×" not in (ROOT / relative).read_text(encoding="utf-8"):
+            errors.append(relative)
+    return errors
 
 
-def synchronize(write: bool) -> int:
+def sync(write: bool) -> int:
     facts = load_facts()
-    outputs = candidate_files(facts)
     drift: list[str] = []
-    for path, expected in outputs.items():
-        current = path.read_text(encoding="utf-8")
-        if current == expected:
+    for path, expected in expected_files(facts).items():
+        if path.read_text(encoding="utf-8") == expected:
             continue
-        relative = path.relative_to(ROOT).as_posix()
-        drift.append(relative)
+        drift.append(path.relative_to(ROOT).as_posix())
         if write:
             path.write_text(expected, encoding="utf-8")
-
     if write:
-        # Re-evaluate after writing; this also catches a managed copy surface that never carried the
-        # desired value in the first place.
-        drift = check_expected_presence(facts)
+        drift = presence_errors(facts)
     else:
-        drift.extend(check_expected_presence(facts))
-
+        drift.extend(presence_errors(facts))
     if drift:
-        unique = sorted(set(drift))
-        action = "run `python3 scripts/sync_project_facts.py --write`" if not write else "review sync errors"
-        print("project facts are out of sync: " + ", ".join(unique))
-        print(action)
+        print("project facts are out of sync: " + ", ".join(sorted(set(drift))))
+        print("run `python3 scripts/sync_project_facts.py --write`")
         return 1
-
-    values = derived(facts)
-    development = facts["startup"]["development"]
+    current = facts["startup"]["development"]
+    result = metrics(facts)
     print(
-        f"project facts synchronized: {development['baselineSeconds']}s -> "
-        f"{development['endpointSeconds']}s, {values['speedup']}x, "
-        f"{values['savedSeconds']}s saved, {values['reductionPercent']}% reduction"
+        f"{current['baselineSeconds']}s -> {current['endpointSeconds']}s; "
+        f"{result['speedup']}x; {result['saved']}s saved; {result['reduction']}% reduction"
     )
     return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--write", action="store_true", help="rewrite managed copy and claim files")
-    mode.add_argument("--check", action="store_true", help="fail when managed files differ from the facts")
+    parser.add_argument("--write", action="store_true")
+    parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    return synchronize(write=args.write)
+    return sync(args.write)
 
 
 if __name__ == "__main__":
