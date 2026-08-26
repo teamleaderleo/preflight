@@ -176,22 +176,13 @@
         "docs/beta-announcement-draft.md",
         "docs/beta-announcement-leo-draft.md",
         "docs/release-post-draft.md",
+        "docs/optimization-history.md",
         "docs/engineering-overview.md",
         "docs/leo-talking-points.md",
         "docs/public-writing-sales-inventory.md"
       ],
       "evidence": "docs/evidence/2026-08-26-recent-ordinary-startup-observation.md",
       "derivation": "Recent ordinary startup observation selected by the maintainer as the current development/public baseline under the same game-log startup clock. It replaces the older roughly 101-second quantity in the current headline."
-    },
-    {
-      "type": "seconds",
-      "value": "101",
-      "unit": "s",
-      "publishedIn": [
-        "docs/optimization-history.md"
-      ],
-      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "derivation": "Initial accepted chronology high end, retained where the optimization history still discusses that historical observation."
     },
     {
       "type": "seconds",
