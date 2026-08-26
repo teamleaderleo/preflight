@@ -38,6 +38,10 @@ Start with [LLM_HANDOFF.md](LLM_HANDOFF.md) for current project state. These are
 
 - Use `mvn verify`, never `mvn test`, for the Java correctness gate.
 - Focus packaged child-JVM tests with `-Dit.test=Class#method verify`. Do not use `-Dtest` for them.
+- Compile any helper, probe, or agent loaded by Starsector with Java 17 bytecode (`javac --release 17`
+  for standalone sources). Running `javac` from JDK 21 without an explicit release produces class
+  version 65, which the game's Java 17 runtime rejects; source compatibility is not bytecode
+  compatibility.
 - Use the three-platform CI matrix when a change can affect platform behavior.
 - Match verification to risk. Launch, bytecode, child-JVM, and compatibility changes need the strongest checks.
 - Docs and test-only changes do not need invented runtime evidence.
