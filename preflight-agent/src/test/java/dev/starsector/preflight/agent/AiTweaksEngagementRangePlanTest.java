@@ -27,6 +27,11 @@ class AiTweaksEngagementRangePlanTest {
     private static final String HANDLE = "com/genir/aitweaks/core/handles/WeaponHandle";
     private static final String GETTER = "getEngagementRange-impl";
     private static final String GETTER_DESCRIPTOR = "(" + WEAPON_DESCRIPTOR + ")F";
+    private static final String LOCATION_GETTER = "getLocation-impl";
+    private static final String VECTOR = "org/lwjgl/util/vector/Vector2f";
+    private static final String VECTOR_DESCRIPTOR = "L" + VECTOR + ";";
+    private static final String LOCATION_GETTER_DESCRIPTOR =
+            "(" + WEAPON_DESCRIPTOR + ")" + VECTOR_DESCRIPTOR;
     private static final String RUNTIME =
             AiTweaksEngagementRangeRuntime.class.getName().replace('.', '/');
 
@@ -37,7 +42,7 @@ class AiTweaksEngagementRangePlanTest {
 
     @Test
     void snapshotsRangeOncePerSelectionAndReusesItWithinSelection() throws Exception {
-        byte[] transformed = AiTweaksEngagementRangePlan.transform(signature(), fixture(4));
+        byte[] transformed = AiTweaksEngagementRangePlan.transform(signature(), fixture(4, 6));
         assertNotNull(transformed);
         ClassNode owner = parse(transformed);
         var cache = owner.fields.stream()
@@ -53,7 +58,11 @@ class AiTweaksEngagementRangePlanTest {
         assertEquals("Ljava/lang/Float;", owner.fields.stream()
                 .filter(field -> "preflight$targetSearchRangeBoxed".equals(field.name))
                 .findFirst().orElseThrow().desc);
+        assertEquals(VECTOR_DESCRIPTOR, owner.fields.stream()
+                .filter(field -> "preflight$weaponLocation".equals(field.name))
+                .findFirst().orElseThrow().desc);
         assertEquals(1, calls(owner, HANDLE, GETTER));
+        assertEquals(1, calls(owner, HANDLE, LOCATION_GETTER));
         assertEquals(2, calls(owner, "java/lang/Float", "valueOf"));
         assertEquals(1, calls(owner, RUNTIME, "snapshot"));
 
@@ -63,10 +72,14 @@ class AiTweaksEngagementRangePlanTest {
         Class<?> handle = loader.loadClass(HANDLE.replace('/', '.'));
         Class<?> target = loader.loadClass(TARGET.replace('/', '.'));
         Class<?> weaponType = loader.loadClass(WEAPON.replace('/', '.'));
+        Class<?> vectorType = loader.loadClass(VECTOR.replace('/', '.'));
         Object weapon = java.lang.reflect.Proxy.newProxyInstance(
                 loader, new Class<?>[] {weaponType}, (proxy, method, arguments) -> null);
 
+        Object firstLocation = vectorType.getConstructor().newInstance();
+        Object secondLocation = vectorType.getConstructor().newInstance();
         handle.getField("current").setFloat(null, 10f);
+        handle.getField("locationCurrent").set(null, firstLocation);
         Object selection = target.getConstructors()[0].newInstance(
                 weapon, null, null,
                 loader.loadClass("com.genir.aitweaks.core.shipai.autofire.ballistics.BallisticParams")
@@ -74,9 +87,12 @@ class AiTweaksEngagementRangePlanTest {
                 loader.loadClass("com.genir.aitweaks.core.shipai.global.TargetTracker")
                         .getConstructor().newInstance());
         handle.getField("current").setFloat(null, 20f);
+        handle.getField("locationCurrent").set(null, secondLocation);
 
         assertEquals(40f, target.getMethod("use").invoke(selection));
+        assertEquals(firstLocation, target.getMethod("useLocation").invoke(selection));
         assertEquals(1, handle.getField("calls").getInt(null));
+        assertEquals(1, handle.getField("locationCalls").getInt(null));
         assertEquals(1L, AiTweaksEngagementRangeRuntime.telemetry().get("snapshots"));
         assertEquals(true, AiTweaksEngagementRangeRuntime.telemetry().get("installed"));
     }
@@ -86,9 +102,10 @@ class AiTweaksEngagementRangePlanTest {
         ClassSignature exact = signature();
         assertNull(AiTweaksEngagementRangePlan.transform(new ClassSignature(
                 exact.internalName(), "0".repeat(64), exact.majorVersion(), exact.access(),
-                exact.methods()), fixture(4)));
-        assertNull(AiTweaksEngagementRangePlan.transform(exact, fixture(3)));
-        byte[] once = AiTweaksEngagementRangePlan.transform(exact, fixture(4));
+                exact.methods()), fixture(4, 6)));
+        assertNull(AiTweaksEngagementRangePlan.transform(exact, fixture(3, 6)));
+        assertNull(AiTweaksEngagementRangePlan.transform(exact, fixture(4, 5)));
+        byte[] once = AiTweaksEngagementRangePlan.transform(exact, fixture(4, 6));
         assertNotNull(once);
         assertNull(AiTweaksEngagementRangePlan.transform(exact, once));
     }
@@ -120,7 +137,7 @@ class AiTweaksEngagementRangePlanTest {
                         Opcodes.ACC_PUBLIC)));
     }
 
-    private static byte[] fixture(int useCalls) {
+    private static byte[] fixture(int useCalls, int locationCalls) {
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, TARGET, null, "java/lang/Object", null);
         writer.visitField(Opcodes.ACC_PRIVATE, "weapon", WEAPON_DESCRIPTOR, null, null).visitEnd();
@@ -171,6 +188,15 @@ class AiTweaksEngagementRangePlanTest {
                 "java/lang/Float", "valueOf", "(F)Ljava/lang/Float;", false));
         searchBox.instructions.add(new InsnNode(Opcodes.ARETURN));
         searchBox.accept(writer);
+
+        MethodNode useLocation = new MethodNode(
+                Opcodes.ACC_PUBLIC, "useLocation", "()Ljava/lang/Object;", null, null);
+        for (int index = 0; index < locationCalls; index++) {
+            addLocationCall(useLocation);
+            if (index + 1 < locationCalls) useLocation.instructions.add(new InsnNode(Opcodes.POP));
+        }
+        useLocation.instructions.add(new InsnNode(Opcodes.ARETURN));
+        useLocation.accept(writer);
         writer.visitEnd();
         return writer.toByteArray();
     }
@@ -181,6 +207,15 @@ class AiTweaksEngagementRangePlanTest {
                 Opcodes.GETFIELD, TARGET, "weapon", WEAPON_DESCRIPTOR));
         method.instructions.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, HANDLE, GETTER, GETTER_DESCRIPTOR, false));
+    }
+
+    private static void addLocationCall(MethodNode method) {
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        method.instructions.add(new FieldInsnNode(
+                Opcodes.GETFIELD, TARGET, "weapon", WEAPON_DESCRIPTOR));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, HANDLE, LOCATION_GETTER,
+                LOCATION_GETTER_DESCRIPTOR, false));
     }
 
     private static Map<String, byte[]> fixtureTypes() {
@@ -196,6 +231,7 @@ class AiTweaksEngagementRangePlanTest {
         classes.put("com.genir.aitweaks.core.shipai.global.TargetTracker",
                 emptyType("com/genir/aitweaks/core/shipai/global/TargetTracker", false));
         classes.put(HANDLE.replace('/', '.'), handleFixture());
+        classes.put(VECTOR.replace('/', '.'), emptyType(VECTOR, false));
         return classes;
     }
 
@@ -226,6 +262,10 @@ class AiTweaksEngagementRangePlanTest {
                 .visitEnd();
         writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "calls", "I", null, null)
                 .visitEnd();
+        writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                "locationCurrent", VECTOR_DESCRIPTOR, null, null).visitEnd();
+        writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                "locationCalls", "I", null, null).visitEnd();
         MethodNode getter = new MethodNode(
                 Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, GETTER, GETTER_DESCRIPTOR, null, null);
         getter.instructions.add(new FieldInsnNode(Opcodes.GETSTATIC, HANDLE, "calls", "I"));
@@ -235,6 +275,20 @@ class AiTweaksEngagementRangePlanTest {
         getter.instructions.add(new FieldInsnNode(Opcodes.GETSTATIC, HANDLE, "current", "F"));
         getter.instructions.add(new InsnNode(Opcodes.FRETURN));
         getter.accept(writer);
+
+        MethodNode locationGetter = new MethodNode(
+                Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                LOCATION_GETTER, LOCATION_GETTER_DESCRIPTOR, null, null);
+        locationGetter.instructions.add(new FieldInsnNode(
+                Opcodes.GETSTATIC, HANDLE, "locationCalls", "I"));
+        locationGetter.instructions.add(new InsnNode(Opcodes.ICONST_1));
+        locationGetter.instructions.add(new InsnNode(Opcodes.IADD));
+        locationGetter.instructions.add(new FieldInsnNode(
+                Opcodes.PUTSTATIC, HANDLE, "locationCalls", "I"));
+        locationGetter.instructions.add(new FieldInsnNode(
+                Opcodes.GETSTATIC, HANDLE, "locationCurrent", VECTOR_DESCRIPTOR));
+        locationGetter.instructions.add(new InsnNode(Opcodes.ARETURN));
+        locationGetter.accept(writer);
         writer.visitEnd();
         return writer.toByteArray();
     }

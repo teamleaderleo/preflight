@@ -182,7 +182,7 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
-    /** AI Tweaks 2.2.10 recomputes and repeatedly boxes fixed ranges during target selection. */
+    /** AI Tweaks 2.2.10 recomputes fixed range and weapon geometry during target selection. */
     static AdapterTarget aiTweaksEngagementRangeTarget() {
         return new AdapterTarget(
                 "aitweaks-2.2.10-select-target-range-snapshot",

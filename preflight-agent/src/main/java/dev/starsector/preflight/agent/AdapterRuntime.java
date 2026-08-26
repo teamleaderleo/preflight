@@ -211,7 +211,7 @@ final class AdapterRuntime {
                     report.diagnostic("Loaded the exact streaming-audio OpenAL error-order target");
                 }
                 report.diagnostic("Loaded the exact sound classpath-root resource fallback target");
-                report.diagnostic("Loaded the exact AI Tweaks per-selection range target");
+                report.diagnostic("Loaded the exact AI Tweaks per-selection geometry and range target");
                 report.diagnostic("Loaded the exact AshLib callback-scoped variant index targets");
                 if (FrameTimeRuntime.enabled()) {
                     registry = registry.withFrameTimeTarget();

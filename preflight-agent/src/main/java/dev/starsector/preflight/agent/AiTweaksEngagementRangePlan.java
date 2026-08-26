@@ -15,7 +15,7 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
-/** Snapshots and boxes fixed weapon ranges once inside one AI Tweaks target selection. */
+/** Snapshots fixed weapon geometry and boxes fixed ranges once inside one target selection. */
 final class AiTweaksEngagementRangePlan {
     static final String TARGET_CLASS = "com/genir/aitweaks/core/shipai/autofire/SelectTarget";
     static final String ORIGINAL_SHA256 =
@@ -30,12 +30,17 @@ final class AiTweaksEngagementRangePlan {
     private static final String WEAPON_HANDLE = "com/genir/aitweaks/core/handles/WeaponHandle";
     private static final String RANGE_GETTER = "getEngagementRange-impl";
     private static final String RANGE_DESCRIPTOR = "(Lcom/fs/starfarer/api/combat/WeaponAPI;)F";
+    private static final String LOCATION_GETTER = "getLocation-impl";
+    private static final String LOCATION_DESCRIPTOR = "(Lcom/fs/starfarer/api/combat/WeaponAPI;)"
+            + "Lorg/lwjgl/util/vector/Vector2f;";
     private static final String WEAPON_FIELD = "weapon";
     private static final String WEAPON_DESCRIPTOR = "Lcom/fs/starfarer/api/combat/WeaponAPI;";
     private static final String CACHE_FIELD = "preflight$engagementRange";
     private static final String BOXED_CACHE_FIELD = "preflight$engagementRangeBoxed";
     private static final String TARGET_SEARCH_FIELD = "targetSearchRange";
     private static final String TARGET_SEARCH_BOXED_FIELD = "preflight$targetSearchRangeBoxed";
+    private static final String LOCATION_CACHE_FIELD = "preflight$weaponLocation";
+    private static final String LOCATION_DESCRIPTOR_VALUE = "Lorg/lwjgl/util/vector/Vector2f;";
     private static final String FLOAT = "java/lang/Float";
     private static final String BOX_DESCRIPTOR = "(F)Ljava/lang/Float;";
     private static final String RUNTIME =
@@ -59,6 +64,7 @@ final class AiTweaksEngagementRangePlan {
                 || field(owner, TARGET_SEARCH_FIELD, "F") == null) return null;
 
         List<CallSite> sites = new ArrayList<>();
+        List<CallSite> locationSites = new ArrayList<>();
         for (MethodNode method : owner.methods) {
             for (AbstractInsnNode instruction : method.instructions) {
                 if (instruction instanceof MethodInsnNode call
@@ -74,6 +80,20 @@ final class AiTweaksEngagementRangePlan {
                         return null;
                     }
                     sites.add(new CallSite(method, call));
+                }
+                if (instruction instanceof MethodInsnNode call
+                        && WEAPON_HANDLE.equals(call.owner)
+                        && LOCATION_GETTER.equals(call.name)
+                        && LOCATION_DESCRIPTOR.equals(call.desc)) {
+                    AbstractInsnNode previous = previousCode(call);
+                    if (!(previous instanceof FieldInsnNode weapon)
+                            || weapon.getOpcode() != Opcodes.GETFIELD
+                            || !TARGET_CLASS.equals(weapon.owner)
+                            || !WEAPON_FIELD.equals(weapon.name)
+                            || !WEAPON_DESCRIPTOR.equals(weapon.desc)) {
+                        return null;
+                    }
+                    locationSites.add(new CallSite(method, call));
                 }
             }
         }
@@ -97,7 +117,7 @@ final class AiTweaksEngagementRangePlan {
                 }
             }
         }
-        if (sites.size() != 5 || constructorSites.size() != 1
+        if (sites.size() != 5 || locationSites.size() != 6 || constructorSites.size() != 1
                 || boxedEngagementSites.size() != 2 || boxedSearchSites.size() != 1
                 || sites.stream().filter(site -> site.method() != constructor)
                         .anyMatch(site -> (site.method().access & Opcodes.ACC_STATIC) != 0)) {
@@ -110,6 +130,8 @@ final class AiTweaksEngagementRangePlan {
                 cacheAccess, BOXED_CACHE_FIELD, "Ljava/lang/Float;", null, null));
         owner.fields.add(new FieldNode(
                 cacheAccess, TARGET_SEARCH_BOXED_FIELD, "Ljava/lang/Float;", null, null));
+        owner.fields.add(new FieldNode(
+                cacheAccess, LOCATION_CACHE_FIELD, LOCATION_DESCRIPTOR_VALUE, null, null));
         MethodInsnNode capture = constructorSites.get(0).call();
         InsnList save = new InsnList();
         save.add(new InsnNode(Opcodes.DUP));
@@ -139,6 +161,15 @@ final class AiTweaksEngagementRangePlan {
                 Opcodes.INVOKESTATIC, FLOAT, "valueOf", BOX_DESCRIPTOR, false));
         saveSearch.add(new FieldInsnNode(Opcodes.PUTFIELD, TARGET_CLASS,
                 TARGET_SEARCH_BOXED_FIELD, "Ljava/lang/Float;"));
+        saveSearch.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        saveSearch.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        saveSearch.add(new FieldInsnNode(
+                Opcodes.GETFIELD, TARGET_CLASS, WEAPON_FIELD, WEAPON_DESCRIPTOR));
+        saveSearch.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, WEAPON_HANDLE, LOCATION_GETTER,
+                LOCATION_DESCRIPTOR, false));
+        saveSearch.add(new FieldInsnNode(Opcodes.PUTFIELD, TARGET_CLASS,
+                LOCATION_CACHE_FIELD, LOCATION_DESCRIPTOR_VALUE));
         constructor.instructions.insert(targetSearchAssignment, saveSearch);
 
         for (CallSite site : sites) {
@@ -159,6 +190,12 @@ final class AiTweaksEngagementRangePlan {
             site.field().name = TARGET_SEARCH_BOXED_FIELD;
             site.field().desc = "Ljava/lang/Float;";
             site.method().instructions.remove(site.box());
+        }
+        for (CallSite site : locationSites) {
+            FieldInsnNode weapon = (FieldInsnNode) previousCode(site.call());
+            weapon.name = LOCATION_CACHE_FIELD;
+            weapon.desc = LOCATION_DESCRIPTOR_VALUE;
+            site.method().instructions.remove(site.call());
         }
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);

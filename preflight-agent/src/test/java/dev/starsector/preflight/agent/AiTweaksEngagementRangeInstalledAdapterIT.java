@@ -49,8 +49,13 @@ class AiTweaksEngagementRangeInstalledAdapterIT {
         assertEquals("Ljava/lang/Float;", owner.fields.stream()
                 .filter(field -> "preflight$targetSearchRangeBoxed".equals(field.name))
                 .findFirst().orElseThrow().desc);
+        assertEquals("Lorg/lwjgl/util/vector/Vector2f;", owner.fields.stream()
+                .filter(field -> "preflight$weaponLocation".equals(field.name))
+                .findFirst().orElseThrow().desc);
         assertEquals(1, calls(owner,
                 "com/genir/aitweaks/core/handles/WeaponHandle", "getEngagementRange-impl"));
+        assertEquals(1, calls(owner,
+                "com/genir/aitweaks/core/handles/WeaponHandle", "getLocation-impl"));
         assertEquals(1, calls(owner,
                 AiTweaksEngagementRangeRuntime.class.getName().replace('.', '/'), "snapshot"));
     }
