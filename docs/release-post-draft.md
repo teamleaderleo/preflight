@@ -28,7 +28,7 @@ development setup.
 ## Short product description
 
 Preflight is a free and open-source fast launcher for Starsector. On my 83-mod M5 MacBook Air
-development setup, startup moved from roughly **101 seconds to a 13.69-second best run**, about a
+development setup, startup moved from roughly **101 seconds to 13.69 seconds**, about a
 **7.4× speedup**. The desktop includes its own normal-versus-Preflight benchmark and also tracks
 playtime, puts the useful game settings beside Launch, checks large mod setups, plans storage before
 preparation, handles repair and recovery, ships signed updates, and includes a mod linter.
@@ -39,8 +39,8 @@ preparation, handles repair and recovery, ships signed updates, and includes a m
 
 Preflight is a free and open-source fast launcher for Starsector.
 
-On my 83-mod M5 MacBook Air development setup, startup moved from roughly **101 seconds to a
-13.69-second best run**, about a **7.4× speedup**. That development setup uses Starsector's bundled
+On my 83-mod M5 MacBook Air development setup, startup moved from roughly **101 seconds to
+13.69 seconds**, about a **7.4× speedup**. That development setup uses Starsector's bundled
 x86-64 Java runtime through Rosetta.
 
 The desktop includes its own normal-versus-Preflight benchmark so you can measure your installation.
