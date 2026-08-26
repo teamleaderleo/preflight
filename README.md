@@ -31,7 +31,7 @@ Runtime shortcuts only apply to code they recognize. If a game/mod update change
 
 That's the main idea. The rest of the project makes it useful on a real computer.
 
-For the even smaller explanation, read [Preflight in 256 KB](docs/how-preflight-works-256kb.md). For the normal-human version, read [How Preflight works](docs/how-preflight-works.md).
+For the standalone ultra-simple guide, read [Preflight in 256 KB](docs/how-preflight-works-256kb.md). For the normal-human version, read [How Preflight works](docs/how-preflight-works.md).
 
 ## What you get
 
