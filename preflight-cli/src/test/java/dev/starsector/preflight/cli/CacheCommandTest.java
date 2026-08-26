@@ -394,6 +394,7 @@ class CacheCommandTest {
         assertEquals(105L, ((Number) report.get("files")).longValue());
         assertEquals(1_050L, ((Number) report.get("bytes")).longValue());
         assertEquals(Boolean.TRUE, report.get("removalsTruncated"));
+        assertEquals(0L, ((Number) report.get("reachableClasspathArchiveIndexes")).longValue());
         assertEquals(100, ((List<?>) report.get("removals")).size());
         List<Map<String, Object>> groups = (List<Map<String, Object>>) report.get("groups");
         assertTrue(groups.stream().anyMatch(group -> "unreferenced blob".equals(group.get("reason"))

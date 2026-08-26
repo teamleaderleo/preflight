@@ -146,8 +146,11 @@ Storage should be presented in user-relevant categories:
 - **Reclaimable:** data proven unreachable by a completed dry-run cleanup plan.
 
 `preflight cache prune` is a read-only plan. `preflight cache prune --yes` applies that exact plan
-only after reachability is complete. Unknown profiles, unreadable manifests, damaged packs, and
-identity ambiguity retain data instead of guessing.
+only after reachability is complete. Shared texture, prepared-audio, and classpath archive-index
+payloads stay when a surviving manifest or classpath profile is unreadable; unknown profiles,
+damaged packs, and identity ambiguity likewise retain data instead of guessing. Content-addressed
+JAR indexes that no current or named profile references are reclaimable rather than accumulating
+across mod updates.
 
 Launch reports and benchmark sessions have a separate retention plan because deleting them cannot
 affect launch speed. The desktop keeps 10 launch reports, reserving bounded slots for the newest

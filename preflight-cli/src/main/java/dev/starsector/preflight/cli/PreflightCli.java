@@ -268,6 +268,7 @@ public final class PreflightCli {
                 "  Removes every profile except the current one; --keep-named also preserves every",
                 "  readable named profile. This includes profile texture packs,",
                 "  texture and prepared-audio blobs no survivor references, stale Janino contexts,",
+                "  unreferenced content-addressed classpath archive indexes,",
                 "  and per-request bytecode bundles represented by the retained deduplicated pack.",
                 "  Prints the plan and exits unless --yes; --json emits the stable plan contract."));
         usage.put("evidence", List.of(
