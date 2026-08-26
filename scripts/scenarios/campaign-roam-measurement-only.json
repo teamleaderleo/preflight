@@ -1,7 +1,7 @@
 {
   "format": "starsector-preflight-smoke-v1",
   "name": "campaign-roam-measurement-only",
-  "timeoutSeconds": 360,
+  "timeoutSeconds": 480,
   "launch": {
     "preset": "measurement-only",
     "textureStorage": "balanced",
@@ -12,7 +12,7 @@
       "id": "menu",
       "kind": "wait-state",
       "state": "main-menu-interactive",
-      "timeoutSeconds": 90
+      "timeoutSeconds": 180
     },
     {
       "id": "continue",

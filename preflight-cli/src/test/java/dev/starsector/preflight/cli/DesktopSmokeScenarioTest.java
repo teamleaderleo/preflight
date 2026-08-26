@@ -33,6 +33,7 @@ final class DesktopSmokeScenarioTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void checkedInBenchmarkScenariosKeepTheSameSemanticIdentity() throws Exception {
         DesktopSmokeScenario optimized = DesktopSmokeScenario.read(
                 Path.of("..", "scripts", "scenarios", "campaign-roam.json"));
@@ -42,6 +43,10 @@ final class DesktopSmokeScenarioTest {
         assertEquals(measurement.benchmarkIdentity(), optimized.benchmarkIdentity());
         assertEquals("measurement-only", measurement.launchPreset());
         assertEquals("fast", optimized.launchPreset());
+        assertEquals(480, optimized.view().get("timeoutSeconds"));
+        Map<String, Object> menu = (Map<String, Object>) ((List<?>) optimized.view().get("steps")).get(0);
+        assertEquals("menu", menu.get("id"));
+        assertEquals(180, menu.get("timeoutSeconds"));
     }
 
     @Test
