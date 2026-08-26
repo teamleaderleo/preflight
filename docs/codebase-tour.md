@@ -2,314 +2,203 @@
 
 ## TL;DR
 
-This page is for someone who can read code, or is willing to learn while reading it, and wants to answer questions such as:
-
-- What actually happens after I press **Launch Starsector**?
-- Where does preparation live?
-- Where do the runtime optimizations live?
-- Where does a lint finding come from?
-- Which layer is allowed to touch the filesystem or start a process?
-
-The shortest useful mental model is:
+If you can read code, or you're willing to learn while reading it, this is the shortest useful map:
 
 ```text
 React desktop UI
        ↓
-small Rust/Tauri native host
+Rust/Tauri native host
        ↓
-Java CLI/orchestration layer
+Java CLI/orchestration
        ↓
 shared Java formats, identity, caches, analysis
        ↓
-Java agent inside the Starsector child JVM
+Java agent inside Starsector
        ↓
-reviewed runtime adapters + original game/mod code
+reviewed adapters + original game/mod code
 ```
 
-You do not need to understand the whole repository before following one feature. Pick a user-visible action and trace it down through those layers.
+Pick one user-visible action and follow it downward. Don't try to learn the repository by reading every directory.
 
-For the engineering story behind the optimizations, read [Engineering overview](engineering-overview.md). This page is about finding the code.
+For *why* the optimizations exist, read [Engineering overview](engineering-overview.md). This page is about finding the code.
 
-## The repository in one screen
-
-The Maven reactor has four Java modules:
-
-```text
-preflight-core/
-preflight-agent/
-preflight-cli/
-preflight-synthetic-startup/
-```
-
-The desktop product sits beside that reactor:
-
-```text
-preflight-desktop/
-  src/                 React/TypeScript UI
-  src-tauri/src/       Rust native host
-```
-
-There are also release/support pieces such as `report-intake/`, scripts, workflows, and the evidence archive. Those are important, but they are usually the wrong place to start when learning the runtime.
-
-## What each Java module owns
+## The main pieces
 
 ### `preflight-core`
 
-Start here when the question is about **data that needs a durable definition**.
+Portable definitions shared by preparation and runtime:
 
-Core owns portable concepts such as:
-
-- cache and artifact formats;
-- content/profile identity;
+- cache/artifact formats;
+- profile/content identity;
 - validation and reports;
-- atomic publication helpers;
-- prepared texture/audio-related representations;
-- reusable model types shared by the CLI and agent.
+- atomic publication;
+- reusable prepared-data models.
 
-A useful rule of thumb: if a format must mean the same thing during offline preparation and later inside the game process, its durable definition probably belongs here.
-
-The package is broad because the project has accumulated several independent cache families. Do not read it alphabetically. Search for the noun you care about: `Texture`, `Classpath`, `Profile`, `Spec`, `Audio`, `Report`, `Manifest`, `Fingerprint`, and so on.
+If a thing must mean the same thing offline and later inside the game process, its durable definition probably lives here.
 
 ### `preflight-cli`
 
-Start here when the question begins with **“Preflight is about to do something.”**
+The orchestration layer. Start here for `prepare`, `run`, benchmarks, lint/census commands, cache planning, child-process launch, agent injection, and run evidence.
 
-The CLI is the orchestration layer. It owns commands and workflows such as:
+Useful anchors:
 
-- discovering the installation/profile;
-- `prepare`;
-- `run`;
-- benchmarking;
-- lint/census/analysis commands;
-- cache planning and cleanup;
-- constructing the child-process launch;
-- injecting the Java agent;
-- collecting run evidence.
-
-The main command entry is `PreflightCli.java`. For an actual game launch, `RunCommand.java` is a good anchor. Agent setup is split into focused pieces such as `AgentInjection.java` and `AgentLaunchConfig.java`.
-
-For analysis features, the class names are intentionally literal. `AssetLint.java`, `AssetLintCommand.java`, `AudioCensus.java`, and `AudioCensusCommand.java` are good examples.
+- `PreflightCli.java` — command entry;
+- `RunCommand.java` — game launch;
+- `AgentInjection.java` / `AgentLaunchConfig.java` — agent setup;
+- `AssetLint.java` / `AssetLintCommand.java` — linter;
+- `AudioCensus.java` / `AudioCensusCommand.java` — audio analysis.
 
 ### `preflight-agent`
 
-Start here when the question is **“what changes inside the Starsector JVM?”**
+What can change inside the Starsector JVM.
 
-The agent is injected into the child process. It owns runtime eligibility, target identity, bytecode transformations, adapter state, and evidence about what actually activated.
+Useful anchors:
 
-Useful landmarks include:
+- `AdapterTargetRegistry.java` — reviewed targets;
+- `AdapterRuntime.java` — runtime coordination;
+- `AdapterSourceIdentity.java` — exact source binding;
+- `AdapterPlanCatalog.java` — reviewed plan surface;
+- `AdapterReport.java` — what actually activated.
 
-- `AdapterTargetRegistry.java` for the catalog of reviewed targets;
-- `AdapterRuntime.java` for runtime coordination;
-- `AdapterSourceIdentity.java` for exact source binding;
-- `AdapterPlanCatalog.java` for the reviewed plan surface;
-- `AdapterReport.java` for what the run records about adapter behavior.
-
-This is where the compatibility rule becomes concrete: an optimization only activates when the code/input identity it expects is actually present. Unknown or changed targets leave the original path available.
-
-When an adapter looks mysterious, read its eligibility checks and its tests before reading the bytecode manipulation line by line. The safety boundary usually explains the code better than the transformation itself.
+Read the eligibility checks and tests before the bytecode manipulation. They usually explain the adapter faster.
 
 ### `preflight-synthetic-startup`
 
-Start here when you want to understand **how the agent is tested without redistributing Starsector**.
+Controlled child-JVM fixtures for testing agent startup, target selection, fallback, and reporting without shipping Starsector code.
 
-This module supplies controlled child-JVM fixtures. It lets tests prove startup, injection, target selection, fallback, and reporting against code the repository is allowed to ship.
+### `preflight-desktop`
 
-It is often easier to learn an adapter from its synthetic fixture and test than from a real obfuscated target.
+```text
+src/            React/TypeScript UI
+src-tauri/src/  Rust native host
+```
+
+React renders. Rust owns bounded OS authority. Java owns Starsector-facing behavior.
 
 ## Follow one launch
 
-A desktop launch crosses several languages, but the path is simpler than the file count makes it look.
-
 ```text
-React button/state
+React action
    ↓
-TypeScript bridge
+preflight-desktop/src/bridge.ts
    ↓
 fixed Tauri command
    ↓
-Rust process/ownership code
+Rust validation/process ownership
    ↓
-Java Preflight command
+Java RunCommand
    ↓
 child Starsector JVM + javaagent
    ↓
-agent validates/activates eligible adapters
+eligible adapters
    ↓
-run reports flow back to the desktop
+run reports back to desktop
 ```
 
-On the desktop side, start with `preflight-desktop/src/bridge.ts`. It is the browser-facing contract to native code.
+Useful Rust files:
 
-Then move into `preflight-desktop/src-tauri/src/`:
+- `lib.rs` — native command surface;
+- `engine.rs` — Java engine interaction;
+- `operations.rs` — process/operation coordination;
+- `preparation.rs` — preparation work;
+- `reports.rs` / `report_transport.rs` — support reports;
+- `updates.rs` — updates.
 
-- `lib.rs` registers much of the native command surface;
-- `engine.rs` owns important Java-engine interaction;
-- `operations.rs` owns operation/process coordination;
-- `preparation.rs` owns preparation-specific native work;
-- `reports.rs` and `report_transport.rs` own support-report handling;
-- `updates.rs` owns update installation.
-
-The Rust host is intentionally narrow. If you find yourself looking for game-specific optimization logic in Rust, you are probably in the wrong layer. The host owns OS authority and process/filesystem boundaries; the Java engine owns Starsector-facing behavior.
-
-From there, follow the Java command into `preflight-cli`, then agent injection into `preflight-agent`.
+If you're looking for game-specific optimization logic in Rust, you're probably in the wrong layer.
 
 ## Follow preparation
 
-Preparation is offline work. It does not itself install a runtime transformation.
-
-The rough path is:
-
 ```text
-profile/install discovery
+installation/profile discovery
       ↓
-input census + identity
+identity + census
       ↓
-plan storage/work
+storage/work plan
       ↓
-build or reuse independent artifact families
+build or reuse artifacts
       ↓
-validate them
+validate
       ↓
-atomically publish report/artifacts
+atomically publish
 ```
 
-Start with [Preparation](prepare.md) for the command contract, then search `preflight-cli` for `Prepare` and the artifact family you care about.
+Start with [Preparation](prepare.md), then search `preflight-cli` for `Prepare` plus the artifact family you care about.
 
-When the code jumps into `preflight-core`, that usually means it has reached a reusable format, identity calculation, validation rule, or publication primitive.
+When the path jumps into `preflight-core`, it has usually reached a durable format, identity calculation, validator, or publication primitive.
 
-A prepared artifact can exist and still be declined at launch. Preparation proves that the artifact is internally ready; the runtime still has to prove that the exact current inputs and adapter target match.
+Preparation alone doesn't activate an optimization. Runtime still checks the exact current target and inputs.
 
-## Follow a runtime optimization
+## Follow one runtime optimization
 
-For a specific optimization, use this order:
+Use this order:
 
-1. Find its readable explanation in [Optimization history](optimization-history.md) or the evidence archive.
-2. Find the target/plan entry in `preflight-agent`.
-3. Read the exact identity and eligibility checks.
-4. Read the transformation/runtime implementation.
-5. Read the synthetic and focused tests.
-6. Only then read the older experiments that led to it.
+1. readable explanation in [Optimization history](optimization-history.md);
+2. target/plan entry in `preflight-agent`;
+3. identity and eligibility checks;
+4. transformation/runtime implementation;
+5. focused and synthetic tests;
+6. old evidence only if you need the history.
 
-That order keeps an abandoned prototype from looking like current behavior.
-
-The recurring design is:
+The recurring pattern is:
 
 ```text
 recognize exact target
       ↓
-validate required artifact/state
+validate artifact/state
       ↓
 activate narrow shortcut
       ↓
-record what happened
+record result
 
-anything fails the gate
-      ↓
-original path remains available
+check fails → original path remains available
 ```
 
 ## Follow a lint finding
 
-The linter is much easier to read than the runtime adapters because it is intentionally read-only.
-
-Start at:
-
 ```text
-preflight-cli/.../AssetLintCommand.java
-                ↓
-preflight-cli/.../AssetLint.java
-                ↓
-header/config readers + resource/profile identity
-                ↓
-reported finding
+AssetLintCommand.java
+      ↓
+AssetLint.java
+      ↓
+header/config readers + profile identity
+      ↓
+finding
 ```
 
-Then read [Asset lint](asset-lint.md), which defines the public rule names, severity, cost kind, thresholds, and false-positive philosophy.
+Then read [Asset lint](asset-lint.md) for the public rule name, threshold, severity, cost kind, and false-positive policy.
 
-A lint rule should be understandable from the source file it examines. If proving a rule requires guessing artistic intent or modifying the game, it is probably outside the linter's intended boundary.
+The linter is read-only. A good lint rule can be justified from the file/profile data it actually sees without guessing artistic intent.
 
-## Follow a desktop feature
+## Why there is so much identity code
 
-Use the direction of authority:
+Preflight sits between an obfuscated game, independently changing mods, ordered resource overlays, generated code, persisted artifacts, and multiple launcher/runtime configurations.
 
-```text
-React component/hook
-      ↓
-bridge.ts type + call
-      ↓
-Tauri command
-      ↓
-Rust validation/ownership
-      ↓
-Java engine command or bounded native action
-```
+Hashes, provider order, class/source identity, format versions, profile fingerprints, and target fingerprints all answer the same question:
 
-If a React component contains path manipulation, process ownership, arbitrary command construction, or release-signing logic, something has probably crossed the intended boundary.
+**Is this still the exact situation for which this shortcut was proven?**
 
-For visual behavior, pair the source with [UI design](ui-design.md) and the rendered preview scenarios. Source alone cannot tell you whether the interface actually works at the supported window sizes.
+Treat that checking as functional code, not ceremony.
 
-## Where identity and compatibility show up
+## How to learn the repository without drowning
 
-A lot of Preflight code can look like defensive bookkeeping until you know what problem it is solving.
+Good first traces:
 
-The project accelerates an application assembled from:
+1. `audio-oversampled` from CLI command to lint finding;
+2. desktop Launch from `bridge.ts` to Rust to `RunCommand`;
+3. one prepared texture artifact from planner to core format to runtime reader;
+4. one adapter from target registry to eligibility gate to tests.
 
-- an obfuscated game;
-- third-party mods that change independently;
-- ordered resource overlays;
-- generated code;
-- persisted prepared data;
-- multiple launcher/runtime configurations.
+Search for the production class under `src/test` immediately. Tests often explain the intended boundary more clearly than the implementation.
 
-So identity is part of the optimization. Content hashes, provider order, class/source identity, format versions, profile fingerprints, and target fingerprints answer one question: **is this still the exact situation for which the shortcut was proven?**
+You can postpone dated evidence, release rehearsals, old handoffs, rejected experiments, and packaging/signing internals until a current code path links you there.
 
-When reading a class that appears to spend a lot of effort naming/versioning/checking an input, treat that as functional code, not ceremony.
-
-## How the tests are arranged
-
-A useful reading habit is to search for the production class name under `src/test` immediately.
-
-The test suite roughly has three jobs:
-
-- **pure format/logic tests** for portable code;
-- **synthetic integration tests** for process/agent/runtime behavior;
-- **real-install evidence** for claims that cannot be established from redistributable fixtures.
-
-The third category lives mostly under `docs/evidence/` rather than in CI. Evidence documents record what happened on a specific installation/profile. They do not automatically redefine current product behavior.
-
-## Good first traces
-
-If you want to learn by following something concrete, these are good exercises:
-
-1. **A lint rule:** `audio-oversampled` or `texture-progressive` from command to finding.
-2. **A desktop launch:** React bridge to Rust host to `RunCommand` to agent injection.
-3. **A prepared texture artifact:** preparation planner to core format to runtime reader.
-4. **One adapter:** target registry entry, identity gate, transformation, report, tests.
-5. **One benchmark:** command, child process, endpoint observation, retained report.
-
-Each trace crosses enough of the project to teach the boundaries without requiring a repository-wide reading marathon.
-
-## What to ignore on a first pass
-
-You can safely postpone:
-
-- dated evidence unless the current code links you there;
-- old implementation handoffs;
-- release rehearsal details;
-- rejected experiments;
-- packaging/signing internals;
-- specialist compatibility probes unrelated to the feature you are tracing.
-
-They exist because the project keeps its engineering record. They are reference material, not prerequisites.
-
-## Reading order for a technically curious newcomer
+## Suggested reading order
 
 1. [Preflight in 256 KB](how-preflight-works-256kb.md)
 2. [How Preflight works](how-preflight-works.md)
-3. **this codebase tour**
-4. [Engineering overview](engineering-overview.md)
-5. one concrete trace through the code
-6. [Architecture](architecture.md) when you need the exact module/persistence boundaries
-7. evidence/history only for the feature you are investigating
+3. **this page**
+4. one concrete trace through the code
+5. [Engineering overview](engineering-overview.md)
+6. [Architecture](architecture.md) when you need exact module/persistence boundaries
 
-You will understand the repository faster by following data and authority through one real action than by reading every top-level class.
+Following one real action teaches the repository faster than reading it top to bottom.
