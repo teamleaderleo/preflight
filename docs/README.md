@@ -68,6 +68,7 @@ current answer.
 - [Startup benchmark](startup-benchmark.md)
 - [Asset lint](asset-lint.md)
 - [Desktop smoke automation](desktop-smoke-automation.md)
+- [Internal action automation breakthrough](evidence/2026-08-26-internal-action-automation.md)
 - [Signed macOS update and rollback rehearsal](evidence/2026-08-08-signed-update-rollback-rehearsal.md)
 
 ## Maintainers and contributors
