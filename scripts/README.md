@@ -2,6 +2,16 @@
 
 Check this index before writing a new script or driving the game by hand.
 
+## Synchronize repeated project facts
+
+| | |
+|---|---|
+| `sync_project_facts.py --write` | Read `docs/project-facts.json`, derive the startup speedup/savings, and update the managed public-copy and claim surfaces. Edit the facts file first; do not hunt through the repository replacing the same number by hand. |
+| `sync_project_facts.py --check` | Verify that the managed copy still agrees with `docs/project-facts.json`. CI uses this mode. |
+
+Historical measurements and raw evidence stay hand-authored. The sync owns selected current facts and
+the places that repeat them; it does not rewrite old experiment records.
+
 For a startup time, run:
 
 ```bash
@@ -65,13 +75,18 @@ from launch time. Phase-probe time also uses a different clock and cannot be com
 | `verify-all.sh` | Everything the repository owns: Java reactor, desktop dependencies, packaged-engine contract, frontend, native host, and the report-intake worker and its bindings. |
 | `verify-in-container.sh [full\|focused\|analysis\|coverage\|package]` | The same work inside a memory-, CPU- and PID-limited Linux container. **This is how to reproduce a Linux-only failure from a Mac.** |
 
+Routine Java correctness belongs to `mvn verify`. Focused JUnit tests stay in the normal reactor
+unless they require a genuinely different OS, package, operator, or stress environment. Medium
+synthetic workloads live in the dispatch-only `Synthetic stress` workflow.
+
 ## Guards that fail closed
 
 Each of these is a refusal, not a report: they exist to stop something reaching a release.
 
 | | |
 |---|---|
-| `verify_source_boundary.py` | Audits tracked files *and reachable Git history* for private or game content. Nothing from the installation may enter the repository. |
+| `verify_current_source_boundary.py` | Cheap development guard over the currently tracked tree. PRs use this so accidental game/mod/private content is rejected without replaying all Git history. |
+| `verify_source_boundary.py` | Full tracked-tree and reachable-history audit. Distribution/release uses this stronger mode from a complete checkout. |
 | `verify_release_boundary.py` | Fails when a core release archive holds an unexpected file or JAR namespace. |
 | `verify_complete_release.py` | Fails when the final merged release differs from the reviewed artifact set. |
 | `starsector_core_resource_guard.py` | Discovers and validates the reviewed core mission resource root. |
