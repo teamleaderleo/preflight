@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'README.md'
+      - 'CLAUDE.md'
+      - 'LLM_HANDOFF.md'
       - 'docs/project-facts.json'
       - 'docs/claim-headlines.md'
       - 'docs/claims.json'
@@ -28,6 +30,8 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'README.md'
+      - 'CLAUDE.md'
+      - 'LLM_HANDOFF.md'
       - 'docs/project-facts.json'
       - 'docs/claim-headlines.md'
       - 'docs/claims.json'
