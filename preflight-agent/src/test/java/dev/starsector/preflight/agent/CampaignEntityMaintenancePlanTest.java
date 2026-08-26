@@ -195,13 +195,16 @@ class CampaignEntityMaintenancePlanTest {
                 source, CampaignEntityMaintenanceRuntime.PAUSED_LOCATION_ENTITIES);
         Object[] second = CampaignEntityMaintenanceRuntime.locationSnapshot(
                 source, CampaignEntityMaintenanceRuntime.PAUSED_LOCATION_ENTITIES);
+        Iterator<?> oneShot = CampaignEntityMaintenanceRuntime.locationSnapshotIterator(first);
 
         assertNotSame(first, second);
+        assertSame(source.get(0), oneShot.next());
         Map<String, Object> telemetry = CampaignEntityMaintenanceRuntime.telemetry();
         assertEquals(true, telemetry.get("enabled"));
         assertEquals(false, telemetry.get("stableSnapshotsEnabled"));
         assertEquals(2L, telemetry.get("stableSnapshotDelegations"));
         assertEquals(0, telemetry.get("stableSnapshotOwners"));
+        assertEquals(0, telemetry.get("stableSnapshotCursors"));
     }
 
     @Test
@@ -266,10 +269,15 @@ class CampaignEntityMaintenancePlanTest {
         source.add("second");
         Iterator<?> firstPass = CampaignEntityMaintenanceRuntime.locationSnapshotIterator(snapshot);
         Iterator<?> secondPass = CampaignEntityMaintenanceRuntime.locationSnapshotIterator(snapshot);
+        assertNotSame(firstPass, secondPass);
         assertEquals("first", firstPass.next());
         assertEquals("first", secondPass.next());
         assertFalse(firstPass.hasNext());
         assertFalse(secondPass.hasNext());
+        Iterator<?> reusedPass = CampaignEntityMaintenanceRuntime.locationSnapshotIterator(snapshot);
+        assertSame(firstPass, reusedPass);
+        assertEquals("first", reusedPass.next());
+        assertFalse(reusedPass.hasNext());
 
         Object[] empty = CampaignEntityMaintenanceRuntime.locationSnapshot(
                 List.of(), CampaignEntityMaintenanceRuntime.PAUSED_LOCATION_SCRIPTS);
@@ -279,6 +287,7 @@ class CampaignEntityMaintenancePlanTest {
         assertEquals(true, telemetry.get("activeLocationSnapshotsInstalled"));
         assertEquals(2L, telemetry.get("nonEmptyPausedLocationEntities"));
         assertEquals(1L, telemetry.get("emptyPausedLocationScripts"));
+        assertEquals(1, telemetry.get("stableSnapshotCursors"));
     }
 
     @Test

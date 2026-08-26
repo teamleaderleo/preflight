@@ -28,6 +28,8 @@ public final class CampaignEntityMaintenanceRuntime {
     private static final int MAX_SNAPSHOT_OWNERS = 512;
     private static final IdentityHashMap<List<?>, Object[]> STABLE_SNAPSHOTS =
             new IdentityHashMap<>();
+    private static final IdentityHashMap<Object[], SnapshotIterator> STABLE_SNAPSHOT_CURSORS =
+            new IdentityHashMap<>();
 
     private static volatile boolean enabled;
     private static volatile boolean telemetryEnabled;
@@ -117,6 +119,9 @@ public final class CampaignEntityMaintenanceRuntime {
         synchronized (STABLE_SNAPSHOTS) {
             STABLE_SNAPSHOTS.clear();
         }
+        synchronized (STABLE_SNAPSHOT_CURSORS) {
+            STABLE_SNAPSHOT_CURSORS.clear();
+        }
         stableSnapshotHits = 0L;
         stableSnapshotRebuilds = 0L;
         stableSnapshotComparedElements = 0L;
@@ -200,7 +205,7 @@ public final class CampaignEntityMaintenanceRuntime {
             if (kind == MARKET_INDUSTRIES) nonEmptyMarketIndustries++;
             if (kind == PAUSED_MARKET_CONDITIONS) nonEmptyPausedMarketConditions++;
         }
-        return new SnapshotIterator(stableSnapshot(values));
+        return stableSnapshotIterator(stableSnapshot(values));
     }
 
     public static boolean memoryExpirationsPresent(List<?> values) {
@@ -253,9 +258,9 @@ public final class CampaignEntityMaintenanceRuntime {
         return stableSnapshot(values);
     }
 
-    /** Creates a fresh traversal cursor for each vanilla pass over the same stable snapshot. */
+    /** Supplies an independent traversal cursor, reusing one only after observed exhaustion. */
     public static Iterator<?> locationSnapshotIterator(Object[] values) {
-        return values.length == 0 ? Collections.emptyIterator() : new SnapshotIterator(values);
+        return values.length == 0 ? Collections.emptyIterator() : stableSnapshotIterator(values);
     }
 
     static Map<String, Object> telemetry() {
@@ -301,6 +306,9 @@ public final class CampaignEntityMaintenanceRuntime {
         result.put("stableSnapshotComparedElements", stableSnapshotComparedElements);
         synchronized (STABLE_SNAPSHOTS) {
             result.put("stableSnapshotOwners", STABLE_SNAPSHOTS.size());
+        }
+        synchronized (STABLE_SNAPSHOT_CURSORS) {
+            result.put("stableSnapshotCursors", STABLE_SNAPSHOT_CURSORS.size());
         }
         result.put("stableSnapshotEvictions", stableSnapshotEvictions);
         result.put("stableSnapshotFailures", stableSnapshotFailures);
@@ -349,9 +357,33 @@ public final class CampaignEntityMaintenanceRuntime {
         return true;
     }
 
+    /**
+     * Reuses a cursor only after its prior traversal observed exhaustion. An overlapping or
+     * reentrant traversal gets a private cursor, so neither pass can move the other's position.
+     */
+    private static Iterator<?> stableSnapshotIterator(Object[] values) {
+        // A disabled stable-snapshot cache produces a new array for every pass, so retaining a
+        // cursor for that one-shot identity would add state without creating a reuse opportunity.
+        if (!stableSnapshotsEnabled) return new SnapshotIterator(values);
+        synchronized (STABLE_SNAPSHOT_CURSORS) {
+            SnapshotIterator cursor = STABLE_SNAPSHOT_CURSORS.get(values);
+            if (cursor == null) {
+                if (STABLE_SNAPSHOT_CURSORS.size() >= MAX_SNAPSHOT_OWNERS * 2) {
+                    STABLE_SNAPSHOT_CURSORS.clear();
+                }
+                cursor = new SnapshotIterator(values);
+                STABLE_SNAPSHOT_CURSORS.put(values, cursor);
+                return cursor;
+            }
+            if (cursor.restartAfterExhaustion()) return cursor;
+            return new SnapshotIterator(values);
+        }
+    }
+
     private static final class SnapshotIterator implements Iterator<Object> {
         private final Object[] values;
         private int next;
+        private boolean exhausted;
 
         private SnapshotIterator(Object[] values) {
             this.values = values;
@@ -359,13 +391,22 @@ public final class CampaignEntityMaintenanceRuntime {
 
         @Override
         public boolean hasNext() {
-            return next < values.length;
+            if (next < values.length) return true;
+            exhausted = true;
+            return false;
         }
 
         @Override
         public Object next() {
             if (!hasNext()) throw new NoSuchElementException();
             return values[next++];
+        }
+
+        private boolean restartAfterExhaustion() {
+            if (!exhausted) return false;
+            next = 0;
+            exhausted = false;
+            return true;
         }
     }
 }
