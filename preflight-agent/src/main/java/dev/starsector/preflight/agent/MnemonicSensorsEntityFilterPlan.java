@@ -85,8 +85,12 @@ final class MnemonicSensorsEntityFilterPlan {
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
-        INSTALLED_TARGETS.incrementAndGet();
+        installed();
         return writer.toByteArray();
+    }
+
+    static void installed() {
+        INSTALLED_TARGETS.incrementAndGet();
     }
 
     static Map<String, Object> telemetry() {

@@ -58,6 +58,11 @@ class MnemonicSensorsEntityFilterInstalledAdapterIT {
         assertEquals(0, calls(method, "kotlin/collections/CollectionsKt", "filterNotNull"));
         assertEquals(1, calls(method, "java/util/Collection", "add"));
         assertEquals(1, jumps(method, Opcodes.IFNULL));
+
+        MnemonicSensorsEntityFilterPlan.reset();
+        AdapterInstallationEffects.replay(
+                AdapterTargetRegistry.mnemonicSensorsEntityFilterTarget(), signature, transformed);
+        assertEquals(1L, MnemonicSensorsEntityFilterPlan.telemetry().get("installedTargets"));
     }
 
     private static int calls(MethodNode method, String owner, String name) {

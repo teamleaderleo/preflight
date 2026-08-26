@@ -61,6 +61,7 @@ final class AdapterRuntime {
         GraphicsLibHotSettingsRuntime.reset();
         RatAbyssFactionFlagPlan.reset();
         MnemonicSensorsEntityFilterPlan.reset();
+        MutableStatTempAdvancePlan.reset();
         LunaCampaignRendererSnapshotRuntime.reset();
         MagicLibPaintjobLoadRuntime.reset();
         MagicLibPaintjobCacheRuntime.beginSession();

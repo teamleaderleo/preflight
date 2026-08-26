@@ -371,6 +371,8 @@ final class AdapterReport {
                 .append(Json.value(RatAbyssFactionFlagPlan.telemetry())).append(',');
         key(output, "mnemonicSensorsEntityFilter")
                 .append(Json.value(MnemonicSensorsEntityFilterPlan.telemetry())).append(',');
+        key(output, "mutableStatTempAdvance")
+                .append(Json.value(MutableStatTempAdvancePlan.telemetry())).append(',');
         key(output, "versionCheckResponseDedup")
                 .append(Json.value(VersionCheckResponseDedupRuntime.telemetry())).append(',');
         key(output, "magicLibPaintjob")

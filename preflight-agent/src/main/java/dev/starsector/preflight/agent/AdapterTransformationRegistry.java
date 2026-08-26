@@ -299,6 +299,9 @@ final class AdapterTransformationRegistry {
         if (MnemonicSensorsEntityFilterPlan.PLAN_ID.equals(target.planId())) {
             return MnemonicSensorsEntityFilterPlan.transform(signature, originalBytes);
         }
+        if (MutableStatTempAdvancePlan.PLAN_ID.equals(target.planId())) {
+            return MutableStatTempAdvancePlan.transform(signature, originalBytes);
+        }
         if (ContrailRenderScratchRuntime.PLAN_ID.equals(target.planId())) {
             return ContrailRenderScratchPlan.transform(signature, originalBytes);
         }
@@ -893,6 +896,9 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (MnemonicSensorsEntityFilterPlan.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (MutableStatTempAdvancePlan.PLAN_ID.equals(planId)) {
             return true;
         }
         if (ContrailRenderScratchRuntime.PLAN_ID.equals(planId)) {

@@ -49,6 +49,7 @@ final class AdapterPlanCatalog {
             MagicLibPaintjobRuntime.PLAN_ID,
             MergedReadCacheRuntime.PLAN_ID,
             MnemonicSensorsEntityFilterPlan.PLAN_ID,
+            MutableStatTempAdvancePlan.PLAN_ID,
             PreparedAudioRuntime.PLAN_ID,
             ProjectileJsonCacheRuntime.PLAN_ID,
             RatAbyssFactionFlagPlan.PLAN_ID,

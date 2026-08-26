@@ -1,0 +1,83 @@
+{
+  "format": "starsector-preflight-mutable-stat-temp-advance-v1",
+  "date": "2026-08-27",
+  "profile": {
+    "gameVersion": "0.98a-RC8",
+    "enabledMods": 83,
+    "hardware": "Apple M5 Mac",
+    "runtime": "x86-64 Zulu 17 under Rosetta",
+    "preflightEnabled": true
+  },
+  "target": {
+    "planId": "mutable-stat-temp-advance-v1",
+    "class": "com.fs.starfarer.api.combat.MutableStatWithTempMods",
+    "method": "advance(float):void",
+    "classSha256": "90690b6d4e6c4081990f3e545a9402c7120b659f0eb504218ec3c58da2c65a9e",
+    "archiveSha256": "6ac6c78c6116946d487376426340d019938f986ceae1391ae1fa599e890e3185",
+    "classMajorVersion": 61,
+    "baseStrategy": "read existing LinkedHashMap once and use concrete map operations",
+    "subclassStrategy": "delegate to byte-for-byte retained original method"
+  },
+  "before": {
+    "runId": "campaign-sample-reused-cursors-2-20260827-0154",
+    "step": "unpaused-settled",
+    "wallSeconds": 45.005,
+    "campaignExecutionSamples": 531,
+    "targetExecutionSamples": 28,
+    "targetSampleSharePercent": 5.27,
+    "frameContext": {
+      "averageFps": 52.27,
+      "onePercentLowFps": 14.18,
+      "pointOnePercentLowFps": 8.38,
+      "p99FrameMillis": 70.5
+    }
+  },
+  "candidate": {
+    "runId": "mutable-stat-temp-advance-20260827-0746",
+    "scenario": "campaign-sample-paused-unpaused",
+    "status": "passed",
+    "recordingBytes": 5278418,
+    "transformationsApplied": 59,
+    "containedFailures": 0,
+    "installedTargets": 1,
+    "step": "unpaused-settled",
+    "wallSeconds": 45.004,
+    "campaignExecutionSamples": 676,
+    "targetExecutionSamples": 15,
+    "targetSampleSharePercent": 2.22,
+    "targetAllocationSamples": 0,
+    "frameContext": {
+      "frames": 1825,
+      "averageFps": 49.8,
+      "medianFps": 58.82,
+      "onePercentLowFps": 12.48,
+      "pointOnePercentLowFps": 8.97,
+      "p99FrameMillis": 80.1,
+      "stutterBurdenMillisPerSecond": 71.0,
+      "repeatedSlowFramesPercent": 4.6
+    },
+    "pausedFrameContext": {
+      "frames": 3371,
+      "averageFps": 57.97,
+      "medianFps": 59.17,
+      "onePercentLowFps": 29.67,
+      "pointOnePercentLowFps": 25.97,
+      "p99FrameMillis": 33.7,
+      "stutterBurdenMillisPerSecond": 1.42,
+      "repeatedSlowFramesPercent": 0.0
+    }
+  },
+  "directionalDelta": {
+    "sampleSharePercentagePoints": -3.05,
+    "relativeSampleSharePercent": -57.9
+  },
+  "safety": {
+    "addsFields": false,
+    "addsCrossFrameCache": false,
+    "changesSaveFormat": false,
+    "preservesSubclassOverrides": true,
+    "fallback": "original bytecode",
+    "killSwitch": "PREFLIGHT_DISABLE_ADAPTER_PLANS=mutable-stat-temp-advance-v1"
+  },
+  "claimBoundary": "The non-lockstep live comparison directionally reduced the targeted sampled CPU share. It does not establish an FPS uplift."
+}

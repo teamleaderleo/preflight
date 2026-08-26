@@ -322,6 +322,15 @@ absent from both windows of the successful live candidate run. This is a structu
 allocation result, not a lockstep FPS claim; see
 [the Mnemonic Sensors report](evidence/2026-08-27-mnemonic-sensors-entity-filter.md).
 
+The same unpaused profile put `MutableStatWithTempMods.advance` at 5.27% of campaign execution
+samples. The exact base implementation reread its private map through a virtual lazy getter and
+generic interfaces. A direct base-class body now reads the existing `LinkedHashMap` once and keeps
+the original method as the complete fallback for subclass receivers. Real installed-class tests
+cover empty, active, and expiring mods. A live candidate moved the targeted sampled share to 2.22%,
+but its frame distribution was worse in the non-lockstep workload, so the retained result is CPU
+category reduction rather than an FPS claim; see
+[the temporary-stat report](evidence/2026-08-27-mutable-stat-temp-advance.md).
+
 Several investigations ended in correctness fixes. Stale mod simulation
 opponents reached vanilla as invalid fleet members, a full-retreat race could end in an incompatible
 combat cast, startup became fast enough to expose notification and fuel calculations running before

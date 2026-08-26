@@ -1108,6 +1108,23 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Starsector 0.98a-RC8 temporary-stat advancement in starfarer.api.jar. */
+    static AdapterTarget mutableStatTempAdvanceTarget() {
+        return new AdapterTarget(
+                "vanilla-mutable-stat-temp-advance-0.98a-rc8",
+                MutableStatTempAdvancePlan.TARGET_CLASS,
+                MutableStatTempAdvancePlan.ORIGINAL_SHA256,
+                MutableStatTempAdvancePlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        MutableStatTempAdvancePlan.METHOD,
+                        MutableStatTempAdvancePlan.DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer.api.jar",
+                "6ac6c78c6116946d487376426340d019938f986ceae1391ae1fa599e890e3185",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     static AdapterTarget campaignEntityScriptsTarget() {
         return new AdapterTarget(
                 "vanilla-campaign-entity-empty-scripts-0.98a-rc8",
@@ -1994,6 +2011,7 @@ final class AdapterTargetRegistry {
                 .withTarget(graphicsLibHotSettingsTarget())
                 .withTarget(ratAbyssFactionFlagTarget())
                 .withTarget(mnemonicSensorsEntityFilterTarget())
+                .withTarget(mutableStatTempAdvanceTarget())
                 .withTarget(contrailRenderScratchTarget())
                 .withTarget(fontWrapAllocationTarget())
                 .withTarget(lunaCampaignRendererSnapshotScriptTarget())

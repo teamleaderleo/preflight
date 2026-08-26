@@ -36,6 +36,11 @@ class RatAbyssFactionFlagPlanTest {
         assertEquals(0, calls(owner, "getBoolean"));
         assertEquals(1, calls(owner, "optBoolean"));
         assertEquals(1L, RatAbyssFactionFlagPlan.telemetry().get("installedTargets"));
+
+        RatAbyssFactionFlagPlan.reset();
+        AdapterInstallationEffects.replay(
+                AdapterTargetRegistry.ratAbyssFactionFlagTarget(), exactSignature(), transformed);
+        assertEquals(1L, RatAbyssFactionFlagPlan.telemetry().get("installedTargets"));
     }
 
     @Test

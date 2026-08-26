@@ -68,6 +68,12 @@ final class AdapterInstallationEffects {
         if (MacMemoryWarningRuntime.PLAN_ID.equals(target.planId())) {
             MacMemoryWarningRuntime.installed();
         }
+        if (MnemonicSensorsEntityFilterPlan.PLAN_ID.equals(target.planId())) {
+            MnemonicSensorsEntityFilterPlan.installed();
+        }
+        if (MutableStatTempAdvancePlan.PLAN_ID.equals(target.planId())) {
+            MutableStatTempAdvancePlan.installed();
+        }
         if (MagicLibPaintjobRuntime.PLAN_ID.equals(target.planId())) {
             MagicLibPaintjobRuntime.installed();
         }
@@ -82,6 +88,9 @@ final class AdapterInstallationEffects {
         }
         if (RadarRenderRuntime.PLAN_ID.equals(target.planId())) {
             RadarRenderRuntime.installed();
+        }
+        if (RatAbyssFactionFlagPlan.PLAN_ID.equals(target.planId())) {
+            RatAbyssFactionFlagPlan.installed();
         }
         if (SaveDescriptorCompatibilityRuntime.PLAN_ID.equals(target.planId())) {
             SaveDescriptorCompatibilityRuntime.installed();
