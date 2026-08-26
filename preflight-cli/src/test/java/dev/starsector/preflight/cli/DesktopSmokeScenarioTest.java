@@ -120,6 +120,105 @@ final class DesktopSmokeScenarioTest {
     }
 
     @Test
+    void runtimeSimulationDeploymentActionsRemainInternalOnly() {
+        DesktopSmokeScenario scenario = DesktopSmokeScenario.parse("""
+                {
+                  "format":"starsector-preflight-smoke-v1",
+                  "name":"simulation-deployment",
+                  "timeoutSeconds":60,
+                  "launch":{"preset":"fast","textureStorage":"balanced","profile":null},
+                  "steps":[
+                    {"id":"opponents-all","kind":"click","target":"simulation.opponents.all"},
+                    {"id":"opponents-deploy","kind":"click","target":"simulation.opponents.deploy"},
+                    {"id":"allies","kind":"click","target":"simulation.allies.select"},
+                    {"id":"allies-all","kind":"click","target":"simulation.allies.all"},
+                    {"id":"allies-deploy","kind":"click","target":"simulation.allies.deploy"},
+                    {"id":"engage","kind":"click","target":"simulation.engage"}
+                  ]
+                }
+                """);
+
+        assertTrue(scenario.usesOnlyRuntimeControl());
+        assertEquals(Set.of("process-control", "semantic-control"),
+                scenario.requiredCapabilities());
+    }
+
+    @Test
+    void checkedInCombatFixtureUsesOnlyRuntimeControl() throws Exception {
+        DesktopSmokeScenario scenario = DesktopSmokeScenario.read(
+                Path.of("..", "scripts", "scenarios", "campaign-prepare-combat-fixture.json"));
+
+        assertTrue(scenario.usesOnlyRuntimeControl());
+        assertTrue(scenario.stepIds().contains("prepare-combat-fixture"));
+        assertTrue(scenario.stepIds().contains("fixture-settle"));
+        assertTrue(scenario.stepIds().contains("verify-combat-fixture"));
+        assertEquals(Set.of("process-control", "semantic-state", "semantic-control"),
+                scenario.requiredCapabilities());
+    }
+
+    @Test
+    void checkedInSimulationCombatUsesTheReviewedFleetAndDeploymentRoute() throws Exception {
+        DesktopSmokeScenario scenario = DesktopSmokeScenario.read(
+                Path.of("..", "scripts", "scenarios", "campaign-simulation-combat.json"));
+
+        assertEquals("campaign-simulation-combat", scenario.view().get("name"));
+        assertTrue(scenario.sampleRecording());
+        assertTrue(scenario.stepIds().contains("prepare-simulation-fleet"));
+        assertTrue(scenario.stepIds().contains("verify-simulation-fleet"));
+        assertTrue(scenario.stepIds().contains("simulation"));
+        assertTrue(scenario.stepIds().contains("opponents-deploy"));
+        assertTrue(scenario.stepIds().contains("allies-deploy"));
+        assertTrue(scenario.stepIds().contains("autopilot"));
+        assertTrue(scenario.stepIds().contains("close-command-map"));
+        assertTrue(scenario.stepIds().contains("ensure-combat-unpaused"));
+        assertTrue(scenario.stepIds().contains("capture-viewport"));
+        assertTrue(scenario.stepIds().contains("zoom-out"));
+        assertTrue(scenario.stepIds().contains("verify-zoom-out"));
+        assertTrue(scenario.stepIds().contains("begin-frame-window"));
+        assertTrue(scenario.stepIds().contains("combat-sample"));
+        assertEquals(Set.of("process-control", "semantic-state", "semantic-control",
+                        "window-control", "screen-capture", "evidence-read"),
+                scenario.requiredCapabilities());
+    }
+
+    @Test
+    void checkedInAcceleratedSimulationKeepsSpeedupExplicit() throws Exception {
+        DesktopSmokeScenario scenario = DesktopSmokeScenario.read(
+                Path.of("..", "scripts", "scenarios", "campaign-simulation-combat-speedup.json"));
+
+        assertEquals("campaign-simulation-combat-speedup", scenario.view().get("name"));
+        assertTrue(scenario.stepIds().contains("close-command-map"));
+        assertTrue(scenario.stepIds().contains("enable-two-times-speed"));
+        assertTrue(scenario.stepIds().contains("ensure-combat-unpaused"));
+        assertTrue(scenario.stepIds().contains("capture-viewport"));
+        assertTrue(scenario.stepIds().contains("zoom-out"));
+        assertTrue(scenario.stepIds().contains("verify-zoom-out"));
+        assertTrue(scenario.stepIds().contains("begin-frame-window"));
+        assertTrue(scenario.stepIds().contains("combat-sample-2x"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void combatZoomUsesBoundedPlayerEquivalentWheelInput() throws Exception {
+        DesktopSmokeScenario scenario = DesktopSmokeScenario.read(
+                Path.of("..", "scripts", "scenarios", "campaign-simulation-combat.json"));
+
+        Map<String, Object> zoom = (Map<String, Object>) scenario.stepViews().stream()
+                .filter(step -> "zoom-out".equals(step.get("id")))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("scroll-wheel", zoom.get("kind"));
+        assertEquals("out", zoom.get("direction"));
+        assertEquals(12, zoom.get("clicks"));
+        assertThrows(IllegalArgumentException.class, () -> DesktopSmokeScenario.parse("""
+                {"format":"starsector-preflight-smoke-v1","name":"bad-scroll",
+                 "timeoutSeconds":60,
+                 "launch":{"preset":"fast","textureStorage":"balanced","profile":null},
+                 "steps":[{"id":"zoom","kind":"scroll-wheel","direction":"out","clicks":25}]}
+                """));
+    }
+
+    @Test
     void checkedInMixedPauseProfileUsesOnlyRuntimeControl() throws Exception {
         DesktopSmokeScenario scenario = DesktopSmokeScenario.read(
                 Path.of("..", "scripts", "scenarios", "campaign-profile-paused-unpaused.json"));

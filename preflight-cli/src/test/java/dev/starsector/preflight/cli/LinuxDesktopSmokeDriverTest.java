@@ -55,6 +55,42 @@ final class LinuxDesktopSmokeDriverTest {
         assertTrue(commands.commands.stream().anyMatch(command -> command.contains("keyup")));
     }
 
+    @Test
+    void simulationNavigationUsesReviewedX11KeySymbols() throws Exception {
+        FakeCommands commands = new FakeCommands();
+        LinuxDesktopSmokeDriver driver = new LinuxDesktopSmokeDriver(
+                commands, "xdotool", "import", Map.of("DISPLAY", ":0"));
+        ProcessHandle current = ProcessHandle.current();
+        driver.attach(new DesktopSmokeDriver.ProcessTarget(
+                current.pid(), current.info().startInstant().orElseThrow()));
+
+        for (String key : List.of("f", "r", "u", "n", "tab", "capslock")) {
+            driver.execute(Map.of("kind", "press-key", "key", key), temporaryDirectory);
+        }
+
+        for (String symbol : List.of("f", "r", "u", "n", "Tab", "Caps_Lock")) {
+            assertTrue(commands.commands.stream().anyMatch(command ->
+                    command.contains("key") && command.contains(symbol)), symbol);
+        }
+    }
+
+    @Test
+    void wheelInputUsesTheExactOwnedWindow() throws Exception {
+        FakeCommands commands = new FakeCommands();
+        LinuxDesktopSmokeDriver driver = new LinuxDesktopSmokeDriver(
+                commands, "xdotool", "import", Map.of("DISPLAY", ":0"));
+        ProcessHandle current = ProcessHandle.current();
+        driver.attach(new DesktopSmokeDriver.ProcessTarget(
+                current.pid(), current.info().startInstant().orElseThrow()));
+
+        driver.execute(Map.of(
+                "kind", "scroll-wheel", "direction", "out", "clicks", 12),
+                temporaryDirectory);
+
+        assertTrue(commands.commands.stream().anyMatch(command ->
+                command.containsAll(List.of("windowactivate", "202", "mousemove", "--repeat", "12", "5"))));
+    }
+
     private static final class FakeCommands implements DesktopCommandExecutor {
         private final List<List<String>> commands = new ArrayList<>();
 

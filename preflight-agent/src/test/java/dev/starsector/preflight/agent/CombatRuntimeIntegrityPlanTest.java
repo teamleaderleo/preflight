@@ -21,14 +21,18 @@ class CombatRuntimeIntegrityPlanTest {
     private static final String INTEGRITY_RUNTIME =
             CombatRuntimeIntegrityRuntime.class.getName().replace('.', '/');
     private static final String FRAME_RUNTIME = FrameTimeRuntime.class.getName().replace('.', '/');
+    private static final String CONTROL_RUNTIME =
+            InternalGameControlRuntime.class.getName().replace('.', '/');
 
     @TempDir
     Path temporaryDirectory;
 
     @AfterEach
     void reset() {
+        System.clearProperty("preflight.desktopSmoke");
         CombatRuntimeIntegrityRuntime.beginSession();
         FrameTimeRuntime.reset();
+        InternalGameControlRuntime.reset();
         RuntimeSemanticState.reset();
     }
 
@@ -60,6 +64,19 @@ class CombatRuntimeIntegrityPlanTest {
         assertNotNull(withFrames);
         assertEquals(1, calls(method(read(withFrames)), INTEGRITY_RUNTIME, "observe"));
         assertEquals(1, calls(method(read(withFrames)), FRAME_RUNTIME, "observeCombat"));
+    }
+
+    @Test
+    void composesClosedCombatControlOnlyForDesktopSmoke() throws Exception {
+        byte[] original = fixture();
+        System.setProperty("preflight.desktopSmoke", "true");
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+        InternalGameControlRuntime.beginSession(temporaryDirectory.resolve("adapter.json"));
+
+        byte[] transformed = CombatRuntimeIntegrityPlan.transform(exactSignature(original), original);
+
+        assertNotNull(transformed);
+        assertEquals(1, calls(method(read(transformed)), CONTROL_RUNTIME, "combatAdvance"));
     }
 
     @Test

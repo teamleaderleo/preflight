@@ -51,6 +51,8 @@ public final class FrameTimeRuntime {
     private static boolean lastBoundaryActive = true;
     private static int lastBoundaryState;
     private static int lastBoundaryCampaignPause;
+    private static boolean measurementWindowActive;
+    private static int measurementWindowState;
     private static long swapStartedNanos = Long.MIN_VALUE;
     private static long swapCompletedNanos = Long.MIN_VALUE;
     private static long messagesStartedNanos = Long.MIN_VALUE;
@@ -66,6 +68,7 @@ public final class FrameTimeRuntime {
     private static final Distribution campaignUnpausedAfter30SecondsActive = new Distribution();
     private static final Distribution combatActive = new Distribution();
     private static final Distribution combatAfterCampaignActive = new Distribution();
+    private static final Distribution measurementWindow = new Distribution();
     private static final DisplayPhases allActivePhases = new DisplayPhases();
     private static final DisplayPhases campaignActivePhases = new DisplayPhases();
     private static final DisplayPhases campaignAfter30SecondsActivePhases = new DisplayPhases();
@@ -102,6 +105,8 @@ public final class FrameTimeRuntime {
         lastBoundaryActive = true;
         lastBoundaryState = STATE_UNKNOWN;
         lastBoundaryCampaignPause = PAUSE_UNKNOWN;
+        measurementWindowActive = false;
+        measurementWindowState = STATE_UNKNOWN;
         resetDisplayPhaseTimestamps();
         observedActive = true;
         focusBreak = false;
@@ -118,6 +123,7 @@ public final class FrameTimeRuntime {
         campaignUnpausedAfter30SecondsActive.reset();
         combatActive.reset();
         combatAfterCampaignActive.reset();
+        measurementWindow.reset();
         allActivePhases.reset();
         campaignActivePhases.reset();
         campaignAfter30SecondsActivePhases.reset();
@@ -158,6 +164,14 @@ public final class FrameTimeRuntime {
     public static void observeCombat() {
         RuntimeSemanticState.combatReady();
         if (enabled) observedState = STATE_COMBAT;
+    }
+
+    /** Starts a clean steady-state window after smoke-only combat setup has settled. */
+    static synchronized void beginCombatMeasurementWindow() {
+        if (!enabled) throw new IllegalStateException("frame-time-telemetry-is-disabled");
+        measurementWindow.reset();
+        measurementWindowState = STATE_COMBAT;
+        measurementWindowActive = true;
     }
 
     /** Timestamp immediately before LWJGL hands the rendered frame to the native presentation path. */
@@ -322,6 +336,10 @@ public final class FrameTimeRuntime {
                 combatAfterCampaignActive.record(duration, endOffset);
             }
         }
+        if (measurementWindowActive && state == lastBoundaryState
+                && state == measurementWindowState) {
+            measurementWindow.record(duration, endOffset);
+        }
         lastBoundaryActive = active;
         lastBoundaryState = state;
         lastBoundaryCampaignPause = campaignPause;
@@ -387,6 +405,10 @@ public final class FrameTimeRuntime {
         result.put("combatActive", combatActive.toMap(firstBoundaryEpochMillis));
         result.put(FrameTimeTelemetry.COMBAT_AFTER_CAMPAIGN_ACTIVE,
                 combatAfterCampaignActive.toMap(firstBoundaryEpochMillis));
+        Map<String, Object> window = measurementWindow.toMap(firstBoundaryEpochMillis);
+        window.put("active", measurementWindowActive);
+        window.put("state", measurementWindowState == STATE_COMBAT ? "combat" : null);
+        result.put("measurementWindow", window);
         Map<String, Object> displayPhases = new LinkedHashMap<>();
         displayPhases.put("timestampReadsPerPresentedFrame", 6);
         displayPhases.put("scope", "pre-swap (game work and limiter) vs native swap vs messages");
@@ -610,6 +632,8 @@ public final class FrameTimeRuntime {
     }
 
     private static final class Distribution {
+        private static final long FRAME_BUDGET_NANOS = 16_666_667L;
+        private static final long SLOW_FRAME_NANOS = 33_333_333L;
         private final long[] histogram = new long[HISTOGRAM_REGULAR_BINS + 1];
         private final long[] worstDurations = new long[WORST_FRAME_LIMIT];
         private final long[] worstEndOffsets = new long[WORST_FRAME_LIMIT];
@@ -623,6 +647,18 @@ public final class FrameTimeRuntime {
         private long over100Millis;
         private long over250Millis;
         private long over1000Millis;
+        private long slowFrameTimeNanos;
+        private long excessFrameTimeOverBudgetNanos;
+        private long excessSlowFrameTimeNanos;
+        private long slowFrameClusters;
+        private long repeatedSlowFrameClusters;
+        private long framesInRepeatedSlowFrameClusters;
+        private long isolatedSlowFrames;
+        private long currentSlowClusterFrames;
+        private long currentSlowClusterNanos;
+        private long longestSlowClusterFrames;
+        private long longestSlowClusterNanos;
+        private long lastRecordedEndOffsetNanos;
         private int worstCount;
         private int shortestWorst;
 
@@ -640,11 +676,29 @@ public final class FrameTimeRuntime {
             over100Millis = 0L;
             over250Millis = 0L;
             over1000Millis = 0L;
+            slowFrameTimeNanos = 0L;
+            excessFrameTimeOverBudgetNanos = 0L;
+            excessSlowFrameTimeNanos = 0L;
+            slowFrameClusters = 0L;
+            repeatedSlowFrameClusters = 0L;
+            framesInRepeatedSlowFrameClusters = 0L;
+            isolatedSlowFrames = 0L;
+            currentSlowClusterFrames = 0L;
+            currentSlowClusterNanos = 0L;
+            longestSlowClusterFrames = 0L;
+            longestSlowClusterNanos = 0L;
+            lastRecordedEndOffsetNanos = Long.MIN_VALUE;
             worstCount = 0;
             shortestWorst = 0;
         }
 
         void record(long durationNanos, long endOffsetNanos) {
+            long startOffsetNanos = endOffsetNanos - durationNanos;
+            if (lastRecordedEndOffsetNanos != Long.MIN_VALUE
+                    && startOffsetNanos != lastRecordedEndOffsetNanos) {
+                finishSlowCluster();
+            }
+            lastRecordedEndOffsetNanos = endOffsetNanos;
             count++;
             totalNanos += durationNanos;
             minimumNanos = Math.min(minimumNanos, durationNanos);
@@ -658,7 +712,35 @@ public final class FrameTimeRuntime {
             if (durationNanos > 100_000_000L) over100Millis++;
             if (durationNanos > 250_000_000L) over250Millis++;
             if (durationNanos > 1_000_000_000L) over1000Millis++;
+            excessFrameTimeOverBudgetNanos += Math.max(0L, durationNanos - FRAME_BUDGET_NANOS);
+            if (durationNanos > SLOW_FRAME_NANOS) {
+                slowFrameTimeNanos += durationNanos;
+                excessSlowFrameTimeNanos += durationNanos - SLOW_FRAME_NANOS;
+                recordSlowClusterFrame(durationNanos);
+            } else {
+                finishSlowCluster();
+            }
             retainWorst(durationNanos, endOffsetNanos);
+        }
+
+        private void recordSlowClusterFrame(long durationNanos) {
+            if (currentSlowClusterFrames == 0L) slowFrameClusters++;
+            currentSlowClusterFrames++;
+            currentSlowClusterNanos += durationNanos;
+            if (currentSlowClusterFrames == 2L) {
+                repeatedSlowFrameClusters++;
+                framesInRepeatedSlowFrameClusters += 2L;
+            } else if (currentSlowClusterFrames > 2L) {
+                framesInRepeatedSlowFrameClusters++;
+            }
+            longestSlowClusterFrames = Math.max(longestSlowClusterFrames, currentSlowClusterFrames);
+            longestSlowClusterNanos = Math.max(longestSlowClusterNanos, currentSlowClusterNanos);
+        }
+
+        private void finishSlowCluster() {
+            if (currentSlowClusterFrames == 1L) isolatedSlowFrames++;
+            currentSlowClusterFrames = 0L;
+            currentSlowClusterNanos = 0L;
         }
 
         private void retainWorst(long durationNanos, long endOffsetNanos) {
@@ -712,8 +794,41 @@ public final class FrameTimeRuntime {
             result.put("over100Millis", over100Millis);
             result.put("over250Millis", over250Millis);
             result.put("over1000Millis", over1000Millis);
+            Map<String, Object> stutter = new LinkedHashMap<>();
+            stutter.put("slowFrameThresholdMicros", SLOW_FRAME_NANOS / 1_000L);
+            stutter.put("slowFramesPerMinute", ratePerMinute(over33Millis));
+            stutter.put("slowFrameTimePercent", percentageOfTime(slowFrameTimeNanos));
+            stutter.put("excessFrameTimeOver16_67Millis", nanosToMillis(excessFrameTimeOverBudgetNanos));
+            stutter.put("excessSlowFrameTimeMillis", nanosToMillis(excessSlowFrameTimeNanos));
+            stutter.put("stutterBurdenMillisPerSecond", millisPerSecond(excessSlowFrameTimeNanos));
+            stutter.put("slowFrameClusters", slowFrameClusters);
+            stutter.put("isolatedSlowFrames", isolatedSlowFrames
+                    + (currentSlowClusterFrames == 1L ? 1L : 0L));
+            stutter.put("repeatedSlowFrameClusters", repeatedSlowFrameClusters);
+            stutter.put("framesInRepeatedSlowFrameClusters", framesInRepeatedSlowFrameClusters);
+            stutter.put("repeatedSlowFramesPercent", percentage(framesInRepeatedSlowFrameClusters));
+            stutter.put("longestSlowFrameClusterFrames", longestSlowClusterFrames);
+            stutter.put("longestSlowFrameClusterMillis", nanosToMillis(longestSlowClusterNanos));
+            stutter.put("interpretation", "repeated >33.33ms clusters and excess time rank ahead of isolated hitches");
+            result.put("stutterProfile", stutter);
             result.put("worstFrames", worstFrames(originEpochMillis));
             return result;
+        }
+
+        private Double ratePerMinute(long matching) {
+            return totalNanos == 0L ? null : round(matching * 60_000_000_000.0 / totalNanos);
+        }
+
+        private Double percentageOfTime(long nanos) {
+            return totalNanos == 0L ? null : round(100.0 * nanos / totalNanos);
+        }
+
+        private Double millisPerSecond(long nanos) {
+            return totalNanos == 0L ? null : round(nanos * 1_000.0 / totalNanos);
+        }
+
+        private double nanosToMillis(long nanos) {
+            return Math.round(nanos / 10_000.0) / 100.0;
         }
 
         private Double fps(Number micros) {

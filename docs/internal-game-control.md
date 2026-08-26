@@ -1,7 +1,7 @@
 # Internal game-control protocol
 
-Status: live 0.98a-RC8 proof; PID-bound Continue and mapped campaign pause controls implemented for
-developer smoke runs
+Status: live 0.98a-RC8 proof; deterministic title, campaign, simulation-deployment, and combat-state
+controls implemented for developer smoke runs
 
 Preflight's developer automation needs a small semantic control protocol inside the launched game
 JVM. Native desktop control remains useful for bounded screenshots, but it is not a reliable input
@@ -22,6 +22,10 @@ The 2026-08-26 protected-copy run proved each of these against one existing Pref
 | confirm | `G` key down/up in the same input list | special disengagement spent one story point and granted bonus XP |
 | leave | Escape key down/up in the same input list | encounter result closed and campaign resumed |
 | save current | `CampaignState.cmdSave()` on the still-running render boundary | returned `true`; normal staged save completed on disk |
+| prepare simulation fleet | exact-gated Console Commands 4.0.9 `AddShip`/`Repair` calls plus computed minimum crew | 24 added ships settled deployable at maximum CR while campaign remained paused |
+| deploy simulation | exact stock simulator dialog callbacks | 8 allied and 25 opposing ships deployed, then `combat-ready` |
+| ensure combat unpaused | `CombatEngine.isPaused()`/`setPaused(false)` at the exact reviewed combat advance seam | receipt proved `afterPaused=false`; already-unpaused runs are left unchanged |
+| combat zoom out | bounded player-equivalent wheel input in the exact game window | semantic viewport receipt proved `viewMult` 1.250 → 4.250 and visible width 1800 → 6120 |
 
 Selecting encounter choice 2 also reached the normal `Move in to engage` button path, but the campaign
 then failed before deployment because `BattleAPI.getSideFor(playerFleet)` returned null. The cause was
@@ -100,12 +104,30 @@ runner must still wait for the expected semantic state or verify the requested p
 Only `--desktop-smoke` enables current request polling and
 the exact target plans. A normal player launch neither watches request files nor exposes game actions.
 
-The current closed catalog contains `main-menu.continue`, `campaign.pause`, and
-`campaign.unpause`. Pause actions resolve the installed `GENERAL_PAUSE` binding, synthesize an atomic
+The current closed catalog contains `main-menu.continue`, `campaign.pause`, `campaign.unpause`,
+the in-memory combat fixture prepare/verify pair, the stock simulator side/select/deploy/engage
+actions, `combat.pause`, `combat.unpause`, the viewport capture/verification pair, and
+`combat.begin-frame-window`.
+Campaign pause actions resolve the
+installed `GENERAL_PAUSE` binding, synthesize an atomic
 key-down/key-up pair, add it to Starsector's real `CampaignState.processInput` batch, and verify the
 engine's result after normal input processing. They reject an unknown class shape, non-campaign state,
 active dialog or menu, non-keyboard pause binding, stale PID/start identity, or expired deadline. The
 transport does not expose arbitrary keys, reflection names, or coordinates.
+
+Combat pause is state-setting rather than a Space toggle: it reads the exact combat engine first and
+only calls the reviewed setter when the requested state differs. This matters because the stock
+simulator may already be running after Engage; an unconditional Space press can pause an otherwise
+valid sample. Combat zoom-out sends a bounded player-equivalent wheel gesture only after exact-PID
+activation and window-bounds lookup. The game-side protocol captures the public viewport before the
+gesture and then requires both `viewMult` and visible world width to increase by at least 5%. A sent
+host event is not success: an unchanged camera fails the scenario before measurement. On the tested
+macOS profile, positive CoreGraphics line-scroll values produced Starsector zoom-out; the opposite
+sign left the viewport unchanged and was rejected. A pure game-batch experiment also failed because
+the existing `CombatEngine.advance` control seam runs after `CombatState` consumes that frame's input;
+it was discarded rather than weakening the verifier. The frame-window action resets a separate
+steady-state distribution after command-map, speed, pause, and camera setup have settled; cumulative
+session telemetry remains intact. Unknown engine or viewport shapes fail the action.
 
 ## Save and learning boundary
 

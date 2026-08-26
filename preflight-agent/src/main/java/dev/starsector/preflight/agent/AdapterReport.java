@@ -399,6 +399,8 @@ final class AdapterReport {
                 .append(Json.value(FrameTimeRuntime.telemetry())).append(',');
         key(output, "runtimeSemanticState")
                 .append(Json.value(RuntimeSemanticState.telemetry())).append(',');
+        key(output, "consoleCombatFixture")
+                .append(Json.value(ConsoleCombatFixtureRuntime.telemetry())).append(',');
         key(output, "campaignCallTimes")
                 .append(Json.value(CampaignCallTimeRuntime.telemetry())).append(',');
         key(output, "campaignEngineTimes")

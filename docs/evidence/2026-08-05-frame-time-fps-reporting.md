@@ -24,6 +24,20 @@ allocation, or sampling work:
 Values are rounded to two decimal places. Empty distributions report `null`, not an invented zero.
 Campaign and combat remain separate distributions, and focus-lost time remains excluded.
 
+## Later stutter-ranking extension
+
+Percentiles intentionally remain in the report, but they are no longer the only way to rank
+roughness. Every distribution now also reports a bounded `stutterProfile`: slow frames per minute,
+time spent in frames over 33.33ms, excess time beyond that budget, stutter burden per second,
+isolated slow frames, repeated consecutive slow-frame clusters, frames inside repeated clusters, and
+the longest cluster. The recorder adds only primitive counters to the existing frame boundary; it
+does not retain an unbounded timeline.
+
+Desktop-smoke combat can additionally start a clean `measurementWindow` after tactical-map, speed,
+pause, and camera setup has settled. That makes the ranking semantic: repeated slow frames during the
+steady workload outrank a one-off UI transition, while the cumulative session distributions remain
+available for diagnosis.
+
 ## First live readout
 
 Run `~/.starsector-preflight/runs/campaign-radar-fps-v2-20260805-055942` used passive frame telemetry

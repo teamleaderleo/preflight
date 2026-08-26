@@ -24,17 +24,31 @@ import java.util.regex.Pattern;
 
 /** Closed, desktop-smoke-only game-thread actions addressed through the run directory. */
 public final class InternalGameControlRuntime {
-    static final String REQUEST_FORMAT = "starsector-preflight-runtime-action-request-v2";
-    static final String RECEIPT_FORMAT = "starsector-preflight-runtime-action-receipt-v2";
+    static final String REQUEST_FORMAT = "starsector-preflight-runtime-action-request-v4";
+    static final String RECEIPT_FORMAT = "starsector-preflight-runtime-action-receipt-v4";
     static final String CONTINUE_ACTION = "main-menu.continue";
     static final String CAMPAIGN_PAUSE_ACTION = "campaign.pause";
     static final String CAMPAIGN_UNPAUSE_ACTION = "campaign.unpause";
+    static final String COMBAT_PAUSE_ACTION = "combat.pause";
+    static final String COMBAT_UNPAUSE_ACTION = "combat.unpause";
+    static final String COMBAT_CAPTURE_VIEWPORT_ACTION = "combat.capture-viewport";
+    static final String COMBAT_VERIFY_ZOOM_OUT_ACTION = "combat.verify-zoom-out";
+    static final String COMBAT_BEGIN_FRAME_WINDOW_ACTION = "combat.begin-frame-window";
     static final String INTERACTIVE_STATE = "main-menu-interactive";
     static final String CAMPAIGN_STATE = "campaign-ready";
+    static final String SIMULATION_STATE = "simulation-ready";
+    static final String COMBAT_STATE = "combat-ready";
+    static final String SIMULATION_OPPONENTS_ALL = "simulation.opponents.all";
+    static final String SIMULATION_OPPONENTS_DEPLOY = "simulation.opponents.deploy";
+    static final String SIMULATION_ALLIES_SELECT = "simulation.allies.select";
+    static final String SIMULATION_ALLIES_ALL = "simulation.allies.all";
+    static final String SIMULATION_ALLIES_DEPLOY = "simulation.allies.deploy";
+    static final String SIMULATION_ENGAGE = "simulation.engage";
     static final String REQUEST_FILE = "runtime-action-request.json";
     static final String RECEIPT_FILE = "runtime-action-receipt.json";
     private static final String CAMPAIGN_CLASS = "com.fs.starfarer.campaign.CampaignState";
     private static final String CAMPAIGN_ENGINE = "com.fs.starfarer.campaign.CampaignEngine";
+    private static final String COMBAT_ENGINE = "com.fs.starfarer.combat.CombatEngine";
     private static final String INPUT_EVENTS = "com.fs.starfarer.util.super.B";
     private static final String INPUT_EVENT = "com.fs.starfarer.util.super.Object";
     private static final String INPUT_EVENT_CLASS = "com.fs.starfarer.api.input.InputEventClass";
@@ -49,8 +63,10 @@ public final class InternalGameControlRuntime {
             "\\{\\\"format\\\":\\\"" + REQUEST_FORMAT
                     + "\\\",\\\"sequence\\\":([1-9][0-9]*),\\\"pid\\\":([1-9][0-9]*),"
                     + "\\\"processStartedAt\\\":\\\"([^\\\"]{1,80})\\\","
-                    + "\\\"action\\\":\\\"(main-menu\\.continue|campaign\\.(?:pause|unpause))\\\","
-                    + "\\\"expectedState\\\":\\\"(main-menu-interactive|campaign-ready)\\\","
+                    + "\\\"action\\\":\\\"(main-menu\\.continue|campaign\\.(?:pause|unpause|prepare-combat-fixture|verify-combat-fixture)"
+                    + "|simulation\\.(?:opponents\\.(?:all|deploy)|allies\\.(?:select|all|deploy)|engage)"
+                    + "|combat\\.(?:pause|unpause|capture-viewport|verify-zoom-out|begin-frame-window))\\\","
+                    + "\\\"expectedState\\\":\\\"(main-menu-interactive|campaign-ready|simulation-ready|combat-ready)\\\","
                     + "\\\"deadline\\\":\\\"([^\\\"]{1,80})\\\"\\}\\s*");
 
     private static volatile boolean enabled;
@@ -62,6 +78,9 @@ public final class InternalGameControlRuntime {
     private static Instant pendingCampaignAcceptedAt;
     private static boolean pendingCampaignBeforePaused;
     private static boolean pendingCampaignDesiredPaused;
+    private static float combatViewportBaselineMult;
+    private static float combatViewportBaselineWidth;
+    private static volatile boolean simulationEngaged;
 
     private InternalGameControlRuntime() {
     }
@@ -75,11 +94,18 @@ public final class InternalGameControlRuntime {
         completedSequence = 0L;
         pendingCampaignRequest = null;
         pendingCampaignAcceptedAt = null;
+        clearCombatViewportBaseline();
+        simulationEngaged = false;
+        ConsoleCombatFixtureRuntime.reset();
         if (requestPath == null || receiptPath == null) enabled = false;
     }
 
     static boolean enabled() {
         return enabled;
+    }
+
+    static boolean simulationEngaged() {
+        return simulationEngaged;
     }
 
     /** Runs from the exact reviewed title {@code advanceImpl} boundary. */
@@ -132,6 +158,24 @@ public final class InternalGameControlRuntime {
         try {
             requireCampaignSafe(campaign, events);
             boolean before = campaignPaused(campaign);
+            if (ConsoleCombatFixtureRuntime.ACTION.equals(parsed.action())) {
+                if (!before) throw new IllegalStateException("combat-fixture-requires-paused-campaign");
+                String detail = ConsoleCombatFixtureRuntime.prepare();
+                boolean after = campaignPaused(campaign);
+                if (!after) throw new IllegalStateException("combat-fixture-changed-pause-state");
+                publish(parsed, "executed", detail, accepted, Instant.now(),
+                        "campaign.processInput", CAMPAIGN_STATE, true, true);
+                return;
+            }
+            if (ConsoleCombatFixtureRuntime.VERIFY_ACTION.equals(parsed.action())) {
+                if (!before) throw new IllegalStateException("combat-fixture-verification-requires-paused-campaign");
+                String detail = ConsoleCombatFixtureRuntime.verify();
+                boolean after = campaignPaused(campaign);
+                if (!after) throw new IllegalStateException("combat-fixture-verification-changed-pause-state");
+                publish(parsed, "executed", detail, accepted, Instant.now(),
+                        "campaign.processInput", CAMPAIGN_STATE, true, true);
+                return;
+            }
             boolean desired = CAMPAIGN_PAUSE_ACTION.equals(parsed.action());
             if (before == desired) {
                 publish(parsed, "executed", "campaign pause state already matched request",
@@ -178,6 +222,123 @@ public final class InternalGameControlRuntime {
         } catch (Throwable failure) {
             publish(parsed, "failed", bounded(failure), accepted, Instant.now(),
                     "campaign.processInput", CAMPAIGN_STATE, before, null);
+        }
+    }
+
+    /** Executes the closed simulator deployment catalog from the exact stock dialog advance seam. */
+    public static void simulationDialog(Object dialog) {
+        if (!enabled || dialog == null || !RuntimeSemanticState.is(SIMULATION_STATE)) return;
+        Request parsed = poll();
+        if (parsed == null) return;
+        completedSequence = parsed.sequence();
+        String rejection = rejection(parsed);
+        if (rejection == null && !isSimulationAction(parsed.action())) {
+            rejection = "action-boundary-mismatch";
+        }
+        if (rejection != null) {
+            publish(parsed, "rejected", rejection, null, Instant.now(),
+                    "simulation-dialog.advance", SIMULATION_STATE, null, null);
+            return;
+        }
+
+        Instant accepted = Instant.now();
+        try {
+            String detail = executeSimulationAction(dialog, parsed.action());
+            publish(parsed, "executed", detail, accepted, Instant.now(),
+                    "simulation-dialog.advance", SIMULATION_STATE, null, null);
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable failure) {
+            publish(parsed, "failed", bounded(failure), accepted, Instant.now(),
+                    "simulation-dialog.advance", SIMULATION_STATE, null, null);
+        }
+    }
+
+    /** Ensures a requested pause state from the exact reviewed combat-engine advance seam. */
+    public static void combatAdvance(Object engine, Object events) {
+        if (!enabled || engine == null || events == null || !RuntimeSemanticState.is(COMBAT_STATE)) return;
+        Request parsed = poll();
+        if (parsed == null) return;
+        completedSequence = parsed.sequence();
+        String rejection = rejection(parsed);
+        if (rejection == null && !isCombatAction(parsed.action())) {
+            rejection = "action-boundary-mismatch";
+        }
+        if (rejection != null) {
+            publish(parsed, "rejected", rejection, null, Instant.now(),
+                    "combat-engine.advance", COMBAT_STATE, null, null);
+            return;
+        }
+
+        Instant accepted = Instant.now();
+        Boolean before = null;
+        try {
+            if (!COMBAT_ENGINE.equals(engine.getClass().getName())) {
+                throw new IllegalStateException("combat-engine-class-mismatch");
+            }
+            if (COMBAT_BEGIN_FRAME_WINDOW_ACTION.equals(parsed.action())) {
+                FrameTimeRuntime.beginCombatMeasurementWindow();
+                publish(parsed, "executed", "started a clean steady-state combat frame window",
+                        accepted, Instant.now(), "combat-engine.advance", COMBAT_STATE, null, null);
+                return;
+            }
+            if (COMBAT_CAPTURE_VIEWPORT_ACTION.equals(parsed.action())) {
+                float[] viewport = viewportState(engine);
+                combatViewportBaselineMult = viewport[0];
+                combatViewportBaselineWidth = viewport[1];
+                publish(parsed, "executed", String.format(java.util.Locale.ROOT,
+                                "captured combat viewport baseline: viewMult %.3f, visibleWidth %.1f",
+                                viewport[0], viewport[1]),
+                        accepted, Instant.now(), "combat-engine.advance", COMBAT_STATE, null, null);
+                return;
+            }
+            if (COMBAT_VERIFY_ZOOM_OUT_ACTION.equals(parsed.action())) {
+                if (combatViewportBaselineMult <= 0f || combatViewportBaselineWidth <= 0f) {
+                    throw new IllegalStateException("combat-viewport-baseline-missing");
+                }
+                float[] viewport = viewportState(engine);
+                boolean wider = viewport[0] >= combatViewportBaselineMult * 1.05f
+                        && viewport[1] >= combatViewportBaselineWidth * 1.05f;
+                if (!wider) {
+                    throw new IllegalStateException(String.format(java.util.Locale.ROOT,
+                            "combat-viewport-did-not-zoom-out: viewMult %.3f -> %.3f, visibleWidth %.1f -> %.1f",
+                            combatViewportBaselineMult, viewport[0],
+                            combatViewportBaselineWidth, viewport[1]));
+                }
+                publish(parsed, "executed", String.format(java.util.Locale.ROOT,
+                                "verified combat zoom-out: viewMult %.3f -> %.3f, visibleWidth %.1f -> %.1f",
+                                combatViewportBaselineMult, viewport[0],
+                                combatViewportBaselineWidth, viewport[1]),
+                        accepted, Instant.now(), "combat-engine.advance", COMBAT_STATE, null, null);
+                clearCombatViewportBaseline();
+                return;
+            }
+            Method isPaused = engine.getClass().getMethod("isPaused");
+            Method setPaused = engine.getClass().getMethod("setPaused", boolean.class);
+            if (isPaused.getReturnType() != boolean.class
+                    || setPaused.getReturnType() != void.class) {
+                throw new IllegalStateException("combat-pause-method-shape-mismatch");
+            }
+            before = (Boolean) invoke(isPaused, engine);
+            boolean desired = COMBAT_PAUSE_ACTION.equals(parsed.action());
+            if (before != desired) invoke(setPaused, engine, desired);
+            boolean after = (Boolean) invoke(isPaused, engine);
+            if (after != desired) {
+                throw new IllegalStateException("combat-pause-state-did-not-match-request");
+            }
+            String detail = before == desired
+                    ? "combat pause state already matched request"
+                    : "combat pause state reached requested state";
+            publish(parsed, "executed", detail, accepted, Instant.now(),
+                    "combat-engine.advance", COMBAT_STATE, before, after);
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable failure) {
+            if (COMBAT_VERIFY_ZOOM_OUT_ACTION.equals(parsed.action())) {
+                clearCombatViewportBaseline();
+            }
+            publish(parsed, "failed", bounded(failure), accepted, Instant.now(),
+                    "combat-engine.advance", COMBAT_STATE, before, null);
         }
     }
 
@@ -235,11 +396,149 @@ public final class InternalGameControlRuntime {
     }
 
     private static String expectedState(String action) {
-        return CONTINUE_ACTION.equals(action) ? INTERACTIVE_STATE : CAMPAIGN_STATE;
+        if (CONTINUE_ACTION.equals(action)) return INTERACTIVE_STATE;
+        if (isCombatAction(action)) return COMBAT_STATE;
+        return isSimulationAction(action) ? SIMULATION_STATE : CAMPAIGN_STATE;
     }
 
     private static boolean isCampaignAction(String action) {
-        return CAMPAIGN_PAUSE_ACTION.equals(action) || CAMPAIGN_UNPAUSE_ACTION.equals(action);
+        return CAMPAIGN_PAUSE_ACTION.equals(action)
+                || CAMPAIGN_UNPAUSE_ACTION.equals(action)
+                || ConsoleCombatFixtureRuntime.ACTION.equals(action)
+                || ConsoleCombatFixtureRuntime.VERIFY_ACTION.equals(action);
+    }
+
+    private static boolean isSimulationAction(String action) {
+        return SIMULATION_OPPONENTS_ALL.equals(action)
+                || SIMULATION_OPPONENTS_DEPLOY.equals(action)
+                || SIMULATION_ALLIES_SELECT.equals(action)
+                || SIMULATION_ALLIES_ALL.equals(action)
+                || SIMULATION_ALLIES_DEPLOY.equals(action)
+                || SIMULATION_ENGAGE.equals(action);
+    }
+
+    private static boolean isCombatAction(String action) {
+        return COMBAT_PAUSE_ACTION.equals(action)
+                || COMBAT_UNPAUSE_ACTION.equals(action)
+                || COMBAT_CAPTURE_VIEWPORT_ACTION.equals(action)
+                || COMBAT_VERIFY_ZOOM_OUT_ACTION.equals(action)
+                || COMBAT_BEGIN_FRAME_WINDOW_ACTION.equals(action);
+    }
+
+    private static float[] viewportState(Object engine) throws ReflectiveOperationException {
+        Object viewport = invoke(engine.getClass().getMethod("getViewport"), engine);
+        if (viewport == null) throw new IllegalStateException("combat-viewport-missing");
+        Method getViewMult = viewport.getClass().getMethod("getViewMult");
+        Method getVisibleWidth = viewport.getClass().getMethod("getVisibleWidth");
+        if (getViewMult.getReturnType() != float.class
+                || getVisibleWidth.getReturnType() != float.class) {
+            throw new IllegalStateException("combat-viewport-method-shape-mismatch");
+        }
+        float mult = (Float) invoke(getViewMult, viewport);
+        float width = (Float) invoke(getVisibleWidth, viewport);
+        if (!Float.isFinite(mult) || mult <= 0f
+                || !Float.isFinite(width) || width <= 0f) {
+            throw new IllegalStateException("combat-viewport-state-invalid");
+        }
+        return new float[] {mult, width};
+    }
+
+    private static void clearCombatViewportBaseline() {
+        combatViewportBaselineMult = 0f;
+        combatViewportBaselineWidth = 0f;
+    }
+
+    private static String executeSimulationAction(Object dialog, String action)
+            throws ReflectiveOperationException {
+        if (!"com.fs.starfarer.ui.impl.M".equals(dialog.getClass().getName())) {
+            throw new IllegalStateException("simulation-dialog-class-mismatch");
+        }
+        Method ownerMethod = dialog.getClass().getMethod("getOwnerId");
+        Method selectedMethod = dialog.getClass().getMethod("getSelected");
+        Method actionMethod = dialog.getClass().getMethod(
+                "actionPerformed", Object.class, Object.class);
+        if (ownerMethod.getReturnType() != int.class
+                || !List.class.isAssignableFrom(selectedMethod.getReturnType())
+                || actionMethod.getReturnType() != void.class) {
+            throw new IllegalStateException("simulation-dialog-method-shape-mismatch");
+        }
+        int owner = (Integer) invoke(ownerMethod, dialog);
+        if (SIMULATION_ALLIES_SELECT.equals(action)) {
+            if (owner != 1) throw new IllegalStateException("simulation-opponents-tab-not-active");
+            invoke(actionMethod, dialog, null, dialogField(dialog, "String.null$Object"));
+            if ((Integer) invoke(ownerMethod, dialog) != 0) {
+                throw new IllegalStateException("simulation-allies-tab-did-not-activate");
+            }
+            return "activated the simulation allies deployment tab";
+        }
+        if (SIMULATION_ENGAGE.equals(action)) {
+            if (owner != 0) throw new IllegalStateException("simulation-allies-tab-not-active");
+            int allied = deployedCount(dialog, 0);
+            int opposing = deployedCount(dialog, 1);
+            if (allied <= 0 || opposing <= 0) {
+                throw new IllegalStateException("simulation-both-sides-not-deployed");
+            }
+            Method dismiss = dialog.getClass().getMethod("dismiss", int.class);
+            if (dismiss.getReturnType() != void.class) {
+                throw new IllegalStateException("simulation-dismiss-shape-mismatch");
+            }
+            invoke(dismiss, dialog, 0);
+            simulationEngaged = true;
+            RuntimeSemanticState.combatReady();
+            return "dismissed deployment dialog with " + allied
+                    + " allied and " + opposing + " opposing ships deployed";
+        }
+
+        int expectedOwner = action.startsWith("simulation.opponents.") ? 1 : 0;
+        if (owner != expectedOwner) {
+            throw new IllegalStateException("simulation-deployment-side-mismatch");
+        }
+        if (action.endsWith(".all")) {
+            int before = selectedCount(selectedMethod, dialog);
+            if (before != 0) throw new IllegalStateException("simulation-selection-not-empty");
+            invoke(actionMethod, dialog, null, dialogField(dialog, "private.null$Object"));
+            int after = selectedCount(selectedMethod, dialog);
+            if (after <= 0) throw new IllegalStateException("simulation-all-selected-no-ships");
+            return "selected " + after + " ships for simulation side " + owner;
+        }
+        int selected = selectedCount(selectedMethod, dialog);
+        if (selected <= 0) throw new IllegalStateException("simulation-no-ships-selected");
+        int before = deployedCount(dialog, owner);
+        invoke(actionMethod, dialog, null, dialogField(dialog, "ÓOÖ000"));
+        int after = deployedCount(dialog, owner);
+        if (after <= before) throw new IllegalStateException("simulation-deploy-did-not-add-ships");
+        return "deployed " + (after - before) + " ships for simulation side " + owner;
+    }
+
+    private static int selectedCount(Method selectedMethod, Object dialog)
+            throws ReflectiveOperationException {
+        Object value = invoke(selectedMethod, dialog);
+        if (!(value instanceof List<?> selected)) {
+            throw new IllegalStateException("simulation-selection-shape-mismatch");
+        }
+        return selected.size();
+    }
+
+    private static int deployedCount(Object dialog, int owner) throws ReflectiveOperationException {
+        ClassLoader loader = dialog.getClass().getClassLoader();
+        Class<?> engineClass = Class.forName("com.fs.starfarer.combat.CombatEngine", false, loader);
+        Object engine = invoke(engineClass.getMethod("getInstance"), null);
+        Object manager = invoke(engineClass.getMethod("getFleetManager", int.class), engine, owner);
+        Object deployed = invoke(manager.getClass().getMethod("getDeployed"), manager);
+        if (!(deployed instanceof java.util.Collection<?> ships)) {
+            throw new IllegalStateException("simulation-deployed-shape-mismatch");
+        }
+        return ships.size();
+    }
+
+    private static Object dialogField(Object dialog, String name) throws ReflectiveOperationException {
+        Field field = dialog.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        Object value = field.get(dialog);
+        if (value == null || !"com.fs.starfarer.ui.n".equals(value.getClass().getName())) {
+            throw new IllegalStateException("simulation-button-shape-mismatch:" + name);
+        }
+        return value;
     }
 
     private static void requireCampaignSafe(Object campaign, Object events)
@@ -459,6 +758,7 @@ public final class InternalGameControlRuntime {
         completedSequence = 0L;
         pendingCampaignRequest = null;
         pendingCampaignAcceptedAt = null;
+        simulationEngaged = false;
     }
 
     private record Request(

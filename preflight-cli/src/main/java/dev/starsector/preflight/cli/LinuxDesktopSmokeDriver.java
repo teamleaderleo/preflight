@@ -23,14 +23,20 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
     private static final Duration COMMAND_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration QUIT_GRACE = Duration.ofSeconds(8);
     private static final int LOG_TAIL_BYTES = 1024 * 1024;
-    private static final Map<String, String> KEYS = Map.of(
-            "a", "a",
-            "s", "s",
-            "d", "d",
-            "w", "w",
-            "return", "Return",
-            "space", "space",
-            "escape", "Escape");
+    private static final Map<String, String> KEYS = Map.ofEntries(
+            Map.entry("a", "a"),
+            Map.entry("s", "s"),
+            Map.entry("d", "d"),
+            Map.entry("f", "f"),
+            Map.entry("w", "w"),
+            Map.entry("r", "r"),
+            Map.entry("u", "u"),
+            Map.entry("n", "n"),
+            Map.entry("return", "Return"),
+            Map.entry("tab", "Tab"),
+            Map.entry("space", "space"),
+            Map.entry("escape", "Escape"),
+            Map.entry("capslock", "Caps_Lock"));
     private static final Map<String, TargetPoint> TARGETS = targets();
 
     private final DesktopCommandExecutor commands;
@@ -104,6 +110,9 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
             case "press-key" -> pressKey(attached, step.get("key").toString());
             case "hold-key" -> holdKey(attached, step.get("key").toString(),
                     ((Number) step.get("durationMillis")).intValue());
+            case "scroll-wheel" -> scrollWheel(
+                    attached, step.get("direction").toString(),
+                    ((Number) step.get("clicks")).intValue());
             case "capture" -> capture(attached, step, runDirectory);
             case "quit" -> quit(attached);
             default -> throw new IllegalArgumentException(
@@ -191,6 +200,29 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
         }
         verifyWindowOwner(window.id(), attached.pid());
         return ActionResult.completed("held " + normalized + " for " + durationMillis + " ms");
+    }
+
+    private ActionResult scrollWheel(ProcessTarget attached, String direction, int clicks)
+            throws Exception {
+        if (clicks < 1 || clicks > 24) {
+            throw new IllegalArgumentException("Linux scroll clicks must be in 1..24");
+        }
+        int button = switch (direction.toLowerCase(Locale.ROOT)) {
+            case "in" -> 4;
+            case "out" -> 5;
+            default -> throw new IllegalArgumentException(
+                    "Unsupported Linux scroll direction: " + direction);
+        };
+        Window window = window(attached.pid());
+        command(List.of(
+                xdotool, "windowactivate", "--sync", Long.toString(window.id()),
+                "mousemove", "--window", Long.toString(window.id()),
+                Integer.toString(window.width() / 2), Integer.toString(window.height() / 2),
+                "click", "--repeat", Integer.toString(clicks), Integer.toString(button)),
+                "xdotool");
+        verifyWindowOwner(window.id(), attached.pid());
+        return ActionResult.completed("scrolled " + direction + " " + clicks
+                + " clicks in X11 window " + window.id());
     }
 
     private ActionResult capture(

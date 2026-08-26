@@ -2,6 +2,7 @@ package dev.starsector.preflight.agent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -110,6 +111,25 @@ class SimOpponentSafetyInstalledAdapterIT {
             }
         }
         assertEquals(1, updateObservations);
+
+        ClassNode originalOwner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(original).accept(originalOwner, ClassReader.SKIP_CODE);
+        String button = "Lcom/fs/starfarer/ui/n;";
+        assertTrue(originalOwner.fields.stream().anyMatch(field ->
+                "private.null$Object".equals(field.name) && button.equals(field.desc)));
+        assertTrue(originalOwner.fields.stream().anyMatch(field ->
+                "ÓOÖ000".equals(field.name) && button.equals(field.desc)));
+        assertTrue(originalOwner.fields.stream().anyMatch(field ->
+                "String.null$Object".equals(field.name) && button.equals(field.desc)));
+        assertTrue(originalOwner.methods.stream().anyMatch(method ->
+                "getOwnerId".equals(method.name) && "()I".equals(method.desc)));
+        assertTrue(originalOwner.methods.stream().anyMatch(method ->
+                "getSelected".equals(method.name) && "()Ljava/util/List;".equals(method.desc)));
+        assertTrue(originalOwner.methods.stream().anyMatch(method ->
+                "actionPerformed".equals(method.name)
+                        && "(Ljava/lang/Object;Ljava/lang/Object;)V".equals(method.desc)));
+        assertTrue(originalOwner.methods.stream().anyMatch(method ->
+                "dismiss".equals(method.name) && "(I)V".equals(method.desc)));
     }
 
     private static int dialogObservations(org.objectweb.asm.tree.MethodNode method) {

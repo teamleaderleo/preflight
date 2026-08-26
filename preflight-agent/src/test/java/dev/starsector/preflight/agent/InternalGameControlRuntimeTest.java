@@ -90,6 +90,73 @@ final class InternalGameControlRuntimeTest {
         assertTrue(receipt.contains("campaign-class-mismatch"), receipt);
     }
 
+    @Test
+    void combatFixtureRequestFailsBeforeConsoleMutationOnAnUnknownCampaignShape() throws Exception {
+        System.setProperty("preflight.desktopSmoke", "true");
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+        RuntimeSemanticState.campaignReady();
+        InternalGameControlRuntime.beginSession(temporaryDirectory.resolve("adapter.json"));
+        Files.writeString(temporaryDirectory.resolve("runtime-action-request.json"),
+                request(Instant.now().plusSeconds(30),
+                        ConsoleCombatFixtureRuntime.ACTION,
+                        InternalGameControlRuntime.CAMPAIGN_STATE));
+
+        InternalGameControlRuntime.campaignInput(new Object(), new ArrayList<>());
+
+        String receipt = Files.readString(temporaryDirectory.resolve("runtime-action-receipt.json"));
+        assertTrue(receipt.contains("\"status\":\"failed\""), receipt);
+        assertTrue(receipt.contains("campaign-class-mismatch"), receipt);
+        assertTrue(receipt.contains(ConsoleCombatFixtureRuntime.ACTION), receipt);
+        assertFalse((Boolean) ConsoleCombatFixtureRuntime.telemetry().get("attempted"));
+    }
+
+    @Test
+    void simulationActionsFailClosedBeforeTouchingAnUnknownDialogShape() throws Exception {
+        System.setProperty("preflight.desktopSmoke", "true");
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+        RuntimeSemanticState.simulationReady();
+        InternalGameControlRuntime.beginSession(temporaryDirectory.resolve("adapter.json"));
+        Files.writeString(temporaryDirectory.resolve("runtime-action-request.json"),
+                request(Instant.now().plusSeconds(30),
+                        InternalGameControlRuntime.SIMULATION_OPPONENTS_ALL,
+                        InternalGameControlRuntime.SIMULATION_STATE));
+
+        InternalGameControlRuntime.simulationDialog(new Object());
+
+        String receipt = Files.readString(temporaryDirectory.resolve("runtime-action-receipt.json"));
+        assertTrue(receipt.contains("\"status\":\"failed\""), receipt);
+        assertTrue(receipt.contains("simulation-dialog-class-mismatch"), receipt);
+        assertTrue(receipt.contains("simulation-dialog.advance"), receipt);
+    }
+
+    @Test
+    void simulatorSessionStartsWithoutAnEngagedLatch() throws Exception {
+        System.setProperty("preflight.desktopSmoke", "true");
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+        InternalGameControlRuntime.beginSession(temporaryDirectory.resolve("adapter.json"));
+
+        assertFalse(InternalGameControlRuntime.simulationEngaged());
+    }
+
+    @Test
+    void combatActionsFailClosedBeforeTouchingAnUnknownEngineShape() throws Exception {
+        System.setProperty("preflight.desktopSmoke", "true");
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+        RuntimeSemanticState.combatReady();
+        InternalGameControlRuntime.beginSession(temporaryDirectory.resolve("adapter.json"));
+        Files.writeString(temporaryDirectory.resolve("runtime-action-request.json"),
+                request(Instant.now().plusSeconds(30),
+                        InternalGameControlRuntime.COMBAT_UNPAUSE_ACTION,
+                        InternalGameControlRuntime.COMBAT_STATE));
+
+        InternalGameControlRuntime.combatAdvance(new Object(), new ArrayList<>());
+
+        String receipt = Files.readString(temporaryDirectory.resolve("runtime-action-receipt.json"));
+        assertTrue(receipt.contains("\"status\":\"failed\""), receipt);
+        assertTrue(receipt.contains("combat-engine-class-mismatch"), receipt);
+        assertTrue(receipt.contains("combat-engine.advance"), receipt);
+    }
+
     private static String request(Instant deadline) {
         return request(deadline, InternalGameControlRuntime.CONTINUE_ACTION,
                 InternalGameControlRuntime.INTERACTIVE_STATE);

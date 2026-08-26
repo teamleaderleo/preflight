@@ -30,11 +30,23 @@ final class DesktopSmokeScenario {
             "main-menu.continue",
             "campaign.pause",
             "campaign.unpause",
+            "combat.pause",
+            "combat.unpause",
+            "combat.capture-viewport",
+            "combat.verify-zoom-out",
+            "combat.begin-frame-window",
+            "campaign.prepare-combat-fixture",
+            "campaign.verify-combat-fixture",
             "main-menu.load-game",
             "load-game.first-save",
             "load-game.load",
             "campaign.refit",
             "refit.run-simulation",
+            "simulation.opponents.all",
+            "simulation.opponents.deploy",
+            "simulation.allies.select",
+            "simulation.allies.all",
+            "simulation.allies.deploy",
             "simulation.default",
             "simulation.engage",
             "simulation.exit",
@@ -261,6 +273,14 @@ final class DesktopSmokeScenario {
                 int duration = integer(value, "durationMillis", 50, 30_000);
                 yield new Step(id, kind, Map.of("key", key, "durationMillis", duration));
             }
+            case "scroll-wheel" -> {
+                exactFields(value, with("direction", "clicks"), context);
+                String direction = member(
+                        requireString(value, "direction"), Set.of("in", "out"),
+                        context + ".direction");
+                int clicks = integer(value, "clicks", 1, 24);
+                yield new Step(id, kind, Map.of("direction", direction, "clicks", clicks));
+            }
             case "capture" -> {
                 exactFields(value, with("artifacts"), context);
                 List<String> artifacts = stringArray(value, "artifacts");
@@ -286,7 +306,8 @@ final class DesktopSmokeScenario {
         for (Step step : steps) {
             switch (step.kind()) {
                 case "wait-state" -> capabilities.add("semantic-state");
-                case "activate-window", "press-key", "hold-key" -> capabilities.add("window-control");
+                case "activate-window", "press-key", "hold-key", "scroll-wheel" ->
+                        capabilities.add("window-control");
                 case "click" -> {
                     if (RuntimeGameActionClient.supports(step.values().get("target").toString())) {
                         capabilities.add("semantic-control");

@@ -81,6 +81,17 @@ stacks after the timer probes have identified a broad category. It stops the exa
 after the unpaused window instead of trying to restore pause, because a late campaign interaction
 may legitimately make the pause control unavailable and the process is not retained or saved.
 
+`campaign-simulation-combat.json` is the deterministic 1× combat profile. It keeps the selected save
+paused, prepares and verifies an in-memory 24-ship/crew fixture, opens Fleet → Refit → Simulation,
+deploys both sides through exact stock-dialog actions, enables autopilot, closes the command map,
+ensures combat is unpaused, sends bounded player-equivalent zoom input, verifies a wider
+public-viewport state, lets the camera settle, starts a
+clean frame window, and retains a 60-second sample. `campaign-simulation-combat-speedup.json` uses the
+same route but explicitly toggles the installed SpeedUp mod's Caps Lock 2× mode and labels its
+30-second window separately. Neither scenario saves the in-memory fixture. Frame reports rank
+repeated >33.33 ms clusters and excess slow-frame time separately from isolated hitches, so a single
+menu or transition spike does not masquerade as sustained roughness.
+
 ## Read what a launch produced
 
 | | |

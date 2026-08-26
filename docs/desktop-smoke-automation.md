@@ -62,8 +62,11 @@ The first scenario deliberately covers only the repeatable core:
 6. capture screenshot, log tail, adapter health, and frame report;
 7. request an orderly quit, with the existing process-tree shutdown as the bounded fallback.
 
-Simulation/refit/combat targets are reserved in the validator, but should be added to checked-in
-scenarios only after their state markers and recovery path are equally deterministic.
+The checked-in simulation routes now extend that core through a verified in-memory fleet fixture,
+Fleet → Refit → Simulation navigation, exact stock deployment callbacks, autopilot, tactical-map
+closure, state-setting combat resume, verified viewport zoom-out, a clean post-setup measurement
+window, and bounded 1× or explicit 2× sampling. They fail at the first unmet invariant and never save
+the generated fleet.
 
 ## Evidence result
 
@@ -149,7 +152,8 @@ cover pass, skip, and mid-scenario failure without opening the game.
 The packaged desktop app owns a short-lived native automation bridge. It binds only an ephemeral
 loopback port, generates a per-process 256-bit capability, and gives both values directly to its
 bundled engine child. The protocol accepts a closed list of reviewed operations: permission probe,
-exact-PID activation and observation, the relative Continue target, seven keys, release, quit, and
+exact-PID activation and observation, the relative Continue target, reviewed campaign/simulation keys,
+bounded wheel input, release, quit, and
 a window-bounded capture into the run directory. It accepts no AppleScript source, arbitrary
 coordinate, arbitrary key, host, or output path. The bridge ends with the engine child and never
 writes its capability into evidence.

@@ -18,15 +18,35 @@ import java.util.concurrent.TimeoutException;
 
 /** PID-bound request/receipt client for the closed in-game desktop-smoke action catalog. */
 final class RuntimeGameActionClient {
-    static final String REQUEST_FORMAT = "starsector-preflight-runtime-action-request-v2";
-    static final String RECEIPT_FORMAT = "starsector-preflight-runtime-action-receipt-v2";
+    static final String REQUEST_FORMAT = "starsector-preflight-runtime-action-request-v4";
+    static final String RECEIPT_FORMAT = "starsector-preflight-runtime-action-receipt-v4";
     static final String CONTINUE_ACTION = "main-menu.continue";
     static final String CAMPAIGN_PAUSE_ACTION = "campaign.pause";
     static final String CAMPAIGN_UNPAUSE_ACTION = "campaign.unpause";
+    static final String COMBAT_PAUSE_ACTION = "combat.pause";
+    static final String COMBAT_UNPAUSE_ACTION = "combat.unpause";
+    static final String COMBAT_CAPTURE_VIEWPORT_ACTION = "combat.capture-viewport";
+    static final String COMBAT_VERIFY_ZOOM_OUT_ACTION = "combat.verify-zoom-out";
+    static final String COMBAT_BEGIN_FRAME_WINDOW_ACTION = "combat.begin-frame-window";
+    static final String COMBAT_FIXTURE_ACTION = "campaign.prepare-combat-fixture";
+    static final String COMBAT_FIXTURE_VERIFY_ACTION = "campaign.verify-combat-fixture";
+    static final String SIMULATION_OPPONENTS_ALL = "simulation.opponents.all";
+    static final String SIMULATION_OPPONENTS_DEPLOY = "simulation.opponents.deploy";
+    static final String SIMULATION_ALLIES_SELECT = "simulation.allies.select";
+    static final String SIMULATION_ALLIES_ALL = "simulation.allies.all";
+    static final String SIMULATION_ALLIES_DEPLOY = "simulation.allies.deploy";
+    static final String SIMULATION_ENGAGE = "simulation.engage";
     static final String REQUEST_FILE = "runtime-action-request.json";
     static final String RECEIPT_FILE = "runtime-action-receipt.json";
     private static final Set<String> ACTIONS = Set.of(
-            CONTINUE_ACTION, CAMPAIGN_PAUSE_ACTION, CAMPAIGN_UNPAUSE_ACTION);
+            CONTINUE_ACTION, CAMPAIGN_PAUSE_ACTION, CAMPAIGN_UNPAUSE_ACTION,
+            COMBAT_PAUSE_ACTION, COMBAT_UNPAUSE_ACTION,
+            COMBAT_CAPTURE_VIEWPORT_ACTION, COMBAT_VERIFY_ZOOM_OUT_ACTION,
+            COMBAT_BEGIN_FRAME_WINDOW_ACTION,
+            COMBAT_FIXTURE_ACTION, COMBAT_FIXTURE_VERIFY_ACTION,
+            SIMULATION_OPPONENTS_ALL, SIMULATION_OPPONENTS_DEPLOY,
+            SIMULATION_ALLIES_SELECT, SIMULATION_ALLIES_ALL, SIMULATION_ALLIES_DEPLOY,
+            SIMULATION_ENGAGE);
     private static final int MAX_RECEIPT_BYTES = 16 * 1024;
     private static final Set<String> RECEIPT_FIELDS = Set.of(
             "format", "sequence", "pid", "processStartedAt", "action", "acceptedAt",
@@ -106,6 +126,49 @@ final class RuntimeGameActionClient {
                     + "; receipt executed; campaign observed campaign-ready";
         }
 
+        if (COMBAT_FIXTURE_ACTION.equals(action) || COMBAT_FIXTURE_VERIFY_ACTION.equals(action)) {
+            if (!Boolean.TRUE.equals(accepted.get("beforePaused"))
+                    || !Boolean.TRUE.equals(accepted.get("afterPaused"))) {
+                throw new IOException("Runtime combat fixture did not preserve the paused state");
+            }
+            RuntimeSemanticStateIdentity after = RuntimeSemanticStateIdentity.read(runtimeState, target);
+            if (!"campaign-ready".equals(after.state())) {
+                throw new IOException("Runtime left campaign-ready during " + action);
+            }
+            return accepted.get("detail") + "; campaign remained paused";
+        }
+
+        if (action.startsWith("simulation.")) {
+            if (SIMULATION_ENGAGE.equals(action)) {
+                waitForState(runtimeState, runtimeProcess, target, deadline,
+                        "combat-ready", action);
+                return accepted.get("detail") + "; combat observed combat-ready";
+            }
+            RuntimeSemanticStateIdentity after = RuntimeSemanticStateIdentity.read(runtimeState, target);
+            if (!"simulation-ready".equals(after.state())) {
+                throw new IOException("Runtime left simulation-ready during " + action);
+            }
+            return String.valueOf(accepted.get("detail"));
+        }
+
+        if (action.startsWith("combat.")) {
+            RuntimeSemanticStateIdentity after = RuntimeSemanticStateIdentity.read(runtimeState, target);
+            if (!"combat-ready".equals(after.state())) {
+                throw new IOException("Runtime left combat-ready during " + action);
+            }
+            if (COMBAT_CAPTURE_VIEWPORT_ACTION.equals(action)
+                    || COMBAT_VERIFY_ZOOM_OUT_ACTION.equals(action)
+                    || COMBAT_BEGIN_FRAME_WINDOW_ACTION.equals(action)) {
+                return String.valueOf(accepted.get("detail"));
+            }
+            boolean desiredPaused = COMBAT_PAUSE_ACTION.equals(action);
+            if (!(accepted.get("beforePaused") instanceof Boolean)
+                    || !Boolean.valueOf(desiredPaused).equals(accepted.get("afterPaused"))) {
+                throw new IOException("Runtime combat action pause receipt is incomplete");
+            }
+            return accepted.get("detail") + "; combat pause state verified " + desiredPaused;
+        }
+
         boolean desiredPaused = CAMPAIGN_PAUSE_ACTION.equals(action);
         if (!(accepted.get("beforePaused") instanceof Boolean)
                 || !Boolean.valueOf(desiredPaused).equals(accepted.get("afterPaused"))) {
@@ -145,7 +208,11 @@ final class RuntimeGameActionClient {
                 require(value, "action", action);
                 require(value, "beforeState", expectedState);
                 require(value, "boundary", CONTINUE_ACTION.equals(action)
-                        ? "title.advanceImpl" : "campaign.processInput");
+                        ? "title.advanceImpl"
+                        : action.startsWith("combat.")
+                                ? "combat-engine.advance"
+                        : action.startsWith("simulation.")
+                                ? "simulation-dialog.advance" : "campaign.processInput");
                 if (!(value.get("acceptedAt") instanceof String)
                         || !(value.get("executedAt") instanceof String)) {
                     throw new IOException("Runtime action receipt timestamps are incomplete");
@@ -177,8 +244,31 @@ final class RuntimeGameActionClient {
                 "Continue receipt arrived but campaign-ready did not; last state was " + last);
     }
 
+    private static void waitForState(
+            Path runtimeState,
+            Path runtimeProcess,
+            DesktopSmokeDriver.ProcessTarget target,
+            Instant deadline,
+            String expected,
+            String action) throws Exception {
+        String last = "unavailable";
+        while (Instant.now().isBefore(deadline)) {
+            requireSameProcess(runtimeProcess, target, action);
+            RuntimeSemanticStateIdentity state = RuntimeSemanticStateIdentity.read(runtimeState, target);
+            last = state.state();
+            if (expected.equals(last)) return;
+            if ("stopped".equals(last)) {
+                throw new IllegalStateException("Runtime stopped during " + action);
+            }
+            sleep();
+        }
+        throw new TimeoutException(action + " did not reach " + expected + "; last state was " + last);
+    }
+
     private static String expectedState(String action) {
-        return CONTINUE_ACTION.equals(action) ? "main-menu-interactive" : "campaign-ready";
+        if (CONTINUE_ACTION.equals(action)) return "main-menu-interactive";
+        if (action.startsWith("combat.")) return "combat-ready";
+        return action.startsWith("simulation.") ? "simulation-ready" : "campaign-ready";
     }
 
     private static Path history(Path run, String stem, long sequence) {

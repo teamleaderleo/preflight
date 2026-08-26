@@ -24,20 +24,31 @@ import java.util.Set;
 /** macOS desktop smoke adapter that resolves the game window only through its recorded PID. */
 final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     private static final Duration COMMAND_TIMEOUT = Duration.ofSeconds(10);
+    // A large installed profile can spend well over eight seconds loading settings before LWJGL
+    // publishes its first macOS window. The runner supplies the tighter per-step/scenario bound;
+    // this inner retry window only prevents a premature "no window" result during healthy startup.
+    private static final Duration WINDOW_READINESS_TIMEOUT = Duration.ofSeconds(120);
+    private static final Duration WINDOW_READINESS_POLL = Duration.ofMillis(100);
     private static final Duration QUIT_GRACE = Duration.ofSeconds(8);
     private static final int LOG_TAIL_BYTES = 1024 * 1024;
     private static final int BRIDGE_RESPONSE_BYTES = 8 * 1024;
     private static final String BRIDGE_ENDPOINT_ENV = "PREFLIGHT_MAC_AUTOMATION_ENDPOINT";
     private static final String BRIDGE_TOKEN_ENV = "PREFLIGHT_MAC_AUTOMATION_TOKEN";
     private static final Map<String, TargetPoint> TARGETS = targets();
-    private static final Map<String, Integer> KEY_CODES = Map.of(
-            "a", 0,
-            "s", 1,
-            "d", 2,
-            "w", 13,
-            "return", 36,
-            "space", 49,
-            "escape", 53);
+    private static final Map<String, Integer> KEY_CODES = Map.ofEntries(
+            Map.entry("a", 0),
+            Map.entry("s", 1),
+            Map.entry("d", 2),
+            Map.entry("f", 3),
+            Map.entry("w", 13),
+            Map.entry("r", 15),
+            Map.entry("u", 32),
+            Map.entry("n", 45),
+            Map.entry("return", 36),
+            Map.entry("tab", 48),
+            Map.entry("space", 49),
+            Map.entry("escape", 53),
+            Map.entry("capslock", 57));
 
     private final DesktopCommandExecutor commands;
     private final Path osascript;
@@ -127,6 +138,9 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
             case "press-key" -> pressKey(attached, step.get("key").toString());
             case "hold-key" -> holdKey(attached, step.get("key").toString(),
                     ((Number) step.get("durationMillis")).intValue());
+            case "scroll-wheel" -> scrollWheel(
+                    attached, step.get("direction").toString(),
+                    ((Number) step.get("clicks")).intValue());
             case "capture" -> capture(attached, step, runDirectory);
             case "quit" -> quit(attached);
             default -> throw new IllegalArgumentException("Unsupported macOS smoke action: " + kind);
@@ -150,9 +164,35 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     }
 
     private ActionResult activate(ProcessTarget attached) throws Exception {
-        String output = automation(
-                "activate", attached.pid(), null, activateScript(attached.pid())).trim();
-        return ActionResult.completed(output);
+        long deadline = System.nanoTime() + WINDOW_READINESS_TIMEOUT.toNanos();
+        UnavailableException lastUnavailable = null;
+        do {
+            requireSameLifetime(attached);
+            try {
+                String output = automation(
+                        "activate", attached.pid(), null, activateScript(attached.pid())).trim();
+                return ActionResult.completed(output);
+            } catch (UnavailableException unavailable) {
+                if (!windowReadinessUnavailable(unavailable)) throw unavailable;
+                lastUnavailable = unavailable;
+            }
+            try {
+                Thread.sleep(WINDOW_READINESS_POLL.toMillis());
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw interrupted;
+            }
+        } while (System.nanoTime() < deadline);
+        throw new UnavailableException(
+                "The exact game process did not publish a macOS window within "
+                        + WINDOW_READINESS_TIMEOUT.toSeconds() + " seconds: "
+                        + lastUnavailable.getMessage());
+    }
+
+    private static boolean windowReadinessUnavailable(UnavailableException unavailable) {
+        String message = unavailable.getMessage();
+        return message != null && (message.contains("exact PID unavailable")
+                || message.contains("Invalid index. (-1719)"));
     }
 
     private ActionResult click(ProcessTarget attached, String name) throws Exception {
@@ -192,6 +232,26 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
             }
         }
         return ActionResult.completed("held " + normalized + " for " + durationMillis + " ms");
+    }
+
+    private ActionResult scrollWheel(ProcessTarget attached, String direction, int clicks)
+            throws Exception {
+        String normalized = scrollDirection(direction);
+        if (clicks < 1 || clicks > 24) {
+            throw new IllegalArgumentException("macOS scroll clicks must be in 1..24");
+        }
+        automation("activate", attached.pid(), null, activateScript(attached.pid()));
+        WindowBounds bounds = windowBounds(attached.pid());
+        requireSameLifetime(attached);
+        String source = scrollWheelScript(attached.pid(), bounds, normalized, clicks);
+        if (nativeBridge()) {
+            automation("scroll-wheel", attached.pid(), normalized + ":" + clicks, source);
+        } else {
+            command(List.of(osascript.toString(), "-l", "JavaScript", "-e", source));
+        }
+        requireSameLifetime(attached);
+        return ActionResult.completed(
+                "scrolled " + normalized + " " + clicks + " clicks in exact PID " + attached.pid());
     }
 
     private void releaseKey(long pid, String key) throws Exception {
@@ -383,6 +443,37 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
         return List.of(osascript.toString(), "-e", source);
     }
 
+    static String scrollWheelScript(
+            long pid, WindowBounds bounds, String direction, int clicks) {
+        if (pid <= 0) throw new IllegalArgumentException("PID must be positive");
+        // CoreGraphics synthetic wheel events follow the configured macOS scroll direction;
+        // Starsector's LWJGL input sees positive as the player-equivalent zoom-out gesture here.
+        int delta = "out".equals(scrollDirection(direction)) ? 1 : -1;
+        if (clicks < 1 || clicks > 24) {
+            throw new IllegalArgumentException("macOS scroll clicks must be in 1..24");
+        }
+        int x = bounds.x() + bounds.width() / 2;
+        int y = bounds.y() + bounds.height() / 2;
+        return "ObjC.import('CoreGraphics');"
+                + "var se=Application('System Events');"
+                + "var a=se.applicationProcesses.whose({unixId:" + pid + "})();"
+                + "if(a.length!==1||!a[0].frontmost())throw new Error('exact PID is not frontmost');"
+                + "var p=$.CGPointMake(" + x + "," + y + ");"
+                + "var m=$.CGEventCreateMouseEvent(null,$.kCGEventMouseMoved,p,$.kCGMouseButtonLeft);"
+                + "$.CGEventPost($.kCGHIDEventTap,m);"
+                + "for(var i=0;i<" + clicks + ";i++){"
+                + "var e=$.CGEventCreateScrollWheelEvent(null,$.kCGScrollEventUnitLine,1,"
+                + delta + ");$.CGEventPost($.kCGHIDEventTap,e);delay(0.025);}";
+    }
+
+    private static String scrollDirection(String direction) {
+        String normalized = direction == null ? "" : direction.toLowerCase(Locale.ROOT);
+        if (!Set.of("in", "out").contains(normalized)) {
+            throw new IllegalArgumentException("Unsupported macOS scroll direction: " + direction);
+        }
+        return normalized;
+    }
+
     private boolean nativeBridge() {
         return bridgeEndpoint != null;
     }
@@ -489,6 +580,7 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
 
     static String activateScript(long pid) {
         return processHeader(pid) + "\n"
+                + "set win to window 1 of targetProcess\n"
                 + "set frontmost of targetProcess to true\n"
                 + "return \"activated PID " + pid + "\"\n"
                 + "end tell";
@@ -591,7 +683,7 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     record TargetPoint(String name, double x, double y) {
     }
 
-    private record WindowBounds(int x, int y, int width, int height) {
+    static record WindowBounds(int x, int y, int width, int height) {
         private String region() {
             return x + "," + y + "," + width + "," + height;
         }

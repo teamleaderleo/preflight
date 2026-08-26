@@ -47,12 +47,16 @@ final class RuntimeSemanticStateTest {
 
         RuntimeSemanticState.campaignReady();
         assertState(destination, "campaign-ready", 3L);
+        RuntimeSemanticState.simulationReady();
+        assertState(destination, "simulation-ready", 4L);
         RuntimeSemanticState.combatReady();
-        assertState(destination, "combat-ready", 4L);
+        assertState(destination, "simulation-ready", 4L);
         RuntimeSemanticState.campaignReady();
         assertState(destination, "campaign-ready", 5L);
+        RuntimeSemanticState.combatReady();
+        assertState(destination, "combat-ready", 6L);
         RuntimeSemanticState.stopped();
-        assertState(destination, "stopped", 6L);
+        assertState(destination, "stopped", 7L);
         assertTrue(Files.readString(destination).contains("\"mainMenuReadyAt\":"));
         assertTrue(Files.readString(destination).contains("\"mainMenuInteractiveAt\":"));
         assertTrue(RuntimeSemanticState.telemetry().get("writeProblem") == null);

@@ -21,6 +21,8 @@ final class CombatRuntimeIntegrityPlan {
             "dev/starsector/preflight/agent/CombatRuntimeIntegrityRuntime";
     private static final String FRAME_RUNTIME =
             "dev/starsector/preflight/agent/FrameTimeRuntime";
+    private static final String CONTROL_RUNTIME =
+            "dev/starsector/preflight/agent/InternalGameControlRuntime";
 
     private CombatRuntimeIntegrityPlan() {
     }
@@ -40,7 +42,8 @@ final class CombatRuntimeIntegrityPlan {
                 || (advance.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0
                 || advance.instructions.getFirst() == null
                 || calls(advance, INTEGRITY_RUNTIME, "observe") != 0
-                || calls(advance, FRAME_RUNTIME, "observeCombat") != 0) {
+                || calls(advance, FRAME_RUNTIME, "observeCombat") != 0
+                || calls(advance, CONTROL_RUNTIME, "combatAdvance") != 0) {
             return null;
         }
 
@@ -51,8 +54,14 @@ final class CombatRuntimeIntegrityPlan {
             observations.add(new MethodInsnNode(
                     Opcodes.INVOKESTATIC, FRAME_RUNTIME, "observeCombat", "()V", false));
         }
+        if (InternalGameControlRuntime.enabled()) {
+            observations.add(new org.objectweb.asm.tree.VarInsnNode(Opcodes.ALOAD, 0));
+            observations.add(new org.objectweb.asm.tree.VarInsnNode(Opcodes.ALOAD, 2));
+            observations.add(new MethodInsnNode(
+                    Opcodes.INVOKESTATIC, CONTROL_RUNTIME, "combatAdvance",
+                    "(Ljava/lang/Object;Ljava/lang/Object;)V", false));
+        }
         advance.instructions.insertBefore(advance.instructions.getFirst(), observations);
-
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         CombatRuntimeIntegrityRuntime.installed();

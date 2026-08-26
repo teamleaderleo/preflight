@@ -516,7 +516,7 @@ final class DesktopSmokeRunner {
         Set<String> capabilities = new LinkedHashSet<>(state.capabilities());
         capabilities.add("semantic-control");
         return new DesktopSmokeDriver.Descriptor(
-                "runtime-semantic-control", "1", state.platform(),
+                "runtime-semantic-control", "2", state.platform(),
                 Collections.unmodifiableSet(capabilities), List.of());
     }
 

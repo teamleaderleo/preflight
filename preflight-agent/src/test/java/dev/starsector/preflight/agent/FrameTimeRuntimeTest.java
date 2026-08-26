@@ -48,6 +48,41 @@ class FrameTimeRuntimeTest {
     }
 
     @Test
+    void ranksRepeatedSlowFrameClustersAndKeepsASettledMeasurementWindow() {
+        FrameTimeRuntime.beginSession(true);
+        FrameTimeRuntime.recordBoundary(0L);
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(10_000_000L); // state transition
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(26_000_000L); // pre-window setup
+        FrameTimeRuntime.beginCombatMeasurementWindow();
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(42_000_000L);
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(82_000_000L); // repeated cluster starts
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(127_000_000L);
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(143_000_000L); // cluster ends
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(183_000_000L); // isolated current hitch
+
+        Map<String, Object> window = map(FrameTimeRuntime.telemetry().get("measurementWindow"));
+        Map<String, Object> stutter = map(window.get("stutterProfile"));
+        assertEquals(true, window.get("active"));
+        assertEquals("combat", window.get("state"));
+        assertEquals(5L, window.get("frames"));
+        assertEquals(3L, window.get("over33_33Millis"));
+        assertEquals(2L, stutter.get("slowFrameClusters"));
+        assertEquals(1L, stutter.get("isolatedSlowFrames"));
+        assertEquals(1L, stutter.get("repeatedSlowFrameClusters"));
+        assertEquals(2L, stutter.get("framesInRepeatedSlowFrameClusters"));
+        assertEquals(2L, stutter.get("longestSlowFrameClusterFrames"));
+        assertEquals(85.0, stutter.get("longestSlowFrameClusterMillis"));
+        assertEquals(25.0, stutter.get("excessSlowFrameTimeMillis"));
+    }
+
+    @Test
     void dropsIntervalsAcrossFocusLossAndCountsFreshActiveFrames() {
         FrameTimeRuntime.beginSession(true);
         FrameTimeRuntime.recordBoundary(10L);
