@@ -15,8 +15,12 @@
       "baselineSeconds": "89.00",
       "endpointSeconds": "15.53",
       "deltaSeconds": "73.47",
-      "reductionPercent": "82.55"
+      "reductionPercent": "82.55",
+      "evidence": "docs/evidence/2026-08-15-controlled-vanilla-fast-campaign.md"
     },
-    "validatedAcceleratedGateSeconds": "15.88"
+    "validatedAcceleratedGate": {
+      "seconds": "15.88",
+      "evidence": "docs/evidence/2026-08-06-codex-lazy-fleet-members.md"
+    }
   }
 }
