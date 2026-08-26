@@ -600,7 +600,7 @@ final class AdapterTargetRegistry {
     /** LWJGL 2's display boundary, enabled only for explicit frame-time pilots. */
     static AdapterTarget frameTimeTarget() {
         return new AdapterTarget(
-                "lwjgl-2-display-frame-time-probe",
+                "lwjgl-2-display-frame-time-and-presentation",
                 FrameTimePlan.TARGET_CLASS,
                 FrameTimePlan.ORIGINAL_SHA256,
                 FrameTimeRuntime.PLAN_ID,
@@ -608,7 +608,9 @@ final class AdapterTargetRegistry {
                         new AdapterTarget.RequiredMethod(
                                 FrameTimePlan.UPDATE_METHOD, FrameTimePlan.UPDATE_DESCRIPTOR),
                         new AdapterTarget.RequiredMethod(
-                                FrameTimePlan.ACTIVE_METHOD, FrameTimePlan.ACTIVE_DESCRIPTOR)),
+                                FrameTimePlan.ACTIVE_METHOD, FrameTimePlan.ACTIVE_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                FrameTimePlan.VSYNC_METHOD, FrameTimePlan.VSYNC_DESCRIPTOR)),
                 "STARSECTOR_CORE",
                 "contents/resources/java/lwjgl.jar",
                 "527d509f60132e5b2653c7fc0f8cf299d6f698f4a8013342bef47705dc57ed3f",

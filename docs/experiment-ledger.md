@@ -169,6 +169,13 @@ why the work changed direction. This page accounts for each abandoned branch.
 | Measurement | Let a custom-cache benchmark silently prepare the default storage policy | **Rejected** | The harness now records and restores the requested storage policy, treats legacy stamps as Balanced only, and maps the product's Compact choice to balanced encoding over the learned corpus. | [Storage and startup chronology](evidence/2026-08-23-storage-to-fourteen-seconds.md) |
 | Measurement | Use wrapper lifetime or UI automation as the startup clock | **Rejected** | Startup numbers require the canonical game-log start and GraphicsLib preload markers. Missing either marker means there is no result. | [Paintjob catalog process correction](evidence/2026-08-23-magiclib-paintjob-catalog-cache.md#process-correction) |
 
+## August 26: campaign frame presentation
+
+| Area | Experiment | Disposition | Result and retained decision | Evidence |
+| --- | --- | --- | --- | --- |
+| Frame pacing | Treat the recurring roughly 30-FPS 1-percent low as Java campaign work alone | **Rejected as attribution** | In the paused control, native swap was the largest measured phase in 33 of 41 frames beyond 33.33 ms. The remaining slow frames still justify ordinary hotspot work. | [Paused campaign presentation probe](evidence/2026-08-26-campaign-frame-pacing.md) |
+| Frame pacing | Disable vsync while keeping Starsector's own 60-FPS limiter | **Accepted as experimental opt-in** | Two candidate observations moved the 1-percent low from the 30.77-FPS control to 43.67 and 43.86 FPS. Native-swap p99 fell from 17.7 ms to 6.6/6.7 ms. The switch is exact-gated, save-independent, separate from recording, and warns about tearing. | [Paused campaign presentation probe](evidence/2026-08-26-campaign-frame-pacing.md) |
+
 ## Limits on current claims
 
 Rosetta makes CPU and allocation reductions especially visible on the reference machine. Windows

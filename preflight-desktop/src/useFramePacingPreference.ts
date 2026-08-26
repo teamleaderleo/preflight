@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { FRAME_PACING_STORAGE_KEY } from "./desktopStorage";
+import { FRAME_PACING_STORAGE_KEY, SMOOTH_FRAME_PACING_STORAGE_KEY } from "./desktopStorage";
 
-function savedPreference(): boolean {
+function savedPreference(key: string): boolean {
   try {
-    return window.localStorage.getItem(FRAME_PACING_STORAGE_KEY) === "on";
+    return window.localStorage.getItem(key) === "on";
   } catch {
     return false;
   }
@@ -11,14 +11,32 @@ function savedPreference(): boolean {
 
 /** Whether ordinary optimized launches retain a bounded local frame-pacing summary. */
 export function useFramePacingPreference() {
-  const [recordFramePacing, setState] = useState(savedPreference);
+  const [recordFramePacing, setRecordState] = useState(
+    () => savedPreference(FRAME_PACING_STORAGE_KEY),
+  );
+  const [smoothFramePacing, setSmoothState] = useState(
+    () => savedPreference(SMOOTH_FRAME_PACING_STORAGE_KEY),
+  );
   const setRecordFramePacing = (next: boolean) => {
-    setState(next);
+    setRecordState(next);
     try {
       window.localStorage.setItem(FRAME_PACING_STORAGE_KEY, next ? "on" : "off");
     } catch {
       // The choice still applies for this session when WebView storage is unavailable.
     }
   };
-  return { recordFramePacing, setRecordFramePacing };
+  const setSmoothFramePacing = (next: boolean) => {
+    setSmoothState(next);
+    try {
+      window.localStorage.setItem(SMOOTH_FRAME_PACING_STORAGE_KEY, next ? "on" : "off");
+    } catch {
+      // The choice still applies for this session when WebView storage is unavailable.
+    }
+  };
+  return {
+    recordFramePacing,
+    setRecordFramePacing,
+    smoothFramePacing,
+    setSmoothFramePacing,
+  };
 }

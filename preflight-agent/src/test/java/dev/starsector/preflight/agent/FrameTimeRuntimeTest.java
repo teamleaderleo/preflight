@@ -172,6 +172,64 @@ class FrameTimeRuntimeTest {
     }
 
     @Test
+    void attributesSlowFramesAcrossGameWorkSwapAndMessagePhases() {
+        FrameTimeRuntime.beginSession(true);
+        FrameTimeRuntime.recordBoundary(0L);
+        FrameTimeRuntime.recordSwapStarted(20_000_000L);
+        FrameTimeRuntime.recordSwapCompleted(35_000_000L);
+        FrameTimeRuntime.recordMessagesStarted(36_000_000L);
+        FrameTimeRuntime.recordMessagesCompleted(37_000_000L);
+        FrameTimeRuntime.recordBoundary(40_000_000L);
+
+        Map<String, Object> phases = map(FrameTimeRuntime.telemetry().get("displayPhases"));
+        assertEquals(6, phases.get("timestampReadsPerPresentedFrame"));
+        Map<String, Object> all = map(phases.get("allActive"));
+        assertEquals(1L, all.get("completeFrames"));
+        assertEquals(1L, all.get("framesOver33_33Millis"));
+        assertEquals(1L, all.get("slowFramesWherePreSwapWasLargest"));
+        assertEquals(20_000.0, map(all.get("preSwap")).get("maximumMicros"));
+        assertEquals(15_000.0, map(all.get("nativeSwap")).get("maximumMicros"));
+        assertEquals(1_000.0, map(all.get("messageProcessing")).get("maximumMicros"));
+        assertEquals(4_000.0, map(all.get("otherAfterSwap")).get("maximumMicros"));
+        Map<String, Object> worst = map(list(all.get("worstFrames")).get(0));
+        assertEquals(40_000L, worst.get("durationMicros"));
+        assertEquals(20_000L, worst.get("preSwapMicros"));
+        assertEquals(15_000L, worst.get("swapMicros"));
+    }
+
+    @Test
+    void forceVsyncOffIsExplicitAndLeavesDisabledRequestsDisabled() {
+        FrameTimeRuntime.beginSession(false, true);
+        assertFalse(FrameTimeRuntime.requestedVsync(true));
+        assertFalse(FrameTimeRuntime.requestedVsync(false));
+        Map<String, Object> telemetry = FrameTimeRuntime.telemetry();
+        Map<String, Object> policy = map(telemetry.get("presentationPolicy"));
+        assertFalse((Boolean) telemetry.get("enabled"));
+        assertEquals(true, policy.get("forceVsyncOff"));
+        assertEquals(2L, policy.get("requests"));
+        assertEquals(1L, policy.get("enabledRequests"));
+        assertEquals(1L, policy.get("requestsForcedOff"));
+        assertEquals(0L, telemetry.get("boundaries"));
+    }
+
+    @Test
+    void reportsMissingAndInvalidDisplayPhaseObservationsWithoutAffectingFrameTimes() {
+        FrameTimeRuntime.beginSession(true);
+        FrameTimeRuntime.recordBoundary(0L);
+        FrameTimeRuntime.recordBoundary(10L);
+        FrameTimeRuntime.recordSwapStarted(20L);
+        FrameTimeRuntime.recordSwapCompleted(19L);
+        FrameTimeRuntime.recordBoundary(30L);
+
+        Map<String, Object> phases = map(
+                map(FrameTimeRuntime.telemetry().get("displayPhases")).get("allActive"));
+        assertEquals(2L, phases.get("frames"));
+        assertEquals(1L, phases.get("missingSwap"));
+        assertEquals(1L, phases.get("invalidOrder"));
+        assertEquals(2L, map(FrameTimeRuntime.telemetry().get("allActive")).get("frames"));
+    }
+
+    @Test
     void retainsOnlyTheWorstBoundedSet() {
         FrameTimeRuntime.beginSession(true);
         long now = 0L;

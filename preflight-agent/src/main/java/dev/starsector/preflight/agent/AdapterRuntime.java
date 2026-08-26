@@ -71,7 +71,9 @@ final class AdapterRuntime {
         LogisticsNotificationsFuelRuntime.reset();
         MacMemoryWarningRuntime.beginSession();
         CombatRuntimeIntegrityRuntime.beginSession();
-        FrameTimeRuntime.beginSession(Boolean.getBoolean("preflight.frameTimes"));
+        FrameTimeRuntime.beginSession(
+                Boolean.getBoolean("preflight.frameTimes"),
+                Boolean.getBoolean(FrameTimeRuntime.FORCE_VSYNC_OFF_PROPERTY));
         boolean campaignTimes = Boolean.getBoolean("preflight.campaignTimes");
         CampaignCallTimeRuntime.beginSession(campaignTimes);
         CampaignEngineTimeRuntime.beginSession(campaignTimes);

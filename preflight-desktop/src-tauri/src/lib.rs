@@ -200,6 +200,8 @@ fn snapshot_operation_state(tracker: &OperationCoordinator) -> Result<OperationS
     Ok(OperationSnapshot::from_state(&state))
 }
 
+// Tauri maps this flat IPC boundary by argument name; wrapping it changes the renderer contract.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 fn start_game(
     app: AppHandle,
@@ -209,6 +211,7 @@ fn start_game(
     disabled_optimization_domains: Vec<String>,
     after_launch_behavior: String,
     record_frame_pacing: bool,
+    smooth_frame_pacing: bool,
 ) -> Result<RunStarted, String> {
     let directory = canonical_game_directory(&game)?;
     let optimization_preset = validate_optimization_preset(&optimization_preset)?;
@@ -245,6 +248,9 @@ fn start_game(
     // preference for later launches, but pause collection for this one.
     if should_record_frame_pacing(optimization_preset, record_frame_pacing) {
         command.arg("--frame-times");
+    }
+    if should_smooth_frame_pacing(optimization_preset, smooth_frame_pacing) {
+        command.arg("--smooth-frame-pacing");
     }
     command.env("PREFLIGHT_DESKTOP_EVENTS", "stderr-v1");
     command.stderr(Stdio::piped());
@@ -395,6 +401,10 @@ fn validate_optimization_preset(value: &str) -> Result<&str, String> {
 }
 
 fn should_record_frame_pacing(optimization_preset: &str, requested: bool) -> bool {
+    requested && optimization_preset != "off"
+}
+
+fn should_smooth_frame_pacing(optimization_preset: &str, requested: bool) -> bool {
     requested && optimization_preset != "off"
 }
 
@@ -738,8 +748,9 @@ mod tests {
     use super::{
         AfterLaunchBehavior, DESKTOP_RUN_EVENT_MAX_BYTES, DESKTOP_RUN_EVENT_PREFIX, append_tail,
         begin_exit_cleanup, parse_active_game_pid, parse_desktop_run_event, parse_stop_game_result,
-        project_link_url, read_tail, should_record_frame_pacing, snapshot_operation_state,
-        take_deferred_exit, validate_optimization_domains, validate_optimization_preset,
+        project_link_url, read_tail, should_record_frame_pacing, should_smooth_frame_pacing,
+        snapshot_operation_state, take_deferred_exit, validate_optimization_domains,
+        validate_optimization_preset,
     };
     use crate::automation::{
         DESKTOP_SMOKE_CANCELLATION_FILE, desktop_benchmark_comparison,
@@ -853,6 +864,10 @@ mod tests {
         assert!(should_record_frame_pacing("conservative", true));
         assert!(!should_record_frame_pacing("off", true));
         assert!(!should_record_frame_pacing("recommended", false));
+        assert!(should_smooth_frame_pacing("recommended", true));
+        assert!(should_smooth_frame_pacing("conservative", true));
+        assert!(!should_smooth_frame_pacing("off", true));
+        assert!(!should_smooth_frame_pacing("recommended", false));
     }
 
     #[test]

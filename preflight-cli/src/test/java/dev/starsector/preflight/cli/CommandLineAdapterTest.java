@@ -149,6 +149,7 @@ class CommandLineAdapterTest {
         assertEquals(false, defaults.suppressAssetProgressLogs());
         assertEquals(false, defaults.trustValidatedTextureIndex());
         assertEquals(false, defaults.frameTimes());
+        assertEquals(false, defaults.smoothFramePacing());
         assertEquals(false, defaults.desktopSmoke());
 
         CommandLine direct = CommandLine.parse(
@@ -167,6 +168,12 @@ class CommandLineAdapterTest {
         assertEquals(false, frameTimes.desktopSmoke());
         assertThrows(IllegalArgumentException.class, () -> CommandLine.parse(
                 new String[] {"run", "--optimization-preset", "off", "--frame-times"}, 1));
+
+        CommandLine smoothFramePacing = CommandLine.parse(
+                new String[] {"run", "--fast", "--smooth-frame-pacing"}, 1);
+        assertEquals(true, smoothFramePacing.smoothFramePacing());
+        assertThrows(IllegalArgumentException.class, () -> CommandLine.parse(
+                new String[] {"run", "--optimization-preset", "off", "--smooth-frame-pacing"}, 1));
 
         CommandLine measurement = CommandLine.parse(new String[] {
                 "run", "--optimization-preset", "off", "--direct", "--desktop-smoke"

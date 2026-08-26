@@ -125,7 +125,12 @@ export default function App() {
     setOptimizationDomainEnabled,
   } = useOptimizationPolicy();
   const { afterLaunchBehavior, setAfterLaunchBehavior } = useAfterLaunchBehavior();
-  const { recordFramePacing, setRecordFramePacing } = useFramePacingPreference();
+  const {
+    recordFramePacing,
+    setRecordFramePacing,
+    smoothFramePacing,
+    setSmoothFramePacing,
+  } = useFramePacingPreference();
   const refreshRequest = useRef(0);
   const setInstallationStatus = useCallback((next: AppStatus) => {
     setStatus((current) => (current === "running" || current === "launching" ? current : next));
@@ -192,6 +197,7 @@ export default function App() {
         launchDisabledDomains,
         afterLaunchBehavior,
         recordFramePacing,
+        smoothFramePacing,
       );
       setForceStopAvailable(false);
       if (!isDesktopHost()) setStatus("running");
@@ -214,7 +220,7 @@ export default function App() {
       setRetryIntent({ kind: "launch", preset: launchPreset });
       announceGame(String(error), "error");
     }
-  }, [afterLaunchBehavior, announceGame, disabledOptimizationDomains, optimizationPreset, recordFramePacing, snapshot?.selected?.installRoot]);
+  }, [afterLaunchBehavior, announceGame, disabledOptimizationDomains, optimizationPreset, recordFramePacing, smoothFramePacing, snapshot?.selected?.installRoot]);
 
   const stopRunningGame = useCallback(async () => {
     if (stoppingGame) return;
@@ -764,11 +770,13 @@ export default function App() {
             removalBusy={removal.busy}
             afterLaunchBehavior={afterLaunchBehavior}
             recordFramePacing={recordFramePacing}
+            smoothFramePacing={smoothFramePacing}
             framePacingPaused={optimizationPreset === "off"}
             installation={snapshot?.selected?.installRoot ?? null}
             installationChangeBlockedReason={activeOperation?.reason ?? null}
             onAfterLaunchBehaviorChange={setAfterLaunchBehavior}
             onRecordFramePacingChange={setRecordFramePacing}
+            onSmoothFramePacingChange={setSmoothFramePacing}
             onChooseInstall={() => void chooseInstall()}
             onReviewRemoval={(scope) => void removal.review(scope)}
             onDismissRemoval={removal.dismiss}

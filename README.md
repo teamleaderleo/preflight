@@ -176,7 +176,9 @@ happened in that run rather than what another machine should expect.
 - **Frame pacing.** Starsector keeps its own live FPS counter. An opt-in Preflight setting can also
   retain a bounded local session summary with average FPS, one-percent low, and p95/p99 frame times,
   then show the latest campaign and combat results with their measured frames and active time plus
-  recording cost on Speed. It does not read or write campaign saves.
+  recording cost on Speed. A separate experimental smoothing switch keeps Starsector's own FPS cap
+  but disables vsync to avoid doubled-frame presentation drops; it may show tearing. Neither option
+  reads or writes campaign saves.
 - **Profiles.** Named mod profiles retain their own identities and prepared data. Switching a profile
   previews the exact `enabled_mods.json` change and saves a backup. Saved profiles can be searched,
   renamed, duplicated, and deleted without copying mods, saves, or cache bytes.

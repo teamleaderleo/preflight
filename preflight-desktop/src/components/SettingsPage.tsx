@@ -21,11 +21,13 @@ interface SettingsPageProps {
   removalBusy: boolean;
   afterLaunchBehavior: AfterLaunchBehavior;
   recordFramePacing: boolean;
+  smoothFramePacing: boolean;
   framePacingPaused: boolean;
   installation: string | null;
   installationChangeBlockedReason?: string | null;
   onAfterLaunchBehaviorChange: (behavior: AfterLaunchBehavior) => void;
   onRecordFramePacingChange: (record: boolean) => void;
+  onSmoothFramePacingChange: (smooth: boolean) => void;
   onChooseInstall: () => void;
   onReviewRemoval: (scope: RemovalScope) => void;
   onDismissRemoval: () => void;
@@ -42,11 +44,13 @@ export function SettingsPage({
   removalBusy,
   afterLaunchBehavior,
   recordFramePacing,
+  smoothFramePacing,
   framePacingPaused,
   installation,
   installationChangeBlockedReason,
   onAfterLaunchBehaviorChange,
   onRecordFramePacingChange,
+  onSmoothFramePacingChange,
   onChooseInstall,
   onReviewRemoval,
   onDismissRemoval,
@@ -124,6 +128,20 @@ export function SettingsPage({
               <small>{framePacingPaused
                 ? "Paused while optimizations are Off."
                 : "Average FPS, one-percent low, frame-time percentiles, and recorder cost. The recorder doesn’t open or change save files."}</small>
+            </span>
+          </label>
+          <label className="settings-toggle">
+            <input
+              type="checkbox"
+              aria-label="Smooth frame pacing"
+              checked={smoothFramePacing}
+              onChange={(event) => onSmoothFramePacingChange(event.target.checked)}
+            />
+            <span>
+              Smooth frame pacing
+              <small>{framePacingPaused
+                ? "Paused while optimizations are Off."
+                : "Experimental. Keeps Starsector’s FPS cap but disables vsync to reduce doubled-frame drops. May show tearing. This display-only change doesn’t open or alter saves."}</small>
             </span>
           </label>
         </div>

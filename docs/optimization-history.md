@@ -288,6 +288,14 @@ the 60-FPS budget; 96.32 percent met 30 FPS. That sample also included title-dem
 campaign-warm-up frames. Later reports split those phases. The metric contract is in
 [the FPS report](evidence/2026-08-05-frame-time-fps-reporting.md).
 
+A later paused-campaign phase probe separated pre-swap work, native buffer swap, and message
+processing. Native swap was the largest phase in 33 of the control's 41 frames beyond 33.33
+milliseconds. Two explicit vsync-off candidates kept Starsector's own 60-FPS limiter and measured
+43.67 and 43.86 FPS at the 1-percent low, compared with 30.77 in the longer control. The switch is
+experimental because it may tear, and the unequal-duration observations are not a release cohort.
+The implementation boundary and retained distributions are in
+[the campaign presentation report](evidence/2026-08-26-campaign-frame-pacing.md).
+
 Several investigations ended in correctness fixes. Stale mod simulation
 opponents reached vanilla as invalid fleet members, a full-retreat race could end in an incompatible
 combat cast, startup became fast enough to expose notification and fuel calculations running before

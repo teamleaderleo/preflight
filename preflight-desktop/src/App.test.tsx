@@ -169,7 +169,7 @@ test("the default cold-profile action prepares with balanced settings and then l
   expect(screen.getByText(/^for Starsector$/i)).toBeInTheDocument();
   await user.click(action);
   await waitFor(() => expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256));
-  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize", false));
+  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize", false, false));
 
   cache.mockRestore();
   preparation.mockRestore();
@@ -226,7 +226,7 @@ test("repairs only the reviewed profile before rebuilding and launching", async 
   await user.click(screen.getByRole("button", { name: "Repair and launch" }));
   await waitFor(() => expect(repair).toHaveBeenCalledWith("/Applications/Starsector", "preview-profile"));
   await waitFor(() => expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256));
-  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize", false));
+  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize", false, false));
 
   health.mockRestore();
   repair.mockRestore();
@@ -285,7 +285,7 @@ test("a refused preparation still leaves an unoptimized way to launch the game",
   expect(screen.getByText(/Preparation needs .* free; .* is available\./)).toBeInTheDocument();
   await user.click(launch);
 
-  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "off", [], "minimize", false));
+  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "off", [], "minimize", false, false));
   expect(preparation).not.toHaveBeenCalled();
 
   cache.mockRestore();
@@ -328,6 +328,7 @@ test.each(["unsafe", "unknown"] as const)(
       "off",
       [],
       "minimize",
+      false,
       false,
     ));
 
@@ -599,8 +600,8 @@ test("a failed normal launch retries with optimizations off", async () => {
   await user.click(screen.getByRole("button", { name: "Try launch again" }));
 
   await waitFor(() => expect(game).toHaveBeenCalledTimes(2));
-  expect(game).toHaveBeenNthCalledWith(1, "/Applications/Starsector", "off", [], "minimize", false);
-  expect(game).toHaveBeenNthCalledWith(2, "/Applications/Starsector", "off", [], "minimize", false);
+  expect(game).toHaveBeenNthCalledWith(1, "/Applications/Starsector", "off", [], "minimize", false, false);
+  expect(game).toHaveBeenNthCalledWith(2, "/Applications/Starsector", "off", [], "minimize", false, false);
   expect(preparation).not.toHaveBeenCalled();
 
   health.mockRestore();
@@ -928,6 +929,7 @@ test("the primary action requires an explicit Apply before launching edited glob
     [],
     "minimize",
     false,
+    false,
   ));
   update.mockRestore();
   game.mockRestore();
@@ -1059,6 +1061,7 @@ test("advanced domain selections are validated on restore and reach the typed la
     ["prepared-textures"],
     "minimize",
     false,
+    false,
   ));
   expect(window.localStorage.getItem("preflight.disabledOptimizationDomains"))
     .toBe('["prepared-textures"]');
@@ -1076,6 +1079,7 @@ test("after-launch behavior defaults to minimize and remains an explicit setting
   expect(behavior).toHaveValue("minimize");
   await user.selectOptions(behavior, "keep");
   await user.click(screen.getByRole("checkbox", { name: "Record frame pacing" }));
+  await user.click(screen.getByRole("checkbox", { name: "Smooth frame pacing" }));
   await user.click(screen.getByRole("button", { name: "Home" }));
   await user.click(await screen.findByRole("button", { name: "Launch Starsector" }));
   await waitFor(() => expect(game).toHaveBeenCalledWith(
@@ -1084,9 +1088,11 @@ test("after-launch behavior defaults to minimize and remains an explicit setting
     [],
     "keep",
     true,
+    true,
   ));
   expect(window.localStorage.getItem("preflight.afterLaunchBehavior")).toBe("keep");
   expect(window.localStorage.getItem("preflight.framePacing.v1")).toBe("on");
+  expect(window.localStorage.getItem("preflight.smoothFramePacing.v1")).toBe("on");
   game.mockRestore();
 });
 

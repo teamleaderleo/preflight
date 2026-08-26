@@ -471,6 +471,7 @@ export async function startGame(
   disabledOptimizationDomains: OptimizationDomain[],
   afterLaunchBehavior: AfterLaunchBehavior,
   recordFramePacing: boolean,
+  smoothFramePacing: boolean,
 ): Promise<RunStarted> {
   if (!isDesktopHost()) {
     await new Promise((resolve) => window.setTimeout(resolve, 350));
@@ -482,6 +483,7 @@ export async function startGame(
     disabledOptimizationDomains,
     afterLaunchBehavior,
     recordFramePacing,
+    smoothFramePacing,
   });
 }
 

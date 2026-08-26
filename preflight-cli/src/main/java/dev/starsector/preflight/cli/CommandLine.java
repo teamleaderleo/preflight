@@ -48,6 +48,7 @@ record CommandLine(
         boolean suppressAssetProgressLogs,
         boolean trustValidatedTextureIndex,
         boolean frameTimes,
+        boolean smoothFramePacing,
         boolean desktopSmoke,
         List<String> forwardedArgs) {
     static CommandLine parse(String[] args, int offset) {
@@ -81,6 +82,7 @@ record CommandLine(
         boolean suppressAssetProgressLogs = false;
         boolean trustValidatedTextureIndex = false;
         boolean frameTimes = false;
+        boolean smoothFramePacing = false;
         boolean desktopSmoke = false;
         AdapterMode adapterMode = AdapterMode.OFF;
         boolean adapterModeSpecified = false;
@@ -186,6 +188,7 @@ record CommandLine(
                 case "--trust-validated-texture-index" -> trustValidatedTextureIndex = true;
                 case "--recheck-texture-sources" -> trustValidatedTextureIndex = false;
                 case "--frame-times" -> frameTimes = true;
+                case "--smooth-frame-pacing" -> smoothFramePacing = true;
                 case "--desktop-smoke" -> desktopSmoke = true;
                 case "--texture-mode" -> {
                     textureAdapterMode = TextureAdapterMode.valueOf(
@@ -237,6 +240,10 @@ record CommandLine(
         if (frameTimes && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException(
                     "--frame-times requires an optimization preset with the runtime adapter enabled");
+        }
+        if (smoothFramePacing && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException(
+                    "--smooth-frame-pacing requires an optimization preset with the runtime adapter enabled");
         }
         int textureArtifacts = (textureManifest == null ? 0 : 1) + (textureIndex == null ? 0 : 1);
         boolean manualTextureContext = textureCacheDirectory != null && textureArtifacts == 2;
@@ -358,6 +365,7 @@ record CommandLine(
                 suppressAssetProgressLogs,
                 trustValidatedTextureIndex,
                 frameTimes,
+                smoothFramePacing,
                 desktopSmoke,
                 List.copyOf(forwarded));
     }

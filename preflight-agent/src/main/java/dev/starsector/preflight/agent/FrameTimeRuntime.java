@@ -9,7 +9,8 @@ import java.util.Map;
 
 /** Low-allocation frame-pacing telemetry at LWJGL's display-update boundary. */
 public final class FrameTimeRuntime {
-    static final String PLAN_ID = "lwjgl-display-frame-time-probe-v1";
+    static final String PLAN_ID = "lwjgl-display-frame-time-and-presentation-v2";
+    static final String FORCE_VSYNC_OFF_PROPERTY = "preflight.framePacing.forceVsyncOff";
 
     private static final long HISTOGRAM_BIN_NANOS = 100_000L;
     private static final int HISTOGRAM_REGULAR_BINS = 20_000;
@@ -20,6 +21,7 @@ public final class FrameTimeRuntime {
     private static final int STATE_COMBAT = 2;
 
     private static volatile boolean enabled;
+    private static volatile boolean smoothFramePacing;
     private static volatile boolean observedActive = true;
     private static volatile boolean focusBreak;
     private static volatile int observedState;
@@ -33,12 +35,19 @@ public final class FrameTimeRuntime {
     private static long measurementSamples;
     private static long measurementTotalNanos;
     private static long measurementMaximumNanos;
+    private static volatile long vsyncRequests;
+    private static volatile long vsyncEnabledRequests;
+    private static volatile long vsyncRequestsForcedOff;
     private static long firstBoundaryNanos = Long.MIN_VALUE;
     private static long firstBoundaryEpochMillis = -1L;
     private static long firstCampaignBoundaryNanos = Long.MIN_VALUE;
     private static long lastBoundaryNanos = Long.MIN_VALUE;
     private static boolean lastBoundaryActive = true;
     private static int lastBoundaryState;
+    private static long swapStartedNanos = Long.MIN_VALUE;
+    private static long swapCompletedNanos = Long.MIN_VALUE;
+    private static long messagesStartedNanos = Long.MIN_VALUE;
+    private static long messagesCompletedNanos = Long.MIN_VALUE;
     private static final Distribution allActive = new Distribution();
     private static final Distribution postStartupActive = new Distribution();
     private static final Distribution campaignActive = new Distribution();
@@ -46,12 +55,20 @@ public final class FrameTimeRuntime {
     private static final Distribution campaignAfter30SecondsActive = new Distribution();
     private static final Distribution combatActive = new Distribution();
     private static final Distribution combatAfterCampaignActive = new Distribution();
+    private static final DisplayPhases allActivePhases = new DisplayPhases();
+    private static final DisplayPhases campaignActivePhases = new DisplayPhases();
+    private static final DisplayPhases campaignAfter30SecondsActivePhases = new DisplayPhases();
 
     private FrameTimeRuntime() {
     }
 
     static synchronized void beginSession(boolean requested) {
-        enabled = requested;
+        beginSession(requested, false);
+    }
+
+    static synchronized void beginSession(boolean telemetryRequested, boolean smoothRequested) {
+        enabled = telemetryRequested;
+        smoothFramePacing = smoothRequested;
         installed = false;
         startupComplete = false;
         boundaries = 0L;
@@ -62,12 +79,16 @@ public final class FrameTimeRuntime {
         measurementSamples = 0L;
         measurementTotalNanos = 0L;
         measurementMaximumNanos = 0L;
+        vsyncRequests = 0L;
+        vsyncEnabledRequests = 0L;
+        vsyncRequestsForcedOff = 0L;
         firstBoundaryNanos = Long.MIN_VALUE;
         firstBoundaryEpochMillis = -1L;
         firstCampaignBoundaryNanos = Long.MIN_VALUE;
         lastBoundaryNanos = Long.MIN_VALUE;
         lastBoundaryActive = true;
         lastBoundaryState = STATE_UNKNOWN;
+        resetDisplayPhaseTimestamps();
         observedActive = true;
         focusBreak = false;
         observedState = STATE_UNKNOWN;
@@ -78,6 +99,9 @@ public final class FrameTimeRuntime {
         campaignAfter30SecondsActive.reset();
         combatActive.reset();
         combatAfterCampaignActive.reset();
+        allActivePhases.reset();
+        campaignActivePhases.reset();
+        campaignAfter30SecondsActivePhases.reset();
     }
 
     static synchronized void installed() {
@@ -86,6 +110,10 @@ public final class FrameTimeRuntime {
 
     static boolean enabled() {
         return enabled;
+    }
+
+    static boolean planEnabled() {
+        return enabled || smoothFramePacing;
     }
 
     /** Observes the focus result Starsector already requested; it performs no additional OS query. */
@@ -108,6 +136,38 @@ public final class FrameTimeRuntime {
         if (enabled) observedState = STATE_COMBAT;
     }
 
+    /** Timestamp immediately before LWJGL hands the rendered frame to the native presentation path. */
+    public static void beforeSwap() {
+        if (enabled) recordSwapStarted(System.nanoTime());
+    }
+
+    /** Timestamp immediately after the native buffer swap returns. */
+    public static void afterSwap() {
+        if (enabled) recordSwapCompleted(System.nanoTime());
+    }
+
+    /** Timestamp immediately before LWJGL processes native window and input messages. */
+    public static void beforeMessages() {
+        if (enabled) recordMessagesStarted(System.nanoTime());
+    }
+
+    /** Timestamp immediately after LWJGL finishes processing native window and input messages. */
+    public static void afterMessages() {
+        if (enabled) recordMessagesCompleted(System.nanoTime());
+    }
+
+    /** Applies the opt-in presentation experiment without changing Starsector's FPS cap. */
+    public static boolean requestedVsync(boolean requested) {
+        if (!smoothFramePacing) return requested;
+        vsyncRequests++;
+        if (requested) vsyncEnabledRequests++;
+        if (requested) {
+            vsyncRequestsForcedOff++;
+            return false;
+        }
+        return requested;
+    }
+
     /** Marks one completed game-loop/display-update boundary. */
     public static void boundary() {
         if (!enabled) return;
@@ -128,6 +188,22 @@ public final class FrameTimeRuntime {
         measurementSamples++;
         measurementTotalNanos += elapsedNanos;
         measurementMaximumNanos = Math.max(measurementMaximumNanos, elapsedNanos);
+    }
+
+    static void recordSwapStarted(long now) {
+        swapStartedNanos = now;
+    }
+
+    static void recordSwapCompleted(long now) {
+        swapCompletedNanos = now;
+    }
+
+    static void recordMessagesStarted(long now) {
+        messagesStartedNanos = now;
+    }
+
+    static void recordMessagesCompleted(long now) {
+        messagesCompletedNanos = now;
     }
 
     /** Called from an exact transformed game class when resource initialization returns. */
@@ -155,26 +231,31 @@ public final class FrameTimeRuntime {
             lastBoundaryNanos = now;
             lastBoundaryActive = active;
             lastBoundaryState = state;
+            resetDisplayPhaseTimestamps();
             return;
         }
 
-        long duration = now - lastBoundaryNanos;
+        long previousBoundaryNanos = lastBoundaryNanos;
+        long duration = now - previousBoundaryNanos;
         lastBoundaryNanos = now;
         if (duration <= 0L) {
             invalidIntervals++;
             lastBoundaryActive = active;
             lastBoundaryState = state;
+            resetDisplayPhaseTimestamps();
             return;
         }
         if (crossedFocusBreak || !lastBoundaryActive || !active) {
             inactiveIntervals++;
             lastBoundaryActive = active;
             lastBoundaryState = state;
+            resetDisplayPhaseTimestamps();
             return;
         }
 
         long endOffset = now - firstBoundaryNanos;
         allActive.record(duration, endOffset);
+        allActivePhases.record(duration, previousBoundaryNanos, now, endOffset);
         if (startupComplete) postStartupActive.record(duration, endOffset);
         if (state == STATE_CAMPAIGN && firstCampaignBoundaryNanos == Long.MIN_VALUE) {
             firstCampaignBoundaryNanos = now;
@@ -183,10 +264,13 @@ public final class FrameTimeRuntime {
             stateTransitionIntervals++;
         } else if (state == STATE_CAMPAIGN) {
             campaignActive.record(duration, endOffset);
+            campaignActivePhases.record(duration, previousBoundaryNanos, now, endOffset);
             if (now - firstCampaignBoundaryNanos < CAMPAIGN_WARMUP_NANOS) {
                 campaignFirst30SecondsActive.record(duration, endOffset);
             } else {
                 campaignAfter30SecondsActive.record(duration, endOffset);
+                campaignAfter30SecondsActivePhases.record(
+                        duration, previousBoundaryNanos, now, endOffset);
             }
         } else if (state == STATE_COMBAT) {
             combatActive.record(duration, endOffset);
@@ -196,6 +280,7 @@ public final class FrameTimeRuntime {
         }
         lastBoundaryActive = active;
         lastBoundaryState = state;
+        resetDisplayPhaseTimestamps();
     }
 
     static synchronized Map<String, Object> telemetry() {
@@ -209,6 +294,14 @@ public final class FrameTimeRuntime {
         result.put("inactiveIntervalsDropped", inactiveIntervals);
         result.put("invalidIntervalsDropped", invalidIntervals);
         result.put("stateTransitionIntervalsDropped", stateTransitionIntervals);
+        Map<String, Object> presentationPolicy = new LinkedHashMap<>();
+        presentationPolicy.put("forceVsyncOffProperty", FORCE_VSYNC_OFF_PROPERTY);
+        presentationPolicy.put("forceVsyncOff", smoothFramePacing);
+        presentationPolicy.put("requests", vsyncRequests);
+        presentationPolicy.put("enabledRequests", vsyncEnabledRequests);
+        presentationPolicy.put("requestsForcedOff", vsyncRequestsForcedOff);
+        presentationPolicy.put("frameRateCap", "unchanged; owned by Starsector's main loop");
+        result.put("presentationPolicy", presentationPolicy);
         Map<String, Object> measurement = new LinkedHashMap<>();
         measurement.put("samples", measurementSamples);
         measurement.put("totalNanos", measurementTotalNanos);
@@ -218,6 +311,7 @@ public final class FrameTimeRuntime {
         measurement.put("maximumMicros", measurementSamples == 0L
                 ? null
                 : measurementMaximumNanos / 1_000.0);
+        measurement.put("scope", "display-boundary hook; four phase timestamp hooks excluded");
         result.put(FrameTimeTelemetry.MEASUREMENT_OVERHEAD, measurement);
         result.put("firstBoundaryEpochMillis", firstBoundaryEpochMillis);
         result.put("campaignWarmupWindowMillis", CAMPAIGN_WARMUP_NANOS / 1_000_000L);
@@ -238,11 +332,226 @@ public final class FrameTimeRuntime {
         result.put("combatActive", combatActive.toMap(firstBoundaryEpochMillis));
         result.put(FrameTimeTelemetry.COMBAT_AFTER_CAMPAIGN_ACTIVE,
                 combatAfterCampaignActive.toMap(firstBoundaryEpochMillis));
+        Map<String, Object> displayPhases = new LinkedHashMap<>();
+        displayPhases.put("timestampReadsPerPresentedFrame", 6);
+        displayPhases.put("scope", "pre-swap (game work and limiter) vs native swap vs messages");
+        displayPhases.put("allActive", allActivePhases.toMap(firstBoundaryEpochMillis));
+        displayPhases.put(FrameTimeTelemetry.CAMPAIGN_ACTIVE,
+                campaignActivePhases.toMap(firstBoundaryEpochMillis));
+        displayPhases.put(FrameTimeTelemetry.CAMPAIGN_AFTER_30_SECONDS_ACTIVE,
+                campaignAfter30SecondsActivePhases.toMap(firstBoundaryEpochMillis));
+        result.put("displayPhases", displayPhases);
         return result;
     }
 
     static synchronized void reset() {
-        beginSession(false);
+        beginSession(false, false);
+    }
+
+    private static void resetDisplayPhaseTimestamps() {
+        swapStartedNanos = Long.MIN_VALUE;
+        swapCompletedNanos = Long.MIN_VALUE;
+        messagesStartedNanos = Long.MIN_VALUE;
+        messagesCompletedNanos = Long.MIN_VALUE;
+    }
+
+    private static final class DisplayPhases {
+        private static final long SLOW_FRAME_NANOS = 33_333_333L;
+        private static final int WORST_LIMIT = 128;
+
+        private final PhaseStats preSwap = new PhaseStats();
+        private final PhaseStats swap = new PhaseStats();
+        private final PhaseStats messages = new PhaseStats();
+        private final PhaseStats otherAfterSwap = new PhaseStats();
+        private final long[] worstTotal = new long[WORST_LIMIT];
+        private final long[] worstPreSwap = new long[WORST_LIMIT];
+        private final long[] worstSwap = new long[WORST_LIMIT];
+        private final long[] worstMessages = new long[WORST_LIMIT];
+        private final long[] worstOther = new long[WORST_LIMIT];
+        private final long[] worstOffsets = new long[WORST_LIMIT];
+        private long frames;
+        private long completeFrames;
+        private long missingSwap;
+        private long missingMessages;
+        private long invalidOrder;
+        private long slowFrames;
+        private long slowFramesPreSwapLargest;
+        private long slowFramesSwapLargest;
+        private long slowFramesAfterSwapLargest;
+        private int worstCount;
+        private int shortestWorst;
+
+        void reset() {
+            preSwap.reset();
+            swap.reset();
+            messages.reset();
+            otherAfterSwap.reset();
+            Arrays.fill(worstTotal, 0L);
+            Arrays.fill(worstPreSwap, 0L);
+            Arrays.fill(worstSwap, 0L);
+            Arrays.fill(worstMessages, 0L);
+            Arrays.fill(worstOther, 0L);
+            Arrays.fill(worstOffsets, 0L);
+            frames = 0L;
+            completeFrames = 0L;
+            missingSwap = 0L;
+            missingMessages = 0L;
+            invalidOrder = 0L;
+            slowFrames = 0L;
+            slowFramesPreSwapLargest = 0L;
+            slowFramesSwapLargest = 0L;
+            slowFramesAfterSwapLargest = 0L;
+            worstCount = 0;
+            shortestWorst = 0;
+        }
+
+        void record(long total, long previousBoundary, long now, long endOffset) {
+            frames++;
+            if (swapStartedNanos == Long.MIN_VALUE || swapCompletedNanos == Long.MIN_VALUE) {
+                missingSwap++;
+                return;
+            }
+            boolean messagesPresent = messagesStartedNanos != Long.MIN_VALUE
+                    && messagesCompletedNanos != Long.MIN_VALUE;
+            if (!messagesPresent) missingMessages++;
+            if (swapStartedNanos < previousBoundary
+                    || swapCompletedNanos < swapStartedNanos
+                    || swapCompletedNanos > now
+                    || (messagesPresent && (messagesStartedNanos < swapCompletedNanos
+                            || messagesCompletedNanos < messagesStartedNanos
+                            || messagesCompletedNanos > now))) {
+                invalidOrder++;
+                return;
+            }
+            long preSwapNanos = swapStartedNanos - previousBoundary;
+            long swapNanos = swapCompletedNanos - swapStartedNanos;
+            long messageNanos = messagesPresent
+                    ? messagesCompletedNanos - messagesStartedNanos : 0L;
+            long afterSwapNanos = now - swapCompletedNanos;
+            long otherNanos = afterSwapNanos - messageNanos;
+            if (otherNanos < 0L) {
+                invalidOrder++;
+                return;
+            }
+            completeFrames++;
+            preSwap.record(preSwapNanos);
+            swap.record(swapNanos);
+            messages.record(messageNanos);
+            otherAfterSwap.record(otherNanos);
+            if (total > SLOW_FRAME_NANOS) {
+                slowFrames++;
+                if (preSwapNanos >= swapNanos && preSwapNanos >= afterSwapNanos) {
+                    slowFramesPreSwapLargest++;
+                } else if (swapNanos >= afterSwapNanos) {
+                    slowFramesSwapLargest++;
+                } else {
+                    slowFramesAfterSwapLargest++;
+                }
+            }
+            retainWorst(total, preSwapNanos, swapNanos, messageNanos, otherNanos, endOffset);
+        }
+
+        Map<String, Object> toMap(long originEpochMillis) {
+            Map<String, Object> values = new LinkedHashMap<>();
+            values.put("frames", frames);
+            values.put("completeFrames", completeFrames);
+            values.put("missingSwap", missingSwap);
+            values.put("missingMessages", missingMessages);
+            values.put("invalidOrder", invalidOrder);
+            values.put("preSwap", preSwap.toMap());
+            values.put("nativeSwap", swap.toMap());
+            values.put("messageProcessing", messages.toMap());
+            values.put("otherAfterSwap", otherAfterSwap.toMap());
+            values.put("framesOver33_33Millis", slowFrames);
+            values.put("slowFramesWherePreSwapWasLargest", slowFramesPreSwapLargest);
+            values.put("slowFramesWhereSwapWasLargest", slowFramesSwapLargest);
+            values.put("slowFramesWhereAfterSwapWasLargest", slowFramesAfterSwapLargest);
+            List<Map<String, Object>> worst = new ArrayList<>();
+            Integer[] order = new Integer[worstCount];
+            for (int index = 0; index < worstCount; index++) order[index] = index;
+            Arrays.sort(order, Comparator.comparingLong((Integer index) -> worstTotal[index])
+                    .reversed());
+            for (int index : order) {
+                Map<String, Object> frame = new LinkedHashMap<>();
+                frame.put("durationMicros", worstTotal[index] / 1_000L);
+                frame.put("preSwapMicros", worstPreSwap[index] / 1_000L);
+                frame.put("swapMicros", worstSwap[index] / 1_000L);
+                frame.put("messageMicros", worstMessages[index] / 1_000L);
+                frame.put("otherAfterSwapMicros", worstOther[index] / 1_000L);
+                frame.put("endOffsetMillis", worstOffsets[index] / 1_000_000.0);
+                frame.put("endEpochMillis", originEpochMillis < 0L ? null
+                        : originEpochMillis + worstOffsets[index] / 1_000_000L);
+                worst.add(frame);
+            }
+            values.put("worstFrames", worst);
+            return values;
+        }
+
+        private void retainWorst(long total, long preSwapNanos, long swapNanos, long message,
+                long other, long endOffset) {
+            int target;
+            if (worstCount < WORST_LIMIT) {
+                target = worstCount++;
+            } else {
+                if (total <= worstTotal[shortestWorst]) return;
+                target = shortestWorst;
+            }
+            worstTotal[target] = total;
+            worstPreSwap[target] = preSwapNanos;
+            worstSwap[target] = swapNanos;
+            worstMessages[target] = message;
+            worstOther[target] = other;
+            worstOffsets[target] = endOffset;
+            shortestWorst = 0;
+            for (int index = 1; index < worstCount; index++) {
+                if (worstTotal[index] < worstTotal[shortestWorst]) shortestWorst = index;
+            }
+        }
+    }
+
+    private static final class PhaseStats {
+        private final long[] histogram = new long[HISTOGRAM_REGULAR_BINS + 1];
+        private long count;
+        private long totalNanos;
+        private long maximumNanos;
+
+        void reset() {
+            Arrays.fill(histogram, 0L);
+            count = 0L;
+            totalNanos = 0L;
+            maximumNanos = 0L;
+        }
+
+        void record(long durationNanos) {
+            count++;
+            totalNanos += durationNanos;
+            maximumNanos = Math.max(maximumNanos, durationNanos);
+            int bin = (int) Math.min(HISTOGRAM_REGULAR_BINS,
+                    Math.max(0L, durationNanos - 1L) / HISTOGRAM_BIN_NANOS);
+            histogram[bin]++;
+        }
+
+        Map<String, Object> toMap() {
+            Map<String, Object> values = new LinkedHashMap<>();
+            values.put("samples", count);
+            values.put("totalMillis", totalNanos / 1_000_000.0);
+            values.put("averageMicros", count == 0L ? null : totalNanos / 1_000.0 / count);
+            values.put("maximumMicros", count == 0L ? null : maximumNanos / 1_000.0);
+            values.put("p95Micros", percentile(950));
+            values.put("p99Micros", percentile(990));
+            return values;
+        }
+
+        private Long percentile(int permille) {
+            if (count == 0L) return null;
+            long wanted = Math.max(1L, (count * permille + 999L) / 1_000L);
+            long seen = 0L;
+            for (int index = 0; index < histogram.length; index++) {
+                seen += histogram[index];
+                if (seen >= wanted) return (index + 1L) * HISTOGRAM_BIN_NANOS / 1_000L;
+            }
+            return null;
+        }
     }
 
     private static final class Distribution {

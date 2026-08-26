@@ -38,8 +38,18 @@ class FrameTimePlanTest {
         ClassNode owner = read(transformed);
         assertEquals(1, calls(method(owner, FrameTimePlan.UPDATE_METHOD,
                 FrameTimePlan.UPDATE_DESCRIPTOR), RUNTIME, "boundary"));
+        assertEquals(1, calls(method(owner, FrameTimePlan.UPDATE_METHOD,
+                FrameTimePlan.UPDATE_DESCRIPTOR), RUNTIME, "beforeSwap"));
+        assertEquals(1, calls(method(owner, FrameTimePlan.UPDATE_METHOD,
+                FrameTimePlan.UPDATE_DESCRIPTOR), RUNTIME, "afterSwap"));
+        assertEquals(1, calls(method(owner, FrameTimePlan.UPDATE_METHOD,
+                FrameTimePlan.UPDATE_DESCRIPTOR), RUNTIME, "beforeMessages"));
+        assertEquals(1, calls(method(owner, FrameTimePlan.UPDATE_METHOD,
+                FrameTimePlan.UPDATE_DESCRIPTOR), RUNTIME, "afterMessages"));
         assertEquals(1, calls(method(owner, FrameTimePlan.ACTIVE_METHOD,
                 FrameTimePlan.ACTIVE_DESCRIPTOR), RUNTIME, "observeActive"));
+        assertEquals(1, calls(method(owner, FrameTimePlan.VSYNC_METHOD,
+                FrameTimePlan.VSYNC_DESCRIPTOR), RUNTIME, "requestedVsync"));
         assertEquals(true, FrameTimeRuntime.telemetry().get("installed"));
     }
 
@@ -57,6 +67,16 @@ class FrameTimePlanTest {
         byte[] transformed = FrameTimePlan.transform(exactSignature(original), original);
         assertNotNull(transformed);
         assertNull(FrameTimePlan.transform(ClassSignature.parse(transformed), transformed));
+    }
+
+    @Test
+    void smoothPresentationAloneInstallsOnlyTheRequiredExactPlan() throws Exception {
+        FrameTimeRuntime.beginSession(false, true);
+        byte[] original = fixture(false);
+        byte[] transformed = FrameTimePlan.transform(exactSignature(original), original);
+        assertNotNull(transformed);
+        assertEquals(false, FrameTimeRuntime.telemetry().get("enabled"));
+        assertEquals(true, FrameTimeRuntime.telemetry().get("installed"));
     }
 
     private static byte[] fixture(boolean omitMessages) {
@@ -86,6 +106,13 @@ class FrameTimePlanTest {
         update.visitInsn(Opcodes.RETURN);
         update.visitMaxs(0, 1);
         update.visitEnd();
+
+        MethodVisitor vsync = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                FrameTimePlan.VSYNC_METHOD, FrameTimePlan.VSYNC_DESCRIPTOR, null, null);
+        vsync.visitCode();
+        vsync.visitInsn(Opcodes.RETURN);
+        vsync.visitMaxs(0, 1);
+        vsync.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
     }
