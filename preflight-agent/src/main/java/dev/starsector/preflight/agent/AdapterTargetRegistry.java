@@ -469,6 +469,23 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    /** RAT 3.3.1's periodic abyss-faction scan with a false fallback for absent JSON flags. */
+    static AdapterTarget ratAbyssFactionFlagTarget() {
+        return new AdapterTarget(
+                "rat-3.3.1-abyss-faction-optional-flag",
+                RatAbyssFactionFlagPlan.TARGET_CLASS,
+                RatAbyssFactionFlagPlan.ORIGINAL_SHA256,
+                RatAbyssFactionFlagPlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        RatAbyssFactionFlagPlan.ADVANCE_METHOD,
+                        RatAbyssFactionFlagPlan.ADVANCE_DESCRIPTOR)),
+                "MOD",
+                "randomassortmentofthings.jar",
+                "d34c805f84c259d9edcec197183a49cef4f3e488b2bf37768bb55f39f6d694e7",
+                "java/net/URLClassLoader",
+                "");
+    }
+
     /** LunaLib 2.0.5's version checker, which duplicates Nexerelin's remote reads. */
     static AdapterTarget lunaVersionCheckResponseDedupTarget() {
         return new AdapterTarget(
@@ -1958,6 +1975,7 @@ final class AdapterTargetRegistry {
                 .withTarget(magicLibPaintjobTarget())
                 .withTarget(magicLibPaintjobNotificationTarget())
                 .withTarget(graphicsLibHotSettingsTarget())
+                .withTarget(ratAbyssFactionFlagTarget())
                 .withTarget(contrailRenderScratchTarget())
                 .withTarget(fontWrapAllocationTarget())
                 .withTarget(lunaCampaignRendererSnapshotScriptTarget())

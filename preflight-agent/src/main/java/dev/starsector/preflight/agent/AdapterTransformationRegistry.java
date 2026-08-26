@@ -293,6 +293,9 @@ final class AdapterTransformationRegistry {
         if (GraphicsLibHotSettingsRuntime.PLAN_ID.equals(target.planId())) {
             return GraphicsLibHotSettingsPlan.transform(signature, originalBytes);
         }
+        if (RatAbyssFactionFlagPlan.PLAN_ID.equals(target.planId())) {
+            return RatAbyssFactionFlagPlan.transform(signature, originalBytes);
+        }
         if (ContrailRenderScratchRuntime.PLAN_ID.equals(target.planId())) {
             return ContrailRenderScratchPlan.transform(signature, originalBytes);
         }
@@ -881,6 +884,9 @@ final class AdapterTransformationRegistry {
             return GraphicsLibInsigniaManagerCacheRuntime.ready();
         }
         if (GraphicsLibHotSettingsRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (RatAbyssFactionFlagPlan.PLAN_ID.equals(planId)) {
             return true;
         }
         if (ContrailRenderScratchRuntime.PLAN_ID.equals(planId)) {

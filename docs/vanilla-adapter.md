@@ -295,7 +295,7 @@ inherited by an ordinary Preflight launch and is the practical emergency switch 
 build.
 
 The shutdown adapter report records the effective scope and disabled-plan set, plus the number of
-registered exact targets for each plan. Its bounded 58-plan inventory also names the exact host
+registered exact targets for each plan. Its bounded 64-plan inventory also names the exact host
 boundary for plans composed onto another target and marks every entry `REGISTERED`, `COMPOSED`,
 `INACTIVE`, `DISABLED`, or `OUT_OF_SCOPE`. Each entry states the vanilla fallback explicitly. The
 catalog is checked against an exhaustive built-in target inventory, including the alternate texture

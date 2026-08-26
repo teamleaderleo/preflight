@@ -50,6 +50,7 @@ final class AdapterPlanCatalog {
             MergedReadCacheRuntime.PLAN_ID,
             PreparedAudioRuntime.PLAN_ID,
             ProjectileJsonCacheRuntime.PLAN_ID,
+            RatAbyssFactionFlagPlan.PLAN_ID,
             RadarRenderRuntime.PLAN_ID,
             ResourcePriorityRuntime.PLAN_ID,
             ResourceProbeRuntime.PLAN_ID,

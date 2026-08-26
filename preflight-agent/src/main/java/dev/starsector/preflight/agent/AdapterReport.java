@@ -367,6 +367,8 @@ final class AdapterReport {
                 .append(Json.value(GraphicsLibInsigniaManagerCacheRuntime.telemetry())).append(',');
         key(output, "graphicsLibHotSettings")
                 .append(Json.value(GraphicsLibHotSettingsRuntime.telemetry())).append(',');
+        key(output, "ratAbyssFactionFlag")
+                .append(Json.value(RatAbyssFactionFlagPlan.telemetry())).append(',');
         key(output, "versionCheckResponseDedup")
                 .append(Json.value(VersionCheckResponseDedupRuntime.telemetry())).append(',');
         key(output, "magicLibPaintjob")

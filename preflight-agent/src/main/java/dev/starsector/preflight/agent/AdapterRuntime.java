@@ -59,6 +59,7 @@ final class AdapterRuntime {
         JaninoBytecodeCacheRuntime.beginSession();
         GraphicsLibInsigniaManagerCacheRuntime.beginSession();
         GraphicsLibHotSettingsRuntime.reset();
+        RatAbyssFactionFlagPlan.reset();
         LunaCampaignRendererSnapshotRuntime.reset();
         MagicLibPaintjobLoadRuntime.reset();
         MagicLibPaintjobCacheRuntime.beginSession();
