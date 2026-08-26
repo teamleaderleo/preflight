@@ -198,7 +198,9 @@ fn decode_png(bytes: &[u8]) -> Result<DecodedSprite, SpriteTraceError> {
     let rgba = match frame.color_type {
         ColorType::Rgba => output,
         ColorType::GrayscaleAlpha => output
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .flat_map(|pixel| [pixel[0], pixel[0], pixel[0], pixel[1]])
             .collect(),
         _ => {
@@ -263,7 +265,9 @@ fn trace_decoded(
         rgba,
     } = sprite;
     let mut mask: Vec<bool> = rgba
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|pixel| pixel[3] > ALPHA_CUT)
         .collect();
     if !mask.iter().any(|visible| *visible) {
@@ -657,7 +661,9 @@ fn component(
 
 fn blurred_luminance(rgba: &[u8], mask: &[bool], width: usize, height: usize) -> Vec<f64> {
     let luminance = rgba
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .zip(mask)
         .map(|(pixel, visible)| {
             if *visible {
@@ -704,28 +710,28 @@ fn blur_sweep(
                     count += 1;
                 }
             }
-            if let Some(remove) = along.checked_sub(2 * radius + 1) {
-                if remove < inner {
-                    let at = if horizontal {
-                        cross * width + remove
-                    } else {
-                        remove * width + cross
-                    };
-                    if mask[at] {
-                        sum -= source[at];
-                        count -= 1;
-                    }
+            if let Some(remove) = along.checked_sub(2 * radius + 1)
+                && remove < inner
+            {
+                let at = if horizontal {
+                    cross * width + remove
+                } else {
+                    remove * width + cross
+                };
+                if mask[at] {
+                    sum -= source[at];
+                    count -= 1;
                 }
             }
-            if let Some(middle) = along.checked_sub(radius) {
-                if middle < inner {
-                    let at = if horizontal {
-                        cross * width + middle
-                    } else {
-                        middle * width + cross
-                    };
-                    output[at] = if count == 0 { 0.0 } else { sum / count as f64 };
-                }
+            if let Some(middle) = along.checked_sub(radius)
+                && middle < inner
+            {
+                let at = if horizontal {
+                    cross * width + middle
+                } else {
+                    middle * width + cross
+                };
+                output[at] = if count == 0 { 0.0 } else { sum / count as f64 };
             }
         }
     }

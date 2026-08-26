@@ -28,6 +28,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Works out which cache files no surviving profile can reach.
@@ -38,7 +39,8 @@ import java.util.Set;
  * the survivor set. Texture and prepared-audio blobs are not like that: they are content-addressed
  * and <b>shared</b>, so the same blob is routinely referenced by several profiles and its name says
  * nothing about who needs it. Deleting one is only safe after reading every surviving manifest and
- * confirming none of them points at it.
+ * confirming none of them points at it without also having an exact readable pack. A complete pack
+ * is the durable copy; keeping the same SPFT payload loose as well is redundant.
  *
  * <p>That asymmetry drives the safety rule here: <b>a manifest that cannot be read aborts the whole
  * plan.</b> An unreadable survivor means an incomplete reachable set, and an incomplete reachable
@@ -50,6 +52,10 @@ final class CachePrune {
     /** Spec-store corpora, and the extension each writes. */
     private static final List<String> SPEC_STORE_EXTENSIONS =
             List.of(".spvj", ".spwj", ".sppj", ".sphj", ".sprc", ".sprk", ".sprt", ".spmr");
+    private static final Pattern QUARANTINE_FILE_PATTERN = Pattern.compile(
+            "[0-9a-f]{64}(-identity\\.spft|\\.spfc|\\.spfj)\\."
+                    + "(identity-mismatch|corrupt|superseded-or-corrupt|stale-profile|"
+                    + "corrupt-profile|corrupt-archive)\\.[0-9]{13,}");
 
     private CachePrune() {
     }
@@ -63,6 +69,21 @@ final class CachePrune {
     static Plan plan(PreflightHome home, Set<String> survivors, Set<String> keepIdentities)
             throws IOException {
         return plan(home, survivors, keepIdentities, Set.of());
+    }
+
+    /** Plans removal of cache-writer rejects without inspecting or pruning live profile data. */
+    static Plan planDiscardable(PreflightHome home) throws IOException {
+        Path cache = home.cache().toAbsolutePath().normalize();
+        List<String> refusals = new ArrayList<>();
+        try {
+            CacheDeletionBoundary.requireSafeTree(cache);
+        } catch (IOException unsafe) {
+            refusals.add("cache deletion boundary could not be verified (" + message(unsafe) + ")");
+            return new Plan(cache, List.of(), List.copyOf(refusals), 0, 0);
+        }
+        List<Removal> removals = discardedQuarantineArtifacts(cache);
+        removals.sort(Comparator.comparingLong(Removal::bytes).reversed());
+        return new Plan(cache, List.copyOf(removals), List.of(), 0, 0);
     }
 
     /**
@@ -88,12 +109,15 @@ final class CachePrune {
 
         removals.addAll(byFingerprint(ResourceIndexIO.directory(cache), ".spfi", survivors));
         removals.addAll(byFingerprint(TextureManifestIO.directory(cache), ".spfm", survivors));
+        removals.addAll(byFingerprint(MinimalPreparationMarker.directory(cache), ".spmn", survivors));
+        removals.addAll(byFingerprint(TexturePreparationReceipt.directory(cache), ".sptp", survivors));
         removals.addAll(byFingerprint(PreparedTexturePackIO.directory(cache), ".spfp", survivors));
         removals.addAll(byFingerprint(PreparedTexturePackIO.directory(cache), ".spfo", survivors));
         removals.addAll(byFingerprint(
                 PreparedAudioCache.manifestDirectory(cache), ".spam", survivors));
         removals.addAll(byFingerprint(
                 ClasspathCacheDirectories.profiles(cache), ".spfc", survivors));
+        removals.addAll(discardedQuarantineArtifacts(cache));
 
         Set<String> reachable = new HashSet<>();
         for (String survivor : survivors) {
@@ -105,8 +129,9 @@ final class CachePrune {
             }
             try {
                 TextureManifest read = TextureManifestIO.read(manifest);
-                for (TextureManifest.Entry entry : read.entries().values()) {
-                    reachable.add(entry.blobRelativePath());
+                List<String> blobs = PackedTextureRetention.blobPaths(read);
+                if (!PackedTextureRetention.hasExactPack(cache, read, blobs)) {
+                    reachable.addAll(blobs);
                 }
             } catch (Exception unreadable) {
                 refusals.add("manifest for surviving profile " + survivor.substring(0, 16)
@@ -184,6 +209,34 @@ final class CachePrune {
             }
         }
         return removals;
+    }
+
+    /**
+     * Collects only quarantine files produced by Preflight's own cache writers.
+     *
+     * <p>These are rejected inputs moved aside immediately before a replacement is written. No
+     * reader consults this directory. The complete name contract matters: an unfamiliar file in
+     * the same directory belongs to the operator and stays put.
+     */
+    private static List<Removal> discardedQuarantineArtifacts(Path cache) throws IOException {
+        Path quarantine = cache.resolve("quarantine");
+        List<Removal> removals = new ArrayList<>();
+        if (!Files.isDirectory(quarantine, LinkOption.NOFOLLOW_LINKS)) {
+            return removals;
+        }
+        try (var files = Files.list(quarantine)) {
+            for (Path file : files
+                    .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)).toList()) {
+                if (isDiscardedQuarantineArtifactName(file.getFileName().toString())) {
+                    removals.add(new Removal(file, Files.size(file), "replaced cache artifact"));
+                }
+            }
+        }
+        return removals;
+    }
+
+    static boolean isDiscardedQuarantineArtifactName(String name) {
+        return QUARANTINE_FILE_PATTERN.matcher(name).matches();
     }
 
     /**

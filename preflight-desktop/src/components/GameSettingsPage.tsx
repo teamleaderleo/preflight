@@ -32,7 +32,20 @@ export function GameSettingsPage({
   onSave,
 }: GameSettingsPageProps) {
   if (!draft || !settings) {
-    return <div className="launch-page"><section className="card launch-loading">{loading ? "Reading game settings…" : "Game settings unavailable"}</section></div>;
+    return (
+      <div className="launch-page">
+        <section className="card launch-loading">
+          {loading ? "Reading game settings…" : (
+            <>
+              <p>Game settings unavailable</p>
+              <button className="button button--quiet button--compact" type="button" onClick={onRefresh}>
+                Try again
+              </button>
+            </>
+          )}
+        </section>
+      </div>
+    );
   }
 
   const diagnostics = [
@@ -76,9 +89,9 @@ export function GameSettingsPage({
 
         <section className="card launch-settings-card">
           <div className="card__heading"><div><h2>Battle and memory</h2></div></div>
-          <label className="setting-slider" htmlFor="launch-battle-size">
-            <span><strong>Battle size</strong><b>{draft.battleSize}</b></span>
-            <input id="launch-battle-size" aria-label="Battle size" type="range" min={settings.limits.battleSizeMin ?? 1} max={battleSizeUpperBound(settings, draft.battleSize)} step="10" value={draft.battleSize} onChange={(event) => onChange({ battleSize: Number(event.target.value) })} />
+          <label className="setting-field" htmlFor="launch-battle-size">
+            <span><strong>Battle size</strong></span>
+            <input id="launch-battle-size" aria-label="Battle size" type="number" min={settings.limits.battleSizeMin ?? 1} max={battleSizeUpperBound(settings, draft.battleSize)} step="10" value={draft.battleSize} onChange={(event) => onChange({ battleSize: Number(event.target.value) })} />
           </label>
           <div className="battle-presets" role="group" aria-label="Battle size presets">
             {battleSizePresets(settings).map((preset) => (

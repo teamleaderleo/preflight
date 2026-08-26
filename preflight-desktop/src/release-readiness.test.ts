@@ -29,16 +29,19 @@ test("explicit Home state modifiers own recovery and preparation composition", (
   recovery.className = "launch-console launch-console--ready launch-console--layout-recovery";
   const status = document.createElement("div");
   status.className = "status-chip";
+  const displayToggle = document.createElement("button");
+  displayToggle.className = "home-display-toggle";
   const options = document.createElement("button");
   options.className = "home-options-toggle";
   const actions = document.createElement("div");
   actions.className = "launch-console__actions";
   const recoveryIdentity = document.createElement("div");
   recoveryIdentity.className = "home-launch-identity";
-  recovery.append(status, options, actions, recoveryIdentity);
+  recovery.append(status, displayToggle, options, actions, recoveryIdentity);
   document.body.append(recovery);
 
   expect(getComputedStyle(status).display).toBe("none");
+  expect(getComputedStyle(displayToggle).display).toBe("none");
   expect(getComputedStyle(options).display).toBe("none");
   expect(getComputedStyle(actions).display).toBe("none");
   expect(getComputedStyle(recoveryIdentity).top).toBe("64px");
@@ -65,14 +68,16 @@ test("explicit Home state modifiers own recovery and preparation composition", (
 
   const settled = document.createElement("section");
   settled.className = "launch-console launch-console--ready launch-console--layout-settled";
-  const shipName = document.createElement("span");
+  const shipPicker = document.createElement("div");
+  shipPicker.className = "home-ship-picker";
+  const shipName = document.createElement("button");
   shipName.className = "home-ship-name";
-  settled.append(shipName);
+  shipPicker.append(shipName);
+  settled.append(shipPicker);
   document.body.append(settled);
-  const shipStyle = getComputedStyle(shipName);
-  expect(shipStyle.overflow).toBe("hidden");
-  expect(shipStyle.textOverflow).toBe("ellipsis");
-  expect(shipStyle.whiteSpace).toBe("nowrap");
+  const pickerStyle = getComputedStyle(shipPicker);
+  expect(pickerStyle.maxWidth).toBe("244px");
+  expect(pickerStyle.overflow).toBe("hidden");
 
   recovery.remove();
   preparation.remove();
@@ -80,7 +85,7 @@ test("explicit Home state modifiers own recovery and preparation composition", (
   style.remove();
 });
 
-test("narrow exceptional states reserve action rows locally", () => {
+test("narrow exceptional states reserve Options space without inferring note layout", () => {
   const style = installReadinessStyles();
   const media = Array.from(style.sheet?.cssRules ?? []).find((rule) =>
     rule instanceof CSSMediaRule && rule.conditionText === "(max-width: 720px)",
@@ -93,13 +98,12 @@ test("narrow exceptional states reserve action rows locally", () => {
   const optionsRule = rules.find((rule) =>
     rule.selectorText === ".launch-console--options-open:has(.launch-console__actions .launch-console__stop) .quick-settings",
   );
-  expect(noteRule?.style.bottom).toBe("132px");
+  expect(noteRule).toBeUndefined();
   expect(optionsRule?.style.bottom).toBe("200px");
   style.remove();
 });
 
-test("restored installed-hull controls stay bounded at desktop and compact widths", () => {
-  expect(readinessStyles).toMatch(/\.hull-picker__list\s*\{[^}]*max-height:\s*152px;[^}]*overflow-y:\s*auto;/s);
-  expect(readinessStyles).toMatch(/\.hangar-dock--catalog \.hangar-dials\s*\{[^}]*repeat\(auto-fit, minmax\(180px, 1fr\)\)/s);
-  expect(readinessStyles).toMatch(/@container \(max-width: 760px\)[\s\S]*?\.hangar-dock--catalog\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;/s);
+test("the smallest Home keeps quick settings above launch without a nested drawer", () => {
+  expect(readinessStyles).toMatch(/@media \(max-width: 600px\)[\s\S]*?\.launch-console--options-open \.quick-settings\s*\{[^}]*bottom:\s*80px;[^}]*padding:\s*6px 14px;/);
+  expect(readinessStyles).toMatch(/\.launch-console--options-open \.home-ship-picker,\s*\.launch-console--options-open \.home-playtime\s*\{[^}]*visibility:\s*hidden;[^}]*opacity:\s*0;/);
 });

@@ -7,24 +7,149 @@
  * A previous run that explicitly recommends review remains visible because that evidence can
  * affect the player's launch decision. */
 :root[data-home-mode="compact"] .launch-console--layout-settled .home-flight-instrument,
-:root[data-home-mode="compact"] .launch-console--layout-settled .home-playtime,
-:root[data-home-mode="compact"] .launch-console--layout-settled .last-run-health:not(.last-run-health--review),
-:root[data-home-mode="compact"] .launch-console--layout-settled .home-ship-name {
+:root[data-home-mode="compact"] .launch-console--layout-settled .home-ship-picker,
+:root[data-home-mode="compact"] .launch-console--layout-settled .home-motion-controls {
   display: none !important;
 }
 
-/* Collapse only the quiet settled state. Active work, preparation, recovery, and an open Options
- * panel retain the composition selected by HomePage, so this cosmetic preference never has to
- * rediscover page state from descendants. */
-:root[data-home-mode="compact"]
-  .launch-console--layout-settled.launch-console--minimal {
-  height: 260px;
-  min-height: 260px;
+/* Home spends the shared semantic roles without inventing a palette of its own. The hull and page
+ * remain the calm field; state colour stays concentrated in status, recovery, and the immediate
+ * action context. */
+.launch-console--layout-settled .status-chip--ready {
+  border: 1px solid color-mix(in srgb, var(--success) 24%, transparent);
 }
 
-:root[data-home-mode="compact"]
-  .launch-console--layout-settled.launch-console--minimal
-  .launch-console__primary {
-  height: 260px;
-  min-height: 260px;
+.launch-console--layout-preparation .status-chip {
+  border: 1px solid color-mix(in srgb, var(--attention) 24%, transparent);
+}
+
+:root .launch-console--repair-state .status-chip,
+:root .launch-console--attention-state .status-chip {
+  color: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 32%, transparent);
+  background: var(--warning-soft);
+}
+
+/* Ready keeps the existing launch geometry while returning the action to the instrument treatment:
+ * palette colour lights the rim instead of repainting the entire Home scene. */
+.launch-console--ready .button--launch {
+  color: var(--launch-ink);
+  border-color: var(--launch-rim);
+  background: var(--launch-fill);
+  box-shadow:
+    inset 0 0 0 1px var(--launch-rim-inner),
+    0 10px 22px color-mix(in srgb, var(--launch-fill) 22%, transparent);
+}
+
+.launch-console--ready .button--launch:not(:disabled):hover {
+  color: var(--launch-ink-hover);
+  border-color: var(--launch-rim-hover);
+  background: var(--launch-fill-hover);
+  box-shadow:
+    inset 0 0 0 1px var(--launch-rim-inner-hover),
+    0 14px 29px color-mix(in srgb, var(--launch-fill) 30%, transparent),
+    0 0 22px var(--launch-glow);
+}
+
+.launch-console--layout-preparation .launch-console__note {
+  border-color: color-mix(in srgb, var(--attention) 30%, var(--line));
+  background: color-mix(in srgb, var(--attention-soft) 58%, var(--paper-solid));
+}
+
+.launch-console--repair-state .launch-console__note,
+.launch-console--attention-state .launch-console__note {
+  border-color: color-mix(in srgb, var(--warning) 38%, var(--line));
+  background: color-mix(in srgb, var(--warning-soft) 62%, var(--paper-solid));
+}
+
+.launch-console--layout-active .button--launch:disabled {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 38%, var(--console-line));
+  background: color-mix(in srgb, var(--success-soft) 34%, var(--paper-solid));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--success) 12%, transparent);
+  opacity: .82;
+}
+
+/* Failed-run and prepared-data recovery get a precise warning cue. The field stays quiet so the
+ * ship and launch identity keep the exact current-main composition underneath. */
+.page-viewport--home > .run-recovery[role="alert"],
+.page-viewport--home > .cache-recovery {
+  border-color: color-mix(in srgb, var(--warning) 18%, var(--line-strong));
+  border-left: 3px solid var(--warning);
+  background: color-mix(in srgb, var(--warning-soft) 18%, var(--paper-solid));
+}
+
+.page-viewport--home > .run-recovery[role="alert"] > div:first-child > strong,
+.page-viewport--home > .cache-recovery > div:first-child > strong {
+  color: var(--warning);
+}
+
+.page-viewport--home > .run-recovery[role="alert"] .button--primary {
+  color: var(--launch-ink);
+  border: 1px solid var(--warning);
+  background: var(--launch-fill);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--warning) 24%, transparent),
+    0 8px 18px color-mix(in srgb, var(--launch-fill) 20%, transparent);
+}
+
+.page-viewport--home > .run-recovery[role="alert"] .button--primary:not(:disabled):hover {
+  color: var(--launch-ink-hover);
+  border-color: color-mix(in srgb, var(--warning) 72%, var(--launch-ink));
+  background: var(--launch-fill-hover);
+}
+
+.launch-console--setup .button--primary {
+  color: var(--launch-ink);
+  border: 1px solid var(--launch-rim);
+  background: var(--launch-fill);
+  box-shadow:
+    inset 0 0 0 1px var(--launch-rim-inner),
+    0 8px 20px color-mix(in srgb, var(--launch-fill) 20%, transparent);
+}
+
+.launch-console--setup .button--primary:not(:disabled):hover {
+  color: var(--launch-ink-hover);
+  border-color: var(--launch-rim-hover);
+  background: var(--launch-fill-hover);
+}
+
+.last-run-health--review {
+  color: var(--attention);
+}
+
+/* The launch-path control is a focusable span, outside the shared button/input/select focus rule.
+ * Use the same full palette accent so its keyboard indicator keeps the accepted light-mode contrast. */
+.home-launch-path:focus-visible {
+  outline-color: var(--accent);
+}
+
+/* Keep the installation-path focus ring tied to its readable label. These alignment rules only
+ * change the interactive hit/focus box; current-main ship, identity, and action coordinates stay put. */
+.launch-console--layout-settled .home-launch-path {
+  align-self: center;
+  width: max-content;
+  max-width: 100%;
+}
+
+.launch-console:is(.launch-console--layout-preparation, .launch-console--layout-recovery) .home-launch-path {
+  align-self: flex-start;
+}
+
+.page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-launch-path {
+  align-self: center;
+}
+
+@media (max-width: 720px) {
+  /* Preparation owns its compact note position directly; it sits above the 60px action block. */
+  :root .launch-console.launch-console--layout-preparation.launch-console--ready .launch-console__note {
+    bottom: 126px;
+  }
+}
+
+
+@media (max-width: 600px) {
+  :root .launch-console.launch-console--layout-preparation.launch-console--ready .launch-console__note {
+    bottom: 156px;
+  }
 }

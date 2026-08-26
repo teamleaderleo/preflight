@@ -29,6 +29,8 @@ def test_package_neutral_paths_skip_native_packages():
         "preflight-desktop/src/App.tsx",
         "preflight-desktop/src/styles.css",
         "preflight-desktop/vite.config.ts",
+        "preflight-desktop/scripts/release-signing-boundary.node-test.mjs",
+        "preflight-desktop/scripts/capture-doc-screenshots.py",
         "scripts/starsector_profile_guard.py",
         "README.md",
     ):

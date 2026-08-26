@@ -99,7 +99,7 @@ const bundledJava = join(
   "bin",
   process.platform === "win32" ? "java.exe" : "java",
 );
-run(bundledJava, ["-jar", join(engineDirectory, "preflight.jar"), "help"], repositoryRoot);
+runQuiet(bundledJava, ["-jar", join(engineDirectory, "preflight.jar"), "help"], repositoryRoot);
 
 const sourceVersion = readProjectVersion();
 const capabilityReceiptPath = join(engineDirectory, "capability-receipt.json");
@@ -136,6 +136,17 @@ function run(command, args, cwd) {
   if (result.error) throw result.error;
   if (result.status !== 0) {
     throw new Error(`${command} exited with status ${result.status}`);
+  }
+}
+
+function runQuiet(command, args, cwd) {
+  const result = spawnSync(command, args, { cwd, encoding: "utf8" });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`.trim();
+    throw new Error(
+      `${command} exited with status ${result.status}${output ? `:\n${output}` : ""}`,
+    );
   }
 }
 

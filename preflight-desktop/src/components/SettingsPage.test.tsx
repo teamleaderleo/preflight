@@ -36,9 +36,7 @@ function props(overrides: Partial<ComponentProps<typeof SettingsPage>> = {}): Co
     removalPlan: null,
     removalBusy: false,
     afterLaunchBehavior: "minimize",
-    automaticRunReports: false,
     installation: "/Applications/Starsector",
-    onAutomaticRunReportsChange: vi.fn(),
     onAfterLaunchBehaviorChange: vi.fn(),
     onChooseInstall: vi.fn(),
     onReviewRemoval: vi.fn(),
@@ -78,18 +76,105 @@ test("installation changes follow the app-wide workflow lock", () => {
   expect(screen.getByRole("button", { name: "Change folder" })).toHaveAttribute("title", "Updating the saved mod profile");
 });
 
+test("support files remain manual even when report intake is configured", () => {
+  render(<SettingsPage {...props({
+    reportIntake: { configured: true, origin: "https://reports.example", reason: null },
+  })} />);
+
+  expect(screen.queryByRole("checkbox", { name: /failed-run reports/i })).not.toBeInTheDocument();
+  expect(screen.getByText("Reports are sent only when you choose.")).toBeInTheDocument();
+});
+
+test("an update failure replaces the stale unchecked status", () => {
+  render(<SettingsPage {...props({
+    updates: {
+      ...updates,
+      updateError: "Couldn’t check for updates. The service is unavailable.",
+      updateStatus: null,
+    } as ReturnType<typeof useSignedUpdates>,
+  })} />);
+
+  expect(screen.getByRole("alert")).toHaveTextContent("Couldn’t check for updates");
+  expect(screen.queryByText("Update status hasn’t been checked yet.")).not.toBeInTheDocument();
+});
+
+test("removal review takes focus and Cancel returns to the initiating control", async () => {
+  const user = userEvent.setup();
+  const onReviewRemoval = vi.fn();
+  const onDismissRemoval = vi.fn();
+  const initial = props({ onReviewRemoval, onDismissRemoval });
+  const { rerender } = render(<SettingsPage {...initial} />);
+
+  const summary = screen.getByText("Remove Preflight").closest("summary");
+  expect(summary).not.toBeNull();
+  await user.click(summary!);
+  const trigger = screen.getByRole("button", { name: "Review deletion" });
+  await user.click(trigger);
+  expect(onReviewRemoval).toHaveBeenCalledWith("all-data");
+
+  rerender(<SettingsPage {...props({
+    onReviewRemoval,
+    onDismissRemoval,
+    removalPlan: {
+      format: "preflight-removal-v1",
+      scope: "all-data",
+      safe: true,
+      applied: false,
+      bytes: 1024,
+      files: 2,
+      targets: [{
+        kind: "preflight-data",
+        label: "Preflight data",
+        path: "/tmp/preflight-data",
+        bytes: 1024,
+        files: 2,
+      }],
+      refusals: [],
+      preserves: [],
+    },
+  })} />);
+
+  expect(screen.getByRole("region", { name: "Removal review" })).toHaveFocus();
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(onDismissRemoval).toHaveBeenCalledOnce();
+  expect(trigger).toHaveFocus();
+});
+
+test("unsafe removal review shows the refusal beside the disabled action", () => {
+  render(<SettingsPage {...props({
+    removalPlan: {
+      format: "preflight-removal-v1",
+      scope: "all-data",
+      safe: false,
+      applied: false,
+      bytes: 0,
+      files: 0,
+      targets: [{
+        kind: "preflight-data",
+        label: "Preflight data",
+        path: "/tmp/preflight-data",
+        bytes: 0,
+        files: 0,
+      }],
+      refusals: ["Preflight home directory is a symlink or alias. All-data removal is refused."],
+      preserves: [],
+    },
+  })} />);
+
+  expect(screen.getByText("Preflight home directory is a symlink or alias. All-data removal is refused.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Remove all Preflight data" })).toBeDisabled();
+});
+
 test("Home presentation switches immediately between Hangar and Compact", async () => {
   const user = userEvent.setup();
   render(<SettingsPage {...props()} />);
 
   const select = screen.getByRole("combobox", { name: "Home presentation" });
   expect(select).toHaveValue("hangar");
-  expect(screen.getByText("Hull-led Home with the full settled display.")).toBeInTheDocument();
 
   await user.selectOptions(select, "compact");
   expect(select).toHaveValue("compact");
   expect(document.documentElement.dataset.homeMode).toBe("compact");
-  expect(screen.getByText("Launch-first Home without the decorative hull and history readouts.")).toBeInTheDocument();
   expect(JSON.parse(window.localStorage.getItem(HOME_PRESENTATION_STORAGE_KEY) ?? "null"))
     .toEqual({ mode: "compact", showPlaytime: true });
 });
@@ -100,7 +185,6 @@ test("Home playtime visibility is an immediate display-only preference", async (
 
   const select = screen.getByRole("combobox", { name: "Home playtime" });
   expect(select).toHaveValue("show");
-  expect(screen.getByText("Display only. Launch history and playtime recording continue either way.")).toBeInTheDocument();
 
   await user.selectOptions(select, "hide");
   expect(select).toHaveValue("hide");

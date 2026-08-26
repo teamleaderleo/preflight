@@ -15,6 +15,7 @@ final class AgentLaunchConfig {
     private final Path adapterReport;
     private final Path adapterTargets;
     private final Path textureCacheDirectory;
+    private final String textureProfile;
     private final Path textureManifest;
     private final Path textureIndex;
     private final TextureAdapterMode textureAdapterMode;
@@ -39,6 +40,7 @@ final class AgentLaunchConfig {
     private final Path preparedAudioManifest;
     private final String preparedAudioManifestIdentity;
     private final Path mergedReadCache;
+    private final Path magicPaintjobCache;
     private final boolean quietLogs;
     private final boolean graphicsLibCompactReplay;
     private final Path janinoBytecodeCache;
@@ -53,6 +55,7 @@ final class AgentLaunchConfig {
         adapterReport = builder.adapterReport;
         adapterTargets = builder.adapterTargets;
         textureCacheDirectory = builder.textureCacheDirectory;
+        textureProfile = builder.textureProfile;
         textureManifest = builder.textureManifest;
         textureIndex = builder.textureIndex;
         textureAdapterMode = builder.textureAdapterMode;
@@ -77,6 +80,7 @@ final class AgentLaunchConfig {
         preparedAudioManifest = builder.preparedAudioManifest;
         preparedAudioManifestIdentity = builder.preparedAudioManifestIdentity;
         mergedReadCache = builder.mergedReadCache;
+        magicPaintjobCache = builder.magicPaintjobCache;
         quietLogs = builder.quietLogs;
         graphicsLibCompactReplay = builder.graphicsLibCompactReplay;
         janinoBytecodeCache = builder.janinoBytecodeCache;
@@ -99,6 +103,7 @@ final class AgentLaunchConfig {
     Path adapterReport() { return adapterReport; }
     Path adapterTargets() { return adapterTargets; }
     Path textureCacheDirectory() { return textureCacheDirectory; }
+    String textureProfile() { return textureProfile; }
     Path textureManifest() { return textureManifest; }
     Path textureIndex() { return textureIndex; }
     TextureAdapterMode textureAdapterMode() { return textureAdapterMode; }
@@ -123,6 +128,7 @@ final class AgentLaunchConfig {
     Path preparedAudioManifest() { return preparedAudioManifest; }
     String preparedAudioManifestIdentity() { return preparedAudioManifestIdentity; }
     Path mergedReadCache() { return mergedReadCache; }
+    Path magicPaintjobCache() { return magicPaintjobCache; }
     boolean quietLogs() { return quietLogs; }
     boolean graphicsLibCompactReplay() { return graphicsLibCompactReplay; }
     Path janinoBytecodeCache() { return janinoBytecodeCache; }
@@ -137,6 +143,7 @@ final class AgentLaunchConfig {
         private Path adapterReport;
         private Path adapterTargets;
         private Path textureCacheDirectory;
+        private String textureProfile;
         private Path textureManifest;
         private Path textureIndex;
         private TextureAdapterMode textureAdapterMode = TextureAdapterMode.COMPATIBILITY;
@@ -161,6 +168,7 @@ final class AgentLaunchConfig {
         private Path preparedAudioManifest;
         private String preparedAudioManifestIdentity;
         private Path mergedReadCache;
+        private Path magicPaintjobCache;
         private boolean quietLogs;
         private boolean graphicsLibCompactReplay;
         private Path janinoBytecodeCache;
@@ -177,6 +185,7 @@ final class AgentLaunchConfig {
         Builder adapterReport(Path value) { adapterReport = value; return this; }
         Builder adapterTargets(Path value) { adapterTargets = value; return this; }
         Builder textureCacheDirectory(Path value) { textureCacheDirectory = value; return this; }
+        Builder textureProfile(String value) { textureProfile = value; return this; }
         Builder textureManifest(Path value) { textureManifest = value; return this; }
         Builder textureIndex(Path value) { textureIndex = value; return this; }
         Builder textureAdapterMode(TextureAdapterMode value) { textureAdapterMode = Objects.requireNonNull(value); return this; }
@@ -201,6 +210,7 @@ final class AgentLaunchConfig {
         Builder preparedAudioManifest(Path value) { preparedAudioManifest = value; return this; }
         Builder preparedAudioManifestIdentity(String value) { preparedAudioManifestIdentity = value; return this; }
         Builder mergedReadCache(Path value) { mergedReadCache = value; return this; }
+        Builder magicPaintjobCache(Path value) { magicPaintjobCache = value; return this; }
         Builder quietLogs(boolean value) { quietLogs = value; return this; }
         Builder graphicsLibCompactReplay(boolean value) { graphicsLibCompactReplay = value; return this; }
         Builder janinoBytecodeCache(Path value) { janinoBytecodeCache = value; return this; }
@@ -227,6 +237,9 @@ final class AgentLaunchConfig {
             requireEnabledAdapter(
                     mergedReadCache != null,
                     "Merged read cache requires the enabled adapter");
+            requireEnabledAdapter(
+                    magicPaintjobCache != null,
+                    "MagicLib paintjob cache requires the enabled adapter");
             if ((preparedAudioCache == null) != (audioDecoderIdentity == null)) {
                 throw new IllegalArgumentException(
                         "Prepared audio cache and decoder identity must be supplied together");

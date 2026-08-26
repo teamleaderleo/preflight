@@ -5,8 +5,8 @@ import { SIDEBAR_STORAGE_KEY } from "../desktopStorage";
 import {
   HomeIcon,
   LayersIcon,
-  LifebuoyIcon,
   MoonIcon,
+  QuestionIcon,
   SettingsIcon,
   ShipIcon,
   SidebarIcon,
@@ -21,6 +21,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
@@ -45,6 +46,8 @@ const PALETTE_NAMES: Record<PalettePreference, string> = {
   airglow: "Airglow",
   phosphor: "Phosphor",
 };
+
+const WORKSPACE_SCROLL_KEYS = new Set(["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End", " "]);
 
 export type Page = "home" | "launch" | "speed" | "mods" | "hangar" | "benchmark" | "help" | "settings";
 
@@ -91,7 +94,6 @@ export function DesktopShell({
   const previousPage = useRef(page);
   const pointerFrame = useRef<number | null>(null);
   const pointerPosition = useRef({ x: -1000, y: -1000 });
-  const pageChanged = previousPage.current !== page;
   const moveGridHighlight = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     const shell = event.currentTarget;
     pointerPosition.current = { x: event.clientX, y: event.clientY };
@@ -122,12 +124,30 @@ export function DesktopShell({
       return next;
     });
   }, []);
+  const handOffWorkspaceScroll = useCallback((event: ReactKeyboardEvent<HTMLHeadingElement>) => {
+    const workspace = pageViewport.current;
+    if (!workspace || !WORKSPACE_SCROLL_KEYS.has(event.key)) return;
+    if (workspace.scrollHeight <= workspace.clientHeight + 1) return;
+    // Page changes focus the heading so assistive technology hears the new destination. The outer
+    // document is intentionally locked, though, so native scroll keys have nowhere to go from the
+    // heading. Move focus into the named workspace and let the WebView perform its normal default
+    // scroll action; keeping the key event intact preserves platform-native distances and behavior.
+    workspace.focus({ preventScroll: true });
+  }, []);
   useEffect(() => {
-    if (pageViewport.current) pageViewport.current.scrollTop = 0;
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
-    if (previousPage.current !== page) pageTitle.current?.focus({ preventScroll: true });
+    const changed = previousPage.current !== page;
     previousPage.current = page;
+    // Route housekeeping is useful, but none of it belongs in the interaction that reveals the
+    // destination. React may run an interaction-triggered effect before the browser paints. Yield
+    // one task so the browser gets a paint opportunity for the selected tab and retained page,
+    // then reset scroll and announce the heading to keyboard and assistive-technology users.
+    const timer = window.setTimeout(() => {
+      if (pageViewport.current) pageViewport.current.scrollTop = 0;
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      if (changed) pageTitle.current?.focus({ preventScroll: true });
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [page]);
   useEffect(() => () => {
     if (pointerFrame.current !== null) window.cancelAnimationFrame(pointerFrame.current);
@@ -178,20 +198,20 @@ export function DesktopShell({
             <ShipIcon /><span>Hangar</span>
           </button>
           <button className={`nav__item ${page === "help" ? "nav__item--active" : ""}`} type="button" title="Help" aria-current={page === "help" ? "page" : undefined} onClick={() => onPageChange("help")}>
-            <LifebuoyIcon /><span>Help</span>
+            <QuestionIcon /><span>Help</span>
           </button>
         </nav>
         <div className="sidebar__footer">
           <button className={`nav__item ${page === "settings" ? "nav__item--active" : ""}`} type="button" title="Settings" aria-current={page === "settings" ? "page" : undefined} onClick={() => onPageChange("settings")}>
             <SettingsIcon /><span>Settings</span>
-            {updateAvailable ? <span className="nav__badge">Update</span> : null}
+            {updateAvailable ? <span className="nav__badge" aria-hidden="true">Update</span> : null}
           </button>
         </div>
       </aside>
 
       <main className="main" id="main-content" tabIndex={-1}>
-        <header className="topbar">
-          <h1 className="page-title" ref={pageTitle} tabIndex={-1}>{title}</h1>
+        <header className={`topbar${homeActive ? " topbar--home" : ""}`}>
+          <h1 id="page-title" className="page-title" ref={pageTitle} tabIndex={-1} onKeyDown={handOffWorkspaceScroll}>{title}</h1>
           <div className="topbar__actions">
             <div className="palette-switch" role="group" aria-label="Color palette">
               {PALETTES.map((choice) => (
@@ -200,6 +220,7 @@ export function DesktopShell({
                   className={`palette-switch__button ${palette === choice ? "palette-switch__button--active" : ""}`}
                   type="button"
                   title={`Use ${PALETTE_NAMES[choice]} palette`}
+                  data-tooltip={PALETTE_NAMES[choice]}
                   aria-label={`Use ${PALETTE_NAMES[choice]} palette`}
                   aria-pressed={palette === choice}
                   onClick={() => onPaletteChange(choice)}
@@ -209,26 +230,29 @@ export function DesktopShell({
               ))}
             </div>
             <div className="theme-switch" role="group" aria-label="Color theme">
-              <button className={theme === "system" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use system theme" aria-label="Use system theme" aria-pressed={theme === "system"} onClick={() => onThemeChange("system")}><SystemThemeIcon /></button>
-              <button className={theme === "light" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use light theme" aria-label="Use light theme" aria-pressed={theme === "light"} onClick={() => onThemeChange("light")}><SunIcon /></button>
-              <button className={theme === "dark" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use dark theme" aria-label="Use dark theme" aria-pressed={theme === "dark"} onClick={() => onThemeChange("dark")}><MoonIcon /></button>
+              <button className={theme === "system" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use system theme" data-tooltip="System" aria-label="Use system theme" aria-pressed={theme === "system"} onClick={() => onThemeChange("system")}><SystemThemeIcon /></button>
+              <button className={theme === "light" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use light theme" data-tooltip="Light" aria-label="Use light theme" aria-pressed={theme === "light"} onClick={() => onThemeChange("light")}><SunIcon /></button>
+              <button className={theme === "dark" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use dark theme" data-tooltip="Dark" aria-label="Use dark theme" aria-pressed={theme === "dark"} onClick={() => onThemeChange("dark")}><MoonIcon /></button>
             </div>
           </div>
         </header>
         <div
-          key={page}
           id="page-workspace"
           ref={pageViewport}
+          role="region"
+          aria-labelledby="page-title"
           tabIndex={-1}
-          className={`page-viewport page-viewport--${page}${pageChanged ? " page-viewport--entering" : ""}`}
+          className={`page-viewport page-viewport--${page}`}
         >
           {children}
         </div>
         <footer>
-          <span>Preflight {engineVersion}</span>
+          <span title={`Source ${__PREFLIGHT_SOURCE_REVISION__}`}>
+            Preflight {engineVersion}
+          </span>
           {/* Quiet and optional, at the very bottom rather than in the launch flow. */}
           <span className="footer__links">
-            <button type="button" onClick={() => void openProjectLink("tip-patreon")}>Support on Patreon</button>
+            <button type="button" onClick={() => void openProjectLink("tip-patreon")}>Patreon</button>
           </span>
           <span>Unofficial · Not affiliated with Fractal Softworks</span>
         </footer>

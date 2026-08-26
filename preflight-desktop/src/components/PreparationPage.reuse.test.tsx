@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
-import type { PreparationStoragePlan, WireframeHull } from "../types";
+import type { PreparationStoragePlan } from "../types";
 import type { usePreparation } from "../usePreparation";
 import type { SpeedStanding } from "../useSpeedRecord";
 import { PreparationPage } from "./PreparationPage";
@@ -26,17 +26,12 @@ function plan(overrides: Partial<PreparationStoragePlan> = {}): PreparationStora
     uniquePixelBytes: 128 * 1024 * 1024,
     reusableLooseBytes: 0,
     predictedLooseBytes: 32 * 1024 * 1024,
-    upperLooseBytes: 64 * 1024 * 1024,
     predictedPackBytes: 16 * 1024 * 1024,
-    upperPackBytes: 32 * 1024 * 1024,
     predictedMetadataBytes: 4 * 1024 * 1024,
-    upperMetadataBytes: 8 * 1024 * 1024,
     predictedAdditionalBytes: 52 * 1024 * 1024,
-    upperBoundAdditionalBytes: 104 * 1024 * 1024,
     safetyReserveBytes: 1024 * 1024 * 1024,
     requiredFreeBytes: 1128 * 1024 * 1024,
     usableBytes: 20 * 1024 * 1024 * 1024,
-    remainingAfterUpperBoundBytes: 19 * 1024 * 1024 * 1024,
     packHit: false,
     complete: true,
     safeToPrepare: true,
@@ -49,6 +44,7 @@ function plan(overrides: Partial<PreparationStoragePlan> = {}): PreparationStora
 
 function preparation(
   preparationPlan: PreparationStoragePlan,
+  overrides: Partial<ReturnType<typeof usePreparation>> = {},
 ): ReturnType<typeof usePreparation> {
   return {
     cache: null,
@@ -70,10 +66,14 @@ function preparation(
     setResourcePreset: vi.fn(),
     setTextureStorage: vi.fn(),
     stopPreparation: vi.fn(),
+    ...overrides,
   } as unknown as ReturnType<typeof usePreparation>;
 }
 
-function renderPage(preparationPlan: PreparationStoragePlan) {
+function renderPage(
+  preparationPlan: PreparationStoragePlan,
+  overrides: Partial<ReturnType<typeof usePreparation>> = {},
+) {
   render(
     <PreparationPage
       message=""
@@ -81,12 +81,11 @@ function renderPage(preparationPlan: PreparationStoragePlan) {
       isReady
       optimizationPreset="recommended"
       disabledOptimizationDomains={[]}
-      preparation={preparation(preparationPlan)}
+      preparation={preparation(preparationPlan, overrides)}
       cleanupPlan={null}
       cleanupBusy={false}
       operationBlocked={false}
       speedStanding={{} as SpeedStanding}
-      instrumentHull={{} as WireframeHull}
       onOptimizationPresetChange={vi.fn()}
       onOptimizationDomainChange={vi.fn()}
       onReviewCleanup={vi.fn()}
@@ -108,7 +107,7 @@ test("compatible prepared texture bytes are described as present without promisi
   expect(screen.getByText("Compatible prepared texture data on disk")).toBeInTheDocument();
   expect(screen.getByText(/alternate encodings that remain on disk while preparation uses another/)).toBeInTheDocument();
   expect(screen.queryByText(/will be reused/i)).not.toBeInTheDocument();
-  expect(screen.getByText("Preparing this profile adds")).toBeInTheDocument();
+  expect(screen.getByText("Finished texture data")).toBeInTheDocument();
 });
 
 test("pack hit reserves reuse wording for the exact current profile pack", () => {
@@ -125,8 +124,8 @@ test("pack hit reserves reuse wording for the exact current profile pack", () =>
   expect(screen.getByText("Compatible prepared texture data on disk")).toBeInTheDocument();
   expect(screen.getByText("Current profile texture pack")).toBeInTheDocument();
   expect(screen.getByText("Will be reused")).toBeInTheDocument();
-  expect(screen.getByText(/builder’s required entry order/)).toBeInTheDocument();
-  expect(screen.getByText("Preparing this profile adds")).toBeInTheDocument();
+  expect(screen.getByText("This profile’s texture pack is ready, so it doesn’t need to be rebuilt.")).toBeInTheDocument();
+  expect(screen.getByText("Finished texture data")).toBeInTheDocument();
 });
 
 test("cold preparation stays silent about already-present texture data and pack reuse", () => {
@@ -135,5 +134,24 @@ test("cold preparation stays silent about already-present texture data and pack 
   expect(screen.queryByText(/compatible prepared texture data is already on disk/)).not.toBeInTheDocument();
   expect(screen.queryByText("Compatible prepared texture data on disk")).not.toBeInTheDocument();
   expect(screen.queryByText("Current profile texture pack")).not.toBeInTheDocument();
-  expect(screen.getByText("Preparing this profile adds")).toBeInTheDocument();
+  expect(screen.getByText("Finished texture data")).toBeInTheDocument();
+});
+
+test("default preparation stays quiet while advanced overrides state their consequences", () => {
+  renderPage(plan());
+
+  expect(screen.getByText("Ready to prepare")).toBeInTheDocument();
+  expect(screen.queryByText(/Balanced storage selected/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/medium resource use/i)).not.toBeInTheDocument();
+});
+
+test("changed storage and resource choices stay visible without preset-name narration", () => {
+  renderPage(plan({ textureStorage: "fastest" }), {
+    textureStorage: "fastest",
+    resourcePreset: "eager",
+  });
+
+  expect(screen.getByText("Keeps textures uncompressed and uses more disk · Uses more preparation resources.")).toBeInTheDocument();
+  expect(screen.queryByText(/Fastest raw storage selected/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/high resource use/i)).not.toBeInTheDocument();
 });

@@ -46,6 +46,13 @@ final class DesktopBridgeCommand {
                 throw new IOException("Could not read the desktop home state", failure);
             }
         }
+        if (offset < args.length && "mod-readiness".equals(args[offset])) {
+            try {
+                return DesktopModReadinessCommand.execute(args, offset + 1);
+            } catch (Exception failure) {
+                throw new IOException("Could not check the current mod setup", failure);
+            }
+        }
         if (offset < args.length && "scenario".equals(args[offset])) {
             return scenario(args, offset + 1);
         }

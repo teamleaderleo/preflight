@@ -19,6 +19,10 @@ from pathlib import Path
 
 SCRIPT_PATH = Path(__file__).with_name("run-startup-benchmark.sh")
 SCRIPT_TEXT = SCRIPT_PATH.read_text(encoding="utf-8")
+PUBLIC_SCRIPT_PATH = Path(__file__).with_name("benchmark-startup.sh")
+PUBLIC_SCRIPT_TEXT = PUBLIC_SCRIPT_PATH.read_text(encoding="utf-8")
+PROBE_SCRIPT_PATH = Path(__file__).with_name("probe-launch.sh")
+PROBE_SCRIPT_TEXT = PROBE_SCRIPT_PATH.read_text(encoding="utf-8")
 
 MODULE_PATH = Path(__file__).with_name("starsector_benchmark_report.py")
 spec = importlib.util.spec_from_file_location("starsector_benchmark_report", MODULE_PATH)
@@ -42,6 +46,158 @@ def runs(*specs) -> list[dict]:
             "exitCode": 0,
         })
     return records
+
+
+class PublicEntryPointTest(unittest.TestCase):
+    def test_default_is_one_unattended_fast_launch(self):
+        for argument in (
+            "--unattended",
+            "--conditions fast",
+            "--rounds 1",
+            "--skip-warmup",
+            "--cooldown-seconds 0",
+        ):
+            self.assertIn(argument, PUBLIC_SCRIPT_TEXT)
+        self.assertIn("PREFLIGHT_BENCHMARK_CONCISE=true", PUBLIC_SCRIPT_TEXT)
+
+    def test_diagnostics_and_campaign_are_explicit_modes(self):
+        self.assertIn("--details)", PUBLIC_SCRIPT_TEXT)
+        self.assertIn("--campaign)", PUBLIC_SCRIPT_TEXT)
+        self.assertIn("PREFLIGHT_BENCHMARK_CONCISE=false", PUBLIC_SCRIPT_TEXT)
+
+    def test_legacy_one_shot_shape_is_concise_without_the_public_wrapper(self):
+        self.assertIn('CONCISE="${PREFLIGHT_BENCHMARK_CONCISE:-auto}"', SCRIPT_TEXT)
+        self.assertIn('if [[ "$CONCISE" == auto ]]', SCRIPT_TEXT)
+        self.assertIn('"$UNATTENDED" == true && "$CONDITIONS" == fast && "$ROUNDS" == 1', SCRIPT_TEXT)
+
+    def test_concise_mode_keeps_the_exact_main_menu_clock(self):
+        self.assertIn("gameLogStartToGraphicsPreloadMs", SCRIPT_TEXT)
+        self.assertIn('printf "Startup: %.2fs', SCRIPT_TEXT)
+
+    def test_concise_mode_avoids_the_expensive_convenience_run_scans(self):
+        self.assertIn('doctor --game "$GAME" --no-scan', SCRIPT_TEXT)
+        self.assertIn('if [[ "$CONCISE" != true || "$CONDITIONS" != fast ]]', SCRIPT_TEXT)
+        self.assertIn('if [[ -n "$LAUNCHER" ]]; then\n                command+=(--launcher "$LAUNCHER")', SCRIPT_TEXT)
+        self.assertIn('if [[ "$CONCISE" == true ]]; then\n        # A one-shot result', SCRIPT_TEXT)
+        self.assertIn('fingerprint="$EXPECTED_FINGERPRINT"', SCRIPT_TEXT)
+
+    def test_one_shot_identifies_the_enabled_profile_instead_of_trusting_a_stamp(self):
+        baseline = re.search(
+            r'BASELINE_PROFILE="\$ROOT/profile-baseline.json"(?P<body>.*?)\nnote "profile:',
+            SCRIPT_TEXT,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(baseline, "baseline profile setup not found")
+        body = baseline.group("body")
+        self.assertIn('EXPECTED_FINGERPRINT="$(scan_fingerprint "$BASELINE_PROFILE")"', body)
+        self.assertNotIn('EXPECTED_FINGERPRINT="${stamp_value%%:*}"', body)
+
+    def test_default_storage_follows_the_exact_profiles_learned_access_order(self):
+        self.assertIn('TEXTURE_STORAGE=""', SCRIPT_TEXT)
+        selection = re.search(
+            r'resolve_texture_storage\(\) \{(?P<body>.*?)\n\}',
+            SCRIPT_TEXT,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(selection, "automatic storage selection not found")
+        body = selection.group("body")
+        self.assertIn('$cache/packs/$profile.spta', body)
+        with tempfile.TemporaryDirectory() as name:
+            cache = Path(name)
+            profile = "a" * 64
+            function = f'resolve_texture_storage() {{{body}\n}}\n'
+            fresh = subprocess.run(
+                ["bash", "-c", function + 'resolve_texture_storage "" "$1" "$2"', "-", str(cache), profile],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertEqual("balanced", fresh.stdout.strip())
+            (cache / "packs").mkdir()
+            (cache / "packs" / f"{profile}.spta").touch()
+            learned = subprocess.run(
+                ["bash", "-c", function + 'resolve_texture_storage "" "$1" "$2"', "-", str(cache), profile],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertEqual("compact", learned.stdout.strip())
+            explicit = subprocess.run(
+                ["bash", "-c", function + 'resolve_texture_storage fastest "$1" "$2"', "-", str(cache), profile],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertEqual("fastest", explicit.stdout.strip())
+        self.assertLess(
+            SCRIPT_TEXT.index('EXPECTED_FINGERPRINT="$(scan_fingerprint "$BASELINE_PROFILE")"'),
+            SCRIPT_TEXT.index('TEXTURE_STORAGE="$(resolve_texture_storage'),
+        )
+        self.assertLess(
+            SCRIPT_TEXT.index('TEXTURE_STORAGE="$(resolve_texture_storage'),
+            SCRIPT_TEXT.index('--arg textureStorage "$TEXTURE_STORAGE"'),
+        )
+
+    def test_one_shot_direct_launch_does_not_start_a_settings_jvm_first(self):
+        settings = re.search(
+            r'LAUNCH_SETTINGS="\$ROOT/launch-settings.json"(?P<body>.*?)\n\nPROTOCOL=clicked',
+            SCRIPT_TEXT,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(settings, "launch settings setup not found")
+        self.assertIn('if [[ "$ONE_SHOT_DIRECT" == true ]]', settings.group("body"))
+        self.assertIn('command+=(--direct)', SCRIPT_TEXT)
+
+    def test_benchmarked_preflight_launches_do_not_run_the_profile_census(self):
+        self.assertIn('if [[ "$condition" != vanilla ]]', SCRIPT_TEXT)
+        self.assertIn('command+=(--no-scan)', SCRIPT_TEXT)
+
+    def test_concise_mode_reuses_a_current_checkout_jar(self):
+        self.assertIn('checkout_is_current=false', SCRIPT_TEXT)
+        self.assertIn('-newer "$CHECKOUT_JAR"', SCRIPT_TEXT)
+
+    def test_concise_repreparation_hides_progress_but_preserves_failure_details(self):
+        prepare = re.search(
+            r"prepare_caches\(\) \{(?P<body>.*?)\n\}", SCRIPT_TEXT, re.DOTALL,
+        )
+        self.assertIsNotNone(prepare, "prepare_caches function not found")
+        body = prepare.group("body")
+        self.assertIn('prepare_log="$ROOT/prepare-console.txt"', body)
+        self.assertIn('>"$prepare_log" 2>&1', body)
+        self.assertIn('cat "$prepare_log" >&2', body)
+        self.assertIn('--report "$PREPARE_REPORT" >/dev/null', body)
+
+    def test_stopped_watchdog_is_reaped_without_shell_noise(self):
+        self.assertEqual(
+            SCRIPT_TEXT.count('kill "$watchdog" >/dev/null 2>&1 || true'),
+            SCRIPT_TEXT.count('wait "$watchdog" >/dev/null 2>&1 || true'),
+        )
+
+    def test_detailed_probe_reuses_the_same_cheap_engine_boundaries(self):
+        self.assertIn('find pom.xml preflight-*/pom.xml preflight-*/src', PROBE_SCRIPT_TEXT)
+        self.assertIn('doctor --game "$GAME" --no-scan', PROBE_SCRIPT_TEXT)
+        self.assertIn('--engine) ENGINE="$2"', PROBE_SCRIPT_TEXT)
+
+    def test_detailed_probe_stops_the_exact_published_runtime(self):
+        stop = re.search(
+            r"^stop_owned_game\(\) \{(?P<body>.*?)\n\}",
+            PROBE_SCRIPT_TEXT,
+            re.DOTALL | re.M,
+        )
+        self.assertIsNotNone(stop, "stop_owned_game not found")
+        body = stop.group("body")
+        self.assertIn('runtime-process.json', body)
+        self.assertIn('grep -qx "$runtime_pid" <<< "$tree"', body)
+        self.assertLess(body.index('kill "$runtime_pid"'), body.index('for target in $tree'))
+
+    def test_detailed_probe_does_not_rescan_every_java_process_while_waiting(self):
+        cleanup = re.search(
+            r"^cleanup\(\) \{(?P<body>.*?)\n\}",
+            PROBE_SCRIPT_TEXT,
+            re.DOTALL | re.M,
+        )
+        self.assertIsNotNone(cleanup, "cleanup not found")
+        self.assertNotIn('for _ in $(seq 1 15)', cleanup.group("body"))
 
 
 class ConditionTest(unittest.TestCase):
@@ -97,6 +253,38 @@ class OrderTest(unittest.TestCase):
 
 
 class ResilienceTest(unittest.TestCase):
+    def test_path_aliases_share_one_measurement_identity(self):
+        body = re.search(r"physical_path\(\) \{(?P<body>.*?)\n\}", SCRIPT_TEXT, re.DOTALL)
+        self.assertIsNotNone(body, "physical_path not found")
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            real = directory / "real"
+            alias = directory / "alias"
+            real.mkdir()
+            alias.symlink_to(real, target_is_directory=True)
+            script = (
+                f'physical_path() {{{body.group("body")}\n}}\n'
+                f'physical_path "{alias / "future-cache"}"\n'
+            )
+            result = subprocess.run(
+                ["bash", "-c", script], capture_output=True, text=True, check=True
+            )
+            self.assertEqual(
+                str(Path(real).resolve() / "future-cache"), result.stdout.strip()
+            )
+
+    def test_resume_normalizes_paths_before_comparing_them(self):
+        self.assertIn('GAME="$(physical_path "$GAME")"', SCRIPT_TEXT)
+        self.assertIn('CACHE="$(physical_path "$CACHE")"', SCRIPT_TEXT)
+        self.assertIn(
+            'RECORDED_GAME="$(physical_path "$(jq -er \'.game\' "$SESSION_CONFIG")")"',
+            SCRIPT_TEXT,
+        )
+        self.assertIn(
+            'RECORDED_CACHE="$(physical_path "$(jq -er \'.cache\' "$SESSION_CONFIG")")"',
+            SCRIPT_TEXT,
+        )
+
     def test_one_bad_launch_does_not_abort_the_campaign(self):
         loop = re.search(
             r"for round in \$\(seq 1 \"\$ROUNDS\"\); do(?P<body>.*?)\ndone", SCRIPT_TEXT, re.DOTALL
@@ -119,6 +307,7 @@ class ResilienceTest(unittest.TestCase):
             "RECORDED_COOLDOWN",
             "RECORDED_GAME",
             "RECORDED_CACHE",
+            "RECORDED_TEXTURE_STORAGE",
             "RECORDED_SEED",
             "RECORDED_PROTOCOL",
         ):
@@ -126,6 +315,27 @@ class ResilienceTest(unittest.TestCase):
         self.assertIn('CONDITIONS="$RECORDED_CONDITIONS"', SCRIPT_TEXT)
         self.assertIn('UNATTENDED="$RECORDED_UNATTENDED"', SCRIPT_TEXT)
         self.assertIn('SEED="$RECORDED_SEED"', SCRIPT_TEXT)
+        self.assertIn('TEXTURE_STORAGE="$RECORDED_TEXTURE_STORAGE"', SCRIPT_TEXT)
+
+    def test_storage_policy_is_part_of_preparation_and_session_identity(self):
+        self.assertIn('PREPARE_TEXTURE_STORAGE=balanced', SCRIPT_TEXT)
+        self.assertIn('TEXTURE_SCOPE=learned', SCRIPT_TEXT)
+        self.assertIn(
+            '--texture-storage "$PREPARE_TEXTURE_STORAGE" --texture-scope "$TEXTURE_SCOPE"',
+            SCRIPT_TEXT,
+        )
+        self.assertIn('PREPARE_STAMP_VALUE="$EXPECTED_FINGERPRINT:$TEXTURE_STORAGE"', SCRIPT_TEXT)
+        self.assertIn('--arg textureStorage "$TEXTURE_STORAGE"', SCRIPT_TEXT)
+        self.assertIn('"textureStorage": "$TEXTURE_STORAGE"', SCRIPT_TEXT)
+
+    def test_legacy_preparation_stamp_is_balanced_only(self):
+        stamp_guard = re.search(
+            r'elif \[\[ -f "\$PREPARE_STAMP"(?P<body>.*?)\]\]; then',
+            SCRIPT_TEXT,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(stamp_guard, "preparation stamp guard not found")
+        self.assertIn('"$TEXTURE_STORAGE" == balanced', stamp_guard.group("body"))
 
     def test_resume_never_overwrites_immutable_launch_settings(self):
         settings = re.search(
@@ -244,7 +454,7 @@ class CandidateEngineTest(unittest.TestCase):
         # Version 1 sessions could only ever have been checkout builds; the default is a fact
         # about the format, not a guess about the session.
         self.assertIn("jq -er '.engineSource // \"checkout\"'", SCRIPT_TEXT)
-        self.assertIn("{version: 2,", SCRIPT_TEXT)
+        self.assertIn("{version: 3,", SCRIPT_TEXT)
 
     def test_a_checkout_campaign_says_it_is_development_evidence(self):
         self.assertIn(
@@ -747,7 +957,10 @@ class UnattendedTest(unittest.TestCase):
             re.DOTALL,
         )
         self.assertIsNotNone(direct_stop, "unattended stop block not found")
-        self.assertIn('terminate_descendants "$pid"', direct_stop.group("body"))
+        self.assertIn(
+            'terminate_descendants "$pid" "$run_dir/runtime-process.json"',
+            direct_stop.group("body"),
+        )
         self.assertNotIn('terminate "$pid"', direct_stop.group("body"))
 
 
@@ -893,6 +1106,17 @@ class FatalJvmErrorTest(unittest.TestCase):
 
 
 class ProcessTreeTest(unittest.TestCase):
+    def test_existing_game_detection_uses_java_working_directory(self):
+        body = re.search(r"^game_pids\(\) \{(?P<body>.*?)\n\}", SCRIPT_TEXT, re.DOTALL | re.M)
+        self.assertIsNotNone(body, "game_pids not found")
+        self.assertIn("lsof -a -p", body.group("body"))
+        self.assertIn('cwd" == "$resolved/"*', body.group("body"))
+
+    def test_existing_game_is_refused_before_a_session_is_created(self):
+        refusal = SCRIPT_TEXT.index("A Starsector process is already running inside this installation")
+        session = SCRIPT_TEXT.index('ROOT="$HOME/.starsector-preflight/benchmarks/')
+        self.assertLess(refusal, session)
+
     def test_terminate_signals_descendants_not_only_the_wrapper(self):
         # The game is a grandchild: this script -> wrapper -> starsector_mac.sh -> JVM.
         # Signalling only the wrapper left a crashed JVM alive past its own timeout.
@@ -917,6 +1141,18 @@ class ProcessTreeTest(unittest.TestCase):
         self.assertIsNotNone(body, "terminate_descendants not found")
         self.assertIn('tree="$(descendants "$pid")"', body.group("body"))
         self.assertNotIn('printf \'%s\\n\' "$pid"', body.group("body"))
+
+    def test_descendant_stop_prefers_the_published_game_jvm(self):
+        body = re.search(
+            r"^terminate_descendants\(\) \{(?P<body>.*?)\n\}",
+            SCRIPT_TEXT,
+            re.DOTALL | re.M,
+        )
+        self.assertIsNotNone(body, "terminate_descendants not found")
+        exact = body.group("body").index('kill "$runtime_pid"')
+        fallback = body.group("body").index('for target in $tree; do')
+        self.assertLess(exact, fallback)
+        self.assertIn('grep -qx "$runtime_pid" <<< "$tree"', body.group("body"))
 
     def test_descendants_finds_a_real_grandchild(self):
         source = re.search(r"^descendants\(\) \{.*?\n\}", SCRIPT_TEXT, re.DOTALL | re.M)

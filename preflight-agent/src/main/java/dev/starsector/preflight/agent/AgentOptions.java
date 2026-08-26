@@ -18,6 +18,7 @@ record AgentOptions(
         Path adapterReport,
         Path adapterTargets,
         Path textureCacheDirectory,
+        String textureProfile,
         Path textureManifest,
         Path textureIndex,
         TextureAdapterMode textureAdapterMode,
@@ -36,6 +37,7 @@ record AgentOptions(
         Path rulesCsvCache,
         Path ruleCommandClassCache,
         Path mergedReadCache,
+        Path magicPaintjobCache,
         Path preparedAudioCache,
         String audioDecoderIdentity,
         Path preparedAudioManifest,
@@ -94,6 +96,7 @@ record AgentOptions(
         }
         Path adapterTargets = decodedPath(values, "targets64");
         Path textureCacheDirectory = decodedPath(values, "textureCache64");
+        String textureProfile = values.get("textureProfile");
         Path textureManifest = decodedPath(values, "textureManifest64");
         Path textureIndex = decodedPath(values, "textureIndex64");
         TextureAdapterMode textureAdapterMode = TextureAdapterMode.parse(values.get("textureMode"));
@@ -131,6 +134,7 @@ record AgentOptions(
         // The one cache that is not a loader's: it serves the two merged readers every
         // caller in the game funnels through, so it needs no loader to be named after.
         Path mergedReadCache = decodedPath(values, "mergedReadCache64");
+        Path magicPaintjobCache = decodedPath(values, "magicPaintjobCache64");
         // The decoder identity travels next to the cache because a prepared blob is only this
         // decoder's output if it was baked by this decoder; without it nothing is served.
         Path preparedAudioCache = decodedPath(values, "preparedAudioCache64");
@@ -150,6 +154,7 @@ record AgentOptions(
                 adapterReport,
                 adapterTargets,
                 textureCacheDirectory,
+                textureProfile,
                 textureManifest,
                 textureIndex,
                 textureAdapterMode,
@@ -168,6 +173,7 @@ record AgentOptions(
                 rulesCsvCache,
                 ruleCommandClassCache,
                 mergedReadCache,
+                magicPaintjobCache,
                 preparedAudioCache,
                 audioDecoderIdentity,
                 preparedAudioManifest,

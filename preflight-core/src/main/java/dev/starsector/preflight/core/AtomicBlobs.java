@@ -53,4 +53,41 @@ final class AtomicBlobs {
             }
         }
     }
+
+    /**
+     * Writes a checked build intermediate without forcing every individual file to stable storage.
+     *
+     * <p>The caller must not make this path active directly. The texture builder uses these files
+     * only as resumable inputs to a pack that rechecks every SPFT payload before forcing and
+     * atomically publishing the final artifact. A normal failure removes the incomplete file; a
+     * process or power interruption may leave one behind, and the next preparation validates it
+     * before reuse.
+     */
+    static void writeIntermediate(Path target, byte[] bytes) throws IOException {
+        Path absolute = target.toAbsolutePath().normalize();
+        Path parent = absolute.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        boolean created = false;
+        boolean complete = false;
+        try {
+            FileChannel opened = FileChannel.open(
+                    absolute,
+                    StandardOpenOption.CREATE_NEW,
+                    StandardOpenOption.WRITE);
+            created = true;
+            try (FileChannel channel = opened) {
+                ByteBuffer buffer = ByteBuffer.wrap(bytes);
+                while (buffer.hasRemaining()) {
+                    channel.write(buffer);
+                }
+            }
+            complete = true;
+        } finally {
+            if (created && !complete) {
+                Files.deleteIfExists(absolute);
+            }
+        }
+    }
 }

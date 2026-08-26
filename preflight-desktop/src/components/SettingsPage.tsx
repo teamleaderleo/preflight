@@ -1,6 +1,8 @@
+import { useEffect, useRef } from "react";
 import { ShieldIcon } from "../icons";
 import { NoticeBanner } from "./NoticeBanner";
 import { openProjectLink } from "../bridge";
+import { presentRemovalRefusal } from "../removalPresentation";
 import type { useSignedUpdates } from "../useSignedUpdates";
 import { useHomePresentation } from "../useHomePresentation";
 import { formatBytes, shortPath } from "../uiFormat";
@@ -18,10 +20,8 @@ interface SettingsPageProps {
   removalPlan: RemovalPlan | null;
   removalBusy: boolean;
   afterLaunchBehavior: AfterLaunchBehavior;
-  automaticRunReports: boolean;
   installation: string | null;
   installationChangeBlockedReason?: string | null;
-  onAutomaticRunReportsChange: (enabled: boolean) => void;
   onAfterLaunchBehaviorChange: (behavior: AfterLaunchBehavior) => void;
   onChooseInstall: () => void;
   onReviewRemoval: (scope: RemovalScope) => void;
@@ -35,14 +35,11 @@ export function SettingsPage({
   removalBlockedReason,
   updateInstallBlockedReason,
   updates,
-  reportIntake,
   removalPlan,
   removalBusy,
   afterLaunchBehavior,
-  automaticRunReports,
   installation,
   installationChangeBlockedReason,
-  onAutomaticRunReportsChange,
   onAfterLaunchBehaviorChange,
   onChooseInstall,
   onReviewRemoval,
@@ -61,9 +58,30 @@ export function SettingsPage({
     installSignedUpdate,
   } = updates;
   const homePresentation = useHomePresentation();
+  const removalReviewRef = useRef<HTMLElement>(null);
+  const removalReturnRef = useRef<HTMLElement | null>(null);
   const installationChangeBlocked = Boolean(installationChangeBlockedReason) || removalBusy || updateInstalling;
   const installationChangeTitle = installationChangeBlockedReason
     ?? (removalBusy || updateInstalling ? "Finish the current operation before changing installations." : undefined);
+
+  useEffect(() => {
+    if (removalPlan) removalReviewRef.current?.focus();
+  }, [removalPlan]);
+
+  const beginRemovalReview = (scope: RemovalScope, control: HTMLElement) => {
+    removalReturnRef.current = control;
+    onReviewRemoval(scope);
+  };
+
+  const cancelRemovalReview = () => {
+    const returnTarget = removalReturnRef.current;
+    removalReturnRef.current = null;
+    onDismissRemoval();
+    if (returnTarget?.isConnected) returnTarget.focus();
+  };
+
+  const removalRefusalPresentations = removalPlan?.refusals.map(presentRemovalRefusal) ?? [];
+
   return (
     <div className="settings-page">
       <NoticeBanner message={updateError === message ? "" : message} tone={messageTone} />
@@ -98,11 +116,6 @@ export function SettingsPage({
               <option value="keep">Keep open</option>
               <option value="quit">Quit</option>
             </select>
-            <small>{afterLaunchBehavior === "minimize"
-              ? "Restore it for logs or to stop Starsector."
-              : afterLaunchBehavior === "quit"
-                ? "Playtime still records."
-                : "Useful while testing."}</small>
           </label>
         </div>
         <div className="preference-block">
@@ -119,9 +132,6 @@ export function SettingsPage({
               <option value="hangar">Hangar</option>
               <option value="compact">Compact</option>
             </select>
-            <small>{homePresentation.mode === "compact"
-              ? "Launch-first Home without the decorative hull and history readouts."
-              : "Hull-led Home with the full settled display."}</small>
           </label>
           <label className="setting-field preference-field">
             <span>Recorded playtime</span>
@@ -133,7 +143,6 @@ export function SettingsPage({
               <option value="show">Show</option>
               <option value="hide">Hide</option>
             </select>
-            <small>Display only. Launch history and playtime recording continue either way.</small>
           </label>
         </div>
       </section>
@@ -143,11 +152,11 @@ export function SettingsPage({
             <div><h2>{updateStatus?.available ? `Preflight ${updateStatus.version}` : "Updates"}</h2></div>
             <ShieldIcon className="settings-check" />
           </div>
-          <p className={updateStatus?.available ? "update-release-notes" : undefined}>{updateStatus?.available
+          {!updateError ? <p className={updateStatus?.available ? "update-release-notes" : undefined}>{updateStatus?.available
             ? updateStatus.notes || "A newer verified release is ready. Installation starts only after confirmation."
             : updateStatus?.configured
               ? `Version ${updateStatus.currentVersion} is current.`
-              : updateStatus?.reason || "Update status hasn’t been checked yet."}</p>
+              : updateStatus?.reason || "Update status hasn’t been checked yet."}</p> : null}
           {updateError ? <p className="activation-warning" role="alert">{updateError}</p> : null}
           {updateInstalling ? (
             <div className="update-progress" role="progressbar" aria-label="Update download" aria-valuemin={0} aria-valuemax={updateProgress?.contentLength ?? undefined} aria-valuenow={updateProgress?.downloadedBytes ?? 0}>
@@ -172,23 +181,13 @@ export function SettingsPage({
             ? <small role="status">{updateInstallBlockedReason}</small>
             : null}
           {updateStatus?.available ? <small>Prepared profiles stay in place. If the cache format changed, the previous copy is kept for rollback.</small> : null}
-          <small>Updates are verified before installation. A failed check leaves this version untouched.</small>
           <label className="settings-toggle">
             <input
               type="checkbox"
               checked={automaticUpdateChecks}
               onChange={(event) => setAutomaticUpdateChecks(event.target.checked)}
             />
-            <span>Check for updates automatically<small>Checks the release feed when Preflight starts.</small></span>
-          </label>
-          <label className="settings-toggle">
-            <input
-              type="checkbox"
-              checked={automaticRunReports}
-              disabled={!reportIntake?.configured}
-              onChange={(event) => onAutomaticRunReportsChange(event.target.checked)}
-            />
-            <span>Send failed-run reports automatically<small>{reportIntake?.configured ? "If Starsector closes with an error, sends the same disclosed support ZIP shown in Help." : "Report intake is unavailable in this build."}</small></span>
+            <span>Check for updates automatically</span>
           </label>
         </section>
 
@@ -200,23 +199,7 @@ export function SettingsPage({
           */}
         <section className="card privacy-card">
           <div className="card__heading"><div><h2>Privacy</h2></div><ShieldIcon className="settings-check" /></div>
-          <ul className="privacy-facts">
-            <li><strong>No ambient telemetry or accounts.</strong></li>
-            {/*
-              * A build without a configured intake cannot send a report at all, and the Benchmark
-              * page already says so where the button would be. Describing the send flow here anyway
-              * would advertise a feature this build doesn't have -- and understate the actual
-              * privacy position, which in that case is stronger, not weaker.
-              */}
-            {automaticRunReports ? (
-              <li>Failed-run reports are on. They send the same bounded support ZIP shown in Help.</li>
-            ) : reportIntake && !reportIntake.configured ? (
-              <li>Update checks fetch version metadata. Support ZIPs stay here until you share one.</li>
-            ) : (
-              <li>Update checks fetch version metadata. A support ZIP is sent only when you press Send.</li>
-            )}
-            <li>Saves, mods, screenshots, and game files stay out.</li>
-          </ul>
+          <p className="privacy-summary"><strong>Reports are sent only when you choose.</strong></p>
           <div className="privacy-links">
             <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("privacy")}>Full privacy statement</button>
             <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("capabilities")}>What Preflight can access</button>
@@ -237,7 +220,7 @@ export function SettingsPage({
               <button
                 className="button button--quiet button--compact"
                 type="button"
-                onClick={() => onReviewRemoval("launcher")}
+                onClick={(event) => beginRemovalReview("launcher", event.currentTarget)}
                 disabled={removalBusy || Boolean(removalBlockedReason)}
                 title={removalBlockedReason ?? undefined}
               >
@@ -250,7 +233,7 @@ export function SettingsPage({
               <button
                 className="button button--danger button--compact"
                 type="button"
-                onClick={() => onReviewRemoval("all-data")}
+                onClick={(event) => beginRemovalReview("all-data", event.currentTarget)}
                 disabled={removalBusy || Boolean(removalBlockedReason)}
                 title={removalBlockedReason ?? undefined}
               >
@@ -263,11 +246,22 @@ export function SettingsPage({
       </details>
 
       {removalPlan ? (
-        <section className="card removal-review" aria-label="Removal review">
+        <section ref={removalReviewRef} className="card removal-review" aria-label="Removal review" tabIndex={-1}>
           <div className="activation-review__heading">
             <div><p className="eyebrow">Removal review</p><h2>{removalPlan.scope === "all-data" ? "Remove all Preflight data?" : "Remove launch integration?"}</h2></div>
-            <button className="text-button" type="button" onClick={onDismissRemoval} disabled={removalBusy}>Cancel</button>
+            <button className="text-button" type="button" onClick={cancelRemovalReview} disabled={removalBusy}>Cancel</button>
           </div>
+          {removalRefusalPresentations.length > 0 ? (
+            <>
+              <div role="status">
+                {removalRefusalPresentations.map(({ summary }, index) => <p className="activation-warning" key={`${index}:${summary}`}>{summary}</p>)}
+              </div>
+              <details>
+                <summary>Technical details</summary>
+                <ul>{removalRefusalPresentations.map(({ detail }, index) => <li key={`${index}:${detail}`}>{detail}</li>)}</ul>
+              </details>
+            </>
+          ) : null}
           <p className="cleanup-summary">{formatBytes(removalPlan.bytes)} across {removalPlan.files.toLocaleString()} files. The plan was measured from the paths below.</p>
           <div className="cleanup-groups">{removalPlan.targets.map((target) => <div key={`${target.kind}:${target.path}`}><span>{target.label}</span><strong>{formatBytes(target.bytes)} · {shortPath(target.path)}</strong></div>)}</div>
           {removalBlockedReason ? <small role="status">{removalBlockedReason}</small> : null}

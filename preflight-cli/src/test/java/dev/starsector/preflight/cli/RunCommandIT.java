@@ -214,6 +214,43 @@ class RunCommandIT {
     }
 
     @Test
+    void automaticLaunchUsesMinimalPreparationWithoutInjectingTextureArtifacts() throws Exception {
+        Path game = temporaryDirectory.resolve("Minimal Prepared Starsector");
+        Path source = game.resolve("starsector-core/graphics/test.png");
+        Path mods = game.resolve("mods");
+        Files.createDirectories(source.getParent());
+        Files.createDirectories(mods);
+        Files.writeString(source, "texture");
+        Files.writeString(mods.resolve("enabled_mods.json"), "{\"enabledMods\":[]}");
+        Path launcher = fakeLauncher(game, LauncherMode.CLEAN_ZERO);
+
+        var current = ResourceIndexBuilder.build(game).index();
+        Path cache = temporaryDirectory.resolve("minimal-prepared-cache");
+        Path index = cache.resolve("resource-indexes/" + current.profileFingerprint() + ".spfi");
+        dev.starsector.preflight.core.ResourceIndexIO.write(index, current);
+        MinimalPreparationMarker.write(cache, current.profileFingerprint());
+        Path trace = temporaryDirectory.resolve("minimal-prepared-trace");
+
+        ProcessResult result = run(game, launcher, trace, List.of(
+                "--adapter", "--texture-auto", "--texture-cache-dir", cache.toString()));
+
+        assertTrue(result.completed(), result.output());
+        assertEquals(0, result.exitCode(), result.output());
+        Map<String, Object> report = StrictJson.object(Files.readString(trace.resolve("run.json")));
+        assertEquals(Boolean.FALSE, report.get("preparedTextures"));
+        assertEquals(cache.toRealPath().toString(), report.get("textureCacheDirectory"));
+        assertEquals(null, report.get("textureManifest"));
+        assertEquals(null, report.get("textureIndex"));
+        assertEquals(current.profileFingerprint(), report.get("textureProfileFingerprint"));
+        String injected = Files.readString(game.resolve("java-tool-options.txt"));
+        assertTrue(injected.contains("textureCache64="), injected);
+        assertTrue(injected.contains("textureProfile=" + current.profileFingerprint()), injected);
+        assertFalse(injected.contains("textureManifest64="), injected);
+        assertFalse(injected.contains("textureIndex64="), injected);
+        assertTrue(injected.contains("textureMode=compatibility"), injected);
+    }
+
+    @Test
     void singleChunkRecordingPolicyReachesTheLauncherAndRunReceipt() throws Exception {
         Path game = temporaryDirectory.resolve("Single Chunk Starsector");
         Files.createDirectories(game.resolve("logs"));
@@ -278,7 +315,7 @@ class RunCommandIT {
 
         assertTrue(result.completed(), result.output());
         assertEquals(0, result.exitCode(), result.output());
-        assertTrue(result.output().contains("left Janino compilation to Fast Rendering"),
+        assertFalse(result.output().contains("left Janino compilation to Fast Rendering"),
                 result.output());
         String injected = Files.readString(game.resolve("java-tool-options.txt"));
         assertTrue(injected.contains("adapter=enabled"), injected);
@@ -287,6 +324,37 @@ class RunCommandIT {
         assertEquals("FAST_RENDERING", report.get("runtimeOwner"));
         assertEquals(Boolean.TRUE, report.get("janinoBytecodeCache"),
                 "the receipt preserves that the user requested it even though ownership suppressed it");
+    }
+
+    @Test
+    void ordinaryRunDoesNotDumpItsInternalLaunchPlan() throws Exception {
+        Path game = temporaryDirectory.resolve("Quiet Starsector");
+        Files.createDirectories(game.resolve("logs"));
+        Path launcher = fakeLauncher(game, LauncherMode.CLEAN_ZERO);
+        Path trace = temporaryDirectory.resolve("quiet-trace");
+
+        ProcessResult result = run(game, launcher, trace, List.of("--no-adapter", "--no-record"));
+
+        assertTrue(result.completed(), result.output());
+        assertEquals(0, result.exitCode(), result.output());
+        assertFalse(result.output().contains("Preflight selected:"), result.output());
+        assertFalse(result.output().contains("recording was not created"), result.output());
+    }
+
+    @Test
+    void dryRunShowsTheInternalLaunchPlanWithoutStartingTheGame() throws Exception {
+        Path game = temporaryDirectory.resolve("Dry Run Starsector");
+        Files.createDirectories(game.resolve("logs"));
+        Path launcher = fakeLauncher(game, LauncherMode.CLEAN_ZERO);
+        Path trace = temporaryDirectory.resolve("dry-run-trace");
+
+        ProcessResult result = run(game, launcher, trace, List.of("--no-adapter", "--dry-run"));
+
+        assertTrue(result.completed(), result.output());
+        assertEquals(0, result.exitCode(), result.output());
+        assertTrue(result.output().contains("Preflight selected:"), result.output());
+        assertTrue(result.output().contains("optimization preset:"), result.output());
+        assertFalse(Files.exists(game.resolve("java-tool-options.txt")));
     }
 
     private static Path fakeLauncher(Path game, LauncherMode mode) throws Exception {

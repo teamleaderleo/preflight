@@ -100,9 +100,9 @@ than duplicating them:
 - battle size from the same `gameplaySettings` preference as the in-game slider.
 
 Battle size uses the selected installation's merged minimum and the same `battleSize` preference as
-the game. Preflight offers a bounded extended range up to 2,000 deployment points because
-`maxBattleSize` only defines the vanilla settings slider. It doesn't rewrite base `settings.json`;
-opening the vanilla slider can reset a value above that slider's installed maximum.
+the game. `maxBattleSize` only defines the vanilla settings slider, so Preflight accepts custom
+values through the positive Java-integer range consumed by the game. It doesn't rewrite base
+`settings.json`; opening the vanilla slider can reset a value above that slider's installed maximum.
 
 For the release candidate, these values remain global Starsector settings shared by vanilla and
 Preflight launches. Apply has an explicit quiescent boundary: the player confirms Starsector, its
@@ -140,9 +140,9 @@ storage policy stay separate, preview-first actions.
 
 “Send diagnostics” should upload the exact bounded ZIP already produced by `evidence export`; it
 must not create a broader telemetry path. The consent screen shows the existing inclusion/exclusion
-list, the byte count, and the ZIP SHA-256 before sending. Automatic failed-run reports are a
-separate, remembered setting that starts off and sends the same bounded ZIP only after an exact
-failed wrapper identity is confirmed.
+list, the byte count, and the ZIP SHA-256 before sending. The first beta keeps this manual. Automatic
+failed-run reporting remains unavailable until native background ownership, exact-run deduplication,
+and durable case-scoped deletion authority satisfy #662, #669, and #679.
 
 The service flow is:
 
@@ -179,8 +179,8 @@ allowlist.
 
 Cloudflare's own Worker Logs cover request, custom, and exception logs inside the intake service;
 they don't replace desktop consent, disclosure, redaction, bundle construction, or the separate
-choice to upload a report. Automatic failed-run reports are therefore their own remembered,
-default-off toggle rather than a side effect of enabling server observability.
+choice to upload a report. Server observability never enables desktop reporting. The first beta has
+no automatic failed-run reporting control.
 
 ## Update, removal, and storage contract
 

@@ -1,30 +1,25 @@
-# What is in here, and when you would reach for it
+# Scripts
 
-Every entry says what it does and why you would run it. Read this before writing a new script or
-driving the game by hand — most of what you want already exists, and the two traps below have cost
-real time.
+Check this index before writing a new script or driving the game by hand.
 
-**Trap 1: `preflight run` is the launcher, not a measurement.** It starts Starsector and stays
-attached until the game exits. It has no auto-stop, so running it to "get a number" leaves a ~4 GB
-JVM and a GPU context alive until someone kills it, and every measurement after that is poisoned.
-Use `probe-launch.sh` for one number or `run-startup-benchmark.sh` for a claim; both stop the game
-themselves.
+For a startup time, run:
 
-**Trap 2: the game is a grandchild of the wrapper.** Killing the wrapper's direct children never
-reaches it. The scripts here stop it from an `EXIT` trap so it dies on success, failure, timeout and
-Ctrl-C alike. If you start the game yourself, you are responsible for stopping it yourself.
+```bash
+scripts/benchmark-startup.sh
+```
 
-Each `foo.py` here has a `test_foo.py` beside it; they run under the repository's Python test suite.
+It launches once, reads the game's exact main-menu marker, prints the time, and stops the game.
+`preflight run` only launches the game. It never stops it.
 
 ## Launch the game and find out where the time went
 
 | | |
 |---|---|
-| `probe-launch.sh [--mode NAME] [--label NAME] [--game DIR] [-- FLAGS]` | One direct launch with `--startup-phase-probe`, run to the main-menu marker, stopped, and printed as a phase table plus a per-plugin callback table. **The default choice when you want to know where startup time goes right now.** `--mode` defaults to `fast`. |
-| `run-startup-benchmark.sh --unattended [--conditions LIST] [--rounds N] [--cooldown-seconds N]` | The repeated campaign: conditions shuffled inside each round, resumable, and the report refuses a result below five runs per condition. Slow and unattended. **Use this to prove a change moved something**, not to look around. |
-| `run-startup-benchmark.sh --engine PATH [--engine-sha256 HEX]` | The same campaign against the engine a release candidate carries, rather than a checkout build. `PATH` is a `preflight.jar`, an installed `Preflight.app`, or any directory holding `engine/preflight.jar`; there is no fallback to the checkout JAR, and a packaged engine must match the SHA-256 in its verified `bundle.json`. **A release claim needs this**; without it the session records itself as a checkout build. |
+| `benchmark-startup.sh [--game DIR] [--engine PATH] [--cache PATH]` | One automatic `fast` launch to the exact main-menu marker. Prints one number and stops the game. It follows the current profile into Compact after that profile has learned a launch; a new profile starts with Balanced. **This is the default.** |
+| `benchmark-startup.sh --details [--mode NAME]` | One automatic launch plus startup phases and mod callback timings. Use it when the number moved and you want to know where. |
+| `benchmark-startup.sh --campaign [OPTIONS]` | The repeated comparison harness: shuffled, resumable, and pinned to a measurement identity. Use it for a release claim or an A/B comparison. `--cache PATH --texture-storage compact` measures an explicitly prepared Compact cache. |
 
-Both name conditions from the same table, so the same word means the same flags in both:
+Both diagnostic modes use the same condition names:
 
 | mode / condition | what it launches | when you want it |
 |---|---|---|
@@ -32,50 +27,23 @@ Both name conditions from the same table, so the same word means the same flags 
 | `enabled` | `--adapter --texture-auto` | the prepared texture path |
 | `adapter` | `--adapter` alone | the least-optimized launch a **probe** can measure |
 | `prepared` | `enabled` plus prepared pixels, padding retained | prepared-pixel comparisons |
-| `vanilla` | the game's own launcher, no Preflight | the baseline — **harness only** |
+| `vanilla` | the game's own launcher, no Preflight | the baseline, campaign only |
 
-**There is no probed baseline.** `--startup-phase-probe` is implemented by the adapter, and
-`preflight run` refuses the two together, so the least-optimized probe still has adapters on and is
-not a baseline. `probe-launch.sh --mode vanilla` refuses and says so rather than printing a number
-someone will quote. For a baseline, or to compare one against an optimized launch:
+The phase probe requires the adapter, so it cannot measure vanilla. Compare vanilla and Preflight
+with a campaign:
 
 ```bash
-scripts/run-startup-benchmark.sh --unattended --conditions vanilla,fast
+scripts/benchmark-startup.sh --campaign --unattended --conditions vanilla,fast
 ```
 
-The harness shuffles conditions inside each round instead of running them back to back, because the
-machine gets hotter as it goes: the 2026-08-01 campaign drifted **+19.6s across fifteen launches**
-from heat alone, ten times the effect it was trying to measure. `--cooldown-seconds` idles between
-launches so each starts from the same thermal state. Held at a steady temperature, run-to-run
-variance is small.
+Campaigns shuffle conditions and can cool between launches to avoid assigning thermal drift to one
+condition.
 
-**Set `PREFLIGHT_FULL_EVIDENCE=1` when you want the per-seam contract reports from every launch.**
-`adapter-sound-loader-contract.json` and its four siblings are written only when they carry a
-finding — a contained failure, a truncated record, or a bytecode identity the adapter did not
-recognize — because on a player's machine they were around 400 KB per launch of documents nothing
-reads. That is the wrong default for a campaign: a launch that found nothing is itself the evidence
-when the question is whether a change altered what a seam observes. `adapter.json`,
-`adapter-health.json`, `summary.json`, and the phase reports are unaffected.
+Set `PREFLIGHT_FULL_EVIDENCE=1` only when every per-seam contract report is needed. Normal runs keep
+the reports that carry a finding and omit redundant success receipts.
 
-Numbers to sanity-check a result against, all on the game-log-start to main-menu clock:
-
-- `vanilla` and `fast` on the **same** 83-mod profile, interleaved in one session: **89.00s** and
-  **15.53s** medians, five runs each, ranges 2.93s and 0.60s
-  (`docs/evidence/2026-08-15-controlled-vanilla-fast-campaign.md`). Compare a new result against
-  this pair first — it is the only one where both conditions share a profile and a sitting.
-- `vanilla`, earlier **77-mod** profile: **88.13s** and **88.49s** medians, five runs each
-  (`docs/evidence/2026-08-01-*`). These predate six added mods, so they are not a baseline for the
-  83-mod profile above.
-- `fast`, fastest warm launch: **15.88s**, from the 2026-08-06 gates (16.66 / 16.28 / 15.88).
-
-Those are clean-machine numbers: cooled, with nothing else running. A launch measured on a busy
-machine is a measurement of a busy machine.
-
-The phase probe's own `elapsedMillis` is anchored at agent premain, which is neither end of the
-log-clock interval. Do not put the two side by side.
-
-All of these are launch times. Building the profile is `preflight prepare`, a separate one-off
-command, and is not part of them.
+Launch claims and their exact conditions live under `docs/evidence/`. Preparation time is separate
+from launch time. Phase-probe time also uses a different clock and cannot be compared directly.
 | `run-gameplay-pilot.sh [--game DIR] [--label NAME]` | One combat pilot with every beta probe on. Needs a human: load a campaign, open a simulation, raise the DP cap, deploy capitals, fight three to five minutes, exit normally. Reports which exact adapters applied and what their paths cost. |
 
 ## Read what a launch produced

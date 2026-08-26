@@ -35,6 +35,51 @@ function renderActions(operationBlocked = false) {
   return { onRelaunch, onGetHelp, onDismiss };
 }
 
+test("failed-run recovery focuses Relaunch when it is immediately available", () => {
+  renderActions();
+
+  expect(screen.getByRole("button", { name: "Relaunch" })).toHaveFocus();
+});
+
+test("failed-run recovery focuses Help when relaunch is temporarily blocked", () => {
+  renderActions(true);
+
+  expect(screen.getByRole("button", { name: "Get help" })).toHaveFocus();
+});
+
+test("failed-run recovery does not steal focus again when operation ownership changes", () => {
+  const onRelaunch = vi.fn();
+  const onGetHelp = vi.fn();
+  const onDismiss = vi.fn();
+  const { rerender } = render(
+    <RunRecoveryActions
+      optimizationPreset="recommended"
+      operationBlocked={false}
+      onRelaunch={onRelaunch}
+      onGetHelp={onGetHelp}
+      onDismiss={onDismiss}
+    />,
+  );
+
+  expect(screen.getByRole("button", { name: "Relaunch" })).toHaveFocus();
+  const dismiss = screen.getByRole("button", { name: "Dismiss" });
+  dismiss.focus();
+  expect(dismiss).toHaveFocus();
+
+  rerender(
+    <RunRecoveryActions
+      optimizationPreset="recommended"
+      operationBlocked
+      onRelaunch={onRelaunch}
+      onGetHelp={onGetHelp}
+      onDismiss={onDismiss}
+    />,
+  );
+
+  expect(dismiss).toHaveFocus();
+  expect(screen.getByRole("button", { name: "Relaunch" })).toBeDisabled();
+});
+
 test("failed-run recovery exposes the existing privacy-safe setup-details copy action", () => {
   const { onRelaunch, onGetHelp, onDismiss } = renderActions();
 

@@ -1,0 +1,10 @@
+/* Settings uses native select/checkbox controls, but their clickable boxes should still meet the
+ * desktop target floor used by the rest of the shell. Keep the existing typography and spacing;
+ * only guarantee a 44px interaction box for the select itself and the whole toggle label. */
+.preferences-card .preference-field select {
+  min-height: 44px;
+}
+
+.settings-overview .settings-toggle {
+  min-height: 44px;
+}

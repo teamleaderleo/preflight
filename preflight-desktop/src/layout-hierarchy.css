@@ -2,7 +2,7 @@
  * base styles, release-readiness behavior, and Home presentation preferences have loaded. */
 
 /* Keep every Home state scroll-reachable; #982 removed the dead base launch-console tracks. */
-.page-viewport--home {
+.page-viewport.page-viewport--home {
   position: relative;
   overflow-y: auto;
   padding-right: 5px;
@@ -23,6 +23,86 @@
 /* Preparation keeps more room for status copy while retaining the hull as the setup being discussed. */
 .launch-console--layout-preparation .home-flight-instrument {
   inset: 6px 36px 104px;
+}
+
+/* Preparation is about the current mod setup and required storage. The hull switcher competes with
+ * that decision and used to overlap both the storage note and the launch action at ordinary widths. */
+.launch-console--layout-preparation .home-ship-picker {
+  display: none;
+}
+
+/* Treat the selected installation as one centred caption. Earlier layers centred the profile name
+ * while leaving the path at the far left, so the two lines looked unrelated. */
+.launch-console.launch-console--layout-preparation .home-launch-identity {
+  top: 72px;
+  right: auto;
+  left: 50%;
+  align-items: center;
+  width: min(520px, calc(100% - 36px));
+  text-align: center;
+  transform: translateX(-50%);
+}
+
+.launch-console.launch-console--layout-preparation .home-launch-path {
+  align-self: center;
+}
+
+.launch-console.launch-console--layout-preparation .home-launch-path::after {
+  left: 50%;
+  transform: translate(-50%, -2px);
+}
+
+.launch-console.launch-console--layout-preparation .home-launch-path:is(:hover, :focus-visible)::after {
+  transform: translate(-50%, 0);
+}
+
+/* Keep the primary setup action on the console centreline when a fallback launch is also offered. */
+.launch-console--layout-preparation .launch-console__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px) minmax(0, 1fr);
+}
+
+.launch-console--layout-preparation .launch-console__actions .button--launch {
+  grid-column: 2;
+  width: 100%;
+  min-width: 0;
+}
+
+.launch-console--layout-preparation .launch-console__actions .launch-console__stop {
+  grid-column: 3;
+  justify-self: start;
+  min-width: 0;
+}
+
+/* Starting and running keep the primary action on the same centreline as Ready. A companion stop
+ * action uses the spare right-hand track instead of pushing the launch state sideways. */
+.launch-console--layout-active .launch-console__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px) minmax(0, 1fr);
+}
+
+.launch-console--layout-active .launch-console__actions .button--launch {
+  grid-column: 2;
+  width: 100%;
+  min-width: 0;
+}
+
+.launch-console--layout-active .launch-console__actions .launch-console__stop {
+  grid-column: 3;
+  justify-self: start;
+  min-width: 0;
+}
+
+.launch-console--layout-active .launch-console__status-line {
+  top: 18px;
+  right: 18px;
+  left: 172px;
+  justify-content: flex-end;
+}
+
+.launch-console--layout-active .home-playtime {
+  top: 28px;
+  left: 28px;
 }
 
 /* Recovery already precedes the console in DOM order. Collapse the console into a companion portrait. */
@@ -48,18 +128,10 @@
   width: min(420px, calc(100% - 36px));
 }
 
-.launch-console--layout-recovery .home-ship-name {
-  right: 16px;
-  bottom: 10px;
-  left: auto;
-  max-width: 42%;
-  text-align: right;
-}
-
-/* A captured failed run is the active job, but it should not physically shove the entire Home hero
- * down when it appears. Keep the alert first in DOM order while letting it float over a stable
- * companion field. The adjacent-console selectors deliberately scope the taller portrait only to
- * this observed run-recovery composition; other recovery/error states keep their own layout. */
+/* A captured failed run is an overlay on the settled Home, not a new composition. Keep the alert
+ * first in DOM order and out of flow while the underlying console, hull, launch identity, and ship
+ * caption remain at their settled coordinates. The recovery controls live in the banner, so the
+ * generic recovery layer can still hide duplicate console actions without moving anything. */
 .page-viewport--home > .run-recovery[role="alert"] {
   position: absolute;
   z-index: 8;
@@ -82,62 +154,41 @@
 }
 
 .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-flight-instrument {
-  inset: 120px 30px 54px;
-  opacity: .72;
+  inset: -34px 30px 100px;
+  opacity: 1;
 }
 
 .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-launch-identity {
   top: auto;
   right: auto;
-  bottom: 18px;
-  left: 18px;
-  width: min(520px, calc(100% - 36px));
-  text-align: left;
-  transform: none;
+  bottom: 82px;
+  left: 50%;
+  width: min(520px, calc(100% - 48px));
+  text-align: center;
+  transform: translateX(-50%);
 }
 
-/* Failed-run identity sits on the lower edge of the stable companion field. Open its full-path
- * disclosure upward so pointer and keyboard users can actually see it inside the clipped Home viewport. */
+/* The settled path disclosure opens upward. Restore its centered transform here because the generic
+ * recovery composition aligns disclosures to the left for non-banner error states. */
 .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-launch-path::after {
   top: auto;
   bottom: calc(100% + 7px);
+  left: 50%;
+  transform: translate(-50%, -2px);
 }
 
-/* Motion, direction, and appearance reset form one compact local cluster. Reset keeps a visible word
- * because a second circular-arrow-only glyph beside direction is needlessly ambiguous. */
-.hangar-dock--catalog {
-  grid-template-columns: minmax(240px, .85fr) minmax(0, 1.15fr);
+.page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-launch-path:is(:hover, :focus-visible)::after {
+  transform: translate(-50%, 0);
 }
 
-.hangar-motion-controls {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: max-content;
-  max-width: 100%;
-  padding: 4px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--paper-solid) 58%, transparent);
-}
-
-.hangar-reset-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: 2px;
-  padding-inline: 10px;
-  white-space: nowrap;
-}
-
-.hangar-reset-action svg {
-  width: 15px;
-  height: 15px;
-}
-
-@container (max-width: 760px) {
-  .hangar-dock--catalog {
-    grid-template-columns: minmax(0, 1fr);
+/* Browser previews and unusually short desktop windows still need a reachable launch action. The
+ * console keeps its compact working height and the Home viewport supplies the small amount of
+ * vertical scrolling instead of clipping absolutely positioned controls. */
+@media (max-height: 520px) {
+  .launch-console--ready,
+  .launch-console--ready .launch-console__primary {
+    height: 320px;
+    min-height: 320px;
   }
 }
 
@@ -148,6 +199,10 @@
 
   .launch-console--layout-preparation .home-flight-instrument {
     inset: 16px 8px 110px;
+  }
+
+  .launch-console--layout-preparation .launch-console__actions {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 320px) minmax(0, 1fr);
   }
 
   .launch-console--layout-recovery {
@@ -165,12 +220,6 @@
     width: calc(100% - 28px);
   }
 
-  .launch-console--layout-recovery .home-ship-name {
-    right: 12px;
-    bottom: 8px;
-    max-width: 46%;
-  }
-
   .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery {
     height: 100%;
     min-height: 100%;
@@ -181,13 +230,347 @@
   }
 
   .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-flight-instrument {
-    inset: 105px 8px 24px;
+    inset: -12px 8px 102px;
+    opacity: 1;
   }
 
   .page-viewport--home > .run-recovery[role="alert"] + .launch-console--layout-recovery .home-launch-identity {
     top: auto;
-    bottom: 12px;
-    left: 14px;
-    width: calc(100% - 28px);
+    right: auto;
+    bottom: 88px;
+    left: 50%;
+    width: calc(100% - 32px);
+    text-align: center;
+    transform: translateX(-50%);
   }
+
+}
+
+@media (max-width: 600px) {
+  :is(.launch-console--layout-preparation, .launch-console--layout-active) .launch-console__actions {
+    grid-template-columns: minmax(260px, 340px);
+    justify-content: center;
+  }
+
+  :is(.launch-console--layout-preparation, .launch-console--layout-active) .launch-console__actions .button--launch,
+  :is(.launch-console--layout-preparation, .launch-console--layout-active) .launch-console__actions .launch-console__stop {
+    grid-column: 1;
+    justify-self: stretch;
+    width: 100%;
+  }
+}
+
+/* Settled Home has one composition. Hiding the ship removes the ship, picker, and motion button;
+ * it never changes the field height or relocates the launch action. */
+.launch-console--layout-settled {
+  container-type: inline-size;
+}
+
+.launch-console--layout-settled,
+.launch-console--layout-settled .launch-console__primary {
+  height: 100%;
+  min-height: 400px;
+}
+
+.launch-console--layout-settled .launch-console__primary {
+  position: relative;
+  display: block;
+  padding: 0;
+}
+
+.launch-console--layout-settled .home-flight-instrument {
+  position: absolute;
+  inset: -34px 0 0 !important;
+  width: auto;
+  height: auto;
+  min-height: 0;
+}
+
+.launch-console--layout-settled .launch-console__status-line {
+  position: absolute;
+  z-index: 5;
+  top: 18px;
+  right: 18px;
+  left: 172px;
+  justify-content: flex-end;
+  width: auto;
+  min-width: 0;
+}
+
+.launch-console--layout-settled .launch-console__status-line .home-display-toggle:first-of-type,
+.launch-console--layout-settled .launch-console__status-line .home-options-toggle {
+  margin-left: 0;
+}
+
+.launch-console--layout-settled .home-display-toggle {
+  width: 44px;
+  min-width: 44px;
+  padding: 0;
+  justify-content: center;
+}
+
+.launch-console--layout-settled .home-playtime {
+  position: absolute !important;
+  z-index: 4 !important;
+  top: 28px;
+  left: 28px;
+}
+
+.launch-console--layout-settled .home-launch-identity {
+  position: absolute !important;
+  z-index: 4 !important;
+  right: auto;
+  bottom: 100px;
+  left: 50%;
+  width: min(520px, calc(100% - 32px));
+  transform: translateX(-50%);
+}
+
+.launch-console--layout-settled .home-ship-picker {
+  position: absolute !important;
+  z-index: 5 !important;
+  right: auto;
+  bottom: 22px;
+  left: 20px;
+  width: 280px;
+  max-width: calc(100% - 40px);
+  transform: none;
+}
+
+.launch-console--layout-settled .home-ship-name {
+  min-width: 188px;
+  max-width: 188px;
+  font-size: 18px;
+}
+
+.launch-console--layout-settled .launch-console__actions {
+  position: absolute;
+  z-index: 6;
+  right: auto;
+  bottom: 20px;
+  left: 50%;
+  display: grid;
+  grid-template-columns: 94px minmax(260px, 520px) 94px;
+  gap: 10px;
+  justify-content: center;
+  width: min(748px, calc(100% - 24px));
+  min-width: 0;
+  transform: translateX(-50%);
+}
+
+.launch-console--layout-settled .launch-console__actions .button--launch {
+  grid-column: 2;
+  width: 100%;
+  min-width: 0;
+  min-height: 64px;
+  border-radius: 3px;
+  box-shadow:
+    inset 0 0 0 2px var(--launch-rim-inner),
+    0 10px 22px rgba(30, 19, 8, 0.22);
+  font-size: 17px;
+}
+
+.launch-console--layout-settled .launch-console__actions .button--launch::after {
+  position: absolute;
+  inset: 8px;
+  border-right: 1px solid var(--launch-rim-inner);
+  border-left: 1px solid var(--launch-rim-inner);
+  content: "";
+  opacity: .72;
+  pointer-events: none;
+}
+
+.launch-console--layout-settled .launch-console__actions .home-motion-controls {
+  grid-column: 3;
+  align-self: center;
+}
+
+.home-motion-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.launch-console--layout-settled .last-run-health {
+  position: absolute !important;
+  z-index: 5 !important;
+  right: 24px;
+  bottom: 30px;
+  max-width: 220px;
+  text-align: right;
+}
+
+/* Decorative controls recede after pointer idle. Moving anywhere over Home or focusing a control
+ * restores them without mounting, moving, or replacing the launch action. */
+.launch-console--layout-settled .home-hud-layer {
+  transition: opacity 620ms cubic-bezier(.22, .61, .36, 1);
+}
+
+.launch-console--layout-settled.home-hud--idle:not(:focus-within):not(.launch-console--options-open) .home-hud-layer {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Appearance controls belong to the same transient Home HUD. Their invisible hit area remains
+ * available, so hovering the familiar top-right dock brings it back without moving anything. */
+:root[data-home-hud="idle"] .topbar--home .topbar__actions {
+  opacity: 0;
+  transition: opacity 620ms cubic-bezier(.22, .61, .36, 1);
+}
+
+:root[data-home-hud="idle"] .topbar--home .topbar__actions:is(:hover, :focus-within) {
+  opacity: 1;
+}
+
+/* The chosen game remains reviewable while the controls are present. It is intentionally absent
+ * from the idle composition, where the ship and launch action are the only subjects. */
+.launch-console--layout-settled .home-launch-path {
+  max-width: min(420px, 100%);
+}
+
+@container (max-width: 1000px) {
+  .launch-console--layout-settled .home-flight-instrument {
+    inset: -22px 0 0 !important;
+  }
+
+  .launch-console--layout-settled .home-launch-identity {
+    bottom: 146px;
+  }
+
+  .launch-console--layout-settled .home-ship-picker {
+    right: auto;
+    bottom: 88px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .launch-console--layout-settled .last-run-health {
+    right: 50%;
+    bottom: 92px;
+    text-align: center;
+    transform: translateX(50%);
+  }
+}
+
+@container (max-width: 640px) {
+  .launch-console--layout-settled,
+  .launch-console--layout-settled .launch-console__primary {
+    min-height: 500px;
+  }
+
+  .launch-console--layout-settled .launch-console__status-line {
+    top: 8px;
+    right: 8px;
+    left: 116px;
+    gap: 4px;
+  }
+
+  .launch-console--layout-settled .home-options-toggle {
+    min-width: 94px;
+  }
+
+  .launch-console--layout-settled .home-playtime {
+    top: 18px;
+    left: 12px;
+  }
+
+  .launch-console--layout-settled .home-playtime strong {
+    font-size: 42px;
+  }
+
+  .launch-console--layout-settled .home-flight-instrument {
+    inset: 48px 0 0 !important;
+  }
+
+  .launch-console--layout-settled .home-launch-identity {
+    bottom: 150px;
+    width: calc(100% - 20px);
+  }
+
+  .launch-console--layout-settled .home-ship-picker {
+    bottom: 92px;
+    left: 10px;
+    max-width: calc(100% - 20px);
+    transform: none;
+  }
+
+  .launch-console--layout-settled .launch-console__actions {
+    bottom: 14px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    width: calc(100% - 16px);
+  }
+
+  .launch-console--layout-settled .launch-console__actions .button--launch {
+    grid-column: 1;
+  }
+
+  .launch-console--layout-settled .launch-console__actions .home-motion-controls {
+    position: absolute;
+    right: 0;
+    bottom: 72px;
+    grid-column: 1;
+  }
+
+  .home-motion-controls {
+    gap: 2px;
+  }
+
+  .home-motion-controls .home-motion-toggle {
+    width: 44px;
+    min-height: 44px;
+  }
+
+  .launch-console--layout-settled .launch-console__actions .button--launch {
+    min-height: 60px;
+    padding-inline: 16px;
+    font-size: 15px;
+  }
+}
+
+/* Once the sidebar becomes the compact top navigation, short windows have less vertical room than
+ * their viewport height suggests. Keep the settled controls inside that remaining field instead of
+ * preserving the roomy 500px desktop console and pushing Launch below the fold. */
+@media (max-width: 640px) and (max-height: 700px) {
+  .launch-console--layout-settled,
+  .launch-console--layout-settled .launch-console__primary {
+    min-height: 350px;
+  }
+
+  .launch-console--layout-settled .home-flight-instrument {
+    inset: 34px 0 0 !important;
+  }
+
+  .launch-console--layout-settled .home-launch-identity {
+    bottom: 136px;
+  }
+
+  .launch-console--layout-settled .home-ship-picker {
+    bottom: 82px;
+  }
+}
+
+@media (max-width: 640px) and (max-height: 600px) {
+  .launch-console--layout-settled,
+  .launch-console--layout-settled .launch-console__primary {
+    min-height: 320px;
+  }
+}
+
+@container (max-width: 430px) {
+  .launch-console--layout-settled .launch-console__status-line {
+    left: 104px;
+  }
+
+  .launch-console--layout-settled .home-playtime strong {
+    font-size: 34px;
+  }
+
+  .launch-console--layout-settled .home-playtime span {
+    display: none;
+  }
+}
+
+/* With no ship picker to clear, the launch identity becomes a caption for the primary action. */
+:root[data-home-mode="compact"] .launch-console--layout-settled .home-launch-identity {
+  bottom: 92px;
 }

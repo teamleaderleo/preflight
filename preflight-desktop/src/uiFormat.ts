@@ -96,8 +96,8 @@ export function failedRunSummary(detail?: string): string {
     ?.split(/\r?\n/)
     .map((line) => line.trim())
     .find(Boolean);
-  if (!firstLine) return "Starsector closed with an error. Support evidence was saved.";
-  return `Starsector closed with an error: ${clampToCharacters(firstLine, 360)} The support evidence has full details.`;
+  if (!firstLine) return "Starsector closed with an error. Details were saved for troubleshooting.";
+  return `Starsector closed with an error: ${clampToCharacters(firstLine, 360)} The saved report has full details.`;
 }
 
 const savedDateFormatter = new Intl.DateTimeFormat(undefined, {

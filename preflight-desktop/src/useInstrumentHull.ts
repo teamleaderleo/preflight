@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { getWireframeHulls } from "./bridge";
 import { BUNDLED_DEFAULT_HULL, BUNDLED_WIREFRAME_HULLS } from "./bundledWireframeHulls";
-import { INSTRUMENT_HULL_STORAGE_KEY, INSTRUMENT_HULL_TUNING_STORAGE_KEY } from "./desktopStorage";
+import {
+  INSTRUMENT_HULL_ROSTER_STORAGE_KEY,
+  INSTRUMENT_HULL_STORAGE_KEY,
+  INSTRUMENT_HULL_TUNING_STORAGE_KEY,
+} from "./desktopStorage";
 import type { WireframeHullCatalog, WireframeTuning } from "./types";
 import { DEFAULT_WIREFRAME_TUNING } from "./wireframeHullGeometry";
 
@@ -65,16 +69,39 @@ function savedTunings(): Record<string, WireframeTuning> {
   }
 }
 
+function savedRosters(): Record<string, string[]> {
+  try {
+    const decoded: unknown = JSON.parse(window.localStorage.getItem(INSTRUMENT_HULL_ROSTER_STORAGE_KEY) ?? "{}");
+    if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) return {};
+    const entries = Object.entries(decoded).slice(0, 64).flatMap(([game, value]) => {
+      if (game.length > 32_768 || !Array.isArray(value)) return [];
+      const ids = [...new Set(value.filter((id): id is string => typeof id === "string" && id.length <= 1_024))]
+        .slice(0, 64);
+      return ids.length > 0 ? [[game, ids] as const] : [];
+    });
+    return Object.fromEntries(entries);
+  } catch {
+    return {};
+  }
+}
+
 /** Loads installation-owned cosmetic geometry only while a page that can use it is visible. */
 export function useInstrumentHull(game: string | undefined, enabled: boolean) {
   const [catalogState, setCatalogState] = useState<CatalogState | null>(null);
+  const [catalogGeneration, setCatalogGeneration] = useState(0);
   const [selectedId, setSelectedId] = useState(savedHullId);
   const [tunings, setTunings] = useState(savedTunings);
+  const [rosters, setRosters] = useState(savedRosters);
   const catalogLoaded = catalogState !== null && catalogState.game === game;
   const catalog = catalogLoaded ? catalogState.catalog : null;
+  const selectedNeedsCatalog = Boolean(
+    game
+    && selectedId
+    && !BUNDLED_WIREFRAME_HULLS.hulls.some((hull) => hull.id === selectedId),
+  );
 
   useEffect(() => {
-    if (!game || !enabled || catalogState?.game === game) return;
+    if (!game || (!enabled && !selectedNeedsCatalog) || catalogState?.game === game) return;
     let current = true;
     // Six featured hulls are already bundled, so the first page frame never waits behind hundreds
     // of optional hull files. Start that cosmetic scan just after the page transition settles.
@@ -95,9 +122,15 @@ export function useInstrumentHull(game: string | undefined, enabled: boolean) {
       current = false;
       window.clearTimeout(timer);
     };
-  }, [catalogState?.game, enabled, game]);
+  }, [catalogGeneration, catalogState?.game, enabled, game, selectedNeedsCatalog]);
 
-  const hulls = useMemo(
+  const reloadCatalog = () => {
+    if (!game) return;
+    setCatalogState((current) => current?.game === game ? null : current);
+    setCatalogGeneration((current) => current + 1);
+  };
+
+  const catalogHulls = useMemo(
     () => {
       const local = (catalog?.hulls ?? []).filter((hull) => hull.id !== LEGACY_COURIER_ID);
       const featured = FEATURED_HULL_IDS.flatMap((id) => {
@@ -110,6 +143,32 @@ export function useInstrumentHull(game: string | undefined, enabled: boolean) {
     },
     [catalog],
   );
+  useEffect(() => {
+    if (!catalog || !selectedId || catalogHulls.some((hull) => hull.id === selectedId)) return;
+    try {
+      window.localStorage.setItem(INSTRUMENT_HULL_STORAGE_KEY, DEFAULT_HULL_ID);
+    } catch {
+      // The in-memory repair is enough for this session when WebView storage is unavailable.
+    }
+    setSelectedId(DEFAULT_HULL_ID);
+  }, [catalog, catalogHulls, selectedId]);
+  const rosterKey = game ?? "bundled";
+  const rosterIds = rosters[rosterKey] ?? [
+    ...FEATURED_HULL_IDS,
+    ...(selectedId && !FEATURED_HULL_IDS.includes(selectedId as typeof FEATURED_HULL_IDS[number])
+      ? [selectedId]
+      : []),
+  ];
+  const availableRosterHulls = rosterIds.flatMap((id) => {
+    const hull = catalogHulls.find((candidate) => candidate.id === id);
+    return hull ? [hull] : [];
+  });
+  const hulls = availableRosterHulls.length > 0
+    ? availableRosterHulls
+    : FEATURED_HULL_IDS.flatMap((id) => {
+      const hull = catalogHulls.find((candidate) => candidate.id === id);
+      return hull ? [hull] : [];
+    });
   const selectedBase = hulls.find((hull) => hull.id === selectedId)
     ?? hulls.find((hull) => hull.id === DEFAULT_HULL_ID)
     ?? hulls.find((hull) => hull.featured)
@@ -120,13 +179,26 @@ export function useInstrumentHull(game: string | undefined, enabled: boolean) {
     return tuning ? { ...selectedBase, tuning } : selectedBase;
   }, [selectedBase, tuningKey, tunings]);
   const choose = (id: string) => {
-    const next = hulls.some((hull) => hull.id === id) ? id : DEFAULT_HULL_ID;
+    const next = catalogHulls.some((hull) => hull.id === id) ? id : DEFAULT_HULL_ID;
+    setRosters((current) => {
+      const currentIds = current[rosterKey] ?? rosterIds;
+      return currentIds.includes(next)
+        ? current
+        : { ...current, [rosterKey]: [...currentIds, next].slice(0, 64) };
+    });
     try {
       window.localStorage.setItem(INSTRUMENT_HULL_STORAGE_KEY, next);
     } catch {
       // A denied WebView store should not make a cosmetic preference unusable for this session.
     }
     setSelectedId(next);
+  };
+
+  const remove = (id: string) => {
+    if (!rosterIds.includes(id) || hulls.length <= 1) return;
+    const nextIds = rosterIds.filter((candidate) => candidate !== id);
+    setRosters((current) => ({ ...current, [rosterKey]: nextIds }));
+    if (selectedBase.id === id) choose(nextIds[0] ?? DEFAULT_HULL_ID);
   };
 
   useEffect(() => {
@@ -139,6 +211,17 @@ export function useInstrumentHull(game: string | undefined, enabled: boolean) {
     }, 180);
     return () => window.clearTimeout(timer);
   }, [tunings]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(INSTRUMENT_HULL_ROSTER_STORAGE_KEY, JSON.stringify(rosters));
+      } catch {
+        // A denied WebView store only makes roster edits session-local.
+      }
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [rosters]);
 
   const customize = (patch: Partial<WireframeTuning>) => {
     const next = validateWireframeTuning({
@@ -159,12 +242,16 @@ export function useInstrumentHull(game: string | undefined, enabled: boolean) {
   return {
     catalog,
     catalogLoaded,
+    catalogLoading: Boolean(game && !catalogLoaded),
+    catalogHulls,
     hulls,
     selected,
     selectedId: selected.id,
     tuning: selected.tuning ?? DEFAULT_WIREFRAME_TUNING,
     customized: Boolean(selected.tuning),
     choose,
+    remove,
+    reloadCatalog,
     customize,
     resetCustomization,
   };

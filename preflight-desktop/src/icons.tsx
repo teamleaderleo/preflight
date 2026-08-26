@@ -54,9 +54,34 @@ export function ShipIcon(props: IconProps) {
 export function SidebarIcon(props: IconProps) {
   return (
     <svg {...defaults} {...props}>
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M9 4v16" />
-      <path d="m14 9 3 3-3 3" />
+      <path d="m15 5-7 7 7 7" />
+    </svg>
+  );
+}
+
+export function QuestionIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.8 9a2.4 2.4 0 0 1 4.7.7c0 2-2.5 2.1-2.5 4" />
+      <path d="M12 18h.01" />
+    </svg>
+  );
+}
+
+export function ClockIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
+
+export function FocusIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M8 4H4v4M16 4h4v4M20 16v4h-4M8 20H4v-4" />
     </svg>
   );
 }
@@ -104,6 +129,28 @@ export function RotateCounterClockwiseIcon(props: IconProps) {
     <svg {...defaults} {...props}>
       <path d="M4 11a8 8 0 1 1 2.3 5.7" />
       <path d="M4 6v5h5" />
+    </svg>
+  );
+}
+
+export function OrbitClockwiseIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <circle cx="12" cy="12" r="2.4" />
+      <path d="M4.4 13.8A8 8 0 0 1 18.8 7" />
+      <path d="m19.2 3.8-.4 3.3-3.3-.4" />
+      <path d="M19.6 10.2A8 8 0 0 1 5.2 17" opacity=".55" />
+    </svg>
+  );
+}
+
+export function OrbitCounterClockwiseIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <circle cx="12" cy="12" r="2.4" />
+      <path d="M19.6 13.8A8 8 0 0 0 5.2 7" />
+      <path d="m4.8 3.8.4 3.3 3.3-.4" />
+      <path d="M4.4 10.2A8 8 0 0 0 18.8 17" opacity=".55" />
     </svg>
   );
 }

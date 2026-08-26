@@ -188,90 +188,20 @@ public final class PreflightCli {
     private static Map<String, List<String>> usageByCommand() {
         Map<String, List<String>> usage = new LinkedHashMap<>();
         usage.put("run", List.of(
-                "preflight run [--game <path>] [--launcher <path>] [--direct] [--optimization-preset recommended|conservative|off | --fast] [--disable-optimization-domain prepared-textures|prepared-audio] [--file-only-logs | --quiet-logs] [--suppress-asset-progress-logs] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--campaign-entity-index | --no-campaign-entity-index] [--startup-phase-probe] [--graphicslib-compact-replay] [--janino-bytecode-cache] [--graphicslib-insignia-cache] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-unpadded | --prepared-npot]]"
-                        + " [--trust-validated-texture-index] [--no-record | --profile] [--single-chunk-recording] [-- <launcher args>]",
-                "    --direct starts Starsector through its own launchDirect path without showing the"
-                        + " launcher. Resolution, fullscreen and sound come from the launcher's saved"
-                        + " preferences; the run fails closed if those settings are unavailable or unsafe.",
-                "    --optimization-preset recommended enables every startup and gameplay cache"
-                        + " that has passed its live gate, disables profiling and duplicate-console"
-                        + " overhead, and leaves each exact adapter fail-closed. --fast is its"
-                        + " backwards-compatible alias and installed Preflight launchers use it by default.",
-                "    --optimization-preset conservative keeps the portable startup caches and"
-                        + " padded texture allocation, but omits gameplay and mod-specific plans."
-                        + " off retains the wrapper and process report without transforms, scanning,"
-                        + " summaries, or profiling. Later explicit raw options are for diagnostics.",
-                "    --disable-optimization-domain is a preset-only troubleshooting control."
-                        + " prepared-textures removes the complete prepared texture context;"
-                        + " prepared-audio removes the decoder-bound prepared audio context."
-                        + " Other adapters and correctness repairs are unchanged.",
-                "    --suppress-asset-progress-logs removes only the reviewed vanilla per-file"
-                        + " weapon, projectile, hull, and variant INFO messages. Errors, warnings,"
-                        + " and phase summaries remain; it is included by --fast and can be"
-                        + " reversed by a later --full-asset-progress-logs.",
-                "    --trust-validated-texture-index treats the complete configure-time provider"
-                        + " validation as this launch's immutable source snapshot, avoiding one"
-                        + " source filesystem round trip per texture. It is included by --fast"
-                        + " and can be reversed by a later --recheck-texture-sources.",
-                "    --file-only-logs keeps synchronous, crash-safe INFO writes in starsector.log"
-                        + " but removes the duplicate console appender. It is included by --fast.",
-                "    --quiet-logs keeps every INFO line in the rolling starsector.log, removes the"
-                        + " duplicate console appender, and buffers file writes. It saves about 0.40s"
-                        + " on the reviewed profile but a hard crash can lose the final 64 KiB, so it"
-                        + " remains an explicit upgrade over --fast's unbuffered file-only mode.",
-                "    --graphicslib-compact-replay replaces only the exact reviewed GraphicsLib"
-                        + " 1.12.1 TextureData class with its measured compact normal-map request"
-                        + " replay. Any class, archive, or classloader drift retains the mod's"
-                        + " original bytes and is reported in adapter-health.json.",
-                "    --janino-bytecode-cache reuses Janino's complete generated-class map only"
-                        + " under the exact reviewed compiler, classpath, source graph, JVM, debug,"
-                        + " parent-loader, and protection-domain policy. It is included by --fast"
-                        + " after a clean cold/learn and warm/hit live gate.",
-                "    --graphicslib-insignia-cache memoizes getFleetManager results only within one"
-                        + " exact GraphicsLib 1.12.1 insignia UI render. It changes no render math"
-                        + " and is included by --fast after a live combat pilot served repeated"
-                        + " owners without an adapter failure.",
-                "    --adapter also validates the exact refit simulator's merged opponent list"
-                        + " against Starsector's loaded ship and fighter registries. Nonexistent"
-                        + " mod entries are omitted from that simulator invocation and reported;"
-                        + " registry uncertainty retains the original list. It also isolates"
-                        + " vanilla's one-shot mod resource hint per loading thread, preventing"
-                        + " another thread from making an existing resource appear missing. On"
-                        + " exact MagicLib 1.5.6 it also answers paintjob unlock checks from the"
-                        + " mod's authoritative set instead of copying and scanning a list.",
-                "    --no-record runs the caches without recording a startup profile. The profile costs"
-                        + " roughly a quarter of startup, so this is the mode to launch with when you"
-                        + " want the speed and not the measurement; analysis commands need a recording.",
-                "    --prepared-unpadded serves textures at their true size instead of padded up to a"
-                        + " power of two, which both lets the bridge carry them and drops the padding"
-                        + " entirely -- 1.86 GiB allocated and never sampled on the reviewed profile."
-                        + " It activates only when the live LWJGL context exposes OpenGL 2.0 core or"
-                        + " GL_ARB_texture_non_power_of_two; otherwise the original padded path stays active.",
-                "    --prepared-npot is the conservative alternative: it carries the same textures while"
-                        + " keeping the power-of-two padding, so it needs nothing of the driver. Use it"
-                        + " to separate a broken conversion bypass from broken padding removal. Without"
-                        + " one of these two the bridge declines every texture that needs padding, which"
-                        + " on a normal profile is most of them, and the mode does almost nothing.",
-                "    --profile records execution sampling and blocking only, dropping the stack-traced"
-                        + " class loads and file reads that make up most of that cost. Use it to ask"
-                        + " where startup time goes: the full recording lands hardest on class loading,"
-                        + " so it cannot answer whether class loading is worth attacking.",
-                "    --single-chunk-recording gives JFR 256 MiB for one timestamp-coherent chunk and"
-                        + " disables periodic sidecar dumps, which themselves rotate chunks. Use it"
-                        + " when the order and timing of startup events matters. It spends extra memory"
-                        + " and gives up crash/force-quit sidecar recovery; --no-record is incompatible.",
-                "    --campaign-entity-index enables the BaseLocation.getEntityById index. It"
-                        + " requires --adapter, serves only snapshot-validated hits and misses, and"
-                        + " fails open on any validation error. The exact mutation-tracked deployment"
-                        + " icon cache and per-commodity event-mod memo use the same gameplay-cache"
-                        + " switch; --fast enables all three."));
+                "preflight run [--game <path>] [--launcher <path>] [--direct]"
+                        + " [--optimization-preset recommended|conservative|off | --fast]"
+                        + " [--no-record | --profile] [--dry-run] [-- <launcher args>]",
+                "  Launches Starsector. Installed Preflight launchers use the recommended preset.",
+                "  --direct skips the game's launcher and uses its saved display and sound settings.",
+                "  --dry-run prints the resolved command and optimization plan without launching.",
+                "  --profile records a diagnostic profile. --no-record is the normal fast path."));
         usage.put("prepare", List.of(
-                "preflight prepare [--game <path>] [--launcher <path>] [--cache-dir <path>] [--report <path>] [--workers <count>] [--memory-mb <MiB>] [--texture-storage fastest|balanced] [--parallel-stages|--serial-stages] [--deep] [--verify-lookups] [--lookup-queries <count>] [--seed <long>] [--no-resource-index] [--no-classpath] [--no-textures]",
-                "preflight prepare --plan [--json] [--game <path>] [--cache-dir <path>] [--workers <count>] [--texture-storage fastest|balanced]",
+                "preflight prepare [--game <path>] [--launcher <path>] [--cache-dir <path>] [--report <path>] [--workers <count>] [--memory-mb <MiB>] [--texture-storage fastest|balanced] [--texture-scope full|learned] [--parallel-stages|--serial-stages] [--deep] [--verify-lookups] [--lookup-queries <count>] [--seed <long>] [--no-resource-index] [--no-classpath] [--no-textures]",
+                "preflight prepare --plan [--json] [--game <path>] [--cache-dir <path>] [--workers <count>] [--texture-storage fastest|balanced] [--texture-scope full|learned]",
                 "  balanced (default) uses exact lossless LZ4 except where compression saves under"
                         + " 23.1%; fastest stores every upload-ready pixel array raw.",
-                "  --plan is read-only. Every real preparation refuses before writing when its"
-                        + " conservative upper bound and safety reserve do not fit."));
+                "  --plan is read-only. Every real preparation checks its expected temporary"
+                        + " requirement before writing, then checks live free space during the build."));
         usage.put("stop", List.of(
                 "preflight stop [--pid <process-id>] [--dry-run] [--force] [--timeout-seconds <n>] [--json]",
                 "  Stops a Starsector process Preflight started. `preflight run` stays attached"
@@ -333,7 +263,7 @@ public final class PreflightCli {
                 "preflight cache repair [--game <path>] [--launcher <path>] [--expected-profile <sha256>] [--json] [--yes]",
                 "  Plans a profile-scoped repair. --yes removes only unreadable current-profile",
                 "  metadata/packs; shared blobs remain available for preparation to reuse or quarantine.",
-                "preflight cache prune [--keep-named] [--json] [--yes]",
+                "preflight cache prune [--keep-named | --discardable-only] [--json] [--yes]",
                 "  Removes every profile except the current one; --keep-named also preserves every",
                 "  readable named profile. This includes profile texture packs,",
                 "  texture and prepared-audio blobs no survivor references, stale Janino contexts,",

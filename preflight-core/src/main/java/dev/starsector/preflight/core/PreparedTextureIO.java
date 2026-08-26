@@ -59,6 +59,18 @@ public final class PreparedTextureIO {
         AtomicBlobs.write(target, toBytes(texture, codec));
     }
 
+    /**
+     * Writes a checked SPFT used only while constructing a final prepared-texture pack.
+     *
+     * <p>The pack publisher validates the complete SPFT bytes before making the pack active. This
+     * avoids a durable flush for every one of thousands of rebuildable staging files while keeping
+     * the normal standalone {@link #write(Path, PreparedTexture, StorageCodec)} contract unchanged.
+     */
+    public static void writePackIntermediate(
+            Path target, PreparedTexture texture, StorageCodec codec) throws IOException {
+        AtomicBlobs.writeIntermediate(target, toBytes(texture, codec));
+    }
+
     public static PreparedTexture read(Path source) throws IOException {
         return read(source, true);
     }
@@ -95,6 +107,21 @@ public final class PreparedTextureIO {
         long fileBytes = Math.addExact(minimumFileBytes() + PAYLOAD_FIXED_BYTES, pixelBytes);
         if (pixelBytes < 0 || fileBytes > MAX_FILE_BYTES) {
             throw new IllegalArgumentException("Prepared texture pixel length is invalid: " + pixelBytes);
+        }
+        return fileBytes;
+    }
+
+    /** Maximum complete SPFT file size for a prospective upload-ready pixel array. */
+    public static long maximumFileBytes(long pixelBytes, StorageCodec codec) {
+        Objects.requireNonNull(codec, "codec");
+        long rawBytes = rawFileBytes(pixelBytes);
+        if (codec == StorageCodec.RAW) {
+            return rawBytes;
+        }
+        int maximumStored = new Lz4Compressor().maxCompressedLength(Math.toIntExact(pixelBytes));
+        long fileBytes = Math.addExact(minimumFileBytes() + PAYLOAD_FIXED_BYTES, maximumStored);
+        if (fileBytes > MAX_FILE_BYTES) {
+            throw new IllegalArgumentException("Prepared texture file length is invalid: " + fileBytes);
         }
         return fileBytes;
     }

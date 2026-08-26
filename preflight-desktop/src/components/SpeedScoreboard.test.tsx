@@ -1,21 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { vi } from "vitest";
-import type { WireframeHull } from "../types";
 import type { SpeedStanding } from "../useSpeedRecord";
 import { SpeedScoreboard } from "./SpeedScoreboard";
-
-vi.mock("./FlightInstrument", () => ({ FlightInstrument: () => <div data-testid="instrument" /> }));
-
-const hull: WireframeHull = {
-  id: "test",
-  name: "Test hull",
-  hullSize: "FRIGATE",
-  style: "MIDLINE",
-  bounds: [],
-  engines: [],
-  mounts: [],
-  featured: true,
-};
 
 function standing(): SpeedStanding {
   return {
@@ -47,7 +33,6 @@ test("keeps the personal best trophy while showing an unfavorable latest benchma
     <SpeedScoreboard
       standing={standing()}
       isReady
-      hull={hull}
       onOpenBenchmark={vi.fn()}
     />,
   );
@@ -60,12 +45,25 @@ test("keeps the personal best trophy while showing an unfavorable latest benchma
   expect(screen.queryByText(/matching launches/)).not.toBeInTheDocument();
 });
 
-test("keeps playtime session detail on hover and in the accessible description while the copy utility stays icon-only", () => {
+test("unmeasured startup uses a neutral figure instead of implying a multiplier", () => {
+  render(
+    <SpeedScoreboard
+      standing={{ ...standing(), record: null }}
+      isReady
+      onOpenBenchmark={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByText("—")).toBeInTheDocument();
+  expect(screen.queryByText("?×")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /Measure speed/ })).toBeEnabled();
+});
+
+test("keeps playtime session detail on hover and in the named accessible group while the copy utility stays icon-only", () => {
   render(
     <SpeedScoreboard
       standing={standing()}
       isReady
-      hull={hull}
       playtime={{
         readable: true,
         totalMillis: 12_600_000,
@@ -80,7 +78,7 @@ test("keeps playtime session detail on hover and in the accessible description w
     />,
   );
 
-  const playtime = screen.getByLabelText("3.5h recorded playtime across 3 sessions");
+  const playtime = screen.getByRole("group", { name: "3.5h recorded playtime across 3 sessions" });
   expect(playtime).toHaveAccessibleDescription("Longest session 2.0 hours");
   expect(playtime).toHaveAttribute(
     "title",

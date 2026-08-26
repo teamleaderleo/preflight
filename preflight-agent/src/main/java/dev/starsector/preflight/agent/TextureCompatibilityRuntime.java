@@ -39,7 +39,7 @@ public final class TextureCompatibilityRuntime {
     public static final String VERIFY_SOURCE_HASH_PROPERTY = "preflight.texture.verifySourceHash";
     /** Opt back in to hashing every prepared blob's pixels on the loading thread. */
     public static final String VERIFY_BLOB_CHECKSUM_PROPERTY = "preflight.texture.verifyBlobChecksum";
-    /** Diagnostic: use the configure-time full index validation as the launch snapshot. */
+    /** Trust the launcher's exact live-index comparison instead of walking every provider again. */
     public static final String TRUST_VALIDATED_INDEX_PROPERTY = "preflight.texture.trustValidatedIndex";
     public static final int MAX_MANIFEST_ENTRIES = 100_000;
     public static final long MAX_INDEX_PROVIDERS = 500_000;
@@ -77,24 +77,34 @@ public final class TextureCompatibilityRuntime {
                 return false;
             }
             TextureManifest manifest = TextureManifestIO.read(manifestFile);
-            ResourceIndex index = ResourceIndexIO.read(indexFile);
-            if (manifest.entryCount() > MAX_MANIFEST_ENTRIES || index.entryCount() > MAX_MANIFEST_ENTRIES
-                    || index.providerCount() > MAX_INDEX_PROVIDERS) {
+            boolean trustedIndex = trustValidatedIndex();
+            ResourceIndex index = trustedIndex ? null : ResourceIndexIO.read(indexFile);
+            if (manifest.entryCount() > MAX_MANIFEST_ENTRIES
+                    || (index != null && (index.entryCount() > MAX_MANIFEST_ENTRIES
+                            || index.providerCount() > MAX_INDEX_PROVIDERS))) {
                 disable(DisableReason.MANIFEST_TOO_LARGE);
                 return false;
             }
-            if (!manifest.profileFingerprint().equals(index.profileFingerprint())) {
+            if (index != null && !manifest.profileFingerprint().equals(index.profileFingerprint())) {
                 disable(DisableReason.MANIFEST_INDEX_MISMATCH);
                 return false;
             }
-            ResourceIndexValidator.Result validation = ResourceIndexValidator.validate(index, 16);
-            if (!validation.valid()) {
-                disable(DisableReason.INDEX_STALE);
-                return false;
+            // Recommended launches arrive here only after CurrentTextureCache rebuilt the live
+            // installation index and compared every root and provider with this artifact. Walking
+            // the same providers again in the child JVM adds no new observation. Custom launches
+            // remain fail-closed unless they explicitly opt into the same snapshot contract.
+            if (index != null) {
+                ResourceIndexValidator.Result validation = ResourceIndexValidator.validate(index, 16);
+                if (!validation.valid()) {
+                    disable(DisableReason.INDEX_STALE);
+                    return false;
+                }
             }
-            List<Path> sourceRoots = new ArrayList<>(index.roots().size());
-            for (ResourceIndex.Root root : index.roots()) {
-                sourceRoots.add(PathContainment.realDirectory(root.path()));
+            List<Path> sourceRoots = new ArrayList<>(index == null ? 0 : index.roots().size());
+            if (index != null) {
+                for (ResourceIndex.Root root : index.roots()) {
+                    sourceRoots.add(PathContainment.realDirectory(root.path()));
+                }
             }
             PreparedTexturePack pack = null;
             if (!Boolean.getBoolean(VERIFY_BLOB_CHECKSUM_PROPERTY)) {
@@ -118,6 +128,7 @@ public final class TextureCompatibilityRuntime {
                     manifest,
                     index,
                     List.copyOf(sourceRoots),
+                    trustedIndex,
                     Boolean.getBoolean(VERIFY_BLOB_CHECKSUM_PROPERTY),
                     pack);
             TELEMETRY.configured();
@@ -230,6 +241,7 @@ public final class TextureCompatibilityRuntime {
 
     /** Shared exact lookup used by independently selectable texture consumers. */
     static PreparedTexture lookup(String logicalPath) {
+        TextureAccessLearningRuntime.observe(logicalPath);
         TELEMETRY.attempt();
         State current = state;
         if (!current.ready || current.circuitBreaker.get()) {
@@ -250,12 +262,12 @@ public final class TextureCompatibilityRuntime {
                 TELEMETRY.fallback(FallbackReason.ENTRY_MISSING);
                 return null;
             }
-            ResourceIndex.Provider winner = current.index.winner(normalized).orElse(null);
-            if (winner == null) {
-                TELEMETRY.fallback(FallbackReason.SOURCE_MISSING);
-                return null;
-            }
-            if (!trustValidatedIndex()) {
+            if (!(current.trustedValidatedIndex || trustValidatedIndex())) {
+                ResourceIndex.Provider winner = current.index.winner(normalized).orElse(null);
+                if (winner == null) {
+                    TELEMETRY.fallback(FallbackReason.SOURCE_MISSING);
+                    return null;
+                }
                 Path source;
                 try {
                     source = PathContainment.existingInsideRealRoot(
@@ -425,7 +437,7 @@ public final class TextureCompatibilityRuntime {
     static Map<String, Object> telemetry() {
         Map<String, Object> values = new LinkedHashMap<>(TELEMETRY.snapshot(ready()));
         values.put("blobChecksumVerification", state.verifyBlobChecksum);
-        values.put("trustedValidatedIndex", trustValidatedIndex());
+        values.put("trustedValidatedIndex", state.trustedValidatedIndex || trustValidatedIndex());
         values.put("packedStoreAvailable", state.pack != null);
         values.put("packedStoreActive", state.pack != null && !state.packDisabled.get());
         // How long the game took over the textures, and how much of that was this seam. The
@@ -553,6 +565,7 @@ public final class TextureCompatibilityRuntime {
         private final TextureManifest manifest;
         private final ResourceIndex index;
         private final List<Path> sourceRoots;
+        private final boolean trustedValidatedIndex;
         private final boolean verifyBlobChecksum;
         private final PreparedTexturePack pack;
         private final boolean ready;
@@ -567,12 +580,14 @@ public final class TextureCompatibilityRuntime {
                 TextureManifest manifest,
                 ResourceIndex index,
                 List<Path> sourceRoots,
+                boolean trustedValidatedIndex,
                 boolean verifyBlobChecksum,
                 PreparedTexturePack pack) {
             this.cacheRoot = cacheRoot;
             this.manifest = manifest;
             this.index = index;
             this.sourceRoots = sourceRoots;
+            this.trustedValidatedIndex = trustedValidatedIndex;
             this.verifyBlobChecksum = verifyBlobChecksum;
             this.pack = pack;
             this.ready = true;
@@ -583,6 +598,7 @@ public final class TextureCompatibilityRuntime {
             this.manifest = null;
             this.index = null;
             this.sourceRoots = List.of();
+            this.trustedValidatedIndex = false;
             this.verifyBlobChecksum = false;
             this.pack = null;
             this.ready = false;
@@ -614,7 +630,7 @@ public final class TextureCompatibilityRuntime {
                 snapshot = List.copyOf(packAccessOrder);
             }
             try {
-                PreparedTexturePackOrderIO.write(
+                PreparedTexturePackOrderIO.observe(
                         PreparedTexturePackOrderIO.path(cacheRoot, manifest.profileFingerprint()),
                         manifest.profileFingerprint(), snapshot);
             } catch (IOException | IllegalArgumentException ignored) {

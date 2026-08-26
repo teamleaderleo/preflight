@@ -31,6 +31,7 @@ final class CacheCommand {
         boolean confirmed = false;
         boolean json = false;
         boolean keepNamed = false;
+        boolean discardableOnly = false;
         Path game = null;
         Path launcher = null;
         String expectedProfile = null;
@@ -43,6 +44,7 @@ final class CacheCommand {
                 case "--yes" -> confirmed = true;
                 case "--json" -> json = true;
                 case "--keep-named" -> keepNamed = true;
+                case "--discardable-only" -> discardableOnly = true;
                 case "--game" -> game = Path.of(requireValue(args, ++index, "--game"));
                 case "--launcher" -> launcher = Path.of(requireValue(args, ++index, "--launcher"));
                 case "--expected-profile" -> expectedProfile =
@@ -72,6 +74,13 @@ final class CacheCommand {
                 System.err.println("preflight cache prune: --expected-profile isn't valid");
                 return 2;
             }
+            if (discardableOnly) {
+                if (keepNamed || game != null || launcher != null) {
+                    System.err.println("preflight cache prune: --discardable-only doesn't use --keep-named, --game, or --launcher");
+                    return 2;
+                }
+                return pruneDiscardable(home, confirmed, json, System.out);
+            }
             return prune(
                     home,
                     game,
@@ -80,6 +89,10 @@ final class CacheCommand {
                     keepNamed,
                     json,
                     System.out);
+        }
+        if (discardableOnly) {
+            System.err.println("preflight cache: --discardable-only requires prune");
+            return 2;
         }
         boolean fullIdentity = requiresFullIdentity(inspect, health, repair);
         CurrentProfile currentProfile = fullIdentity
@@ -229,6 +242,45 @@ final class CacheCommand {
      */
     static int prune(PreflightHome home, boolean confirmed, PrintStream out) throws Exception {
         return prune(home, confirmed, false, false, out);
+    }
+
+    static int pruneDiscardable(
+            PreflightHome home, boolean confirmed, boolean json, PrintStream out) throws Exception {
+        if (!confirmed) {
+            return pruneDiscardableOwned(home, false, json, out);
+        }
+        OperationLease.Acquisition ownership = OperationLease.acquire(home, "cleaning-cache", null);
+        try (OperationLease ignored = ownership.lease()) {
+            return pruneDiscardableOwned(home, true, json, out);
+        }
+    }
+
+    private static int pruneDiscardableOwned(
+            PreflightHome home, boolean confirmed, boolean json, PrintStream out) throws Exception {
+        CachePrune.Plan plan = CachePrune.planDiscardable(home);
+        if (!plan.safe()) {
+            if (json) {
+                emitPruneJson(null, Set.of(), plan, false, false, plan.refusals(), out);
+                return 3;
+            }
+            System.err.println("Preflight couldn't verify its cache boundary. Nothing was removed.");
+            return 3;
+        }
+        if (confirmed) {
+            CachePrune.apply(plan);
+        }
+        if (json) {
+            emitPruneJson(null, Set.of(), plan, true, confirmed, List.of(), out);
+        } else if (plan.removals().isEmpty()) {
+            out.println("No replaced cache data to remove.");
+        } else if (confirmed) {
+            out.printf(Locale.ROOT, "Freed %s of replaced cache data.%n",
+                    CacheFootprint.humanBytes(plan.bytes()));
+        } else {
+            out.printf(Locale.ROOT, "Would free %s of replaced cache data. Re-run with --yes to do it.%n",
+                    CacheFootprint.humanBytes(plan.bytes()));
+        }
+        return 0;
     }
 
     static int prune(

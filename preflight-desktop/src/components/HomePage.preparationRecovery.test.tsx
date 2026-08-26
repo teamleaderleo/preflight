@@ -1,6 +1,8 @@
+import homePresentationStyles from "../homePresentation.css?raw";
 import { render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import type { usePreparation } from "../usePreparation";
+import type { useInstrumentHull } from "../useInstrumentHull";
 import type { DesktopSnapshot, WireframeHull } from "../types";
 import { HomePage } from "./HomePage";
 
@@ -18,6 +20,23 @@ const hull: WireframeHull = {
   engines: [],
   mounts: [],
 };
+
+const hullState = {
+  catalog: null,
+  catalogLoaded: false,
+  catalogLoading: false,
+  catalogHulls: [hull],
+  hulls: [hull],
+  selected: hull,
+  selectedId: hull.id,
+  tuning: { outerSmooth: 0, outerDetail: 0, innerSmooth: 0, innerDetail: 0, height: 1 },
+  customized: false,
+  choose: vi.fn(),
+  remove: vi.fn(),
+  reloadCatalog: vi.fn(),
+  customize: vi.fn(),
+  resetCustomization: vi.fn(),
+} as ReturnType<typeof useInstrumentHull>;
 
 const snapshot: DesktopSnapshot = {
   protocol: 1,
@@ -88,8 +107,8 @@ const preparation = {
   stopPreparation: vi.fn(),
 } as unknown as ReturnType<typeof usePreparation>;
 
-test("Home explains a preparation recovered after restart without inventing a percentage", () => {
-  render(<HomePage
+function renderHome(currentPreparation: ReturnType<typeof usePreparation>, operationBlocked = false) {
+  return render(<HomePage
     snapshot={snapshot}
     status="ready"
     message=""
@@ -97,14 +116,14 @@ test("Home explains a preparation recovered after restart without inventing a pe
     isReady
     needsPreparation
     optimizationPreset="recommended"
-    preparation={preparation}
+    preparation={currentPreparation}
     updateStatus={null}
     launcherSettings={null}
     launcherDraft={null}
     launcherSettingsLoading={false}
     launcherSettingsSaving={false}
     launchSettingsDirty={false}
-    operationBlocked
+    operationBlocked={operationBlocked}
     launchSettingsEditingBlocked={false}
     launchSettingsSaveBlocked={false}
     theme="light"
@@ -121,13 +140,64 @@ test("Home explains a preparation recovered after restart without inventing a pe
     runFailure={null}
     onDismissRunFailure={vi.fn()}
     onNavigate={vi.fn()}
-    instrumentHull={hull}
+    instrumentHull={hullState}
     launchProfileName="Exploration"
+    modReadiness={null}
   />);
+}
+
+test("Home explains a preparation recovered after restart without inventing a percentage", () => {
+  renderHome(preparation, true);
 
   expect(screen.getByText("Preparation in progress")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Preparation in progress…" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Stop safely" })).toBeEnabled();
-  expect(screen.getByText(/Reconnected after restart\. Starsector stays closed/)).toBeInTheDocument();
+  expect(screen.getByText(/Resumed\. Starsector stays closed/)).toBeInTheDocument();
   expect(document.body).not.toHaveTextContent("0%");
+});
+
+test("Home keeps storage-mode taxonomy out of the default low-disk decision", () => {
+  const lowDiskPreparation = {
+    ...preparation,
+    preparing: false,
+    preparationPlan: {
+      safeToPrepare: false,
+      predictedAdditionalBytes: 4_000_000_000,
+      requiredFreeBytes: 5_000_000_000,
+      usableBytes: 3_000_000_000,
+    },
+  } as unknown as ReturnType<typeof usePreparation>;
+
+  renderHome(lowDiskPreparation);
+
+  const noteText = screen.getByText(/Preparation needs .* free; .* is available\./);
+  const lessDisk = screen.getByRole("button", { name: "Prepare with less disk" });
+  expect(screen.getByRole("button", { name: "Launch normally" })).toBeEnabled();
+  expect(document.body).not.toHaveTextContent(/Full preparation|Balanced|Fastest/);
+
+  const note = noteText.closest(".launch-console__note");
+  const actions = lessDisk.closest(".launch-console__actions");
+  expect(note).not.toBeNull();
+  expect(actions).not.toBeNull();
+  expect(note!.nextElementSibling).toBe(actions);
+});
+
+test("compact preparation note clears both ordinary and stacked action rows", () => {
+  const styles = homePresentationStyles.replace(/\/\*[\s\S]*?\*\//g, "");
+  const mediaIndex = styles.search(/@media\s*\(\s*max-width\s*:\s*720px\s*\)/);
+  const ordinaryRule = styles.match(
+    /:root\s+\.launch-console\.launch-console--layout-preparation\.launch-console--ready\s+\.launch-console__note\s*\{([^}]*)\}/,
+  );
+  const stackedMediaIndex = styles.search(/@media\s*\(\s*max-width\s*:\s*600px\s*\)/);
+  const stackedRule = styles.slice(stackedMediaIndex).match(
+    /:root\s+\.launch-console\.launch-console--layout-preparation\.launch-console--ready\s+\.launch-console__note\s*\{([^}]*)\}/,
+  );
+
+  expect(mediaIndex).toBeGreaterThanOrEqual(0);
+  expect(ordinaryRule).not.toBeNull();
+  expect(ordinaryRule?.index ?? -1).toBeGreaterThan(mediaIndex);
+  expect(ordinaryRule?.[1]).toMatch(/bottom\s*:\s*126px\s*;?/);
+  expect(stackedMediaIndex).toBeGreaterThan(mediaIndex);
+  expect(stackedRule?.[1]).toMatch(/bottom\s*:\s*156px\s*;?/);
+  expect(styles).not.toContain(":has(");
 });

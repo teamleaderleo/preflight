@@ -17,9 +17,10 @@ public final class RuntimeSemanticState {
     static final String FORMAT = "starsector-preflight-runtime-state-v1";
     private static final int STARTING = 0;
     private static final int MAIN_MENU = 1;
-    private static final int CAMPAIGN = 2;
-    private static final int COMBAT = 3;
-    private static final int STOPPED = 4;
+    private static final int MAIN_MENU_INTERACTIVE = 2;
+    private static final int CAMPAIGN = 3;
+    private static final int COMBAT = 4;
+    private static final int STOPPED = 5;
 
     private static volatile boolean enabled;
     private static volatile int state = STARTING;
@@ -28,6 +29,7 @@ public final class RuntimeSemanticState {
     private static String writeProblem;
     private static Instant processStartedAt;
     private static Instant mainMenuReadyAt;
+    private static Instant mainMenuInteractiveAt;
 
     private RuntimeSemanticState() {
     }
@@ -39,6 +41,7 @@ public final class RuntimeSemanticState {
         writeProblem = null;
         processStartedAt = ProcessHandle.current().info().startInstant().orElse(null);
         mainMenuReadyAt = null;
+        mainMenuInteractiveAt = null;
         enabled = true;
         try {
             write();
@@ -55,6 +58,12 @@ public final class RuntimeSemanticState {
 
     public static void mainMenuReady() {
         transition(MAIN_MENU);
+    }
+
+    public static synchronized void mainMenuInteractive() {
+        if (!enabled || mainMenuInteractiveAt != null) return;
+        mainMenuInteractiveAt = Instant.now();
+        transition(MAIN_MENU_INTERACTIVE);
     }
 
     public static void campaignReady() {
@@ -100,6 +109,7 @@ public final class RuntimeSemanticState {
         result.put("destination", destination);
         result.put("processStartedAt", processStartedAt);
         result.put("mainMenuReadyAt", mainMenuReadyAt);
+        result.put("mainMenuInteractiveAt", mainMenuInteractiveAt);
         return result;
     }
 
@@ -111,6 +121,7 @@ public final class RuntimeSemanticState {
         writeProblem = null;
         processStartedAt = null;
         mainMenuReadyAt = null;
+        mainMenuInteractiveAt = null;
     }
 
     private static void write() throws IOException {
@@ -120,6 +131,7 @@ public final class RuntimeSemanticState {
         values.put("pid", process.pid());
         values.put("processStartedAt", processStartedAt);
         values.put("mainMenuReadyAt", mainMenuReadyAt);
+        values.put("mainMenuInteractiveAt", mainMenuInteractiveAt);
         values.put("state", name(state));
         values.put("sequence", sequence);
         values.put("observedAt", Instant.now());
@@ -129,6 +141,7 @@ public final class RuntimeSemanticState {
     private static String name(int value) {
         return switch (value) {
             case MAIN_MENU -> "main-menu-ready";
+            case MAIN_MENU_INTERACTIVE -> "main-menu-interactive";
             case CAMPAIGN -> "campaign-ready";
             case COMBAT -> "combat-ready";
             case STOPPED -> "stopped";

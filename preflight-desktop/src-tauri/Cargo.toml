@@ -6,7 +6,7 @@ authors = ["Preflight contributors"]
 license = "MIT"
 repository = "https://github.com/teamleaderleo/preflight"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 
 [lib]
 name = "starsector_preflight_desktop_lib"

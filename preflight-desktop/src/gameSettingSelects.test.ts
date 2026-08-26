@@ -67,8 +67,8 @@ describe("display pixels", () => {
  * The battle-size shortcuts.
  *
  * The numbers a player wants are the ones the installation actually names -- vanilla's 200/400 --
- * plus a few round steps above them, and nothing outside the range the settings command would
- * accept. A mod that raises maxBattleSize moves the anchors, so the list is derived, not fixed.
+ * plus a few round steps above them. A mod that raises maxBattleSize moves the anchors, so the list
+ * is derived rather than fixed. The numeric field accepts values beyond these shortcuts.
  */
 describe("battle size presets", () => {
   function withLimits(limits: Partial<LaunchSettings["limits"]>): LaunchSettings {
@@ -81,7 +81,7 @@ describe("battle size presets", () => {
         battleSizeMin: 200,
         battleSizeDefault: 400,
         battleSizeMax: 400,
-        battleSizeExtendedMax: 2000,
+        battleSizeExtendedMax: 2_147_483_647,
         diagnostics: [],
         ...limits,
       },
@@ -95,7 +95,7 @@ describe("battle size presets", () => {
       { value: 600, label: "Larger" },
       { value: 1000, label: "Big" },
       { value: 1500, label: "Huge" },
-      { value: 2000, label: "Maximum" },
+      { value: 2000, label: "Extreme" },
     ]);
   });
 
@@ -112,15 +112,14 @@ describe("battle size presets", () => {
       battleSizeMax: 700,
       battleSizeExtendedMax: 900,
     }));
-    // 200 and the 1000/1500 steps fall outside [500, 900] and are dropped rather than clamped.
-    expect(presets.map((preset) => preset.value)).toEqual([500, 600, 700, 900]);
+    // The engine's old reported ceiling is compatibility data, not a product limit.
+    expect(presets.map((preset) => preset.value)).toEqual([500, 600, 700, 1000, 1500, 2000]);
   });
 
   /**
    * An installation Preflight cannot read reports every battle-size limit as null -- run
-   * `preflight launch-settings --json` with no --game to see it. The slider falls back to a range
-   * of 1 to the extended maximum, and a "Minimum" button holding that 1 would be inventing a game
-   * rule that no installation stated.
+   * `preflight launch-settings --json` with no --game to see it. A "Minimum" button holding 1 would
+   * be inventing a game rule that no installation stated.
    */
   it("names only the steps when the installation stated no limits of its own", () => {
     const presets = battleSizePresets(withLimits({
@@ -132,7 +131,7 @@ describe("battle size presets", () => {
       { value: 600, label: "Larger" },
       { value: 1000, label: "Big" },
       { value: 1500, label: "Huge" },
-      { value: 2000, label: "Maximum" },
+      { value: 2000, label: "Extreme" },
     ]);
   });
 });
@@ -147,6 +146,7 @@ describe("storage group labels", () => {
   it("explains the categories the engine reports", () => {
     expect(storageGroupLabel("acceleration").label).toBe("Prepared game data");
     expect(storageGroupLabel("evidence").detail).toMatch(/Launch timings/);
+    expect(storageGroupLabel("discardable").label).toBe("Replaced cache data");
     expect(storageGroupLabel("configuration").label).toBe("Profiles and backups");
     expect(storageGroupLabel("application").label).toBe("Preflight itself");
   });

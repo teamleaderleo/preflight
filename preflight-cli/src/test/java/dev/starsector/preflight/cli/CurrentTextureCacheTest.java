@@ -37,6 +37,21 @@ class CurrentTextureCacheTest {
         assertEquals(Hashes.sha256(fixture.manifest()), resolution.manifestSha256());
         assertEquals(1L, resolution.checkedProviders());
         assertTrue(resolution.indexBuildMillis() >= 0);
+        assertEquals(false, resolution.minimal());
+    }
+
+    @Test
+    void resolvesMinimalPreparationWithoutInventingATextureContext() throws Exception {
+        Fixture fixture = fixture();
+        Files.delete(fixture.manifest());
+        MinimalPreparationMarker.write(fixture.cache(), fixture.profile());
+
+        CurrentTextureCache.Resolution resolution = CurrentTextureCache.resolve(fixture.game(), fixture.cache());
+
+        assertTrue(resolution.minimal());
+        assertEquals(null, resolution.manifest());
+        assertEquals(null, resolution.manifestSha256());
+        assertEquals(fixture.index().toRealPath(), resolution.index());
     }
 
     @Test

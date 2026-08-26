@@ -50,6 +50,14 @@ public final class SpecStoreCacheDirectories {
         return store(cacheRoot, "merged-reads", PreparedMergedReadCache.FORMAT_VERSION, 1);
     }
 
+    public static Path magicPaintjobs(Path cacheRoot) {
+        return store(
+                cacheRoot,
+                "magic-paintjobs",
+                PreparedMagicPaintjobCache.FORMAT_VERSION,
+                1);
+    }
+
     private static Path store(
             Path cacheRoot, String name, int currentFormatVersion, int establishedFormatVersion) {
         return CacheFormatNamespace.directory(

@@ -67,8 +67,23 @@ final class PreparedTexturePackIntegrity {
             FileChannel output,
             ByteBuffer copyBuffer,
             String sourceLabel) throws IOException {
+        return copyVerifiedSpftRange(
+                input, 0, expectedLength, expectedLength, output, copyBuffer, sourceLabel);
+    }
+
+    static int copyVerifiedSpftRange(
+            FileChannel input,
+            long offset,
+            int expectedLength,
+            long expectedFileSize,
+            FileChannel output,
+            ByteBuffer copyBuffer,
+            String sourceLabel) throws IOException {
         if (expectedLength < SPFT_PREFIX_BYTES + SPFT_CHECKSUM_BYTES
-                || input.size() != expectedLength) {
+                || offset < 0
+                || offset > Long.MAX_VALUE - expectedLength
+                || offset + expectedLength > expectedFileSize
+                || input.size() != expectedFileSize) {
             throw new IOException("Prepared texture blob length changed while packing: " + sourceLabel);
         }
 
@@ -76,7 +91,7 @@ final class PreparedTexturePackIntegrity {
         MessageDigest payloadSha256 = newSha256();
 
         ByteBuffer prefix = ByteBuffer.allocate(SPFT_PREFIX_BYTES).order(ByteOrder.BIG_ENDIAN);
-        readFully(input, 0, prefix, "Prepared texture blob ended inside its prefix");
+        readFully(input, offset, prefix, "Prepared texture blob ended inside its prefix");
         prefix.flip();
         update(crc32c, prefix);
         writeFully(output, prefix.asReadOnlyBuffer());
@@ -96,7 +111,7 @@ final class PreparedTexturePackIntegrity {
             throw new IOException("Prepared texture blob payload length is invalid: " + sourceLabel);
         }
 
-        long position = SPFT_PREFIX_BYTES;
+        long position = offset + SPFT_PREFIX_BYTES;
         long remaining = payloadLength;
         while (remaining > 0) {
             copyBuffer.clear();
@@ -127,7 +142,7 @@ final class PreparedTexturePackIntegrity {
         if (!MessageDigest.isEqual(expectedPayloadSha256, payloadSha256.digest())) {
             throw new IOException("Prepared texture blob checksum mismatch while packing: " + sourceLabel);
         }
-        if (input.size() != expectedLength) {
+        if (input.size() != expectedFileSize) {
             throw new IOException("Prepared texture blob length changed while packing: " + sourceLabel);
         }
         return (int) crc32c.getValue();

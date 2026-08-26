@@ -13,31 +13,40 @@ owners.
 ## Current owners
 
 - [#652](https://github.com/teamleaderleo/preflight/issues/652) owns live release convergence,
-  blocker status, merge order, collision control, and moving `main` coordination.
-- [Release readiness](release-readiness.md) mirrors #652's four active candidate/platform blockers.
+  blocker status, merge order, collision control, moving `main` coordination, and explicit maintainer
+  changes to the pre-freeze product state.
+- [Release readiness](release-readiness.md) mirrors the current candidate gate.
+- [Public beta roadmap](beta-roadmap.md) explains the current operational sequence without relying on
+  this historical runbook.
 - [#950](https://github.com/teamleaderleo/preflight/issues/950) records the maintainer's publication
   decision. The 2026-08-07 Fractal Softworks request is courtesy correspondence and a reply is outside
   the publication gate.
-- [#607](https://github.com/teamleaderleo/preflight/issues/607) owns current `main` and release-tag
-  protection verification. Its 2026-08-20 state already supersedes the old blanket statement that
-  `main` is unprotected.
-- [#720](https://github.com/teamleaderleo/preflight/issues/720) owns the `release-signing`
-  Environment, release-tag admission, and updater-signing secret migration.
+- [#720](https://github.com/teamleaderleo/preflight/issues/720) records the completed
+  `release-signing` Environment setup, private signed rehearsals, and updater-signing secret
+  migration.
+- [#607](https://github.com/teamleaderleo/preflight/issues/607) is closed `not planned`: the owner
+  intentionally removed the repository rulesets/branch protection on 2026-08-21. It is retained as
+  the decision record, not as a current release gate.
 
 Use the live issue bodies for repository settings and operator steps. They can change independently
 of documentation commits.
 
 ## Current beta gate
 
-The release coordination board currently carries four candidate/platform tasks:
+Source and rendered-UI convergence are complete for the first beta. The remaining work is the
+operational candidate sequence owned by #652: select and freeze one immutable tagged candidate
+generation, exercise that exact package on native Windows and x86-64 Linux, retain package-bound
+benchmark/lifecycle/exact-tag canary evidence, and complete #965's hands-on report-intake
+cancel/retry/delete sequence.
 
-1. real-game Windows and Linux installation exercise;
-2. complete hosted Windows/macOS/Linux candidate freeze and exercise;
-3. startup benchmark on the exact packaged candidate bytes; and
-4. packaged report-intake cancel/retry/delete canary.
+A private rehearsal, green source tree, or complete candidate does not itself authorize making the
+first public beta GitHub release and downloadable packages live. Final candidate creation and public
+release remain explicit maintainer decisions. After freeze, a demonstrated candidate failure or
+explicit maintainer decision can create new bytes; affected package-dependent evidence must then be
+regenerated for the new candidate generation.
 
-Repository administration, signing setup, post-RC hardening, and research remain in their own owner
-lanes. #652 decides whether a concrete candidate failure changes release priority.
+Post-RC hardening, research, routine dependency work, and prototypes stay outside the candidate unless
+#652 promotes them through a concrete failure or maintainer decision.
 
 ## Historical runbook
 

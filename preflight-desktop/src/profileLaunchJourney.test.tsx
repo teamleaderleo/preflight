@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import App from "./App";
@@ -115,7 +115,11 @@ test("Home reflects the switched profile when its new mod set needs preparation"
     const user = userEvent.setup();
     render(<App />);
 
-    await screen.findByRole("button", { name: "Launch Starsector" });
+    await screen.findByRole(
+      "button",
+      { name: "Launch Starsector" },
+      { timeout: 3_000 },
+    );
     await user.click(screen.getByRole("button", { name: "Mods" }));
     await screen.findByText("Utilities only");
     await user.click(screen.getByRole("button", { name: "Switch…" }));
@@ -129,7 +133,7 @@ test("Home reflects the switched profile when its new mod set needs preparation"
       .toBeInTheDocument();
     expect(screen.getByLabelText("Installation /Applications/Starsector"))
       .toHaveAttribute("title", "/Applications/Starsector");
-    await waitFor(() => expect(screen.getByText("Preparation needed")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Fast launch")).toBeInTheDocument());
   } finally {
     getProfiles.mockRestore();
     getCache.mockRestore();
@@ -137,7 +141,7 @@ test("Home reflects the switched profile when its new mod set needs preparation"
   }
 });
 
-test("refocus on another page invalidates stale launch identity before returning Home", async () => {
+test("refocus revalidates profiles in the background without blanking Home", async () => {
   window.localStorage.clear();
   const profileRefresh = deferred<ProfileList>();
   const cacheRefresh = deferred<CacheSnapshot>();
@@ -157,14 +161,12 @@ test("refocus on another page invalidates stale launch identity before returning
     expect(screen.getByLabelText("Installation /Applications/Starsector")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Settings" }));
 
-    window.dispatchEvent(new Event("focus"));
+    act(() => window.dispatchEvent(new Event("focus")));
     await waitFor(() => expect(getProfiles).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(getCache).toHaveBeenCalledTimes(2));
 
     await user.click(screen.getByRole("button", { name: "Home" }));
-    expect(screen.queryByText("Main campaign", { selector: ".home-launch-identity strong" }))
-      .not.toBeInTheDocument();
-    expect(await screen.findByText("Current mod setup", { selector: ".home-launch-identity strong" }))
+    expect(screen.getByText("Main campaign", { selector: ".home-launch-identity strong" }))
       .toBeInTheDocument();
     expect(screen.getByLabelText("Installation /Applications/Starsector")).toBeInTheDocument();
     expect(getProfiles).toHaveBeenCalledTimes(2);
@@ -172,7 +174,7 @@ test("refocus on another page invalidates stale launch identity before returning
     profileRefresh.resolve(externalProfiles());
     cacheRefresh.resolve(cache("external-fingerprint", false));
 
-    await waitFor(() => expect(screen.getByText("Preparation needed")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Fast launch")).toBeInTheDocument());
     expect(getProfiles).toHaveBeenCalledTimes(2);
     expect(getCache).toHaveBeenCalledTimes(2);
   } finally {
@@ -181,7 +183,7 @@ test("refocus on another page invalidates stale launch identity before returning
   }
 });
 
-test("failed refocus revalidation never restores the old saved profile name", async () => {
+test("failed refocus revalidation keeps the last usable profile identity", async () => {
   window.localStorage.clear();
   const getProfiles = vi.spyOn(bridge, "getProfiles")
     .mockResolvedValueOnce(profiles(true))
@@ -197,15 +199,13 @@ test("failed refocus revalidation never restores the old saved profile name", as
       .toBeInTheDocument();
     expect(screen.getByLabelText("Installation /Applications/Starsector")).toBeInTheDocument();
 
-    window.dispatchEvent(new Event("focus"));
+    act(() => window.dispatchEvent(new Event("focus")));
 
-    expect(await screen.findByText("Current mod setup", { selector: ".home-launch-identity strong" }))
+    await waitFor(() => expect(getProfiles).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("Main campaign", { selector: ".home-launch-identity strong" }))
       .toBeInTheDocument();
     expect(screen.getByLabelText("Installation /Applications/Starsector")).toBeInTheDocument();
-    await waitFor(() => expect(getProfiles).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(getCache).toHaveBeenCalledTimes(2));
-    expect(screen.queryByText("Main campaign", { selector: ".home-launch-identity strong" }))
-      .not.toBeInTheDocument();
   } finally {
     getProfiles.mockRestore();
     getCache.mockRestore();

@@ -34,6 +34,8 @@ public final class JaninoBytecodeCacheRuntime {
     private static final AtomicLong PACK_MISSES = new AtomicLong();
     private static final AtomicLong PACK_WRITES = new AtomicLong();
     private static final AtomicLong PACK_ERRORS = new AtomicLong();
+    private static final AtomicLong PACK_RELEASED_BUNDLES = new AtomicLong();
+    private static final AtomicLong PACK_RELEASED_BYTES = new AtomicLong();
     private static final ConcurrentHashMap<Class<?>, PolicyAccess> POLICY = new ConcurrentHashMap<>();
 
     private static volatile State state = State.disabled();
@@ -57,6 +59,8 @@ public final class JaninoBytecodeCacheRuntime {
         PACK_MISSES.set(0);
         PACK_WRITES.set(0);
         PACK_ERRORS.set(0);
+        PACK_RELEASED_BUNDLES.set(0);
+        PACK_RELEASED_BYTES.set(0);
         POLICY.clear();
         state = State.disabled();
     }
@@ -180,6 +184,8 @@ public final class JaninoBytecodeCacheRuntime {
         values.put("packMisses", PACK_MISSES.get());
         values.put("packWrites", PACK_WRITES.get());
         values.put("packErrors", PACK_ERRORS.get());
+        values.put("packReleasedBundles", PACK_RELEASED_BUNDLES.get());
+        values.put("packReleasedBytes", PACK_RELEASED_BYTES.get());
         return values;
     }
 
@@ -194,6 +200,21 @@ public final class JaninoBytecodeCacheRuntime {
             GeneratedBytecodePack pack = current.builder.build();
             if (pack != null) {
                 GeneratedBytecodePack.write(current.packPath, pack);
+                GeneratedBytecodePack published = GeneratedBytecodePack.read(current.packPath);
+                state = new State(
+                        current.cacheRoot,
+                        current.context,
+                        "ready",
+                        current.packPath,
+                        published,
+                        "written",
+                        current.packLoadMillis,
+                        new GeneratedBytecodePack.Builder(published),
+                        current.completed);
+                GeneratedBytecodePack.ReleaseResult released =
+                        published.releaseExactBundles(current.cacheRoot);
+                PACK_RELEASED_BUNDLES.addAndGet(released.releasedBundles());
+                PACK_RELEASED_BYTES.addAndGet(released.releasedBytes());
                 PACK_WRITES.incrementAndGet();
             }
         } catch (ThreadDeath | VirtualMachineError fatal) {

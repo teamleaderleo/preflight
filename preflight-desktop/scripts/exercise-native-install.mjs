@@ -14,6 +14,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { verifyInstalledEngine } from "./verify-installed-engine.mjs";
 import { exerciseSyntheticPackageContract } from "./synthetic-package-contract.mjs";
+import { privilegedCommand } from "./privileged-command.mjs";
 
 const desktopDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const bundleDirectory = join(desktopDirectory, "src-tauri", "target", "release", "bundle");
@@ -87,7 +88,7 @@ export function exerciseDebianInstall(directory = bundleDirectory) {
   }
   let cleanupNeeded = true;
   try {
-    run("sudo", ["dpkg", "--install", packagePath]);
+    runPrivileged("dpkg", ["--install", packagePath]);
     const packageFiles = capture("dpkg-query", ["--listfiles", packageName]).trim().split(/\r?\n/);
     const manifests = packageFiles.filter((path) => /[/\\]engine[/\\]bundle\.json$/.test(path));
     if (manifests.length !== 1) {
@@ -104,7 +105,7 @@ export function exerciseDebianInstall(directory = bundleDirectory) {
     const desktopSmokeContract = exercisePackagedDesktopSmokeContract(dirname(engineRoot));
     const desktopSmokeProbe = exercisePackagedDesktopSmokeProbe(dirname(engineRoot));
     const allDataRemoval = exercisePackagedAllDataRemoval(dirname(engineRoot));
-    run("sudo", ["dpkg", "--remove", packageName]);
+    runPrivileged("dpkg", ["--remove", packageName]);
     const remainingFiles = installedFiles.filter((path) => existsSync(path));
     if (remainingFiles.length) {
       throw new Error(`Debian removal left ${remainingFiles.length} owned file(s): ${remainingFiles.slice(0, 5).join(", ")}`);
@@ -128,7 +129,7 @@ export function exerciseDebianInstall(directory = bundleDirectory) {
       engine: report.engine,
     };
   } finally {
-    if (cleanupNeeded) spawnSync("sudo", ["dpkg", "--purge", packageName], { stdio: "ignore" });
+    if (cleanupNeeded) spawnPrivileged("dpkg", ["--purge", packageName], { stdio: "ignore" });
   }
 }
 
@@ -524,6 +525,16 @@ function run(command, args) {
   const result = spawnSync(command, args, { stdio: "inherit" });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${command} exited with ${result.status}`);
+}
+
+function runPrivileged(command, args) {
+  const selected = privilegedCommand(command, args);
+  run(selected.command, selected.args);
+}
+
+function spawnPrivileged(command, args, options) {
+  const selected = privilegedCommand(command, args);
+  return spawnSync(selected.command, selected.args, options);
 }
 
 function capture(command, args, options = {}) {

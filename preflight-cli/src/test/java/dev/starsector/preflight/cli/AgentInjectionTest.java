@@ -25,6 +25,7 @@ class AgentInjectionTest {
         Path textureCache = Path.of("cache/textures");
         Path textureManifest = Path.of("cache/textures/manifest.sptm");
         Path textureIndex = Path.of("cache/resource-indexes/profile.spfi");
+        String textureProfile = "ab".repeat(32);
         Path variant = Path.of("cache/variant.json");
         Path weapon = Path.of("cache/weapon.json");
         Path projectile = Path.of("cache/projectile.json");
@@ -34,6 +35,7 @@ class AgentInjectionTest {
         Path audio = Path.of("cache/audio");
         Path audioManifest = Path.of("cache/audio/profile.spam");
         Path mergedRead = Path.of("cache/merged-read.json");
+        Path magicPaintjobs = Path.of("cache/magic-paintjobs/profile.spmp");
         Path janino = Path.of("cache/janino");
 
         AgentLaunchConfig config = AgentLaunchConfig.builder(agent, recording)
@@ -41,6 +43,7 @@ class AgentInjectionTest {
                 .adapterReport(report)
                 .adapterTargets(targets)
                 .textureCacheDirectory(textureCache)
+                .textureProfile(textureProfile)
                 .textureManifest(textureManifest)
                 .textureIndex(textureIndex)
                 .textureAdapterMode(TextureAdapterMode.PREPARED_PIXELS)
@@ -65,6 +68,7 @@ class AgentInjectionTest {
                 .preparedAudioManifest(audioManifest)
                 .preparedAudioManifestIdentity("manifest-id")
                 .mergedReadCache(mergedRead)
+                .magicPaintjobCache(magicPaintjobs)
                 .quietLogs(true)
                 .graphicsLibCompactReplay(true)
                 .janinoBytecodeCache(janino)
@@ -82,6 +86,7 @@ class AgentInjectionTest {
                 + ",adapterReport64=" + encodedPath(report)
                 + ",targets64=" + encodedPath(targets)
                 + ",textureCache64=" + encodedPath(textureCache)
+                + ",textureProfile=" + textureProfile
                 + ",textureManifest64=" + encodedPath(textureManifest)
                 + ",textureIndex64=" + encodedPath(textureIndex)
                 + ",variantJsonCache64=" + encodedPath(variant)
@@ -91,6 +96,7 @@ class AgentInjectionTest {
                 + ",rulesCsvCache64=" + encodedPath(rules)
                 + ",ruleCommandCache64=" + encodedPath(ruleCommands)
                 + ",mergedReadCache64=" + encodedPath(mergedRead)
+                + ",magicPaintjobCache64=" + encodedPath(magicPaintjobs)
                 + ",janinoBytecodeCache64=" + encodedPath(janino)
                 + ",janinoBytecodeContext=janino-context"
                 + ",fileReads=all"

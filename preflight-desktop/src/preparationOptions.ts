@@ -21,7 +21,7 @@ export const optimizationPresets: Array<{
   {
     id: "off",
     label: "Off",
-    description: "No optimizations. Launch and diagnostics still work.",
+    description: "No optimizations. Launch and support tools still work.",
     badge: "Troubleshoot",
   },
 ];
@@ -33,7 +33,11 @@ const storageGroups: Record<string, { label: string; detail: string }> = {
   },
   evidence: {
     label: "Reports and recordings",
-    detail: "Launch timings, benchmarks, and diagnostics.",
+    detail: "Launch timings, benchmarks, and support files.",
+  },
+  discardable: {
+    label: "Replaced cache data",
+    detail: "Rejected cache files that Preflight can remove safely.",
   },
   configuration: {
     label: "Profiles and backups",

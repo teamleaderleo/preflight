@@ -50,7 +50,6 @@
         "zero decline/failure"
       ],
       "publishedIn": [
-        "README.md",
         "docs/optimization-history.md"
       ],
       "mentionedIn": [],
@@ -106,10 +105,60 @@
         "preparationMillis"
       ],
       "publishedIn": [
-        "README.md",
         "docs/technical-writeup-draft.md",
-        "docs/beta-announcement-draft.md",
         "docs/optimization-history.md"
+      ],
+      "mentionedIn": [],
+      "releaseCandidate": false,
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "development-83-mod-main-menu-20260823",
+      "status": "accepted",
+      "scope": "development",
+      "publicClaimEligibility": "development-context-only",
+      "gameBuild": "0.98a-RC8",
+      "profile": {
+        "description": "current 83-mod profile",
+        "modCount": 83
+      },
+      "environment": {
+        "platform": "macOS",
+        "hardware": "Apple M5",
+        "javaRuntime": "bundled x86-64 Java 17 under Rosetta with reviewed G1/deferred heap-commit policy"
+      },
+      "protocol": {
+        "id": "direct",
+        "document": "docs/startup-benchmark.md",
+        "measurement": "main-menu-time",
+        "clockBoundary": "direct unattended launch to main-menu marker"
+      },
+      "result": {
+        "seconds": 13.69
+      },
+      "evidence": {
+        "path": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
+        "runId": "20260823-083700",
+        "condition": "reviewed G1 and deferred heap-commit condition"
+      },
+      "evidenceAssertions": [
+        "13.69s",
+        "14.04s",
+        "83 enabled mods",
+        "M5 MacBook Air",
+        "20260823-083700",
+        "G1 and deferred heap-commit condition"
+      ],
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md",
+        "docs/beta-announcement-leo-draft.md",
+        "docs/release-post-draft.md",
+        "docs/optimization-history.md",
+        "docs/engineering-overview.md",
+        "docs/leo-talking-points.md",
+        "docs/public-writing-sales-inventory.md"
       ],
       "mentionedIn": [],
       "releaseCandidate": false,
@@ -122,12 +171,9 @@
       "type": "seconds",
       "value": "15.25",
       "unit": "s",
-      "publishedIn": [
-        "README.md",
-        "docs/optimization-history.md"
-      ],
+      "publishedIn": [],
       "evidence": "docs/evidence/2026-08-15-controlled-vanilla-fast-campaign.md",
-      "derivation": "Fastest of five accepted accelerated launches in the controlled interleaved campaign."
+      "derivation": "Fastest of five accepted accelerated launches in the historical interleaved A/B campaign. Retained as evidence for that comparison, not as the current public development headline."
     },
     {
       "type": "seconds",
@@ -135,110 +181,74 @@
       "unit": "s",
       "publishedIn": [
         "README.md",
-        "docs/optimization-history.md"
+        "docs/beta-announcement-draft.md",
+        "docs/beta-announcement-leo-draft.md",
+        "docs/release-post-draft.md",
+        "docs/optimization-history.md",
+        "docs/engineering-overview.md",
+        "docs/leo-talking-points.md",
+        "docs/public-writing-sales-inventory.md"
       ],
       "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
       "derivation": "Initial accepted chronology high end, human-reviewed from the retained scorecard."
     },
     {
       "type": "seconds",
+      "value": "13.69",
+      "unit": "s",
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md",
+        "docs/beta-announcement-leo-draft.md",
+        "docs/release-post-draft.md",
+        "docs/optimization-history.md",
+        "docs/engineering-overview.md",
+        "docs/leo-talking-points.md",
+        "docs/public-writing-sales-inventory.md"
+      ],
+      "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
+      "derivation": "Retained current development endpoint under the same game-log startup clock used by the development record. This is the selected ~101s → 13.69s public/career headline. The historical 89.00s → 15.53s A/B campaign answers a separate comparison question and does not give its elapsed times higher editorial status."
+    },
+    {
+      "type": "seconds",
       "value": "88.13",
       "unit": "s",
-      "publishedIn": [
-        "README.md"
-      ],
+      "publishedIn": [],
       "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "derivation": "Initial five-run unaccelerated baseline median."
-    },
-    {
-      "type": "seconds",
-      "value": "25.53",
-      "unit": "s",
-      "publishedIn": [
-        "README.md"
-      ],
-      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "derivation": "25.530 seconds removed by the reviewed prepared-texture and prefetch-bypass composition."
-    },
-    {
-      "type": "seconds",
-      "value": "7.44",
-      "unit": "s",
-      "publishedIn": [
-        "README.md"
-      ],
-      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "derivation": "Human-reviewed upper end of the 7.066-7.435 second AshLib callback range."
-    },
-    {
-      "type": "seconds",
-      "value": "4.82",
-      "unit": "s",
-      "publishedIn": [
-        "README.md"
-      ],
-      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "derivation": "Rounded from the reviewed 4.821 second GraphicsLib compact replay result."
-    },
-    {
-      "type": "seconds",
-      "value": "2.7",
-      "unit": "s",
-      "publishedIn": [
-        "README.md"
-      ],
-      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "derivation": "Human-reviewed rounded net effect for merged variant JSON."
-    },
-    {
-      "type": "seconds",
-      "value": "4.8",
-      "unit": "s",
-      "publishedIn": [
-        "README.md"
-      ],
-      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "derivation": "Human-reviewed 2.000 + 1.100 + 1.700 second combined weapon, projectile, and hull JSON result."
-    },
-    {
-      "type": "seconds",
-      "value": "1.613",
-      "unit": "s",
-      "publishedIn": [
-        "README.md"
-      ],
-      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "derivation": "Reviewed cache-identity construction time before the shared identity change."
-    },
-    {
-      "type": "seconds",
-      "value": "0.452",
-      "unit": "s",
-      "publishedIn": [
-        "README.md"
-      ],
-      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "derivation": "Reviewed cache-identity construction time after the shared identity change."
+      "derivation": "Initial five-run unaccelerated baseline median retained in the historical optimization chronology."
     },
     {
       "type": "storage",
-      "value": "3.08",
+      "value": "2.3",
       "unit": "GB",
       "publishedIn": [
         "README.md"
       ],
-      "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
-      "derivation": "Human-reviewed difference between 5.33 GB and 2.26 GB of texture blob bytes; this is the texture representation delta, not whole-cache disk use."
+      "evidence": "docs/evidence/2026-08-23-current-storage-preparation-frontier.md",
+      "derivation": "Current pack-only Balanced directory on the reviewed 83-mod profile, rounded from the measured 2,427,540 KiB directory."
     },
     {
       "type": "storage",
-      "value": "5.27",
+      "value": "1.1",
+      "unit": "GB",
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md",
+        "docs/beta-announcement-leo-draft.md",
+        "docs/release-post-draft.md"
+      ],
+      "evidence": "docs/evidence/2026-08-23-compact-preparation-and-intermediate-publication.md",
+      "derivation": "Compact pack on the reviewed 83-mod profile, rounded from the measured 1,087,894,442-byte finished pack."
+    },
+    {
+      "type": "storage",
+      "value": "5.2",
       "unit": "GB",
       "publishedIn": [
         "README.md"
       ],
-      "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
-      "derivation": "Human-reviewed whole-cache directory difference between 10.03 GB Fastest and 4.76 GB Balanced on the same profile."
+      "evidence": "docs/evidence/2026-08-23-current-storage-preparation-frontier.md",
+      "derivation": "Current pack-only Uncompressed directory on the reviewed 83-mod profile, rounded from the measured 5,431,864 KiB directory."
     },
     {
       "type": "count",
@@ -248,7 +258,101 @@
         "docs/optimization-history.md"
       ],
       "evidence": "docs/evidence/2026-08-01-twenty-nine-percent-when-they-compose.md",
-      "derivation": "Profile size behind the 88.13-second baseline chronology, read from that campaign's install header. Published as a headline because the gates after it were measured on 83 mods, and the difference is what makes the older rows a chronology rather than a before/after."
+      "derivation": "Profile size behind the 88.13-second baseline chronology, read from that campaign's install header. Published because the gates after it were measured on 83 mods, which is why the older rows form a development chronology rather than a single before/after comparison."
+    },
+    {
+      "type": "storage",
+      "value": "11",
+      "unit": "MB",
+      "publishedIn": [
+        "README.md"
+      ],
+      "evidence": "docs/evidence/2026-08-23-current-storage-preparation-frontier.md",
+      "derivation": "Cache directory immediately after current cold `prepare --no-textures` on the reviewed profile, rounded from 11,140 KiB. This is preparation output, not the steady-state footprint after learning."
+    },
+    {
+      "type": "seconds",
+      "value": "19.8",
+      "unit": "s",
+      "publishedIn": [
+        "README.md"
+      ],
+      "evidence": "docs/evidence/2026-08-03-spec-store-is-no-longer-a-reading-problem.md",
+      "derivation": "Five-cache preparation-path SpecStore total before the shared lower read layer."
+    },
+    {
+      "type": "seconds",
+      "value": "9.8",
+      "unit": "s",
+      "publishedIn": [
+        "README.md"
+      ],
+      "evidence": "docs/evidence/2026-08-03-spec-store-is-no-longer-a-reading-problem.md",
+      "derivation": "Five-cache preparation-path SpecStore total after the shared lower read layer."
+    },
+    {
+      "type": "seconds",
+      "value": "2.172",
+      "unit": "s",
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md"
+      ],
+      "evidence": "docs/evidence/2026-08-03-spec-store-is-no-longer-a-reading-problem.md",
+      "derivation": "Remaining merged-read seam before the shared memoized layer."
+    },
+    {
+      "type": "seconds",
+      "value": "0.300",
+      "unit": "s",
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md"
+      ],
+      "evidence": "docs/evidence/2026-08-03-spec-store-is-no-longer-a-reading-problem.md",
+      "derivation": "Remaining merged-read seam after the shared memoized layer."
+    },
+    {
+      "type": "seconds",
+      "value": "27",
+      "unit": "s",
+      "publishedIn": [
+        "README.md"
+      ],
+      "evidence": "docs/evidence/2026-08-03-the-launch-was-waiting-for-two-threads.md",
+      "derivation": "Approximate loading-thread wait behind the single-threaded texture prefetch queue before the prepared-texture decision."
+    },
+    {
+      "type": "storage",
+      "value": "1.22",
+      "unit": "GiB",
+      "publishedIn": [
+        "README.md"
+      ],
+      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
+      "derivation": "Power-of-two texture upload padding removed on the reviewed development profile."
+    },
+    {
+      "type": "seconds",
+      "value": "200.77",
+      "unit": "s",
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md"
+      ],
+      "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
+      "derivation": "Earlier retained texture-preparation endpoint before publication-path corrections."
+    },
+    {
+      "type": "seconds",
+      "value": "16.21",
+      "unit": "s",
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md"
+      ],
+      "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
+      "derivation": "Current retained Compact preparation endpoint on the reviewed profile."
     },
     {
       "type": "storage",
@@ -257,38 +361,85 @@
       "publishedIn": [
         "README.md"
       ],
-      "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
-      "derivation": "Whole cache directory produced by one cold Balanced preparation of the 83-mod profile into an empty cache. Second observation of this footprint; an earlier one recorded about 4.53 GB."
+      "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
+      "derivation": "Earlier retained texture-cache storage endpoint before the compact publication path."
+    },
+    {
+      "type": "seconds",
+      "value": "33.53",
+      "unit": "s",
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md"
+      ],
+      "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
+      "derivation": "Launch with the same logical Compact texture corpus in alphabetical physical order."
+    },
+    {
+      "type": "seconds",
+      "value": "14.174",
+      "unit": "s",
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md"
+      ],
+      "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
+      "derivation": "Launch with the same logical Compact texture corpus in observed startup order."
+    },
+    {
+      "type": "seconds",
+      "value": "18.014",
+      "unit": "s",
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md"
+      ],
+      "evidence": "docs/evidence/2026-08-04-janino-bytecode-live-pilot.md",
+      "derivation": "Measured Janino compilation seam before request memoization."
+    },
+    {
+      "type": "seconds",
+      "value": "2.364",
+      "unit": "s",
+      "publishedIn": [
+        "README.md",
+        "docs/beta-announcement-draft.md"
+      ],
+      "evidence": "docs/evidence/2026-08-04-janino-bytecode-live-pilot.md",
+      "derivation": "Measured Janino compilation seam after request memoization."
     },
     {
       "type": "storage",
-      "value": "12.92",
-      "unit": "GB",
+      "value": "145.96",
+      "unit": "MiB",
       "publishedIn": [
-        "README.md"
+        "README.md",
+        "docs/beta-announcement-draft.md"
       ],
-      "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
-      "derivation": "Free space Balanced preparation requires before it will begin: the 11,744,225,102-byte conservative upper bound plus its 10% safety reserve, from the read-only plan for that profile."
+      "evidence": "docs/evidence/2026-08-05-janino-deduplicated-pack.md",
+      "derivation": "Expanded generated-class map size before persisted representation deduplication."
     },
     {
       "type": "storage",
-      "value": "10.03",
-      "unit": "GB",
+      "value": "1.13",
+      "unit": "MiB",
       "publishedIn": [
-        "README.md"
+        "README.md",
+        "docs/beta-announcement-draft.md"
       ],
-      "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
-      "derivation": "Whole cache directory produced by the same cold preparation of the same profile with --texture-storage fastest."
+      "evidence": "docs/evidence/2026-08-05-janino-deduplicated-pack.md",
+      "derivation": "Generated-class map size after persisted representation deduplication."
     },
     {
-      "type": "storage",
-      "value": "10.9",
-      "unit": "MB",
+      "type": "seconds",
+      "value": "1.501",
+      "unit": "s",
       "publishedIn": [
-        "README.md"
+        "README.md",
+        "docs/beta-announcement-draft.md"
       ],
-      "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
-      "derivation": "Whole cache directory produced by a cold `prepare --no-textures` of the same 83-mod profile; the texture stage is the entire remainder of the 4.76 GB Balanced footprint."
+      "evidence": "docs/evidence/2026-08-05-janino-deduplicated-pack.md",
+      "derivation": "Warm generated-class replay before persisted representation deduplication."
     }
   ]
 }

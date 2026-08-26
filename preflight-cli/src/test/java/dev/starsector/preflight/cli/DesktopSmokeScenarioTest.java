@@ -27,6 +27,7 @@ final class DesktopSmokeScenarioTest {
         assertTrue(capabilities.contains("window-control"));
         assertTrue(capabilities.contains("screen-capture"));
         assertTrue(capabilities.contains("evidence-read"));
+        assertTrue(view.get("steps").toString().contains("main-menu-interactive"));
     }
 
     @Test
@@ -49,6 +50,22 @@ final class DesktopSmokeScenarioTest {
         assertTrue(scenario.usesOnlyRuntimeState());
         assertEquals(Set.of("process-control", "semantic-state"), scenario.requiredCapabilities());
         assertEquals(List.of("menu"), scenario.stepIds());
+    }
+
+    @Test
+    void acceptsMinimalDiskAsABenchmarkIdentity() {
+        DesktopSmokeScenario scenario = DesktopSmokeScenario.parse("""
+                {
+                  "format":"starsector-preflight-smoke-v1",
+                  "name":"minimal",
+                  "timeoutSeconds":60,
+                  "launch":{"preset":"fast","textureStorage":"minimal","profile":null},
+                  "steps":[{"id":"menu","kind":"wait-state","state":"main-menu-ready",
+                    "timeoutSeconds":30}]
+                }
+                """);
+
+        assertEquals("minimal", scenario.textureStorage());
     }
 
     @Test

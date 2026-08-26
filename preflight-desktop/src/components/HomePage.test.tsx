@@ -1,7 +1,9 @@
 import type { ComponentProps } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
-import { expect, test, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, expect, test, vi } from "vitest";
 import type { usePreparation } from "../usePreparation";
+import type { useInstrumentHull } from "../useInstrumentHull";
 import type { DesktopSnapshot, WireframeHull } from "../types";
 import { HomePage } from "./HomePage";
 
@@ -19,6 +21,29 @@ const instrumentHull: WireframeHull = {
   engines: [],
   mounts: [],
 };
+
+const instrumentHullState = {
+  catalog: null,
+  catalogLoaded: false,
+  catalogLoading: false,
+  catalogHulls: [instrumentHull],
+  hulls: [instrumentHull],
+  selected: instrumentHull,
+  selectedId: instrumentHull.id,
+  tuning: { outerSmooth: 0, outerDetail: 0, innerSmooth: 0, innerDetail: 0, height: 1 },
+  customized: false,
+  choose: vi.fn(),
+  remove: vi.fn(),
+  reloadCatalog: vi.fn(),
+  customize: vi.fn(),
+  resetCustomization: vi.fn(),
+} as ReturnType<typeof useInstrumentHull>;
+
+beforeEach(() => {
+  window.localStorage.clear();
+  delete document.documentElement.dataset.homeMode;
+  delete document.documentElement.dataset.homePlaytime;
+});
 
 const snapshot: DesktopSnapshot = {
   protocol: 1,
@@ -129,8 +154,9 @@ function props(overrides: Partial<ComponentProps<typeof HomePage>> = {}): Compon
     runFailure: null,
     onDismissRunFailure: vi.fn(),
     onNavigate: vi.fn(),
-    instrumentHull,
+    instrumentHull: instrumentHullState,
     launchProfileName: "Exploration",
+    modReadiness: null,
     ...overrides,
   };
 }
@@ -187,11 +213,72 @@ test("settled Home shows the installation and active named profile beside the la
   expect(screen.getByRole("button", { name: "Launch Starsector" })).toBeEnabled();
 });
 
-test("settled Home labels an unsaved active mod set without inventing a profile name", () => {
+test("settled Home omits an invented label for an unsaved active mod set", () => {
   render(<HomePage {...props({ launchProfileName: null })} />);
 
-  expect(screen.getByText("Current mod setup", { selector: ".home-launch-identity strong" })).toBeInTheDocument();
+  expect(screen.queryByText("Current mod setup")).not.toBeInTheDocument();
   expect(screen.getByLabelText("Installation /Applications/Starsector")).toBeInTheDocument();
+});
+
+test("Home surfaces a broken mod setup without blocking launch", async () => {
+  const user = userEvent.setup();
+  const onNavigate = vi.fn();
+  render(<HomePage {...props({
+    onNavigate,
+    modReadiness: {
+      format: "starsector-preflight-mod-readiness-v1",
+      ready: false,
+      counts: { blocking: 2, warning: 0, info: 0, unknown: 0 },
+      findings: [],
+      modDirectories: 83,
+      metadataBytes: 131_072,
+      elapsedMillis: 6,
+    },
+  })} />);
+
+  expect(screen.getByRole("button", { name: "Launch Starsector" })).toBeEnabled();
+  await user.click(screen.getByRole("button", { name: "2 mod problems" }));
+  expect(onNavigate).toHaveBeenCalledWith("mods");
+});
+
+test("Home exposes direct display controls without conflicting compact and playtime states", async () => {
+  const user = userEvent.setup();
+  const choose = vi.fn();
+  const navigate = vi.fn();
+  const hammerhead = { ...instrumentHull, id: "hammerhead", name: "Hammerhead" };
+  render(<HomePage {...props({
+    instrumentHull: {
+      ...instrumentHullState,
+      hulls: [instrumentHull, hammerhead],
+      choose,
+    },
+    onNavigate: navigate,
+  })} />);
+
+  await user.click(screen.getByRole("button", { name: "Next display ship" }));
+  expect(choose).toHaveBeenCalledWith("hammerhead");
+  await user.click(screen.getByRole("button", { name: "Odyssey" }));
+  expect(navigate).toHaveBeenCalledWith("hangar");
+
+  await user.click(screen.getByRole("button", { name: "Pause ship rotation" }));
+  expect(screen.getByRole("button", { name: "Resume ship rotation" })).toHaveAttribute("aria-pressed", "true");
+
+  const playtime = screen.getByRole("button", { name: "Playtime" });
+  const ship = screen.getByRole("button", { name: "Ship" });
+  expect(playtime).toHaveAttribute("aria-pressed", "true");
+  expect(ship).toHaveAttribute("aria-pressed", "true");
+  await user.click(playtime);
+  expect(playtime).toHaveAttribute("aria-pressed", "false");
+  await user.click(ship);
+  expect(ship).toHaveAttribute("aria-pressed", "false");
+  await user.click(playtime);
+  expect(playtime).toHaveAttribute("aria-pressed", "true");
+  expect(ship).toHaveAttribute("aria-pressed", "false");
+
+  ship.focus();
+  await user.keyboard(" ");
+  expect(ship).toHaveFocus();
+  expect(ship).toHaveAttribute("aria-pressed", "true");
 });
 
 test("Home keeps the new profile and installation visible when that setup needs preparation", () => {
@@ -229,6 +316,7 @@ test("run recovery keeps Relaunch when the captured failed target still matches 
 
   expect(screen.getByText("Run needs attention")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Relaunch" })).toBeEnabled();
+  expect(screen.queryByLabelText("Display ship")).not.toBeInTheDocument();
   expect(dismiss).not.toHaveBeenCalled();
 });
 

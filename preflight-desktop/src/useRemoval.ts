@@ -3,6 +3,7 @@ import { applyRemoval, getRemovalPlan } from "./bridge";
 import { clearPreflightLocalStorage } from "./desktopStorage";
 import { resetHomePresentation } from "./useHomePresentation";
 import { resetInstrumentMotion } from "./useInstrumentMotion";
+import { resetInstrumentView } from "./useInstrumentView";
 import { resetProfileSearch } from "./useProfileSearch";
 import type { Announce, DesktopSnapshot, RemovalPlan, RemovalScope } from "./types";
 import { errorMessage } from "./uiFormat";
@@ -28,9 +29,15 @@ export function useRemoval(
       const next = await getRemovalPlan(scope);
       if (currentRequest !== request.current) return;
       setPlan(next);
-      announce(next.targets.length === 0
-        ? "There’s nothing in that removal scope."
-        : "Removal is ready to review. Nothing has been removed.");
+      if (!next.safe) {
+        announce("Removal can’t continue. Review the reason below.", "warning");
+      } else if (next.refusals.length > 0) {
+        announce("Removal is ready to review. Some items could not be included.", "warning");
+      } else {
+        announce(next.targets.length === 0
+          ? "There’s nothing in that removal scope."
+          : "Removal is ready to review. Nothing has been removed.");
+      }
     } catch (error) {
       if (currentRequest === request.current) announce(errorMessage(error), "error");
     } finally {
@@ -56,6 +63,7 @@ export function useRemoval(
         localStorageFailures = clearPreflightLocalStorage();
         resetHomePresentation();
         resetInstrumentMotion();
+        resetInstrumentView();
         resetProfileSearch();
         clearCache();
         clearProfiles();

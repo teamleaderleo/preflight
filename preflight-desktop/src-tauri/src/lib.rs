@@ -23,12 +23,12 @@ use automation::{
     start_desktop_smoke,
 };
 use engine::{
-    EnginePaths, activate_profile, apply_cache_cleanup, apply_evidence_cleanup, apply_removal,
-    canonical_game_directory, delete_profile, duplicate_profile, export_automatic_diagnostics,
-    export_diagnostics, get_bootstrap, get_cache, get_cache_cleanup, get_cache_health,
-    get_cache_inspection, get_evidence_cleanup, get_home_state, get_launch_settings, get_profiles,
-    get_removal_plan, get_snapshot, rename_profile, repair_cache, save_profile,
-    update_launch_settings,
+    EnginePaths, activate_profile, apply_cache_cleanup, apply_discardable_cache_cleanup,
+    apply_evidence_cleanup, apply_removal, canonical_game_directory, check_setup, delete_profile,
+    duplicate_profile, export_diagnostics, get_bootstrap, get_cache, get_cache_cleanup,
+    get_cache_health, get_cache_inspection, get_evidence_cleanup, get_home_state,
+    get_launch_settings, get_mod_readiness, get_profiles, get_removal_plan, get_snapshot,
+    rename_profile, repair_cache, save_profile, update_launch_settings,
 };
 use hulls::get_wireframe_hulls;
 use operations::{OperationCoordinator, OperationSnapshot, OperationState, refuse_update_install};
@@ -479,11 +479,11 @@ fn read_run_stderr(
                     if let Some(game_pid) = parse_desktop_run_event(&line_prefix) {
                         if !event_seen {
                             event_seen = true;
-                            if let Ok(mut running) = app.state::<OperationCoordinator>().0.lock() {
-                                if running.game == Some(wrapper_pid) {
-                                    running.game = Some(game_pid);
-                                    running.game_recovered = false;
-                                }
+                            if let Ok(mut running) = app.state::<OperationCoordinator>().0.lock()
+                                && running.game == Some(wrapper_pid)
+                            {
+                                running.game = Some(game_pid);
+                                running.game_recovered = false;
                             }
                             let _ = app.emit(
                                 "run-state",
@@ -654,6 +654,8 @@ pub fn run() {
             get_bootstrap,
             get_snapshot,
             get_home_state,
+            get_mod_readiness,
+            check_setup,
             get_wireframe_hulls,
             get_desktop_smoke_probe,
             start_desktop_smoke,
@@ -664,6 +666,7 @@ pub fn run() {
             repair_cache,
             get_cache_cleanup,
             apply_cache_cleanup,
+            apply_discardable_cache_cleanup,
             get_evidence_cleanup,
             apply_evidence_cleanup,
             get_removal_plan,
@@ -671,7 +674,6 @@ pub fn run() {
             check_for_update,
             install_update,
             export_diagnostics,
-            export_automatic_diagnostics,
             get_report_intake_status,
             send_run_report,
             cancel_run_report,
@@ -733,8 +735,9 @@ mod tests {
     };
     use crate::engine::{
         EngineCommand, LaunchSettingsInput, configure_cache_health_command,
-        configure_evidence_cleanup_command, diagnostic_output_path, validate_cache_repair_state,
-        validate_launch_settings, validate_profile_mutation_state, validate_removal_scope,
+        configure_discardable_cache_cleanup_command, configure_evidence_cleanup_command,
+        diagnostic_output_path, validate_cache_repair_state, validate_launch_settings,
+        validate_profile_mutation_state, validate_removal_scope,
     };
     use crate::operations::{
         DesktopSmokeProcess, OperationCoordinator, OperationState, PreparationProcess,
@@ -1081,6 +1084,16 @@ mod tests {
         configure_evidence_cleanup_command(&mut apply, true);
         let arguments = apply.arguments();
         assert_eq!(Some("--yes"), arguments.last().map(String::as_str));
+    }
+
+    #[test]
+    fn discardable_cache_cleanup_cannot_prune_live_profiles() {
+        let mut command = EngineCommand::for_test("preflight-engine");
+        configure_discardable_cache_cleanup_command(&mut command);
+        assert_eq!(
+            vec!["cache", "prune", "--discardable-only", "--json", "--yes"],
+            command.arguments()
+        );
     }
 
     #[test]
@@ -1789,6 +1802,33 @@ mod tests {
             memory_mib: Some(6144),
         };
         assert!(validate_launch_settings(&valid).is_ok());
+        assert!(
+            validate_launch_settings(&LaunchSettingsInput {
+                battle_size: i32::MAX as u32,
+                ..LaunchSettingsInput {
+                    resolution: "1920x1080".to_string(),
+                    fullscreen: false,
+                    sound: true,
+                    antialiasing_samples: 12,
+                    ui_scale: 1.25,
+                    battle_size: 400,
+                    memory_mib: Some(6144),
+                }
+            })
+            .is_ok()
+        );
+        assert!(
+            validate_launch_settings(&LaunchSettingsInput {
+                resolution: "1920x1080".to_string(),
+                fullscreen: false,
+                sound: true,
+                antialiasing_samples: 12,
+                ui_scale: 1.25,
+                battle_size: i32::MAX as u32 + 1,
+                memory_mib: Some(6144),
+            })
+            .is_err()
+        );
 
         let invalid = LaunchSettingsInput {
             resolution: "1920 by 1080".to_string(),

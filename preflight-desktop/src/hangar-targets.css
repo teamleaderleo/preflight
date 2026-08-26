@@ -1,0 +1,13 @@
+/*
+ * Hangar keeps thin instrument tracks, but the slider itself still needs a desktop-sized target.
+ * Spend the dock's existing vertical slack on hit area only: the accepted dock/stage geometry stays
+ * owned elsewhere while each tuning row remains easy to grab.
+ */
+.hangar-control-group .hangar-dial {
+  grid-template-rows: 44px;
+  min-height: 44px;
+}
+
+.hangar-control-group .hangar-dial > input {
+  min-height: 44px;
+}

@@ -4,7 +4,9 @@ Preflight is designed to ship as a desktop application plus a runnable and agent
 same Java engine provides the CLI, launch wrapper, profile census, preparation, diagnostics, and
 startup measurement tools.
 
-> **No public download yet.** Current beta readiness is the four candidate/platform tasks in
+> **No public download yet.** Signing setup and private rehearsals are complete. Current beta
+> readiness is selecting one immutable tagged candidate generation, exercising it on native
+> Windows and x86-64 Linux, and collecting its package-bound benchmark/lifecycle/report evidence in
 > [Release readiness](release-readiness.md) and the live coordination board
 > [#652](https://github.com/teamleaderleo/preflight/issues/652). The 2026-08-07 Fractal Softworks
 > request is courtesy correspondence under the publication decision in
@@ -34,19 +36,20 @@ Until then, private workflow artifacts are candidate evidence rather than public
 
 ## Candidate and publication flow
 
-The package pipeline assembles and verifies the candidate artifacts before publication. Candidate
-acceptance is tied to exact package hashes, one reviewed source revision, capability receipts,
-checksums, dependency/SBOM material, legal/privacy/install text, and the candidate-specific evidence
-listed in [Release readiness](release-readiness.md).
+The package pipeline assembles and verifies candidate artifacts before publication. Candidate
+acceptance is tied to package hashes, one reviewed source revision, capability receipts, checksums,
+dependency/SBOM material, legal/privacy/install text, and the candidate-specific evidence listed in
+[Release readiness](release-readiness.md).
 
-Updater signing and release-secret administration have a live owner in
-[#720](https://github.com/teamleaderleo/preflight/issues/720). Branch and release-tag protection have
-a live owner in [#607](https://github.com/teamleaderleo/preflight/issues/607). Use those issue bodies
-for current Environment names, admission rules, secret migration, and repository-setting state
-instead of copying an older runbook.
+Updater signing and release-secret administration are completed and recorded in
+[#720](https://github.com/teamleaderleo/preflight/issues/720). Repository rulesets are intentionally
+outside the current release gate; #607 was retired on 2026-08-21 under the owner-selected policy.
+Before approving a tagged deployment, verify through the `release-signing` Environment that the
+selected tag/commit is the intended frozen accepted `main` identity.
 
 Public publication is a separate reviewed operation over the accepted candidate bytes. A new source
-revision produces a new candidate generation and new candidate evidence.
+revision produces a new candidate generation and requires affected package evidence to be collected
+again.
 
 ## Verify a native download before opening it
 

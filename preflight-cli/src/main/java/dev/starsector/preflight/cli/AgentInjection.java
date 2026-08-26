@@ -33,6 +33,9 @@ final class AgentInjection {
         appendPath(arguments, "adapterReport64", config.adapterReport());
         appendPath(arguments, "targets64", config.adapterTargets());
         appendPath(arguments, "textureCache64", config.textureCacheDirectory());
+        if (config.textureProfile() != null) {
+            arguments.append(",textureProfile=").append(config.textureProfile());
+        }
         appendPath(arguments, "textureManifest64", config.textureManifest());
         appendPath(arguments, "textureIndex64", config.textureIndex());
         appendPath(arguments, "variantJsonCache64", config.variantJsonCache());
@@ -42,6 +45,7 @@ final class AgentInjection {
         appendPath(arguments, "rulesCsvCache64", config.rulesCsvCache());
         appendPath(arguments, "ruleCommandCache64", config.ruleCommandClassCache());
         appendPath(arguments, "mergedReadCache64", config.mergedReadCache());
+        appendPath(arguments, "magicPaintjobCache64", config.magicPaintjobCache());
         appendPath(arguments, "janinoBytecodeCache64", config.janinoBytecodeCache());
         if (config.janinoBytecodeContext() != null) {
             arguments.append(",janinoBytecodeContext=").append(config.janinoBytecodeContext());

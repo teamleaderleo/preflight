@@ -9,7 +9,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** Reads the three independent documents needed by the first desktop page in one JVM. */
+/** Reads the independent documents needed by the first desktop page in one JVM. */
 final class DesktopHomeStateCommand {
     private static final String FORMAT = "starsector-preflight-desktop-home-state-v1";
     private static final int MAX_ERROR_CHARACTERS = 1_000;
@@ -31,7 +31,7 @@ final class DesktopHomeStateCommand {
     }
 
     static Map<String, Object> read(PreflightHome home, Path installRoot) throws Exception {
-        ExecutorService reads = Executors.newFixedThreadPool(3, runnable -> {
+        ExecutorService reads = Executors.newFixedThreadPool(4, runnable -> {
             Thread thread = new Thread(runnable, "preflight-desktop-home-read");
             thread.setDaemon(true);
             return thread;
@@ -45,7 +45,9 @@ final class DesktopHomeStateCommand {
                     ProfileCommand.describeList(home, installRoot));
             CompletableFuture<Result> launchSettings = readAsync(reads, "launchSettings", () ->
                     LaunchSettingsCommand.read(installRoot));
-            CompletableFuture.allOf(cache, profiles, launchSettings).join();
+            CompletableFuture<Result> modReadiness = readAsync(reads, "modReadiness", () ->
+                    DesktopModReadinessCommand.read(installRoot));
+            CompletableFuture.allOf(cache, profiles, launchSettings, modReadiness).join();
 
             Map<String, Object> errors = new LinkedHashMap<>();
             Map<String, Object> document = new LinkedHashMap<>();
@@ -54,6 +56,7 @@ final class DesktopHomeStateCommand {
             put(document, errors, cache.join());
             put(document, errors, profiles.join());
             put(document, errors, launchSettings.join());
+            put(document, errors, modReadiness.join());
             document.put("errors", errors);
             return document;
         } finally {

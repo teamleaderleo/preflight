@@ -49,7 +49,7 @@ class AgentJarStagingCleanupTest {
                 new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
 
         Path staged = Path.of(Files.readString(result, StandardCharsets.UTF_8).trim());
-        assertTrue(staged.startsWith(root));
+        assertTrue(staged.startsWith(root.toRealPath()));
         assertFalse(Files.exists(staged), "the staged agent must be removed when the wrapper exits");
         assertFalse(Files.exists(staged.getParent()),
                 "the private staging directory must be removed after its child");

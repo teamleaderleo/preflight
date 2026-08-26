@@ -8,6 +8,7 @@ target/
 node_modules/
 .wrangler/
 preflight-desktop/dist/
+preflight-desktop/.ui-matrix/
 report-intake/dist/
 preflight-desktop/desktop-dist/
 preflight-desktop/src-tauri/target/

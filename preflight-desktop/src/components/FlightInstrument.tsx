@@ -1,6 +1,13 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { isDesktopHost } from "../bridge";
 import { INSTRUMENT_APPEARANCE_ATTRIBUTES } from "../flightInstrumentAppearance";
 import { useInstrumentMotion } from "../useInstrumentMotion";
+import {
+  MAX_INSTRUMENT_ZOOM,
+  MIN_INSTRUMENT_ZOOM,
+  useInstrumentView,
+} from "../useInstrumentView";
 import type { HullSegmentKind } from "../wireframeHullGeometry";
 import type { WireframeHull, WireframePoint } from "../types";
 import { BUNDLED_DEFAULT_HULL } from "../bundledWireframeHulls";
@@ -9,18 +16,22 @@ import { projectHull } from "../wireframeHullGeometry";
 interface FlightInstrumentProps {
   hull?: WireframeHull;
   /**
-   * `badge` is the small one pinned beside a number, and keeps the targeting reticle it is read
-   * against. `stage` fills its container and drops the reticle: at that size the ship is the
-   * subject rather than a readout, and the chrome would be competing with it.
+   * `badge` is the compact readout. `stage` fills its container so the ship can be the subject.
+   * Neither adds a targeting reticle; the surrounding page already supplies enough structure.
    */
   variant?: "badge" | "stage";
+  /** Lets the large Home and Hangar displays rotate directly under pointer or arrow-key input. */
+  interactive?: boolean;
+  /** Composition-specific breathing room without changing the player's saved zoom. */
+  framing?: number;
+  /** Static secondary readouts should not compete with the primary Home and Hangar displays. */
+  animate?: boolean;
 }
 
 interface InstrumentPalette {
   near: [number, number, number];
   far: [number, number, number];
   grid: string;
-  accent: string;
   fill: string;
 }
 
@@ -55,6 +66,55 @@ function toRgb(colour: string, fallback: [number, number, number]): [number, num
     : fallback;
 }
 
+function normalizeYaw(yaw: number): number {
+  return Math.atan2(Math.sin(yaw), Math.cos(yaw));
+}
+
+const ROTATION_RATE = 0.34;
+let sharedRotationYaw: number | null = null;
+let sharedRotationTime: number | null = null;
+let sharedRotationDirection: "clockwise" | "counter-clockwise" = "clockwise";
+
+function rotationSign(direction: "clockwise" | "counter-clockwise"): number {
+  return direction === "clockwise" ? 1 : -1;
+}
+
+/**
+ * Home and Hangar are two views of one display, so they read one clock. The angle advances by
+ * wall time rather than by frames. WebKit may stop delivering animation frames to an inactive
+ * window, but the first paint after returning still lands at the angle the ship has reached.
+ */
+function readSharedRotation(
+  now: number,
+  direction: "clockwise" | "counter-clockwise",
+  seed: number,
+): number {
+  if (sharedRotationYaw === null || sharedRotationTime === null) {
+    sharedRotationYaw = normalizeYaw(seed);
+    sharedRotationTime = now;
+    sharedRotationDirection = direction;
+    return sharedRotationYaw;
+  }
+  const elapsed = Math.max(0, now - sharedRotationTime);
+  sharedRotationYaw = normalizeYaw(
+    sharedRotationYaw + elapsed / 1000 * ROTATION_RATE * rotationSign(sharedRotationDirection),
+  );
+  sharedRotationTime = now;
+  sharedRotationDirection = direction;
+  return sharedRotationYaw;
+}
+
+function writeSharedRotation(
+  yaw: number,
+  now: number,
+  direction: "clockwise" | "counter-clockwise",
+): number {
+  sharedRotationYaw = normalizeYaw(yaw);
+  sharedRotationTime = now;
+  sharedRotationDirection = direction;
+  return sharedRotationYaw;
+}
+
 function readPalette(canvas: HTMLCanvasElement): InstrumentPalette {
   const probe = canvas.ownerDocument.createElement("span");
   probe.style.display = "none";
@@ -63,7 +123,6 @@ function readPalette(canvas: HTMLCanvasElement): InstrumentPalette {
     near: toRgb(resolveColour(probe, "--instrument-near", "#3f3a35"), [63, 58, 53]),
     far: toRgb(resolveColour(probe, "--instrument-far", "#a89e90"), [168, 158, 144]),
     grid: resolveColour(probe, "--instrument-grid", "rgba(87,81,74,.14)"),
-    accent: resolveColour(probe, "--instrument-accent", "#a76532"),
     fill: resolveColour(probe, "--instrument-fill", "rgba(167,101,50,.06)"),
   };
   probe.remove();
@@ -108,8 +167,11 @@ function drawHull(
   canvas: HTMLCanvasElement,
   hull: WireframeHull,
   yaw: number,
+  pitch: number,
   palette: InstrumentPalette,
   variant: "badge" | "stage",
+  zoom: number,
+  framing: number,
 ) {
   const context = canvas.getContext("2d");
   if (!context) return;
@@ -127,7 +189,7 @@ function drawHull(
   context.clearRect(0, 0, width, height);
 
   const detail = width < 170 ? "small" : width < 300 ? "medium" : "showcase";
-  const projected = projectHull(hull, yaw, detail);
+  const projected = projectHull(hull, yaw, detail, pitch);
   if (projected.segments.length === 0) return;
 
   /*
@@ -138,7 +200,7 @@ function drawHull(
    * pumps the whole picture on every frame. The geometry is already normalised to one frame,
    * which is what makes a constant work here for a stubby Hammerhead and a long Conquest alike.
    */
-  const scale = Math.min(width, height) * (variant === "stage" ? 0.56 : 0.46);
+  const scale = Math.min(width, height) * (variant === "stage" ? 0.7 : 0.46) * zoom * framing;
   const map = (point: WireframePoint) => ({
     x: width / 2 + point.x * scale,
     y: height / 2 + point.y * scale,
@@ -196,42 +258,41 @@ function drawHull(
   }
   context.globalAlpha = 1;
 
-  for (const mount of projected.mounts) {
-    const point = map(mount);
-    context.beginPath();
-    context.arc(point.x, point.y, mount.size === "LARGE" ? 3.2 : 2.2, 0, Math.PI * 2);
-    context.strokeStyle = palette.accent;
-    context.lineWidth = 1;
-    context.stroke();
-  }
-
-  // The bow: the one bright point, so which way the ship is facing is never in question.
-  if (projected.nose) {
-    const nose = map(projected.nose);
-    context.fillStyle = palette.accent;
-    context.beginPath();
-    context.arc(nose.x, nose.y, detail === "small" ? 1.8 : 2.4, 0, Math.PI * 2);
-    context.fill();
-  }
 }
 
 /** Draws bounded hull geometry derived locally from the user's Starsector installation. */
-export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge" }: FlightInstrumentProps) {
+export function FlightInstrument({
+  hull = BUNDLED_DEFAULT_HULL,
+  variant = "badge",
+  interactive = false,
+  framing = 1,
+  animate = true,
+}: FlightInstrumentProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { motion, direction } = useInstrumentMotion();
+  const instrumentView = useInstrumentView();
   const directionRef = useRef(direction);
 
   useEffect(() => {
     directionRef.current = direction;
   }, [direction]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || typeof ResizeObserver === "undefined") return;
+    const root = rootRef.current;
+    if (!canvas || !root || typeof ResizeObserver === "undefined") return;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let frame: number | null = null;
+    let disposed = false;
+    let nativeFocusUnlisten: (() => void) | null = null;
+    const focusPaintTimers = new Set<number>();
     let visible = true;
-    let previous = 0;
+    let lastPaint = performance.now();
+    let dragging = false;
+    let dragX = 0;
+    let dragY = 0;
+    let zoom = instrumentView.zoom;
     let palette = readPalette(canvas);
 
     /*
@@ -239,29 +300,32 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
      * seconds. Rocking it back and forth through a narrow arc was tried and reads as a fidget --
      * the ship looks stuck rather than displayed, and half the hull is never shown at all.
      */
-    const RATE = 0.34;
-    /* The angle a still frame is parked at, for reduced motion and the first paint. */
-    const RESTING = variant === "stage" ? 0.52 : 0.38;
-    let yaw = RESTING;
-    const drawStill = () => drawHull(canvas, hull, yaw, palette, variant);
+    /* Every mounted display begins at the shared current angle, not at a page-local phase. */
+    let yaw = readSharedRotation(
+      performance.now(),
+      directionRef.current,
+      variant === "stage" ? instrumentView.yaw : instrumentView.yaw - 0.14,
+    );
+    let pitch = instrumentView.pitch;
+    const drawStill = () => {
+      if (!dragging && animate && motion === "rotate" && !reducedMotion.matches) {
+        yaw = readSharedRotation(performance.now(), directionRef.current, yaw);
+      }
+      drawHull(canvas, hull, yaw, pitch, palette, variant, zoom, framing);
+      lastPaint = performance.now();
+    };
     const schedule = () => {
-      if (frame === null && visible && motion === "rotate" && !reducedMotion.matches) {
+      if (frame === null && visible && animate && motion === "rotate" && !reducedMotion.matches) {
         frame = window.requestAnimationFrame(render);
       }
     };
 
     const render = (time: number) => {
       frame = null;
-      if (!visible || motion !== "rotate" || reducedMotion.matches) return;
-      if (previous === 0) previous = time;
-      if (time - previous >= 1000 / 24) {
-        // Advance by elapsed time rather than per frame, so a dropped frame or a background tab
-        // does not change how fast the ship appears to turn.
-        const directionSign = directionRef.current === "clockwise" ? 1 : -1;
-        yaw += Math.min(time - previous, 250) / 1000 * RATE * directionSign;
-        previous = time;
-        drawHull(canvas, hull, yaw, palette, variant);
-      }
+      if (!visible || dragging || !animate || motion !== "rotate" || reducedMotion.matches) return;
+      yaw = readSharedRotation(time, directionRef.current, yaw);
+      drawHull(canvas, hull, yaw, pitch, palette, variant, zoom, framing);
+      lastPaint = performance.now();
       schedule();
     };
     const resize = new ResizeObserver(drawStill);
@@ -306,6 +370,40 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       drawStill();
       schedule();
     };
+    const resumeImmediately = () => {
+      // WKWebView may discard a queued frame while its window is inactive. Read the shared
+      // wall-time clock and paint it synchronously before returning from the focus event.
+      if (dragging || !animate || motion !== "rotate" || reducedMotion.matches) return;
+      const bounds = canvas.getBoundingClientRect();
+      visible = (bounds.width > 0 && bounds.height > 0
+          && bounds.bottom > 0 && bounds.right > 0
+          && bounds.top < window.innerHeight && bounds.left < window.innerWidth)
+        || (bounds.width === 0 && bounds.height === 0 && canvas.clientWidth > 0 && canvas.clientHeight > 0);
+      if (!visible) return;
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      frame = null;
+      drawStill();
+      schedule();
+    };
+    const resumeAfterFocus = () => {
+      /*
+       * WKWebView can report focus one turn before it starts presenting canvas frames again.
+       * Paint now, on the next frame, and across that short handoff. Each pass reads wall time,
+       * so the ship resumes at its current angle rather than replaying the inactive interval.
+       */
+      resumeImmediately();
+      window.requestAnimationFrame(resumeImmediately);
+      for (const delay of [0, 32, 96]) {
+        const timer = window.setTimeout(() => {
+          focusPaintTimers.delete(timer);
+          if (!disposed) resumeImmediately();
+        }, delay);
+        focusPaintTimers.add(timer);
+      }
+    };
+    const repairStaleFrame = () => {
+      if (performance.now() - lastPaint > 50) resumeImmediately();
+    };
     const theme = new MutationObserver(() => {
       palette = readPalette(canvas);
       drawStill();
@@ -315,36 +413,116 @@ export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge
       attributeFilter: [...INSTRUMENT_APPEARANCE_ATTRIBUTES],
     });
     reducedMotion.addEventListener("change", updateMotion);
+    const beginDrag = (event: PointerEvent) => {
+      if (!interactive || event.button !== 0) return;
+      dragging = true;
+      yaw = readSharedRotation(performance.now(), directionRef.current, yaw);
+      dragX = event.clientX;
+      dragY = event.clientY;
+      root.dataset.dragging = "true";
+      root.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+    };
+    const moveDrag = (event: PointerEvent) => {
+      if (!dragging) return;
+      const delta = event.clientX - dragX;
+      const vertical = event.clientY - dragY;
+      dragX = event.clientX;
+      dragY = event.clientY;
+      yaw += delta * 0.012;
+      pitch = Math.min(1.46, Math.max(0.08, pitch - vertical * 0.008));
+      yaw = writeSharedRotation(yaw, performance.now(), directionRef.current);
+      drawHull(canvas, hull, yaw, pitch, palette, variant, zoom, framing);
+      event.preventDefault();
+    };
+    const finishDrag = (event: PointerEvent) => {
+      if (!dragging) return;
+      dragging = false;
+      delete root.dataset.dragging;
+      if (root.hasPointerCapture?.(event.pointerId)) root.releasePointerCapture?.(event.pointerId);
+      yaw = writeSharedRotation(yaw, performance.now(), directionRef.current);
+      instrumentView.setView({ yaw: normalizeYaw(yaw), pitch, zoom });
+      schedule();
+    };
+    const zoomFromWheel = (event: WheelEvent) => {
+      if (!interactive) return;
+      const direction = Math.sign(event.deltaY);
+      if (direction === 0) return;
+      zoom = Math.min(MAX_INSTRUMENT_ZOOM, Math.max(MIN_INSTRUMENT_ZOOM, zoom - direction * 0.08));
+      drawHull(canvas, hull, yaw, pitch, palette, variant, zoom, framing);
+      instrumentView.setView({ yaw: normalizeYaw(yaw), pitch, zoom });
+      event.preventDefault();
+    };
+    const turnFromKeyboard = (event: KeyboardEvent) => {
+      if (!interactive || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        yaw += event.key === "ArrowLeft" ? -0.16 : 0.16;
+      } else {
+        pitch = Math.min(1.46, Math.max(0.08, pitch + (event.key === "ArrowUp" ? 0.1 : -0.1)));
+      }
+      yaw = writeSharedRotation(yaw, performance.now(), directionRef.current);
+      drawHull(canvas, hull, yaw, pitch, palette, variant, zoom, framing);
+      instrumentView.setView({ yaw: normalizeYaw(yaw), pitch, zoom });
+      event.preventDefault();
+    };
+    root.addEventListener("pointerdown", beginDrag);
+    root.addEventListener("wheel", zoomFromWheel, { passive: false });
+    window.addEventListener("pointermove", moveDrag);
+    window.addEventListener("pointerup", finishDrag);
+    window.addEventListener("pointercancel", finishDrag);
+    window.addEventListener("focus", resumeAfterFocus);
+    window.addEventListener("pageshow", resumeAfterFocus);
+    document.addEventListener("visibilitychange", resumeAfterFocus);
+    if (isDesktopHost()) {
+      void getCurrentWindow().onFocusChanged(({ payload }) => {
+        if (payload) resumeAfterFocus();
+      }).then((unlisten) => {
+        if (disposed) unlisten();
+        else nativeFocusUnlisten = unlisten;
+      });
+    }
+    root.addEventListener("pointerenter", repairStaleFrame);
+    window.addEventListener("pointerdown", repairStaleFrame, true);
+    root.addEventListener("keydown", turnFromKeyboard);
     updateMotion();
     return () => {
+      disposed = true;
       if (frame !== null) window.cancelAnimationFrame(frame);
+      for (const timer of focusPaintTimers) window.clearTimeout(timer);
+      focusPaintTimers.clear();
+      nativeFocusUnlisten?.();
       resize.disconnect();
       clearPixelRatioListener();
       intersection?.disconnect();
       theme.disconnect();
       reducedMotion.removeEventListener("change", updateMotion);
+      root.removeEventListener("pointerdown", beginDrag);
+      root.removeEventListener("wheel", zoomFromWheel);
+      window.removeEventListener("pointermove", moveDrag);
+      window.removeEventListener("pointerup", finishDrag);
+      window.removeEventListener("pointercancel", finishDrag);
+      window.removeEventListener("focus", resumeAfterFocus);
+      window.removeEventListener("pageshow", resumeAfterFocus);
+      document.removeEventListener("visibilitychange", resumeAfterFocus);
+      root.removeEventListener("pointerenter", repairStaleFrame);
+      window.removeEventListener("pointerdown", repairStaleFrame, true);
+      root.removeEventListener("keydown", turnFromKeyboard);
     };
-  }, [hull, motion, variant]);
+  }, [animate, framing, hull, interactive, instrumentView.pitch, instrumentView.yaw, instrumentView.zoom, motion, variant]);
 
   return (
     <div
-      className={`flight-instrument flight-instrument--${variant}`}
+      ref={rootRef}
+      className={`flight-instrument flight-instrument--${variant}${interactive ? " flight-instrument--interactive" : ""}`}
       data-motion={motion}
       data-direction={direction}
-      aria-hidden="true"
+      aria-hidden={interactive ? undefined : true}
+      aria-label={interactive ? "Ship display. Drag to turn, scroll to zoom, or use the arrow keys." : undefined}
+      title={interactive ? "Drag to turn · scroll to zoom" : undefined}
+      role={interactive ? "group" : undefined}
+      tabIndex={interactive ? 0 : undefined}
     >
       <div className="flight-instrument__drift">
-        {variant === "badge" ? (
-          <svg viewBox="0 0 240 150" focusable="false">
-            <g className="flight-instrument__scope">
-              <ellipse cx="124" cy="76" rx="96" ry="48" />
-              <ellipse cx="124" cy="76" rx="70" ry="34" />
-              <path d="M18 76h212M124 18v116" />
-              <path className="flight-instrument__arc" d="M38 105c33 34 111 40 162-2" />
-              <path className="flight-instrument__tick" d="M31 70v12m186-12v12M118 25h12m-12 102h12" />
-            </g>
-          </svg>
-        ) : null}
         <canvas ref={canvasRef} />
       </div>
     </div>

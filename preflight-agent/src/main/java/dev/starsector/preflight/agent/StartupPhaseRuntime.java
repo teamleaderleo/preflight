@@ -11,6 +11,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,6 +29,16 @@ public final class StartupPhaseRuntime {
     private static final int MAX_HOT_PATH_GROUPS = 16;
     private static final int MAX_DISTINCT_HOT_PATHS = 65_536;
     private static final int MAX_MERGED_READ_GROUPS = 512;
+    private static final int SAMPLED_HOT_CALL_RATE = 16;
+    private static final String[] SAMPLED_HOT_CALL_LABELS = {
+        "weapon-json-numeric-conversion",
+        "projectile-json-numeric-conversion",
+        "projectile-json-other",
+        "projectile-schema-decode",
+        "projectile-spec-methods",
+        "projectile-game-helpers"
+    };
+    private static final long NO_SAMPLE = Long.MIN_VALUE;
     private static final int[] PROGRESS_MILESTONES = {1, 5, 10, 25, 50, 75, 90, 95, 99, 100};
 
     private static Path destination;
@@ -43,6 +54,16 @@ public final class StartupPhaseRuntime {
     private static final Map<String, HotCall> hotCalls = new LinkedHashMap<>();
     private static final Map<String, HotPath> hotPaths = new LinkedHashMap<>();
     private static final Map<String, MergedRead> mergedReads = new LinkedHashMap<>();
+    private static final long[] sampledHotCallCalls =
+            new long[SAMPLED_HOT_CALL_LABELS.length];
+    private static final long[] sampledHotCallSamples =
+            new long[SAMPLED_HOT_CALL_LABELS.length];
+    private static final long[] sampledHotCallNanos =
+            new long[SAMPLED_HOT_CALL_LABELS.length];
+    private static final long[] sampledHotCallMaxNanos =
+            new long[SAMPLED_HOT_CALL_LABELS.length];
+    private static final long[] sampledHotCallFirstNanos =
+            new long[SAMPLED_HOT_CALL_LABELS.length];
     private static volatile boolean mergedReadProbe;
     private static String activePlugin;
     private static long activePluginNanos;
@@ -71,6 +92,11 @@ public final class StartupPhaseRuntime {
         hotCalls.clear();
         hotPaths.clear();
         mergedReads.clear();
+        Arrays.fill(sampledHotCallCalls, 0L);
+        Arrays.fill(sampledHotCallSamples, 0L);
+        Arrays.fill(sampledHotCallNanos, 0L);
+        Arrays.fill(sampledHotCallMaxNanos, 0L);
+        Arrays.fill(sampledHotCallFirstNanos, 0L);
         activePlugin = null;
         activePluginNanos = 0L;
         activeSpecLoader = null;
@@ -315,6 +341,45 @@ public final class StartupPhaseRuntime {
         }
     }
 
+    /** Counts every reviewed call and times one in sixteen without locking the loader thread. */
+    public static long sampledHotCallStart(int slot) {
+        try {
+            if (slot < 0 || slot >= sampledHotCallCalls.length) {
+                return NO_SAMPLE;
+            }
+            long call = ++sampledHotCallCalls[slot];
+            return call == 1L || call % SAMPLED_HOT_CALL_RATE == 0L
+                    ? System.nanoTime() : NO_SAMPLE;
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            return NO_SAMPLE;
+        }
+    }
+
+    /** Records a sampled reviewed call without writing or taking a monitor in the hot loop. */
+    public static void sampledHotCallEnd(int slot, long startedNanos) {
+        try {
+            if (startedNanos == NO_SAMPLE || slot < 0 || slot >= sampledHotCallCalls.length) {
+                return;
+            }
+            long duration = System.nanoTime() - startedNanos;
+            if (duration < 0L) {
+                return;
+            }
+            sampledHotCallSamples[slot]++;
+            sampledHotCallNanos[slot] = Math.addExact(sampledHotCallNanos[slot], duration);
+            sampledHotCallMaxNanos[slot] = Math.max(sampledHotCallMaxNanos[slot], duration);
+            if (sampledHotCallSamples[slot] == 1L) {
+                sampledHotCallFirstNanos[slot] = duration;
+            }
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // Woven diagnostics are never allowed to affect startup.
+        }
+    }
+
     /** Counts calls and distinct logical paths at one exact, opt-in startup call site. */
     public static void hotPath(String label, String path) {
         try {
@@ -340,6 +405,7 @@ public final class StartupPhaseRuntime {
         output.put("specSubphases", specSubphases.values().stream()
                 .map(SpecSubphase::toMap).toList());
         output.put("hotCalls", hotCalls.values().stream().map(HotCall::toMap).toList());
+        output.put("sampledHotCalls", sampledHotCalls());
         output.put("hotPaths", hotPaths.values().stream().map(HotPath::toMap).toList());
         output.put("mergedReads", mergedReads.values().stream().map(MergedRead::toMap).toList());
         output.put("activePlugin", activePlugin);
@@ -349,6 +415,37 @@ public final class StartupPhaseRuntime {
         output.put("lastProgressPermille", lastProgressPermille);
         output.put("writeProblem", writeProblem);
         return output;
+    }
+
+    private static List<Map<String, Object>> sampledHotCalls() {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (int slot = 0; slot < SAMPLED_HOT_CALL_LABELS.length; slot++) {
+            long calls = sampledHotCallCalls[slot];
+            long samples = sampledHotCallSamples[slot];
+            long nanos = sampledHotCallNanos[slot];
+            Map<String, Object> timing = new LinkedHashMap<>();
+            timing.put("label", SAMPLED_HOT_CALL_LABELS[slot]);
+            timing.put("sampleRate", SAMPLED_HOT_CALL_RATE);
+            timing.put("calls", calls);
+            timing.put("samples", samples);
+            timing.put("sampledDurationMillis", millis(nanos));
+            timing.put("sampledMeanNanos", samples == 0L ? 0L : nanos / samples);
+            timing.put("sampledMaxNanos", sampledHotCallMaxNanos[slot]);
+            long firstNanos = sampledHotCallFirstNanos[slot];
+            long recurringSamples = Math.max(0L, samples - (firstNanos == 0L ? 0L : 1L));
+            long recurringNanos = Math.max(0L, nanos - firstNanos);
+            long recurringMean = recurringSamples == 0L ? 0L : recurringNanos / recurringSamples;
+            long estimatedNanos = firstNanos;
+            if (calls > 1L && recurringSamples > 0L) {
+                estimatedNanos = Math.addExact(firstNanos,
+                        Math.multiplyExact(recurringMean, calls - 1L));
+            }
+            timing.put("firstCallNanos", firstNanos);
+            timing.put("recurringSampledMeanNanos", recurringMean);
+            timing.put("estimatedDurationMillis", millis(estimatedNanos));
+            result.add(timing);
+        }
+        return result;
     }
 
     private static void recordPhase(String name, Integer progressPermille) {
