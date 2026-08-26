@@ -398,9 +398,11 @@ mod platform {
                 assert!(!script.to_ascii_lowercase().contains("starsector"));
                 assert!(!script.contains("set focused to "));
             }
-            assert!(reviewed_script(&request("observe", Some(4242), None))
-                .unwrap()
-                .contains("set isFrontmost to frontmost of targetProcess"));
+            assert!(
+                reviewed_script(&request("observe", Some(4242), None))
+                    .unwrap()
+                    .contains("set isFrontmost to frontmost of targetProcess")
+            );
         }
 
         #[test]
