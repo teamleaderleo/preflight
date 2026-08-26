@@ -486,6 +486,23 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    /** MnemonicUtils 0.5.1's every-frame sensor entity discovery. */
+    static AdapterTarget mnemonicSensorsEntityFilterTarget() {
+        return new AdapterTarget(
+                "mnemonicutils-0.5.1-sensors-entity-filter",
+                MnemonicSensorsEntityFilterPlan.TARGET_CLASS,
+                MnemonicSensorsEntityFilterPlan.ORIGINAL_SHA256,
+                MnemonicSensorsEntityFilterPlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        MnemonicSensorsEntityFilterPlan.METHOD,
+                        MnemonicSensorsEntityFilterPlan.DESCRIPTOR)),
+                "MOD",
+                "mnemonicutils.jar",
+                "d85c2f52df2477b19cd31f0ab9273e758b50067b7151c4f99fb60cf96d10756e",
+                "java/net/URLClassLoader",
+                "");
+    }
+
     /** LunaLib 2.0.5's version checker, which duplicates Nexerelin's remote reads. */
     static AdapterTarget lunaVersionCheckResponseDedupTarget() {
         return new AdapterTarget(
@@ -1976,6 +1993,7 @@ final class AdapterTargetRegistry {
                 .withTarget(magicLibPaintjobNotificationTarget())
                 .withTarget(graphicsLibHotSettingsTarget())
                 .withTarget(ratAbyssFactionFlagTarget())
+                .withTarget(mnemonicSensorsEntityFilterTarget())
                 .withTarget(contrailRenderScratchTarget())
                 .withTarget(fontWrapAllocationTarget())
                 .withTarget(lunaCampaignRendererSnapshotScriptTarget())

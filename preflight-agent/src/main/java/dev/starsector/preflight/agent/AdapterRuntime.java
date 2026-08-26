@@ -60,6 +60,7 @@ final class AdapterRuntime {
         GraphicsLibInsigniaManagerCacheRuntime.beginSession();
         GraphicsLibHotSettingsRuntime.reset();
         RatAbyssFactionFlagPlan.reset();
+        MnemonicSensorsEntityFilterPlan.reset();
         LunaCampaignRendererSnapshotRuntime.reset();
         MagicLibPaintjobLoadRuntime.reset();
         MagicLibPaintjobCacheRuntime.beginSession();

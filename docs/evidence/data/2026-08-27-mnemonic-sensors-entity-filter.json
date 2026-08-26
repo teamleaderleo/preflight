@@ -1,0 +1,88 @@
+{
+  "format": "starsector-preflight-mnemonic-sensors-entity-filter-v1",
+  "date": "2026-08-27",
+  "profile": {
+    "gameVersion": "0.98a-RC8",
+    "enabledMods": 83,
+    "hardware": "Apple M5 Mac",
+    "runtime": "x86-64 Zulu 17 under Rosetta",
+    "preflightEnabled": true
+  },
+  "target": {
+    "planId": "mnemonic-sensors-0.5.1-entity-filter-v1",
+    "class": "com.dp.mnemonicutils.sensors.MnemonicSensorsEveryFrameScript",
+    "method": "markKnownEntities(com.fs.starfarer.api.campaign.LocationAPI):void",
+    "classSha256": "4b483a40555456cb6b8873dbf14735eaaae6607c947fbcf7d91ba470197dc9a6",
+    "archiveSha256": "d85c2f52df2477b19cd31f0ab9273e758b50067b7151c4f99fb60cf96d10756e",
+    "classMajorVersion": 61,
+    "sourceBehavior": "materialize non-null entity snapshot, materialize matching snapshot, mutate matching snapshot",
+    "candidateBehavior": "iterate source with null guard, retain matching snapshot, mutate matching snapshot"
+  },
+  "before": {
+    "runId": "campaign-sample-reused-cursors-2-20260827-0154",
+    "measurement": "weighted JFR allocation samples on the exact Kotlin filterNotNullTo stack",
+    "paused": {
+      "samples": 10,
+      "weightedMiB": 22.0
+    },
+    "unpaused": {
+      "samples": 7,
+      "weightedMiB": 12.1
+    }
+  },
+  "after": {
+    "runId": "mnemonic-sensors-filter-20260827-0730",
+    "scenario": "campaign-sample-paused-unpaused",
+    "status": "passed",
+    "recordingBytes": 5793794,
+    "transformationsApplied": 58,
+    "containedFailures": 0,
+    "installedTargets": 1,
+    "paused": {
+      "campaignAllocationSamples": 77,
+      "campaignWeightedMiB": 156.2,
+      "targetFilterSamples": 0,
+      "targetFilterWeightedMiB": 0.0
+    },
+    "unpaused": {
+      "campaignAllocationSamples": 624,
+      "campaignWeightedMiB": 954.7,
+      "targetFilterSamples": 0,
+      "targetFilterWeightedMiB": 0.0,
+      "otherMnemonicSamples": 1,
+      "otherMnemonicWeightedMiB": 4.0,
+      "otherMnemonicLeaf": "MnemonicSensorsEveryFrameScript.addRenderLocations"
+    }
+  },
+  "frameContext": {
+    "pausedSettled": {
+      "frames": 3383,
+      "averageFps": 58.32,
+      "medianFps": 59.17,
+      "onePercentLowFps": 30.3,
+      "pointOnePercentLowFps": 25.71,
+      "p99FrameMillis": 33.0,
+      "stutterBurdenMillisPerSecond": 1.86,
+      "repeatedSlowFramesPercent": 0.0
+    },
+    "unpausedSettled": {
+      "frames": 1811,
+      "averageFps": 49.24,
+      "medianFps": 58.82,
+      "onePercentLowFps": 13.89,
+      "pointOnePercentLowFps": 5.79,
+      "p99FrameMillis": 72.0,
+      "stutterBurdenMillisPerSecond": 75.59,
+      "repeatedSlowFramesPercent": 4.8
+    }
+  },
+  "safety": {
+    "addsFields": false,
+    "addsCrossFrameCache": false,
+    "changesSaveFormat": false,
+    "retainsMatchingSnapshot": true,
+    "fallback": "original bytecode",
+    "killSwitch": "PREFLIGHT_DISABLE_ADAPTER_PLANS=mnemonic-sensors-0.5.1-entity-filter-v1"
+  },
+  "claimBoundary": "The live run establishes absence of the targeted sampled allocation stack. It is not a lockstep A/B and does not establish an FPS uplift."
+}

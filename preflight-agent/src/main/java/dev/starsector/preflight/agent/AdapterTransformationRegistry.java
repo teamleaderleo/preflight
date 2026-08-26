@@ -296,6 +296,9 @@ final class AdapterTransformationRegistry {
         if (RatAbyssFactionFlagPlan.PLAN_ID.equals(target.planId())) {
             return RatAbyssFactionFlagPlan.transform(signature, originalBytes);
         }
+        if (MnemonicSensorsEntityFilterPlan.PLAN_ID.equals(target.planId())) {
+            return MnemonicSensorsEntityFilterPlan.transform(signature, originalBytes);
+        }
         if (ContrailRenderScratchRuntime.PLAN_ID.equals(target.planId())) {
             return ContrailRenderScratchPlan.transform(signature, originalBytes);
         }
@@ -887,6 +890,9 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (RatAbyssFactionFlagPlan.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (MnemonicSensorsEntityFilterPlan.PLAN_ID.equals(planId)) {
             return true;
         }
         if (ContrailRenderScratchRuntime.PLAN_ID.equals(planId)) {

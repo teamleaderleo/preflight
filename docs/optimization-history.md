@@ -313,6 +313,15 @@ method: 18 for fixed punctuation tables and three one-character `contains` conve
 loops. Exact literal and `indexOf(char)` rewrites remove those allocations without adding object or
 save state. Both remain live-A/B candidates rather than FPS claims.
 
+Settled paused/unpaused allocation sampling then found Mnemonic Sensors materializing all non-null
+entities before building the smaller matching-entity snapshot it actually consumed. An exact
+Java-17 transform now iterates the source list with a null guard, retains the original match
+snapshot and mutation pass, and adds no field or cross-frame state. The old Kotlin
+`filterNotNullTo` stack carried 22.0 MiB paused and 12.1 MiB unpaused in the prior trace; it was
+absent from both windows of the successful live candidate run. This is a structural and sampled
+allocation result, not a lockstep FPS claim; see
+[the Mnemonic Sensors report](evidence/2026-08-27-mnemonic-sensors-entity-filter.md).
+
 Several investigations ended in correctness fixes. Stale mod simulation
 opponents reached vanilla as invalid fleet members, a full-retreat race could end in an incompatible
 combat cast, startup became fast enough to expose notification and fuel calculations running before

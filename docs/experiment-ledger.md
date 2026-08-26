@@ -2,9 +2,9 @@
 
 **Status:** exhaustive at the experiment-family level
 
-**Scope:** retained work through 2026-08-06
+**Scope:** retained work through 2026-08-27
 
-**Updated:** 2026-08-07
+**Updated:** 2026-08-27
 
 This ledger accounts for the optimization branches explored during the current campaign, including
 ideas that were rejected, corrected, or left deliberately unfinished. A row may consolidate several
@@ -180,6 +180,16 @@ why the work changed direction. This page accounts for each abandoned branch.
 | LunaLib | Rebuild the combined campaign-renderer list at every private render/advance call | **Implemented as a bounded paper cut; live A/B pending** | Public fresh-list behavior remains unchanged. Only the entity's private snapshots are reused after ordered identity checks, and the owner cache is capped at eight. | [Paused render/allocation profile](evidence/2026-08-26-paused-campaign-render-allocation-profile.md) |
 | Paused economy | Copy unchanged market and location lists into new arrays on every stable pass | **Implemented; live A/B pending** | The existing callback-safe snapshot boundary now reuses arrays only after list identity, size, order, and element-identity checks. Mutations rebuild, failures use `toArray()`, non-random-access lists decline hits, and the cache is bounded. | [Paused render/allocation profile](evidence/2026-08-26-paused-campaign-render-allocation-profile.md) |
 | UI text | Rebuild fixed punctuation tables and one-character strings in vanilla wrapping loops | **Implemented; live A/B pending** | Exact bytecode had 21 builder sites in the sampled method. Fixed tables are now literals and three `contains(one-character-string)` branches use equivalent `indexOf(char)` checks, with no added object/save state. | [Paused render/allocation profile](evidence/2026-08-26-paused-campaign-render-allocation-profile.md) |
+
+## August 27: deterministic gameplay profiling
+
+| Area | Experiment | Disposition | Result and retained decision | Evidence |
+| --- | --- | --- | --- | --- |
+| Measurement | Drive Continue and paused/unpaused campaign states through semantic internal actions | **Diagnostic** | One Preflight-owned process now executes repeatable settled paused and unpaused windows without GUI coordinates or operator timing. | [Paused/unpaused cycle](evidence/2026-08-27-paused-unpaused-cycle-live.md), [sampled profile](evidence/2026-08-27-sampled-paused-unpaused-profile.md) |
+| Campaign snapshots | Reuse exhausted private array snapshots after ordered identity validation | **Accepted with limit** | The exact adapter keeps callback-safe snapshot semantics and rebuilds after identity, size, order, or element drift. Live counters and installed-bytecode tests passed; the retained claim is structural and allocation-focused. | [Cursor reuse](evidence/2026-08-27-campaign-snapshot-cursor-reuse.md) |
+| Combat collision grid | Cache the preceding query's local collision-grid result | **Rejected** | The deterministic combat route produced only a 4.895% hit rate and an estimated CPU ceiling near 0.19%, too small for the invalidation complexity. | [Collision-grid rejection](evidence/2026-08-27-collision-grid-cache-rejected.md) |
+| AI Tweaks | Recompute weapon-slot position six times inside one synchronous target selection | **Accepted with limit** | The exact transform retains one per-selection location snapshot. The attributed sampled allocation fell from 49.1 to 10.0 MiB in a successful live run; differing battle evolution prevents an FPS claim. | [Weapon-location snapshot](evidence/2026-08-27-aitweaks-weapon-location-snapshot.md) |
+| Mnemonic Sensors | Materialize every non-null entity before building the matching-entity snapshot | **Accepted with limit** | The exact transform iterates the source with a null guard while preserving the matching snapshot and mutation pass. The prior 22.0-MiB paused and 12.1-MiB unpaused sampled stack was absent in the live Preflight run; no FPS uplift is claimed. | [Entity-filter copy removal](evidence/2026-08-27-mnemonic-sensors-entity-filter.md) |
 
 ## Limits on current claims
 
