@@ -293,6 +293,12 @@ final class AdapterTransformationRegistry {
         if (GraphicsLibHotSettingsRuntime.PLAN_ID.equals(target.planId())) {
             return GraphicsLibHotSettingsPlan.transform(signature, originalBytes);
         }
+        if (ContrailRenderScratchRuntime.PLAN_ID.equals(target.planId())) {
+            return ContrailRenderScratchPlan.transform(signature, originalBytes);
+        }
+        if (LunaCampaignRendererSnapshotRuntime.PLAN_ID.equals(target.planId())) {
+            return LunaCampaignRendererSnapshotPlan.transform(signature, originalBytes);
+        }
         if (VersionCheckResponseDedupRuntime.PLAN_ID.equals(target.planId())) {
             return VersionCheckResponseDedupPlan.transform(signature, originalBytes);
         }
@@ -874,6 +880,9 @@ final class AdapterTransformationRegistry {
         if (GraphicsLibHotSettingsRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
+        if (ContrailRenderScratchRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
         if (VersionCheckResponseDedupRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
@@ -881,6 +890,9 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (MagicLibPaintjobNotificationRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (LunaCampaignRendererSnapshotRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
         if (StelnetMarketUpdaterRuntime.PLAN_ID.equals(planId)) {

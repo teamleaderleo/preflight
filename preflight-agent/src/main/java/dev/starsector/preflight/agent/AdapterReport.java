@@ -379,6 +379,10 @@ final class AdapterReport {
                 .append(Json.value(MagicLibPaintjobLoadRuntime.telemetry())).append(',');
         key(output, "magicLibPaintjobCache")
                 .append(Json.value(MagicLibPaintjobCacheRuntime.telemetry())).append(',');
+        key(output, "lunaCampaignRendererSnapshot")
+                .append(Json.value(LunaCampaignRendererSnapshotRuntime.telemetry())).append(',');
+        key(output, "contrailRenderScratch")
+                .append(Json.value(ContrailRenderScratchRuntime.telemetry())).append(',');
         key(output, "stelnetMarketUpdater")
                 .append(Json.value(StelnetMarketUpdaterRuntime.telemetry())).append(',');
         key(output, "logisticsNotificationsFuel")

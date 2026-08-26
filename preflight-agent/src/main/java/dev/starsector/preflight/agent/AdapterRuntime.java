@@ -58,11 +58,13 @@ final class AdapterRuntime {
         JaninoBytecodeCacheRuntime.beginSession();
         GraphicsLibInsigniaManagerCacheRuntime.beginSession();
         GraphicsLibHotSettingsRuntime.reset();
+        LunaCampaignRendererSnapshotRuntime.reset();
         MagicLibPaintjobLoadRuntime.reset();
         MagicLibPaintjobCacheRuntime.beginSession();
         MagicLibPaintjobSnapshotRuntime.beginSession();
         EntityLookupRuntime.beginSession();
         RadarRenderRuntime.beginSession();
+        ContrailRenderScratchRuntime.beginSession();
         DeploymentIconCacheRuntime.beginSession();
         CommodityEventModMemoRuntime.beginSession();
         CampaignEntityMaintenanceRuntime.beginSession();

@@ -484,6 +484,71 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    /** LunaLib 2.0.5's allocation-heavy campaign renderer snapshots. */
+    static AdapterTarget lunaCampaignRendererSnapshotScriptTarget() {
+        return new AdapterTarget(
+                "lunalib-2.0.5-campaign-renderer-dead-snapshot",
+                LunaCampaignRendererSnapshotPlan.SCRIPT_CLASS,
+                LunaCampaignRendererSnapshotPlan.SCRIPT_SHA256,
+                LunaCampaignRendererSnapshotRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                LunaCampaignRendererSnapshotPlan.ADVANCE,
+                                LunaCampaignRendererSnapshotPlan.ADVANCE_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                LunaCampaignRendererSnapshotPlan.GET_RENDERERS,
+                                LunaCampaignRendererSnapshotPlan.GET_RENDERERS_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                LunaCampaignRendererSnapshotPlan.GET_TRANSIENT,
+                                LunaCampaignRendererSnapshotPlan.GET_RENDERERS_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                LunaCampaignRendererSnapshotPlan.GET_PERSISTENT,
+                                LunaCampaignRendererSnapshotPlan.GET_RENDERERS_DESCRIPTOR)),
+                "MOD",
+                "lunalib.jar",
+                "d20304b9404f03392482703a55e655cadb0a1735d78c9b2da6b209e1217bbbfd",
+                "java/net/URLClassLoader",
+                "");
+    }
+
+    /** LunaLib 2.0.5's render/advance call sites that consume private combined snapshots. */
+    static AdapterTarget lunaCampaignRendererSnapshotEntityTarget() {
+        return new AdapterTarget(
+                "lunalib-2.0.5-campaign-renderer-entity-snapshot",
+                LunaCampaignRendererSnapshotPlan.ENTITY_CLASS,
+                LunaCampaignRendererSnapshotPlan.ENTITY_SHA256,
+                LunaCampaignRendererSnapshotRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                LunaCampaignRendererSnapshotPlan.ADVANCE,
+                                LunaCampaignRendererSnapshotPlan.ADVANCE_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                LunaCampaignRendererSnapshotPlan.RENDER,
+                                LunaCampaignRendererSnapshotPlan.RENDER_DESCRIPTOR)),
+                "MOD",
+                "lunalib.jar",
+                "d20304b9404f03392482703a55e655cadb0a1735d78c9b2da6b209e1217bbbfd",
+                "java/net/URLClassLoader",
+                "");
+    }
+
+    /** Starsector 0.98a-RC8's up to eight temporary vectors per rendered contrail point. */
+    static AdapterTarget contrailRenderScratchTarget() {
+        return new AdapterTarget(
+                "vanilla-contrail-render-transient-vector-scratch-0.98a-rc8",
+                ContrailRenderScratchPlan.TARGET_CLASS,
+                ContrailRenderScratchPlan.ORIGINAL_SHA256,
+                ContrailRenderScratchRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        ContrailRenderScratchPlan.RENDER_METHOD,
+                        ContrailRenderScratchPlan.RENDER_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** Nexerelin 0.12.2b's older version-checker fork over the same mod URL set. */
     static AdapterTarget nexVersionCheckResponseDedupTarget() {
         return new AdapterTarget(
@@ -1877,6 +1942,9 @@ final class AdapterTargetRegistry {
                 .withTarget(magicLibPaintjobTarget())
                 .withTarget(magicLibPaintjobNotificationTarget())
                 .withTarget(graphicsLibHotSettingsTarget())
+                .withTarget(contrailRenderScratchTarget())
+                .withTarget(lunaCampaignRendererSnapshotScriptTarget())
+                .withTarget(lunaCampaignRendererSnapshotEntityTarget())
                 .withTarget(lunaVersionCheckResponseDedupTarget())
                 .withTarget(nexVersionCheckResponseDedupTarget())
                 .withTarget(stelnetMarketUpdaterTarget())

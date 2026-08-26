@@ -296,6 +296,15 @@ experimental because it may tear, and the unequal-duration observations are not 
 The implementation boundary and retained distributions are in
 [the campaign presentation report](evidence/2026-08-26-campaign-frame-pacing.md).
 
+An attached paused-campaign allocation profile then separated a repeat renderer cost from that
+presentation result. Two 30-second wall observations advanced the game thread's allocation counter
+by about 309 and 301 MB, while repeated JFR samples found `Vector2f` construction in the exact
+contrail render loop. The candidate reuses eight transient vectors per engine and leaves save state
+and draw decisions untouched. A smaller LunaLib private-list snapshot candidate was also retained,
+with its public API unchanged and its owner cache bounded. These are implementation results awaiting
+a Preflight-only live A/B, not yet FPS claims; see
+[the paused render/allocation profile](evidence/2026-08-26-paused-campaign-render-allocation-profile.md).
+
 Several investigations ended in correctness fixes. Stale mod simulation
 opponents reached vanilla as invalid fleet members, a full-retreat race could end in an incompatible
 combat cast, startup became fast enough to expose notification and fuel calculations running before

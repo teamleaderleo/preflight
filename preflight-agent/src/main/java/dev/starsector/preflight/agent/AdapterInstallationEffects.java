@@ -39,6 +39,9 @@ final class AdapterInstallationEffects {
         if (CombatRuntimeIntegrityRuntime.PLAN_ID.equals(target.planId())) {
             CombatRuntimeIntegrityRuntime.installed();
         }
+        if (ContrailRenderScratchRuntime.PLAN_ID.equals(target.planId())) {
+            ContrailRenderScratchRuntime.installed();
+        }
         if (CommodityEventModMemoRuntime.PLAN_ID.equals(target.planId())
                 && CommodityEventModMemoPlan.TARGET_CLASS.equals(className)) {
             CommodityEventModMemoRuntime.installed();
@@ -51,6 +54,13 @@ final class AdapterInstallationEffects {
         }
         if (LogisticsNotificationsFuelRuntime.PLAN_ID.equals(target.planId())) {
             LogisticsNotificationsFuelRuntime.installed();
+        }
+        if (LunaCampaignRendererSnapshotRuntime.PLAN_ID.equals(target.planId())) {
+            if (LunaCampaignRendererSnapshotPlan.SCRIPT_CLASS.equals(className)) {
+                LunaCampaignRendererSnapshotRuntime.scriptInstalled();
+            } else if (LunaCampaignRendererSnapshotPlan.ENTITY_CLASS.equals(className)) {
+                LunaCampaignRendererSnapshotRuntime.entityInstalled();
+            }
         }
         if (MacMemoryWarningRuntime.PLAN_ID.equals(target.planId())) {
             MacMemoryWarningRuntime.installed();
