@@ -1,15 +1,19 @@
-# From 101 seconds to 15.25: what changed in Starsector's loading path
+# From 101 seconds to 13.69: what changed in Starsector's loading path
 
 **Status:** publication spine; performance claims link to retained evidence
 
 **Profile:** Starsector 0.98a-RC8, 83 mods, M5 MacBook Air, bundled x86-64 Zulu 17 under Rosetta
 
-**Updated:** 2026-08-15
+**Updated:** 2026-08-26
 
-The development installation's observed high reached roughly 101 seconds. In the latest
-same-profile campaign, ordinary launches had an 89.00-second median and Preflight launches had a
-15.53-second median; the fastest reached 15.25 seconds. **101 seconds to 15.25 seconds** is the
-chronological headline. The final package still needs its own benchmark pass.
+The development installation's observed high reached roughly 101 seconds. The current retained
+development endpoint is **13.69 seconds**. **101 seconds to 13.69 seconds** is the chronological
+headline. The final package still needs its own benchmark pass.
+
+The older 89.00-second vanilla / 15.53-second Preflight same-profile campaign remains useful because
+it paired two conditions to answer a before/after attribution question. It does not make those elapsed
+times a different or more authoritative class of startup measurement. All startup observations in
+this record use the same game-log clock unless explicitly stated otherwise.
 
 The [experiment ledger](experiment-ledger.md) records accepted, rejected, diagnostic, and deferred
 branches. The [performance and storage reference](performance-storage-tradeoffs.md) collects the
@@ -29,18 +33,20 @@ The game-log-to-main-menu duration and wrapper wall time are separate metrics. J
 attribution under a corrected clock contract. Ordinary launches establish wall time, integration,
 and visual correctness.
 Current whole-launch run-to-run spread on the test machine is roughly ±0.6 seconds, so isolated
-sub-second changes still need controlled replays or larger cohorts. Reports record browser activity,
-memory pressure, ambient temperature, and back-to-back thermal throttling. The current harness and
-condition definitions are documented in [startup-benchmark.md](startup-benchmark.md).
+sub-second intervention claims still need replays or larger cohorts that can distinguish the change
+from ordinary variation. That requirement belongs to causal attribution of a small delta; it does not
+decide whether a recorded whole-launch time counts. Reports record browser activity, memory pressure,
+ambient temperature, and back-to-back thermal throttling. The current harness and condition
+definitions are documented in [startup-benchmark.md](startup-benchmark.md).
 
-The controlled chronology begins at an 88.13-second median. Earlier accepted launches reached
-roughly 101 seconds under less favorable conditions. The first accepted optimization waypoint was
-62.60 seconds after the initial texture campaign. Later gates record the order in which improvements
-entered the working stack.
+The historical optimization chronology begins at an 88.13-second median. Earlier accepted launches
+reached roughly 101 seconds under less favorable conditions. The first accepted optimization waypoint
+was 62.60 seconds after the initial texture campaign. Later gates record the order in which
+improvements entered the working stack.
 
 | Accepted gate | Main-menu time |
 | --- | ---: |
-| Initial controlled vanilla launch | 88.13s |
+| Initial benchmark vanilla launch | 88.13s |
 | Prepared-texture composition | 62.60s |
 | Preparation moved before launch | 34.66 / 35.54s |
 | Merged-read cache | 33.42 / 34.15s |
@@ -50,22 +56,27 @@ entered the working stack.
 | Resource-priority and WebP-tail work | 23.68s, then 23.03s |
 | Collapsed texture/loading pipeline | 18.01 / 18.04s |
 | Loading-screen redraw and title-tail work | 17.09 / 16.68s, then 16.21s |
-| Current production gates | 16.66 / 16.28 / **15.88s** |
-| Controlled same-profile campaign | **15.53s** against **89.00s** vanilla |
+| Production gates from this phase | 16.66 / 16.28 / **15.88s** |
+| Historical same-profile A/B campaign | **15.53s** against **89.00s** vanilla |
+| Later retained development endpoint | **13.69s** |
 
-The last row is not another waypoint in this chronology; it is a different kind of measurement. Every
-row above it compares against the 88.13-second median taken on a **77-mod** profile, while the gates
-that follow were measured after the mod list grew to 83. The 2026-08-15 campaign ran both conditions
-against that same 83-mod profile, interleaved inside every round with 240 seconds of cooling before
-each launch: five accepted runs each, none excluded, medians 89.00s and 15.53s. It is the first
-before/after here that does not span a profile change. See
-[the controlled campaign](evidence/2026-08-15-controlled-vanilla-fast-campaign.md).
+The 89.00/15.53 row is an A/B comparison rather than another optimization waypoint. Its value is that
+both conditions were run against the same 83-mod profile, interleaved inside every round with 240
+seconds of cooling before each launch: five accepted runs each, none excluded, medians 89.00s and
+15.53s. The pairing makes it useful for the before/after question it was designed to answer. The
+elapsed times themselves are still observations of the same startup duration measured elsewhere in
+this chronology. See
+[the historical A/B campaign](evidence/2026-08-15-controlled-vanilla-fast-campaign.md).
+
+The later 13.69-second endpoint is retained in
+[the August 23 storage/startup record](evidence/2026-08-23-storage-to-fourteen-seconds.md), alongside
+the G1/deferred-heap-commit work, Compact physical-order results, and later controls. It extends the
+same development chronology rather than replacing it with a new measurement category.
 
 The 15.88-second validated gate retained 42/42 transformed-class cache hits, 15,469 prepared-texture
-and pixel-conversion hits, active adapter health, and no adapter decline or failure. It is the best
-validated result in the accepted 16-second gate series. Its exact record is in
-[the lazy fleet-member report](evidence/2026-08-06-codex-lazy-fleet-members.md). The final candidate
-benchmark will add a packaged result beside this record.
+and pixel-conversion hits, active adapter health, and no adapter decline or failure. Its exact record
+is in [the lazy fleet-member report](evidence/2026-08-06-codex-lazy-fleet-members.md). The final
+candidate benchmark will add a packaged result beside the development record.
 
 ## The first texture cache accelerated the wrong part of the wait
 
@@ -337,8 +348,8 @@ and failure behavior is specified in [product-contract.md](product-contract.md).
 ## What remains before publication
 
 The repository now contains enough evidence for a long-form account. Release-candidate work includes
-a clean controlled cohort for the current 15–17-second stack, observed Windows and Linux behavior,
-and before/after campaign and combat frame-time distributions. The visual failures, stale simulation
+a benchmark tied to the exact accepted package bytes, observed Windows and Linux behavior, and
+before/after campaign and combat frame-time distributions. The visual failures, stale simulation
 data, retreat crash, audio pops, and early-startup races also deserve a concise regression section
 because they explain the final validation boundaries.
 
