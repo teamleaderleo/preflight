@@ -1,6 +1,6 @@
 # Preflight
 
-**A free, open-source cross-platform performance launcher and mod-analysis toolkit for Starsector. On my 83-mod development setup, startup reached roughly 101 seconds at its slowest and now runs around a 13.8-second median.**
+**A free, open-source cross-platform performance launcher and mod-analysis toolkit for Starsector. On my 83-mod development setup, startup moved from roughly 101 seconds to 13.69 seconds.**
 
 > Preflight is an independent, unofficial project. It isn't affiliated with or endorsed by Fractal
 > Softworks.
@@ -80,9 +80,10 @@ once, then press **Launch Starsector** on later runs. The rest is there when you
 
 ## The measured result
 
-On the 83-mod M5 MacBook Air development installation, current Preflight launches cluster around a
-**~13.8-second median** across the retained run history. **13.69 seconds** is one observed low run in
-that same current regime. Earlier development reached roughly **101 seconds** at its slowest.
+The current development headline is **~101 seconds → 13.69 seconds** on the 83-mod M5 MacBook Air
+installation. The broader current run history clusters around a roughly **13.8-second median**. That
+median is supporting context for the same current speed regime; it does not replace the **13.69s**
+headline.
 
 All startup times in this record use the same game-log clock, from Starsector's
 `Running with the following mods...` marker through GraphicsLib's `VRAM after unload/preload`
@@ -92,13 +93,13 @@ collected; they do not make the elapsed time itself a different kind of observat
 Historical A/B campaigns remain useful for attribution questions such as whether one intervention
 changed startup relative to another condition. The permutation p-values and campaign acceptance
 flags in the repeated benchmark belong to those comparison questions. They have no role in deciding
-whether an observed launch time counts or in reporting the product's current median speed.
+whether an observed launch time counts or in selecting the product's career-facing headline.
 
 | Reference point | Main-menu time | Meaning |
 | --- | ---: | --- |
 | Historical observed high | **~101s** | Slowest retained launch on the development installation |
-| Current retained median | **~13.8s** | Typical current startup across the accumulated run history |
-| Retained low run | **13.69s** | One low observation in the same current regime |
+| Current headline observation | **13.69s** | Current career-facing endpoint |
+| Accumulated current median | **~13.8s** | Supporting repeatability context for the same current regime |
 | Compact corpus, alphabetical order | **33.53s** | Physical-layout experiment with the same logical texture contents |
 | Compact corpus, observed access order | **14.174s** | Same logical contents written in startup access order |
 
@@ -113,8 +114,8 @@ memory pressure, translation, temperature, and other machine state affect the re
 benchmark lets each installation measure its own normal and accelerated launch.
 
 The first public beta still needs a benchmark run against the exact accepted package bytes. That run
-adds package provenance to the release record; the accumulated development launch history remains the
-development speed record.
+adds package provenance to the release record; it does not replace the established development
+headline.
 
 ## Disk and preparation
 
