@@ -170,6 +170,7 @@ test("cleanup explains that completed comparison and save/reload evidence occupy
       files: 0,
       reachableTextureBlobs: 0,
       reachablePreparedAudioBlobs: 0,
+      reachableClasspathArchiveIndexes: 0,
       refusals: [],
       groups: [],
       removals: [],

@@ -1042,6 +1042,7 @@ export async function getCacheCleanup(game: string): Promise<CacheCleanupPlan> {
       files: 8_914,
       reachableTextureBlobs: 30_639,
       reachablePreparedAudioBlobs: 412,
+      reachableClasspathArchiveIndexes: 146,
       refusals: [],
       groups: [
         { reason: "unused profile artifact", bytes: 1_245_118_464, files: 5 },
@@ -1073,6 +1074,7 @@ export async function applyDiscardableCacheCleanup(): Promise<CacheCleanupPlan> 
       files: 0,
       reachableTextureBlobs: 0,
       reachablePreparedAudioBlobs: 0,
+      reachableClasspathArchiveIndexes: 0,
       refusals: [],
       groups: [],
       removals: [],

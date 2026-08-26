@@ -535,6 +535,7 @@ export interface CacheCleanupPlan {
   files: number;
   reachableTextureBlobs: number;
   reachablePreparedAudioBlobs: number;
+  reachableClasspathArchiveIndexes: number;
   refusals: string[];
   groups: Array<{ reason: string; bytes: number; files: number }>;
   removals: Array<{ path: string; bytes: number; reason: string }>;
