@@ -169,28 +169,29 @@
   "publishedQuantities": [
     {
       "type": "seconds",
-      "value": "15.25",
-      "unit": "s",
-      "publishedIn": [],
-      "evidence": "docs/evidence/2026-08-15-controlled-vanilla-fast-campaign.md",
-      "derivation": "Fastest of five accepted accelerated launches in the historical interleaved A/B campaign. Retained as evidence for that comparison, not as the current public development headline."
-    },
-    {
-      "type": "seconds",
-      "value": "101",
+      "value": "112.17",
       "unit": "s",
       "publishedIn": [
         "README.md",
         "docs/beta-announcement-draft.md",
         "docs/beta-announcement-leo-draft.md",
         "docs/release-post-draft.md",
-        "docs/optimization-history.md",
         "docs/engineering-overview.md",
         "docs/leo-talking-points.md",
         "docs/public-writing-sales-inventory.md"
       ],
+      "evidence": "docs/evidence/2026-08-26-recent-ordinary-startup-observation.md",
+      "derivation": "Recent ordinary startup observation selected by the maintainer as the current development/public baseline under the same game-log startup clock. It replaces the older roughly 101-second quantity in the current headline."
+    },
+    {
+      "type": "seconds",
+      "value": "101",
+      "unit": "s",
+      "publishedIn": [
+        "docs/optimization-history.md"
+      ],
       "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "derivation": "Initial accepted chronology high end, human-reviewed from the retained scorecard."
+      "derivation": "Initial accepted chronology high end, retained where the optimization history still discusses that historical observation."
     },
     {
       "type": "seconds",
@@ -207,15 +208,7 @@
         "docs/public-writing-sales-inventory.md"
       ],
       "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
-      "derivation": "Retained current development endpoint under the same game-log startup clock used by the development record. This is the selected ~101s → 13.69s public/career headline. The historical 89.00s → 15.53s A/B campaign answers a separate comparison question and does not give its elapsed times higher editorial status."
-    },
-    {
-      "type": "seconds",
-      "value": "88.13",
-      "unit": "s",
-      "publishedIn": [],
-      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "derivation": "Initial five-run unaccelerated baseline median retained in the historical optimization chronology."
+      "derivation": "Retained current accelerated development endpoint under the same game-log startup clock used by the development record. This is the selected 112.17s → 13.69s public/development headline. The historical 89.00s → 15.53s A/B campaign answers a separate comparison question and does not give its elapsed times higher editorial status."
     },
     {
       "type": "storage",
