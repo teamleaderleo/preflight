@@ -25,9 +25,20 @@ PUBLIC_COPY = (
     "docs/public-writing-sales-inventory.md",
     "docs/release-post-draft.md",
     "docs/releases/0.1.0.md",
+    "CLAUDE.md",
+    "LLM_HANDOFF.md",
 )
 TECHNICAL_COPY = ("docs/optimization-history.md", "docs/technical-writeup-draft.md")
-SPEEDUP_COPY = PUBLIC_COPY[1:3] + PUBLIC_COPY[4:]
+SPEEDUP_COPY = (
+    "docs/beta-announcement-draft.md",
+    "docs/beta-announcement-leo-draft.md",
+    "docs/github-sponsors-page-draft.md",
+    "docs/leo-talking-points.md",
+    "docs/patreon-page-draft.md",
+    "docs/public-writing-sales-inventory.md",
+    "docs/release-post-draft.md",
+    "docs/releases/0.1.0.md",
+)
 HEADLINE_PATTERN = re.compile(
     r"current readable development headline is \*\*(\d+(?:\.\d+)?)s → (\d+(?:\.\d+)?)s\*\*",
     re.IGNORECASE,
