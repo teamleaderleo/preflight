@@ -1,0 +1,62 @@
+{
+  "format": "starsector-preflight-recent-audio-transition-retention-v1",
+  "date": "2026-08-27",
+  "runId": "campaign-sample-reused-cursors-2-20260827-0154",
+  "retentionPolicy": "latest-64",
+  "eventsNotRetained": 340,
+  "preparedAudio": {
+    "decodesIntercepted": 2050,
+    "servedFromCache": 2049,
+    "decodedByTheGame": 1,
+    "failures": 0
+  },
+  "openAlSourceGeneration": {
+    "attempts": 200,
+    "staleErrors": 1,
+    "generationErrors": 0,
+    "recoveredStaleErrors": 1
+  },
+  "continueBoundary": [
+    {
+      "elapsedMicros": 41386213,
+      "kind": "fade-stop",
+      "id": "miscallenous_main_menu.ogg",
+      "durationMillis": 1
+    },
+    {
+      "elapsedMicros": 42387382,
+      "kind": "cleanup",
+      "id": "miscallenous_main_menu.ogg",
+      "durationMillis": 1,
+      "fadeScale": 0.0,
+      "source": 149
+    },
+    {
+      "elapsedMicros": 42796013,
+      "kind": "created",
+      "id": "miscallenous_corvus_campaign_music.ogg",
+      "source": 149
+    },
+    {
+      "elapsedMicros": 42796057,
+      "kind": "fade-in",
+      "id": "miscallenous_corvus_campaign_music.ogg",
+      "durationMillis": 1
+    }
+  ],
+  "laterEncounterBoundary": [
+    {
+      "elapsedMicros": 153691558,
+      "kind": "fade-pause",
+      "id": "miscallenous_corvus_campaign_music.ogg",
+      "durationMillis": 1
+    },
+    {
+      "elapsedMicros": 154725954,
+      "kind": "created",
+      "id": "campaign_neutral_encounter_01.ogg",
+      "source": 150
+    }
+  ],
+  "interpretation": "The follow-up captured ordinary main-menu to campaign music selection at Continue and a later encounter transition, with no cache failure or OpenAL generation error. The preceding operator-reported sound cannot be identified retroactively because the old probe retained only startup events."
+}
