@@ -18,8 +18,5 @@
       "reductionPercent": "82.55"
     },
     "validatedAcceleratedGateSeconds": "15.88"
-  },
-  "storage": {
-    "compactSteadyStateGB": "1.1"
   }
 }
