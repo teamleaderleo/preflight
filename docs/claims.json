@@ -50,9 +50,12 @@
         "zero decline/failure"
       ],
       "publishedIn": [
-        "docs/optimization-history.md"
+        "docs/claim-headlines.md"
       ],
-      "mentionedIn": [],
+      "mentionedIn": [
+        "docs/optimization-history.md",
+        "docs/technical-writeup-draft.md"
+      ],
       "releaseCandidate": false,
       "supersedes": [],
       "supersededBy": null
@@ -105,10 +108,12 @@
         "preparationMillis"
       ],
       "publishedIn": [
+        "docs/claim-headlines.md"
+      ],
+      "mentionedIn": [
         "docs/technical-writeup-draft.md",
         "docs/optimization-history.md"
       ],
-      "mentionedIn": [],
       "releaseCandidate": false,
       "supersedes": [],
       "supersededBy": null
@@ -155,12 +160,20 @@
         "docs/beta-announcement-draft.md",
         "docs/beta-announcement-leo-draft.md",
         "docs/release-post-draft.md",
+        "docs/claim-headlines.md"
+      ],
+      "mentionedIn": [
+        "CLAUDE.md",
+        "LLM_HANDOFF.md",
         "docs/optimization-history.md",
         "docs/engineering-overview.md",
         "docs/leo-talking-points.md",
-        "docs/public-writing-sales-inventory.md"
+        "docs/public-writing-sales-inventory.md",
+        "docs/technical-writeup-draft.md",
+        "docs/patreon-page-draft.md",
+        "docs/github-sponsors-page-draft.md",
+        "docs/releases/0.1.0.md"
       ],
-      "mentionedIn": [],
       "releaseCandidate": false,
       "supersedes": [],
       "supersededBy": null
@@ -176,30 +189,10 @@
         "docs/beta-announcement-draft.md",
         "docs/beta-announcement-leo-draft.md",
         "docs/release-post-draft.md",
-        "docs/optimization-history.md",
-        "docs/engineering-overview.md",
-        "docs/leo-talking-points.md",
-        "docs/public-writing-sales-inventory.md"
+        "docs/claim-headlines.md"
       ],
       "evidence": "docs/evidence/2026-08-26-recent-ordinary-startup-observation.md",
       "derivation": "Recent ordinary startup observation selected by the maintainer as the current development/public baseline under the same game-log startup clock. It replaces the older roughly 101-second quantity in the current headline."
-    },
-    {
-      "type": "seconds",
-      "value": "13.69",
-      "unit": "s",
-      "publishedIn": [
-        "README.md",
-        "docs/beta-announcement-draft.md",
-        "docs/beta-announcement-leo-draft.md",
-        "docs/release-post-draft.md",
-        "docs/optimization-history.md",
-        "docs/engineering-overview.md",
-        "docs/leo-talking-points.md",
-        "docs/public-writing-sales-inventory.md"
-      ],
-      "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
-      "derivation": "Retained current accelerated development endpoint under the same game-log startup clock used by the development record. This is the selected 112.17s → 13.69s public/development headline. The historical 89.00s → 15.53s A/B campaign answers a separate comparison question and does not give its elapsed times higher editorial status."
     },
     {
       "type": "storage",
