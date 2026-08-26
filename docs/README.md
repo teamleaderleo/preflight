@@ -15,6 +15,8 @@ current answer.
   and diagnostics boundaries.
 - [Project overview](../README.md): what Preflight does, current measured results, and development
   status.
+- [How Preflight works](how-preflight-works.md): plain-language end-to-end tour of the app, Java
+  engine, preparation, launch agent, fallback behavior, code modules, tests, and release path.
 - [Engineering overview](engineering-overview.md): the main performance and architecture story,
   including shared data reads, texture critical paths, storage/layout, Janino, campaign runtime,
   fallback boundaries, and desktop productization.
@@ -26,7 +28,7 @@ current answer.
 - [Packaged capability receipt](capability-receipt.md): machine-checked writes, child processes,
   native commands, fixed links, and network endpoints in an exact package.
 - [Optimization history](optimization-history.md): source-linked development performance history,
-  including the current ~101-second → 13.69-second arc and the controlled 89.00-second ordinary /
+  including the current 112.17-second → 13.69-second arc and the controlled 89.00-second ordinary /
   15.53-second Preflight campaign in its historical context.
 - [Startup benchmark](startup-benchmark.md): current measurement protocol and exact packaged-engine
   candidate mode.
