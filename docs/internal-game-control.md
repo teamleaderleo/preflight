@@ -22,6 +22,15 @@ The 2026-08-26 protected-copy run proved each of these against one existing Pref
 | leave | Escape key down/up in the same input list | encounter result closed and campaign resumed |
 | save current | `CampaignState.cmdSave()` on the still-running render boundary | returned `true`; normal staged save completed on disk |
 
+Selecting encounter choice 2 also reached the normal `Move in to engage` button path, but the campaign
+then failed before deployment because `BattleAPI.getSideFor(playerFleet)` returned null. The cause was
+the temporary controller's raw engine resume: it let `Battle.advance()` run while encounter composition
+had moved ships into transient combined fleets, so the battle removed both now-empty source sides. This
+is a proved action delivery and a controller-induced invalid scenario outcome, not a proved combat-start
+action. The [dated evidence](evidence/2026-08-26-internal-action-automation.md#hostile-encounter-failure)
+records the bytecode/postmortem proof, screenshot identity, and extra-launcher process found during
+capture.
+
 The event implementation constructor takes `(eventClass, eventType, x, y, eventValue, char)`. An
 initial proof accidentally placed Escape's LWJGL key code in `x`; the event entered the list but did
 nothing. Rebuilding it with key code 1 in `eventValue` dismissed the modal immediately. This exact
@@ -47,6 +56,13 @@ These are protocol concepts, not public arbitrary keys or coordinates.
 | saves | `save-current-copy`, later `save-as-checkpoint`, `load-checkpoint` | exact campaign directory, stable before/after hashes, game state |
 | lifecycle | `return-to-title`, `quit` | semantic state and exact PID/start lifetime |
 
+`resume` must not be implemented as an unconditional `CampaignEngine.setPaused(false)`. Its preconditions
+include the active campaign surface, no current interaction dialog, and no battle in a combined-fleet
+composition phase. It should use the game's reviewed pause input/state transition, then keep a per-frame
+guard ahead of campaign and battle advancement. A newly opened dialog terminates movement before another
+simulation tick. The hostile-encounter failure proved that checking only `engine.isPaused()` after the
+fact is insufficient.
+
 Starsector's published default campaign controls agree with the inspected game behavior: Space
 pauses or resumes, Shift changes time speed, Escape opens or closes the campaign menu, left-click
 selects a campaign destination, right-click toggles free look, and the number row activates the
@@ -56,7 +72,9 @@ request.
 
 Keyboard actions should be resolved from semantic control ids wherever the game exposes them.
 Literal LWJGL codes are acceptable only for exact-pinned vanilla dialog shortcuts whose labels were
-observed in the same state. Mouse events must use the game's logical coordinate space and its own
+observed in the same state. A key-down that changes screens can prevent a later frame from receiving
+key-up, so both transitions must be added atomically to one input list or the reviewed semantic callback
+must be invoked directly. Mouse events must use the game's logical coordinate space and its own
 input objects. Host Retina pixels, menu-bar offsets, Dock position, and window focus must never leak
 into a scenario.
 
