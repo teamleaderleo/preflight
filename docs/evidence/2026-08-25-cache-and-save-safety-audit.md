@@ -40,13 +40,15 @@ without touching it.
 ## Preparation checks the same root before writing
 
 The corresponding write boundary is shared by the complete `prepare` coordinator and the standalone
-texture, classpath-index, and audio preparation commands. Each canonicalizes the requested prepared-
-data root before installation discovery, source scanning, storage planning, or an audio child process.
-An existing symbolic root or non-directory root is refused; a normal existing directory resolves to
-its canonical path, and a new real directory remains an allowed destination.
+resource-index, texture, classpath-index, and audio preparation commands. The resource-index command
+uses it when no explicit `--output` export was named; the other commands apply it to their requested
+prepared-data root. Each check happens before installation discovery, source scanning, storage
+planning, or an audio child process. An existing symbolic root or non-directory root is refused; a
+normal existing directory resolves to its canonical path, and a new real directory remains an allowed
+destination.
 
 This prevents a stale or replaced cache entry from redirecting preparation into an unrelated tree.
-Regression coverage runs all four public writers against symbolic cache roots containing an external
+Regression coverage runs every public writer against a symbolic cache root containing an external
 sentinel and verifies both the sentinel bytes and the complete target-directory contents are unchanged.
 Explicit report paths and specialist command outputs remain operator-selected destinations rather than
 being silently treated as part of Preflight's cache.
