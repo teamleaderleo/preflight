@@ -648,6 +648,6 @@ large mod ecosystem.
 when those answers are still valid, launches Starsector through a session-local Java agent that can
 use them, and keeps the original game behavior available whenever that proof stops holding.**
 
-Everything around that core idea—the desktop UI, storage planner, profile manager, linter,
-diagnostics, tests, packaging, update system, and release process—exists to make that performance
+Everything around that core idea, including the desktop UI, storage planner, profile manager, linter,
+diagnostics, tests, packaging, update system, and release process, exists to make that performance
 work usable on real installations instead of only on the developer's machine.
