@@ -1,0 +1,44 @@
+{
+  "format": "starsector-preflight-rejected-candidate-v1",
+  "candidate": "vanilla-collision-grid-dormant-query-cache",
+  "status": "rejected",
+  "game": "Starsector 0.98a-RC8",
+  "scenario": "campaign-simulation-combat-speedup",
+  "target": {
+    "class": "com/fs/starfarer/combat/o0OO/G",
+    "sha256": "82903aac76201c513207d08eada9384ced90c28badb0deb716ba5d92ed910945",
+    "sourceArchiveSha256": "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149"
+  },
+  "profileLead": {
+    "iteratorConstructorLeafCpuPercent": 3.88,
+    "iteratorFirstNonJdkOwnerWeightedAllocationBytes": 507615642,
+    "iteratorFirstNonJdkOwnerWeightedAllocationPercent": 16.57
+  },
+  "safetyRepairsInDisposableProbe": [
+    "64-bit injective base-200 key arithmetic",
+    "out-of-domain query rejection",
+    "pre-mutation invalidation on addObject and removeObject",
+    "4096-entry hard cap",
+    "exact class, archive, loader, module, method, and bytecode-shape gates"
+  ],
+  "opportunityTelemetry": {
+    "queries": 274369,
+    "eligibleQueries": 274369,
+    "rejectedBounds": 0,
+    "hits": 13431,
+    "misses": 260938,
+    "hitRatePercent": 4.8952,
+    "mutations": 803798,
+    "invalidationClears": 210887,
+    "invalidatedEntries": 212117,
+    "capacityClears": 0,
+    "theoreticalLeafCpuCeilingPercent": 0.19
+  },
+  "runAcceptance": {
+    "scenarioSteps": "passed",
+    "launchOutcome": "FATAL_LOG_EVIDENCE",
+    "performanceComparisonAccepted": false,
+    "confound": "Advanced Gunnery Control TagBasedAI.kt:101 ClassCastException"
+  },
+  "decision": "Remove the candidate; duplicate-query reuse is too low relative to mutation-hook cost."
+}
