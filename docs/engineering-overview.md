@@ -2,7 +2,7 @@
 
 Preflight began as a performance investigation into heavily modded Starsector and grew into a cross-platform launcher and companion app. The interesting part is not one cache or one benchmark. It is the sequence of engineering decisions required to find repeated work inside an obfuscated JVM application assembled from the base game and dozens of independently maintained mods, move that work to better boundaries, prove the replacement behavior, and then turn the result into a product that can survive changing inputs, failed launches, restarts, updates, and ordinary player use.
 
-On the reviewed 83-mod development installation, the observed startup arc moved from roughly **101 seconds to a 13.69-second best run**. That headline is a development chronology, not one synthetic A/B pair. The repository keeps the direct comparison campaigns, intermediate measurements, rejected experiments, and later controls separately so the engineering story does not depend on one screenshot or one benchmark number.
+On the reviewed 83-mod development installation, observed startup moved from roughly **101 seconds to 13.69 seconds**. All startup times use the same game-log clock; named comparison campaigns arrange those observations to answer attribution questions, but do not create a higher class of elapsed time. The repository keeps direct comparisons, intermediate measurements, rejected experiments, and later controls separately so the engineering story can show how individual interventions were evaluated without replacing the retained **101s → 13.69s** development headline.
 
 ## The recurring pattern
 
