@@ -11,8 +11,8 @@ I make stuff. Stuff... becomes more stuff.
 
 Right now, most of my public work is going into Preflight.
 
-On my 83-mod M5 MacBook Air development setup, startup moved from roughly **101 seconds to a
-13.69-second best run**, about a **7.4× speedup**. Preflight includes its own normal-versus-Preflight
+On my 83-mod M5 MacBook Air development setup, startup moved from roughly **101 seconds to
+13.69 seconds**, about a **7.4× speedup**. Preflight includes its own normal-versus-Preflight
 benchmark so players can measure their own installations.
 
 The desktop also tracks Starsector playtime, puts the useful game settings beside Launch, checks large
