@@ -144,6 +144,58 @@ class FrameTimeRuntimeTest {
     }
 
     @Test
+    void segmentsPausedAndUnpausedCampaignIntervalsAndExcludesTransitions() {
+        FrameTimeRuntime.beginSession(true);
+        FrameTimeRuntime.recordBoundary(0L);
+        observeCampaignPaused(true);
+        FrameTimeRuntime.recordBoundary(10L); // unknown -> paused campaign
+        observeCampaignPaused(true);
+        FrameTimeRuntime.recordBoundary(20L); // paused warmup
+        observeCampaignPaused(true);
+        FrameTimeRuntime.recordBoundary(30_000_000_010L); // paused settled
+        observeCampaignPaused(false);
+        FrameTimeRuntime.recordBoundary(30_000_000_020L); // pause transition
+        observeCampaignPaused(false);
+        FrameTimeRuntime.recordBoundary(30_000_000_030L); // unpaused settled
+
+        Map<String, Object> telemetry = FrameTimeRuntime.telemetry();
+        assertEquals(1L, telemetry.get("campaignPauseTransitionIntervalsExcluded"));
+        assertEquals(0L, telemetry.get("campaignPauseUnknownIntervalsExcluded"));
+        assertEquals(2L,
+                map(telemetry.get(FrameTimeTelemetry.CAMPAIGN_PAUSED_ACTIVE)).get("frames"));
+        assertEquals(1L,
+                map(telemetry.get(FrameTimeTelemetry.CAMPAIGN_PAUSED_AFTER_30_SECONDS_ACTIVE))
+                        .get("frames"));
+        assertEquals(1L,
+                map(telemetry.get(FrameTimeTelemetry.CAMPAIGN_UNPAUSED_ACTIVE)).get("frames"));
+        assertEquals(1L,
+                map(telemetry.get(FrameTimeTelemetry.CAMPAIGN_UNPAUSED_AFTER_30_SECONDS_ACTIVE))
+                        .get("frames"));
+    }
+
+    @Test
+    void excludesUnknownCampaignPauseObservations() {
+        FrameTimeRuntime.beginSession(true);
+        FrameTimeRuntime.recordBoundary(0L);
+        FrameTimeRuntime.observeCampaign();
+        FrameTimeRuntime.recordBoundary(10L);
+        FrameTimeRuntime.observeCampaign();
+        FrameTimeRuntime.recordBoundary(20L);
+
+        Map<String, Object> telemetry = FrameTimeRuntime.telemetry();
+        assertEquals(1L, telemetry.get("campaignPauseUnknownIntervalsExcluded"));
+        assertEquals(0L,
+                map(telemetry.get(FrameTimeTelemetry.CAMPAIGN_PAUSED_ACTIVE)).get("frames"));
+        assertEquals(0L,
+                map(telemetry.get(FrameTimeTelemetry.CAMPAIGN_UNPAUSED_ACTIVE)).get("frames"));
+    }
+
+    private static void observeCampaignPaused(boolean paused) {
+        FrameTimeRuntime.observeCampaign();
+        FrameTimeRuntime.observeCampaignPaused(paused);
+    }
+
+    @Test
     void disabledProbeIsAStableNoOp() {
         FrameTimeRuntime.beginSession(false);
         FrameTimeRuntime.observeActive(false);

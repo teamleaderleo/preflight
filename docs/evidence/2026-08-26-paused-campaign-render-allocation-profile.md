@@ -1,7 +1,7 @@
 # Paused campaign render/allocation profile: presentation dominates time, contrails repeat allocation
 
-**Status:** profile-backed exact-gated candidates implemented and bytecode-verified; live frame A/B
-still pending
+**Status:** profile-backed exact-gated candidates implemented, bytecode-verified, and validated in
+two Preflight-only live paused-campaign runs; an uplift claim still requires a comparable control
 
 **System:** Starsector 0.98a-RC8, current 83-mod development profile, M5 MacBook Air, bundled
 x86-64 game runtime under Rosetta, 1440×932 windowed, Preflight Recommended
@@ -104,6 +104,37 @@ three string literals. It replaces the three exact
 zero; only the temporary builder and string disappear. It adds no field or object state and declines
 on any class, method, constructor-chain, literal order, branch shape, loader, or archive drift.
 
+## Live candidate validation
+
+Two fresh Preflight-only campaign launches installed all 64 requested transforms with zero
+contained failures. Both used the same deterministic 30-second warm-up and 60-second settled
+window. The first run attached a 20-second JFR during the settled interval; the second was a clean
+frame-only confirmation.
+
+| run | settled frames | average FPS | median FPS | 1% low | p95 / p99 | frames over 50ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| JFR-attached candidate | 3,430 | 57.24 | 58.82 | 29.85 | 21.4 / 33.5ms | 10 |
+| clean candidate | 3,498 | 58.37 | 58.82 | 30.03 | 23.6 / 33.3ms | 0 |
+
+The clean run recorded 1,006,495 stable snapshot hits from 420 rebuilds while executing 969,990
+nonempty paused-market passes and 31,297 nonempty paused-location entity passes. LunaLib recorded
+120,060 hits from one rebuild. The JFR-attached run's one 394.56ms outlier and ten frames above
+50ms are treated as profiler perturbation, not candidate behavior.
+
+The candidate JFR no longer reproduced the reviewed eight-`Vector2f` constructor chain in
+`ContrailEngineV2.render`. One 1.4KB represented allocation sample remained below that method from
+the unchanged intersection helper's returned vector; that is outside the transient input/destination
+scratch replaced by this candidate. The initial large JFR sampling-reservoir event occurred under
+LunaLib's current-location `getCustomEntities()` read and is excluded from allocation percentages.
+Exact bytecode review showed that LunaLib's two apparent entity lookups have different semantics:
+one checks the current location each frame, while the other scans all locations only when its
+2--3-second interval elapses. Reusing one for the other would weaken entity-recreation detection,
+so no such rewrite was made.
+
+The bounded machine-readable evidence is
+[`data/2026-08-27-paused-campaign-allocation-candidate.json`](data/2026-08-27-paused-campaign-allocation-candidate.json).
+Raw JFR data remains local and disposable; it is not committed.
+
 ## Verification and remaining claim boundary
 
 Focused tests transform the exact installed game and LunaLib classes, run ASM data-flow analysis on
@@ -116,7 +147,9 @@ uses three `indexOf(int)` calls, adds no fields, and passes ASM data-flow verifi
 snapshot tests cover unchanged hits, mutation rebuilds, stable outer iterators, independent passes,
 and the exact installed economy/location transforms.
 
-This is not yet an FPS claim. The current game process predates these bytecode changes and remains
-alive for profiling, so a full repository verification and Preflight-only disabled/enabled campaign
-A/B belong to the next controlled launch. The generic adapter kill switch provides the control
-without launching vanilla or repeating the already-collected A cohort.
+This is live candidate validation, not an FPS uplift claim. Both runs enabled the candidates; older
+paused and mixed campaign cohorts differ in duration, route, thermal state, and instrumentation.
+The stable-snapshot candidate-only property and generic adapter kill switch remain available for a
+future comparable control without launching vanilla or repeating startup work. The immediate
+harness follow-up reads `CampaignEngine.isPaused()` at the exact campaign seam and emits separate
+paused/unpaused distributions, excluding the interval that crosses a pause transition.

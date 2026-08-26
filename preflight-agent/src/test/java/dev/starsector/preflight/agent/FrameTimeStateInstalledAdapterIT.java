@@ -21,6 +21,7 @@ import org.objectweb.asm.tree.MethodNode;
 /** Opt-in exact installed-core transform check; it never starts the game. */
 class FrameTimeStateInstalledAdapterIT {
     private static final String RUNTIME = FrameTimeRuntime.class.getName().replace('.', '/');
+    private static final String CAMPAIGN_ENGINE = "com/fs/starfarer/campaign/CampaignEngine";
 
     @BeforeEach
     void enable() {
@@ -56,13 +57,19 @@ class FrameTimeStateInstalledAdapterIT {
         }
         ClassSignature signature = ClassSignature.parse(original);
         assertEquals(expectedHash, signature.sha256());
+        ClassNode originalOwner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(original).accept(originalOwner, ClassReader.EXPAND_FRAMES);
+        int originalPauseCalls = calls(method(originalOwner), CAMPAIGN_ENGINE, "isPaused", "()Z");
         byte[] transformed = FrameTimeStatePlan.transform(signature, original);
         assertNotNull(transformed);
         assertNull(FrameTimeStatePlan.transform(ClassSignature.parse(transformed), transformed));
 
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(transformed).accept(owner, ClassReader.EXPAND_FRAMES);
-        assertEquals(1, calls(method(owner), RUNTIME, observer));
+        assertEquals(1, calls(method(owner), RUNTIME, observer, "()V"));
+        assertEquals(1, calls(method(owner), RUNTIME, "observeCampaignPaused", "(Z)V"));
+        assertEquals(originalPauseCalls + 1,
+                calls(method(owner), CAMPAIGN_ENGINE, "isPaused", "()Z"));
     }
 
     private static MethodNode method(ClassNode owner) {
@@ -72,11 +79,12 @@ class FrameTimeStateInstalledAdapterIT {
                 .findFirst().orElseThrow();
     }
 
-    private static int calls(MethodNode method, String owner, String name) {
+    private static int calls(MethodNode method, String owner, String name, String descriptor) {
         int result = 0;
         for (AbstractInsnNode instruction : method.instructions) {
             if (instruction instanceof MethodInsnNode call
-                    && owner.equals(call.owner) && name.equals(call.name)) result++;
+                    && owner.equals(call.owner) && name.equals(call.name)
+                    && descriptor.equals(call.desc)) result++;
         }
         return result;
     }

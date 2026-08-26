@@ -5,18 +5,30 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.InsnList;
+import org.objectweb.asm.tree.InsnNode;
+import org.objectweb.asm.tree.JumpInsnNode;
+import org.objectweb.asm.tree.LabelNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.VarInsnNode;
 
 /** Marks display intervals as campaign without putting a clock in the hot loop. */
 final class FrameTimeStatePlan {
-    static final String PLAN_ID = "vanilla-game-state-frame-time-segments-v1";
+    static final String PLAN_ID = "vanilla-game-state-frame-time-segments-v2";
     static final String CAMPAIGN_CLASS = "com/fs/starfarer/campaign/CampaignState";
     static final String CAMPAIGN_SHA256 =
             "bdd3e9801c6bd8ae216fc40510d7f9f33fa16a540426cd137ca85dc640163372";
     static final String ADVANCE_METHOD = "advance";
     static final String ADVANCE_DESCRIPTOR = "(FLcom/fs/starfarer/util/super/B;)V";
+    static final String ENGINE_FIELD = "engine";
+    static final String ENGINE_DESCRIPTOR = "Lcom/fs/starfarer/campaign/CampaignEngine;";
+
+    private static final String CAMPAIGN_ENGINE = "com/fs/starfarer/campaign/CampaignEngine";
+    private static final String IS_PAUSED = "isPaused";
+    private static final String IS_PAUSED_DESCRIPTOR = "()Z";
 
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/FrameTimeRuntime";
@@ -40,12 +52,30 @@ final class FrameTimeStatePlan {
         if (advance == null
                 || (advance.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0
                 || advance.instructions.getFirst() == null
-                || calls(advance, RUNTIME, observer) != 0) {
+                || !hasUniqueField(owner, ENGINE_FIELD, ENGINE_DESCRIPTOR)
+                || calls(advance, CAMPAIGN_ENGINE, IS_PAUSED, IS_PAUSED_DESCRIPTOR) < 1
+                || calls(advance, RUNTIME, observer, "()V") != 0
+                || calls(advance, RUNTIME, "observeCampaignPaused", "(Z)V") != 0) {
             return null;
         }
 
         InsnList state = new InsnList();
         state.add(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME, observer, "()V", false));
+        LabelNode engineMissing = new LabelNode();
+        LabelNode observed = new LabelNode();
+        state.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        state.add(new FieldInsnNode(Opcodes.GETFIELD, CAMPAIGN_CLASS, ENGINE_FIELD,
+                ENGINE_DESCRIPTOR));
+        state.add(new InsnNode(Opcodes.DUP));
+        state.add(new JumpInsnNode(Opcodes.IFNULL, engineMissing));
+        state.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, CAMPAIGN_ENGINE, IS_PAUSED,
+                IS_PAUSED_DESCRIPTOR, false));
+        state.add(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME,
+                "observeCampaignPaused", "(Z)V", false));
+        state.add(new JumpInsnNode(Opcodes.GOTO, observed));
+        state.add(engineMissing);
+        state.add(new InsnNode(Opcodes.POP));
+        state.add(observed);
         advance.instructions.insertBefore(advance.instructions.getFirst(), state);
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
@@ -64,11 +94,20 @@ final class FrameTimeStatePlan {
         return result;
     }
 
-    private static int calls(MethodNode method, String owner, String name) {
+    private static boolean hasUniqueField(ClassNode owner, String name, String descriptor) {
+        int matches = 0;
+        for (FieldNode field : owner.fields) {
+            if (name.equals(field.name) && descriptor.equals(field.desc)) matches++;
+        }
+        return matches == 1;
+    }
+
+    private static int calls(MethodNode method, String owner, String name, String descriptor) {
         int result = 0;
         for (AbstractInsnNode instruction : method.instructions) {
             if (instruction instanceof MethodInsnNode call
-                    && owner.equals(call.owner) && name.equals(call.name)) {
+                    && owner.equals(call.owner) && name.equals(call.name)
+                    && descriptor.equals(call.desc)) {
                 result++;
             }
         }

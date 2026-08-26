@@ -20,6 +20,7 @@ import org.objectweb.asm.tree.MethodNode;
 
 class FrameTimeStatePlanTest {
     private static final String RUNTIME = FrameTimeRuntime.class.getName().replace('.', '/');
+    private static final String CAMPAIGN_ENGINE = "com/fs/starfarer/campaign/CampaignEngine";
 
     @TempDir
     Path temporaryDirectory;
@@ -65,25 +66,53 @@ class FrameTimeStatePlanTest {
         assertNull(FrameTimeStatePlan.transform(ClassSignature.parse(transformed), transformed));
     }
 
+    @Test
+    void declinesWhenReviewedPauseSeamIsMissing() throws Exception {
+        byte[] missingField = fixture(FrameTimeStatePlan.CAMPAIGN_CLASS, false, true);
+        assertNull(FrameTimeStatePlan.transform(
+                exactSignature(missingField, FrameTimeStatePlan.CAMPAIGN_SHA256), missingField));
+
+        byte[] missingCall = fixture(FrameTimeStatePlan.CAMPAIGN_CLASS, true, false);
+        assertNull(FrameTimeStatePlan.transform(
+                exactSignature(missingCall, FrameTimeStatePlan.CAMPAIGN_SHA256), missingCall));
+    }
+
     private static void assertObserver(String className, String hash, String observer)
             throws Exception {
         byte[] original = fixture(className);
         byte[] transformed = FrameTimeStatePlan.transform(exactSignature(original, hash), original);
         assertNotNull(transformed);
         ClassNode owner = read(transformed);
-        assertEquals(1, calls(method(owner), RUNTIME, observer));
+        assertEquals(1, calls(method(owner), RUNTIME, observer, "()V"));
+        assertEquals(1, calls(method(owner), RUNTIME, "observeCampaignPaused", "(Z)V"));
+        assertEquals(2, calls(method(owner), CAMPAIGN_ENGINE, "isPaused", "()Z"));
     }
 
     private static byte[] fixture(String className) {
-        ClassWriter writer = new ClassWriter(0);
+        return fixture(className, true, true);
+    }
+
+    private static byte[] fixture(String className, boolean includeEngineField,
+            boolean includePauseCall) {
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, className,
                 null, "java/lang/Object", null);
+        if (includeEngineField) {
+            writer.visitField(Opcodes.ACC_PRIVATE, FrameTimeStatePlan.ENGINE_FIELD,
+                    FrameTimeStatePlan.ENGINE_DESCRIPTOR, null, null).visitEnd();
+        }
         MethodVisitor advance = writer.visitMethod(Opcodes.ACC_PUBLIC,
                 FrameTimeStatePlan.ADVANCE_METHOD,
                 FrameTimeStatePlan.ADVANCE_DESCRIPTOR, null, null);
         advance.visitCode();
+        if (includePauseCall) {
+            advance.visitInsn(Opcodes.ACONST_NULL);
+            advance.visitMethodInsn(Opcodes.INVOKEVIRTUAL, CAMPAIGN_ENGINE,
+                    "isPaused", "()Z", false);
+            advance.visitInsn(Opcodes.POP);
+        }
         advance.visitInsn(Opcodes.RETURN);
-        advance.visitMaxs(0, 3);
+        advance.visitMaxs(0, 0);
         advance.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
@@ -108,11 +137,12 @@ class FrameTimeStatePlanTest {
                 .findFirst().orElseThrow();
     }
 
-    private static int calls(MethodNode method, String owner, String name) {
+    private static int calls(MethodNode method, String owner, String name, String descriptor) {
         int result = 0;
         for (AbstractInsnNode instruction : method.instructions) {
             if (instruction instanceof MethodInsnNode call
-                    && owner.equals(call.owner) && name.equals(call.name)) result++;
+                    && owner.equals(call.owner) && name.equals(call.name)
+                    && descriptor.equals(call.desc)) result++;
         }
         return result;
     }

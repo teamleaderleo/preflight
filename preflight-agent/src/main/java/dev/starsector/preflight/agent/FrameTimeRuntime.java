@@ -19,12 +19,16 @@ public final class FrameTimeRuntime {
     private static final int STATE_UNKNOWN = 0;
     private static final int STATE_CAMPAIGN = 1;
     private static final int STATE_COMBAT = 2;
+    private static final int PAUSE_UNKNOWN = 0;
+    private static final int PAUSE_PAUSED = 1;
+    private static final int PAUSE_UNPAUSED = 2;
 
     private static volatile boolean enabled;
     private static volatile boolean smoothFramePacing;
     private static volatile boolean observedActive = true;
     private static volatile boolean focusBreak;
     private static volatile int observedState;
+    private static volatile int observedCampaignPause;
     private static boolean installed;
     private static boolean startupComplete;
     private static long boundaries;
@@ -32,6 +36,8 @@ public final class FrameTimeRuntime {
     private static long inactiveIntervals;
     private static long invalidIntervals;
     private static long stateTransitionIntervals;
+    private static long campaignPauseTransitionIntervals;
+    private static long campaignPauseUnknownIntervals;
     private static long measurementSamples;
     private static long measurementTotalNanos;
     private static long measurementMaximumNanos;
@@ -44,6 +50,7 @@ public final class FrameTimeRuntime {
     private static long lastBoundaryNanos = Long.MIN_VALUE;
     private static boolean lastBoundaryActive = true;
     private static int lastBoundaryState;
+    private static int lastBoundaryCampaignPause;
     private static long swapStartedNanos = Long.MIN_VALUE;
     private static long swapCompletedNanos = Long.MIN_VALUE;
     private static long messagesStartedNanos = Long.MIN_VALUE;
@@ -53,6 +60,10 @@ public final class FrameTimeRuntime {
     private static final Distribution campaignActive = new Distribution();
     private static final Distribution campaignFirst30SecondsActive = new Distribution();
     private static final Distribution campaignAfter30SecondsActive = new Distribution();
+    private static final Distribution campaignPausedActive = new Distribution();
+    private static final Distribution campaignPausedAfter30SecondsActive = new Distribution();
+    private static final Distribution campaignUnpausedActive = new Distribution();
+    private static final Distribution campaignUnpausedAfter30SecondsActive = new Distribution();
     private static final Distribution combatActive = new Distribution();
     private static final Distribution combatAfterCampaignActive = new Distribution();
     private static final DisplayPhases allActivePhases = new DisplayPhases();
@@ -76,6 +87,8 @@ public final class FrameTimeRuntime {
         inactiveIntervals = 0L;
         invalidIntervals = 0L;
         stateTransitionIntervals = 0L;
+        campaignPauseTransitionIntervals = 0L;
+        campaignPauseUnknownIntervals = 0L;
         measurementSamples = 0L;
         measurementTotalNanos = 0L;
         measurementMaximumNanos = 0L;
@@ -88,15 +101,21 @@ public final class FrameTimeRuntime {
         lastBoundaryNanos = Long.MIN_VALUE;
         lastBoundaryActive = true;
         lastBoundaryState = STATE_UNKNOWN;
+        lastBoundaryCampaignPause = PAUSE_UNKNOWN;
         resetDisplayPhaseTimestamps();
         observedActive = true;
         focusBreak = false;
         observedState = STATE_UNKNOWN;
+        observedCampaignPause = PAUSE_UNKNOWN;
         allActive.reset();
         postStartupActive.reset();
         campaignActive.reset();
         campaignFirst30SecondsActive.reset();
         campaignAfter30SecondsActive.reset();
+        campaignPausedActive.reset();
+        campaignPausedAfter30SecondsActive.reset();
+        campaignUnpausedActive.reset();
+        campaignUnpausedAfter30SecondsActive.reset();
         combatActive.reset();
         combatAfterCampaignActive.reset();
         allActivePhases.reset();
@@ -128,6 +147,11 @@ public final class FrameTimeRuntime {
     public static void observeCampaign() {
         RuntimeSemanticState.campaignReady();
         if (enabled) observedState = STATE_CAMPAIGN;
+    }
+
+    /** Records the pause state already owned by the exact reviewed campaign engine. */
+    public static void observeCampaignPaused(boolean paused) {
+        if (enabled) observedCampaignPause = paused ? PAUSE_PAUSED : PAUSE_UNPAUSED;
     }
 
     /** Called from the reviewed combat-engine loop before the display boundary. */
@@ -219,10 +243,12 @@ public final class FrameTimeRuntime {
         boundaries++;
         boolean active = observedActive;
         int state = observedState;
+        int campaignPause = observedCampaignPause;
         // Campaign/combat observers run once in their respective game-loop advance. Treat that
         // observation as a pulse for this display interval: otherwise menu, loading, and refit
         // frames after leaving a state inherit its last value indefinitely.
         observedState = STATE_UNKNOWN;
+        observedCampaignPause = PAUSE_UNKNOWN;
         boolean crossedFocusBreak = focusBreak;
         focusBreak = false;
         if (firstBoundaryNanos == Long.MIN_VALUE) {
@@ -231,6 +257,7 @@ public final class FrameTimeRuntime {
             lastBoundaryNanos = now;
             lastBoundaryActive = active;
             lastBoundaryState = state;
+            lastBoundaryCampaignPause = campaignPause;
             resetDisplayPhaseTimestamps();
             return;
         }
@@ -242,6 +269,7 @@ public final class FrameTimeRuntime {
             invalidIntervals++;
             lastBoundaryActive = active;
             lastBoundaryState = state;
+            lastBoundaryCampaignPause = campaignPause;
             resetDisplayPhaseTimestamps();
             return;
         }
@@ -249,6 +277,7 @@ public final class FrameTimeRuntime {
             inactiveIntervals++;
             lastBoundaryActive = active;
             lastBoundaryState = state;
+            lastBoundaryCampaignPause = campaignPause;
             resetDisplayPhaseTimestamps();
             return;
         }
@@ -272,6 +301,21 @@ public final class FrameTimeRuntime {
                 campaignAfter30SecondsActivePhases.record(
                         duration, previousBoundaryNanos, now, endOffset);
             }
+            if (campaignPause == PAUSE_UNKNOWN || lastBoundaryCampaignPause == PAUSE_UNKNOWN) {
+                campaignPauseUnknownIntervals++;
+            } else if (campaignPause != lastBoundaryCampaignPause) {
+                campaignPauseTransitionIntervals++;
+            } else if (campaignPause == PAUSE_PAUSED) {
+                campaignPausedActive.record(duration, endOffset);
+                if (now - firstCampaignBoundaryNanos >= CAMPAIGN_WARMUP_NANOS) {
+                    campaignPausedAfter30SecondsActive.record(duration, endOffset);
+                }
+            } else {
+                campaignUnpausedActive.record(duration, endOffset);
+                if (now - firstCampaignBoundaryNanos >= CAMPAIGN_WARMUP_NANOS) {
+                    campaignUnpausedAfter30SecondsActive.record(duration, endOffset);
+                }
+            }
         } else if (state == STATE_COMBAT) {
             combatActive.record(duration, endOffset);
             if (firstCampaignBoundaryNanos != Long.MIN_VALUE) {
@@ -280,6 +324,7 @@ public final class FrameTimeRuntime {
         }
         lastBoundaryActive = active;
         lastBoundaryState = state;
+        lastBoundaryCampaignPause = campaignPause;
         resetDisplayPhaseTimestamps();
     }
 
@@ -294,6 +339,8 @@ public final class FrameTimeRuntime {
         result.put("inactiveIntervalsDropped", inactiveIntervals);
         result.put("invalidIntervalsDropped", invalidIntervals);
         result.put("stateTransitionIntervalsDropped", stateTransitionIntervals);
+        result.put("campaignPauseTransitionIntervalsExcluded", campaignPauseTransitionIntervals);
+        result.put("campaignPauseUnknownIntervalsExcluded", campaignPauseUnknownIntervals);
         Map<String, Object> presentationPolicy = new LinkedHashMap<>();
         presentationPolicy.put("forceVsyncOffProperty", FORCE_VSYNC_OFF_PROPERTY);
         presentationPolicy.put("forceVsyncOff", smoothFramePacing);
@@ -329,6 +376,14 @@ public final class FrameTimeRuntime {
                 campaignFirst30SecondsActive.toMap(firstBoundaryEpochMillis));
         result.put(FrameTimeTelemetry.CAMPAIGN_AFTER_30_SECONDS_ACTIVE,
                 campaignAfter30SecondsActive.toMap(firstBoundaryEpochMillis));
+        result.put(FrameTimeTelemetry.CAMPAIGN_PAUSED_ACTIVE,
+                campaignPausedActive.toMap(firstBoundaryEpochMillis));
+        result.put(FrameTimeTelemetry.CAMPAIGN_PAUSED_AFTER_30_SECONDS_ACTIVE,
+                campaignPausedAfter30SecondsActive.toMap(firstBoundaryEpochMillis));
+        result.put(FrameTimeTelemetry.CAMPAIGN_UNPAUSED_ACTIVE,
+                campaignUnpausedActive.toMap(firstBoundaryEpochMillis));
+        result.put(FrameTimeTelemetry.CAMPAIGN_UNPAUSED_AFTER_30_SECONDS_ACTIVE,
+                campaignUnpausedAfter30SecondsActive.toMap(firstBoundaryEpochMillis));
         result.put("combatActive", combatActive.toMap(firstBoundaryEpochMillis));
         result.put(FrameTimeTelemetry.COMBAT_AFTER_CAMPAIGN_ACTIVE,
                 combatAfterCampaignActive.toMap(firstBoundaryEpochMillis));

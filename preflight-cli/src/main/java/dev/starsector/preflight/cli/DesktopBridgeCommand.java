@@ -545,6 +545,14 @@ final class DesktopBridgeCommand {
                     frameTimes.get(FrameTimeTelemetry.CAMPAIGN_FIRST_30_SECONDS_ACTIVE));
             Map<String, Object> settledCampaign = frameDistribution(
                     frameTimes.get(FrameTimeTelemetry.CAMPAIGN_AFTER_30_SECONDS_ACTIVE));
+            Map<String, Object> pausedCampaign = frameDistribution(
+                    frameTimes.get(FrameTimeTelemetry.CAMPAIGN_PAUSED_ACTIVE));
+            Map<String, Object> settledPausedCampaign = frameDistribution(
+                    frameTimes.get(FrameTimeTelemetry.CAMPAIGN_PAUSED_AFTER_30_SECONDS_ACTIVE));
+            Map<String, Object> unpausedCampaign = frameDistribution(
+                    frameTimes.get(FrameTimeTelemetry.CAMPAIGN_UNPAUSED_ACTIVE));
+            Map<String, Object> settledUnpausedCampaign = frameDistribution(
+                    frameTimes.get(FrameTimeTelemetry.CAMPAIGN_UNPAUSED_AFTER_30_SECONDS_ACTIVE));
             Map<String, Object> combat = frameDistribution(
                     frameTimes.get(FrameTimeTelemetry.COMBAT_AFTER_CAMPAIGN_ACTIVE));
             if (campaign == null && initialCampaign == null && settledCampaign == null && combat == null) return null;
@@ -554,6 +562,10 @@ final class DesktopBridgeCommand {
             result.put("campaign", campaign);
             result.put("initialCampaign", initialCampaign);
             result.put("settledCampaign", settledCampaign);
+            result.put("pausedCampaign", pausedCampaign);
+            result.put("settledPausedCampaign", settledPausedCampaign);
+            result.put("unpausedCampaign", unpausedCampaign);
+            result.put("settledUnpausedCampaign", settledUnpausedCampaign);
             result.put("combat", combat);
             if (frameTimes.get(FrameTimeTelemetry.MEASUREMENT_OVERHEAD) instanceof Map<?, ?> rawOverhead) {
                 Map<String, Object> overhead = stringMap(rawOverhead);

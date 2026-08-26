@@ -184,12 +184,30 @@ class DesktopBridgeCommandTest {
                 "onePercentLowFps", 20.45,
                 "p95Micros", 27100,
                 "p99Micros", 48900);
+        Map<String, Object> settledPausedCampaign = Map.of(
+                "frames", 2000,
+                FrameTimeTelemetry.TOTAL_ACTIVE_NANOS, 34_000_000_000L,
+                "averageFps", 58.82,
+                "onePercentLowFps", 29.90,
+                "p95Micros", 22_100,
+                "p99Micros", 33_400);
+        Map<String, Object> settledUnpausedCampaign = Map.of(
+                "frames", 2090,
+                FrameTimeTelemetry.TOTAL_ACTIVE_NANOS, 39_800_000_000L,
+                "averageFps", 52.51,
+                "onePercentLowFps", 18.42,
+                "p95Micros", 31_500,
+                "p99Micros", 54_300);
         Files.writeString(run.resolve("adapter.json"), Json.object(Map.of(
                 FrameTimeTelemetry.REPORT, Map.of(
                         FrameTimeTelemetry.ENABLED, true,
                         FrameTimeTelemetry.CAMPAIGN_ACTIVE, allCampaign,
                         FrameTimeTelemetry.CAMPAIGN_FIRST_30_SECONDS_ACTIVE, initialCampaign,
                         FrameTimeTelemetry.CAMPAIGN_AFTER_30_SECONDS_ACTIVE, settledCampaign,
+                        FrameTimeTelemetry.CAMPAIGN_PAUSED_AFTER_30_SECONDS_ACTIVE,
+                        settledPausedCampaign,
+                        FrameTimeTelemetry.CAMPAIGN_UNPAUSED_AFTER_30_SECONDS_ACTIVE,
+                        settledUnpausedCampaign,
                         FrameTimeTelemetry.COMBAT_AFTER_CAMPAIGN_ACTIVE, Map.of("frames", 0),
                         FrameTimeTelemetry.MEASUREMENT_OVERHEAD,
                         Map.of(FrameTimeTelemetry.AVERAGE_MICROS, 1.78)))));
@@ -206,6 +224,12 @@ class DesktopBridgeCommandTest {
         Map<String, Object> initial = (Map<String, Object>) framePacing.get("initialCampaign");
         @SuppressWarnings("unchecked")
         Map<String, Object> settled = (Map<String, Object>) framePacing.get("settledCampaign");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> settledPaused =
+                (Map<String, Object>) framePacing.get("settledPausedCampaign");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> settledUnpaused =
+                (Map<String, Object>) framePacing.get("settledUnpausedCampaign");
         assertEquals("starsector-preflight-frame-pacing-summary-v1", framePacing.get("format"));
         assertEquals(5474L, summary.get("frames"));
         assertEquals(103_800L, summary.get("activeMillis"));
@@ -217,6 +241,10 @@ class DesktopBridgeCommandTest {
         assertEquals(4091L, settled.get("frames"));
         assertEquals(73_851L, settled.get("activeMillis"));
         assertEquals(20.45, settled.get("onePercentLowFps"));
+        assertEquals(2000L, settledPaused.get("frames"));
+        assertEquals(29.90, settledPaused.get("onePercentLowFps"));
+        assertEquals(2090L, settledUnpaused.get("frames"));
+        assertEquals(18.42, settledUnpaused.get("onePercentLowFps"));
         assertEquals(1.78, framePacing.get("measurementAverageMicros"));
         assertFalse(summary.containsKey("worstFrames"), summary.toString());
         assertNull(framePacing.get("combat"));

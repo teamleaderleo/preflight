@@ -98,6 +98,22 @@ the next optimization an actual A/B instead of another log-gap guess.
 Targeted tests pin the 30-second boundary, campaign-start timestamp, title-demo exclusion, and the
 existing pulse/transition behavior. Full `mvn verify` passes.
 
+## Direct paused/unpaused campaign segmentation
+
+The exact campaign-state transform now reads `CampaignEngine.isPaused()` at the same reviewed
+`CampaignState.advance` seam used for campaign classification. It adds no clock or allocation and
+does not modify the engine. The exact class hash, Java 17 bytecode version, private engine field,
+advance descriptor, and pre-existing vanilla pause-call shape are all required; drift declines the
+transform.
+
+The report adds `campaignPausedActive`, `campaignPausedAfter30SecondsActive`,
+`campaignUnpausedActive`, and `campaignUnpausedAfter30SecondsActive`. The interval crossing a pause
+change is excluded from both pause-specific distributions while remaining in the overall campaign
+distribution. Missing engine/pause observations are counted and excluded rather than guessed.
+The bounded desktop summary exposes both whole-session and settled pause-specific results. This
+replaces the earlier need to infer pause state from campaign-maintenance counters and makes one
+Preflight launch sufficient for a controlled paused/unpaused route.
+
 ## First warm-up optimization A/B
 
 The post-startup single-file JSON cache supplied the first use of the split distribution. Its

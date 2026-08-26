@@ -1,0 +1,82 @@
+{
+  "format": "starsector-preflight-paused-campaign-allocation-candidate-v1",
+  "date": "2026-08-27",
+  "claimBoundary": "candidate validation only; no comparable disabled-control FPS uplift claim",
+  "environment": {
+    "game": "Starsector 0.98a-RC8",
+    "profile": "current 83-mod development profile",
+    "platform": "M5 MacBook Air; bundled x86-64 game runtime under Rosetta",
+    "launch": "Preflight-only deterministic campaign harness",
+    "window": "30-second warm-up plus 60-second settled collection"
+  },
+  "runs": [
+    {
+      "id": "candidate-paused-fixes-20260827-0020",
+      "jfrAttachedDuringSettledWindow": true,
+      "settled": {
+        "frames": 3430,
+        "totalActiveNanos": 59922748708,
+        "averageFps": 57.24,
+        "medianFps": 58.82,
+        "onePercentLowFps": 29.85,
+        "pointOnePercentLowFps": 10.29,
+        "p95Micros": 21400,
+        "p99Micros": 33500,
+        "p999Micros": 97200,
+        "maximumMicros": 394560,
+        "over50Millis": 10
+      },
+      "stableSnapshots": {
+        "hits": 998968,
+        "rebuilds": 420,
+        "nonEmptyPausedMarketPasses": 962736,
+        "nonEmptyPausedLocationEntityPasses": 31063
+      }
+    },
+    {
+      "id": "candidate-paused-fixes-clean-20260827-0025",
+      "jfrAttachedDuringSettledWindow": false,
+      "settled": {
+        "frames": 3498,
+        "totalActiveNanos": 59931604125,
+        "averageFps": 58.37,
+        "medianFps": 58.82,
+        "onePercentLowFps": 30.03,
+        "pointOnePercentLowFps": 28.33,
+        "p95Micros": 23600,
+        "p99Micros": 33300,
+        "p999Micros": 35300,
+        "maximumMicros": 39610,
+        "over50Millis": 0
+      },
+      "stableSnapshots": {
+        "hits": 1006495,
+        "rebuilds": 420,
+        "nonEmptyPausedMarketPasses": 969990,
+        "nonEmptyPausedLocationEntityPasses": 31297
+      },
+      "lunaRendererSnapshots": {
+        "requests": 120061,
+        "hits": 120060,
+        "rebuilds": 1,
+        "failures": 0
+      }
+    }
+  ],
+  "adapter": {
+    "mode": "ENABLED",
+    "transformationsApplied": 64,
+    "containedFailures": 0,
+    "contrailScratchInstalled": true,
+    "fontWrapAllocationInstalled": true,
+    "lunaCampaignRendererSnapshotInstalled": true,
+    "stableCampaignSnapshotsEnabled": true
+  },
+  "allocationFollowUp": {
+    "contrailReviewedEightConstructorChainObserved": false,
+    "residualContrailSamples": 1,
+    "residualRepresentedBytes": 1400,
+    "residualSite": "unchanged intersection helper return",
+    "initialJfrReservoirExcluded": true
+  }
+}
