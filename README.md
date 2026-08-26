@@ -461,8 +461,9 @@ and 44 of 86 were completely clean. It has no score or automatic fixer. See
 ## Support Preflight
 
 Preflight is free and open source. If it saves you a pile of waiting, helps you manage a ridiculous
-mod list, or you simply like this kind of obsessive work, you can
-[support its development on Patreon](https://www.patreon.com/cw/teamleaderleo).
+mod list, or you simply like this kind of obsessive work, you can support development through
+[GitHub Sponsors](https://github.com/sponsors/teamleaderleo) or
+[Patreon](https://www.patreon.com/cw/teamleaderleo).
 
 Support helps with testing hardware, hosting, release work, and the time that goes into maintaining
 and extending the project. The application, source, features, and public support stay available to
