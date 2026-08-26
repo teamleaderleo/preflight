@@ -1,6 +1,7 @@
 package dev.starsector.preflight.agent;
 
-import java.util.ArrayList;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,7 +11,7 @@ public final class AudioMusicTransitionRuntime {
     static final String PLAN_ID = "audio-music-transition-probe-v1";
     private static final int EVENT_LIMIT = 64;
     private static final Object lock = new Object();
-    private static final List<Map<String, Object>> events = new ArrayList<>();
+    private static final Deque<Map<String, Object>> events = new ArrayDeque<>();
     private static volatile boolean installed;
     private static volatile long startedNanos;
     private static long eventsDropped;
@@ -49,6 +50,7 @@ public final class AudioMusicTransitionRuntime {
         values.put("installed", installed);
         synchronized (lock) {
             values.put("events", List.copyOf(events));
+            values.put("retentionPolicy", "latest-" + EVENT_LIMIT);
             values.put("eventsDropped", eventsDropped);
         }
         return values;
@@ -64,11 +66,11 @@ public final class AudioMusicTransitionRuntime {
         if (!Float.isNaN(fadeScale)) event.put("fadeScale", fadeScale);
         if (source >= 0) event.put("source", source);
         synchronized (lock) {
-            if (events.size() < EVENT_LIMIT) {
-                events.add(Map.copyOf(event));
-            } else {
+            if (events.size() == EVENT_LIMIT) {
+                events.removeFirst();
                 eventsDropped++;
             }
+            events.addLast(Map.copyOf(event));
         }
     }
 }
