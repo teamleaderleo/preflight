@@ -1,0 +1,52 @@
+{
+  "format": "starsector-preflight-paused-state-segmentation-live-v1",
+  "date": "2026-08-27",
+  "claimBoundary": "pause classification validation only; not an FPS comparison",
+  "transform": {
+    "planId": "vanilla-game-state-frame-time-segments-v2",
+    "exactTarget": true,
+    "cacheHit": false,
+    "installed": true
+  },
+  "runs": [
+    {
+      "id": "paused-state-segmentation-live-20260827-0039",
+      "controlledPid": 45746,
+      "outcome": "passed",
+      "focusCondition": "Codex frontmost for most of the campaign route",
+      "eligibleCampaignFrames": 282,
+      "pausedCampaignFrames": 282,
+      "unpausedCampaignFrames": 0,
+      "unknownPauseIntervals": 0,
+      "pauseTransitionIntervals": 0,
+      "use": "focus-exclusion and pause-classification proof; insufficient settled coverage"
+    },
+    {
+      "id": "paused-state-segmentation-focused-20260827-0042",
+      "controlledPid": 46733,
+      "outcome": "passed and stopped normally",
+      "focusCondition": "active throughout eligible campaign window",
+      "eligibleCampaignFrames": 5231,
+      "pausedCampaignFrames": 5231,
+      "settledCampaignFrames": 3496,
+      "settledPausedCampaignFrames": 3496,
+      "unpausedCampaignFrames": 0,
+      "inactiveIntervals": 0,
+      "unknownPauseIntervals": 0,
+      "pauseTransitionIntervals": 0,
+      "measurementAverageMicros": 10.824225298930145,
+      "use": "pause-classification and settled-bucket invariant proof",
+      "performanceCaveat": "a separate plain Starsector process was accidentally launched during the settled window and then terminated; do not use FPS values as a comparison"
+    }
+  ],
+  "accidentalProcess": {
+    "launcherPid": 47028,
+    "gamePid": 47032,
+    "preflightAgentPresent": false,
+    "terminated": true,
+    "controlledProcessIdentityAffected": false,
+    "controlledOutcomeAffected": false,
+    "classificationClaimAffected": false,
+    "fpsComparisonAffected": true
+  }
+}

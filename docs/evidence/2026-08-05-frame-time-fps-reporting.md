@@ -114,6 +114,21 @@ The bounded desktop summary exposes both whole-session and settled pause-specifi
 replaces the earlier need to infer pause state from campaign-maintenance counters and makes one
 Preflight launch sufficient for a controlled paused/unpaused route.
 
+Two Preflight-only live launches validated the installed transform. The first intentionally left
+Codex frontmost after Continue; focus exclusion discarded almost the entire route, but all 282
+eligible campaign frames were classified paused, with zero unpaused, unknown, or pause-transition
+intervals. The second kept the controlled game active: all 5,231 eligible campaign frames were
+classified paused, including all 3,496 after the 30-second warm-up. It recorded zero inactive,
+unpaused, unknown, or pause-transition intervals. The pause-specific settled distribution exactly
+matched the overall settled campaign distribution, which is the expected invariant for an
+unchanged paused save.
+
+An attempted computer-control lookup launched a separate plain Starsector process during the
+second run. It was identified by its missing Preflight agent, terminated by its exact launcher/game
+PIDs, and is why that run is classification evidence only rather than an FPS comparison. The
+controlled Preflight PID stopped normally. Bounded data and this claim boundary are preserved in
+[`data/2026-08-27-paused-state-segmentation-live.json`](data/2026-08-27-paused-state-segmentation-live.json).
+
 ## First warm-up optimization A/B
 
 The post-startup single-file JSON cache supplied the first use of the split distribution. Its
