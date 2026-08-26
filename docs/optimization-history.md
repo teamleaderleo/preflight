@@ -1,4 +1,4 @@
-# From 101 seconds to 13.69: what changed in Starsector's loading path
+# From 112.17 seconds to 13.69: what changed in Starsector's loading path
 
 **Status:** publication spine; performance claims link to retained evidence
 
@@ -6,9 +6,10 @@
 
 **Updated:** 2026-08-26
 
-The development installation's observed high reached roughly 101 seconds. The current retained
-development endpoint is **13.69 seconds**. **101 seconds to 13.69 seconds** is the chronological
-headline. The final package still needs its own benchmark pass.
+A recently observed ordinary launch on the current 83-mod development installation took 112.17
+seconds. The current retained accelerated development endpoint is **13.69 seconds**. **112.17
+seconds to 13.69 seconds** is the current development headline. The final package still needs its
+own benchmark pass.
 
 The older 89.00-second vanilla / 15.53-second Preflight same-profile campaign remains useful because
 it paired two conditions to answer a before/after attribution question. It does not make those elapsed
@@ -71,7 +72,9 @@ this chronology. See
 The later 13.69-second endpoint is retained in
 [the August 23 storage/startup record](evidence/2026-08-23-storage-to-fourteen-seconds.md), alongside
 the G1/deferred-heap-commit work, Compact physical-order results, and later controls. It extends the
-same development chronology rather than replacing it with a new measurement category.
+same development chronology rather than replacing it with a new measurement category. The recently
+selected 112.17-second ordinary baseline is retained in
+[the August 26 observation](evidence/2026-08-26-recent-ordinary-startup-observation.md).
 
 The 15.88-second validated gate retained 42/42 transformed-class cache hits, 15,469 prepared-texture
 and pixel-conversion hits, active adapter health, and no adapter decline or failure. Its exact record

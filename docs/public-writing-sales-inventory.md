@@ -16,7 +16,7 @@ when a fact changes.
 - Avoid self-conscious creator framing such as “got out of hand,” “I got carried away,” “apparently
   this was not enough,” or “accidentally became a companion app.”
 - Short feature copy can be blunt. **Tracked playtime!!!!!** is fine.
-- Use **~101s → 13.69s** as the readable development headline. Keep the old 89.00s → 15.53s campaign
+- Use **112.17s → 13.69s** as the readable development headline. Keep the old 89.00s → 15.53s campaign
   for evidence conversations rather than making every public surface carry it. It is an A/B comparison,
   not a higher class of elapsed-time observation.
 - Use concrete behavior instead of adjectives such as safe, robust, privacy-focused, secure, or
@@ -30,8 +30,8 @@ when a fact changes.
 ## The strongest sale
 
 Preflight is a free and open-source fast launcher for Starsector. On my 83-mod M5 MacBook Air
-development setup, startup moved from roughly **101 seconds to 13.69 seconds**, about a
-**7.4× speedup**.
+development setup, startup moved from **112.17 seconds to 13.69 seconds**, about an
+**8.19× speedup**.
 
 The desktop includes its own normal-versus-Preflight benchmark, so players can measure their own
 installations.
@@ -44,7 +44,7 @@ linter.
 
 Lead with whichever few fit the venue:
 
-- ~101s → 13.69s on the development setup;
+- 112.17s → 13.69s on the development setup;
 - built-in normal-versus-Preflight benchmark;
 - **Tracked playtime!!!!!**
 - faster campaign-map movement on my setup;
@@ -301,7 +301,7 @@ Use:
 
 ## Good future-post titles / hooks
 
-- “How 101 seconds became 13.69”
+- “How 112.17 seconds became 13.69”
 - “The cache was on the wrong side of the queue”
 - “36,332 generated classes were 280 classes”
 - “The same texture pack, in a different order”

@@ -14,10 +14,10 @@ forum/Reddit post is [beta-announcement-leo-draft.md](beta-announcement-leo-draf
 ## Headline options
 
 - **Preflight 0.1.0: a free, open-source fast launcher for Starsector**
-- **Preflight public beta: ~101s → 13.69s on my 83-mod development setup**
+- **Preflight public beta: 112.17s → 13.69s on my 83-mod development setup**
 - **Preflight: faster Starsector launches, tracked playtime, setup checks, and mod tools**
 
-Use the packaged-candidate result once it exists. Until then, label the 101s → 13.69s result as the
+Use the packaged-candidate result once it exists. Until then, label the 112.17s → 13.69s result as the
 development setup.
 
 ## Subtitle options
@@ -28,8 +28,8 @@ development setup.
 ## Short product description
 
 Preflight is a free and open-source fast launcher for Starsector. On my 83-mod M5 MacBook Air
-development setup, startup moved from roughly **101 seconds to 13.69 seconds**, about a
-**7.4× speedup**. The desktop includes its own normal-versus-Preflight benchmark and also tracks
+development setup, startup moved from **112.17 seconds to 13.69 seconds**, about an
+**8.19× speedup**. The desktop includes its own normal-versus-Preflight benchmark and also tracks
 playtime, puts the useful game settings beside Launch, checks large mod setups, plans storage before
 preparation, handles repair and recovery, ships signed updates, and includes a mod linter.
 
@@ -39,8 +39,8 @@ preparation, handles repair and recovery, ships signed updates, and includes a m
 
 Preflight is a free and open-source fast launcher for Starsector.
 
-On my 83-mod M5 MacBook Air development setup, startup moved from roughly **101 seconds to
-13.69 seconds**, about a **7.4× speedup**. That development setup uses Starsector's bundled
+On my 83-mod M5 MacBook Air development setup, startup moved from **112.17 seconds to
+13.69 seconds**, about an **8.19× speedup**. That development setup uses Starsector's bundled
 x86-64 Java runtime through Rosetta.
 
 The desktop includes its own normal-versus-Preflight benchmark so you can measure your installation.

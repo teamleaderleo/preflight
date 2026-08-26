@@ -15,7 +15,7 @@ The announcement drafts are sources for finished prose. The deliberately larger 
 - Avoid self-conscious creator framing such as “got out of hand,” “I got carried away,” “apparently
   this was not enough,” or “accidentally became a companion app.”
 - Do not foreground the old 89.00s → 15.53s A/B pair unless the conversation is specifically about
-  that experiment. The current readable development headline is **~101s → 13.69s**.
+  that experiment. The current readable development headline is **112.17s → 13.69s**.
 - Do not pad campaign/runtime claims with defensive prose. **Faster campaign-map movement on my setup**
   is enough for short player copy.
 - Do not explain `INT32_MAX` after the number has landed. **2,147,483,647 deployment points** can stand
@@ -28,8 +28,8 @@ The announcement drafts are sources for finished prose. The deliberately larger 
 ## The sale
 
 Preflight is a free and open-source fast launcher for Starsector. On my 83-mod M5 MacBook Air
-development setup, startup moved from roughly **101 seconds to 13.69 seconds**, about a
-**7.4× speedup**. The desktop includes its own normal-versus-Preflight benchmark.
+development setup, startup moved from **112.17 seconds to 13.69 seconds**, about an
+**8.19× speedup**. The desktop includes its own normal-versus-Preflight benchmark.
 
 The rest of the product is useful on its own: tracked playtime, launch settings beside Launch,
 custom battle size, setup checks, storage planning/recovery, signed updates, a wireframe Hangar, and
@@ -39,8 +39,8 @@ a mod linter.
 
 Current development setup:
 
-- roughly **101s → 13.69s** to the main menu;
-- about a **7.4× speedup**;
+- **112.17s → 13.69s** to the main menu;
+- about an **8.19× speedup**;
 - **83 enabled mods**;
 - **M5 MacBook Air**;
 - Starsector's bundled x86-64 Java runtime through Rosetta.

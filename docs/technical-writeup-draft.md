@@ -5,11 +5,12 @@ Blog-length piece on how Preflight works. Every number here traces to a retained
 
 ---
 
-## Making a heavily modded Starsector start in 13.69 seconds instead of 101
+## Making a heavily modded Starsector start in 13.69 seconds instead of 112.17
 
-At its worst, Starsector took about 101 seconds to reach the main menu on my machine. The current
-retained development endpoint is **13.69 seconds**. The mod list grew while I was working on it, from
-77 mods to 83, so the full 101 → 13.69 span is a development chronology.
+A recently observed ordinary launch took 112.17 seconds to reach the main menu on my machine. The
+current retained accelerated development endpoint is **13.69 seconds**. The mod list grew while I
+was working on it, from 77 mods to 83; the current 112.17 → 13.69 headline is on the 83-mod
+development installation, while older 101-second observations remain part of the chronology.
 
 One historical A/B campaign also measured both conditions on the same 83-mod profile: five ordinary
 launches had an 89.00-second median and five Preflight launches had a 15.53-second median. I shuffled
@@ -151,6 +152,7 @@ need to be decoded again.
 
 | Claim | Source |
 | --- | --- |
+| 112.17s recent ordinary development baseline | [Recent ordinary startup observation](evidence/2026-08-26-recent-ordinary-startup-observation.md), [claims.json](claims.json) |
 | 101s historical high and earlier startup chronology | [Scorecard](evidence/2026-08-02-accumulated-startup-scorecard.md), [claims.json](claims.json) |
 | 13.69s retained current development endpoint | [Storage/startup record](evidence/2026-08-23-storage-to-fourteen-seconds.md), [claims.json](claims.json) |
 | 88.13s was measured on 77 mods; 15.88s on 83 | [29% campaign](evidence/2026-08-01-twenty-nine-percent-when-they-compose.md), [lazy fleet members](evidence/2026-08-06-codex-lazy-fleet-members.md) |

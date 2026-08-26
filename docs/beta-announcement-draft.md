@@ -14,8 +14,8 @@ Starsector forum takes BBCode rather than Markdown; use the current download nam
 
 This is **Preflight**, a free and open-source fast launcher for Starsector.
 
-On my 83-mod M5 MacBook Air development setup, startup moved from roughly **101 seconds to
-13.69 seconds**, about a **7.4× speedup**. That is Starsector's x86-64 Java runtime running
+On my 83-mod M5 MacBook Air development setup, startup moved from **112.17 seconds to
+13.69 seconds**, about an **8.19× speedup**. That is Starsector's x86-64 Java runtime running
 through Rosetta.
 
 The desktop has its own normal-versus-Preflight benchmark. **You can measure yours yourself.**
