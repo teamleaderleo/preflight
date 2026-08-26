@@ -168,7 +168,7 @@ Use the detailed storage table only when the storage modes themselves are the to
 
 Preflight is free and open source. If you want to support development:
 
-- GitHub Sponsors: [GITHUB SPONSORS URL]
+- GitHub Sponsors: https://github.com/sponsors/teamleaderleo
 - Patreon: https://www.patreon.com/cw/teamleaderleo
 
 Sponsorship supports development time, testing hardware, hosting, release work, and future projects.
