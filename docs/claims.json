@@ -50,7 +50,6 @@
         "zero decline/failure"
       ],
       "publishedIn": [
-        "README.md",
         "docs/optimization-history.md"
       ],
       "mentionedIn": [],
@@ -106,7 +105,6 @@
         "preparationMillis"
       ],
       "publishedIn": [
-        "README.md",
         "docs/technical-writeup-draft.md",
         "docs/optimization-history.md"
       ],
@@ -156,7 +154,11 @@
         "README.md",
         "docs/beta-announcement-draft.md",
         "docs/beta-announcement-leo-draft.md",
-        "docs/release-post-draft.md"
+        "docs/release-post-draft.md",
+        "docs/optimization-history.md",
+        "docs/engineering-overview.md",
+        "docs/leo-talking-points.md",
+        "docs/public-writing-sales-inventory.md"
       ],
       "mentionedIn": [],
       "releaseCandidate": false,
@@ -169,12 +171,9 @@
       "type": "seconds",
       "value": "15.25",
       "unit": "s",
-      "publishedIn": [
-        "README.md",
-        "docs/optimization-history.md"
-      ],
+      "publishedIn": [],
       "evidence": "docs/evidence/2026-08-15-controlled-vanilla-fast-campaign.md",
-      "derivation": "Fastest of five accepted accelerated launches in the controlled interleaved campaign."
+      "derivation": "Fastest of five accepted accelerated launches in the historical interleaved A/B campaign. Retained as evidence for that comparison, not as the current public development headline."
     },
     {
       "type": "seconds",
@@ -185,7 +184,10 @@
         "docs/beta-announcement-draft.md",
         "docs/beta-announcement-leo-draft.md",
         "docs/release-post-draft.md",
-        "docs/optimization-history.md"
+        "docs/optimization-history.md",
+        "docs/engineering-overview.md",
+        "docs/leo-talking-points.md",
+        "docs/public-writing-sales-inventory.md"
       ],
       "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
       "derivation": "Initial accepted chronology high end, human-reviewed from the retained scorecard."
@@ -195,20 +197,25 @@
       "value": "13.69",
       "unit": "s",
       "publishedIn": [
-        "README.md"
+        "README.md",
+        "docs/beta-announcement-draft.md",
+        "docs/beta-announcement-leo-draft.md",
+        "docs/release-post-draft.md",
+        "docs/optimization-history.md",
+        "docs/engineering-overview.md",
+        "docs/leo-talking-points.md",
+        "docs/public-writing-sales-inventory.md"
       ],
       "evidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md",
-      "derivation": "Best observed run in the reviewed five-run G1/deferred-heap-commit candidate condition on the current 83-mod development profile; this is the current best observed startup and remains distinct from the controlled vanilla/Preflight campaign."
+      "derivation": "Retained current development endpoint under the same game-log startup clock used by the development record. This is the selected ~101s → 13.69s public/career headline. The historical 89.00s → 15.53s A/B campaign answers a separate comparison question and does not give its elapsed times higher editorial status."
     },
     {
       "type": "seconds",
       "value": "88.13",
       "unit": "s",
-      "publishedIn": [
-        "README.md"
-      ],
+      "publishedIn": [],
       "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "derivation": "Initial five-run unaccelerated baseline median."
+      "derivation": "Initial five-run unaccelerated baseline median retained in the historical optimization chronology."
     },
     {
       "type": "storage",
@@ -251,7 +258,7 @@
         "docs/optimization-history.md"
       ],
       "evidence": "docs/evidence/2026-08-01-twenty-nine-percent-when-they-compose.md",
-      "derivation": "Profile size behind the 88.13-second baseline chronology, read from that campaign's install header. Published as a headline because the gates after it were measured on 83 mods, and the difference is what makes the older rows a chronology rather than a before/after."
+      "derivation": "Profile size behind the 88.13-second baseline chronology, read from that campaign's install header. Published because the gates after it were measured on 83 mods, which is why the older rows form a development chronology rather than a single before/after comparison."
     },
     {
       "type": "storage",
