@@ -9,17 +9,16 @@ than a dispatch surface.
 
 Use these current owners instead:
 
-- [#652](https://github.com/teamleaderleo/preflight/issues/652) — live RC/release convergence,
-  current blocker status, merge order, collision control, and moving `main` coordination;
-- [Release readiness](release-readiness.md) — documentation mirror of #652's four active
-  candidate/platform blockers;
-- [Product contract](product-contract.md) — current product, compatibility, cache, update, and
+- [#652](https://github.com/teamleaderleo/preflight/issues/652): live RC/release convergence,
+  blocker status, merge order, collision control, and moving `main` coordination;
+- [Release readiness](release-readiness.md): readable mirror of the current candidate/release gate;
+- [Product contract](product-contract.md): current product, compatibility, cache, update, and
   support-upload boundary;
-- [#950](https://github.com/teamleaderleo/preflight/issues/950) — 2026-08-20 publication decision,
+- [#950](https://github.com/teamleaderleo/preflight/issues/950): 2026-08-20 publication decision,
   including the Fractal Softworks request as courtesy correspondence rather than a release gate.
 
-Future agents should query live issue/branch state before acting. Do not copy blocker lists, moving
-SHAs, merge queues, or “next” work from the historical handoff.
+Future agents should query live issue/branch state before acting. Don't copy blocker lists, moving
+SHAs, merge queues, or “next” work from this historical handoff.
 
 The complete pre-cleanup ledger remains available at the immutable snapshot below. Its measurements,
 implementation notes, rejected paths, and chronology remain useful evidence when read with their
