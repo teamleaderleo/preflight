@@ -106,6 +106,17 @@ class CommodityEventModMemoPlanTest {
     }
 
     @Test
+    void ordinaryRunsDoNotWriteDeepProfilingCounters() {
+        CommodityEventModMemoRuntime.beginSession(false);
+        CommodityEventModMemoRuntime.hit();
+        CommodityEventModMemoRuntime.delegated();
+
+        assertEquals(false, CommodityEventModMemoRuntime.telemetry().get("telemetryEnabled"));
+        assertEquals(0L, CommodityEventModMemoRuntime.telemetry().get("hits"));
+        assertEquals(0L, CommodityEventModMemoRuntime.telemetry().get("delegated"));
+    }
+
+    @Test
     void targetBindsTheExactCoreArchiveAndAppLoader() {
         AdapterTarget target = AdapterTargetRegistry.commodityEventModMemoTarget();
         AdapterSourceIdentity source = new AdapterSourceIdentity(

@@ -205,6 +205,23 @@ class CampaignEntityMaintenancePlanTest {
     }
 
     @Test
+    void ordinaryRunsKeepMaintenanceBehaviorWithoutWritingDeepCounters() {
+        CampaignEntityMaintenanceRuntime.beginSession(false);
+        List<Object> source = new ArrayList<>(List.of(new Object()));
+
+        CampaignEntityMaintenanceRuntime.emptyScriptList();
+        Iterator<?> snapshot = CampaignEntityMaintenanceRuntime.marketSnapshotIterator(
+                source, CampaignEntityMaintenanceRuntime.MARKET_CONDITIONS);
+
+        assertSame(source.get(0), snapshot.next());
+        Map<String, Object> telemetry = CampaignEntityMaintenanceRuntime.telemetry();
+        assertEquals(false, telemetry.get("telemetryEnabled"));
+        assertEquals(0L, telemetry.get("emptyScriptLists"));
+        assertEquals(0L, telemetry.get("nonEmptyMarketConditions"));
+        assertEquals(1, telemetry.get("stableSnapshotOwners"));
+    }
+
+    @Test
     void pausedEconomyConditionsUseCompactStableSnapshots() throws Exception {
         byte[] original = economyFixture();
         byte[] transformed = CampaignEntityMaintenancePlan.transform(

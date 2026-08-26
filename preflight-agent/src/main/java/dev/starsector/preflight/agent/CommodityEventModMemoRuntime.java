@@ -11,6 +11,7 @@ public final class CommodityEventModMemoRuntime {
 
     private static volatile boolean installed;
     private static volatile boolean enabled;
+    private static volatile boolean telemetryEnabled;
     // Starsector advances campaign markets on one thread. These intentionally approximate counters
     // avoid putting an atomic read-modify-write on every commodity's frame-time fast path.
     private static long hits;
@@ -35,11 +36,11 @@ public final class CommodityEventModMemoRuntime {
     }
 
     public static void hit() {
-        hits++;
+        if (telemetryEnabled) hits++;
     }
 
     public static void delegated() {
-        delegated++;
+        if (telemetryEnabled) delegated++;
     }
 
     /** Permanently fails open if the exact MutableStat accessor was not installed. */
@@ -53,6 +54,7 @@ public final class CommodityEventModMemoRuntime {
         values.put("planId", PLAN_ID);
         values.put("installed", installed);
         values.put("enabled", enabled());
+        values.put("telemetryEnabled", telemetryEnabled);
         values.put("validationStrategy",
                 "clean-stat-and-direct-exact-key-fast-path-with-exact-post-state-fingerprint");
         values.put("hits", hits);
@@ -62,8 +64,13 @@ public final class CommodityEventModMemoRuntime {
     }
 
     static void beginSession() {
+        beginSession(true);
+    }
+
+    static void beginSession(boolean telemetryRequested) {
         installed = false;
         enabled = false;
+        telemetryEnabled = telemetryRequested;
         hits = 0L;
         delegated = 0L;
         fastValidationUnavailable = 0L;

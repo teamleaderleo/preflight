@@ -30,6 +30,7 @@ public final class CampaignEntityMaintenanceRuntime {
             new IdentityHashMap<>();
 
     private static volatile boolean enabled;
+    private static volatile boolean telemetryEnabled;
     private static volatile boolean stableSnapshotsEnabled;
     private static volatile boolean entityScriptsInstalled;
     private static volatile boolean fleetViewInstalled;
@@ -74,7 +75,12 @@ public final class CampaignEntityMaintenanceRuntime {
     }
 
     static void beginSession() {
+        beginSession(true);
+    }
+
+    static void beginSession(boolean telemetryRequested) {
         enabled = !Boolean.getBoolean(DISABLED_PROPERTY);
+        telemetryEnabled = telemetryRequested;
         stableSnapshotsEnabled = !Boolean.getBoolean(STABLE_SNAPSHOTS_DISABLED_PROPERTY);
         entityScriptsInstalled = false;
         fleetViewInstalled = false;
@@ -172,70 +178,78 @@ public final class CampaignEntityMaintenanceRuntime {
     }
 
     public static void emptyScriptList() {
-        emptyScriptLists++;
+        if (telemetryEnabled) emptyScriptLists++;
     }
 
     public static void nonEmptyScriptList() {
-        nonEmptyScriptLists++;
+        if (telemetryEnabled) nonEmptyScriptLists++;
     }
 
     /** Retains vanilla's stable snapshot while omitting its otherwise unused ArrayList wrapper. */
     public static Iterator<?> marketSnapshotIterator(List<?> values, int kind) {
         if (values.isEmpty()) {
-            if (kind == MARKET_CONDITIONS) emptyMarketConditions++;
-            if (kind == MARKET_INDUSTRIES) emptyMarketIndustries++;
-            if (kind == PAUSED_MARKET_CONDITIONS) emptyPausedMarketConditions++;
+            if (telemetryEnabled) {
+                if (kind == MARKET_CONDITIONS) emptyMarketConditions++;
+                if (kind == MARKET_INDUSTRIES) emptyMarketIndustries++;
+                if (kind == PAUSED_MARKET_CONDITIONS) emptyPausedMarketConditions++;
+            }
             return Collections.emptyIterator();
         }
-        if (kind == MARKET_CONDITIONS) nonEmptyMarketConditions++;
-        if (kind == MARKET_INDUSTRIES) nonEmptyMarketIndustries++;
-        if (kind == PAUSED_MARKET_CONDITIONS) nonEmptyPausedMarketConditions++;
+        if (telemetryEnabled) {
+            if (kind == MARKET_CONDITIONS) nonEmptyMarketConditions++;
+            if (kind == MARKET_INDUSTRIES) nonEmptyMarketIndustries++;
+            if (kind == PAUSED_MARKET_CONDITIONS) nonEmptyPausedMarketConditions++;
+        }
         return new SnapshotIterator(stableSnapshot(values));
     }
 
     public static boolean memoryExpirationsPresent(List<?> values) {
         if (values.isEmpty()) {
-            emptyMemoryExpirations++;
+            if (telemetryEnabled) emptyMemoryExpirations++;
             return false;
         }
-        nonEmptyMemoryExpirations++;
+        if (telemetryEnabled) nonEmptyMemoryExpirations++;
         return true;
     }
 
     public static boolean memoryRequirementsPresent(Map<?, ?> values) {
         if (values.isEmpty()) {
-            emptyMemoryRequirements++;
+            if (telemetryEnabled) emptyMemoryRequirements++;
             return false;
         }
-        nonEmptyMemoryRequirements++;
+        if (telemetryEnabled) nonEmptyMemoryRequirements++;
         return true;
     }
 
     /** Retains vanilla's stable key traversal while omitting its otherwise unused ArrayList. */
     public static Iterator<?> memoryIdSnapshotIterator(Map<?, ?> values) {
         if (values.isEmpty()) {
-            emptyMemoryIdRestorations++;
+            if (telemetryEnabled) emptyMemoryIdRestorations++;
             return Collections.emptyIterator();
         }
-        nonEmptyMemoryIdRestorations++;
+        if (telemetryEnabled) nonEmptyMemoryIdRestorations++;
         return new SnapshotIterator(values.keySet().toArray());
     }
 
     /** Retains the stable location snapshot while omitting its otherwise unused ArrayList. */
     public static Object[] locationSnapshot(List<?> values, int kind) {
         if (values.isEmpty()) {
-            if (kind == PAUSED_LOCATION_ENTITIES) emptyPausedLocationEntities++;
-            if (kind == PAUSED_LOCATION_SCRIPTS) emptyPausedLocationScripts++;
-            if (kind == ACTIVE_LOCATION_ENTITIES) emptyActiveLocationEntities++;
-            if (kind == ACTIVE_LOCATION_TOKENS) emptyActiveLocationTokens++;
-            if (kind == ACTIVE_ENGAGEMENT_ENTITIES) emptyActiveEngagementEntities++;
+            if (telemetryEnabled) {
+                if (kind == PAUSED_LOCATION_ENTITIES) emptyPausedLocationEntities++;
+                if (kind == PAUSED_LOCATION_SCRIPTS) emptyPausedLocationScripts++;
+                if (kind == ACTIVE_LOCATION_ENTITIES) emptyActiveLocationEntities++;
+                if (kind == ACTIVE_LOCATION_TOKENS) emptyActiveLocationTokens++;
+                if (kind == ACTIVE_ENGAGEMENT_ENTITIES) emptyActiveEngagementEntities++;
+            }
             return EMPTY_SNAPSHOT;
         }
-        if (kind == PAUSED_LOCATION_ENTITIES) nonEmptyPausedLocationEntities++;
-        if (kind == PAUSED_LOCATION_SCRIPTS) nonEmptyPausedLocationScripts++;
-        if (kind == ACTIVE_LOCATION_ENTITIES) nonEmptyActiveLocationEntities++;
-        if (kind == ACTIVE_LOCATION_TOKENS) nonEmptyActiveLocationTokens++;
-        if (kind == ACTIVE_ENGAGEMENT_ENTITIES) nonEmptyActiveEngagementEntities++;
+        if (telemetryEnabled) {
+            if (kind == PAUSED_LOCATION_ENTITIES) nonEmptyPausedLocationEntities++;
+            if (kind == PAUSED_LOCATION_SCRIPTS) nonEmptyPausedLocationScripts++;
+            if (kind == ACTIVE_LOCATION_ENTITIES) nonEmptyActiveLocationEntities++;
+            if (kind == ACTIVE_LOCATION_TOKENS) nonEmptyActiveLocationTokens++;
+            if (kind == ACTIVE_ENGAGEMENT_ENTITIES) nonEmptyActiveEngagementEntities++;
+        }
         return stableSnapshot(values);
     }
 
@@ -248,6 +262,7 @@ public final class CampaignEntityMaintenanceRuntime {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("planId", PLAN_ID);
         result.put("enabled", enabled);
+        result.put("telemetryEnabled", telemetryEnabled);
         result.put("stableSnapshotsEnabled", stableSnapshotsEnabled);
         result.put("entityScriptsInstalled", entityScriptsInstalled);
         result.put("fleetViewInstalled", fleetViewInstalled);
@@ -295,29 +310,31 @@ public final class CampaignEntityMaintenanceRuntime {
 
     private static Object[] stableSnapshot(List<?> values) {
         if (!stableSnapshotsEnabled) {
-            stableSnapshotDelegations++;
+            if (telemetryEnabled) stableSnapshotDelegations++;
             return values.toArray();
         }
         synchronized (STABLE_SNAPSHOTS) {
             try {
                 Object[] current = STABLE_SNAPSHOTS.get(values);
                 if (current != null && matches(values, current)) {
-                    stableSnapshotHits++;
-                    stableSnapshotComparedElements += current.length;
+                    if (telemetryEnabled) {
+                        stableSnapshotHits++;
+                        stableSnapshotComparedElements += current.length;
+                    }
                     return current;
                 }
                 Object[] replacement = values.toArray();
                 if (current == null && STABLE_SNAPSHOTS.size() >= MAX_SNAPSHOT_OWNERS) {
                     STABLE_SNAPSHOTS.clear();
-                    stableSnapshotEvictions++;
+                    if (telemetryEnabled) stableSnapshotEvictions++;
                 }
                 STABLE_SNAPSHOTS.put(values, replacement);
-                stableSnapshotRebuilds++;
+                if (telemetryEnabled) stableSnapshotRebuilds++;
                 return replacement;
             } catch (ThreadDeath | VirtualMachineError fatal) {
                 throw fatal;
             } catch (Throwable failure) {
-                stableSnapshotFailures++;
+                if (telemetryEnabled) stableSnapshotFailures++;
                 // A stable cache is optional. Preserve the original per-call snapshot on doubt.
                 return values.toArray();
             }

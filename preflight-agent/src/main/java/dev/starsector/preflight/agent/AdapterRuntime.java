@@ -26,6 +26,7 @@ final class AdapterRuntime {
         Objects.requireNonNull(instrumentation, "instrumentation");
         Set<String> disabledPlans = disabledPlans(System.getenv(), System.getProperties());
         AdapterPlanControl.configure(options.adapterPlanScope(), disabledPlans);
+        boolean campaignTimes = Boolean.getBoolean("preflight.campaignTimes");
         SourceArchiveHashes.beginSession();
         AdapterTransformationCache.beginSession();
         TextureCompatibilityRuntime.beginSession();
@@ -67,8 +68,8 @@ final class AdapterRuntime {
         ContrailRenderScratchRuntime.beginSession();
         FontWrapAllocationRuntime.beginSession();
         DeploymentIconCacheRuntime.beginSession();
-        CommodityEventModMemoRuntime.beginSession();
-        CampaignEntityMaintenanceRuntime.beginSession();
+        CommodityEventModMemoRuntime.beginSession(campaignTimes);
+        CampaignEntityMaintenanceRuntime.beginSession(campaignTimes);
         FleetAiProfilerRuntime.beginSession();
         SimOpponentSafetyRuntime.beginSession();
         LogisticsNotificationsFuelRuntime.reset();
@@ -77,7 +78,6 @@ final class AdapterRuntime {
         FrameTimeRuntime.beginSession(
                 Boolean.getBoolean("preflight.frameTimes"),
                 Boolean.getBoolean(FrameTimeRuntime.FORCE_VSYNC_OFF_PROPERTY));
-        boolean campaignTimes = Boolean.getBoolean("preflight.campaignTimes");
         CampaignCallTimeRuntime.beginSession(campaignTimes);
         CampaignEngineTimeRuntime.beginSession(campaignTimes);
         CampaignLocationEconomyTimeRuntime.beginSession(campaignTimes);
