@@ -26,6 +26,7 @@ The 2026-08-26 protected-copy run proved each of these against one existing Pref
 | deploy simulation | exact stock simulator dialog callbacks | 8 allied and 25 opposing ships deployed, then `combat-ready` |
 | ensure combat unpaused | `CombatEngine.isPaused()`/`setPaused(false)` at the exact reviewed combat advance seam | receipt proved `afterPaused=false`; already-unpaused runs are left unchanged |
 | combat zoom out | bounded player-equivalent wheel input in the exact game window | semantic viewport receipt proved `viewMult` 1.250 → 4.250 and visible width 1800 → 6120 |
+| prepare symmetric stress combat | exact-gated public combat/fleet APIs on the combat advance boundary | replaces both deployed simulator sides in memory with the same reviewed 24-ship, 520-DP fast high-tech recipe and leaves combat paused |
 
 Selecting encounter choice 2 also reached the normal `Move in to engage` button path, but the campaign
 then failed before deployment because `BattleAPI.getSideFor(playerFleet)` returned null. The cause was
@@ -107,7 +108,8 @@ the exact target plans. A normal player launch neither watches request files nor
 The current closed catalog contains `main-menu.continue`, `campaign.pause`, `campaign.unpause`,
 the in-memory combat fixture prepare/verify pair, the stock simulator side/select/deploy/engage
 actions, `combat.pause`, `combat.unpause`, the viewport capture/verification pair, and
-`combat.begin-frame-window`.
+`combat.begin-frame-window`, plus the simulation-only
+`combat.prepare-symmetric-1000dp-fixture` stress action.
 Campaign pause actions resolve the
 installed `GENERAL_PAUSE` binding, synthesize an atomic
 key-down/key-up pair, add it to Starsector's real `CampaignState.processInput` batch, and verify the
@@ -128,6 +130,16 @@ the existing `CombatEngine.advance` control seam runs after `CombatState` consum
 it was discarded rather than weakening the verifier. The frame-window action resets a separate
 steady-state distribution after command-map, speed, pause, and camera setup have settled; cumulative
 session telemetry remains intact. Unknown engine or viewport shapes fail the action.
+
+The symmetric stress action is deliberately separate from the historical campaign fixture. The old
+fixture preserves earlier measurement identity; its stock DP-limited simulator selection can favor the
+first slow capital ships in fleet order. The stress action runs only after stock simulator deployment,
+validates every reviewed variant against installed settings, spawns both mirrored fleets before it
+removes either original side, checks 24 ships and at least 500 DP per side, and leaves combat paused for
+camera and autopilot setup. It uses no campaign save and exposes no arbitrary variant argument. The v1
+recipe is four each of Odyssey, Aurora, Fury, Medusa, and Hyperion plus two each of Tempest and Scarab:
+520 DP per side and 1,040 DP total. This is a repeatable performance workload, not a claim that the
+recipe is an optimal fleet.
 
 ## Save and learning boundary
 

@@ -35,6 +35,7 @@ final class DesktopSmokeScenario {
             "combat.capture-viewport",
             "combat.verify-zoom-out",
             "combat.begin-frame-window",
+            "combat.prepare-symmetric-1000dp-fixture",
             "campaign.prepare-combat-fixture",
             "campaign.verify-combat-fixture",
             "main-menu.load-game",

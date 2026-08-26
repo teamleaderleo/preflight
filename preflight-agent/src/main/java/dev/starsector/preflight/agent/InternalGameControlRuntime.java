@@ -65,7 +65,7 @@ public final class InternalGameControlRuntime {
                     + "\\\"processStartedAt\\\":\\\"([^\\\"]{1,80})\\\","
                     + "\\\"action\\\":\\\"(main-menu\\.continue|campaign\\.(?:pause|unpause|prepare-combat-fixture|verify-combat-fixture)"
                     + "|simulation\\.(?:opponents\\.(?:all|deploy)|allies\\.(?:select|all|deploy)|engage)"
-                    + "|combat\\.(?:pause|unpause|capture-viewport|verify-zoom-out|begin-frame-window))\\\","
+                    + "|combat\\.(?:pause|unpause|capture-viewport|verify-zoom-out|begin-frame-window|prepare-symmetric-1000dp-fixture))\\\","
                     + "\\\"expectedState\\\":\\\"(main-menu-interactive|campaign-ready|simulation-ready|combat-ready)\\\","
                     + "\\\"deadline\\\":\\\"([^\\\"]{1,80})\\\"\\}\\s*");
 
@@ -97,6 +97,7 @@ public final class InternalGameControlRuntime {
         clearCombatViewportBaseline();
         simulationEngaged = false;
         ConsoleCombatFixtureRuntime.reset();
+        CombatStressFixtureRuntime.reset();
         if (requestPath == null || receiptPath == null) enabled = false;
     }
 
@@ -276,6 +277,15 @@ public final class InternalGameControlRuntime {
             if (!COMBAT_ENGINE.equals(engine.getClass().getName())) {
                 throw new IllegalStateException("combat-engine-class-mismatch");
             }
+            if (CombatStressFixtureRuntime.ACTION.equals(parsed.action())) {
+                CombatStressFixtureRuntime.Result result =
+                        CombatStressFixtureRuntime.prepare(engine);
+                before = result.beforePaused();
+                publish(parsed, "executed", result.detail(), accepted, Instant.now(),
+                        "combat-engine.advance", COMBAT_STATE,
+                        result.beforePaused(), result.afterPaused());
+                return;
+            }
             if (COMBAT_BEGIN_FRAME_WINDOW_ACTION.equals(parsed.action())) {
                 FrameTimeRuntime.beginCombatMeasurementWindow();
                 publish(parsed, "executed", "started a clean steady-state combat frame window",
@@ -422,7 +432,8 @@ public final class InternalGameControlRuntime {
                 || COMBAT_UNPAUSE_ACTION.equals(action)
                 || COMBAT_CAPTURE_VIEWPORT_ACTION.equals(action)
                 || COMBAT_VERIFY_ZOOM_OUT_ACTION.equals(action)
-                || COMBAT_BEGIN_FRAME_WINDOW_ACTION.equals(action);
+                || COMBAT_BEGIN_FRAME_WINDOW_ACTION.equals(action)
+                || CombatStressFixtureRuntime.ACTION.equals(action);
     }
 
     private static float[] viewportState(Object engine) throws ReflectiveOperationException {
@@ -759,6 +770,7 @@ public final class InternalGameControlRuntime {
         pendingCampaignRequest = null;
         pendingCampaignAcceptedAt = null;
         simulationEngaged = false;
+        CombatStressFixtureRuntime.reset();
     }
 
     private record Request(

@@ -111,6 +111,26 @@ final class InternalGameControlRuntimeTest {
     }
 
     @Test
+    void stressFixtureRequestFailsBeforeCombatMutationOnAnUnknownEngineShape() throws Exception {
+        System.setProperty("preflight.desktopSmoke", "true");
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+        RuntimeSemanticState.combatReady();
+        InternalGameControlRuntime.beginSession(temporaryDirectory.resolve("adapter.json"));
+        Files.writeString(temporaryDirectory.resolve("runtime-action-request.json"),
+                request(Instant.now().plusSeconds(30),
+                        CombatStressFixtureRuntime.ACTION,
+                        InternalGameControlRuntime.COMBAT_STATE));
+
+        InternalGameControlRuntime.combatAdvance(new Object(), new ArrayList<>());
+
+        String receipt = Files.readString(temporaryDirectory.resolve("runtime-action-receipt.json"));
+        assertTrue(receipt.contains("\"status\":\"failed\""), receipt);
+        assertTrue(receipt.contains("combat-engine-class-mismatch"), receipt);
+        assertTrue(receipt.contains(CombatStressFixtureRuntime.ACTION), receipt);
+        assertFalse((Boolean) CombatStressFixtureRuntime.telemetry().get("attempted"));
+    }
+
+    @Test
     void simulationActionsFailClosedBeforeTouchingAnUnknownDialogShape() throws Exception {
         System.setProperty("preflight.desktopSmoke", "true");
         RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));

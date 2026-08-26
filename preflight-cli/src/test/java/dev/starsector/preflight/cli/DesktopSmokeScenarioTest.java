@@ -198,6 +198,21 @@ final class DesktopSmokeScenarioTest {
     }
 
     @Test
+    void checkedInThousandDpSimulationReplacesBothSidesBeforeMeasurement() throws Exception {
+        DesktopSmokeScenario scenario = DesktopSmokeScenario.read(
+                Path.of("..", "scripts", "scenarios", "campaign-simulation-combat-1000dp.json"));
+
+        assertEquals("campaign-simulation-combat-1000dp", scenario.view().get("name"));
+        assertTrue(scenario.sampleRecording());
+        assertTrue(scenario.stepIds().contains("prepare-symmetric-stress"));
+        assertTrue(scenario.stepIds().contains("stress-settle"));
+        assertTrue(scenario.stepIds().contains("combat-sample-1040dp"));
+        assertEquals(Set.of("process-control", "semantic-state", "semantic-control",
+                        "window-control", "screen-capture", "evidence-read"),
+                scenario.requiredCapabilities());
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void combatZoomUsesBoundedPlayerEquivalentWheelInput() throws Exception {
         DesktopSmokeScenario scenario = DesktopSmokeScenario.read(
