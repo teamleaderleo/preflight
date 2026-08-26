@@ -9,7 +9,7 @@ candidate produces them. Convert this Markdown to BBCode before posting on the S
 
 ## Title
 
-> Preflight — a free, open-source fast launcher for Starsector (~7.4× startup speedup on my 83-mod MacBook Air)
+> Preflight — a free, open-source fast launcher for Starsector (~8.19× startup speedup on my 83-mod MacBook Air)
 
 ---
 
@@ -17,7 +17,7 @@ candidate produces them. Convert this Markdown to BBCode before posting on the S
 
 This is **Preflight**, a free, open-source fast launcher for Starsector.
 
-On my 83-mod M5 MacBook Air, startup went from roughly **101 seconds to 13.69 seconds**, a **7.4×
+On my 83-mod M5 MacBook Air, startup went from **112.17 seconds to 13.69 seconds**, an **8.19×
 speedup**. That's Starsector's x86-64 Java running through Rosetta.
 
 **Dramatically faster launch times** (and you can measure it yourself!).
