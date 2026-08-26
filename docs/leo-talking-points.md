@@ -14,8 +14,8 @@ The announcement drafts are sources for finished prose. The deliberately larger 
   explanation after it.
 - Avoid self-conscious creator framing such as “got out of hand,” “I got carried away,” “apparently
   this was not enough,” or “accidentally became a companion app.”
-- Do not foreground the old 89.00s → 15.53s controlled pair unless the conversation is specifically
-  about that experiment. The current readable development headline is **~101s → 13.69s**.
+- Do not foreground the old 89.00s → 15.53s A/B pair unless the conversation is specifically about
+  that experiment. The current readable development headline is **~101s → 13.69s**.
 - Do not pad campaign/runtime claims with defensive prose. **Faster campaign-map movement on my setup**
   is enough for short player copy.
 - Do not explain `INT32_MAX` after the number has landed. **2,147,483,647 deployment points** can stand
@@ -28,7 +28,7 @@ The announcement drafts are sources for finished prose. The deliberately larger 
 ## The sale
 
 Preflight is a free and open-source fast launcher for Starsector. On my 83-mod M5 MacBook Air
-development setup, startup moved from roughly **101 seconds to a 13.69-second best run**, about a
+development setup, startup moved from roughly **101 seconds to 13.69 seconds**, about a
 **7.4× speedup**. The desktop includes its own normal-versus-Preflight benchmark.
 
 The rest of the product is useful on its own: tracked playtime, launch settings beside Launch,
@@ -47,8 +47,8 @@ Current development setup:
 
 The public package gets its own retained benchmark before release.
 
-The older 89.00s → 15.53s controlled campaign remains useful evidence, but it is not the public
-headline.
+The older 89.00s → 15.53s A/B campaign remains useful for the comparison it measured, but it is not
+the public headline and does not give its elapsed times a higher status.
 
 ## The player-facing feature set
 
