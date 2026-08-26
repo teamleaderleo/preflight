@@ -17,7 +17,7 @@ Before changing code or collecting release evidence:
    `scripts/benchmark-startup.sh` for one automatic startup measurement, `--details` to explain a
    changed result, and `--campaign` only for a real comparison.
 
-The current development/public startup headline is **~101s → 13.69s**. Do not substitute a median,
+The current development/public startup headline is **112.17s → 13.69s**. Do not substitute a median,
 the old 89.00s → 15.53s A/B pair, or another campaign statistic unless the maintainer explicitly
 changes the headline. Runs measured with the same startup clock are observations of the same elapsed
 time. Campaign statistics exist to answer comparison/attribution questions, not to rank which
