@@ -9,6 +9,7 @@ Pick the thing you actually want:
 - **What is Preflight?** Start at the [project README](../README.md).
 - **Explain it like my brain has 256 KB of RAM.** Read [Preflight in 256 KB](how-preflight-works-256kb.md).
 - **Walk me through how it works.** Read [How Preflight works](how-preflight-works.md).
+- **I want to understand the codebase.** Read [Codebase tour](codebase-tour.md).
 - **Give me the engineering story.** Read [Engineering overview](engineering-overview.md).
 - **I need the exact current product rules.** Read [Product contract](product-contract.md).
 
@@ -23,21 +24,25 @@ That's enough for most people.
 
 ## If you're changing Preflight
 
+- [Codebase tour](codebase-tour.md)
 - [Architecture](architecture.md)
 - [UI design guide](ui-design.md)
 - [Verification strategy](verification-strategy.md)
 - [CI policy](ci-philosophy.md)
 
-Start with the plain-language walkthrough before these if the codebase is still unfamiliar.
+Start with the codebase tour if the repository is still unfamiliar. It follows user-visible actions through React, Rust, the Java CLI/core, and the injected agent instead of expecting you to learn the project by reading directories alphabetically.
 
 ## If you're checking performance or evidence
 
 - [Engineering overview](engineering-overview.md)
+- [Findings and outreach](findings-and-outreach.md)
 - [Optimization history](optimization-history.md)
 - [Performance and storage tradeoffs](performance-storage-tradeoffs.md)
 - [Evidence archive](evidence/)
 
 The current development startup headline is **112.17s → 13.69s** on the documented 83-mod development setup. Historical campaigns stay in the history/evidence docs instead of competing with the current headline.
+
+Use **Findings and outreach** when the question is whether a discovery should become a mod-author/base-game report at all. Its default answer is to keep the finding in Preflight unless external outreach clearly improves the outcome.
 
 ## If you're working on the release
 
