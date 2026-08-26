@@ -15,8 +15,8 @@ I make stuff. Stuff... becomes more stuff.
 Right now, most of my public work is going into Preflight, a free and open-source fast launcher for
 Starsector.
 
-On my 83-mod M5 MacBook Air development setup, startup moved from roughly **101 seconds to a
-13.69-second best run**, about a **7.4× speedup**. Preflight includes its own normal-versus-Preflight
+On my 83-mod M5 MacBook Air development setup, startup moved from roughly **101 seconds to
+13.69 seconds**, about a **7.4× speedup**. Preflight includes its own normal-versus-Preflight
 benchmark, so you can measure your installation too.
 
 It also tracks Starsector playtime, puts the useful game settings beside Launch, checks large mod
@@ -75,7 +75,7 @@ setup** or the support file in the app, or open an issue. Membership is never re
 I’ve been making Preflight, a free and open-source fast launcher for Starsector.
 
 On my current 83-mod M5 MacBook Air setup, early development launches reached roughly **101
-seconds**. The best current run is **13.69 seconds**, about a **7.4× speedup**. The desktop has the
+seconds**. Current development reached **13.69 seconds**, about a **7.4× speedup**. The desktop has the
 same normal-versus-Preflight benchmark so you can measure your own setup.
 
 Current features:
