@@ -461,6 +461,15 @@ def assert_keyboard_controls(page: Page, label: str) -> None:
         raise RuntimeError(f"{label}: Launch has no visible keyboard focus: {focus}")
 
     page.get_by_role("button", name="Hangar", exact=True).click()
+    hangar_heading = page.get_by_role("heading", name="Hangar", exact=True)
+    hangar_heading.wait_for()
+    # The shell announces each destination by focusing its heading in a zero-delay task. Wait for
+    # that accessibility handoff before moving focus into the page; otherwise the delayed heading
+    # focus blurs the chooser and makes the canary race normal route housekeeping.
+    page.wait_for_function(
+        "heading => document.activeElement === heading",
+        arg=hangar_heading.element_handle(),
+    )
     chooser = page.get_by_role("combobox", name="Display ship")
     chooser.focus()
     chooser.fill("Para")
