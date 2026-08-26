@@ -142,7 +142,7 @@ experiments, and release work are in the repository.
 
 If you want to support development:
 
-- GitHub Sponsors: [GITHUB SPONSORS URL]
+- GitHub Sponsors: https://github.com/sponsors/teamleaderleo
 - Patreon: https://www.patreon.com/cw/teamleaderleo
 
 Preflight is an independent, unofficial project. It is not affiliated with or endorsed by Fractal
