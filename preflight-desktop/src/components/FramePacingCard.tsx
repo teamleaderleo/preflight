@@ -61,7 +61,7 @@ export function FramePacingCard({ framePacing }: { framePacing?: FramePacingSumm
       </div>
       <div className="frame-pacing-card__notes">
         {initialCampaign && settledCampaign ? (
-          <small>Campaign rows are two periods from this same session, not a comparison between Preflight versions.</small>
+          <small>These campaign rows come from the same launch: the first 30 seconds, then later play. They don’t compare optimizations off and on.</small>
         ) : null}
         {framePacing?.measurementAverageMicros !== null && framePacing?.measurementAverageMicros !== undefined ? (
           <small>

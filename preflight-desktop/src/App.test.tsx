@@ -1104,7 +1104,8 @@ test("an opted-in session surfaces bounded campaign and combat pacing on Speed",
   expect(within(card).getByRole("group", { name: "Campaign after 30 seconds" })).toHaveTextContent("2m 11s active");
   expect(within(card).getByRole("group", { name: "Combat" })).toHaveTextContent("54.2 FPS");
   expect(within(card).getByRole("group", { name: "Combat" })).toHaveTextContent("58.5s active");
-  expect(card).toHaveTextContent("two periods from this same session");
+  expect(card).toHaveTextContent("come from the same launch");
+  expect(card).toHaveTextContent("They don’t compare optimizations off and on.");
   expect(card).toHaveTextContent("recorder doesn’t open or change save files");
 });
 

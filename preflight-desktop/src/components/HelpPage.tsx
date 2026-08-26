@@ -85,14 +85,14 @@ export function HelpPage({
 
       <section className="card help-boundary-card" aria-labelledby="help-boundary-title">
         <div className="card__heading">
-          <div><p className="eyebrow">Containment</p><h2 id="help-boundary-title">What Preflight changes</h2></div>
+          <div><p className="eyebrow">Your files</p><h2 id="help-boundary-title">What Preflight changes</h2></div>
           <ShieldIcon className="settings-check" />
         </div>
-        <p>Prepared data stays in Preflight’s own storage. Optimized launches do not rewrite Starsector or mod files, and Preflight does not put prepared data in campaign saves.</p>
+        <p>Prepared data stays in Preflight’s own storage. Optimized launches don’t rewrite Starsector or mod files, and prepared data never goes into campaign saves.</p>
         <ul className="help-boundary-facts">
           <li><strong>Repair and Free space</strong> remove only Preflight-owned data, not game files, mods, or saves.</li>
-          <li><strong>Saving after launch</strong> remains Starsector’s job; the game and mods can still make their normal save writes.</li>
-          <li><strong>Named profiles and launch settings</strong> are the explicit, backed-up changes to game-owned preferences.</li>
+          <li><strong>Saving after launch</strong> remains Starsector’s job; the game and mods can still write to the save normally.</li>
+          <li><strong>Profiles and launch settings</strong> write Starsector preferences only when you apply a named profile or save launch settings. Preflight makes a backup first.</li>
         </ul>
       </section>
 

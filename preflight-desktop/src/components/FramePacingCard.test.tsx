@@ -47,7 +47,7 @@ test("shows initial, settled, and combat distributions without raw frame details
   expect(combat).toHaveTextContent("1,802 frames · 3m 0s active");
   expect(screen.getByText(/recording cost averaged/i)).toHaveTextContent("1.78 μs per frame");
   expect(screen.getByText(/not a game-speed comparison/i)).toBeInTheDocument();
-  expect(screen.getByText(/two periods from this same session/i)).toBeInTheDocument();
+  expect(screen.getByText(/come from the same launch/i)).toHaveTextContent("They don’t compare optimizations off and on.");
   expect(screen.getByText(/recorder doesn’t open or change save files/i)).toBeInTheDocument();
 });
 

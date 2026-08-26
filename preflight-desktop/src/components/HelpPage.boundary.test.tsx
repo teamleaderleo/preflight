@@ -39,8 +39,9 @@ test("explains the ordinary save and prepared-data boundary without hiding norma
   render(<HelpPage {...props()} />);
 
   const boundary = screen.getByRole("region", { name: "What Preflight changes" });
-  expect(boundary).toHaveTextContent("Optimized launches do not rewrite Starsector or mod files");
-  expect(boundary).toHaveTextContent("Preflight does not put prepared data in campaign saves");
-  expect(boundary).toHaveTextContent("the game and mods can still make their normal save writes");
-  expect(boundary).toHaveTextContent("explicit, backed-up changes to game-owned preferences");
+  expect(boundary).toHaveTextContent("Optimized launches don’t rewrite Starsector or mod files");
+  expect(boundary).toHaveTextContent("prepared data never goes into campaign saves");
+  expect(boundary).toHaveTextContent("the game and mods can still write to the save normally");
+  expect(boundary).toHaveTextContent("write Starsector preferences only when you apply a named profile or save launch settings");
+  expect(boundary).toHaveTextContent("Preflight makes a backup first");
 });
