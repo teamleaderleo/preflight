@@ -1,6 +1,6 @@
 # Preflight
 
-**A free, open-source cross-platform performance launcher and mod-analysis toolkit for Starsector. On my 83-mod development setup, startup moved from roughly 101 seconds to 13.69 seconds.**
+**A free, open-source cross-platform performance launcher and mod-analysis toolkit for Starsector. On my 83-mod development setup, startup moved from 112.17 seconds to 13.69 seconds.**
 
 > Preflight is an independent, unofficial project. It isn't affiliated with or endorsed by Fractal
 > Softworks.
@@ -80,7 +80,7 @@ once, then press **Launch Starsector** on later runs. The rest is there when you
 
 ## The measured result
 
-On the 83-mod M5 MacBook Air development installation, startup moved from roughly **101 seconds to
+On the 83-mod M5 MacBook Air development installation, startup moved from **112.17 seconds to
 13.69 seconds**. Repeated current launches remain in the same low-14-second regime with ordinary
 sub-second run-to-run movement.
 
@@ -96,7 +96,7 @@ time counts.
 
 | Reference point | Main-menu time | Meaning |
 | --- | ---: | --- |
-| Historical observed high | **~101s** | Slowest retained launch on the development installation |
+| Recent observed ordinary launch | **112.17s** | Current selected development baseline |
 | Current retained endpoint | **13.69s** | Current development endpoint |
 | Compact corpus, alphabetical order | **33.53s** | Physical-layout experiment with the same logical texture contents |
 | Compact corpus, observed access order | **14.174s** | Same logical contents written in startup access order |
