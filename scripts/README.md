@@ -77,7 +77,9 @@ move the cursor, or depend on host window focus.
 
 `campaign-sample-paused-unpaused.json` runs the same internal pause cycle with a single-chunk JFR
 sampling recording and without the deep campaign call-time probes. Use it to rank residual campaign
-stacks after the timer probes have identified a broad category.
+stacks after the timer probes have identified a broad category. It stops the exact owned process
+after the unpaused window instead of trying to restore pause, because a late campaign interaction
+may legitimately make the pause control unavailable and the process is not retained or saved.
 
 ## Read what a launch produced
 
