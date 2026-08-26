@@ -182,10 +182,15 @@ final class RunCommand {
                     javaToolOptions,
                     List.of("-Dpreflight.texture.trustValidatedIndex=true"));
         }
-        if (options.frameTimes() || options.desktopSmoke()) {
+        if (options.frameTimes() || options.campaignTimes() || options.desktopSmoke()) {
             javaToolOptions = appendJavaOptions(
                     javaToolOptions,
                     List.of("-Dpreflight.frameTimes=true"));
+        }
+        if (options.campaignTimes()) {
+            javaToolOptions = appendJavaOptions(
+                    javaToolOptions,
+                    List.of("-Dpreflight.campaignTimes=true"));
         }
         if (options.smoothFramePacing()) {
             javaToolOptions = appendJavaOptions(
@@ -633,6 +638,7 @@ final class RunCommand {
         System.out.println("  campaign entity index: " + options.campaignEntityIndex());
         System.out.println("  startup phase probe: " + options.startupPhaseProbe());
         System.out.println("  smooth frame pacing: " + options.smoothFramePacing());
+        System.out.println("  detailed campaign timing: " + options.campaignTimes());
         System.out.println("  rule token cache: " + options.ruleTokenCache());
         System.out.println("  resource probe cache: " + options.resourceProbeCache());
         System.out.println("  loadJSON memo: " + options.loadJsonMemo());
@@ -851,7 +857,9 @@ final class RunCommand {
         values.put("assetProgressLogsSuppressed", options.suppressAssetProgressLogs());
         values.put("trustedValidatedTextureIndex",
                 trustsLauncherValidatedTextureIndex(options, textureContext));
-        values.put("frameTimes", options.frameTimes() || options.desktopSmoke());
+        values.put("frameTimes",
+                options.frameTimes() || options.campaignTimes() || options.desktopSmoke());
+        values.put("campaignTimes", options.campaignTimes());
         values.put("smoothFramePacing", options.smoothFramePacing());
         values.put("desktopSmoke", options.desktopSmoke());
         values.put("quietLogConfiguration", options.fileOnlyLogs()

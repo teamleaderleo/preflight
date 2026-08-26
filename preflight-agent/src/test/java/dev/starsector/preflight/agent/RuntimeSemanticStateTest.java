@@ -42,6 +42,9 @@ final class RuntimeSemanticStateTest {
         assertEquals(firstInteractiveTime,
                 String.valueOf(RuntimeSemanticState.telemetry().get("mainMenuInteractiveAt")));
 
+        RuntimeSemanticState.combatReady();
+        assertState(destination, "main-menu-interactive", 2L);
+
         RuntimeSemanticState.campaignReady();
         assertState(destination, "campaign-ready", 3L);
         RuntimeSemanticState.combatReady();

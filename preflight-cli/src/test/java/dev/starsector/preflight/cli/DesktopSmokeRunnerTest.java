@@ -124,7 +124,7 @@ final class DesktopSmokeRunnerTest {
                   "launch":{"preset":"fast","textureStorage":"balanced","profile":null},
                   "steps":[
                     {"id":"menu","kind":"wait-state","state":"main-menu-ready","timeoutSeconds":30},
-                    {"id":"continue","kind":"click","target":"main-menu.continue"},
+                    {"id":"continue","kind":"click","target":"main-menu.load-game"},
                     {"id":"capture","kind":"capture","artifacts":["screenshot"]}
                   ]
                 }

@@ -58,6 +58,16 @@ first retains only the state/frame measurement boundary and the second enables t
 The coordinator now compares only the period after the first 30 seconds and refuses either phase
 unless that settled period contains at least 100 frames and 30 seconds of active frame time. Select
 a disposable campaign before running it: Continue and movement can still trigger a mod autosave.
+`campaign-continue-proof.json` is the shorter prerequisite: it uses only the PID-bound internal
+Continue action and semantic state, reaches `campaign-ready`, and stops the exact process without
+probing host desktop permissions or sending native input. It holds that same PID for ten seconds
+after `campaign-ready`, so the controller cannot erase the visible transition before a campaign
+frame is rendered.
+
+`campaign-profile-current-state.json` uses the same internal Continue boundary, waits through the
+30-second campaign warm-up, then retains another 60 seconds with the exact-gated campaign call-time
+probes enabled. It never changes pause state: classify the run as paused or unpaused from the
+retained maintenance counters and the state the selected save actually loaded into.
 
 ## Read what a launch produced
 

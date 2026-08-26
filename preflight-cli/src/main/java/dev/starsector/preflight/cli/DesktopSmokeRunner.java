@@ -39,15 +39,15 @@ final class DesktopSmokeRunner {
             Path runDirectory,
             DesktopSmokeDriver driver,
             Clock clock) throws IOException {
-        if (scenario.usesOnlyRuntimeState()) {
-            return runRuntimeStateOnly(scenario, runtimeProcess, runDirectory, clock);
+        if (scenario.usesOnlyRuntimeControl()) {
+            return runRuntimeControlOnly(scenario, runtimeProcess, runDirectory, clock);
         }
         try (DriverCalls calls = new DriverCalls(scenario.timeoutSeconds())) {
             return run(scenario, runtimeProcess, runDirectory, driver, clock, calls);
         }
     }
 
-    private static Map<String, Object> runRuntimeStateOnly(
+    private static Map<String, Object> runRuntimeControlOnly(
             DesktopSmokeScenario scenario,
             Path runtimeProcess,
             Path runDirectory,
@@ -56,7 +56,7 @@ final class DesktopSmokeRunner {
         Instant startedAt = clock.instant();
         List<Map<String, Object>> completedSteps = new ArrayList<>();
         List<String> diagnostics = new ArrayList<>();
-        DesktopSmokeDriver.Descriptor descriptor = runtimeStateDescriptor();
+        DesktopSmokeDriver.Descriptor descriptor = runtimeControlDescriptor(scenario);
         TargetCheck initial = target(runtimeProcess);
         if (!initial.attachable()) {
             diagnostics.add("Runtime process isn't attachable: " + initial.reason());
@@ -77,12 +77,29 @@ final class DesktopSmokeRunner {
                         completedSteps, diagnostics);
             }
             try {
-                String expected = step.get("state").toString();
-                waitForState(runtimeProcess, runtimeState, initial.target(), expected,
-                        stepTimeoutSeconds(step, scenario));
+                String detail;
+                if (isInternalAction(step)) {
+                    detail = RuntimeGameActionClient.continueCampaign(
+                            realRun,
+                            runtimeProcess,
+                            initial.target(),
+                            stepTimeoutSeconds(step, scenario));
+                } else if ("wait-duration".equals(step.get("kind"))) {
+                    int durationMillis = ((Number) step.get("durationMillis")).intValue();
+                    waitForDuration(runtimeProcess, initial.target(), durationMillis);
+                    detail = "held exact process for " + durationMillis + " ms";
+                } else {
+                    String expected = step.get("state").toString();
+                    waitForState(runtimeProcess, runtimeState, initial.target(), expected,
+                            stepTimeoutSeconds(step, scenario));
+                    detail = "observed " + expected;
+                }
                 Instant stepCompleted = clock.instant();
+                if (stepCompleted.isAfter(deadline)) {
+                    throw new IllegalStateException("Scenario timeout expired during step " + id);
+                }
                 completedSteps.add(step(id, "passed", stepStarted, stepCompleted,
-                        "observed " + expected, List.of()));
+                        detail, List.of()));
             } catch (Exception failure) {
                 diagnostics.add("Runtime state failed at " + id + ": " + message(failure));
                 completedSteps.add(step(id, "failed", stepStarted, clock.instant(),
@@ -143,6 +160,7 @@ final class DesktopSmokeRunner {
         try {
             RuntimeSemanticStateIdentity.read(runtimeState, initial.target());
             capabilities.add("semantic-state");
+            capabilities.add("semantic-control");
         } catch (Exception unavailable) {
             diagnostics.add("Runtime semantic state is unavailable: " + message(unavailable));
         }
@@ -194,11 +212,24 @@ final class DesktopSmokeRunner {
             }
             try {
                 DesktopSmokeDriver.ActionResult action;
+                boolean internalAction = isInternalAction(step);
                 if ("wait-state".equals(kind)) {
                     String expected = step.get("state").toString();
                     waitForState(runtimeProcess, runtimeState, initial.target(), expected,
                             stepTimeoutSeconds(step, scenario));
                     action = DesktopSmokeDriver.ActionResult.completed("observed " + expected);
+                } else if ("wait-duration".equals(kind)) {
+                    int durationMillis = ((Number) step.get("durationMillis")).intValue();
+                    waitForDuration(runtimeProcess, initial.target(), durationMillis);
+                    action = DesktopSmokeDriver.ActionResult.completed(
+                            "held exact process for " + durationMillis + " ms");
+                } else if (internalAction) {
+                    action = DesktopSmokeDriver.ActionResult.completed(
+                            RuntimeGameActionClient.continueCampaign(
+                                    realRun,
+                                    runtimeProcess,
+                                    initial.target(),
+                                    stepTimeoutSeconds(step, scenario)));
                 } else {
                     action = calls.call(
                             () -> driver.execute(step, realRun), stepTimeoutSeconds(step, scenario));
@@ -207,7 +238,7 @@ final class DesktopSmokeRunner {
                     throw new IllegalStateException("Driver returned no action result");
                 }
                 String detail = bounded(action.detail());
-                if (OBSERVED_ACTIONS.contains(kind)) {
+                if (OBSERVED_ACTIONS.contains(kind) && !internalAction) {
                     DesktopSmokeDriver.Observation observation = calls.call(driver::observe, 10);
                     if (observation == null) {
                         throw new IllegalStateException("Driver returned no fresh observation");
@@ -339,6 +370,30 @@ final class DesktopSmokeRunner {
                 : scenario.timeoutSeconds();
     }
 
+    private static void waitForDuration(
+            Path runtimeProcess,
+            DesktopSmokeDriver.ProcessTarget expectedTarget,
+            int durationMillis) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(durationMillis);
+        while (System.nanoTime() < deadline) {
+            TargetCheck current = target(runtimeProcess);
+            if (!current.attachable()
+                    || current.target().pid() != expectedTarget.pid()
+                    || !current.target().startedAt().equals(expectedTarget.startedAt())) {
+                throw new IllegalStateException("Runtime process changed during wait-duration");
+            }
+            long remainingNanos = deadline - System.nanoTime();
+            if (remainingNanos <= 0L) break;
+            TimeUnit.NANOSECONDS.sleep(Math.min(
+                    remainingNanos, TimeUnit.MILLISECONDS.toNanos(100L)));
+        }
+    }
+
+    private static boolean isInternalAction(Map<String, Object> step) {
+        return "click".equals(step.get("kind"))
+                && RuntimeGameActionClient.CONTINUE_ACTION.equals(step.get("target"));
+    }
+
     private static Map<String, Object> failFirstStep(
             DesktopSmokeScenario scenario,
             Path runDirectory,
@@ -446,6 +501,17 @@ final class DesktopSmokeRunner {
         return new DesktopSmokeDriver.Descriptor(
                 "runtime-semantic-state", "1", platform,
                 Set.of("process-control", "semantic-state"), List.of());
+    }
+
+    private static DesktopSmokeDriver.Descriptor runtimeControlDescriptor(
+            DesktopSmokeScenario scenario) {
+        DesktopSmokeDriver.Descriptor state = runtimeStateDescriptor();
+        if (!scenario.requiredCapabilities().contains("semantic-control")) return state;
+        Set<String> capabilities = new LinkedHashSet<>(state.capabilities());
+        capabilities.add("semantic-control");
+        return new DesktopSmokeDriver.Descriptor(
+                "runtime-semantic-control", "1", state.platform(),
+                Collections.unmodifiableSet(capabilities), List.of());
     }
 
     private static DesktopSmokeDriver.Descriptor normalize(

@@ -24,6 +24,7 @@ final class DesktopSmokeScenarioTest {
         Set<String> capabilities = (Set<String>) view.get("requiredCapabilities");
         assertTrue(capabilities.contains("process-control"));
         assertTrue(capabilities.contains("semantic-state"));
+        assertTrue(capabilities.contains("semantic-control"));
         assertTrue(capabilities.contains("window-control"));
         assertTrue(capabilities.contains("screen-capture"));
         assertTrue(capabilities.contains("evidence-read"));
@@ -76,6 +77,47 @@ final class DesktopSmokeScenarioTest {
     }
 
     @Test
+    void runtimeContinueScenarioMayDwellWithoutDesktopAutomation() {
+        DesktopSmokeScenario scenario = DesktopSmokeScenario.parse("""
+                {
+                  "format":"starsector-preflight-smoke-v1",
+                  "name":"continue-dwell",
+                  "timeoutSeconds":60,
+                  "launch":{"preset":"fast","textureStorage":"balanced","profile":null},
+                  "steps":[
+                    {"id":"menu","kind":"wait-state","state":"main-menu-interactive",
+                      "timeoutSeconds":30},
+                    {"id":"continue","kind":"click","target":"main-menu.continue"},
+                    {"id":"visible","kind":"wait-duration","durationMillis":1000}
+                  ]
+                }
+                """);
+
+        assertTrue(scenario.usesOnlyRuntimeControl());
+        assertEquals(Set.of("process-control", "semantic-state", "semantic-control"),
+                scenario.requiredCapabilities());
+    }
+
+    @Test
+    void launchMayOptIntoDeepCampaignTimingAndSmoothFramePacing() {
+        DesktopSmokeScenario scenario = DesktopSmokeScenario.parse("""
+                {
+                  "format":"starsector-preflight-smoke-v1",
+                  "name":"profile",
+                  "timeoutSeconds":60,
+                  "launch":{"preset":"fast","textureStorage":"balanced","profile":null,
+                    "campaignTimes":true,"smoothFramePacing":true},
+                  "steps":[{"id":"menu","kind":"wait-state","state":"main-menu-ready",
+                    "timeoutSeconds":30}]
+                }
+                """);
+
+        assertTrue(scenario.campaignTimes());
+        assertTrue(scenario.smoothFramePacing());
+        assertTrue(scenario.benchmarkIdentity().toString().contains("campaignTimes=true"));
+    }
+
+    @Test
     void rejectsUnknownTargetsAndDuplicateStepIds() {
         String invalidTarget = scenario("""
                 {"id":"click","kind":"click","target":"main-menu.destroy-save"}
@@ -108,6 +150,17 @@ final class DesktopSmokeScenarioTest {
         assertTrue(assertThrows(
                 IllegalArgumentException.class,
                 () -> DesktopSmokeScenario.parse(typo)).getMessage().contains("unknown field"));
+    }
+
+    @Test
+    void rejectsADwellLongerThanTheWholeScenario() {
+        String tooLong = scenario("""
+                {"id":"visible","kind":"wait-duration","durationMillis":60001}
+                """);
+
+        assertTrue(assertThrows(
+                IllegalArgumentException.class,
+                () -> DesktopSmokeScenario.parse(tooLong)).getMessage().contains("scenario timeout"));
     }
 
     private static String scenario(String steps) {

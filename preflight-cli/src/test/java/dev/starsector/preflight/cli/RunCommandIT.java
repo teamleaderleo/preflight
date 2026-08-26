@@ -300,6 +300,27 @@ class RunCommandIT {
     }
 
     @Test
+    void campaignTimingEnablesFrameAndAttributionReportsInTheGameJvm() throws Exception {
+        Path game = temporaryDirectory.resolve("Campaign Timing Starsector");
+        Files.createDirectories(game.resolve("logs"));
+        Path launcher = fakeLauncher(game, LauncherMode.CLEAN_ZERO);
+        Path trace = temporaryDirectory.resolve("campaign-timing-trace");
+
+        ProcessResult result = run(game, launcher, trace, List.of(
+                "--adapter", "--campaign-times", "--no-record"));
+
+        assertTrue(result.completed(), result.output());
+        assertEquals(0, result.exitCode(), result.output());
+        Map<String, Object> report = StrictJson.object(Files.readString(trace.resolve("run.json")));
+        assertEquals(true, report.get("campaignTimes"));
+        assertEquals(true, report.get("frameTimes"));
+
+        String injected = Files.readString(game.resolve("java-tool-options.txt"));
+        assertTrue(injected.contains(" -Dpreflight.frameTimes=true"), injected);
+        assertTrue(injected.contains(" -Dpreflight.campaignTimes=true"), injected);
+    }
+
+    @Test
     void fastRenderingOwnsJaninoWithoutDisablingTheRestOfTheAdapter() throws Exception {
         Path game = temporaryDirectory.resolve("Fast Rendering Synthetic Starsector");
         Files.createDirectories(game.resolve("logs"));

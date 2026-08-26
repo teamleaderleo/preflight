@@ -53,7 +53,7 @@ final class DesktopSmokeLaunch {
 
         // Interactive scenarios prove their desktop driver before a game exists. Startup-only
         // scenarios read Preflight's runtime marker and never touch desktop input permissions.
-        if (!scenario.usesOnlyRuntimeState()) {
+        if (!scenario.usesOnlyRuntimeControl()) {
             DesktopSmokeDriver.Descriptor descriptor = driver.descriptor();
             diagnostics.addAll(
                     descriptor.diagnostics() == null ? List.of() : descriptor.diagnostics());
@@ -203,6 +203,12 @@ final class DesktopSmokeLaunch {
         }
         command.add("--direct");
         command.add("--desktop-smoke");
+        if (scenario.campaignTimes()) {
+            command.add("--campaign-times");
+        }
+        if (scenario.smoothFramePacing()) {
+            command.add("--smooth-frame-pacing");
+        }
         command.add("--trace-dir");
         command.add(runDirectory.toAbsolutePath().normalize().toString());
         if (game != null) {
@@ -347,7 +353,7 @@ final class DesktopSmokeLaunch {
 
     static boolean acceptsControllerStopExit(
             DesktopSmokeScenario scenario, String status, boolean runtimeStoppedByController) {
-        return scenario.usesOnlyRuntimeState()
+        return scenario.usesOnlyRuntimeControl()
                 && "passed".equals(status)
                 && runtimeStoppedByController;
     }

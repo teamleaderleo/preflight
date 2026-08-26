@@ -1,6 +1,6 @@
 # Internal game-control protocol
 
-Status: design and live 0.98a-RC8 proof; production request/receipt transport not yet implemented
+Status: live 0.98a-RC8 proof; PID-bound Continue request/receipt implemented for developer smoke runs
 
 Preflight's developer automation needs a small semantic control protocol inside the launched game
 JVM. Native desktop control remains useful for bounded screenshots, but it is not a reliable input
@@ -80,22 +80,26 @@ into a scenario.
 
 ## Request and receipt
 
-A production transport should use create-once files in the run directory:
+The implemented Continue transport uses create-once files in the run directory:
 
 ```text
 runtime-action-request.json
 runtime-action-receipt.json
 ```
 
-The request needs a format version, monotonically increasing sequence, exact PID and process-start
+The request carries a format version, monotonically increasing sequence, exact PID and process-start
 instant, semantic action, bounded arguments, expected before-state, and deadline. The game-thread
 runtime accepts each sequence once, rejects unknown fields/actions and stale states, and atomically
 publishes a receipt with accepted time, execution boundary, before/after observations, terminal
 status, and a bounded failure. The runner must still wait for the expected semantic state or other
 effect. `executed` is never synonymous with `succeeded`.
 
-Only `--desktop-smoke` or a narrower explicit developer-control switch enables request polling and
+Only `--desktop-smoke` enables current request polling and
 the exact target plans. A normal player launch neither watches request files nor exposes game actions.
+
+The current closed catalog contains only `main-menu.continue`. The remaining compendium entries are
+design targets and must receive their own reviewed game-thread boundaries and before/after receipts;
+the implemented transport does not expose arbitrary keys, reflection names, or coordinates.
 
 ## Save and learning boundary
 

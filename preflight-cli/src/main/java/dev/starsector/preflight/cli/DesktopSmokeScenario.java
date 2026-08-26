@@ -10,6 +10,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /** Driver-neutral semantic scenario for desktop smoke automation. */
 final class DesktopSmokeScenario {
@@ -19,7 +20,7 @@ final class DesktopSmokeScenario {
     private static final Set<String> ROOT_FIELDS =
             Set.of("format", "name", "timeoutSeconds", "launch", "steps");
     private static final Set<String> LAUNCH_FIELDS =
-            Set.of("preset", "textureStorage", "profile");
+            Set.of("preset", "textureStorage", "profile", "campaignTimes", "smoothFramePacing");
     private static final Set<String> COMMON_STEP_FIELDS = Set.of("id", "kind");
     private static final Set<String> STATES = Set.of(
             "main-menu-ready", "main-menu-interactive", "campaign-ready",
@@ -88,6 +89,12 @@ final class DesktopSmokeScenario {
             if (!ids.add(parsed.id())) {
                 throw new IllegalArgumentException("Duplicate step id: " + parsed.id());
             }
+            if ("wait-duration".equals(parsed.kind())
+                    && ((Number) parsed.values().get("durationMillis")).longValue()
+                            > TimeUnit.SECONDS.toMillis(timeout)) {
+                throw new IllegalArgumentException(
+                        "steps[" + index + "].durationMillis exceeds the scenario timeout");
+            }
             steps.add(parsed);
         }
         return new DesktopSmokeScenario(name, timeout, launch, steps);
@@ -114,7 +121,18 @@ final class DesktopSmokeScenario {
 
     boolean usesOnlyRuntimeState() {
         return requiredCapabilities.equals(Set.of("process-control", "semantic-state"))
-                && steps.stream().allMatch(step -> "wait-state".equals(step.kind()));
+                && steps.stream().allMatch(step -> "wait-state".equals(step.kind())
+                        || "wait-duration".equals(step.kind()));
+    }
+
+    boolean usesOnlyRuntimeControl() {
+        return requiredCapabilities.stream().allMatch(
+                        capability -> Set.of("process-control", "semantic-state", "semantic-control")
+                                .contains(capability))
+                && steps.stream().allMatch(step -> "wait-state".equals(step.kind())
+                        || "wait-duration".equals(step.kind())
+                        || ("click".equals(step.kind())
+                                && "main-menu.continue".equals(step.values().get("target"))));
     }
 
     List<String> stepIds() {
@@ -137,12 +155,22 @@ final class DesktopSmokeScenario {
         return launch.textureStorage();
     }
 
+    boolean campaignTimes() {
+        return launch.campaignTimes();
+    }
+
+    boolean smoothFramePacing() {
+        return launch.smoothFramePacing();
+    }
+
     Map<String, Object> benchmarkIdentity() {
         Map<String, Object> identity = new LinkedHashMap<>();
         identity.put("format", FORMAT);
         identity.put("timeoutSeconds", timeoutSeconds);
         identity.put("textureStorage", launch.textureStorage());
         identity.put("profile", launch.profile());
+        identity.put("campaignTimes", launch.campaignTimes());
+        identity.put("smoothFramePacing", launch.smoothFramePacing());
         identity.put("steps", stepViews());
         return identity;
     }
@@ -152,7 +180,10 @@ final class DesktopSmokeScenario {
     }
 
     private static Launch launch(Map<String, Object> value) {
-        exactFields(value, LAUNCH_FIELDS, "launch");
+        allowedFields(value, LAUNCH_FIELDS, "launch");
+        requireField(value, "preset", "launch");
+        requireField(value, "textureStorage", "launch");
+        requireField(value, "profile", "launch");
         String preset = requireString(value, "preset");
         if (!Set.of("fast", "measurement-only").contains(preset)) {
             throw new IllegalArgumentException(
@@ -167,7 +198,17 @@ final class DesktopSmokeScenario {
         if (profile != null && (profile.isBlank() || profile.length() > 100)) {
             throw new IllegalArgumentException("launch.profile must be 1..100 characters");
         }
-        return new Launch(preset, storage, profile);
+        boolean campaignTimes = optionalBoolean(value, "campaignTimes");
+        if (campaignTimes && "measurement-only".equals(preset)) {
+            throw new IllegalArgumentException(
+                    "launch.campaignTimes requires the fast preset's full runtime plan scope");
+        }
+        return new Launch(
+                preset,
+                storage,
+                profile,
+                campaignTimes,
+                optionalBoolean(value, "smoothFramePacing"));
     }
 
     private static Step step(Map<String, Object> value, int index) {
@@ -180,6 +221,11 @@ final class DesktopSmokeScenario {
                 String state = member(requireString(value, "state"), STATES, context + ".state");
                 int timeout = integer(value, "timeoutSeconds", 1, 600);
                 yield new Step(id, kind, Map.of("state", state, "timeoutSeconds", timeout));
+            }
+            case "wait-duration" -> {
+                exactFields(value, with("durationMillis"), context);
+                int duration = integer(value, "durationMillis", 1, 3_600_000);
+                yield new Step(id, kind, Map.of("durationMillis", duration));
             }
             case "activate-window", "quit" -> {
                 exactFields(value, COMMON_STEP_FIELDS, context);
@@ -225,8 +271,14 @@ final class DesktopSmokeScenario {
         for (Step step : steps) {
             switch (step.kind()) {
                 case "wait-state" -> capabilities.add("semantic-state");
-                case "activate-window", "click", "press-key", "hold-key" ->
+                case "activate-window", "press-key", "hold-key" -> capabilities.add("window-control");
+                case "click" -> {
+                    if ("main-menu.continue".equals(step.values().get("target"))) {
+                        capabilities.add("semantic-control");
+                    } else {
                         capabilities.add("window-control");
+                    }
+                }
                 case "capture" -> {
                     @SuppressWarnings("unchecked")
                     List<String> artifacts = (List<String>) step.values().get("artifacts");
@@ -274,15 +326,25 @@ final class DesktopSmokeScenario {
     }
 
     private static void exactFields(Map<String, Object> value, Set<String> allowed, String context) {
+        allowedFields(value, allowed, context);
+        for (String key : allowed) {
+            if (!value.containsKey(key)) {
+                throw new IllegalArgumentException(context + " is missing field: " + key);
+            }
+        }
+    }
+
+    private static void allowedFields(Map<String, Object> value, Set<String> allowed, String context) {
         for (String key : value.keySet()) {
             if (!allowed.contains(key)) {
                 throw new IllegalArgumentException(context + " contains unknown field: " + key);
             }
         }
-        for (String key : allowed) {
-            if (!value.containsKey(key)) {
-                throw new IllegalArgumentException(context + " is missing field: " + key);
-            }
+    }
+
+    private static void requireField(Map<String, Object> value, String field, String context) {
+        if (!value.containsKey(field)) {
+            throw new IllegalArgumentException(context + " is missing field: " + field);
         }
     }
 
@@ -308,6 +370,15 @@ final class DesktopSmokeScenario {
             throw new IllegalArgumentException(field + " must be a string or null");
         }
         return text;
+    }
+
+    private static boolean optionalBoolean(Map<String, Object> value, String field) {
+        if (!value.containsKey(field)) return false;
+        Object raw = value.get(field);
+        if (!(raw instanceof Boolean enabled)) {
+            throw new IllegalArgumentException(field + " must be a boolean");
+        }
+        return enabled;
     }
 
     private static int integer(Map<String, Object> value, String field, int minimum, int maximum) {
@@ -353,12 +424,19 @@ final class DesktopSmokeScenario {
         return List.copyOf(strings);
     }
 
-    private record Launch(String preset, String textureStorage, String profile) {
+    private record Launch(
+            String preset,
+            String textureStorage,
+            String profile,
+            boolean campaignTimes,
+            boolean smoothFramePacing) {
         Map<String, Object> view() {
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("preset", preset);
             value.put("textureStorage", textureStorage);
             value.put("profile", profile);
+            value.put("campaignTimes", campaignTimes);
+            value.put("smoothFramePacing", smoothFramePacing);
             return value;
         }
     }

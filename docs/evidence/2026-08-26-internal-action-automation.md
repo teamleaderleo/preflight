@@ -113,8 +113,9 @@ A production implementation should therefore be development-only at first and re
 
 ## Follow-up
 
-Replace `main-menu.continue` in the development smoke path with an exact-pinned internal action and keep
-the native drivers only for bounded screen capture and any action that has no reviewed internal seam.
+`main-menu.continue` is now an exact-pinned internal action with PID/start-bound create-once
+request/receipt evidence and a same-process `campaign-ready` requirement. Native drivers remain for
+bounded screen capture and actions that do not yet have a reviewed internal seam.
 Then establish movement and pause as separate exact-pinned actions, rerun the same disposable campaign
 route under measurement-only and optimized conditions, and retain the sealed comparison. The failed
 macOS click must not continue to report success merely because System Events accepted the command.

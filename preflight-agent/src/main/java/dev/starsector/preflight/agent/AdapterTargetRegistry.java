@@ -637,7 +637,7 @@ final class AdapterTargetRegistry {
 
     static AdapterTarget mainMenuInteractiveTarget() {
         return new AdapterTarget(
-                "vanilla-title-0.98a-rc8-main-menu-interactive",
+                "vanilla-title-0.98a-rc8-main-menu-interactive-and-control",
                 MainMenuInteractivePlan.TARGET_CLASS,
                 MainMenuInteractivePlan.ORIGINAL_SHA256,
                 MainMenuInteractivePlan.PLAN_ID,

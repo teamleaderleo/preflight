@@ -30,6 +30,7 @@ public final class RuntimeSemanticState {
     private static Instant processStartedAt;
     private static Instant mainMenuReadyAt;
     private static Instant mainMenuInteractiveAt;
+    private static boolean interactiveTitleOwnsState;
 
     private RuntimeSemanticState() {
     }
@@ -42,6 +43,7 @@ public final class RuntimeSemanticState {
         processStartedAt = ProcessHandle.current().info().startInstant().orElse(null);
         mainMenuReadyAt = null;
         mainMenuInteractiveAt = null;
+        interactiveTitleOwnsState = false;
         enabled = true;
         try {
             write();
@@ -56,6 +58,18 @@ public final class RuntimeSemanticState {
         return enabled;
     }
 
+    static synchronized boolean is(String expected) {
+        return expected != null && expected.equals(name(state));
+    }
+
+    static synchronized String currentState() {
+        return name(state);
+    }
+
+    static synchronized Instant processStartedAt() {
+        return processStartedAt;
+    }
+
     public static void mainMenuReady() {
         transition(MAIN_MENU);
     }
@@ -63,14 +77,19 @@ public final class RuntimeSemanticState {
     public static synchronized void mainMenuInteractive() {
         if (!enabled || mainMenuInteractiveAt != null) return;
         mainMenuInteractiveAt = Instant.now();
+        interactiveTitleOwnsState = true;
         transition(MAIN_MENU_INTERACTIVE);
     }
 
-    public static void campaignReady() {
+    public static synchronized void campaignReady() {
+        interactiveTitleOwnsState = false;
         transition(CAMPAIGN);
     }
 
-    public static void combatReady() {
+    public static synchronized void combatReady() {
+        // Starsector advances decorative combat behind its title screen. It is frame telemetry,
+        // not a semantic transition away from the interactive menu.
+        if (interactiveTitleOwnsState) return;
         transition(COMBAT);
     }
 
@@ -122,6 +141,7 @@ public final class RuntimeSemanticState {
         processStartedAt = null;
         mainMenuReadyAt = null;
         mainMenuInteractiveAt = null;
+        interactiveTitleOwnsState = false;
     }
 
     private static void write() throws IOException {

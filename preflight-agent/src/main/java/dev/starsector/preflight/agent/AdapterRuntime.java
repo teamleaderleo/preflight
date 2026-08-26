@@ -100,6 +100,7 @@ final class AdapterRuntime {
         } catch (IOException error) {
             report.contained("Could not publish runtime semantic state", error);
         }
+        InternalGameControlRuntime.beginSession(options.adapterReport());
         DesktopSmokeLiveReport desktopSmoke;
         try {
             desktopSmoke = DesktopSmokeLiveReport.start(options.adapterReport(), options.adapterMode());

@@ -122,7 +122,6 @@ final class RuntimeSemanticStateIdentity {
         if (is(expected)) return true;
         return switch (expected) {
             case "main-menu-ready" -> mainMenuReadyAt != null;
-            case "main-menu-interactive" -> mainMenuInteractiveAt != null;
             default -> false;
         };
     }
