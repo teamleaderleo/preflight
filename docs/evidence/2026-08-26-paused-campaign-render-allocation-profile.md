@@ -87,7 +87,11 @@ Mutation builds a new array while any outer or nested iterator retains its previ
 Non-random-access lists decline hits to avoid turning comparison into quadratic traversal, cache
 failures fall back to the original `toArray()`, and the identity cache clears at 512 owners rather
 than retaining an unbounded history across campaign churn. The state is agent-static and never
-enters a save.
+enters a save. For a candidate-only campaign comparison,
+`-Dpreflight.campaign.stableSnapshots.disabled=true` restores a fresh `toArray()` on every nonempty
+pass without disabling the older `campaign-entity-maintenance-v1` shortcuts. Adapter telemetry
+records whether reuse was enabled and counts delegated baseline snapshots, so a captured cohort can
+prove which path ran.
 
 ### Vanilla font wrapping
 

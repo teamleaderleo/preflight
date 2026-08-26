@@ -13,6 +13,8 @@ import java.util.RandomAccess;
 public final class CampaignEntityMaintenanceRuntime {
     static final String PLAN_ID = "campaign-entity-maintenance-v1";
     static final String DISABLED_PROPERTY = "preflight.campaign.entityMaintenance.disabled";
+    static final String STABLE_SNAPSHOTS_DISABLED_PROPERTY =
+            "preflight.campaign.stableSnapshots.disabled";
     static final int MARKET_CONDITIONS = 0;
     static final int MARKET_INDUSTRIES = 1;
     static final int PAUSED_MARKET_CONDITIONS = 2;
@@ -28,6 +30,7 @@ public final class CampaignEntityMaintenanceRuntime {
             new IdentityHashMap<>();
 
     private static volatile boolean enabled;
+    private static volatile boolean stableSnapshotsEnabled;
     private static volatile boolean entityScriptsInstalled;
     private static volatile boolean fleetViewInstalled;
     private static volatile boolean marketSnapshotsInstalled;
@@ -65,12 +68,14 @@ public final class CampaignEntityMaintenanceRuntime {
     private static long stableSnapshotComparedElements;
     private static long stableSnapshotEvictions;
     private static long stableSnapshotFailures;
+    private static long stableSnapshotDelegations;
 
     private CampaignEntityMaintenanceRuntime() {
     }
 
     static void beginSession() {
         enabled = !Boolean.getBoolean(DISABLED_PROPERTY);
+        stableSnapshotsEnabled = !Boolean.getBoolean(STABLE_SNAPSHOTS_DISABLED_PROPERTY);
         entityScriptsInstalled = false;
         fleetViewInstalled = false;
         marketSnapshotsInstalled = false;
@@ -111,6 +116,7 @@ public final class CampaignEntityMaintenanceRuntime {
         stableSnapshotComparedElements = 0L;
         stableSnapshotEvictions = 0L;
         stableSnapshotFailures = 0L;
+        stableSnapshotDelegations = 0L;
     }
 
     static boolean enabled() {
@@ -242,6 +248,7 @@ public final class CampaignEntityMaintenanceRuntime {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("planId", PLAN_ID);
         result.put("enabled", enabled);
+        result.put("stableSnapshotsEnabled", stableSnapshotsEnabled);
         result.put("entityScriptsInstalled", entityScriptsInstalled);
         result.put("fleetViewInstalled", fleetViewInstalled);
         result.put("marketSnapshotsInstalled", marketSnapshotsInstalled);
@@ -282,10 +289,15 @@ public final class CampaignEntityMaintenanceRuntime {
         }
         result.put("stableSnapshotEvictions", stableSnapshotEvictions);
         result.put("stableSnapshotFailures", stableSnapshotFailures);
+        result.put("stableSnapshotDelegations", stableSnapshotDelegations);
         return result;
     }
 
     private static Object[] stableSnapshot(List<?> values) {
+        if (!stableSnapshotsEnabled) {
+            stableSnapshotDelegations++;
+            return values.toArray();
+        }
         synchronized (STABLE_SNAPSHOTS) {
             try {
                 Object[] current = STABLE_SNAPSHOTS.get(values);

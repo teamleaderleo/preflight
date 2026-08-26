@@ -3,6 +3,7 @@ package dev.starsector.preflight.agent;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
@@ -34,6 +35,7 @@ class CampaignEntityMaintenancePlanTest {
     @AfterEach
     void reset() {
         System.clearProperty(CampaignEntityMaintenanceRuntime.DISABLED_PROPERTY);
+        System.clearProperty(CampaignEntityMaintenanceRuntime.STABLE_SNAPSHOTS_DISABLED_PROPERTY);
         CampaignEntityMaintenanceRuntime.beginSession();
     }
 
@@ -180,6 +182,26 @@ class CampaignEntityMaintenancePlanTest {
                 .get("stableSnapshotOwners"));
         assertEquals(1L, CampaignEntityMaintenanceRuntime.telemetry()
                 .get("stableSnapshotEvictions"));
+    }
+
+    @Test
+    void stableSnapshotReuseCanBeDisabledWithoutDisablingTheMaintenancePlan() {
+        System.setProperty(
+                CampaignEntityMaintenanceRuntime.STABLE_SNAPSHOTS_DISABLED_PROPERTY, "true");
+        CampaignEntityMaintenanceRuntime.beginSession();
+        List<Object> source = new ArrayList<>(List.of(new Object()));
+
+        Object[] first = CampaignEntityMaintenanceRuntime.locationSnapshot(
+                source, CampaignEntityMaintenanceRuntime.PAUSED_LOCATION_ENTITIES);
+        Object[] second = CampaignEntityMaintenanceRuntime.locationSnapshot(
+                source, CampaignEntityMaintenanceRuntime.PAUSED_LOCATION_ENTITIES);
+
+        assertNotSame(first, second);
+        Map<String, Object> telemetry = CampaignEntityMaintenanceRuntime.telemetry();
+        assertEquals(true, telemetry.get("enabled"));
+        assertEquals(false, telemetry.get("stableSnapshotsEnabled"));
+        assertEquals(2L, telemetry.get("stableSnapshotDelegations"));
+        assertEquals(0, telemetry.get("stableSnapshotOwners"));
     }
 
     @Test
