@@ -22,7 +22,8 @@ final class DesktopSmokeScenario {
             Set.of("preset", "textureStorage", "profile");
     private static final Set<String> COMMON_STEP_FIELDS = Set.of("id", "kind");
     private static final Set<String> STATES = Set.of(
-            "main-menu-ready", "campaign-ready", "refit-ready", "simulation-ready", "combat-ready");
+            "main-menu-ready", "main-menu-interactive", "campaign-ready",
+            "refit-ready", "simulation-ready", "combat-ready");
     private static final Set<String> TARGETS = Set.of(
             "main-menu.continue",
             "main-menu.load-game",
@@ -158,9 +159,9 @@ final class DesktopSmokeScenario {
                     "launch.preset must be fast or measurement-only");
         }
         String storage = requireString(value, "textureStorage");
-        if (!Set.of("balanced", "fastest").contains(storage)) {
+        if (!Set.of("balanced", "fastest", "minimal").contains(storage)) {
             throw new IllegalArgumentException(
-                    "launch.textureStorage must be balanced or fastest");
+                    "launch.textureStorage must be balanced, fastest, or minimal");
         }
         String profile = optionalString(value, "profile");
         if (profile != null && (profile.isBlank() || profile.length() > 100)) {

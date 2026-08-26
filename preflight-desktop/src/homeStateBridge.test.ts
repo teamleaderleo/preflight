@@ -1,11 +1,27 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { CacheInspection, DesktopHomeState, DesktopSnapshot, LaunchSettings, ProfileList } from "./types";
+import type {
+  CacheInspection,
+  DesktopHomeState,
+  DesktopSnapshot,
+  LaunchSettings,
+  ModReadiness,
+  ProfileList,
+} from "./types";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 const cacheInspection = { format: "starsector-preflight-cache-inspection-v1" } as CacheInspection;
 const profiles = { format: "starsector-preflight-profile-list-v1" } as ProfileList;
 const launchSettings = { format: "starsector-preflight-launch-settings-v1" } as LaunchSettings;
+const modReadiness: ModReadiness = {
+  format: "starsector-preflight-mod-readiness-v1",
+  ready: true,
+  counts: { blocking: 0, warning: 0, info: 0, unknown: 0 },
+  findings: [],
+  modDirectories: 83,
+  metadataBytes: 131_072,
+  elapsedMillis: 6,
+};
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -26,13 +42,14 @@ afterEach(() => {
   Reflect.deleteProperty(window, "__TAURI_INTERNALS__");
 });
 
-test("the first three home reads share one engine process", async () => {
+test("the first home reads share one engine process", async () => {
   const state: DesktopHomeState = {
     format: "starsector-preflight-desktop-home-state-v1",
     installRoot: "/game",
     cacheInspection,
     profiles,
     launchSettings,
+    modReadiness,
     errors: {},
   };
   vi.mocked(invoke).mockResolvedValue(state);
@@ -42,7 +59,8 @@ test("the first three home reads share one engine process", async () => {
     bridge.getCacheInspection("/game"),
     bridge.getProfiles("/game"),
     bridge.getLaunchSettings("/game"),
-  ])).resolves.toEqual([cacheInspection, profiles, launchSettings]);
+    bridge.getModReadiness("/game"),
+  ])).resolves.toEqual([cacheInspection, profiles, launchSettings, modReadiness]);
 
   expect(invoke).toHaveBeenCalledTimes(1);
   expect(invoke).toHaveBeenCalledWith("get_home_state", { game: "/game" });
@@ -55,6 +73,7 @@ test("desktop bootstrap primes the first screen without a second engine process"
     cacheInspection,
     profiles,
     launchSettings,
+    modReadiness,
     errors: {},
   };
   const snapshot = {
@@ -73,7 +92,8 @@ test("desktop bootstrap primes the first screen without a second engine process"
     bridge.getCacheInspection("/game"),
     bridge.getProfiles("/game"),
     bridge.getLaunchSettings("/game"),
-  ])).resolves.toEqual([cacheInspection, profiles, launchSettings]);
+    bridge.getModReadiness("/game"),
+  ])).resolves.toEqual([cacheInspection, profiles, launchSettings, modReadiness]);
 
   expect(invoke).toHaveBeenCalledTimes(1);
   expect(invoke).toHaveBeenCalledWith("get_bootstrap", { game: null });
@@ -113,6 +133,7 @@ test("a stale bootstrap cannot replace a newer installation's home state", async
     cacheInspection,
     profiles,
     launchSettings,
+    modReadiness,
     errors: {},
   };
   const newerSnapshot = { selected: { installRoot: "/newer" } } as DesktopSnapshot;
@@ -144,6 +165,7 @@ test("later refreshes keep their narrow read contracts", async () => {
     cacheInspection,
     profiles,
     launchSettings,
+    modReadiness,
     errors: {},
   };
   vi.mocked(invoke)
@@ -154,6 +176,7 @@ test("later refreshes keep their narrow read contracts", async () => {
     bridge.getCacheInspection("/game"),
     bridge.getProfiles("/game"),
     bridge.getLaunchSettings("/game"),
+    bridge.getModReadiness("/game"),
   ]);
 
   await bridge.getCacheInspection("/game");
@@ -168,6 +191,7 @@ test("a failed family reports its own reason", async () => {
     cacheInspection,
     profiles: null,
     launchSettings,
+    modReadiness,
     errors: { profiles: "enabled_mods.json is unreadable" },
   };
   vi.mocked(invoke).mockResolvedValue(state);

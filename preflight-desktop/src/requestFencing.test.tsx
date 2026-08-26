@@ -3,7 +3,7 @@ import * as bridge from "./bridge";
 import { useCacheCleanup } from "./useCacheCleanup";
 import { useDiagnosticsReport } from "./useDiagnosticsReport";
 import { useLauncherSettings } from "./useLauncherSettings";
-import { usePreparation } from "./usePreparation";
+import { STORAGE_PLAN_NAVIGATION_IDLE_MS, usePreparation } from "./usePreparation";
 import { useProfiles } from "./useProfiles";
 import { useRemoval } from "./useRemoval";
 import type {
@@ -79,6 +79,74 @@ test("a preparation estimate is visible only for its exact installation and prof
 
   cache.mockRestore();
   plans.mockRestore();
+});
+
+test("opening Speed yields first, cancels abandoned planning, and reuses the loaded plan", async () => {
+  const game = "/game";
+  const base = await bridge.getPreparationPlan(game, "balanced", 4);
+  const cache = vi.spyOn(bridge, "getCache").mockResolvedValue(cacheFor(game));
+  const health = vi.spyOn(bridge, "getCacheHealth").mockResolvedValue({
+    format: "starsector-preflight-cache-health-v1",
+    status: "ready",
+    profileFingerprint: "current",
+    preparedTextures: true,
+    textureStorage: "balanced",
+    textureScope: "full",
+    issues: [],
+    repairBytes: 0,
+    repairFiles: 0,
+  });
+  const plans = vi.spyOn(bridge, "getPreparationPlan").mockResolvedValue({
+    ...base,
+    profileFingerprint: "current",
+  });
+  const nativeSetTimeout = window.setTimeout.bind(window);
+  const scheduled: Array<() => void> = [];
+  const timers = vi.spyOn(window, "setTimeout").mockImplementation(((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+    if (timeout === STORAGE_PLAN_NAVIGATION_IDLE_MS && typeof handler === "function") {
+      scheduled.push(() => handler(...args));
+      return 8_000 + scheduled.length;
+    }
+    return nativeSetTimeout(handler, timeout, ...args);
+  }) as typeof window.setTimeout);
+  try {
+    const launch = vi.fn(async () => undefined);
+    const announce = vi.fn();
+    const { result, rerender, unmount } = renderHook(
+      ({ visible }) => usePreparation(game, visible, "recommended", launch, announce),
+      { initialProps: { visible: false } },
+    );
+
+    await waitFor(() => expect(result.current.profilePrepared).toBe(true));
+    expect(plans).not.toHaveBeenCalled();
+
+    rerender({ visible: true });
+    await waitFor(() => expect(scheduled).toHaveLength(1));
+    expect(result.current.preparationPlanLoading).toBe(false);
+    expect(plans).not.toHaveBeenCalled();
+
+    rerender({ visible: false });
+    await act(async () => scheduled[0]());
+    expect(plans).not.toHaveBeenCalled();
+
+    rerender({ visible: true });
+    await waitFor(() => expect(scheduled).toHaveLength(2));
+    await act(async () => scheduled[1]());
+    await waitFor(() => expect(result.current.preparationPlan?.profileFingerprint).toBe("current"));
+    expect(plans).toHaveBeenCalledTimes(1);
+
+    rerender({ visible: false });
+    rerender({ visible: true });
+    expect(result.current.preparationPlan?.profileFingerprint).toBe("current");
+    expect(scheduled).toHaveLength(2);
+    expect(plans).toHaveBeenCalledTimes(1);
+    unmount();
+  } finally {
+    timers.mockRestore();
+    cache.mockRestore();
+    health.mockRestore();
+    plans.mockRestore();
+  }
 });
 
 function profilesFor(root: string): ProfileList {
@@ -309,7 +377,7 @@ test("saving a profile preserves a newer name typed while the save completes", a
 
   await waitFor(() => expect(result.current.profileBusy).toBe(false));
   expect(result.current.profileName).toBe("Second");
-  expect(announce).toHaveBeenCalledWith("Saved the exact current mod order as “First”.", "success");
+  expect(announce).toHaveBeenCalledWith("Saved the current mod order as “First”.", "success");
   save.mockRestore();
 });
 

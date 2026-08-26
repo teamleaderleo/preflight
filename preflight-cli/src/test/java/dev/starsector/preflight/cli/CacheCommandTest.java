@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import dev.starsector.preflight.core.PreparedAudioCache;
 import dev.starsector.preflight.core.PreparedAudioManifest;
 import dev.starsector.preflight.core.PreparedAudioManifestIO;
+import dev.starsector.preflight.core.PreparedTextureAccessOrderIO;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import dev.starsector.preflight.core.TextureManifest;
@@ -91,6 +92,59 @@ class CacheCommandTest {
         assertEquals("another profile stays intact", Files.readString(otherProfile));
         assertEquals("shared content stays intact", Files.readString(sharedBlob));
         assertEquals("cold", CacheHealth.inspect(home, profile).status());
+    }
+
+    @Test
+    void cacheHealthTreatsAnExactMinimalProfileAsReadyWithoutTextureArtifacts() throws Exception {
+        PreflightHome home = PreflightHome.resolve(Platform.OTHER, directory, Map.of());
+        String profile = "d".repeat(64);
+        Path index = ResourceIndexIO.directory(home.cache()).resolve(profile + ".spfi");
+        ResourceIndexIO.write(index, new ResourceIndex(
+                profile,
+                List.of(new ResourceIndex.Root("core", Path.of("core"), true)),
+                Map.of()));
+        MinimalPreparationMarker.write(home.cache(), profile);
+
+        CacheHealth.Report report = CacheHealth.inspect(home, profile);
+
+        assertEquals("ready", report.status());
+        assertEquals(Boolean.FALSE, report.preparedTextures());
+        assertEquals(List.of(), report.issues());
+        assertFalse(Files.exists(TextureManifestIO.directory(home.cache()).resolve(profile + ".spfm")));
+    }
+
+    @Test
+    void cacheHealthReportsFullAndCompactPreparationLifecycleState() throws Exception {
+        PreflightHome home = PreflightHome.resolve(Platform.OTHER, directory, Map.of());
+        String profile = "e".repeat(64);
+        Path index = ResourceIndexIO.directory(home.cache()).resolve(profile + ".spfi");
+        Path manifest = TextureManifestIO.directory(home.cache()).resolve(profile + ".spfm");
+        ResourceIndexIO.write(index, new ResourceIndex(
+                profile,
+                List.of(new ResourceIndex.Root("core", Path.of("core"), true)),
+                Map.of()));
+        TextureManifestIO.write(manifest, new TextureManifest(profile, Map.of()));
+        TexturePreparationReceipt.write(
+                home.cache(), profile, TextureStoragePolicy.BALANCED, TexturePreparationScope.FULL);
+
+        CacheHealth.Report bootstrap = CacheHealth.inspect(home, profile);
+        assertEquals("balanced", bootstrap.textureStorage());
+        assertEquals("full", bootstrap.textureScope());
+        assertFalse(bootstrap.compactAvailable());
+
+        PreparedTextureAccessOrderIO.write(
+                PreparedTextureAccessOrderIO.path(home.cache(), profile),
+                profile,
+                List.of("graphics/ships/example.png"));
+        CacheHealth.Report learned = CacheHealth.inspect(home, profile);
+        assertTrue(learned.compactAvailable());
+
+        TexturePreparationReceipt.write(
+                home.cache(), profile, TextureStoragePolicy.BALANCED, TexturePreparationScope.LEARNED);
+        CacheHealth.Report compact = CacheHealth.inspect(home, profile);
+        assertEquals("balanced", compact.textureStorage());
+        assertEquals("learned", compact.textureScope());
+        assertTrue(compact.compactAvailable());
     }
 
     @Test
@@ -262,6 +316,34 @@ class CacheCommandTest {
         assertEquals(List.of(), report.get("profiles"));
         assertEquals(List.of(), report.get("integrations"));
         assertNull(report.get("currentProfileFingerprint"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void discardableCleanupNeedsNoGameIdentityAndRemovesOnlyRecognizedRejects() throws Exception {
+        PreflightHome home = PreflightHome.resolve(Platform.OTHER, directory, Map.of());
+        Path quarantine = home.cache().resolve("quarantine");
+        Files.createDirectories(quarantine);
+        Path rejected = quarantine.resolve(
+                "a".repeat(64) + "-identity.spft.corrupt.1787390000000");
+        Path unknown = quarantine.resolve("operator-note.txt");
+        Files.writeString(rejected, "rejected");
+        Files.writeString(unknown, "keep");
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+        assertEquals(0, CacheCommand.pruneDiscardable(
+                home, true, true, new PrintStream(bytes, true, StandardCharsets.UTF_8)));
+        Map<String, Object> report = StrictJson.object(bytes.toString(StandardCharsets.UTF_8));
+
+        assertEquals(Boolean.TRUE, report.get("safe"));
+        assertEquals(Boolean.TRUE, report.get("applied"));
+        assertNull(report.get("currentProfileFingerprint"));
+        assertEquals(1L, ((Number) report.get("files")).longValue());
+        assertEquals(List.of(), report.get("survivingProfileFingerprints"));
+        List<Map<String, Object>> groups = (List<Map<String, Object>>) report.get("groups");
+        assertEquals("replaced cache artifact", groups.get(0).get("reason"));
+        assertFalse(Files.exists(rejected));
+        assertTrue(Files.isRegularFile(unknown));
     }
 
     @Test

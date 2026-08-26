@@ -1,0 +1,25 @@
+/* Profile text fields share the current palette's input and focus language.
+ * Keep this late in the stylesheet order so older profile-specific convergence rules cannot
+ * reintroduce light surfaces or weakened focus treatment in dark mode. */
+:root[data-theme="dark"] .profile-list-card > input {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+:root[data-theme] :is(
+  .profile-list-card > input,
+  .profile-save-card input,
+  .profile-rename-editor input
+)::placeholder {
+  color: var(--ink-soft);
+  opacity: 1;
+}
+
+:root[data-theme] :is(
+  .profile-list-card > input,
+  .profile-save-card input,
+  .profile-rename-editor input
+):focus-visible {
+  border-color: var(--accent);
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}

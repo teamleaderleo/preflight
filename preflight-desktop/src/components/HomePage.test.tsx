@@ -1,7 +1,9 @@
 import type { ComponentProps } from "react";
-import { render, screen, waitFor, within } from "@testing-library/react";
-import { expect, test, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, expect, test, vi } from "vitest";
 import type { usePreparation } from "../usePreparation";
+import type { useInstrumentHull } from "../useInstrumentHull";
 import type { DesktopSnapshot, WireframeHull } from "../types";
 import { HomePage } from "./HomePage";
 
@@ -19,6 +21,29 @@ const instrumentHull: WireframeHull = {
   engines: [],
   mounts: [],
 };
+
+const instrumentHullState = {
+  catalog: null,
+  catalogLoaded: false,
+  catalogLoading: false,
+  catalogHulls: [instrumentHull],
+  hulls: [instrumentHull],
+  selected: instrumentHull,
+  selectedId: instrumentHull.id,
+  tuning: { outerSmooth: 0, outerDetail: 0, innerSmooth: 0, innerDetail: 0, height: 1 },
+  customized: false,
+  choose: vi.fn(),
+  remove: vi.fn(),
+  reloadCatalog: vi.fn(),
+  customize: vi.fn(),
+  resetCustomization: vi.fn(),
+} as ReturnType<typeof useInstrumentHull>;
+
+beforeEach(() => {
+  window.localStorage.clear();
+  delete document.documentElement.dataset.homeMode;
+  delete document.documentElement.dataset.homePlaytime;
+});
 
 const snapshot: DesktopSnapshot = {
   protocol: 1,
@@ -129,8 +154,9 @@ function props(overrides: Partial<ComponentProps<typeof HomePage>> = {}): Compon
     runFailure: null,
     onDismissRunFailure: vi.fn(),
     onNavigate: vi.fn(),
-    instrumentHull,
+    instrumentHull: instrumentHullState,
     launchProfileName: "Exploration",
+    modReadiness: null,
     ...overrides,
   };
 }
@@ -180,23 +206,86 @@ function preparationForProfile(profileFingerprint: string, cacheLoading = false)
 test("settled Home shows the installation and active named profile beside the launch action", () => {
   render(<HomePage {...props()} />);
 
-  const identity = screen.getByLabelText("Launches profile Exploration from /Applications/Starsector");
-  expect(within(identity).getByText("/Applications/Starsector")).toHaveAttribute("title", "/Applications/Starsector");
-  expect(within(identity).getByText("Exploration")).toBeInTheDocument();
+  expect(screen.getByText("Exploration", { selector: ".home-launch-identity strong" })).toBeInTheDocument();
+  const installation = screen.getByLabelText("Installation /Applications/Starsector");
+  expect(installation).toHaveAttribute("title", "/Applications/Starsector");
+  expect(installation).toHaveAttribute("tabindex", "0");
   expect(screen.getByRole("button", { name: "Launch Starsector" })).toBeEnabled();
 });
 
-test("settled Home labels an unsaved active mod set without inventing a profile name", () => {
+test("settled Home omits an invented label for an unsaved active mod set", () => {
   render(<HomePage {...props({ launchProfileName: null })} />);
 
-  const identity = screen.getByLabelText("Launches the current mod setup from /Applications/Starsector");
-  expect(within(identity).getByText("Current mod setup")).toBeInTheDocument();
+  expect(screen.queryByText("Current mod setup")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Installation /Applications/Starsector")).toBeInTheDocument();
+});
+
+test("Home surfaces a broken mod setup without blocking launch", async () => {
+  const user = userEvent.setup();
+  const onNavigate = vi.fn();
+  render(<HomePage {...props({
+    onNavigate,
+    modReadiness: {
+      format: "starsector-preflight-mod-readiness-v1",
+      ready: false,
+      counts: { blocking: 2, warning: 0, info: 0, unknown: 0 },
+      findings: [],
+      modDirectories: 83,
+      metadataBytes: 131_072,
+      elapsedMillis: 6,
+    },
+  })} />);
+
+  expect(screen.getByRole("button", { name: "Launch Starsector" })).toBeEnabled();
+  await user.click(screen.getByRole("button", { name: "2 mod problems" }));
+  expect(onNavigate).toHaveBeenCalledWith("mods");
+});
+
+test("Home exposes direct display controls without conflicting compact and playtime states", async () => {
+  const user = userEvent.setup();
+  const choose = vi.fn();
+  const navigate = vi.fn();
+  const hammerhead = { ...instrumentHull, id: "hammerhead", name: "Hammerhead" };
+  render(<HomePage {...props({
+    instrumentHull: {
+      ...instrumentHullState,
+      hulls: [instrumentHull, hammerhead],
+      choose,
+    },
+    onNavigate: navigate,
+  })} />);
+
+  await user.click(screen.getByRole("button", { name: "Next display ship" }));
+  expect(choose).toHaveBeenCalledWith("hammerhead");
+  await user.click(screen.getByRole("button", { name: "Odyssey" }));
+  expect(navigate).toHaveBeenCalledWith("hangar");
+
+  await user.click(screen.getByRole("button", { name: "Pause ship rotation" }));
+  expect(screen.getByRole("button", { name: "Resume ship rotation" })).toHaveAttribute("aria-pressed", "true");
+
+  const playtime = screen.getByRole("button", { name: "Playtime" });
+  const ship = screen.getByRole("button", { name: "Ship" });
+  expect(playtime).toHaveAttribute("aria-pressed", "true");
+  expect(ship).toHaveAttribute("aria-pressed", "true");
+  await user.click(playtime);
+  expect(playtime).toHaveAttribute("aria-pressed", "false");
+  await user.click(ship);
+  expect(ship).toHaveAttribute("aria-pressed", "false");
+  await user.click(playtime);
+  expect(playtime).toHaveAttribute("aria-pressed", "true");
+  expect(ship).toHaveAttribute("aria-pressed", "false");
+
+  ship.focus();
+  await user.keyboard(" ");
+  expect(ship).toHaveFocus();
+  expect(ship).toHaveAttribute("aria-pressed", "true");
 });
 
 test("Home keeps the new profile and installation visible when that setup needs preparation", () => {
   render(<HomePage {...props({ needsPreparation: true })} />);
 
-  expect(screen.getByLabelText("Launches profile Exploration from /Applications/Starsector")).toBeInTheDocument();
+  expect(screen.getByText("Exploration", { selector: ".home-launch-identity strong" })).toBeInTheDocument();
+  expect(screen.getByLabelText("Installation /Applications/Starsector")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Prepare and launch" })).toBeDisabled();
   expect(screen.getByText("Storage must be calculated before preparation.")).toBeInTheDocument();
 });
@@ -213,7 +302,8 @@ test("a launch error keeps the retry target visible beside its recovery action",
 
   expect(screen.getByRole("alert")).toHaveTextContent("Launch failed");
   expect(screen.getByRole("button", { name: "Try launch again" })).toBeEnabled();
-  expect(screen.getByLabelText("Launches profile Exploration from /Applications/Starsector")).toBeInTheDocument();
+  expect(screen.getByText("Exploration", { selector: ".home-launch-identity strong" })).toBeInTheDocument();
+  expect(screen.getByLabelText("Installation /Applications/Starsector")).toBeInTheDocument();
 });
 
 test("run recovery keeps Relaunch when the captured failed target still matches the current setup", () => {
@@ -226,6 +316,7 @@ test("run recovery keeps Relaunch when the captured failed target still matches 
 
   expect(screen.getByText("Run needs attention")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Relaunch" })).toBeEnabled();
+  expect(screen.queryByLabelText("Display ship")).not.toBeInTheDocument();
   expect(dismiss).not.toHaveBeenCalled();
 });
 
@@ -264,7 +355,8 @@ test("switching to another profile retires the old Home recovery card", async ()
   expect(screen.queryByText("Run needs attention")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Relaunch" })).not.toBeInTheDocument();
   await waitFor(() => expect(dismiss).toHaveBeenCalledOnce());
-  expect(screen.getByLabelText("Launches profile Utilities only from /Applications/Starsector")).toBeInTheDocument();
+  expect(screen.getByText("Utilities only", { selector: ".home-launch-identity strong" })).toBeInTheDocument();
+  expect(screen.getByLabelText("Installation /Applications/Starsector")).toBeInTheDocument();
 });
 
 test("changing installations retires the old Home recovery card before the new profile identity settles", async () => {

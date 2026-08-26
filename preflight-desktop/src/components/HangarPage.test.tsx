@@ -1,6 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
-import { INSTRUMENT_HULL_MOTION_STORAGE_KEY } from "../desktopStorage";
 import type { useInstrumentHull } from "../useInstrumentHull";
 import type { WireframeHull, WireframeTuning } from "../types";
 import { HangarPage } from "./HangarPage";
@@ -40,12 +39,16 @@ function state(overrides: Partial<ReturnType<typeof useInstrumentHull>> = {}) {
   return {
     catalog: { format: "preflight-wireframe-hulls-v1" as const, hulls: [featured, installed], skipped: 0 },
     catalogLoaded: true,
+    catalogLoading: false,
+    catalogHulls: [featured, installed],
     hulls: [featured, installed],
     selected: featured,
     selectedId: featured.id,
     tuning,
     customized: true,
     choose: vi.fn(),
+    remove: vi.fn(),
+    reloadCatalog: vi.fn(),
     customize: vi.fn(),
     resetCustomization: vi.fn(),
     ...overrides,
@@ -56,52 +59,204 @@ beforeEach(() => {
   window.localStorage.clear();
 });
 
-test("installed hulls stay in the searchable picker while featured selection remains compact", () => {
+test("the Orbitron ship identity is the typeable hull chooser for the full catalog", () => {
+  const instrumentHull = state({ hulls: [featured] });
+  render(<HangarPage instrumentHull={instrumentHull} />);
+
+  const chooser = screen.getByRole("combobox", { name: "Display ship" });
+  expect(chooser).toHaveValue("Odyssey");
+  expect(screen.getByText("capital")).toBeInTheDocument();
+  expect(screen.queryByText("capital ship")).not.toBeInTheDocument();
+
+  fireEvent.focus(chooser);
+  expect(chooser).toHaveAttribute("aria-expanded", "true");
+  const initialList = screen.getByRole("listbox", { name: "Display ships" });
+  expect(within(initialList).getByRole("option", { name: "Odyssey" })).toBeInTheDocument();
+  expect(within(initialList).getByText("capital · Home")).toBeInTheDocument();
+  expect(within(initialList).queryByText(/capital ship/i)).not.toBeInTheDocument();
+
+  fireEvent.change(chooser, { target: { value: "modded" } });
+  const list = screen.getByRole("listbox", { name: "Display ships" });
+  expect(within(list).getByRole("option", { name: "Modded Hull" })).toBeInTheDocument();
+  expect(within(list).getByText("cruiser · Add to Home")).toBeInTheDocument();
+
+  fireEvent.keyDown(chooser, { key: "Enter" });
+  expect(instrumentHull.choose).toHaveBeenCalledWith("modded-hull");
+});
+
+test("Add ship only shows installed hulls that are not already on Home", () => {
+  const instrumentHull = state({ hulls: [featured] });
+  render(<HangarPage instrumentHull={instrumentHull} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Add a display ship" }));
+  const chooser = screen.getByRole("combobox", { name: "Display ship" });
+  expect(chooser).toHaveValue("");
+  expect(chooser).toHaveFocus();
+  expect(chooser).toHaveAttribute("placeholder", "Search ships");
+  expect(chooser).toHaveAttribute("aria-expanded", "true");
+  const list = screen.getByRole("listbox", { name: "Ships to add" });
+  expect(within(list).queryByRole("option", { name: "Odyssey" })).not.toBeInTheDocument();
+  expect(within(list).getByRole("option", { name: "Modded Hull" })).toBeInTheDocument();
+  fireEvent.keyDown(chooser, { key: "Escape" });
+  expect(screen.queryByRole("listbox", { name: "Ships to add" })).not.toBeInTheDocument();
+});
+
+test("Add ship explains when every installed hull is already on Home", () => {
+  const instrumentHull = state({ catalogHulls: [featured], hulls: [featured] });
+  render(<HangarPage instrumentHull={instrumentHull} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Add a display ship" }));
+  expect(screen.getByText("All installed ships are already on Home")).toBeInTheDocument();
+});
+
+test("Add ship retries a failed installed-hull lookup", () => {
+  const instrumentHull = state({
+    catalog: null,
+    catalogLoaded: true,
+    catalogHulls: [featured],
+    hulls: [featured],
+  });
+  render(<HangarPage instrumentHull={instrumentHull} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Add a display ship" }));
+  expect(instrumentHull.reloadCatalog).toHaveBeenCalledTimes(1);
+});
+
+test("removal from Home is an explicit two-step action", () => {
   const instrumentHull = state();
   render(<HangarPage instrumentHull={instrumentHull} />);
 
-  const select = screen.getByRole("combobox", { name: "Display ship" });
-  expect(select).toHaveTextContent("Odyssey");
-  expect(select).not.toHaveTextContent("Modded Hull");
-  expect(screen.getByRole("button", { name: /Modded Hull/ })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Remove Odyssey from Home ships" }));
+  expect(instrumentHull.remove).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "Keep ship on Home" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Remove Odyssey from Home ships" }));
+  expect(instrumentHull.remove).toHaveBeenCalledWith("odyssey");
 });
 
-test("motion and direction change immediately without an Apply step", () => {
+test("refocus keeps the selected hull active in the full installed catalog", () => {
+  const distantHull: WireframeHull = {
+    ...featured,
+    id: "onslaught",
+    name: "Onslaught",
+    style: "LOW_TECH",
+    featured: false,
+  };
+  const fillerHulls = Array.from({ length: 8 }, (_, index): WireframeHull => ({
+    ...installed,
+    id: `filler-${index}`,
+    name: `Filler ${index}`,
+  }));
+  const hulls = [featured, ...fillerHulls, distantHull];
+  const choose = vi.fn();
+  const base = {
+    hulls,
+    catalogHulls: hulls,
+    catalog: { format: "preflight-wireframe-hulls-v1" as const, hulls, skipped: 0 },
+    choose,
+  };
+  const { rerender } = render(<HangarPage instrumentHull={state(base)} />);
+
+  const chooser = screen.getByRole("combobox", { name: "Display ship" });
+  fireEvent.focus(chooser);
+  fireEvent.change(chooser, { target: { value: "Onslaught" } });
+  fireEvent.keyDown(chooser, { key: "Enter" });
+  expect(choose).toHaveBeenCalledTimes(1);
+  expect(choose).toHaveBeenLastCalledWith("onslaught");
+
+  rerender(
+    <HangarPage
+      instrumentHull={state({
+        ...base,
+        selected: distantHull,
+        selectedId: distantHull.id,
+      })}
+    />,
+  );
+  fireEvent.blur(chooser);
+  choose.mockClear();
+  fireEvent.focus(chooser);
+
+  const list = screen.getByRole("listbox", { name: "Display ships" });
+  const selectedOption = within(list).getByRole("option", { name: "Onslaught" });
+  expect(selectedOption).toHaveAttribute("aria-selected", "true");
+  expect(chooser).toHaveAttribute("aria-activedescendant", selectedOption.id);
+
+  fireEvent.keyDown(chooser, { key: "Enter" });
+  expect(chooser).toHaveValue("Onslaught");
+  expect(choose).not.toHaveBeenCalled();
+});
+
+test("Add ship exposes the full installed catalog instead of silently truncating it", () => {
+  const additions = Array.from({ length: 12 }, (_, index): WireframeHull => ({
+    ...installed,
+    id: `addition-${index}`,
+    name: `Addition ${index}`,
+  }));
+  const instrumentHull = state({
+    catalogHulls: [featured, ...additions],
+    hulls: [featured],
+  });
+  render(<HangarPage instrumentHull={instrumentHull} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Add a display ship" }));
+
+  const list = screen.getByRole("listbox", { name: "Ships to add" });
+  expect(within(list).getAllByRole("option")).toHaveLength(additions.length);
+  expect(within(list).getByRole("option", { name: "Addition 11" })).toBeInTheDocument();
+});
+
+test("invalid free text restores the current hull on blur", () => {
+  const instrumentHull = state();
+  render(<HangarPage instrumentHull={instrumentHull} />);
+
+  const chooser = screen.getByRole("combobox", { name: "Display ship" });
+  fireEvent.focus(chooser);
+  fireEvent.change(chooser, { target: { value: "unknown ship" } });
+  fireEvent.blur(chooser);
+
+  expect(chooser).toHaveValue("Odyssey");
+  expect(instrumentHull.choose).not.toHaveBeenCalled();
+});
+
+test("motion controls keep the display alive with one direction toggle", () => {
   render(<HangarPage instrumentHull={state()} />);
 
-  const clockwise = screen.getByRole("button", { name: "Direction: Clockwise" });
-  fireEvent.click(clockwise);
-  expect(screen.getByRole("button", { name: "Direction: Counter-clockwise" })).toBeEnabled();
+  const controls = screen.getByRole("group", { name: "Ship rotation" });
+  expect(controls).toHaveAttribute("data-motion", "rotate");
+  expect(controls).toHaveAttribute("data-direction", "clockwise");
+  const reverse = within(controls).getByRole("button", { name: "Reverse rotation" });
+  fireEvent.click(reverse);
+  expect(controls).toHaveAttribute("data-direction", "counter-clockwise");
 
-  const rotate = screen.getByRole("button", { name: "Motion: Rotate" });
-  expect(rotate).toHaveAttribute("title", "Stop decorative hull rotation");
-  fireEvent.click(rotate);
+  fireEvent.click(reverse);
+  expect(controls).toHaveAttribute("data-direction", "clockwise");
+  const pause = within(controls).getByRole("button", { name: "Pause ship rotation" });
+  fireEvent.click(pause);
+  expect(within(controls).getByRole("button", { name: "Resume ship rotation" })).toBeInTheDocument();
 
-  const still = screen.getByRole("button", { name: "Motion: Still" });
-  expect(still).toHaveAttribute("title", "Resume decorative hull rotation");
-  const pausedDirection = screen.getByRole("button", { name: "Direction: Counter-clockwise" });
-  expect(pausedDirection).toBeEnabled();
-  expect(pausedDirection).toHaveAttribute("title", "Use clockwise when rotation resumes");
-
-  fireEvent.click(pausedDirection);
-  expect(screen.getByRole("button", { name: "Direction: Clockwise" })).toBeEnabled();
-  expect(JSON.parse(window.localStorage.getItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY) ?? "null"))
-    .toEqual({ motion: "still", direction: "clockwise" });
+  const reset = screen.getByRole("button", { name: "Reset ship appearance and view" });
+  expect(reset).toHaveAttribute("title", "Reset ship appearance and view");
+  expect(within(controls).getByRole("button", { name: "Reset ship appearance and view" })).toBe(reset);
 });
 
-test("interior tuning remains independently editable after the shared appearance dials", () => {
+test("appearance dials expose palette-progress state and keep interior tuning independently editable", () => {
   const instrumentHull = state();
   render(<HangarPage instrumentHull={instrumentHull} />);
 
-  fireEvent.change(screen.getByRole("slider", { name: "Detail" }), { target: { value: "0.04" } });
-  expect(instrumentHull.customize).toHaveBeenLastCalledWith({ outerDetail: 0.04, innerDetail: 0.04 });
+  const appearance = screen.getByRole("group", { name: "Wireframe appearance" });
+  const detail = within(appearance).getByRole("slider", { name: "Outline detail" });
+  const detailDial = detail.closest(".hangar-dial") as HTMLElement;
+  expect(parseFloat(detailDial.style.getPropertyValue("--hangar-range"))).toBeCloseTo(66.667, 2);
 
-  fireEvent.change(screen.getByRole("slider", { name: "Interior detail" }), { target: { value: "0.05" } });
-  expect(instrumentHull.customize).toHaveBeenLastCalledWith({ innerDetail: 0.05 });
+  fireEvent.change(detail, { target: { value: "0.05" } });
+  expect(instrumentHull.customize).toHaveBeenLastCalledWith({ outerDetail: 0.01 });
 
-  fireEvent.change(screen.getByRole("slider", { name: "Smooth" }), { target: { value: "0.4" } });
-  expect(instrumentHull.customize).toHaveBeenLastCalledWith({ outerSmooth: 0.4, innerSmooth: 0.4 });
+  fireEvent.change(within(appearance).getByRole("slider", { name: "Interior detail" }), { target: { value: "0.05" } });
+  expect(instrumentHull.customize).toHaveBeenLastCalledWith({ innerDetail: 0.01 });
 
-  fireEvent.change(screen.getByRole("slider", { name: "Interior smooth" }), { target: { value: "0.6" } });
+  fireEvent.change(within(appearance).getByRole("slider", { name: "Outline smoothing" }), { target: { value: "0.4" } });
+  expect(instrumentHull.customize).toHaveBeenLastCalledWith({ outerSmooth: 0.4 });
+
+  fireEvent.change(within(appearance).getByRole("slider", { name: "Interior smoothing" }), { target: { value: "0.6" } });
   expect(instrumentHull.customize).toHaveBeenLastCalledWith({ innerSmooth: 0.6 });
 });

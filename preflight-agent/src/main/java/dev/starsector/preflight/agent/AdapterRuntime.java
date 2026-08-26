@@ -29,6 +29,7 @@ final class AdapterRuntime {
         SourceArchiveHashes.beginSession();
         AdapterTransformationCache.beginSession();
         TextureCompatibilityRuntime.beginSession();
+        TextureAccessLearningRuntime.beginSession();
         TexturePreparedPixelRuntime.beginSession();
         TexturePaddingRuntime.beginSession();
         VariantJsonCacheRuntime.beginSession();
@@ -58,6 +59,7 @@ final class AdapterRuntime {
         GraphicsLibInsigniaManagerCacheRuntime.beginSession();
         GraphicsLibHotSettingsRuntime.reset();
         MagicLibPaintjobLoadRuntime.reset();
+        MagicLibPaintjobCacheRuntime.beginSession();
         EntityLookupRuntime.beginSession();
         RadarRenderRuntime.beginSession();
         DeploymentIconCacheRuntime.beginSession();
@@ -143,6 +145,8 @@ final class AdapterRuntime {
                     options.textureCacheDirectory(),
                     options.textureManifest(),
                     options.textureIndex());
+            TextureAccessLearningRuntime.configure(
+                    options.textureCacheDirectory(), options.textureProfile());
             VariantJsonCacheRuntime.configure(options.variantJsonCache());
             WeaponJsonCacheRuntime.configure(options.weaponJsonCache());
             ProjectileJsonCacheRuntime.configure(options.projectileJsonCache());
@@ -150,6 +154,7 @@ final class AdapterRuntime {
             RulesCsvCacheRuntime.configure(options.rulesCsvCache());
             RuleCommandClassCacheRuntime.configure(options.ruleCommandClassCache());
             MergedReadCacheRuntime.configure(options.mergedReadCache());
+            MagicLibPaintjobCacheRuntime.configure(options.magicPaintjobCache());
             GraphicsLibCompactReplayPlan.configure(
                     options.graphicsLibCompactReplay(), options.textureCacheDirectory());
             JaninoBytecodeCacheRuntime.configure(
@@ -186,6 +191,10 @@ final class AdapterRuntime {
                 report.diagnostic("Loaded the exact resource source-hint isolation target");
                 report.diagnostic("Loaded the exact MagicLib unlocked-paintjob set target");
                 report.diagnostic("Loaded the exact MagicLib optional-paintjob JSON shortcut");
+                if (MagicLibPaintjobCacheRuntime.ready()) {
+                    report.diagnostic("Loaded the exact MagicLib paintjob catalog target ("
+                            + MagicLibPaintjobCacheRuntime.status() + ")");
+                }
                 report.diagnostic("Loaded the exact GraphicsLib hot-settings cache target");
                 if (AudioStreamSourceErrorRuntime.disabled()) {
                     report.diagnostic("Skipped the streaming-audio OpenAL error-order target by diagnostic property");
@@ -218,6 +227,10 @@ final class AdapterRuntime {
                         && (FrameTimeRuntime.enabled() || LoadJsonMemoRuntime.ready())) {
                     registry = registry.withFrameTimeStartupCompletionTarget();
                     report.diagnostic("Loaded the exact lightweight runtime startup-completion target");
+                }
+                if (RuntimeSemanticState.enabled()) {
+                    registry = registry.withMainMenuInteractiveTarget();
+                    report.diagnostic("Loaded the exact interactive main-menu state target");
                 }
                 if (options.startupPhaseProbe()) {
                     registry = registry.withStartupPhaseTarget();
@@ -537,6 +550,14 @@ final class AdapterRuntime {
                 throw fatal;
             } catch (Throwable error) {
                 System.err.println("[Preflight] Failed to publish lazy read cache: "
+                        + error.getMessage());
+            }
+            try {
+                TextureAccessLearningRuntime.complete();
+            } catch (ThreadDeath | VirtualMachineError fatal) {
+                throw fatal;
+            } catch (Throwable error) {
+                System.err.println("[Preflight] Failed to publish texture access order: "
                         + error.getMessage());
             }
             try {

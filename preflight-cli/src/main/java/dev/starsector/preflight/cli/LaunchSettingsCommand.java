@@ -34,12 +34,10 @@ final class LaunchSettingsCommand {
             "Preflight's operation lease coordinates Preflight processes only."
                     + " External programs can still change these global settings.";
     /**
-     * Starsector's maxBattleSize controls its settings slider, while the battleSize preference is
-     * the value consumed by the game. Keep an explicit, bounded extended range without rewriting
-     * the installation's settings.json. Opening the vanilla slider may reset a value above its
-     * own maximum, which the desktop explains next to the control.
+     * Starsector stores battleSize as a Java integer. maxBattleSize controls the vanilla settings
+     * slider, not the value consumed by the game, so Preflight imposes no smaller product limit.
      */
-    static final int EXTENDED_BATTLE_SIZE_MAX = 2000;
+    static final int BATTLE_SIZE_MAX = Integer.MAX_VALUE;
     private static final DateTimeFormatter BACKUP_TIME = DateTimeFormatter
             .ofPattern("uuuuMMdd-HHmmss-SSS")
             .withZone(ZoneOffset.UTC);
@@ -351,12 +349,10 @@ final class LaunchSettingsCommand {
                             "UI scale cannot exceed " + maximum + " at " + effectiveResolution);
                 }
             }
-            if (update.battleSize() == null || minBattleSize == null || maxBattleSize == null) return;
-            int effectiveMaximum = Math.max(maxBattleSize, EXTENDED_BATTLE_SIZE_MAX);
-            if (update.battleSize() < minBattleSize || update.battleSize() > effectiveMaximum) {
+            if (update.battleSize() == null || minBattleSize == null) return;
+            if (update.battleSize() < minBattleSize) {
                 throw new IllegalArgumentException(
-                        "Battle size must be between " + minBattleSize + " and " + effectiveMaximum
-                                + "; the installed game's settings slider ends at " + maxBattleSize);
+                        "Battle size must be at least " + minBattleSize);
             }
         }
 
@@ -373,9 +369,7 @@ final class LaunchSettingsCommand {
             values.put("battleSizeMin", minBattleSize);
             values.put("battleSizeDefault", defaultBattleSize);
             values.put("battleSizeMax", maxBattleSize);
-            values.put("battleSizeExtendedMax", maxBattleSize == null
-                    ? EXTENDED_BATTLE_SIZE_MAX
-                    : Math.max(maxBattleSize, EXTENDED_BATTLE_SIZE_MAX));
+            values.put("battleSizeExtendedMax", BATTLE_SIZE_MAX);
             values.put("diagnostics", diagnostics);
             return values;
         }

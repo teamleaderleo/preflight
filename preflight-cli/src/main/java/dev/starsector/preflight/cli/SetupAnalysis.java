@@ -290,7 +290,7 @@ final class SetupAnalysis {
         return findings.stream().filter(finding -> finding.severity() == severity).count();
     }
 
-    private static Map<String, Object> view(Finding finding) {
+    static Map<String, Object> view(Finding finding) {
         Map<String, Object> value = new LinkedHashMap<>();
         value.put("code", finding.code());
         value.put("provider", finding.provider());

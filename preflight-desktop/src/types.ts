@@ -128,7 +128,40 @@ export interface DesktopHomeState {
   cacheInspection: CacheInspection | null;
   profiles: ProfileList | null;
   launchSettings: LaunchSettings | null;
-  errors: Partial<Record<"cacheInspection" | "profiles" | "launchSettings", string>>;
+  modReadiness: ModReadiness | null;
+  errors: Partial<Record<"cacheInspection" | "profiles" | "launchSettings" | "modReadiness", string>>;
+}
+
+export type SetupFindingSeverity = "blocking" | "warning" | "info" | "unknown";
+
+export interface SetupFinding {
+  code: string;
+  provider: string;
+  severity: SetupFindingSeverity;
+  summary: string;
+  parameters: Record<string, string | number | boolean | null>;
+  affectedModIds: string[];
+  actions: string[];
+}
+
+export interface ModReadiness {
+  format: "starsector-preflight-mod-readiness-v1";
+  ready: boolean;
+  counts: Record<SetupFindingSeverity, number>;
+  findings: SetupFinding[];
+  modDirectories: number;
+  metadataBytes: number;
+  elapsedMillis: number;
+}
+
+export interface SetupAnalysisResult {
+  format: "starsector-preflight-setup-analysis-v1";
+  installationIdentity: string;
+  profileFingerprint: string;
+  ready: boolean;
+  counts: Record<SetupFindingSeverity, number>;
+  findings: SetupFinding[];
+  unavailableProviders: string[];
 }
 
 export interface RunStarted {
@@ -231,10 +264,11 @@ export interface DesktopBenchmarkRuntimeContext {
 
 /**
  * What preparation is asked to build. `balanced` and `fastest` choose how prepared textures are
- * stored; `minimal` skips them, which is the whole of the disk cost. A plan only ever describes the
- * two that build textures — `minimal` has nothing to plan.
+ * stored; `compact` uses the paths observed during a real launch; `minimal` skips them.
+ * Runtime-learned data and bytecode caches still use disk. A plan describes the three modes that
+ * build textures because `minimal` has no texture plan.
  */
-export type TextureStorage = "balanced" | "fastest" | "minimal";
+export type TextureStorage = "compact" | "balanced" | "fastest" | "minimal";
 
 export interface PreparationStoragePlan {
   format: "preflight-preparation-storage-plan-v1";
@@ -252,18 +286,15 @@ export interface PreparationStoragePlan {
   uniquePixelBytes: number;
   reusableLooseBytes: number;
   predictedLooseBytes: number;
-  upperLooseBytes: number;
   predictedPackBytes: number;
-  upperPackBytes: number;
+  predictedRetainedTextureBytes?: number;
   predictedMetadataBytes: number;
-  upperMetadataBytes: number;
   predictedAdditionalBytes: number;
-  upperBoundAdditionalBytes: number;
   safetyReserveBytes: number;
   requiredFreeBytes: number;
   usableBytes: number;
-  remainingAfterUpperBoundBytes: number;
   packHit: boolean;
+  packOnlyHit?: boolean;
   complete: boolean;
   safeToPrepare: boolean;
   refusalReason: string | null;
@@ -435,6 +466,10 @@ export interface CacheHealth {
   format: "starsector-preflight-cache-health-v1";
   status: "unknown" | "unsafe" | "cold" | "ready" | "repair-needed";
   profileFingerprint: string | null;
+  preparedTextures?: boolean | null;
+  textureStorage?: "balanced" | "fastest" | null;
+  textureScope?: "full" | "learned" | null;
+  compactAvailable?: boolean;
   issues: Array<{
     artifact: string;
     summary: string;

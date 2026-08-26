@@ -138,6 +138,106 @@ class TextureBatchBuilderTest {
     }
 
     @Test
+    void learnedSelectionBuildsOnlyObservedTexturesInObservedPackOrder() throws Exception {
+        Path root = temporaryDirectory.resolve("learned-root");
+        writeImage(root.resolve("graphics/first.png"), Color.RED);
+        writeImage(root.resolve("graphics/second.png"), Color.GREEN);
+        writeImage(root.resolve("graphics/unseen.png"), Color.BLUE);
+        ResourceIndex index = index(root, "learned-profile", List.of(
+                "graphics/first.png", "graphics/second.png", "graphics/unseen.png"));
+        List<String> observed = List.of("graphics/second.png", "graphics/first.png");
+
+        TextureBatchBuilder.Result result = TextureBatchBuilder.build(
+                index,
+                temporaryDirectory.resolve("learned-cache"),
+                new TextureBatchBuilder.Options(
+                        2,
+                        16 * MIB,
+                        PreparedTextureIO.StorageCodec.RAW,
+                        false,
+                        observed));
+
+        assertEquals(2, result.candidateEntries());
+        assertEquals(2, result.manifest().entryCount());
+        assertTrue(result.manifest().entry("graphics/unseen.png").isEmpty());
+        List<String> expectedBlobOrder = observed.stream()
+                .map(path -> result.manifest().entry(path).orElseThrow().blobRelativePath())
+                .toList();
+        try (PreparedTexturePack pack = PreparedTexturePackIO.open(
+                result.packPath(), result.manifest().profileFingerprint(), expectedBlobOrder)) {
+            assertTrue(pack.hasEntryOrder(expectedBlobOrder));
+        }
+    }
+
+    @Test
+    void consumingPackBuildReleasesLooseInputsAndKeepsThePackReadable() throws Exception {
+        Path root = temporaryDirectory.resolve("consuming-root");
+        writeImage(root.resolve("graphics/a.png"), Color.RED);
+        writeImage(root.resolve("graphics/b.png"), Color.BLUE);
+        ResourceIndex index = index(
+                root, "consuming-profile", List.of("graphics/a.png", "graphics/b.png"));
+        Path cache = temporaryDirectory.resolve("consuming-cache");
+
+        TextureBatchBuilder.Result result = TextureBatchBuilder.build(
+                index,
+                cache,
+                new TextureBatchBuilder.Options(
+                        1,
+                        16 * MIB,
+                        PreparedTextureIO.StorageCodec.RAW,
+                        false,
+                        List.of(),
+                        true));
+        List<String> blobs = result.manifest().entries().values().stream()
+                .map(entry -> entry.blobRelativePath())
+                .distinct()
+                .toList();
+
+        assertTrue(result.packPath().toFile().isFile());
+        assertTrue(blobs.stream().map(cache::resolve).noneMatch(Files::exists));
+        assertTrue(PackedTextureRetention.isExactPackOnly(cache, result.manifest()));
+        try (PreparedTexturePack pack = PreparedTexturePackIO.open(
+                result.packPath(), result.manifest().profileFingerprint(), blobs)) {
+            assertEquals(blobs.size(), pack.entryCount());
+        }
+    }
+
+    @Test
+    void consumingPackPreservesABlobNeededByAnUnpackedProfile() throws Exception {
+        Path root = temporaryDirectory.resolve("shared-root");
+        writeImage(root.resolve("graphics/shared.png"), Color.RED);
+        Path cache = temporaryDirectory.resolve("shared-cache");
+        ResourceIndex firstIndex = index(
+                root, "first-profile", List.of("graphics/shared.png"));
+        TextureBatchBuilder.Result first = TextureBatchBuilder.build(
+                firstIndex, cache, new TextureBatchBuilder.Options(1, 16 * MIB));
+        Files.delete(first.packPath());
+
+        ResourceIndex secondIndex = index(
+                root, "second-profile", List.of("graphics/shared.png"));
+        TextureBatchBuilder.Result second = TextureBatchBuilder.build(
+                secondIndex,
+                cache,
+                new TextureBatchBuilder.Options(
+                        1,
+                        16 * MIB,
+                        PreparedTextureIO.StorageCodec.RAW,
+                        false,
+                        List.of(),
+                        true));
+        String sharedBlob = second.manifest().entry("graphics/shared.png")
+                .orElseThrow().blobRelativePath();
+
+        assertTrue(Files.isRegularFile(cache.resolve(sharedBlob)));
+        assertTrue(PackedTextureRetention.protectedByOtherProfiles(
+                cache, second.manifest().profileFingerprint()).contains(sharedBlob));
+        try (PreparedTexturePack pack = PreparedTexturePackIO.open(
+                second.packPath(), second.manifest().profileFingerprint(), List.of(sharedBlob))) {
+            assertEquals(1, pack.entryCount());
+        }
+    }
+
+    @Test
     void changingOneSourceBuildsOneNewBlob() throws Exception {
         Path root = temporaryDirectory.resolve("root");
         Path a = root.resolve("graphics/a.png");

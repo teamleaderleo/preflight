@@ -1,21 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { vi } from "vitest";
-import type { WireframeHull } from "../types";
 import type { SpeedStanding } from "../useSpeedRecord";
 import { SpeedScoreboard } from "./SpeedScoreboard";
-
-vi.mock("./FlightInstrument", () => ({ FlightInstrument: () => <div data-testid="instrument" /> }));
-
-const hull: WireframeHull = {
-  id: "test",
-  name: "Test hull",
-  hullSize: "FRIGATE",
-  style: "MIDLINE",
-  bounds: [],
-  engines: [],
-  mounts: [],
-  featured: true,
-};
 
 function standing(): SpeedStanding {
   return {
@@ -47,7 +33,6 @@ test("keeps the personal best trophy while showing an unfavorable latest benchma
     <SpeedScoreboard
       standing={standing()}
       isReady
-      hull={hull}
       onOpenBenchmark={vi.fn()}
     />,
   );
@@ -58,4 +43,48 @@ test("keeps the personal best trophy while showing an unfavorable latest benchma
   expect(screen.getByText(/25\.0% more startup time/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Measure current setup/ })).toBeEnabled();
   expect(screen.queryByText(/matching launches/)).not.toBeInTheDocument();
+});
+
+test("unmeasured startup uses a neutral figure instead of implying a multiplier", () => {
+  render(
+    <SpeedScoreboard
+      standing={{ ...standing(), record: null }}
+      isReady
+      onOpenBenchmark={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByText("—")).toBeInTheDocument();
+  expect(screen.queryByText("?×")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /Measure speed/ })).toBeEnabled();
+});
+
+test("keeps playtime session detail on hover and in the named accessible group while the copy utility stays icon-only", () => {
+  render(
+    <SpeedScoreboard
+      standing={standing()}
+      isReady
+      playtime={{
+        readable: true,
+        totalMillis: 12_600_000,
+        longestSessionMillis: 7_200_000,
+        averageMillis: 4_200_000,
+        launches: 3,
+        sessionsWithoutDuration: 0,
+        first: null,
+        last: null,
+      }}
+      onOpenBenchmark={vi.fn()}
+    />,
+  );
+
+  const playtime = screen.getByRole("group", { name: "3.5h recorded playtime across 3 sessions" });
+  expect(playtime).toHaveAccessibleDescription("Longest session 2.0 hours");
+  expect(playtime).toHaveAttribute(
+    "title",
+    "Across 3 recorded sessions · longest 2.0 hours",
+  );
+  expect(screen.getByRole("button", { name: "Copy playtime" })).toHaveAttribute("title", "Copy playtime summary");
+  expect(screen.queryByText(/3 recorded sessions · longest/)).not.toBeInTheDocument();
+  expect(screen.queryByText("Copy playtime")).not.toBeInTheDocument();
 });

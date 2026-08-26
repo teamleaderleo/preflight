@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.starsector.preflight.core.ResourceIndexIO;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -24,8 +25,9 @@ final class DesktopSmokeLaunchTest {
                 java, jar, scenario("fast", null), run, game, launcher);
 
         assertEquals(java.toAbsolutePath().normalize().toString(), command.get(0));
+        assertTrue(command.get(1).startsWith("-Duser.home="));
         assertEquals(List.of("-jar", jar.toAbsolutePath().normalize().toString(), "run"),
-                command.subList(1, 4));
+                command.subList(2, 5));
         assertTrue(command.contains("--fast"));
         assertTrue(command.contains("--direct"));
         assertTrue(command.contains("--desktop-smoke"));
@@ -50,9 +52,44 @@ final class DesktopSmokeLaunchTest {
     }
 
     @Test
+    void minimalDiskBenchmarkUsesThePreparedProfileContract() {
+        List<String> command = DesktopSmokeLaunch.command(
+                Path.of("java"), Path.of("preflight.jar"), scenario("fast", "minimal", null),
+                Path.of("run"), null, null);
+
+        assertFalse(command.contains("--disable-optimization-domain"));
+    }
+
+    @Test
+    void minimalDiskBenchmarkRequiresAnExactMinimalPreparation(@TempDir Path temporary)
+            throws Exception {
+        Path game = temporary.resolve("game");
+        Path source = game.resolve("starsector-core/graphics/test.png");
+        Files.createDirectories(source.getParent());
+        Files.writeString(source, "texture");
+        Files.createDirectories(game.resolve("mods"));
+        Files.writeString(game.resolve("mods/enabled_mods.json"), "{\"enabledMods\":[]}");
+        PreflightHome home = new PreflightHome(
+                temporary.resolve("home").resolve(PreflightHome.DIRECTORY_NAME), List.of());
+        DesktopSmokeScenario minimal = scenario("fast", "minimal", null);
+
+        assertThrows(IllegalStateException.class,
+                () -> DesktopSmokeLaunch.requirePreparedStorage(minimal, home, game));
+
+        ResourceIndexBuilder.BuildResult built = ResourceIndexBuilder.build(game);
+        ResourceIndexIO.write(
+                ResourceIndexIO.directory(home.cache())
+                        .resolve(built.index().profileFingerprint() + ".spfi"),
+                built.index());
+        MinimalPreparationMarker.write(home.cache(), built.index().profileFingerprint());
+
+        DesktopSmokeLaunch.requirePreparedStorage(minimal, home, game);
+    }
+
+    @Test
     void namedProfileLaunchesFailBeforeStartingAProcess() {
         assertThrows(IllegalArgumentException.class, () -> DesktopSmokeLaunch.command(
-                Path.of("java"), Path.of("preflight.jar"), scenario("fast", "large"),
+                Path.of("java"), Path.of("preflight.jar"), scenario("fast", "balanced", "large"),
                 Path.of("run"), null, null));
     }
 
@@ -68,6 +105,10 @@ final class DesktopSmokeLaunchTest {
     }
 
     private static DesktopSmokeScenario scenario(String preset, String profile) {
+        return scenario(preset, "balanced", profile);
+    }
+
+    private static DesktopSmokeScenario scenario(String preset, String textureStorage, String profile) {
         return DesktopSmokeScenario.parse("""
                 {
                   "format":"starsector-preflight-smoke-v1",
@@ -75,13 +116,15 @@ final class DesktopSmokeLaunchTest {
                   "timeoutSeconds":60,
                   "launch":{
                     "preset":"%s",
-                    "textureStorage":"balanced",
+                    "textureStorage":"%s",
                     "profile":%s
                   },
                   "steps":[
                     {"id":"menu","kind":"wait-state","state":"main-menu-ready","timeoutSeconds":30}
                   ]
                 }
-                """.formatted(preset, profile == null ? "null" : "\"" + profile + "\""));
+                """.formatted(
+                    preset, textureStorage,
+                    profile == null ? "null" : "\"" + profile + "\""));
     }
 }

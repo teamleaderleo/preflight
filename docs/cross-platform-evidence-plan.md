@@ -5,6 +5,10 @@ shared across macOS, Windows, and Linux. Platform code is concentrated in instal
 launcher integration, package lifecycle, desktop control, and two narrowly gated macOS runtime
 plans. The release evidence should match those boundaries.
 
+This page defines what different kinds of platform evidence can support. It is broader than the
+current beta blocker list. [#652](https://github.com/teamleaderleo/preflight/issues/652) owns live
+release priority, and [Release readiness](release-readiness.md) mirrors its four active tasks.
+
 ## Evidence ladder
 
 | Level | Environment | What it can establish | What it can't establish |
@@ -32,20 +36,29 @@ smoke scenario, and sends the bounded run report from Preflight. The receipt sup
 the report supplies exact platform/runtime, profile, adapter health, cache, startup, and frame-time
 evidence. No game binaries or assets are uploaded.
 
-## Candidate sequence
+## Evidence sequence
+
+The sequence below describes the fuller platform-evidence program. For the current beta gate, #652
+selects the active subset; extra evidence work does not become a release blocker simply because it
+appears here.
 
 1. Complete the hosted candidate matrix and retain package checksums and lifecycle results.
 2. Run the packaged first-run, report upload, cancellation, retry, deletion, update, rollback, and
-   full-removal flows on each available operating system.
+   full-removal flows on each available operating system when they support a current claim or
+   candidate acceptance path.
 3. Exercise a licensed installation in an emulated Windows guest when that guest is available.
    Record it as compatibility evidence. Use Ubuntu ARM64 only for portable source contracts; use
    x86-64 Linux or native beta hardware for the published Linux packages.
 4. Give the same exact candidate to at least one native Windows tester and one native Linux tester.
    Ask for a clean install, first preparation, two launches, a campaign roam, a combat simulation,
    and removal. The automated smoke path should cover this once its platform adapter is live-tested.
-5. Accept a platform only after its report shows the expected profile, no unsafe adapter outcome,
-   no corrupt-cache fallback loop, and a clean package lifecycle. Publish timing claims from native
-   machines separately by hardware and profile.
+5. Accept a platform claim only after its report shows the expected profile, no unsafe adapter
+   outcome, no corrupt-cache fallback loop, and the relevant package lifecycle. Publish timing claims
+   from native machines separately by hardware and profile.
+
+The four active beta tasks currently represented by this plan are the real-game Windows/Linux
+exercise and the complete hosted candidate; the packaged startup benchmark and report-intake canary
+are tracked alongside them in #652.
 
 ## Security boundary
 

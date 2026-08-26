@@ -1,5 +1,7 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.agent.RecordingMode;
+import dev.starsector.preflight.agent.TextureAdapterMode;
 import dev.starsector.preflight.core.Json;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -51,10 +53,7 @@ final class RunCommand {
                 ? null
                 : OperationLease.acquire(PreflightHome.current(), "launching", target.installRoot());
         if (operationOwnership != null && operationOwnership.recovered() != null) {
-            System.err.println("Preflight recovered ownership left by interrupted "
-                    + operationOwnership.recovered().operation() + " process "
-                    + operationOwnership.recovered().pid() + "; removed "
-                    + operationOwnership.recoveredTemporaryFiles() + " incomplete temporary files.");
+            System.err.println("Recovered an interrupted Preflight operation.");
         }
         try (OperationLease ignored = operationOwnership == null ? null : operationOwnership.lease()) {
             return executeOwned(options, discovery, target, platform);
@@ -69,12 +68,11 @@ final class RunCommand {
         Path home = Path.of(System.getProperty("user.home"));
         CombatJvmSafeguard.Resolution combatJvmSafeguard =
                 CombatJvmSafeguard.resolve(platform, target, System.getenv());
+        MacRosettaGcPolicy.Resolution macRosettaGcPolicy =
+                MacRosettaGcPolicy.resolve(
+                        platform, target, options.optimizationPreset(), System.getenv());
         LaunchOwnership ownership = LaunchOwnership.detect(target);
         boolean janinoCacheOwned = options.janinoBytecodeCache() && !ownership.fastRendering();
-        if (options.janinoBytecodeCache() && ownership.fastRendering()) {
-            System.out.println("Preflight left Janino compilation to Fast Rendering's custom "
-                    + "system classloader (" + String.join(", ", ownership.evidence()) + ").");
-        }
         LaunchCacheContexts.Result cacheContexts =
                 LaunchCacheContexts.select(options, target, janinoCacheOwned);
         LaunchCacheContexts.Texture textureContext = cacheContexts.texture();
@@ -85,6 +83,7 @@ final class RunCommand {
         LaunchCacheContexts.RulesCsv rulesCsvCache = cacheContexts.rulesCsv();
         LaunchCacheContexts.RuleCommand ruleCommandCache = cacheContexts.ruleCommand();
         LaunchCacheContexts.MergedRead mergedReadCache = cacheContexts.mergedRead();
+        LaunchCacheContexts.MagicPaintjobs magicPaintjobCache = cacheContexts.magicPaintjobs();
         LaunchCacheContexts.Janino janinoBytecodeCache = cacheContexts.janino();
         DirectLaunchSettings directSettings = directLaunchSettings(options);
 
@@ -117,14 +116,24 @@ final class RunCommand {
                 .adapterMode(options.adapterMode())
                 .adapterReport(adapterReport)
                 .adapterTargets(options.adapterTargets())
+                // The agent cache root also holds transformed-class, source-hash, and GraphicsLib
+                // artifacts. Minimal suppresses only the texture manifest/index, not that shared
+                // non-texture storage.
                 .textureCacheDirectory(textureContext == null ? null : textureContext.cacheDirectory())
-                .textureManifest(textureContext == null ? null : textureContext.manifest())
-                .textureIndex(textureContext == null ? null : textureContext.index())
-                .textureAdapterMode(options.textureAdapterMode())
+                .textureProfile(textureContext == null ? null : textureContext.profileFingerprint())
+                .textureManifest(textureContext == null || !textureContext.preparedTextures()
+                        ? null : textureContext.manifest())
+                .textureIndex(textureContext == null || !textureContext.preparedTextures()
+                        ? null : textureContext.index())
+                .textureAdapterMode(textureContext == null || textureContext.preparedTextures()
+                        ? options.textureAdapterMode()
+                        : TextureAdapterMode.COMPATIBILITY)
                 .exhaustiveFileReads(options.exhaustiveFileReads())
                 .recordingMode(options.recordingMode())
-                .npotDirect(options.npotDirect())
-                .unpadded(options.unpadded())
+                .npotDirect(options.npotDirect()
+                        && (textureContext == null || textureContext.preparedTextures()))
+                .unpadded(options.unpadded()
+                        && (textureContext == null || textureContext.preparedTextures()))
                 .singleChunkRecording(options.singleChunkRecording())
                 .campaignEntityIndex(options.campaignEntityIndex())
                 .startupPhaseProbe(options.startupPhaseProbe())
@@ -143,6 +152,8 @@ final class RunCommand {
                 .preparedAudioManifestIdentity(
                         preparedAudio == null ? null : preparedAudio.manifestIdentity())
                 .mergedReadCache(mergedReadCache == null ? null : mergedReadCache.artifact())
+                .magicPaintjobCache(
+                        magicPaintjobCache == null ? null : magicPaintjobCache.artifact())
                 .quietLogs(options.quietLogs())
                 .graphicsLibCompactReplay(options.graphicsLibCompactReplay())
                 .janinoBytecodeCache(
@@ -166,7 +177,7 @@ final class RunCommand {
                     javaToolOptions,
                     List.of("-Dpreflight.assetProgressLogs=off"));
         }
-        if (options.trustValidatedTextureIndex()) {
+        if (trustsLauncherValidatedTextureIndex(options, textureContext)) {
             javaToolOptions = appendJavaOptions(
                     javaToolOptions,
                     List.of("-Dpreflight.texture.trustValidatedIndex=true"));
@@ -176,25 +187,27 @@ final class RunCommand {
                     javaToolOptions,
                     List.of("-Dpreflight.desktopSmoke=true", "-Dpreflight.frameTimes=true"));
         }
-        String javaOptions = CombatJvmSafeguard.appendOptions(
-                System.getenv("_JAVA_OPTIONS"), combatJvmSafeguard);
+        String javaOptions = MacRosettaGcPolicy.appendOptions(
+                System.getenv("_JAVA_OPTIONS"), macRosettaGcPolicy);
+        javaOptions = CombatJvmSafeguard.appendOptions(javaOptions, combatJvmSafeguard);
 
         List<String> command = new ArrayList<>(target.command());
         command.addAll(options.forwardedArgs());
-        printPlan(
-                target,
-                runDirectory,
-                adapterReport,
-                command,
-                javaToolOptions,
-                discovery,
-                options,
-                textureContext,
-                directSettings,
-                janinoBytecodeCache,
-                combatJvmSafeguard,
-                javaOptions);
         if (options.dryRun()) {
+            printPlan(
+                    target,
+                    runDirectory,
+                    adapterReport,
+                    command,
+                    javaToolOptions,
+                    discovery,
+                    options,
+                    textureContext,
+                    directSettings,
+                    janinoBytecodeCache,
+                    combatJvmSafeguard,
+                    macRosettaGcPolicy,
+                    javaOptions);
             return 0;
         }
 
@@ -234,7 +247,7 @@ final class RunCommand {
             writeMetadata(
                     metadata, target, command, runIdentity, launchId, started, null, null, null, null, outcome, null,
                     null, options, directSettings, textureContext, adapterReport, adapterAnalysis, console, null,
-                    postprocessingFailures, null, combatJvmSafeguard);
+                    postprocessingFailures, null, combatJvmSafeguard, macRosettaGcPolicy);
 
             ProcessBuilder builder = new ProcessBuilder(command);
             builder.directory(target.workingDirectory().toFile());
@@ -314,7 +327,7 @@ final class RunCommand {
                     addPostprocessingFailure(postprocessingFailures, "summary", error);
                     System.err.println("Preflight summary skipped: " + message(error));
                 }
-            } else if (!Files.exists(recording)) {
+            } else if (options.recordingMode() != RecordingMode.OFF && !Files.exists(recording)) {
                 System.err.println("Preflight recording was not created. Run `doctor` and inspect the selected launcher.");
             }
             if (Files.isRegularFile(adapterReport)) {
@@ -364,7 +377,8 @@ final class RunCommand {
                         measuredElapsedMillis, exitCode, launcherExitCode, outcome,
                         lifecycleEvidence, collectCensus(census, postprocessingFailures),
                         options, directSettings, textureContext, adapterReport, adapterAnalysis,
-                        console, childOutput, postprocessingFailures, executionFailure, combatJvmSafeguard);
+                        console, childOutput, postprocessingFailures, executionFailure,
+                        combatJvmSafeguard, macRosettaGcPolicy);
             } catch (IOException error) {
                 System.err.println("Preflight could not finalize run metadata: " + message(error));
             }
@@ -403,6 +417,14 @@ final class RunCommand {
                 .resolve(".starsector-preflight")
                 .resolve("runs")
                 .resolve(RUN_ID.format(started) + "-" + nonce);
+    }
+
+    static boolean trustsLauncherValidatedTextureIndex(
+            CommandLine options, LaunchCacheContexts.Texture textureContext) {
+        return options.trustValidatedTextureIndex()
+                && textureContext != null
+                && textureContext.automatic()
+                && textureContext.preparedTextures();
     }
 
     static int doctor(CommandLine options) throws IOException {
@@ -557,6 +579,7 @@ final class RunCommand {
             DirectLaunchSettings directSettings,
             LaunchCacheContexts.Janino janinoBytecodeCache,
             CombatJvmSafeguard.Resolution combatJvmSafeguard,
+            MacRosettaGcPolicy.Resolution macRosettaGcPolicy,
             String javaOptions) {
         System.out.println("Preflight selected:");
         System.out.println("  install:  " + target.installRoot());
@@ -591,6 +614,9 @@ final class RunCommand {
         System.out.println("  combat JVM safeguard: "
                 + (combatJvmSafeguard.active() ? "active — " : "inactive — ")
                 + combatJvmSafeguard.reason());
+        System.out.println("  macOS startup collector: "
+                + (macRosettaGcPolicy.active() ? "G1 active: " : "launcher default: ")
+                + macRosettaGcPolicy.reason());
         System.out.println("  quiet logs: " + (options.quietLogs()
                 ? QuietLogConfiguration.path(runDirectory)
                 : "off"));
@@ -604,11 +630,16 @@ final class RunCommand {
             System.out.println("  adapter targets: " + options.adapterTargets().toAbsolutePath().normalize());
         }
         if (textureContext != null) {
-            System.out.println("  texture mode: " + options.textureAdapterMode());
-            System.out.println("  texture artifacts: " + (textureContext.automatic() ? "CURRENT_PROFILE_AUTO" : "EXPLICIT"));
-            System.out.println("  texture cache: " + textureContext.cacheDirectory());
-            System.out.println("  texture manifest: " + textureContext.manifest());
-            System.out.println("  texture index: " + textureContext.index());
+            if (textureContext.preparedTextures()) {
+                System.out.println("  texture mode: " + options.textureAdapterMode());
+                System.out.println("  texture artifacts: "
+                        + (textureContext.automatic() ? "CURRENT_PROFILE_AUTO" : "EXPLICIT"));
+                System.out.println("  texture cache: " + textureContext.cacheDirectory());
+                System.out.println("  texture manifest: " + textureContext.manifest());
+                System.out.println("  texture index: " + textureContext.index());
+            } else {
+                System.out.println("  prepared textures: OFF (Minimal preparation)");
+            }
             if (textureContext.profileFingerprint() != null) {
                 System.out.println("  texture profile: " + textureContext.profileFingerprint());
             }
@@ -735,7 +766,8 @@ final class RunCommand {
             ChildProcessOutput.Result childOutput,
             List<String> postprocessingFailures,
             String executionFailure,
-            CombatJvmSafeguard.Resolution combatJvmSafeguard) throws IOException {
+            CombatJvmSafeguard.Resolution combatJvmSafeguard,
+            MacRosettaGcPolicy.Resolution macRosettaGcPolicy) throws IOException {
         Map<String, Object> values = new LinkedHashMap<>();
         ProcessHandle wrapper = ProcessHandle.current();
         values.put("launchId", launchId);
@@ -781,10 +813,12 @@ final class RunCommand {
         values.put("janinoBytecodeCache", options.janinoBytecodeCache());
         values.put("graphicsLibInsigniaManagerCache", options.graphicsLibInsigniaManagerCache());
         values.put("combatJvmSafeguard", combatJvmSafeguard.toReportValues());
+        values.put("macRosettaGcPolicy", macRosettaGcPolicy.toReportValues());
         values.put("quietLogs", options.quietLogs());
         values.put("fileOnlyLogs", options.fileOnlyLogs());
         values.put("assetProgressLogsSuppressed", options.suppressAssetProgressLogs());
-        values.put("trustedValidatedTextureIndex", options.trustValidatedTextureIndex());
+        values.put("trustedValidatedTextureIndex",
+                trustsLauncherValidatedTextureIndex(options, textureContext));
         values.put("desktopSmoke", options.desktopSmoke());
         values.put("quietLogConfiguration", options.fileOnlyLogs()
                 ? QuietLogConfiguration.path(path.getParent(), options.quietLogs())
@@ -803,11 +837,15 @@ final class RunCommand {
         values.put("adapterHealthReport", Files.isRegularFile(adapterHealth) ? adapterHealth : null);
         values.put("adapterAnalysis", Files.isRegularFile(adapterAnalysis) ? adapterAnalysis : null);
         values.put("adapterTargets", options.adapterTargets());
-        values.put("textureAdapterMode", options.textureAdapterMode());
+        values.put("textureAdapterMode", textureContext != null && !textureContext.preparedTextures()
+                ? TextureAdapterMode.COMPATIBILITY
+                : options.textureAdapterMode());
         values.put("textureAuto", options.textureAuto());
+        boolean preparedTextures = textureContext != null && textureContext.preparedTextures();
+        values.put("preparedTextures", preparedTextures);
         values.put("textureCacheDirectory", textureContext == null ? null : textureContext.cacheDirectory());
-        values.put("textureManifest", textureContext == null ? null : textureContext.manifest());
-        values.put("textureIndex", textureContext == null ? null : textureContext.index());
+        values.put("textureManifest", preparedTextures ? textureContext.manifest() : null);
+        values.put("textureIndex", preparedTextures ? textureContext.index() : null);
         values.put("textureProfileFingerprint", textureContext == null ? null : textureContext.profileFingerprint());
         values.put("textureManifestSha256", textureContext == null ? null : textureContext.manifestSha256());
         values.put("textureIndexSha256", textureContext == null ? null : textureContext.indexSha256());

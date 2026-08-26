@@ -26,6 +26,9 @@ class CacheFootprintTest {
         write(root.resolve("runs/session-b/summary.json"), 5);
         write(root.resolve("runs/session-b/console.txt"), 7);
         write(root.resolve("history/launches.json"), 11);
+        String discarded = "b".repeat(64) + ".spfc.corrupt.1787390000000";
+        write(root.resolve("cache/quarantine").resolve(discarded), 23);
+        write(root.resolve("cache/quarantine/operator-note.txt"), 29);
         write(root.resolve("elsewhere/unclassified.bin"), 13);
         Files.createDirectories(root.resolve("benchmarks"));
 
@@ -44,14 +47,16 @@ class CacheFootprintTest {
         long categorizedBytes = 0;
         for (CacheFootprint.Entry entry : report.entries()) {
             Path category = root.resolve(entry.path());
-            assertEquals(CacheFootprint.usage(category), entry.usage(), entry.path());
+            if (!"cache/quarantine".equals(entry.path())) {
+                assertEquals(CacheFootprint.usage(category), entry.usage(), entry.path());
+            }
             if ("evidence".equals(entry.group())) {
                 assertEquals(CacheFootprint.artifacts(category), entry.artifacts(), entry.path());
             }
             categorizedBytes += entry.usage().bytes();
         }
         assertEquals(report.whole().bytes() - categorizedBytes, report.uncategorizedBytes());
-        assertEquals(13, report.uncategorizedBytes());
+        assertEquals(42, report.uncategorizedBytes());
 
         CacheFootprint.Entry emptyBenchmark = report.entries().stream()
                 .filter(entry -> "benchmarks".equals(entry.path()))
@@ -67,6 +72,13 @@ class CacheFootprintTest {
         assertEquals(List.of(
                 new CacheFootprint.Artifact("summary.json", 8, 2),
                 new CacheFootprint.Artifact("console.txt", 7, 1)), runs.artifacts());
+
+        CacheFootprint.Entry quarantine = report.entries().stream()
+                .filter(entry -> "cache/quarantine".equals(entry.path()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("discardable", quarantine.group());
+        assertEquals(new CacheFootprint.Usage(23, 1), quarantine.usage());
 
         assertEquals(1, report.profiles().size());
         CacheFootprint.Profile profile = report.profiles().get(0);

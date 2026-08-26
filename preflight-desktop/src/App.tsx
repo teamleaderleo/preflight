@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Activity, useCallback, useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   getSnapshot,
@@ -33,6 +33,7 @@ import { useInstrumentHull } from "./useInstrumentHull";
 import { useOptimizationPolicy } from "./useOptimizationPolicy";
 import { usePreparation } from "./usePreparation";
 import { useProfiles } from "./useProfiles";
+import { useSetupCheck } from "./useSetupCheck";
 import { useRemoval } from "./useRemoval";
 import { useSignedUpdates } from "./useSignedUpdates";
 import { useSpeedRecord } from "./useSpeedRecord";
@@ -70,7 +71,7 @@ function pageTitle(page: Page, status: AppStatus, preparing: boolean, isReady: b
   if (status === "launching") return "Opening Starsector…";
   if (status === "running") return "Running";
   if (!isReady) return "Setup";
-  return needsPreparation ? "Preparation needed" : "Ready";
+  return needsPreparation ? "Fast launch" : "Ready";
 }
 
 interface RunFailure {
@@ -89,6 +90,7 @@ export default function App() {
   const [runFailure, setRunFailure] = useState<RunFailure | null>(previewRunFailure);
   const [maintenanceEpoch, setMaintenanceEpoch] = useState(0);
   const [page, setPage] = useState<Page>("home");
+  const navigate = useCallback((next: Page) => setPage(next), []);
   const [choosingInstall, setChoosingInstall] = useState(false);
   const [stoppingGame, setStoppingGame] = useState(false);
   const [forceStopAvailable, setForceStopAvailable] = useState(false);
@@ -123,7 +125,7 @@ export default function App() {
   const speedStanding = useSpeedRecord();
   const instrumentHull = useInstrumentHull(
     snapshot?.selected?.installRoot,
-    page === "home" || page === "speed" || page === "hangar",
+    page === "hangar",
   );
   const { countFastLaunch, rememberBenchmark } = speedStanding;
   const currentProfileFingerprint = useRef<string | null>(null);
@@ -230,6 +232,7 @@ export default function App() {
     optimizationPreset,
     launch,
     announcePreparation,
+    status === "ready" && !restoringOperation ? maintenanceEpoch : 0,
   );
   const {
     preparing,
@@ -251,6 +254,11 @@ export default function App() {
     page === "home" || page === "mods",
     refresh,
     refreshCache,
+    announceProfiles,
+  );
+  const setupCheck = useSetupCheck(
+    snapshot?.selected?.installRoot,
+    profilesState.profiles?.enabledMods.join("\0") ?? "unavailable",
     announceProfiles,
   );
   const launchProfileName = launchProfileNameFor(
@@ -285,7 +293,7 @@ export default function App() {
     const instruction = launcher.settings?.applyBoundary.instruction
       ?? "Close Starsector, its launcher, settings editors, and mod managers before Apply.";
     announceGameSettings(`Apply your changed global game settings before launching. ${instruction}`, "warning");
-    setPage("launch");
+    navigate("launch");
     return false;
   };
   const primaryLaunch = async () => {
@@ -315,7 +323,11 @@ export default function App() {
   useEffect(() => {
     const rememberedGame = readLastInstallRoot();
     void refresh(rememberedGame ?? undefined, {
-      bootstrap: true,
+      // A remembered installation can be confirmed by the small discovery document first. Home's
+      // cache/profile/settings readers then share one background home-state request. This keeps the
+      // launch action fenced until the current setup is known while replacing most of the opening
+      // "Finding Starsector" wait with the real Home composition.
+      bootstrap: rememberedGame === null,
       fallbackDiscovery: rememberedGame !== null,
     });
   }, [refresh]);
@@ -369,7 +381,7 @@ export default function App() {
               setForceStopAvailable(false);
               setMaintenanceEpoch((epoch) => epoch + 1);
               setStatus("ready");
-              void refresh().then((refreshed) => {
+              void Promise.all([refresh(), refreshCache()]).then(([refreshed]) => {
                 if (refreshed) announceGame("Starsector closed. The run report is ready.", "success");
               });
             },
@@ -428,10 +440,7 @@ export default function App() {
           profileFingerprint: target?.profileFingerprint ?? undefined,
         });
         const game = target?.installRoot ?? snapshot?.selected?.installRoot;
-        if (!payload.success && game) {
-          void diagnostics.submitAutomaticFailedRunReport({ game, wrapperPid: payload.pid });
-        }
-        void refresh(game).then((refreshed) => {
+        void Promise.all([refresh(game), refreshCache()]).then(([refreshed]) => {
           if (refreshed) announceGame(outcome, payload.success ? "success" : "error");
         });
       }
@@ -450,8 +459,11 @@ export default function App() {
             previousPid = null;
             setMaintenanceEpoch((current) => current + 1);
             setStatus(snapshot?.ready ? "ready" : "setup");
-            void refresh(snapshot?.selected?.installRoot).then((refreshed) => {
-              if (refreshed) announceGame("Starsector closed. The exact outcome is available in run reports.", "warning");
+            void Promise.all([
+              refresh(snapshot?.selected?.installRoot),
+              refreshCache(),
+            ]).then(([refreshed]) => {
+              if (refreshed) announceGame("Starsector closed. Check run reports for the result.", "warning");
             });
           } else {
             previousPid = null;
@@ -465,7 +477,7 @@ export default function App() {
       stopListening();
       stopReconciliation();
     };
-  }, [announceGame, countFastLaunch, diagnostics.submitAutomaticFailedRunReport, refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
+  }, [announceGame, countFastLaunch, refresh, refreshCache, snapshot?.ready, snapshot?.selected?.installRoot]);
 
   const chooseInstall = async (): Promise<boolean> => {
     if (choosingInstallRef.current) return false;
@@ -505,6 +517,7 @@ export default function App() {
     cleanupBusy: cleanup.busy,
     launcherSaving: launcher.saving,
     profileBusy: profilesState.profileBusy,
+    setupChecking: setupCheck.checking,
     diagnosticsBusy: diagnostics.diagnosticsBusy,
     reportUploading: diagnostics.reportUploading,
     reportFinalizing: diagnostics.reportFinalizing,
@@ -554,12 +567,15 @@ export default function App() {
     void refreshCache();
     invalidatePreparationPlan();
   }, [invalidatePreparationPlan, refreshCache]);
+  const discardableCache = preparation.cache?.groups.find((group) => group.id === "discardable");
   useAutomaticMaintenance(
-    status === "ready" && isReady && !operationBlocked,
+    status === "ready" && isReady && !operationBlocked && !preparation.preparationPlanLoading,
     maintenanceEpoch,
     {
       game: snapshot?.selected?.installRoot,
       cacheBytes: preparation.cache?.total.bytes,
+      discardableBytes: discardableCache?.bytes,
+      discardableFiles: discardableCache?.files,
       onCacheCleaned: refreshAfterAutomaticCacheCleanup,
     },
   );
@@ -575,14 +591,16 @@ export default function App() {
     : retryIntent?.kind === "installation"
       ? "Try this folder again"
       : "Scan again";
-  const homeNotice = latestNotice(["installation", "game", "game-settings", "preparation", "profiles", "cache"]);
+  const homeNotice = latestNotice(["installation", "game", "game-settings", "preparation", "cache"]);
   const launchNotice = latestNotice(["installation", "game-settings"]);
   const preparationNotice = latestNotice(["installation", "preparation", "cache"]);
   const profilesNotice = latestNotice(["installation", "profiles"]);
   const benchmarkNotice = latestNotice(["installation", "benchmark"]);
   const helpNotice = latestNotice(["installation", "support"]);
   const settingsNotice = latestNotice(["installation", "updates", "removal"]);
-  const title = pageTitle(page, status, preparing, isReady, needsPreparation);
+  const title = page === "home" && runFailure
+    ? "Needs attention"
+    : pageTitle(page, status, preparing, isReady, needsPreparation);
   return (
     <DesktopShell
       page={page}
@@ -593,7 +611,7 @@ export default function App() {
       engineVersion={snapshot?.engineVersion ?? "…"}
       theme={theme.preference}
       palette={theme.palette}
-      onPageChange={setPage}
+      onPageChange={navigate}
       onThemeChange={theme.setPreference}
       onPaletteChange={theme.setPalette}
     >
@@ -601,10 +619,10 @@ export default function App() {
           <WorkflowLockNotice
             reason={`${activeOperation.reason}. Other changes wait until it finishes.`}
             actionLabel={activeOperation.owner === "home" ? "View progress" : `Open ${pageTitle(activeOperation.owner, status, preparing, isReady, needsPreparation)}`}
-            onAction={() => setPage(activeOperation.owner)}
+            onAction={() => navigate(activeOperation.owner)}
           />
         ) : null}
-        {page === "home" ? (
+        <Activity name="home-page" mode={page === "home" ? "visible" : "hidden"}>
           <HomePage
             snapshot={snapshot}
             status={status}
@@ -637,11 +655,13 @@ export default function App() {
             onRetry={retryFailedOperation}
             runFailure={runFailure}
             onDismissRunFailure={() => setRunFailure(null)}
-            onNavigate={setPage}
-            instrumentHull={instrumentHull.selected}
+            onNavigate={navigate}
+            instrumentHull={instrumentHull}
             launchProfileName={launchProfileName}
+            modReadiness={profilesState.modReadiness}
           />
-        ) : page === "launch" ? (
+        </Activity>
+        <Activity name="launch-settings-page" mode={page === "launch" ? "visible" : "hidden"}>
           <>
             <NoticeBanner message={launchNotice?.message ?? ""} tone={launchNotice?.tone ?? "info"} />
             <GameSettingsPage
@@ -657,7 +677,8 @@ export default function App() {
               onSave={(settingsToolsClosed) => void launcher.save(settingsToolsClosed)}
             />
           </>
-        ) : page === "speed" ? (
+        </Activity>
+        <Activity name="speed-page" mode={page === "speed" ? "visible" : "hidden"}>
           <PreparationPage
             message={preparationNotice?.message ?? ""}
             messageTone={preparationNotice?.tone ?? "info"}
@@ -671,19 +692,21 @@ export default function App() {
             speedStanding={speedStanding}
             playtime={snapshot?.playtime}
             lastRun={applicableLastRun}
-            instrumentHull={instrumentHull.selected}
             onOptimizationPresetChange={setOptimizationPreset}
             onOptimizationDomainChange={setOptimizationDomainEnabled}
             onReviewCleanup={() => void cleanup.review()}
             onCleanCache={() => void cleanup.clean()}
             onDismissCleanup={cleanup.dismiss}
-            onOpenBenchmark={() => setPage("benchmark")}
+            onOpenBenchmark={() => navigate("benchmark")}
           />
-        ) : page === "mods" ? (
-          <ProfilesPage message={profilesNotice?.message ?? ""} messageTone={profilesNotice?.tone ?? "info"} profilesState={profilesState} operationBlocked={operationBlocked} />
-        ) : page === "hangar" ? (
+        </Activity>
+        <Activity name="mods-page" mode={page === "mods" ? "visible" : "hidden"}>
+          <ProfilesPage message={profilesNotice?.message ?? ""} messageTone={profilesNotice?.tone ?? "info"} profilesState={profilesState} setupCheck={setupCheck} operationBlocked={operationBlocked} />
+        </Activity>
+        <Activity name="hangar-page" mode={page === "hangar" ? "visible" : "hidden"}>
           <HangarPage instrumentHull={instrumentHull} />
-        ) : page === "benchmark" ? (
+        </Activity>
+        <Activity name="benchmark-page" mode={page === "benchmark" ? "visible" : "hidden"}>
           <BenchmarkPage
             message={benchmarkNotice?.message ?? ""}
             messageTone={benchmarkNotice?.tone ?? "info"}
@@ -693,8 +716,10 @@ export default function App() {
             operationBlocked={operationBlocked}
             nativeBlockReason={nativeBenchmarkBlockReason}
             automation={automation}
+            onOpenHelp={() => navigate("help")}
           />
-        ) : page === "help" ? (
+        </Activity>
+        <Activity name="help-page" mode={page === "help" ? "visible" : "hidden"}>
           <HelpPage
             message={helpNotice?.message ?? ""}
             messageTone={helpNotice?.tone ?? "info"}
@@ -704,12 +729,13 @@ export default function App() {
             onTurnOffOptimizations={() => setOptimizationPreset("off")}
             onChooseInstall={() => {
               void chooseInstall().then((changed) => {
-                if (changed) setPage("home");
+                if (changed) navigate("home");
               });
             }}
-            onNavigate={setPage}
+            onNavigate={navigate}
           />
-        ) : (
+        </Activity>
+        <Activity name="settings-page" mode={page === "settings" ? "visible" : "hidden"}>
           <SettingsPage
             message={settingsNotice?.message ?? ""}
             messageTone={settingsNotice?.tone ?? "info"}
@@ -720,17 +746,15 @@ export default function App() {
             removalPlan={removal.plan}
             removalBusy={removal.busy}
             afterLaunchBehavior={afterLaunchBehavior}
-            automaticRunReports={diagnostics.automaticRunReports}
             installation={snapshot?.selected?.installRoot ?? null}
             installationChangeBlockedReason={activeOperation?.reason ?? null}
-            onAutomaticRunReportsChange={diagnostics.setAutomaticRunReports}
             onAfterLaunchBehaviorChange={setAfterLaunchBehavior}
             onChooseInstall={() => void chooseInstall()}
             onReviewRemoval={(scope) => void removal.review(scope)}
             onDismissRemoval={removal.dismiss}
             onRemove={() => void removal.remove()}
           />
-        )}
-    </DesktopShell>
+        </Activity>
+      </DesktopShell>
   );
 }

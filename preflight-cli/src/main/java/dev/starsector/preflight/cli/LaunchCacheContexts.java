@@ -44,6 +44,7 @@ final class LaunchCacheContexts {
                 profiles.rulesCsv(),
                 profiles.ruleCommand(),
                 profiles.mergedRead(),
+                profiles.magicPaintjobs(),
                 profiles.janino(),
                 profiles.preparedAudio());
     }
@@ -53,6 +54,9 @@ final class LaunchCacheContexts {
             System.out.println("Preflight is matching prepared textures to the current installed profile...");
             CurrentTextureCache.Resolution resolved = CurrentTextureCache.resolve(
                     target.installRoot(), options.textureCacheDirectory());
+            if (resolved.minimal()) {
+                System.out.println("Preflight is using Minimal preparation; prepared textures remain off.");
+            }
             return new Texture(
                     resolved.cacheDirectory(),
                     resolved.manifest(),
@@ -63,7 +67,8 @@ final class LaunchCacheContexts {
                     resolved.manifestSha256(),
                     resolved.indexSha256(),
                     resolved.checkedProviders(),
-                    resolved.indexBuildMillis());
+                    resolved.indexBuildMillis(),
+                    !resolved.minimal());
         }
         if (options.textureManifest() == null) {
             return null;
@@ -78,7 +83,8 @@ final class LaunchCacheContexts {
                 null,
                 null,
                 0,
-                0);
+                0,
+                true);
     }
 
     /**
@@ -172,6 +178,7 @@ final class LaunchCacheContexts {
                             context,
                             PrepareCommand.defaultCacheDirectory().toAbsolutePath().normalize()));
 
+            MergedRead mergedRead = profileResult("merged read", merged);
             Profiles selected = new Profiles(
                     profileResult("variant JSON", variant),
                     profileResult("weapon JSON", weapon),
@@ -179,7 +186,8 @@ final class LaunchCacheContexts {
                     profileResult("hull JSON", hull),
                     profileResult("rules CSV", rules),
                     profileResult("rule command class", commands),
-                    profileResult("merged read", merged),
+                    mergedRead,
+                    magicPaintjobCacheContext(mergedRead, textures),
                     profileResult("Janino bytecode", janino),
                     profileResult("prepared audio", audio));
             System.out.printf(Locale.ROOT,
@@ -201,6 +209,7 @@ final class LaunchCacheContexts {
             Path cacheRoot,
             boolean textureProfiles,
             boolean janinoCacheOwned) {
+        MergedRead mergedRead = textureProfiles ? mergedReadCacheContext(context, textures) : null;
         return new Profiles(
                 textureProfiles ? variantJsonCacheContext(context, textures) : null,
                 textureProfiles ? weaponJsonCacheContext(context, textures) : null,
@@ -210,7 +219,8 @@ final class LaunchCacheContexts {
                 textureProfiles && options.ruleCommandClassCache()
                         ? ruleCommandCacheContext(context, textures)
                         : null,
-                textureProfiles ? mergedReadCacheContext(context, textures) : null,
+                mergedRead,
+                magicPaintjobCacheContext(mergedRead, textures),
                 janinoCacheOwned ? janinoBytecodeCacheContext(context, target, cacheRoot) : null,
                 options.preparedAudio()
                         ? preparedAudioCacheContext(
@@ -526,11 +536,24 @@ final class LaunchCacheContexts {
             report("merged read", profile.identitySha256(), started, artifact,
                     String.format(Locale.ROOT, "%d paths, %d providers",
                             profile.logicalPaths(), profile.providerCount()));
-            return new MergedRead(artifact);
+            return new MergedRead(artifact, profile.identitySha256());
         } catch (Exception error) {
             declined("merged read", error);
             return null;
         }
+    }
+
+    /** MagicLib reads only data/ resources, already covered by the exact merged-read identity. */
+    private static MagicPaintjobs magicPaintjobCacheContext(
+            MergedRead mergedRead, Texture textures) {
+        if (mergedRead == null || textures == null) {
+            return null;
+        }
+        Path artifact = artifact(
+                SpecStoreCacheDirectories.magicPaintjobs(textures.cacheDirectory()),
+                mergedRead.identitySha256(),
+                ".spmp");
+        return new MagicPaintjobs(artifact);
     }
 
     private static Path artifact(Path store, String identity, String extension) {
@@ -567,6 +590,7 @@ final class LaunchCacheContexts {
             RulesCsv rulesCsv,
             RuleCommand ruleCommand,
             MergedRead mergedRead,
+            MagicPaintjobs magicPaintjobs,
             Janino janino,
             PreparedAudio preparedAudio) {
     }
@@ -579,11 +603,12 @@ final class LaunchCacheContexts {
             RulesCsv rulesCsv,
             RuleCommand ruleCommand,
             MergedRead mergedRead,
+            MagicPaintjobs magicPaintjobs,
             Janino janino,
             PreparedAudio preparedAudio) {
 
         static Profiles none() {
-            return new Profiles(null, null, null, null, null, null, null, null, null);
+            return new Profiles(null, null, null, null, null, null, null, null, null, null);
         }
     }
 
@@ -597,7 +622,8 @@ final class LaunchCacheContexts {
             String manifestSha256,
             String indexSha256,
             long checkedProviders,
-            double indexBuildMillis) {
+            double indexBuildMillis,
+            boolean preparedTextures) {
     }
 
     record VariantJson(Path artifact) {
@@ -618,7 +644,10 @@ final class LaunchCacheContexts {
     record RuleCommand(Path artifact) {
     }
 
-    record MergedRead(Path artifact) {
+    record MergedRead(Path artifact, String identitySha256) {
+    }
+
+    record MagicPaintjobs(Path artifact) {
     }
 
     record Janino(Path cacheRoot, String contextToken) {

@@ -15,9 +15,15 @@ test("signed candidates are confined to main in the reviewed workflow", () => {
   );
 });
 
-test("every updater-signing job is gated by the release-signing environment", () => {
+test("every private release-secret job is gated by the release-signing environment", () => {
   const matches = workflow.match(/\n    environment:\n      name: release-signing/g) ?? [];
-  assert.equal(matches.length, 3);
+  assert.equal(matches.length, 4);
+  const candidate = workflow.slice(
+    workflow.indexOf("\n  candidate:\n"),
+    workflow.indexOf("\n  publish:\n"),
+  );
+  assert.match(candidate, /environment:\n      name: release-signing/);
+  assert.match(candidate, /secrets\.PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD/);
 });
 
 test("updater private keys come only from release-signing environment secret names", () => {

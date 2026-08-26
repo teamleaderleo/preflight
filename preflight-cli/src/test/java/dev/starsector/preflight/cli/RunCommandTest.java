@@ -46,4 +46,32 @@ class RunCommandTest {
                 Instant.EPOCH,
                 "../escape"));
     }
+
+    @Test
+    void onlyAnAutomaticExactTextureContextActivatesTheValidatedSnapshot() {
+        CommandLine fast = CommandLine.parse(new String[] {"run", "--fast"}, 1);
+
+        assertEquals(true, RunCommand.trustsLauncherValidatedTextureIndex(
+                fast, textureContext(true, true)));
+        assertEquals(false, RunCommand.trustsLauncherValidatedTextureIndex(
+                fast, textureContext(false, true)));
+        assertEquals(false, RunCommand.trustsLauncherValidatedTextureIndex(
+                fast, textureContext(true, false)));
+        assertEquals(false, RunCommand.trustsLauncherValidatedTextureIndex(fast, null));
+    }
+
+    private static LaunchCacheContexts.Texture textureContext(boolean automatic, boolean prepared) {
+        return new LaunchCacheContexts.Texture(
+                Path.of("cache"),
+                Path.of("cache/manifest.spfm"),
+                Path.of("cache/index.spfi"),
+                null,
+                automatic,
+                "profile",
+                "manifest-sha",
+                "index-sha",
+                1,
+                1,
+                prepared);
+    }
 }

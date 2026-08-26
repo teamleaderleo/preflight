@@ -1,0 +1,12 @@
+/* The default 1040px desktop window keeps the sidebar, leaving the secondary Game settings card
+ * narrower than the <=1000px top-nav layout. Keep its memory control vertical at every width so
+ * the select never extends into the page viewport's intentionally hidden horizontal overflow. */
+.launch-settings-card:last-child .setting-field {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.launch-settings-card:last-child .setting-field select {
+  width: 100%;
+}

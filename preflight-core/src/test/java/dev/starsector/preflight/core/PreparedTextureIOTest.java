@@ -35,6 +35,22 @@ class PreparedTextureIOTest {
     }
 
     @Test
+    void packIntermediateIsCheckedAndNeverReplacesAnExistingBlob() throws Exception {
+        PreparedTexture texture = fixture();
+        Path output = temporaryDirectory.resolve("intermediate/example-lz4.spft");
+
+        PreparedTextureIO.writePackIntermediate(
+                output, texture, PreparedTextureIO.StorageCodec.LZ4);
+
+        assertEquals(texture, PreparedTextureIO.read(output));
+        assertThrows(
+                IOException.class,
+                () -> PreparedTextureIO.writePackIntermediate(
+                        output, texture, PreparedTextureIO.StorageCodec.LZ4));
+        assertEquals(texture, PreparedTextureIO.read(output));
+    }
+
+    @Test
     void verifiedReadRejectsGrowthDuringTheActualStreamRead() throws Exception {
         byte[] bytes = PreparedTextureIO.toBytes(fixture());
         Path file = temporaryDirectory.resolve("growing.spft");
@@ -120,6 +136,19 @@ class PreparedTextureIOTest {
         IOException rejected = assertThrows(
                 IOException.class, () -> PreparedTextureIO.readTrusted(wrongCodec));
         assertTrue(rejected.getMessage().contains("LZ4 payload metadata"));
+    }
+
+    @Test
+    void reportsAnExactRawAndSafeLz4WriteCeiling() throws Exception {
+        PreparedTexture texture = fixture();
+
+        assertEquals(
+                PreparedTextureIO.toBytes(texture, PreparedTextureIO.StorageCodec.RAW).length,
+                PreparedTextureIO.maximumFileBytes(
+                        texture.pixelBytes(), PreparedTextureIO.StorageCodec.RAW));
+        assertTrue(PreparedTextureIO.maximumFileBytes(
+                        texture.pixelBytes(), PreparedTextureIO.StorageCodec.LZ4)
+                >= PreparedTextureIO.toBytes(texture, PreparedTextureIO.StorageCodec.LZ4).length);
     }
 
     @Test

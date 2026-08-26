@@ -6,6 +6,8 @@ import type {
   CacheHealth,
   CacheInspection,
   DesktopHomeState,
+  ModReadiness,
+  SetupAnalysisResult,
   CacheRepair,
   CacheSnapshot,
   CacheCleanupPlan,
@@ -46,8 +48,10 @@ export type BrowserPreviewScenario =
   | "ready"
   | "running"
   | "setup"
+  | "first-run"
   | "low-disk"
   | "cache-repair"
+  | "mod-problems"
   | "profile-mismatch"
   | "benchmark-unavailable"
   | "update-error"
@@ -58,8 +62,10 @@ const browserPreviewScenarios = new Set<BrowserPreviewScenario>([
   "ready",
   "running",
   "setup",
+  "first-run",
   "low-disk",
   "cache-repair",
+  "mod-problems",
   "profile-mismatch",
   "benchmark-unavailable",
   "update-error",
@@ -157,6 +163,21 @@ export async function getSnapshot(game?: string): Promise<DesktopSnapshot> {
         ],
       };
     }
+    if (browserPreviewScenario() === "first-run") {
+      return {
+        ...previewSnapshot,
+        playtime: {
+          readable: true,
+          totalMillis: 0,
+          longestSessionMillis: 0,
+          averageMillis: 0,
+          launches: 0,
+          sessionsWithoutDuration: 0,
+          first: null,
+          last: null,
+        },
+      };
+    }
     return previewSnapshot;
   }
   return invoke<DesktopSnapshot>("get_snapshot", { game: game ?? null });
@@ -180,7 +201,7 @@ interface HomeStateFlight {
   claimed: Set<HomeStateField>;
 }
 
-type HomeStateField = "cacheInspection" | "profiles" | "launchSettings";
+type HomeStateField = "cacheInspection" | "profiles" | "launchSettings" | "modReadiness";
 
 let homeStateFlight: HomeStateFlight | null = null;
 const homeStateBootstrapped = new Set<string>();
@@ -195,7 +216,7 @@ function primeHomeState(state: DesktopHomeState): void {
   };
 }
 
-/** Discovers the installation and primes Home's three reads from one engine process. */
+/** Discovers the installation and primes Home's first reads from one engine process. */
 export async function getBootstrapSnapshot(game?: string): Promise<DesktopSnapshot> {
   if (!isDesktopHost()) return getSnapshot(game);
   const expectedGame = game ?? null;
@@ -241,7 +262,7 @@ function firstHomeStateField<K extends HomeStateField>(
   const flight = homeStateFlight;
   if (flight.claimed.has(field)) return null;
   flight.claimed.add(field);
-  if (flight.claimed.size === 3) homeStateBootstrapped.add(game);
+  if (flight.claimed.size === 4) homeStateBootstrapped.add(game);
   return flight.promise.then((state) => {
     const value = state[field];
     if (value === null) throw new Error(state.errors[field] ?? `Preflight couldn't read ${field}.`);
@@ -254,6 +275,66 @@ export async function getWireframeHulls(game: string): Promise<WireframeHullCata
     return previewWireframeHulls;
   }
   return invoke<WireframeHullCatalog>("get_wireframe_hulls", { game });
+}
+
+function previewModReadiness(): ModReadiness {
+  if (browserPreviewScenario() === "mod-problems") {
+    return {
+      format: "starsector-preflight-mod-readiness-v1",
+      ready: false,
+      counts: { blocking: 1, warning: 0, info: 0, unknown: 0 },
+      findings: [{
+        code: "mod-metadata.required-dependency-disabled",
+        provider: "mod-metadata",
+        severity: "blocking",
+        summary: "Nexerelin requires LazyLib, but LazyLib is disabled.",
+        parameters: { modId: "nexerelin", dependencyId: "lw_lazylib" },
+        affectedModIds: ["lw_lazylib", "nexerelin"],
+        actions: [],
+      }],
+      modDirectories: 83,
+      metadataBytes: 131_072,
+      elapsedMillis: 7,
+    };
+  }
+  return {
+    format: "starsector-preflight-mod-readiness-v1",
+    ready: true,
+    counts: { blocking: 0, warning: 0, info: 0, unknown: 0 },
+    findings: [],
+    modDirectories: 83,
+    metadataBytes: 131_072,
+    elapsedMillis: 7,
+  };
+}
+
+export async function getModReadiness(game: string): Promise<ModReadiness> {
+  if (!isDesktopHost()) return previewModReadiness();
+  return firstHomeStateField(game, "modReadiness")
+    ?? invoke<ModReadiness>("get_mod_readiness", { game });
+}
+
+export async function checkSetup(game: string): Promise<SetupAnalysisResult> {
+  if (!isDesktopHost()) {
+    const finding = browserPreviewScenario() === "mod-problems"
+      ? previewModReadiness().findings[0]
+      : undefined;
+    return {
+      format: "starsector-preflight-setup-analysis-v1",
+      installationIdentity: "install-v1:preview",
+      profileFingerprint: "preview-profile",
+      ready: !finding,
+      counts: {
+        blocking: finding ? 1 : 0,
+        warning: 0,
+        info: 0,
+        unknown: 0,
+      },
+      findings: finding ? [finding] : [],
+      unavailableProviders: [],
+    };
+  }
+  return invoke<SetupAnalysisResult>("check_setup", { game });
 }
 
 export async function getOperationState(includeDurable = false): Promise<OperationSnapshot> {
@@ -354,13 +435,18 @@ export async function stopGame(force = false): Promise<StopGameResult> {
 
 export async function getCache(game: string): Promise<CacheSnapshot> {
   if (!isDesktopHost()) {
-    if (browserPreviewScenario() === "low-disk") {
+    const scenario = browserPreviewScenario();
+    if (scenario === "low-disk" || scenario === "first-run") {
       return {
         format: "starsector-preflight-cache-v1",
         root: "~/.starsector-preflight",
-        present: true,
-        total: { bytes: 536_870_912, files: 1_204 },
-        groups: [{ id: "acceleration", bytes: 536_870_912, files: 1_204 }],
+        present: scenario === "low-disk",
+        total: scenario === "low-disk"
+          ? { bytes: 536_870_912, files: 1_204 }
+          : { bytes: 0, files: 0 },
+        groups: scenario === "low-disk"
+          ? [{ id: "acceleration", bytes: 536_870_912, files: 1_204 }]
+          : [],
         uncategorizedBytes: 0,
         currentProfileFingerprint: "preview-profile",
         profiles: [],
@@ -397,6 +483,10 @@ export async function getCacheHealth(game: string): Promise<CacheHealth> {
         format: "starsector-preflight-cache-health-v1",
         status: "repair-needed",
         profileFingerprint: "preview-profile",
+        preparedTextures: null,
+        textureStorage: null,
+        textureScope: null,
+        compactAvailable: false,
         issues: [{
           artifact: "prepared-textures",
           summary: "Prepared texture metadata is incomplete.",
@@ -406,10 +496,28 @@ export async function getCacheHealth(game: string): Promise<CacheHealth> {
         repairFiles: 3,
       };
     }
+    if (browserPreviewScenario() === "first-run") {
+      return {
+        format: "starsector-preflight-cache-health-v1",
+        status: "cold",
+        profileFingerprint: "preview-profile",
+        preparedTextures: false,
+        textureStorage: "balanced",
+        textureScope: "full",
+        compactAvailable: false,
+        issues: [],
+        repairBytes: 0,
+        repairFiles: 0,
+      };
+    }
     return {
       format: "starsector-preflight-cache-health-v1",
       status: "ready",
       profileFingerprint: "preview-profile",
+      preparedTextures: true,
+      textureStorage: "balanced",
+      textureScope: "full",
+      compactAvailable: true,
       issues: [],
       repairBytes: 0,
       repairFiles: 0,
@@ -468,13 +576,6 @@ export async function exportDiagnostics(output: string): Promise<DiagnosticsExpo
     };
   }
   return invoke<DiagnosticsExport>("export_diagnostics", { output });
-}
-
-export async function exportAutomaticDiagnostics(runId: string): Promise<DiagnosticsExport> {
-  if (!isDesktopHost()) {
-    return exportDiagnostics(`/Users/captain/Desktop/auto-failed-run-${runId}.zip`);
-  }
-  return invoke<DiagnosticsExport>("export_automatic_diagnostics", { runId });
 }
 
 export async function getReportIntakeStatus(): Promise<ReportIntakeStatus> {
@@ -563,7 +664,7 @@ export async function getLaunchSettings(game: string): Promise<LaunchSettings> {
         battleSizeMin: 200,
         battleSizeDefault: 400,
         battleSizeMax: 400,
-        battleSizeExtendedMax: 2000,
+        battleSizeExtendedMax: 2_147_483_647,
         diagnostics: [],
       },
       memory: {
@@ -616,7 +717,10 @@ export async function updateLaunchSettings(
 
 export async function getProfiles(game: string): Promise<ProfileList> {
   if (!isDesktopHost()) {
-    const profiles = browserPreviewScenario() === "profile-mismatch"
+    const scenario = browserPreviewScenario();
+    const profiles = scenario === "first-run"
+      ? []
+      : scenario === "profile-mismatch"
       ? previewProfiles.map((profile) => profile.name === "Utilities only"
         ? { ...profile, canActivate: false, missingMods: ["graphicslib"] }
         : profile)
@@ -790,37 +894,41 @@ export async function getPreparationPlan(
   if (!isDesktopHost()) {
     await new Promise((resolve) => window.setTimeout(resolve, 100));
     const lowDisk = browserPreviewScenario() === "low-disk";
+    const compact = textureStorage === "compact";
+    const balanced = textureStorage === "balanced";
+    const predictedAdditionalBytes = compact ? 1_103_562_720 : balanced ? 2_263_601_564 : 5_368_554_432;
+    const safetyReserveBytes = compact ? 134_217_728 : balanced ? 226_360_156 : 512_000_000;
+    const requiredFreeBytes = predictedAdditionalBytes + safetyReserveBytes;
+    const usableBytes = lowDisk ? 2_147_483_648 : 82_000_000_000;
+    const safeToPrepare = usableBytes >= requiredFreeBytes;
     return {
       format: "preflight-preparation-storage-plan-v1",
       profileFingerprint: "preview-profile",
-      textureStorage,
+      textureStorage: textureStorage === "compact" ? "balanced" : textureStorage,
       cacheDirectory: "~/.starsector-preflight/cache",
       packPath: "~/.starsector-preflight/cache/packs/preview.spfp",
-      candidateEntries: 32_920,
-      hashedEntries: 32_920,
-      uniqueContent: 30_639,
-      supportedContent: 30_639,
+      candidateEntries: compact ? 16_013 : 32_920,
+      hashedEntries: compact ? 16_013 : 32_920,
+      uniqueContent: compact ? 14_774 : 30_639,
+      supportedContent: compact ? 14_774 : 30_639,
       unsupportedContent: 0,
       failedContent: 0,
-      uniqueSourceBytes: 1_344_722_319,
-      uniquePixelBytes: 5_331_135_254,
+      uniqueSourceBytes: compact ? 655_884_863 : 1_344_722_319,
+      uniquePixelBytes: compact ? 2_074_073_333 : 5_331_135_254,
       reusableLooseBytes: 0,
-      predictedLooseBytes: textureStorage === "balanced" ? 2_255_699_674 : 5_331_200_000,
-      upperLooseBytes: textureStorage === "balanced" ? 5_600_000_000 : 5_331_200_000,
-      predictedPackBytes: textureStorage === "balanced" ? 2_258_964_304 : 5_335_000_000,
-      upperPackBytes: 5_600_000_000,
+      predictedLooseBytes: compact ? 1_068_402_906 : balanced ? 2_226_725_910 : 5_331_200_000,
+      predictedPackBytes: compact ? 1_070_008_288 : balanced ? 2_230_047_132 : 5_335_000_000,
+      predictedRetainedTextureBytes: compact ? 1_070_008_288 : balanced ? 2_230_047_132 : 5_335_000_000,
       predictedMetadataBytes: 33_554_432,
-      upperMetadataBytes: 134_217_728,
-      predictedAdditionalBytes: textureStorage === "balanced" ? 4_548_218_410 : 10_699_754_432,
-      upperBoundAdditionalBytes: textureStorage === "balanced" ? 11_334_217_728 : 11_065_217_728,
-      safetyReserveBytes: 1_133_421_772,
-      requiredFreeBytes: 12_467_639_500,
-      usableBytes: lowDisk ? 2_147_483_648 : 82_000_000_000,
-      remainingAfterUpperBoundBytes: lowDisk ? -9_186_734_080 : 70_665_782_272,
+      predictedAdditionalBytes,
+      safetyReserveBytes,
+      requiredFreeBytes,
+      usableBytes,
       packHit: false,
+      packOnlyHit: false,
       complete: true,
-      safeToPrepare: !lowDisk,
-      refusalReason: lowDisk ? "Preparation needs up to 11.6 GB; only 2.0 GB is available after the safety reserve." : null,
+      safeToPrepare,
+      refusalReason: safeToPrepare ? null : `Preparation needs about ${balanced ? "2.32" : "5.48"} GiB free right now; only 2.00 GiB is available.`,
       diagnostics: [],
       durationMs: 740,
     };
@@ -862,6 +970,27 @@ export async function applyCacheCleanup(game: string): Promise<CacheCleanupPlan>
     return { ...(await getCacheCleanup(game)), applied: true };
   }
   return invoke<CacheCleanupPlan>("apply_cache_cleanup", { game });
+}
+
+export async function applyDiscardableCacheCleanup(): Promise<CacheCleanupPlan> {
+  if (!isDesktopHost()) {
+    return {
+      format: "starsector-preflight-cache-prune-v1",
+      safe: true,
+      applied: true,
+      currentProfileFingerprint: null,
+      survivingProfileFingerprints: [],
+      bytes: 0,
+      files: 0,
+      reachableTextureBlobs: 0,
+      reachablePreparedAudioBlobs: 0,
+      refusals: [],
+      groups: [],
+      removals: [],
+      removalsTruncated: false,
+    };
+  }
+  return invoke<CacheCleanupPlan>("apply_discardable_cache_cleanup");
 }
 
 export async function getEvidenceCleanup(): Promise<EvidenceCleanupPlan> {

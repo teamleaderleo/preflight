@@ -60,14 +60,17 @@ final class PrepareCommand {
             emitProgress("storage-plan", "started", null, null, Map.of());
             System.err.println("prepare: storage-plan started");
             plannedResourceBuild = ResourceIndexBuilder.build(target.installRoot());
+            List<String> selectedTextures = options.textureScope().selectedLogicalPaths(
+                    cache, plannedResourceBuild.index().profileFingerprint());
             storagePlan = PreparationStoragePlanner.plan(
-                    plannedResourceBuild.index(), cache, options.textureStorage(), options.workers());
+                    plannedResourceBuild.index(), cache, options.textureStorage(), options.workers(),
+                    selectedTextures);
             System.err.printf(
                     Locale.ROOT,
-                    "prepare: storage-plan completed safe=%s predicted=%d upper=%d usable=%d durationMs=%.3f%n",
+                    "prepare: storage-plan completed safe=%s required=%d retained=%d usable=%d durationMs=%.3f%n",
                     storagePlan.safeToPrepare(),
-                    storagePlan.predictedAdditionalBytes(),
-                    storagePlan.upperBoundAdditionalBytes(),
+                    storagePlan.requiredFreeBytes(),
+                    storagePlan.predictedRetainedTextureBytes(),
                     storagePlan.usableBytes(),
                     storagePlan.durationNanos() / 1_000_000.0);
             emitProgress(
@@ -76,8 +79,8 @@ final class PrepareCommand {
                     storagePlan.safeToPrepare() ? "SUCCESS" : "FAILED",
                     storagePlan.durationNanos(),
                     Map.of(
-                            "predictedAdditionalBytes", storagePlan.predictedAdditionalBytes(),
-                            "upperBoundAdditionalBytes", storagePlan.upperBoundAdditionalBytes(),
+                            "requiredFreeBytes", storagePlan.requiredFreeBytes(),
+                            "predictedRetainedTextureBytes", storagePlan.predictedRetainedTextureBytes(),
                             "usableBytes", storagePlan.usableBytes()));
             if (options.plan()) {
                 if (options.json()) {
@@ -105,14 +108,17 @@ final class PrepareCommand {
             PreparationFaultInjection.afterLeaseAcquired();
             if (plannedResourceBuild != null) {
                 plannedResourceBuild = ResourceIndexBuilder.build(target.installRoot());
+                List<String> selectedTextures = options.textureScope().selectedLogicalPaths(
+                        cache, plannedResourceBuild.index().profileFingerprint());
                 storagePlan = PreparationStoragePlanner.plan(
-                        plannedResourceBuild.index(), cache, options.textureStorage(), options.workers());
+                        plannedResourceBuild.index(), cache, options.textureStorage(), options.workers(),
+                        selectedTextures);
                 System.err.printf(
                         Locale.ROOT,
-                        "prepare: storage-plan revalidated under ownership safe=%s predicted=%d upper=%d usable=%d durationMs=%.3f%n",
+                        "prepare: storage-plan revalidated under ownership safe=%s required=%d retained=%d usable=%d durationMs=%.3f%n",
                         storagePlan.safeToPrepare(),
-                        storagePlan.predictedAdditionalBytes(),
-                        storagePlan.upperBoundAdditionalBytes(),
+                        storagePlan.requiredFreeBytes(),
+                        storagePlan.predictedRetainedTextureBytes(),
                         storagePlan.usableBytes(),
                         storagePlan.durationNanos() / 1_000_000.0);
                 if (!storagePlan.safeToPrepare()) {
@@ -311,8 +317,15 @@ final class PrepareCommand {
                                     options.workers(),
                                     options.memoryMib() * 1024L * 1024L,
                                     options.textureStorage().codec(),
-                                    options.textureStorage().rawWhenCompressionIsIneffective()));
-                    TextureManifestValidator.Result validation = TextureManifestValidator.validate(cache, built.manifest());
+                                    options.textureStorage().rawWhenCompressionIsIneffective(),
+                                    options.textureScope().selectedLogicalPaths(
+                                            cache, resourceIndex.profileFingerprint()),
+                                    true));
+                    boolean exactPackOnly = PackedTextureRetention.isExactPackOnly(cache, built.manifest());
+                    TextureManifestValidator.Result validation = exactPackOnly
+                            ? null
+                            : TextureManifestValidator.validate(cache, built.manifest());
+                    boolean texturesValid = exactPackOnly || validation.valid();
                     Map<String, Object> details = new LinkedHashMap<>();
                     details.put("manifest", built.manifestPath());
                     details.put("pack", built.packPath());
@@ -335,13 +348,30 @@ final class PrepareCommand {
                     details.put("uniquePixelBytes", built.uniquePixelBytes());
                     details.put("uniqueBlobBytes", built.uniqueBlobBytes());
                     details.put("textureStorage", options.textureStorage().optionValue());
+                    details.put("textureScope", options.textureScope().optionValue());
                     details.put("memoryEstimate", TextureMemoryEstimator.estimate(built.manifest()).toReportValues());
                     details.put("buildDiagnostics", built.diagnostics());
-                    details.put("valid", validation.valid());
-                    details.put("checkedEntries", validation.checkedEntries());
-                    details.put("invalidEntries", validation.invalidEntries());
-                    details.put("validationProblems", validation.problems());
-                    textureStage = validation.valid() && built.failedBlobs() == 0
+                    details.put("valid", texturesValid);
+                    details.put("packOnly", exactPackOnly);
+                    details.put("checkedEntries", exactPackOnly
+                            ? built.manifest().entryCount()
+                            : validation.checkedEntries());
+                    details.put("invalidEntries", exactPackOnly ? 0 : validation.invalidEntries());
+                    details.put("validationProblems", exactPackOnly ? List.of() : validation.problems());
+                    if (texturesValid && built.failedBlobs() == 0) {
+                        try {
+                            PackedTextureRetention.Result retention =
+                                    PackedTextureRetention.release(cache, built.manifest());
+                            details.put("releasedLooseBlobs", retention.releasedBlobs());
+                            details.put("releasedLooseBytes", retention.releasedBytes());
+                            details.put("protectedLooseBlobs", retention.protectedBlobs());
+                        } catch (IOException error) {
+                            diagnostics.add("Loose texture copies were kept: " + message(error));
+                            details.put("releasedLooseBlobs", 0);
+                            details.put("releasedLooseBytes", 0);
+                        }
+                    }
+                    textureStage = texturesValid && built.failedBlobs() == 0
                             ? Stage.success(details, System.nanoTime() - stageStarted)
                             : Stage.failed(details, List.of("Texture cache preparation or validation failed"), System.nanoTime() - stageStarted);
                 } catch (Exception error) {
@@ -406,6 +436,25 @@ final class PrepareCommand {
         allEnabledStagesSuccessful &= verificationStage.successful();
         diagnostics.addAll(verificationStage.diagnostics());
 
+        if (allEnabledStagesSuccessful && resourceIndex != null) {
+            try {
+                if (options.textures()) {
+                    MinimalPreparationMarker.remove(cache, resourceIndex.profileFingerprint());
+                    TexturePreparationReceipt.write(
+                            cache,
+                            resourceIndex.profileFingerprint(),
+                            options.textureStorage(),
+                            options.textureScope());
+                } else {
+                    TexturePreparationReceipt.remove(cache, resourceIndex.profileFingerprint());
+                    MinimalPreparationMarker.write(cache, resourceIndex.profileFingerprint());
+                }
+            } catch (IOException error) {
+                allEnabledStagesSuccessful = false;
+                diagnostics.add("The profile's preparation mode could not be recorded: " + message(error));
+            }
+        }
+
         Map<String, Object> readiness = PreparationReadiness.toMap(allEnabledStagesSuccessful);
 
         Map<String, Object> output = new LinkedHashMap<>();
@@ -433,12 +482,10 @@ final class PrepareCommand {
 
     private static void printStoragePlan(PreparationStoragePlanner.Plan plan) {
         System.out.println("Preparation storage plan");
-        System.out.println("  Predicted additional: "
-                + PreparationStoragePlanner.humanBytes(plan.predictedAdditionalBytes()));
-        System.out.println("  Conservative upper bound: "
-                + PreparationStoragePlanner.humanBytes(plan.upperBoundAdditionalBytes()));
-        System.out.println("  Safety reserve: "
-                + PreparationStoragePlanner.humanBytes(plan.safetyReserveBytes()));
+        System.out.println("  Finished texture data: "
+                + PreparationStoragePlanner.humanBytes(plan.predictedRetainedTextureBytes()));
+        System.out.println("  Temporary space needed: "
+                + PreparationStoragePlanner.humanBytes(plan.requiredFreeBytes()));
         System.out.println("  Available: "
                 + PreparationStoragePlanner.humanBytes(plan.usableBytes()));
         System.out.println("  Reusable loose blobs: "
@@ -621,6 +668,7 @@ final class PrepareCommand {
         boolean plan = false;
         boolean json = false;
         TextureStoragePolicy textureStorage = TextureStoragePolicy.DEFAULT;
+        TexturePreparationScope textureScope = TexturePreparationScope.FULL;
         for (int i = offset; i < args.length; i++) {
             switch (args[i]) {
                 case "--game" -> game = Path.of(requireValue(args, ++i, "--game"));
@@ -640,6 +688,8 @@ final class PrepareCommand {
                 case "--serial-stages" -> parallelStages = false;
                 case "--texture-storage" -> textureStorage =
                         TextureStoragePolicy.parse(requireValue(args, ++i, "--texture-storage"));
+                case "--texture-scope" -> textureScope =
+                        TexturePreparationScope.parse(requireValue(args, ++i, "--texture-scope"));
                 case "--plan" -> plan = true;
                 case "--json" -> json = true;
                 default -> throw new IllegalArgumentException("Unknown prepare option: " + args[i]);
@@ -657,7 +707,7 @@ final class PrepareCommand {
         return new Options(
                 game, launcher, cache, report, workers, memoryMib, deep, verifyLookups,
                 lookupQueries, seed, resourceIndex, classpath, textures, parallelStages, textureStorage,
-                plan, json);
+                textureScope, plan, json);
     }
 
     private static String requireValue(String[] args, int index, String option) {
@@ -708,6 +758,7 @@ final class PrepareCommand {
             boolean textures,
             boolean parallelStages,
             TextureStoragePolicy textureStorage,
+            TexturePreparationScope textureScope,
             boolean plan,
             boolean json) {
         Map<String, Object> toMap() {
@@ -723,6 +774,7 @@ final class PrepareCommand {
             values.put("textures", textures);
             values.put("parallelStages", parallelStages);
             values.put("textureStorage", textureStorage.optionValue());
+            values.put("textureScope", textureScope.optionValue());
             values.put("plan", plan);
             return values;
         }

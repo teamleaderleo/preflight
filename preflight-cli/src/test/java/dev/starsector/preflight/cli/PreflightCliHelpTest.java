@@ -63,20 +63,16 @@ class PreflightCliHelpTest {
     }
 
     @Test
-    void runHelpSeparatesCrashSafeFileOnlyLogsFromBufferedQuietLogs() throws Exception {
+    void runHelpExplainsTheNormalPathWithoutDumpingInternalSwitches() throws Exception {
         String output = capture(new String[] {"run", "--help"}).standardOutput();
 
         assertTrue(output.contains("--optimization-preset recommended"), output);
-        assertTrue(output.contains("--fast is its backwards-compatible alias"), output);
-        assertTrue(output.contains("--optimization-preset conservative"), output);
-        assertTrue(output.contains("--disable-optimization-domain"), output);
-        assertTrue(output.contains("Other adapters and correctness repairs are unchanged"), output);
-        assertTrue(output.contains("--file-only-logs"), output);
-        assertTrue(output.contains("--quiet-logs"), output);
-        assertTrue(output.contains("about 0.40s"), output);
-        assertTrue(output.contains("synchronous, crash-safe INFO writes"), output);
-        assertTrue(output.contains("hard crash can lose the final 64 KiB"), output);
-        assertTrue(output.contains("explicit upgrade over --fast"), output);
+        assertTrue(output.contains("recommended|conservative|off"), output);
+        assertTrue(output.contains("--direct skips the game's launcher"), output);
+        assertTrue(output.contains("--dry-run prints the resolved command"), output);
+        assertTrue(output.contains("--no-record is the normal fast path"), output);
+        assertFalse(output.contains("--graphicslib-compact-replay"), output);
+        assertFalse(output.contains("adapter-health.json"), output);
     }
 
     @Test

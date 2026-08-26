@@ -37,7 +37,7 @@ public final class TexturePreparedPixelRuntime {
     private static final byte[] ZERO_CHUNK = new byte[ZERO_CHUNK_BYTES];
 
     private static final Object LOCK = new Object();
-    private static final IdentityHashMap<ByteBuffer, Integer> ACTIVE = new IdentityHashMap<>();
+    private static final IdentityHashMap<ByteBuffer, ActiveBuffer> ACTIVE = new IdentityHashMap<>();
     private static final IdentityHashMap<Thread, ArrayDeque<ByteBuffer>> IN_FLIGHT = new IdentityHashMap<>();
     private static final Telemetry TELEMETRY = new Telemetry();
     private static final SeamTimer LOAD_CLOCK = new SeamTimer();
@@ -192,7 +192,7 @@ public final class TexturePreparedPixelRuntime {
         // other half of the invariant TexturePaddingRuntime governs: the buffer below is unpadded
         // only while the installed fold is also bypassed, so the glTexImage2D allocation agrees with
         // it. Neither half is safe alone, and both read the same gate for that reason.
-        boolean unpadded = layout.paddingBytes() > 0 && TexturePaddingRuntime.enabled();
+        boolean unpadded = layout.paddingBytes() > 0 && TexturePaddingRuntime.available();
 
         // The safe default keeps NPOT textures on Starsector's original path. The explicit
         // coherent-direct diagnostic is the only path allowed to supply a direct NPOT buffer.
@@ -227,7 +227,7 @@ public final class TexturePreparedPixelRuntime {
             buffer.flip();
             synchronized (LOCK) {
                 pendingBuffers--;
-                ACTIVE.put(buffer, bytes);
+                ACTIVE.put(buffer, new ActiveBuffer(bytes, unpadded ? 2 : 0));
                 IN_FLIGHT.computeIfAbsent(Thread.currentThread(), ignored -> new ArrayDeque<>()).addLast(buffer);
                 registered = true;
             }
@@ -317,19 +317,56 @@ public final class TexturePreparedPixelRuntime {
         if (buffer == null) {
             return;
         }
-        Integer bytes;
+        ActiveBuffer active;
         synchronized (LOCK) {
             removeTrackedLocked(buffer);
-            bytes = ACTIVE.remove(buffer);
-            if (bytes != null) {
-                activeBytes -= bytes;
+            active = ACTIVE.remove(buffer);
+            if (active != null) {
+                activeBytes -= active.bytes();
                 if (activeBytes < 0) {
                     activeBytes = 0;
                 }
             }
         }
-        if (bytes != null) {
-            TELEMETRY.release(bytes);
+        if (active != null) {
+            TELEMETRY.release(active.bytes());
+        }
+    }
+
+    /**
+     * Whether the current loader thread owns a verified true-size prepared upload.
+     *
+     * <p>The extracted dimension fold runs after the converter returns and before its buffer is
+     * cleaned up. Tying the fold to that exact in-flight buffer makes the allocation decision local
+     * to one prepared hit. A cache miss or any contained prepared-path failure has no registered
+     * buffer, so the original converter and the original power-of-two allocation remain paired.
+     */
+    static boolean currentThreadHasTrueSizeUpload() {
+        synchronized (LOCK) {
+            ArrayDeque<ByteBuffer> buffers = IN_FLIGHT.get(Thread.currentThread());
+            if (buffers == null) {
+                return false;
+            }
+            ByteBuffer buffer = buffers.peekLast();
+            ActiveBuffer active = buffer == null ? null : ACTIVE.get(buffer);
+            return active != null && active.trueSizeFoldsRemaining() > 0;
+        }
+    }
+
+    /** Claims one of the exact loader's two allocation-dimension decisions. */
+    static boolean claimCurrentThreadTrueSizeFold() {
+        synchronized (LOCK) {
+            ArrayDeque<ByteBuffer> buffers = IN_FLIGHT.get(Thread.currentThread());
+            if (buffers == null) {
+                return false;
+            }
+            ByteBuffer buffer = buffers.peekLast();
+            ActiveBuffer active = buffer == null ? null : ACTIVE.get(buffer);
+            if (active == null || active.trueSizeFoldsRemaining() <= 0) {
+                return false;
+            }
+            active.claimTrueSizeFold();
+            return true;
         }
     }
 
@@ -562,6 +599,28 @@ public final class TexturePreparedPixelRuntime {
             int uploadHeight,
             int uploadBytes,
             int paddingBytes) {
+    }
+
+    private static final class ActiveBuffer {
+        private final int bytes;
+        private int trueSizeFoldsRemaining;
+
+        private ActiveBuffer(int bytes, int trueSizeFoldsRemaining) {
+            this.bytes = bytes;
+            this.trueSizeFoldsRemaining = trueSizeFoldsRemaining;
+        }
+
+        private int bytes() {
+            return bytes;
+        }
+
+        private int trueSizeFoldsRemaining() {
+            return trueSizeFoldsRemaining;
+        }
+
+        private void claimTrueSizeFold() {
+            trueSizeFoldsRemaining--;
+        }
     }
 
     private enum CandidateLayout {

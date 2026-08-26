@@ -243,6 +243,7 @@ jobs:
           ./mvnw --batch-mode --no-transfer-progress -pl preflight-cli -am -DskipTests clean package
           python3 -c "from pathlib import Path; import sys; sys.path.insert(0, 'scripts'); import verify_release_boundary as v; v.validate_jar_bytes(Path('preflight-cli/target/preflight.jar').read_bytes())"
           cd preflight-desktop
+          npm run build
           npm run engine:prepare:verified
           npm run desktop:clean
           npx tauri build --bundles "${{ matrix.bundles }}" --config src-tauri/tauri.ci.conf.json

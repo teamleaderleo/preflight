@@ -1,0 +1,26 @@
+/*
+ * The minimum desktop window is both narrow and short. At that shape the horizontal navigation,
+ * title spacing, and optional footer can consume nearly two fifths of the window before the active
+ * page receives any height. Keep content and controls at their normal size; compact shell chrome
+ * first so scrolling reflects useful page content rather than decoration around it.
+ */
+@media (max-height: 620px) and (max-width: 1000px) {
+  .app-shell .sidebar {
+    min-height: 56px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .app-shell .main {
+    padding-top: 10px;
+    padding-bottom: 0;
+  }
+
+  .app-shell .topbar {
+    margin-bottom: 6px;
+  }
+
+  .app-shell footer {
+    display: none;
+  }
+}

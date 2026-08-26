@@ -1,4 +1,8 @@
 import styles from "./styles.css?raw";
+import releaseReadinessStyles from "./release-readiness.css?raw";
+import homePresentationStyles from "./homePresentation.css?raw";
+
+const homeCascade = [styles, releaseReadinessStyles, homePresentationStyles].join("\n");
 
 test("responsive layouts keep document scrolling locked to bounded workspaces", () => {
   expect(styles).toMatch(/body\s*\{[^}]*overflow:\s*hidden;/s);
@@ -16,10 +20,12 @@ test("the drafting surface supports explicit themes while motion preferences rem
   expect(styles).toMatch(/prefers-reduced-motion:[\s\S]*?\.flight-instrument__drift\s*\{[^}]*animation:\s*none;/);
 });
 
-test("navigation motion stays brief and the home instrument cannot intercept input", () => {
-  expect(styles).toMatch(/\.page-viewport--entering\s*\{[^}]*animation:\s*workspace-enter 80ms/s);
-  expect(styles).toContain("@keyframes workspace-enter");
-  expect(styles).toMatch(/\.home-flight-instrument\s*\{[^}]*pointer-events:\s*none;/s);
+test("navigation does not wait on decorative motion and the home instrument supports direct manipulation", () => {
+  expect(styles).not.toContain("workspace-enter");
+  expect(styles).toMatch(/\.home-flight-instrument\s*\{[^}]*pointer-events:\s*auto;/s);
+  expect(styles).toMatch(/\.flight-instrument\.flight-instrument--interactive\s*\{[^}]*cursor:\s*grab;[^}]*pointer-events:\s*auto;[^}]*touch-action:\s*none;/s);
+  expect(styles.indexOf(".flight-instrument.flight-instrument--interactive")).toBeLessThan(styles.lastIndexOf(".flight-instrument {"));
+  expect(styles).toMatch(/\.flight-instrument--interactive:focus-visible\s*\{/);
 });
 
 test("the Hangar reference colors are locked by exact value", () => {
@@ -77,8 +83,10 @@ test("active controls look active without relying on gradients", () => {
 
 test("wide, narrow, and short windows keep content inside the desktop shell", () => {
   expect(styles).toMatch(/\.main\s*\{[^}]*min-width:\s*0;/s);
-  expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.launch-console\s*\{[^}]*grid-template-columns:\s*1fr;/);
   expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.launch-console--options-open \.quick-settings\s*\{[^}]*width:\s*calc\(100% - 16px\);/);
+  expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.launch-console--options-open \.quick-settings__grid\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);/);
+  expect(styles).toMatch(/@media \(max-height: 720px\)[\s\S]*?\.launch-console--options-open \.quick-settings__grid\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);/);
+  expect(styles).toMatch(/@media \(max-width: 420px\)[\s\S]*?\.quick-settings__grid\s*\{[^}]*grid-template-columns:\s*1fr;/);
   expect(styles).toMatch(/@media \(max-width: 780px\)[\s\S]*?\.brand,[\s\S]*?\.nav,[\s\S]*?\.sidebar__footer\s*\{[^}]*flex-shrink:\s*0;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.main\s*\{[^}]*padding-top:\s*20px;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.prepare-page\s*\{[^}]*gap:\s*10px;/);
@@ -91,6 +99,26 @@ test("wide, narrow, and short windows keep content inside the desktop shell", ()
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.page-viewport--home:not\(:has\(\.launch-console--ready\)\)\s*\{[^}]*overflow-y:\s*auto;/);
   expect(styles).toMatch(/\.hangar-display\s*\{[^}]*height:\s*auto;[^}]*min-height:\s*100%;/s);
   expect(styles).toMatch(/\.app-shell--sidebar-collapsed\s*\{[^}]*grid-template-columns:\s*76px minmax\(0, 1fr\);/s);
+});
+
+test("reachable launch console states resolve their layout from state modifiers", () => {
+  const style = document.createElement("style");
+  style.textContent = homeCascade;
+  document.head.append(style);
+
+  const setup = document.createElement("section");
+  setup.className = "launch-console launch-console--setup";
+  const ready = document.createElement("section");
+  ready.className = "launch-console launch-console--ready";
+  document.body.append(setup, ready);
+
+  expect(getComputedStyle(setup).display).toBe("grid");
+  expect(getComputedStyle(setup).gridTemplateColumns).toBe("minmax(0, 1fr)");
+  expect(getComputedStyle(ready).display).toBe("block");
+
+  setup.remove();
+  ready.remove();
+  style.remove();
 });
 
 test("the Hangar keeps its instrument and controls available at every layout", () => {
@@ -129,8 +157,19 @@ test("supporting copy stays legible while dense evidence remains compact", () =>
   expect(styles).toMatch(/\.optimization-domain-card\s*\{[^}]*display:\s*flex;[^}]*padding:\s*24px;/s);
 });
 
+test("Help keeps every report action in one deliberate group", () => {
+  expect(styles).toMatch(/\.support-card__main\s*\{[^}]*align-items:\s*stretch;[^}]*flex-direction:\s*column;/s);
+  expect(styles).toMatch(/\.support-card__main \.report-actions\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*repeat\(auto-fit, minmax\(min\(100%, 180px\), 1fr\)\);/s);
+  expect(styles).toMatch(/\.button--support\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/s);
+});
+
+test("closed profile menus do not occupy the cards below them", () => {
+  expect(styles).toMatch(/\.profile-menu:not\(\[open\]\) > div\s*\{[^}]*display:\s*none;/s);
+});
+
 test("the sidebar mark keeps the app artwork legible at icon size", () => {
   expect(styles).toMatch(/\.brand__mark\s*\{[^}]*width:\s*44px;[^}]*border-radius:\s*10px;/s);
+  expect(styles).toMatch(/\.brand__type small\s*\{[^}]*white-space:\s*nowrap;/s);
 });
 
 test("focus and pointer targets cover every native desktop control", () => {
@@ -140,6 +179,9 @@ test("focus and pointer targets cover every native desktop control", () => {
   expect(styles).toMatch(/\.text-button\s*\{[^}]*min-height:\s*44px;/s);
   expect(styles).toMatch(/@media \(max-width: 780px\)[\s\S]*?\.nav__item\s*\{[^}]*width:\s*44px;/);
   expect(styles).toMatch(/\.page-title:focus-visible\s*\{[^}]*text-decoration-color:\s*var\(--accent\);/s);
+  expect(styles).toMatch(/\.home-ship-picker > button:not\(\.home-ship-name\)\s*\{[^}]*flex:\s*0 0 44px;[^}]*width:\s*44px;[^}]*min-height:\s*44px;/s);
+  expect(styles).toMatch(/\.home-display-toggle\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/s);
+  expect(styles).toMatch(/\.run-recovery__details summary\s*\{[^}]*min-height:\s*44px;/s);
   // The tooltip is portalled into body and positioned from JS, so hover and focus are handled in
   // InfoTip.tsx; the stylesheet only has to make the open state visible.
   expect(styles).toMatch(/\.info-tip__content\s*\{[^}]*position:\s*fixed;/s);

@@ -6,7 +6,7 @@ import { resourcePresets, storagePlanApplies, type usePreparation } from "../use
 import type { StorageCleanupPlan } from "../useCacheCleanup";
 import type { SpeedStanding } from "../useSpeedRecord";
 import { formatBytes } from "../uiFormat";
-import type { LastRun, NoticeTone, OptimizationDomain, OptimizationPreset, PlaytimeSnapshot, WireframeHull } from "../types";
+import type { LastRun, NoticeTone, OptimizationDomain, OptimizationPreset, PlaytimeSnapshot } from "../types";
 import { optimizationPresets, storageGroupLabel } from "../preparationOptions";
 
 type PreparationState = ReturnType<typeof usePreparation>;
@@ -26,6 +26,19 @@ function preparationReuseSummary(
   return null;
 }
 
+function preparationOverrideSummary(
+  textureStorage: PreparationState["textureStorage"],
+  resourcePreset: PreparationState["resourcePreset"],
+): string | null {
+  const consequences: string[] = [];
+  if (textureStorage === "fastest") consequences.push("Keeps textures uncompressed and uses more disk");
+  if (textureStorage === "compact") consequences.push("Keeps the textures observed during a real launch");
+  if (textureStorage === "minimal") consequences.push("Skips prepared textures to use much less disk");
+  if (resourcePreset === "gentle") consequences.push("Uses fewer preparation resources");
+  if (resourcePreset === "eager") consequences.push("Uses more preparation resources");
+  return consequences.length > 0 ? `${consequences.join(" · ")}.` : null;
+}
+
 interface PreparationPageProps {
   message: string;
   messageTone: NoticeTone;
@@ -39,7 +52,6 @@ interface PreparationPageProps {
   speedStanding: SpeedStanding;
   playtime?: PlaytimeSnapshot;
   lastRun?: LastRun | null;
-  instrumentHull: WireframeHull;
   onOptimizationPresetChange: (preset: OptimizationPreset) => void;
   onOptimizationDomainChange: (domain: OptimizationDomain, enabled: boolean) => void;
   onReviewCleanup: () => void;
@@ -61,7 +73,6 @@ export function PreparationPage({
   speedStanding,
   playtime,
   lastRun,
-  instrumentHull,
   onOptimizationPresetChange,
   onOptimizationDomainChange,
   onReviewCleanup,
@@ -95,6 +106,7 @@ export function PreparationPage({
   const canPrepare = !storagePlanApplies(textureStorage)
     || Boolean(preparationPlan?.safeToPrepare);
   const reuseSummary = preparationReuseSummary(preparationPlan, textureStorage);
+  const overrideSummary = preparationOverrideSummary(textureStorage, resourcePreset);
   const settledLayout = profilePrepared
     && !preparing
     && !cleanupPlan
@@ -113,7 +125,7 @@ export function PreparationPage({
           {!cleanupPlan.cache.safe ? <p className="activation-warning">{cleanupPlan.cache.refusals.join(" ")}</p> : null}
           <p className="cleanup-summary">Keeps the current profile, saved profiles, {cleanupPlan.evidence.keepRuns} recent launch reports, and {cleanupPlan.evidence.keepBenchmarks} benchmarks. Game files, mods, saves, and settings aren’t touched.</p>
           <div className="cleanup-groups">
-            {cleanupPlan.cache.bytes > 0 ? <div><span>Unused prepared data</span><strong>{formatBytes(cleanupPlan.cache.bytes)} · {cleanupPlan.cache.files.toLocaleString()} files</strong></div> : null}
+            {cleanupPlan.cache.bytes > 0 ? <div><span>Unused or replaced prepared data</span><strong>{formatBytes(cleanupPlan.cache.bytes)} · {cleanupPlan.cache.files.toLocaleString()} files</strong></div> : null}
             {cleanupPlan.evidence.bytes > 0 ? <div><span>Old reports and benchmarks</span><strong>{formatBytes(cleanupPlan.evidence.bytes)} · {cleanupPlan.evidence.files.toLocaleString()} files</strong></div> : null}
           </div>
           <div className="activation-review__footer">
@@ -128,18 +140,23 @@ export function PreparationPage({
         * than from a primary navigation slot. It leads the page because the result of having done
         * it is the one thing this page is named after and used to be missing entirely.
         */}
-      <SpeedScoreboard standing={speedStanding} isReady={isReady} playtime={playtime} lastRun={lastRun} hull={instrumentHull} onOpenBenchmark={onOpenBenchmark} />
+      <SpeedScoreboard standing={speedStanding} isReady={isReady} playtime={playtime} lastRun={lastRun} onOpenBenchmark={onOpenBenchmark} />
 
       {cacheHealth?.status === "repair-needed" || cacheHealth?.status === "unsafe" || cacheHealth?.status === "unknown" ? (
-        <section className="card run-recovery cache-recovery" aria-label="Prepared data repair">
+        <section className="card run-recovery cache-recovery" aria-label="Prepared data needs attention">
           <div>
-            <p className="eyebrow">Current profile</p>
-            <h2>{cacheHealth.status === "unknown" ? "Current mod setup couldn't be inspected" : cacheHealth.status === "unsafe" ? "Cache location needs attention" : "Prepared data needs repair"}</h2>
-            <p>{cacheHealth.issues.map((issue) => issue.summary).join(" ")} {cacheHealth.status === "unsafe" || cacheHealth.status === "unknown" ? "Preflight refused to remove anything." : "Only the listed profile metadata and pack will be removed; shared cache blobs, game files, mods, and saves stay in place."}</p>
-            <small>{cacheHealth.repairFiles.toLocaleString()} artifact{cacheHealth.repairFiles === 1 ? "" : "s"} · {formatBytes(cacheHealth.repairBytes)}</small>
+            <p className="eyebrow">Current mod setup</p>
+            <h2>{cacheHealth.status === "unknown" ? "Prepared data couldn't be checked" : cacheHealth.status === "unsafe" ? "Prepared data location needs attention" : "Prepared data needs repair"}</h2>
+            <p>{cacheHealth.issues.map((issue) => issue.summary).join(" ")} {cacheHealth.status === "unsafe" || cacheHealth.status === "unknown" ? "Preflight left this prepared data in place. Starsector, mods, and saves stay unchanged." : "Preflight will rebuild only its prepared data for this mod setup. Starsector, mods, and saves stay unchanged."}</p>
+            {cacheHealth.status === "repair-needed" ? (
+              <details className="run-recovery__details">
+                <summary>Repair details</summary>
+                <small>{cacheHealth.repairFiles.toLocaleString()} prepared file{cacheHealth.repairFiles === 1 ? "" : "s"} · {formatBytes(cacheHealth.repairBytes)}</small>
+              </details>
+            ) : null}
           </div>
           <div className="run-recovery__actions">
-            {cacheHealth.status === "repair-needed" ? <button className="button button--primary button--compact" type="button" onClick={() => void repairAndPrepare(false)} disabled={operationBlocked || cacheRepairing}>{cacheRepairing ? "Repairing…" : "Repair and rebuild"}</button> : null}
+            {cacheHealth.status === "repair-needed" ? <button className="button button--primary button--compact" type="button" onClick={() => void repairAndPrepare(false)} disabled={operationBlocked || cacheRepairing}>{cacheRepairing ? "Rebuilding…" : "Rebuild prepared data"}</button> : null}
           </div>
         </section>
       ) : null}
@@ -148,7 +165,7 @@ export function PreparationPage({
         <div>
           <div className="heading-with-info">
             <h2>Optimizations</h2>
-            <InfoTip label="About Preflight optimizations">Before changing runtime code, Preflight checks that it exactly matches a reviewed version. Anything unfamiliar stays untouched.</InfoTip>
+            <InfoTip label="About Preflight optimizations">Preflight checks each optimization against the installed code before using it. Anything unfamiliar is left alone.</InfoTip>
           </div>
           {/*
             * The switch stated its own position and nothing else, so the page named Speed opened
@@ -160,7 +177,7 @@ export function PreparationPage({
             ? "Preflight won’t apply optimizations. Prepared data stays here for when you turn them back on."
             : optimizationPreset === "conservative"
               ? "Compatibility mode uses startup caches with the game’s original code. Try it if the default mode causes trouble."
-              : "Preflight prepares your mods once, then reuses that work to start the game faster."}</p>
+              : "Preflight creates reusable startup data for your current mod setup, then reuses it on later launches."}</p>
         </div>
         <label className="simple-switch">
           <input type="checkbox" aria-label="Use Preflight optimizations" checked={optimizationPreset !== "off"} onChange={(event) => onOptimizationPresetChange(event.target.checked ? "recommended" : "off")} disabled={operationBlocked} />
@@ -171,34 +188,35 @@ export function PreparationPage({
       {!profilePrepared || preparing ? <section className="card prepare-action">
         <div>
           <strong>{preparationCancelling ? "Stopping preparation" : preparing ? preparationPhaseLabel ?? "Preparation is running" : preparationPlanLoading ? "Calculating disk requirement" : storageBlocked ? "Full preparation doesn’t fit" : preparationPlan?.safeToPrepare || !storagePlanApplies(textureStorage) ? "Ready to prepare" : "Preparation needs attention"}</strong>
-          <span>{preparing
-            ? preparationPercent === null
-              ? "Reconnected after restart · finished artifacts stay reusable"
-              : `${preparationPercent}% complete · finished artifacts stay reusable`
+          {preparing ? <span>{preparationPercent === null
+            ? "Resumed after restart"
+            : `${preparationPercent}% complete`}</span>
             : storageBlocked
-              ? "Minimal preparation uses a few megabytes and still speeds up startup."
-              : `${textureStorage === "balanced" ? "Balanced storage selected" : textureStorage === "fastest" ? "Fastest raw storage selected" : "Minimal disk use selected · no prepared textures"} · ${resourcePresets[resourcePreset].label.toLowerCase()} resource use`}</span>
+              ? <span>Minimal skips prepared textures and keeps the other startup caches.</span>
+              : overrideSummary
+                ? <span>{overrideSummary}</span>
+                : null}
           {!preparing && reuseSummary ? <small className="field-note">{reuseSummary}</small> : null}
           {preparing && preparationPercent !== null ? <div className="preparation-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={preparationPercent}><span style={{ width: `${preparationPercent}%` }} /></div> : null}
         </div>
         <div className="prepare-actions">
           {preparing ? <button className="button button--quiet" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>{preparationCancelling ? "Stopping…" : "Stop safely"}</button> : null}
-          <button className="button button--primary" type="button" onClick={() => void prepare(false, storageBlocked ? "minimal" : textureStorage)} disabled={operationBlocked || cacheRepairing || cacheHealth?.status === "repair-needed" || cacheHealth?.status === "unsafe" || cacheHealth?.status === "unknown" || !isReady || preparationPlanLoading || (!storageBlocked && !canPrepare)}><SparklesIcon />{preparing ? preparationPercent === null ? "Preparation in progress…" : "Preparing…" : preparationPlanLoading ? "Calculating…" : storageBlocked ? "Prepare with less disk" : "Prepare current profile"}</button>
+          <button className="button button--primary" type="button" onClick={() => void prepare(false, storageBlocked ? "minimal" : textureStorage)} disabled={operationBlocked || cacheRepairing || cacheHealth?.status === "repair-needed" || cacheHealth?.status === "unsafe" || cacheHealth?.status === "unknown" || !isReady || preparationPlanLoading || (!storageBlocked && !canPrepare)}><SparklesIcon />{preparing ? preparationPercent === null ? "Preparation in progress…" : "Preparing…" : preparationPlanLoading ? "Calculating…" : storageBlocked ? "Prepare with less disk" : "Prepare current mod setup"}</button>
         </div>
       </section> : null}
 
       <section className="card storage-card storage-card--compact">
         <div className="card__heading">
           <div>
-            <div className="heading-with-info"><h2>Storage</h2><InfoTip label="About Preflight storage">Prepared files are shared across matching mod sets. Above 12 GB, Preflight quietly removes data that no current or saved profile needs. Game files, mods, saves, and settings are never touched.</InfoTip></div>
+            <div className="heading-with-info"><h2>Storage</h2><InfoTip label="About Preflight storage">Prepared files are shared across matching mod sets. Preflight quietly removes replaced cache files and trims unused prepared data when storage grows past 12 GB. Game files, mods, saves, and settings are never touched.</InfoTip></div>
           </div>
           <button className="icon-button icon-button--small" type="button" onClick={() => void refreshCache()} aria-label="Refresh cache storage" disabled={cacheLoading || operationBlocked}><RefreshIcon className={cacheLoading ? "spin" : ""} /></button>
         </div>
         <div className="storage-summary-row">
           <div><strong className="storage-total">{cache ? formatBytes(cache.groups.find((group) => group.id === "acceleration")?.bytes ?? 0) : "…"}</strong><span className="storage-files">Prepared data</span></div>
           <div><span>Reports and benchmarks</span><strong>{cache ? formatBytes(cache.groups.find((group) => group.id === "evidence")?.bytes ?? 0) : "…"}</strong><small>Old sessions can be removed without slowing launches.</small></div>
-          {/* The conservative build bound matters before preparation, not on every launch. */}
-          {!profilePrepared || preparing ? <div><span>Free space needed to prepare</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.requiredFreeBytes) : "…"}</strong><small>Finished data uses much less.</small></div> : null}
+          {/* The temporary build requirement matters before preparation, not on every launch. */}
+          {!profilePrepared || preparing ? <div><span>Space needed while preparing</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.requiredFreeBytes) : "…"}</strong><small>Includes temporary build files and free-space reserve.</small></div> : null}
           <button className="button button--quiet button--compact" type="button" onClick={onReviewCleanup} disabled={cleanupBusy || operationBlocked}>{cleanupBusy ? "Checking…" : "Review cleanup"}</button>
         </div>
         {preparationPlan && !preparationPlan.safeToPrepare ? (
@@ -215,8 +233,8 @@ export function PreparationPage({
             })}
             {(cache?.uncategorizedBytes ?? 0) > 0 ? <div><span>Other Preflight data</span><strong>{formatBytes(cache?.uncategorizedBytes ?? 0)}</strong><small>Files that don’t fit a category above.</small></div> : null}
             {storagePlanApplies(textureStorage) && (preparationPlan?.reusableLooseBytes ?? 0) > 0 ? <div><span>Compatible prepared texture data on disk</span><strong>{formatBytes(preparationPlan?.reusableLooseBytes ?? 0)}</strong><small>Compatible texture blobs already present; this count can include alternate encodings that remain on disk while preparation uses another.</small></div> : null}
-            {storagePlanApplies(textureStorage) && preparationPlan?.packHit ? <div><span>Current profile texture pack</span><strong>Will be reused</strong><small>The exact prepared texture pack matches this profile and the builder’s required entry order, so preparation will use it without rebuilding.</small></div> : null}
-            <div><span>Preparing this profile adds</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.predictedAdditionalBytes) : "…"}</strong><small>A one-off cost for the current mod list. Preparation won’t start unless the larger figure above fits.</small></div>
+            {storagePlanApplies(textureStorage) && preparationPlan?.packHit ? <div><span>Current profile texture pack</span><strong>Will be reused</strong><small>This profile’s texture pack is ready, so it doesn’t need to be rebuilt.</small></div> : null}
+            <div><span>Finished texture data</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.predictedRetainedTextureBytes ?? preparationPlan.predictedPackBytes) : "…"}</strong><small>Preflight removes the temporary copies when preparation finishes.</small></div>
             <div><span>Free on this disk</span><strong>{preparationPlan ? formatBytes(preparationPlan.usableBytes) : "…"}</strong><small>Space currently free where Preflight stores its data.</small></div>
           </div>
         </details>
@@ -240,18 +258,24 @@ export function PreparationPage({
 
           <section>
             <h2>Texture storage</h2>
+            <label className={`choice-card ${textureStorage === "compact" ? "choice-card--selected" : ""}`}>
+              <input type="radio" name="texture-storage" aria-label="Compact texture storage" checked={textureStorage === "compact"} onChange={() => setTextureStorage("compact")} disabled={operationBlocked} />
+              <span><strong>Compact</strong><small>About a third of the preparation time and half the disk after one observed launch</small></span>
+              <b>Efficient</b>
+            </label>
             <label className={`choice-card ${textureStorage === "balanced" ? "choice-card--selected" : ""}`}>
               <input type="radio" name="texture-storage" aria-label="Balanced texture storage" checked={textureStorage === "balanced"} onChange={() => setTextureStorage("balanced")} disabled={operationBlocked} />
               <span><strong>Balanced</strong><small>Lossless LZ4; raw only when compression doesn’t help</small></span>
               <b>Default</b>
             </label>
             <label className={`choice-card ${textureStorage === "fastest" ? "choice-card--selected" : ""}`}>
-              <input type="radio" name="texture-storage" aria-label="Fastest texture storage" checked={textureStorage === "fastest"} onChange={() => setTextureStorage("fastest")} disabled={operationBlocked} />
-              <span><strong>Fastest</strong><small>Several GB more for a small startup gain</small></span>
+              <input type="radio" name="texture-storage" aria-label="Uncompressed texture storage" checked={textureStorage === "fastest"} onChange={() => setTextureStorage("fastest")} disabled={operationBlocked} />
+              <span><strong>Uncompressed</strong><small>More disk; useful for comparison and unusual hardware</small></span>
+              <b>Advanced</b>
             </label>
             <label className={`choice-card ${textureStorage === "minimal" ? "choice-card--selected" : ""}`}>
               <input type="radio" name="texture-storage" aria-label="Minimal disk use" checked={textureStorage === "minimal"} onChange={() => setTextureStorage("minimal")} disabled={operationBlocked} />
-              <span><strong>Use almost no disk</strong><small>Skips prepared textures: megabytes instead of gigabytes, and a smaller speedup</small></span>
+              <span><strong>Minimal disk</strong><small>Skips prepared textures for much lower disk use and a smaller speedup</small></span>
             </label>
           </section>
 
@@ -267,7 +291,7 @@ export function PreparationPage({
           </section>
 
           <section>
-            <h2>Prepared caches</h2>
+            <h2>Prepared data</h2>
             <div className="optimization-domain-list">
               <label className="optimization-domain">
                 <input type="checkbox" aria-label="Prepared textures" checked={!disabledOptimizationDomains.includes("prepared-textures")} onChange={(event) => onOptimizationDomainChange("prepared-textures", event.target.checked)} disabled={operationBlocked || optimizationPreset === "off"} />

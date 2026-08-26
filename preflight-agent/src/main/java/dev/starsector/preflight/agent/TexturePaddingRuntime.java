@@ -67,6 +67,11 @@ public final class TexturePaddingRuntime {
      * same texture, so that {@link #unpadded()}'s counters keep meaning "dimension folds".
      */
     public static boolean enabled() {
+        return available();
+    }
+
+    /** Whether this JVM may serve a verified prepared texture at its true dimensions. */
+    static boolean available() {
         return FOLD_BYPASS_INSTALLED
                 && Boolean.getBoolean(UNPADDED_PROPERTY)
                 && npotSupported();
@@ -111,7 +116,7 @@ public final class TexturePaddingRuntime {
      * @return true when the caller should use the dimension it was given
      */
     public static boolean unpadded() {
-        if (enabled()) {
+        if (available() && TexturePreparedPixelRuntime.claimCurrentThreadTrueSizeFold()) {
             BYPASSED.incrementAndGet();
             return true;
         }

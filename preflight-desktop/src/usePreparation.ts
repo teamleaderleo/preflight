@@ -26,9 +26,10 @@ import { errorMessage } from "./uiFormat";
 export type { TextureStorage } from "./types";
 
 /**
- * `minimal` prepares everything except textures, which is the whole of the disk cost and almost all
- * of the time. It has no storage plan to show: the engine skips the space gate entirely for a
- * textures-free preparation, and `prepare --plan` refuses to describe one.
+ * `minimal` prepares the exact profile index without building texture artifacts. The launch can
+ * still use and learn content-addressed caches keyed from that index. It has no texture
+ * storage plan to show: the engine skips that space gate, and `prepare --plan` refuses to describe
+ * a textures-free preparation.
  */
 export function storagePlanApplies(
   storage: TextureStorage,
@@ -42,6 +43,16 @@ export const resourcePresets = {
   eager: { workers: 8, memoryMib: 512, label: "High" },
 } as const;
 
+// A completed run teaches Balanced preparation which textures were actually used. Keep the
+// automatic Compact conversion out of the immediate relaunch window; changing app or game state
+// cancels this timer through the effect cleanup.
+export const AUTOMATIC_COMPACTION_QUIET_MS = 30_000;
+
+// Opening Speed is navigation, not a request to interrogate the installation. A prepared profile
+// can show the page first and fill in its storage plan shortly afterward. Cold profiles still plan
+// immediately because Home needs the result before it can offer safe preparation.
+export const STORAGE_PLAN_NAVIGATION_IDLE_MS = 180;
+
 interface PreparationPlanEnvelope {
   game: string;
   profileFingerprint: string;
@@ -52,13 +63,45 @@ interface PreparationPlanEnvelope {
 
 type PreparationOwnership = "local" | "recovered";
 
-export function isCurrentProfilePrepared(cache: CacheSnapshot | null): boolean {
+export function isCurrentProfilePrepared(
+  cache: CacheSnapshot | null,
+  textureStorage: TextureStorage = "balanced",
+): boolean {
   if (!cache?.currentProfileFingerprint) return false;
   return cache.profiles.some((profile) =>
     profile.current
     && profile.fingerprint === cache.currentProfileFingerprint
     && profile.indexBytes > 0
-    && profile.manifestBytes > 0);
+    && (textureStorage === "minimal" || profile.manifestBytes > 0));
+}
+
+export function preparationModeMatchesStorage(
+  health: CacheHealth | null,
+  textureStorage: TextureStorage,
+): boolean {
+  if (health?.status !== "ready") return false;
+  if (textureStorage === "minimal") return health.preparedTextures === false;
+  if (health.preparedTextures === false) return false;
+  if (textureStorage === "compact") {
+    return health.textureStorage === "balanced" && health.textureScope === "learned";
+  }
+  if (textureStorage === "fastest") {
+    return health.textureStorage === "fastest" && health.textureScope !== "learned";
+  }
+  // Receipts were added after prepared packs. A valid legacy pack remains launchable and is
+  // treated as Balanced, while every newly prepared pack is matched exactly.
+  return health.textureStorage === undefined
+    || health.textureStorage === null
+    || (health.textureStorage === "balanced" && health.textureScope !== "learned");
+}
+
+export function canGraduateToCompact(health: CacheHealth | null): boolean {
+  return health?.status === "ready"
+    && health.preparedTextures === true
+    && health.compactAvailable === true
+    && ((health.textureStorage === "balanced" && health.textureScope === "full")
+      || ((health.textureStorage === undefined || health.textureStorage === null)
+        && (health.textureScope === undefined || health.textureScope === null)));
 }
 
 export function usePreparation(
@@ -67,6 +110,7 @@ export function usePreparation(
   optimizationPreset: OptimizationPreset,
   launch: () => Promise<void>,
   announce: Announce,
+  automaticCompactionGeneration = 0,
 ) {
   const [cache, setCache] = useState<CacheSnapshot | null>(null);
   const [cacheHealth, setCacheHealth] = useState<CacheHealth | null>(null);
@@ -92,6 +136,8 @@ export function usePreparation(
   const [preparationPlanLoading, setPreparationPlanLoading] = useState(false);
   const launchAfterPreparation = useRef(false);
   const [textureStorage, setTextureStorage] = useState<TextureStorage>("balanced");
+  const automaticCompactAttempts = useRef(new Set<string>());
+  const inferredTextureStorageForGame = useRef<string | null>(null);
   const [resourcePreset, setResourcePreset] = useState<keyof typeof resourcePresets>("balanced");
   const gameRef = useRef(game);
   gameRef.current = game;
@@ -220,13 +266,32 @@ export function usePreparation(
       setCacheLoading(false);
       return;
     }
-    if (cacheInstallRoot !== game && cacheRequestRoot.current !== game) void refreshCache();
+    const finishingRequest = cacheLoading && cacheRequestRoot.current === null;
+    if (cacheInstallRoot !== game && !finishingRequest && cacheRequestRoot.current !== game) {
+      void refreshCache();
+    }
   }, [cacheInstallRoot, cacheLoading, game, refreshCache]);
 
   const currentCache = cacheInstallRoot === game ? cache : null;
   const currentCacheHealth = cacheInstallRoot === game ? cacheHealth : null;
-  const profilePrepared = isCurrentProfilePrepared(currentCache)
-    && currentCacheHealth?.status === "ready";
+  useEffect(() => {
+    if (!game) {
+      inferredTextureStorageForGame.current = null;
+      return;
+    }
+    if (inferredTextureStorageForGame.current === game || currentCacheHealth?.status !== "ready") return;
+    inferredTextureStorageForGame.current = game;
+    if (currentCacheHealth.preparedTextures === false) {
+      setTextureStorage("minimal");
+    } else if (currentCacheHealth.textureStorage === "balanced"
+      && currentCacheHealth.textureScope === "learned") {
+      setTextureStorage("compact");
+    } else if (currentCacheHealth.textureStorage === "fastest") {
+      setTextureStorage("fastest");
+    }
+  }, [currentCacheHealth, game]);
+  const profilePrepared = isCurrentProfilePrepared(currentCache, textureStorage)
+    && preparationModeMatchesStorage(currentCacheHealth, textureStorage);
   const resources = resourcePresets[resourcePreset];
   const preparationPlan = preparationPlanEnvelope
     && preparationPlanEnvelope.game === game
@@ -242,38 +307,50 @@ export function usePreparation(
       && optimizationPreset !== "off"
       && storagePlanApplies(textureStorage)
       && (showStoragePlan || !profilePrepared);
-    if (!game || !shouldPlan) {
+    if (!game || optimizationPreset === "off" || !storagePlanApplies(textureStorage)) {
       setPreparationPlanEnvelope(null);
       setPreparationPlanLoading(false);
       return;
     }
+    if (!shouldPlan || preparationPlan) {
+      setPreparationPlanLoading(false);
+      return;
+    }
     let cancelled = false;
-    setPreparationPlanLoading(true);
-    void getPreparationPlan(game, textureStorage, resources.workers)
-      .then((plan) => {
-        if (!cancelled) {
-          setPreparationPlanEnvelope({
-            game,
-            profileFingerprint: plan.profileFingerprint,
-            textureStorage,
-            workers: resources.workers,
-            plan,
-          });
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setPreparationPlanEnvelope(null);
-          announce(errorMessage(error), "error");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setPreparationPlanLoading(false);
-      });
+    const load = () => {
+      if (cancelled) return;
+      setPreparationPlanLoading(true);
+      void getPreparationPlan(game, textureStorage, resources.workers)
+        .then((plan) => {
+          if (!cancelled) {
+            setPreparationPlanEnvelope({
+              game,
+              profileFingerprint: plan.profileFingerprint,
+              textureStorage,
+              workers: resources.workers,
+              plan,
+            });
+          }
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            setPreparationPlanEnvelope(null);
+            announce(errorMessage(error), "error");
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setPreparationPlanLoading(false);
+        });
+    };
+    const timer = profilePrepared && showStoragePlan
+      ? window.setTimeout(load, STORAGE_PLAN_NAVIGATION_IDLE_MS)
+      : null;
+    if (timer === null) load();
     return () => {
       cancelled = true;
+      if (timer !== null) window.clearTimeout(timer);
     };
-  }, [announce, cacheInstallRoot, cacheLoading, game, optimizationPreset, profilePrepared, resources.workers, showStoragePlan, textureStorage]);
+  }, [announce, cacheInstallRoot, cacheLoading, game, optimizationPreset, preparationPlan, profilePrepared, resources.workers, showStoragePlan, textureStorage]);
 
   const runPreparation = async (
     launchWhenReady = false,
@@ -289,7 +366,11 @@ export function usePreparation(
         setTextureStorage(requestedStorage);
         setPreparationPlanEnvelope(null);
       }
-      let plan = forcePlan || !storagePlanApplies(requestedStorage) ? null : preparationPlan;
+      let plan = forcePlan
+        || !storagePlanApplies(requestedStorage)
+        || requestedStorage !== textureStorage
+        ? null
+        : preparationPlan;
       if (!plan && storagePlanApplies(requestedStorage)) {
         setPreparationPlanLoading(true);
         plan = await getPreparationPlan(game, requestedStorage, resources.workers);
@@ -312,8 +393,8 @@ export function usePreparation(
       setPreparationCancelling(false);
       setPreparing(true);
       announce(launchWhenReady
-        ? "Preparing the exact current profile. Starsector will open when it’s ready."
-        : "Preparing the exact current profile… You can leave this window open.");
+        ? "Preparing fast launch. Starsector will open when it’s ready."
+        : "Preparing fast launch. You can leave this window open.");
       localPreparationStarting.current = true;
       localPreparationPid.current = null;
       lastHandledTerminalPid.current = null;
@@ -384,6 +465,34 @@ export function usePreparation(
     requestedStorage: TextureStorage = textureStorage,
   ) => runPreparation(launchWhenReady, false, requestedStorage);
 
+  useEffect(() => {
+    const profile = currentCacheHealth?.profileFingerprint;
+    if (automaticCompactionGeneration <= 0
+      || !isDesktopHost()
+      || !game
+      || !profile
+      || preparing
+      || cacheRepairing
+      || preparationPlanLoading
+      || !canGraduateToCompact(currentCacheHealth)) return;
+    const attempt = `${game}\0${profile}\0${automaticCompactionGeneration}`;
+    if (automaticCompactAttempts.current.has(attempt)) return;
+    const timer = window.setTimeout(() => {
+      automaticCompactAttempts.current.add(attempt);
+      announce("Trimming prepared data for faster launches with less disk…");
+      void runPreparation(false, false, "compact");
+    }, AUTOMATIC_COMPACTION_QUIET_MS);
+    return () => window.clearTimeout(timer);
+  }, [
+    announce,
+    automaticCompactionGeneration,
+    cacheRepairing,
+    currentCacheHealth,
+    game,
+    preparationPlanLoading,
+    preparing,
+  ]);
+
   const repairAndPrepare = async (launchWhenReady = false) => {
     if (!game || cacheRepairing) return;
     const repairGame = game;
@@ -399,10 +508,10 @@ export function usePreparation(
       if (gameRef.current !== repairGame) return;
       if (!repair.safe) {
         announce(repair.status === "profile-changed"
-          ? "The mod setup changed before repair began. Nothing was removed; review the refreshed result."
+          ? "The mod setup changed before repair began. Nothing was removed. Check again."
           : repair.applied
-            ? `Repair stopped after removing ${repair.files.toLocaleString()} profile-scoped artifact${repair.files === 1 ? "" : "s"} because the cache boundary changed. Review the refreshed result.`
-            : "Preflight couldn't verify a safe repair boundary, so nothing was changed.", "error");
+            ? `Repair stopped after removing ${repair.files.toLocaleString()} damaged prepared file${repair.files === 1 ? "" : "s"} because the remaining data changed. Check the refreshed result.`
+            : "Preflight couldn't confirm which prepared files were safe to remove, so nothing changed.", "error");
         await refreshCache();
         return;
       }
@@ -410,12 +519,13 @@ export function usePreparation(
         format: "starsector-preflight-cache-health-v1",
         status: "cold",
         profileFingerprint: repair.profileFingerprint,
+        preparedTextures: null,
         issues: [],
         repairBytes: 0,
         repairFiles: 0,
       });
       setPreparationPlanEnvelope(null);
-      announce(`Removed ${repair.files.toLocaleString()} damaged profile artifact${repair.files === 1 ? "" : "s"}. Rebuilding prepared data now.`, "warning");
+      announce(`Removed ${repair.files.toLocaleString()} damaged prepared file${repair.files === 1 ? "" : "s"}. Rebuilding now.`, "warning");
       await runPreparation(launchWhenReady, true);
     } catch (error) {
       if (gameRef.current === repairGame) announce(errorMessage(error), "error");

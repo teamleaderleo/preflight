@@ -1,21 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { save as saveFile } from "@tauri-apps/plugin-dialog";
 import {
   cancelRunReport,
   deleteRunReport,
-  exportAutomaticDiagnostics,
   exportDiagnostics,
-  getSnapshot,
   getReportIntakeStatus,
   isDesktopHost,
   sendRunReport,
 } from "./bridge";
 import { nativeCommandError } from "./nativeErrors";
-import {
-  AUTOMATIC_RUN_REPORT_HISTORY_STORAGE_KEY,
-  AUTOMATIC_RUN_REPORTS_STORAGE_KEY,
-  REPORT_RECEIPT_STORAGE_KEY,
-} from "./desktopStorage";
+import { REPORT_RECEIPT_STORAGE_KEY } from "./desktopStorage";
 import { supportSafeReportReceipt } from "./supportReceipt";
 import type {
   DiagnosticsExport,
@@ -28,82 +22,7 @@ import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
 import { errorMessage, localDateStamp } from "./uiFormat";
 
-function savedAutomaticRunReports(): boolean {
-  try {
-    const raw = window.localStorage.getItem(AUTOMATIC_RUN_REPORTS_STORAGE_KEY);
-    if (!raw) return false;
-    const consent = JSON.parse(raw) as Record<string, unknown>;
-    return consent.protocolVersion === 1
-      && consent.disclosureVersion === 1
-      && consent.enabled === true
-      && typeof consent.decidedAt === "string"
-      && Number.isFinite(Date.parse(consent.decidedAt));
-  } catch {
-    return false;
-  }
-}
-
-function persistAutomaticRunReports(enabled: boolean): boolean {
-  try {
-    window.localStorage.setItem(AUTOMATIC_RUN_REPORTS_STORAGE_KEY, JSON.stringify({
-      protocolVersion: 1,
-      disclosureVersion: 1,
-      enabled,
-      decidedAt: new Date().toISOString(),
-    }));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function savedAutomaticReportIdentities(): string[] | null {
-  try {
-    const raw = window.localStorage.getItem(AUTOMATIC_RUN_REPORT_HISTORY_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) as Record<string, unknown> : null;
-    return parsed?.protocolVersion === 1 && Array.isArray(parsed.runIdentities)
-      ? parsed.runIdentities.filter((value): value is string => typeof value === "string").slice(0, 63)
-      : [];
-  } catch {
-    return null;
-  }
-}
-
-function claimAutomaticReport(runIdentity: string): boolean {
-  try {
-    const previous = savedAutomaticReportIdentities();
-    if (previous === null) return false;
-    if (previous.includes(runIdentity)) return false;
-    window.localStorage.setItem(AUTOMATIC_RUN_REPORT_HISTORY_STORAGE_KEY, JSON.stringify({
-      protocolVersion: 1,
-      runIdentities: [runIdentity, ...previous],
-    }));
-    return true;
-  } catch {
-    // Without durable deduplication, an event replay could upload the same run twice.
-    return false;
-  }
-}
-
-function failedRunIdentity(
-  run: Awaited<ReturnType<typeof getSnapshot>>["lastRun"],
-  wrapperPid: number,
-): { key: string; fileId: string } | null {
-  if (!run
-    || run.wrapperPid !== wrapperPid
-    || !run.started
-    || !run.wrapperStartedAt
-    || !run.outcome
-    || run.outcome === "RUNNING"
-    || run.outcome === "COMPLETED") return null;
-  const normalized = run.directory.replaceAll("\\", "/");
-  const fileId = normalized.split("/").filter(Boolean).at(-1) ?? "";
-  if (!/^[A-Za-z0-9_-]{1,160}$/.test(fileId)) return null;
-  return {
-    key: `${fileId}\n${run.wrapperPid}\n${run.wrapperStartedAt}\n${run.started}\n${run.outcome}`,
-    fileId,
-  };
-}
+export const REPORT_INTAKE_NAVIGATION_IDLE_MS = 180;
 
 function savedRunReportReceipt(): ReportReceipt | null {
   try {
@@ -153,20 +72,8 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
   const [reportReceipt, setReportReceipt] = useState<ReportReceipt | null>(savedRunReportReceipt);
   const [reportError, setReportError] = useState("");
   const [reportDeleting, setReportDeleting] = useState(false);
-  const [automaticRunReports, setAutomaticRunReports] = useState(savedAutomaticRunReports);
   const diagnosticsBusyRef = useRef(false);
   const reportUploadingRef = useRef(false);
-  const automaticReportRef = useRef(false);
-  const automaticRunReportsRef = useRef(automaticRunReports);
-  const reportIntakeRef = useRef(reportIntake);
-
-  useEffect(() => {
-    automaticRunReportsRef.current = automaticRunReports;
-  }, [automaticRunReports]);
-
-  useEffect(() => {
-    reportIntakeRef.current = reportIntake;
-  }, [reportIntake]);
 
   useEffect(() => {
     try {
@@ -181,21 +88,26 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
   }, [reportReceipt]);
 
   useEffect(() => {
-    if ((!active && !automaticRunReports) || reportIntake !== null) return;
+    if (!active || reportIntake !== null) return;
     let cancelled = false;
-    void getReportIntakeStatus()
-      .then((status) => {
-        if (!cancelled) setReportIntake(status);
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setReportIntake({ configured: false, origin: null, reason: errorMessage(error) });
-        }
-      });
+    // Opening Help or Settings is navigation, not a request to contact the report service. Let the
+    // retained page paint first, then fill this optional status in once and keep it for the session.
+    const timer = window.setTimeout(() => {
+      void getReportIntakeStatus()
+        .then((status) => {
+          if (!cancelled) setReportIntake(status);
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            setReportIntake({ configured: false, origin: null, reason: errorMessage(error) });
+          }
+        });
+    }, REPORT_INTAKE_NAVIGATION_IDLE_MS);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, [active, automaticRunReports, reportIntake]);
+  }, [active, reportIntake]);
 
   useEffect(() => {
     if (!isDesktopHost()) return;
@@ -208,7 +120,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
       if (payload.state === "finalizing") {
         setReportFinalizing(true);
         setReportCancelling(false);
-        announce("The archive was accepted. Finishing its signed receipt…");
+        announce("Upload received. Finishing…");
         return;
       }
       if (payload.state === "cancelling") {
@@ -224,10 +136,10 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
         if (payload.state === "failed") {
           const detail = payload.detail ?? "The report could not be sent.";
           setReportError(detail);
-          announce(`Report wasn’t sent. The diagnostics ZIP is still on this computer. ${detail}`, "error");
+          announce(`Report wasn’t sent. The support file is still on this computer. ${detail}`, "error");
           return;
         }
-        announce(payload.detail ?? "The local diagnostics ZIP is unchanged.", "warning");
+        announce(payload.detail ?? "The support file on this computer is unchanged.", "warning");
         return;
       }
       if (payload.state === "finished" && payload.receipt) {
@@ -239,7 +151,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
         setReportReceipt(payload.receipt);
       }
     }, (error) => {
-      announce(`Live report-upload updates were interrupted: ${error}. Preflight is checking native state directly.`, "warning");
+      announce(`Preflight lost the live upload status: ${error}. Checking it again…`, "warning");
       let previousUpload: number | null | undefined;
       stopReconciliation();
       stopReconciliation = startOperationReconciliation({
@@ -256,7 +168,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
             setReportUploading(false);
             setReportFinalizing(false);
             setReportCancelling(false);
-            const detail = "Live completion details were unavailable. The diagnostics ZIP is still on this computer; check for a receipt before retrying.";
+            const detail = "Preflight couldn’t confirm whether the upload finished. The ZIP is still on this computer. Check Help before retrying.";
             setReportError(detail);
             announce(detail, "warning");
           } else {
@@ -274,7 +186,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
   }, [announce]);
 
   const saveDiagnostics = async () => {
-    if (diagnosticsBusyRef.current || reportUploadingRef.current || automaticReportRef.current) return;
+    if (diagnosticsBusyRef.current || reportUploadingRef.current) return;
     diagnosticsBusyRef.current = true;
     setDiagnosticsBusy(true);
     try {
@@ -287,13 +199,13 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
         })
         : `/Users/captain/Desktop/preflight-diagnostics-${stamp}.zip`;
       if (!destination) return;
-      announce("Collecting a small, disclosed support bundle…");
+      announce("Creating the support file…");
       const result = await exportDiagnostics(destination);
       setDiagnosticsExport(result);
       setReportReview(false);
       setReportError("");
       setReportUploadedBytes(0);
-      announce(`Saved ${result.files} disclosed files. Inspect the ZIP before sharing it.`, "success");
+      announce(`Support file saved with ${result.files} files. Review the ZIP before sharing it.`, "success");
     } catch (error) {
       announce(errorMessage(error), "error");
     } finally {
@@ -303,28 +215,28 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
   };
 
   const submitRunReport = async () => {
-    if (!diagnosticsExport || !reportIntake?.configured || diagnosticsBusyRef.current || reportUploadingRef.current || automaticReportRef.current) return;
+    if (!diagnosticsExport || !reportIntake?.configured || diagnosticsBusyRef.current || reportUploadingRef.current) return;
     reportUploadingRef.current = true;
     setReportUploading(true);
     setReportFinalizing(false);
     setReportCancelling(false);
     setReportUploadedBytes(0);
     setReportError("");
-    announce("Creating a short-lived case for this exact diagnostics ZIP…");
+    announce("Starting upload…");
     try {
       const receipt = await sendRunReport(diagnosticsExport);
       setReportReceipt(receipt);
       setReportReview(false);
       setReportUploadedBytes(diagnosticsExport.bytes);
-      announce(`Run report ${receipt.caseId} was accepted. Keep the receipt for support or deletion.`, "success");
+      announce(`Support file sent. Case ${receipt.caseId}.`, "success");
     } catch (error) {
       const nativeError = nativeCommandError(error);
       const detail = nativeError?.message ?? errorMessage(error);
       if (nativeError?.code === "report-upload-cancelled") {
-        announce("Report upload stopped. The diagnostics ZIP is still on this computer.", "warning");
+        announce("Upload stopped. The support file is still on this computer.", "warning");
       } else {
         setReportError(detail);
-        announce(`Report wasn’t sent. The diagnostics ZIP is still on this computer. ${detail}`, "error");
+        announce(`Report wasn’t sent. The support file is still on this computer. ${detail}`, "error");
       }
     } finally {
       reportUploadingRef.current = false;
@@ -356,15 +268,15 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     if (!reportReceipt) return;
     try {
       await navigator.clipboard.writeText(JSON.stringify(supportSafeReportReceipt(reportReceipt), null, 2));
-      announce("Support-safe run-report receipt copied. Deletion authorization stayed on this computer.");
+      announce("Case details copied. Deletion access stayed on this computer.");
     } catch (error) {
-      announce(`Could not copy the receipt: ${errorMessage(error)}`, "error");
+      announce(`Could not copy the case details: ${errorMessage(error)}`, "error");
     }
   };
 
   const dismissRunReportReceipt = () => {
     setReportReceipt(null);
-    announce("Receipt dismissed. Its local deletion authorization was removed.");
+    announce("Case dismissed. This computer can no longer delete the upload.");
   };
 
   const clearReportReceipt = () => {
@@ -378,7 +290,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
       await deleteRunReport(reportReceipt.deletion);
       const caseId = reportReceipt.caseId;
       setReportReceipt(null);
-      announce(`Run report ${caseId} was deleted. Your local diagnostics ZIP is unchanged.`, "success");
+      announce(`Uploaded file ${caseId} was deleted. The support file on this computer is unchanged.`, "success");
     } catch (error) {
       announce(errorMessage(error), "error");
     } finally {
@@ -386,69 +298,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     }
   };
 
-  const setAutomaticRunReportsSafely = useCallback((enabled: boolean) => {
-    if (!persistAutomaticRunReports(enabled)) {
-      announce("Preflight couldn’t save that choice, so automatic reports stay off.", "warning");
-      setAutomaticRunReports(false);
-      automaticRunReportsRef.current = false;
-      return;
-    }
-    automaticRunReportsRef.current = enabled;
-    setAutomaticRunReports(enabled);
-  }, [announce]);
-
-  const submitAutomaticFailedRunReport = useCallback(async ({
-    game,
-    wrapperPid,
-  }: {
-    game: string;
-    wrapperPid: number;
-  }) => {
-    if (!automaticRunReportsRef.current || diagnosticsBusyRef.current || reportUploadingRef.current || automaticReportRef.current) return;
-    automaticReportRef.current = true;
-    let localZip = false;
-    try {
-      let intake = reportIntakeRef.current;
-      if (intake === null) {
-        intake = await getReportIntakeStatus();
-        reportIntakeRef.current = intake;
-        setReportIntake(intake);
-      }
-      if (!intake.configured) return;
-      const latest = await getSnapshot(game).catch(() => null);
-      const identity = failedRunIdentity(latest?.lastRun ?? null, wrapperPid);
-      if (!identity) return;
-      const reported = savedAutomaticReportIdentities();
-      if (reported === null || reported.includes(identity.key)) return;
-      const exported = await exportAutomaticDiagnostics(identity.fileId);
-      localZip = true;
-      if (!claimAutomaticReport(identity.key)) return;
-      reportUploadingRef.current = true;
-      setReportUploading(true);
-      setReportFinalizing(false);
-      setReportCancelling(false);
-      setReportUploadedBytes(0);
-      setReportError("");
-      setDiagnosticsExport(exported);
-      const receipt = await sendRunReport(exported);
-      setReportReceipt(receipt);
-      announce("A failed-run support report was sent automatically. A receipt is saved in Help.", "info");
-    } catch (error) {
-      setReportError(errorMessage(error));
-      announce(localZip
-        ? "Could not automatically send the failed-run report. The local diagnostics ZIP was kept."
-        : "Could not prepare the failed-run report. Nothing was sent.", "warning");
-    } finally {
-      reportUploadingRef.current = false;
-      setReportUploading(false);
-      setReportFinalizing(false);
-      setReportCancelling(false);
-      automaticReportRef.current = false;
-    }
-  }, [announce]);
-
   return {
-    automaticRunReports,
     diagnosticsBusy,
     diagnosticsExport,
     reportCancelling,
@@ -465,10 +315,8 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     dismissRunReportReceipt,
     removeRunReport,
     saveDiagnostics,
-    setAutomaticRunReports: setAutomaticRunReportsSafely,
     setReportReview,
     stopRunReport,
-    submitAutomaticFailedRunReport,
     submitRunReport,
   };
 }

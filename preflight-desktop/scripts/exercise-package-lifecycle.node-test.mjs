@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
   assertRemoved,
+  assertEngineMatchesPackage,
   assertRolledBack,
   assertVersionMoved,
   exercisePackageLifecycle,
@@ -63,6 +64,22 @@ test("the installed version comes from the one engine manifest", () => {
     assert.throws(() => installedVersion(versionless), /no source version/);
   } finally {
     for (const root of [single, none, versionless, decoy]) rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("an upgraded engine has to match the exact candidate package", () => {
+  const installed = scratch({
+    "engine/bundle.json": JSON.stringify({ sourceVersion: "0.1.0" }),
+    "engine/preflight.jar": "candidate engine",
+  });
+  try {
+    const expected = treeDigest(join(installed, "engine"));
+    // The full integrity and smoke checks need a prepared engine, so the byte-identity failure is
+    // exercised here before that deeper package verification runs in the platform lifecycle.
+    const different = expected === "0".repeat(64) ? "1".repeat(64) : "0".repeat(64);
+    assert.throws(() => assertEngineMatchesPackage(installed, different), /exact candidate package/);
+  } finally {
+    rmSync(installed, { recursive: true, force: true });
   }
 });
 

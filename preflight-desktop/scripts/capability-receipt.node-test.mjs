@@ -55,7 +55,8 @@ test("release capability receipt binds the renderer, filesystem, process, and ne
   assert.equal(receipt.network.reportIntakeOrigin, "disabled");
   assert.equal(receipt.network.updateConfigured, false);
   assert.equal(receipt.network.automaticTelemetry, false);
-  assert.match(receipt.network.automaticFailedRunReports, /off by default/);
+  assert.equal(receipt.network.automaticFailedRunReports, false);
+  assert.equal(receipt.rendererBoundary.nativeCommands.includes("export_automatic_diagnostics"), false);
   assert.equal(receipt.arbitraryShellCommandsAccepted, false);
   assert.ok(receipt.filesystem.excluded.includes("save files"));
 });
@@ -65,6 +66,7 @@ test("compiled report intake is exact and rejects broader URLs", () => {
     engineJarPath: engineJar,
     productVersion: "0.1.0",
     sourceRevision: "b".repeat(40),
+    sourceDirty: false,
   };
   assert.equal(buildCapabilityReceipt({
     ...base,

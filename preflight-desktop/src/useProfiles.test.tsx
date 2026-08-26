@@ -73,6 +73,43 @@ test("reuses the current installation list across ordinary page navigation", asy
   }
 });
 
+test("window focus revalidates external mod state without clearing retained launch state", async () => {
+  const profiles = vi.spyOn(bridge, "getProfiles");
+  const readiness = vi.spyOn(bridge, "getModReadiness");
+  const refreshInstallation = vi.fn().mockResolvedValue(true);
+  const refreshCache = vi.fn().mockResolvedValue(undefined);
+  const announce = vi.fn();
+  try {
+    const { result } = renderHook(() => useProfiles(
+      "/Applications/Starsector",
+      true,
+      refreshInstallation,
+      refreshCache,
+      announce,
+    ));
+
+    await waitFor(() => expect(result.current.profiles).not.toBeNull());
+    await waitFor(() => expect(result.current.modReadiness).not.toBeNull());
+    const retainedProfiles = result.current.profiles;
+    const retainedReadiness = result.current.modReadiness;
+    const profileReads = profiles.mock.calls.length;
+    const readinessReads = readiness.mock.calls.length;
+    profiles.mockReturnValueOnce(new Promise<never>(() => undefined));
+    readiness.mockReturnValueOnce(new Promise<never>(() => undefined));
+
+    act(() => window.dispatchEvent(new Event("focus")));
+    await waitFor(() => expect(profiles).toHaveBeenCalledTimes(profileReads + 1));
+    await waitFor(() => expect(readiness).toHaveBeenCalledTimes(readinessReads + 1));
+
+    expect(result.current.profiles).toBe(retainedProfiles);
+    expect(result.current.modReadiness).toBe(retainedReadiness);
+    expect(refreshCache).toHaveBeenCalledTimes(1);
+  } finally {
+    profiles.mockRestore();
+    readiness.mockRestore();
+  }
+});
+
 test("a stale activation becomes a fresh review instead of reporting success", async () => {
   const activate = vi.spyOn(profileActivation, "activateReviewedProfile")
     .mockResolvedValueOnce(plan())
@@ -103,7 +140,7 @@ test("a stale activation becomes a fresh review instead of reporting success", a
   await waitFor(() => expect(result.current.activationPlan?.sourceStateSha256).toBe("2".repeat(64)));
   expect(result.current.activationPlan?.enable).toEqual(["utility", "newly-observed"]);
   expect(announce).toHaveBeenCalledWith(
-    "The current mod selection changed since you reviewed this switch. Review the updated changes, then apply again.",
+    "Your mod selection changed. Check the updated switch, then apply it again.",
     "warning",
   );
   expect(announce).not.toHaveBeenCalledWith(expect.stringContaining("Switched to"), expect.anything());

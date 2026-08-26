@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -159,6 +160,36 @@ public final class PreparedTexturePackIO {
             String profileFingerprint,
             Path cacheRoot,
             Collection<String> blobRelativePaths) throws IOException {
+        write(target, profileFingerprint, cacheRoot, blobRelativePaths, SourceCopyObserver.NONE);
+    }
+
+    /**
+     * Publishes a pack while allowing rebuildable source blobs to be released as each checked copy
+     * enters the temporary pack.
+     *
+     * <p>The observer runs before and after every source copy. The after callback is reached only
+     * after the complete SPFT has passed its structural, checksum, and CRC checks. Callers may
+     * therefore delete a rebuildable loose source there without waiting for every other entry,
+     * reducing peak disk use from loose-plus-pack to roughly the larger representation. A failed
+     * publication can require the consumed entries to be rebuilt from their authoritative sources;
+     * callers must not use this overload for irreplaceable data.
+     */
+    public static void writeConsumingSources(
+            Path target,
+            String profileFingerprint,
+            Path cacheRoot,
+            Collection<String> blobRelativePaths,
+            SourceCopyObserver observer) throws IOException {
+        write(target, profileFingerprint, cacheRoot, blobRelativePaths,
+                Objects.requireNonNull(observer, "observer"));
+    }
+
+    private static void write(
+            Path target,
+            String profileFingerprint,
+            Path cacheRoot,
+            Collection<String> blobRelativePaths,
+            SourceCopyObserver observer) throws IOException {
         validateProfile(profileFingerprint);
         Path realRoot = PathContainment.realDirectory(cacheRoot);
         Collection<String> normalized = normalizeOrderedPaths(blobRelativePaths);
@@ -198,6 +229,7 @@ public final class PreparedTexturePackIO {
                 ByteBuffer copyBuffer = ByteBuffer.allocate(PreparedTexturePackIntegrity.COPY_BUFFER_BYTES);
                 List<Source> verified = new ArrayList<>(sources.size());
                 for (Source source : sources) {
+                    observer.beforeCopy(source.relativePath(), source.path(), source.length());
                     try (FileChannel input = FileChannel.open(source.path(), StandardOpenOption.READ)) {
                         int crc32c = PreparedTexturePackIntegrity.copyVerifiedSpft(
                                 input,
@@ -212,6 +244,7 @@ public final class PreparedTexturePackIO {
                                 source.length(),
                                 crc32c));
                     }
+                    observer.afterCopy(source.relativePath(), source.path(), source.length());
                 }
 
                 byte[] index = encodeIndex(profileFingerprint, verified);
@@ -232,6 +265,92 @@ public final class PreparedTexturePackIO {
             }
             AtomicPublish.replace(temporary, absolute);
             moved = true;
+        } finally {
+            if (!moved) {
+                Files.deleteIfExists(temporary);
+            }
+        }
+    }
+
+    public interface SourceCopyObserver {
+        SourceCopyObserver NONE = new SourceCopyObserver() {};
+
+        default void beforeCopy(String relativePath, Path source, long bytes) throws IOException {
+        }
+
+        default void afterCopy(String relativePath, Path source, long bytes) throws IOException {
+        }
+    }
+
+    /** Atomically rewrites an exact pack into a different physical order without loose blobs. */
+    public static boolean reorder(
+            Path target, String profileFingerprint, Collection<String> blobRelativePaths)
+            throws IOException {
+        validateProfile(profileFingerprint);
+        List<String> normalized = List.copyOf(normalizeOrderedPaths(blobRelativePaths));
+        if (normalized.isEmpty()) {
+            throw new IOException("Prepared texture pack cannot be empty");
+        }
+        Path absolute = target.toAbsolutePath().normalize();
+        Path temporary = absolute.resolveSibling(
+                absolute.getFileName() + ".tmp-" + ProcessHandle.current().pid() + "-" + System.nanoTime());
+        boolean moved = false;
+        try {
+            try (PreparedTexturePack source = open(absolute, profileFingerprint, normalized)) {
+                if (source.hasEntryOrder(normalized)) {
+                    return false;
+                }
+
+                List<Source> placeholders = new ArrayList<>(normalized.size());
+                long payloadLength = 0;
+                for (String relative : normalized) {
+                    // The exact lengths are filled while the authenticated source pack is copied.
+                    // A positive placeholder keeps the index shape fixed until then.
+                    placeholders.add(new Source(relative, absolute, payloadLength, 1, 0));
+                    payloadLength = Math.addExact(payloadLength, 1);
+                }
+                byte[] shape = encodeIndex(profileFingerprint, placeholders);
+
+                try (FileChannel output = FileChannel.open(temporary,
+                        StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+                    output.position(FIXED_HEADER_BYTES + (long) shape.length);
+                    ByteBuffer copyBuffer = ByteBuffer.allocate(
+                            PreparedTexturePackIntegrity.COPY_BUFFER_BYTES);
+                    List<Source> verified = new ArrayList<>(normalized.size());
+                    long offset = 0;
+                    for (String relative : normalized) {
+                        PreparedTexturePack.CopiedEntry copied =
+                                source.copyVerifiedEntry(relative, output, copyBuffer);
+                        verified.add(new Source(
+                                relative, absolute, offset, copied.length(), copied.crc32c()));
+                        offset = Math.addExact(offset, copied.length());
+                    }
+
+                    byte[] index = encodeIndex(profileFingerprint, verified);
+                    if (index.length != shape.length) {
+                        throw new IOException("Prepared texture pack index size changed during reorder");
+                    }
+                    output.position(0);
+                    ByteBuffer header = ByteBuffer.allocate(FIXED_HEADER_BYTES).order(ByteOrder.BIG_ENDIAN);
+                    header.put(MAGIC);
+                    header.putInt(FORMAT_VERSION);
+                    header.putInt(index.length);
+                    header.putLong(offset);
+                    header.put(Hashes.sha256Bytes(index));
+                    header.flip();
+                    writeFully(output, header);
+                    writeFully(output, ByteBuffer.wrap(index));
+                    output.force(true);
+                }
+            }
+            try (PreparedTexturePack reordered = open(temporary, profileFingerprint, normalized)) {
+                if (!reordered.hasEntryOrder(normalized)) {
+                    throw new IOException("Prepared texture pack reorder did not preserve requested order");
+                }
+            }
+            AtomicPublish.replace(temporary, absolute);
+            moved = true;
+            return true;
         } finally {
             if (!moved) {
                 Files.deleteIfExists(temporary);

@@ -38,6 +38,13 @@ test("tagged lifecycle exercises the exact three published beta packages", () =>
   );
 });
 
+test("the runner-local earlier package includes the reviewed frontend", () => {
+  assert.match(
+    workflow,
+    /Build an earlier rehearsal package[\s\S]*npm run build[\s\S]*npx tauri build/,
+  );
+});
+
 test("tagged lifecycle receipt binds tag, Distribution run, source and package digest", () => {
   assert.match(workflow, /preflight-tagged-package-lifecycle-v1/);
   assert.match(workflow, /report\.releaseTag = process\.env\.RELEASE_TAG/);

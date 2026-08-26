@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -53,6 +54,61 @@ class SimOpponentDialogProbePlanTest {
         assertEquals(1L, telemetry.get("dialogObservations"));
         assertEquals(1L, telemetry.get("dialogGridBuilds"));
         assertEquals(1L, telemetry.get("dialogInspectionFailures"));
+    }
+
+    @Test
+    void postAdvanceNullDialogObservationIsBoundedPerSession() {
+        SimOpponentSafetyRuntime.recordDialog(null, 2);
+        SimOpponentSafetyRuntime.recordDialog(null, 2);
+
+        var telemetry = SimOpponentSafetyRuntime.telemetry();
+        assertEquals(1L, telemetry.get("dialogObservations"));
+        assertEquals(1L, telemetry.get("dialogPostAdvanceObservations"));
+        assertEquals(1L, telemetry.get("dialogInspectionFailures"));
+
+        SimOpponentSafetyRuntime.beginSession();
+        SimOpponentSafetyRuntime.recordDialog(null, 2);
+        telemetry = SimOpponentSafetyRuntime.telemetry();
+        assertEquals(1L, telemetry.get("dialogObservations"));
+        assertEquals(1L, telemetry.get("dialogPostAdvanceObservations"));
+        assertEquals(1L, telemetry.get("dialogInspectionFailures"));
+    }
+
+    @Test
+    void postAdvanceObservationRepeatsForEachDialogInstance() {
+        Object firstDialog = new Object();
+        Object secondDialog = new Object();
+
+        SimOpponentSafetyRuntime.recordDialog(firstDialog, 2);
+        SimOpponentSafetyRuntime.recordDialog(firstDialog, 2);
+        SimOpponentSafetyRuntime.recordDialog(secondDialog, 2);
+
+        var telemetry = SimOpponentSafetyRuntime.telemetry();
+        assertEquals(2L, telemetry.get("dialogObservations"));
+        assertEquals(2L, telemetry.get("dialogPostAdvanceObservations"));
+        assertEquals(2L, telemetry.get("dialogInspectionFailures"));
+    }
+
+    @Test
+    void postAdvanceDialogTrackingIsBoundedAndRetiredAtSessionReset() {
+        List<Object> dialogs = new ArrayList<>();
+        for (int index = 0; index < 33; index++) {
+            Object dialog = new Object();
+            dialogs.add(dialog);
+            SimOpponentSafetyRuntime.recordDialog(dialog, 2);
+        }
+        assertEquals(33L,
+                SimOpponentSafetyRuntime.telemetry().get("dialogPostAdvanceObservations"));
+
+        SimOpponentSafetyRuntime.recordDialog(dialogs.get(0), 2);
+        assertEquals(34L,
+                SimOpponentSafetyRuntime.telemetry().get("dialogPostAdvanceObservations"));
+
+        SimOpponentSafetyRuntime.beginSession();
+        SimOpponentSafetyRuntime.recordDialog(dialogs.get(0), 2);
+        var telemetry = SimOpponentSafetyRuntime.telemetry();
+        assertEquals(1L, telemetry.get("dialogObservations"));
+        assertEquals(1L, telemetry.get("dialogPostAdvanceObservations"));
     }
 
     private static ClassSignature signature() {

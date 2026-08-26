@@ -63,7 +63,7 @@ class TextureLoaderPlanCompositionTest {
     }
 
     @Test
-    void theFoldReturnsTheTrueDimensionOnceTheGateIsOpen() throws Exception {
+    void theFoldStillFoldsWithoutAnInFlightPreparedUpload() throws Exception {
         Class<?> loader = define(compose());
         Method fold = loader.getDeclaredMethod(TexturePaddingPlan.FOLD_METHOD, int.class);
         fold.setAccessible(true);
@@ -71,10 +71,11 @@ class TextureLoaderPlanCompositionTest {
 
         System.setProperty(TexturePaddingRuntime.UNPADDED_PROPERTY, "true");
         assertTrue(TexturePaddingRuntime.enabled());
-        // 597x373 is graphics/ui/launcher_bg.jpg, the texture that killed the launcher when only
-        // half of this invariant was in place.
-        assertEquals(597, fold.invoke(instance, 597));
-        assertEquals(373, fold.invoke(instance, 373));
+        // The capability and property only make true-size uploads available. This call has no
+        // verified prepared buffer in flight, so it models a cache miss and must retain vanilla
+        // allocation semantics.
+        assertEquals(1024, fold.invoke(instance, 597));
+        assertEquals(512, fold.invoke(instance, 373));
     }
 
     @Test

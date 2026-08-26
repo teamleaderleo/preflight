@@ -5,16 +5,18 @@ Blog-length piece on how Preflight works. Every number here traces to a retained
 
 ---
 
-## Making a heavily modded Starsector start in 15.25 seconds instead of 101
+## Making a heavily modded Starsector start in 13.69 seconds instead of 101
 
-At its worst, Starsector took about 101 seconds to reach the main menu on my machine. The fastest
-launch I have recorded since is 15.25 seconds. The mod list grew while I was working on it, from 77
-mods to 83, so those two numbers show the development history rather than a controlled comparison.
+At its worst, Starsector took about 101 seconds to reach the main menu on my machine. The current
+retained development endpoint is **13.69 seconds**. The mod list grew while I was working on it, from
+77 mods to 83, so the full 101 → 13.69 span is a development chronology.
 
-I went back and measured both sides again on the same profile. Five ordinary launches had an
-89.00-second median. Five Preflight launches had a 15.53-second median. I shuffled the order inside
-every round and let the machine cool for 240 seconds before each launch. None of the ten runs were
-excluded.
+One historical A/B campaign also measured both conditions on the same 83-mod profile: five ordinary
+launches had an 89.00-second median and five Preflight launches had a 15.53-second median. I shuffled
+the order inside every round and let the machine cool for 240 seconds before each launch. None of the
+ten runs were excluded. That arrangement makes the pair useful for the before/after question it was
+designed to answer; it does not make those elapsed times a more authoritative kind of startup
+measurement than other runs recorded with the same game-log clock.
 
 Most of the result came from noticing that the game does the same work every single launch, even
 when the inputs haven't changed since last time.
@@ -149,12 +151,13 @@ need to be decoded again.
 
 | Claim | Source |
 | --- | --- |
-| 101s worst case, 88.13s five-run median, 15.88s warm | [Scorecard](evidence/2026-08-02-accumulated-startup-scorecard.md), [claims.json](claims.json) |
+| 101s historical high and earlier startup chronology | [Scorecard](evidence/2026-08-02-accumulated-startup-scorecard.md), [claims.json](claims.json) |
+| 13.69s retained current development endpoint | [Storage/startup record](evidence/2026-08-23-storage-to-fourteen-seconds.md), [claims.json](claims.json) |
 | 88.13s was measured on 77 mods; 15.88s on 83 | [29% campaign](evidence/2026-08-01-twenty-nine-percent-when-they-compose.md), [lazy fleet members](evidence/2026-08-06-codex-lazy-fleet-members.md) |
-| 89.00s vanilla and 15.53s `fast`, same 83-mod profile, one interleaved session | [Controlled campaign](evidence/2026-08-15-controlled-vanilla-fast-campaign.md) |
+| 89.00s vanilla and 15.53s `fast`, same 83-mod profile, one interleaved A/B session | [Historical A/B campaign](evidence/2026-08-15-controlled-vanilla-fast-campaign.md) |
 | 4.8–5.9s pre-resource gap was a clock-origin artifact | [Save-descriptor memo](evidence/2026-08-06-main-menu-save-descriptor-memo.md) |
 | Two modes ~18s apart; low mode understated by 14–18s; ~92s not ~75s | [The bimodality was the anchor](evidence/2026-08-01-the-bimodality-was-the-anchor.md) |
-| Every row of both tables | [Scorecard](evidence/2026-08-02-accumulated-startup-scorecard.md) |
+| Every row of both component tables | [Scorecard](evidence/2026-08-02-accumulated-startup-scorecard.md) |
 | 2,000 publications, zero torn reads after the rename | `RecordingStopControllerTest.everyObservedAcknowledgementIsComplete` |
 
 Still to fill before publishing: the release URL and a link target for the writeup itself. The

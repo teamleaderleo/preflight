@@ -1,11 +1,13 @@
 # Product, compatibility, and support-upload contract
 
 **Status:** executable product boundary for the desktop beta
-**Updated:** 2026-08-18
+**Updated:** 2026-08-20
 
-Public distribution hasn't started. The product is named **Preflight**; Fractal Softworks has been
-asked for guidance on descriptive use of the Starsector name, the disclaimer, and the integration
-approach. This contract describes the intended release; it isn't a claim of endorsement.
+Public distribution hasn't started. The product is named **Preflight**. The maintainer decision
+recorded on 2026-08-20 in [#950](https://github.com/teamleaderleo/preflight/issues/950) treats the
+2026-08-07 Fractal Softworks request as courtesy correspondence; a reply is outside the publication
+gate. Preflight remains an independent, unofficial project with the existing descriptive-use
+attribution and disclaimer. This contract describes product behavior and makes no endorsement claim.
 
 ## A shared engine, several entry points
 
@@ -98,9 +100,9 @@ than duplicating them:
 - battle size from the same `gameplaySettings` preference as the in-game slider.
 
 Battle size uses the selected installation's merged minimum and the same `battleSize` preference as
-the game. Preflight offers a bounded extended range up to 2,000 deployment points because
-`maxBattleSize` only defines the vanilla settings slider. It doesn't rewrite base `settings.json`;
-opening the vanilla slider can reset a value above that slider's installed maximum.
+the game. `maxBattleSize` only defines the vanilla settings slider, so Preflight accepts custom
+values through the positive Java-integer range consumed by the game. It doesn't rewrite base
+`settings.json`; opening the vanilla slider can reset a value above that slider's installed maximum.
 
 For the release candidate, these values remain global Starsector settings shared by vanilla and
 Preflight launches. Apply has an explicit quiescent boundary: the player confirms Starsector, its
@@ -138,9 +140,9 @@ storage policy stay separate, preview-first actions.
 
 “Send diagnostics” should upload the exact bounded ZIP already produced by `evidence export`; it
 must not create a broader telemetry path. The consent screen shows the existing inclusion/exclusion
-list, the byte count, and the ZIP SHA-256 before sending. Automatic failed-run reports are a
-separate, remembered setting that starts off and sends the same bounded ZIP only after an exact
-failed wrapper identity is confirmed.
+list, the byte count, and the ZIP SHA-256 before sending. The first beta keeps this manual. Automatic
+failed-run reporting remains unavailable until native background ownership, exact-run deduplication,
+and durable case-scoped deletion authority satisfy #662, #669, and #679.
 
 The service flow is:
 
@@ -177,8 +179,8 @@ allowlist.
 
 Cloudflare's own Worker Logs cover request, custom, and exception logs inside the intake service;
 they don't replace desktop consent, disclosure, redaction, bundle construction, or the separate
-choice to upload a report. Automatic failed-run reports are therefore their own remembered,
-default-off toggle rather than a side effect of enabling server observability.
+choice to upload a report. Server observability never enables desktop reporting. The first beta has
+no automatic failed-run reporting control.
 
 ## Update, removal, and storage contract
 

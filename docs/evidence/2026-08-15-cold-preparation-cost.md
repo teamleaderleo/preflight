@@ -6,6 +6,11 @@
 **Report:** `prepare --report`, retained outside the repository
 **Status:** one run, one machine, one profile
 
+**2026-08-22 follow-up:** the 10.9 MB Minimal figure below measures the directory immediately after
+preparation. A measured first launch learned generated-bytecode and spec-data caches and grew the
+directory to about 204 MiB. See
+[Minimal disk after the first launch](2026-08-22-minimal-disk-launch.md).
+
 The beta announcement told readers that "first preparation takes a couple of minutes on a big mod
 list". Nothing had measured it. This is one cold preparation of the same 83-mod profile the
 [controlled campaign](2026-08-15-controlled-vanilla-fast-campaign.md) used, into an empty cache
@@ -109,16 +114,13 @@ spec-store-identity 1,872.4ms. Textures and lookup-verification were skipped. `r
 identical between this run and the full one on every field, including
 `cacheArtifactsPrepared: true`.
 
-So the entire disk cost and 97% of the time is the texture stage, and a user who wants Preflight's
-metadata work without the texture store can have it for about eleven megabytes. `--no-resource-index`
-and `--no-classpath` narrow it further.
+So 97% of this preparation time and most of its immediate output came from the texture stage. A
+user who wants Preflight's metadata work without the texture store can prepare it in about eleven
+megabytes. `--no-resource-index` and `--no-classpath` narrow it further. Runtime caches learned by
+the game are additional; the 2026-08-22 follow-up measured about 204 MiB after the first launch.
 
-**What that costs at launch is not measured here.** The prepared-texture path is where the 25.53s
-attributed to prepared textures and prefetch bypass came from, but that figure comes from a
-different campaign, and subtracting it from this one would be arithmetic rather than a measurement.
-A textures-free launch has not been timed. Doing it properly needs a campaign against a cache
-prepared this way, and the harness would want a flag to stop it re-preparing the textures it was
-told to skip.
+The launch cost was not measured in this original session. The 2026-08-22 follow-up measured a
+78.96-second learning launch and a 56.51-second warm launch on a busy machine.
 
 ## What this does not say
 

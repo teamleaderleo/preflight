@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   deleteProfile,
   duplicateProfile,
+  getModReadiness,
   getProfiles,
   renameProfile,
   saveProfile,
@@ -12,6 +13,7 @@ import {
 } from "./profileActivationBridge";
 import type {
   Announce,
+  ModReadiness,
   ProfileList,
   ProfileMutationPlan,
 } from "./types";
@@ -26,6 +28,8 @@ export function useProfiles(
 ) {
   const [profiles, setProfiles] = useState<ProfileList | null>(null);
   const [profilesLoading, setProfilesLoading] = useState(false);
+  const [modReadiness, setModReadiness] = useState<ModReadiness | null>(null);
+  const [modReadinessLoading, setModReadinessLoading] = useState(false);
   const [profileName, setProfileName] = useState("");
   const [profileBusy, setProfileBusy] = useState(false);
   const [activationPlan, setActivationPlan] = useState<ReviewedProfileActivationPlan | null>(null);
@@ -39,10 +43,10 @@ export function useProfiles(
   const [duplicateTarget, setDuplicateTarget] = useState<string | null>(null);
   const [duplicateDraft, setDuplicateDraft] = useState("");
   const profilesRequest = useRef(0);
+  const modReadinessRequest = useRef(0);
   const actionRequest = useRef(0);
   const busyRef = useRef(false);
   const profileNameRevision = useRef(0);
-  const launchIdentityRefreshing = useRef(false);
   const currentGame = useRef(game);
   currentGame.current = game;
 
@@ -64,14 +68,38 @@ export function useProfiles(
     }
   }, [announce, game]);
 
+  const refreshModReadiness = useCallback(async () => {
+    const request = ++modReadinessRequest.current;
+    if (!game) {
+      setModReadiness(null);
+      setModReadinessLoading(false);
+      return;
+    }
+    setModReadinessLoading(true);
+    try {
+      const next = await getModReadiness(game);
+      if (request === modReadinessRequest.current && currentGame.current === game) {
+        setModReadiness(next);
+      }
+    } catch (error) {
+      if (request === modReadinessRequest.current && currentGame.current === game) {
+        announce(errorMessage(error), "warning");
+      }
+    } finally {
+      if (request === modReadinessRequest.current) setModReadinessLoading(false);
+    }
+  }, [announce, game]);
+
   useEffect(() => {
     profilesRequest.current += 1;
+    modReadinessRequest.current += 1;
     actionRequest.current += 1;
     busyRef.current = false;
     profileNameRevision.current += 1;
-    launchIdentityRefreshing.current = false;
     setProfiles(null);
     setProfilesLoading(false);
+    setModReadiness(null);
+    setModReadinessLoading(false);
     setProfileBusy(false);
     setProfileName("");
     setActivationPlan(null);
@@ -89,7 +117,7 @@ export function useProfiles(
     // instead of starting another JVM every time Home or Mods becomes visible again. If a refocus
     // revalidation is already supplying that read, Home consumes it instead of launching a second
     // engine request merely because the retained list was deliberately invalidated.
-    if (visible && profiles?.installRoot !== game && !launchIdentityRefreshing.current) {
+    if (visible && profiles?.installRoot !== game) {
       void refreshProfiles();
     } else if (!game) {
       profilesRequest.current += 1;
@@ -99,23 +127,27 @@ export function useProfiles(
   }, [game, profiles?.installRoot, refreshProfiles, visible]);
 
   useEffect(() => {
+    if (visible && game && !modReadiness) {
+      void refreshModReadiness();
+    } else if (!game) {
+      modReadinessRequest.current += 1;
+      setModReadiness(null);
+      setModReadinessLoading(false);
+    }
+  }, [game, modReadiness, refreshModReadiness, visible]);
+
+  useEffect(() => {
     if (!game) return;
-    // Another mod manager can change enabled_mods.json while Preflight is open. Refocus is the
-    // launch-facing freshness boundary regardless of which Preflight page is currently visible.
-    // Drop the retained profile list before the asynchronous reread so Home cannot keep projecting
-    // a saved name while freshness is unproven, and a failed profile refresh cannot restore stale
-    // certainty merely because the previous profile/cache snapshots happened to agree.
-    const refreshLaunchIdentity = () => {
-      if (launchIdentityRefreshing.current) return;
-      launchIdentityRefreshing.current = true;
-      setProfiles(null);
-      void Promise.all([refreshProfiles(), refreshCache()]).finally(() => {
-        launchIdentityRefreshing.current = false;
-      });
+    const refreshExternalModState = () => {
+      // A player may have changed enabled_mods.json while Preflight was in the background. Read
+      // that state again without clearing the currently painted launch identity or blocking input.
+      void refreshProfiles();
+      void refreshModReadiness();
+      void refreshCache();
     };
-    window.addEventListener("focus", refreshLaunchIdentity);
-    return () => window.removeEventListener("focus", refreshLaunchIdentity);
-  }, [game, refreshCache, refreshProfiles]);
+    window.addEventListener("focus", refreshExternalModState);
+    return () => window.removeEventListener("focus", refreshExternalModState);
+  }, [game, refreshCache, refreshModReadiness, refreshProfiles]);
 
   const saveCurrentProfile = async () => {
     const name = profileName.trim();
@@ -129,7 +161,7 @@ export function useProfiles(
       await saveProfile(expectedGame, name);
       if (request !== actionRequest.current || currentGame.current !== expectedGame) return;
       if (profileNameRevision.current === submittedRevision) setProfileName("");
-      announce(`Saved the exact current mod order as “${name}”.`, "success");
+      announce(`Saved the current mod order as “${name}”.`, "success");
       await refreshProfiles();
     } catch (error) {
       if (request === actionRequest.current && currentGame.current === expectedGame) announce(errorMessage(error), "error");
@@ -276,17 +308,22 @@ export function useProfiles(
           };
         });
       }
-      await Promise.all([refreshInstallation(expectedGame), refreshProfiles(), refreshCache()]);
+      await Promise.all([
+        refreshInstallation(expectedGame),
+        refreshProfiles(),
+        refreshModReadiness(),
+        refreshCache(),
+      ]);
       if (request !== actionRequest.current || currentGame.current !== expectedGame) return;
       if (result.reviewChanged) {
         setActivationPlan(result);
         setActivationPlanGame(expectedGame);
         announce(
           result.sourceChanged
-            ? "The current mod selection changed since you reviewed this switch. Review the updated changes, then apply again."
+            ? "Your mod selection changed. Check the updated switch, then apply it again."
             : result.profileChanged
-              ? "The saved profile changed since you reviewed this switch. Review the updated changes, then apply again."
-              : "This profile switch needs a fresh review. Review the updated changes, then apply again.",
+              ? "The saved profile changed. Check the updated switch, then apply it again."
+              : "Check this profile switch again before applying it.",
           "warning",
         );
       } else if (!result.canActivate) {
@@ -299,7 +336,7 @@ export function useProfiles(
         setActivationPlan(null);
         setActivationPlanGame(null);
         announce(result.applied
-          ? `Switched to “${result.name}”. Its exact caches will be reused automatically when available.`
+          ? `Switched to “${result.name}”. Prepared data will be reused when available.`
           : `“${result.name}” was already active; nothing changed.`);
       }
     } catch (error) {
@@ -350,11 +387,13 @@ export function useProfiles(
 
   const clearProfiles = () => {
     profilesRequest.current += 1;
+    modReadinessRequest.current += 1;
     actionRequest.current += 1;
     busyRef.current = false;
-    launchIdentityRefreshing.current = false;
     setProfiles(null);
     setProfilesLoading(false);
+    setModReadiness(null);
+    setModReadinessLoading(false);
     setProfileBusy(false);
     setActivationPlan(null);
     setActivationPlanGame(null);
@@ -394,6 +433,8 @@ export function useProfiles(
     profileName,
     profiles: currentProfiles,
     profilesLoading,
+    modReadiness,
+    modReadinessLoading,
     renameDraft,
     renameTarget,
     duplicateDraft,
@@ -406,6 +447,7 @@ export function useProfiles(
     cancelDuplicate,
     clearProfiles,
     refreshProfiles,
+    refreshModReadiness,
     reviewProfile,
     setRenameDraft,
     submitRename,

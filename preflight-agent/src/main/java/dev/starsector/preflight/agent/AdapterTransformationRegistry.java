@@ -308,6 +308,12 @@ final class AdapterTransformationRegistry {
                     : null;
             boolean changed = notification != null || optionalJson != null;
             current = optionalJson == null ? current : optionalJson;
+            byte[] catalog = MagicLibPaintjobCacheRuntime.ready()
+                            && AdapterPlanControl.allows(MagicLibPaintjobCacheRuntime.PLAN_ID)
+                    ? MagicLibPaintjobCachePlan.transform(signature, current)
+                    : null;
+            changed |= catalog != null;
+            current = catalog == null ? current : catalog;
             if (changed && AdapterPlanControl.allows(StartupPhaseRuntime.PLAN_ID)
                     && StartupPhaseRuntime.phaseProbeEnabled()) {
                 byte[] timed = StartupCallBreakdownPlan.transform(signature, current);
@@ -363,6 +369,9 @@ final class AdapterTransformationRegistry {
         if (FrameTimeStartupCompletionPlan.PLAN_ID.equals(target.planId())) {
             return FrameTimeStartupCompletionPlan.transform(signature, originalBytes);
         }
+        if (MainMenuInteractivePlan.PLAN_ID.equals(target.planId())) {
+            return MainMenuInteractivePlan.transform(signature, originalBytes);
+        }
         if (CombatRuntimeIntegrityRuntime.PLAN_ID.equals(target.planId())) {
             return CombatRuntimeIntegrityPlan.transform(signature, originalBytes);
         }
@@ -409,6 +418,9 @@ final class AdapterTransformationRegistry {
             }
             if (AssetProgressLogRuntime.suppress()) {
                 AssetProgressLogPlan.apply(signature, owner);
+            }
+            if (StartupPhaseRuntime.phaseProbeEnabled()) {
+                WeaponHydrationBreakdownPlan.apply(signature, owner);
             }
             return WeaponJsonCachePlan.write(owner);
         } catch (ThreadDeath | VirtualMachineError fatal) {
@@ -901,6 +913,9 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (FrameTimeStartupCompletionPlan.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (MainMenuInteractivePlan.PLAN_ID.equals(planId)) {
             return true;
         }
         if (CombatRuntimeIntegrityRuntime.PLAN_ID.equals(planId)) {

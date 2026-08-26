@@ -2,7 +2,26 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import type { useProfiles } from "../useProfiles";
-import { ProfilesPage } from "./ProfilesPage";
+import type { useSetupCheck } from "../useSetupCheck";
+import { ProfilesPage as ProfilesPageComponent } from "./ProfilesPage";
+
+function setupCheckState(overrides: Partial<ReturnType<typeof useSetupCheck>> = {}) {
+  return {
+    checking: false,
+    result: null,
+    run: vi.fn(),
+    ...overrides,
+  } as ReturnType<typeof useSetupCheck>;
+}
+
+function ProfilesPage({
+  setupCheck = setupCheckState(),
+  ...props
+}: Omit<React.ComponentProps<typeof ProfilesPageComponent>, "setupCheck"> & {
+  setupCheck?: ReturnType<typeof useSetupCheck>;
+}) {
+  return <ProfilesPageComponent {...props} setupCheck={setupCheck} />;
+}
 
 function profilesState(overrides: Record<string, unknown> = {}) {
   return {
@@ -23,6 +42,16 @@ function profilesState(overrides: Record<string, unknown> = {}) {
       diagnostics: [],
     },
     profilesLoading: false,
+    modReadiness: {
+      format: "starsector-preflight-mod-readiness-v1",
+      ready: true,
+      counts: { blocking: 0, warning: 0, info: 0, unknown: 0 },
+      findings: [],
+      modDirectories: 83,
+      metadataBytes: 131_072,
+      elapsedMillis: 6,
+    },
+    modReadinessLoading: false,
     renameDraft: "",
     renameTarget: null,
     duplicateDraft: "",
@@ -43,9 +72,128 @@ function profilesState(overrides: Record<string, unknown> = {}) {
     submitRename: vi.fn(),
     setDuplicateDraft: vi.fn(),
     submitDuplicate: vi.fn(),
+    refreshModReadiness: vi.fn(),
     ...overrides,
   } as unknown as ReturnType<typeof useProfiles>;
 }
+
+test("the automatic mod check stays quiet while the deeper check remains available", () => {
+  render(
+    <ProfilesPage
+      message=""
+      messageTone="info"
+      profilesState={profilesState()}
+      operationBlocked={false}
+    />,
+  );
+
+  expect(screen.queryByLabelText("Current mod setup needs attention")).not.toBeInTheDocument();
+  expect(screen.queryByText("Dependencies checked")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Check setup" })).toBeEnabled();
+});
+
+test("a broken dependency is concise before review and actionable after expansion", async () => {
+  const user = userEvent.setup();
+  const refreshModReadiness = vi.fn();
+  render(
+    <ProfilesPage
+      message=""
+      messageTone="info"
+      profilesState={profilesState({
+        refreshModReadiness,
+        modReadiness: {
+          format: "starsector-preflight-mod-readiness-v1",
+          ready: false,
+          counts: { blocking: 1, warning: 0, info: 0, unknown: 0 },
+          findings: [{
+            code: "mod-metadata.required-dependency-disabled",
+            provider: "mod-metadata",
+            severity: "blocking",
+            summary: "Nexerelin requires LazyLib, but LazyLib is disabled.",
+            parameters: {},
+            affectedModIds: ["nexerelin", "lw_lazylib"],
+            actions: ["Enable LazyLib, then check again."],
+          }],
+          modDirectories: 83,
+          metadataBytes: 131_072,
+          elapsedMillis: 6,
+        },
+      })}
+      operationBlocked={false}
+    />,
+  );
+
+  expect(screen.getByText("1 mod problem")).toBeInTheDocument();
+  expect(screen.queryByText("Nexerelin requires LazyLib, but LazyLib is disabled.")).not.toBeVisible();
+  await user.click(screen.getByText("1 mod problem"));
+  expect(screen.getByText("Nexerelin requires LazyLib, but LazyLib is disabled.")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Refresh" })).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Refresh" }));
+  expect(refreshModReadiness).toHaveBeenCalledOnce();
+});
+
+test("the explicit setup check reports a clean result without proof language", async () => {
+  const user = userEvent.setup();
+  const run = vi.fn();
+  render(
+    <ProfilesPage
+      message=""
+      messageTone="info"
+      profilesState={profilesState()}
+      setupCheck={setupCheckState({
+        run,
+        result: {
+          format: "starsector-preflight-setup-analysis-v1",
+          installationIdentity: "install-v1:test",
+          profileFingerprint: "profile:test",
+          ready: true,
+          counts: { blocking: 0, warning: 0, info: 0, unknown: 0 },
+          findings: [],
+          unavailableProviders: [],
+        },
+      })}
+      operationBlocked={false}
+    />,
+  );
+
+  expect(screen.getByText("No problems found")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Check again" }));
+  expect(run).toHaveBeenCalledOnce();
+});
+
+test("the explicit setup check puts broken references beside the rerun action", () => {
+  render(
+    <ProfilesPage
+      message=""
+      messageTone="info"
+      profilesState={profilesState()}
+      setupCheck={setupCheckState({
+        result: {
+          format: "starsector-preflight-setup-analysis-v1",
+          installationIdentity: "install-v1:test",
+          profileFingerprint: "profile:test",
+          ready: false,
+          counts: { blocking: 1, warning: 0, info: 0, unknown: 0 },
+          findings: [{
+            code: "variant.missing-hull",
+            provider: "variant",
+            severity: "blocking",
+            summary: "A ship variant refers to a hull that is not installed.",
+            parameters: {},
+            affectedModIds: ["example"],
+            actions: [],
+          }],
+          unavailableProviders: [],
+        },
+      })}
+      operationBlocked={false}
+    />,
+  );
+
+  expect(screen.getByText("1 problem found")).toBeVisible();
+  expect(screen.getByText("A ship variant refers to a hull that is not installed.")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Check again" })).toBeVisible();
+});
 
 const inactiveProfiles = {
   profiles: [{

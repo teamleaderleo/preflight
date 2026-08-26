@@ -1,18 +1,16 @@
 import { useState } from "react";
-import { ArrowIcon, GaugeIcon } from "../icons";
+import { ArrowIcon, CheckIcon, CopyIcon, GaugeIcon } from "../icons";
 import { createPlaytimeShareText } from "../playtimeShare";
-import type { LastRun, PlaytimeSnapshot, WireframeHull } from "../types";
+import type { LastRun, PlaytimeSnapshot } from "../types";
 import type { SpeedMeasurement, SpeedStanding } from "../useSpeedRecord";
 import { formatDuration, formatPlaytime } from "../uiFormat";
 import { startupComparisonPresentation } from "../speedScoreboardFormat";
-import { FlightInstrument } from "./FlightInstrument";
 
 interface SpeedScoreboardProps {
   standing: SpeedStanding;
   isReady: boolean;
   playtime?: PlaytimeSnapshot;
   lastRun?: LastRun | null;
-  hull: WireframeHull;
   onOpenBenchmark: () => void;
 }
 
@@ -27,14 +25,19 @@ function RecordedPlaytime({ playtime }: { playtime?: PlaytimeSnapshot }) {
   if (!playtime?.readable || playtime.launches <= 0 || playtime.totalMillis <= 0) return null;
   const total = formatPlaytime(playtime.totalMillis);
   const sessions = playtime.launches.toLocaleString();
+  const longest = formatSessionContext(playtime.longestSessionMillis);
+  const descriptionId = "scoreboard-playtime-longest-session";
   return (
     <div
       className="scoreboard__playtime"
+      role="group"
       aria-label={`${total} recorded playtime across ${sessions} sessions`}
-      title={`Across ${sessions} recorded sessions · longest ${formatSessionContext(playtime.longestSessionMillis)}`}
+      aria-describedby={descriptionId}
+      title={`Across ${sessions} recorded sessions · longest ${longest}`}
     >
       <strong>{total}</strong>
       <span>recorded playtime</span>
+      <span id={descriptionId} hidden>Longest session {longest}</span>
     </div>
   );
 }
@@ -50,14 +53,19 @@ function PlaytimeCopyButton({ playtime }: { playtime?: PlaytimeSnapshot }) {
       setState("error");
     }
   };
+  const copied = state === "copied";
   return (
     <>
-      <button className="button button--quiet button--compact" type="button" onClick={() => void copy()}>
-        Copy playtime
+      <button
+        className="icon-button icon-button--small"
+        type="button"
+        aria-label={copied ? "Playtime copied" : "Copy playtime"}
+        title={copied ? "Playtime copied" : "Copy playtime summary"}
+        onClick={() => void copy()}
+      >
+        {copied ? <CheckIcon /> : <CopyIcon />}
       </button>
-      <small aria-live="polite">
-        {state === "copied" ? "Playtime summary copied." : state === "error" ? "Couldn’t copy playtime." : `${playtime.launches.toLocaleString()} recorded sessions · longest ${formatSessionContext(playtime.longestSessionMillis)}`}
-      </small>
+      {state === "copied" ? <small aria-live="polite">Playtime copied.</small> : state === "error" ? <small aria-live="polite">Couldn’t copy playtime.</small> : null}
     </>
   );
 }
@@ -78,16 +86,15 @@ function ResultFigure({ measurement }: { measurement: SpeedMeasurement }) {
   );
 }
 
-export function SpeedScoreboard({ standing, isReady, playtime, lastRun, hull, onOpenBenchmark }: SpeedScoreboardProps) {
+export function SpeedScoreboard({ standing, isReady, playtime, lastRun, onOpenBenchmark }: SpeedScoreboardProps) {
   const { record } = standing;
 
   if (!record) {
     return (
       <section className="card scoreboard scoreboard--unmeasured" aria-label="Startup speed">
-        <FlightInstrument hull={hull} />
         <div className="scoreboard__headline">
           <p className="eyebrow">Your startup</p>
-          <strong className="scoreboard__figure scoreboard__figure--unknown" aria-hidden="true">?×</strong>
+          <strong className="scoreboard__figure scoreboard__figure--unknown" aria-hidden="true">—</strong>
           <RecordedPlaytime playtime={playtime} />
         </div>
         <div className="scoreboard__body">
@@ -111,7 +118,6 @@ export function SpeedScoreboard({ standing, isReady, playtime, lastRun, hull, on
   const latestMeasuredOn = new Date(latest.recordedAt);
   return (
     <section className="card scoreboard" aria-label="Startup speed">
-      <FlightInstrument hull={hull} />
       <div className="scoreboard__headline">
         <p className="eyebrow">Personal best</p>
         <strong className="scoreboard__figure"><ResultFigure measurement={best} /></strong>

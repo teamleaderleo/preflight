@@ -19,6 +19,7 @@ import java.util.Set;
 /** Converts exact-match telemetry into a compact post-run compatibility verdict. */
 final class AdapterHealthReport {
     static final String FORMAT = "starsector-preflight-adapter-health-v1";
+    private static final long MAX_ADAPTER_REPORT_BYTES = 32L * 1024 * 1024;
     private static final int DETAIL_LIMIT = 16;
     private static final List<String> CACHE_SECTIONS = List.of(
             "adapterTransformationCache",
@@ -43,7 +44,8 @@ final class AdapterHealthReport {
     static Result analyze(Path adapterReport, Path output) throws IOException {
         Path source = requireFile(adapterReport, "adapter report");
         Path destination = output.toAbsolutePath().normalize();
-        Map<String, Object> adapter = StrictJson.object(Files.readString(source, StandardCharsets.UTF_8));
+        Map<String, Object> adapter = BoundedEvidenceJson.readObject(
+                source, MAX_ADAPTER_REPORT_BYTES, "Adapter report");
         Result result = evaluate(adapter, source, destination);
         writeAtomic(destination, Json.object(result.toMap()) + System.lineSeparator());
         return result;

@@ -35,10 +35,57 @@ function renderActions(operationBlocked = false) {
   return { onRelaunch, onGetHelp, onDismiss };
 }
 
-test("failed-run recovery exposes the existing privacy-safe Copy setup action", () => {
+test("failed-run recovery focuses Relaunch when it is immediately available", () => {
+  renderActions();
+
+  expect(screen.getByRole("button", { name: "Relaunch" })).toHaveFocus();
+});
+
+test("failed-run recovery focuses Help when relaunch is temporarily blocked", () => {
+  renderActions(true);
+
+  expect(screen.getByRole("button", { name: "Get help" })).toHaveFocus();
+});
+
+test("failed-run recovery does not steal focus again when operation ownership changes", () => {
+  const onRelaunch = vi.fn();
+  const onGetHelp = vi.fn();
+  const onDismiss = vi.fn();
+  const { rerender } = render(
+    <RunRecoveryActions
+      optimizationPreset="recommended"
+      operationBlocked={false}
+      onRelaunch={onRelaunch}
+      onGetHelp={onGetHelp}
+      onDismiss={onDismiss}
+    />,
+  );
+
+  expect(screen.getByRole("button", { name: "Relaunch" })).toHaveFocus();
+  const dismiss = screen.getByRole("button", { name: "Dismiss" });
+  dismiss.focus();
+  expect(dismiss).toHaveFocus();
+
+  rerender(
+    <RunRecoveryActions
+      optimizationPreset="recommended"
+      operationBlocked
+      onRelaunch={onRelaunch}
+      onGetHelp={onGetHelp}
+      onDismiss={onDismiss}
+    />,
+  );
+
+  expect(dismiss).toHaveFocus();
+  expect(screen.getByRole("button", { name: "Relaunch" })).toBeDisabled();
+});
+
+test("failed-run recovery exposes the existing privacy-safe setup-details copy action", () => {
   const { onRelaunch, onGetHelp, onDismiss } = renderActions();
 
-  fireEvent.click(screen.getByRole("button", { name: "Copy setup" }));
+  const copy = screen.getByRole("button", { name: "Copy setup details" });
+  expect(copy).toHaveAttribute("title", "Copy setup details");
+  fireEvent.click(copy);
   expect(copySetup).toHaveBeenCalledOnce();
 
   fireEvent.click(screen.getByRole("button", { name: "Relaunch" }));
@@ -53,7 +100,7 @@ test("copy reports its in-progress state without taking recovery ownership", () 
   setupState.state = "copying";
   renderActions();
 
-  expect(screen.getByRole("button", { name: "Copying…" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Copying setup details…" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Relaunch" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "Get help" })).toBeEnabled();
 });
@@ -62,17 +109,17 @@ test("copy reports completion without removing the other recovery actions", () =
   setupState.state = "copied";
   renderActions();
 
-  expect(screen.getByRole("button", { name: "Setup copied" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Setup details copied" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "Relaunch" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "Get help" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "Dismiss" })).toBeEnabled();
 });
 
-test("operation ownership blocks Relaunch and Copy setup but keeps help/dismissal available", () => {
+test("operation ownership blocks Relaunch and setup-details copy but keeps help/dismissal available", () => {
   renderActions(true);
 
   expect(screen.getByRole("button", { name: "Relaunch" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Copy setup" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Copy setup details" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Get help" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "Dismiss" })).toBeEnabled();
 });

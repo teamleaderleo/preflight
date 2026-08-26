@@ -21,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import org.lwjgl.opengl.GLContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -33,8 +34,12 @@ class TexturePreparedPixelCoherentCarrierTest {
     void resetRuntime() {
         System.clearProperty(TexturePreparedPixelRuntime.COHERENT_ORIGINAL_CONVERT_PROPERTY);
         System.clearProperty(TexturePreparedPixelRuntime.COHERENT_DIRECT_PROPERTY);
+        System.clearProperty(TexturePaddingRuntime.UNPADDED_PROPERTY);
         TexturePreparedPixelRuntime.beginSession();
+        TexturePaddingRuntime.beginSession();
+        TexturePaddingRuntime.reset();
         TextureCompatibilityRuntime.beginSession();
+        GLContext.reset();
     }
 
     @Test
@@ -148,6 +153,47 @@ class TexturePreparedPixelCoherentCarrierTest {
         assertEquals(0L, released.get("activeDirectBytes"));
         assertEquals(1L, released.get("releases"));
         assertEquals(48L, released.get("releasedBytes"));
+    }
+
+    @Test
+    void trueSizeFoldIsScopedToOneVerifiedPreparedUpload() throws Exception {
+        int width = 3;
+        int height = 3;
+        int channels = 3;
+        Fixture fixture = fixture(width, height, channels, sequential(width * height * channels));
+        GLContext.setCapabilities(true, false);
+        System.setProperty(TexturePaddingRuntime.UNPADDED_PROPERTY, "true");
+        TexturePaddingRuntime.foldBypassInstalled();
+        configure(fixture);
+
+        assertFalse(TexturePreparedPixelRuntime.currentThreadHasTrueSizeUpload());
+        assertFalse(TexturePaddingRuntime.unpadded(),
+                "a cache miss or original decode has no prepared allocation permit");
+
+        BufferedImage carrier = TexturePreparedPixelRuntime.load("graphics/test.png");
+        TexturePreparedPixelRuntime.PreparedPixel prepared = TexturePreparedPixelRuntime.prepare(carrier);
+
+        assertNotNull(prepared);
+        assertEquals(width, prepared.width());
+        assertEquals(height, prepared.height());
+        assertEquals(width * height * channels, prepared.pixelBytes());
+        assertTrue(TexturePreparedPixelRuntime.currentThreadHasTrueSizeUpload());
+        assertTrue(TexturePaddingRuntime.unpadded());
+        assertTrue(TexturePaddingRuntime.unpadded());
+        assertFalse(TexturePreparedPixelRuntime.currentThreadHasTrueSizeUpload());
+        assertFalse(TexturePaddingRuntime.unpadded(),
+                "the exact loader has only two allocation-dimension folds per upload");
+
+        TexturePreparedPixelRuntime.release(prepared.buffer());
+        assertFalse(TexturePreparedPixelRuntime.currentThreadHasTrueSizeUpload());
+        assertFalse(TexturePaddingRuntime.unpadded(),
+                "cleanup restores the original fold before the next texture is considered");
+
+        Map<String, Object> padding = TexturePaddingRuntime.report();
+        assertEquals(2L, padding.get("dimensionsBypassed"));
+        assertEquals(3L, padding.get("dimensionsFolded"));
+        assertEquals(1L, padding.get("texturesServedUnpadded"));
+        assertEquals(21L, padding.get("paddingBytesAvoided"));
     }
 
     @Test

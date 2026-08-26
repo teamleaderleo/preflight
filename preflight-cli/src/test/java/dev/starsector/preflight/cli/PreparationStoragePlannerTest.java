@@ -44,13 +44,14 @@ class PreparationStoragePlannerTest {
         assertEquals(10L * 8 * 4, plan.uniquePixelBytes());
         assertTrue(plan.predictedLooseBytes() > plan.uniquePixelBytes());
         assertTrue(plan.predictedPackBytes() > plan.uniquePixelBytes());
-        assertEquals(GIB, plan.safetyReserveBytes());
+        assertEquals(plan.predictedPackBytes(), plan.predictedRetainedTextureBytes());
+        assertEquals(128L * 1024 * 1024, plan.safetyReserveBytes());
         assertTrue(plan.safeToPrepare());
         assertFalse(Files.exists(cache));
     }
 
     @Test
-    void refusesBeforeWritingWhenTheConservativeBoundDoesNotFit() throws Exception {
+    void refusesBeforeWritingWhenTheExpectedRequirementDoesNotFit() throws Exception {
         Path root = temporaryDirectory.resolve("root-low");
         Path image = root.resolve("graphics/image.png");
         writeImage(image, false);
@@ -67,7 +68,32 @@ class PreparationStoragePlannerTest {
     }
 
     @Test
-    void balancedUpperBoundIncludesRawFallbackWhenHeuristicPredictsEffectiveCompression() throws Exception {
+    void gatesOnTheExpectedBuildPeakAndKeepsTheRawCeilingDiagnostic() throws Exception {
+        Path root = temporaryDirectory.resolve("root-expected");
+        Path image = root.resolve("graphics/image.png");
+        writeImage(image, true);
+        ResourceIndex index = index(root, "ce".repeat(32), List.of("graphics/image.png"));
+        Path cache = temporaryDirectory.resolve("expected-cache");
+
+        PreparationStoragePlanner.Plan measured = PreparationStoragePlanner.plan(
+                index, cache, TextureStoragePolicy.BALANCED, 1, () -> 20 * GIB);
+        assertEquals(
+                measured.predictedAdditionalBytes() + 128L * 1024 * 1024,
+                measured.requiredFreeBytes());
+
+        PreparationStoragePlanner.Plan fitsExpected = PreparationStoragePlanner.plan(
+                index, cache, TextureStoragePolicy.BALANCED, 1, measured::requiredFreeBytes);
+        assertTrue(fitsExpected.safeToPrepare());
+
+        PreparationStoragePlanner.Plan shortByOne = PreparationStoragePlanner.plan(
+                index, cache, TextureStoragePolicy.BALANCED, 1,
+                () -> measured.requiredFreeBytes() - 1);
+        assertFalse(shortByOne.safeToPrepare());
+        assertTrue(shortByOne.refusalReason().contains("needs about"));
+    }
+
+    @Test
+    void balancedPredictionUsesTheReviewedCompressedSizeModel() throws Exception {
         Path root = temporaryDirectory.resolve("root-balanced");
         Path image = root.resolve("graphics/image.png");
         Files.createDirectories(image.getParent());
@@ -81,7 +107,6 @@ class PreparationStoragePlannerTest {
 
         long rawFileBytes = PreparedTextureIO.rawFileBytes(plan.uniquePixelBytes());
         assertTrue(plan.predictedLooseBytes() < rawFileBytes);
-        assertTrue(plan.upperLooseBytes() >= 2 * rawFileBytes);
     }
 
     @Test
@@ -103,10 +128,65 @@ class PreparationStoragePlannerTest {
                 index, cache, TextureStoragePolicy.FASTEST, 1, () -> 20 * GIB);
 
         assertTrue(plan.packHit());
+        assertFalse(plan.packOnlyHit());
         assertEquals(0, plan.predictedLooseBytes());
         assertEquals(0, plan.predictedPackBytes());
         assertEquals(0, plan.predictedMetadataBytes());
         assertTrue(plan.reusableLooseBytes() > 0);
+    }
+
+    @Test
+    void exactPackOnlyProfileNeedsNoDuplicateTextureBuild() throws Exception {
+        Path root = temporaryDirectory.resolve("root-pack-only");
+        Path image = root.resolve("graphics/image.png");
+        writeImage(image, true);
+        String profile = "fa".repeat(32);
+        ResourceIndex index = index(root, profile, List.of("graphics/image.png"));
+        Path cache = temporaryDirectory.resolve("pack-only-cache");
+        TextureBatchBuilder.Result built = TextureBatchBuilder.build(
+                index, cache, new TextureBatchBuilder.Options(1, 16L * 1024 * 1024));
+        PackedTextureRetention.release(cache, built.manifest());
+        Path resourceIndex = cache.resolve("resource-indexes").resolve(profile + ".spfi");
+        Files.createDirectories(resourceIndex.getParent());
+        Files.writeString(resourceIndex, "present");
+
+        PreparationStoragePlanner.Plan plan = PreparationStoragePlanner.plan(
+                index, cache, TextureStoragePolicy.BALANCED, 1, () -> 20 * GIB);
+
+        assertTrue(plan.packHit());
+        assertTrue(plan.packOnlyHit());
+        assertEquals(0, plan.predictedLooseBytes());
+        assertEquals(0, plan.predictedPackBytes());
+        assertTrue(plan.predictedRetainedTextureBytes() > 0);
+        assertEquals(0, plan.predictedAdditionalBytes());
+    }
+
+    @Test
+    void exactPackOnlyProfileAllowsAnUnsupportedCandidateWithoutARebuild() throws Exception {
+        Path root = temporaryDirectory.resolve("root-pack-only-unsupported");
+        Path image = root.resolve("graphics/image.png");
+        Path unsupported = root.resolve("graphics/unsupported.tga");
+        writeImage(image, true);
+        Files.write(unsupported, new byte[] {0, 0, 0, 0});
+        String profile = "fb".repeat(32);
+        ResourceIndex index = index(
+                root, profile, List.of("graphics/image.png", "graphics/unsupported.tga"));
+        Path cache = temporaryDirectory.resolve("pack-only-unsupported-cache");
+        TextureBatchBuilder.Result built = TextureBatchBuilder.build(
+                index, cache, new TextureBatchBuilder.Options(1, 16L * 1024 * 1024));
+        PackedTextureRetention.release(cache, built.manifest());
+        Path resourceIndex = cache.resolve("resource-indexes").resolve(profile + ".spfi");
+        Files.createDirectories(resourceIndex.getParent());
+        Files.writeString(resourceIndex, "present");
+
+        PreparationStoragePlanner.Plan plan = PreparationStoragePlanner.plan(
+                index, cache, TextureStoragePolicy.BALANCED, 1, () -> 20 * GIB);
+
+        assertTrue(plan.packHit());
+        assertTrue(plan.packOnlyHit());
+        assertEquals(0, plan.hashedEntries());
+        assertEquals(1, plan.unsupportedContent());
+        assertEquals(0, plan.predictedAdditionalBytes());
     }
 
     private static ResourceIndex index(Path root, String fingerprint, List<String> paths) throws Exception {

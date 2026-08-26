@@ -84,6 +84,17 @@ class TextureCompatibilityRuntimeTest {
 
         TextureCompatibilityRuntime.beginSession();
         assertEquals(
+                List.of(),
+                PreparedTexturePackOrderIO.read(
+                        PreparedTexturePackOrderIO.path(
+                                fixture.cache(), manifest.profileFingerprint()),
+                        manifest.profileFingerprint()));
+
+        assertTrue(TextureCompatibilityRuntime.configure(
+                fixture.cache(), fixture.manifest(), fixture.index()));
+        assertNotNull(TextureCompatibilityRuntime.load("graphics/test.png"));
+        TextureCompatibilityRuntime.beginSession();
+        assertEquals(
                 List.of(relative),
                 PreparedTexturePackOrderIO.read(
                         PreparedTexturePackOrderIO.path(
@@ -301,6 +312,19 @@ class TextureCompatibilityRuntimeTest {
         @SuppressWarnings("unchecked")
         List<String> reasons = (List<String>) TextureCompatibilityRuntime.telemetry().get("disableReasons");
         assertTrue(reasons.contains("index-stale"), reasons.toString());
+    }
+
+    @Test
+    void launcherValidatedSnapshotDoesNotWalkEveryProviderAgain() throws Exception {
+        Fixture fixture = fixture();
+        Files.write(fixture.index(), new byte[] {7});
+        System.setProperty(TextureCompatibilityRuntime.TRUST_VALIDATED_INDEX_PROPERTY, "true");
+
+        assertTrue(TextureCompatibilityRuntime.configure(
+                fixture.cache(), fixture.manifest(), fixture.index()));
+        assertTrue(TextureCompatibilityRuntime.ready());
+        assertNotNull(TextureCompatibilityRuntime.load("graphics/test.png"));
+        assertEquals(true, TextureCompatibilityRuntime.telemetry().get("trustedValidatedIndex"));
     }
 
     @Test
