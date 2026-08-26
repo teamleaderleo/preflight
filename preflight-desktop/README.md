@@ -1,12 +1,24 @@
 # Preflight desktop
 
-This directory contains the Tauri 2 desktop application. React renders the interface; a narrow Rust
-host resolves the bundled Java engine, asks it for versioned JSON snapshots, and starts a tracked
-accelerated game launch. The browser layer has no shell or filesystem permission.
+## TL;DR
+
+```text
+React UI
+   ↓
+small Rust/Tauri host
+   ↓
+shared Java Preflight engine
+   ↓
+tracked Starsector/preparation processes
+```
+
+The browser layer renders the app. It doesn't get a generic shell/filesystem API. The Rust host exposes a fixed set of native commands and delegates Starsector-facing logic to the same Java engine the CLI uses.
+
+For the project-wide explanation, read [How Preflight works](../docs/how-preflight-works.md). This README is for working on the desktop app.
 
 ## Run it locally
 
-You need Node 22+, a full JDK 17+, Maven, and the stable Rust toolchain.
+You need Node 22+, JDK 17+, Maven, and stable Rust.
 
 ```bash
 cd preflight-desktop
@@ -14,109 +26,127 @@ npm ci
 npm run desktop:dev
 ```
 
-`desktop:dev` packages the current shaded Preflight JAR and a minimal Java runtime before starting
-Tauri. To work only on visual design, use `npm run dev`; it supplies a clearly marked preview
-snapshot and doesn't launch anything.
+`desktop:dev` packages the current Preflight JAR plus a small Java runtime, then starts Tauri.
 
-The browser preview also has read-only failure fixtures for interface review. Append
-`?scenario=setup`, `low-disk`, `cache-repair`, `profile-mismatch`,
-`benchmark-unavailable`, `update-error`, or `report-error`. Unknown values fall back to the normal
-ready preview, and Tauri builds ignore the query entirely.
+For visual-only work:
 
-Tauri development uses the configured Vite dev server: React and CSS changes hot-reload in the
-webview, while Rust host changes rebuild and restart the native process.
+```bash
+npm run dev
+```
 
-## Build an installer
+That uses a clearly marked preview snapshot and doesn't launch Starsector.
+
+The browser preview has read-only failure scenarios for UI review:
+
+```text
+?scenario=setup
+?scenario=low-disk
+?scenario=cache-repair
+?scenario=profile-mismatch
+?scenario=benchmark-unavailable
+?scenario=update-error
+?scenario=report-error
+```
+
+Unknown scenarios fall back to the normal ready preview. Tauri builds ignore the query parameter.
+
+React/CSS changes hot-reload. Rust host changes rebuild/restart the native process.
+
+## Verify changes
+
+After Java-reactor changes:
+
+```bash
+# repository root
+./mvnw verify
+
+# preflight-desktop/
+npm run verify
+```
+
+`npm run verify` refreshes the bounded Java engine snapshot before the release-script/frontend/Rust/clippy checks, so desktop verification doesn't accidentally use an older engine JAR.
+
+Meaningful UI work also needs rendered review at **1040×700** and **720×560**. See [UI design](../docs/ui-design.md).
+
+## Build a local native package
 
 ```bash
 npm run desktop:build
 ```
 
-For a local release-boundary replay, use `npm run desktop:test-package`. It rebuilds the engine and
-native package together, verifies the extracted payload, then exercises native installation,
-no-launch desktop probing, both removal scopes, and preservation sentinels. Running only the final
-exercise against an older package is expected to fail when its engine differs from current source.
+Native outputs come from Tauri under `src-tauri/target/release/bundle/`.
 
-Tauri writes native artifacts below `src-tauri/target/release/bundle/`. The distribution workflow
-starts from a clean runner, while `npm run desktop:build` clears that exact derived bundle directory
-before a local build so old updater signatures can't be mistaken for current output. The workflow
-builds each target on its native GitHub runner rather than cross-compiling:
+The release path creates packages on their native runners:
 
 - Windows: NSIS `.exe`
 - macOS: `.dmg` containing `Preflight.app`
 - Linux: `.AppImage` and `.deb`
 
-The bundle contains `preflight.jar` and a platform-native `jlink` runtime, so end users don't need
-Java, Node, Maven, npm, or Rust. Current packages are private development artifacts. The first beta
-will use OS-unsigned macOS and Windows packages, published SHA-256 manifests, and explicit
-Gatekeeper/SmartScreen instructions. Its separate Tauri update artifacts remain signed with the
-free project-owned updater key and require a release-candidate verification pass.
+Each package includes `preflight.jar` and a platform-native `jlink` runtime, so end users won't need Java/Node/Maven/npm/Rust installed.
 
-Tagged builds generate a release-only Tauri configuration containing the public updater key and the
-v2 artifact switch. The updater-signing jobs run behind the GitHub Environment named
-`release-signing` and require its `RELEASE_TAURI_SIGNING_PRIVATE_KEY` and
-`RELEASE_TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secrets plus the compile-time
-`PREFLIGHT_UPDATER_PUBLIC_KEY` variable; missing credentials stop the release before packaging. The
-client uses the fixed GitHub `latest.json` feed, checks in the background, and waits for explicit
-install confirmation. Ordinary development builds contain no verification key and report their
-update channel as disabled. The project updater key was provisioned on 2026-08-08; release jobs now
-fail closed until the `release-signing` Environment and its `RELEASE_*` secrets are configured. An
-isolated macOS package completed signed forward update, rejected-signature recovery,
-checked-package rollback, and install/remove verification. The generic hosted lifecycle rehearsal
-has passed on Windows, Linux, and macOS; the exact hosted candidate still needs its own installed
-lifecycle completion.
-
-After changing the Java reactor, run `mvn verify` from the repository root and then `npm run verify`
-here. The desktop command refreshes its bounded engine snapshot before release-script, frontend,
-Rust, and clippy checks, so a rebuilt reactor JAR can't leave a stale packaged dependency behind.
-
-Run-report sending is also a compile-time release capability. Ordinary builds omit it and retain
-local diagnostics export only. After the private intake has been provisioned and verified, build
-the release package with the exact production HTTPS origin:
+For the stronger local package/lifecycle replay:
 
 ```bash
-PREFLIGHT_REPORT_INTAKE_ORIGIN=https://reports.example.com npm run desktop:build
+npm run desktop:test-package
 ```
 
-The value must be an origin only: no path, credentials, query, or fragment. Missing, malformed,
-non-HTTPS, and `.invalid` values disable sending. The app doesn't accept a runtime override or an
-arbitrary destination from the frontend. A tagged release must not set this variable until the
-private bucket, retention rule, rate limit, public privacy details, and complete canary lifecycle
-have passed the [intake deployment checklist](../report-intake/README.md#production-provisioning).
+That exercises the current source/package boundary, native installation, no-launch probing, removal scopes, and preservation sentinels.
 
-## Boundaries
+Release signing/candidate provenance belongs in [Release readiness](../docs/release-readiness.md) and the release workflows. This README intentionally doesn't duplicate the signing-secret/configuration checklist.
 
-- The Java `desktop snapshot` bridge emits a versioned JSON document and is hidden from human CLI
-  help.
-- The Rust host exposes only installation/cache/profile/launch-settings snapshots, validated
-  launch-setting updates, preview-first named-profile save/activation, tracked game/preparation
-  starts, and one packaged desktop-smoke scenario. It can't execute arbitrary frontend input or
-  accept an arbitrary scenario path from the frontend.
-- The folder picker is the only frontend capability beyond Tauri's core defaults.
-- The host starts `preflight run --optimization-preset <recommended|conservative|off>`, validates
-  that closed set before creating a process, refuses a second tracked instance, and reports the
-  bounded tail of a failed child process.
-- The only user-selected write outside Preflight's own directories is a `.zip` chosen through the
-  native save dialog. The Java engine fills it from its bounded diagnostics allowlist; the frontend
-  can't choose source files or add arbitrary content.
-- A configured **Send run report** action rechecks that exact ZIP's path, type, size, modification
-  state, and SHA-256 in the native host. It follows only same-origin, case-specific endpoints from
-  the compile-time intake origin, refuses redirects, streams at most 6 MiB, supports cancellation,
-  and returns a signed receipt with an early-deletion authorization. Unconfigured builds save the
-  ZIP locally and send nothing.
-- Preparation is a separately reported background operation, but it shares an ownership lock with
-  the game so profile files and caches are never prepared while Starsector is running.
-- Desktop smoke automation has a no-launch readiness probe and a separate confirmation. The host
-  starts only the packaged campaign scenario, shares the game ownership lock, reads the sealed
-  result receipt, and retains its bounded evidence directory.
-- Confirmed profile activation shares that lock, refuses missing mods and cross-install profiles,
-  rechecks the current file, and writes a backup before replacement. Previewing remains read-only.
-- Outside an explicitly confirmed profile activation, Preflight writes only to its own
-  home/cache/run directories, except when the user explicitly saves launch settings. That operation
-  updates only Starsector's existing resolution, fullscreen, sound, antialiasing, UI-scale and
-  gameplay-settings preferences after a bounded backup. Activation changes only
-  `enabled_mods.json` through the backed-up, rechecked replacement path. Neither operation rewrites
-  game binaries, mod contents, or saves.
-- Update installation is also tracked by the host. It refuses to start while the game or preparation
-  is active, blocks competing mutations while replacement is underway, verifies the release
-  signature, and restarts only after installation succeeds.
+## Native authority: what Rust owns
+
+The host exists to keep OS authority narrow and reviewable.
+
+It can expose specific operations such as:
+
+- installation/cache/profile/settings snapshots;
+- validated launch-setting updates;
+- preview-first named-profile save/activation;
+- tracked game/preparation starts;
+- native folder/save dialogs;
+- update installation;
+- packaged smoke/testing operations.
+
+It can't execute an arbitrary command supplied by React.
+
+The launch preset is a closed choice (`recommended`, `conservative`, `off`) that the native/Java layers validate before creating the game process.
+
+## Important ownership boundaries
+
+### Launch and preparation
+
+Preparation and Starsector share the product's operation ownership rules so they don't mutate the same profile/cache state concurrently.
+
+The host tracks the exact child process it starts and reports bounded failure output instead of letting the frontend manage process IDs directly.
+
+### Profiles and settings
+
+Profile preview is read-only. Confirmed activation rechecks the current state, refuses missing/cross-install content, and backs up `enabled_mods.json` before replacement.
+
+Supported launch-setting updates go through the Java engine's bounded preference path. They don't rewrite game binaries, mod contents, or saves.
+
+### Diagnostics
+
+The frontend can't choose arbitrary source files for a support ZIP. The Java engine creates the ZIP from its allowlist.
+
+If report sending is enabled in a release package, the Rust host rechecks the exact saved ZIP before sending it to the fixed compile-time intake origin. Ordinary development builds can keep local export while sending remains disabled.
+
+See [Diagnostics](../docs/diagnostics.md) for the human-facing boundary and [`report-intake/`](../report-intake/README.md) for server-side operations.
+
+### Updates
+
+Update installation is tracked native work. It waits for conflicting game/preparation activity to clear, verifies the release update signature, installs the accepted update, and only restarts after successful replacement.
+
+Detailed release/update provenance lives in [Versioning and updates](../docs/versioning-and-updates.md) and the release workflows.
+
+## Where code belongs
+
+- **React/TypeScript:** presentation, view state, user interaction, previews.
+- **Rust/Tauri:** narrow OS/native authority and the typed bridge.
+- **Java engine:** Starsector discovery, preparation, launch semantics, profiles/settings/history/diagnostics.
+- **Java agent:** runtime behavior inside the Starsector child JVM.
+
+If a new feature makes React start assembling shell commands, parsing game internals, or implementing a second version of Java-engine policy, it's probably in the wrong layer.
+
+For exact packaged native capabilities, see the [capability receipt](../docs/capability-receipt.md).
