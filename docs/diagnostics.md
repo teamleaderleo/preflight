@@ -1,15 +1,24 @@
 # Diagnostics export
 
-Create an attachable support bundle without copying acceleration caches or game data:
+## TL;DR
+
+Preflight can make a bounded support ZIP without copying caches, game/mod assets, saves, screenshots, recordings, or arbitrary logs.
+
+Desktop: **Settings → Save diagnostics bundle**
+
+CLI:
 
 ```bash
 java -jar preflight.jar evidence export --output preflight-diagnostics.zip
 ```
 
-The desktop application exposes the same engine contract under **Settings → Save diagnostics
-bundle** and asks where to save the ZIP. The default selection is the newest three launch runs and
-two benchmark sessions. CLI callers can lower or raise those session counts explicitly, up to 20
-per category:
+You can inspect the ZIP before sharing it. Sending is a separate action; ordinary launches don't upload it automatically.
+
+That's the useful part for most people. The rest of this page defines the exact export boundary.
+
+## Default export
+
+The default selection is the newest three launch runs and two benchmark sessions. CLI callers can change those counts, up to 20 per category:
 
 ```bash
 java -jar preflight.jar evidence export \
@@ -19,9 +28,7 @@ java -jar preflight.jar evidence export \
   --json
 ```
 
-The recency counts are only the default selection policy. When one exact run or benchmark should be
-shared, first use `preflight evidence --json` to read the top-level session names, then select those
-names explicitly:
+If one exact run/benchmark should be shared, use `preflight evidence --json` to get its top-level session name, then select it explicitly:
 
 ```bash
 java -jar preflight.jar evidence export \
@@ -30,61 +37,57 @@ java -jar preflight.jar evidence export \
   --json
 ```
 
-`--run-session` and `--benchmark-session` are repeatable and use only top-level session names from
-the measured evidence inventory. Duplicate, missing, path-like, `.` and `..` names are refused.
-Exact-session selectors cannot be combined with `--runs` or `--benchmarks`, so an explicit choice
-cannot silently fall back to a recency count.
+`--run-session` and `--benchmark-session` are repeatable. Path-like, duplicate, missing, `.` and `..` names are refused. Exact selectors can't be mixed with recency counts, so an explicit selection can't quietly turn back into “newest N.”
 
-An existing destination is refused unless `--overwrite` is explicit. The desktop host passes that
-flag only after the native save dialog handles replacement confirmation.
+An existing destination is refused unless `--overwrite` is explicit. The desktop only passes that after the native save dialog handles replacement confirmation.
 
-## Fixed boundary
+## What's allowed into the ZIP
 
-The exporter doesn't recursively archive an evidence directory. It considers only fixed JSON and
-JSONL filenames used for run outcome, runtime identity, enabled-mod metadata, adapter health and
-timing, and benchmark identity/settings/results. Resource names and aggregate file/size/hash
-metadata can be present; source assets can't.
+The exporter considers a fixed set of JSON/JSONL files used for things such as:
 
-Every source must be regular, non-symlink UTF-8 text. A source is skipped if it is larger than 512
-KiB, changes while being read, can't be read, or would cross the 5 MiB total source-content limit.
-The exporter writes through a sibling temporary file and atomically replaces the selected ZIP when
-the filesystem supports it.
+- launch outcome/runtime identity;
+- enabled-mod metadata;
+- adapter health/timing;
+- benchmark identity/settings/results.
 
-The following categories are never considered:
+Resource names and aggregate file/size/hash metadata can appear. Source assets can't.
 
-- prepared texture, audio, JSON, bytecode, and other acceleration caches;
+Every source has to be regular, non-symlink UTF-8 text. A source is skipped if it's too large, changes while being read, can't be read, or would cross the bundle's total source-content limit.
+
+The exporter writes through a sibling temporary file and uses atomic replacement when the filesystem supports it.
+
+## What's always excluded
+
+The exporter doesn't include:
+
+- prepared texture/audio/JSON/bytecode caches;
 - Starsector files, mod files, saves, decoded assets, or compiled class bodies;
 - console, wrapper, or game logs and crash dumps;
 - JFR recordings, screenshots, and audio captures;
-- symbolic links and unknown filenames.
+- symbolic links or unknown filenames.
 
-Text occurrences of the current user home are replaced with `<home>`, including JSON-escaped and
-slash-normalized forms. The bundle deliberately retains enabled mod IDs, platform/runtime details,
-adapter targets, counters, hashes, resource names, and bounded failure metadata because those
-establish the compatibility state. Read `README.txt` and `manifest.json` inside the ZIP before
-sharing if that metadata is sensitive.
+Occurrences of the current user home are replaced with `<home>`, including common escaped/slash-normalized forms.
 
-`manifest.json` uses the `starsector-preflight-diagnostics-v1` format and records enforced limits,
-selected-session ranks/timestamps, redactions, exclusions, and the byte count and SHA-256 of every
-included entry. The command receipt separately reports the finished ZIP's SHA-256.
+The bundle deliberately retains compatibility-relevant information such as enabled mod IDs, platform/runtime detail, adapter targets, counters, hashes, resource names, and bounded failure metadata. If any of that is sensitive in your situation, inspect `README.txt` and `manifest.json` inside the ZIP before sharing it.
 
-## Voluntary send flow
+## Manifest and limits
 
-The desktop action can now review and send the exact saved ZIP. Before consent it shows the path,
-byte count, full SHA-256, retention, every included entry, skipped-source count, and the fixed
-exclusions above. The native host then reopens the regular non-symlink file, rechecks its size,
-modification state, and SHA-256, and streams at most 6 MiB to a compile-time HTTPS origin. The UI
-shows progress and cancellation state. An accepted report returns a signed case receipt with the
-same digest and size, retention deadline, and case-specific early-deletion authorization.
+`manifest.json` uses the `starsector-preflight-diagnostics-v1` format and records the enforced limits, selected sessions, redactions/exclusions, and byte count + SHA-256 of each included entry.
 
-Ordinary development and source builds don't contain an intake origin, so the action remains
-disabled and local export continues to work. The private Worker and hostile-ZIP checks live under
-[`report-intake`](../report-intake/README.md). Production provisioning, rate limiting and the live
-synthetic canary are complete. A production-origin macOS package has also completed disclosure,
-consent, mid-stream cancellation with confirmed server cleanup, retry, receipt persistence and
-scoped deletion. The complete hosted candidate matrix still blocks enabling the origin in a
-distributed package.
-This isn't a general telemetry channel. The first beta sends a report only after you review the
-bounded ZIP and press Send. Automatic failed-run reporting stays unavailable until its background
-ownership and deletion authority are durable. See the [product contract](product-contract.md) and
-[Privacy](privacy.md).
+The command receipt also reports the finished ZIP's SHA-256.
+
+## Optional send flow
+
+A configured release can review and send the exact saved ZIP.
+
+Before consent, the UI shows the path, byte count, SHA-256, retention, included entries, skipped-source count, and fixed exclusions. The native host reopens the exact file, rechecks its identity/size/hash, and streams only to the compile-time HTTPS intake origin.
+
+The send flow supports progress and cancellation. An accepted report returns a signed case receipt with matching digest/size, retention deadline, and case-specific early-deletion authorization.
+
+Development/source builds don't contain a production intake origin, so local export still works while sending stays unavailable.
+
+The server-side hostile-ZIP validation and deployment details live under [`report-intake`](../report-intake/README.md). Those are release/operations details, not something a normal user needs to understand before creating a ZIP.
+
+The first beta sends a report only after the user reviews the bounded ZIP and chooses Send. Automatic failed-run reporting stays unavailable.
+
+For the exact product/privacy contract, see [Product contract](product-contract.md) and [Privacy](privacy.md).
