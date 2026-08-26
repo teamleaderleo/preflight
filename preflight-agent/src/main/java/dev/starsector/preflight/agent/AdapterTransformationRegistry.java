@@ -303,10 +303,14 @@ final class AdapterTransformationRegistry {
             byte[] notification =
                     MagicLibPaintjobNotificationPlan.transform(signature, originalBytes);
             byte[] current = notification == null ? originalBytes : notification;
+            byte[] frameSnapshot = AdapterPlanControl.allows(MagicLibPaintjobSnapshotRuntime.PLAN_ID)
+                    ? MagicLibPaintjobSnapshotPlan.transform(signature, current)
+                    : null;
+            current = frameSnapshot == null ? current : frameSnapshot;
             byte[] optionalJson = AdapterPlanControl.allows(MagicLibPaintjobLoadRuntime.PLAN_ID)
                     ? MagicLibPaintjobLoadPlan.transform(signature, current)
                     : null;
-            boolean changed = notification != null || optionalJson != null;
+            boolean changed = notification != null || frameSnapshot != null || optionalJson != null;
             current = optionalJson == null ? current : optionalJson;
             byte[] catalog = MagicLibPaintjobCacheRuntime.ready()
                             && AdapterPlanControl.allows(MagicLibPaintjobCacheRuntime.PLAN_ID)

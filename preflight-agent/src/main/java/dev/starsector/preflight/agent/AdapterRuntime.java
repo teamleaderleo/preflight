@@ -60,6 +60,7 @@ final class AdapterRuntime {
         GraphicsLibHotSettingsRuntime.reset();
         MagicLibPaintjobLoadRuntime.reset();
         MagicLibPaintjobCacheRuntime.beginSession();
+        MagicLibPaintjobSnapshotRuntime.beginSession();
         EntityLookupRuntime.beginSession();
         RadarRenderRuntime.beginSession();
         DeploymentIconCacheRuntime.beginSession();
@@ -190,6 +191,7 @@ final class AdapterRuntime {
                 report.diagnostic("Loaded the exact campaign entity-maintenance targets");
                 report.diagnostic("Loaded the exact resource source-hint isolation target");
                 report.diagnostic("Loaded the exact MagicLib unlocked-paintjob set target");
+                report.diagnostic("Loaded the exact MagicLib per-frame paintjob snapshot target");
                 report.diagnostic("Loaded the exact MagicLib optional-paintjob JSON shortcut");
                 if (MagicLibPaintjobCacheRuntime.ready()) {
                     report.diagnostic("Loaded the exact MagicLib paintjob catalog target ("

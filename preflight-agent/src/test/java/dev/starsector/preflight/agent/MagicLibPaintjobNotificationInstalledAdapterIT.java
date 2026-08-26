@@ -19,6 +19,7 @@ class MagicLibPaintjobNotificationInstalledAdapterIT {
     @AfterEach
     void reset() {
         MagicLibPaintjobNotificationRuntime.reset();
+        MagicLibPaintjobSnapshotRuntime.beginSession();
     }
 
     @Test
@@ -41,6 +42,8 @@ class MagicLibPaintjobNotificationInstalledAdapterIT {
         assertEquals(MagicLibPaintjobNotificationPlan.ORIGINAL_SHA256, signature.sha256());
         byte[] transformed = MagicLibPaintjobNotificationPlan.transform(signature, original);
         assertNotNull(transformed);
+        transformed = MagicLibPaintjobSnapshotPlan.transform(signature, transformed);
+        assertNotNull(transformed);
 
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(transformed).accept(owner, ClassReader.EXPAND_FRAMES);
@@ -49,6 +52,9 @@ class MagicLibPaintjobNotificationInstalledAdapterIT {
         long mutations = calls(owner, runtime, "mutated");
         assertEquals(1, contains);
         assertEquals(3, mutations);
+        String snapshotRuntime = MagicLibPaintjobSnapshotRuntime.class.getName().replace('.', '/');
+        assertEquals(1, calls(owner, snapshotRuntime, "snapshot"));
+        assertEquals(11, calls(owner, snapshotRuntime, "mutated"));
     }
 
     private static long calls(ClassNode owner, String callOwner, String name) {

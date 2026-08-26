@@ -104,6 +104,9 @@ final class AdapterPlanCatalog {
                 MagicLibPaintjobLoadRuntime.PLAN_ID,
                 Set.of(MagicLibPaintjobNotificationRuntime.PLAN_ID)));
         values.add(new Descriptor(
+                MagicLibPaintjobSnapshotRuntime.PLAN_ID,
+                Set.of(MagicLibPaintjobNotificationRuntime.PLAN_ID)));
+        values.add(new Descriptor(
                 TexturePaddingRuntime.PLAN_ID,
                 Set.of(TextureCompatibilityRuntime.PLAN_ID, TexturePreparedPixelRuntime.PLAN_ID)));
         values.sort(Comparator.comparing(Descriptor::planId));

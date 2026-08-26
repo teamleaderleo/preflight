@@ -61,6 +61,9 @@ final class AdapterInstallationEffects {
         if (MagicLibPaintjobNotificationRuntime.PLAN_ID.equals(target.planId())) {
             MagicLibPaintjobNotificationRuntime.installed();
         }
+        if (has(referenced, MagicLibPaintjobSnapshotRuntime.class)) {
+            MagicLibPaintjobSnapshotRuntime.installed();
+        }
         if (has(referenced, MagicLibPaintjobLoadRuntime.class)) {
             MagicLibPaintjobLoadRuntime.installed();
         }
