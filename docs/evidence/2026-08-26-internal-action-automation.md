@@ -2,7 +2,8 @@
 
 Date: 2026-08-26
 
-Status: live Starsector 0.98a-RC8 proof completed against a protected disposable campaign
+Status: live Starsector 0.98a-RC8 title, campaign input, encounter, and save proofs completed against
+a protected campaign copy
 
 ## Finding
 
@@ -39,6 +40,12 @@ than host desktop input:
 The same pattern may support a deliberately small developer action catalog: Continue, reviewed campaign
 movement controls, pause/resume, opening a test surface, and orderly return or quit. It should not become
 an arbitrary reflection console or a public macro engine.
+
+The same live run subsequently proved pause and resume through the campaign engine, Escape and labeled
+dialog shortcuts through the game's own input-event list, and `CampaignState.cmdSave()` through a
+one-shot render-thread action while the pause menu was open. The save returned success, both campaign
+files received the new timestamp, and the game log showed its normal in-progress, backup, and promotion
+sequence. The maintained [control compendium](../internal-game-control.md) records those boundaries.
 
 ## Product boundary
 
