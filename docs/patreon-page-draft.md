@@ -30,9 +30,7 @@ available to everyone.
 ## Membership tiers
 
 The tiers are contribution levels. Pick whichever amount feels right; they do not unlock different
-versions of Preflight. The monthly amounts mirror GitHub Sponsors: $5 Supporter, $10 Backer, $20
-Sustainer, and $50 Sponsor. GitHub Sponsors also carries a $10 one-time option for people who do not
-want a recurring membership.
+versions of Preflight.
 
 ### Supporter
 
