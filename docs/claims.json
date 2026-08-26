@@ -235,16 +235,6 @@
       "derivation": "Current pack-only Uncompressed directory on the reviewed 83-mod profile, rounded from the measured 5,431,864 KiB directory."
     },
     {
-      "type": "count",
-      "value": "77",
-      "unit": "mod",
-      "publishedIn": [
-        "docs/optimization-history.md"
-      ],
-      "evidence": "docs/evidence/2026-08-01-twenty-nine-percent-when-they-compose.md",
-      "derivation": "Profile size behind the 88.13-second baseline chronology, read from that campaign's install header. Published because the gates after it were measured on 83 mods, which is why the older rows form a development chronology rather than a single before/after comparison."
-    },
-    {
       "type": "storage",
       "value": "11",
       "unit": "MB",
