@@ -126,6 +126,41 @@ class GameplayHotspotTest(unittest.TestCase):
             module.events = original_events
             module.clock_factor = original_clock_factor
 
+    def test_execution_report_can_select_a_scenario_step(self):
+        original_events = module.events
+        original_thread = module.thread_of
+        original_windows = module.scenario_step_windows
+        original_recording_windows = module.recording_clock_windows
+        try:
+            inside = event(
+                "main", "mod.Combat.work", "com.fs.starfarer.combat.CombatEngine.advance")
+            inside["values"]["startTime"] = "2026-08-26T17:55:30Z"
+            outside = event(
+                "main", "mod.Startup.work", "com.fs.starfarer.combat.CombatEngine.advance")
+            outside["values"]["startTime"] = "2026-08-26T17:54:30Z"
+            module.events = lambda _path, names, **_kwargs: (
+                [inside, outside] if names == ["jdk.ExecutionSample"] else [])
+            module.thread_of = lambda value: value["values"]["sampledThread"]["javaName"]
+            start = module.instant("2026-08-26T17:55:00Z")
+            end = module.instant("2026-08-26T17:56:00Z")
+            module.scenario_step_windows = lambda *_args, **_kwargs: [("combat", start, end)]
+            module.recording_clock_windows = lambda *_args, **_kwargs: (
+                [("combat", start, end)], 1.0)
+
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                module.report("fixture.jfr", top=5, steps=["combat"])
+            rendered = output.getvalue()
+            self.assertIn("scenario step combat", rendered)
+            self.assertIn("1 execution samples", rendered)
+            self.assertIn("mod.Combat.work", rendered)
+            self.assertNotIn("mod.Startup.work", rendered)
+        finally:
+            module.events = original_events
+            module.thread_of = original_thread
+            module.scenario_step_windows = original_windows
+            module.recording_clock_windows = original_recording_windows
+
 
 if __name__ == "__main__":
     unittest.main()

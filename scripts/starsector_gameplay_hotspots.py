@@ -204,8 +204,7 @@ def report_allocation_state(name, samples, top, contains=None):
         print(f"    {format_bytes(weight):>12}  {weight / denominator * 100:5.2f}%  {method}")
 
 
-def report(path, top=30, depth=96, contains=None):
-    sampled = events(path, ["jdk.ExecutionSample"], depth=depth, jfr=_jfr_binary())
+def report_execution_events(sampled, top=30, contains=None):
     states = collections.defaultdict(list)
     for event in sampled:
         if thread_of(event) != "main":
@@ -213,13 +212,29 @@ def report(path, top=30, depth=96, contains=None):
         methods = methods_of(event)
         states[gameplay_state(methods)].append(methods)
 
-    print(f"recording: {path}")
-    print("interpretation: percentages are shares of observed ExecutionSample events")
     print("classification: " + ", ".join(
         f"{name}={len(states[name])}" for name in ("campaign", "combat", "other")))
     for name in ("campaign", "combat"):
         if states[name]:
             report_state(name, states[name], top, contains=contains)
+
+
+def report(path, top=30, depth=96, contains=None, steps=None, evidence_path=None):
+    jfr = _jfr_binary()
+    sampled = events(path, ["jdk.ExecutionSample"], depth=depth, jfr=jfr)
+    print(f"recording: {path}")
+    print("interpretation: percentages are shares of observed ExecutionSample events")
+    if not steps:
+        report_execution_events(sampled, top=top, contains=contains)
+        return
+    wall_windows = scenario_step_windows(path, steps, evidence_path=evidence_path)
+    windows, factor = recording_clock_windows(path, wall_windows, jfr)
+    print(f"recording-clock calibration: {factor:.3f}x wall time per recorded second")
+    for (name, wall_start, wall_end), (_mapped_name, start, end) in zip(wall_windows, windows):
+        selected = events_in_window(sampled, start, end)
+        print(f"\nscenario step {name}: {wall_end - wall_start:.3f}s wall, "
+              f"{end - start:.3f}s recorded, {len(selected)} execution samples")
+        report_execution_events(selected, top=top, contains=contains)
 
 
 def report_allocation_events(sampled, top=30, contains=None):
@@ -265,18 +280,18 @@ def main():
     parser.add_argument("--allocations", action="store_true",
                         help="rank weighted ObjectAllocationSample events instead of CPU samples")
     parser.add_argument("--step", action="append", default=[],
-                        help="limit allocation ranking to a scenario step; may be repeated")
+                        help="limit the ranking to a scenario step; may be repeated")
     parser.add_argument("--scenario-evidence",
                         help="smoke-evidence.json path (defaults beside the recording)")
     args = parser.parse_args()
-    if args.step and not args.allocations:
-        parser.error("--step requires --allocations")
     if args.allocations:
         report_allocations(
             args.recording, top=args.top, depth=args.depth, contains=args.contains,
             steps=args.step, evidence_path=args.scenario_evidence)
     else:
-        report(args.recording, top=args.top, depth=args.depth, contains=args.contains)
+        report(
+            args.recording, top=args.top, depth=args.depth, contains=args.contains,
+            steps=args.step, evidence_path=args.scenario_evidence)
 
 
 if __name__ == "__main__":
