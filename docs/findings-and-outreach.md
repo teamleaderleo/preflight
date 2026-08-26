@@ -2,219 +2,139 @@
 
 ## TL;DR
 
-Preflight finds a lot of weird things. **Most of them do not create an obligation to contact anybody.**
-
-Default disposition:
+Preflight finds a lot of weird things. **Most findings do not create an obligation to contact anybody.**
 
 ```text
 finding
   ↓
-Can Preflight safely handle it for users?
+Can Preflight handle it safely for users?
   ├─ yes → handle it, document it, stop
   └─ no / source fix is clearly better
           ↓
-Is there one clear owner + a small durable fix + strong evidence?
+Clear owner + small durable fix + strong evidence?
   ├─ no → archive it, stop
-  └─ yes → candidate to share someday
+  └─ yes → possible outreach
 ```
 
-Outreach should be the exception. A good external report saves the recipient work. It should not hand them a new subsystem, a vague performance theory, or responsibility for Preflight's architecture.
+A good external report saves the recipient work. It shouldn't hand them a new cache, a vague theory, or responsibility for Preflight's internals.
 
-This page is a triage ledger, not a contact queue.
+## When a finding should leave the repo
 
-## The test for whether a finding should leave the repository
+Outreach is strongest when:
 
-A finding becomes a strong outreach candidate when most of these are true:
+- the evidence is direct;
+- one owner can act on it;
+- the fix is local;
+- people benefit without Preflight;
+- the advice stays valid across machines/mod lists;
+- the recipient doesn't inherit a new maintenance burden;
+- the likely value clears the social cost.
 
-1. **The evidence is direct.** The bytes, trace, reproduction, or user-visible behavior establishes the problem without a long chain of guesses.
-2. **There is a clear owner.** One mod or the base game can actually change the thing.
-3. **The fix is local.** Re-export an asset, move a key inside a config object, correct a container, avoid one repeated calculation.
-4. **The benefit survives without Preflight.** Every user benefits even if they never install this project.
-5. **The advice is stable.** It is unlikely to become wrong when a different mod list or machine is used.
-6. **The recipient does not inherit a new maintenance burden.** A one-time asset/config fix is much better outreach than “please adopt this cache and keep it coherent forever.”
-7. **The likely value clears the social cost.** A silent correctness bug clears that bar easily. A 2 ms micro-optimization usually does not.
+A silent correctness defect clears that bar easily. A cross-cutting optimization usually belongs in Preflight.
 
-If several of those are missing, keeping the result in Preflight is a perfectly good ending.
+## Current disposition
 
-## Five buckets
-
-### A. Clear correctness defects
-
-These are the strongest things to tell an author because the report is about behavior they already intended to ship.
-
-Current measured examples are in [Config the game silently never reads](evidence/2026-07-28-config-the-game-silently-never-reads.md). Four released-mod findings were checked by hand:
-
-| Mod | Finding | Why it is worth sharing |
+| Finding | Disposition | Why |
 | --- | --- | --- |
-| exshippack | `PROXIMITY_FUSE` sits after the top-level projectile object | The intended fuse block is outside the value the loader consumes. |
-| eusan_nation | `fireSoundTwo` sits after the weapon object | The second fire sound is stranded outside the loaded value. |
-| ORK | `pirates.faction` closes early | `priorityWeapons` and later content sit after the early close. |
-| Mayasuran Navy | config begins `0{` | The file does not begin with a valid top-level object/array. |
+| Four confirmed released-mod config defects | **Worth telling authors** | Specific silent behavior defects with small local fixes. |
+| UAF/ORK high-sample-rate effects | **Optional author note** | Mechanical source-side optimization; every user benefits. |
+| Progressive JPEG/Adam7 PNG | **General ecosystem guidance** | Actionable, but common enough that linter/docs beat dozens of messages. |
+| ORK `melta_fire.ogg` contains FLAC in an Ogg container | **Verify once more, then consider reporting** | Container mismatch is proven; capture current player/log behavior first. |
+| Broad NPOT texture padding | **Keep in Preflight** | NPOT art is normal across the ecosystem; runtime handling is the better fix. |
+| Shared parsing/indexing/compilation/memoization work | **Keep in Preflight** | Cross-cutting invalidation/fallback belongs in one place. |
+| Vanilla-looking runtime inefficiencies | **Keep a shortlist; isolate before outreach** | A huge modded trace isn't yet a clean base-game report. |
 
-The MagicLib sample fragment found by the same rule is intentionally **not** in this list. It appears to be documentation/sample material rather than a file meant to load. That is exactly the kind of ambiguous finding that should stay out of somebody's inbox.
+## Strongest correctness reports
 
-**Disposition:** worth reporting eventually, individually or in a small batch, with the exact file and a minimal description. No lecture about Preflight is required.
+[Config the game silently never reads](evidence/2026-07-28-config-the-game-silently-never-reads.md) records four released-mod defects checked by hand:
 
-### B. Mechanical source-side performance fixes
+- **exshippack:** `PROXIMITY_FUSE` sits after the projectile's top-level object;
+- **eusan_nation:** `fireSoundTwo` sits after the weapon object;
+- **ORK:** `pirates.faction` closes before `priorityWeapons` and later content;
+- **Mayasuran Navy:** a config begins `0{`.
 
-These are good optional outreach candidates because an author can fix the source once and every user benefits.
+Those are the cleanest “you probably want to know this exists” reports.
 
-#### Oversampled effects
+The MagicLib sample fragment found by the same rule stays out of the shortlist because it appears to be sample material rather than a file intended to load. Ambiguity is enough reason to leave somebody alone.
 
-The reviewed audio census found **195 declared effects at 96 kHz or above**, holding **391.0 MB** of decoded PCM for 992 seconds of audio. **124 belong to UAF and 38 to ORK.** At 44.1 kHz the same duration/channel counts would occupy about 100.3 MB of PCM. See [What prepared audio would have to hold](evidence/2026-07-26-what-prepared-audio-would-have-to-hold.md).
+## High-sample-rate audio
 
-A useful correction to the easy-to-remember version: the UAF finding is **not one giant music file**. In the measured profile it is 124 high-sample-rate effects.
+The reviewed audio census found **195 declared effects at 96 kHz or above**, holding **391.0 MB** of decoded PCM for 992 seconds of audio. **124 belong to UAF and 38 to ORK.** See [What prepared audio would have to hold](evidence/2026-07-26-what-prepared-audio-would-have-to-hold.md).
 
-This is a particularly clean source-side optimization because the author does not need to adopt a cache, hook, API, or runtime dependency. They can re-export/resample the audio at an ordinary production rate and ship the smaller decode workload to everyone.
+Useful correction: the memorable UAF case is **not one giant music file**. It is 124 high-rate effects in the measured profile.
 
-**Disposition:** good optional note to the author, especially if a per-mod lint report can supply exact paths. Keep the tone as “these files are exported at 96/192 kHz and the game fully decodes effects” rather than “your mod is bad.”
+This is unusually good performance outreach because the fix can be as simple as re-exporting/resampling source audio. No cache, hook, API, or runtime dependency needs to be maintained afterward.
 
-#### Progressive images
+If this ever gets sent, a per-mod lint report with exact paths is enough. The message can stay boring: “these effects are exported at 96/192 kHz; the game fully decodes effects; an ordinary production rate would reduce decode work.”
 
-In the 86-mod sample, **41% of mod JPEGs were progressive**, carrying 25.9% of all image pixels, and the measured ImageIO path decoded progressive images about **8.75× slower** than equivalent baseline images. See [What eighty-six mods ship](evidence/2026-07-28-what-eighty-six-mods-ship.md).
+## Progressive images
 
-The fix can be a lossless-in-pixels re-save, so this is actionable. It is also common enough that messaging every author individually would be noisy.
+In the 86-mod sample, **41% of mod JPEGs were progressive**, carrying 25.9% of image pixels, and the measured ImageIO path decoded progressive images about **8.75× slower** than equivalent baseline images. See [What eighty-six mods ship](evidence/2026-07-28-what-eighty-six-mods-ship.md).
 
-**Disposition:** better as linter output, documentation, or one general modding note. Contact a specific author only when their own report shows a concentrated cost and there is a natural reason to talk to them.
+The source fix is simple, but the pattern is common. The linter and general modding guidance are a better communication channel than messaging every author.
 
-### C. Preflight should absorb it
+## Things Preflight should absorb
 
-Some findings are real and large, while still being poor author-facing reports.
+### NPOT texture padding
 
-#### Non-power-of-two texture padding
+**83.9% of mod images** in the sampled ecosystem are non-power-of-two. Most are normal sprite art. Asking authors to redesign four fifths of the ecosystem would be worse than fixing the broad cost at runtime.
 
-**83.9% of mod images** in the sampled ecosystem are non-power-of-two. Most are perfectly normal sprite art. Asking authors to redraw or pad four fifths of the ecosystem would make the source files worse and create needless coordination.
+The linter keeps only unusually expensive cases; Preflight handles the wider padding problem when the live graphics context supports it.
 
-The linter therefore flags only unusually expensive cases, while Preflight's runtime path removes the broader padding cost when the live graphics context proves the dimensions are supported. See [What eighty-six mods ship](evidence/2026-07-28-what-eighty-six-mods-ship.md).
+### Memoization, indexing, compilation, storage layout
 
-**Disposition:** Preflight/runtime problem first. No mass author outreach.
+The profiler found repeated JSON reads, runtime compilation, list validation, unchanged commodity calculations, texture queueing, and similar seams. [Engineering overview](engineering-overview.md) summarizes them.
 
-#### Repeated parsing, indexing, compilation, and runtime lookups
+Even when one mod amplifies a cost, asking every author to invent and maintain their own cache can create more failure points than it removes. Preflight already owns identity, invalidation, fallback, and evidence for these cross-cutting shortcuts.
 
-The profiling work found large repeated-work seams: shared JSON reads, runtime compilation, list validation, unchanged commodity calculations, texture queueing, and similar paths. [Engineering overview](engineering-overview.md) records the current readable summary.
+## Vanilla / base-game candidates
 
-Even when one mod amplifies one of these costs, asking every author to independently invent memoization or maintain another cache can create more failure points than it removes. Preflight already has identity, invalidation, fallback, and evidence machinery designed for that job.
+Interesting observations include eager effect loading, texture queue/padding behavior, repeated collection validation, and recomputation of unchanged state.
 
-**Disposition:** keep the optimization inside Preflight unless a particular mod has a tiny, obviously local source fix that can be demonstrated independently.
-
-### D. Base-game / vanilla candidates
-
-A profiler result against a heavily modded installation is **not automatically a Starsector bug report**.
-
-Potentially interesting base-game observations include:
-
-- the texture prefetch path can put a long single-threaded wait ahead of useful prepared-data decisions;
-- the stock texture path can allocate large power-of-two upload padding;
-- declared effects are eagerly opened in one pre-menu burst rather than on first use;
-- some campaign paths repeatedly validate large collections or recompute unchanged state.
-
-These are technically interesting and Preflight has strong evidence for the observed profile. They become good upstream reports only after one more step:
+They become upstream reports only after this step:
 
 ```text
 large modded-profile observation
         ↓
-small reproduction with clear inputs
+small reproduction
         ↓
-show that the behavior belongs to vanilla/API semantics
+show it belongs to vanilla/API behavior
         ↓
-measure impact or correctness consequence
+measure the isolated consequence
         ↓
-then consider telling Fractal
+then consider outreach
 ```
 
-For example, the audio evidence shows all 2,050 declared effects in the reviewed profile were opened inside a 1.5-second window, but the loading thread does not wait for that pool. That is a useful engine observation, while “this makes startup 1.2 GB slower” would be wrong. See [The game builds 1.2 GB of PCM before the main menu](evidence/2026-07-29-the-game-builds-1-2-gb-of-pcm-before-the-main-menu.md) and its linked follow-up.
+The audio case shows why. All 2,050 declared effects in the reviewed profile were opened inside a 1.5-second pre-menu burst, yet the loading thread does **not** wait for that audio pool. The observation is real; “this directly adds 1.2 GB worth of startup delay” would be wrong. See [The game builds 1.2 GB of PCM before the main menu](evidence/2026-07-29-the-game-builds-1-2-gb-of-pcm-before-the-main-menu.md) and its linked correction.
 
-**Disposition:** keep a shortlist. Do not contact upstream from the giant-profile trace alone. Create a small reproduction first, and only for the few observations whose impact remains interesting after isolation.
+So the bar for telling Fractal should be higher than the bar for keeping useful evidence in Preflight.
 
-### E. Interesting evidence with no recipient
+## One item that needs another check
 
-Some findings are valuable because they explain Preflight, rule out a design, or teach something about the ecosystem. They do not need an external owner.
+`ORK/sounds/sfx_wpn_energy/melta_fire.ogg` is a declared effect whose Ogg container contains FLAC rather than Vorbis. The census proves the mismatch.
 
-Examples:
+Before contacting the author, capture the current user-visible or log behavior on the current mod version. Then the report can say what actually fails instead of stopping at “our Vorbis reader rejects this container.”
 
-- a cache hit occurring after the real bottleneck;
-- an optimization that becomes slower on another mod/path;
-- a stale timing anchor;
-- a probe whose path resolution was wrong;
-- a candidate technique such as AppCDS that failed to establish a useful enough win;
-- an unusual asset that is harmless or clearly intentional.
-
-**Disposition:** evidence archive. Done.
-
-## Current shortlist
-
-This is deliberately small. It should stay small.
-
-### Strongest author-facing correctness reports
-
-1. exshippack projectile config with the stranded `PROXIMITY_FUSE` block.
-2. eusan_nation weapon config with stranded `fireSoundTwo`.
-3. ORK faction config that closes before `priorityWeapons` and later content.
-4. Mayasuran Navy config beginning `0{`.
-
-These are the cleanest “you probably want to know this exists” reports because they are specific, checked, and about intended behavior.
-
-### Strongest optional performance note
-
-**High-sample-rate effects**, especially the concentrated UAF/ORK sets. This is source-side, mechanical, and useful without Preflight.
-
-### Needs one more verification before author outreach
-
-**ORK `melta_fire.ogg`**, a declared effect whose Ogg container contains FLAC rather than Vorbis. The census proves the container/codec mismatch and that the game declares the file. Before contacting the author, capture the exact player-visible/log behavior on the current mod version so the report can say what fails rather than merely that Preflight's Vorbis reader rejects it.
-
-### Better as ecosystem guidance than direct messages
-
-**Progressive JPEG/Adam7 PNG encoding.** The measured cost is large and the source fix is simple, but the pattern is common enough that the linter/documentation can do the communication without dozens of individual conversations.
-
-### Keep inside Preflight
-
-- broad NPOT texture padding;
-- shared JSON/data-read memoization;
-- generic generated-code deduplication;
-- broad campaign lookup/index memoization;
-- cache/storage layout work;
-- compatibility/fallback machinery.
-
-These are exactly the kinds of cross-cutting problems Preflight is equipped to own.
-
-## What a good report should look like
-
-The ideal report is boring and short:
+## What a report should contain
 
 ```text
-What I found
-Exact file/path/version
-What the game appears to do
-Small reproduction or measurement
-Why the proposed fix is local
-Evidence link, if useful
+exact file/version
+what was observed
+small reproduction or measurement
+small likely fix
+one evidence link, if useful
 ```
 
-Avoid sending a full Preflight engineering history. Avoid ranking mods. Avoid a pile of unrelated findings in one message unless the recipient explicitly wants a full lint report.
-
-For performance findings, phrase the measured cost and let the author decide whether it is worth changing. For correctness defects, describe the observed bytes/behavior and the smallest likely repair.
+No ranking. No giant Preflight history. No bundle of unrelated findings unless the recipient asks for one.
 
 ## The zero-outreach workflow
 
-It is valid for the project to do this:
+It is completely valid to:
 
-1. keep the finding in machine-readable lint/evidence output;
-2. classify it in this ledger;
-3. fix around it in Preflight when that is the best user outcome;
-4. publish general documentation that authors can discover on their own;
-5. contact nobody unless a finding clears the high bar above.
+1. keep the finding in lint/evidence output;
+2. classify it here;
+3. fix around it in Preflight when that gives users the best result;
+4. publish general guidance authors can discover themselves;
+5. contact nobody unless a finding clears the bar above.
 
-The project can be useful to the ecosystem without turning its maintainer into the ecosystem's unpaid QA coordinator.
-
-## When this page should change
-
-Add an item here only when it answers a real disposition question. The full linter already owns thousands of individual findings; duplicating them here would recreate the tracking problem this page is meant to solve.
-
-Keep this page to:
-
-- categories;
-- a small current shortlist;
-- cases whose disposition is genuinely debatable;
-- links to the evidence that owns the details.
-
-When a report is sent and resolved, record the result in dated evidence or an issue and remove it from the active shortlist.
+Keep this page small. The linter owns the thousands of individual findings; this page only owns the few decisions about what, if anything, should leave the repository.
