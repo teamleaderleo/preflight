@@ -45,6 +45,9 @@ if there is a reason to curate it.
 
 ## Monthly tiers
 
+These contribution levels mirror Patreon so the recurring options mean the same thing on either
+platform.
+
 ### $5 a month
 
 **Supporter.** Support Preflight and my open-source work.
@@ -71,9 +74,11 @@ contribution to Preflight and my other work.
 **One-time supporter.** If Preflight saved you some waiting or you want to support the work, thank
 you. One-time support goes toward the same development, testing, hardware, hosting, and release costs.
 
-## When the Sponsors profile is live
+## Repository integration
 
-- Add `github: teamleaderleo` beside the existing Patreon entry in `.github/FUNDING.yml`.
-- Replace `[GITHUB SPONSORS URL]` in the beta announcement drafts with the live Sponsors URL.
-- Add the live Sponsors link to the README support section.
-- Keep Patreon available as the alternate membership/payment route.
+- `.github/FUNDING.yml` lists GitHub Sponsors and Patreon under the same creator identity.
+- The README support section links both routes.
+- Public beta/release drafts use `https://github.com/sponsors/teamleaderleo` directly.
+- Patreon remains available as the alternate membership/payment route.
+- The desktop's quiet footer link remains Patreon for 0.1.0; adding another native outbound link is
+  unnecessary for funding discovery and would change the package capability boundary before release.
