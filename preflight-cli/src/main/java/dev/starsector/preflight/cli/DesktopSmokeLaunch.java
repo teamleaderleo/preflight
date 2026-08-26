@@ -203,6 +203,10 @@ final class DesktopSmokeLaunch {
         }
         command.add("--direct");
         command.add("--desktop-smoke");
+        if (scenario.sampleRecording()) {
+            command.add("--profile");
+            command.add("--single-chunk-recording");
+        }
         if (scenario.campaignTimes()) {
             command.add("--campaign-times");
         }

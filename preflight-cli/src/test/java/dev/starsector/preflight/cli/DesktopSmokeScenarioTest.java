@@ -123,8 +123,13 @@ final class DesktopSmokeScenarioTest {
     void checkedInMixedPauseProfileUsesOnlyRuntimeControl() throws Exception {
         DesktopSmokeScenario scenario = DesktopSmokeScenario.read(
                 Path.of("..", "scripts", "scenarios", "campaign-profile-paused-unpaused.json"));
+        DesktopSmokeScenario sampled = DesktopSmokeScenario.read(
+                Path.of("..", "scripts", "scenarios", "campaign-sample-paused-unpaused.json"));
 
         assertTrue(scenario.usesOnlyRuntimeControl());
+        assertTrue(sampled.usesOnlyRuntimeControl());
+        assertTrue(sampled.sampleRecording());
+        assertEquals(scenario.stepIds(), sampled.stepIds());
         assertEquals(11, scenario.stepIds().size());
         assertTrue(scenario.stepIds().contains("observe-initial-pause-state"));
         assertTrue(scenario.stepIds().contains("paused-settled"));
@@ -148,6 +153,43 @@ final class DesktopSmokeScenarioTest {
         assertTrue(scenario.campaignTimes());
         assertTrue(scenario.smoothFramePacing());
         assertTrue(scenario.benchmarkIdentity().toString().contains("campaignTimes=true"));
+    }
+
+    @Test
+    void launchMayOptIntoSamplingWithoutDeepCampaignTimers() {
+        DesktopSmokeScenario scenario = DesktopSmokeScenario.parse("""
+                {
+                  "format":"starsector-preflight-smoke-v1",
+                  "name":"sample",
+                  "timeoutSeconds":60,
+                  "launch":{"preset":"fast","textureStorage":"balanced","profile":null,
+                    "recording":"sample"},
+                  "steps":[{"id":"menu","kind":"wait-state","state":"main-menu-ready",
+                    "timeoutSeconds":30}]
+                }
+                """);
+
+        assertTrue(scenario.sampleRecording());
+        assertTrue(scenario.benchmarkIdentity().toString().contains("recording=sample"));
+    }
+
+    @Test
+    void rejectsUnknownRecordingModes() {
+        String invalid = """
+                {
+                  "format":"starsector-preflight-smoke-v1",
+                  "name":"sample",
+                  "timeoutSeconds":60,
+                  "launch":{"preset":"fast","textureStorage":"balanced","profile":null,
+                    "recording":"continuous"},
+                  "steps":[{"id":"menu","kind":"wait-state","state":"main-menu-ready",
+                    "timeoutSeconds":30}]
+                }
+                """;
+
+        assertTrue(assertThrows(
+                IllegalArgumentException.class,
+                () -> DesktopSmokeScenario.parse(invalid)).getMessage().contains("none or sample"));
     }
 
     @Test

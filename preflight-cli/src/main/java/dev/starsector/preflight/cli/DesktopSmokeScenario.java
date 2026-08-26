@@ -20,7 +20,8 @@ final class DesktopSmokeScenario {
     private static final Set<String> ROOT_FIELDS =
             Set.of("format", "name", "timeoutSeconds", "launch", "steps");
     private static final Set<String> LAUNCH_FIELDS =
-            Set.of("preset", "textureStorage", "profile", "campaignTimes", "smoothFramePacing");
+            Set.of("preset", "textureStorage", "profile", "recording", "campaignTimes",
+                    "smoothFramePacing");
     private static final Set<String> COMMON_STEP_FIELDS = Set.of("id", "kind");
     private static final Set<String> STATES = Set.of(
             "main-menu-ready", "main-menu-interactive", "campaign-ready",
@@ -162,6 +163,10 @@ final class DesktopSmokeScenario {
         return launch.campaignTimes();
     }
 
+    boolean sampleRecording() {
+        return "sample".equals(launch.recording());
+    }
+
     boolean smoothFramePacing() {
         return launch.smoothFramePacing();
     }
@@ -172,6 +177,7 @@ final class DesktopSmokeScenario {
         identity.put("timeoutSeconds", timeoutSeconds);
         identity.put("textureStorage", launch.textureStorage());
         identity.put("profile", launch.profile());
+        identity.put("recording", launch.recording());
         identity.put("campaignTimes", launch.campaignTimes());
         identity.put("smoothFramePacing", launch.smoothFramePacing());
         identity.put("steps", stepViews());
@@ -201,6 +207,11 @@ final class DesktopSmokeScenario {
         if (profile != null && (profile.isBlank() || profile.length() > 100)) {
             throw new IllegalArgumentException("launch.profile must be 1..100 characters");
         }
+        String recording = optionalString(value, "recording");
+        if (recording == null) recording = "none";
+        if (!Set.of("none", "sample").contains(recording)) {
+            throw new IllegalArgumentException("launch.recording must be none or sample");
+        }
         boolean campaignTimes = optionalBoolean(value, "campaignTimes");
         if (campaignTimes && "measurement-only".equals(preset)) {
             throw new IllegalArgumentException(
@@ -210,6 +221,7 @@ final class DesktopSmokeScenario {
                 preset,
                 storage,
                 profile,
+                recording,
                 campaignTimes,
                 optionalBoolean(value, "smoothFramePacing"));
     }
@@ -431,6 +443,7 @@ final class DesktopSmokeScenario {
             String preset,
             String textureStorage,
             String profile,
+            String recording,
             boolean campaignTimes,
             boolean smoothFramePacing) {
         Map<String, Object> view() {
@@ -438,6 +451,7 @@ final class DesktopSmokeScenario {
             value.put("preset", preset);
             value.put("textureStorage", textureStorage);
             value.put("profile", profile);
+            value.put("recording", recording);
             value.put("campaignTimes", campaignTimes);
             value.put("smoothFramePacing", smoothFramePacing);
             return value;

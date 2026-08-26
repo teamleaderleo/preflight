@@ -75,6 +75,10 @@ then unpauses for a transition buffer and settled window before restoring pause.
 pause transition are internal PID/start-bound actions, so the route does not activate another app,
 move the cursor, or depend on host window focus.
 
+`campaign-sample-paused-unpaused.json` runs the same internal pause cycle with a single-chunk JFR
+sampling recording and without the deep campaign call-time probes. Use it to rank residual campaign
+stacks after the timer probes have identified a broad category.
+
 ## Read what a launch produced
 
 | | |
