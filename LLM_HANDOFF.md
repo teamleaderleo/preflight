@@ -24,10 +24,10 @@ maintainer changes one of those facts, edit that file and run:
 python3 scripts/sync_project_facts.py --write
 ```
 
-Do not hand-update the scattered public copies. The sync command owns that propagation and the claim
-headline page. Historical measurements stay in their evidence records and technical chronology.
-Campaign statistics answer comparison/attribution questions; they do not choose the current public
-headline.
+Generated current headline: **112.17s → 13.69s**. Do not hand-edit that value here; the sync command
+owns it along with the public copies and claim headline page. Historical measurements stay in their
+evidence records and technical chronology. Campaign statistics answer comparison/attribution
+questions; they do not choose the current public headline.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package
