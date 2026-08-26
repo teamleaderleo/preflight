@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import bisect
 import collections
+import copy
 import csv
 import json
 import math
@@ -25,16 +26,21 @@ from typing import Any, Iterable
 
 CORE_RELATIVE = Path("Contents/Resources/Java")
 ENABLED_RELATIVE = Path("mods/enabled_mods.json")
-OUTPUT_FORMAT = "starsector-paper-balance-v1"
+OUTPUT_FORMAT = "starsector-paper-balance-v2"
+SUSTAINED_DPS_WINDOW_SECONDS = 60.0
+PD_ANTI_SHIP_WEIGHT = 0.25
 PROFILE_WEIGHTS = {
-    "balanced": {"mobility": 0.20, "durability": 0.25, "flux": 0.20, "firepower": 0.25,
-                 "logistics": 0.10},
-    "mobility": {"mobility": 0.45, "durability": 0.15, "flux": 0.15, "firepower": 0.20,
-                 "logistics": 0.05},
-    "durability": {"mobility": 0.10, "durability": 0.45, "flux": 0.20, "firepower": 0.20,
-                   "logistics": 0.05},
-    "firepower": {"mobility": 0.10, "durability": 0.15, "flux": 0.20, "firepower": 0.50,
-                  "logistics": 0.05},
+    # "survival" is absolute effective durability across the full player-ship population. Keeping
+    # it separate from durability/DP prevents tiny denominators from making fragile frigates look
+    # universally optimal while preserving their efficiency and specialist-role signal.
+    "balanced": {"mobility": 0.15, "durability": 0.25, "survival": 0.15, "flux": 0.20,
+                 "firepower": 0.20, "logistics": 0.05},
+    "mobility": {"mobility": 0.45, "durability": 0.10, "survival": 0.05, "flux": 0.15,
+                 "firepower": 0.20, "logistics": 0.05},
+    "durability": {"mobility": 0.05, "durability": 0.30, "survival": 0.30, "flux": 0.15,
+                   "firepower": 0.15, "logistics": 0.05},
+    "firepower": {"mobility": 0.10, "durability": 0.15, "survival": 0.10, "flux": 0.15,
+                  "firepower": 0.45, "logistics": 0.05},
 }
 SIZE_WEIGHT = {"SMALL": 1.0, "MEDIUM": 3.0, "LARGE": 7.0}
 SIZE_ORDER = {"SMALL": 1, "MEDIUM": 2, "LARGE": 3}
@@ -165,6 +171,17 @@ def quote_bare_tokens(text: str) -> str:
             is_key = next_significant == ":" and bool(stack and stack[-1] == "{")
             is_value = (previous_significant in ":[" or
                         (previous_significant == "," and bool(stack and stack[-1] == "[")))
+            if is_value and stack and stack[-1] == "[":
+                end = stop
+                while end < len(text) and text[end] not in ",]":
+                    end += 1
+                candidate = text[index:end].strip()
+                if (candidate not in {"true", "false", "null", "NaN", "Infinity"}
+                        and not any(mark in candidate for mark in "{[\"")):
+                    out.append(json.dumps(candidate))
+                    previous_significant = '"'
+                    index = end
+                    continue
             if is_key or (is_value and token not in {"true", "false", "null", "NaN", "Infinity"}):
                 out.append(json.dumps(token))
             else:
@@ -227,11 +244,13 @@ def normalize_dialect_numbers(text: str) -> str:
 def loads_starsector_json(text: str) -> Any:
     cleaned = strip_starsector_comments(text)
     cleaned = normalize_single_quoted_strings(cleaned)
+    # Quote bare array values before normalizing numbers so identifiers such as ``WS 003`` keep
+    # their significant leading zero rather than becoming ``WS 3``.
+    cleaned = quote_bare_tokens(cleaned)
     cleaned = normalize_dialect_numbers(cleaned)
     cleaned = re.sub(r"(?<=[\[:,])\s*\+(?=\d)", " ", cleaned)
     cleaned = re.sub(r";(?=\s*[\"'}\]])", ",", cleaned)
     cleaned = re.sub(r"(?<=\d)[fFdDlL](?=\s*[,}\]])", "", cleaned)
-    cleaned = quote_bare_tokens(cleaned)
     while True:
         without_trailing = re.sub(r",\s*([}\]])", r"\1", cleaned)
         if without_trailing == cleaned:
@@ -389,6 +408,106 @@ def deep_merge(base: Any, overlay: Any) -> Any:
     return result
 
 
+def apply_hull_skins(hulls: dict[str, dict[str, Any]],
+                     hull_specs: dict[str, dict[str, Any]],
+                     skins: dict[str, dict[str, Any]]) -> tuple[dict[str, dict[str, Any]],
+                                                                 dict[str, dict[str, Any]],
+                                                                 dict[str, Any]]:
+    """Materialize skin hulls from their base CSV row and .ship specification.
+
+    Starsector skins are real player-selectable hulls but do not have their own ship_data.csv row.
+    Keeping them out loses exactly the kind of special package the balance audit needs to expose,
+    such as the Brawler (LP)'s built-in Safety Overrides.
+    """
+    rendered_hulls = dict(hulls)
+    rendered_specs = dict(hull_specs)
+    missing_base_hulls: list[str] = []
+    missing_base_specs: list[str] = []
+    materialized = 0
+    csv_overrides = {
+        "hullName": "name",
+        "ordnancePoints": "ordnance points",
+        "suppliesPerMonth": "supplies/mo",
+        "fighterBays": "fighter bays",
+        "fighterbays": "fighter bays",
+        "shieldEfficiency": "shield efficiency",
+        "maxSpeed": "max speed",
+        "baseValue": "base value",
+        "systemId": "system id",
+    }
+    for skin_id, skin in sorted(skins.items(), key=lambda item: (
+            int(item[1].get("providerOrder", 0)), item[0])):
+        base_id = str(skin.get("baseHullId") or "")
+        base_hull = rendered_hulls.get(base_id)
+        base_spec = rendered_specs.get(base_id)
+        if base_hull is None:
+            missing_base_hulls.append(f"{skin_id}:{base_id or '(blank)'}")
+            continue
+        if base_spec is None:
+            missing_base_specs.append(f"{skin_id}:{base_id or '(blank)'}")
+            continue
+
+        hull = dict(base_hull)
+        for skin_key, csv_key in csv_overrides.items():
+            if skin_key in skin:
+                hull[csv_key] = skin[skin_key]
+        if "baseValueMult" in skin:
+            hull["base value"] = number(base_hull, "base value") * number(
+                skin, "baseValueMult", 1.0)
+        base_hints = set(re.findall(r"[a-z0-9_]+", str(base_hull.get("hints") or "").lower()))
+        base_hints.update(str(value).lower() for value in (skin.get("addHints") or []))
+        base_hints.difference_update(str(value).lower() for value in (skin.get("removeHints") or []))
+        hull["hints"] = ", ".join(sorted(base_hints))
+        base_tags = set(re.findall(r"[a-z0-9_]+", str(base_hull.get("tags") or "").lower()))
+        base_tags.update(str(value).lower() for value in (skin.get("tags") or []))
+        hull["tags"] = ", ".join(sorted(base_tags))
+        hull.update({
+            "providerId": skin.get("providerId"),
+            "providerName": skin.get("providerName"),
+            "providerOrder": skin.get("providerOrder"),
+            "skinBaseHullId": base_id,
+        })
+
+        spec = copy.deepcopy(base_spec)
+        spec["hullId"] = skin_id
+        spec["hullName"] = skin.get("hullName") or spec.get("hullName") or skin_id
+        spec["providerId"] = skin.get("providerId")
+        spec["providerName"] = skin.get("providerName")
+        spec["providerOrder"] = skin.get("providerOrder")
+        spec["skinBaseHullId"] = base_id
+        removed_slots = {str(value) for value in (skin.get("removeWeaponSlots") or [])}
+        slot_changes = skin.get("weaponSlotChanges") or {}
+        updated_slots: list[dict[str, Any]] = []
+        for original in spec.get("weaponSlots") or []:
+            if not isinstance(original, dict) or str(original.get("id")) in removed_slots:
+                continue
+            slot_id = str(original.get("id") or "")
+            change = slot_changes.get(slot_id, {}) if isinstance(slot_changes, dict) else {}
+            updated_slots.append(deep_merge(original, change))
+        spec["weaponSlots"] = updated_slots
+
+        base_mods = [str(value) for value in (spec.get("builtInMods") or [])]
+        removed_mods = {str(value) for value in (skin.get("removeBuiltInMods") or [])}
+        added_mods = [str(value) for value in (skin.get("builtInMods") or [])]
+        spec["builtInMods"] = list(dict.fromkeys(
+            [value for value in base_mods if value not in removed_mods] + added_mods))
+        base_weapons = dict(spec.get("builtInWeapons") or {})
+        for slot_id in skin.get("removeBuiltInWeapons") or []:
+            base_weapons.pop(str(slot_id), None)
+        base_weapons.update({str(key): value for key, value in
+                             (skin.get("builtInWeapons") or {}).items()})
+        spec["builtInWeapons"] = base_weapons
+
+        rendered_hulls[skin_id] = hull
+        rendered_specs[skin_id] = spec
+        materialized += 1
+    return rendered_hulls, rendered_specs, {
+        "materialized": materialized,
+        "missingBaseHulls": missing_base_hulls,
+        "missingBaseSpecs": missing_base_specs,
+    }
+
+
 def number(row: dict[str, Any], key: str, default: float = 0.0) -> float:
     value = row.get(key)
     if value is None or value == "":
@@ -398,6 +517,123 @@ def number(row: dict[str, Any], key: str, default: float = 0.0) -> float:
         return result if math.isfinite(result) else default
     except (TypeError, ValueError):
         return default
+
+
+def truthy(value: Any) -> bool:
+    return str(value or "").strip().lower() in {"true", "1", "yes"}
+
+
+def java_system_signals(text: str) -> tuple[list[str], dict[str, float]]:
+    text = strip_starsector_comments(text)
+    signals = sorted(set(re.findall(
+        r"\.get([A-Za-z0-9_]+)\(\)\.modify(?:Mult|Percent|Flat)", text)))
+    constants: dict[str, float] = {}
+    for name, value in re.findall(
+            r"\b(?:public\s+)?static\s+(?:final\s+)?float\s+([A-Z][A-Z0-9_]*)\s*=\s*"
+            r"(-?(?:\d+(?:\.\d*)?|\.\d+))f?\s*;", text):
+        constants[name] = float(value)
+    return signals, constants
+
+
+def system_capability_groups(row: dict[str, Any], spec: dict[str, Any],
+                             signals: Iterable[str]) -> list[str]:
+    metadata = " ".join(str(value) for value in (
+        row.get("name"), row.get("id"), row.get("tags"), spec.get("type"),
+        spec.get("aiType"), spec.get("statsScript")))
+    words = set(re.findall(r"[a-z0-9_]+", re.sub(
+        r"(?<=[a-z0-9])(?=[A-Z])", " ", metadata).lower()))
+    signal_words = {signal.lower() for signal in signals}
+    system_id = str(row.get("id") or "").lower()
+    groups: list[str] = []
+    if (words.intersection({"offensive", "weapon", "ammo", "strike", "rof", "targeting"})
+            or any("weapon" in value or "rof" in value for value in signal_words)):
+        groups.append("offense")
+    if (words.intersection({"defensive", "shield", "damper", "armor", "repair"})
+            or any(value.startswith(("shield", "armor", "hull"))
+                   or "damagetaken" in value for value in signal_words)):
+        groups.append("defense")
+    if (words.intersection({"movement", "engine", "burn", "jet", "jets", "teleport",
+                            "skimmer", "speed", "acceleration", "temporal"})
+            or any(value.startswith(("maxspeed", "acceleration", "deceleration", "turnrate"))
+                   for value in signal_words)):
+        groups.append("mobility")
+    if (words.intersection({"emp", "interdict", "mine", "disrupt", "tractor", "mote"})
+            or system_id in {"drone_strike", "emp"}):
+        groups.append("control")
+    if words.intersection({"sensor", "flare", "reservewing", "recall", "construction", "drone"}):
+        groups.append("support")
+    if any(truthy(row.get(key)) for key in ("nofiring", "noturning", "nostrafing",
+                                            "noaccel", "noshield")):
+        groups.append("commitment")
+    return groups
+
+
+def system_rows(systems: dict[str, dict[str, Any]], specs: dict[str, dict[str, Any]],
+                providers: Iterable[Provider]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    provider_roots = {provider.provider_id: provider.root for provider in providers}
+    rows: list[dict[str, Any]] = []
+    missing_specs: list[str] = []
+    source_inspected = 0
+    constraint_keys = ("nofiring", "noturning", "nostrafing", "noaccel", "noshield",
+                       "novent", "nodissipation", "noharddissipation", "hardflux")
+    for system_id, source in systems.items():
+        spec = specs.get(system_id, {})
+        if not spec:
+            missing_specs.append(system_id)
+        script = str(spec.get("statsScript") or "")
+        root = provider_roots.get(str(spec.get("providerId") or source.get("providerId")))
+        script_path = root.joinpath(*script.split(".")).with_suffix(".java") if root and script else None
+        signals: list[str] = []
+        constants: dict[str, float] = {}
+        script_source = ""
+        if script_path and script_path.is_file():
+            script_source = str(script_path.relative_to(root))
+            signals, constants = java_system_signals(
+                script_path.read_text(encoding="utf-8", errors="replace"))
+            source_inspected += 1
+        charge_up = number(source, "charge up")
+        active = number(source, "active")
+        down = number(source, "down")
+        cooldown = number(source, "cooldown")
+        cycle = charge_up + active + down + cooldown
+        constraints = [key for key in constraint_keys if truthy(source.get(key))]
+        ai_hints = spec.get("aiHints") if isinstance(spec.get("aiHints"), dict) else {}
+        row = {
+            "id": system_id,
+            "name": source.get("name") or system_id,
+            "providerId": source.get("providerId"),
+            "providerName": source.get("providerName"),
+            "type": str(spec.get("type") or ""),
+            "aiType": str(spec.get("aiType") or ""),
+            "statsScript": script,
+            "scriptSource": script_source,
+            "scriptSignals": signals,
+            "scriptConstants": constants,
+            "tags": sorted(set(re.findall(r"[a-z0-9_]+", str(source.get("tags") or "").lower()))),
+            "capabilityGroups": system_capability_groups(source, spec, signals),
+            "constraints": constraints,
+            "chargeUp": charge_up,
+            "active": active,
+            "down": down,
+            "cooldown": cooldown,
+            "uptimeProxy": round(active / cycle, 4) if active > 0 and cycle > 0 else 0.0,
+            "maxUses": number(source, "max uses"),
+            "regen": number(source, "regen"),
+            "fluxPerSecond": number(source, "flux/second"),
+            "fluxPerUse": number(source, "flux/use"),
+            "threatRange": number(ai_hints, "threatRange"),
+            "threatDamage": number(ai_hints, "threatDamage"),
+            "threatAmount": number(ai_hints, "threatAmount"),
+            "activeSpeedIncrease": number(ai_hints, "activeSpeedIncrease"),
+            "averageSpeedIncrease": number(ai_hints, "averageSpeedIncrease"),
+            "averageSpeedMult": number(ai_hints, "averageSpeedMult"),
+        }
+        rows.append(row)
+    return rows, {
+        "scoredSystems": len(rows),
+        "missingSystemSpecs": missing_specs,
+        "scriptSourcesInspected": source_inspected,
+    }
 
 
 def percentile(values: list[float], value: float) -> float:
@@ -424,6 +660,20 @@ def slot_features(spec: dict[str, Any]) -> tuple[float, int, dict[str, int]]:
         capacity += SIZE_WEIGHT.get(size, 0.0)
         counts[f"{size}_{slot_type}"] += 1
     return capacity, usable, dict(sorted(counts.items()))
+
+
+def mechanic_flags(system_id: str, built_in_mods: Iterable[str],
+                   fitted_mods: Iterable[str] = ()) -> list[str]:
+    flags: list[str] = []
+    if system_id:
+        flags.append(f"ship-system:{system_id}")
+    built_ins = {str(value) for value in built_in_mods}
+    fitted = {str(value) for value in fitted_mods}
+    if "safetyoverrides" in built_ins:
+        flags.append("built-in:safety-overrides")
+    elif "safetyoverrides" in fitted:
+        flags.append("fitted:safety-overrides")
+    return flags
 
 
 def hull_rows(hulls: dict[str, dict[str, Any]], specs: dict[str, dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -466,6 +716,8 @@ def hull_rows(hulls: dict[str, dict[str, Any]], specs: dict[str, dict[str, Any]]
         acquisition = "rare-or-limited" if tag_tokens.intersection({
             "rare_bp", "unique", "restricted", "no_bp", "boss", "limited_tooltip_if_locked",
             "codex_unlockable"}) else "ordinary-or-unknown"
+        built_in_mods = [str(value) for value in (spec.get("builtInMods") or [])]
+        system_id = str(source.get("system id") or spec.get("systemId") or "")
         row = {
             "id": hull_id,
             "name": source.get("name") or spec.get("hullName") or hull_id,
@@ -494,10 +746,14 @@ def hull_rows(hulls: dict[str, dict[str, Any]], specs: dict[str, dict[str, Any]]
             "slotCounts": slot_counts,
             "suppliesPerMonth": number(source, "supplies/mo"),
             "baseValue": number(source, "base value"),
-            "systemId": source.get("system id") or "",
+            "systemId": system_id,
+            "builtInMods": built_in_mods,
+            "specialMechanics": mechanic_flags(system_id, built_in_mods),
+            "skinBaseHullId": source.get("skinBaseHullId") or spec.get("skinBaseHullId") or "",
             "codexVariantId": source.get("codex variant id") or "",
         }
-        row["durabilityPerDp"] = (hp + 2.0 * armor + 0.35 * shield_flux_ehp) / dp
+        row["effectiveDurability"] = hp + 2.0 * armor + 0.35 * shield_flux_ehp
+        row["durabilityPerDp"] = row["effectiveDurability"] / dp
         row["fluxPerDp"] = (dissipation + max_flux / 20.0) / dp
         row["firepowerPerDp"] = (row["ordnancePoints"] + 5.0 * slots + 15.0 * bays) / dp
         row["logisticsEfficiency"] = dp / max(1.0, row["suppliesPerMonth"])
@@ -513,6 +769,7 @@ def hull_rows(hulls: dict[str, dict[str, Any]], specs: dict[str, dict[str, Any]]
         "firepower": lambda row: row["firepowerPerDp"],
         "logistics": lambda row: row["logisticsEfficiency"],
     }
+    absolute_survival = [row["effectiveDurability"] for row in rows]
     by_peer: dict[tuple[str, str], list[dict[str, Any]]] = collections.defaultdict(list)
     for row in rows:
         by_peer[(row["hullSize"], row["role"])].append(row)
@@ -522,6 +779,7 @@ def hull_rows(hulls: dict[str, dict[str, Any]], specs: dict[str, dict[str, Any]]
         for row in peer_rows:
             scores = {name: percentile(distributions[name], function(row))
                       for name, function in components.items()}
+            scores["survival"] = percentile(absolute_survival, row["effectiveDurability"])
             row["componentScores"] = {name: round(value * 100, 3)
                                       for name, value in scores.items()}
             for profile, weights in PROFILE_WEIGHTS.items():
@@ -569,6 +827,44 @@ def apply_pareto(rows: list[dict[str, Any]]) -> None:
         right["paretoDominators"] = dominators[:10]
 
 
+def weapon_dps_proxies(source: dict[str, Any]) -> dict[str, Any]:
+    damage_per_second = number(source, "damage/second")
+    damage_per_shot = number(source, "damage/shot")
+    chargedown = number(source, "chargedown")
+    chargeup = number(source, "chargeup")
+    burst_size = max(1.0, number(source, "burst size", 1.0))
+    burst_delay = number(source, "burst delay")
+    basis = "missing"
+    burst_dps = 0.0
+    if damage_per_second > 0:
+        burst_dps = damage_per_second
+        basis = "declared-dps"
+    elif damage_per_shot > 0 and max(chargedown, chargeup, burst_delay) > 0:
+        cycle = max(chargedown + chargeup, burst_delay * max(0.0, burst_size - 1.0), 0.05)
+        burst_dps = damage_per_shot * burst_size / cycle
+        basis = "cycle-proxy"
+
+    ammo = number(source, "ammo")
+    reload_per_second = number(source, "ammo/sec")
+    sustained_dps = burst_dps
+    if burst_dps > 0 and damage_per_shot > 0 and ammo > 0:
+        available_shots = ammo + reload_per_second * SUSTAINED_DPS_WINDOW_SECONDS
+        ammo_limited = damage_per_shot * available_shots / SUSTAINED_DPS_WINDOW_SECONDS
+        sustained_dps = min(burst_dps, ammo_limited)
+    hints = set(re.findall(r"[a-z0-9_]+", str(source.get("hints") or "").lower()))
+    is_pd = "pd" in hints or "pd_only" in hints
+    anti_ship_weight = PD_ANTI_SHIP_WEIGHT if is_pd else 1.0
+    return {
+        "burstDpsProxy": burst_dps,
+        "sustainedDpsProxy": sustained_dps,
+        "antiShipDpsProxy": sustained_dps * anti_ship_weight,
+        "pdDpsProxy": sustained_dps if is_pd else 0.0,
+        "dpsRoleWeight": anti_ship_weight,
+        "dpsBasis": basis,
+        "limitedAmmo": ammo > 0,
+    }
+
+
 def weapon_rows(weapons: dict[str, dict[str, Any]], specs: dict[str, dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     missing_specs: list[str] = []
@@ -579,28 +875,18 @@ def weapon_rows(weapons: dict[str, dict[str, Any]], specs: dict[str, dict[str, A
         if not spec:
             missing_specs.append(weapon_id)
         op = number(source, "ops")
-        damage_per_second = number(source, "damage/second")
         damage_per_shot = number(source, "damage/shot")
         energy_per_second = number(source, "energy/second")
         energy_per_shot = number(source, "energy/shot")
-        chargedown = number(source, "chargedown")
-        chargeup = number(source, "chargeup")
-        burst_size = max(1.0, number(source, "burst size", 1.0))
-        burst_delay = number(source, "burst delay")
-        dps_basis = "missing"
-        dps_proxy = 0.0
-        if damage_per_second > 0:
-            dps_proxy = damage_per_second
-            dps_basis = "declared-dps"
+        dps = weapon_dps_proxies(source)
+        if dps["dpsBasis"] == "declared-dps":
             direct_dps += 1
-        elif damage_per_shot > 0 and max(chargedown, chargeup, burst_delay) > 0:
-            cycle = max(chargedown + chargeup, burst_delay * max(0.0, burst_size - 1.0), 0.05)
-            dps_proxy = damage_per_shot * burst_size / cycle
-            dps_basis = "cycle-proxy"
+        elif dps["dpsBasis"] == "cycle-proxy":
             cycle_proxy += 1
         flux_proxy = energy_per_second or (
-            energy_per_shot * dps_proxy / damage_per_shot if damage_per_shot > 0 else 0.0)
-        rows.append({
+            energy_per_shot * dps["sustainedDpsProxy"] / damage_per_shot
+            if damage_per_shot > 0 else 0.0)
+        row = {
             "id": weapon_id,
             "name": source.get("name") or weapon_id,
             "providerId": source.get("providerId"),
@@ -610,27 +896,37 @@ def weapon_rows(weapons: dict[str, dict[str, Any]], specs: dict[str, dict[str, A
             "damageType": str(source.get("type") or "UNKNOWN").upper(),
             "ordnancePoints": op,
             "range": number(source, "range"),
-            "dpsProxy": round(dps_proxy, 4),
-            "dpsBasis": dps_basis,
+            "burstDpsProxy": round(dps["burstDpsProxy"], 4),
+            "sustainedDpsProxy": round(dps["sustainedDpsProxy"], 4),
+            "antiShipDpsProxy": round(dps["antiShipDpsProxy"], 4),
+            "pdDpsProxy": round(dps["pdDpsProxy"], 4),
+            "dpsRoleWeight": dps["dpsRoleWeight"],
+            "dpsBasis": dps["dpsBasis"],
+            "limitedAmmo": dps["limitedAmmo"],
             "fluxPerSecondProxy": round(flux_proxy, 4),
             "damagePerShot": damage_per_shot,
             "ammo": number(source, "ammo"),
             "reloadPerSecond": number(source, "ammo/sec"),
             "projectileSpeed": number(source, "proj speed"),
-        })
+        }
+        rows.append(row)
     peers: dict[tuple[str, str, str], list[dict[str, Any]]] = collections.defaultdict(list)
     for row in rows:
         peers[(row["size"], row["mountType"], row["damageType"])].append(row)
     for peer_rows in peers.values():
-        dps_op = [row["dpsProxy"] / max(1.0, row["ordnancePoints"]) for row in peer_rows]
+        dps_op = [row["antiShipDpsProxy"] / max(1.0, row["ordnancePoints"])
+                  for row in peer_rows]
         ranges = [row["range"] for row in peer_rows]
-        efficiency = [row["dpsProxy"] / max(1.0, row["fluxPerSecondProxy"]) for row in peer_rows]
+        efficiency = [row["antiShipDpsProxy"] / max(1.0, row["fluxPerSecondProxy"])
+                      for row in peer_rows]
         for row in peer_rows:
             row["paperScore"] = round(100 * (
-                0.50 * percentile(dps_op, row["dpsProxy"] / max(1.0, row["ordnancePoints"]))
+                0.50 * percentile(
+                    dps_op, row["antiShipDpsProxy"] / max(1.0, row["ordnancePoints"]))
                 + 0.30 * percentile(ranges, row["range"])
                 + 0.20 * percentile(efficiency,
-                                    row["dpsProxy"] / max(1.0, row["fluxPerSecondProxy"]))), 3)
+                                    row["antiShipDpsProxy"]
+                                    / max(1.0, row["fluxPerSecondProxy"]))), 3)
     return rows, {
         "missingWeaponSpecs": missing_specs,
         "scoredWeapons": len(rows),
@@ -685,14 +981,21 @@ def variant_rows(variants: dict[str, dict[str, Any]], hull_rankings: list[dict[s
             continue
         slots = {str(slot.get("id")): slot for slot in (hull_spec.get("weaponSlots") or [])
                  if isinstance(slot, dict) and slot.get("id")}
-        fitted: list[tuple[str, str]] = []
+        built_in_weapons = {str(slot_id): str(weapon_id) for slot_id, weapon_id in
+                            (hull_spec.get("builtInWeapons") or {}).items()}
+        built_in_slots = set(built_in_weapons)
+        fitted_by_slot = dict(built_in_weapons)
         for group in source.get("weaponGroups") or []:
             if not isinstance(group, dict) or not isinstance(group.get("weapons"), dict):
                 continue
-            fitted.extend((str(slot_id), str(weapon_id))
-                          for slot_id, weapon_id in group["weapons"].items())
+            fitted_by_slot.update((str(slot_id), str(weapon_id))
+                                  for slot_id, weapon_id in group["weapons"].items())
+        fitted = list(fitted_by_slot.items())
         weapon_op = 0.0
-        dps = 0.0
+        burst_dps = 0.0
+        sustained_dps = 0.0
+        anti_ship_dps = 0.0
+        pd_dps = 0.0
         weapon_flux = 0.0
         ranges: list[float] = []
         paper_scores: list[float] = []
@@ -705,13 +1008,18 @@ def variant_rows(variants: dict[str, dict[str, Any]], hull_rankings: list[dict[s
                 continue
             slot = slots.get(slot_id)
             slot_type = str(slot.get("type") or "UNKNOWN").upper() if slot else "UNKNOWN"
-            if slot_type not in {"BUILT_IN", "DECORATIVE", "SYSTEM"}:
+            if (slot_id not in built_in_slots
+                    and slot_type not in {"BUILT_IN", "DECORATIVE", "SYSTEM"}):
                 weapon_op += weapon["ordnancePoints"]
-            dps += weapon["dpsProxy"]
+            burst_dps += weapon["burstDpsProxy"]
+            sustained_dps += weapon["sustainedDpsProxy"]
+            anti_ship_dps += weapon["antiShipDpsProxy"]
+            pd_dps += weapon["pdDpsProxy"]
             weapon_flux += weapon["fluxPerSecondProxy"]
             ranges.append(weapon["range"])
             paper_scores.append(weapon["paperScore"])
-            if slot is None or not slot_accepts(slot, weapon_spec):
+            if (slot_id not in built_in_slots
+                    and (slot is None or not slot_accepts(slot, weapon_spec))):
                 compatibility_problems += 1
                 if len(incompatible) < 500:
                     incompatible.append({"variantId": variant_id, "slotId": slot_id,
@@ -748,12 +1056,19 @@ def variant_rows(variants: dict[str, dict[str, Any]], hull_rankings: list[dict[s
             "vents": vents,
             "capacitors": capacitors,
             "remainingOp": round(remaining_op, 3),
-            "dpsProxy": round(dps, 3),
-            "dpsPerDp": round(dps / hull["deploymentPoints"], 4),
+            "burstDpsProxy": round(burst_dps, 3),
+            "sustainedDpsProxy": round(sustained_dps, 3),
+            "antiShipDpsProxy": round(anti_ship_dps, 3),
+            "antiShipDpsPerDp": round(anti_ship_dps / hull["deploymentPoints"], 4),
+            "pdDpsProxy": round(pd_dps, 3),
             "weaponFluxPerSecondProxy": round(weapon_flux, 3),
             "fluxHeadroomProxy": round(hull["fluxDissipation"] - weapon_flux, 3),
             "meanRange": round(statistics.fmean(ranges), 3) if ranges else 0.0,
             "meanWeaponPaperScore": round(statistics.fmean(paper_scores), 3) if paper_scores else 0.0,
+            "builtInHullmods": hull["builtInMods"],
+            "fittedHullmods": regular_mods,
+            "specialMechanics": mechanic_flags(
+                hull["systemId"], hull["builtInMods"], regular_mods),
             "compatibilityProblems": compatibility_problems,
             "overBudget": remaining_op < -0.01,
         })
@@ -765,7 +1080,7 @@ def variant_rows(variants: dict[str, dict[str, Any]], hull_rankings: list[dict[s
     for peer_rows in peers.values():
         distributions = {
             "hull": [row["hullPaperScore"] for row in peer_rows],
-            "dps": [row["dpsPerDp"] for row in peer_rows],
+            "dps": [row["antiShipDpsPerDp"] for row in peer_rows],
             "range": [row["meanRange"] for row in peer_rows],
             "headroom": [row["fluxHeadroomProxy"] for row in peer_rows],
             "weapon": [row["meanWeaponPaperScore"] for row in peer_rows],
@@ -773,7 +1088,7 @@ def variant_rows(variants: dict[str, dict[str, Any]], hull_rankings: list[dict[s
         for row in peer_rows:
             row["loadoutPaperScore"] = round(100 * (
                 0.45 * percentile(distributions["hull"], row["hullPaperScore"])
-                + 0.25 * percentile(distributions["dps"], row["dpsPerDp"])
+                + 0.25 * percentile(distributions["dps"], row["antiShipDpsPerDp"])
                 + 0.10 * percentile(distributions["range"], row["meanRange"])
                 + 0.10 * percentile(distributions["headroom"], row["fluxHeadroomProxy"])
                 + 0.10 * percentile(distributions["weapon"], row["meanWeaponPaperScore"])), 3)
@@ -835,12 +1150,19 @@ def build(game: Path, output: Path) -> dict[str, Any]:
     hulls, hull_csv = merged_csv(providers, "data/hulls/ship_data.csv", "id")
     weapons, weapon_csv = merged_csv(providers, "data/weapons/weapon_data.csv", "id")
     hullmods, hullmod_csv = merged_csv(providers, "data/hullmods/hull_mods.csv", "id")
+    systems, system_csv = merged_csv(providers, "data/shipsystems/ship_systems.csv", "id")
     hull_specs, hull_spec_quality = merged_json_specs(providers, "data/hulls", ".ship", ("hullId",))
+    skins, skin_quality = merged_json_specs(providers, "data/hulls/skins", ".skin",
+                                            ("skinHullId",))
+    hulls, hull_specs, skin_model_quality = apply_hull_skins(hulls, hull_specs, skins)
     weapon_specs, weapon_spec_quality = merged_json_specs(providers, "data/weapons", ".wpn", ("id",))
+    system_specs, system_spec_quality = merged_json_specs(
+        providers, "data/shipsystems", ".system", ("id",))
     variants, variant_quality = merged_json_specs(providers, "data/variants", ".variant",
                                                   ("variantId",))
     hull_rankings, hull_quality = hull_rows(hulls, hull_specs)
     weapon_rankings, weapon_quality = weapon_rows(weapons, weapon_specs)
+    system_rankings, system_quality = system_rows(systems, system_specs, providers)
     loadout_rankings, loadout_quality = variant_rows(
         variants, hull_rankings, hull_specs, weapon_rankings, weapon_specs, hullmods)
     hull_outliers = robust_outliers(hull_rankings, "score_balanced", ("hullSize", "role"))
@@ -863,7 +1185,9 @@ def build(game: Path, output: Path) -> dict[str, Any]:
             "providers": len(providers),
             "rankedPlayerShips": len(hull_rankings),
             "candidateHullRows": hull_quality["candidateHullRows"],
+            "materializedHullSkins": skin_model_quality["materialized"],
             "weapons": len(weapon_rankings),
+            "shipSystems": len(system_rankings),
             "hullmods": len(hullmods),
             "variants": len(variants),
             "rankedLoadouts": len(loadout_rankings),
@@ -873,11 +1197,16 @@ def build(game: Path, output: Path) -> dict[str, Any]:
             "hullCsv": hull_csv,
             "weaponCsv": weapon_csv,
             "hullmodCsv": hullmod_csv,
+            "systemCsv": system_csv,
             "hullSpecs": hull_spec_quality,
+            "hullSkins": skin_quality,
+            "hullSkinModel": skin_model_quality,
             "weaponSpecs": weapon_spec_quality,
+            "systemSpecs": system_spec_quality,
             "variants": variant_quality,
             "hullModel": hull_quality,
             "weaponModel": weapon_quality,
+            "systemModel": system_quality,
             "loadoutModel": loadout_quality,
         },
         "findings": {
@@ -886,11 +1215,13 @@ def build(game: Path, output: Path) -> dict[str, Any]:
             "weaponOutliers": weapon_outliers[:100],
             "stableTopHulls": [{key: row[key] for key in (
                 "id", "name", "providerId", "hullSize", "role", "deploymentPoints",
-                "score_balanced", "rankMean", "rankSpread", "paretoDominated")}
+                "score_balanced", "rankMean", "rankSpread", "paretoDominated",
+                "systemId", "specialMechanics")}
                 for row in stable_hulls[:100]],
             "topLoadouts": [{key: row[key] for key in (
                 "id", "displayName", "providerId", "hullId", "hullName", "hullSize", "role",
-                "deploymentPoints", "loadoutPaperScore", "loadoutRank", "remainingOp")}
+                "deploymentPoints", "loadoutPaperScore", "loadoutRank", "remainingOp",
+                "antiShipDpsProxy", "pdDpsProxy", "specialMechanics")}
                 for row in loadout_rankings[:100]],
         },
     }
@@ -901,22 +1232,34 @@ def build(game: Path, output: Path) -> dict[str, Any]:
                    "availabilityClass", "acquisitionClass",
                    "deploymentPoints", "ordnancePoints", "hitpoints", "armor", "maxFlux",
                    "fluxDissipation", "shieldEfficiency", "speed", "acceleration", "turnRate",
-                   "fighterBays", "slotCapacity", "weaponSlotCount", "systemId", "codexVariantId",
+                   "fighterBays", "slotCapacity", "weaponSlotCount", "systemId", "builtInMods",
+                   "specialMechanics", "skinBaseHullId", "codexVariantId", "effectiveDurability",
                    "durabilityPerDp", "fluxPerDp", "firepowerPerDp", "logisticsEfficiency",
                    "componentScores", "score_balanced", "score_mobility", "score_durability",
                    "score_firepower", "rank_balanced", "rank_mobility", "rank_durability",
                    "rank_firepower", "rankMean", "rankSpread", "paretoDominated", "paretoDominators"]
     weapon_fields = ["id", "name", "providerId", "providerName", "size", "mountType", "damageType",
-                     "ordnancePoints", "range", "dpsProxy", "dpsBasis", "fluxPerSecondProxy",
+                     "ordnancePoints", "range", "burstDpsProxy", "sustainedDpsProxy",
+                     "antiShipDpsProxy", "pdDpsProxy", "dpsRoleWeight", "dpsBasis", "limitedAmmo",
+                     "fluxPerSecondProxy",
                      "damagePerShot", "ammo", "reloadPerSecond", "projectileSpeed", "paperScore"]
     loadout_fields = ["id", "displayName", "providerId", "hullId", "hullName", "hullSize", "role",
                       "deploymentPoints", "goalVariant", "weaponCount", "weaponOp", "hullmodOp",
-                      "vents", "capacitors", "remainingOp", "dpsProxy", "dpsPerDp",
+                      "vents", "capacitors", "remainingOp", "burstDpsProxy", "sustainedDpsProxy",
+                      "antiShipDpsProxy", "antiShipDpsPerDp", "pdDpsProxy",
                       "weaponFluxPerSecondProxy", "fluxHeadroomProxy", "meanRange",
-                      "meanWeaponPaperScore", "loadoutPaperScore", "loadoutRank"]
+                      "meanWeaponPaperScore", "builtInHullmods", "fittedHullmods",
+                      "specialMechanics", "loadoutPaperScore", "loadoutRank"]
+    system_fields = ["id", "name", "providerId", "providerName", "type", "aiType",
+                     "statsScript", "scriptSource", "scriptSignals", "scriptConstants", "tags",
+                     "capabilityGroups", "constraints", "chargeUp", "active", "down", "cooldown",
+                     "uptimeProxy", "maxUses", "regen", "fluxPerSecond", "fluxPerUse",
+                     "threatRange", "threatDamage", "threatAmount", "activeSpeedIncrease",
+                     "averageSpeedIncrease", "averageSpeedMult"]
     write_csv(output / "hulls.csv", sorted(hull_rankings, key=lambda row: row["rank_balanced"]), hull_fields)
     write_csv(output / "weapons.csv", sorted(weapon_rankings, key=lambda row: -row["paperScore"]), weapon_fields)
     write_csv(output / "variants.csv", loadout_rankings, loadout_fields)
+    write_csv(output / "systems.csv", sorted(system_rankings, key=lambda row: row["id"]), system_fields)
     return summary
 
 
