@@ -11,7 +11,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 FACTS = ROOT / "docs/project-facts.json"
-CLAIMS = ROOT / "docs/claims.json"
 HEADLINES = ROOT / "docs/claim-headlines.md"
 
 PUBLIC_COPY = (
@@ -74,27 +73,6 @@ def rendered_values() -> tuple[str, str]:
     return match.group(1), match.group(2)
 
 
-def update_claims(claims: dict, facts: dict, old_before: str, old_after: str) -> None:
-    current = facts["startup"]["development"]
-    before = current["baselineSeconds"]
-    after = current["endpointSeconds"]
-    for entry in claims["publishedQuantities"]:
-        if entry.get("type") != "seconds" or "docs/claim-headlines.md" not in entry.get("publishedIn", []):
-            continue
-        if str(entry.get("value")) == old_before:
-            entry["value"] = before
-            entry["evidence"] = current["baselineEvidence"]
-        elif str(entry.get("value")) == old_after:
-            entry["value"] = after
-            entry["evidence"] = current["endpointEvidence"]
-    for claim in claims["claims"]:
-        if "docs/claim-headlines.md" not in claim.get("publishedIn", []):
-            continue
-        if str(claim.get("result", {}).get("seconds")) == old_after:
-            claim["result"]["seconds"] = float(after)
-            claim["evidence"]["path"] = current["endpointEvidence"]
-
-
 def rewrite_public(text: str, old_before: str, old_after: str, facts: dict) -> str:
     current = facts["startup"]["development"]
     old_speedup = q2(Decimal(old_before) / Decimal(old_after))
@@ -126,18 +104,18 @@ def rewrite_technical(text: str, old_before: str, old_after: str, facts: dict) -
 def render_headlines(facts: dict) -> str:
     current = facts["startup"]["development"]
     historical = facts["startup"]["historicalSameProfileAB"]
-    gate = facts["startup"]["validatedAcceleratedGateSeconds"]
+    gate = facts["startup"]["validatedAcceleratedGate"]
     before = current["baselineSeconds"]
     after = current["endpointSeconds"]
-    return f"""# Machine-audited claim headlines
+    return f"""# Machine-audited benchmark facts
 
 This page is generated from [`project-facts.json`](project-facts.json) by `scripts/sync_project_facts.py`. The full technical history and retained evidence live elsewhere.
 
 All rows below refer to the {current['modCount']}-mod {current['hardware']} development installation running Starsector {current['gameBuild']} with {current['runtime']}.
 
-| Claim | Result |
+| Fact | Result |
 | --- | ---: |
-| Earlier validated accelerated gate, {current['modCount']}-mod profile | **{gate}s** |
+| Earlier validated accelerated gate, {current['modCount']}-mod profile | **{gate['seconds']}s** |
 | Historical same-profile ordinary baseline, {current['modCount']} mods | **{historical['baselineSeconds']}s** |
 | Historical same-profile accelerated A/B median, {current['modCount']} mods | **{historical['endpointSeconds']}s** |
 | Historical A/B elapsed-time reduction | **{historical['deltaSeconds']}s** |
@@ -149,8 +127,36 @@ The current readable development headline is **{before}s → {after}s**. The {hi
 """
 
 
+def evidence_errors(facts: dict) -> list[str]:
+    current = facts["startup"]["development"]
+    historical = facts["startup"]["historicalSameProfileAB"]
+    gate = facts["startup"]["validatedAcceleratedGate"]
+    checks = (
+        (current["baselineEvidence"], (current["baselineSeconds"],)),
+        (current["endpointEvidence"], (current["endpointSeconds"],)),
+        (historical["evidence"], (
+            historical["baselineSeconds"], historical["endpointSeconds"],
+            historical["deltaSeconds"], historical["reductionPercent"],
+        )),
+        (gate["evidence"], (gate["seconds"],)),
+    )
+    errors: list[str] = []
+    for relative, tokens in checks:
+        if not isinstance(relative, str) or not relative.startswith("docs/evidence/"):
+            errors.append(f"invalid evidence path: {relative!r}")
+            continue
+        path = ROOT / relative
+        if not path.is_file():
+            errors.append(f"missing evidence: {relative}")
+            continue
+        text = path.read_text(encoding="utf-8")
+        missing = [token for token in tokens if token not in text]
+        if missing:
+            errors.append(f"{relative}: missing {', '.join(missing)}")
+    return errors
+
+
 def expected_files(facts: dict) -> dict[Path, str]:
-    claims = json.loads(CLAIMS.read_text(encoding="utf-8"))
     old_before, old_after = rendered_values()
     expected: dict[Path, str] = {}
     for relative in PUBLIC_COPY:
@@ -159,8 +165,6 @@ def expected_files(facts: dict) -> dict[Path, str]:
     for relative in TECHNICAL_COPY:
         path = ROOT / relative
         expected[path] = rewrite_technical(path.read_text(encoding="utf-8"), old_before, old_after, facts)
-    update_claims(claims, facts, old_before, old_after)
-    expected[CLAIMS] = json.dumps(claims, indent=2, ensure_ascii=False) + "\n"
     expected[HEADLINES] = render_headlines(facts)
     return expected
 
@@ -188,10 +192,7 @@ def sync(write: bool) -> int:
         drift.append(path.relative_to(ROOT).as_posix())
         if write:
             path.write_text(expected, encoding="utf-8")
-    if write:
-        drift = presence_errors(facts)
-    else:
-        drift.extend(presence_errors(facts))
+    drift = (presence_errors(facts) if write else drift + presence_errors(facts)) + evidence_errors(facts)
     if drift:
         print("project facts are out of sync: " + ", ".join(sorted(set(drift))))
         print("run `python3 scripts/sync_project_facts.py --write`")
