@@ -1,6 +1,6 @@
 # Preflight
 
-**A free, open-source cross-platform performance launcher and mod-analysis toolkit for Starsector. On my 83-mod development setup, startup moved from roughly 101 seconds to a 13.69-second best run.**
+**A free, open-source cross-platform performance launcher and mod-analysis toolkit for Starsector. On my 83-mod development setup, startup reached roughly 101 seconds at its slowest and now runs around a 13.8-second median.**
 
 > Preflight is an independent, unofficial project. It isn't affiliated with or endorsed by Fractal
 > Softworks.
@@ -18,7 +18,7 @@ Preflight started with a straightforward question: why did heavily modded Starse
 work every launch? Profiling and bytecode-level investigation found repeated data parsing, a texture
 cache on the wrong side of a single-threaded prefetch wait, rebuildable texture data made needlessly
 durable, repeated generated-code compilation, and high-frequency campaign scans and recomputations.
-Moving those costs to better boundaries produced the current development arc.
+Moving those costs to better boundaries produced the current speed.
 
 Preflight prepares repeatable texture, data, generated-code, and audio work ahead of launch, binds
 that prepared work to the exact game and ordered mod inputs that produced it, and reuses it while
@@ -80,46 +80,41 @@ once, then press **Launch Starsector** on later runs. The rest is there when you
 
 ## The measured result
 
-The current development headline is the observed arc: roughly 101 seconds at the early high end to a
-13.69-second best observed run after the reviewed G1/deferred-heap-commit policy became the current
-macOS Rosetta path. That is a development chronology, so the exact experimental context stays visible
-below instead of pretending the endpoints came from one A/B session.
+On the 83-mod M5 MacBook Air development installation, current Preflight launches cluster around a
+**~13.8-second median** across the retained run history. **13.69 seconds** is one observed low run in
+that same current regime. Earlier development reached roughly **101 seconds** at its slowest.
 
-For the clean direct comparison, five ordinary launches had an 89.00-second median and five Preflight
-launches had a 15.53-second median, with a 15.25-second low in that accelerated set. A later five-run
-candidate condition measured a 14.04-second median and the 13.69-second best. Later same-machine
-current-engine controls around 15.5 seconds show the remaining machine/run variance while confirming
-that the reviewed JVM policy is still present in current code.
+All startup times in this record use the same game-log clock, from Starsector's
+`Running with the following mods...` marker through GraphicsLib's `VRAM after unload/preload`
+marker. A run measured with that clock is a run. Campaign names describe why a set of launches was
+collected; they do not make the elapsed time itself a different kind of observation.
+
+Historical A/B campaigns remain useful for attribution questions such as whether one intervention
+changed startup relative to another condition. The permutation p-values and campaign acceptance
+flags in the repeated benchmark belong to those comparison questions. They have no role in deciding
+whether an observed launch time counts or in reporting the product's current median speed.
 
 | Reference point | Main-menu time | Meaning |
 | --- | ---: | --- |
-| Observed early high | **~101s** | Highest launch observed on the development installation |
-| Initial five-run baseline | **88.13s** | Median of five unaccelerated launches, on the earlier 77-mod profile |
-| Earlier validated warm gate | **15.88s** | Previous production gate on the later 83-mod profile |
-| Controlled baseline, one session | **89.00s** | Median of five vanilla launches, interleaved with the row below |
-| Controlled result, one session | **15.53s** | Median of five Preflight launches in that same session |
-| Lowest run in that controlled session | **15.25s** | Lowest of the five accelerated launches |
-| Later reviewed JVM condition | 14.04s median | Five exact-marker runs with G1 and deferred heap commit |
-| Best current development observation | **13.69s** | Best run in that later five-run condition |
+| Historical observed high | **~101s** | Slowest retained launch on the development installation |
+| Current retained median | **~13.8s** | Typical current startup across the accumulated run history |
+| Retained low run | **13.69s** | One low observation in the same current regime |
+| Compact corpus, alphabetical order | **33.53s** | Physical-layout experiment with the same logical texture contents |
+| Compact corpus, observed access order | **14.174s** | Same logical contents written in startup access order |
 
-The controlled 89.00/15.53 pair came from one 83-mod session. The order was shuffled inside every
-round, the machine cooled for 240 seconds before each launch, and none of the ten runs were excluded.
-The medians are **73.47 seconds** apart.
-
-The later 13.69-second result used the same 83-mod M5 MacBook Air development profile and the log-marker
-clock documented in the August 23 evidence. That evidence also records the current-engine control,
-Compact physical-order work, and the difference between best-observed development timing and the
-packaged candidate result still owed before release.
+The current macOS Rosetta path uses the reviewed G1/deferred-heap-commit policy. The retained launch
+history spans the work that produced the current product, while the comparison campaigns and their
+exact conditions remain in [Optimization history](docs/optimization-history.md) and the
+[evidence archive](docs/evidence/) for anyone investigating a particular intervention.
 
 All of these development measurements are from one M5 MacBook Air running Starsector 0.98a-RC8 and
 the game's bundled x86-64 Java runtime through Rosetta. Hardware, mods, storage, cache warmth,
 memory pressure, translation, temperature, and other machine state affect the result. Preflight's
-benchmark lets each installation measure its own normal and accelerated launch. The development
-measurements and their context are collected in [Optimization history](docs/optimization-history.md)
-and [From three-minute preparation to fourteen-second launches](docs/evidence/2026-08-23-storage-to-fourteen-seconds.md).
+benchmark lets each installation measure its own normal and accelerated launch.
 
-The first public beta still needs its benchmark run against the exact accepted package bytes. That
-packaged result will sit beside the development record instead of silently replacing it.
+The first public beta still needs a benchmark run against the exact accepted package bytes. That run
+adds package provenance to the release record; the accumulated development launch history remains the
+development speed record.
 
 ## Disk and preparation
 
