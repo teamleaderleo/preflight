@@ -148,20 +148,24 @@ def update_claims(claims: dict, facts: dict) -> None:
             continue
         derivation = str(entry.get("derivation", ""))
         if "current development/public baseline" in derivation:
+            changed = str(entry.get("value")) != before or entry.get("evidence") != development["baselineEvidence"]
             entry["value"] = before
             entry["evidence"] = development["baselineEvidence"]
-            entry["derivation"] = (
-                "Recent ordinary startup observation selected by the maintainer as the current "
-                "development/public baseline under the same game-log startup clock."
-            )
+            if changed:
+                entry["derivation"] = (
+                    "Recent ordinary startup observation selected by the maintainer as the current "
+                    "development/public baseline under the same game-log startup clock."
+                )
         elif "current accelerated development endpoint" in derivation:
+            changed = str(entry.get("value")) != after or entry.get("evidence") != development["endpointEvidence"]
             entry["value"] = after
             entry["evidence"] = development["endpointEvidence"]
-            entry["derivation"] = (
-                "Retained current accelerated development endpoint under the same game-log startup "
-                "clock used by the development record. The historical same-profile A/B campaign "
-                "answers a separate comparison question."
-            )
+            if changed:
+                entry["derivation"] = (
+                    "Retained current accelerated development endpoint under the same game-log startup "
+                    "clock used by the development record. The historical same-profile A/B campaign "
+                    "answers a separate comparison question."
+                )
 
     # Keep the accepted accelerated development claim aligned with the selected endpoint when the
     # evidence path is the endpoint evidence named by the facts file.
