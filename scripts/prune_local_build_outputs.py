@@ -15,6 +15,7 @@ from pathlib import Path
 
 GENERATED_PATHS = (
     ".wrangler",
+    "preflight-cache",
     "target",
     "preflight-agent/target",
     "preflight-cli/target",
@@ -45,9 +46,17 @@ GENERATED_PATHS = (
 )
 
 GENERATED_GLOBS = (
+    "**/*.jfr",
     "preflight-desktop/src-tauri/icons/Square*Logo.png",
     "probe-kits/gpu-capability/gpu-capability-report-*.txt",
     "probe-kits/texture-pipeline/texture-pipeline-report-*.txt",
+)
+
+# These paths are ignored but contain retained measurement evidence rather than rebuildable binary
+# output. Operators decide when that evidence has been promoted or can be discarded; this script
+# must not infer that from file age, even when a broad generated-output glob also matches a child.
+RETAINED_IGNORED_PATHS = (
+    "benchmark-results",
 )
 
 # Dependency installs are large but useful in the worktree doing the current verification. Retire
@@ -133,6 +142,12 @@ def rebuildable_outputs(root: Path, current_root: Path) -> tuple[Path, ...]:
     }
     for pattern in GENERATED_GLOBS:
         candidates.update(root.glob(pattern))
+    retained = tuple(root / relative for relative in RETAINED_IGNORED_PATHS)
+    candidates = {
+        candidate
+        for candidate in candidates
+        if not any(boundary == candidate or boundary in candidate.parents for boundary in retained)
+    }
     candidates = sorted(
         candidates,
         key=lambda candidate: (len(candidate.parts), str(candidate)),

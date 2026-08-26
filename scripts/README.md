@@ -82,10 +82,12 @@ a disposable campaign before running it: Continue and movement can still trigger
 
 | | |
 |---|---|
-| `prune_local_build_outputs.py` | Preview rebuildable Maven, Rust, frontend, UI-matrix, package, probe-kit, Wrangler-state, generated native-metadata/icon, operator-script bytecode, and duplicate dependency outputs across this repository's registered worktrees. Each output has its own age, so a fresh small cache cannot keep an unrelated old binary tree past the 48-hour limit. Dependencies remain available in the current worktree; sibling dependency trees follow the same 8-hour floor and 48-hour hard limit as other outputs. Older outputs are removed unless `--keep-completed` explicitly reserves their clean worktree. Old generated output may be removed from dirty worktrees without touching source changes. After committing a verified wave, `--retire-current` can include that clean worktree's build outputs immediately. Pass `--apply` only after reviewing the plan. |
+| `prune_local_build_outputs.py` | Preview rebuildable Maven, Rust, frontend, UI-matrix, package, probe-kit, Wrangler-state, repository-local prepared-cache, JFR, generated native-metadata/icon, operator-script bytecode, and duplicate dependency outputs across this repository's registered worktrees. Each output has its own age, so a fresh small cache cannot keep an unrelated old binary tree past the 48-hour limit. Dependencies remain available in the current worktree; sibling dependency trees follow the same 8-hour floor and 48-hour hard limit as other outputs. Older outputs are removed unless `--keep-completed` explicitly reserves their clean worktree. Old generated output may be removed from dirty worktrees without touching source changes. After committing a verified wave, `--retire-current` can include that clean worktree's build outputs immediately. Pass `--apply` only after reviewing the plan. |
 
 Run this after an experiment or review wave finishes. Exact release evidence belongs in its reviewed
 artifact/evidence location; an old `target/` or `desktop-dist/` directory is not durable evidence.
+The ignored `benchmark-results/` subtree remains operator-owned evidence and is excluded even when
+it contains a JFR file that would otherwise match the generated-recording rule.
 `--retire-current` bypasses the age and newest-build-set floors only for the current worktree, and
 refuses to act there while Git reports source changes.
 

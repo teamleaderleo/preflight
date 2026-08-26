@@ -61,9 +61,9 @@ Start with [LLM_HANDOFF.md](LLM_HANDOFF.md) for current project state. These are
 Rust and Maven outputs multiply by gigabytes when every experiment keeps its own `target/` tree.
 Before handing off a completed local worktree wave, run `python3 scripts/prune_local_build_outputs.py`
 and review the plan; use `--apply` when it names only rebuildable outputs from completed worktrees.
-The command keeps the current worktree and output from the last 24 hours by default. It does not
+The command keeps the current worktree and output from the last 8 hours by default. It does not
 reserve an older completed build set unless `--keep-completed` explicitly requests one; requested
-slots still expire after 72 hours. After committing and verifying a wave, use `--retire-current` to
+slots still expire after 48 hours. After committing and verifying a wave, use `--retire-current` to
 include that clean current worktree instead of retaining its outputs until a later worktree pass. It
 can remove old generated output from a dirty non-current worktree, but never its source changes. Do
 not preserve exact release evidence by abandoning it under `target/` or `desktop-dist/`; move

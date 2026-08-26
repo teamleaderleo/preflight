@@ -12,6 +12,14 @@ import prune_local_build_outputs as prune
 
 
 class SelectionTest(unittest.TestCase):
+    def test_canonical_agent_guidance_matches_the_default_retention_window(self):
+        guidance = (Path(__file__).resolve().parents[1] / "CLAUDE.md").read_text(encoding="utf-8")
+
+        self.assertIn("output from the last 8 hours by default", guidance)
+        self.assertIn("slots still expire after 48 hours", guidance)
+        self.assertNotIn("output from the last 24 hours by default", guidance)
+        self.assertNotIn("slots still expire after 72 hours", guidance)
+
     def test_default_cli_retires_unreserved_outputs_after_eight_hours(self):
         with patch.object(sys, "argv", ["prune_local_build_outputs.py"]):
             args = prune.parse_args()
@@ -25,6 +33,30 @@ class SelectionTest(unittest.TestCase):
             "preflight-desktop/node_modules/.preflight-ui-layout",
             prune.GENERATED_PATHS,
         )
+
+    def test_repo_local_prepared_data_and_jfr_recordings_are_bounded(self):
+        self.assertIn("preflight-cache", prune.GENERATED_PATHS)
+        self.assertIn("**/*.jfr", prune.GENERATED_GLOBS)
+        self.assertIn("benchmark-results", prune.RETAINED_IGNORED_PATHS)
+
+    def test_jfr_recordings_are_selected_recursively_without_selecting_benchmark_evidence(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            cache = root / "preflight-cache"
+            cache.mkdir()
+            recording = root / "diagnostics" / "campaign.jfr"
+            recording.parent.mkdir()
+            recording.write_bytes(b"recording")
+            evidence = root / "benchmark-results" / "comparison.jfr"
+            evidence.parent.mkdir()
+            evidence.write_bytes(b"retained recording")
+
+            outputs = prune.rebuildable_outputs(root, root)
+
+            self.assertIn(cache, outputs)
+            self.assertIn(recording, outputs)
+            self.assertNotIn(evidence.parent, outputs)
+            self.assertNotIn(evidence, outputs)
 
     def test_python_operator_bytecode_is_generated_output(self):
         self.assertIn("scripts/__pycache__", prune.GENERATED_PATHS)
