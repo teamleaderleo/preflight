@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
@@ -27,6 +28,10 @@ PUBLIC_COPY = (
 )
 TECHNICAL_COPY = ("docs/optimization-history.md", "docs/technical-writeup-draft.md")
 SPEEDUP_COPY = PUBLIC_COPY[1:3] + PUBLIC_COPY[4:]
+HEADLINE_PATTERN = re.compile(
+    r"current readable development headline is \*\*(\d+(?:\.\d+)?)s → (\d+(?:\.\d+)?)s\*\*",
+    re.IGNORECASE,
+)
 
 
 def q2(value: Decimal) -> str:
@@ -51,35 +56,32 @@ def metrics(facts: dict) -> dict[str, str]:
     }
 
 
-def selected_claim_values(claims: dict) -> tuple[str, str]:
-    before = after = None
-    for entry in claims["publishedQuantities"]:
-        derivation = str(entry.get("derivation", ""))
-        if "current development/public baseline" in derivation:
-            before = str(entry["value"])
-        elif "current accelerated development endpoint" in derivation:
-            after = str(entry["value"])
-    if before is None or after is None:
-        raise ValueError("docs/claims.json has no selected startup baseline/endpoint")
-    return before, after
+def rendered_values() -> tuple[str, str]:
+    match = HEADLINE_PATTERN.search(HEADLINES.read_text(encoding="utf-8"))
+    if match is None:
+        raise ValueError("docs/claim-headlines.md has no generated current startup headline")
+    return match.group(1), match.group(2)
 
 
-def update_claims(claims: dict, facts: dict) -> None:
+def update_claims(claims: dict, facts: dict, old_before: str, old_after: str) -> None:
     current = facts["startup"]["development"]
     before = current["baselineSeconds"]
     after = current["endpointSeconds"]
     for entry in claims["publishedQuantities"]:
-        derivation = str(entry.get("derivation", ""))
-        if "current development/public baseline" in derivation:
+        if entry.get("type") != "seconds" or "docs/claim-headlines.md" not in entry.get("publishedIn", []):
+            continue
+        if str(entry.get("value")) == old_before:
             entry["value"] = before
             entry["evidence"] = current["baselineEvidence"]
-        elif "current accelerated development endpoint" in derivation:
+        elif str(entry.get("value")) == old_after:
             entry["value"] = after
             entry["evidence"] = current["endpointEvidence"]
     for claim in claims["claims"]:
-        evidence = claim.get("evidence", {})
-        if evidence.get("path") == current["endpointEvidence"]:
+        if "docs/claim-headlines.md" not in claim.get("publishedIn", []):
+            continue
+        if str(claim.get("result", {}).get("seconds")) == old_after:
             claim["result"]["seconds"] = float(after)
+            claim["evidence"]["path"] = current["endpointEvidence"]
 
 
 def rewrite_public(text: str, old_before: str, old_after: str, facts: dict) -> str:
@@ -138,7 +140,7 @@ The current readable development headline is **{before}s → {after}s**. The {hi
 
 def expected_files(facts: dict) -> dict[Path, str]:
     claims = json.loads(CLAIMS.read_text(encoding="utf-8"))
-    old_before, old_after = selected_claim_values(claims)
+    old_before, old_after = rendered_values()
     expected: dict[Path, str] = {}
     for relative in PUBLIC_COPY:
         path = ROOT / relative
@@ -146,7 +148,7 @@ def expected_files(facts: dict) -> dict[Path, str]:
     for relative in TECHNICAL_COPY:
         path = ROOT / relative
         expected[path] = rewrite_technical(path.read_text(encoding="utf-8"), old_before, old_after, facts)
-    update_claims(claims, facts)
+    update_claims(claims, facts, old_before, old_after)
     expected[CLAIMS] = json.dumps(claims, indent=2, ensure_ascii=False) + "\n"
     expected[HEADLINES] = render_headlines(facts)
     return expected
