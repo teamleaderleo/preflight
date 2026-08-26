@@ -42,10 +42,13 @@ final class MacDesktopSmokeDriverTest {
         for (String script : scripts) {
             assertTrue(script.contains("application process whose unix id is " + pid), script);
             assertTrue(script.contains("tell application \"System Events\""), script);
+            assertFalse(script.contains("set focused to "), script);
             assertFalse(script.toLowerCase(Locale.ROOT).contains("starsector"), script);
             assertFalse(script.contains("open -a"), script);
             assertFalse(script.contains("tell application \"Starsector\""), script);
         }
+        assertTrue(MacDesktopSmokeDriver.observationScript(pid)
+                .contains("set isFrontmost to frontmost of targetProcess"));
     }
 
     @Test

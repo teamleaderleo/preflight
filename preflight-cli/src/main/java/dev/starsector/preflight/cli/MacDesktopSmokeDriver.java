@@ -499,10 +499,10 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
                 + "set win to window 1 of targetProcess\n"
                 + "set winPosition to position of win\n"
                 + "set winSize to size of win\n"
-                + "set focused to frontmost of targetProcess\n"
+                + "set isFrontmost to frontmost of targetProcess\n"
                 + "return \"PID " + pid + " window \" & (item 1 of winPosition as text) & \",\""
                 + " & (item 2 of winPosition as text) & \",\" & (item 1 of winSize as text)"
-                + " & \",\" & (item 2 of winSize as text) & \" frontmost=\" & (focused as text)\n"
+                + " & \",\" & (item 2 of winSize as text) & \" frontmost=\" & (isFrontmost as text)\n"
                 + "end tell";
     }
 
