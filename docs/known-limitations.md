@@ -1,63 +1,77 @@
 # Known limitations
 
-Preflight is in operational release-candidate execution. Source and rendered-UI convergence are
-complete, and the private signing rehearsals are done. The remaining beta work is selecting one
-release source, producing its immutable tagged package generation, exercising that exact package on
-native Windows and x86-64 Linux, and collecting the package-bound benchmark/lifecycle/report evidence
-tracked in [#652](https://github.com/teamleaderleo/preflight/issues/652) and mirrored in [Release
-readiness](release-readiness.md). Broader engineering stays parked unless a concrete candidate
-failure or explicit maintainer decision promotes it.
+## TL;DR
 
-The first beta's macOS and Windows packages will lack paid platform identities. macOS will require
-the user's explicit **Open Anyway** approval, and Windows may show SmartScreen's unrecognized-app
-warning or refuse execution under stricter managed policy. Each release will publish SHA-256
-manifests and use a separate project-key signature for in-app updates.
+The important ones:
 
-The current performance evidence comes from Starsector 0.98a-RC8 with a large mod profile on an
-Apple-silicon Mac running the game's x86-64 JVM through Rosetta. Native packages build on macOS,
-Windows, and Linux. Real Windows and Linux game installations haven't completed the same startup,
-campaign, combat, save, reload, and exit scenarios, so equal activation and speed aren't claimed
-there yet. The first public beta GitHub release and downloadable packages do not go live until the
-retained candidate completes the required native Windows and native x86-64 Linux real-game exercises.
+- **The public beta isn't released yet.** Preflight is still finishing exact package/native acceptance.
+- **The first macOS/Windows packages won't have paid platform identities.** Expect Gatekeeper/SmartScreen friction.
+- **The strongest real-game performance evidence is from the documented Apple-silicon development setup.** Don't assume another machine gets the same number.
+- **Runtime shortcuts only apply to code Preflight recognizes.** A game/mod update can temporarily mean fewer optimizations.
+- **Preparation uses disk space.** Preflight calculates the plan first and keeps a reserve.
+- **Support uploads are explicit.** Ordinary launches aren't usage telemetry.
 
-Runtime optimizations are admitted only for game/mod code Preflight recognizes. A changed or
-unknown target declines that optimization and uses the original code instead. That keeps updates
-runnable; it can also mean a newly updated installation receives fewer speedups until its new code is
-reviewed. Preflight can't guarantee that the original game or a mod is free of its own defects.
+That's the practical list. The rest of this page gives the important qualifiers.
 
-The 15.25-second launch is the fastest run from the current development comparison, not an expected
-result for every system. Mod count and content, cache warmth, CPU, translation, storage, memory
-pressure, and temperature all affect startup and frame time. The built-in benchmark lets each
-installation record its own normal and accelerated launch. The accepted package will get its own
-retained benchmark result before the first public beta release goes live.
+## Release status
 
-Preparation uses additional disk space. Balanced stores lossless LZ4 data and keeps raw data when
-compression barely helps; Fastest keeps every upload-ready pixel array raw and can use several
-gigabytes more for a small warm-launch difference. The desktop estimates the selected profile's
-temporary build and finished retained sizes before writing, keeps a free-space reserve, and leaves
-raw codec ceilings internal. Cleanup remains preview-first.
+Preflight is in release-candidate work. Source/UI convergence and private signing rehearsals are complete; public packages wait on the exact retained candidate's remaining native/package evidence and release authorization.
 
-Preflight builds and passes its full test suite on JDK 17, 21, and 26, and everything ships as Java
-17 bytecode, so any runtime from 17 up loads it. Paths and profile names containing characters a
-system cannot represent are carried into the engine as ASCII, and a Linux session running the
-`C`/`POSIX` locale gets a UTF-8 one for the engine. The agent's own jar path is the one thing the JVM
-reads for itself and cannot be encoded, so it is staged at a representable path when the system's
-encoding would lose it. `prepare audio` spawns a child JVM the same way, and it now carries the
-installation's jars as encoded arguments instead of on a class path the launcher would convert. The
-audio verification commands still take the older route; they are maintainer tools rather than
-anything a player runs. Code pages cover their own language, so all of this affects mixed scripts
-rather than ordinary localized names.
+For the moving checklist, use [Release readiness](release-readiness.md) or [#652](https://github.com/teamleaderleo/preflight/issues/652). This page doesn't duplicate the whole release program.
 
-Adapters reproduce the game's own locale sensitivity rather than correcting it. Starsector's
-case-insensitive campaign entity fallback folds ids with the player's locale, so under Turkish and
-Azeri it already fails to match ids containing an `I`; the index in front of it answers the same way
-instead of resolving what the game would decline. The detail for both is in
-[Java runtime support](java-runtime-support.md).
+## Platform signing
 
-There are no accounts or usage telemetry. A configured build can send a support ZIP after the user
-reviews and confirms it. The first beta does not send failed-run reports automatically. Ordinary
-builds can save that ZIP locally.
+The first beta's macOS and Windows packages won't carry paid Apple Developer ID / Windows Authenticode identities.
 
-There is no remote runtime kill switch. If a reviewed adapter is implicated, select **Off /
-troubleshooting** and follow the [rollback and incident path](rollback.md). An updated package is
-required to change the accepted fingerprint or default plan.
+That means:
+
+- macOS can require **Open Anyway** approval;
+- Windows can show SmartScreen's unrecognized-app warning, and stricter managed policies can refuse the app.
+
+Release artifacts can still publish SHA-256 manifests, and the in-app updater uses its separate project-owned update signature.
+
+## Performance varies by installation
+
+The current development headline is **112.17s → 13.69s** on the documented 83-mod M5 MacBook Air setup running Starsector 0.98a-RC8 through the game's x86-64 JVM under Rosetta.
+
+Mod contents, CPU, storage, memory pressure, translation, temperature, and other machine state affect startup/runtime behavior. The built-in benchmark exists so each installation can measure its own normal and accelerated launch.
+
+The exact public package will get package-bound evidence before release. Equal real-game activation and speed across every platform aren't claimed from the development Mac result.
+
+## A game or mod update can reduce acceleration
+
+Runtime optimizations are admitted for exact code/identities Preflight recognizes.
+
+If a target changes, that optimization declines and the original code remains available. The game can therefore stay runnable while a newly changed target receives fewer shortcuts until its new code is reviewed.
+
+Preflight also can't guarantee that Starsector or a third-party mod is free of its own defects.
+
+## Preparation uses extra storage
+
+Prepared data trades storage and one-time/repeated preparation work for cheaper launches.
+
+The desktop calculates the current profile's temporary and finished requirements before writing and keeps a free-space reserve. Cleanup is preview-first.
+
+See [Performance and storage tradeoffs](performance-storage-tradeoffs.md) for the current modes and measurements.
+
+## Java, paths, and locale edge cases
+
+The shipped Java code targets Java 17 bytecode, while the project also exercises newer supported JDKs during development.
+
+There are extra compatibility paths for filenames/profile names that the selected process encoding can't represent, and Starsector itself has locale-sensitive behavior in a few case-insensitive lookups. Preflight aims to preserve the game's behavior at those boundaries rather than silently invent different semantics.
+
+If you're investigating one of those edge cases, read [Java runtime support](java-runtime-support.md). Most users don't need that implementation detail.
+
+## Diagnostics aren't ambient telemetry
+
+Preflight has no user account or ordinary usage-telemetry system.
+
+A configured release can send a bounded support ZIP after the user reviews and confirms it. Ordinary builds can save that ZIP locally. The first beta doesn't automatically send failed-run reports.
+
+See [Diagnostics](diagnostics.md) and [Privacy](privacy.md) for the exact boundary.
+
+## No remote runtime kill switch
+
+There isn't a server-side switch that can silently change runtime behavior after installation.
+
+If a reviewed adapter is implicated in a problem, use **Off / troubleshooting** and follow the [rollback path](rollback.md). Changing accepted fingerprints/default plans requires an updated Preflight package.
