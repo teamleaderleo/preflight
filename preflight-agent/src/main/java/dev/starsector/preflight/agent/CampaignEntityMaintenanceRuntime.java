@@ -1,11 +1,13 @@
 package dev.starsector.preflight.agent;
 
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.RandomAccess;
 
 /** State and lightweight counters for exact vanilla campaign maintenance shortcuts. */
 public final class CampaignEntityMaintenanceRuntime {
@@ -21,6 +23,9 @@ public final class CampaignEntityMaintenanceRuntime {
     static final int ACTIVE_ENGAGEMENT_ENTITIES = 7;
 
     private static final Object[] EMPTY_SNAPSHOT = new Object[0];
+    private static final int MAX_SNAPSHOT_OWNERS = 512;
+    private static final IdentityHashMap<List<?>, Object[]> STABLE_SNAPSHOTS =
+            new IdentityHashMap<>();
 
     private static volatile boolean enabled;
     private static volatile boolean entityScriptsInstalled;
@@ -55,6 +60,11 @@ public final class CampaignEntityMaintenanceRuntime {
     private static long nonEmptyActiveLocationTokens;
     private static long emptyActiveEngagementEntities;
     private static long nonEmptyActiveEngagementEntities;
+    private static long stableSnapshotHits;
+    private static long stableSnapshotRebuilds;
+    private static long stableSnapshotComparedElements;
+    private static long stableSnapshotEvictions;
+    private static long stableSnapshotFailures;
 
     private CampaignEntityMaintenanceRuntime() {
     }
@@ -93,6 +103,14 @@ public final class CampaignEntityMaintenanceRuntime {
         nonEmptyActiveLocationTokens = 0L;
         emptyActiveEngagementEntities = 0L;
         nonEmptyActiveEngagementEntities = 0L;
+        synchronized (STABLE_SNAPSHOTS) {
+            STABLE_SNAPSHOTS.clear();
+        }
+        stableSnapshotHits = 0L;
+        stableSnapshotRebuilds = 0L;
+        stableSnapshotComparedElements = 0L;
+        stableSnapshotEvictions = 0L;
+        stableSnapshotFailures = 0L;
     }
 
     static boolean enabled() {
@@ -166,7 +184,7 @@ public final class CampaignEntityMaintenanceRuntime {
         if (kind == MARKET_CONDITIONS) nonEmptyMarketConditions++;
         if (kind == MARKET_INDUSTRIES) nonEmptyMarketIndustries++;
         if (kind == PAUSED_MARKET_CONDITIONS) nonEmptyPausedMarketConditions++;
-        return new SnapshotIterator(values.toArray());
+        return new SnapshotIterator(stableSnapshot(values));
     }
 
     public static boolean memoryExpirationsPresent(List<?> values) {
@@ -212,7 +230,7 @@ public final class CampaignEntityMaintenanceRuntime {
         if (kind == ACTIVE_LOCATION_ENTITIES) nonEmptyActiveLocationEntities++;
         if (kind == ACTIVE_LOCATION_TOKENS) nonEmptyActiveLocationTokens++;
         if (kind == ACTIVE_ENGAGEMENT_ENTITIES) nonEmptyActiveEngagementEntities++;
-        return values.toArray();
+        return stableSnapshot(values);
     }
 
     /** Creates a fresh traversal cursor for each vanilla pass over the same stable snapshot. */
@@ -256,7 +274,50 @@ public final class CampaignEntityMaintenanceRuntime {
         result.put("nonEmptyActiveLocationTokens", nonEmptyActiveLocationTokens);
         result.put("emptyActiveEngagementEntities", emptyActiveEngagementEntities);
         result.put("nonEmptyActiveEngagementEntities", nonEmptyActiveEngagementEntities);
+        result.put("stableSnapshotHits", stableSnapshotHits);
+        result.put("stableSnapshotRebuilds", stableSnapshotRebuilds);
+        result.put("stableSnapshotComparedElements", stableSnapshotComparedElements);
+        synchronized (STABLE_SNAPSHOTS) {
+            result.put("stableSnapshotOwners", STABLE_SNAPSHOTS.size());
+        }
+        result.put("stableSnapshotEvictions", stableSnapshotEvictions);
+        result.put("stableSnapshotFailures", stableSnapshotFailures);
         return result;
+    }
+
+    private static Object[] stableSnapshot(List<?> values) {
+        synchronized (STABLE_SNAPSHOTS) {
+            try {
+                Object[] current = STABLE_SNAPSHOTS.get(values);
+                if (current != null && matches(values, current)) {
+                    stableSnapshotHits++;
+                    stableSnapshotComparedElements += current.length;
+                    return current;
+                }
+                Object[] replacement = values.toArray();
+                if (current == null && STABLE_SNAPSHOTS.size() >= MAX_SNAPSHOT_OWNERS) {
+                    STABLE_SNAPSHOTS.clear();
+                    stableSnapshotEvictions++;
+                }
+                STABLE_SNAPSHOTS.put(values, replacement);
+                stableSnapshotRebuilds++;
+                return replacement;
+            } catch (ThreadDeath | VirtualMachineError fatal) {
+                throw fatal;
+            } catch (Throwable failure) {
+                stableSnapshotFailures++;
+                // A stable cache is optional. Preserve the original per-call snapshot on doubt.
+                return values.toArray();
+            }
+        }
+    }
+
+    private static boolean matches(List<?> values, Object[] snapshot) {
+        if (!(values instanceof RandomAccess) || values.size() != snapshot.length) return false;
+        for (int index = 0; index < snapshot.length; index++) {
+            if (values.get(index) != snapshot[index]) return false;
+        }
+        return true;
     }
 
     private static final class SnapshotIterator implements Iterator<Object> {

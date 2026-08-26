@@ -49,6 +49,9 @@ final class AdapterInstallationEffects {
         if (DeploymentIconCacheRuntime.PLAN_ID.equals(target.planId())) {
             DeploymentIconCacheRuntime.installed();
         }
+        if (FontWrapAllocationRuntime.PLAN_ID.equals(target.planId())) {
+            FontWrapAllocationRuntime.installed();
+        }
         if (GraphicsLibHotSettingsRuntime.PLAN_ID.equals(target.planId())) {
             GraphicsLibHotSettingsRuntime.installed();
         }

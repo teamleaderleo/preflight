@@ -65,6 +65,7 @@ final class AdapterRuntime {
         EntityLookupRuntime.beginSession();
         RadarRenderRuntime.beginSession();
         ContrailRenderScratchRuntime.beginSession();
+        FontWrapAllocationRuntime.beginSession();
         DeploymentIconCacheRuntime.beginSession();
         CommodityEventModMemoRuntime.beginSession();
         CampaignEntityMaintenanceRuntime.beginSession();

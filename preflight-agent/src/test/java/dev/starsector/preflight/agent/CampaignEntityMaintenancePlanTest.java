@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
@@ -145,6 +146,43 @@ class CampaignEntityMaintenancePlanTest {
     }
 
     @Test
+    void unchangedMarketListsReuseStableArraysAndMutationsPreserveOuterIterators() {
+        Object firstValue = new Object();
+        Object replacementValue = new Object();
+        List<Object> source = new ArrayList<>(List.of(firstValue));
+
+        Iterator<?> first = CampaignEntityMaintenanceRuntime.marketSnapshotIterator(
+                source, CampaignEntityMaintenanceRuntime.PAUSED_MARKET_CONDITIONS);
+        Iterator<?> hit = CampaignEntityMaintenanceRuntime.marketSnapshotIterator(
+                source, CampaignEntityMaintenanceRuntime.PAUSED_MARKET_CONDITIONS);
+        source.set(0, replacementValue);
+        Iterator<?> rebuilt = CampaignEntityMaintenanceRuntime.marketSnapshotIterator(
+                source, CampaignEntityMaintenanceRuntime.PAUSED_MARKET_CONDITIONS);
+
+        assertEquals(firstValue, first.next());
+        assertEquals(firstValue, hit.next());
+        assertEquals(replacementValue, rebuilt.next());
+        assertEquals(1L, CampaignEntityMaintenanceRuntime.telemetry()
+                .get("stableSnapshotHits"));
+        assertEquals(2L, CampaignEntityMaintenanceRuntime.telemetry()
+                .get("stableSnapshotRebuilds"));
+    }
+
+    @Test
+    void stableSnapshotOwnersRemainBoundedAcrossCampaignChurn() {
+        for (int index = 0; index < 513; index++) {
+            CampaignEntityMaintenanceRuntime.marketSnapshotIterator(
+                    new ArrayList<>(List.of(new Object())),
+                    CampaignEntityMaintenanceRuntime.PAUSED_MARKET_CONDITIONS);
+        }
+
+        assertEquals(1, CampaignEntityMaintenanceRuntime.telemetry()
+                .get("stableSnapshotOwners"));
+        assertEquals(1L, CampaignEntityMaintenanceRuntime.telemetry()
+                .get("stableSnapshotEvictions"));
+    }
+
+    @Test
     void pausedEconomyConditionsUseCompactStableSnapshots() throws Exception {
         byte[] original = economyFixture();
         byte[] transformed = CampaignEntityMaintenancePlan.transform(
@@ -183,6 +221,9 @@ class CampaignEntityMaintenancePlanTest {
         List<String> source = new ArrayList<>(List.of("first"));
         Object[] snapshot = CampaignEntityMaintenanceRuntime.locationSnapshot(
                 source, CampaignEntityMaintenanceRuntime.PAUSED_LOCATION_ENTITIES);
+        Object[] snapshotHit = CampaignEntityMaintenanceRuntime.locationSnapshot(
+                source, CampaignEntityMaintenanceRuntime.PAUSED_LOCATION_ENTITIES);
+        assertSame(snapshot, snapshotHit);
         source.add("second");
         Iterator<?> firstPass = CampaignEntityMaintenanceRuntime.locationSnapshotIterator(snapshot);
         Iterator<?> secondPass = CampaignEntityMaintenanceRuntime.locationSnapshotIterator(snapshot);
@@ -197,7 +238,7 @@ class CampaignEntityMaintenancePlanTest {
         Map<String, Object> telemetry = CampaignEntityMaintenanceRuntime.telemetry();
         assertEquals(true, telemetry.get("pausedLocationSnapshotsInstalled"));
         assertEquals(true, telemetry.get("activeLocationSnapshotsInstalled"));
-        assertEquals(1L, telemetry.get("nonEmptyPausedLocationEntities"));
+        assertEquals(2L, telemetry.get("nonEmptyPausedLocationEntities"));
         assertEquals(1L, telemetry.get("emptyPausedLocationScripts"));
     }
 

@@ -383,6 +383,8 @@ final class AdapterReport {
                 .append(Json.value(LunaCampaignRendererSnapshotRuntime.telemetry())).append(',');
         key(output, "contrailRenderScratch")
                 .append(Json.value(ContrailRenderScratchRuntime.telemetry())).append(',');
+        key(output, "fontWrapAllocation")
+                .append(Json.value(FontWrapAllocationRuntime.telemetry())).append(',');
         key(output, "stelnetMarketUpdater")
                 .append(Json.value(StelnetMarketUpdaterRuntime.telemetry())).append(',');
         key(output, "logisticsNotificationsFuel")

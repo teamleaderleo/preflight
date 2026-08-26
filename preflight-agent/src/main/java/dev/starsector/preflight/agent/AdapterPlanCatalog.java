@@ -29,6 +29,7 @@ final class AdapterPlanCatalog {
             DeploymentIconCacheRuntime.PLAN_ID,
             EntityLookupRuntime.PLAN_ID,
             FleetAiProfilerRuntime.PLAN_ID,
+            FontWrapAllocationRuntime.PLAN_ID,
             FrameTimeRuntime.PLAN_ID,
             FrameTimeStartupCompletionPlan.PLAN_ID,
             FrameTimeStatePlan.PLAN_ID,

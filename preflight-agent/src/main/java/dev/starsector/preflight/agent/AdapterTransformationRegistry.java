@@ -296,6 +296,9 @@ final class AdapterTransformationRegistry {
         if (ContrailRenderScratchRuntime.PLAN_ID.equals(target.planId())) {
             return ContrailRenderScratchPlan.transform(signature, originalBytes);
         }
+        if (FontWrapAllocationRuntime.PLAN_ID.equals(target.planId())) {
+            return FontWrapAllocationPlan.transform(signature, originalBytes);
+        }
         if (LunaCampaignRendererSnapshotRuntime.PLAN_ID.equals(target.planId())) {
             return LunaCampaignRendererSnapshotPlan.transform(signature, originalBytes);
         }
@@ -881,6 +884,9 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (ContrailRenderScratchRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (FontWrapAllocationRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
         if (VersionCheckResponseDedupRuntime.PLAN_ID.equals(planId)) {

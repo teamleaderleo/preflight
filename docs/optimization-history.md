@@ -305,6 +305,14 @@ with its public API unchanged and its owner cache bounded. These are implementat
 a Preflight-only live A/B, not yet FPS claims; see
 [the paused render/allocation profile](evidence/2026-08-26-paused-campaign-render-allocation-profile.md).
 
+A follow-up attached trace found that the earlier campaign-maintenance adapter still copied
+unchanged market lists into arrays on paused passes. The retained boundary now identity-checks and
+reuses bounded stable arrays, rebuilding on mutation so nested callbacks keep their original
+snapshot. The same trace sampled vanilla font wrapping 19 times and exposed 21 builder sites in one
+method: 18 for fixed punctuation tables and three one-character `contains` conversions inside
+loops. Exact literal and `indexOf(char)` rewrites remove those allocations without adding object or
+save state. Both remain live-A/B candidates rather than FPS claims.
+
 Several investigations ended in correctness fixes. Stale mod simulation
 opponents reached vanilla as invalid fleet members, a full-retreat race could end in an incompatible
 combat cast, startup became fast enough to expose notification and fuel calculations running before

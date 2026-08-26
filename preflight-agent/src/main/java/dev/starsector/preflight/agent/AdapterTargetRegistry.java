@@ -549,6 +549,22 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Starsector's exact font wrapper builds fixed tables and one-character strings per call. */
+    static AdapterTarget fontWrapAllocationTarget() {
+        return new AdapterTarget(
+                "vanilla-font-wrap-character-allocation-0.98a-rc8",
+                FontWrapAllocationPlan.TARGET_CLASS,
+                FontWrapAllocationPlan.ORIGINAL_SHA256,
+                FontWrapAllocationRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        FontWrapAllocationPlan.METHOD, FontWrapAllocationPlan.DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/fs.common_obf.jar",
+                "10d89e113f6d1627cc7bc90b692e8a7f450fdd820c5a4ac5edaecd6710afe708",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** Nexerelin 0.12.2b's older version-checker fork over the same mod URL set. */
     static AdapterTarget nexVersionCheckResponseDedupTarget() {
         return new AdapterTarget(
@@ -1943,6 +1959,7 @@ final class AdapterTargetRegistry {
                 .withTarget(magicLibPaintjobNotificationTarget())
                 .withTarget(graphicsLibHotSettingsTarget())
                 .withTarget(contrailRenderScratchTarget())
+                .withTarget(fontWrapAllocationTarget())
                 .withTarget(lunaCampaignRendererSnapshotScriptTarget())
                 .withTarget(lunaCampaignRendererSnapshotEntityTarget())
                 .withTarget(lunaVersionCheckResponseDedupTarget())

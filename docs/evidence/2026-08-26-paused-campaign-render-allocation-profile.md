@@ -35,6 +35,18 @@ JFR represented allocation weight is sampling weight, not literal bytes allocate
 stack. In particular, a very large first sample at recording start was an accumulated sampling
 reservoir and is excluded from the hotspot comparison.
 
+A follow-up 20-second wall recording reproduced the contrail site with 12 samples and 14,271,304
+bytes of represented weight. More importantly, it made two remaining repeat seams exact:
+
+- `Economy.advanceMarketConditionsWhenPaused` repeatedly reached Preflight's existing
+  `marketSnapshotIterator`; its `ArrayList.toArray()` path appeared throughout the recording, and
+  the iterator object itself appeared in seven samples. The older adapter had removed a redundant
+  `ArrayList` wrapper but still copied the backing list on every pass.
+- Nineteen main-thread allocation samples contained vanilla font wrapper
+  `com/fs/graphics/A/C.return(FF)V`. Its exact bytecode contains 21 `StringBuilder` allocation
+  sites: 18 rebuild three fixed punctuation strings on every call, while three more convert one
+  character to a string inside wrapping loops solely to call `String.contains`.
+
 ## Candidate boundaries
 
 ### Vanilla contrail scratch
@@ -67,13 +79,38 @@ Source list identity, size, order, and element identity are rechecked before eve
 builds a new stable snapshot so an outer iterator can finish safely. The owner cache is capped at
 eight entries to prevent campaign churn from retaining an unbounded history.
 
+### Stable paused-market and location snapshots
+
+The existing campaign-maintenance runtime now caches the `Object[]` produced for exact market and
+location call sites. A hit requires the same list object, size, order, and element identities.
+Mutation builds a new array while any outer or nested iterator retains its previous stable array.
+Non-random-access lists decline hits to avoid turning comparison into quadratic traversal, cache
+failures fall back to the original `toArray()`, and the identity cache clears at 512 owners rather
+than retaining an unbounded history across campaign churn. The state is agent-static and never
+enters a save.
+
+### Vanilla font wrapping
+
+The exact font class is pinned to SHA-256
+`01638a6e83c4a66eec57db511a903e2a361bb3f3e9b3679224b50b6d500903ea` in the reviewed
+`fs.common_obf.jar`. The transform collapses the 18-builder fixed punctuation setup into the same
+three string literals. It replaces the three exact
+`table.contains(new StringBuilder().append(character).toString())` branches with
+`table.indexOf(character) >= 0`. For a UTF-16 `char`, these tests are equivalent, including index
+zero; only the temporary builder and string disappear. It adds no field or object state and declines
+on any class, method, constructor-chain, literal order, branch shape, loader, or archive drift.
+
 ## Verification and remaining claim boundary
 
 Focused tests transform the exact installed game and LunaLib classes, run ASM data-flow analysis on
 every resulting method, prove the contrail render loop has zero remaining `Vector2f` constructions,
 prove the eight new fields are private/synthetic/transient, and preserve the reviewed vector and
 intersection call counts. Runtime tests cover Luna list replacement, resizing, caller mutation,
-owner identity, and the owner bound.
+owner identity, and the owner bound. Additional installed-bytecode tests prove the font wrapper has
+zero remaining `StringBuilder` constructions in the method, retains the exact combined literals,
+uses three `indexOf(int)` calls, adds no fields, and passes ASM data-flow verification. Campaign
+snapshot tests cover unchanged hits, mutation rebuilds, stable outer iterators, independent passes,
+and the exact installed economy/location transforms.
 
 This is not yet an FPS claim. The current game process predates these bytecode changes and remains
 alive for profiling, so a full repository verification and Preflight-only disabled/enabled campaign
