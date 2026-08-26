@@ -152,9 +152,9 @@ need to be decoded again.
 
 | Claim | Source |
 | --- | --- |
-| 112.17s recent ordinary development baseline | [Recent ordinary startup observation](evidence/2026-08-26-recent-ordinary-startup-observation.md), [claims.json](claims.json) |
-| 101s historical high and earlier startup chronology | [Scorecard](evidence/2026-08-02-accumulated-startup-scorecard.md), [claims.json](claims.json) |
-| 13.69s retained current development endpoint | [Storage/startup record](evidence/2026-08-23-storage-to-fourteen-seconds.md), [claims.json](claims.json) |
+| 112.17s recent ordinary development baseline | [Recent ordinary startup observation](evidence/2026-08-26-recent-ordinary-startup-observation.md), [project facts](project-facts.json) |
+| 101s historical high and earlier startup chronology | [Scorecard](evidence/2026-08-02-accumulated-startup-scorecard.md) |
+| 13.69s retained current development endpoint | [Storage/startup record](evidence/2026-08-23-storage-to-fourteen-seconds.md), [project facts](project-facts.json) |
 | 88.13s was measured on 77 mods; 15.88s on 83 | [29% campaign](evidence/2026-08-01-twenty-nine-percent-when-they-compose.md), [lazy fleet members](evidence/2026-08-06-codex-lazy-fleet-members.md) |
 | 89.00s vanilla and 15.53s `fast`, same 83-mod profile, one interleaved A/B session | [Historical A/B campaign](evidence/2026-08-15-controlled-vanilla-fast-campaign.md) |
 | 4.8–5.9s pre-resource gap was a clock-origin artifact | [Save-descriptor memo](evidence/2026-08-06-main-menu-save-descriptor-memo.md) |
