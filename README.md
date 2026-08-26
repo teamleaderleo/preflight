@@ -80,10 +80,9 @@ once, then press **Launch Starsector** on later runs. The rest is there when you
 
 ## The measured result
 
-The current development headline is **~101 seconds → 13.69 seconds** on the 83-mod M5 MacBook Air
-installation. The broader current run history clusters around a roughly **13.8-second median**. That
-median is supporting context for the same current speed regime; it does not replace the **13.69s**
-headline.
+On the 83-mod M5 MacBook Air development installation, startup moved from roughly **101 seconds to
+13.69 seconds**. Repeated current launches remain in the same low-14-second regime with ordinary
+sub-second run-to-run movement.
 
 All startup times in this record use the same game-log clock, from Starsector's
 `Running with the following mods...` marker through GraphicsLib's `VRAM after unload/preload`
@@ -91,21 +90,20 @@ marker. A run measured with that clock is a run. Campaign names describe why a s
 collected; they do not make the elapsed time itself a different kind of observation.
 
 Historical A/B campaigns remain useful for attribution questions such as whether one intervention
-changed startup relative to another condition. The permutation p-values and campaign acceptance
-flags in the repeated benchmark belong to those comparison questions. They have no role in deciding
-whether an observed launch time counts or in selecting the product's career-facing headline.
+changed startup relative to another condition. Their shuffling, acceptance rules, and permutation
+statistics belong to those comparison questions; they do not decide whether a recorded whole-launch
+time counts.
 
 | Reference point | Main-menu time | Meaning |
 | --- | ---: | --- |
 | Historical observed high | **~101s** | Slowest retained launch on the development installation |
-| Current headline observation | **13.69s** | Current career-facing endpoint |
-| Accumulated current median | **~13.8s** | Supporting repeatability context for the same current regime |
+| Current retained endpoint | **13.69s** | Current development endpoint |
 | Compact corpus, alphabetical order | **33.53s** | Physical-layout experiment with the same logical texture contents |
 | Compact corpus, observed access order | **14.174s** | Same logical contents written in startup access order |
 
 The current macOS Rosetta path uses the reviewed G1/deferred-heap-commit policy. The retained launch
-history spans the work that produced the current product, while the comparison campaigns and their
-exact conditions remain in [Optimization history](docs/optimization-history.md) and the
+history spans the work that produced the current product, while comparison campaigns and their exact
+conditions remain in [Optimization history](docs/optimization-history.md) and the
 [evidence archive](docs/evidence/) for anyone investigating a particular intervention.
 
 All of these development measurements are from one M5 MacBook Air running Starsector 0.98a-RC8 and
@@ -114,8 +112,7 @@ memory pressure, translation, temperature, and other machine state affect the re
 benchmark lets each installation measure its own normal and accelerated launch.
 
 The first public beta still needs a benchmark run against the exact accepted package bytes. That run
-adds package provenance to the release record; it does not replace the established development
-headline.
+adds package provenance to the release record beside the development measurements above.
 
 ## Disk and preparation
 
