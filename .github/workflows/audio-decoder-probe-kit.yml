@@ -1,68 +1,21 @@
 name: Unified startup contract probe kit
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - '.github/workflows/audio-decoder-probe-kit.yml'
-      - 'probe-kits/audio-decoder/**'
-      - 'preflight-agent/src/main/java/dev/starsector/preflight/agent/AdapterProbeTransformer.java'
-      - 'preflight-agent/src/main/java/dev/starsector/preflight/agent/AdapterRuntime.java'
-      - 'preflight-agent/src/main/java/dev/starsector/preflight/agent/BytecodeShapeReport.java'
-      - 'preflight-agent/src/main/java/dev/starsector/preflight/agent/AudioDecoderSignatureReport.java'
-      - 'preflight-agent/src/main/java/dev/starsector/preflight/agent/SoundLoaderContractReport.java'
-      - 'preflight-agent/src/main/java/dev/starsector/preflight/agent/CodeLoaderSignatureReport.java'
-      - 'preflight-agent/src/test/java/dev/starsector/preflight/agent/BytecodeShapeReportTest.java'
-      - 'preflight-agent/src/test/java/dev/starsector/preflight/agent/AudioDecoderSignatureReportTest.java'
-      - 'preflight-agent/src/test/java/dev/starsector/preflight/agent/SoundLoaderContractReportTest.java'
-      - 'preflight-agent/src/test/java/dev/starsector/preflight/agent/CodeLoaderSignatureReportTest.java'
-      - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/AgentInjection.java'
-      - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/CommandLine.java'
-      - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/AgentInjectionTest.java'
-      - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/CommandLineAdapterTest.java'
-      - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/AdapterAgentIT.java'
-      - 'preflight-agent/pom.xml'
-      - 'preflight-cli/pom.xml'
-      - 'pom.xml'
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/audio-decoder-probe-kit.yml'
-      - 'probe-kits/audio-decoder/**'
-      - 'preflight-agent/src/main/java/dev/starsector/preflight/agent/AdapterProbeTransformer.java'
-      - 'preflight-agent/src/main/java/dev/starsector/preflight/agent/AdapterRuntime.java'
-      - 'preflight-agent/src/main/java/dev/starsector/preflight/agent/BytecodeShapeReport.java'
-      - 'preflight-agent/src/main/java/dev/starsector/preflight/agent/AudioDecoderSignatureReport.java'
-      - 'preflight-agent/src/main/java/dev/starsector/preflight/agent/SoundLoaderContractReport.java'
-      - 'preflight-agent/src/main/java/dev/starsector/preflight/agent/CodeLoaderSignatureReport.java'
-      - 'preflight-agent/src/test/java/dev/starsector/preflight/agent/BytecodeShapeReportTest.java'
-      - 'preflight-agent/src/test/java/dev/starsector/preflight/agent/AudioDecoderSignatureReportTest.java'
-      - 'preflight-agent/src/test/java/dev/starsector/preflight/agent/SoundLoaderContractReportTest.java'
-      - 'preflight-agent/src/test/java/dev/starsector/preflight/agent/CodeLoaderSignatureReportTest.java'
-      - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/AgentInjection.java'
-      - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/CommandLine.java'
-      - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/AgentInjectionTest.java'
-      - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/CommandLineAdapterTest.java'
-      - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/AdapterAgentIT.java'
-      - 'preflight-agent/pom.xml'
-      - 'preflight-cli/pom.xml'
-      - 'pom.xml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build-kit:
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     env:
       KIT_NAME: starsector-preflight-startup-contract-probe-kit-macos
-      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      SOURCE_SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-build-jdk

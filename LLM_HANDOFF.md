@@ -17,11 +17,17 @@ Before changing code or collecting release evidence:
    `scripts/benchmark-startup.sh` for one automatic startup measurement, `--details` to explain a
    changed result, and `--campaign` only for a real comparison.
 
-The current development/public startup headline is **112.17s → 13.69s**. Do not substitute a median,
-the old 89.00s → 15.53s A/B pair, or another campaign statistic unless the maintainer explicitly
-changes the headline. Runs measured with the same startup clock are observations of the same elapsed
-time. Campaign statistics exist to answer comparison/attribution questions, not to rank which
-startup observation is allowed to represent the development result.
+Selected repeated product facts live in [docs/project-facts.json](docs/project-facts.json). When the
+maintainer changes one of those facts, edit that file and run:
+
+```bash
+python3 scripts/sync_project_facts.py --write
+```
+
+Generated current headline: **112.17s → 13.69s**. Do not hand-edit that value here; the sync command
+owns it along with the public copies and claim headline page. Historical measurements stay in their
+evidence records and technical chronology. Campaign statistics answer comparison/attribution
+questions; they do not choose the current public headline.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package

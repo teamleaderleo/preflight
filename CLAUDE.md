@@ -24,6 +24,8 @@ Start with [LLM_HANDOFF.md](LLM_HANDOFF.md) for current project state. These are
 - Add `--details` for one diagnostic launch or `--campaign` for repeated comparisons.
 - `preflight run` launches the game. It does not stop it.
 - Do not leave a game process running after a test.
+- Repeated public/product facts live in `docs/project-facts.json`; run
+  `python3 scripts/sync_project_facts.py --write` after changing them.
 
 ## Evidence
 
@@ -36,12 +38,21 @@ Start with [LLM_HANDOFF.md](LLM_HANDOFF.md) for current project state. These are
 
 ### Startup timing interpretation
 
-- The current development/public headline is **112.17s → 13.69s** on the 83-mod M5 MacBook Air development installation.
-- **Do not replace 13.69s** with a median, rounded value, the historical 89.00s → 15.53s A/B pair, or another campaign statistic unless the maintainer explicitly changes the headline.
-- The broader current run history may be cited as repeatability context for the same current regime. It does not outrank or replace 13.69s.
-- Startup runs measured with the same game-log clock are observations of the same elapsed-time quantity. A run does not become a different class of time because it came from an ad-hoc launch, a five-run set, or a shuffled campaign.
-- Campaign p-values, acceptance flags, shuffling, and same-session pairing answer comparison/attribution questions. They do not decide whether a startup time counts, and they do not give the 89.00s → 15.53s pair editorial priority over the retained development endpoint.
-- Preserve the historical benchmark records for the questions they were designed to answer. Do not use them to qualify or demote the 112.17s → 13.69s headline.
+- `docs/project-facts.json` owns the selected development/public startup baseline and endpoint.
+- Generated current headline: **112.17s → 13.69s**. Do not hand-edit this line; the fact sync owns it.
+- Change selected values in the facts file and let `scripts/sync_project_facts.py --write` propagate
+  public copy and claim bookkeeping. Do not hand-edit the repeated copies.
+- Do not replace the selected endpoint with a median, rounded value, the historical same-profile A/B
+  pair, or another campaign statistic unless the maintainer explicitly changes the selected fact.
+- The broader current run history may be cited as repeatability context for the same current regime.
+  It does not outrank the selected endpoint.
+- Startup runs measured with the same game-log clock are observations of the same elapsed-time
+  quantity. A run does not become a different class of time because it came from an ad-hoc launch,
+  a five-run set, or a shuffled campaign.
+- Campaign p-values, acceptance flags, shuffling, and same-session pairing answer comparison and
+  attribution questions. They do not choose which startup observation represents the current
+  development headline.
+- Preserve historical benchmark records for the questions they were designed to answer.
 
 ## Verification
 

@@ -1,10 +1,10 @@
-# Machine-audited claim headlines
+# Machine-audited benchmark facts
 
-This page is the compact publication surface used by `scripts/verify_claims.py` for accepted startup claims whose full technical history lives elsewhere.
+This page is generated from [`project-facts.json`](project-facts.json) by `scripts/sync_project_facts.py`. The full technical history and retained evidence live elsewhere.
 
-All rows below refer to the 83-mod M5 MacBook Air development installation running Starsector 0.98a-RC8 with the game's bundled x86-64 Java runtime through Rosetta.
+All rows below refer to the 83-mod M5 MacBook Air development installation running Starsector 0.98a-RC8 with Starsector's bundled x86-64 Java runtime through Rosetta.
 
-| Claim | Result |
+| Fact | Result |
 | --- | ---: |
 | Earlier validated accelerated gate, 83-mod profile | **15.88s** |
 | Historical same-profile ordinary baseline, 83 mods | **89.00s** |
