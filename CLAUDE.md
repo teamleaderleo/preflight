@@ -39,8 +39,9 @@ Start with [LLM_HANDOFF.md](LLM_HANDOFF.md) for current project state. These are
 ### Startup timing interpretation
 
 - `docs/project-facts.json` owns the selected development/public startup baseline and endpoint.
-- Change those selected values in the facts file and let `scripts/sync_project_facts.py --write`
-  propagate public copy and claim bookkeeping. Do not hand-edit the repeated copies.
+- Generated current headline: **112.17s → 13.69s**. Do not hand-edit this line; the fact sync owns it.
+- Change selected values in the facts file and let `scripts/sync_project_facts.py --write` propagate
+  public copy and claim bookkeeping. Do not hand-edit the repeated copies.
 - Do not replace the selected endpoint with a median, rounded value, the historical same-profile A/B
   pair, or another campaign statistic unless the maintainer explicitly changes the selected fact.
 - The broader current run history may be cited as repeatability context for the same current regime.
