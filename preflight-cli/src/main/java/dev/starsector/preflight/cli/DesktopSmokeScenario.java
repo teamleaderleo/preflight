@@ -27,6 +27,8 @@ final class DesktopSmokeScenario {
             "refit-ready", "simulation-ready", "combat-ready");
     private static final Set<String> TARGETS = Set.of(
             "main-menu.continue",
+            "campaign.pause",
+            "campaign.unpause",
             "main-menu.load-game",
             "load-game.first-save",
             "load-game.load",
@@ -132,7 +134,8 @@ final class DesktopSmokeScenario {
                 && steps.stream().allMatch(step -> "wait-state".equals(step.kind())
                         || "wait-duration".equals(step.kind())
                         || ("click".equals(step.kind())
-                                && "main-menu.continue".equals(step.values().get("target"))));
+                                && RuntimeGameActionClient.supports(
+                                        step.values().get("target").toString())));
     }
 
     List<String> stepIds() {
@@ -273,7 +276,7 @@ final class DesktopSmokeScenario {
                 case "wait-state" -> capabilities.add("semantic-state");
                 case "activate-window", "press-key", "hold-key" -> capabilities.add("window-control");
                 case "click" -> {
-                    if ("main-menu.continue".equals(step.values().get("target"))) {
+                    if (RuntimeGameActionClient.supports(step.values().get("target").toString())) {
                         capabilities.add("semantic-control");
                     } else {
                         capabilities.add("window-control");

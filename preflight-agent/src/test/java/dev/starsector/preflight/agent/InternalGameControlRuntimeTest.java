@@ -7,6 +7,7 @@ import dev.starsector.preflight.core.Json;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -69,14 +70,39 @@ final class InternalGameControlRuntimeTest {
         assertTrue(receipt.contains("title-class-mismatch"), receipt);
     }
 
+    @Test
+    void campaignActionsFailClosedBeforeAddingInputToAnUnknownShape() throws Exception {
+        System.setProperty("preflight.desktopSmoke", "true");
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+        RuntimeSemanticState.campaignReady();
+        InternalGameControlRuntime.beginSession(temporaryDirectory.resolve("adapter.json"));
+        Files.writeString(temporaryDirectory.resolve("runtime-action-request.json"),
+                request(Instant.now().plusSeconds(30),
+                        InternalGameControlRuntime.CAMPAIGN_UNPAUSE_ACTION,
+                        InternalGameControlRuntime.CAMPAIGN_STATE));
+        ArrayList<Object> events = new ArrayList<>();
+
+        InternalGameControlRuntime.campaignInput(new Object(), events);
+
+        assertTrue(events.isEmpty());
+        String receipt = Files.readString(temporaryDirectory.resolve("runtime-action-receipt.json"));
+        assertTrue(receipt.contains("\"status\":\"failed\""), receipt);
+        assertTrue(receipt.contains("campaign-class-mismatch"), receipt);
+    }
+
     private static String request(Instant deadline) {
+        return request(deadline, InternalGameControlRuntime.CONTINUE_ACTION,
+                InternalGameControlRuntime.INTERACTIVE_STATE);
+    }
+
+    private static String request(Instant deadline, String action, String expectedState) {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("format", InternalGameControlRuntime.REQUEST_FORMAT);
         values.put("sequence", 1L);
         values.put("pid", ProcessHandle.current().pid());
         values.put("processStartedAt", RuntimeSemanticState.processStartedAt());
-        values.put("action", InternalGameControlRuntime.CONTINUE_ACTION);
-        values.put("expectedState", InternalGameControlRuntime.INTERACTIVE_STATE);
+        values.put("action", action);
+        values.put("expectedState", expectedState);
         values.put("deadline", deadline);
         return Json.object(values);
     }

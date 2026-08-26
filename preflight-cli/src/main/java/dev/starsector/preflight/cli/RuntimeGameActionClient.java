@@ -18,17 +18,26 @@ import java.util.concurrent.TimeoutException;
 
 /** PID-bound request/receipt client for the closed in-game desktop-smoke action catalog. */
 final class RuntimeGameActionClient {
-    static final String REQUEST_FORMAT = "starsector-preflight-runtime-action-request-v1";
-    static final String RECEIPT_FORMAT = "starsector-preflight-runtime-action-receipt-v1";
+    static final String REQUEST_FORMAT = "starsector-preflight-runtime-action-request-v2";
+    static final String RECEIPT_FORMAT = "starsector-preflight-runtime-action-receipt-v2";
     static final String CONTINUE_ACTION = "main-menu.continue";
+    static final String CAMPAIGN_PAUSE_ACTION = "campaign.pause";
+    static final String CAMPAIGN_UNPAUSE_ACTION = "campaign.unpause";
     static final String REQUEST_FILE = "runtime-action-request.json";
     static final String RECEIPT_FILE = "runtime-action-receipt.json";
+    private static final Set<String> ACTIONS = Set.of(
+            CONTINUE_ACTION, CAMPAIGN_PAUSE_ACTION, CAMPAIGN_UNPAUSE_ACTION);
     private static final int MAX_RECEIPT_BYTES = 16 * 1024;
     private static final Set<String> RECEIPT_FIELDS = Set.of(
             "format", "sequence", "pid", "processStartedAt", "action", "acceptedAt",
-            "executedAt", "boundary", "beforeState", "afterState", "status", "detail");
+            "executedAt", "boundary", "beforeState", "afterState", "beforePaused",
+            "afterPaused", "status", "detail");
 
     private RuntimeGameActionClient() {
+    }
+
+    static boolean supports(String action) {
+        return ACTIONS.contains(action);
     }
 
     static String continueCampaign(
@@ -36,6 +45,18 @@ final class RuntimeGameActionClient {
             Path runtimeProcess,
             DesktopSmokeDriver.ProcessTarget target,
             int timeoutSeconds) throws Exception {
+        return execute(runDirectory, runtimeProcess, target, 1L, CONTINUE_ACTION, timeoutSeconds);
+    }
+
+    static String execute(
+            Path runDirectory,
+            Path runtimeProcess,
+            DesktopSmokeDriver.ProcessTarget target,
+            long sequence,
+            String action,
+            int timeoutSeconds) throws Exception {
+        if (sequence <= 0L) throw new IllegalArgumentException("Runtime action sequence must be positive");
+        if (!supports(action)) throw new IllegalArgumentException("Unsupported runtime action: " + action);
         Path run = runDirectory.toRealPath();
         Path request = run.resolve(REQUEST_FILE);
         Path receipt = run.resolve(RECEIPT_FILE);
@@ -43,38 +64,70 @@ final class RuntimeGameActionClient {
                 || Files.exists(receipt, LinkOption.NOFOLLOW_LINKS)) {
             throw new IllegalStateException("Runtime action request or receipt already exists");
         }
+        Path requestHistory = history(run, "runtime-action-request", sequence);
+        Path receiptHistory = history(run, "runtime-action-receipt", sequence);
+        if (Files.exists(requestHistory, LinkOption.NOFOLLOW_LINKS)
+                || Files.exists(receiptHistory, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IllegalStateException("Runtime action sequence already exists: " + sequence);
+        }
+
         Path runtimeState = runtimeProcess.toAbsolutePath().normalize()
                 .resolveSibling("runtime-state.json");
+        String expectedState = expectedState(action);
         RuntimeSemanticStateIdentity before = RuntimeSemanticStateIdentity.read(runtimeState, target);
-        if (!"main-menu-interactive".equals(before.state())) {
+        if (!expectedState.equals(before.state())) {
             throw new IllegalStateException(
-                    "Continue requires main-menu-interactive; observed " + before.state());
+                    action + " requires " + expectedState + "; observed " + before.state());
         }
 
         Instant deadline = Instant.now().plusSeconds(timeoutSeconds);
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("format", REQUEST_FORMAT);
-        values.put("sequence", 1L);
+        values.put("sequence", sequence);
         values.put("pid", target.pid());
         values.put("processStartedAt", target.startedAt());
-        values.put("action", CONTINUE_ACTION);
-        values.put("expectedState", "main-menu-interactive");
+        values.put("action", action);
+        values.put("expectedState", expectedState);
         values.put("deadline", deadline);
         createOnce(request, Json.object(values) + System.lineSeparator());
 
         Map<String, Object> accepted = waitForReceipt(
-                receipt, runtimeProcess, target, deadline);
-        waitForCampaign(runtimeState, runtimeProcess, target, deadline);
-        return accepted.get("detail") + "; receipt executed; campaign observed campaign-ready";
+                receipt, runtimeProcess, target, sequence, action, expectedState, deadline);
+        archive(request, requestHistory);
+        archive(receipt, receiptHistory);
+        Object status = accepted.get("status");
+        if (!"executed".equals(status)) {
+            throw new IllegalStateException(
+                    "Runtime action was not executed: " + status + " (" + accepted.get("detail") + ")");
+        }
+        if (CONTINUE_ACTION.equals(action)) {
+            waitForCampaign(runtimeState, runtimeProcess, target, deadline);
+            return accepted.get("detail")
+                    + "; receipt executed; campaign observed campaign-ready";
+        }
+
+        boolean desiredPaused = CAMPAIGN_PAUSE_ACTION.equals(action);
+        if (!(accepted.get("beforePaused") instanceof Boolean)
+                || !Boolean.valueOf(desiredPaused).equals(accepted.get("afterPaused"))) {
+            throw new IOException("Runtime campaign action pause receipt is incomplete");
+        }
+        RuntimeSemanticStateIdentity after = RuntimeSemanticStateIdentity.read(runtimeState, target);
+        if (!"campaign-ready".equals(after.state())) {
+            throw new IOException("Runtime left campaign-ready during " + action);
+        }
+        return accepted.get("detail") + "; pause state verified " + desiredPaused;
     }
 
     private static Map<String, Object> waitForReceipt(
             Path receipt,
             Path runtimeProcess,
             DesktopSmokeDriver.ProcessTarget target,
+            long sequence,
+            String action,
+            String expectedState,
             Instant deadline) throws Exception {
         while (Instant.now().isBefore(deadline)) {
-            requireSameProcess(runtimeProcess, target);
+            requireSameProcess(runtimeProcess, target, action);
             if (Files.isRegularFile(receipt, LinkOption.NOFOLLOW_LINKS)) {
                 long size = Files.size(receipt);
                 if (size <= 0 || size > MAX_RECEIPT_BYTES) {
@@ -86,17 +139,13 @@ final class RuntimeGameActionClient {
                     throw new IOException("Runtime action receipt fields are not exact");
                 }
                 require(value, "format", RECEIPT_FORMAT);
-                requireLong(value, "sequence", 1L);
+                requireLong(value, "sequence", sequence);
                 requireLong(value, "pid", target.pid());
                 require(value, "processStartedAt", target.startedAt().toString());
-                require(value, "action", CONTINUE_ACTION);
-                require(value, "boundary", "title.advanceImpl");
-                require(value, "beforeState", "main-menu-interactive");
-                Object status = value.get("status");
-                if (!"executed".equals(status)) {
-                    throw new IllegalStateException(
-                            "Runtime Continue was not executed: " + status + " (" + value.get("detail") + ")");
-                }
+                require(value, "action", action);
+                require(value, "beforeState", expectedState);
+                require(value, "boundary", CONTINUE_ACTION.equals(action)
+                        ? "title.advanceImpl" : "campaign.processInput");
                 if (!(value.get("acceptedAt") instanceof String)
                         || !(value.get("executedAt") instanceof String)) {
                     throw new IOException("Runtime action receipt timestamps are incomplete");
@@ -105,7 +154,7 @@ final class RuntimeGameActionClient {
             }
             sleep();
         }
-        throw new TimeoutException("Timed out waiting for the runtime Continue receipt");
+        throw new TimeoutException("Timed out waiting for the runtime " + action + " receipt");
     }
 
     private static void waitForCampaign(
@@ -115,7 +164,7 @@ final class RuntimeGameActionClient {
             Instant deadline) throws Exception {
         String last = "unavailable";
         while (Instant.now().isBefore(deadline)) {
-            requireSameProcess(runtimeProcess, target);
+            requireSameProcess(runtimeProcess, target, CONTINUE_ACTION);
             RuntimeSemanticStateIdentity state = RuntimeSemanticStateIdentity.read(runtimeState, target);
             last = state.state();
             if (state.reached("campaign-ready")) return;
@@ -128,13 +177,31 @@ final class RuntimeGameActionClient {
                 "Continue receipt arrived but campaign-ready did not; last state was " + last);
     }
 
+    private static String expectedState(String action) {
+        return CONTINUE_ACTION.equals(action) ? "main-menu-interactive" : "campaign-ready";
+    }
+
+    private static Path history(Path run, String stem, long sequence) {
+        return run.resolve(stem + "-%06d.json".formatted(sequence));
+    }
+
+    private static void archive(Path active, Path history) throws IOException {
+        try {
+            Files.move(active, history, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException ignored) {
+            Files.move(active, history);
+        }
+    }
+
     private static void requireSameProcess(
-            Path runtimeProcess, DesktopSmokeDriver.ProcessTarget target) throws IOException {
+            Path runtimeProcess,
+            DesktopSmokeDriver.ProcessTarget target,
+            String action) throws IOException {
         Map<String, Object> inspected = RuntimeProcessIdentity.read(runtimeProcess).inspect();
         if (!Boolean.TRUE.equals(inspected.get("attachable"))
                 || ((Number) inspected.get("pid")).longValue() != target.pid()
                 || !target.startedAt().equals(inspected.get("startedAt"))) {
-            throw new IOException("Runtime process changed during the Continue action");
+            throw new IOException("Runtime process changed during " + action);
         }
     }
 

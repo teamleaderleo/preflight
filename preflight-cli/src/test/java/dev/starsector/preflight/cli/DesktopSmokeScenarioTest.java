@@ -99,6 +99,39 @@ final class DesktopSmokeScenarioTest {
     }
 
     @Test
+    void runtimeCampaignPauseActionsRemainInternalOnly() {
+        DesktopSmokeScenario scenario = DesktopSmokeScenario.parse("""
+                {
+                  "format":"starsector-preflight-smoke-v1",
+                  "name":"pause-cycle",
+                  "timeoutSeconds":60,
+                  "launch":{"preset":"fast","textureStorage":"balanced","profile":null},
+                  "steps":[
+                    {"id":"unpause","kind":"click","target":"campaign.unpause"},
+                    {"id":"dwell","kind":"wait-duration","durationMillis":1000},
+                    {"id":"pause","kind":"click","target":"campaign.pause"}
+                  ]
+                }
+                """);
+
+        assertTrue(scenario.usesOnlyRuntimeControl());
+        assertEquals(Set.of("process-control", "semantic-control"),
+                scenario.requiredCapabilities());
+    }
+
+    @Test
+    void checkedInMixedPauseProfileUsesOnlyRuntimeControl() throws Exception {
+        DesktopSmokeScenario scenario = DesktopSmokeScenario.read(
+                Path.of("..", "scripts", "scenarios", "campaign-profile-paused-unpaused.json"));
+
+        assertTrue(scenario.usesOnlyRuntimeControl());
+        assertEquals(11, scenario.stepIds().size());
+        assertTrue(scenario.stepIds().contains("observe-initial-pause-state"));
+        assertTrue(scenario.stepIds().contains("paused-settled"));
+        assertTrue(scenario.stepIds().contains("unpaused-settled"));
+    }
+
+    @Test
     void launchMayOptIntoDeepCampaignTimingAndSmoothFramePacing() {
         DesktopSmokeScenario scenario = DesktopSmokeScenario.parse("""
                 {

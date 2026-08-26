@@ -44,6 +44,8 @@ final class RuntimeGameActionClientTest {
                 receipt.put("boundary", "title.advanceImpl");
                 receipt.put("beforeState", "main-menu-interactive");
                 receipt.put("afterState", "main-menu-interactive");
+                receipt.put("beforePaused", null);
+                receipt.put("afterPaused", null);
                 receipt.put("status", "executed");
                 receipt.put("detail", "synthetic exact callback");
                 Files.writeString(
@@ -61,6 +63,61 @@ final class RuntimeGameActionClientTest {
         game.get(10, TimeUnit.SECONDS);
         assertTrue(detail.contains("receipt executed"), detail);
         assertTrue(detail.contains("campaign observed campaign-ready"), detail);
+        assertTrue(Files.isRegularFile(
+                temporaryDirectory.resolve("runtime-action-request-000001.json")));
+        assertTrue(Files.isRegularFile(
+                temporaryDirectory.resolve("runtime-action-receipt-000001.json")));
+    }
+
+    @Test
+    void verifiesAndArchivesASequencedCampaignPauseReceipt() throws Exception {
+        ProcessHandle process = ProcessHandle.current();
+        Instant startedAt = process.info().startInstant().orElseThrow();
+        DesktopSmokeDriver.ProcessTarget target =
+                new DesktopSmokeDriver.ProcessTarget(process.pid(), startedAt);
+        Path runtimeProcess = writeProcess(process, startedAt);
+        writeState(startedAt, "campaign-ready", 3L);
+
+        CompletableFuture<Void> game = CompletableFuture.runAsync(() -> {
+            try {
+                Path request = temporaryDirectory.resolve(RuntimeGameActionClient.REQUEST_FILE);
+                for (int count = 0; count < 500 && !Files.isRegularFile(request); count++) {
+                    TimeUnit.MILLISECONDS.sleep(5L);
+                }
+                assertTrue(Files.isRegularFile(request));
+                Map<String, Object> receipt = new LinkedHashMap<>();
+                receipt.put("format", RuntimeGameActionClient.RECEIPT_FORMAT);
+                receipt.put("sequence", 7L);
+                receipt.put("pid", process.pid());
+                receipt.put("processStartedAt", startedAt);
+                receipt.put("action", RuntimeGameActionClient.CAMPAIGN_UNPAUSE_ACTION);
+                receipt.put("acceptedAt", Instant.now());
+                receipt.put("executedAt", Instant.now());
+                receipt.put("boundary", "campaign.processInput");
+                receipt.put("beforeState", "campaign-ready");
+                receipt.put("afterState", "campaign-ready");
+                receipt.put("beforePaused", true);
+                receipt.put("afterPaused", false);
+                receipt.put("status", "executed");
+                receipt.put("detail", "mapped pause control reached requested state");
+                Files.writeString(
+                        temporaryDirectory.resolve(RuntimeGameActionClient.RECEIPT_FILE),
+                        Json.object(receipt));
+            } catch (Exception failure) {
+                throw new RuntimeException(failure);
+            }
+        });
+
+        String detail = RuntimeGameActionClient.execute(
+                temporaryDirectory, runtimeProcess, target, 7L,
+                RuntimeGameActionClient.CAMPAIGN_UNPAUSE_ACTION, 10);
+
+        game.get(10, TimeUnit.SECONDS);
+        assertTrue(detail.contains("pause state verified false"), detail);
+        assertTrue(Files.isRegularFile(
+                temporaryDirectory.resolve("runtime-action-request-000007.json")));
+        assertTrue(Files.isRegularFile(
+                temporaryDirectory.resolve("runtime-action-receipt-000007.json")));
     }
 
     private Path writeProcess(ProcessHandle process, Instant startedAt) throws Exception {

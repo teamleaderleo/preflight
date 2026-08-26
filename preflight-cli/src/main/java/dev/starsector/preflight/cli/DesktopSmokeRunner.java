@@ -66,6 +66,7 @@ final class DesktopSmokeRunner {
         Path runtimeState = runtimeProcess.toAbsolutePath().normalize()
                 .resolveSibling("runtime-state.json");
         Instant deadline = startedAt.plusSeconds(scenario.timeoutSeconds());
+        long actionSequence = 0L;
         for (Map<String, Object> step : scenario.stepViews()) {
             String id = step.get("id").toString();
             Instant stepStarted = clock.instant();
@@ -79,10 +80,12 @@ final class DesktopSmokeRunner {
             try {
                 String detail;
                 if (isInternalAction(step)) {
-                    detail = RuntimeGameActionClient.continueCampaign(
+                    detail = RuntimeGameActionClient.execute(
                             realRun,
                             runtimeProcess,
                             initial.target(),
+                            ++actionSequence,
+                            step.get("target").toString(),
                             stepTimeoutSeconds(step, scenario));
                 } else if ("wait-duration".equals(step.get("kind"))) {
                     int durationMillis = ((Number) step.get("durationMillis")).intValue();
@@ -191,6 +194,7 @@ final class DesktopSmokeRunner {
 
         Instant deadline = startedAt.plusSeconds(scenario.timeoutSeconds());
         List<Map<String, Object>> steps = scenario.stepViews();
+        long actionSequence = 0L;
         for (Map<String, Object> step : steps) {
             String id = step.get("id").toString();
             String kind = step.get("kind").toString();
@@ -225,10 +229,12 @@ final class DesktopSmokeRunner {
                             "held exact process for " + durationMillis + " ms");
                 } else if (internalAction) {
                     action = DesktopSmokeDriver.ActionResult.completed(
-                            RuntimeGameActionClient.continueCampaign(
+                            RuntimeGameActionClient.execute(
                                     realRun,
                                     runtimeProcess,
                                     initial.target(),
+                                    ++actionSequence,
+                                    step.get("target").toString(),
                                     stepTimeoutSeconds(step, scenario)));
                 } else {
                     action = calls.call(
@@ -391,7 +397,7 @@ final class DesktopSmokeRunner {
 
     private static boolean isInternalAction(Map<String, Object> step) {
         return "click".equals(step.get("kind"))
-                && RuntimeGameActionClient.CONTINUE_ACTION.equals(step.get("target"));
+                && RuntimeGameActionClient.supports(step.get("target").toString());
     }
 
     private static Map<String, Object> failFirstStep(

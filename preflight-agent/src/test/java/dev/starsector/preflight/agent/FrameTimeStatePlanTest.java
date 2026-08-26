@@ -20,6 +20,8 @@ import org.objectweb.asm.tree.MethodNode;
 
 class FrameTimeStatePlanTest {
     private static final String RUNTIME = FrameTimeRuntime.class.getName().replace('.', '/');
+    private static final String CONTROL_RUNTIME =
+            InternalGameControlRuntime.class.getName().replace('.', '/');
     private static final String CAMPAIGN_ENGINE = "com/fs/starfarer/campaign/CampaignEngine";
 
     @TempDir
@@ -86,6 +88,11 @@ class FrameTimeStatePlanTest {
         assertEquals(1, calls(method(owner), RUNTIME, observer, "()V"));
         assertEquals(1, calls(method(owner), RUNTIME, "observeCampaignPaused", "(Z)V"));
         assertEquals(2, calls(method(owner), CAMPAIGN_ENGINE, "isPaused", "()Z"));
+        MethodNode processInput = processInput(owner);
+        assertEquals(1, calls(processInput, CONTROL_RUNTIME, "campaignInput",
+                "(Ljava/lang/Object;Ljava/lang/Object;)V"));
+        assertEquals(1, calls(processInput, CONTROL_RUNTIME, "campaignInputComplete",
+                "(Ljava/lang/Object;)V"));
     }
 
     private static byte[] fixture(String className) {
@@ -114,6 +121,13 @@ class FrameTimeStatePlanTest {
         advance.visitInsn(Opcodes.RETURN);
         advance.visitMaxs(0, 0);
         advance.visitEnd();
+        MethodVisitor processInput = writer.visitMethod(Opcodes.ACC_PROTECTED,
+                FrameTimeStatePlan.PROCESS_INPUT_METHOD,
+                FrameTimeStatePlan.PROCESS_INPUT_DESCRIPTOR, null, null);
+        processInput.visitCode();
+        processInput.visitInsn(Opcodes.RETURN);
+        processInput.visitMaxs(0, 0);
+        processInput.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
     }
@@ -134,6 +148,13 @@ class FrameTimeStatePlanTest {
         return owner.methods.stream()
                 .filter(candidate -> FrameTimeStatePlan.ADVANCE_METHOD.equals(candidate.name)
                         && FrameTimeStatePlan.ADVANCE_DESCRIPTOR.equals(candidate.desc))
+                .findFirst().orElseThrow();
+    }
+
+    private static MethodNode processInput(ClassNode owner) {
+        return owner.methods.stream()
+                .filter(candidate -> FrameTimeStatePlan.PROCESS_INPUT_METHOD.equals(candidate.name)
+                        && FrameTimeStatePlan.PROCESS_INPUT_DESCRIPTOR.equals(candidate.desc))
                 .findFirst().orElseThrow();
     }
 

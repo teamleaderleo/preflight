@@ -1,6 +1,7 @@
 # Internal game-control protocol
 
-Status: live 0.98a-RC8 proof; PID-bound Continue request/receipt implemented for developer smoke runs
+Status: live 0.98a-RC8 proof; PID-bound Continue and mapped campaign pause controls implemented for
+developer smoke runs
 
 Preflight's developer automation needs a small semantic control protocol inside the launched game
 JVM. Native desktop control remains useful for bounded screenshots, but it is not a reliable input
@@ -14,8 +15,8 @@ The 2026-08-26 protected-copy run proved each of these against one existing Pref
 | Semantic action | Internal boundary | Proof |
 | --- | --- | --- |
 | Continue | title callback `menuItemSelected(Continue)` on `advanceImpl` | existing title changed to Loading; stage 39/39; `campaign-ready` |
-| unpause | `CampaignEngine.setPaused(false)` on campaign `advance` | receipt changed `true` to `false`; simulation resumed |
-| pause | `CampaignEngine.setPaused(true)` on campaign `advance` | receipt changed `false` to `true`; simulation stopped |
+| unpause (temporary proof) | `CampaignEngine.setPaused(false)` on campaign `advance` | receipt changed `true` to `false`; simulation resumed |
+| pause (temporary proof) | `CampaignEngine.setPaused(true)` on campaign `advance` | receipt changed `false` to `true`; simulation stopped |
 | dismiss/cancel | Escape key down/up in `CampaignState.processInput` | supply-consumption warning disappeared |
 | choose option 4 | `4` key down/up in the same input list | hostile encounter opened its story-point confirmation |
 | confirm | `G` key down/up in the same input list | special disengagement spent one story point and granted bonus XP |
@@ -80,7 +81,7 @@ into a scenario.
 
 ## Request and receipt
 
-The implemented Continue transport uses create-once files in the run directory:
+The implemented transport uses one create-once request/receipt pair at a time in the run directory:
 
 ```text
 runtime-action-request.json
@@ -91,15 +92,20 @@ The request carries a format version, monotonically increasing sequence, exact P
 instant, semantic action, bounded arguments, expected before-state, and deadline. The game-thread
 runtime accepts each sequence once, rejects unknown fields/actions and stale states, and atomically
 publishes a receipt with accepted time, execution boundary, before/after observations, terminal
-status, and a bounded failure. The runner must still wait for the expected semantic state or other
-effect. `executed` is never synonymous with `succeeded`.
+status, and a bounded failure. After validating a receipt, the runner archives both files under their
+six-digit sequence so the next closed action can run without leaving a polling file behind. The
+runner must still wait for the expected semantic state or verify the requested pause state.
+`executed` is never synonymous with `succeeded`.
 
 Only `--desktop-smoke` enables current request polling and
 the exact target plans. A normal player launch neither watches request files nor exposes game actions.
 
-The current closed catalog contains only `main-menu.continue`. The remaining compendium entries are
-design targets and must receive their own reviewed game-thread boundaries and before/after receipts;
-the implemented transport does not expose arbitrary keys, reflection names, or coordinates.
+The current closed catalog contains `main-menu.continue`, `campaign.pause`, and
+`campaign.unpause`. Pause actions resolve the installed `GENERAL_PAUSE` binding, synthesize an atomic
+key-down/key-up pair, add it to Starsector's real `CampaignState.processInput` batch, and verify the
+engine's result after normal input processing. They reject an unknown class shape, non-campaign state,
+active dialog or menu, non-keyboard pause binding, stale PID/start identity, or expired deadline. The
+transport does not expose arbitrary keys, reflection names, or coordinates.
 
 ## Save and learning boundary
 

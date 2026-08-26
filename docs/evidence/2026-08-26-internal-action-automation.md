@@ -116,6 +116,10 @@ A production implementation should therefore be development-only at first and re
 `main-menu.continue` is now an exact-pinned internal action with PID/start-bound create-once
 request/receipt evidence and a same-process `campaign-ready` requirement. Native drivers remain for
 bounded screen capture and actions that do not yet have a reviewed internal seam.
-Then establish movement and pause as separate exact-pinned actions, rerun the same disposable campaign
-route under measurement-only and optimized conditions, and retain the sealed comparison. The failed
-macOS click must not continue to report success merely because System Events accepted the command.
+On 2026-08-27, the production controller added closed `campaign.pause` and `campaign.unpause` actions.
+Unlike the temporary proof, they do not write `CampaignEngine.paused`: they resolve the installed
+`GENERAL_PAUSE` mapping, append an atomic down/up pair at the exact-pinned campaign input seam, reject
+dialogs and menus, and verify the requested state after Starsector processes the batch. Sequential
+request/receipt files are retained by action sequence and removed from the active polling names between
+steps. The installed 0.98a-RC8 class transform and the Java 17 agent/CLI suites pass; a dated live mixed
+pause-state measurement remains the next evidence step.

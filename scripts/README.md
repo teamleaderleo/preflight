@@ -69,6 +69,12 @@ frame is rendered.
 probes enabled. It never changes pause state: classify the run as paused or unpaused from the
 retained maintenance counters and the state the selected save actually loaded into.
 
+`campaign-profile-paused-unpaused.json` keeps the first three campaign seconds untouched, ensures a
+paused state through Starsector's mapped pause control, retains a paused warm-up and settled window,
+then unpauses for a transition buffer and settled window before restoring pause. Continue and every
+pause transition are internal PID/start-bound actions, so the route does not activate another app,
+move the cursor, or depend on host window focus.
+
 ## Read what a launch produced
 
 | | |

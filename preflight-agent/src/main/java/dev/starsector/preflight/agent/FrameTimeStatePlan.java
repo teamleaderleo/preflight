@@ -17,12 +17,14 @@ import org.objectweb.asm.tree.VarInsnNode;
 
 /** Marks display intervals as campaign without putting a clock in the hot loop. */
 final class FrameTimeStatePlan {
-    static final String PLAN_ID = "vanilla-game-state-frame-time-segments-v2";
+    static final String PLAN_ID = "vanilla-game-state-frame-time-segments-v3";
     static final String CAMPAIGN_CLASS = "com/fs/starfarer/campaign/CampaignState";
     static final String CAMPAIGN_SHA256 =
             "bdd3e9801c6bd8ae216fc40510d7f9f33fa16a540426cd137ca85dc640163372";
     static final String ADVANCE_METHOD = "advance";
     static final String ADVANCE_DESCRIPTOR = "(FLcom/fs/starfarer/util/super/B;)V";
+    static final String PROCESS_INPUT_METHOD = "processInput";
+    static final String PROCESS_INPUT_DESCRIPTOR = "(Lcom/fs/starfarer/util/super/B;F)V";
     static final String ENGINE_FIELD = "engine";
     static final String ENGINE_DESCRIPTOR = "Lcom/fs/starfarer/campaign/CampaignEngine;";
 
@@ -32,6 +34,8 @@ final class FrameTimeStatePlan {
 
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/FrameTimeRuntime";
+    private static final String CONTROL_RUNTIME =
+            "dev/starsector/preflight/agent/InternalGameControlRuntime";
 
     private FrameTimeStatePlan() {
     }
@@ -49,13 +53,21 @@ final class FrameTimeStatePlan {
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         MethodNode advance = unique(owner, ADVANCE_METHOD, ADVANCE_DESCRIPTOR);
+        MethodNode processInput = unique(owner, PROCESS_INPUT_METHOD, PROCESS_INPUT_DESCRIPTOR);
         if (advance == null
+                || processInput == null
                 || (advance.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0
+                || (processInput.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0
                 || advance.instructions.getFirst() == null
+                || processInput.instructions.getFirst() == null
                 || !hasUniqueField(owner, ENGINE_FIELD, ENGINE_DESCRIPTOR)
                 || calls(advance, CAMPAIGN_ENGINE, IS_PAUSED, IS_PAUSED_DESCRIPTOR) < 1
                 || calls(advance, RUNTIME, observer, "()V") != 0
-                || calls(advance, RUNTIME, "observeCampaignPaused", "(Z)V") != 0) {
+                || calls(advance, RUNTIME, "observeCampaignPaused", "(Z)V") != 0
+                || calls(processInput, CONTROL_RUNTIME, "campaignInput",
+                        "(Ljava/lang/Object;Ljava/lang/Object;)V") != 0
+                || calls(processInput, CONTROL_RUNTIME, "campaignInputComplete",
+                        "(Ljava/lang/Object;)V") != 0) {
             return null;
         }
 
@@ -77,6 +89,21 @@ final class FrameTimeStatePlan {
         state.add(new InsnNode(Opcodes.POP));
         state.add(observed);
         advance.instructions.insertBefore(advance.instructions.getFirst(), state);
+
+        InsnList control = new InsnList();
+        control.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        control.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        control.add(new MethodInsnNode(Opcodes.INVOKESTATIC, CONTROL_RUNTIME,
+                "campaignInput", "(Ljava/lang/Object;Ljava/lang/Object;)V", false));
+        processInput.instructions.insertBefore(processInput.instructions.getFirst(), control);
+        for (AbstractInsnNode instruction : processInput.instructions.toArray()) {
+            if (instruction.getOpcode() != Opcodes.RETURN) continue;
+            InsnList complete = new InsnList();
+            complete.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            complete.add(new MethodInsnNode(Opcodes.INVOKESTATIC, CONTROL_RUNTIME,
+                    "campaignInputComplete", "(Ljava/lang/Object;)V", false));
+            processInput.instructions.insertBefore(instruction, complete);
+        }
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);

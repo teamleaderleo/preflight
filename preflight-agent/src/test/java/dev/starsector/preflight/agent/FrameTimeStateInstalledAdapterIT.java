@@ -21,6 +21,8 @@ import org.objectweb.asm.tree.MethodNode;
 /** Opt-in exact installed-core transform check; it never starts the game. */
 class FrameTimeStateInstalledAdapterIT {
     private static final String RUNTIME = FrameTimeRuntime.class.getName().replace('.', '/');
+    private static final String CONTROL_RUNTIME =
+            InternalGameControlRuntime.class.getName().replace('.', '/');
     private static final String CAMPAIGN_ENGINE = "com/fs/starfarer/campaign/CampaignEngine";
 
     @BeforeEach
@@ -60,6 +62,7 @@ class FrameTimeStateInstalledAdapterIT {
         ClassNode originalOwner = new ClassNode(Opcodes.ASM9);
         new ClassReader(original).accept(originalOwner, ClassReader.EXPAND_FRAMES);
         int originalPauseCalls = calls(method(originalOwner), CAMPAIGN_ENGINE, "isPaused", "()Z");
+        int originalReturns = returns(processInput(originalOwner));
         byte[] transformed = FrameTimeStatePlan.transform(signature, original);
         assertNotNull(transformed);
         assertNull(FrameTimeStatePlan.transform(ClassSignature.parse(transformed), transformed));
@@ -70,6 +73,10 @@ class FrameTimeStateInstalledAdapterIT {
         assertEquals(1, calls(method(owner), RUNTIME, "observeCampaignPaused", "(Z)V"));
         assertEquals(originalPauseCalls + 1,
                 calls(method(owner), CAMPAIGN_ENGINE, "isPaused", "()Z"));
+        assertEquals(1, calls(processInput(owner), CONTROL_RUNTIME, "campaignInput",
+                "(Ljava/lang/Object;Ljava/lang/Object;)V"));
+        assertEquals(originalReturns, calls(processInput(owner), CONTROL_RUNTIME,
+                "campaignInputComplete", "(Ljava/lang/Object;)V"));
     }
 
     private static MethodNode method(ClassNode owner) {
@@ -77,6 +84,21 @@ class FrameTimeStateInstalledAdapterIT {
                 .filter(candidate -> FrameTimeStatePlan.ADVANCE_METHOD.equals(candidate.name)
                         && FrameTimeStatePlan.ADVANCE_DESCRIPTOR.equals(candidate.desc))
                 .findFirst().orElseThrow();
+    }
+
+    private static MethodNode processInput(ClassNode owner) {
+        return owner.methods.stream()
+                .filter(candidate -> FrameTimeStatePlan.PROCESS_INPUT_METHOD.equals(candidate.name)
+                        && FrameTimeStatePlan.PROCESS_INPUT_DESCRIPTOR.equals(candidate.desc))
+                .findFirst().orElseThrow();
+    }
+
+    private static int returns(MethodNode method) {
+        int result = 0;
+        for (AbstractInsnNode instruction : method.instructions) {
+            if (instruction.getOpcode() == Opcodes.RETURN) result++;
+        }
+        return result;
     }
 
     private static int calls(MethodNode method, String owner, String name, String descriptor) {
