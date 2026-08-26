@@ -19,10 +19,8 @@ The desktop also tracks Starsector playtime, puts the useful game settings besid
 mod setups, plans storage before preparation, handles repair and recovery, ships signed updates, and
 includes a mod linter. The desktop and terminal versions use the same Java engine.
 
-A lot of the work is underneath that surface. Runtime shortcuts are checked against the code they
-expect and fall back to the normal game path when they do not match. Release packages have signed
-updates, rollback checks, checksums, dependency inventories, and machine-readable capability receipts
-for the native commands, writes, child processes, links, and network endpoints they contain.
+Runtime shortcuts are checked against the code they expect and fall back to the normal game path when
+they do not match.
 
 Sponsorship helps pay for development time, testing hardware, hosting, release work, compatibility
 work, and future projects. Preflight remains free and open source. Sponsors do not get a different
@@ -45,8 +43,7 @@ if there is a reason to curate it.
 
 ## Monthly tiers
 
-These contribution levels mirror Patreon so the recurring options mean the same thing on either
-platform.
+These are contribution levels; they do not unlock a different version of Preflight.
 
 ### $5 a month
 
