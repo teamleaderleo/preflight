@@ -5,11 +5,22 @@ on:
     branches: [main]
     paths:
       - 'README.md'
+      - 'docs/project-facts.json'
+      - 'docs/claim-headlines.md'
       - 'docs/claims.json'
-      - 'docs/release-readiness.md'
+      - 'docs/beta-announcement-draft.md'
+      - 'docs/beta-announcement-leo-draft.md'
+      - 'docs/release-post-draft.md'
+      - 'docs/engineering-overview.md'
+      - 'docs/github-sponsors-page-draft.md'
+      - 'docs/leo-talking-points.md'
+      - 'docs/patreon-page-draft.md'
+      - 'docs/public-writing-sales-inventory.md'
+      - 'docs/releases/0.1.0.md'
       - 'docs/optimization-history.md'
-      - 'docs/startup-benchmark.md'
+      - 'docs/technical-writeup-draft.md'
       - 'docs/evidence/**'
+      - 'scripts/sync_project_facts.py'
       - 'scripts/verify_claims.py'
       - 'scripts/test_verify_claims.py'
       - '.github/workflows/claims.yml'
@@ -17,11 +28,22 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'README.md'
+      - 'docs/project-facts.json'
+      - 'docs/claim-headlines.md'
       - 'docs/claims.json'
-      - 'docs/release-readiness.md'
+      - 'docs/beta-announcement-draft.md'
+      - 'docs/beta-announcement-leo-draft.md'
+      - 'docs/release-post-draft.md'
+      - 'docs/engineering-overview.md'
+      - 'docs/github-sponsors-page-draft.md'
+      - 'docs/leo-talking-points.md'
+      - 'docs/patreon-page-draft.md'
+      - 'docs/public-writing-sales-inventory.md'
+      - 'docs/releases/0.1.0.md'
       - 'docs/optimization-history.md'
-      - 'docs/startup-benchmark.md'
+      - 'docs/technical-writeup-draft.md'
       - 'docs/evidence/**'
+      - 'scripts/sync_project_facts.py'
       - 'scripts/verify_claims.py'
       - 'scripts/test_verify_claims.py'
       - '.github/workflows/claims.yml'
@@ -39,7 +61,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check synchronized project facts
+        run: python3 scripts/sync_project_facts.py --check
       - name: Test claim validator
         run: python3 scripts/test_verify_claims.py
-      - name: Verify current claims
+      - name: Verify canonical claims
         run: python3 scripts/verify_claims.py
