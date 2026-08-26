@@ -144,6 +144,7 @@ def report_state(name, stacks, top, contains=None):
     inclusive = collections.Counter()
     callees = collections.Counter()
     callers = collections.Counter()
+    calling_methods = collections.Counter()
     for methods in stacks:
         useful = [method for method in methods if interesting(method)]
         if useful:
@@ -154,6 +155,8 @@ def report_state(name, stacks, top, contains=None):
             callees.update(set(method for method in methods[:index] if interesting(method)))
             if index + 1 < len(methods):
                 callers[methods[index + 1]] += 1
+            calling_methods.update(set(
+                method for method in methods[index + 1:] if interesting(method)))
 
     total = len(stacks)
     if not contains:
@@ -171,6 +174,9 @@ def report_state(name, stacks, top, contains=None):
         print("  immediate callers:")
         for method, count in callers.most_common(top):
             print(f"    {count:>5}  {count / total * 100:5.2f}%  {method}")
+        print("  calling methods above the filter:")
+        for method, count in calling_methods.most_common(top):
+            print(f"    {count:>5}  {count / total * 100:5.2f}%  {method}")
 
 
 def report_allocation_state(name, samples, top, contains=None):
@@ -184,10 +190,19 @@ def report_allocation_state(name, samples, top, contains=None):
     by_class = collections.Counter()
     by_leaf = collections.Counter()
     by_owner = collections.Counter()
+    callers = collections.Counter()
+    calling_methods = collections.Counter()
     for methods, object_class, weight in samples:
         by_class[object_class] += weight
         by_leaf[methods[0] if methods else "(no stack)"] += weight
         by_owner[first_non_jdk_owner(methods)] += weight
+        if contains:
+            index = next(index for index, method in enumerate(methods) if contains in method)
+            if index + 1 < len(methods):
+                callers[methods[index + 1]] += weight
+            for method in set(methods[index + 1:]):
+                if interesting(method):
+                    calling_methods[method] += weight
 
     total = sum(weight for _methods, _object_class, weight in samples)
     denominator = total or 1
@@ -202,6 +217,13 @@ def report_allocation_state(name, samples, top, contains=None):
     print("  first non-JDK owners:")
     for method, weight in by_owner.most_common(top):
         print(f"    {format_bytes(weight):>12}  {weight / denominator * 100:5.2f}%  {method}")
+    if contains:
+        print("  immediate callers:")
+        for method, weight in callers.most_common(top):
+            print(f"    {format_bytes(weight):>12}  {weight / denominator * 100:5.2f}%  {method}")
+        print("  calling methods above the filter:")
+        for method, weight in calling_methods.most_common(top):
+            print(f"    {format_bytes(weight):>12}  {weight / denominator * 100:5.2f}%  {method}")
 
 
 def report_execution_events(sampled, top=30, contains=None):

@@ -102,7 +102,7 @@ menu or transition spike does not masquerade as sustained roughness.
 | `starsector_log_ready_detector.py` | Snapshot, delta, classify and detect readiness in the game's log. This is what makes `--unattended` possible; run it directly when you are debugging why a launch was not detected as finished. |
 | `starsector_benchmark_report.py` | Live progress and final statistics for a benchmark campaign. |
 | `starsector_critical_path.py` | Where the load's wall clock goes, as opposed to where its CPU goes. Reach for it when the profile says "blocked" and you need to know on what. |
-| `starsector_gameplay_hotspots.py` | Rank sampled gameplay stacks, campaign and combat scored separately. Add `--allocations` to rank JFR's weighted allocation estimates by object class, leaf, and first non-JDK owner; in either CPU or allocation mode, repeat `--step paused-settled --step unpaused-settled` to use the exact scenario receipt windows and exclude setup churn. |
+| `starsector_gameplay_hotspots.py` | Rank sampled gameplay stacks, campaign and combat scored separately. Add `--allocations` to rank JFR's weighted allocation estimates by object class, leaf, and first non-JDK owner; `--contains` also attributes filtered CPU or allocation weight to immediate callers and the calling methods above the filter. In either mode, repeat `--step paused-settled --step unpaused-settled` to use the exact scenario receipt windows and exclude setup churn. |
 
 ## Verify before you push
 

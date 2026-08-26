@@ -89,6 +89,40 @@ class GameplayHotspotTest(unittest.TestCase):
             module.events = original_events
             module.thread_of = original_thread
 
+    def test_filtered_allocation_report_attributes_weight_to_callers(self):
+        samples = [
+            (
+                [
+                    "java.util.LinkedHashMap.newNode",
+                    "game.GridIterator.<init>",
+                    "game.Grid.getCheckIterator",
+                    "mod.Targeting.advance",
+                    "game.CombatEngine.advance",
+                ],
+                "java.util.LinkedHashMap$Entry",
+                6 * 1024 * 1024,
+            ),
+            (
+                [
+                    "game.Grid.getCheckIterator",
+                    "game.Avoidance.advance",
+                    "game.CombatEngine.advance",
+                ],
+                "game.GridIterator",
+                2 * 1024 * 1024,
+            ),
+        ]
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            module.report_allocation_state(
+                "combat", samples, top=10, contains="game.Grid.getCheckIterator")
+        rendered = output.getvalue()
+        self.assertIn("immediate callers:", rendered)
+        self.assertIn("6.0 MiB  75.00%  mod.Targeting.advance", rendered)
+        self.assertIn("2.0 MiB  25.00%  game.Avoidance.advance", rendered)
+        self.assertIn("calling methods above the filter:", rendered)
+        self.assertIn("8.0 MiB  100.00%  game.CombatEngine.advance", rendered)
+
     def test_allocation_window_uses_absolute_event_timestamps(self):
         samples = [
             allocation_event(
