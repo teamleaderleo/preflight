@@ -5,26 +5,18 @@ page changes; do not treat this document as a permanent tier contract.
 
 ## Short bio
 
-I make stuff. Stuff... becomes more stuff.
+Software and other creative stuff.
 
 ## Introduction
 
-Right now, most of my public work is going into Preflight.
+I make stuff that tends to become much larger than I expect.
 
-On my 83-mod M5 MacBook Air development setup, startup moved from **112.17 seconds to
-13.69 seconds**, about an **8.19× speedup**. Preflight includes its own normal-versus-Preflight
-benchmark so players can measure their own installations.
+Right now, most of my public work is going into Preflight, a fast launcher for Starsector. It is free
+and open source.
 
-The desktop also tracks Starsector playtime, puts the useful game settings beside Launch, checks large
-mod setups, plans storage before preparation, handles repair and recovery, ships signed updates, and
-includes a mod linter. The desktop and terminal versions use the same Java engine.
-
-Runtime shortcuts are checked against the code they expect and fall back to the normal game path when
-they do not match.
-
-Sponsorship helps pay for development time, testing hardware, hosting, release work, compatibility
-work, and future projects. Preflight remains free and open source. Sponsors do not get a different
-application or private feature set.
+This page is for people who want to support what I make. Sponsorship helps with the time and costs
+behind current and future projects. It doesn't buy access, priority, or a private version of the
+work.
 
 ## Featured work
 
@@ -39,37 +31,35 @@ if there is a reason to curate it.
 
 **Target:** 10 sponsors
 
-10 sponsors would help cover testing hardware, hosting, release work, and continued development.
+10 sponsors would be a cool milestone. It would help with the time and costs behind current and
+future projects.
 
 ## Monthly tiers
 
-These are contribution levels; they do not unlock a different version of Preflight.
+These are contribution levels. They don't buy access, priority, or a different version of anything.
 
 ### $5 a month
 
-**Supporter.** Support Preflight and my open-source work.
+**Supporter.** Support what I make.
 
 ### $10 a month
 
-**Backer.** A little more toward ongoing development, compatibility work, testing, and future
-projects.
+**Backer.** A little more support for current and future projects.
 
 ### $20 a month
 
-**Sustainer.** Help cover a larger share of cross-platform testing, release preparation, hardware,
-hosting, and continued development.
+**Sustainer.** Help cover a larger share of the time and costs behind the work.
 
 ### $50 a month
 
-**Sponsor.** For people, modders, developers, or organizations who want to make a substantial
-contribution to Preflight and my other work.
+**Sponsor.** For people or organizations who want to make a substantial contribution to what I make.
 
 ## One-time tier
 
 ### $10 one time
 
-**One-time supporter.** If Preflight saved you some waiting or you want to support the work, thank
-you. One-time support goes toward the same development, testing, hardware, hosting, and release costs.
+**One-time supporter.** If something I made was useful to you, or you just want to support the work,
+thank you.
 
 ## Repository integration
 

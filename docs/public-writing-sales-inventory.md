@@ -9,6 +9,9 @@ when a fact changes.
 
 ## Front-facing voice
 
+- `teamleaderleo` funding profiles are creator profiles, not permanent Preflight landing pages. Keep
+  the profile identity broad, mention the current public focus briefly, and put benchmarks, feature
+  lists, and project-specific support details in posts or project pages.
 - Prefer **made** or **created** to **built** in promotional copy unless `built` is the natural
   technical verb.
 - Let good facts stand. Do not append a joke, caveat, explanation, or personality tag merely because

@@ -6,44 +6,33 @@ open source.
 
 ## Page line
 
-Preflight, software, and whatever comes next.
+Software and other creative projects!?
 
 ## About
 
-I make stuff. Stuff... becomes more stuff.
+I make stuff that tends to become much larger than I expect.
 
-Right now, most of my public work is going into Preflight, a free and open-source fast launcher for
-Starsector.
+Right now, most of my public work is going into Preflight, a fast launcher for Starsector.
 
-On my 83-mod M5 MacBook Air development setup, startup moved from **112.17 seconds to
-13.69 seconds**, about an **8.19× speedup**. Preflight includes its own normal-versus-Preflight
-benchmark, so you can measure your installation too.
-
-It also tracks Starsector playtime, puts the useful game settings beside Launch, checks large mod
-setups, plans its own storage before writing, handles repair and recovery, ships signed updates, and
-includes a mod linter. The desktop and terminal versions use the same Java engine.
-
-Membership helps support development time, testing hardware, hosting, release work, and future
-projects. Preflight stays free and open source; the app, source, features, and public support remain
-available to everyone.
+This page is for the things I make now and whatever comes next. Membership helps with the time and
+costs behind the work. I'll post updates when there's something worth sharing.
 
 ## Membership tiers
 
-The tiers are contribution levels. Pick whichever amount feels right; they do not unlock different
-versions of Preflight.
+The tiers are contribution levels. Pick whichever amount feels right. They don't buy access,
+priority, or a private version of the work.
 
 ### Supporter
 
 **Price:** $5 per month
 
-Support Preflight and my other projects. This goes toward development, testing, hosting, hardware,
-and release work.
+Support what I make.
 
 ### Backer
 
 **Price:** $10 per month
 
-A little more support for ongoing development, compatibility work, testing, and future projects.
+A little more support for current and future projects.
 
 **Highlighted tier:** yes.
 
@@ -51,22 +40,20 @@ A little more support for ongoing development, compatibility work, testing, and 
 
 **Price:** $20 per month
 
-Help cover a larger share of cross-platform testing, release preparation, hardware, hosting, and
-continued development.
+Help cover a larger share of the time and costs behind the work.
 
 ### Sponsor
 
 **Price:** $50 per month
 
-For people or organizations who want to make a substantial contribution to Preflight and my other
-work.
+For people or organizations who want to make a substantial contribution to what I make.
 
 ## Welcome note
 
-Thank you. This helps support the time and costs behind Preflight and whatever I make next.
+Thank you. This helps me keep making things.
 
-Preflight lives at <https://github.com/teamleaderleo/preflight>. If something breaks, use **Copy
-setup** or the support file in the app, or open an issue. Membership is never required for support.
+I'll post updates here when there's something worth sharing. Membership is never required to
+access the public work or ask for support.
 
 ## First current public post
 
@@ -156,8 +143,8 @@ without packaging Starsector artwork.
 
 ## Images
 
-- Profile image: use the current creator avatar or the Preflight mark, whichever fits the page at the
-  time. This is a creator page, not a permanent Preflight-only identity.
-- Header while Preflight is the main public project: the wireframe ship on the drafting grid, with
-  the ship kept to the right so Patreon can crop the left side safely.
+- Profile image: use the current creator avatar. This is a creator page, not a project page.
+- The header can reflect the current project without turning the whole page into that project's page.
+  While Preflight is the main public project, use the wireframe ship on the drafting grid and keep the
+  ship to the right so Patreon can crop the left side safely.
 - Do not put essential text in either image; Patreon crops them differently across devices.
