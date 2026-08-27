@@ -75,6 +75,15 @@ then unpauses for a transition buffer and settled window before restoring pause.
 pause transition are internal PID/start-bound actions, so the route does not activate another app,
 move the cursor, or depend on host window focus.
 
+`campaign-paused-unpaused-measurement-only.json` and
+`campaign-paused-unpaused-optimized.json` are the paired FPS form of that pause cycle. The first
+still launches through Preflight but admits only the measurement boundary; the second uses the
+shipped fast plan scope. Their steps are otherwise identical. They foreground the exact recorded
+game PID immediately before measurement because inactive-focus intervals are deliberately excluded,
+then require at least 100 frames and 30 active seconds independently in both the settled paused and
+settled unpaused series. The benchmark result reports recurring-stutter and FPS deltas separately
+for each state; it never folds a missing state into the aggregate campaign result.
+
 `campaign-sample-paused-unpaused.json` runs the same internal pause cycle with a single-chunk JFR
 sampling recording and without the deep campaign call-time probes. Use it to rank residual campaign
 stacks after the timer probes have identified a broad category. It stops the exact owned process

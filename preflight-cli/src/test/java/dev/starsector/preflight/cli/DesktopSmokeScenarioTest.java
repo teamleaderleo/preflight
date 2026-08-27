@@ -258,6 +258,24 @@ final class DesktopSmokeScenarioTest {
     }
 
     @Test
+    void checkedInPausedUnpausedBenchmarkPairHasOneExactForegroundedRoute() throws Exception {
+        DesktopSmokeScenario baseline = DesktopSmokeScenario.read(Path.of(
+                "..", "scripts", "scenarios",
+                "campaign-paused-unpaused-measurement-only.json"));
+        DesktopSmokeScenario candidate = DesktopSmokeScenario.read(Path.of(
+                "..", "scripts", "scenarios", "campaign-paused-unpaused-optimized.json"));
+
+        assertEquals("measurement-only", baseline.launchPreset());
+        assertEquals("fast", candidate.launchPreset());
+        assertEquals(baseline.benchmarkIdentity(), candidate.benchmarkIdentity());
+        assertEquals(baseline.stepIds(), candidate.stepIds());
+        assertTrue(baseline.stepIds().contains("activate-game"));
+        assertTrue(baseline.stepIds().contains("paused-settled"));
+        assertTrue(baseline.stepIds().contains("unpaused-settled"));
+        assertEquals("quit", baseline.stepIds().get(baseline.stepIds().size() - 1));
+    }
+
+    @Test
     void launchMayOptIntoDeepCampaignTimingAndSmoothFramePacing() {
         DesktopSmokeScenario scenario = DesktopSmokeScenario.parse("""
                 {

@@ -204,6 +204,56 @@ final class DesktopBenchmarkLaunchTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void comparisonKeepsPausedAndUnpausedDistributionsIndependent() {
+        Map<String, Object> baseline = Map.of("campaignStateWindows", Map.of(
+                "paused", Map.of(
+                        "stutterBurdenMillisPerSecond", 30.0,
+                        "onePercentLowFps", 30.0),
+                "unpaused", Map.of(
+                        "stutterBurdenMillisPerSecond", 90.0,
+                        "onePercentLowFps", 15.0)));
+        Map<String, Object> optimized = Map.of("campaignStateWindows", Map.of(
+                "paused", Map.of(
+                        "stutterBurdenMillisPerSecond", 15.0,
+                        "onePercentLowFps", 40.0),
+                "unpaused", Map.of(
+                        "stutterBurdenMillisPerSecond", 60.0,
+                        "onePercentLowFps", 18.0)));
+
+        Map<String, Object> comparison = DesktopBenchmarkLaunch.comparison(List.of(
+                Map.of("summary", baseline), Map.of("summary", optimized)));
+        Map<String, Object> states =
+                (Map<String, Object>) comparison.get("campaignStateWindows");
+        Map<String, Object> paused = (Map<String, Object>) states.get("paused");
+        Map<String, Object> pausedMetrics = (Map<String, Object>) paused.get("metrics");
+        Map<String, Object> pausedBurden =
+                (Map<String, Object>) pausedMetrics.get("stutterBurdenMillisPerSecond");
+        Map<String, Object> unpaused = (Map<String, Object>) states.get("unpaused");
+        Map<String, Object> unpausedMetrics = (Map<String, Object>) unpaused.get("metrics");
+        Map<String, Object> unpausedLow =
+                (Map<String, Object>) unpausedMetrics.get("onePercentLowFps");
+
+        assertEquals(true, comparison.get("available"));
+        assertEquals(50.0, pausedBurden.get("improvementPercent"));
+        assertEquals(20.0, unpausedLow.get("improvementPercent"));
+    }
+
+    @Test
+    void eachStateWindowMustMeetTheFullCoverageGate() {
+        IOException missing = assertThrows(IOException.class, () ->
+                DesktopBenchmarkLaunch.campaignFrameSummary(null, "paused campaign"));
+        IOException shortWindow = assertThrows(IOException.class, () ->
+                DesktopBenchmarkLaunch.campaignFrameSummary(Map.of(
+                        "frames", 99,
+                        "totalActiveNanos", 29_999_999_999L), "unpaused campaign"));
+
+        assertTrue(missing.getMessage().contains("lacks settled paused campaign frames"));
+        assertTrue(shortWindow.getMessage().contains(
+                "settled unpaused campaign coverage requires at least 100 frames and 30 active seconds"));
+    }
+
+    @Test
     void sealsMeasurementOnlyIdentityAfterTimingWithoutProfileMetadata(@TempDir Path temporary)
             throws Exception {
         Path install = temporary.resolve("game");
@@ -303,6 +353,42 @@ final class DesktopBenchmarkLaunchTest {
                                         "stutterBurdenMillisPerSecond", 3.5,
                                         "repeatedSlowFramesPercent", 0.4,
                                         "longestSlowFrameClusterMillis", 80.0))),
+                        "campaignPausedAfter30SecondsActive", Map.ofEntries(
+                                Map.entry("frames", 900),
+                                Map.entry("totalActiveNanos", 31_000_000_000L),
+                                Map.entry("averageFps", 58.0),
+                                Map.entry("medianFps", 60.0),
+                                Map.entry("onePercentLowFps", 32.0),
+                                Map.entry("pointOnePercentLowFps", 20.0),
+                                Map.entry("p95Micros", 21_000),
+                                Map.entry("p99Micros", 31_250),
+                                Map.entry("framesMeeting60FpsPercent", 78.0),
+                                Map.entry("over33_33Millis", 8),
+                                Map.entry("over50Millis", 3),
+                                Map.entry("over100Millis", 1),
+                                Map.entry("stutterProfile", Map.of(
+                                        "slowFramesPerMinute", 9.0,
+                                        "stutterBurdenMillisPerSecond", 2.5,
+                                        "repeatedSlowFramesPercent", 0.3,
+                                        "longestSlowFrameClusterMillis", 70.0))),
+                        "campaignUnpausedAfter30SecondsActive", Map.ofEntries(
+                                Map.entry("frames", 850),
+                                Map.entry("totalActiveNanos", 31_500_000_000L),
+                                Map.entry("averageFps", 52.0),
+                                Map.entry("medianFps", 55.0),
+                                Map.entry("onePercentLowFps", 24.0),
+                                Map.entry("pointOnePercentLowFps", 14.0),
+                                Map.entry("p95Micros", 25_000),
+                                Map.entry("p99Micros", 41_667),
+                                Map.entry("framesMeeting60FpsPercent", 62.0),
+                                Map.entry("over33_33Millis", 18),
+                                Map.entry("over50Millis", 7),
+                                Map.entry("over100Millis", 2),
+                                Map.entry("stutterProfile", Map.of(
+                                        "slowFramesPerMinute", 22.0,
+                                        "stutterBurdenMillisPerSecond", 6.5,
+                                        "repeatedSlowFramesPercent", 0.8,
+                                        "longestSlowFrameClusterMillis", 130.0))),
                         "measurementOverhead", Map.of(
                                 "samples", 1_200,
                                 "totalNanos", 12_000_000,
@@ -328,7 +414,9 @@ final class DesktopBenchmarkLaunchTest {
         evidence.put("completedAt", processStart.plusSeconds(25));
         evidence.put("steps", List.of(
                 Map.of("id", "menu", "completedAt", processStart.plusSeconds(10)),
-                Map.of("id", "campaign", "completedAt", processStart.plusSeconds(20))));
+                Map.of("id", "campaign", "completedAt", processStart.plusSeconds(20)),
+                Map.of("id", "paused-settled", "completedAt", processStart.plusSeconds(21)),
+                Map.of("id", "unpaused-settled", "completedAt", processStart.plusSeconds(22))));
         evidence.put("artifacts", List.of(
                 Map.of("kind", "frame-report", "path", frames),
                 Map.of("kind", "log-tail", "path", log),
@@ -371,6 +459,14 @@ final class DesktopBenchmarkLaunchTest {
         assertEquals(8L, context.get("cacheMisses"));
         assertEquals(3L, context.get("fallbacks"));
         assertEquals(61L, context.get("memoryAvailablePercent"));
+        Map<String, Object> states =
+                (Map<String, Object>) summary.get("campaignStateWindows");
+        Map<String, Object> paused = (Map<String, Object>) states.get("paused");
+        Map<String, Object> unpaused = (Map<String, Object>) states.get("unpaused");
+        assertEquals(900L, paused.get("frames"));
+        assertEquals(32.0, paused.get("onePercentLowFps"));
+        assertEquals(850L, unpaused.get("frames"));
+        assertEquals(6.5, unpaused.get("stutterBurdenMillisPerSecond"));
     }
 
     @Test
