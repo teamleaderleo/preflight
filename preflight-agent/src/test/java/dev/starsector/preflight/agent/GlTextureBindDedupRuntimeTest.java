@@ -72,6 +72,24 @@ final class GlTextureBindDedupRuntimeTest {
     }
 
     @Test
+    void displayListThatStartsBeforeTheFirstFrameRemainsConservativeAcrossTheBoundary() {
+        GlTextureBindDedupRuntime.beginSession(true);
+        GlTextureBindDedupRuntime.beginDisplayList();
+        GlTextureBindDedupRuntime.beginFrame();
+
+        assertFalse(GlTextureBindDedupRuntime.shouldSkip(3553, 7));
+        GlTextureBindDedupRuntime.originalBindCompleted(3553, 7);
+        assertFalse(GlTextureBindDedupRuntime.shouldSkip(3553, 7));
+        GlTextureBindDedupRuntime.endDisplayList();
+        assertFalse(GlTextureBindDedupRuntime.shouldSkip(3553, 7));
+
+        Map<String, Object> telemetry = GlTextureBindDedupRuntime.telemetry();
+        assertEquals(false, telemetry.get("runtimeDisabled"));
+        assertEquals(1L, telemetry.get("displayListCompilations"));
+        assertEquals(3L, telemetry.get("originalCalls"));
+    }
+
+    @Test
     void conflictingDiscoveryProbeDeclinesTheCandidate() {
         System.setProperty(GlStateReissueRuntime.ENABLE_PROPERTY, "true");
         GlTextureBindDedupRuntime.beginSession(true);

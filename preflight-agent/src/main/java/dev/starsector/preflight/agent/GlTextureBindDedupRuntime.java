@@ -82,8 +82,9 @@ public final class GlTextureBindDedupRuntime {
     static void beginFrame() {
         if (!enabled || runtimeDisabled) return;
         long thread = Thread.currentThread().getId();
-        if (listCompilationDepth != 0) {
-            disable("display-list-compilation-crossed-frame-boundary");
+        if (ownerThreadId != -1L && ownerThreadId != thread) {
+            unexpectedThreadCalls++;
+            disable("unexpected-opengl-thread");
             return;
         }
         ownerThreadId = thread;
@@ -133,7 +134,7 @@ public final class GlTextureBindDedupRuntime {
     }
 
     public static void beginDisplayList() {
-        if (!eligibleThread()) return;
+        if (!eligibleLifecycleThread()) return;
         known = false;
         invalidations++;
         displayListCompilations++;
@@ -142,7 +143,7 @@ public final class GlTextureBindDedupRuntime {
     }
 
     public static void endDisplayList() {
-        if (!eligibleThread()) return;
+        if (!eligibleLifecycleThread()) return;
         known = false;
         invalidations++;
         if (listCompilationDepth != 1) {
@@ -189,6 +190,19 @@ public final class GlTextureBindDedupRuntime {
     private static boolean eligibleThread() {
         if (!enabled || !active || runtimeDisabled) return false;
         if (Thread.currentThread().getId() == ownerThreadId) return true;
+        unexpectedThreadCalls++;
+        disable("unexpected-opengl-thread");
+        return false;
+    }
+
+    private static boolean eligibleLifecycleThread() {
+        if (!enabled || runtimeDisabled) return false;
+        long thread = Thread.currentThread().getId();
+        if (ownerThreadId == -1L) {
+            ownerThreadId = thread;
+            return true;
+        }
+        if (thread == ownerThreadId) return true;
         unexpectedThreadCalls++;
         disable("unexpected-opengl-thread");
         return false;

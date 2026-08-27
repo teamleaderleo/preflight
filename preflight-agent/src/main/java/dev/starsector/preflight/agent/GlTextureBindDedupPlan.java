@@ -37,8 +37,8 @@ final class GlTextureBindDedupPlan {
                             invalidate("glPopAttrib()V"),
                             invalidate("glDeleteTextures(I)V"),
                             invalidate("glDeleteTextures(Ljava/nio/IntBuffer;)V"),
-                            hook("glNewList(II)V", "beginDisplayList"),
-                            hook("glEndList()V", "endDisplayList"))),
+                            hookAfter("glNewList(II)V", "beginDisplayList"),
+                            hookAfter("glEndList()V", "endDisplayList"))),
             target("gl13", "org/lwjgl/opengl/GL13",
                     "54a7f00a0710058dbd113906d51dbaf4008da1ce07e9b9fd860d49b156ce1a3c",
                     Map.ofEntries(invalidate("glActiveTexture(I)V"))),
@@ -106,6 +106,8 @@ final class GlTextureBindDedupPlan {
             Hook hook = target.hooks().get(entry.getKey());
             if (hook.kind() == Kind.BIND) {
                 if (!instrumentBind(entry.getValue())) return null;
+            } else if (hook.kind() == Kind.HOOK_AFTER) {
+                if (!instrumentAfterNormalReturn(entry.getValue(), hook.runtimeMethod())) return null;
             } else {
                 entry.getValue().instructions.insert(call(hook.runtimeMethod()));
             }
@@ -141,6 +143,18 @@ final class GlTextureBindDedupPlan {
         completed.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "originalBindCompleted", "(II)V", false));
         method.instructions.insertBefore(onlyReturn, completed);
+        return true;
+    }
+
+    private static boolean instrumentAfterNormalReturn(MethodNode method, String runtimeMethod) {
+        AbstractInsnNode onlyReturn = null;
+        for (AbstractInsnNode instruction : method.instructions) {
+            if (instruction.getOpcode() != Opcodes.RETURN) continue;
+            if (onlyReturn != null) return false;
+            onlyReturn = instruction;
+        }
+        if (onlyReturn == null) return false;
+        method.instructions.insertBefore(onlyReturn, call(runtimeMethod));
         return true;
     }
 
@@ -182,6 +196,10 @@ final class GlTextureBindDedupPlan {
         return Map.entry(signature, new Hook(Kind.HOOK, runtimeMethod));
     }
 
+    private static Map.Entry<String, Hook> hookAfter(String signature, String runtimeMethod) {
+        return Map.entry(signature, new Hook(Kind.HOOK_AFTER, runtimeMethod));
+    }
+
     record Target(
             String idSuffix,
             String internalName,
@@ -191,7 +209,7 @@ final class GlTextureBindDedupPlan {
             Map<String, Hook> hooks) {
     }
 
-    private enum Kind { BIND, HOOK }
+    private enum Kind { BIND, HOOK, HOOK_AFTER }
 
     private record Hook(Kind kind, String runtimeMethod) {
     }
