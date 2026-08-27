@@ -958,6 +958,9 @@ final class AdapterTransformationRegistry {
         if (GlCommandCountRuntime.PLAN_ID.equals(planId)) {
             return GlCommandCountRuntime.planEnabled();
         }
+        if (GlTextureBindDedupRuntime.PLAN_ID.equals(planId)) {
+            return GlTextureBindDedupRuntime.planEnabled();
+        }
         if (FrameLimiterTimePlan.PLAN_ID.equals(planId)) {
             return FrameTimeRuntime.enabled();
         }

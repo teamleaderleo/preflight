@@ -249,6 +249,7 @@ final class AdapterTransformationCache {
         String plan = target.planId();
         return !FrameTimeRuntime.PLAN_ID.equals(plan)
                 && !GlCommandCountRuntime.PLAN_ID.equals(plan)
+                && !GlTextureBindDedupRuntime.PLAN_ID.equals(plan)
                 && !FrameLimiterTimePlan.PLAN_ID.equals(plan)
                 && !CampaignCallTimeRuntime.PLAN_ID.equals(plan)
                 && !CampaignEngineTimeRuntime.PLAN_ID.equals(plan)

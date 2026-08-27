@@ -79,4 +79,11 @@ final class GlTextureBindDedupRuntimeTest {
         assertEquals(false, telemetry.get("enabled"));
         assertEquals("conflicting-opengl-diagnostic-requested", telemetry.get("problem"));
     }
+
+    @Test
+    void explicitlyEnabledPlanIsAvailableToTheTransformationRegistry() {
+        GlTextureBindDedupRuntime.beginSession(true);
+
+        assertTrue(AdapterTransformationRegistry.hasPlan(GlTextureBindDedupRuntime.PLAN_ID));
+    }
 }
