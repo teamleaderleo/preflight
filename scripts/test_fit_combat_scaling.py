@@ -67,6 +67,7 @@ class CombatScalingFitTest(unittest.TestCase):
         payload = {
             "runId": "run-a",
             "cellId": "ordinary",
+            "battleDp": 320.0,
             "samples": [
                 {"battleId": 1, "combatElapsedSeconds": 1.0, "ships": 8,
                  "advanceMicros": 1200.0},
@@ -84,6 +85,7 @@ class CombatScalingFitTest(unittest.TestCase):
         self.assertIn("Combat scaling fit", rendered)
         self.assertIn("Discovery rule", rendered)
         self.assertIn("ships", rendered)
+        self.assertEqual(320.0, result["ranges"]["battleDp"]["median"])
 
 
 if __name__ == "__main__":
