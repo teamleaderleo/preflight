@@ -20,10 +20,12 @@ next probe becomes available.
 
 ## Current measurement frontier
 
-The current implementation checkpoint is `418be653`, which retains the accepted v2 collision set,
+The current implementation checkpoint is `574cfd3b`, which retains the accepted v2 collision set,
 exact-step hitch enrichment, distinct recurring-cluster breadth, and CI coverage for all gameplay
-analysis scripts. The Detailed Combat Results state-map reuse candidate was live-tested and reverted:
-it installed and completed safely, but substantially regressed the 1,040-DP stress window. The
+analysis scripts. The AI Tweaks weapon-location helper candidate at `5b6035aa` and the Detailed Combat
+Results state-map reuse candidate were both live-tested and reverted. The AI Tweaks candidate removed
+its exact allocation target but did not demonstrate a player-visible improvement and added a sampled
+global getter tax; DCR installed and completed safely but substantially regressed the 1,040-DP stress window. The
 compact-index candidate remains rejected because its allocation premise was falsified offline. The
 latest accepted campaign measurement checkpoint remains `fee6c7b8`, following the cluster
 recorder/analyzer at `cf761d2c9089e7ef46f11d741166f0b3bc1d413c`. One Preflight-only
@@ -47,6 +49,39 @@ These numbers are one current B observation, not a comparison against the prior 
 thermal state were not locked, so apparent deltas must not be advertised as improvement.
 
 ## Current live-validation queue
+
+### AI Tweaks target-selection location reuse rejected (`5b6035aa`, reverted by `574cfd3b`)
+
+**Observed:** the final exact-build candidate passed all 34 semantic steps in the symmetric
+1,040-DP fixture and all 33 steps in a no-JFR ordinary 8-v-25 fixture. Both exact classes installed;
+the final stress run recorded 60,980 contexts, 60,980 misses, 8,302,274 hits, and zero abandoned
+contexts. No save/load or serialization class was transformed, neither scenario saved its in-memory
+fixture, and controlled shutdown found no gameplay fatal.
+
+**Observed:** the allocation premise was real. In the adjacent exact-window sample,
+`SelectTarget`-attributed `computePosition` weight moved from 194.1 MiB in the helper-declined
+near-control to 2.0 MiB in the final candidate. The overall `SelectTarget` allocation family remained
+about 461.1 MiB, led by 247.5 MiB of `Float.valueOf`; eliminating one vector family did not spend the
+target-selection boundary.
+
+**Observed:** the player-visible result was not a win. The intrusively profiled stress observations
+were 19.49 FPS near-control, 19.37 FPS intermediate B, and 17.49 FPS final B, with 1% lows effectively
+flat at 6.35, 6.37, and 6.49 FPS. Final stutter burden was 417.07 ms/s versus 354.30 ms/s in the
+near-control. Those distributions are diagnostic co-observations, not FPS claims: JFR sampling was
+intrusive, battle evolution was not lockstep, viewport width varied slightly, and candidate corrections
+changed the Preflight JAR. The thin ordinary run recorded 50.95 average FPS and 19.16 FPS 1% low but
+had no A cohort.
+
+**Observed:** the wrapper appeared on 20/624 final combat execution samples (3.21%), versus 0/651 in
+the declined near-control and 5/659 in the intermediate candidate. That variability does not quantify
+the cost precisely, but it falsifies the assumption that a `ThreadLocal` lookup on every global
+`WeaponHandle.getLocation` call is free.
+
+**Explored, not exhausted:** a future design must remove the global helper tax and cannot reintroduce
+synthetic `SelectTarget` instance fields without explaining the prior null-receiver failures. The
+boxing family is a lead, not a ready target. Require exact receiver/use proof plus a thin shuffled
+cohort before shipping another intervention. See the
+[bounded rejection record](evidence/2026-08-28-aitweaks-weapon-location-selection-rejected.md).
 
 ### Detailed Combat Results map reuse rejected (`734555bc`, reverted by `418be653`)
 
@@ -251,7 +286,7 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
 | RAT tooltip scripts | No Preflight optimization exists; source shows per-frame UI copies and reflection, with a "do not modify twice" UI sentinel in the AI-core path. | The worst exact active frame crossed this code. | Does an identity/content guard remove repeated work without missing a tooltip object reused for a different entry? |
 | Stable campaign snapshots | Stable arrays and exhausted cursor reuse are accepted and bounded. | Current allocation samples still show rebuild/cursor cost and cursor identities outnumber owners. | Which owners rebuild, how often, and can stale cursor entries be removed when an owner receives a replacement array? |
 | Paused/unpaused attribution | Frame buckets are state-separated and focus-clean. Repeated clusters now correlate with bounded exact campaign calls and exact scenario steps. This separated seven post-unpause clusters from 15 settled clusters. | Transition work is a broad catch-up burst; the settled route still mixes occasional large spikes with recurring small calls, and retained children explain only part of cluster wall time. | Does the transition ordering repeat, and which individual settled frames align with the 69–90 ms location spikes? |
-| Combat | Deterministic simulation, autopilot, speed-up, zoom, and exact-window reporting are live. Collision v2 hit 99.90% of capacity hints in the fresh default run. One combined accepted-plan B improved average FPS 6.26%, stutter burden 13.27%, and recurring-cluster exposure 9.55 points while serving 45.9 million exact empty listener snapshots. An ordinary 8-v-25 B exercised 6,867 non-empty fallbacks cleanly. The accepted plans are now in Recommended; v3 compact indexes and DCR state-map reuse are rejected. The DCR stress window remained exactly attributable after Rosetta clock calibration and exposed projectile-age boxing plus concatenation as residual allocation families. | The stress pair is directional rather than lockstep, and residual hitch samples span AI Tweaks, vanilla ship/weapon work, graphics, collision, and damage-analysis mods. DCR map reuse changed unordered-map behavior and substantially regressed the stress observation; narrower order-preserving work remains unexplored. Rejecting one representation, promoting local wins, or retiring one unsafe target does not spend those families. | Can DCR's per-frame concatenation or projectile-age boxing be removed while preserving original source/map encounter order, and does an offline fixture prove that allocation family disappears before another B run? |
+| Combat | Deterministic simulation, autopilot, speed-up, zoom, and exact-window reporting are live. Collision v2 hit 99.90% of capacity hints in the fresh default run. One combined accepted-plan B improved average FPS 6.26%, stutter burden 13.27%, and recurring-cluster exposure 9.55 points while serving 45.9 million exact empty listener snapshots. An ordinary 8-v-25 B exercised 6,867 non-empty fallbacks cleanly. The accepted plans are now in Recommended; v3 compact indexes, DCR state-map reuse, and the global AI Tweaks location wrapper are rejected. The latter removed roughly 99% of its exact sampled allocation family but acquired up to 3.21% sampled CPU share and no thin paired FPS win. | The stress pair is directional rather than lockstep, and residual hitch samples span AI Tweaks, vanilla ship/weapon work, graphics, collision, and damage-analysis mods. DCR map reuse changed unordered-map behavior; the AI Tweaks wrapper showed that even enormous redundant-call volume may not repay an added global interception boundary. Rejecting those implementations does not spend their underlying families. | Which semantic hitch family has the highest excess presence across repeated clusters, and can its next experiment use thin measurement after intrusive discovery rather than combining both roles? |
 
 ## Open questions, ranked
 
@@ -268,10 +303,10 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
    interval and which listener events already express real market invalidation.
 5. **Stable snapshot ownership:** instrument rebuilds by transformed loop kind before redesigning
    cursor retention.
-6. **Combat residual frontier:** inspect a narrower order-preserving DCR concatenation or
-   projectile-age-boxing removal and prove its allocation effect offline before another live B.
-   Avoid the reverted map rotation and the retired AI Tweaks `SelectTarget` field snapshot; the
-   stress workload does not replace ordinary play.
+6. **Combat residual frontier:** reconcile the current exact-step/JFR tools with issue #449, then
+   choose the narrowest high-information hitch-attribution slice. Avoid the reverted DCR map rotation,
+   retired AI Tweaks `SelectTarget` fields, and rejected global location wrapper. Any new allocation
+   candidate must separate intrusive discovery from thin measurement; stress does not replace ordinary play.
 
 ## Frequently revisited questions
 
@@ -308,6 +343,14 @@ leaf inside one cluster remains a lead, not a conclusion. Cluster enrichment imp
 by comparing against non-cluster samples from the same exact step and reports how many distinct
 clusters contain each method. Neither overrepresentation nor broad cluster coverage proves that the
 method caused the frame delay.
+
+### Did the 1,040-DP AI Tweaks location experiment work?
+
+Structurally, yes: it removed almost all sampled `SelectTarget -> computePosition` allocation and
+served more than eight million repeated reads per run. As a gameplay optimization, no: the profiled
+frame observations did not improve consistently, the wrapper itself appeared in CPU samples, and the
+only thin ordinary observation lacked an A cohort. The code is preserved in Git history and reverted.
+That area is explored, not exhausted; a future design must avoid taxing every global getter call.
 
 ### Does `campaignUnpausedAfter30SecondsActive` mean settled after unpausing?
 

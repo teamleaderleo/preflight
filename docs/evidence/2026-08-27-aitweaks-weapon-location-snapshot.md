@@ -70,3 +70,12 @@ original target-search field read, so Preflight retired the entire combined targ
 continuing to ship the geometry subset without a trustworthy semantic boundary. See
 [the correction and retirement report](2026-08-27-aitweaks-boxed-search-range-correction.md). The
 historical "two constructor boxes" statement above describes v3, not a retained contract.
+
+## 2026-08-28 successor experiment
+
+A later design avoided `SelectTarget` fields entirely by bracketing the synchronous selection in
+`AutofireAI` and intercepting the exact `WeaponHandle.getLocation-impl` helper. It safely removed the
+reviewed allocation family and passed ordinary plus 1,040-DP combat, but the global getter wrapper
+showed measurable sampled CPU weight and no useful player-visible improvement. It was therefore
+preserved and reverted rather than reviving this historical acceptance. See the
+[successor rejection record](2026-08-28-aitweaks-weapon-location-selection-rejected.md).

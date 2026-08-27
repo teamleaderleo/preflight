@@ -1,0 +1,236 @@
+{
+  "format": "starsector-preflight-aitweaks-location-rejection-v1",
+  "date": "2026-08-28",
+  "candidateCommit": "5b6035aa",
+  "revertCommit": "574cfd3b",
+  "planId": "aitweaks-weapon-location-selection-snapshot-v1",
+  "decision": "rejected",
+  "reason": "The exact allocation family disappeared, but no clean player-visible improvement was demonstrated and the global getter wrapper acquired measurable sampled CPU weight.",
+  "identity": {
+    "gameVersion": "0.98a-RC8",
+    "profileFingerprint": "2995668308ac3d31d645ccac30fb1a7e644e64fce5609050a1488df4cadc5af6",
+    "textureProfileFingerprint": "59b01dc050f39a9f07053bd168cc8c1ecd55086b429b2d732456f87ca217a702",
+    "resolution": "1440x932 windowed",
+    "preset": "recommended",
+    "adapterScope": "full",
+    "gameRuntime": "Java 17 x86_64 under Rosetta",
+    "wrapperRuntime": "Java 21.0.10 aarch64",
+    "finalPreflightJarSha256": "a20c7dfe0b9f979a5f23484eb5254719f18f2ba3951ade3a1eb2c28df943deb7",
+    "aiTweaksArchiveSha256": "9f6179bcd2df2e3ce8cea2da79051c9f1be3c9b71712c6c28d7568b777ecf5b2",
+    "autofireClassSha256": "f8bf1794c6277b5d7a64f206b62e8ac78ec7c35ce90c50dfecd5ca66a5119b56",
+    "weaponHandleArchiveEntrySha256": "a5b29faf9870d98a9d3275e0b5d50025b456bdd0e3396f7e4f77d3a4bc9c8282",
+    "weaponHandleLoaderProducedSha256": "0c574bd722f62c04b543d2ee0f9e8276776ecb3f26e91ddc06dfc868ba4afb21"
+  },
+  "verification": {
+    "focusedTests": 10,
+    "installedByteIntegrationTests": 1,
+    "candidateMavenVerifySeconds": 39.601,
+    "revertedMavenVerifySeconds": 44.163,
+    "fullMavenVerifyStatus": "passed",
+    "revertedReactorTests": 77,
+    "revertedReactorSkips": 5,
+    "javaRelease": 17
+  },
+  "ordinaryProfiledAttempt": {
+    "runDirectory": "/private/tmp/preflight-aitweaks-location-ordinary-b.MfRcnZ",
+    "scenarioStatus": "failed-before-gameplay",
+    "lastState": "main-menu-ready",
+    "failure": "known Rosetta/HotSpot sharedRuntime.cpp:561 safepoint assertion under JFR",
+    "candidateEvaluable": false,
+    "hashes": {
+      "console": "3363f936d43e5b417345d3c69d33d91101923e4d84587032c1d8c8ba025998bc",
+      "scenarioEvidence": "43425f80db8d8464e8d279a8b6a79efe32c4e6f20c2ad0d746b9839216ca43c8"
+    }
+  },
+  "ordinaryThinB": {
+    "runDirectory": "/private/tmp/preflight-aitweaks-location-ordinary-b2.IOXlIP",
+    "scenario": "campaign-simulation-combat-sanity-no-jfr",
+    "recording": "none",
+    "semanticStatus": "passed",
+    "semanticStepsPassed": 33,
+    "battle": "8 allied versus 25 opposing ships at 1x",
+    "viewport": "1.250 to 4.250",
+    "telemetry": {
+      "installed": true,
+      "selectionContexts": 64153,
+      "locationMisses": 64153,
+      "locationHits": 4435773,
+      "abandonedContexts": 0,
+      "exactMatches": 70,
+      "transformationsApplied": 70,
+      "transformationDeclined": 0,
+      "containedFailures": 0
+    },
+    "measurementWindow": {
+      "frames": 3084,
+      "activeSeconds": 60.531087916,
+      "averageFps": 50.95,
+      "medianFps": 54.35,
+      "onePercentLowFps": 19.16,
+      "pointOnePercentLowFps": 11.93,
+      "p95Millis": 26.7,
+      "p99Millis": 52.2,
+      "maximumMillis": 114.413,
+      "stutterBurdenMillisPerSecond": 27.51,
+      "repeatedSlowFramesPercent": 2.46
+    },
+    "claimBoundary": "B-only semantic and frame observation; no ordinary A cohort and therefore no uplift claim.",
+    "hashes": {
+      "run": "dec13aa9c93ef412c7a0088f7de8aa370a0dd6c3e6b61f0375e2b23dfc3c1e09",
+      "profile": "e2457fc3512d94fa2f3f1da32b6a787b754b960371447530dc86489f245e5a9f",
+      "scenarioEvidence": "eb54608cca0f692e295a7b4204971a1b4e9f4ff0e57dbba42484f4ce6168b030",
+      "frameReport": "58c7de4069d98050b35a0d51b0092ae97dfb7108b2fc2f1d841b82c2ab1d4792",
+      "adapterReport": "3df9c238633c71856caf537bb7fd5cf79d3d0da9dbfe96e8c58a0bdd355487d2",
+      "capturedFrameReport": "b00769a3079facad1b0bb43f55b01b21a5dbd6bd7a6be32d5e8d9b465428d33c",
+      "capturedAdapterHealth": "9951e93123d1675aedacb41e151ed6073b8a62efbb5ab5d755ddbc7f12e3971c",
+      "capturedLogTail": "513ec350fa6f60322cf78698e73b9a1cfe14d57bbab96ded6a62c7ad71ab2cd3"
+    }
+  },
+  "stressNearControl": {
+    "runDirectory": "/private/tmp/preflight-aitweaks-location-1040-b.A8jmu6",
+    "scenario": "campaign-simulation-combat-1000dp",
+    "semanticStatus": "passed",
+    "fixture": "24 mirrored ships and 520 DP per side at 2x",
+    "candidateState": "Autofire caller transformed; WeaponHandle exact gate declined; no cached reads",
+    "telemetry": {
+      "installed": false,
+      "autofireInstalled": true,
+      "weaponHandleInstalled": false,
+      "selectionContexts": 67252,
+      "locationMisses": 0,
+      "locationHits": 0,
+      "abandonedContexts": 0
+    },
+    "measurementWindow": {
+      "frames": 590,
+      "averageFps": 19.49,
+      "medianFps": 21.28,
+      "onePercentLowFps": 6.35,
+      "pointOnePercentLowFps": 5.5,
+      "p95Millis": 85.3,
+      "p99Millis": 157.5,
+      "maximumMillis": 181.748,
+      "stutterBurdenMillisPerSecond": 354.3,
+      "repeatedSlowFramesPercent": 93.22,
+      "longestRepeatedClusterMillis": 22086.32
+    },
+    "sampling": {
+      "combatExecutionSamples": 651,
+      "combatAllocationSamples": 2646,
+      "runtimeWrapperExecutionSamples": 0,
+      "computePositionWeightedMiB": 391.3,
+      "selectTargetComputePositionWeightedMiB": 194.1
+    },
+    "hashes": {
+      "startupJfr": "5799d1680dac7bdf9a646ae3a8ece71bea32913fbea43b8f5ca9305a7ecca092",
+      "runtimeFrameReport": "1ac8569b0f7a8b2817fba1268fcaec951462f25c95cbe7732c9ba4d379abc54a",
+      "scenarioEvidence": "3fa6c6d261b4651196f4b8dfbb6d0e9f5210dea07fa383fd0cb4e3e9ef27763b",
+      "adapterReport": "0b3bc72cfbf274f6028f8ef6f8aa406382b1835589c007326ae97bcdb321518a"
+    }
+  },
+  "stressIntermediateB": {
+    "runDirectory": "/private/tmp/preflight-aitweaks-location-1040-b2.V9FSvy",
+    "semanticStatus": "passed",
+    "telemetry": {
+      "installed": true,
+      "selectionContexts": 65611,
+      "locationMisses": 65611,
+      "locationHits": 8280068,
+      "abandonedContexts": 0
+    },
+    "measurementWindow": {
+      "frames": 586,
+      "averageFps": 19.37,
+      "onePercentLowFps": 6.37,
+      "p95Millis": 78.8,
+      "p99Millis": 157.1,
+      "stutterBurdenMillisPerSecond": 356.4,
+      "repeatedSlowFramesPercent": 94.37
+    },
+    "sampling": {
+      "combatExecutionSamples": 659,
+      "runtimeWrapperExecutionSamples": 5,
+      "selectTargetComputePositionSampleObserved": false
+    },
+    "hashes": {
+      "startupJfr": "436a547f9a9c2eb2f59602fb87725c79824d576a62ce8a30f5efc93982534191",
+      "runtimeFrameReport": "bffe20af1ff29224b107bd6239c4a215c8f107e9a76bddb9bd00c47d060849ec",
+      "scenarioEvidence": "2dd5790661b2597b78e5328487fe7c6e02746b7ff4073317b23dd1c44ff5742a",
+      "adapterReport": "f70ff6f318522306e8b324c495a51695183ec432788abb06f0f17e52fbf34010"
+    }
+  },
+  "stressFinalB": {
+    "runDirectory": "/private/tmp/preflight-aitweaks-location-1040-final-b.aViIIm",
+    "scenario": "campaign-simulation-combat-1000dp",
+    "semanticStatus": "passed",
+    "semanticStepsPassed": 34,
+    "fixture": "24 mirrored ships and 520 DP per side at 2x",
+    "viewport": "1.250 to 3.989; visible width 1800.0 to 5744.0",
+    "telemetry": {
+      "installed": true,
+      "selectionContexts": 60980,
+      "locationMisses": 60980,
+      "locationHits": 8302274,
+      "abandonedContexts": 0,
+      "exactMatches": 70,
+      "transformationsApplied": 70,
+      "transformationDeclined": 0,
+      "containedFailures": 0
+    },
+    "measurementWindow": {
+      "frames": 528,
+      "activeSeconds": 30.184246958,
+      "averageFps": 17.49,
+      "medianFps": 18.87,
+      "onePercentLowFps": 6.49,
+      "pointOnePercentLowFps": 5.25,
+      "p95Millis": 93.6,
+      "p99Millis": 154.1,
+      "maximumMillis": 190.357,
+      "stutterBurdenMillisPerSecond": 417.07,
+      "repeatedSlowFramesPercent": 99.43,
+      "longestRepeatedClusterMillis": 25555.54
+    },
+    "sampling": {
+      "combatExecutionSamples": 624,
+      "combatAllocationSamples": 2652,
+      "runtimeWrapperExecutionSamples": 20,
+      "runtimeWrapperExecutionSharePercent": 3.21,
+      "computePositionWeightedMiB": 206.5,
+      "selectTargetComputePositionWeightedMiB": 2.0,
+      "selectTargetTotalWeightedMiB": 461.1,
+      "selectTargetFloatValueOfWeightedMiB": 247.5,
+      "interpretation": "JFR sample weights and sampled-stack shares; not an allocation census or clean FPS claim"
+    },
+    "diagnosticDeltaFromNearControl": {
+      "averageFpsPercent": -10.26,
+      "onePercentLowFpsPercent": 2.2,
+      "p95MillisPercent": 9.73,
+      "stutterBurdenPercent": 17.72,
+      "repeatedSlowFramesPercentagePoints": 6.21,
+      "claimBoundary": "Intrusively profiled, non-lockstep diagnostic co-observation; not a causal performance claim."
+    },
+    "hashes": {
+      "run": "c967d17024df0e930a2414bc2a643dace78570ba4e8837c8ab614045cc5f479d",
+      "profile": "42e84f27221014cba3820d6aa2a187889a7879dad89f36cd936aaec84cdaff96",
+      "startupJfr": "bc2c14108b1e160a1ab802159a433c14a0fec397fda4dfcf6d0f367f41baa67f",
+      "runtimeFrameReport": "f0f077d46c9a1b2c0ef246bd4fe5400bb8445a7dbbaba6b3c26269e330e390db",
+      "scenarioEvidence": "9722f0a80f590aae823b34520be3a58ea82e40127a77bc89217fa850f1e6a389",
+      "adapterReport": "88d4a6903fbd437fad588ed8a023b622ff9d7f77ecdaa8e67873ac212e11dccb",
+      "capturedFrameReport": "524df12f6ab34305222b200771ed2e464b842ad80a9ec67feaf4ab5cf2c87960",
+      "capturedAdapterHealth": "fd4ce3aad1de9878e2f7062eb60602e30ba1fee2daba97dbebd328c38032e3d4",
+      "capturedLogTail": "8591ba98f7d6ff6da67c2a480cbde0d20f67cf64426b5cf79f13e5a7d9b5c0b3"
+    }
+  },
+  "safety": {
+    "saveLoadOrSerializationClassesTransformed": false,
+    "saveWrittenByScenarios": false,
+    "ordinaryGameplayFatal": false,
+    "stressGameplayFatal": false,
+    "partialInstallInertAfterSelfReview": true,
+    "originalGetterFallbackRetained": true,
+    "explicitOptIn": "preflight.combat.aiTweaksSelectionLocation=true",
+    "candidateRemovedFromShippedTree": true
+  },
+  "rawArtifactsPolicy": "Raw JFRs, logs, screenshots, loader-produced classes, and run directories are disposable; this bounded record and hashes are retained."
+}
