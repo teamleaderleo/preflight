@@ -1,0 +1,111 @@
+{
+  "format": "starsector-preflight-paused-unpaused-fast-pair-v1",
+  "date": "2026-08-27",
+  "claimBoundary": "One live measurement-only/fast diagnostic pair on the current heavily modded save. It validates state-separated measurement and identifies mixed residual behavior; it is not a release-level causal claim.",
+  "measurementIntegrity": {
+    "launchPath": "preflight-only",
+    "sameRouteThroughUnpausedSettled": true,
+    "minimumFramesPerState": 100,
+    "minimumActiveNanosPerState": 30000000000,
+    "measurementOnlyInactiveIntervalsDropped": 0,
+    "fastInactiveIntervalsDropped": 0
+  },
+  "runs": {
+    "measurementOnly": {
+      "preset": "off",
+      "processStartedAt": "2026-08-27T11:42:04.071Z",
+      "mainMenuInteractiveAt": "2026-08-27T11:43:50.957857Z",
+      "campaignReadyAt": "2026-08-27T11:44:01.591115Z",
+      "frameReportSha256": "91830b0e3ab0fcf82309762e4047148aa4c9c6196394458a2584ad3c89f4c36f",
+      "measurementStepsPassed": true,
+      "postMeasurementFailure": "restore pause refused because a campaign interaction was active"
+    },
+    "fast": {
+      "preset": "fast",
+      "processStartedAt": "2026-08-27T11:47:04.419Z",
+      "mainMenuInteractiveAt": "2026-08-27T11:47:33.956789Z",
+      "campaignReadyAt": "2026-08-27T11:47:42.708232Z",
+      "frameReportSha256": "f7c4eb558c2813b4aa435994538e1000872bd3bfca7591beff8fa4880cceca98",
+      "measurementStepsPassed": true,
+      "capturePassed": true,
+      "quitPassed": true,
+      "postMeasurementFailure": "runner incorrectly required a controller-stop receipt after successful explicit quit"
+    }
+  },
+  "states": {
+    "paused": {
+      "measurementOnly": {
+        "frames": 3490,
+        "activeNanos": 59789041791,
+        "averageFps": 58.37,
+        "medianFps": 59.17,
+        "onePercentLowFps": 30.58,
+        "pointOnePercentLowFps": 12.45,
+        "p99FrameMicros": 32700,
+        "slowFramesPerMinute": 21.07,
+        "stutterBurdenMillisPerSecond": 5.41,
+        "repeatedSlowFramesPercent": 0.11,
+        "over50Millis": 7
+      },
+      "fast": {
+        "frames": 3640,
+        "activeNanos": 62449836083,
+        "averageFps": 58.29,
+        "medianFps": 58.82,
+        "onePercentLowFps": 29.94,
+        "pointOnePercentLowFps": 23.75,
+        "p99FrameMicros": 33400,
+        "slowFramesPerMinute": 30.74,
+        "stutterBurdenMillisPerSecond": 1.42,
+        "repeatedSlowFramesPercent": 0.0,
+        "over50Millis": 2
+      },
+      "relativeDeltaPercent": {
+        "averageFps": -0.14,
+        "onePercentLowFps": -2.09,
+        "pointOnePercentLowFps": 90.76,
+        "slowFramesPerMinute": 45.89,
+        "stutterBurdenMillisPerSecond": -73.75,
+        "repeatedSlowFramesPercent": -100.0
+      }
+    },
+    "unpaused": {
+      "measurementOnly": {
+        "frames": 1885,
+        "activeNanos": 36204063917,
+        "averageFps": 52.07,
+        "medianFps": 59.52,
+        "onePercentLowFps": 14.51,
+        "pointOnePercentLowFps": 6.89,
+        "p99FrameMicros": 68900,
+        "slowFramesPerMinute": 160.76,
+        "stutterBurdenMillisPerSecond": 61.42,
+        "repeatedSlowFramesPercent": 2.97,
+        "over50Millis": 44,
+        "over100Millis": 6
+      },
+      "fast": {
+        "frames": 1747,
+        "activeNanos": 33771522667,
+        "averageFps": 51.73,
+        "medianFps": 59.17,
+        "onePercentLowFps": 15.48,
+        "pointOnePercentLowFps": 7.57,
+        "p99FrameMicros": 64600,
+        "slowFramesPerMinute": 188.32,
+        "stutterBurdenMillisPerSecond": 56.16,
+        "repeatedSlowFramesPercent": 4.01,
+        "over50Millis": 36,
+        "over100Millis": 5
+      },
+      "relativeDeltaPercent": {
+        "averageFps": -0.65,
+        "onePercentLowFps": 6.69,
+        "pointOnePercentLowFps": 9.87,
+        "slowFramesPerMinute": 17.14,
+        "stutterBurdenMillisPerSecond": -8.56,
+        "repeatedSlowFramesPercent": 35.02
+      }
+    }
+  }
+}
