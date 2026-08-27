@@ -295,11 +295,13 @@ final class DesktopSmokeRunner {
             DesktopSmokeDriver driver,
             DesktopSmokeDriver.ProcessTarget expectedTarget) throws IOException {
         String finalStatus = status;
-        try {
-            publishControllerStopRequest(runDirectory, expectedTarget);
-        } catch (Exception failure) {
-            diagnostics.add("Exact-process stop receipt failed: " + message(failure));
-            finalStatus = "failed";
+        if (!successfulQuitCompleted(scenario, steps)) {
+            try {
+                publishControllerStopRequest(runDirectory, expectedTarget);
+            } catch (Exception failure) {
+                diagnostics.add("Exact-process stop receipt failed: " + message(failure));
+                finalStatus = "failed";
+            }
         }
         try (DriverCalls cleanup = new DriverCalls(15)) {
             cleanup.call(() -> {
@@ -326,6 +328,17 @@ final class DesktopSmokeRunner {
         }
         return seal(scenario, runDirectory, descriptor, finalStatus, startedAt, clock.instant(),
                 steps, diagnostics);
+    }
+
+    static boolean successfulQuitCompleted(
+            DesktopSmokeScenario scenario, List<Map<String, Object>> completedSteps) {
+        if (completedSteps == null || completedSteps.isEmpty()) return false;
+        Map<String, Object> completed = completedSteps.get(completedSteps.size() - 1);
+        if (!"passed".equals(completed.get("status"))) return false;
+        String completedId = completed.get("id") instanceof String id ? id : null;
+        if (completedId == null) return false;
+        return scenario.stepViews().stream().anyMatch(step ->
+                completedId.equals(step.get("id")) && "quit".equals(step.get("kind")));
     }
 
     /** Publishes stop intent only while the runner's exact attached process is still alive. */

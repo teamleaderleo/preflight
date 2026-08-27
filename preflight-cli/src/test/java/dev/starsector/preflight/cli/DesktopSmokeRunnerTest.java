@@ -104,6 +104,30 @@ final class DesktopSmokeRunnerTest {
         assertFalse(Files.exists(run.resolve(StarsectorRunLogEvidence.CONTROLLER_STOP_FILE)));
     }
 
+    @Test
+    void aSuccessfulExplicitQuitDoesNotRequireAReceiptFromAnAlreadyStoppedProcess() {
+        DesktopSmokeScenario scenario = DesktopSmokeScenario.parse("""
+                {
+                  "format":"starsector-preflight-smoke-v1",
+                  "name":"explicit-quit",
+                  "timeoutSeconds":60,
+                  "launch":{"preset":"fast","textureStorage":"balanced","profile":null},
+                  "steps":[
+                    {"id":"menu","kind":"wait-state","state":"main-menu-ready","timeoutSeconds":30},
+                    {"id":"quit","kind":"quit"}
+                  ]
+                }
+                """);
+        Map<String, Object> passedQuit = Map.of("id", "quit", "status", "passed");
+        Map<String, Object> failedQuit = Map.of("id", "quit", "status", "failed");
+
+        assertTrue(DesktopSmokeRunner.successfulQuitCompleted(
+                scenario, List.of(Map.of("id", "menu", "status", "passed"), passedQuit)));
+        assertFalse(DesktopSmokeRunner.successfulQuitCompleted(scenario, List.of(failedQuit)));
+        assertFalse(DesktopSmokeRunner.successfulQuitCompleted(
+                scenario, List.of(Map.of("id", "menu", "status", "passed"))));
+    }
+
     private Path runtimeIdentity(Path run) throws Exception {
         ProcessHandle process = ProcessHandle.current();
         Map<String, Object> identity = new LinkedHashMap<>();

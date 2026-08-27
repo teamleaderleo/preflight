@@ -63,10 +63,12 @@ happened to become frontmost through normal launch; the controller did not reque
 scenario evidence SHA-256 is
 `79c1633ae58a59028383b2fc26cffa2266587ed68e91756a20e14e3eef786f77`.
 
-Developer runs bind `/usr/bin/caffeinate -dimsu` to the benchmark process lifetime. This prevents
-idle sleep while the process exists; it does not and should not attempt to reverse a manual screen
-lock. Focusless delivery is what makes a locked controller route possible. Active frame measurement
-still requires an unlocked, active display by design.
+Developer runs bind `/usr/bin/caffeinate -dimsu` to the benchmark process lifetime. During an
+extended interactive profiling session, keep one standalone `caffeinate -dimsu` guard alive across
+the coding gaps as well; this avoids a ten-minute display timeout without moving the pointer or
+changing focus. Stop that guard when the session ends. It does not and should not attempt to reverse
+a manual screen lock. Focusless delivery is what makes a locked controller route possible. Active
+frame measurement still requires an unlocked, active display by design.
 
 The save action also established an execution-boundary distinction. Campaign `advance` does not run
 while the pause menu owns the screen, so a save request armed there never fired. Campaign `render`

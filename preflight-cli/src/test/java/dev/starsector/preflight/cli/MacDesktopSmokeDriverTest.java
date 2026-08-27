@@ -25,6 +25,29 @@ final class MacDesktopSmokeDriverTest {
     Path temporaryDirectory;
 
     @Test
+    void consoleLockDetectionAcceptsTheTwoMacSessionForms() {
+        assertTrue(MacDesktopSmokeDriver.consoleLocked("\"IOConsoleLocked\" = Yes"));
+        assertTrue(MacDesktopSmokeDriver.consoleLocked(
+                "\"CGSSessionScreenIsLocked\"=Yes"));
+        assertFalse(MacDesktopSmokeDriver.consoleLocked("\"IOConsoleLocked\" = No"));
+        assertFalse(MacDesktopSmokeDriver.consoleLocked(""));
+    }
+
+    @Test
+    void aLockedConsoleFailsTheDriverProbeBeforeDesktopAutomation() {
+        assumeTrue(Platform.current() == Platform.MAC);
+        FakeCommands commands = new FakeCommands();
+        commands.consoleLocked = true;
+        MacDesktopSmokeDriver driver = driver(commands);
+
+        DesktopSmokeDriver.UnavailableException failure = assertThrows(
+                DesktopSmokeDriver.UnavailableException.class, driver::descriptor);
+
+        assertTrue(failure.getMessage().contains("console is locked"), failure.getMessage());
+        assertTrue(commands.scripts().isEmpty());
+    }
+
+    @Test
     void everyInputScriptUsesOnlyTheExactNumericPid() {
         long pid = 4_242L;
         List<String> scripts = List.of(
@@ -361,12 +384,18 @@ final class MacDesktopSmokeDriverTest {
         private int activationWindowUnavailableCount;
         private int windowBoundsUnavailableCount;
         private int nonfrontmostObservationCount;
+        private boolean consoleLocked;
 
         @Override
         public Result run(
                 List<String> command, Duration timeout) throws Exception {
             commands.add(List.copyOf(command));
             if (fail) return new Result(1, "permission denied");
+            if (command.get(0).endsWith("ioreg")) {
+                return new Result(0, consoleLocked
+                        ? "\"IOConsoleLocked\" = Yes\n"
+                        : "\"IOConsoleLocked\" = No\n");
+            }
             if (command.get(0).endsWith("screencapture")) {
                 Files.writeString(Path.of(command.get(command.size() - 1)), "pixels");
                 return new Result(0, "");

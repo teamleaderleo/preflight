@@ -39,6 +39,7 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     private static final String BRIDGE_TOKEN_ENV = "PREFLIGHT_MAC_AUTOMATION_TOKEN";
     private static final String APPLICATION_SERVICES =
             "/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices";
+    private static final Path IOREG = Path.of("/usr/sbin/ioreg");
     private static final Path PYTHON3 = Path.of("/usr/bin/python3");
     private static final Map<String, TargetPoint> TARGETS = targets();
     private static final Map<String, Integer> KEY_CODES = Map.ofEntries(
@@ -127,6 +128,7 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
         if (!Files.isExecutable(osascript)) {
             throw new UnavailableException("osascript is unavailable at " + osascript);
         }
+        requireConsoleUnlocked();
         String accessibility = automation(
                 "probe", 0, null,
                 "tell application \"System Events\" to return UI elements enabled");
@@ -204,6 +206,7 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
         boolean compatibilityAttempted = false;
         do {
             requireSameLifetime(attached);
+            requireConsoleUnlocked();
             try {
                 String output = automation(
                         "activate", attached.pid(), null, activateScript(attached.pid())).trim();
@@ -264,6 +267,23 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
 
     private boolean compatibilityFocusAvailable() {
         return allowCompatibilityFocus && !nativeBridge() && Files.isExecutable(PYTHON3);
+    }
+
+    private void requireConsoleUnlocked() throws Exception {
+        if (!Files.isExecutable(IOREG)) return;
+        String state = command(List.of(
+                IOREG.toString(), "-n", "Root", "-d", "1")).output();
+        if (consoleLocked(state)) {
+            throw new UnavailableException(
+                    "The macOS console is locked; unlock it before running a foreground FPS scenario");
+        }
+    }
+
+    static boolean consoleLocked(String ioregOutput) {
+        if (ioregOutput == null || ioregOutput.isBlank()) return false;
+        return ioregOutput.contains("\"IOConsoleLocked\" = Yes")
+                || ioregOutput.contains("\"CGSSessionScreenIsLocked\"=Yes")
+                || ioregOutput.contains("\"CGSSessionScreenIsLocked\" = Yes");
     }
 
     private static boolean windowReadinessUnavailable(UnavailableException unavailable) {
