@@ -198,6 +198,27 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    /** AI Tweaks 2.2.10 creates throwaway scaled vectors in three affine expressions. */
+    static List<AdapterTarget> aiTweaksAffineVectorTargets() {
+        List<AdapterTarget> targets = new ArrayList<>();
+        for (AiTweaksAffineVectorPlan.Target target : AiTweaksAffineVectorPlan.TARGETS) {
+            targets.add(new AdapterTarget(
+                    "aitweaks-2.2.10-affine-vector-" + target.method()
+                            + "-" + targets.size(),
+                    target.internalName(),
+                    target.sha256(),
+                    AiTweaksAffineVectorPlan.PLAN_ID,
+                    List.of(new AdapterTarget.RequiredMethod(
+                            target.method(), target.descriptor())),
+                    "MOD",
+                    AiTweaksAffineVectorPlan.SOURCE_FILE,
+                    AiTweaksAffineVectorPlan.SOURCE_SHA256,
+                    AiTweaksAffineVectorPlan.LOADER,
+                    ""));
+        }
+        return List.copyOf(targets);
+    }
+
     /** Vanilla range modifiers copy a live listener list into an ArrayList before every query. */
     static AdapterTarget combatListenerRangeSnapshotTarget() {
         return new AdapterTarget(
@@ -2083,6 +2104,11 @@ final class AdapterTargetRegistry {
         }
         if (AiTweaksSplitArcsPlan.enabled()) {
             registry = registry.withTarget(aiTweaksSplitArcsTarget());
+        }
+        if (AiTweaksAffineVectorPlan.enabled()) {
+            for (AdapterTarget target : aiTweaksAffineVectorTargets()) {
+                registry = registry.withTarget(target);
+            }
         }
         if (CombatListenerRangeSnapshotPlan.enabled()) {
             registry = registry.withTarget(combatListenerRangeSnapshotTarget());

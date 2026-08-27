@@ -263,6 +263,9 @@ final class AdapterTransformationRegistry {
         if (AiTweaksSplitArcsPlan.PLAN_ID.equals(target.planId())) {
             return AiTweaksSplitArcsPlan.transform(signature, originalBytes);
         }
+        if (AiTweaksAffineVectorPlan.PLAN_ID.equals(target.planId())) {
+            return AiTweaksAffineVectorPlan.transform(signature, originalBytes);
+        }
         if (CombatListenerRangeSnapshotPlan.PLAN_ID.equals(target.planId())) {
             return CombatListenerRangeSnapshotPlan.transform(signature, originalBytes);
         }
@@ -872,6 +875,9 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (AiTweaksSplitArcsPlan.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (AiTweaksAffineVectorPlan.PLAN_ID.equals(planId)) {
             return true;
         }
         if (CombatListenerRangeSnapshotPlan.PLAN_ID.equals(planId)) {
