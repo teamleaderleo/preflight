@@ -32,6 +32,20 @@ class FrameCpuTimeRuntimeTest {
     }
 
     @Test
+    void reportsAnAllCpuFrameWithZeroOffCpuPercentiles() {
+        FrameCpuTimeRuntime.beginSession(true);
+        FrameCpuTimeRuntime.recordBoundary(0L, 0L);
+        FrameCpuTimeRuntime.recordBoundary(10_000_000L, 10_000_000L);
+
+        Map<String, Object> telemetry = FrameCpuTimeRuntime.telemetry();
+        Map<String, Object> offCpu = map(telemetry.get("offCpuApprox"));
+        assertEquals(0.0, offCpu.get("meanMicros"));
+        assertEquals(0L, offCpu.get("p50Micros"));
+        assertEquals(0L, offCpu.get("p99Micros"));
+        assertEquals(0.0, offCpu.get("meanFrameSharePercent"));
+    }
+
+    @Test
     void dropsIntervalsThatCrossFocusLoss() {
         FrameCpuTimeRuntime.beginSession(true);
         FrameCpuTimeRuntime.recordBoundary(0L, 0L);
