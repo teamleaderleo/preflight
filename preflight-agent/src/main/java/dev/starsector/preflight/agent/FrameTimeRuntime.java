@@ -72,6 +72,7 @@ public final class FrameTimeRuntime {
     private static int lastBoundaryCampaignPause;
     private static boolean measurementWindowActive;
     private static int measurementWindowState;
+    private static int measurementWindowCampaignPause;
     private static long swapStartedNanos = Long.MIN_VALUE;
     private static long swapCompletedNanos = Long.MIN_VALUE;
     private static long swapStartedThreadCpuNanos = Long.MIN_VALUE;
@@ -182,6 +183,7 @@ public final class FrameTimeRuntime {
         lastBoundaryCampaignPause = PAUSE_UNKNOWN;
         measurementWindowActive = false;
         measurementWindowState = STATE_UNKNOWN;
+        measurementWindowCampaignPause = PAUSE_UNKNOWN;
         resetDisplayPhaseTimestamps();
         observedActive = true;
         focusBreak = false;
@@ -205,6 +207,7 @@ public final class FrameTimeRuntime {
         campaignAfter30SecondsActivePhases.reset();
         HitchPacketRuntime.beginSession(telemetryRequested);
         GpuFrameTimeRuntime.beginSession(telemetryRequested);
+        GlCommandCountRuntime.beginSession(telemetryRequested);
         initializeThreadCpuClock(telemetryRequested);
     }
 
@@ -369,7 +372,20 @@ public final class FrameTimeRuntime {
         if (!enabled) throw new IllegalStateException("frame-time-telemetry-is-disabled");
         measurementWindow.reset();
         measurementWindowState = STATE_COMBAT;
+        measurementWindowCampaignPause = PAUSE_UNKNOWN;
         measurementWindowActive = true;
+        GlCommandCountRuntime.beginMeasurementWindow("combat", null);
+    }
+
+    /** Starts a clean steady-state campaign window with an exact pause-state owner. */
+    static synchronized void beginCampaignMeasurementWindow(boolean paused) {
+        if (!enabled) throw new IllegalStateException("frame-time-telemetry-is-disabled");
+        measurementWindow.reset();
+        measurementWindowState = STATE_CAMPAIGN;
+        measurementWindowCampaignPause = paused ? PAUSE_PAUSED : PAUSE_UNPAUSED;
+        measurementWindowActive = true;
+        GlCommandCountRuntime.beginMeasurementWindow(
+                "campaign", paused ? "paused" : "unpaused");
     }
 
     /** Timestamp immediately before LWJGL hands the rendered frame to the native presentation path. */
@@ -649,10 +665,15 @@ public final class FrameTimeRuntime {
                     allActivePhases.lastLimiterNanos,
                     allActivePhases.lastPreSwapExcludingLimiterNanos);
         }
-        if (measurementWindowActive && state == lastBoundaryState
-                && state == measurementWindowState) {
+        boolean comparableMeasurementWindow = measurementWindowActive
+                && state == lastBoundaryState
+                && state == measurementWindowState
+                && (state != STATE_CAMPAIGN
+                        || campaignPause == measurementWindowCampaignPause);
+        if (comparableMeasurementWindow) {
             measurementWindow.record(duration, endOffset);
         }
+        GlCommandCountRuntime.observeFrame(boundaries, duration, comparableMeasurementWindow);
         boolean settledCampaign = stableGameplayFrame
                 && state == STATE_CAMPAIGN
                 && now - firstCampaignBoundaryNanos >= CAMPAIGN_WARMUP_NANOS;
@@ -743,6 +764,7 @@ public final class FrameTimeRuntime {
         glContext.put("semanticEffect", "none; no query, fence, or rendering state created");
         result.put("openGlContext", glContext);
         result.put("gpuFrameTime", GpuFrameTimeRuntime.telemetry());
+        result.put("openGlCommands", GlCommandCountRuntime.telemetry());
         Map<String, Object> limiter = new LinkedHashMap<>();
         limiter.put("planId", FrameLimiterTimePlan.PLAN_ID);
         limiter.put("installed", limiterInstalled);
@@ -794,7 +816,12 @@ public final class FrameTimeRuntime {
                 combatAfterCampaignActive.toMap(firstBoundaryEpochMillis));
         Map<String, Object> window = measurementWindow.toMap(firstBoundaryEpochMillis);
         window.put("active", measurementWindowActive);
-        window.put("state", measurementWindowState == STATE_COMBAT ? "combat" : null);
+        window.put("state", measurementWindowState == STATE_CAMPAIGN
+                ? "campaign" : measurementWindowState == STATE_COMBAT ? "combat" : null);
+        window.put("campaignPause", measurementWindowState != STATE_CAMPAIGN
+                ? null : measurementWindowCampaignPause == PAUSE_PAUSED
+                        ? "paused" : measurementWindowCampaignPause == PAUSE_UNPAUSED
+                                ? "unpaused" : "unknown");
         result.put("measurementWindow", window);
         Map<String, Object> displayPhases = new LinkedHashMap<>();
         displayPhases.put("baseTimestampReadsPerPresentedFrame", 6);

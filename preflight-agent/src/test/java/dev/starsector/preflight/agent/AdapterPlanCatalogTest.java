@@ -28,7 +28,7 @@ class AdapterPlanCatalogTest {
                 .map(AdapterPlanCatalog.Descriptor::planId)
                 .collect(Collectors.toSet());
 
-        assertEquals(68, catalogPlans.size(), "adapter plan inventory changed");
+        assertEquals(69, catalogPlans.size(), "adapter plan inventory changed");
         assertTrue(catalogPlans.containsAll(registeredPlans),
                 () -> "uncatalogued registered plans: " + difference(registeredPlans, catalogPlans));
         for (AdapterPlanCatalog.Descriptor descriptor : descriptors) {
@@ -92,6 +92,7 @@ class AdapterPlanCatalogTest {
         targets.addAll(AdapterTargetRegistry.empty()
                 .withTextureTarget(TextureAdapterMode.COMPATIBILITY).targets());
         targets.addAll(AdapterTargetRegistry.empty().withFrameTimeTarget().targets());
+        targets.addAll(AdapterTargetRegistry.empty().withGlCommandCountTargets().targets());
         return List.copyOf(targets);
     }
 

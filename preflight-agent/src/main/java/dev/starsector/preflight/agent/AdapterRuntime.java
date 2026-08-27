@@ -220,6 +220,10 @@ final class AdapterRuntime {
                     registry = registry.withFrameTimeTarget();
                     report.diagnostic("Loaded the exact lightweight frame-time and campaign-state targets");
                 }
+                if (GlCommandCountRuntime.planEnabled()) {
+                    registry = registry.withGlCommandCountTargets();
+                    report.diagnostic("Loaded the exact opt-in LWJGL OpenGL command-count targets");
+                }
                 if (CampaignCallTimeRuntime.enabled()) {
                     registry = registry.withCampaignCallTimeTargets();
                 }

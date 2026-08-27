@@ -23,6 +23,7 @@ final class RuntimeGameActionClient {
     static final String CONTINUE_ACTION = "main-menu.continue";
     static final String CAMPAIGN_PAUSE_ACTION = "campaign.pause";
     static final String CAMPAIGN_UNPAUSE_ACTION = "campaign.unpause";
+    static final String CAMPAIGN_BEGIN_FRAME_WINDOW_ACTION = "campaign.begin-frame-window";
     static final String COMBAT_PAUSE_ACTION = "combat.pause";
     static final String COMBAT_UNPAUSE_ACTION = "combat.unpause";
     static final String COMBAT_CAPTURE_VIEWPORT_ACTION = "combat.capture-viewport";
@@ -43,6 +44,7 @@ final class RuntimeGameActionClient {
     static final String RECEIPT_FILE = "runtime-action-receipt.json";
     private static final Set<String> ACTIONS = Set.of(
             CONTINUE_ACTION, CAMPAIGN_PAUSE_ACTION, CAMPAIGN_UNPAUSE_ACTION,
+            CAMPAIGN_BEGIN_FRAME_WINDOW_ACTION,
             COMBAT_PAUSE_ACTION, COMBAT_UNPAUSE_ACTION,
             COMBAT_CAPTURE_VIEWPORT_ACTION, COMBAT_ZOOM_OUT_ACTION,
             COMBAT_VERIFY_ZOOM_OUT_ACTION,
@@ -140,6 +142,19 @@ final class RuntimeGameActionClient {
                 throw new IOException("Runtime left campaign-ready during " + action);
             }
             return accepted.get("detail") + "; campaign remained paused";
+        }
+
+        if (CAMPAIGN_BEGIN_FRAME_WINDOW_ACTION.equals(action)) {
+            if (!(accepted.get("beforePaused") instanceof Boolean)
+                    || !accepted.get("beforePaused").equals(accepted.get("afterPaused"))) {
+                throw new IOException("Runtime campaign frame window changed the pause state");
+            }
+            RuntimeSemanticStateIdentity after = RuntimeSemanticStateIdentity.read(runtimeState, target);
+            if (!"campaign-ready".equals(after.state())) {
+                throw new IOException("Runtime left campaign-ready during " + action);
+            }
+            return accepted.get("detail") + "; campaign pause state remained "
+                    + accepted.get("afterPaused");
         }
 
         if (action.startsWith("simulation.")) {

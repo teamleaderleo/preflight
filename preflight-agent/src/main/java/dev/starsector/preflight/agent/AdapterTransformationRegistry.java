@@ -361,6 +361,9 @@ final class AdapterTransformationRegistry {
         if (FrameTimeRuntime.PLAN_ID.equals(target.planId())) {
             return FrameTimePlan.transform(signature, originalBytes);
         }
+        if (GlCommandCountRuntime.PLAN_ID.equals(target.planId())) {
+            return GlCommandCountPlan.transform(signature, originalBytes);
+        }
         if (FrameLimiterTimePlan.PLAN_ID.equals(target.planId())) {
             return FrameLimiterTimePlan.transform(signature, originalBytes);
         }
@@ -948,6 +951,9 @@ final class AdapterTransformationRegistry {
         }
         if (FrameTimeRuntime.PLAN_ID.equals(planId)) {
             return true;
+        }
+        if (GlCommandCountRuntime.PLAN_ID.equals(planId)) {
+            return GlCommandCountRuntime.planEnabled();
         }
         if (FrameLimiterTimePlan.PLAN_ID.equals(planId)) {
             return FrameTimeRuntime.enabled();

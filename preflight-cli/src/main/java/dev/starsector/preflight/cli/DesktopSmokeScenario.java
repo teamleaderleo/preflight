@@ -30,6 +30,7 @@ final class DesktopSmokeScenario {
             "main-menu.continue",
             "campaign.pause",
             "campaign.unpause",
+            "campaign.begin-frame-window",
             "combat.pause",
             "combat.unpause",
             "combat.capture-viewport",

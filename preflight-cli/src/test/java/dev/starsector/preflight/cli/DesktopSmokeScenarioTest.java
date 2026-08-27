@@ -271,6 +271,7 @@ final class DesktopSmokeScenarioTest {
         assertEquals(baseline.stepIds(), candidate.stepIds());
         assertTrue(baseline.stepIds().contains("activate-game"));
         assertTrue(baseline.stepIds().contains("paused-settled"));
+        assertTrue(baseline.stepIds().contains("begin-unpaused-frame-window"));
         assertTrue(baseline.stepIds().contains("unpaused-settled"));
         assertEquals("quit", baseline.stepIds().get(baseline.stepIds().size() - 1));
     }

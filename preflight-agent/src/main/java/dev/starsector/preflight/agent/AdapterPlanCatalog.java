@@ -33,6 +33,7 @@ final class AdapterPlanCatalog {
             FontWrapAllocationRuntime.PLAN_ID,
             FrameLimiterTimePlan.PLAN_ID,
             FrameTimeRuntime.PLAN_ID,
+            GlCommandCountRuntime.PLAN_ID,
             FrameTimeStartupCompletionPlan.PLAN_ID,
             FrameTimeStatePlan.PLAN_ID,
             GraphicsLibCompactReplayPlan.PLAN_ID,

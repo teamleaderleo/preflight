@@ -85,6 +85,10 @@ final class GpuFrameTimeRuntime {
     private GpuFrameTimeRuntime() {
     }
 
+    static boolean requested() {
+        return requested;
+    }
+
     static synchronized void beginSession(boolean telemetryRequested) {
         requested = telemetryRequested && explicitlyRequested();
         attempted = false;

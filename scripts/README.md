@@ -87,9 +87,23 @@ deletes its query objects before context teardown. The live probe is materially 
 FPS values are never a performance claim. Use the paired GPU/frame/swap tracks to choose the next
 boundary, then return to thin instrumentation for any optimization comparison.
 
+For discovery-only OpenGL command-family attribution, set `PREFLIGHT_FRAME_GL_COUNTS=1` on the
+paused/unpaused campaign route. Five exact LWJGL 2 classes are SHA- and method-count-gated; changed
+or absent classes retain their original bytecode. The injected wrappers count bounded families such
+as draw submission, texture bind/upload, fixed-function and matrix state, readback/explicit flush,
+buffers, shaders/uniforms, and framebuffer binding. Counting begins only at the internal
+`campaign.begin-frame-window` or `combat.begin-frame-window` action, drops the partial action frame,
+and retains aggregate categories plus the 64 slowest complete frames. This is intrusive discovery
+instrumentation: do not enable the GPU timer in the same run, and never use its FPS as an
+optimization claim. Use the result to choose a narrower probe or candidate, then compare that
+candidate with thin frame telemetry. The totals cover selected wrapper families, not every OpenGL
+call; immediate-mode rendering is deliberately counted per `glBegin` batch rather than per vertex
+to keep the discovery probe bounded.
+
 `campaign-profile-paused-unpaused.json` keeps the first three campaign seconds untouched, ensures a
 paused state through Starsector's mapped pause control, retains a paused warm-up and settled window,
-then unpauses for a transition buffer and settled window. Continue and every
+then unpauses for a transition buffer, starts an exact campaign-owned frame window, and retains the
+settled window. Continue and every
 pause transition are internal PID/start-bound actions, so the route does not activate another app,
 move the cursor, or depend on host window focus. It stops the exact owned process from the final
 state; a late campaign interaction can legitimately make another pause action unavailable, and the

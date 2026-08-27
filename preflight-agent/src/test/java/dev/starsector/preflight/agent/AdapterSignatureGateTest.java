@@ -316,6 +316,7 @@ class AdapterSignatureGateTest {
         AdapterTargetRegistry registry = AdapterTargetRegistry.empty()
                 .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS)
                 .withFrameTimeTarget()
+                .withGlCommandCountTargets()
                 .withFrameTimeStartupCompletionTarget()
                 .withCampaignCallTimeTargets()
                 .withCampaignEngineTimeTarget()
@@ -328,6 +329,7 @@ class AdapterSignatureGateTest {
                 .collect(java.util.stream.Collectors.toSet());
         assertEquals(Set.of(
                 FrameTimeRuntime.PLAN_ID,
+                GlCommandCountRuntime.PLAN_ID,
                 FrameLimiterTimePlan.PLAN_ID,
                 FrameTimeStatePlan.PLAN_ID,
                 FrameTimeStartupCompletionPlan.PLAN_ID), plans);
@@ -367,6 +369,7 @@ class AdapterSignatureGateTest {
 
         List<AdapterTarget> targets = new ArrayList<>(registry.targets());
         targets.addAll(AdapterTargetRegistry.empty().withFrameTimeTarget().targets());
+        targets.addAll(AdapterTargetRegistry.empty().withGlCommandCountTargets().targets());
         assertTrue(targets.size() > 70, "inventory unexpectedly shrank");
         for (AdapterTarget target : targets) {
             assertTrue(target.hasLiveSourceBinding(), target.id());

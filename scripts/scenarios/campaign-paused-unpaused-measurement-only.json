@@ -18,6 +18,7 @@
     {"id":"paused-settled","kind":"wait-duration","durationMillis":45000},
     {"id":"unpause","kind":"click","target":"campaign.unpause"},
     {"id":"unpaused-transition","kind":"wait-duration","durationMillis":5000},
+    {"id":"begin-unpaused-frame-window","kind":"click","target":"campaign.begin-frame-window"},
     {"id":"unpaused-settled","kind":"wait-duration","durationMillis":45000},
     {"id":"capture","kind":"capture","artifacts":["frame-report","adapter-health","log-tail"]},
     {"id":"quit","kind":"quit"}

@@ -116,6 +116,32 @@ class FrameTimeRuntimeTest {
     }
 
     @Test
+    void campaignMeasurementWindowOwnsTheExactPauseState() {
+        FrameTimeRuntime.beginSession(true);
+        FrameTimeRuntime.recordBoundary(0L);
+        FrameTimeRuntime.observeCampaign();
+        FrameTimeRuntime.observeCampaignPaused(false);
+        FrameTimeRuntime.recordBoundary(10_000_000L); // state transition
+        FrameTimeRuntime.observeCampaign();
+        FrameTimeRuntime.observeCampaignPaused(false);
+        FrameTimeRuntime.recordBoundary(26_000_000L); // pre-window setup
+        FrameTimeRuntime.beginCampaignMeasurementWindow(false);
+        FrameTimeRuntime.observeCampaign();
+        FrameTimeRuntime.observeCampaignPaused(false);
+        FrameTimeRuntime.recordBoundary(42_000_000L);
+        FrameTimeRuntime.observeCampaign();
+        FrameTimeRuntime.observeCampaignPaused(true);
+        FrameTimeRuntime.recordBoundary(58_000_000L); // pause transition is excluded
+
+        Map<String, Object> window = map(FrameTimeRuntime.telemetry().get("measurementWindow"));
+        assertEquals(true, window.get("active"));
+        assertEquals("campaign", window.get("state"));
+        assertEquals("unpaused", window.get("campaignPause"));
+        assertEquals(1L, window.get("frames"));
+        assertEquals(16_000.0, window.get("meanMicros"));
+    }
+
+    @Test
     void reportsAnInProgressRepeatedClusterWithoutMutatingIt() {
         FrameTimeRuntime.beginSession(true);
         FrameTimeRuntime.recordBoundary(0L);

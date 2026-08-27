@@ -1961,6 +1961,25 @@ final class AdapterTargetRegistry {
                 .withTarget(campaignFrameTimeStateTarget());
     }
 
+    AdapterTargetRegistry withGlCommandCountTargets() {
+        AdapterTargetRegistry registry = this;
+        for (GlCommandCountPlan.Target target : GlCommandCountPlan.targets()) {
+            registry = registry.withTarget(new AdapterTarget(
+                    "lwjgl-2-opengl-command-count-" + target.idSuffix(),
+                    target.internalName(),
+                    target.sha256(),
+                    GlCommandCountRuntime.PLAN_ID,
+                    List.of(new AdapterTarget.RequiredMethod(
+                            target.requiredMethod(), target.requiredDescriptor())),
+                    "STARSECTOR_CORE",
+                    GlCommandCountPlan.SOURCE_FILE,
+                    GlCommandCountPlan.SOURCE_SHA256,
+                    GlCommandCountPlan.LOADER,
+                    GlCommandCountPlan.LOADER_NAME));
+        }
+        return registry;
+    }
+
     AdapterTargetRegistry withCampaignCallTimeTargets() {
         AdapterTargetRegistry registry = this;
         for (CampaignCallTimePlan.Probe probe : CampaignCallTimePlan.probes()) {

@@ -91,6 +91,26 @@ final class InternalGameControlRuntimeTest {
     }
 
     @Test
+    void campaignFrameWindowActionIsRecognizedButStillRequiresTheExactCampaignShape()
+            throws Exception {
+        System.setProperty("preflight.desktopSmoke", "true");
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+        RuntimeSemanticState.campaignReady();
+        InternalGameControlRuntime.beginSession(temporaryDirectory.resolve("adapter.json"));
+        Files.writeString(temporaryDirectory.resolve("runtime-action-request.json"),
+                request(Instant.now().plusSeconds(30),
+                        InternalGameControlRuntime.CAMPAIGN_BEGIN_FRAME_WINDOW_ACTION,
+                        InternalGameControlRuntime.CAMPAIGN_STATE));
+
+        InternalGameControlRuntime.campaignInput(new Object(), new ArrayList<>());
+
+        String receipt = Files.readString(temporaryDirectory.resolve("runtime-action-receipt.json"));
+        assertTrue(receipt.contains("\"status\":\"failed\""), receipt);
+        assertTrue(receipt.contains("campaign-class-mismatch"), receipt);
+        assertTrue(receipt.contains("campaign.begin-frame-window"), receipt);
+    }
+
+    @Test
     void combatFixtureRequestFailsBeforeConsoleMutationOnAnUnknownCampaignShape() throws Exception {
         System.setProperty("preflight.desktopSmoke", "true");
         RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));

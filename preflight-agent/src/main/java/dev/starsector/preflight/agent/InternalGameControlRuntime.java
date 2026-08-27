@@ -29,6 +29,7 @@ public final class InternalGameControlRuntime {
     static final String CONTINUE_ACTION = "main-menu.continue";
     static final String CAMPAIGN_PAUSE_ACTION = "campaign.pause";
     static final String CAMPAIGN_UNPAUSE_ACTION = "campaign.unpause";
+    static final String CAMPAIGN_BEGIN_FRAME_WINDOW_ACTION = "campaign.begin-frame-window";
     static final String COMBAT_PAUSE_ACTION = "combat.pause";
     static final String COMBAT_UNPAUSE_ACTION = "combat.unpause";
     static final String COMBAT_CAPTURE_VIEWPORT_ACTION = "combat.capture-viewport";
@@ -64,7 +65,7 @@ public final class InternalGameControlRuntime {
             "\\{\\\"format\\\":\\\"" + REQUEST_FORMAT
                     + "\\\",\\\"sequence\\\":([1-9][0-9]*),\\\"pid\\\":([1-9][0-9]*),"
                     + "\\\"processStartedAt\\\":\\\"([^\\\"]{1,80})\\\","
-                    + "\\\"action\\\":\\\"(main-menu\\.continue|campaign\\.(?:pause|unpause|prepare-combat-fixture|verify-combat-fixture)"
+                    + "\\\"action\\\":\\\"(main-menu\\.continue|campaign\\.(?:pause|unpause|begin-frame-window|prepare-combat-fixture|verify-combat-fixture)"
                     + "|simulation\\.(?:opponents\\.(?:all|deploy)|allies\\.(?:select|all|deploy)|engage)"
                     + "|combat\\.(?:pause|unpause|capture-viewport|zoom-out|verify-zoom-out|begin-frame-window|prepare-symmetric-1000dp-fixture))\\\","
                     + "\\\"expectedState\\\":\\\"(main-menu-interactive|campaign-ready|simulation-ready|combat-ready)\\\","
@@ -176,6 +177,14 @@ public final class InternalGameControlRuntime {
                 if (!after) throw new IllegalStateException("combat-fixture-verification-changed-pause-state");
                 publish(parsed, "executed", detail, accepted, Instant.now(),
                         "campaign.processInput", CAMPAIGN_STATE, true, true);
+                return;
+            }
+            if (CAMPAIGN_BEGIN_FRAME_WINDOW_ACTION.equals(parsed.action())) {
+                FrameTimeRuntime.beginCampaignMeasurementWindow(before);
+                publish(parsed, "executed",
+                        "started a clean steady-state campaign frame window",
+                        accepted, Instant.now(), "campaign.processInput", CAMPAIGN_STATE,
+                        before, before);
                 return;
             }
             boolean desired = CAMPAIGN_PAUSE_ACTION.equals(parsed.action());
@@ -455,6 +464,7 @@ public final class InternalGameControlRuntime {
     private static boolean isCampaignAction(String action) {
         return CAMPAIGN_PAUSE_ACTION.equals(action)
                 || CAMPAIGN_UNPAUSE_ACTION.equals(action)
+                || CAMPAIGN_BEGIN_FRAME_WINDOW_ACTION.equals(action)
                 || ConsoleCombatFixtureRuntime.ACTION.equals(action)
                 || ConsoleCombatFixtureRuntime.VERIFY_ACTION.equals(action);
     }

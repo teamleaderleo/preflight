@@ -273,6 +273,57 @@ final class RuntimeGameActionClientTest {
                 temporaryDirectory.resolve("runtime-action-receipt-000010.json")));
     }
 
+    @Test
+    void verifiesCampaignFrameWindowWithoutChangingTheObservedPauseState() throws Exception {
+        ProcessHandle process = ProcessHandle.current();
+        Instant startedAt = process.info().startInstant().orElseThrow();
+        DesktopSmokeDriver.ProcessTarget target =
+                new DesktopSmokeDriver.ProcessTarget(process.pid(), startedAt);
+        Path runtimeProcess = writeProcess(process, startedAt);
+        writeState(startedAt, "campaign-ready", 6L);
+
+        CompletableFuture<Void> game = CompletableFuture.runAsync(() -> {
+            try {
+                Path request = temporaryDirectory.resolve(RuntimeGameActionClient.REQUEST_FILE);
+                for (int count = 0; count < 500 && !Files.isRegularFile(request); count++) {
+                    TimeUnit.MILLISECONDS.sleep(5L);
+                }
+                assertTrue(Files.isRegularFile(request));
+                Map<String, Object> receipt = new LinkedHashMap<>();
+                receipt.put("format", RuntimeGameActionClient.RECEIPT_FORMAT);
+                receipt.put("sequence", 11L);
+                receipt.put("pid", process.pid());
+                receipt.put("processStartedAt", startedAt);
+                receipt.put("action", RuntimeGameActionClient.CAMPAIGN_BEGIN_FRAME_WINDOW_ACTION);
+                receipt.put("acceptedAt", Instant.now());
+                receipt.put("executedAt", Instant.now());
+                receipt.put("boundary", "campaign.processInput");
+                receipt.put("beforeState", "campaign-ready");
+                receipt.put("afterState", "campaign-ready");
+                receipt.put("beforePaused", false);
+                receipt.put("afterPaused", false);
+                receipt.put("status", "executed");
+                receipt.put("detail", "started a clean steady-state campaign frame window");
+                Files.writeString(
+                        temporaryDirectory.resolve(RuntimeGameActionClient.RECEIPT_FILE),
+                        Json.object(receipt));
+            } catch (Exception failure) {
+                throw new RuntimeException(failure);
+            }
+        });
+
+        String detail = RuntimeGameActionClient.execute(
+                temporaryDirectory, runtimeProcess, target, 11L,
+                RuntimeGameActionClient.CAMPAIGN_BEGIN_FRAME_WINDOW_ACTION, 10);
+
+        game.get(10, TimeUnit.SECONDS);
+        assertTrue(detail.contains("campaign pause state remained false"), detail);
+        assertTrue(Files.isRegularFile(
+                temporaryDirectory.resolve("runtime-action-request-000011.json")));
+        assertTrue(Files.isRegularFile(
+                temporaryDirectory.resolve("runtime-action-receipt-000011.json")));
+    }
+
     private Path writeProcess(ProcessHandle process, Instant startedAt) throws Exception {
         Map<String, Object> identity = new LinkedHashMap<>();
         identity.put("format", "starsector-preflight-runtime-process-v1");
