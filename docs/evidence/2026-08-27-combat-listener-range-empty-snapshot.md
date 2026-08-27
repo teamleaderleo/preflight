@@ -60,8 +60,9 @@ removed.
 
 One preceding launch stopped before the main menu with an early native SIGSEGV, a zero-byte JFR,
 and no adapter report. No target class or candidate path executed, so that attempt is excluded from
-the optimization result. It exposed a separate native-crash banner classification gap in the smoke
-harness.
+the optimization result. It exposed a native-crash banner classification gap in the smoke harness;
+the scanner now treats anchored HotSpot signal and access-violation lines as fatal even when an
+exact controller-stop receipt exists.
 
 The focusless route dropped 2,006 inactive intervals and retained zero eligible combat frames. It
 therefore supports no FPS, percentile, or smoothness claim. The machine reported no macOS thermal

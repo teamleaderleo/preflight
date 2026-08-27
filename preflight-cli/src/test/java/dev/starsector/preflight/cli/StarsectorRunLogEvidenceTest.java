@@ -60,6 +60,60 @@ class StarsectorRunLogEvidenceTest {
     }
 
     @Test
+    void detectsNativeCrashBannerEvenAfterAnExactControllerStop() throws Exception {
+        StarsectorRunLogEvidence.Snapshot before = StarsectorRunLogEvidence.snapshot(temporaryDirectory);
+        Path console = temporaryDirectory.resolve("run/console.txt");
+        Files.createDirectories(console.getParent());
+        String text = """
+                ===============================================================================
+                Unexpected Error
+                -------------------------------------------------------------------------------
+                SIGSEGV (0xb) at pc=0x00007ff8119873a0, pid=97269, tid=16131
+
+                Do you want to debug the problem?
+                """;
+        Files.writeString(console, text);
+        ChildProcessOutput.Result capture = new ChildProcessOutput.Result(
+                0,
+                console,
+                text.getBytes(java.nio.charset.StandardCharsets.UTF_8).length,
+                text.getBytes(java.nio.charset.StandardCharsets.UTF_8).length,
+                false);
+
+        StarsectorRunLogEvidence.Evidence evidence =
+                StarsectorRunLogEvidence.inspect(before, capture, true);
+
+        assertTrue(evidence.fatalDetected());
+        assertTrue(evidence.controllerStopRequested());
+        assertEquals(1, evidence.matches().size());
+        assertEquals("native-process-crash", evidence.matches().get(0).get("category"));
+        assertEquals("console.txt", evidence.matches().get(0).get("consoleFile"));
+        assertEquals(StarsectorRunLogEvidence.FATAL_LIFECYCLE_EXIT,
+                StarsectorRunLogEvidence.effectiveExitCode(0, evidence));
+    }
+
+    @Test
+    void detectsHashPrefixedJvmNativeCrashSignatures() throws Exception {
+        StarsectorRunLogEvidence.Snapshot before = StarsectorRunLogEvidence.snapshot(temporaryDirectory);
+        Path console = temporaryDirectory.resolve("run/console.txt");
+        Files.createDirectories(console.getParent());
+        String text = "#  EXCEPTION_ACCESS_VIOLATION (0xc0000005) at pc=0x00007ffa1234abcd, pid=42, tid=7\n";
+        Files.writeString(console, text);
+        ChildProcessOutput.Result capture = new ChildProcessOutput.Result(
+                0,
+                console,
+                text.getBytes(java.nio.charset.StandardCharsets.UTF_8).length,
+                text.getBytes(java.nio.charset.StandardCharsets.UTF_8).length,
+                false);
+
+        StarsectorRunLogEvidence.Evidence evidence =
+                StarsectorRunLogEvidence.inspect(before, capture);
+
+        assertTrue(evidence.fatalDetected());
+        assertEquals("native-process-crash", evidence.matches().get(0).get("category"));
+    }
+
+    @Test
     void ignoresFatalEvidenceThatPredatesTheRun() throws Exception {
         log(FATAL);
         StarsectorRunLogEvidence.Snapshot before = StarsectorRunLogEvidence.snapshot(temporaryDirectory);

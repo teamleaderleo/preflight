@@ -31,6 +31,10 @@ final class StarsectorRunLogEvidence {
     private static final int MAX_STACK_LINES = 32;
     private static final long MAX_CONTROLLER_STOP_BYTES = 4 * 1024;
     private static final Pattern ROTATED_LOG = Pattern.compile("starsector\\.log(?:\\.\\d+)?", Pattern.CASE_INSENSITIVE);
+    private static final Pattern NATIVE_CRASH = Pattern.compile(
+            "^(?:#\\s*)?(?:SIGSEGV|SIGBUS|SIGILL|SIGABRT|EXCEPTION_ACCESS_VIOLATION) "
+                    + "\\(0x[0-9a-f]+\\) at pc=0x[0-9a-f]+(?:,.*)?$",
+            Pattern.CASE_INSENSITIVE);
     private static final List<FatalMarker> FATAL_MARKERS = List.of(
             new FatalMarker(
                     "launcher-fatal",
@@ -289,6 +293,14 @@ final class StarsectorRunLogEvidence {
                 return;
             }
             String line = lines[lineIndex];
+            if (NATIVE_CRASH.matcher(line.trim()).matches()) {
+                Map<String, Object> match = new LinkedHashMap<>();
+                match.put("category", "native-process-crash");
+                match.put(sourceField, sourceName);
+                match.put("message", bounded(line.trim()));
+                matches.add(match);
+                continue;
+            }
             for (FatalMarker marker : FATAL_MARKERS) {
                 int index = line.indexOf(marker.text());
                 if (index < 0 || !hasRequiredFrame(lines, lineIndex, marker.requiredFrame())) {
