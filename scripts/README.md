@@ -182,6 +182,7 @@ guards, not hot-path probes, and their reflection/allocation cost is excluded fr
 | | |
 |---|---|
 | `summarize_startup_probe.py` | Summarise one `--startup-phase-probe` run into where the launch spent its time. |
+| `summarize_combat_cohort.py RUN...` | Compact thin-combat A/B table with tail metrics, causal counters, and identity/workload/adapter gates. Prefers the final shutdown report over the mid-run artifact copy. |
 | `startup_scorecard.py` | The Preflight startup record and the measured per-component scorecard. |
 | `starsector_log_load_times.py` | Recover every launch's load time from Starsector's own logs, with no harness involved. Works on runs nobody instrumented. |
 | `starsector_log_ready_detector.py` | Snapshot, delta, classify and detect readiness in the game's log. This is what makes `--unattended` possible; run it directly when you are debugging why a launch was not detected as finished. |
