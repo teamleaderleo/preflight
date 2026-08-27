@@ -82,8 +82,14 @@ STATUS=$?
 set -e
 
 if [[ -f "$TEMP_REPORT" ]]; then
-    mv "$TEMP_REPORT" "$DESTINATION"
-    echo "Combat scaling workload: $DESTINATION"
+    cp "$TEMP_REPORT" "$DESTINATION"
+    RUN_DIR="$(find "$STATE_ROOT/runs" -maxdepth 1 -type d -name "$LABEL-*" -print 2>/dev/null \
+        | sort | tail -n 1 || true)"
+    if [[ -n "$RUN_DIR" ]]; then
+        cp "$TEMP_REPORT" "$RUN_DIR/combat-workload.json"
+        echo "Run-local combat workload: $RUN_DIR/combat-workload.json"
+    fi
+    echo "Combat scaling corpus: $DESTINATION"
     echo "Fit with: python3 scripts/fit_combat_scaling.py $REPORT_ROOT/*.json"
 else
     echo "Combat scaling workload report was not produced." >&2
