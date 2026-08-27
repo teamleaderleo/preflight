@@ -69,6 +69,11 @@ frame is rendered.
 probes enabled. It never changes pause state: classify the run as paused or unpaused from the
 retained maintenance counters and the state the selected save actually loaded into.
 
+`campaign-hitch-limiter-current-state.json` keeps the same route and timing but disables the broad
+campaign call-time probes. It retains only the thin frame/presentation recorder and exact campaign
+FPS-limiter bracket, so a hitch packet can split known limiter sleep from the remaining pre-swap
+wall time without treating an intrusive discovery profile as an FPS measurement.
+
 `campaign-profile-paused-unpaused.json` keeps the first three campaign seconds untouched, ensures a
 paused state through Starsector's mapped pause control, retains a paused warm-up and settled window,
 then unpauses for a transition buffer and settled window. Continue and every

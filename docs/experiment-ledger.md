@@ -212,6 +212,7 @@ why the work changed direction. This page accounts for each abandoned branch.
 | Area | Experiment | Disposition | Result and retained decision | Evidence |
 | --- | --- | --- | --- | --- |
 | Measurement | Join bounded frame/presentation history to exact semantic campaign phases around a hitch | **Diagnostic** | The corrected primitive recorder retained a complete 175-frame packet around a 50.003 ms paused hitch. Pre-swap consumed 49.210 ms; native swap consumed 0.538 ms; 16,284 joined broad campaign calls explained only about 0.171 ms of the trigger. Discovery corrected title-demo eligibility, call-ring capacity, and rich-report read bounds. The next slice is pre-swap game work versus limiter/cap wait, not another broad phase probe. | [Hitch packet v1](evidence/2026-08-28-hitch-packet-v1.md) |
+| Measurement | Split exact campaign limiter sleep from pre-swap wall time | **Diagnostic** | A thin paused run completed the split on all 5,238 eligible frames. Both >50 ms triggers remained game-work hitches after removing limiter wait (52.753 and 45.981 ms). Of 31 >33.33 ms frames, 23 were native-swap dominated, seven game-work dominated, and one limiter-oversleep dominated. The next presentation branch must distinguish GPU backlog from compositor/vsync waiting; the rarer game-work branch needs packet-triggered CPU escalation. | [Campaign limiter split](evidence/2026-08-28-campaign-limiter-split.md) |
 
 ## Limits on current claims
 

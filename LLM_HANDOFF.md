@@ -22,8 +22,11 @@ Before changing code or collecting release evidence:
    be worth revisiting. [Gameplay FPS program #449](https://github.com/teamleaderleo/preflight/issues/449)
    is the canonical parent for that lane; use focused child issues once one experiment is concrete.
    The latest diagnostic checkpoint is the bounded
-   [hitch packet v1 record](docs/evidence/2026-08-28-hitch-packet-v1.md): its first complete packet
-   narrowed one paused 50 ms miss to pre-swap work, with limiter/cap separation as the next slice.
+   [campaign limiter split](docs/evidence/2026-08-28-campaign-limiter-split.md). Thin exact timing
+   showed that two paused >50 ms hitches remained game work after limiter removal, while 23 of 31
+   >33.33 ms frames were native-swap dominated. Treat those as separate fingerprints: presentation
+   attribution is the next broad player-impact slice, and packet-triggered CPU escalation is the
+   next slice for rarer game-work hitches.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package

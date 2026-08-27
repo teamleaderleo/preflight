@@ -86,6 +86,30 @@ hitch. Preserve the original packet as the non-intrusive performance observation
 See the [bounded hitch-packet record](evidence/2026-08-28-hitch-packet-v1.md) and child
 [#1150](https://github.com/teamleaderleo/preflight/issues/1150).
 
+### Exact campaign limiter split (`354d9006`)
+
+**Observed:** the thin `campaign-hitch-limiter-current-state` route exact-matched the installed
+`BaseGameState` loop and completed its limiter split on all 5,238 eligible paused frames. Both
+captured >50 ms triggers remained game-work hitches after known limiter sleep was removed: 52.753
+ms of a 53.521 ms frame and 45.981 ms of a 56.003 ms frame. Broad campaign timers and JFR were off.
+
+**Observed:** the 1% tail is not the same fingerprint. Of 31 frames above 33.33 ms, 23 were
+native-swap dominated, seven were remaining-pre-swap-work dominated, and one was limiter-oversleep
+dominated. The run's 30.30 FPS 1% low therefore mostly reflects presentation/swap quantization,
+while its two >50 ms hitches are game work.
+
+**Measurement discipline:** this was one diagnostic confirmation, not a paired uplift cohort.
+The loaded save stayed paused and the route issued no save action. Adapter health was ACTIVE with
+64 exact transforms, zero declines/failures, and clean PID-bound shutdown. The inclusive boundary
+hook averaged 16.409 microseconds; the two limiter timestamp hooks are outside that figure.
+
+**Exact next action:** for broad player impact, establish actual swap-interval/context policy and
+bounded GPU/driver attribution around native-swap clusters before trying a rendering change. For
+the rarer >50 ms game-work fingerprint, let the thin trigger arm a short CPU capture for a later
+matching hitch rather than leaving broad discovery timers permanently enabled.
+
+See the [bounded limiter-split record](evidence/2026-08-28-campaign-limiter-split.md).
+
 ### AI Tweaks target-selection location reuse rejected (`5b6035aa`, reverted by `574cfd3b`)
 
 **Observed:** the final exact-build candidate passed all 34 semantic steps in the symmetric

@@ -139,7 +139,10 @@ trigger frame.
 this packet. Campaign phases have explained other unpaused clusters, but not this packet. Both
 boundaries stay open for workloads that fingerprint differently.
 
-**Open:** how much of the 49.210 ms pre-swap interval is actual game work versus limiter/cap sleep?
+**Follow-up:** the [exact campaign limiter split](2026-08-28-campaign-limiter-split.md) completed on
+all 5,238 eligible frames in a thin run. Two new matching paused >50 ms hitches retained 52.753 ms
+and 45.981 ms of pre-swap wall time after limiter removal. That does not retroactively time this
+packet, but it strongly falsifies ordinary cap sleep as the matching hitch family's explanation.
 
 **Open:** can a thin trigger arm a short, higher-detail CPU capture after the next matching hitch
 without contaminating the packet that caused escalation?
