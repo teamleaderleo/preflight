@@ -320,7 +320,7 @@ def report_execution_events(sampled, top=30, contains=None, include_other=False)
 
 def selected_wall_windows(path, steps=None, evidence_path=None,
                           frame_report=None, frame_series=None, repeated_clusters=0):
-    windows = scenario_step_windows(
+    step_windows = scenario_step_windows(
         path, steps, evidence_path=evidence_path) if steps else []
     requested_series = frame_series or (["allActive"] if frame_report else [])
     if requested_series and not frame_report:
@@ -328,11 +328,31 @@ def selected_wall_windows(path, steps=None, evidence_path=None,
     if repeated_clusters and not frame_report:
         raise SystemExit("--repeated-clusters requires --frame-report")
     if repeated_clusters:
-        windows.extend(frame_report_cluster_windows(
-            frame_report, requested_series, repeated_clusters))
+        frame_windows = frame_report_cluster_windows(
+            frame_report, requested_series, repeated_clusters)
     elif frame_report:
-        windows.extend(frame_report_windows(frame_report, requested_series))
-    return windows
+        frame_windows = frame_report_windows(frame_report, requested_series)
+    else:
+        frame_windows = []
+    if step_windows and frame_windows:
+        selected = intersect_wall_windows(frame_windows, step_windows)
+        if not selected:
+            raise SystemExit("no requested frame window overlaps the selected scenario steps")
+        return selected
+    return step_windows or frame_windows
+
+
+def intersect_wall_windows(windows, constraints):
+    """Clip measurement windows to named constraints, preserving nonempty intersections."""
+    selected = []
+    for name, start, end in windows:
+        for constraint_name, constraint_start, constraint_end in constraints:
+            clipped_start = max(start, constraint_start)
+            clipped_end = min(end, constraint_end)
+            if clipped_end > clipped_start:
+                selected.append((
+                    f"{name} inside step {constraint_name}", clipped_start, clipped_end))
+    return selected
 
 
 def events_in_windows(sampled, windows):
@@ -472,8 +492,6 @@ def main():
     args = parser.parse_args()
     if args.repeated_clusters < 0:
         parser.error("--repeated-clusters must be non-negative")
-    if args.repeated_clusters and args.step:
-        parser.error("--repeated-clusters cannot be combined with --step")
     if args.allocations:
         report_allocations(
             args.recording, top=args.top, depth=args.depth, contains=args.contains,

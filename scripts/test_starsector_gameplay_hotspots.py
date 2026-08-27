@@ -253,6 +253,49 @@ class GameplayHotspotTest(unittest.TestCase):
             ("three", 8.0, 10.0),
         ]))
 
+    def test_intersect_wall_windows_clips_to_exact_step(self):
+        self.assertEqual([
+            ("cluster inside step combat", 15.0, 20.0),
+        ], module.intersect_wall_windows(
+            [("cluster", 10.0, 20.0)],
+            [("combat", 15.0, 25.0), ("later", 30.0, 40.0)]))
+
+    def test_selected_repeated_clusters_are_intersected_with_steps(self):
+        original_steps = module.scenario_step_windows
+        original_clusters = module.frame_report_cluster_windows
+        try:
+            module.scenario_step_windows = lambda *_args, **_kwargs: [
+                ("combat", 15.0, 25.0),
+            ]
+            module.frame_report_cluster_windows = lambda *_args, **_kwargs: [
+                ("cluster", 10.0, 20.0),
+            ]
+            self.assertEqual([
+                ("cluster inside step combat", 15.0, 20.0),
+            ], module.selected_wall_windows(
+                "fixture.jfr", steps=["combat"], frame_report="frames.json",
+                frame_series=["combatAfterCampaignActive"], repeated_clusters=10))
+        finally:
+            module.scenario_step_windows = original_steps
+            module.frame_report_cluster_windows = original_clusters
+
+    def test_empty_step_and_frame_intersection_fails_closed(self):
+        original_steps = module.scenario_step_windows
+        original_frames = module.frame_report_windows
+        try:
+            module.scenario_step_windows = lambda *_args, **_kwargs: [
+                ("combat", 30.0, 40.0),
+            ]
+            module.frame_report_windows = lambda *_args, **_kwargs: [
+                ("worst frame", 10.0, 20.0),
+            ]
+            with self.assertRaisesRegex(SystemExit, "no requested frame window overlaps"):
+                module.selected_wall_windows(
+                    "fixture.jfr", steps=["combat"], frame_report="frames.json")
+        finally:
+            module.scenario_step_windows = original_steps
+            module.frame_report_windows = original_frames
+
     def test_execution_report_can_select_a_scenario_step(self):
         original_events = module.events
         original_thread = module.thread_of

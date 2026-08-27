@@ -5,7 +5,11 @@ import argparse
 import json
 from pathlib import Path
 
-from starsector_gameplay_hotspots import frame_report_cluster_windows, scenario_step_windows
+from starsector_gameplay_hotspots import (
+    frame_report_cluster_windows,
+    intersect_wall_windows,
+    scenario_step_windows,
+)
 
 
 def load_json(path, description):
@@ -90,14 +94,7 @@ def overlap_rankings(health, clusters):
 
 def intersect_cluster_windows(clusters, step_windows):
     """Clip cluster windows to exact scenario steps, preserving every nonempty intersection."""
-    selected = []
-    for cluster_name, cluster_start, cluster_end in clusters:
-        for step_name, step_start, step_end in step_windows:
-            start = max(cluster_start, step_start)
-            end = min(cluster_end, step_end)
-            if end > start:
-                selected.append((f"{cluster_name} inside step {step_name}", start, end))
-    return selected
+    return intersect_wall_windows(clusters, step_windows)
 
 
 def main():
