@@ -21,14 +21,17 @@ Before changing code or collecting release evidence:
    observations from falsifiable hypotheses and records why a previously explored area may still
    be worth revisiting. [Gameplay FPS program #449](https://github.com/teamleaderleo/preflight/issues/449)
    is the canonical parent for that lane; use focused child issues once one experiment is concrete.
-   The latest diagnostic checkpoint is the
-   [live OpenGL capability inventory](docs/evidence/2026-08-28-opengl-context-capability.md), following
-   the bounded [native-swap CPU/off-CPU split](docs/evidence/2026-08-28-native-swap-cpu-offcpu-split.md).
-   The Apple M5 OpenGL 2.1-over-Metal context exposes OpenGL 1.5 query objects,
-   `GL_EXT_timer_query`, and `GL_ARB_sync`, but not `GL_ARB_timer_query` or OpenGL 3.3. The next
-   narrow slice is a fixed-size asynchronous EXT timer-query ring with nonblocking availability
-   polling, exact fallback, and no FPS claim from the instrumented run. The rarer >50 ms pre-swap
-   game-work fingerprint still needs packet-triggered CPU escalation, not permanent broad timers.
+   The latest diagnostic checkpoint is
+   [asynchronous whole-frame GPU timing](docs/evidence/2026-08-28-asynchronous-gpu-frame-timing.md),
+   following the bounded [native-swap CPU/off-CPU split](docs/evidence/2026-08-28-native-swap-cpu-offcpu-split.md)
+   and [live OpenGL capability inventory](docs/evidence/2026-08-28-opengl-context-capability.md).
+   Paused recurring 33 ms tails were normally low-GPU and swap-off-CPU dominated, while active
+   unpaused tails were often GPU-heavy even after the five-second transition. The query probe is
+   materially intrusive and makes no FPS claim. The next narrow slice is phase-owned, counting-only
+   OpenGL command/state attribution in active campaign; the paused branch remains a separate thin
+   presentation/VSync/compositor experiment. Rosetta remains an open CPU/submission attribution
+   axis rather than a unified explanation. The rarer >50 ms pre-swap game-work fingerprint still
+   needs packet-triggered CPU escalation, not permanent broad timers.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package

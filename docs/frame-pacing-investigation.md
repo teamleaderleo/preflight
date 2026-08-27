@@ -27,8 +27,9 @@ public `main` baseline from this working branch, maps the implemented and missin
 defines the next narrow hitch-packet slice. Do not treat a local experiment commit as evidence that
 the public branch already contains the capability.
 
-The current implementation checkpoint is `2f0ea0b3`, which adds the first bounded joined hitch packet
-while retaining the accepted v2 collision set,
+The current implementation checkpoint is `5e465911`, which adds a bounded asynchronous whole-frame
+GPU timer with explicit query ownership and pre-context-destroy cleanup while retaining the first
+bounded joined hitch packet and the accepted v2 collision set,
 exact-step hitch enrichment, distinct recurring-cluster breadth, and CI coverage for all gameplay
 analysis scripts. The AI Tweaks weapon-location helper candidate at `5b6035aa` and the Detailed Combat
 Results state-map reuse candidate were both live-tested and reverted. The AI Tweaks candidate removed
@@ -142,6 +143,36 @@ boundary is large.
 
 See the [native-swap CPU/off-CPU record](evidence/2026-08-28-native-swap-cpu-offcpu-split.md).
 See the [live OpenGL capability record](evidence/2026-08-28-opengl-context-capability.md).
+
+### Asynchronous GPU attribution (`5e465911`)
+
+**Observed:** the final focused paused/unpaused route completed 8,312 asynchronous EXT query
+results with a fixed 16-query ring. It had zero overrun, query-owner conflict, contained failure,
+inactive interval, or invalid interval. The one-time post-begin ownership check passed, cleanup
+ended the active query, and all 16 owned query objects were deleted before context destruction.
+
+**Observed:** the recurring paused 33 ms tail was normally not GPU-bound. Paused GPU p99 was 4.4
+ms while frame p99 was 33.0 ms and inferred swap off-CPU p99 was 16.4 ms. Representative quantized
+frames paired 1.4–2.4 ms GPU time with 16.2–16.7 ms of swap off-CPU wait. Isolated GPU-heavy paused
+frames still exist, so this does not claim every paused hitch is presentation.
+
+**Observed:** the unpaused tail was often GPU-heavy. GPU p95/p99 were 25.4/51.4 ms. The worst paired
+frame carried 177.9 ms of GPU work in a 221.1 ms frame with 0.148 ms inferred swap off-CPU time.
+The aggregate includes the deliberate five-second transition, but an exact receipt join placed 45
+of the 64 retained worst pairs after the settled step began, including the worst frame.
+
+**Measurement discipline:** the query path is intrusive discovery instrumentation. Its two hooks
+per frame averaged 428.361 microseconds each, roughly 0.857 ms/frame before any GPU/driver query
+perturbation. Its FPS numbers are not an uplift/regression claim. CPU and GPU tracks overlap and are
+not additive. The scenario still does not bind exact save bytes.
+
+**Exact next action:** add phase-owned counting-only OpenGL command/state attribution for active
+campaign. Count before suppressing anything, preserve the exact five-second transition boundary,
+and return to thin shuffled cohorts for any candidate claim. Keep the paused presentation branch
+separate. Rosetta is an open CPU/submission axis, but it does not explain long GPU elapsed intervals
+or off-CPU swap wait by itself.
+
+See the [asynchronous GPU timing record](evidence/2026-08-28-asynchronous-gpu-frame-timing.md).
 
 ### AI Tweaks target-selection location reuse rejected (`5b6035aa`, reverted by `574cfd3b`)
 
@@ -384,10 +415,10 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
 
 ## Open questions, ranked
 
-1. **GPU versus presentation wait:** the live context supports OpenGL 1.5 query objects and
-   `GL_EXT_timer_query`; implement a fixed-size asynchronous EXT query ring, poll only available old
-   results, and retain actual interval state in the same window. Do not turn the current off-CPU
-   result into a rendering change without this split or assume the unavailable ARB timer path.
+1. **Active-campaign GL attribution:** the asynchronous split found GPU-heavy unpaused tails,
+   including after the transition. Count whole-frame draw/state/upload/readback volume and unchanged
+   state reissues at exact LWJGL seams before proposing suppression. Preserve a phase-owned settled
+   aggregate and keep the probe discovery-only.
 2. **Transition versus settled active work:** repeat the exact-step correlation once when a code
    decision depends on it. If the transition ordering is stable, probe its catch-up scheduler;
    independently map settled timer calls to individual slow frames before adding broader timers.
@@ -405,6 +436,9 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
    choose the narrowest high-information hitch-attribution slice. Avoid the reverted DCR map rotation,
    retired AI Tweaks `SelectTarget` fields, and rejected global location wrapper. Any new allocation
    candidate must separate intrusive discovery from thin measurement; stress does not replace ordinary play.
+8. **Rosetta tax:** if GL command counts show a large CPU-side dispatch boundary, compare an extracted
+   equivalent call stream under native ARM and x86/Rosetta, then seek a same-scenario cross-machine
+   control. Do not attribute GPU elapsed time or off-CPU swap wait directly to instruction translation.
 
 ## Frequently revisited questions
 

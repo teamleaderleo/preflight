@@ -80,6 +80,13 @@ capability inventory before the first swap bracket; it creates no rendering stat
 unavailable rather than inferring support. It never enables a disabled CPU clock and reports an
 unavailable split instead of guessing.
 
+For discovery-only whole-frame GPU attribution, explicitly set `PREFLIGHT_FRAME_GPU_TIMER=1` on a
+frame-telemetry launch. The exact Display adapter uses a fixed 16-query `GL_EXT_timer_query` ring,
+polls at most two already-available old slots per frame, declines another elapsed-query owner, and
+deletes its query objects before context teardown. The live probe is materially intrusive and its
+FPS values are never a performance claim. Use the paired GPU/frame/swap tracks to choose the next
+boundary, then return to thin instrumentation for any optimization comparison.
+
 `campaign-profile-paused-unpaused.json` keeps the first three campaign seconds untouched, ensures a
 paused state through Starsector's mapped pause control, retains a paused warm-up and settled window,
 then unpauses for a transition buffer and settled window. Continue and every

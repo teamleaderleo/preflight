@@ -1,0 +1,173 @@
+{
+  "format": "starsector-preflight-asynchronous-gpu-frame-timing-evidence-v1",
+  "date": "2026-08-28",
+  "disposition": "intrusive discovery instrument and attribution retained; no FPS optimization claim",
+  "parentIssue": 449,
+  "implementationCommits": [
+    "80bf7635",
+    "8d818072",
+    "5e465911b4fc6e380d7a568f1b19b125512c20b5"
+  ],
+  "verification": {
+    "command": "JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home ./mvnw verify",
+    "tests": 2247,
+    "failures": 0,
+    "errors": 0,
+    "skips": 9,
+    "reactorModules": 5
+  },
+  "identity": {
+    "game": "Starsector 0.98a-RC8",
+    "profileFingerprint": "2995668308ac3d31d645ccac30fb1a7e644e64fce5609050a1488df4cadc5af6",
+    "textureProfileFingerprint": "59b01dc050f39a9f07053bd168cc8c1ecd55086b429b2d732456f87ca217a702",
+    "enabledMods": 83,
+    "resolution": "1440x932",
+    "fullscreen": false,
+    "sound": true,
+    "wrapperJava": "Oracle Java 17.0.12 arm64",
+    "gameJava": "Zulu Java 17.0.10 x86_64 under Rosetta",
+    "adapterPlanScope": "full",
+    "optimizationPreset": "recommended",
+    "textureAdapterMode": "PREPARED_PIXELS",
+    "frameTimes": true,
+    "campaignTimes": false,
+    "jfrRecording": false,
+    "smoothFramePacing": false,
+    "gpuTimerRequested": true,
+    "preflightJarSha256": "5ce2bf2e54cb12cc03f9a1bcf405299f7e8a889b4847d99e113753a007e90c35"
+  },
+  "scenario": {
+    "name": "campaign-paused-unpaused-optimized",
+    "status": "passed",
+    "startedAt": "2026-08-27T20:56:43.899596Z",
+    "completedAt": "2026-08-27T20:59:31.510480Z",
+    "semanticSteps": 12,
+    "initialPauseObservationMillis": 3000,
+    "pausedWarmupMillis": 27000,
+    "pausedMeasurementMillis": 45000,
+    "unpausedTransitionMillis": 5000,
+    "unpausedMeasurementMillis": 45000,
+    "saveActionIssued": false,
+    "inactiveIntervalsDropped": 0,
+    "invalidIntervalsDropped": 0,
+    "stateTransitionIntervalsDropped": 5,
+    "claimBoundary": "within-run attribution under intrusive discovery instrumentation; not an FPS comparison"
+  },
+  "gpuTimer": {
+    "path": "GL_EXT_timer_query time-elapsed query",
+    "ringSize": 16,
+    "maximumAvailabilityPollsPerFrame": 2,
+    "initializationMicros": 9765.458,
+    "queriesGenerated": 16,
+    "queriesBegun": 8314,
+    "queriesEnded": 8313,
+    "beginOwnershipChecks": 1,
+    "beginOwnershipVerified": true,
+    "availabilityPolls": 16386,
+    "unavailablePolls": 8074,
+    "resultsRead": 8312,
+    "framesMatched": 8313,
+    "resultsDiscarded": 1128,
+    "skippedNoFreeSlot": 0,
+    "skippedExistingQueryOwner": 0,
+    "containedFailures": 0,
+    "cleanupEnds": 1,
+    "releasedBeforeContextDestroy": true,
+    "queriesDeleted": 16,
+    "pendingSlotsAfterRelease": 0,
+    "activeSlotAfterRelease": false,
+    "hookSamples": 16628,
+    "hookAverageMicros": 428.36122167428437,
+    "hookMaximumMicros": 10135.875,
+    "classification": "intrusive discovery instrumentation; never an FPS claim"
+  },
+  "pausedCampaign": {
+    "pairedFrames": 3557,
+    "gpuTimeMicros": {"average": 2017.313174304189, "p50": 1800, "p95": 2700, "p99": 4400, "maximum": 38519.917},
+    "frameTimeMicros": {"average": 17144.347109080685, "p50": 16900, "p95": 19600, "p99": 33000, "maximum": 54165.084},
+    "swapInferredOffCpuMicros": {"average": 914.1823685690189, "p50": 0, "p95": 4800, "p99": 16400, "maximum": 16780.042},
+    "swapIntervalOnePairs": 3557,
+    "interpretation": "recurring approximately 33 ms tail is usually low-GPU and swap-off-CPU dominated; isolated GPU-heavy paused frames still exist"
+  },
+  "unpausedCampaign": {
+    "pairedFrames": 1888,
+    "gpuTimeMicros": {"average": 9059.643100635592, "p50": 5800, "p95": 25400, "p99": 51400, "maximum": 177928.751},
+    "frameTimeMicros": {"average": 19261.697850635595, "p50": 16800, "p95": 34600, "p99": 64600, "maximum": 221131.75},
+    "swapInferredOffCpuMicros": {"average": 675.3062838983051, "p50": 0, "p95": 3900, "p99": 16400, "maximum": 26106.417},
+    "swapIntervalOnePairs": 1888,
+    "retainedWorstPairs": 64,
+    "worstPairsDuringTransition": 19,
+    "worstPairsAfterSettledStepBegan": 45,
+    "worstSettledExamples": [
+      {"frameMicros": 221131.75, "gpuMicros": 177928.751, "swapOffCpuMicros": 147.958},
+      {"frameMicros": 122194.375, "gpuMicros": 111018.125, "swapOffCpuMicros": 105.458},
+      {"frameMicros": 96532.541, "gpuMicros": 85056.583, "swapOffCpuMicros": 52.125},
+      {"frameMicros": 94159.167, "gpuMicros": 86047.458, "swapOffCpuMicros": 56.166},
+      {"frameMicros": 87134.584, "gpuMicros": 75262.417, "swapOffCpuMicros": 40.416}
+    ],
+    "interpretation": "GPU-heavy tail persists after the transition; full distribution still includes the five-second transition and must not be labelled purely settled"
+  },
+  "presentationPolicy": {
+    "forceVsyncOff": false,
+    "vsyncRequests": 5,
+    "enabledRequests": 3,
+    "requestsForcedOff": 0,
+    "swapIntervalRequests": 6,
+    "swapIntervalZeroRequests": 2,
+    "swapIntervalOneRequests": 4,
+    "lastSwapInterval": 1,
+    "allComparablePairsAtIntervalOne": 7184
+  },
+  "adapterHealth": {
+    "status": "ACTIVE",
+    "registryTargets": 77,
+    "exactMatches": 62,
+    "transformationsApplied": 62,
+    "sourceBindingRejected": 0,
+    "transformationsDeclined": 0,
+    "containedFailures": 0,
+    "runtimeIntegrityFailures": 0,
+    "failOpenPolicy": true,
+    "killSwitchActive": false
+  },
+  "lifecycle": {
+    "outcome": "COMPLETED",
+    "exitCode": 0,
+    "fatalDetected": false,
+    "semanticStepsPassed": 12,
+    "postprocessingFailures": 0
+  },
+  "rejectedWorkloadControl": {
+    "scenario": "campaign-hitch-limiter-current-state",
+    "reason": "Starsector was not frontmost; focus filtering dropped 6039 intervals and discarded all 6133 completed GPU results",
+    "use": "correctness/control lesson only; no attribution or FPS claim"
+  },
+  "decision": {
+    "nextProbe": "phase-owned counting-only OpenGL command/state attribution in active campaign",
+    "pausedBranch": "thin presentation/VSync/compositor experiment when paused pacing is selected",
+    "rosetta": "open CPU/submission attribution axis; not a unified explanation",
+    "mustNotDo": [
+      "treat CPU and GPU tracks as additive",
+      "use this intrusive run for an FPS uplift or regression claim",
+      "mix the five-second unpause transition into a settled-only claim",
+      "suppress or deduplicate OpenGL state before counting-only evidence exists"
+    ]
+  },
+  "rawEvidenceSha256": {
+    "runtime-frame-report.json": "fa5af2c74da46342c158fdd06a55083c20396616edfee140cd7c2ab6dec22d03",
+    "adapter.json": "344b9615471ad1d23c74dc39b2fc4c6de87ef9a8958e711d4351b5c2190e3993",
+    "adapter-health.json": "7241461a458fc7dff7e7edf2375f561d2ae883018e5b5e3c91920e17234b1a9a",
+    "run.json": "7a4028aa0d0785822cf1d829c2738da9a2564cd4888f7153d4e7647ff84978af",
+    "profile.json": "f5110947c60222d693d6e67c7223538f387eea20b66985b3f1c576523c7c6ee4",
+    "smoke-evidence.json": "3e8fadb4c4c914976165a424bcffb72e0c64e4f9cd4b1b7e1ef2fecca13f4a98",
+    "driver-result.json": "acd4edef7cfc7d4e36135499f5eb11a4820e4f081a3471201417c3f64093fa58"
+  },
+  "earlierRunHashes": {
+    "shortCorrectnessRuntimeFrameReport": "af052c249854ab630e6812f6457d38dd78030db7a31502ab8d191021dfe1f446",
+    "shortCorrectnessRun": "85902fba897a970efa700b74efb9cdc4015fa3264d5ea9234cb42712f8027a0d",
+    "shortCorrectnessSmokeEvidence": "ff2988828b136e60a92bde7e5ab404788a5f7c33ad9d807350b77764f0a4522b",
+    "rejectedUnfocusedRuntimeFrameReport": "d4c5ac91adb4c9d3d8f3ed184ac331faafd49244f73a598c034f6ee5911624a4",
+    "rejectedUnfocusedRun": "e1f3ad1aeff545ef13d68df706c5da2c454000a7be4780e815693dc19f46556a",
+    "rejectedUnfocusedSmokeEvidence": "2b55e58f57b15db666b53f347423696f15f207a15226d35c5cc05dad652926a6"
+  }
+}
