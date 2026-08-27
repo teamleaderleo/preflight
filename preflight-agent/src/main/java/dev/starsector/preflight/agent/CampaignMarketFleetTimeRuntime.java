@@ -171,9 +171,11 @@ public final class CampaignMarketFleetTimeRuntime {
             if (duration <= 0L) return;
             stats.samples++;
             stats.totalNanos += duration;
+            long retainedEndEpochMillis = stats.slowestCalls.record(duration);
             if (duration > stats.maximumNanos) {
                 stats.maximumNanos = duration;
-                stats.maximumEndEpochMillis = System.currentTimeMillis();
+                stats.maximumEndEpochMillis = retainedEndEpochMillis == 0L
+                        ? System.currentTimeMillis() : retainedEndEpochMillis;
             }
             if (duration > 1_000_000L) stats.overOneMillis++;
             if (duration > 5_000_000L) stats.overFiveMillis++;
@@ -218,6 +220,7 @@ public final class CampaignMarketFleetTimeRuntime {
         long overSixteenMillis;
         long overThirtyThreeMillis;
         long overOneHundredMillis;
+        final SlowCallWindows slowestCalls = new SlowCallWindows();
 
         Stats(int sampleRate) {
             this.sampleRate = sampleRate;
@@ -227,6 +230,7 @@ public final class CampaignMarketFleetTimeRuntime {
             attempts = samples = totalNanos = maximumNanos = maximumEndEpochMillis = 0L;
             overOneMillis = overFiveMillis = overSixteenMillis = 0L;
             overThirtyThreeMillis = overOneHundredMillis = 0L;
+            slowestCalls.reset();
         }
 
         double estimatedTotalMillis() {
@@ -250,6 +254,7 @@ public final class CampaignMarketFleetTimeRuntime {
             result.put("sampledOver16Millis", overSixteenMillis);
             result.put("sampledOver33Millis", overThirtyThreeMillis);
             result.put("sampledOver100Millis", overOneHundredMillis);
+            result.put("slowestCalls", slowestCalls.report());
             return result;
         }
     }

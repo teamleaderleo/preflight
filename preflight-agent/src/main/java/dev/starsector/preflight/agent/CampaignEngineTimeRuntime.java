@@ -114,9 +114,11 @@ public final class CampaignEngineTimeRuntime {
             if (duration <= 0L) return;
             stats.calls++;
             stats.totalNanos += duration;
+            long retainedEndEpochMillis = stats.slowestCalls.record(duration);
             if (duration > stats.maximumNanos) {
                 stats.maximumNanos = duration;
-                stats.maximumEndEpochMillis = System.currentTimeMillis();
+                stats.maximumEndEpochMillis = retainedEndEpochMillis == 0L
+                        ? System.currentTimeMillis() : retainedEndEpochMillis;
             }
             if (duration > 1_000_000L) stats.overOneMillis++;
             if (duration > 5_000_000L) stats.overFiveMillis++;
@@ -157,6 +159,7 @@ public final class CampaignEngineTimeRuntime {
         long overSixteenMillis;
         long overThirtyThreeMillis;
         long overOneHundredMillis;
+        final SlowCallWindows slowestCalls = new SlowCallWindows();
 
         void reset() {
             calls = 0L;
@@ -168,6 +171,7 @@ public final class CampaignEngineTimeRuntime {
             overSixteenMillis = 0L;
             overThirtyThreeMillis = 0L;
             overOneHundredMillis = 0L;
+            slowestCalls.reset();
         }
 
         Map<String, Object> report(String name) {
@@ -184,6 +188,7 @@ public final class CampaignEngineTimeRuntime {
             result.put("over16Millis", overSixteenMillis);
             result.put("over33Millis", overThirtyThreeMillis);
             result.put("over100Millis", overOneHundredMillis);
+            result.put("slowestCalls", slowestCalls.report());
             return result;
         }
     }
