@@ -12,6 +12,12 @@ import java.util.Map;
 /** Report-time ownership for concrete runtime callback classes. */
 final class RuntimeClassOwnership {
     private static final long MAX_MOD_INFO_BYTES = 256L * 1024L;
+    private static final ClassValue<RuntimeClassOwnership> OWNERS = new ClassValue<>() {
+        @Override
+        protected RuntimeClassOwnership computeValue(Class<?> type) {
+            return resolveUncached(type);
+        }
+    };
 
     private final String className;
     private final String ownerKey;
@@ -60,7 +66,12 @@ final class RuntimeClassOwnership {
     }
 
     static RuntimeClassOwnership resolve(Class<?> type) {
-        if (type == null) return unresolved("", AdapterSourceIdentity.unknown(), "null-class");
+        return type == null
+                ? unresolved("", AdapterSourceIdentity.unknown(), "null-class")
+                : OWNERS.get(type);
+    }
+
+    private static RuntimeClassOwnership resolveUncached(Class<?> type) {
         AdapterSourceIdentity source;
         try {
             ProtectionDomain domain = type.getProtectionDomain();
