@@ -32,7 +32,7 @@ class AiTweaksAffineVectorPlanTest {
     }
 
     @Test
-    void fusesOneExactAffineExpressionInEveryReviewedTarget() throws Exception {
+    void fusesEveryExactAffineExpressionInEveryReviewedTarget() throws Exception {
         System.setProperty(AiTweaksAffineVectorPlan.ENABLED_PROPERTY, "true");
         for (var target : AiTweaksAffineVectorPlan.TARGETS) {
             byte[] transformed = AiTweaksAffineVectorPlan.transform(
@@ -40,14 +40,16 @@ class AiTweaksAffineVectorPlanTest {
             assertNotNull(transformed, target.internalName());
 
             ClassNode owner = parse(transformed);
-            MethodNode targetMethod = unique(owner, target.method(), target.descriptor());
-            assertEquals(0, calls(targetMethod, EXTENSIONS, "times",
-                    AiTweaksAffineVectorPlan.TIMES_DESCRIPTOR));
-            assertEquals(0, calls(targetMethod, EXTENSIONS, "plus",
-                    AiTweaksAffineVectorPlan.PLUS_DESCRIPTOR));
-            assertEquals(1, calls(targetMethod, owner.name,
-                    AiTweaksAffineVectorPlan.AFFINE_METHOD,
-                    AiTweaksAffineVectorPlan.AFFINE_DESCRIPTOR));
+            for (var method : AiTweaksAffineVectorPlan.methods(target)) {
+                MethodNode targetMethod = unique(owner, method.name(), method.descriptor());
+                assertEquals(0, calls(targetMethod, EXTENSIONS, "times",
+                        AiTweaksAffineVectorPlan.TIMES_DESCRIPTOR));
+                assertEquals(method.unpairedPlusCalls(), calls(targetMethod, EXTENSIONS, "plus",
+                        AiTweaksAffineVectorPlan.PLUS_DESCRIPTOR));
+                assertEquals(method.pairs(), calls(targetMethod, owner.name,
+                        AiTweaksAffineVectorPlan.AFFINE_METHOD,
+                        AiTweaksAffineVectorPlan.AFFINE_DESCRIPTOR));
+            }
 
             MethodNode helper = unique(
                     owner,
@@ -78,7 +80,7 @@ class AiTweaksAffineVectorPlanTest {
     }
 
     @Test
-    void registryPinsAllThreeReviewedClassesAndOneArchive() {
+    void registryPinsAllThreeReviewedClassesFiveMethodsAndOneArchive() {
         List<AdapterTarget> targets = AdapterTargetRegistry.aiTweaksAffineVectorTargets();
         assertEquals(3, targets.size());
         for (int index = 0; index < targets.size(); index++) {
@@ -88,6 +90,8 @@ class AiTweaksAffineVectorPlanTest {
             assertEquals(expected.internalName(), actual.internalClassName());
             assertEquals(expected.sha256(), actual.sha256());
             assertEquals(AiTweaksAffineVectorPlan.SOURCE_SHA256, actual.sourceSha256());
+            assertEquals(AiTweaksAffineVectorPlan.methods(expected).size(),
+                    actual.requiredMethods().size());
         }
     }
 
@@ -97,39 +101,63 @@ class AiTweaksAffineVectorPlanTest {
                 target.sha256(),
                 61,
                 Opcodes.ACC_PUBLIC,
-                List.of(new ClassSignature.Method(
-                        target.method(), target.descriptor(), Opcodes.ACC_PRIVATE)));
+                AiTweaksAffineVectorPlan.methods(target).stream()
+                        .map(method -> new ClassSignature.Method(
+                                method.name(), method.descriptor(), Opcodes.ACC_PRIVATE))
+                        .toList());
     }
 
     private static byte[] fixture(AiTweaksAffineVectorPlan.Target target, boolean exactPair) {
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, target.internalName(), null,
                 "java/lang/Object", null);
-        MethodNode method = new MethodNode(
-                Opcodes.ACC_PRIVATE,
-                target.method(),
-                target.descriptor(),
-                null,
-                null);
-        method.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
-        method.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
-        method.instructions.add(new InsnNode(Opcodes.FCONST_1));
-        method.instructions.add(new MethodInsnNode(
-                Opcodes.INVOKESTATIC,
-                EXTENSIONS,
-                "times",
-                AiTweaksAffineVectorPlan.TIMES_DESCRIPTOR,
-                false));
-        if (!exactPair) method.instructions.add(new InsnNode(Opcodes.POP));
-        if (!exactPair) method.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
-        method.instructions.add(new MethodInsnNode(
-                Opcodes.INVOKESTATIC,
-                EXTENSIONS,
-                "plus",
-                AiTweaksAffineVectorPlan.PLUS_DESCRIPTOR,
-                false));
-        method.instructions.add(new InsnNode(Opcodes.ARETURN));
-        method.accept(writer);
+        boolean first = true;
+        for (var targetMethod : AiTweaksAffineVectorPlan.methods(target)) {
+            MethodNode method = new MethodNode(
+                    Opcodes.ACC_PRIVATE,
+                    targetMethod.name(),
+                    targetMethod.descriptor(),
+                    null,
+                    null);
+            for (int pair = 0; pair < targetMethod.pairs(); pair++) {
+                method.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
+                method.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
+                method.instructions.add(new InsnNode(Opcodes.FCONST_1));
+                method.instructions.add(new MethodInsnNode(
+                        Opcodes.INVOKESTATIC,
+                        EXTENSIONS,
+                        "times",
+                        AiTweaksAffineVectorPlan.TIMES_DESCRIPTOR,
+                        false));
+                if (!exactPair && first) method.instructions.add(new InsnNode(Opcodes.POP));
+                if (!exactPair && first) method.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
+                method.instructions.add(new MethodInsnNode(
+                        Opcodes.INVOKESTATIC,
+                        EXTENSIONS,
+                        "plus",
+                        AiTweaksAffineVectorPlan.PLUS_DESCRIPTOR,
+                        false));
+                if (pair + 1 < targetMethod.pairs() || targetMethod.unpairedPlusCalls() > 0) {
+                    method.instructions.add(new InsnNode(Opcodes.POP));
+                }
+                first = false;
+            }
+            for (int call = 0; call < targetMethod.unpairedPlusCalls(); call++) {
+                method.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
+                method.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
+                method.instructions.add(new MethodInsnNode(
+                        Opcodes.INVOKESTATIC,
+                        EXTENSIONS,
+                        "plus",
+                        AiTweaksAffineVectorPlan.PLUS_DESCRIPTOR,
+                        false));
+                if (call + 1 < targetMethod.unpairedPlusCalls()) {
+                    method.instructions.add(new InsnNode(Opcodes.POP));
+                }
+            }
+            method.instructions.add(new InsnNode(Opcodes.ARETURN));
+            method.accept(writer);
+        }
         writer.visitEnd();
         return writer.toByteArray();
     }

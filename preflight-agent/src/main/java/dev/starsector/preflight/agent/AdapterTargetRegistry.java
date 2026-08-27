@@ -198,7 +198,7 @@ final class AdapterTargetRegistry {
                 "");
     }
 
-    /** AI Tweaks 2.2.10 creates throwaway scaled vectors in three affine expressions. */
+    /** AI Tweaks 2.2.10 creates throwaway scaled vectors in seven affine expressions. */
     static List<AdapterTarget> aiTweaksAffineVectorTargets() {
         List<AdapterTarget> targets = new ArrayList<>();
         for (AiTweaksAffineVectorPlan.Target target : AiTweaksAffineVectorPlan.TARGETS) {
@@ -208,8 +208,10 @@ final class AdapterTargetRegistry {
                     target.internalName(),
                     target.sha256(),
                     AiTweaksAffineVectorPlan.PLAN_ID,
-                    List.of(new AdapterTarget.RequiredMethod(
-                            target.method(), target.descriptor())),
+                    AiTweaksAffineVectorPlan.methods(target).stream()
+                            .map(method -> new AdapterTarget.RequiredMethod(
+                                    method.name(), method.descriptor()))
+                            .toList(),
                     "MOD",
                     AiTweaksAffineVectorPlan.SOURCE_FILE,
                     AiTweaksAffineVectorPlan.SOURCE_SHA256,

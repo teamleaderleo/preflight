@@ -16,7 +16,7 @@ import org.objectweb.asm.tree.VarInsnNode;
 
 /** Fuses exact AI Tweaks multiply-then-add vector expressions into one fresh result. */
 final class AiTweaksAffineVectorPlan {
-    static final String PLAN_ID = "aitweaks-affine-vector-fusion-v1";
+    static final String PLAN_ID = "aitweaks-affine-vector-fusion-v2";
     static final String ENABLED_PROPERTY = "preflight.combat.aiTweaksAffineVectors";
     static final String SOURCE_SHA256 =
             "9f6179bcd2df2e3ce8cea2da79051c9f1be3c9b71712c6c28d7568b777ecf5b2";
@@ -50,6 +50,11 @@ final class AiTweaksAffineVectorPlan {
                     "64889050bc99efaa693fe73e8fb6cf80af319907b77dbd9fdb03a433da67cecc",
                     "positionAfter",
                     "(F)Lorg/lwjgl/util/vector/Vector2f;"));
+    private static final String PROJECTILE_MOTION_METHOD = "projectileMotionInTargetFoR";
+    private static final String PROJECTILE_MOTION_DESCRIPTOR =
+            "(Lcom/genir/aitweaks/core/utils/types/LinearMotion;"
+                    + "Lcom/genir/aitweaks/core/shipai/autofire/ballistics/BallisticParams;)"
+                    + "Lcom/genir/aitweaks/core/utils/types/LinearMotion;";
 
     private static final String VECTOR_EXTENSIONS =
             "com/genir/aitweaks/core/extensions/Vector2fKt";
@@ -74,11 +79,58 @@ final class AiTweaksAffineVectorPlan {
 
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
-        MethodNode method = unique(owner, target.method(), target.descriptor());
-        if (method == null || unique(owner, AFFINE_METHOD, AFFINE_DESCRIPTOR) != null) return null;
+        if (unique(owner, AFFINE_METHOD, AFFINE_DESCRIPTOR) != null) return null;
+        List<MethodTarget> methods = methods(target);
+        List<AffinePair> pairs = new java.util.ArrayList<>();
+        for (MethodTarget methodTarget : methods) {
+            MethodNode method = unique(owner, methodTarget.name(), methodTarget.descriptor());
+            if (method == null) return null;
+            List<AffinePair> methodPairs = affinePairs(method);
+            if (methodPairs.size() != methodTarget.pairs()
+                    || staticCalls(method, "plus", PLUS_DESCRIPTOR)
+                    != methodTarget.pairs() + methodTarget.unpairedPlusCalls()) {
+                return null;
+            }
+            pairs.addAll(methodPairs);
+        }
+        for (AffinePair pair : pairs) {
+            pair.method().instructions.set(pair.times(), new MethodInsnNode(
+                    Opcodes.INVOKESTATIC,
+                    owner.name,
+                    AFFINE_METHOD,
+                    AFFINE_DESCRIPTOR,
+                    false));
+            pair.method().instructions.remove(pair.plus());
+        }
+        owner.methods.add(affineMethod());
 
-        MethodInsnNode times = null;
-        MethodInsnNode plus = null;
+        ClassWriter writer = new ClassWriter(0);
+        owner.accept(writer);
+        return writer.toByteArray();
+    }
+
+    static Target target(String internalName) {
+        for (Target target : TARGETS) {
+            if (target.internalName().equals(internalName)) return target;
+        }
+        return null;
+    }
+
+    static List<MethodTarget> methods(Target target) {
+        MethodTarget primary = new MethodTarget(target.method(), target.descriptor(), 1, 0);
+        if (target.internalName().endsWith("/Projectile")
+                || target.internalName().endsWith("/Beam")) {
+            return List.of(primary, new MethodTarget(
+                    PROJECTILE_MOTION_METHOD,
+                    PROJECTILE_MOTION_DESCRIPTOR,
+                    2,
+                    target.internalName().endsWith("/Projectile") ? 1 : 0));
+        }
+        return List.of(primary);
+    }
+
+    private static List<AffinePair> affinePairs(MethodNode method) {
+        List<AffinePair> pairs = new java.util.ArrayList<>();
         for (AbstractInsnNode instruction : method.instructions) {
             if (!(instruction instanceof MethodInsnNode call)
                     || call.getOpcode() != Opcodes.INVOKESTATIC
@@ -92,34 +144,26 @@ final class AiTweaksAffineVectorPlan {
                     || nextCall.getOpcode() != Opcodes.INVOKESTATIC
                     || !VECTOR_EXTENSIONS.equals(nextCall.owner)
                     || !"plus".equals(nextCall.name)
-                    || !PLUS_DESCRIPTOR.equals(nextCall.desc)
-                    || times != null) {
-                return null;
+                    || !PLUS_DESCRIPTOR.equals(nextCall.desc)) {
+                return List.of();
             }
-            times = call;
-            plus = nextCall;
+            pairs.add(new AffinePair(method, call, nextCall));
         }
-        if (times == null) return null;
-
-        method.instructions.set(times, new MethodInsnNode(
-                Opcodes.INVOKESTATIC,
-                owner.name,
-                AFFINE_METHOD,
-                AFFINE_DESCRIPTOR,
-                false));
-        method.instructions.remove(plus);
-        owner.methods.add(affineMethod());
-
-        ClassWriter writer = new ClassWriter(0);
-        owner.accept(writer);
-        return writer.toByteArray();
+        return pairs;
     }
 
-    static Target target(String internalName) {
-        for (Target target : TARGETS) {
-            if (target.internalName().equals(internalName)) return target;
+    private static int staticCalls(MethodNode method, String name, String descriptor) {
+        int count = 0;
+        for (AbstractInsnNode instruction : method.instructions) {
+            if (instruction instanceof MethodInsnNode call
+                    && call.getOpcode() == Opcodes.INVOKESTATIC
+                    && VECTOR_EXTENSIONS.equals(call.owner)
+                    && name.equals(call.name)
+                    && descriptor.equals(call.desc)) {
+                count++;
+            }
         }
-        return null;
+        return count;
     }
 
     private static MethodNode affineMethod() {
@@ -185,5 +229,11 @@ final class AiTweaksAffineVectorPlan {
     }
 
     record Target(String internalName, String sha256, String method, String descriptor) {
+    }
+
+    record MethodTarget(String name, String descriptor, int pairs, int unpairedPlusCalls) {
+    }
+
+    private record AffinePair(MethodNode method, MethodInsnNode times, MethodInsnNode plus) {
     }
 }

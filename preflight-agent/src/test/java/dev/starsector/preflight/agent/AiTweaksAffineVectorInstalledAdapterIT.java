@@ -25,7 +25,7 @@ class AiTweaksAffineVectorInstalledAdapterIT {
     }
 
     @Test
-    void installedTargetsReplaceOnlyTheThreeReviewedAffinePairs() throws Exception {
+    void installedTargetsReplaceOnlyTheSevenReviewedAffinePairs() throws Exception {
         String configured = System.getProperty("preflight.aitweaks.jar", "").trim();
         Assumptions.assumeTrue(!configured.isEmpty(),
                 "set -Dpreflight.aitweaks.jar=<aitweaks-core.jar>");
@@ -48,30 +48,33 @@ class AiTweaksAffineVectorInstalledAdapterIT {
 
                 ClassNode before = parse(original);
                 ClassNode after = parse(transformed);
-                var beforeMethod = before.methods.stream()
-                        .filter(method -> target.method().equals(method.name)
-                                && target.descriptor().equals(method.desc))
-                        .findFirst().orElseThrow();
-                var afterMethod = after.methods.stream()
-                        .filter(method -> target.method().equals(method.name)
-                                && target.descriptor().equals(method.desc))
-                        .findFirst().orElseThrow();
-                assertEquals(1, calls(beforeMethod.instructions,
-                        "com/genir/aitweaks/core/extensions/Vector2fKt", "times",
-                        AiTweaksAffineVectorPlan.TIMES_DESCRIPTOR));
-                assertEquals(1, calls(beforeMethod.instructions,
-                        "com/genir/aitweaks/core/extensions/Vector2fKt", "plus",
-                        AiTweaksAffineVectorPlan.PLUS_DESCRIPTOR));
-                assertEquals(0, calls(afterMethod.instructions,
-                        "com/genir/aitweaks/core/extensions/Vector2fKt", "times",
-                        AiTweaksAffineVectorPlan.TIMES_DESCRIPTOR));
-                assertEquals(0, calls(afterMethod.instructions,
-                        "com/genir/aitweaks/core/extensions/Vector2fKt", "plus",
-                        AiTweaksAffineVectorPlan.PLUS_DESCRIPTOR));
-                assertEquals(1, calls(afterMethod.instructions,
-                        target.internalName(),
-                        AiTweaksAffineVectorPlan.AFFINE_METHOD,
-                        AiTweaksAffineVectorPlan.AFFINE_DESCRIPTOR));
+                for (var methodTarget : AiTweaksAffineVectorPlan.methods(target)) {
+                    var beforeMethod = before.methods.stream()
+                            .filter(method -> methodTarget.name().equals(method.name)
+                                    && methodTarget.descriptor().equals(method.desc))
+                            .findFirst().orElseThrow();
+                    var afterMethod = after.methods.stream()
+                            .filter(method -> methodTarget.name().equals(method.name)
+                                    && methodTarget.descriptor().equals(method.desc))
+                            .findFirst().orElseThrow();
+                    assertEquals(methodTarget.pairs(), calls(beforeMethod.instructions,
+                            "com/genir/aitweaks/core/extensions/Vector2fKt", "times",
+                            AiTweaksAffineVectorPlan.TIMES_DESCRIPTOR));
+                    assertEquals(methodTarget.pairs() + methodTarget.unpairedPlusCalls(),
+                            calls(beforeMethod.instructions,
+                            "com/genir/aitweaks/core/extensions/Vector2fKt", "plus",
+                            AiTweaksAffineVectorPlan.PLUS_DESCRIPTOR));
+                    assertEquals(0, calls(afterMethod.instructions,
+                            "com/genir/aitweaks/core/extensions/Vector2fKt", "times",
+                            AiTweaksAffineVectorPlan.TIMES_DESCRIPTOR));
+                    assertEquals(methodTarget.unpairedPlusCalls(), calls(afterMethod.instructions,
+                            "com/genir/aitweaks/core/extensions/Vector2fKt", "plus",
+                            AiTweaksAffineVectorPlan.PLUS_DESCRIPTOR));
+                    assertEquals(methodTarget.pairs(), calls(afterMethod.instructions,
+                            target.internalName(),
+                            AiTweaksAffineVectorPlan.AFFINE_METHOD,
+                            AiTweaksAffineVectorPlan.AFFINE_DESCRIPTOR));
+                }
                 for (var method : after.methods) {
                     new Analyzer<>(new BasicInterpreter()).analyze(after.name, method);
                 }
