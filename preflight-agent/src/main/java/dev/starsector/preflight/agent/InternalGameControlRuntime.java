@@ -24,8 +24,8 @@ import java.util.regex.Pattern;
 
 /** Closed, desktop-smoke-only game-thread actions addressed through the run directory. */
 public final class InternalGameControlRuntime {
-    static final String REQUEST_FORMAT = "starsector-preflight-runtime-action-request-v5";
-    static final String RECEIPT_FORMAT = "starsector-preflight-runtime-action-receipt-v5";
+    static final String REQUEST_FORMAT = "starsector-preflight-runtime-action-request-v6";
+    static final String RECEIPT_FORMAT = "starsector-preflight-runtime-action-receipt-v6";
     static final String CONTINUE_ACTION = "main-menu.continue";
     static final String CAMPAIGN_PAUSE_ACTION = "campaign.pause";
     static final String CAMPAIGN_UNPAUSE_ACTION = "campaign.unpause";
@@ -37,6 +37,7 @@ public final class InternalGameControlRuntime {
     static final String COMBAT_SET_STRESS_VIEWPORT_ACTION = "combat.set-stress-viewport";
     static final String COMBAT_VERIFY_ZOOM_OUT_ACTION = "combat.verify-zoom-out";
     static final String COMBAT_BEGIN_FRAME_WINDOW_ACTION = "combat.begin-frame-window";
+    static final String COMBAT_END_FRAME_WINDOW_ACTION = "combat.end-frame-window";
     static final String INTERACTIVE_STATE = "main-menu-interactive";
     static final String CAMPAIGN_STATE = "campaign-ready";
     static final String SIMULATION_STATE = "simulation-ready";
@@ -68,7 +69,7 @@ public final class InternalGameControlRuntime {
                     + "\\\"processStartedAt\\\":\\\"([^\\\"]{1,80})\\\","
                     + "\\\"action\\\":\\\"(main-menu\\.continue|campaign\\.(?:pause|unpause|begin-frame-window|prepare-combat-fixture|verify-combat-fixture)"
                     + "|simulation\\.(?:opponents\\.(?:all|deploy)|allies\\.(?:select|all|deploy)|engage)"
-                    + "|combat\\.(?:pause|unpause|capture-viewport|zoom-out|set-stress-viewport|verify-zoom-out|begin-frame-window|prepare-symmetric-1000dp-fixture))\\\","
+                    + "|combat\\.(?:pause|unpause|capture-viewport|zoom-out|set-stress-viewport|verify-zoom-out|begin-frame-window|end-frame-window|prepare-symmetric-1000dp-fixture))\\\","
                     + "\\\"expectedState\\\":\\\"(main-menu-interactive|campaign-ready|simulation-ready|combat-ready)\\\","
                     + "\\\"deadline\\\":\\\"([^\\\"]{1,80})\\\"\\}\\s*");
 
@@ -348,9 +349,17 @@ public final class InternalGameControlRuntime {
                 return;
             }
             if (COMBAT_BEGIN_FRAME_WINDOW_ACTION.equals(parsed.action())) {
+                CombatStressFixtureRuntime.captureWorkloadBegin(engine);
                 FrameTimeRuntime.beginCombatMeasurementWindow();
                 publish(parsed, "executed", "started a clean steady-state combat frame window",
                         accepted, Instant.now(), "combat-engine.advance", COMBAT_STATE, null, null);
+                return;
+            }
+            if (COMBAT_END_FRAME_WINDOW_ACTION.equals(parsed.action())) {
+                FrameTimeRuntime.endCombatMeasurementWindow();
+                String detail = CombatStressFixtureRuntime.captureWorkloadEnd(engine);
+                publish(parsed, "executed", detail, accepted, Instant.now(),
+                        "combat-engine.advance", COMBAT_STATE, null, null);
                 return;
             }
             if (COMBAT_CAPTURE_VIEWPORT_ACTION.equals(parsed.action())) {
@@ -564,6 +573,7 @@ public final class InternalGameControlRuntime {
                 || COMBAT_SET_STRESS_VIEWPORT_ACTION.equals(action)
                 || COMBAT_VERIFY_ZOOM_OUT_ACTION.equals(action)
                 || COMBAT_BEGIN_FRAME_WINDOW_ACTION.equals(action)
+                || COMBAT_END_FRAME_WINDOW_ACTION.equals(action)
                 || CombatStressFixtureRuntime.ACTION.equals(action);
     }
 

@@ -380,6 +380,15 @@ public final class FrameTimeRuntime {
         GlStateReissueRuntime.beginMeasurementWindow();
     }
 
+    /** Stops the explicit combat window before smoke-only workload bookkeeping runs. */
+    static synchronized void endCombatMeasurementWindow() {
+        if (!enabled) throw new IllegalStateException("frame-time-telemetry-is-disabled");
+        if (!measurementWindowActive || measurementWindowState != STATE_COMBAT) {
+            throw new IllegalStateException("combat-frame-window-is-not-active");
+        }
+        measurementWindowActive = false;
+    }
+
     /** Starts a clean steady-state campaign window with an exact pause-state owner. */
     static synchronized void beginCampaignMeasurementWindow(boolean paused) {
         if (!enabled) throw new IllegalStateException("frame-time-telemetry-is-disabled");
@@ -831,6 +840,7 @@ public final class FrameTimeRuntime {
                         ? "paused" : measurementWindowCampaignPause == PAUSE_UNPAUSED
                                 ? "unpaused" : "unknown");
         result.put("measurementWindow", window);
+        result.put("combatWorkloadFingerprint", CombatStressFixtureRuntime.workloadTelemetry());
         Map<String, Object> displayPhases = new LinkedHashMap<>();
         displayPhases.put("baseTimestampReadsPerPresentedFrame", 6);
         displayPhases.put("baseWallTimestampReadsPerPresentedFrame", 6);

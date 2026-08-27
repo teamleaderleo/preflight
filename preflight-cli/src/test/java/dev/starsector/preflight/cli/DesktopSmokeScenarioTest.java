@@ -216,6 +216,23 @@ final class DesktopSmokeScenarioTest {
     }
 
     @Test
+    void checkedInThinThousandDpSimulationBoundsAndFingerprintsTheFrameWindow()
+            throws Exception {
+        DesktopSmokeScenario scenario = DesktopSmokeScenario.read(
+                Path.of("..", "scripts", "scenarios",
+                        "campaign-simulation-combat-1000dp-thin.json"));
+
+        assertEquals("campaign-simulation-combat-1000dp-thin", scenario.view().get("name"));
+        assertFalse(scenario.sampleRecording());
+        assertTrue(scenario.stepIds().contains("begin-frame-window"));
+        assertTrue(scenario.stepIds().contains("combat-sample-1040dp"));
+        assertTrue(scenario.stepIds().contains("end-frame-window"));
+        assertEquals(Set.of("process-control", "semantic-state", "semantic-control",
+                        "window-control", "evidence-read"),
+                scenario.requiredCapabilities());
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void combatZoomUsesTheClosedGameInputAction() throws Exception {
         DesktopSmokeScenario scenario = DesktopSmokeScenario.read(

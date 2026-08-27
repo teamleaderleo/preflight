@@ -161,12 +161,20 @@ autopilot, command-map, speed, and verified zoom setup are complete, and it neve
 The `-thin` variant keeps those semantic phases and disables JFR recording. It centers the LWJGL
 cursor once, then uses the public viewport's external-control mode to hold the combat camera at the
 battlefield origin and an exact 4.000 multiplier instead of relying on timing-sensitive wheel easing
-or the physical cursor position. The smoke-only combat-frame exit hook reasserts that multiplier
-after Starsector updates its separate zoom target; both comparison arms pay the same hook cost. Its
+or the physical cursor position. The smoke-only combat-frame exit hook reasserts the full externally
+controlled viewport rectangle after Starsector updates the camera; both comparison arms pay the
+same hook cost. Its
 verification step rejects a run if external control, center, or settled zoom differs, because
 Starsector's cursor-following combat camera otherwise changes the rendered workload. Use it for
 controlled FPS comparisons after the profiled scenario has identified a candidate. Profiler FPS
 belongs to discovery evidence, not to an optimization claim.
+
+The thin route also brackets the timer with `combat.begin-frame-window` and
+`combat.end-frame-window`. Immediately outside that window it records a semantic workload
+fingerprint: elapsed combat time, live non-fighters/fighters and hulks by side, aggregate live hull
+and flux, plus projectile and missile counts. A candidate can therefore be rejected when the same
+recipe and camera evolved into materially different combat work. The two snapshots are comparison
+guards, not hot-path probes, and their reflection/allocation cost is excluded from the FPS window.
 
 ## Read what a launch produced
 

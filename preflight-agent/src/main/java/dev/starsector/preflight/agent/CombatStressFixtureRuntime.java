@@ -57,6 +57,8 @@ final class CombatStressFixtureRuntime {
     private static int spawnedSideOne;
     private static float deploymentPointsSideZero;
     private static float deploymentPointsSideOne;
+    private static Map<String, Object> workloadBegin = Map.of();
+    private static Map<String, Object> workloadEnd = Map.of();
     private static String problem;
 
     private CombatStressFixtureRuntime() {
@@ -305,6 +307,126 @@ final class CombatStressFixtureRuntime {
         return values;
     }
 
+    static synchronized void captureWorkloadBegin(Object engine)
+            throws ReflectiveOperationException {
+        if (!prepared) throw new IllegalStateException("combat-stress-fixture-not-prepared");
+        if (!workloadBegin.isEmpty()) {
+            throw new IllegalStateException("combat-workload-begin-already-captured");
+        }
+        workloadBegin = workloadSnapshot(engine);
+    }
+
+    static synchronized String captureWorkloadEnd(Object engine)
+            throws ReflectiveOperationException {
+        if (workloadBegin.isEmpty()) {
+            throw new IllegalStateException("combat-workload-begin-missing");
+        }
+        if (!workloadEnd.isEmpty()) {
+            throw new IllegalStateException("combat-workload-end-already-captured");
+        }
+        workloadEnd = workloadSnapshot(engine);
+        float gameSeconds = number(workloadEnd, "combatSecondsExcludingPaused")
+                - number(workloadBegin, "combatSecondsExcludingPaused");
+        return String.format(java.util.Locale.ROOT,
+                "ended steady-state combat frame window after %.3f game seconds; workload fingerprint captured",
+                gameSeconds);
+    }
+
+    static synchronized Map<String, Object> workloadTelemetry() {
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("recipeId", RECIPE_ID);
+        values.put("begin", workloadBegin.isEmpty() ? null : workloadBegin);
+        values.put("end", workloadEnd.isEmpty() ? null : workloadEnd);
+        if (!workloadBegin.isEmpty() && !workloadEnd.isEmpty()) {
+            values.put("combatSecondsElapsed",
+                    number(workloadEnd, "combatSecondsExcludingPaused")
+                            - number(workloadBegin, "combatSecondsExcludingPaused"));
+            values.put("sideZeroNonFighterLosses",
+                    nestedInt(workloadBegin, "sideZero", "aliveNonFighters")
+                            - nestedInt(workloadEnd, "sideZero", "aliveNonFighters"));
+            values.put("sideOneNonFighterLosses",
+                    nestedInt(workloadBegin, "sideOne", "aliveNonFighters")
+                            - nestedInt(workloadEnd, "sideOne", "aliveNonFighters"));
+        }
+        return values;
+    }
+
+    private static Map<String, Object> workloadSnapshot(Object engine)
+            throws ReflectiveOperationException {
+        ClassLoader loader = engine.getClass().getClassLoader();
+        Class<?> engineApi = Class.forName(COMBAT_ENGINE_API, false, loader);
+        Class<?> shipApi = Class.forName(SHIP_API, false, loader);
+        Method getShips = exactApi(engineApi, engine, "getShips", List.class);
+        Method getMissiles = exactApi(engineApi, engine, "getMissiles", List.class);
+        Method getProjectiles = exactApi(engineApi, engine, "getProjectiles", List.class);
+        Method getTotalElapsedTime = exactApi(
+                engineApi, engine, "getTotalElapsedTime", float.class, boolean.class);
+        Method isPaused = exactApi(engineApi, engine, "isPaused", boolean.class);
+        Method isCombatOver = exactApi(engineApi, engine, "isCombatOver", boolean.class);
+        Method getOwner = exact(shipApi, "getOwner", int.class);
+        Method isAlive = exact(shipApi, "isAlive", boolean.class);
+        Method isHulk = exact(shipApi, "isHulk", boolean.class);
+        Method isFighter = exact(shipApi, "isFighter", boolean.class);
+        Method getHitpoints = exact(shipApi, "getHitpoints", float.class);
+        Method getMaxHitpoints = exact(shipApi, "getMaxHitpoints", float.class);
+        Method getFluxLevel = exact(shipApi, "getFluxLevel", float.class);
+
+        Object shipsValue = invoke(getShips, engine);
+        Object missilesValue = invoke(getMissiles, engine);
+        Object projectilesValue = invoke(getProjectiles, engine);
+        if (!(shipsValue instanceof List<?> ships)
+                || !(missilesValue instanceof List<?> missiles)
+                || !(projectilesValue instanceof List<?> projectiles)) {
+            throw new IllegalStateException("combat-workload-collection-shape-mismatch");
+        }
+        SideWorkload[] sides = {new SideWorkload(), new SideWorkload(), new SideWorkload()};
+        for (Object ship : ships) {
+            if (ship == null || !shipApi.isInstance(ship)) {
+                throw new IllegalStateException("combat-workload-ship-shape-mismatch");
+            }
+            int owner = (Integer) invoke(getOwner, ship);
+            SideWorkload side = sides[owner == 0 ? 0 : owner == 1 ? 1 : 2];
+            boolean alive = (Boolean) invoke(isAlive, ship);
+            boolean fighter = (Boolean) invoke(isFighter, ship);
+            boolean hulk = (Boolean) invoke(isHulk, ship);
+            side.total++;
+            if (alive) {
+                side.alive++;
+                if (fighter) side.aliveFighters++;
+                else side.aliveNonFighters++;
+                float maximum = (Float) invoke(getMaxHitpoints, ship);
+                float hitpoints = (Float) invoke(getHitpoints, ship);
+                float flux = (Float) invoke(getFluxLevel, ship);
+                if (Float.isFinite(maximum) && maximum > 0f && Float.isFinite(hitpoints)) {
+                    side.aliveHullFractionSum += Math.max(0f, hitpoints / maximum);
+                }
+                if (Float.isFinite(flux)) side.aliveFluxFractionSum += Math.max(0f, flux);
+            }
+            if (hulk) side.hulks++;
+        }
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("combatSecondsExcludingPaused", invoke(getTotalElapsedTime, engine, false));
+        values.put("combatSecondsIncludingPaused", invoke(getTotalElapsedTime, engine, true));
+        values.put("paused", invoke(isPaused, engine));
+        values.put("combatOver", invoke(isCombatOver, engine));
+        values.put("ships", ships.size());
+        values.put("missiles", missiles.size());
+        values.put("projectiles", projectiles.size());
+        values.put("sideZero", sides[0].toMap());
+        values.put("sideOne", sides[1].toMap());
+        values.put("otherOwners", sides[2].toMap());
+        return Map.copyOf(values);
+    }
+
+    private static float number(Map<String, Object> values, String key) {
+        return ((Number) values.get(key)).floatValue();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static int nestedInt(Map<String, Object> values, String parent, String key) {
+        return ((Number) ((Map<String, Object>) values.get(parent)).get(key)).intValue();
+    }
+
     static synchronized void reset() {
         attempted = false;
         prepared = false;
@@ -314,6 +436,8 @@ final class CombatStressFixtureRuntime {
         spawnedSideOne = 0;
         deploymentPointsSideZero = 0f;
         deploymentPointsSideOne = 0f;
+        workloadBegin = Map.of();
+        workloadEnd = Map.of();
         problem = null;
     }
 
@@ -360,6 +484,28 @@ final class CombatStressFixtureRuntime {
     }
 
     private record Variant(String id, float dp) {
+    }
+
+    private static final class SideWorkload {
+        private int total;
+        private int alive;
+        private int aliveNonFighters;
+        private int aliveFighters;
+        private int hulks;
+        private double aliveHullFractionSum;
+        private double aliveFluxFractionSum;
+
+        private Map<String, Object> toMap() {
+            Map<String, Object> values = new LinkedHashMap<>();
+            values.put("total", total);
+            values.put("alive", alive);
+            values.put("aliveNonFighters", aliveNonFighters);
+            values.put("aliveFighters", aliveFighters);
+            values.put("hulks", hulks);
+            values.put("aliveHullFractionSum", aliveHullFractionSum);
+            values.put("aliveFluxFractionSum", aliveFluxFractionSum);
+            return Map.copyOf(values);
+        }
     }
 
     private record ManagerApi(

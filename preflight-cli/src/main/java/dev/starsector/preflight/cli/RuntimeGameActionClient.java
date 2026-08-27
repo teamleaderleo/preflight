@@ -18,8 +18,8 @@ import java.util.concurrent.TimeoutException;
 
 /** PID-bound request/receipt client for the closed in-game desktop-smoke action catalog. */
 final class RuntimeGameActionClient {
-    static final String REQUEST_FORMAT = "starsector-preflight-runtime-action-request-v5";
-    static final String RECEIPT_FORMAT = "starsector-preflight-runtime-action-receipt-v5";
+    static final String REQUEST_FORMAT = "starsector-preflight-runtime-action-request-v6";
+    static final String RECEIPT_FORMAT = "starsector-preflight-runtime-action-receipt-v6";
     static final String CONTINUE_ACTION = "main-menu.continue";
     static final String CAMPAIGN_PAUSE_ACTION = "campaign.pause";
     static final String CAMPAIGN_UNPAUSE_ACTION = "campaign.unpause";
@@ -31,6 +31,7 @@ final class RuntimeGameActionClient {
     static final String COMBAT_SET_STRESS_VIEWPORT_ACTION = "combat.set-stress-viewport";
     static final String COMBAT_VERIFY_ZOOM_OUT_ACTION = "combat.verify-zoom-out";
     static final String COMBAT_BEGIN_FRAME_WINDOW_ACTION = "combat.begin-frame-window";
+    static final String COMBAT_END_FRAME_WINDOW_ACTION = "combat.end-frame-window";
     static final String COMBAT_STRESS_FIXTURE_ACTION =
             "combat.prepare-symmetric-1000dp-fixture";
     static final String COMBAT_FIXTURE_ACTION = "campaign.prepare-combat-fixture";
@@ -50,7 +51,8 @@ final class RuntimeGameActionClient {
             COMBAT_CAPTURE_VIEWPORT_ACTION, COMBAT_ZOOM_OUT_ACTION,
             COMBAT_SET_STRESS_VIEWPORT_ACTION,
             COMBAT_VERIFY_ZOOM_OUT_ACTION,
-            COMBAT_BEGIN_FRAME_WINDOW_ACTION, COMBAT_STRESS_FIXTURE_ACTION,
+            COMBAT_BEGIN_FRAME_WINDOW_ACTION, COMBAT_END_FRAME_WINDOW_ACTION,
+            COMBAT_STRESS_FIXTURE_ACTION,
             COMBAT_FIXTURE_ACTION, COMBAT_FIXTURE_VERIFY_ACTION,
             SIMULATION_OPPONENTS_ALL, SIMULATION_OPPONENTS_DEPLOY,
             SIMULATION_ALLIES_SELECT, SIMULATION_ALLIES_ALL, SIMULATION_ALLIES_DEPLOY,

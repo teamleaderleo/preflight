@@ -116,6 +116,28 @@ class FrameTimeRuntimeTest {
     }
 
     @Test
+    void endingCombatWindowExcludesLaterBookkeepingFrames() {
+        FrameTimeRuntime.beginSession(true);
+        FrameTimeRuntime.recordBoundary(0L);
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(10_000_000L);
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(26_000_000L);
+        FrameTimeRuntime.beginCombatMeasurementWindow();
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(42_000_000L);
+        FrameTimeRuntime.endCombatMeasurementWindow();
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(82_000_000L);
+
+        Map<String, Object> window = map(FrameTimeRuntime.telemetry().get("measurementWindow"));
+        assertEquals(false, window.get("active"));
+        assertEquals("combat", window.get("state"));
+        assertEquals(1L, window.get("frames"));
+        assertEquals(16_000L, window.get("p50Micros"));
+    }
+
+    @Test
     void campaignMeasurementWindowOwnsTheExactPauseState() {
         FrameTimeRuntime.beginSession(true);
         FrameTimeRuntime.recordBoundary(0L);
