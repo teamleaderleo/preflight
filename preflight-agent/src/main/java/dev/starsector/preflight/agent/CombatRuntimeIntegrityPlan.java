@@ -1,5 +1,7 @@
 package dev.starsector.preflight.agent;
 
+import java.util.ArrayList;
+import java.util.List;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
@@ -8,8 +10,9 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.VarInsnNode;
 
-/** Installs one runtime-integrity observation and composes the opt-in combat state marker. */
+/** Installs one runtime-integrity observation and composes opt-in combat diagnostics. */
 final class CombatRuntimeIntegrityPlan {
     static final String TARGET_CLASS = "com/fs/starfarer/combat/CombatEngine";
     static final String ORIGINAL_SHA256 =
@@ -30,6 +33,8 @@ final class CombatRuntimeIntegrityPlan {
             "dev/starsector/preflight/agent/FrameTimeRuntime";
     private static final String CONTROL_RUNTIME =
             "dev/starsector/preflight/agent/InternalGameControlRuntime";
+    private static final String WORKLOAD_RUNTIME =
+            "dev/starsector/preflight/agent/CombatWorkloadRuntime";
 
     private CombatRuntimeIntegrityPlan() {
     }
@@ -54,10 +59,14 @@ final class CombatRuntimeIntegrityPlan {
                 || calls(advance, INTEGRITY_RUNTIME, "observe") != 0
                 || calls(advance, FRAME_RUNTIME, "observeCombat") != 0
                 || calls(advance, CONTROL_RUNTIME, "combatAdvance") != 0
-                || calls(advance, CONTROL_RUNTIME, "combatAdvanceEnd") != 0) {
+                || calls(advance, CONTROL_RUNTIME, "combatAdvanceEnd") != 0
+                || calls(advance, WORKLOAD_RUNTIME, "begin") != 0
+                || calls(advance, WORKLOAD_RUNTIME, "end") != 0) {
             return null;
         }
 
+        boolean workload = CombatWorkloadRuntime.enabled();
+        int workloadStartedLocal = -1;
         InsnList observations = new InsnList();
         observations.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, INTEGRITY_RUNTIME, "observe", "()V", false));
@@ -72,21 +81,48 @@ final class CombatRuntimeIntegrityPlan {
                     Opcodes.INVOKESTATIC, CONTROL_RUNTIME, "combatAdvance",
                     "(Ljava/lang/Object;Ljava/lang/Object;)V", false));
         }
+        if (workload) {
+            workloadStartedLocal = advance.maxLocals;
+            advance.maxLocals += 2;
+            observations.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            observations.add(new MethodInsnNode(
+                    Opcodes.INVOKESTATIC, WORKLOAD_RUNTIME, "begin", "(Ljava/lang/Object;)J", false));
+            observations.add(new VarInsnNode(Opcodes.LSTORE, workloadStartedLocal));
+        }
         advance.instructions.insertBefore(advance.instructions.getFirst(), observations);
+
+        if (workload) {
+            List<AbstractInsnNode> exits = new ArrayList<>();
+            for (AbstractInsnNode instruction : advance.instructions) {
+                if (instruction.getOpcode() == Opcodes.RETURN
+                        || instruction.getOpcode() == Opcodes.ATHROW) exits.add(instruction);
+            }
+            if (exits.isEmpty()) return null;
+            for (AbstractInsnNode exit : exits) {
+                InsnList timing = new InsnList();
+                timing.add(new VarInsnNode(Opcodes.LLOAD, workloadStartedLocal));
+                timing.add(new MethodInsnNode(
+                        Opcodes.INVOKESTATIC, WORKLOAD_RUNTIME, "end", "(J)V", false));
+                advance.instructions.insertBefore(exit, timing);
+            }
+        }
+
         if (InternalGameControlRuntime.enabled()) {
             for (AbstractInsnNode instruction : advance.instructions.toArray()) {
                 if (instruction.getOpcode() != Opcodes.RETURN) continue;
                 InsnList control = new InsnList();
-                control.add(new org.objectweb.asm.tree.VarInsnNode(Opcodes.ALOAD, 0));
+                control.add(new VarInsnNode(Opcodes.ALOAD, 0));
                 control.add(new MethodInsnNode(
                         Opcodes.INVOKESTATIC, CONTROL_RUNTIME, "combatAdvanceEnd",
                         "(Ljava/lang/Object;)V", false));
                 advance.instructions.insertBefore(instruction, control);
             }
         }
+
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         CombatRuntimeIntegrityRuntime.installed();
+        if (workload) CombatWorkloadRuntime.installed();
         return writer.toByteArray();
     }
 
