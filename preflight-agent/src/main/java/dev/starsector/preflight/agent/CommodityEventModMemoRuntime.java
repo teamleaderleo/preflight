@@ -16,6 +16,7 @@ public final class CommodityEventModMemoRuntime {
     // avoid putting an atomic read-modify-write on every commodity's frame-time fast path.
     private static long hits;
     private static long zeroQuantityHits;
+    private static long zeroQuantityEmptyMapHits;
     private static long delegated;
     private static long fastValidationUnavailable;
 
@@ -51,6 +52,14 @@ public final class CommodityEventModMemoRuntime {
         }
     }
 
+    public static void zeroQuantityEmptyMapHit() {
+        if (telemetryEnabled) {
+            hits++;
+            zeroQuantityHits++;
+            zeroQuantityEmptyMapHits++;
+        }
+    }
+
     public static void delegated() {
         if (telemetryEnabled) delegated++;
     }
@@ -68,9 +77,10 @@ public final class CommodityEventModMemoRuntime {
         values.put("enabled", enabled());
         values.put("telemetryEnabled", telemetryEnabled);
         values.put("validationStrategy",
-                "split-exact-zero-fast-path-with-complete-slow-fingerprint");
+                "split-exact-zero-empty-map-fast-path-with-complete-slow-fingerprint");
         values.put("hits", hits);
         values.put("zeroQuantityHits", zeroQuantityHits);
+        values.put("zeroQuantityEmptyMapHits", zeroQuantityEmptyMapHits);
         values.put("delegated", delegated);
         values.put("fastValidationUnavailable", fastValidationUnavailable);
         return values;
@@ -86,6 +96,7 @@ public final class CommodityEventModMemoRuntime {
         telemetryEnabled = telemetryRequested;
         hits = 0L;
         zeroQuantityHits = 0L;
+        zeroQuantityEmptyMapHits = 0L;
         delegated = 0L;
         fastValidationUnavailable = 0L;
     }

@@ -129,6 +129,8 @@ class CommodityEventModMemoInstalledAdapterIT {
                     commoditySpecType.getConstructor(float.class).newInstance(1f));
             assertEquals(9L, CommodityEventModMemoRuntime.telemetry().get("delegated"));
             assertEquals(13L, CommodityEventModMemoRuntime.telemetry().get("hits"));
+            assertTrue((long) CommodityEventModMemoRuntime.telemetry()
+                    .get("zeroQuantityEmptyMapHits") > 0L);
             assertEquals(0L,
                     CommodityEventModMemoRuntime.telemetry().get("fastValidationUnavailable"));
         }

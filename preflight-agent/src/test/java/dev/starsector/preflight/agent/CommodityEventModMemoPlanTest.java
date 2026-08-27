@@ -45,6 +45,7 @@ class CommodityEventModMemoPlanTest {
         MethodNode slow = method(owner, "preflight$eventModValidateOrDelegate", "()V");
         assertEquals(1, calls(wrapper, RUNTIME, "enabled"));
         assertEquals(1, calls(wrapper, RUNTIME, "zeroQuantityHit"));
+        assertEquals(1, calls(wrapper, RUNTIME, "zeroQuantityEmptyMapHit"));
         assertEquals(0, calls(wrapper, RUNTIME, "hit"));
         assertEquals(1, calls(wrapper, RUNTIME, "delegated"));
         assertEquals(2, calls(wrapper, CommodityEventModMemoPlan.TARGET_CLASS,
@@ -57,6 +58,7 @@ class CommodityEventModMemoPlanTest {
         assertEquals(1, calls(wrapper, "com/fs/starfarer/api/combat/MutableStat",
                 MutableStatDirtyAccessorPlan.FLAT_MODS_ACCESSOR));
         assertEquals(1, calls(wrapper, "java/util/LinkedHashMap", "get"));
+        assertEquals(1, calls(wrapper, "java/util/LinkedHashMap", "isEmpty"));
         assertEquals(0, calls(wrapper, "java/lang/Math", "max"));
         assertEquals(0, calls(wrapper, "java/lang/Math", "min"));
         assertEquals(1, calls(wrapper, RUNTIME, "fastValidationUnavailable"));
@@ -113,11 +115,14 @@ class CommodityEventModMemoPlanTest {
         CommodityEventModMemoRuntime.hit();
         CommodityEventModMemoRuntime.hit();
         CommodityEventModMemoRuntime.zeroQuantityHit();
+        CommodityEventModMemoRuntime.zeroQuantityEmptyMapHit();
         CommodityEventModMemoRuntime.delegated();
-        assertEquals(3L, CommodityEventModMemoRuntime.telemetry().get("hits"));
-        assertEquals(1L, CommodityEventModMemoRuntime.telemetry().get("zeroQuantityHits"));
+        assertEquals(4L, CommodityEventModMemoRuntime.telemetry().get("hits"));
+        assertEquals(2L, CommodityEventModMemoRuntime.telemetry().get("zeroQuantityHits"));
+        assertEquals(1L,
+                CommodityEventModMemoRuntime.telemetry().get("zeroQuantityEmptyMapHits"));
         assertEquals(1L, CommodityEventModMemoRuntime.telemetry().get("delegated"));
-        assertEquals("split-exact-zero-fast-path-with-complete-slow-fingerprint",
+        assertEquals("split-exact-zero-empty-map-fast-path-with-complete-slow-fingerprint",
                 CommodityEventModMemoRuntime.telemetry().get("validationStrategy"));
         CommodityEventModMemoRuntime.fastValidationUnavailable();
         assertFalse(CommodityEventModMemoRuntime.enabled());
@@ -134,11 +139,14 @@ class CommodityEventModMemoPlanTest {
         CommodityEventModMemoRuntime.beginSession(false);
         CommodityEventModMemoRuntime.hit();
         CommodityEventModMemoRuntime.zeroQuantityHit();
+        CommodityEventModMemoRuntime.zeroQuantityEmptyMapHit();
         CommodityEventModMemoRuntime.delegated();
 
         assertEquals(false, CommodityEventModMemoRuntime.telemetry().get("telemetryEnabled"));
         assertEquals(0L, CommodityEventModMemoRuntime.telemetry().get("hits"));
         assertEquals(0L, CommodityEventModMemoRuntime.telemetry().get("zeroQuantityHits"));
+        assertEquals(0L,
+                CommodityEventModMemoRuntime.telemetry().get("zeroQuantityEmptyMapHits"));
         assertEquals(0L, CommodityEventModMemoRuntime.telemetry().get("delegated"));
     }
 
@@ -153,6 +161,7 @@ class CommodityEventModMemoPlanTest {
         assertEquals(1, calls(wrapper, RUNTIME, "enabled"));
         assertEquals(0, calls(wrapper, RUNTIME, "hit"));
         assertEquals(0, calls(wrapper, RUNTIME, "zeroQuantityHit"));
+        assertEquals(0, calls(wrapper, RUNTIME, "zeroQuantityEmptyMapHit"));
         assertEquals(0, calls(wrapper, RUNTIME, "delegated"));
         assertEquals(1, calls(wrapper, RUNTIME, "fastValidationUnavailable"));
         assertEquals(2, calls(wrapper, CommodityEventModMemoPlan.TARGET_CLASS,

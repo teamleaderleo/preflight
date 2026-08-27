@@ -138,14 +138,24 @@ final class CommodityEventModMemoPlan {
         // sufficient proof; cancellation and every other nontrivial quantity continue through the
         // complete mutation-aware slow path. Changes to available value, commodity
         // metadata, or backing-stat identities cannot affect this proven-zero result.
-        captureCurrentEventMod(method);
         compareStatZero(method, 8, slow);
         compareStatZero(method, 9, slow);
         compareStatZero(method, 10, slow);
+        loadFlatModsReference(method, 2);
+        method.instructions.add(new VarInsnNode(Opcodes.ASTORE, 11));
+        LabelNode nonEmptyMap = new LabelNode();
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 11));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKEVIRTUAL, "java/util/LinkedHashMap", "isEmpty", "()Z", false));
+        method.instructions.add(new JumpInsnNode(Opcodes.IFEQ, nonEmptyMap));
+        emitHitAndReturn(method, telemetryEnabled, "zeroQuantityEmptyMapHit");
+
+        method.instructions.add(nonEmptyMap);
+        captureCurrentEventMod(method, 11);
         method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 4));
         method.instructions.add(new JumpInsnNode(Opcodes.IFNONNULL, slow));
         method.instructions.add(fastEnd);
-        emitHitAndReturn(method, telemetryEnabled, true);
+        emitHitAndReturn(method, telemetryEnabled, "zeroQuantityHit");
 
         method.instructions.add(linkageFailure);
         method.instructions.add(new InsnNode(Opcodes.POP));
@@ -212,7 +222,7 @@ final class CommodityEventModMemoPlan {
         compareReference(method, EVENT_MOD_DESC, 7, delegated);
         compareEconUnitIfRelevant(method, delegated);
         method.instructions.add(fastEnd);
-        emitHitAndReturn(method, telemetryEnabled, false);
+        emitHitAndReturn(method, telemetryEnabled, "hit");
 
         method.instructions.add(linkageFailure);
         method.instructions.add(new InsnNode(Opcodes.POP));
@@ -267,12 +277,12 @@ final class CommodityEventModMemoPlan {
     }
 
     private static void emitHitAndReturn(
-            MethodNode method, boolean telemetryEnabled, boolean zeroQuantity) {
+            MethodNode method, boolean telemetryEnabled, String telemetryMethod) {
         if (telemetryEnabled) {
             method.instructions.add(new MethodInsnNode(
                     Opcodes.INVOKESTATIC,
                     RUNTIME,
-                    zeroQuantity ? "zeroQuantityHit" : "hit",
+                    telemetryMethod,
                     "()V",
                     false));
         }
@@ -340,6 +350,13 @@ final class CommodityEventModMemoPlan {
     /** Reads the current exact-key mapping and its mutable public fields. */
     private static void captureCurrentEventMod(MethodNode method) {
         loadFlatModsReference(method, 2);
+        method.instructions.add(new VarInsnNode(Opcodes.ASTORE, 11));
+        captureCurrentEventMod(method, 11);
+    }
+
+    /** Reads the current exact-key mapping from an already loaded backing map. */
+    private static void captureCurrentEventMod(MethodNode method, int mapLocal) {
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, mapLocal));
         method.instructions.add(new LdcInsnNode("eMod"));
         method.instructions.add(new MethodInsnNode(
                 Opcodes.INVOKEVIRTUAL,
