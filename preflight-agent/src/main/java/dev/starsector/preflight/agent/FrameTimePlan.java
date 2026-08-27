@@ -10,7 +10,7 @@ import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
-/** Observes LWJGL's existing focus result and one boundary per display update. */
+/** Observes LWJGL frame boundaries and hosts the guarded BaseGameState sync experiment. */
 final class FrameTimePlan {
     static final String TARGET_CLASS = "org/lwjgl/opengl/Display";
     static final String ORIGINAL_SHA256 =
@@ -27,6 +27,13 @@ final class FrameTimePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
+        // #1153 experiment: use the already-compiled frame-time plan ID as an external exact-target
+        // carrier so this candidate stays isolated from the central registry until live results say
+        // it deserves a permanent plan ID. AdapterTarget still supplies the exact class/source gate.
+        if (HighResolutionFrameSyncPlan.TARGET_CLASS.equals(signature.internalName())) {
+            return HighResolutionFrameSyncPlan.transform(signature, originalBytes);
+        }
+
         if (!FrameTimeRuntime.enabled()
                 || !TARGET_CLASS.equals(signature.internalName())
                 || !ORIGINAL_SHA256.equals(signature.sha256())
