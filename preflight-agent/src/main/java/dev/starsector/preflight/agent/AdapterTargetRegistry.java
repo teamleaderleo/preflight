@@ -239,6 +239,23 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Detailed Combat Results 5.4.3 rebuilds three damage-detector state maps every frame. */
+    static AdapterTarget detailedCombatResultsStateReuseTarget() {
+        return new AdapterTarget(
+                "detailed-combat-results-5.4.3-state-map-reuse",
+                DetailedCombatResultsStateReusePlan.TARGET_CLASS,
+                DetailedCombatResultsStateReusePlan.ORIGINAL_SHA256,
+                DetailedCombatResultsStateReusePlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        DetailedCombatResultsStateReusePlan.METHOD,
+                        DetailedCombatResultsStateReusePlan.DESCRIPTOR)),
+                "MOD",
+                DetailedCombatResultsStateReusePlan.SOURCE_FILE,
+                DetailedCombatResultsStateReusePlan.SOURCE_SHA256,
+                DetailedCombatResultsStateReusePlan.LOADER,
+                "");
+    }
+
     /** GraphicsLib 1.12.1's exact normal-map traversal implementation and owning mod archive. */
     static AdapterTarget graphicsLibCompactReplayTarget() {
         return new AdapterTarget(
@@ -2114,6 +2131,9 @@ final class AdapterTargetRegistry {
         }
         if (CombatListenerRangeSnapshotPlan.enabled()) {
             registry = registry.withTarget(combatListenerRangeSnapshotTarget());
+        }
+        if (DetailedCombatResultsStateReusePlan.enabled()) {
+            registry = registry.withTarget(detailedCombatResultsStateReuseTarget());
         }
         return registry;
     }
