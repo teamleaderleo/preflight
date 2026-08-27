@@ -97,6 +97,8 @@ jobs:
           python3 scripts/test_summarize_combat_cohort.py
           python3 -m py_compile scripts/starsector_jvm_hitch_correlation.py scripts/test_starsector_jvm_hitch_correlation.py
           python3 scripts/test_starsector_jvm_hitch_correlation.py
+          python3 -m py_compile scripts/starsector_mod_tax_triage.py scripts/test_starsector_mod_tax_triage.py
+          python3 scripts/test_starsector_mod_tax_triage.py
           python3 -m py_compile scripts/starsector_balance_analysis.py
           python3 scripts/test_starsector_balance_analysis.py
           python3 -m py_compile scripts/desktop_ci_scope.py scripts/test_desktop_ci_scope.py
