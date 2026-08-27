@@ -5,7 +5,7 @@ Date: 2026-08-27
 Install: Starsector 0.98a-RC8, AI Tweaks 2.2.10, current heavily modded profile,
 macOS on Apple M5, bundled x86-64 Zulu 17 under Rosetta
 
-Status: prepared as opt-in v2; exact installed-bytecode verification passes, live combat pending
+Status: accepted with limit as opt-in v2
 
 ## Remaining opportunity after v1
 
@@ -51,7 +51,7 @@ The installed archive and class identities remain:
 The AI Tweaks archive SHA-256 is
 `9f6179bcd2df2e3ce8cea2da79051c9f1be3c9b71712c6c28d7568b777ecf5b2`.
 
-## Verification and admission gate
+## Verification and admission
 
 Five focused Java 17 tests pass. Four woven-fixture tests cover disabled behavior, atomic
 multi-method replacement, exact pair and unrelated-plus counts, helper arithmetic, wrong-hash and
@@ -59,8 +59,34 @@ changed-shape fallback, second-rewrite fallback, and registry provenance. The ex
 test transforms all three shipped classes, requires seven replacements and the preserved unrelated
 addition, and ASM data-flow-analyzes every resulting method.
 
-The candidate remains off by default and makes no performance claim. Admission requires the same
-Preflight-only 1,040-DP route, all three exact class transforms, no contained or lifecycle fatal,
-and direct allocation evidence showing that the two shared methods no longer allocate through
-their reviewed `times` leaves. A focusless run can establish the structural result but cannot
-establish FPS or percentile uplift.
+The final Java 17 `mvn verify` gate passed all five reactor modules in 40.764 seconds.
+
+The Preflight-only live route completed all 34 scenario steps. It constructed 24 mirrored ships
+and 520 DP per side, enabled 2x combat speed, widened the viewport from 1,800 to 6,120 units, and
+held the steady-state combat window for 30.003 seconds. All three exact class transforms applied,
+with zero transformation declines and zero contained failures. The host reported no macOS thermal,
+performance, or CPU-power warning before or after the run.
+
+The JFR contained 2,661 classified combat-allocation samples. Filtering to
+`Projectile.projectileMotionInTargetFoR` retained five samples: 2.0 MiB each at the required
+`Vector2fKt.div`, the injected affine helper, and `Vector2fKt.minus`, plus 1.4 KiB at the required
+iterator. No `Vector2fKt.times` or paired `plus` leaf remained. The broader
+`Beam.projectileMotionInTargetFoR` family retained 97 samples, including 2.0 MiB each at the
+helper and `minus`, and likewise no reviewed `times` or paired `plus` leaf. These are weighted JFR
+samples and structural evidence, not exact allocation totals or a lockstep delta against v1.
+
+The scenario and live candidate execution were clean, but the wrapper originally recorded
+`FATAL_LOG_EVIDENCE` and exit 6 after the successful capture. The old lifecycle classifier treated
+`AL10.nalGetSourcei` during the exact controller-requested OpenAL teardown as a game fatal even
+though it followed `CombatMain - Error cleaning up`; the launcher itself returned zero and the
+exact controller-stop receipt matched the process identity. Commit `790b6c8e` now recognizes only
+the reviewed OpenAL native calls when all of that teardown context is present. Its negative test
+keeps the same native error fatal when the cleanup context is absent. The recorded run is not
+retroactively relabeled; the compact evidence preserves both its original outcome and the
+post-run classification.
+
+The candidate remains off by default. The run was not frontmost: focus filtering dropped 2,054
+inactive intervals and retained zero eligible combat frames. Acceptance therefore establishes
+exact application, clean candidate execution, and removal of the four additional throwaway scaled
+vectors, but makes no FPS, percentile, or thermal-uplift claim. The compact observation is
+[`data/2026-08-27-aitweaks-affine-vector-extension.json`](data/2026-08-27-aitweaks-affine-vector-extension.json).
