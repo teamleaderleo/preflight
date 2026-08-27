@@ -76,6 +76,7 @@ jobs:
           python3 scripts/test_save_state_guard.py
           bash -n scripts/run-prepared-pixel-coherent-direct-gameplay-smoke.sh
           bash -n scripts/run-prepared-pixel-main-menu-comparison-pilot.sh
+          bash -n scripts/run-combat-scaling-pilot.sh
           python3 -m py_compile scripts/starsector_log_ready_detector.py
           python3 scripts/test_starsector_log_ready_detector.py
           python3 -m py_compile scripts/starsector_profile_guard.py
