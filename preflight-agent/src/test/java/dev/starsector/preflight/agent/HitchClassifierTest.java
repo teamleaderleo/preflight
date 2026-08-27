@@ -13,6 +13,7 @@ class HitchClassifierTest {
     @Test
     void classifiesGpuHeavyFrameWhenJoinedGpuTimeDominates() {
         Map<String, Object> result = HitchClassifier.classifyFrame(frame(values(
+                "durationMicros", 100_000L,
                 "gpuElapsedMicros", 78_000L,
                 "preSwapMicros", 15_000L,
                 "nativeSwapMicros", 500L,
@@ -29,13 +30,14 @@ class HitchClassifierTest {
     @Test
     void classifiesPausedPresentationWaitBelowTheJavaSwapBoundary() {
         Map<String, Object> result = HitchClassifier.classifyFrame(frame(values(
+                "durationMicros", 33_500L,
                 "preSwapMicros", 14_000L,
                 "nativeSwapMicros", 17_000L,
                 "swapThreadCpuComplete", true,
                 "swapThreadCpuMicros", 400L,
                 "swapInferredOffCpuMicros", 16_600L,
                 "messageMicros", 1_000L,
-                "otherAfterSwapMicros", 1_400L)));
+                "otherAfterSwapMicros", 1_500L)));
 
         assertEquals(HitchClassifier.PRESENTATION_OFF_CPU, result.get("label"));
         assertEquals("swapInferredOffCpuMicros", result.get("dominantTrack"));
@@ -96,13 +98,14 @@ class HitchClassifierTest {
         Map<String, Object> context = frame(values(
                 "sequence", 11L,
                 "trigger", false,
-                "preSwapMicros", 10_000L,
+                "durationMicros", 33_500L,
+                "preSwapMicros", 14_000L,
                 "nativeSwapMicros", 17_000L,
                 "swapThreadCpuComplete", true,
                 "swapThreadCpuMicros", 400L,
                 "swapInferredOffCpuMicros", 16_600L,
                 "messageMicros", 1_000L,
-                "otherAfterSwapMicros", 1_400L));
+                "otherAfterSwapMicros", 1_500L));
         Map<String, Object> hitchTelemetry = Map.of(
                 "format", HitchPacketRuntime.FORMAT,
                 "packets", List.of(Map.of(
