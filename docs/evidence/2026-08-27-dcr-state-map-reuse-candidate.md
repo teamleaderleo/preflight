@@ -4,10 +4,12 @@ Date: 2026-08-27
 
 Install: Detailed Combat Results 5.4.3 in the current Starsector 0.98a-RC8 mod profile
 
-Candidate: `734555bc` (`detailed-combat-results-state-map-reuse-v1`), explicit opt-in only
+Candidate: `734555bc` (`detailed-combat-results-state-map-reuse-v1`), reverted by `418be653`
 
-Status: exact installed-bytecode and Java 17 verification passed; live ordinary/stress validation
-remains required before any promotion or performance claim
+Status: **rejected after live ordinary and 1,040-DP validation**. The transform installed and ran
+without a fatal, but the stress result was substantially worse and the intervention left large
+allocation families inside the same method. The bounded record is
+[`data/2026-08-27-dcr-state-map-reuse-rejected.json`](data/2026-08-27-dcr-state-map-reuse-rejected.json).
 
 ## Observed boundary
 
@@ -59,9 +61,37 @@ Falsify or reject the candidate if any of these occurs:
 - map reuse exposes an encounter-order dependency. `HashMap` order was already unspecified, but
   retaining buckets can change encounter order relative to rebuilding a map.
 
-## Next evidence
+## Live result and decision
 
-Run one ordinary Preflight-only B first and require nonzero `historyFrames` and `shipFrames` telemetry
-plus a clean DCR/game log. If that passes, run the existing 1,040-DP B and compare against already
-retained observations. Do not rerun A, do not launch without Preflight, and do not promote the property
-from this offline result alone.
+Both Preflight-only live runs passed their semantic controller steps, exact process shutdown, source
+gate, and DCR/game-log safety checks. Ordinary combat exercised 3,014 history/ship frames. The stress
+fixture exercised 613 and confirmed the intended 24-versus-24, mirrored 520-DP-per-side setup at 2x
+speed with the camera zoomed out.
+
+The ordinary clean window measured 48.06 average FPS, 16.18 FPS 1% low, 33.32 ms/s stutter burden,
+and 2.61% repeated-slow-frame exposure. It was directionally worse than the retained ordinary B,
+although that comparison alone is not thermally or workload locked.
+
+The 1,040-DP clean window was decisive enough to reject rather than promote:
+
+| Metric | Retained accepted B | Map-reuse candidate | Direction |
+| --- | ---: | ---: | ---: |
+| Average FPS | 26.63 | 19.15 | -28.09% |
+| 1% low | 8.51 FPS | 7.32 FPS | -13.98% |
+| Stutter burden | 167.54 ms/s | 362.93 ms/s | +116.62% |
+| Repeated slow frames | 56.15% | 96.20% | +40.05 points |
+| Longest repeated cluster | 3.169 s | 22.461 s | +608.77% |
+
+This is a directional intervention result, not proof that a particular changed `HashMap` iteration
+order caused the entire delta. It is sufficient for the product decision: the candidate does not
+earn another live run or a Recommended default. Its exact-window allocation profile also retained
+roughly 6 MiB of sampled `Double.valueOf` weight while aging projectile-history entries and roughly
+6 MiB under `Helpers.concat`/`Arrays.copyOf`. Removing three map constructions did not remove the
+larger DCR work visible in this workload.
+
+## Explored, not exhausted
+
+The rejected representation should not be restored unless a new implementation preserves original
+encounter order and has a stronger allocation premise. DCR itself remains open: projectile-age
+boxing and concatenation are now sharper, falsifiable leads. A narrower transform can eliminate one
+of those families without rotating or mutating the original maps in place.

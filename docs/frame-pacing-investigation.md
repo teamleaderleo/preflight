@@ -20,11 +20,11 @@ next probe becomes available.
 
 ## Current measurement frontier
 
-The current implementation checkpoint is `734555bc`, which retains the accepted v2 collision set,
-exact-step hitch enrichment, distinct recurring-cluster breadth, CI coverage for all gameplay
-analysis scripts, and an opt-in exact-gated Detailed Combat Results state-map reuse candidate. The
-new candidate is not in Recommended and has no live performance claim yet. The compact-index
-candidate remains rejected because its allocation premise was falsified offline. The
+The current implementation checkpoint is `418be653`, which retains the accepted v2 collision set,
+exact-step hitch enrichment, distinct recurring-cluster breadth, and CI coverage for all gameplay
+analysis scripts. The Detailed Combat Results state-map reuse candidate was live-tested and reverted:
+it installed and completed safely, but substantially regressed the 1,040-DP stress window. The
+compact-index candidate remains rejected because its allocation premise was falsified offline. The
 latest accepted campaign measurement checkpoint remains `fee6c7b8`, following the cluster
 recorder/analyzer at `cf761d2c9089e7ef46f11d741166f0b3bc1d413c`. One Preflight-only
 `campaign-sample-paused-unpaused` run of those source bytes passed every semantic step on
@@ -48,12 +48,12 @@ thermal state were not locked, so apparent deltas must not be advertised as impr
 
 ## Current live-validation queue
 
-### Validate the residual Detailed Combat Results candidate (`734555bc`)
+### Detailed Combat Results map reuse rejected (`734555bc`, reverted by `418be653`)
 
 **Status:** the fresh foreground baseline, one combined-opt-in stress B, and one ordinary-fixture B
-are complete. Every run passed all 34 semantic steps and exact process shutdown. The accepted plans
-are now promoted at the Recommended preset boundary. An additional Detailed Combat Results map-reuse
-candidate is committed but remains explicit opt-in pending live validation. See
+are complete. Every run passed its semantic steps and exact process shutdown. The accepted plans
+are now promoted at the Recommended preset boundary. The additional Detailed Combat Results map-reuse
+candidate was tested and rejected. See
 [accepted combat opt-ins](evidence/2026-08-27-combat-accepted-optins-pair.md) and
 [Recommended combat promotion](evidence/2026-08-27-recommended-combat-promotion.md), plus the
 [DCR candidate audit](evidence/2026-08-27-dcr-state-map-reuse-candidate.md).
@@ -85,27 +85,28 @@ cost.
 **Observed:** the installed Detailed Combat Results 5.4.3 `FrameProcessorState.updateCommonState`
 creates three new `HashMap` instances on every unpaused combat frame: one retained-projectile map,
 one killed-ship copy, and one next-frame alive-ship map. The exact class is Java 16 bytecode and is
-loaded from a Java 17-compatible mod archive. The opt-in candidate mutates the projectile map in
-place and rotates the three already-distinct ship maps. It does not reduce the damage detector's
+loaded from a Java 17-compatible mod archive. The rejected opt-in candidate mutated the projectile
+map in place and rotated the three already-distinct ship maps. It did not reduce the damage detector's
 per-frame cadence, alter a save/load class, or serialize new state.
 
-**Hypothesis:** removing these map table/node rebuilds will reduce allocation pressure and recurring
-combat hitches, especially in the 1,040-DP fixture, without changing damage results. **Falsifier:**
-an exact target/loader rejection, any DCR error or result discontinuity, a combat fatal, or no
-meaningful reduction in the matching allocation family and recurring exposure. Reuse can change
-encounter order in an unordered `HashMap`; ordinary combat must therefore complete before stress
-numbers can justify promotion.
+**Observed:** both Preflight-only runs installed the exact transform, produced nonzero candidate
+telemetry, passed controller/shutdown safety, and emitted no DCR error. The ordinary window measured
+48.06 average FPS, 16.18 FPS 1% low, 33.32 ms/s stutter burden, and 2.61% recurring exposure. The
+1,040-DP window measured 19.15 average FPS, 7.32 FPS 1% low, 362.93 ms/s stutter burden, and 96.20%
+recurring exposure. Relative to the retained accepted B, that is -28.09% average FPS, -13.98% 1%
+low, +116.62% stutter burden, and +40.05 points recurring exposure. This is a rejection signal, not
+a claim that a particular changed `HashMap` encounter order explains the full delta. See the
+[bounded rejection record](evidence/data/2026-08-27-dcr-state-map-reuse-rejected.json).
 
-**Explored, not exhausted:** this candidate only removes state-map reconstruction. Detailed Combat
-Results still scans projectile and ship collections and its downstream damage processing still
-allocates sets, lists, and match objects. A successful map-reuse result narrows that boundary; it
-does not spend the damage-analysis family.
+**Explored, not exhausted:** exact-window allocation sampling still attributed roughly 6 MiB of
+sampled weight to `Double.valueOf` while DCR aged projectile-history entries and roughly 6 MiB to
+`Helpers.concat`/`Arrays.copyOf`. Those are narrower candidates that do not require rotating or
+mutating the original maps. The rest of the damage-analysis pipeline still allocates sets, lists,
+and match objects. Rejecting map reuse does not spend this family.
 
-**Exact next action:** run one ordinary Preflight-only B with
-`preflight.combat.detailedResultsStateReuse=true`, verify adapter installation and nonzero history/
-ship-frame telemetry, inspect the game log for DCR errors, and require all semantic steps plus exact
-shutdown. If clean, run the existing 1,040-DP B and compare matching allocation samples and recurring
-cluster exposure against the already retained A/default observations. Do not repeat A.
+**Exact next action:** inspect DCR's `Helpers.concat` call and projectile-age representation on the
+exact installed bytes. Prefer a transformation that preserves source-list and map encounter order.
+Require an offline allocation proof before another live run; do not repeat A.
 
 The current analyzer builds on checkpoint `b099f354`: `--repeated-clusters` may be combined with
 `--step`, intersects the state-derived cluster windows with the exact receipt, and fails closed if
@@ -250,7 +251,7 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
 | RAT tooltip scripts | No Preflight optimization exists; source shows per-frame UI copies and reflection, with a "do not modify twice" UI sentinel in the AI-core path. | The worst exact active frame crossed this code. | Does an identity/content guard remove repeated work without missing a tooltip object reused for a different entry? |
 | Stable campaign snapshots | Stable arrays and exhausted cursor reuse are accepted and bounded. | Current allocation samples still show rebuild/cursor cost and cursor identities outnumber owners. | Which owners rebuild, how often, and can stale cursor entries be removed when an owner receives a replacement array? |
 | Paused/unpaused attribution | Frame buckets are state-separated and focus-clean. Repeated clusters now correlate with bounded exact campaign calls and exact scenario steps. This separated seven post-unpause clusters from 15 settled clusters. | Transition work is a broad catch-up burst; the settled route still mixes occasional large spikes with recurring small calls, and retained children explain only part of cluster wall time. | Does the transition ordering repeat, and which individual settled frames align with the 69–90 ms location spikes? |
-| Combat | Deterministic simulation, autopilot, speed-up, zoom, and exact-window reporting are live. Collision v2 hit 99.90% of capacity hints in the fresh default run. One combined accepted-plan B improved average FPS 6.26%, stutter burden 13.27%, and recurring-cluster exposure 9.55 points while serving 45.9 million exact empty listener snapshots. An ordinary 8-v-25 B exercised 6,867 non-empty fallbacks cleanly. The accepted plans are now in Recommended; v3 compact indexes remain rejected. Exact inspection found three DCR state-map allocations per active combat frame, and `734555bc` contains an opt-in reuse candidate with offline installed-bytecode verification. | The stress pair is directional rather than lockstep, and residual hitch samples span AI Tweaks, vanilla ship/weapon work, graphics, collision, and damage-analysis mods. The DCR candidate has no live safety or performance evidence yet and leaves the broader detector pipeline untouched. Rejecting one representation, promoting local wins, or retiring one unsafe target does not spend those families. | Does DCR state-map reuse install and complete ordinary combat without result/log errors, then reduce the matching allocation family or recurring exposure in the existing stress fixture? |
+| Combat | Deterministic simulation, autopilot, speed-up, zoom, and exact-window reporting are live. Collision v2 hit 99.90% of capacity hints in the fresh default run. One combined accepted-plan B improved average FPS 6.26%, stutter burden 13.27%, and recurring-cluster exposure 9.55 points while serving 45.9 million exact empty listener snapshots. An ordinary 8-v-25 B exercised 6,867 non-empty fallbacks cleanly. The accepted plans are now in Recommended; v3 compact indexes and DCR state-map reuse are rejected. The DCR stress window remained exactly attributable after Rosetta clock calibration and exposed projectile-age boxing plus concatenation as residual allocation families. | The stress pair is directional rather than lockstep, and residual hitch samples span AI Tweaks, vanilla ship/weapon work, graphics, collision, and damage-analysis mods. DCR map reuse changed unordered-map behavior and substantially regressed the stress observation; narrower order-preserving work remains unexplored. Rejecting one representation, promoting local wins, or retiring one unsafe target does not spend those families. | Can DCR's per-frame concatenation or projectile-age boxing be removed while preserving original source/map encounter order, and does an offline fixture prove that allocation family disappears before another B run? |
 
 ## Open questions, ranked
 
@@ -267,10 +268,10 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
    interval and which listener events already express real market invalidation.
 5. **Stable snapshot ownership:** instrument rebuilds by transformed loop kind before redesigning
    cursor retention.
-6. **Combat residual frontier:** validate the opt-in DCR state-map reuse candidate in ordinary play,
-   then in the existing stress fixture if clean. Inspect installation telemetry and DCR logs before
-   interpreting FPS. Avoid the retired AI Tweaks `SelectTarget` field snapshot; the stress workload
-   does not replace ordinary play.
+6. **Combat residual frontier:** inspect a narrower order-preserving DCR concatenation or
+   projectile-age-boxing removal and prove its allocation effect offline before another live B.
+   Avoid the reverted map rotation and the retired AI Tweaks `SelectTarget` field snapshot; the
+   stress workload does not replace ordinary play.
 
 ## Frequently revisited questions
 
@@ -320,10 +321,8 @@ Do not commit JFRs, transformed classes, game/mod binaries, saves, or full logs.
 hashes, methodology, and conclusions. Game screenshots are acceptable when they add useful visual
 evidence and contain no sensitive material.
 
-### Can the DCR combat candidate damage a campaign save?
+### Could the rejected DCR combat candidate have damaged a campaign save?
 
-It does not transform save discovery, loading, writing, campaign state, or serialization. Its exact
-target is a transient combat damage-detector state class, and it only reuses maps that the mod already
-replaces every combat frame. That sharply limits the save-risk surface, but it is not a substitute
-for the ordinary live gate: a combat error or changed results would still reject the candidate even
-if the save file itself remained untouched.
+No save/load or serialization class was transformed. Its exact target was a transient combat
+damage-detector state class, and both live runs exited without a fatal or DCR error. It was reverted
+for runtime performance and semantic-risk reasons, not because it wrote or migrated save data.
