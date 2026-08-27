@@ -204,7 +204,7 @@ final class DesktopSmokeRunner {
                 completedSteps.add(step(id, "failed", stepStarted, stepStarted,
                         "Scenario timeout expired", List.of()));
                 return finish(scenario, realRun, descriptor, "failed", startedAt, clock,
-                        completedSteps, diagnostics, driver);
+                        completedSteps, diagnostics, driver, initial.target());
             }
             TargetCheck current = target(runtimeProcess);
             if (!current.attachable()) {
@@ -212,7 +212,7 @@ final class DesktopSmokeRunner {
                 completedSteps.add(step(id, "failed", stepStarted, clock.instant(),
                         "Runtime process became unavailable", List.of()));
                 return finish(scenario, realRun, descriptor, "failed", startedAt, clock,
-                        completedSteps, diagnostics, driver);
+                        completedSteps, diagnostics, driver, initial.target());
             }
             try {
                 DesktopSmokeDriver.ActionResult action;
@@ -270,17 +270,17 @@ final class DesktopSmokeRunner {
                 completedSteps.add(step(id, "skipped", stepStarted, clock.instant(),
                         message(unavailable), List.of()));
                 return finish(scenario, realRun, descriptor, "skipped", startedAt, clock,
-                        completedSteps, diagnostics, driver);
+                        completedSteps, diagnostics, driver, initial.target());
             } catch (Exception failure) {
                 diagnostics.add("Driver failed at " + id + ": " + message(failure));
                 completedSteps.add(step(id, "failed", stepStarted, clock.instant(),
                         message(failure), List.of()));
                 return finish(scenario, realRun, descriptor, "failed", startedAt, clock,
-                        completedSteps, diagnostics, driver);
+                        completedSteps, diagnostics, driver, initial.target());
             }
         }
         return finish(scenario, realRun, descriptor, "passed", startedAt, clock,
-                completedSteps, diagnostics, driver);
+                completedSteps, diagnostics, driver, initial.target());
     }
 
     private static Map<String, Object> finish(
@@ -292,8 +292,15 @@ final class DesktopSmokeRunner {
             Clock clock,
             List<Map<String, Object>> steps,
             List<String> diagnostics,
-            DesktopSmokeDriver driver) throws IOException {
+            DesktopSmokeDriver driver,
+            DesktopSmokeDriver.ProcessTarget expectedTarget) throws IOException {
         String finalStatus = status;
+        try {
+            publishControllerStopRequest(runDirectory, expectedTarget);
+        } catch (Exception failure) {
+            diagnostics.add("Exact-process stop receipt failed: " + message(failure));
+            finalStatus = "failed";
+        }
         try (DriverCalls cleanup = new DriverCalls(15)) {
             cleanup.call(() -> {
                 driver.shutdown();
@@ -319,6 +326,23 @@ final class DesktopSmokeRunner {
         }
         return seal(scenario, runDirectory, descriptor, finalStatus, startedAt, clock.instant(),
                 steps, diagnostics);
+    }
+
+    /** Publishes stop intent only while the runner's exact attached process is still alive. */
+    static void publishControllerStopRequest(
+            Path runDirectory, DesktopSmokeDriver.ProcessTarget expectedTarget) throws IOException {
+        Path runtime = runDirectory.resolve("runtime-process.json");
+        RuntimeProcessIdentity identity = RuntimeProcessIdentity.read(runtime);
+        Map<String, Object> inspected = identity.inspect();
+        if (!Boolean.TRUE.equals(inspected.get("attachable"))
+                || identity.pid() != expectedTarget.pid()
+                || !identity.startedAt().equals(expectedTarget.startedAt())) {
+            throw new IOException("Runtime identity changed or stopped before controller shutdown");
+        }
+        Path receipt = runDirectory.resolve(StarsectorRunLogEvidence.CONTROLLER_STOP_FILE);
+        atomicWrite(receipt, Json.object(Map.of(
+                "pid", expectedTarget.pid(),
+                "startedAt", expectedTarget.startedAt().toString())) + System.lineSeparator());
     }
 
     @SuppressWarnings("unchecked")

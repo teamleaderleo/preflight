@@ -2,6 +2,7 @@ package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.core.Json;
@@ -34,6 +35,7 @@ final class DesktopSmokeRunnerTest {
         assertEquals(List.of("continue", "capture"), driver.executed);
         assertEquals(1, driver.observations);
         assertTrue(driver.attached);
+        assertTrue(StarsectorRunLogEvidence.exactControllerStopRequested(run));
         assertTrue(Files.isRegularFile(run.resolve("driver-result.json")));
         assertTrue(Files.isRegularFile(run.resolve("smoke-evidence.json")));
     }
@@ -64,6 +66,7 @@ final class DesktopSmokeRunnerTest {
         assertEquals("failed", result.get("status"));
         assertEquals(List.of("continue"), driver.executed);
         assertTrue(driver.shutdown);
+        assertTrue(StarsectorRunLogEvidence.exactControllerStopRequested(run));
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> steps = (List<Map<String, Object>>) result.get("steps");
         assertEquals("passed", steps.get(0).get("status"));
@@ -86,6 +89,19 @@ final class DesktopSmokeRunnerTest {
         assertTrue(DesktopSmokeLaunch.acceptsControllerStopExit(startupScenario(), "passed", true));
         assertFalse(DesktopSmokeLaunch.acceptsControllerStopExit(startupScenario(), "failed", true));
         assertFalse(DesktopSmokeLaunch.acceptsControllerStopExit(scenario(), "passed", true));
+    }
+
+    @Test
+    void stopReceiptRejectsAnyDifferentProcessLifetime() throws Exception {
+        Path run = Files.createDirectory(temporaryDirectory.resolve("wrong-stop-target"));
+        runtimeIdentity(run);
+        ProcessHandle process = ProcessHandle.current();
+        DesktopSmokeDriver.ProcessTarget wrong = new DesktopSmokeDriver.ProcessTarget(
+                process.pid() + 1, process.info().startInstant().orElseThrow());
+
+        assertThrows(java.io.IOException.class,
+                () -> DesktopSmokeRunner.publishControllerStopRequest(run, wrong));
+        assertFalse(Files.exists(run.resolve(StarsectorRunLogEvidence.CONTROLLER_STOP_FILE)));
     }
 
     private Path runtimeIdentity(Path run) throws Exception {

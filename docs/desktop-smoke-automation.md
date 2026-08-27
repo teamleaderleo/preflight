@@ -211,7 +211,10 @@ scenario uses `run --fast --direct --desktop-smoke`. The paired benchmark's meas
 scenario uses `run --optimization-preset off --direct --desktop-smoke`: the exact semantic and
 runtime markers remain, while the optimization adapter and prepared caches stay off. It waits for the
 process record, runs the scenario, and waits for bounded postprocessing. Its
-`finally` path rereads the identity and can terminate only the same PID/start-instant lifetime.
+runner publishes a strict PID/start-instant stop receipt immediately before its terminal shutdown;
+the outer `finally` path rereads the identity and can terminate only that same lifetime. This lets
+the lifecycle scanner distinguish the reviewed OpenAL native-library cleanup race caused by a
+controller stop from the same error during ordinary gameplay, which remains fatal.
 The launch result and bounded launcher output remain in the run directory even when startup fails.
 `passed`, `skipped`, and `failed` map to exit codes `0`, `3`, and `1`, respectively. A cooperative
 stop creates a run-owned `cancel.requested` marker. The launch owner watches that marker, closes only
