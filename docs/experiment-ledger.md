@@ -207,6 +207,12 @@ why the work changed direction. This page accounts for each abandoned branch.
 | GraphicsLib combat keys | Rebuild immutable texture-data lookup strings on every render lookup | **Accepted with limit** | A bounded session cache served 567,477 of 579,711 calls with zero bypasses. The exact key-builder stack moved from 60.0/22.1 MiB in two prior sampled profiles to no allocation samples in the candidate; the hot-machine FPS observation is not treated as an uplift claim. | [Texture-key cache](evidence/2026-08-27-graphicslib-texture-key-cache.md) |
 | macOS combat control | Depend on app names, Dock state, focus-sensitive host scrolling, or unchecked input delivery | **Accepted as diagnostic infrastructure** | Named actions execute inside the exact game JVM, remaining keys post to the exact PID, and the full 1,040-DP route passed with every key reporting `frontmost=false`. An unlocked follow-up retained active combat frames without adding activation steps. | [Texture-key cache and route](evidence/2026-08-27-graphicslib-texture-key-cache.md), [internal control contract](internal-game-control.md) |
 
+## August 28: joined hitch attribution
+
+| Area | Experiment | Disposition | Result and retained decision | Evidence |
+| --- | --- | --- | --- | --- |
+| Measurement | Join bounded frame/presentation history to exact semantic campaign phases around a hitch | **Diagnostic** | The corrected primitive recorder retained a complete 175-frame packet around a 50.003 ms paused hitch. Pre-swap consumed 49.210 ms; native swap consumed 0.538 ms; 16,284 joined broad campaign calls explained only about 0.171 ms of the trigger. Discovery corrected title-demo eligibility, call-ring capacity, and rich-report read bounds. The next slice is pre-swap game work versus limiter/cap wait, not another broad phase probe. | [Hitch packet v1](evidence/2026-08-28-hitch-packet-v1.md) |
+
 ## Limits on current claims
 
 Rosetta makes CPU and allocation reductions especially visible on the reference machine. Windows

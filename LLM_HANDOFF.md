@@ -21,6 +21,9 @@ Before changing code or collecting release evidence:
    observations from falsifiable hypotheses and records why a previously explored area may still
    be worth revisiting. [Gameplay FPS program #449](https://github.com/teamleaderleo/preflight/issues/449)
    is the canonical parent for that lane; use focused child issues once one experiment is concrete.
+   The latest diagnostic checkpoint is the bounded
+   [hitch packet v1 record](docs/evidence/2026-08-28-hitch-packet-v1.md): its first complete packet
+   narrowed one paused 50 ms miss to pre-swap work, with limiter/cap separation as the next slice.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package

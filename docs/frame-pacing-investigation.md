@@ -27,7 +27,8 @@ public `main` baseline from this working branch, maps the implemented and missin
 defines the next narrow hitch-packet slice. Do not treat a local experiment commit as evidence that
 the public branch already contains the capability.
 
-The current implementation checkpoint is `574cfd3b`, which retains the accepted v2 collision set,
+The current implementation checkpoint is `2f0ea0b3`, which adds the first bounded joined hitch packet
+while retaining the accepted v2 collision set,
 exact-step hitch enrichment, distinct recurring-cluster breadth, and CI coverage for all gameplay
 analysis scripts. The AI Tweaks weapon-location helper candidate at `5b6035aa` and the Detailed Combat
 Results state-map reuse candidate were both live-tested and reverted. The AI Tweaks candidate removed
@@ -56,6 +57,34 @@ These numbers are one current B observation, not a comparison against the prior 
 thermal state were not locked, so apparent deltas must not be advertised as improvement.
 
 ## Current live-validation queue
+
+### Hitch packet v1 retained (`2f0ea0b3`)
+
+**Observed:** a Preflight-only corrected live route retained one complete 175-frame paused-campaign
+packet around a 50.003 ms trigger. The frame spent 49.210 ms before native swap, 0.538 ms in native
+swap, 0.248 ms in message processing, and 0.006 ms in other post-swap work. A complete join of
+16,284 exact broad campaign-phase calls attributed only about 0.171 ms of the trigger. The packet
+therefore rules out presentation wait and those nine broad campaign phases for this hitch.
+
+**Observed:** the discovery run corrected the instrument rather than being discarded. It showed
+that an 8,192-call ring could not cover three seconds in this profile, that title-demo combat could
+consume gameplay packet slots, and that rich bounded evidence could exceed the old 512 KiB reader
+ceiling. The retained shape uses 32,768 primitive call spans, excludes combat before campaign is
+seen, and accepts at most 4 MiB per adapter/report source file.
+
+**Measurement discipline:** ordinary frame capture uses fixed primitive arrays and no per-frame
+objects. Exact campaign call spans remain discovery-only. Live report snapshots are best effort;
+the sealed shutdown report is authoritative. Inclusive display-boundary overhead averaged 15.784
+microseconds in the confirmation run. An isolated actual-game-runtime calibration measured 2.317
+ns per enabled no-trigger ring write, but is not an FPS claim.
+
+**Exact next action:** split `preSwap` into actual game CPU work versus limiter/cap waiting. Do not
+start with another broad campaign timer or GPU experiment for this specific fingerprint. If game
+CPU remains large, let a thin trigger arm a short higher-detail CPU capture for the next matching
+hitch. Preserve the original packet as the non-intrusive performance observation.
+
+See the [bounded hitch-packet record](evidence/2026-08-28-hitch-packet-v1.md) and child
+[#1150](https://github.com/teamleaderleo/preflight/issues/1150).
 
 ### AI Tweaks target-selection location reuse rejected (`5b6035aa`, reverted by `574cfd3b`)
 
@@ -168,9 +197,10 @@ any frame outside the declared battle window from entering the cluster attributi
 1. Confirm there is no existing Starsector process and use only a Preflight launch. The current
    save should be observed untouched for three seconds; the controller should report
    `campaign pause state already matched request` before the paused window.
-2. Run `campaign-sample-paused-unpaused.json` for broad sampled attribution or the call-time probe
-   scenario only when branch/call counts are required. Do not repeat an A run unless it can change
-   the next decision.
+2. For a newly observed hitch, inspect the sealed `frameTimes.hitchPackets` packet first. Use the
+   exact campaign call-time producer only for discovery runs. Run `campaign-sample-paused-unpaused.json`
+   for broad sampled attribution only when the packet cannot choose the next boundary. Do not
+   repeat an A run unless it can change the next decision.
 3. Rank active recurring stutter with:
    `python3 scripts/starsector_gameplay_hotspots.py RUN/startup.jfr --scenario-evidence RUN/smoke-evidence.json --frame-report RUN/runtime-frame-report.json --frame-series campaignUnpausedAfter30SecondsActive --repeated-clusters 10`.
    Add `--allocations` for weighted allocation samples and `--contains TEXT` for a named stack.
