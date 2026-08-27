@@ -82,7 +82,7 @@ class HitchClassifierTest {
     }
 
     @Test
-    void packetSummaryClassifiesOnlyRetainedTriggerFrames() {
+    void packetSummaryInjectsPacketSemanticContextAndClassifiesOnlyTriggers() {
         Map<String, Object> first = frame(values(
                 "sequence", 10L,
                 "trigger", true,
@@ -106,6 +106,8 @@ class HitchClassifierTest {
                 "swapInferredOffCpuMicros", 16_600L,
                 "messageMicros", 1_000L,
                 "otherAfterSwapMicros", 1_500L));
+        first.remove("pause");
+        context.remove("pause");
         Map<String, Object> hitchTelemetry = Map.of(
                 "format", HitchPacketRuntime.FORMAT,
                 "packets", List.of(Map.of(
@@ -119,6 +121,8 @@ class HitchClassifierTest {
         assertEquals(1, packet.get("triggerFrames"));
         assertEquals(HitchClassifier.PRE_SWAP_WORK, packet.get("primaryLabel"));
         assertFalse((Boolean) packet.get("mixedLabels"));
+        Map<String, Object> trigger = map(list(packet.get("triggers")).get(0));
+        assertTrue(trigger.get("nextExperiment").toString().contains("simulation advancement"));
     }
 
     @Test
