@@ -95,6 +95,7 @@ final class DesktopSmokeLiveReport implements AutoCloseable {
         frame.put("format", FRAME_FORMAT);
         frame.putAll(identity);
         frame.put("frameTimes", FrameTimeRuntime.telemetry());
+        frame.put("mainThreadFrameCpu", FrameCpuTimeRuntime.telemetry());
         frame.put("framePacing", FramePacingRuntime.telemetry());
         frame.put("campaignCallTimes", CampaignCallTimeRuntime.telemetry());
         frame.put("campaignEngineTimes", CampaignEngineTimeRuntime.telemetry());
