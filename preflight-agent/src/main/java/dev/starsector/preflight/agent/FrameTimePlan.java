@@ -22,6 +22,8 @@ final class FrameTimePlan {
 
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/FrameTimeRuntime";
+    private static final String PACING_RUNTIME =
+            "dev/starsector/preflight/agent/FramePacingRuntime";
 
     private FrameTimePlan() {
     }
@@ -49,6 +51,7 @@ final class FrameTimePlan {
                 || calls(update, RUNTIME, "swapBuffersStart") != 0
                 || calls(update, RUNTIME, "swapBuffersEnd") != 0
                 || calls(update, RUNTIME, "boundary") != 0
+                || calls(update, PACING_RUNTIME, "awaitNextFrame") != 0
                 || calls(active, RUNTIME, "observeActive") != 0) {
             return null;
         }
@@ -77,6 +80,13 @@ final class FrameTimePlan {
         boundary.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "boundary", "()V", false));
         update.instructions.insertBefore(updateReturn, boundary);
+
+        if (FramePacingRuntime.enabled()) {
+            InsnList pacing = new InsnList();
+            pacing.add(new MethodInsnNode(
+                    Opcodes.INVOKESTATIC, PACING_RUNTIME, "awaitNextFrame", "()V", false));
+            update.instructions.insertBefore(updateReturn, pacing);
+        }
 
         InsnList focus = new InsnList();
         focus.add(new InsnNode(Opcodes.DUP));
