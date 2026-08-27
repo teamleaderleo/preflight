@@ -9,7 +9,7 @@ import java.util.Map;
 
 /** Low-allocation frame-pacing telemetry at LWJGL's display-update boundary. */
 public final class FrameTimeRuntime {
-    static final String PLAN_ID = "lwjgl-display-frame-time-probe-v1";
+    static final String PLAN_ID = "lwjgl-display-frame-time-probe-v2";
 
     private static final long HISTOGRAM_BIN_NANOS = 100_000L;
     private static final int HISTOGRAM_REGULAR_BINS = 20_000;
@@ -39,6 +39,9 @@ public final class FrameTimeRuntime {
     private static long lastBoundaryNanos = Long.MIN_VALUE;
     private static boolean lastBoundaryActive = true;
     private static int lastBoundaryState;
+    private static long displayUpdateStartedNanos = Long.MIN_VALUE;
+    private static long swapBuffersStartedNanos = Long.MIN_VALUE;
+    private static long pendingSwapBuffersNanos = -1L;
     private static final Distribution allActive = new Distribution();
     private static final Distribution postStartupActive = new Distribution();
     private static final Distribution campaignActive = new Distribution();
@@ -46,6 +49,8 @@ public final class FrameTimeRuntime {
     private static final Distribution campaignAfter30SecondsActive = new Distribution();
     private static final Distribution combatActive = new Distribution();
     private static final Distribution combatAfterCampaignActive = new Distribution();
+    private static final Distribution displayUpdateActive = new Distribution();
+    private static final Distribution swapBuffersActive = new Distribution();
 
     private FrameTimeRuntime() {
     }
@@ -68,6 +73,9 @@ public final class FrameTimeRuntime {
         lastBoundaryNanos = Long.MIN_VALUE;
         lastBoundaryActive = true;
         lastBoundaryState = STATE_UNKNOWN;
+        displayUpdateStartedNanos = Long.MIN_VALUE;
+        swapBuffersStartedNanos = Long.MIN_VALUE;
+        pendingSwapBuffersNanos = -1L;
         observedActive = true;
         focusBreak = false;
         observedState = STATE_UNKNOWN;
@@ -78,6 +86,8 @@ public final class FrameTimeRuntime {
         campaignAfter30SecondsActive.reset();
         combatActive.reset();
         combatAfterCampaignActive.reset();
+        displayUpdateActive.reset();
+        swapBuffersActive.reset();
     }
 
     static synchronized void installed() {
@@ -94,6 +104,37 @@ public final class FrameTimeRuntime {
         observedActive = active;
         focusObservations++;
         if (!active) focusBreak = true;
+    }
+
+    /** Called at entry to LWJGL Display.update(Z) to split display work from the outer frame. */
+    public static void displayUpdateStart() {
+        if (enabled) recordDisplayUpdateStart(System.nanoTime());
+    }
+
+    /** Called immediately before LWJGL's existing swapBuffers invocation. */
+    public static void swapBuffersStart() {
+        if (enabled) recordSwapBuffersStart(System.nanoTime());
+    }
+
+    /** Called immediately after LWJGL's existing swapBuffers invocation. */
+    public static void swapBuffersEnd() {
+        if (enabled) recordSwapBuffersEnd(System.nanoTime());
+    }
+
+    static void recordDisplayUpdateStart(long now) {
+        displayUpdateStartedNanos = now;
+        swapBuffersStartedNanos = Long.MIN_VALUE;
+        pendingSwapBuffersNanos = -1L;
+    }
+
+    static void recordSwapBuffersStart(long now) {
+        swapBuffersStartedNanos = now;
+    }
+
+    static void recordSwapBuffersEnd(long now) {
+        long started = swapBuffersStartedNanos;
+        swapBuffersStartedNanos = Long.MIN_VALUE;
+        pendingSwapBuffersNanos = started == Long.MIN_VALUE || now < started ? -1L : now - started;
     }
 
     /** Called from the reviewed campaign loop before the display boundary. */
@@ -140,6 +181,15 @@ public final class FrameTimeRuntime {
     }
 
     static synchronized void recordBoundary(long now) {
+        long displayUpdateNanos = displayUpdateStartedNanos == Long.MIN_VALUE
+                || now < displayUpdateStartedNanos
+                ? -1L
+                : now - displayUpdateStartedNanos;
+        long swapBuffersNanos = pendingSwapBuffersNanos;
+        displayUpdateStartedNanos = Long.MIN_VALUE;
+        swapBuffersStartedNanos = Long.MIN_VALUE;
+        pendingSwapBuffersNanos = -1L;
+
         boundaries++;
         boolean active = observedActive;
         int state = observedState;
@@ -175,6 +225,8 @@ public final class FrameTimeRuntime {
 
         long endOffset = now - firstBoundaryNanos;
         allActive.record(duration, endOffset);
+        if (displayUpdateNanos >= 0L) displayUpdateActive.record(displayUpdateNanos, endOffset);
+        if (swapBuffersNanos >= 0L) swapBuffersActive.record(swapBuffersNanos, endOffset);
         if (startupComplete) postStartupActive.record(duration, endOffset);
         if (state == STATE_CAMPAIGN && firstCampaignBoundaryNanos == Long.MIN_VALUE) {
             firstCampaignBoundaryNanos = now;
@@ -229,6 +281,10 @@ public final class FrameTimeRuntime {
         result.put("histogramOverflowMicros",
                 HISTOGRAM_REGULAR_BINS * HISTOGRAM_BIN_NANOS / 1_000L);
         result.put("allActive", allActive.toMap(firstBoundaryEpochMillis));
+        result.put("displayUpdateActive",
+                displayUpdateActive.toSpanMap(allActive.count, allActive.totalNanos));
+        result.put("swapBuffersActive",
+                swapBuffersActive.toSpanMap(allActive.count, allActive.totalNanos));
         result.put("postStartupActive", postStartupActive.toMap(firstBoundaryEpochMillis));
         result.put("campaignActive", campaignActive.toMap(firstBoundaryEpochMillis));
         result.put("campaignFirst30SecondsActive",
@@ -321,20 +377,12 @@ public final class FrameTimeRuntime {
         }
 
         Map<String, Object> toMap(long originEpochMillis) {
-            Map<String, Object> result = new LinkedHashMap<>();
+            Map<String, Object> result = baseMap();
             Double meanMicros = count == 0L ? null : totalNanos / 1_000.0 / count;
             Long p50Micros = percentile(500);
-            Long p95Micros = percentile(950);
             Long p99Micros = percentile(990);
             Long p999Micros = percentile(999);
             result.put("frames", count);
-            result.put("meanMicros", meanMicros);
-            result.put("minimumMicros", count == 0L ? null : minimumNanos / 1_000L);
-            result.put("maximumMicros", count == 0L ? null : maximumNanos / 1_000L);
-            result.put("p50Micros", p50Micros);
-            result.put("p95Micros", p95Micros);
-            result.put("p99Micros", p99Micros);
-            result.put("p999Micros", p999Micros);
             result.put("averageFps", fps(meanMicros));
             result.put("medianFps", fps(p50Micros));
             result.put("onePercentLowFps", fps(p99Micros));
@@ -348,6 +396,33 @@ public final class FrameTimeRuntime {
             result.put("over250Millis", over250Millis);
             result.put("over1000Millis", over1000Millis);
             result.put("worstFrames", worstFrames(originEpochMillis));
+            return result;
+        }
+
+        Map<String, Object> toSpanMap(long frameCount, long frameTotalNanos) {
+            Map<String, Object> result = baseMap();
+            result.put("samples", count);
+            result.put("sampleCoveragePercent", frameCount == 0L
+                    ? null
+                    : round(100.0 * count / frameCount));
+            result.put("totalMillis", count == 0L ? null : totalNanos / 1_000_000.0);
+            result.put("meanFrameSharePercent", count == 0L || frameCount == 0L
+                            || frameTotalNanos <= 0L
+                    ? null
+                    : round(100.0 * (totalNanos / (double) count)
+                            / (frameTotalNanos / (double) frameCount)));
+            return result;
+        }
+
+        private Map<String, Object> baseMap() {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("meanMicros", count == 0L ? null : totalNanos / 1_000.0 / count);
+            result.put("minimumMicros", count == 0L ? null : minimumNanos / 1_000L);
+            result.put("maximumMicros", count == 0L ? null : maximumNanos / 1_000L);
+            result.put("p50Micros", percentile(500));
+            result.put("p95Micros", percentile(950));
+            result.put("p99Micros", percentile(990));
+            result.put("p999Micros", percentile(999));
             return result;
         }
 
