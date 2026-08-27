@@ -129,12 +129,19 @@ hot-path reads succeeded. No JFR or broad campaign timer was active. The same sc
 route was retained, but the scenario does not bind exact save bytes, so this is within-run
 attribution rather than a paired FPS claim.
 
-**Exact next action:** inventory the live OpenGL context and nonblocking timer/fence capability.
-If supported, use a bounded asynchronous query ring that never waits on the hot path to split GPU
-execution from the remaining driver/compositor/VSync wait, and carry actual interval state into the
-same window. Do not change rendering or presentation merely because the off-CPU boundary is large.
+**Live capability result (`3db5b1b1`):** the Apple M5 context reports OpenGL `2.1 Metal - 90.5`,
+OpenGL 1.5 query objects, `GL_EXT_timer_query`, and `GL_ARB_sync`. It does not expose OpenGL 3.3 or
+`GL_ARB_timer_query`. The one-time read-only inventory passed the short semantic route without
+creating rendering state or producing an FPS claim.
+
+**Exact next action:** use a fixed-size asynchronous EXT timer-query ring that never waits on the
+hot path to split GPU execution from the remaining driver/compositor/VSync wait, and carry actual
+interval state into the same window. Preserve a capability/disable fallback and bounded
+unavailable/overrun telemetry. Do not change rendering or presentation merely because the off-CPU
+boundary is large.
 
 See the [native-swap CPU/off-CPU record](evidence/2026-08-28-native-swap-cpu-offcpu-split.md).
+See the [live OpenGL capability record](evidence/2026-08-28-opengl-context-capability.md).
 
 ### AI Tweaks target-selection location reuse rejected (`5b6035aa`, reverted by `574cfd3b`)
 
@@ -377,10 +384,10 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
 
 ## Open questions, ranked
 
-1. **GPU versus presentation wait:** inventory the live OpenGL context and asynchronous timer/fence
-   support. If a nonblocking bounded query ring is available, measure GPU execution for the frame
-   preceding each swap and retain actual interval state in the same window. Do not turn the current
-   off-CPU result into a rendering change without this split.
+1. **GPU versus presentation wait:** the live context supports OpenGL 1.5 query objects and
+   `GL_EXT_timer_query`; implement a fixed-size asynchronous EXT query ring, poll only available old
+   results, and retain actual interval state in the same window. Do not turn the current off-CPU
+   result into a rendering change without this split or assume the unavailable ARB timer path.
 2. **Transition versus settled active work:** repeat the exact-step correlation once when a code
    decision depends on it. If the transition ordering is stable, probe its catch-up scheduler;
    independently map settled timer calls to individual slow frames before adding broader timers.

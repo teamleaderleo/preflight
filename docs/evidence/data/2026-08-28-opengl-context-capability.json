@@ -1,0 +1,117 @@
+{
+  "format": "starsector-preflight-opengl-context-capability-evidence-v1",
+  "date": "2026-08-28",
+  "disposition": "diagnostic prerequisite retained; no FPS optimization claim",
+  "parentIssue": 449,
+  "implementationCommit": "3db5b1b188fc93403fcef702d83daacea1304c6f",
+  "verification": {
+    "command": "JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home ./mvnw verify",
+    "tests": 2242,
+    "failures": 0,
+    "errors": 0,
+    "skips": 9,
+    "reactorModules": 5
+  },
+  "identity": {
+    "game": "Starsector 0.98a-RC8",
+    "profileFingerprint": "2995668308ac3d31d645ccac30fb1a7e644e64fce5609050a1488df4cadc5af6",
+    "textureProfileFingerprint": "59b01dc050f39a9f07053bd168cc8c1ecd55086b429b2d732456f87ca217a702",
+    "enabledMods": 83,
+    "resolution": "1440x932",
+    "fullscreen": false,
+    "sound": true,
+    "wrapperJava": "Oracle Java 17.0.12 arm64",
+    "gameJava": "Zulu Java 17.0.10 x86_64 under Rosetta",
+    "adapterPlanScope": "full",
+    "optimizationPreset": "recommended",
+    "textureAdapterMode": "PREPARED_PIXELS",
+    "frameTimes": true,
+    "campaignTimes": false,
+    "jfrRecording": false,
+    "smoothFramePacing": false,
+    "preflightJarSha256": "38d619b740e678f7c98824033272b236b6b9e4b315ae6661e748e561c929884a"
+  },
+  "scenario": {
+    "name": "campaign-continue-proof",
+    "status": "passed",
+    "startedAt": "2026-08-27T18:19:59.908255Z",
+    "completedAt": "2026-08-27T18:20:49.511068Z",
+    "semanticSteps": 4,
+    "campaignDwellMillis": 10000,
+    "saveActionIssued": false,
+    "claimBoundary": "one-time capability inventory only; no FPS or paired-workload claim"
+  },
+  "openGlContext": {
+    "attempted": true,
+    "available": true,
+    "problem": null,
+    "inventoryElapsedMicros": 1213.0,
+    "vendor": "Apple",
+    "renderer": "Apple M5",
+    "version": "2.1 Metal - 90.5",
+    "openGL15": true,
+    "openGL33": false,
+    "arbTimerQuery": false,
+    "extTimerQuery": true,
+    "arbSync": true,
+    "nonblockingTimerResultPollCandidate": true,
+    "semanticEffect": "none; no query, fence, or rendering state created"
+  },
+  "presentationPolicy": {
+    "vsyncRequests": 5,
+    "vsyncEnabledRequests": 3,
+    "requestsForcedOff": 0,
+    "swapIntervalRequests": 6,
+    "swapIntervalZeroRequests": 2,
+    "swapIntervalOneRequests": 4,
+    "swapIntervalOtherRequests": 0,
+    "lastSwapInterval": 1,
+    "forceVsyncOff": false
+  },
+  "threadCpuClock": {
+    "available": true,
+    "calibrationSamples": 10000,
+    "calibrationAverageNanosPerRead": 597.8101,
+    "hotPathReads": 3360,
+    "readFailures": 0
+  },
+  "adapterHealth": {
+    "status": "ACTIVE",
+    "registryTargets": 77,
+    "exactMatches": 62,
+    "transformationsApplied": 62,
+    "sourceBindingRejected": 0,
+    "unavailablePlans": 0,
+    "transformationsDeclined": 0,
+    "containedFailures": 0,
+    "cacheRejectionSignals": 0,
+    "wrapperFailureSignals": 0,
+    "runtimeIntegrityFailures": 0,
+    "failOpenPolicy": true,
+    "killSwitchActive": false
+  },
+  "lifecycle": {
+    "outcome": "COMPLETED",
+    "exitCode": 0,
+    "fatalDetected": false,
+    "controllerStopRequested": true,
+    "postprocessingFailures": 0
+  },
+  "decision": {
+    "nextProbe": "fixed-size asynchronous EXT timer-query ring with nonblocking availability polling",
+    "mustNotRequire": [
+      "OpenGL 3.3",
+      "GL_ARB_timer_query"
+    ],
+    "claimDisallowed": "no FPS uplift claim from the instrumented capability or GPU-timing run"
+  },
+  "rawEvidenceSha256": {
+    "runtime-frame-report.json": "6d958490deb921f5a8da500007c5793f0ed992f1df27f7f86092cd3cd97e1949",
+    "adapter.json": "d6f2780c0ee9275f643cb4a1bf1fcece1ddb89e7d682813d5f62914b43e66de8",
+    "adapter-health.json": "9fd0dd3bea4bd41d73e16083bd54ad221448f35e5c3c393adfb8424da30a0ffd",
+    "run.json": "d293e0c9cc918562794fe99574070a40786d92cb53dadc8536ed8fc943fb4ee1",
+    "profile.json": "80a8d48948c6b134a0059257af4c3876fffce3c383fa02b6bb076432d3ddca57",
+    "smoke-evidence.json": "e3cb0940a78af40c2787d924ff59b8031858343eb4c57cef41150e7174e85973",
+    "driver-result.json": "325fffe688d8f719794788e9386837727a85a91077aced158c529c85660ab2c2"
+  }
+}

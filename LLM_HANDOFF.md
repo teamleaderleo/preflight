@@ -21,13 +21,14 @@ Before changing code or collecting release evidence:
    observations from falsifiable hypotheses and records why a previously explored area may still
    be worth revisiting. [Gameplay FPS program #449](https://github.com/teamleaderleo/preflight/issues/449)
    is the canonical parent for that lane; use focused child issues once one experiment is concrete.
-   The latest diagnostic checkpoint is the bounded
-   [native-swap CPU/off-CPU split](docs/evidence/2026-08-28-native-swap-cpu-offcpu-split.md).
-   Ten of 12 settled paused frames above 33.33 ms were swap-dominated and spent about 98.1% of that
-   swap wall time off the render thread. The actual policy ended at interval one. Inventory the live
-   OpenGL context, then use a nonblocking bounded GPU timer/fence experiment only if supported to
-   separate GPU backlog from driver/compositor/VSync wait. The rarer >50 ms pre-swap game-work
-   fingerprint still needs packet-triggered CPU escalation, not permanent broad timers.
+   The latest diagnostic checkpoint is the
+   [live OpenGL capability inventory](docs/evidence/2026-08-28-opengl-context-capability.md), following
+   the bounded [native-swap CPU/off-CPU split](docs/evidence/2026-08-28-native-swap-cpu-offcpu-split.md).
+   The Apple M5 OpenGL 2.1-over-Metal context exposes OpenGL 1.5 query objects,
+   `GL_EXT_timer_query`, and `GL_ARB_sync`, but not `GL_ARB_timer_query` or OpenGL 3.3. The next
+   narrow slice is a fixed-size asynchronous EXT timer-query ring with nonblocking availability
+   polling, exact fallback, and no FPS claim from the instrumented run. The rarer >50 ms pre-swap
+   game-work fingerprint still needs packet-triggered CPU escalation, not permanent broad timers.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package

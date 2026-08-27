@@ -75,7 +75,10 @@ FPS-limiter bracket, so a hitch packet can split known limiter sleep from the re
 wall time without treating an intrusive discovery profile as an FPS measurement. The presentation
 recorder also reports the actual LWJGL swap-interval requests and, when the runtime already exposes
 an enabled current-thread CPU clock, splits native-swap wall time into render-thread CPU and inferred
-off-CPU wait. It never enables a disabled clock and reports an unavailable split instead of guessing.
+off-CPU wait. It also performs one read-only live OpenGL vendor/renderer/version and timer/fence
+capability inventory before the first swap bracket; it creates no rendering state and reports
+unavailable rather than inferring support. It never enables a disabled CPU clock and reports an
+unavailable split instead of guessing.
 
 `campaign-profile-paused-unpaused.json` keeps the first three campaign seconds untouched, ensures a
 paused state through Starsector's mapped pause control, retains a paused warm-up and settled window,
