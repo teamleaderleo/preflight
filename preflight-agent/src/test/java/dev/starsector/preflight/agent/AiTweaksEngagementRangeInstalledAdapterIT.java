@@ -10,7 +10,9 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 
 /** Opt-in structural transform of AI Tweaks' exact installed class; never starts Starsector. */
@@ -46,9 +48,8 @@ class AiTweaksEngagementRangeInstalledAdapterIT {
         assertEquals("Ljava/lang/Float;", owner.fields.stream()
                 .filter(field -> "preflight$engagementRangeBoxed".equals(field.name))
                 .findFirst().orElseThrow().desc);
-        assertEquals("Ljava/lang/Float;", owner.fields.stream()
-                .filter(field -> "preflight$targetSearchRangeBoxed".equals(field.name))
-                .findFirst().orElseThrow().desc);
+        assertEquals(true, owner.fields.stream()
+                .noneMatch(field -> "preflight$targetSearchRangeBoxed".equals(field.name)));
         assertEquals("Lorg/lwjgl/util/vector/Vector2f;", owner.fields.stream()
                 .filter(field -> "preflight$weaponLocation".equals(field.name))
                 .findFirst().orElseThrow().desc);
@@ -56,6 +57,7 @@ class AiTweaksEngagementRangeInstalledAdapterIT {
                 "com/genir/aitweaks/core/handles/WeaponHandle", "getEngagementRange-impl"));
         assertEquals(1, calls(owner,
                 "com/genir/aitweaks/core/handles/WeaponHandle", "getLocation-impl"));
+        assertEquals(1, boxedTargetSearchReads(owner));
         assertEquals(1, calls(owner,
                 AiTweaksEngagementRangeRuntime.class.getName().replace('.', '/'), "snapshot"));
     }
@@ -66,6 +68,27 @@ class AiTweaksEngagementRangeInstalledAdapterIT {
             for (var instruction : method.instructions) {
                 if (instruction instanceof MethodInsnNode call
                         && targetOwner.equals(call.owner) && name.equals(call.name)) count++;
+            }
+        }
+        return count;
+    }
+
+    private static int boxedTargetSearchReads(ClassNode owner) {
+        int count = 0;
+        for (var method : owner.methods) {
+            for (var instruction : method.instructions) {
+                if (!(instruction instanceof FieldInsnNode field)
+                        || field.getOpcode() != Opcodes.GETFIELD
+                        || !AiTweaksEngagementRangePlan.TARGET_CLASS.equals(field.owner)
+                        || !"targetSearchRange".equals(field.name)
+                        || !"F".equals(field.desc)) continue;
+                AbstractInsnNode next = field.getNext();
+                while (next != null && next.getOpcode() < 0) next = next.getNext();
+                if (next instanceof MethodInsnNode call
+                        && call.getOpcode() == Opcodes.INVOKESTATIC
+                        && "java/lang/Float".equals(call.owner)
+                        && "valueOf".equals(call.name)
+                        && "(F)Ljava/lang/Float;".equals(call.desc)) count++;
             }
         }
         return count;

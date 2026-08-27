@@ -4,9 +4,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
-/** Telemetry for AI Tweaks' per-target-selection geometry, range, and boxing snapshot. */
+/** Telemetry for AI Tweaks' per-target-selection geometry and engagement-range snapshot. */
 public final class AiTweaksEngagementRangeRuntime {
-    static final String PLAN_ID = "aitweaks-select-target-snapshot-v3";
+    static final String PLAN_ID = "aitweaks-select-target-snapshot-v4";
 
     private static final AtomicLong snapshots = new AtomicLong();
     private static volatile boolean installed;

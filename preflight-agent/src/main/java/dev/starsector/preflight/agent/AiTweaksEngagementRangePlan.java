@@ -15,7 +15,7 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
-/** Snapshots fixed weapon geometry and boxes fixed ranges once inside one target selection. */
+/** Snapshots fixed weapon geometry and engagement range inside one target selection. */
 final class AiTweaksEngagementRangePlan {
     static final String TARGET_CLASS = "com/genir/aitweaks/core/shipai/autofire/SelectTarget";
     static final String ORIGINAL_SHA256 =
@@ -38,7 +38,6 @@ final class AiTweaksEngagementRangePlan {
     private static final String CACHE_FIELD = "preflight$engagementRange";
     private static final String BOXED_CACHE_FIELD = "preflight$engagementRangeBoxed";
     private static final String TARGET_SEARCH_FIELD = "targetSearchRange";
-    private static final String TARGET_SEARCH_BOXED_FIELD = "preflight$targetSearchRangeBoxed";
     private static final String LOCATION_CACHE_FIELD = "preflight$weaponLocation";
     private static final String LOCATION_DESCRIPTOR_VALUE = "Lorg/lwjgl/util/vector/Vector2f;";
     private static final String FLOAT = "java/lang/Float";
@@ -103,22 +102,8 @@ final class AiTweaksEngagementRangePlan {
                 .filter(site -> site.method() != constructor)
                 .filter(site -> isBox(nextCode(site.call())))
                 .toList();
-        List<FieldBoxSite> boxedSearchSites = new ArrayList<>();
-        for (MethodNode method : owner.methods) {
-            for (AbstractInsnNode instruction : method.instructions) {
-                if (instruction instanceof FieldInsnNode field
-                        && field.getOpcode() == Opcodes.GETFIELD
-                        && TARGET_CLASS.equals(field.owner)
-                        && TARGET_SEARCH_FIELD.equals(field.name)
-                        && "F".equals(field.desc)
-                        && isBox(nextCode(field))) {
-                    boxedSearchSites.add(new FieldBoxSite(
-                            method, field, (MethodInsnNode) nextCode(field)));
-                }
-            }
-        }
         if (sites.size() != 5 || locationSites.size() != 6 || constructorSites.size() != 1
-                || boxedEngagementSites.size() != 2 || boxedSearchSites.size() != 1
+                || boxedEngagementSites.size() != 2
                 || sites.stream().filter(site -> site.method() != constructor)
                         .anyMatch(site -> (site.method().access & Opcodes.ACC_STATIC) != 0)) {
             return null;
@@ -128,8 +113,6 @@ final class AiTweaksEngagementRangePlan {
         owner.fields.add(new FieldNode(cacheAccess, CACHE_FIELD, "F", null, null));
         owner.fields.add(new FieldNode(
                 cacheAccess, BOXED_CACHE_FIELD, "Ljava/lang/Float;", null, null));
-        owner.fields.add(new FieldNode(
-                cacheAccess, TARGET_SEARCH_BOXED_FIELD, "Ljava/lang/Float;", null, null));
         owner.fields.add(new FieldNode(
                 cacheAccess, LOCATION_CACHE_FIELD, LOCATION_DESCRIPTOR_VALUE, null, null));
         MethodInsnNode capture = constructorSites.get(0).call();
@@ -156,14 +139,6 @@ final class AiTweaksEngagementRangePlan {
         saveSearch.add(new VarInsnNode(Opcodes.ALOAD, 0));
         saveSearch.add(new VarInsnNode(Opcodes.ALOAD, 0));
         saveSearch.add(new FieldInsnNode(
-                Opcodes.GETFIELD, TARGET_CLASS, TARGET_SEARCH_FIELD, "F"));
-        saveSearch.add(new MethodInsnNode(
-                Opcodes.INVOKESTATIC, FLOAT, "valueOf", BOX_DESCRIPTOR, false));
-        saveSearch.add(new FieldInsnNode(Opcodes.PUTFIELD, TARGET_CLASS,
-                TARGET_SEARCH_BOXED_FIELD, "Ljava/lang/Float;"));
-        saveSearch.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        saveSearch.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        saveSearch.add(new FieldInsnNode(
                 Opcodes.GETFIELD, TARGET_CLASS, WEAPON_FIELD, WEAPON_DESCRIPTOR));
         saveSearch.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, WEAPON_HANDLE, LOCATION_GETTER,
@@ -185,11 +160,6 @@ final class AiTweaksEngagementRangePlan {
             site.method().instructions.insertBefore(site.call(), cached);
             site.method().instructions.remove(site.call());
             if (boxed) site.method().instructions.remove(originalBox);
-        }
-        for (FieldBoxSite site : boxedSearchSites) {
-            site.field().name = TARGET_SEARCH_BOXED_FIELD;
-            site.field().desc = "Ljava/lang/Float;";
-            site.method().instructions.remove(site.box());
         }
         for (CallSite site : locationSites) {
             FieldInsnNode weapon = (FieldInsnNode) previousCode(site.call());
@@ -257,9 +227,5 @@ final class AiTweaksEngagementRangePlan {
     }
 
     private record CallSite(MethodNode method, MethodInsnNode call) {
-    }
-
-    private record FieldBoxSite(
-            MethodNode method, FieldInsnNode field, MethodInsnNode box) {
     }
 }

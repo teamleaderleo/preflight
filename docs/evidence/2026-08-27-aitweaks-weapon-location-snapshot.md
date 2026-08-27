@@ -23,14 +23,14 @@ advance ship position or facing between those calls, and the selection object is
 later frame. Reusing the location inside that object therefore preserves movement between target
 updates while avoiding five redundant weapon-slot position calculations per selection.
 
-The existing range/boxing transform is extended to v3 with one private final synthetic
+The then-existing range/boxing transform was extended to v3 with one private final synthetic
 `Vector2f` field. Its constructor records the first exact weapon-location result, and all six
 reviewed call sites load that same reference. Admission still requires the exact mod archive,
 custom AI Tweaks loader, class hash, Java 17 bytecode, constructor, weapon field, five range calls,
 three boxing sites, and now all six location calls with the reviewed receiver shape. Any drift or a
 second rewrite retains the original class.
 
-The executable woven fixture changes the backing location immediately after construction and proves
+The executable woven fixture changed the backing location immediately after construction and proved
 that all six later reads keep the per-selection snapshot while the next selection can observe a new
 location. It also proves one underlying location call, one underlying engagement-range call, two
 constructor boxes, and one telemetry snapshot. The installed-archive integration test transforms
@@ -63,3 +63,9 @@ low, versus 46.39 and 12.48 in the earlier run. Ship survival, weapon activity, 
 other combat state were not held constant, so this pair cannot attribute the difference to the
 small per-selection snapshot. The candidate is accepted for its exact structural removal and
 successful repeated live execution, with no claim yet that it improves FPS or frame pacing.
+
+The weapon-location snapshot remains in v4. A later heavy combat run exposed a null dereference in
+v3's separate boxed target-search field, so v4 removed only that field and restored the original
+target-search boxing call. See
+[the correction report](2026-08-27-aitweaks-boxed-search-range-correction.md). The historical
+"two constructor boxes" statement above describes v3, not the retained v4 contract.

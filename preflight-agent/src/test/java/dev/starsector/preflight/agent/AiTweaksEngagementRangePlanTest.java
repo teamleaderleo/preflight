@@ -55,9 +55,8 @@ class AiTweaksEngagementRangePlanTest {
         assertEquals("Ljava/lang/Float;", owner.fields.stream()
                 .filter(field -> "preflight$engagementRangeBoxed".equals(field.name))
                 .findFirst().orElseThrow().desc);
-        assertEquals("Ljava/lang/Float;", owner.fields.stream()
-                .filter(field -> "preflight$targetSearchRangeBoxed".equals(field.name))
-                .findFirst().orElseThrow().desc);
+        assertTrue(owner.fields.stream()
+                .noneMatch(field -> "preflight$targetSearchRangeBoxed".equals(field.name)));
         assertEquals(VECTOR_DESCRIPTOR, owner.fields.stream()
                 .filter(field -> "preflight$weaponLocation".equals(field.name))
                 .findFirst().orElseThrow().desc);
