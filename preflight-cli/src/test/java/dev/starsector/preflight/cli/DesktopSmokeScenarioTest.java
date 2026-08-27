@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -207,6 +208,8 @@ final class DesktopSmokeScenarioTest {
         assertTrue(scenario.stepIds().contains("prepare-symmetric-stress"));
         assertTrue(scenario.stepIds().contains("stress-settle"));
         assertTrue(scenario.stepIds().contains("combat-sample-1040dp"));
+        assertFalse(scenario.stepIds().contains("activate-startup"));
+        assertFalse(scenario.stepIds().contains("activate-game"));
         assertEquals(Set.of("process-control", "semantic-state", "semantic-control",
                         "window-control", "evidence-read"),
                 scenario.requiredCapabilities());

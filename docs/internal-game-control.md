@@ -42,6 +42,32 @@ initial proof accidentally placed Escape's LWJGL key code in `x`; the event ente
 nothing. Rebuilding it with key code 1 in `eventValue` dismissed the modal immediately. This exact
 failure belongs in regression coverage because a transport receipt is not proof that the game acted.
 
+## Focusless macOS route
+
+The 1,040-DP scenario no longer activates or foregrounds Starsector. Named actions such as Continue,
+pause, fixture construction, deployment, and zoom use the game-JVM request channel. Its remaining
+F/R/N/U/Tab/Caps Lock transitions are posted to the exact recorded process with
+`CGEventPostToPid`; they do not use the cursor, app name, Dock icon, or current frontmost window.
+
+A locked-screen run completed the entire scenario while every PID-posted key receipt reported
+`frontmost=false`: Continue loaded the campaign, F/R/N opened the simulator, both fleets deployed,
+U/Tab/Caps Lock configured combat, zoom expanded the viewport from 1.250 to 4.224, and the 30-second
+window completed. The locked display caused all post-interactive frame intervals to be classified
+inactive, so that run proves control delivery and allocation workload only—not FPS. Its scenario
+evidence SHA-256 is
+`3fc8ae6a53ce8fff12fa24cee704ef1cae057bc6338502613fc1e1c1cd7b9397`.
+
+An unlocked follow-up used the same scenario with no activation steps, completed with launcher and
+scenario status `passed`, retained 522 active measurement-window frames, and exited cleanly. The game
+happened to become frontmost through normal launch; the controller did not request that state. Its
+scenario evidence SHA-256 is
+`79c1633ae58a59028383b2fc26cffa2266587ed68e91756a20e14e3eef786f77`.
+
+Developer runs bind `/usr/bin/caffeinate -dimsu` to the benchmark process lifetime. This prevents
+idle sleep while the process exists; it does not and should not attempt to reverse a manual screen
+lock. Focusless delivery is what makes a locked controller route possible. Active frame measurement
+still requires an unlocked, active display by design.
+
 The save action also established an execution-boundary distinction. Campaign `advance` does not run
 while the pause menu owns the screen, so a save request armed there never fired. Campaign `render`
 continues and safely hosted the one-shot `cmdSave()` call. Each semantic action needs an explicit
@@ -178,4 +204,5 @@ current Java-17-only game. Each matrix row must fail closed on an unknown JVM, g
 hash, method shape, or loader identity.
 
 See the dated [live breakthrough record](evidence/2026-08-26-internal-action-automation.md) for the
-initial Continue proof and native-input failure boundary.
+initial Continue proof and native-input failure boundary. The focusless 1,040-DP route above is the
+retained replacement for coordinate- or activation-dependent combat automation.

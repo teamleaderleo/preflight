@@ -97,8 +97,10 @@ foreground the exact recorded PID. LWJGL can exist as a Unix process before it h
 foregroundable application; attempting activation in that gap is neither a useful readiness probe
 nor a reason to hold the launch for another two minutes.
 
-`campaign-simulation-combat-1000dp.json` keeps the same proven entry route, then replaces the
-deployed ships with mirrored 24-ship fast high-tech fleets through the closed in-game runtime action.
+`campaign-simulation-combat-1000dp.json` keeps the same proven entry route without foregrounding the
+game: named actions use the closed in-game channel and its remaining macOS keystrokes are posted to
+the exact recorded PID. It then replaces the deployed ships with mirrored 24-ship fast high-tech
+fleets through the closed in-game runtime action.
 Each side is 520 DP, so its retained 30-second 2× window is a controlled 1,040-DP combat stress
 workload rather than the stock dialog's fleet-order-biased selection. It remains paused until
 autopilot, command-map, speed, and verified zoom setup are complete, and it never saves the fixture.
