@@ -95,6 +95,8 @@ jobs:
           python3 scripts/test_starsector_campaign_cluster_calls.py
           python3 -m py_compile scripts/starsector_balance_analysis.py
           python3 scripts/test_starsector_balance_analysis.py
+          python3 -m py_compile scripts/fit_combat_scaling.py scripts/test_fit_combat_scaling.py
+          python3 scripts/test_fit_combat_scaling.py
           python3 -m py_compile scripts/desktop_ci_scope.py scripts/test_desktop_ci_scope.py
           python3 scripts/test_desktop_ci_scope.py
           python3 -m py_compile scripts/repository_ci_scope.py scripts/test_repository_ci_scope.py
