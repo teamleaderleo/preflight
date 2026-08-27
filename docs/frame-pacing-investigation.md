@@ -50,6 +50,17 @@ This does **not** prove an 18.26% universal share. The same route has previously
 lower shares, and statistical samples vary with campaign work. It does prove that the already
 optimized wrapper can again become a coherent top leaf and is not a permanently spent area.
 
+### Empty maps dominate the exact-zero event-mod path
+
+The exact-gated empty-map shortcut is now accepted. A profiling-only live run observed 38,352,454
+fast hits and 193,824 delegations. Of the fast hits, 33,350,500 (86.96%) had an empty exact
+`available.flatMods` backing map and now return before the keyed `eMod` lookup. Another 5,001,954
+fast hits had a nonempty map with no `eMod` and retain the exact-key check.
+
+This answers the branch-frequency question and justifies the narrower bytecode shape. It does not
+measure the saved JIT cost or exhaust the broader wrapper. Production builds still omit these
+counters entirely. See [the bounded empty-map record](evidence/2026-08-27-event-mod-empty-map-fast-path.md).
+
 ### The wall-clock "unpaused" step included a second sector pause
 
 Stellar Networks' `MarketUpdater.advance` only performs work when `SectorAPI.isPaused()` is true.
@@ -93,7 +104,7 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
 
 | Area | What prior work established | Why it may still matter | Next falsifiable question |
 | --- | --- | --- | --- |
-| Commodity event mods | Exact SHA-gated memo, mutation-aware slow fingerprint, zero-result fast path, and production counter-call elision are accepted. | The wrapper returned as the largest current CPU leaf. | Are most exact-zero `available.flatMods` maps empty, allowing an exact `isEmpty()` return before keyed lookup, and which instruction dominates after JIT compilation? |
+| Commodity event mods | Exact SHA-gated memo, mutation-aware slow fingerprint, zero-result split, production counter-call elision, and empty-map return are accepted. The empty branch covered 86.96% of live fast hits. | The wrapper returned as the largest current CPU leaf, and 5,001,954 nonempty/no-`eMod` hits still performed the exact-key lookup. | After production JIT compilation, which residual wrapper instruction or caller boundary dominates, and is the nonempty/no-`eMod` subpath worth a safe additional proof? |
 | Stellar Networks refresh | One shuffled pass per paused interval replaces endless random refresh and then becomes idle. | A second pause starts another expensive 186-market burst, which can overlap a nominally unpaused route. | Can invalidation or refresh cadence be bounded by actual campaign-time advancement without making opened market data stale? |
 | RAT tooltip scripts | No Preflight optimization exists; source shows per-frame UI copies and reflection, with a "do not modify twice" UI sentinel in the AI-core path. | The worst exact active frame crossed this code. | Does an identity/content guard remove repeated work without missing a tooltip object reused for a different entry? |
 | Stable campaign snapshots | Stable arrays and exhausted cursor reuse are accepted and bounded. | Current allocation samples still show rebuild/cursor cost and cursor identities outnumber owners. | Which owners rebuild, how often, and can stale cursor entries be removed when an owner receives a replacement array? |
@@ -104,9 +115,9 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
 
 1. **Recurring active-campaign clusters:** identify stacks inside repeated >33.33 ms clusters, not
    just the single worst frame. This best matches perceived jitter.
-2. **Commodity zero-path cost:** add opt-in-only diagnostics or a faithful extracted benchmark that
-   distinguishes empty-map, nonempty-without-`eMod`, and slow-fingerprint traffic. Production must
-   retain zero diagnostic writes.
+2. **Commodity residual cost:** the empty/nonempty/delegated traffic split is now known. Map JIT
+   samples or a faithful extracted benchmark to the remaining nonempty exact-key path, runtime
+   enable gate, and caller boundary. Production must retain zero diagnostic writes.
 3. **RAT tooltip idempotence:** determine whether tooltip identity plus codex-entry identity is a
    sufficient replay guard. Inspect both `WhichModScript` and `AICoreTooltipScript`; optimizing only
    the reflection cache may leave the per-frame copied UI traversal intact.
