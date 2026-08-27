@@ -42,7 +42,7 @@ class HitchEvidenceJoinerTest {
     void specificSemanticBucketWinsOverAllComparableDuplicate() {
         Map<String, Object> gpu = new LinkedHashMap<>();
         gpu.put("requested", true);
-        gpu.put("campaignPausedAfter30Seconds", bucket(44L, 53_000.0, 2_000.0));
+        gpu.put("combatComparable", bucket(44L, 53_000.0, 2_000.0));
         gpu.put("allComparable", bucket(44L, 53_000.0, 30_000.0));
 
         Map<String, Object> joined = HitchEvidenceJoiner.joinGpu(
@@ -51,7 +51,7 @@ class HitchEvidenceJoinerTest {
         Map<String, Object> packet = map(list(hitch.get("packets")).get(0));
         Map<String, Object> frame = map(list(packet.get("frameHistory")).get(0));
 
-        assertEquals("campaignPausedAfter30Seconds", frame.get("gpuJoinSource"));
+        assertEquals("combatComparable", frame.get("gpuJoinSource"));
         assertEquals(2_000.0, frame.get("gpuElapsedMicros"));
     }
 
