@@ -1,0 +1,73 @@
+{
+  "format": "starsector-preflight-recommended-combat-promotion-v1",
+  "date": "2026-08-27",
+  "sourceCommitBeforePromotion": "8a7a51e5",
+  "scenario": "campaign-simulation-combat",
+  "status": "passed",
+  "semanticStepsPassed": 34,
+  "deployment": {
+    "alliedShips": 8,
+    "opposingShips": 25,
+    "simulationSpeed": "1x",
+    "measurementMillis": 60000,
+    "viewportViewMultBefore": 1.25,
+    "viewportViewMultAfter": 4.25
+  },
+  "measurementWindow": {
+    "frames": 3349,
+    "averageFps": 55.34,
+    "medianFps": 59.88,
+    "onePercentLowFps": 18.42,
+    "pointOnePercentLowFps": 8.83,
+    "p95Micros": 27700,
+    "p99Micros": 54300,
+    "stutterBurdenMillisPerSecond": 31.27,
+    "repeatedSlowFramesPercent": 1.82,
+    "longestSlowFrameClusterMillis": 641.96
+  },
+  "listenerSnapshot": {
+    "enabled": true,
+    "installed": true,
+    "emptySnapshots": 12391414,
+    "nonEmptyDelegations": 6867,
+    "nonArrayListDelegations": 0
+  },
+  "collisionQuerySet": {
+    "completedQueries": 1647332,
+    "hintHits": 1647196,
+    "hintMisses": 136,
+    "avoidedGrowths": 379793,
+    "totalGrowths": 165113,
+    "maximumValues": 434
+  },
+  "recommendedProperties": [
+    "preflight.combat.aiTweaksArcCapacity",
+    "preflight.combat.aiTweaksAffineVectors",
+    "preflight.combat.listenerRangeSnapshotArray",
+    "preflight.combat.listenerRangeEmptySnapshot"
+  ],
+  "policy": {
+    "recommendedEnablesByDefault": true,
+    "customPreserved": true,
+    "conservativePreserved": true,
+    "offPreserved": true,
+    "explicitPerPropertyFalsePreserved": true,
+    "bareAgentDefaultPreserved": true,
+    "exactTargetGatesPreserved": true
+  },
+  "verification": {
+    "java": "17",
+    "mavenCommand": "mvn verify",
+    "mavenStatus": "passed",
+    "mavenTotalSeconds": 45.609,
+    "packagedDryRunStatus": "recommended emitted all four properties"
+  },
+  "sha256": {
+    "jfr": "4bd4fd0673002fa6acd88487bdd47328c62ebfac3154054c24ec1acb9d953e40",
+    "frameReport": "628d91fd856a126661153aaabcdab466d18741605ddb68263b2edd95a60be173",
+    "adapterReport": "297ea8f1268c2bb915acbffe2c53bb52f951c765ff90d713527339f96ce56737",
+    "scenarioEvidence": "ffff20f1a5b836ff0fbe34aa4cff2537b911a89217d02905880b4c6c35caf1d6",
+    "screenshot": "80d966c68c8018e6796099a7e7a6e7458e10a63bdec1b266d611a5717261c284"
+  },
+  "claimBoundary": "The ordinary run is a B-only live safety and behavior confirmation, not a new paired FPS claim."
+}

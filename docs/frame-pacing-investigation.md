@@ -49,9 +49,11 @@ thermal state were not locked, so apparent deltas must not be advertised as impr
 
 ### Promote the accepted combat opt-ins, then profile the residual (`07b5921b`)
 
-**Status:** the fresh foreground baseline and one combined-opt-in B run are complete. Both passed
-all 34 semantic steps and exact process shutdown. The bounded pair is recorded in
-[accepted combat opt-ins](evidence/2026-08-27-combat-accepted-optins-pair.md).
+**Status:** the fresh foreground baseline, one combined-opt-in stress B, and one ordinary-fixture B
+are complete. Every run passed all 34 semantic steps and exact process shutdown. The accepted plans
+are now promoted at the Recommended preset boundary. See
+[accepted combat opt-ins](evidence/2026-08-27-combat-accepted-optins-pair.md) and
+[Recommended combat promotion](evidence/2026-08-27-recommended-combat-promotion.md).
 
 The compact-index v3 candidate at `a7ffaf78` passed exact tests and full Java 17 verification, but
 an exact layout check falsified its allocation premise before live launch. With the installed
@@ -67,15 +69,18 @@ hints and avoided 496,928 growths. The combined accepted-opt-in run measured 26.
 8.51 FPS 1% low, 167.54 ms/s stutter burden, and 56.15% recurring exposure. Its listener shortcut
 served 45,881,368 exact empty snapshots with zero non-empty or unknown-list cases.
 
-**Hypothesis:** the already accepted listener and AI Tweaks structural knobs deserve promotion into
-the normal fast path. **Falsifier:** an ordinary-DP or second foreground B observation reverses the
-smoothness direction, an exact transform fails, or live listener telemetry reaches a semantic case
-outside the reviewed empty-list boundary. Do not resurrect collision v3 unless runtime layout
-changes or GC reference scanning becomes a measured dominant cost.
+**Observed:** the ordinary 8-v-25, 1x, 60-second B also passed cleanly. It recorded 55.34 average
+FPS, 18.42 FPS 1% low, 31.27 ms/s stutter burden, and 1.82% recurring exposure. The listener path
+served 12,391,414 empty snapshots and safely delegated all 6,867 non-empty cases to fresh snapshots.
+No unknown list implementation appeared.
 
-**Exact next action:** retain one more B observation only if it changes the promotion decision;
-otherwise make the accepted knobs easy to exercise as a coherent fast-preset candidate, then rank
-the residual exact-window profile. The first residual candidates are ship/weapon-group advance,
+**Falsifier for the promotion:** an exact transform failure, a semantic mismatch in a delegated
+listener case, or a later paired ordinary result showing a repeatable regression. Do not resurrect
+collision v3 unless runtime layout changes or GC reference scanning becomes a measured dominant
+cost.
+
+**Exact next action:** rank the residual Recommended exact-window profile. The first residual
+candidates are ship/weapon-group advance,
 AI Tweaks target selection without the retired field snapshot, GraphicsLib light rendering, and
 combat damage-analysis mods. Prefer a new narrow boundary or a user-visible diagnostic over another
 unsafe rewrite of `SelectTarget`.
@@ -223,7 +228,7 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
 | RAT tooltip scripts | No Preflight optimization exists; source shows per-frame UI copies and reflection, with a "do not modify twice" UI sentinel in the AI-core path. | The worst exact active frame crossed this code. | Does an identity/content guard remove repeated work without missing a tooltip object reused for a different entry? |
 | Stable campaign snapshots | Stable arrays and exhausted cursor reuse are accepted and bounded. | Current allocation samples still show rebuild/cursor cost and cursor identities outnumber owners. | Which owners rebuild, how often, and can stale cursor entries be removed when an owner receives a replacement array? |
 | Paused/unpaused attribution | Frame buckets are state-separated and focus-clean. Repeated clusters now correlate with bounded exact campaign calls and exact scenario steps. This separated seven post-unpause clusters from 15 settled clusters. | Transition work is a broad catch-up burst; the settled route still mixes occasional large spikes with recurring small calls, and retained children explain only part of cluster wall time. | Does the transition ordering repeat, and which individual settled frames align with the 69–90 ms location spikes? |
-| Combat | Deterministic simulation, autopilot, speed-up, zoom, and exact-window reporting are live. Collision v2 hit 99.90% of capacity hints in the fresh default run. One combined accepted-opt-in B run improved average FPS 6.26%, stutter burden 13.27%, and recurring-cluster exposure 9.55 points while serving 45.9 million exact empty listener snapshots. V3 compact indexes remain rejected. | The pair is directional rather than lockstep, the accepted knobs are still opt-in, and residual hitch samples span AI Tweaks, vanilla ship/weapon work, graphics, collision, and damage-analysis mods. Rejecting one representation or retiring one unsafe target does not spend those families. | Does ordinary-DP or a second decision-relevant B observation preserve the combined direction, and which residual boundary is exact, local, and save-safe without touching the retired `SelectTarget` field snapshot? |
+| Combat | Deterministic simulation, autopilot, speed-up, zoom, and exact-window reporting are live. Collision v2 hit 99.90% of capacity hints in the fresh default run. One combined accepted-plan B improved average FPS 6.26%, stutter burden 13.27%, and recurring-cluster exposure 9.55 points while serving 45.9 million exact empty listener snapshots. An ordinary 8-v-25 B exercised 6,867 non-empty fallbacks cleanly. The accepted plans are now in Recommended; v3 compact indexes remain rejected. | The stress pair is directional rather than lockstep, and residual hitch samples span AI Tweaks, vanilla ship/weapon work, graphics, collision, and damage-analysis mods. Rejecting one representation, promoting local wins, or retiring one unsafe target does not spend those families. | Which residual boundary is exact, local, and save-safe without touching the retired `SelectTarget` field snapshot, and does it survive both stress and ordinary confirmation? |
 
 ## Open questions, ranked
 
@@ -240,9 +245,8 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
    interval and which listener events already express real market invalidation.
 5. **Stable snapshot ownership:** instrument rebuilds by transformed loop kind before redesigning
    cursor retention.
-6. **Combat promotion and residual frontier:** the fresh default/combined-opt-in pair is complete.
-   Decide whether to promote the accepted knobs with one decision-relevant ordinary-DP or second B
-   observation, then choose a residual candidate from exact recurring-cluster enrichment. Avoid the
+6. **Combat residual frontier:** the accepted local knobs are promoted after stress and ordinary
+   live gates. Choose a residual candidate from exact recurring-cluster enrichment. Avoid the
    retired AI Tweaks `SelectTarget` field snapshot; the stress workload does not replace ordinary
    play.
 

@@ -166,8 +166,9 @@ happened in that run rather than what another machine should expect.
 
 - **Preparation.** Textures, merged data, generated mod bytecode, and audio are prepared under the
   exact game and ordered-mod profile that produced them.
-- **Launch.** Recommended mode applies reviewed runtime shortcuts inside the child game JVM and
-  tracks which adapters ran, declined, or failed.
+- **Launch.** Recommended mode applies reviewed runtime shortcuts—including exact-gated campaign
+  and combat paper cuts—inside the child game JVM and tracks which adapters ran, declined, or
+  failed.
 - **Benchmark.** The permission-free desktop benchmark compares the same sealed installation and
   profile through Preflight with reviewed optimizations off and on, then retains one versioned result.
 - **Playtime.** A bounded local play-history ledger totals how long Starsector remains open across launches that

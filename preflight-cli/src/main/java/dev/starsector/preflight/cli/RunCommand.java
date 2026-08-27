@@ -164,6 +164,8 @@ final class RunCommand {
                 .adapterPlanScope(options.adapterPlanScope())
                 .build()
                 .appendTo(System.getenv("JAVA_TOOL_OPTIONS"));
+        javaToolOptions = RecommendedCombatPlanPolicy.appendOptions(
+                javaToolOptions, options.optimizationPreset());
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }

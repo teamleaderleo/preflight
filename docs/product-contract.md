@@ -123,7 +123,8 @@ The primary control is a preset, not a wall of bytecode-plan names. The CLI, des
 now carry a typed choice end to end:
 
 - **Recommended (default):** every optimization that passed its live correctness gate; exactly the
-  behavior of `--fast`.
+  behavior of `--fast`. This includes exact-gated combat paper cuts where the installed game and
+  mod bytecode match; an explicit per-plan override still wins.
 - **Conservative:** broadly applicable, immutable-input startup caches only; omit mod-specific and
   gameplay-runtime shortcuts.
 - **Off / troubleshooting:** no adapter transformations and no profiling recorder overhead. The
