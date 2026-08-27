@@ -41,10 +41,35 @@ class FrameTimeRuntimeTest {
         assertEquals(40.0, all.get("framesMeeting60FpsPercent"));
         assertEquals(60.0, all.get("framesMeeting30FpsPercent"));
         assertEquals(3L, all.get("over16_67Millis"));
-        assertEquals(3L, post.get("frames"));
+        assertEquals(2L, post.get("frames"));
         assertEquals(40_000L, post.get("p50Micros"));
         assertEquals(1L, post.get("over50Millis"));
+        assertEquals(1L, telemetry.get("startupTransitionIntervalsExcluded"));
         assertFalse(list(post.get("worstFrames")).isEmpty());
+    }
+
+    @Test
+    void postInteractiveFramesExcludeStartupTitleWorkAndTheCrossingInterval() {
+        FrameTimeRuntime.beginSession(true);
+        FrameTimeRuntime.recordBoundary(1_000_000_000L);
+        FrameTimeRuntime.recordBoundary(2_000_000_000L); // resource loading
+        FrameTimeRuntime.markStartupComplete();
+        FrameTimeRuntime.recordBoundary(8_000_000_000L); // crosses resource completion
+        FrameTimeRuntime.recordBoundary(9_000_000_000L); // title construction
+        FrameTimeRuntime.markMainMenuInteractive();
+        FrameTimeRuntime.recordBoundary(10_000_000_000L); // crosses interactive marker
+        FrameTimeRuntime.recordBoundary(10_016_000_000L); // clean interactive frame
+
+        Map<String, Object> telemetry = FrameTimeRuntime.telemetry();
+        Map<String, Object> postStartup = map(telemetry.get("postStartupActive"));
+        Map<String, Object> postInteractive =
+                map(telemetry.get(FrameTimeTelemetry.POST_INTERACTIVE_ACTIVE));
+        assertEquals(true, telemetry.get("mainMenuInteractive"));
+        assertEquals(3L, postStartup.get("frames"));
+        assertEquals(1L, postInteractive.get("frames"));
+        assertEquals(16_000L, postInteractive.get("maximumMicros"));
+        assertEquals(1L, telemetry.get("startupTransitionIntervalsExcluded"));
+        assertEquals(1L, telemetry.get("interactiveTransitionIntervalsExcluded"));
     }
 
     @Test

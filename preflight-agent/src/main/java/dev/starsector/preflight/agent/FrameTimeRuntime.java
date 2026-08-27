@@ -31,11 +31,16 @@ public final class FrameTimeRuntime {
     private static volatile int observedCampaignPause;
     private static boolean installed;
     private static boolean startupComplete;
+    private static boolean startupTransitionPending;
+    private static boolean mainMenuInteractive;
+    private static boolean interactiveTransitionPending;
     private static long boundaries;
     private static volatile long focusObservations;
     private static long inactiveIntervals;
     private static long invalidIntervals;
     private static long stateTransitionIntervals;
+    private static long startupTransitionIntervals;
+    private static long interactiveTransitionIntervals;
     private static long campaignPauseTransitionIntervals;
     private static long campaignPauseUnknownIntervals;
     private static long measurementSamples;
@@ -59,6 +64,7 @@ public final class FrameTimeRuntime {
     private static long messagesCompletedNanos = Long.MIN_VALUE;
     private static final Distribution allActive = new Distribution();
     private static final Distribution postStartupActive = new Distribution();
+    private static final Distribution postInteractiveActive = new Distribution();
     private static final Distribution campaignActive = new Distribution();
     private static final Distribution campaignFirst30SecondsActive = new Distribution();
     private static final Distribution campaignAfter30SecondsActive = new Distribution();
@@ -85,11 +91,16 @@ public final class FrameTimeRuntime {
         smoothFramePacing = smoothRequested;
         installed = false;
         startupComplete = false;
+        startupTransitionPending = false;
+        mainMenuInteractive = false;
+        interactiveTransitionPending = false;
         boundaries = 0L;
         focusObservations = 0L;
         inactiveIntervals = 0L;
         invalidIntervals = 0L;
         stateTransitionIntervals = 0L;
+        startupTransitionIntervals = 0L;
+        interactiveTransitionIntervals = 0L;
         campaignPauseTransitionIntervals = 0L;
         campaignPauseUnknownIntervals = 0L;
         measurementSamples = 0L;
@@ -114,6 +125,7 @@ public final class FrameTimeRuntime {
         observedCampaignPause = PAUSE_UNKNOWN;
         allActive.reset();
         postStartupActive.reset();
+        postInteractiveActive.reset();
         campaignActive.reset();
         campaignFirst30SecondsActive.reset();
         campaignAfter30SecondsActive.reset();
@@ -246,11 +258,22 @@ public final class FrameTimeRuntime {
 
     /** Called from an exact transformed game class when resource initialization returns. */
     public static synchronized void markStartupComplete() {
-        if (enabled) startupComplete = true;
+        if (enabled && !startupComplete) {
+            startupComplete = true;
+            startupTransitionPending = true;
+        }
         RuntimeSemanticState.mainMenuReady();
         LoadJsonMemoRuntime.markStartupComplete();
         MergedReadCacheRuntime.complete();
         RuleTokenCacheRuntime.complete();
+    }
+
+    /** Called when the title screen removes its final preloading label and accepts input. */
+    public static synchronized void markMainMenuInteractive() {
+        if (enabled && !mainMenuInteractive) {
+            mainMenuInteractive = true;
+            interactiveTransitionPending = true;
+        }
     }
 
     static synchronized void recordBoundary(long now) {
@@ -272,10 +295,16 @@ public final class FrameTimeRuntime {
             lastBoundaryActive = active;
             lastBoundaryState = state;
             lastBoundaryCampaignPause = campaignPause;
+            startupTransitionPending = false;
+            interactiveTransitionPending = false;
             resetDisplayPhaseTimestamps();
             return;
         }
 
+        boolean crossedStartupCompletion = startupTransitionPending;
+        boolean crossedMainMenuInteractive = interactiveTransitionPending;
+        startupTransitionPending = false;
+        interactiveTransitionPending = false;
         long previousBoundaryNanos = lastBoundaryNanos;
         long duration = now - previousBoundaryNanos;
         lastBoundaryNanos = now;
@@ -299,7 +328,14 @@ public final class FrameTimeRuntime {
         long endOffset = now - firstBoundaryNanos;
         allActive.record(duration, endOffset);
         allActivePhases.record(duration, previousBoundaryNanos, now, endOffset);
-        if (startupComplete) postStartupActive.record(duration, endOffset);
+        if (startupComplete) {
+            if (crossedStartupCompletion) startupTransitionIntervals++;
+            else postStartupActive.record(duration, endOffset);
+        }
+        if (mainMenuInteractive) {
+            if (crossedMainMenuInteractive) interactiveTransitionIntervals++;
+            else postInteractiveActive.record(duration, endOffset);
+        }
         if (state == STATE_CAMPAIGN && firstCampaignBoundaryNanos == Long.MIN_VALUE) {
             firstCampaignBoundaryNanos = now;
         }
@@ -352,11 +388,14 @@ public final class FrameTimeRuntime {
         result.put(FrameTimeTelemetry.ENABLED, enabled);
         result.put("installed", installed);
         result.put("startupComplete", startupComplete);
+        result.put("mainMenuInteractive", mainMenuInteractive);
         result.put("boundaries", boundaries);
         result.put("focusObservations", focusObservations);
         result.put("inactiveIntervalsDropped", inactiveIntervals);
         result.put("invalidIntervalsDropped", invalidIntervals);
         result.put("stateTransitionIntervalsDropped", stateTransitionIntervals);
+        result.put("startupTransitionIntervalsExcluded", startupTransitionIntervals);
+        result.put("interactiveTransitionIntervalsExcluded", interactiveTransitionIntervals);
         result.put("campaignPauseTransitionIntervalsExcluded", campaignPauseTransitionIntervals);
         result.put("campaignPauseUnknownIntervalsExcluded", campaignPauseUnknownIntervals);
         Map<String, Object> presentationPolicy = new LinkedHashMap<>();
@@ -389,6 +428,8 @@ public final class FrameTimeRuntime {
                 HISTOGRAM_REGULAR_BINS * HISTOGRAM_BIN_NANOS / 1_000L);
         result.put("allActive", allActive.toMap(firstBoundaryEpochMillis));
         result.put("postStartupActive", postStartupActive.toMap(firstBoundaryEpochMillis));
+        result.put(FrameTimeTelemetry.POST_INTERACTIVE_ACTIVE,
+                postInteractiveActive.toMap(firstBoundaryEpochMillis));
         result.put(FrameTimeTelemetry.CAMPAIGN_ACTIVE, campaignActive.toMap(firstBoundaryEpochMillis));
         result.put(FrameTimeTelemetry.CAMPAIGN_FIRST_30_SECONDS_ACTIVE,
                 campaignFirst30SecondsActive.toMap(firstBoundaryEpochMillis));

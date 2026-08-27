@@ -109,6 +109,35 @@ def scenario_step_windows(recording, step_names, evidence_path=None):
     return windows
 
 
+def frame_report_windows(report_path, series_names):
+    """Return the wall-clock extent of the worst frame in each requested report series."""
+    try:
+        with open(report_path, encoding="utf-8") as source:
+            report = json.load(source)
+    except (OSError, ValueError) as error:
+        raise SystemExit(f"could not read runtime frame report {report_path}: {error}") from error
+    frame_times = report.get("frameTimes") or {}
+    windows = []
+    for name in series_names:
+        series = frame_times.get(name)
+        worst = (series or {}).get("worstFrames") or []
+        frame = worst[0] if worst else None
+        duration_micros = (frame or {}).get("durationMicros")
+        end_epoch_millis = (frame or {}).get("endEpochMillis")
+        if (not isinstance(duration_micros, (int, float)) or duration_micros <= 0
+                or not isinstance(end_epoch_millis, (int, float))):
+            available = ", ".join(sorted(
+                key for key, value in frame_times.items()
+                if isinstance(value, dict) and value.get("worstFrames")))
+            raise SystemExit(
+                f"frame series {name!r} has no usable worst frame in {report_path}; "
+                f"available: {available}")
+        end = end_epoch_millis / 1000.0
+        start = end - duration_micros / 1_000_000.0
+        windows.append((f"worst frame {name}", start, end))
+    return windows
+
+
 def events_in_window(sampled, start, end):
     selected = []
     for event in sampled:
@@ -226,7 +255,7 @@ def report_allocation_state(name, samples, top, contains=None):
             print(f"    {format_bytes(weight):>12}  {weight / denominator * 100:5.2f}%  {method}")
 
 
-def report_execution_events(sampled, top=30, contains=None):
+def report_execution_events(sampled, top=30, contains=None, include_other=False):
     states = collections.defaultdict(list)
     for event in sampled:
         if thread_of(event) != "main":
@@ -236,30 +265,48 @@ def report_execution_events(sampled, top=30, contains=None):
 
     print("classification: " + ", ".join(
         f"{name}={len(states[name])}" for name in ("campaign", "combat", "other")))
-    for name in ("campaign", "combat"):
+    names = ("campaign", "combat", "other") if include_other else ("campaign", "combat")
+    for name in names:
         if states[name]:
             report_state(name, states[name], top, contains=contains)
 
 
-def report(path, top=30, depth=96, contains=None, steps=None, evidence_path=None):
+def selected_wall_windows(path, steps=None, evidence_path=None,
+                          frame_report=None, frame_series=None):
+    windows = scenario_step_windows(
+        path, steps, evidence_path=evidence_path) if steps else []
+    requested_series = frame_series or (["allActive"] if frame_report else [])
+    if requested_series and not frame_report:
+        raise SystemExit("--frame-series requires --frame-report")
+    if frame_report:
+        windows.extend(frame_report_windows(frame_report, requested_series))
+    return windows
+
+
+def report(path, top=30, depth=96, contains=None, steps=None, evidence_path=None,
+           frame_report=None, frame_series=None, include_other=False):
     jfr = _jfr_binary()
     sampled = events(path, ["jdk.ExecutionSample"], depth=depth, jfr=jfr)
     print(f"recording: {path}")
     print("interpretation: percentages are shares of observed ExecutionSample events")
-    if not steps:
-        report_execution_events(sampled, top=top, contains=contains)
+    wall_windows = selected_wall_windows(
+        path, steps=steps, evidence_path=evidence_path,
+        frame_report=frame_report, frame_series=frame_series)
+    if not wall_windows:
+        report_execution_events(
+            sampled, top=top, contains=contains, include_other=include_other)
         return
-    wall_windows = scenario_step_windows(path, steps, evidence_path=evidence_path)
     windows, factor = recording_clock_windows(path, wall_windows, jfr)
     print(f"recording-clock calibration: {factor:.3f}x wall time per recorded second")
     for (name, wall_start, wall_end), (_mapped_name, start, end) in zip(wall_windows, windows):
         selected = events_in_window(sampled, start, end)
-        print(f"\nscenario step {name}: {wall_end - wall_start:.3f}s wall, "
+        print(f"\nwindow {name}: {wall_end - wall_start:.3f}s wall, "
               f"{end - start:.3f}s recorded, {len(selected)} execution samples")
-        report_execution_events(selected, top=top, contains=contains)
+        report_execution_events(
+            selected, top=top, contains=contains, include_other=include_other)
 
 
-def report_allocation_events(sampled, top=30, contains=None):
+def report_allocation_events(sampled, top=30, contains=None, include_other=False):
     states = collections.defaultdict(list)
     for event in sampled:
         if thread_of(event) != "main":
@@ -270,27 +317,33 @@ def report_allocation_events(sampled, top=30, contains=None):
 
     print("classification: " + ", ".join(
         f"{name}={len(states[name])}" for name in ("campaign", "combat", "other")))
-    for name in ("campaign", "combat"):
+    names = ("campaign", "combat", "other") if include_other else ("campaign", "combat")
+    for name in names:
         if states[name]:
             report_allocation_state(name, states[name], top, contains=contains)
 
 
-def report_allocations(path, top=30, depth=96, contains=None, steps=None, evidence_path=None):
+def report_allocations(path, top=30, depth=96, contains=None, steps=None, evidence_path=None,
+                       frame_report=None, frame_series=None, include_other=False):
     jfr = _jfr_binary()
     sampled = events(path, ["jdk.ObjectAllocationSample"], depth=depth, jfr=jfr)
     print(f"recording: {path}")
     print("interpretation: bytes are JFR ObjectAllocationSample weights, not an exact allocation census")
-    if not steps:
-        report_allocation_events(sampled, top=top, contains=contains)
+    wall_windows = selected_wall_windows(
+        path, steps=steps, evidence_path=evidence_path,
+        frame_report=frame_report, frame_series=frame_series)
+    if not wall_windows:
+        report_allocation_events(
+            sampled, top=top, contains=contains, include_other=include_other)
         return
-    wall_windows = scenario_step_windows(path, steps, evidence_path=evidence_path)
     windows, factor = recording_clock_windows(path, wall_windows, jfr)
     print(f"recording-clock calibration: {factor:.3f}x wall time per recorded second")
     for (name, wall_start, wall_end), (_mapped_name, start, end) in zip(wall_windows, windows):
         selected = events_in_window(sampled, start, end)
-        print(f"\nscenario step {name}: {wall_end - wall_start:.3f}s wall, "
+        print(f"\nwindow {name}: {wall_end - wall_start:.3f}s wall, "
               f"{end - start:.3f}s recorded, {len(selected)} allocation samples")
-        report_allocation_events(selected, top=top, contains=contains)
+        report_allocation_events(
+            selected, top=top, contains=contains, include_other=include_other)
 
 
 def main():
@@ -305,15 +358,26 @@ def main():
                         help="limit the ranking to a scenario step; may be repeated")
     parser.add_argument("--scenario-evidence",
                         help="smoke-evidence.json path (defaults beside the recording)")
+    parser.add_argument("--frame-report",
+                        help="runtime-frame-report.json containing exact stalled-frame times")
+    parser.add_argument("--frame-series", action="append", default=[],
+                        help="rank the worst frame in this report series; may be repeated; "
+                             "defaults to allActive")
+    parser.add_argument("--include-other", action="store_true",
+                        help="also rank startup, menu, and unclassified main-thread stacks")
     args = parser.parse_args()
     if args.allocations:
         report_allocations(
             args.recording, top=args.top, depth=args.depth, contains=args.contains,
-            steps=args.step, evidence_path=args.scenario_evidence)
+            steps=args.step, evidence_path=args.scenario_evidence,
+            frame_report=args.frame_report, frame_series=args.frame_series,
+            include_other=args.include_other)
     else:
         report(
             args.recording, top=args.top, depth=args.depth, contains=args.contains,
-            steps=args.step, evidence_path=args.scenario_evidence)
+            steps=args.step, evidence_path=args.scenario_evidence,
+            frame_report=args.frame_report, frame_series=args.frame_series,
+            include_other=args.include_other)
 
 
 if __name__ == "__main__":

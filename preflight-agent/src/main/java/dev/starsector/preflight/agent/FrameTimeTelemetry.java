@@ -5,6 +5,7 @@ public final class FrameTimeTelemetry {
     public static final String FRAME_REPORT_FORMAT = "starsector-preflight-runtime-frame-report-v1";
     public static final String REPORT = "frameTimes";
     public static final String ENABLED = "enabled";
+    public static final String POST_INTERACTIVE_ACTIVE = "postInteractiveActive";
     public static final String CAMPAIGN_ACTIVE = "campaignActive";
     public static final String CAMPAIGN_FIRST_30_SECONDS_ACTIVE = "campaignFirst30SecondsActive";
     public static final String CAMPAIGN_AFTER_30_SECONDS_ACTIVE = "campaignAfter30SecondsActive";

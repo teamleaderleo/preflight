@@ -75,11 +75,14 @@ public final class RuntimeSemanticState {
         transition(MAIN_MENU);
     }
 
-    public static synchronized void mainMenuInteractive() {
-        if (!enabled || mainMenuInteractiveAt != null) return;
-        mainMenuInteractiveAt = Instant.now();
-        interactiveTitleOwnsState = true;
-        transition(MAIN_MENU_INTERACTIVE);
+    public static void mainMenuInteractive() {
+        synchronized (RuntimeSemanticState.class) {
+            if (!enabled || mainMenuInteractiveAt != null) return;
+            mainMenuInteractiveAt = Instant.now();
+            interactiveTitleOwnsState = true;
+            transition(MAIN_MENU_INTERACTIVE);
+        }
+        FrameTimeRuntime.markMainMenuInteractive();
     }
 
     public static synchronized void campaignReady() {

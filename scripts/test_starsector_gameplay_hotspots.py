@@ -1,6 +1,9 @@
 import contextlib
 import io
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 import starsector_gameplay_hotspots as module
 
@@ -54,6 +57,20 @@ class GameplayHotspotTest(unittest.TestCase):
             self.assertNotIn("mod.Worker.work", rendered)
         finally:
             module.events = original_events
+            module.thread_of = original_thread
+
+    def test_execution_report_can_include_startup_and_unclassified_stacks(self):
+        stacks = [event("main", "mod.Startup.work", "game.Loader.run")]
+        original_thread = module.thread_of
+        try:
+            module.thread_of = lambda value: value["values"]["sampledThread"]["javaName"]
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                module.report_execution_events(stacks, top=5, include_other=True)
+            rendered = output.getvalue()
+            self.assertIn("other: 1 main-thread execution samples", rendered)
+            self.assertIn("mod.Startup.work", rendered)
+        finally:
             module.thread_of = original_thread
 
     def test_allocation_report_attributes_jdk_leaf_to_first_game_owner(self):
@@ -160,6 +177,34 @@ class GameplayHotspotTest(unittest.TestCase):
             module.events = original_events
             module.clock_factor = original_clock_factor
 
+    def test_frame_report_window_uses_exact_worst_frame_extent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "runtime-frame-report.json"
+            report.write_text(json.dumps({
+                "frameTimes": {
+                    "allActive": {
+                        "worstFrames": [{
+                            "durationMicros": 6_155_433,
+                            "endEpochMillis": 1_787_753_239_949,
+                        }],
+                    },
+                },
+            }), encoding="utf-8")
+            windows = module.frame_report_windows(report, ["allActive"])
+            self.assertEqual("worst frame allActive", windows[0][0])
+            self.assertAlmostEqual(1_787_753_233.793567, windows[0][1], places=6)
+            self.assertAlmostEqual(1_787_753_239.949, windows[0][2], places=6)
+
+    def test_frame_report_defaults_to_all_active(self):
+        original_frame_windows = module.frame_report_windows
+        try:
+            calls = []
+            module.frame_report_windows = lambda path, names: calls.append((path, names)) or []
+            module.selected_wall_windows("fixture.jfr", frame_report="frames.json")
+            self.assertEqual([("frames.json", ["allActive"])], calls)
+        finally:
+            module.frame_report_windows = original_frame_windows
+
     def test_execution_report_can_select_a_scenario_step(self):
         original_events = module.events
         original_thread = module.thread_of
@@ -185,7 +230,7 @@ class GameplayHotspotTest(unittest.TestCase):
             with contextlib.redirect_stdout(output):
                 module.report("fixture.jfr", top=5, steps=["combat"])
             rendered = output.getvalue()
-            self.assertIn("scenario step combat", rendered)
+            self.assertIn("window combat", rendered)
             self.assertIn("1 execution samples", rendered)
             self.assertIn("mod.Combat.work", rendered)
             self.assertNotIn("mod.Startup.work", rendered)

@@ -294,6 +294,15 @@ the 60-FPS budget; 96.32 percent met 30 FPS. That sample also included title-dem
 campaign-warm-up frames. Later reports split those phases. The metric contract is in
 [the FPS report](evidence/2026-08-05-frame-time-fps-reporting.md).
 
+A later exact-window audit separated a repeatable roughly 6.1-second startup presentation gap from
+gameplay. It was synchronous pre-swap resource/title initialization, but the legacy
+`postStartupActive` bucket included the crossing frame because its marker fired inside that frame.
+Telemetry now excludes marker-crossing intervals and adds `postInteractiveActive`, beginning only
+after the title screen removes its final preloading label. Startup stall severity, time to
+interactive, and gameplay/combat frame pacing are consequently reported as separate quantities.
+The attribution and boundary contract are in
+[the startup-hitch audit](evidence/2026-08-27-startup-hitch-boundary.md).
+
 A later paused-campaign phase probe separated pre-swap work, native buffer swap, and message
 processing. Native swap was the largest phase in 33 of the control's 41 frames beyond 33.33
 milliseconds. Two explicit vsync-off candidates kept Starsector's own 60-FPS limiter and measured

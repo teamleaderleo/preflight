@@ -17,6 +17,17 @@ final class RuntimeSemanticStateTest {
     @AfterEach
     void reset() {
         RuntimeSemanticState.reset();
+        FrameTimeRuntime.reset();
+    }
+
+    @Test
+    void interactiveTransitionAlsoMarksTheFrameTelemetryBoundary() throws Exception {
+        FrameTimeRuntime.beginSession(true);
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+
+        RuntimeSemanticState.mainMenuInteractive();
+
+        assertEquals(true, FrameTimeRuntime.telemetry().get("mainMenuInteractive"));
     }
 
     @Test
