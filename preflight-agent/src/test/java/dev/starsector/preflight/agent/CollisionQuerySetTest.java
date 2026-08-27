@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.ConcurrentModificationException;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -137,6 +138,48 @@ class CollisionQuerySetTest {
     }
 
     @Test
+    void retainsInsertionHashesAcrossMutableKeyGrowthLikeLinkedHashSet() {
+        MutableHash value = new MutableHash(7);
+        LinkedHashSet<Object> expected = new LinkedHashSet<>();
+        CollisionQuerySet actual = new CollisionQuerySet();
+        assertTrue(expected.add(value));
+        assertTrue(actual.add(value));
+
+        value.hash = 19;
+        assertEquals(expected.contains(value), actual.contains(value));
+        assertEquals(expected.add(value), actual.add(value));
+        for (int index = 0; index < 100; index++) {
+            assertEquals(expected.add(index), actual.add(index));
+        }
+        assertEquals(new ArrayList<>(expected), toList(actual));
+    }
+
+    @Test
+    void storesCandidatesOnceAndUsesPrimitiveHashSlots() throws IllegalAccessException {
+        long objectArrays = Arrays.stream(CollisionQuerySet.class.getDeclaredFields())
+                .filter(field -> field.getType() == Object[].class)
+                .count();
+        long integerArrays = Arrays.stream(CollisionQuerySet.class.getDeclaredFields())
+                .filter(field -> field.getType() == int[].class)
+                .count();
+        assertEquals(1L, objectArrays);
+        assertEquals(2L, integerArrays);
+
+        Object candidate = new Object();
+        CollisionQuerySet values = new CollisionQuerySet();
+        values.add(candidate);
+        long references = 0L;
+        for (var field : CollisionQuerySet.class.getDeclaredFields()) {
+            if (field.getType() != Object[].class) continue;
+            field.setAccessible(true);
+            for (Object value : (Object[]) field.get(values)) {
+                if (value == candidate) references++;
+            }
+        }
+        assertEquals(1L, references);
+    }
+
+    @Test
     void repeatedIteratorsAreIndependentAndMutationIsFailFast() {
         CollisionQuerySet values = new CollisionQuerySet();
         values.add("first");
@@ -176,6 +219,19 @@ class CollisionQuerySetTest {
         @Override
         public int hashCode() {
             return 7;
+        }
+    }
+
+    private static final class MutableHash {
+        private int hash;
+
+        private MutableHash(int hash) {
+            this.hash = hash;
+        }
+
+        @Override
+        public int hashCode() {
+            return hash;
         }
     }
 }

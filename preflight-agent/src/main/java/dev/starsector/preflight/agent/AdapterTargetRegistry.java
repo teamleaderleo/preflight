@@ -980,7 +980,7 @@ final class AdapterTargetRegistry {
     /** Exact vanilla collision-grid query that builds a temporary insertion-ordered candidate set. */
     static AdapterTarget collisionQuerySetTarget() {
         return new AdapterTarget(
-                "vanilla-collision-query-open-set-0.98a-rc8",
+                "vanilla-collision-query-open-set-v3-0.98a-rc8",
                 CollisionQuerySetPlan.TARGET_CLASS,
                 CollisionQuerySetPlan.ORIGINAL_SHA256,
                 CollisionQuerySetPlan.PLAN_ID,

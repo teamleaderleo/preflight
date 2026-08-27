@@ -12,7 +12,7 @@ import org.objectweb.asm.tree.VarInsnNode;
 
 /** Replaces one exact collision-query LinkedHashSet with its node-free ordered equivalent. */
 final class CollisionQuerySetPlan {
-    static final String PLAN_ID = "collision-query-open-set-v2";
+    static final String PLAN_ID = "collision-query-open-set-v3";
     static final String TARGET_CLASS = "com/fs/starfarer/combat/o0OO/G$o";
     static final String ORIGINAL_SHA256 =
             "fd932939e0a61ebf73e56e48e06e66b18dcb311ca6a355a274a1df974173dd28";
