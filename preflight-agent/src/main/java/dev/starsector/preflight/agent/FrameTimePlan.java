@@ -22,6 +22,8 @@ final class FrameTimePlan {
 
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/FrameTimeRuntime";
+    private static final String CPU_RUNTIME =
+            "dev/starsector/preflight/agent/FrameCpuTimeRuntime";
     private static final String PACING_RUNTIME =
             "dev/starsector/preflight/agent/FramePacingRuntime";
 
@@ -50,8 +52,10 @@ final class FrameTimePlan {
                 || calls(update, RUNTIME, "displayUpdateStart") != 0
                 || calls(update, RUNTIME, "swapBuffersStart") != 0
                 || calls(update, RUNTIME, "swapBuffersEnd") != 0
+                || calls(update, CPU_RUNTIME, "boundary") != 0
                 || calls(update, RUNTIME, "boundary") != 0
                 || calls(update, PACING_RUNTIME, "awaitNextFrame") != 0
+                || calls(active, CPU_RUNTIME, "observeActive") != 0
                 || calls(active, RUNTIME, "observeActive") != 0) {
             return null;
         }
@@ -76,7 +80,10 @@ final class FrameTimePlan {
                 Opcodes.INVOKESTATIC, RUNTIME, "swapBuffersEnd", "()V", false));
         update.instructions.insert(swapBuffers, swapEnd);
 
+        FrameCpuTimeRuntime.beginSession(true);
         InsnList boundary = new InsnList();
+        boundary.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, CPU_RUNTIME, "boundary", "()V", false));
         boundary.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "boundary", "()V", false));
         update.instructions.insertBefore(updateReturn, boundary);
@@ -89,6 +96,9 @@ final class FrameTimePlan {
         }
 
         InsnList focus = new InsnList();
+        focus.add(new InsnNode(Opcodes.DUP));
+        focus.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, CPU_RUNTIME, "observeActive", "(Z)V", false));
         focus.add(new InsnNode(Opcodes.DUP));
         focus.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "observeActive", "(Z)V", false));
