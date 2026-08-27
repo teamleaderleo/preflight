@@ -159,9 +159,9 @@ class CommodityEventModMemoInstalledAdapterIT {
         byte[] executable = withTestExercise(transformed);
         ListWithArchive classpath = gameClasspath(archive);
 
-        // Deliberately omit MutableStatDirtyAccessorPlan's transformed class. The first call authors
-        // and records vanilla state. The second call sees the missing fast-path accessor, catches
-        // LinkageError, permanently disables the memo, and delegates through vanilla again.
+        // Deliberately omit MutableStatDirtyAccessorPlan's transformed class. The first call runs
+        // vanilla, sees the missing direct accessor while recording the post-state, catches
+        // LinkageError, and permanently disables the memo. The second call runs vanilla directly.
         try (InstalledLoader loader = new InstalledLoader(
                 classpath.urls(), Map.of(
                         CommodityEventModMemoPlan.TARGET_CLASS.replace('/', '.'), executable,
@@ -188,7 +188,7 @@ class CommodityEventModMemoInstalledAdapterIT {
                     statConstructor.newInstance(0f),
                     commoditySpecType.getConstructor(float.class).newInstance(1f));
             assertEquals(0L, CommodityEventModMemoRuntime.telemetry().get("hits"));
-            assertEquals(2L, CommodityEventModMemoRuntime.telemetry().get("delegated"));
+            assertEquals(1L, CommodityEventModMemoRuntime.telemetry().get("delegated"));
             assertEquals(1L,
                     CommodityEventModMemoRuntime.telemetry().get("fastValidationUnavailable"));
             assertEquals(false, CommodityEventModMemoRuntime.telemetry().get("enabled"));

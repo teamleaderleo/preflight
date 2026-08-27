@@ -77,7 +77,7 @@ public final class CommodityEventModMemoRuntime {
         values.put("enabled", enabled());
         values.put("telemetryEnabled", telemetryEnabled);
         values.put("validationStrategy",
-                "split-exact-zero-empty-map-fast-path-with-complete-slow-fingerprint");
+                "split-exact-zero-empty-map-fast-path-with-direct-backed-slow-fingerprint");
         values.put("hits", hits);
         values.put("zeroQuantityHits", zeroQuantityHits);
         values.put("zeroQuantityEmptyMapHits", zeroQuantityEmptyMapHits);

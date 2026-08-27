@@ -76,11 +76,12 @@ class CommodityEventModMemoPlanTest {
         assertEquals(1, calls(slow, MUTABLE_TEMP, "getModifiedValue"));
         assertEquals(4, calls(slow, "com/fs/starfarer/api/combat/MutableStat",
                 MutableStatDirtyAccessorPlan.ACCESSOR));
-        assertEquals(1, calls(slow, "com/fs/starfarer/api/combat/MutableStat",
+        assertEquals(2, calls(slow, "com/fs/starfarer/api/combat/MutableStat",
                 MutableStatDirtyAccessorPlan.FLAT_MODS_ACCESSOR));
-        assertEquals(1, calls(slow, "java/util/LinkedHashMap", "get"));
-        assertEquals(1, calls(slow, RUNTIME, "fastValidationUnavailable"));
-        assertEquals(1, slow.tryCatchBlocks.stream()
+        assertEquals(2, calls(slow, "java/util/LinkedHashMap", "get"));
+        assertEquals(0, calls(slow, "com/fs/starfarer/api/combat/MutableStat", "getFlatStatMod"));
+        assertEquals(2, calls(slow, RUNTIME, "fastValidationUnavailable"));
+        assertEquals(2, slow.tryCatchBlocks.stream()
                 .filter(block -> "java/lang/LinkageError".equals(block.type)).count());
 
         List<FieldNode> memoFields = owner.fields.stream()
@@ -122,7 +123,7 @@ class CommodityEventModMemoPlanTest {
         assertEquals(1L,
                 CommodityEventModMemoRuntime.telemetry().get("zeroQuantityEmptyMapHits"));
         assertEquals(1L, CommodityEventModMemoRuntime.telemetry().get("delegated"));
-        assertEquals("split-exact-zero-empty-map-fast-path-with-complete-slow-fingerprint",
+        assertEquals("split-exact-zero-empty-map-fast-path-with-direct-backed-slow-fingerprint",
                 CommodityEventModMemoRuntime.telemetry().get("validationStrategy"));
         CommodityEventModMemoRuntime.fastValidationUnavailable();
         assertFalse(CommodityEventModMemoRuntime.enabled());
