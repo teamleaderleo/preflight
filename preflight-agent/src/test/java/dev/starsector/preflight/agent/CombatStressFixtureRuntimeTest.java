@@ -2,6 +2,7 @@ package dev.starsector.preflight.agent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,5 +40,18 @@ final class CombatStressFixtureRuntimeTest {
         assertEquals("symmetric-fast-high-tech-1040dp-v1",
                 CombatStressFixtureRuntime.RECIPE_ID);
         assertFalse((Boolean) CombatStressFixtureRuntime.telemetry().get("attempted"));
+    }
+
+    @Test
+    void publicApiMethodRemainsInvocableOnNonPublicImplementation() throws Exception {
+        List<Object> receiver = List.of();
+
+        var method = CombatStressFixtureRuntime.exactApi(
+                List.class, receiver, "size", int.class);
+
+        assertEquals(List.class, method.getDeclaringClass());
+        assertEquals(0, method.invoke(receiver));
+        assertThrows(NoSuchMethodException.class, () -> CombatStressFixtureRuntime.exactApi(
+                Map.class, receiver, "size", int.class));
     }
 }

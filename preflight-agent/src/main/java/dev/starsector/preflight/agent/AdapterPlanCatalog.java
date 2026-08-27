@@ -24,6 +24,7 @@ final class AdapterPlanCatalog {
             CampaignMarketFleetTimeRuntime.PLAN_ID,
             CodexLazyFleetMemberRuntime.PLAN_ID,
             CombatRuntimeIntegrityRuntime.PLAN_ID,
+            CollisionQuerySetPlan.PLAN_ID,
             ContrailRenderScratchRuntime.PLAN_ID,
             CommodityEventModMemoRuntime.PLAN_ID,
             DeploymentIconCacheRuntime.PLAN_ID,

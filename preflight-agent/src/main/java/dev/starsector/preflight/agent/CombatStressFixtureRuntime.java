@@ -2,6 +2,7 @@ package dev.starsector.preflight.agent;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -14,6 +15,11 @@ final class CombatStressFixtureRuntime {
     static final int SHIPS_PER_SIDE = 24;
     static final float MINIMUM_DP_PER_SIDE = 500f;
     private static final String GLOBAL = "com.fs.starfarer.api.Global";
+    private static final String SETTINGS_API = "com.fs.starfarer.api.SettingsAPI";
+    private static final String COMBAT_ENGINE_API =
+            "com.fs.starfarer.api.combat.CombatEngineAPI";
+    private static final String COMBAT_FLEET_MANAGER_API =
+            "com.fs.starfarer.api.combat.CombatFleetManagerAPI";
     private static final String SHIP_API = "com.fs.starfarer.api.combat.ShipAPI";
     private static final String FLEET_MEMBER_API = "com.fs.starfarer.api.fleet.FleetMemberAPI";
     private static final String VECTOR = "org.lwjgl.util.vector.Vector2f";
@@ -72,17 +78,22 @@ final class CombatStressFixtureRuntime {
             Class<?> shipApi = Class.forName(SHIP_API, false, loader);
             Class<?> fleetMemberApi = Class.forName(FLEET_MEMBER_API, false, loader);
             Class<?> vector = Class.forName(VECTOR, false, loader);
-            Method isSimulation = exact(engine.getClass(), "isSimulation", boolean.class);
-            Method isPaused = exact(engine.getClass(), "isPaused", boolean.class);
-            setPaused = exact(engine.getClass(), "setPaused", void.class, boolean.class);
-            setDoNotEnd = exact(
-                    engine.getClass(), "setDoNotEndCombat", void.class, boolean.class);
-            Method getFleetManager = exact(
-                    engine.getClass(), "getFleetManager", Object.class, int.class);
-            Method setPlayerShip = exact(
-                    engine.getClass(), "setPlayerShipExternal", void.class, shipApi);
-            Method getMapWidth = exact(engine.getClass(), "getMapWidth", float.class);
-            Method getMapHeight = exact(engine.getClass(), "getMapHeight", float.class);
+            Class<?> engineApi = Class.forName(COMBAT_ENGINE_API, false, loader);
+            Method isSimulation = exactApi(
+                    engineApi, engine, "isSimulation", boolean.class);
+            Method isPaused = exactApi(engineApi, engine, "isPaused", boolean.class);
+            setPaused = exactApi(
+                    engineApi, engine, "setPaused", void.class, boolean.class);
+            setDoNotEnd = exactApi(
+                    engineApi, engine, "setDoNotEndCombat", void.class, boolean.class);
+            Method getFleetManager = exactApi(
+                    engineApi, engine, "getFleetManager", Object.class, int.class);
+            Method setPlayerShip = exactApi(
+                    engineApi, engine, "setPlayerShipExternal", void.class, shipApi);
+            Method getMapWidth = exactApi(
+                    engineApi, engine, "getMapWidth", float.class);
+            Method getMapHeight = exactApi(
+                    engineApi, engine, "getMapHeight", float.class);
             if (!Boolean.TRUE.equals(invoke(isSimulation, engine))) {
                 throw new IllegalStateException("combat-stress-fixture-requires-simulation");
             }
@@ -92,7 +103,7 @@ final class CombatStressFixtureRuntime {
             if (sideZero == null || sideOne == null || sideZero.getClass() != sideOne.getClass()) {
                 throw new IllegalStateException("combat-stress-fleet-manager-shape-mismatch");
             }
-            ManagerApi api = managerApi(sideZero.getClass(), fleetMemberApi, shipApi, vector);
+            ManagerApi api = managerApi(loader, sideZero, fleetMemberApi, shipApi, vector);
             List<Object> originalZero = deployedShips(sideZero, api);
             List<Object> originalOne = deployedShips(sideOne, api);
 
@@ -104,8 +115,8 @@ final class CombatStressFixtureRuntime {
             validateMap(width, height);
             spawnSide(sideZero, api, vector, -1, width, height, spawnedZero);
             spawnSide(sideOne, api, vector, 1, width, height, spawnedOne);
-            deploymentPointsSideZero = deploymentPoints(spawnedZero);
-            deploymentPointsSideOne = deploymentPoints(spawnedOne);
+            deploymentPointsSideZero = deploymentPoints(spawnedZero, api);
+            deploymentPointsSideOne = deploymentPoints(spawnedOne, api);
             if (spawnedZero.size() != SHIPS_PER_SIDE || spawnedOne.size() != SHIPS_PER_SIDE
                     || deploymentPointsSideZero < MINIMUM_DP_PER_SIDE
                     || Math.abs(deploymentPointsSideZero - deploymentPointsSideOne) > 0.01f) {
@@ -152,7 +163,9 @@ final class CombatStressFixtureRuntime {
     private static void validateVariants(ClassLoader loader) throws ReflectiveOperationException {
         Class<?> global = Class.forName(GLOBAL, false, loader);
         Object settings = invoke(global.getMethod("getSettings"), null);
-        Method exists = exact(settings.getClass(), "doesVariantExist", boolean.class, String.class);
+        Class<?> settingsApi = Class.forName(SETTINGS_API, false, loader);
+        Method exists = exactApi(
+                settingsApi, settings, "doesVariantExist", boolean.class, String.class);
         for (Variant variant : SIDE) {
             if (!Boolean.TRUE.equals(invoke(exists, settings, variant.id()))) {
                 throw new IllegalStateException("combat-stress-variant-missing:" + variant.id());
@@ -161,14 +174,19 @@ final class CombatStressFixtureRuntime {
     }
 
     private static ManagerApi managerApi(
-            Class<?> owner, Class<?> fleetMemberApi, Class<?> shipApi, Class<?> vector)
-            throws NoSuchMethodException {
+            ClassLoader loader, Object owner,
+            Class<?> fleetMemberApi, Class<?> shipApi, Class<?> vector)
+            throws ReflectiveOperationException {
+        Class<?> managerApi = Class.forName(COMBAT_FLEET_MANAGER_API, false, loader);
         return new ManagerApi(
-                exact(owner, "getDeployedCopy", List.class),
-                exact(owner, "getShipFor", shipApi, fleetMemberApi),
-                exact(owner, "spawnShipOrWing", shipApi,
+                exactApi(managerApi, owner, "getDeployedCopy", List.class),
+                exactApi(managerApi, owner, "getShipFor", shipApi, fleetMemberApi),
+                exactApi(managerApi, owner, "spawnShipOrWing", shipApi,
                         String.class, vector, float.class, float.class),
-                exact(owner, "removeDeployed", void.class, shipApi, boolean.class));
+                exactApi(managerApi, owner, "removeDeployed", void.class,
+                        shipApi, boolean.class),
+                exact(shipApi, "getFleetMember", fleetMemberApi),
+                exact(fleetMemberApi, "getDeploymentPointsCost", float.class));
     }
 
     private static List<Object> deployedShips(Object manager, ManagerApi api)
@@ -215,11 +233,12 @@ final class CombatStressFixtureRuntime {
         return members.size();
     }
 
-    private static float deploymentPoints(List<Object> ships) throws ReflectiveOperationException {
+    private static float deploymentPoints(List<Object> ships, ManagerApi api)
+            throws ReflectiveOperationException {
         float total = 0f;
         for (Object ship : ships) {
-            Object member = invoke(ship.getClass().getMethod("getFleetMember"), ship);
-            Object value = invoke(member.getClass().getMethod("getDeploymentPointsCost"), member);
+            Object member = invoke(api.getFleetMember(), ship);
+            Object value = invoke(api.getDeploymentPointsCost(), member);
             if (!(value instanceof Float points) || !Float.isFinite(points) || points <= 0f) {
                 throw new IllegalStateException("combat-stress-deployment-points-invalid");
             }
@@ -233,7 +252,8 @@ final class CombatStressFixtureRuntime {
         try {
             ClassLoader loader = manager.getClass().getClassLoader();
             Class<?> shipApi = Class.forName(SHIP_API, false, loader);
-            Method remove = exact(manager.getClass(), "removeDeployed", void.class,
+            Class<?> managerApi = Class.forName(COMBAT_FLEET_MANAGER_API, false, loader);
+            Method remove = exactApi(managerApi, manager, "removeDeployed", void.class,
                     shipApi, boolean.class);
             for (Object ship : ships) invoke(remove, manager, ship, false);
         } catch (ThreadDeath | VirtualMachineError fatal) {
@@ -307,6 +327,17 @@ final class CombatStressFixtureRuntime {
         return method;
     }
 
+    /** Resolves through a public API type so non-public game implementations remain invocable. */
+    static Method exactApi(
+            Class<?> api, Object receiver, String name,
+            Class<?> returnType, Class<?>... parameterTypes) throws NoSuchMethodException {
+        if (!api.isInterface() || !Modifier.isPublic(api.getModifiers())
+                || receiver == null || !api.isInstance(receiver)) {
+            throw new NoSuchMethodException(api.getName() + " receiver/API mismatch");
+        }
+        return exact(api, name, returnType, parameterTypes);
+    }
+
     private static Object invoke(Method method, Object receiver, Object... arguments)
             throws ReflectiveOperationException {
         try {
@@ -335,6 +366,8 @@ final class CombatStressFixtureRuntime {
             Method getDeployedCopy,
             Method getShipFor,
             Method spawnShipOrWing,
-            Method removeDeployed) {
+            Method removeDeployed,
+            Method getFleetMember,
+            Method getDeploymentPointsCost) {
     }
 }

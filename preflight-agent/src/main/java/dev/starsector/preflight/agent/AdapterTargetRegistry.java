@@ -920,6 +920,27 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Exact vanilla collision-grid query that builds a temporary insertion-ordered candidate set. */
+    static AdapterTarget collisionQuerySetTarget() {
+        return new AdapterTarget(
+                "vanilla-collision-query-open-set-0.98a-rc8",
+                CollisionQuerySetPlan.TARGET_CLASS,
+                CollisionQuerySetPlan.ORIGINAL_SHA256,
+                CollisionQuerySetPlan.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                CollisionQuerySetPlan.CONSTRUCTOR,
+                                CollisionQuerySetPlan.CONSTRUCTOR_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                CollisionQuerySetPlan.COPY_METHOD,
+                                CollisionQuerySetPlan.COPY_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     private static AdapterTarget frameTimeStateTarget(String id, String className, String classHash) {
         return new AdapterTarget(
                 id,
@@ -2021,7 +2042,8 @@ final class AdapterTargetRegistry {
                 .withTarget(stelnetMarketUpdaterTarget())
                 .withTarget(logisticsNotificationsFuelTarget())
                 .withTarget(macMemoryWarningTarget())
-                .withTarget(combatRuntimeIntegrityTarget());
+                .withTarget(combatRuntimeIntegrityTarget())
+                .withTarget(collisionQuerySetTarget());
         if (!AudioStreamSourceErrorRuntime.disabled()) {
             registry = registry.withTarget(audioStreamSourceErrorTarget());
         }

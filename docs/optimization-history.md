@@ -394,3 +394,13 @@ because they explain the final validation boundaries.
 For a personal-site version, the milestone table and two pipeline diagrams can become a scrolling
 timeline in which the active launch path changes as each bottleneck is removed. This Markdown file
 remains the cited source for that presentation.
+# 2026-08-27: collision-query ordered-set allocation reduction
+
+The deterministic 1,040-DP combat route identified the exact vanilla collision iterator as a
+1.2-GiB weighted allocation family. An exact-gated compact insertion-ordered set and iterator-free
+copy for exact `ArrayList` grid cells reduced that family to 686.3 MiB in one final B run. Against
+the original observation, average FPS moved 25.39 → 27.00, stutter burden 205.93 → 161.42 ms/s,
+and repeated slow-frame exposure 57.78% → 51.80%; the 1% low moved down, so no broad percentile or
+FPS claim is made. Startup retained a separate roughly 6.1-second presentation gap and remains a
+distinct optimization lane. See
+[the bounded evidence](evidence/2026-08-27-collision-query-open-set.md).

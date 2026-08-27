@@ -397,6 +397,9 @@ final class AdapterTransformationRegistry {
         if (CombatRuntimeIntegrityRuntime.PLAN_ID.equals(target.planId())) {
             return CombatRuntimeIntegrityPlan.transform(signature, originalBytes);
         }
+        if (CollisionQuerySetPlan.PLAN_ID.equals(target.planId())) {
+            return CollisionQuerySetPlan.transform(signature, originalBytes);
+        }
         // The token target normally wins selection for this shared class. Compose the command-name
         // shortcut here too; otherwise --fast can configure both caches while silently installing
         // only the tokenizer memo. Either optimization may still install on its own.
@@ -959,6 +962,9 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (CombatRuntimeIntegrityRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (CollisionQuerySetPlan.PLAN_ID.equals(planId)) {
             return true;
         }
         if (DeploymentIconCacheRuntime.PLAN_ID.equals(planId)) {
