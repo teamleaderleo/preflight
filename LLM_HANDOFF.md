@@ -22,16 +22,20 @@ Before changing code or collecting release evidence:
    be worth revisiting. [Gameplay FPS program #449](https://github.com/teamleaderleo/preflight/issues/449)
    is the canonical parent for that lane; use focused child issues once one experiment is concrete.
    The latest diagnostic checkpoint is
-   [asynchronous whole-frame GPU timing](docs/evidence/2026-08-28-asynchronous-gpu-frame-timing.md),
-   following the bounded [native-swap CPU/off-CPU split](docs/evidence/2026-08-28-native-swap-cpu-offcpu-split.md)
+   [settled active-campaign OpenGL command attribution](docs/evidence/2026-08-28-opengl-command-attribution.md),
+   following [asynchronous whole-frame GPU timing](docs/evidence/2026-08-28-asynchronous-gpu-frame-timing.md),
+   the bounded [native-swap CPU/off-CPU split](docs/evidence/2026-08-28-native-swap-cpu-offcpu-split.md),
    and [live OpenGL capability inventory](docs/evidence/2026-08-28-opengl-context-capability.md).
    Paused recurring 33 ms tails were normally low-GPU and swap-off-CPU dominated, while active
    unpaused tails were often GPU-heavy even after the five-second transition. The query probe is
-   materially intrusive and makes no FPS claim. The next narrow slice is phase-owned, counting-only
-   OpenGL command/state attribution in active campaign; the paused branch remains a separate thin
-   presentation/VSync/compositor experiment. Rosetta remains an open CPU/submission attribution
-   axis rather than a unified explanation. The rarer >50 ms pre-swap game-work fingerprint still
-   needs packet-triggered CPU escalation, not permanent broad timers.
+   materially intrusive and makes no FPS claim. The exact active window then exposed 13,306 selected
+   legacy-GL calls per retained frame; matrix plus fixed-function state represented 81.62%, and
+   texture binds brought the share to 88.98%. Slow frames carried only 0.54% more calls, so this is a
+   large baseline/Rosetta-amplified lead rather than the hitch explanation. The next narrow slice is
+   an exact-method and same-argument redundancy census before one low-risk state family is considered
+   for suppression. The paused branch remains a separate thin presentation/VSync/compositor
+   experiment. The rarer >50 ms pre-swap game-work fingerprint still needs packet-triggered CPU
+   escalation, not permanent broad timers.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package

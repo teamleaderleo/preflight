@@ -415,10 +415,11 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
 
 ## Open questions, ranked
 
-1. **Active-campaign GL attribution:** the asynchronous split found GPU-heavy unpaused tails,
-   including after the transition. Count whole-frame draw/state/upload/readback volume and unchanged
-   state reissues at exact LWJGL seams before proposing suppression. Preserve a phase-owned settled
-   aggregate and keep the probe discovery-only.
+1. **Exact GL state redundancy:** the phase-owned census found 13,306 selected legacy-GL calls per
+   retained active-campaign frame. Matrix plus fixed-function state represented 81.62%, and texture
+   binds brought the share to 88.98%. Slow frames carried only 0.54% more selected calls, so this is
+   a baseline-tax lead rather than the hitch explanation. Split exact methods and count consecutive
+   same-argument reissues for independently modeled state before proposing one narrow suppression.
 2. **Transition versus settled active work:** repeat the exact-step correlation once when a code
    decision depends on it. If the transition ordering is stable, probe its catch-up scheduler;
    independently map settled timer calls to individual slow frames before adding broader timers.
@@ -489,6 +490,14 @@ That area is explored, not exhausted; a future design must avoid taxing every gl
 No. It means active campaign frames after the recorder's campaign warmup boundary. In the current
 scenario it includes the explicit five-second post-unpause transition. Intersect with the exact
 `unpaused-settled` receipt step before making a steady-state claim.
+
+### Is Rosetta the big gameplay-FPS problem?
+
+It is a credible amplifier, not a measured percentage. The shipped JVM and native libraries are
+x86-64, so a native ARM JVM is not a drop-in control. The exact active-campaign census did expose
+roughly 700,000 selected legacy-GL wrapper calls per second entering the Rosetta/JNI/Apple
+OpenGL-over-Metal path. That can create a large steady tax, but selected call volume barely differed
+between ordinary and slow frames, so it does not explain the hitch tail by itself.
 
 ### Can raw profiles be committed?
 
