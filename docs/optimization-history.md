@@ -353,6 +353,21 @@ their state was ready, and the macOS memory warning interpreted free pages too l
 adapters added for these cases either validate and fall through or decline entirely when their exact
 target drifts. They are reported as safeguards.
 
+The deterministic combat route then exposed GraphicsLib rebuilding private texture-data lookup
+strings hundreds of thousands of times. A bounded session cache served 567,477 of 579,711 observed
+requests, a 97.8896-percent hit rate with zero bypasses. Two earlier combat recordings attributed
+60.0 and 22.1 MiB of sampled weighted allocation directly to the key builder; the candidate
+recording had no matching allocation sample. The same run remained visibly slow and thermally
+noisy, so this is an allocation result rather than an FPS claim. Its clean window and separate
+startup lane are retained in
+[the texture-key report](evidence/2026-08-27-graphicslib-texture-key-cache.md).
+
+That run also completed the 1,040-DP route without operator input. Exact-PID activation is verified
+after foregrounding, and zoom is now injected at Starsector's reviewed input-generation seam rather
+than through a host scroll gesture. The scenario verifies the resulting public viewport before
+opening a clean combat frame window. Startup time and its approximately six-second pre-interactive
+hitch remain separate from paused campaign, unpaused campaign, and combat distributions.
+
 ## What the disk buys
 
 Most of the speed comes from moving stable work out of the launch, which creates artifacts. The

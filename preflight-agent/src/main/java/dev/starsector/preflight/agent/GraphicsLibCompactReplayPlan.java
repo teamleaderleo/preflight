@@ -12,12 +12,12 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /** Exact whole-class replacement for GraphicsLib 1.12.1's repeated normal-map traversal. */
 final class GraphicsLibCompactReplayPlan {
-    static final String PLAN_ID = "graphicslib-1.12.1-compact-autogen-replay-v3";
+    static final String PLAN_ID = "graphicslib-1.12.1-compact-autogen-replay-v4";
     static final String TARGET_CLASS = "org/dark/shaders/util/TextureData";
     static final String ORIGINAL_SHA256 =
             "6a4302bcacd2dd90f6637c815d1443ddfdb3d28ff59095d48c875358de4e8594";
     static final String REPLACEMENT_SHA256 =
-            "f2f4c45d9d19f1dbc51821779ee2efca1817c96ac680d67e442cdb5180ef15ff";
+            "4a461c2f1cb75c82da55d8f99e636a955575f6babb94237032295566198fe02c";
 
     private static final String RESOURCE =
             "/dev/starsector/preflight/agent/graphicslib-texture-data-1.12.1.class.b64";
@@ -34,6 +34,7 @@ final class GraphicsLibCompactReplayPlan {
     static void beginSession() {
         APPLIED.set(0);
         GraphicsLibNormalCacheRuntime.beginSession();
+        GraphicsLibTextureKeyRuntime.beginSession();
         state = State.disabled();
     }
 
@@ -47,6 +48,8 @@ final class GraphicsLibCompactReplayPlan {
             byte[] replacement = GraphicsLibLazyNormalPlan.transform(loadReplacement());
             replacement = replacement == null
                     ? null : GraphicsLibRefreshCadencePlan.transform(replacement);
+            replacement = replacement == null
+                    ? null : GraphicsLibTextureKeyPlan.transform(replacement);
             if (replacement == null
                     || !REPLACEMENT_SHA256.equals(ClassSignature.parse(replacement).sha256())) {
                 throw new IOException("lazy normal-map optimization differs");
@@ -100,6 +103,7 @@ final class GraphicsLibCompactReplayPlan {
         values.put("replacementClassSha256", REPLACEMENT_SHA256);
         values.put("applications", APPLIED.get());
         values.put("lazyNormalCache", GraphicsLibNormalCacheRuntime.telemetry());
+        values.put("textureDataKeys", GraphicsLibTextureKeyRuntime.telemetry());
         return values;
     }
 
