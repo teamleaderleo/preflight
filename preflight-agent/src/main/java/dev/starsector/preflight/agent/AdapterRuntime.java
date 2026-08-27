@@ -27,6 +27,7 @@ final class AdapterRuntime {
         Set<String> disabledPlans = disabledPlans(System.getenv(), System.getProperties());
         AdapterPlanControl.configure(options.adapterPlanScope(), disabledPlans);
         boolean campaignTimes = Boolean.getBoolean("preflight.campaignTimes");
+        boolean frameTimes = Boolean.getBoolean("preflight.frameTimes");
         SourceArchiveHashes.beginSession();
         AdapterTransformationCache.beginSession();
         TextureCompatibilityRuntime.beginSession();
@@ -78,9 +79,9 @@ final class AdapterRuntime {
         MacMemoryWarningRuntime.beginSession();
         CombatRuntimeIntegrityRuntime.beginSession();
         CollisionQuerySet.beginSession();
-        CombatListenerRangeSnapshotRuntime.beginSession();
+        CombatListenerRangeSnapshotRuntime.beginSession(frameTimes);
         FrameTimeRuntime.beginSession(
-                Boolean.getBoolean("preflight.frameTimes"),
+                frameTimes,
                 Boolean.getBoolean(FrameTimeRuntime.FORCE_VSYNC_OFF_PROPERTY));
         CampaignCallTimeRuntime.beginSession(campaignTimes);
         CampaignEngineTimeRuntime.beginSession(campaignTimes);

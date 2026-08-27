@@ -22,87 +22,75 @@ class CombatListenerRangeSnapshotRuntimeTest {
     @Test
     void disabledModeRetainsFreshPerCallSnapshots() {
         CombatListenerRangeSnapshotRuntime.beginSession();
-        List<Object> source = new ArrayList<>(List.of(new Object()));
+        List<Object> source = new ArrayList<>();
 
-        Object[] first = CombatListenerRangeSnapshotRuntime.snapshot(source);
-        Object[] second = CombatListenerRangeSnapshotRuntime.snapshot(source);
-
-        assertNotSame(first, second);
+        assertNotSame(
+                CombatListenerRangeSnapshotRuntime.snapshot(source),
+                CombatListenerRangeSnapshotRuntime.snapshot(source));
         assertEquals(false, CombatListenerRangeSnapshotRuntime.telemetry().get("enabled"));
     }
 
     @Test
-    void reusesOnlyAfterFullOrderedIdentityValidation() {
+    void exactEmptyArrayListsShareOnlyThePrivateZeroLengthSnapshot() {
         enable();
-        Object firstValue = new Object();
-        Object secondValue = new Object();
-        List<Object> source = new ArrayList<>(List.of(firstValue, secondValue));
+        List<Object> empty = new ArrayList<>();
+        List<Object> nonEmpty = new ArrayList<>(List.of(new Object()));
 
-        Object[] first = CombatListenerRangeSnapshotRuntime.snapshot(source);
-        Object[] hit = CombatListenerRangeSnapshotRuntime.snapshot(source);
-        assertSame(first, hit);
-
-        source.set(1, new Object());
-        Object[] replaced = CombatListenerRangeSnapshotRuntime.snapshot(source);
-        assertNotSame(first, replaced);
-        assertSame(secondValue, first[1]);
-
-        source.add(firstValue);
-        Object[] resized = CombatListenerRangeSnapshotRuntime.snapshot(source);
-        assertNotSame(replaced, resized);
-        assertArrayEquals(source.toArray(), resized);
+        assertSame(
+                CombatListenerRangeSnapshotRuntime.snapshot(empty),
+                CombatListenerRangeSnapshotRuntime.snapshot(empty));
+        assertNotSame(
+                CombatListenerRangeSnapshotRuntime.snapshot(nonEmpty),
+                CombatListenerRangeSnapshotRuntime.snapshot(nonEmpty));
 
         Map<String, Object> telemetry = CombatListenerRangeSnapshotRuntime.telemetry();
-        assertEquals(1L, telemetry.get("hits"));
-        assertEquals(3L, telemetry.get("rebuilds"));
-        assertEquals(2L, telemetry.get("comparedElements"));
+        assertEquals(2L, telemetry.get("emptySnapshots"));
+        assertEquals(2L, telemetry.get("nonEmptyDelegations"));
     }
 
     @Test
-    void directMutationCannotChangeAnInProgressSnapshot() {
+    void directMutationGetsFreshNonEmptySnapshotOnTheNextQuery() {
         enable();
-        Object original = new Object();
-        List<Object> source = new ArrayList<>(List.of(original));
-        Object[] inProgress = CombatListenerRangeSnapshotRuntime.snapshot(source);
+        List<Object> source = new ArrayList<>();
+        Object[] empty = CombatListenerRangeSnapshotRuntime.snapshot(source);
 
         Object added = new Object();
-        source.clear();
         source.add(added);
         Object[] nextQuery = CombatListenerRangeSnapshotRuntime.snapshot(source);
 
-        assertArrayEquals(new Object[] {original}, inProgress);
+        assertArrayEquals(new Object[0], empty);
         assertArrayEquals(new Object[] {added}, nextQuery);
     }
 
     @Test
-    void nonExactArrayListsAlwaysDelegateToFreshSnapshots() {
+    void nonExactArrayListsAlwaysDelegateIncludingWhenEmpty() {
         enable();
-        List<Object> source = new LinkedList<>(List.of(new Object()));
+        List<Object> source = new LinkedList<>();
 
-        Object[] first = CombatListenerRangeSnapshotRuntime.snapshot(source);
-        Object[] second = CombatListenerRangeSnapshotRuntime.snapshot(source);
-        List<Object> empty = new LinkedList<>();
-        Object[] firstEmpty = CombatListenerRangeSnapshotRuntime.snapshot(empty);
-        Object[] secondEmpty = CombatListenerRangeSnapshotRuntime.snapshot(empty);
+        Object[] firstEmpty = CombatListenerRangeSnapshotRuntime.snapshot(source);
+        Object[] secondEmpty = CombatListenerRangeSnapshotRuntime.snapshot(source);
+        source.add(new Object());
+        Object[] firstNonEmpty = CombatListenerRangeSnapshotRuntime.snapshot(source);
+        Object[] secondNonEmpty = CombatListenerRangeSnapshotRuntime.snapshot(source);
 
-        assertNotSame(first, second);
         assertNotSame(firstEmpty, secondEmpty);
+        assertNotSame(firstNonEmpty, secondNonEmpty);
         assertEquals(4L,
                 CombatListenerRangeSnapshotRuntime.telemetry().get("nonArrayListDelegations"));
     }
 
     @Test
-    void ownerTableClearsAtItsStrictBound() {
-        enable();
-        for (int index = 0; index < 513; index++) {
-            CombatListenerRangeSnapshotRuntime.snapshot(
-                    new ArrayList<>(List.of(new Object())));
-        }
+    void productionTelemetryCanBeDisabledWithoutChangingTheShortcut() {
+        System.setProperty(CombatListenerRangeSnapshotRuntime.ENABLED_PROPERTY, "true");
+        CombatListenerRangeSnapshotRuntime.beginSession(false);
+        List<Object> source = new ArrayList<>();
 
+        assertSame(
+                CombatListenerRangeSnapshotRuntime.snapshot(source),
+                CombatListenerRangeSnapshotRuntime.snapshot(source));
         Map<String, Object> telemetry = CombatListenerRangeSnapshotRuntime.telemetry();
-        assertEquals(1L, telemetry.get("evictions"));
-        assertEquals(1, telemetry.get("snapshotOwners"));
-        assertEquals(512, telemetry.get("maximumSnapshotOwners"));
+        assertEquals(false, telemetry.get("telemetryEnabled"));
+        assertEquals(0L, telemetry.get("emptySnapshots"));
     }
 
     private static void enable() {

@@ -26,7 +26,7 @@ callbacks run in the current query.
 `vanilla-combat-listener-range-snapshot-v1` replaces only the six exact range-query method bodies.
 Each method calls the same `ShipAPI.getListeners(Class)`, immediately obtains one private array
 snapshot, and walks that stable array by index. The runtime helper delegates directly to
-`List.toArray()` unless the separately gated snapshot-reuse experiment is enabled. It preserves:
+`List.toArray()` unless the separately gated empty-snapshot shortcut is enabled. It preserves:
 
 - one pre-callback snapshot and the original listener order;
 - callback arguments and invocation count;

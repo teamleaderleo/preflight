@@ -70,7 +70,7 @@ class CombatListenerRangeSnapshotPlanTest {
     }
 
     @Test
-    void reuseSubknobRoutesEachPrivateSnapshotThroughValidatedRuntime() {
+    void emptySnapshotSubknobRoutesEachPrivateSnapshotThroughNarrowRuntime() {
         System.setProperty(CombatListenerRangeSnapshotRuntime.ENABLED_PROPERTY, "true");
         CombatListenerRangeSnapshotRuntime.beginSession();
         byte[] transformed = CombatListenerRangeSnapshotPlan.transform(signature(), fixture(false));
@@ -90,7 +90,7 @@ class CombatListenerRangeSnapshotPlanTest {
     }
 
     @Test
-    void reuseSubknobCannotCreateASecondTransformationCacheVariant() {
+    void emptySnapshotSubknobCannotCreateASecondTransformationCacheVariant() {
         System.setProperty(CombatListenerRangeSnapshotPlan.ENABLED_PROPERTY, "true");
         CombatListenerRangeSnapshotRuntime.beginSession();
         byte[] arrayOnly = CombatListenerRangeSnapshotPlan.transform(signature(), fixture(false));

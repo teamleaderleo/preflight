@@ -1,0 +1,87 @@
+{
+  "format": "starsector-preflight-optimization-observation-v1",
+  "candidate": "vanilla-combat-listener-range-empty-snapshot-v1",
+  "status": "accepted-with-limit-opt-in",
+  "property": "preflight.combat.listenerRangeEmptySnapshot",
+  "observationPropertyBeforeNarrowing": "preflight.combat.listenerRangeSnapshotReuse",
+  "game": "Starsector 0.98a-RC8",
+  "scenario": "campaign-simulation-combat-1000dp",
+  "condition": {
+    "launcher": "Preflight fast preset only",
+    "battle": "24 mirrored ships per side, 520 DP per side",
+    "speed": "2x",
+    "viewportWidth": 6120.0,
+    "measurementWindowSeconds": 30.004,
+    "observations": 1,
+    "frontmostDuringControlSteps": false,
+    "macosThermalWarning": false,
+    "macosPerformanceWarning": false
+  },
+  "safety": {
+    "sourceList": "exact java.util.ArrayList only",
+    "emptyOnly": true,
+    "nonEmptyBehavior": "fresh List.toArray() snapshot",
+    "unknownListBehavior": "fresh List.toArray() snapshot",
+    "retainsGameObjects": false,
+    "addsGameObjectFields": false,
+    "addsMutableGameState": false,
+    "touchesSaveState": false,
+    "fallback": "fresh per-call snapshot"
+  },
+  "run": {
+    "startedAt": "2026-08-27T10:33:42.597081Z",
+    "completedAt": "2026-08-27T10:35:11.414374Z",
+    "jfrSha256": "29837e24b9deafbd7e08179403334b3526526354b43e0d464e7ca01c87009166",
+    "scenarioSha256": "62c027df5fe5e34ad1a1f48b949e3d6af5cf60c5cc76b22256715c98e3ccb677",
+    "runReportSha256": "555f8b30337245189b7d6ad15b5a2fe01cc8b0041a19a978b3f41df9d97fef04",
+    "scenarioEvidenceSha256": "beae54866b992a5bca67b16da7895583652c654b1e709884b06cc5de583fe156",
+    "adapterReportSha256": "ec0e0f818ceba0429db137a317f2a6d4f0c6881bad0eb683959709844ddecc1e",
+    "frameReportSha256": "5d4dc273d93aca0230665afe1c7d61e7fc4557deeec9b3f7c7d231aa77c6a9fb",
+    "adapterHealthSha256": "0a89c0a6cdfb96c3566c9488aaa7fa1bd20e49352467e665e253e7812608ccc2",
+    "logTailSha256": "281c64d55ae5a266429a60e0fff44ccfc6441e5ca0fd01e696b1552b350ddeb8",
+    "scenarioStepsPassed": 34,
+    "scenarioStepsTotal": 34,
+    "launcherExitCode": 0,
+    "fatalDetected": false,
+    "controllerStopRequested": true,
+    "containedFailures": 0,
+    "exactTransformApplied": true,
+    "emptySnapshotsThroughCapture": 46364004,
+    "generalCacheHits": 0,
+    "generalCacheRebuilds": 0,
+    "generalCacheFailures": 0,
+    "generalCacheOwners": 0,
+    "rangeAllocationSamples": 0,
+    "rangeWeightedAllocationMiB": 0.0,
+    "broaderCombatListenerUtilSamples": 5,
+    "broaderCombatListenerUtilWeightedMiB": 28.0,
+    "inactiveFrameIntervalsDropped": 2006,
+    "measurementWindowActiveFrames": 0,
+    "frameClaimUsable": false
+  },
+  "baseline": {
+    "rangeAllocationSamples": 313,
+    "rangeWeightedAllocationMiB": 644.3,
+    "interpretation": "JFR ObjectAllocationSample weights are statistical estimates, not an exact allocation census or lockstep FPS A/B."
+  },
+  "postObservationNarrowing": {
+    "removed": [
+      "identity cache",
+      "ordered identity scans",
+      "synchronization",
+      "retained listener-list owners",
+      "non-empty snapshot reuse"
+    ],
+    "reason": "Every observed call used the empty branch; the broader cache recorded no hit, rebuild, failure, or owner."
+  },
+  "verification": {
+    "javaRelease": 17,
+    "focusedTests": 12,
+    "focusedFailures": 0,
+    "focusedErrors": 0,
+    "exactInstalledArchiveTest": "passed",
+    "fullMavenVerify": "passed",
+    "liveScenario": "passed"
+  },
+  "claimLimit": "The run proves disappearance of the targeted sampled range-array family under this empty-list-heavy fixture. It does not establish a universal FPS, percentile, startup-time, or cross-platform uplift."
+}
