@@ -25,7 +25,6 @@ public final class FrameCpuTimeRuntime {
     private static long measurementSamples;
     private static long measurementTotalNanos;
     private static long measurementMaximumNanos;
-    private static long firstBoundaryNanos = Long.MIN_VALUE;
     private static long lastBoundaryNanos = Long.MIN_VALUE;
     private static long lastCpuNanos = Long.MIN_VALUE;
     private static boolean lastBoundaryActive = true;
@@ -50,7 +49,6 @@ public final class FrameCpuTimeRuntime {
         measurementSamples = 0L;
         measurementTotalNanos = 0L;
         measurementMaximumNanos = 0L;
-        firstBoundaryNanos = Long.MIN_VALUE;
         lastBoundaryNanos = Long.MIN_VALUE;
         lastCpuNanos = Long.MIN_VALUE;
         lastBoundaryActive = true;
@@ -86,8 +84,7 @@ public final class FrameCpuTimeRuntime {
         boolean active = observedActive;
         boolean crossedFocusBreak = focusBreak;
         focusBreak = false;
-        if (firstBoundaryNanos == Long.MIN_VALUE) {
-            firstBoundaryNanos = now;
+        if (lastBoundaryNanos == Long.MIN_VALUE) {
             lastBoundaryNanos = now;
             lastCpuNanos = cpuNow;
             lastBoundaryActive = active;
@@ -111,11 +108,10 @@ public final class FrameCpuTimeRuntime {
 
         long boundedCpu = Math.min(cpuDuration, wallDuration);
         long offCpu = Math.max(0L, wallDuration - boundedCpu);
-        long endOffset = now - firstBoundaryNanos;
         samples++;
         acceptedFrameTotalNanos += wallDuration;
-        cpuActive.record(boundedCpu, endOffset);
-        offCpuApprox.record(offCpu, endOffset);
+        cpuActive.record(boundedCpu);
+        offCpuApprox.record(offCpu);
         lastBoundaryActive = active;
     }
 
@@ -165,6 +161,7 @@ public final class FrameCpuTimeRuntime {
     private static final class Distribution {
         private final long[] histogram = new long[HISTOGRAM_REGULAR_BINS + 1];
         private long count;
+        private long zeroCount;
         private long totalNanos;
         private long minimumNanos;
         private long maximumNanos;
@@ -172,20 +169,23 @@ public final class FrameCpuTimeRuntime {
         void reset() {
             Arrays.fill(histogram, 0L);
             count = 0L;
+            zeroCount = 0L;
             totalNanos = 0L;
             minimumNanos = Long.MAX_VALUE;
             maximumNanos = 0L;
         }
 
-        void record(long durationNanos, long ignoredEndOffsetNanos) {
+        void record(long durationNanos) {
             count++;
             totalNanos += durationNanos;
             minimumNanos = Math.min(minimumNanos, durationNanos);
             maximumNanos = Math.max(maximumNanos, durationNanos);
-            int bin = durationNanos == 0L
-                    ? 0
-                    : (int) Math.min(HISTOGRAM_REGULAR_BINS,
-                            (durationNanos - 1L) / HISTOGRAM_BIN_NANOS);
+            if (durationNanos == 0L) {
+                zeroCount++;
+                return;
+            }
+            int bin = (int) Math.min(HISTOGRAM_REGULAR_BINS,
+                    (durationNanos - 1L) / HISTOGRAM_BIN_NANOS);
             histogram[bin]++;
         }
 
@@ -213,7 +213,8 @@ public final class FrameCpuTimeRuntime {
         private Long percentile(int perThousand) {
             if (count == 0L) return null;
             long rank = Math.max(1L, (count * perThousand + 999L) / 1_000L);
-            long cumulative = 0L;
+            if (rank <= zeroCount) return 0L;
+            long cumulative = zeroCount;
             for (int i = 0; i < histogram.length; i++) {
                 cumulative += histogram[i];
                 if (cumulative >= rank) {
