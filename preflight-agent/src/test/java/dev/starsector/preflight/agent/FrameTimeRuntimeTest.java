@@ -362,7 +362,8 @@ class FrameTimeRuntimeTest {
         FrameTimeRuntime.recordBoundary(40_000_000L);
 
         Map<String, Object> phases = map(FrameTimeRuntime.telemetry().get("displayPhases"));
-        assertEquals(6, phases.get("timestampReadsPerPresentedFrame"));
+        assertEquals(6, phases.get("baseTimestampReadsPerPresentedFrame"));
+        assertEquals(2, phases.get("additionalTimestampReadsPerCampaignLimiterCall"));
         Map<String, Object> all = map(phases.get("allActive"));
         assertEquals(1L, all.get("completeFrames"));
         assertEquals(1L, all.get("framesOver33_33Millis"));
@@ -375,6 +376,50 @@ class FrameTimeRuntimeTest {
         assertEquals(40_000L, worst.get("durationMicros"));
         assertEquals(20_000L, worst.get("preSwapMicros"));
         assertEquals(15_000L, worst.get("swapMicros"));
+    }
+
+    @Test
+    void splitsExactCampaignLimiterSleepFromTheSameFramePreSwapInterval() {
+        FrameTimeRuntime.beginSession(true);
+        FrameTimeRuntime.limiterInstalled();
+        FrameTimeRuntime.recordBoundary(0L);
+        FrameTimeRuntime.observeCampaign();
+        FrameTimeRuntime.observeCampaignPaused(true);
+        FrameTimeRuntime.recordBoundary(1_000_000L); // state transition
+
+        FrameTimeRuntime.recordLimiterSleepStarted(10L, 2_000_000L);
+        FrameTimeRuntime.recordLimiterSleepCompleted(12_500_000L);
+        FrameTimeRuntime.observeCampaign();
+        FrameTimeRuntime.observeCampaignPaused(true);
+        FrameTimeRuntime.recordSwapStarted(55_000_000L);
+        FrameTimeRuntime.recordSwapCompleted(56_000_000L);
+        FrameTimeRuntime.recordMessagesStarted(57_000_000L);
+        FrameTimeRuntime.recordMessagesCompleted(58_000_000L);
+        FrameTimeRuntime.recordBoundary(61_000_000L);
+
+        Map<String, Object> telemetry = FrameTimeRuntime.telemetry();
+        Map<String, Object> limiter = map(telemetry.get("frameLimiter"));
+        assertEquals(true, limiter.get("installed"));
+        assertEquals(1L, limiter.get("sleepCalls"));
+        assertEquals(1L, limiter.get("sleepCompletions"));
+        assertEquals(10L, limiter.get("requestedMillisTotal"));
+
+        Map<String, Object> campaign = map(
+                map(telemetry.get("displayPhases")).get(FrameTimeTelemetry.CAMPAIGN_ACTIVE));
+        assertEquals(1L, campaign.get("limiterCompleteFrames"));
+        assertEquals(0L, campaign.get("limiterSplitUnavailableFrames"));
+        assertEquals(10_500.0, map(campaign.get("limiterSleep")).get("maximumMicros"));
+        assertEquals(43_500.0,
+                map(campaign.get("preSwapExcludingLimiter")).get("maximumMicros"));
+
+        Map<String, Object> packet = map(list(
+                map(telemetry.get(FrameTimeTelemetry.HITCH_PACKETS)).get("packets")).get(0));
+        Map<String, Object> trigger = map(list(packet.get("frameHistory")).get(0));
+        assertEquals(true, trigger.get("limiterSplitComplete"));
+        assertEquals(10L, trigger.get("limiterRequestedMillis"));
+        assertEquals(10_500L, trigger.get("limiterElapsedMicros"));
+        assertEquals(43_500L, trigger.get("preSwapExcludingLimiterMicros"));
+        assertEquals(500L, trigger.get("limiterOvershootMicros"));
     }
 
     @Test

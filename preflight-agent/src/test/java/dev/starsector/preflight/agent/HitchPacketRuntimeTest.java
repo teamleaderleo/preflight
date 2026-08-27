@@ -184,7 +184,11 @@ class HitchPacketRuntimeTest {
                 preSwap,
                 swap,
                 messages,
-                other);
+                other,
+                false,
+                0L,
+                0L,
+                preSwap);
     }
 
     @SuppressWarnings("unchecked")

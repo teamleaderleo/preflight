@@ -31,9 +31,13 @@ final class HitchPacketRuntime {
     private static final long[] recentSwap = new long[RECENT_FRAME_CAPACITY];
     private static final long[] recentMessages = new long[RECENT_FRAME_CAPACITY];
     private static final long[] recentOther = new long[RECENT_FRAME_CAPACITY];
+    private static final long[] recentLimiterRequestedMillis = new long[RECENT_FRAME_CAPACITY];
+    private static final long[] recentLimiter = new long[RECENT_FRAME_CAPACITY];
+    private static final long[] recentPreSwapExcludingLimiter = new long[RECENT_FRAME_CAPACITY];
     private static final int[] recentState = new int[RECENT_FRAME_CAPACITY];
     private static final int[] recentPause = new int[RECENT_FRAME_CAPACITY];
     private static final boolean[] recentPhasesComplete = new boolean[RECENT_FRAME_CAPACITY];
+    private static final boolean[] recentLimiterComplete = new boolean[RECENT_FRAME_CAPACITY];
 
     private static final int PACKET_FRAME_SLOTS = PACKET_LIMIT * PACKET_FRAME_CAPACITY;
     private static final long[] packetSequence = new long[PACKET_FRAME_SLOTS];
@@ -44,7 +48,11 @@ final class HitchPacketRuntime {
     private static final long[] packetSwap = new long[PACKET_FRAME_SLOTS];
     private static final long[] packetMessages = new long[PACKET_FRAME_SLOTS];
     private static final long[] packetOther = new long[PACKET_FRAME_SLOTS];
+    private static final long[] packetLimiterRequestedMillis = new long[PACKET_FRAME_SLOTS];
+    private static final long[] packetLimiter = new long[PACKET_FRAME_SLOTS];
+    private static final long[] packetPreSwapExcludingLimiter = new long[PACKET_FRAME_SLOTS];
     private static final boolean[] packetPhasesComplete = new boolean[PACKET_FRAME_SLOTS];
+    private static final boolean[] packetLimiterComplete = new boolean[PACKET_FRAME_SLOTS];
     private static final int[] packetFrameCounts = new int[PACKET_LIMIT];
     private static final int[] packetStates = new int[PACKET_LIMIT];
     private static final int[] packetPauses = new int[PACKET_LIMIT];
@@ -148,14 +156,20 @@ final class HitchPacketRuntime {
             long preSwapNanos,
             long swapNanos,
             long messagesNanos,
-            long otherAfterSwapNanos) {
+            long otherAfterSwapNanos,
+            boolean limiterComplete,
+            long limiterRequestedMillis,
+            long limiterNanos,
+            long preSwapExcludingLimiterNanos) {
         if (!enabled || sequence < 0L || endedNanos <= startedNanos
                 || (state != STATE_CAMPAIGN && state != STATE_COMBAT)) {
             return;
         }
         long totalNanos = endedNanos - startedNanos;
         appendRecent(sequence, startedNanos, endedNanos, state, pause, phasesComplete,
-                totalNanos, preSwapNanos, swapNanos, messagesNanos, otherAfterSwapNanos);
+                totalNanos, preSwapNanos, swapNanos, messagesNanos, otherAfterSwapNanos,
+                limiterComplete, limiterRequestedMillis, limiterNanos,
+                preSwapExcludingLimiterNanos);
         boolean trigger = totalNanos >= TRIGGER_NANOS;
 
         if (activePacket >= 0) {
@@ -233,7 +247,11 @@ final class HitchPacketRuntime {
             long preSwapNanos,
             long swapNanos,
             long messagesNanos,
-            long otherAfterSwapNanos) {
+            long otherAfterSwapNanos,
+            boolean limiterComplete,
+            long limiterRequestedMillis,
+            long limiterNanos,
+            long preSwapExcludingLimiterNanos) {
         int target;
         if (recentCount < RECENT_FRAME_CAPACITY) {
             target = (recentHead + recentCount) % RECENT_FRAME_CAPACITY;
@@ -253,6 +271,10 @@ final class HitchPacketRuntime {
         recentSwap[target] = swapNanos;
         recentMessages[target] = messagesNanos;
         recentOther[target] = otherAfterSwapNanos;
+        recentLimiterComplete[target] = limiterComplete;
+        recentLimiterRequestedMillis[target] = limiterRequestedMillis;
+        recentLimiter[target] = limiterNanos;
+        recentPreSwapExcludingLimiter[target] = preSwapExcludingLimiterNanos;
     }
 
     private static void startPacket(
@@ -317,6 +339,10 @@ final class HitchPacketRuntime {
         packetSwap[target] = recentSwap[recent];
         packetMessages[target] = recentMessages[recent];
         packetOther[target] = recentOther[recent];
+        packetLimiterComplete[target] = recentLimiterComplete[recent];
+        packetLimiterRequestedMillis[target] = recentLimiterRequestedMillis[recent];
+        packetLimiter[target] = recentLimiter[recent];
+        packetPreSwapExcludingLimiter[target] = recentPreSwapExcludingLimiter[recent];
         packetPhasesComplete[target] = recentPhasesComplete[recent];
         int phaseStart = phaseSlot(target, 0);
         Arrays.fill(packetPhaseOverlap, phaseStart, phaseStart + CAMPAIGN_PHASES, 0L);
@@ -391,6 +417,16 @@ final class HitchPacketRuntime {
                 value.put("nativeSwapMicros", packetSwap[slot] / 1_000L);
                 value.put("messageMicros", packetMessages[slot] / 1_000L);
                 value.put("otherAfterSwapMicros", packetOther[slot] / 1_000L);
+            }
+            value.put("limiterSplitComplete", packetLimiterComplete[slot]);
+            if (packetLimiterComplete[slot]) {
+                value.put("limiterRequestedMillis", packetLimiterRequestedMillis[slot]);
+                value.put("limiterElapsedMicros", packetLimiter[slot] / 1_000L);
+                value.put("preSwapExcludingLimiterMicros",
+                        packetPreSwapExcludingLimiter[slot] / 1_000L);
+                value.put("limiterOvershootMicros",
+                        packetLimiter[slot] / 1_000L
+                                - packetLimiterRequestedMillis[slot] * 1_000L);
             }
             List<Map<String, Object>> phaseValues = new ArrayList<>();
             for (int phase = 0; phase < CAMPAIGN_PHASES; phase++) {

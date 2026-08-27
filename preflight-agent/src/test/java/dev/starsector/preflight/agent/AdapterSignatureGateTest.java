@@ -328,6 +328,7 @@ class AdapterSignatureGateTest {
                 .collect(java.util.stream.Collectors.toSet());
         assertEquals(Set.of(
                 FrameTimeRuntime.PLAN_ID,
+                FrameLimiterTimePlan.PLAN_ID,
                 FrameTimeStatePlan.PLAN_ID,
                 FrameTimeStartupCompletionPlan.PLAN_ID), plans);
         assertFalse(plans.contains(TexturePreparedPixelRuntime.PLAN_ID));

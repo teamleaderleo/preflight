@@ -31,6 +31,7 @@ public final class FrameTimeRuntime {
     private static volatile int observedState;
     private static volatile int observedCampaignPause;
     private static boolean installed;
+    private static volatile boolean limiterInstalled;
     private static boolean startupComplete;
     private static boolean startupTransitionPending;
     private static boolean mainMenuInteractive;
@@ -50,6 +51,9 @@ public final class FrameTimeRuntime {
     private static volatile long vsyncRequests;
     private static volatile long vsyncEnabledRequests;
     private static volatile long vsyncRequestsForcedOff;
+    private static volatile long limiterSleepCalls;
+    private static volatile long limiterSleepCompletions;
+    private static volatile long limiterRequestedMillisTotal;
     private static long firstBoundaryNanos = Long.MIN_VALUE;
     private static long firstBoundaryEpochMillis = -1L;
     private static long firstCampaignBoundaryNanos = Long.MIN_VALUE;
@@ -63,6 +67,9 @@ public final class FrameTimeRuntime {
     private static long swapCompletedNanos = Long.MIN_VALUE;
     private static long messagesStartedNanos = Long.MIN_VALUE;
     private static long messagesCompletedNanos = Long.MIN_VALUE;
+    private static volatile long limiterSleepStartedNanos = Long.MIN_VALUE;
+    private static volatile long limiterSleepCompletedNanos = Long.MIN_VALUE;
+    private static volatile long limiterSleepRequestedMillis;
     private static final Distribution allActive = new Distribution();
     private static final Distribution postStartupActive = new Distribution();
     private static final Distribution postInteractiveActive = new Distribution();
@@ -91,6 +98,7 @@ public final class FrameTimeRuntime {
         enabled = telemetryRequested;
         smoothFramePacing = smoothRequested;
         installed = false;
+        limiterInstalled = false;
         startupComplete = false;
         startupTransitionPending = false;
         mainMenuInteractive = false;
@@ -110,6 +118,9 @@ public final class FrameTimeRuntime {
         vsyncRequests = 0L;
         vsyncEnabledRequests = 0L;
         vsyncRequestsForcedOff = 0L;
+        limiterSleepCalls = 0L;
+        limiterSleepCompletions = 0L;
+        limiterRequestedMillisTotal = 0L;
         firstBoundaryNanos = Long.MIN_VALUE;
         firstBoundaryEpochMillis = -1L;
         firstCampaignBoundaryNanos = Long.MIN_VALUE;
@@ -145,6 +156,10 @@ public final class FrameTimeRuntime {
 
     static synchronized void installed() {
         installed = true;
+    }
+
+    static synchronized void limiterInstalled() {
+        limiterInstalled = true;
     }
 
     static boolean enabled() {
@@ -208,6 +223,16 @@ public final class FrameTimeRuntime {
         if (enabled) recordMessagesCompleted(System.nanoTime());
     }
 
+    /** Called immediately before the exact campaign main-loop FPS-cap sleep. */
+    public static void beforeLimiterSleep(long requestedMillis) {
+        if (enabled) recordLimiterSleepStarted(requestedMillis, System.nanoTime());
+    }
+
+    /** Called immediately after the exact campaign main-loop FPS-cap sleep returns normally. */
+    public static void afterLimiterSleep() {
+        if (enabled) recordLimiterSleepCompleted(System.nanoTime());
+    }
+
     /** Applies the opt-in presentation experiment without changing Starsector's FPS cap. */
     public static boolean requestedVsync(boolean requested) {
         if (!smoothFramePacing) return requested;
@@ -256,6 +281,20 @@ public final class FrameTimeRuntime {
 
     static void recordMessagesCompleted(long now) {
         messagesCompletedNanos = now;
+    }
+
+    static void recordLimiterSleepStarted(long requestedMillis, long now) {
+        limiterSleepRequestedMillis = requestedMillis;
+        limiterSleepStartedNanos = now;
+        limiterSleepCompletedNanos = Long.MIN_VALUE;
+        limiterSleepCalls++;
+        limiterRequestedMillisTotal += requestedMillis;
+    }
+
+    static void recordLimiterSleepCompleted(long now) {
+        if (limiterSleepStartedNanos == Long.MIN_VALUE || now < limiterSleepStartedNanos) return;
+        limiterSleepCompletedNanos = now;
+        limiterSleepCompletions++;
     }
 
     /** Called from an exact transformed game class when resource initialization returns. */
@@ -390,7 +429,11 @@ public final class FrameTimeRuntime {
                     allActivePhases.lastPreSwapNanos,
                     allActivePhases.lastSwapNanos,
                     allActivePhases.lastMessageNanos,
-                    allActivePhases.lastOtherNanos);
+                    allActivePhases.lastOtherNanos,
+                    allActivePhases.lastLimiterComplete,
+                    allActivePhases.lastLimiterRequestedMillis,
+                    allActivePhases.lastLimiterNanos,
+                    allActivePhases.lastPreSwapExcludingLimiterNanos);
         }
         if (measurementWindowActive && state == lastBoundaryState
                 && state == measurementWindowState) {
@@ -426,6 +469,15 @@ public final class FrameTimeRuntime {
         presentationPolicy.put("requestsForcedOff", vsyncRequestsForcedOff);
         presentationPolicy.put("frameRateCap", "unchanged; owned by Starsector's main loop");
         result.put("presentationPolicy", presentationPolicy);
+        Map<String, Object> limiter = new LinkedHashMap<>();
+        limiter.put("planId", FrameLimiterTimePlan.PLAN_ID);
+        limiter.put("installed", limiterInstalled);
+        limiter.put("scope", "exact BaseGameState campaign/main-state FPS-cap Thread.sleep(long)");
+        limiter.put("sleepCalls", limiterSleepCalls);
+        limiter.put("sleepCompletions", limiterSleepCompletions);
+        limiter.put("requestedMillisTotal", limiterRequestedMillisTotal);
+        limiter.put("semanticEffect", "measurement only; requested duration and original sleep unchanged");
+        result.put("frameLimiter", limiter);
         Map<String, Object> measurement = new LinkedHashMap<>();
         measurement.put("samples", measurementSamples);
         measurement.put("totalNanos", measurementTotalNanos);
@@ -435,7 +487,7 @@ public final class FrameTimeRuntime {
         measurement.put("maximumMicros", measurementSamples == 0L
                 ? null
                 : measurementMaximumNanos / 1_000.0);
-        measurement.put("scope", "display-boundary hook; four phase timestamp hooks excluded");
+        measurement.put("scope", "display-boundary hook; presentation and limiter timestamp hooks excluded");
         result.put(FrameTimeTelemetry.MEASUREMENT_OVERHEAD, measurement);
         result.put("firstBoundaryEpochMillis", firstBoundaryEpochMillis);
         result.put("campaignWarmupWindowMillis", CAMPAIGN_WARMUP_NANOS / 1_000_000L);
@@ -471,8 +523,9 @@ public final class FrameTimeRuntime {
         window.put("state", measurementWindowState == STATE_COMBAT ? "combat" : null);
         result.put("measurementWindow", window);
         Map<String, Object> displayPhases = new LinkedHashMap<>();
-        displayPhases.put("timestampReadsPerPresentedFrame", 6);
-        displayPhases.put("scope", "pre-swap (game work and limiter) vs native swap vs messages");
+        displayPhases.put("baseTimestampReadsPerPresentedFrame", 6);
+        displayPhases.put("additionalTimestampReadsPerCampaignLimiterCall", 2);
+        displayPhases.put("scope", "pre-swap split by exact campaign limiter sleep, native swap, and messages");
         displayPhases.put("allActive", allActivePhases.toMap(firstBoundaryEpochMillis));
         displayPhases.put(FrameTimeTelemetry.CAMPAIGN_ACTIVE,
                 campaignActivePhases.toMap(firstBoundaryEpochMillis));
@@ -492,6 +545,9 @@ public final class FrameTimeRuntime {
         swapCompletedNanos = Long.MIN_VALUE;
         messagesStartedNanos = Long.MIN_VALUE;
         messagesCompletedNanos = Long.MIN_VALUE;
+        limiterSleepStartedNanos = Long.MIN_VALUE;
+        limiterSleepCompletedNanos = Long.MIN_VALUE;
+        limiterSleepRequestedMillis = 0L;
     }
 
     private static final class DisplayPhases {
@@ -499,11 +555,16 @@ public final class FrameTimeRuntime {
         private static final int WORST_LIMIT = 128;
 
         private final PhaseStats preSwap = new PhaseStats();
+        private final PhaseStats preSwapExcludingLimiter = new PhaseStats();
+        private final PhaseStats limiterSleep = new PhaseStats();
         private final PhaseStats swap = new PhaseStats();
         private final PhaseStats messages = new PhaseStats();
         private final PhaseStats otherAfterSwap = new PhaseStats();
         private final long[] worstTotal = new long[WORST_LIMIT];
         private final long[] worstPreSwap = new long[WORST_LIMIT];
+        private final long[] worstPreSwapExcludingLimiter = new long[WORST_LIMIT];
+        private final long[] worstLimiterSleep = new long[WORST_LIMIT];
+        private final long[] worstLimiterRequestedMillis = new long[WORST_LIMIT];
         private final long[] worstSwap = new long[WORST_LIMIT];
         private final long[] worstMessages = new long[WORST_LIMIT];
         private final long[] worstOther = new long[WORST_LIMIT];
@@ -513,6 +574,8 @@ public final class FrameTimeRuntime {
         private long missingSwap;
         private long missingMessages;
         private long invalidOrder;
+        private long limiterCompleteFrames;
+        private long limiterSplitUnavailableFrames;
         private long slowFrames;
         private long slowFramesPreSwapLargest;
         private long slowFramesSwapLargest;
@@ -522,16 +585,25 @@ public final class FrameTimeRuntime {
         private long lastSwapNanos;
         private long lastMessageNanos;
         private long lastOtherNanos;
+        private boolean lastLimiterComplete;
+        private long lastLimiterRequestedMillis;
+        private long lastLimiterNanos;
+        private long lastPreSwapExcludingLimiterNanos;
         private int worstCount;
         private int shortestWorst;
 
         void reset() {
             preSwap.reset();
+            preSwapExcludingLimiter.reset();
+            limiterSleep.reset();
             swap.reset();
             messages.reset();
             otherAfterSwap.reset();
             Arrays.fill(worstTotal, 0L);
             Arrays.fill(worstPreSwap, 0L);
+            Arrays.fill(worstPreSwapExcludingLimiter, 0L);
+            Arrays.fill(worstLimiterSleep, 0L);
+            Arrays.fill(worstLimiterRequestedMillis, 0L);
             Arrays.fill(worstSwap, 0L);
             Arrays.fill(worstMessages, 0L);
             Arrays.fill(worstOther, 0L);
@@ -541,6 +613,8 @@ public final class FrameTimeRuntime {
             missingSwap = 0L;
             missingMessages = 0L;
             invalidOrder = 0L;
+            limiterCompleteFrames = 0L;
+            limiterSplitUnavailableFrames = 0L;
             slowFrames = 0L;
             slowFramesPreSwapLargest = 0L;
             slowFramesSwapLargest = 0L;
@@ -550,6 +624,10 @@ public final class FrameTimeRuntime {
             lastSwapNanos = 0L;
             lastMessageNanos = 0L;
             lastOtherNanos = 0L;
+            lastLimiterComplete = false;
+            lastLimiterRequestedMillis = 0L;
+            lastLimiterNanos = 0L;
+            lastPreSwapExcludingLimiterNanos = 0L;
             worstCount = 0;
             shortestWorst = 0;
         }
@@ -560,6 +638,10 @@ public final class FrameTimeRuntime {
             lastSwapNanos = 0L;
             lastMessageNanos = 0L;
             lastOtherNanos = 0L;
+            lastLimiterComplete = false;
+            lastLimiterRequestedMillis = 0L;
+            lastLimiterNanos = 0L;
+            lastPreSwapExcludingLimiterNanos = 0L;
             frames++;
             if (swapStartedNanos == Long.MIN_VALUE || swapCompletedNanos == Long.MIN_VALUE) {
                 missingSwap++;
@@ -592,8 +674,33 @@ public final class FrameTimeRuntime {
             lastSwapNanos = swapNanos;
             lastMessageNanos = messageNanos;
             lastOtherNanos = otherNanos;
+            boolean limiterComplete = limiterInstalled
+                    && limiterSleepStartedNanos != Long.MIN_VALUE
+                    && limiterSleepCompletedNanos != Long.MIN_VALUE
+                    && limiterSleepStartedNanos >= previousBoundary
+                    && limiterSleepCompletedNanos >= limiterSleepStartedNanos
+                    && limiterSleepCompletedNanos <= swapStartedNanos;
+            long limiterNanos = limiterComplete
+                    ? limiterSleepCompletedNanos - limiterSleepStartedNanos : 0L;
+            long preSwapExcludingLimiterNanos = preSwapNanos - limiterNanos;
+            if (preSwapExcludingLimiterNanos < 0L) {
+                limiterComplete = false;
+                limiterNanos = 0L;
+                preSwapExcludingLimiterNanos = preSwapNanos;
+            }
+            lastLimiterComplete = limiterComplete;
+            lastLimiterRequestedMillis = limiterComplete ? limiterSleepRequestedMillis : 0L;
+            lastLimiterNanos = limiterNanos;
+            lastPreSwapExcludingLimiterNanos = preSwapExcludingLimiterNanos;
             completeFrames++;
             preSwap.record(preSwapNanos);
+            if (limiterComplete) {
+                limiterCompleteFrames++;
+                limiterSleep.record(limiterNanos);
+                preSwapExcludingLimiter.record(preSwapExcludingLimiterNanos);
+            } else {
+                limiterSplitUnavailableFrames++;
+            }
             swap.record(swapNanos);
             messages.record(messageNanos);
             otherAfterSwap.record(otherNanos);
@@ -607,7 +714,9 @@ public final class FrameTimeRuntime {
                     slowFramesAfterSwapLargest++;
                 }
             }
-            retainWorst(total, preSwapNanos, swapNanos, messageNanos, otherNanos, endOffset);
+            retainWorst(total, preSwapNanos, swapNanos, messageNanos, otherNanos,
+                    limiterComplete, limiterSleepRequestedMillis, limiterNanos,
+                    preSwapExcludingLimiterNanos, endOffset);
         }
 
         Map<String, Object> toMap(long originEpochMillis) {
@@ -618,6 +727,10 @@ public final class FrameTimeRuntime {
             values.put("missingMessages", missingMessages);
             values.put("invalidOrder", invalidOrder);
             values.put("preSwap", preSwap.toMap());
+            values.put("limiterCompleteFrames", limiterCompleteFrames);
+            values.put("limiterSplitUnavailableFrames", limiterSplitUnavailableFrames);
+            values.put("limiterSleep", limiterSleep.toMap());
+            values.put("preSwapExcludingLimiter", preSwapExcludingLimiter.toMap());
             values.put("nativeSwap", swap.toMap());
             values.put("messageProcessing", messages.toMap());
             values.put("otherAfterSwap", otherAfterSwap.toMap());
@@ -634,6 +747,16 @@ public final class FrameTimeRuntime {
                 Map<String, Object> frame = new LinkedHashMap<>();
                 frame.put("durationMicros", worstTotal[index] / 1_000L);
                 frame.put("preSwapMicros", worstPreSwap[index] / 1_000L);
+                frame.put("limiterSplitComplete", worstLimiterRequestedMillis[index] >= 0L);
+                if (worstLimiterRequestedMillis[index] >= 0L) {
+                    frame.put("limiterRequestedMillis", worstLimiterRequestedMillis[index]);
+                    frame.put("limiterElapsedMicros", worstLimiterSleep[index] / 1_000L);
+                    frame.put("preSwapExcludingLimiterMicros",
+                            worstPreSwapExcludingLimiter[index] / 1_000L);
+                    frame.put("limiterOvershootMicros",
+                            worstLimiterSleep[index] / 1_000L
+                                    - worstLimiterRequestedMillis[index] * 1_000L);
+                }
                 frame.put("swapMicros", worstSwap[index] / 1_000L);
                 frame.put("messageMicros", worstMessages[index] / 1_000L);
                 frame.put("otherAfterSwapMicros", worstOther[index] / 1_000L);
@@ -647,7 +770,8 @@ public final class FrameTimeRuntime {
         }
 
         private void retainWorst(long total, long preSwapNanos, long swapNanos, long message,
-                long other, long endOffset) {
+                long other, boolean limiterComplete, long limiterRequestedMillis,
+                long limiterNanos, long preSwapExcludingLimiterNanos, long endOffset) {
             int target;
             if (worstCount < WORST_LIMIT) {
                 target = worstCount++;
@@ -657,6 +781,9 @@ public final class FrameTimeRuntime {
             }
             worstTotal[target] = total;
             worstPreSwap[target] = preSwapNanos;
+            worstLimiterRequestedMillis[target] = limiterComplete ? limiterRequestedMillis : -1L;
+            worstLimiterSleep[target] = limiterNanos;
+            worstPreSwapExcludingLimiter[target] = preSwapExcludingLimiterNanos;
             worstSwap[target] = swapNanos;
             worstMessages[target] = message;
             worstOther[target] = other;

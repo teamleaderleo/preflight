@@ -361,6 +361,9 @@ final class AdapterTransformationRegistry {
         if (FrameTimeRuntime.PLAN_ID.equals(target.planId())) {
             return FrameTimePlan.transform(signature, originalBytes);
         }
+        if (FrameLimiterTimePlan.PLAN_ID.equals(target.planId())) {
+            return FrameLimiterTimePlan.transform(signature, originalBytes);
+        }
         if (CampaignCallTimeRuntime.PLAN_ID.equals(target.planId())) {
             return CampaignCallTimePlan.transform(signature, originalBytes);
         }
@@ -945,6 +948,9 @@ final class AdapterTransformationRegistry {
         }
         if (FrameTimeRuntime.PLAN_ID.equals(planId)) {
             return true;
+        }
+        if (FrameLimiterTimePlan.PLAN_ID.equals(planId)) {
+            return FrameTimeRuntime.enabled();
         }
         if (CampaignCallTimeRuntime.PLAN_ID.equals(planId)) {
             return true;

@@ -773,6 +773,22 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Exact campaign main-loop limiter sleep, enabled only with frame-time telemetry. */
+    static AdapterTarget frameLimiterTimeTarget() {
+        return new AdapterTarget(
+                "vanilla-campaign-frame-limiter-time-0.98a-rc8",
+                FrameLimiterTimePlan.TARGET_CLASS,
+                FrameLimiterTimePlan.ORIGINAL_SHA256,
+                FrameLimiterTimePlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        FrameLimiterTimePlan.METHOD, FrameLimiterTimePlan.DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** Minimal end-of-startup marker for frame-time pilots that deliberately avoid JFR. */
     static AdapterTarget frameTimeStartupCompletionTarget() {
         return new AdapterTarget(
@@ -1935,6 +1951,7 @@ final class AdapterTargetRegistry {
 
     AdapterTargetRegistry withFrameTimeTarget() {
         return withTarget(frameTimeTarget())
+                .withTarget(frameLimiterTimeTarget())
                 .withTarget(campaignFrameTimeStateTarget());
     }
 
