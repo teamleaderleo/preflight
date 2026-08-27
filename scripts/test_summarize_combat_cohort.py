@@ -15,7 +15,9 @@ SPEC.loader.exec_module(cohort)
 
 
 class CombatCohortSummaryTest(unittest.TestCase):
-    def write_run(self, root: Path, name: str, candidate: bool, fps: float) -> Path:
+    def write_run(
+            self, root: Path, name: str, candidate: bool, fps: float,
+            probe: str = "texture") -> Path:
         path = root / name
         path.mkdir()
         frame = {
@@ -33,7 +35,8 @@ class CombatCohortSummaryTest(unittest.TestCase):
                 "end": {"ships": 125, "projectiles": 200, "missiles": 100,
                         "combatOver": False},
             },
-            "openGlTextureBindDedup": {
+            ("openGlMatrixIdentityElision" if probe == "matrix"
+             else "openGlTextureBindDedup"): {
                 "requested": candidate, "active": candidate, "runtimeDisabled": False,
                 "problem": None, "unexpectedThreadCalls": 0,
                 "suppressedCalls": 1_700_000 if candidate else 0,
@@ -75,7 +78,18 @@ class CombatCohortSummaryTest(unittest.TestCase):
         self.assertIn("gates: identity=PASS  workload=PASS  adapter=PASS", rendered)
         self.assertIn("B vs A (arm medians):", rendered)
         self.assertIn("1%low", rendered)
-        self.assertIn("38.00% binds suppressed", rendered)
+        self.assertIn("38.00% texture binds suppressed", rendered)
+
+    def test_matrix_candidate_uses_the_same_compact_contract(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runs = [
+                cohort.load_run(self.write_run(root, "a1", False, 20.0, "matrix")),
+                cohort.load_run(self.write_run(root, "b1", True, 22.0, "matrix")),
+            ]
+            rendered = cohort.render(runs)
+        self.assertIn("gates: identity=PASS  workload=PASS  adapter=PASS", rendered)
+        self.assertIn("38.00% identity matrix transforms suppressed", rendered)
 
 
 if __name__ == "__main__":
