@@ -28,6 +28,7 @@ final class RuntimeGameActionClient {
     static final String COMBAT_UNPAUSE_ACTION = "combat.unpause";
     static final String COMBAT_CAPTURE_VIEWPORT_ACTION = "combat.capture-viewport";
     static final String COMBAT_ZOOM_OUT_ACTION = "combat.zoom-out";
+    static final String COMBAT_SET_STRESS_VIEWPORT_ACTION = "combat.set-stress-viewport";
     static final String COMBAT_VERIFY_ZOOM_OUT_ACTION = "combat.verify-zoom-out";
     static final String COMBAT_BEGIN_FRAME_WINDOW_ACTION = "combat.begin-frame-window";
     static final String COMBAT_STRESS_FIXTURE_ACTION =
@@ -47,6 +48,7 @@ final class RuntimeGameActionClient {
             CAMPAIGN_BEGIN_FRAME_WINDOW_ACTION,
             COMBAT_PAUSE_ACTION, COMBAT_UNPAUSE_ACTION,
             COMBAT_CAPTURE_VIEWPORT_ACTION, COMBAT_ZOOM_OUT_ACTION,
+            COMBAT_SET_STRESS_VIEWPORT_ACTION,
             COMBAT_VERIFY_ZOOM_OUT_ACTION,
             COMBAT_BEGIN_FRAME_WINDOW_ACTION, COMBAT_STRESS_FIXTURE_ACTION,
             COMBAT_FIXTURE_ACTION, COMBAT_FIXTURE_VERIFY_ACTION,
@@ -177,6 +179,7 @@ final class RuntimeGameActionClient {
             }
             if (COMBAT_CAPTURE_VIEWPORT_ACTION.equals(action)
                     || COMBAT_ZOOM_OUT_ACTION.equals(action)
+                    || COMBAT_SET_STRESS_VIEWPORT_ACTION.equals(action)
                     || COMBAT_VERIFY_ZOOM_OUT_ACTION.equals(action)
                     || COMBAT_BEGIN_FRAME_WINDOW_ACTION.equals(action)
                     || COMBAT_STRESS_FIXTURE_ACTION.equals(action)) {

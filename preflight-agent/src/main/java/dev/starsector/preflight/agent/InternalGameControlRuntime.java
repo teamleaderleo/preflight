@@ -34,6 +34,7 @@ public final class InternalGameControlRuntime {
     static final String COMBAT_UNPAUSE_ACTION = "combat.unpause";
     static final String COMBAT_CAPTURE_VIEWPORT_ACTION = "combat.capture-viewport";
     static final String COMBAT_ZOOM_OUT_ACTION = "combat.zoom-out";
+    static final String COMBAT_SET_STRESS_VIEWPORT_ACTION = "combat.set-stress-viewport";
     static final String COMBAT_VERIFY_ZOOM_OUT_ACTION = "combat.verify-zoom-out";
     static final String COMBAT_BEGIN_FRAME_WINDOW_ACTION = "combat.begin-frame-window";
     static final String INTERACTIVE_STATE = "main-menu-interactive";
@@ -67,7 +68,7 @@ public final class InternalGameControlRuntime {
                     + "\\\"processStartedAt\\\":\\\"([^\\\"]{1,80})\\\","
                     + "\\\"action\\\":\\\"(main-menu\\.continue|campaign\\.(?:pause|unpause|begin-frame-window|prepare-combat-fixture|verify-combat-fixture)"
                     + "|simulation\\.(?:opponents\\.(?:all|deploy)|allies\\.(?:select|all|deploy)|engage)"
-                    + "|combat\\.(?:pause|unpause|capture-viewport|zoom-out|verify-zoom-out|begin-frame-window|prepare-symmetric-1000dp-fixture))\\\","
+                    + "|combat\\.(?:pause|unpause|capture-viewport|zoom-out|set-stress-viewport|verify-zoom-out|begin-frame-window|prepare-symmetric-1000dp-fixture))\\\","
                     + "\\\"expectedState\\\":\\\"(main-menu-interactive|campaign-ready|simulation-ready|combat-ready)\\\","
                     + "\\\"deadline\\\":\\\"([^\\\"]{1,80})\\\"\\}\\s*");
 
@@ -82,6 +83,7 @@ public final class InternalGameControlRuntime {
     private static boolean pendingCampaignDesiredPaused;
     private static float combatViewportBaselineMult;
     private static float combatViewportBaselineWidth;
+    private static float combatViewportExpectedMult;
     private static volatile boolean simulationEngaged;
 
     private InternalGameControlRuntime() {
@@ -352,6 +354,21 @@ public final class InternalGameControlRuntime {
                         accepted, Instant.now(), "combat-engine.advance", COMBAT_STATE, null, null);
                 return;
             }
+            if (COMBAT_SET_STRESS_VIEWPORT_ACTION.equals(parsed.action())) {
+                Object viewport = viewport(engine);
+                Method setViewMult = viewport.getClass().getMethod("setViewMult", float.class);
+                if (setViewMult.getReturnType() != void.class) {
+                    throw new IllegalStateException("combat-viewport-setter-shape-mismatch");
+                }
+                combatViewportExpectedMult = 4.0f;
+                invoke(setViewMult, viewport, combatViewportExpectedMult);
+                float[] after = viewportState(engine);
+                publish(parsed, "executed", String.format(java.util.Locale.ROOT,
+                                "set exact combat stress viewport: viewMult %.3f, visibleWidth %.1f",
+                                after[0], after[1]),
+                        accepted, Instant.now(), "combat-engine.advance", COMBAT_STATE, null, null);
+                return;
+            }
             if (COMBAT_VERIFY_ZOOM_OUT_ACTION.equals(parsed.action())) {
                 if (combatViewportBaselineMult <= 0f || combatViewportBaselineWidth <= 0f) {
                     throw new IllegalStateException("combat-viewport-baseline-missing");
@@ -359,7 +376,9 @@ public final class InternalGameControlRuntime {
                 float[] viewport = viewportState(engine);
                 boolean wider = viewport[0] >= combatViewportBaselineMult * 1.05f
                         && viewport[1] >= combatViewportBaselineWidth * 1.05f;
-                if (!wider) {
+                boolean exactExpected = combatViewportExpectedMult <= 0f
+                        || Math.abs(viewport[0] - combatViewportExpectedMult) <= 0.001f;
+                if (!wider || !exactExpected) {
                     throw new IllegalStateException(String.format(java.util.Locale.ROOT,
                             "combat-viewport-did-not-zoom-out: viewMult %.3f -> %.3f, visibleWidth %.1f -> %.1f",
                             combatViewportBaselineMult, viewport[0],
@@ -483,6 +502,7 @@ public final class InternalGameControlRuntime {
                 || COMBAT_UNPAUSE_ACTION.equals(action)
                 || COMBAT_CAPTURE_VIEWPORT_ACTION.equals(action)
                 || COMBAT_ZOOM_OUT_ACTION.equals(action)
+                || COMBAT_SET_STRESS_VIEWPORT_ACTION.equals(action)
                 || COMBAT_VERIFY_ZOOM_OUT_ACTION.equals(action)
                 || COMBAT_BEGIN_FRAME_WINDOW_ACTION.equals(action)
                 || CombatStressFixtureRuntime.ACTION.equals(action);
@@ -512,7 +532,7 @@ public final class InternalGameControlRuntime {
     }
 
     private static float[] viewportState(Object engine) throws ReflectiveOperationException {
-        Object viewport = invoke(engine.getClass().getMethod("getViewport"), engine);
+        Object viewport = viewport(engine);
         if (viewport == null) throw new IllegalStateException("combat-viewport-missing");
         Method getViewMult = viewport.getClass().getMethod("getViewMult");
         Method getVisibleWidth = viewport.getClass().getMethod("getVisibleWidth");
@@ -529,9 +549,16 @@ public final class InternalGameControlRuntime {
         return new float[] {mult, width};
     }
 
+    private static Object viewport(Object engine) throws ReflectiveOperationException {
+        Object viewport = invoke(engine.getClass().getMethod("getViewport"), engine);
+        if (viewport == null) throw new IllegalStateException("combat-viewport-missing");
+        return viewport;
+    }
+
     private static void clearCombatViewportBaseline() {
         combatViewportBaselineMult = 0f;
         combatViewportBaselineWidth = 0f;
+        combatViewportExpectedMult = 0f;
     }
 
     private static String executeSimulationAction(Object dialog, String action)

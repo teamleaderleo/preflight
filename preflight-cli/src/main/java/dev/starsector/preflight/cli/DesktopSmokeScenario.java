@@ -35,6 +35,7 @@ final class DesktopSmokeScenario {
             "combat.unpause",
             "combat.capture-viewport",
             "combat.zoom-out",
+            "combat.set-stress-viewport",
             "combat.verify-zoom-out",
             "combat.begin-frame-window",
             "combat.prepare-symmetric-1000dp-fixture",
