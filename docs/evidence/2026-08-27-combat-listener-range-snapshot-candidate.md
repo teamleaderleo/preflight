@@ -5,7 +5,7 @@ Date: 2026-08-27
 Install: Starsector 0.98a-RC8, current heavily modded profile, macOS on Apple M5,
 bundled x86-64 Zulu 17 under Rosetta, Preflight fast preset
 
-Status: opt-in candidate prepared; exact installed-JAR and fixture tests pass; live combat pending
+Status: accepted with limit as an opt-in; exact tests and a clean live 1,040-DP route pass
 
 ## Profile signal
 
@@ -55,6 +55,41 @@ opt-in, all-or-nothing shape admission, wrong-hash and second-rewrite fallback, 
 one array snapshot per method, one array element load per loop, and absence of `ArrayList`
 allocation and iterator calls after transformation.
 
-Live 1,040-DP combat remains the acceptance gate. Exact application, clean callback behavior, a
-normal scenario exit, and disappearance of the two removable allocation classes must precede any
-default enablement or performance claim.
+## Live acceptance
+
+One fresh Preflight-only `campaign-simulation-combat-1000dp` run enabled this candidate together
+with the independent accepted AI Tweaks arc-capacity plan. The driver prepared 24 mirrored ships
+and 520 DP per side, enabled 2x simulation speed, zoomed the viewport from 1,800 to 6,120 world
+units, and completed all 34 steps. The exact listener plan registered one target, applied without
+an evaluation problem, and the 30.003-second combat window completed without a gameplay fatal.
+The run exited zero after publishing an exact PID/start-instant controller-stop receipt.
+
+Within that window, stacks containing `CombatListenerUtil` carried 313 JFR allocation samples and
+644.3 MiB of statistical weight. Every filtered sample was a required `Object[]` snapshot allocated
+through `Arrays.copyOf`; sampled `ArrayList` objects and iterators were both zero. All six rewritten
+range-query methods remained represented. This is the expected structural result, not evidence that
+the necessary snapshot array disappeared.
+
+The focusless route dropped 1,989 inactive intervals and retained zero active combat frames in its
+declared measurement window. Its frame report therefore cannot support an FPS, percentile, or
+smoothness comparison. The machine reported no macOS thermal or performance warning immediately
+before launch, but its physical warmth is still a confounder. A later foreground knob-off/knob-on
+pair may estimate user-visible magnitude; it is not required to retain this bounded allocation
+reduction as an opt-in.
+
+Two earlier development observations were not used as clean acceptance runs. One exposed the now
+retired AI Tweaks select-target boundary; another exposed controller-stop receipt ordering in the
+automation harness. The unsafe AI Tweaks target was removed rather than masked, and the harness now
+publishes a strict process-lifetime receipt immediately before terminal shutdown. The final run
+contains neither confounder.
+
+The compact measurements and hashes are retained in
+[`data/2026-08-27-combat-listener-range-snapshot.json`](data/2026-08-27-combat-listener-range-snapshot.json).
+The raw JFR and copied megabyte log tail are intentionally not committed and are pruned after this
+checkpoint.
+
+## Claim boundary
+
+Acceptance rests on the exact semantic boundary, direct disappearance of the redundant sampled
+allocation classes, clean live execution, and fail-closed tests. The plan remains explicitly opt-in.
+No FPS, percentile, startup-time, or cross-platform uplift is claimed.

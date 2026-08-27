@@ -26,8 +26,11 @@ The opt-in plan was enabled for one Preflight-only run of
 `campaign-simulation-combat-1000dp`. The driver prepared 24 mirrored ships and 520 DP per side,
 enabled 2x simulation speed, zoomed the viewport from 1,800 to 6,120 world units, measured a clean
 30.006-second combat window, and exited successfully. The exact plan applied once with no
-evaluation problems. The corrected `aitweaks-select-target-snapshot-v4` plan also remained healthy
-and recorded 73,917 selection snapshots; the former boxed-field null failure did not recur.
+evaluation problems. That observation also included the then-current
+`aitweaks-select-target-snapshot-v4` plan and recorded 73,917 selection snapshots. A later heavier
+run reproduced a null receiver in the original target-selection expression, so that entire shared
+select-target boundary was retired rather than masked. The independent split-arcs capacity plan
+does not rewrite that method and remains retained.
 
 Within the combat window, the `splitArcs` subtree carried 42 JFR allocation samples with 93.9 MiB
 of statistical weight. Ten samples carrying 42.0 MiB were backing `Object[]` arrays allocated

@@ -1,0 +1,86 @@
+{
+  "format": "starsector-preflight-optimization-observation-v1",
+  "candidate": "vanilla-combat-listener-range-snapshot-v1",
+  "status": "accepted-with-limit-opt-in",
+  "property": "preflight.combat.listenerRangeSnapshotArray",
+  "game": "Starsector 0.98a-RC8",
+  "scenario": "campaign-simulation-combat-1000dp",
+  "condition": {
+    "launcher": "Preflight fast preset only",
+    "battle": "24 mirrored ships per side, 520 DP per side",
+    "speed": "2x",
+    "viewportWidth": 6120.0,
+    "measurementWindowSeconds": 30.003,
+    "observations": 1,
+    "frontmostDuringControlSteps": false,
+    "macosThermalWarning": false,
+    "macosPerformanceWarning": false
+  },
+  "target": {
+    "class": "com/fs/starfarer/api/combat/listeners/CombatListenerUtil",
+    "classSha256": "2cffd915a76555a002fde4f717a5fad4fd72e093f948cb3e9eb801da48ec2dbc",
+    "sourceArchiveSha256": "6ac6c78c6116946d487376426340d019938f986ceae1391ae1fa599e890e3185",
+    "majorVersion": 61,
+    "methods": 6
+  },
+  "safety": {
+    "fallback": "ORIGINAL_BYTECODE",
+    "addsGameObjectFields": false,
+    "addsMutableGameState": false,
+    "touchesSaveState": false,
+    "preservedSemantics": [
+      "one pre-callback snapshot",
+      "listener order",
+      "callback arguments and count",
+      "modifier arithmetic order",
+      "live-repository mutations apply to the next query"
+    ]
+  },
+  "run": {
+    "startedAt": "2026-08-27T10:15:49.480097Z",
+    "completedAt": "2026-08-27T10:17:18.058301Z",
+    "jfrSha256": "e1951aa1f77c422ba5cdc5231cb2ef293ca947b5bbc2041de93096363586883c",
+    "scenarioSha256": "62c027df5fe5e34ad1a1f48b949e3d6af5cf60c5cc76b22256715c98e3ccb677",
+    "runReportSha256": "f5ab566d285fc9c3f1abd4a690fdb383277345c6bec9ccd19727c0d1d71034bb",
+    "scenarioEvidenceSha256": "2ab05675bdd151ea136ca8e40e82c77744ce1a507236e07fda236043b72d0634",
+    "adapterReportSha256": "f563ba75459fcfae063f728b7cbedde85f99b7ef7faab2d9c7e66660a531f4b4",
+    "frameReportSha256": "0738265d18d6a7589ffc5599e590eb4977c4481b39b7c25f5e8fff4a742ae134",
+    "adapterHealthSha256": "7e2e0eb2a42d178000110b266aa59145ad7e647ef1fbb9979d2985774aa6b277",
+    "logTailSha256": "f680d954be529fd95bc2619e0e99a9e71c3030b4cfb0d17d9ebce713838f5052",
+    "scenarioStepsPassed": 34,
+    "scenarioStepsTotal": 34,
+    "launcherExitCode": 0,
+    "fatalDetected": false,
+    "controllerStopRequested": true,
+    "transformationsApplied": 65,
+    "containedFailures": 0,
+    "exactTransformRegistered": true,
+    "exactTransformApplied": true,
+    "listenerAllocationSamples": 313,
+    "listenerWeightedAllocationMiB": 644.3,
+    "objectArraySamples": 313,
+    "arrayListSamples": 0,
+    "iteratorSamples": 0,
+    "inactiveFrameIntervalsDropped": 1989,
+    "measurementWindowActiveFrames": 0,
+    "frameClaimUsable": false
+  },
+  "baselineProfile": {
+    "listenerAllocationSamples": 487,
+    "listenerWeightedAllocationMiB": 813.4,
+    "requiredObjectArrayWeightedMiB": 614.0,
+    "redundantArrayListWeightedMiB": 195.4,
+    "redundantIteratorWeightedMiB": 4.0,
+    "interpretation": "JFR ObjectAllocationSample weights are statistical estimates, not an exact allocation census or lockstep A/B."
+  },
+  "verification": {
+    "javaRelease": 17,
+    "focusedTests": 5,
+    "focusedFailures": 0,
+    "focusedErrors": 0,
+    "exactInstalledArchiveTest": "passed",
+    "fullMavenVerify": "passed",
+    "liveScenario": "passed"
+  },
+  "claimLimit": "The live run proves exact application, clean execution, and disappearance of sampled ArrayList and iterator allocations in the transformed listener methods. It does not establish a universal FPS, percentile, startup-time, or cross-platform uplift."
+}
