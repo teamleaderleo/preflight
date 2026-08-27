@@ -20,6 +20,13 @@ next probe becomes available.
 
 ## Current measurement frontier
 
+[Gameplay FPS program #449](https://github.com/teamleaderleo/preflight/issues/449) is the canonical
+parent for this work. The point-in-time
+[#449 reconciliation](evidence/2026-08-28-issue-449-program-reconciliation.md) distinguishes the
+public `main` baseline from this working branch, maps the implemented and missing workstreams, and
+defines the next narrow hitch-packet slice. Do not treat a local experiment commit as evidence that
+the public branch already contains the capability.
+
 The current implementation checkpoint is `574cfd3b`, which retains the accepted v2 collision set,
 exact-step hitch enrichment, distinct recurring-cluster breadth, and CI coverage for all gameplay
 analysis scripts. The AI Tweaks weapon-location helper candidate at `5b6035aa` and the Detailed Combat

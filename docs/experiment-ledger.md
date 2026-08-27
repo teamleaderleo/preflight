@@ -2,9 +2,9 @@
 
 **Status:** exhaustive at the experiment-family level
 
-**Scope:** retained work through 2026-08-27
+**Scope:** retained work through 2026-08-28
 
-**Updated:** 2026-08-27
+**Updated:** 2026-08-28
 
 This ledger accounts for the optimization branches explored during the current campaign, including
 ideas that were rejected, corrected, or left deliberately unfinished. A row may consolidate several

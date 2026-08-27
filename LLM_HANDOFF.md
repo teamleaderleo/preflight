@@ -19,7 +19,8 @@ Before changing code or collecting release evidence:
 6. For current campaign/combat smoothness work, read the maintained
    [frame-pacing investigation notebook](docs/frame-pacing-investigation.md). It separates durable
    observations from falsifiable hypotheses and records why a previously explored area may still
-   be worth revisiting.
+   be worth revisiting. [Gameplay FPS program #449](https://github.com/teamleaderleo/preflight/issues/449)
+   is the canonical parent for that lane; use focused child issues once one experiment is concrete.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package
