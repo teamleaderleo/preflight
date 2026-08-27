@@ -209,6 +209,7 @@ public final class FrameTimeRuntime {
         measurementWindowPhases.reset();
         HitchPacketRuntime.beginSession(telemetryRequested);
         GpuFrameTimeRuntime.beginSession(telemetryRequested);
+        GlMatrixIdentityElisionRuntime.beginSession(telemetryRequested);
         GlMatrixOperationRuntime.beginSession(telemetryRequested);
         GlStateReissueRuntime.beginSession(telemetryRequested);
         GlCommandCountRuntime.beginSession(telemetryRequested);
@@ -380,6 +381,7 @@ public final class FrameTimeRuntime {
         measurementWindowCampaignPause = PAUSE_UNKNOWN;
         measurementWindowActive = true;
         GlCommandCountRuntime.beginMeasurementWindow("combat", null);
+        GlMatrixIdentityElisionRuntime.beginMeasurementWindow();
         GlMatrixOperationRuntime.beginMeasurementWindow();
         GlStateReissueRuntime.beginMeasurementWindow();
     }
@@ -403,6 +405,7 @@ public final class FrameTimeRuntime {
         measurementWindowActive = true;
         GlCommandCountRuntime.beginMeasurementWindow(
                 "campaign", paused ? "paused" : "unpaused");
+        GlMatrixIdentityElisionRuntime.beginMeasurementWindow();
         GlMatrixOperationRuntime.beginMeasurementWindow();
         GlStateReissueRuntime.beginMeasurementWindow();
     }
@@ -710,6 +713,7 @@ public final class FrameTimeRuntime {
                 allActivePhases.lastSwapThreadCpuComplete
                         ? allActivePhases.lastSwapOffCpuNanos : -1L,
                 lastSwapInterval);
+        GlMatrixIdentityElisionRuntime.beginFrame();
         lastBoundaryActive = active;
         lastBoundaryState = state;
         lastBoundaryCampaignPause = campaignPause;
@@ -787,6 +791,7 @@ public final class FrameTimeRuntime {
         result.put("openGlContext", glContext);
         result.put("gpuFrameTime", GpuFrameTimeRuntime.telemetry());
         result.put("openGlCommands", GlCommandCountRuntime.telemetry());
+        result.put("openGlMatrixIdentityElision", GlMatrixIdentityElisionRuntime.telemetry());
         result.put("openGlMatrixOperations", GlMatrixOperationRuntime.telemetry());
         result.put("openGlStateReissues", GlStateReissueRuntime.telemetry());
         Map<String, Object> limiter = new LinkedHashMap<>();
