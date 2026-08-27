@@ -1,0 +1,44 @@
+{
+  "format": "starsector-preflight-rejected-candidate-v1",
+  "candidate": "collision-query-compact-index-v3",
+  "status": "rejected-before-live-launch",
+  "candidateCommit": "a7ffaf78",
+  "revertCommit": "bb3ebcc3",
+  "retainedImplementation": "collision-query-open-set-v2",
+  "runtime": {
+    "javaExecutable": "/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home/bin/java",
+    "javaExecutableSha256": "3b8800dfefc213409646bd569c52c58a305ac8ae1d1e0f9dabf3b27d5c9c6026",
+    "configuredInitialHeapBytes": 6442450944,
+    "configuredMaximumHeapBytes": 6442450944,
+    "reportedMaximumHeapBytes": 6442450944,
+    "useCompressedOops": true,
+    "useCompressedClassPointers": true,
+    "objectArrayIndexScaleBytes": 4,
+    "intArrayIndexScaleBytes": 4
+  },
+  "steadyPayloadBytesPerCapacitySlot": {
+    "acceptedV2": {
+      "shape": "two Object[] plus one int[]",
+      "bytes": 12
+    },
+    "candidateV3": {
+      "shape": "one Object[] plus two int[]",
+      "bytes": 12
+    }
+  },
+  "verificationBeforeRejection": {
+    "javaRelease": 17,
+    "tests": 2227,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 10,
+    "scope": "candidate semantic and repository correctness, not live performance"
+  },
+  "liveRun": {
+    "attempted": false,
+    "gameProcessCreated": false,
+    "reason": "The exact current-JVM layout check falsified the candidate's allocation premise before a launch could add useful evidence."
+  },
+  "decision": "Retain v2. V3 has equal steady array payload on the current compressed-oops JVM and adds lookup indirection without evidence that reduced reference scanning is valuable.",
+  "scopeLimit": "This rejects only the compact-index representation on the current runtime; collision-query work remains explored, not exhausted."
+}

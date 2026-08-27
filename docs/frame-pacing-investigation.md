@@ -20,10 +20,10 @@ next probe becomes available.
 
 ## Current measurement frontier
 
-The current implementation checkpoint is `a7ffaf78`, which contains a combat collision-array
-candidate awaiting live validation. The latest accepted campaign measurement checkpoint remains
-`fee6c7b8`, following the cluster recorder/analyzer at
-`cf761d2c9089e7ef46f11d741166f0b3bc1d413c`. One Preflight-only
+The current implementation checkpoint is `bb3ebcc3`, which retains the accepted v2 collision set
+after reverting a compact-index candidate whose allocation premise was falsified offline. The
+latest accepted campaign measurement checkpoint remains `fee6c7b8`, following the cluster
+recorder/analyzer at `cf761d2c9089e7ef46f11d741166f0b3bc1d413c`. One Preflight-only
 `campaign-sample-paused-unpaused` run of those source bytes passed every semantic step on
 2026-08-27, used one owned game process, and dropped zero inactive or invalid frame intervals. Its
 bounded record is [repeated cluster attribution](evidence/data/2026-08-27-repeated-cluster-attribution.json).
@@ -45,32 +45,29 @@ thermal state were not locked, so apparent deltas must not be advertised as impr
 
 ## Current live-validation queue
 
-### Collision query compact indexes (`a7ffaf78`)
+### Fresh accepted-v2 combat cluster baseline (`bb3ebcc3`)
 
-**Status:** exact tests and full Java 17 verification pass; live acceptance is deliberately pending.
-The first launch attempt was rejected before process creation because macOS was locked.
+**Status:** pending only because the console was locked; prior launch attempts stopped before game
+process creation. This is a profiling run, not validation of the rejected v3 representation.
 
-The accepted v2 collision set stored every unique candidate in both its open-addressed object table
-and its encounter-order object array, alongside a hash array. The v3 candidate stores the candidate
-only in encounter order. A primitive one-based index table points into it, and a parallel primitive
-array retains the insertion hash. This changes the steady capacity shape from two `Object[]` plus
-one `int[]` to one `Object[]` plus two `int[]`; hash-table growth now allocates only an `int[]`.
+The compact-index v3 candidate at `a7ffaf78` passed exact tests and full Java 17 verification, but
+an exact layout check falsified its allocation premise before live launch. With the installed
+game's 6 GiB heap, compressed object references and `int` array elements are both four bytes. The
+accepted v2 shape (two `Object[]` plus one `int[]`) and candidate v3 shape (one `Object[]` plus two
+`int[]`) therefore each use 12 payload bytes per capacity slot. V3 added lookup indirection without
+an established allocation-byte saving and was reverted by `bb3ebcc3`. See the immutable
+[rejection record](evidence/2026-08-27-collision-query-compact-index-rejected.md).
 
-The insertion hash is not recomputed during growth. Differential tests cover nulls, duplicate and
-colliding values, repeated iterators, fail-fast mutation, and the odd mutable-key behavior of
-`LinkedHashSet`. The target remains the exact RC8 constructor, adds no game-object field or save
-state, and has a new v3 plan/target identity so cached v2 diagnostics cannot be confused with it.
-
-**Hypothesis:** removing the duplicated references and object-table growth will reduce the still
-large collision allocation family without materially worsening lookup CPU. **Falsifier:** a clean
-1,040-DP Preflight run fails structurally, retains the old object-table allocation shape, or shows a
-credible CPU/frame-pacing regression. Do not call it accepted or claim FPS improvement until that
-run succeeds. If it succeeds, confirm the direction at ordinary DP before making a broad claim.
+**Observed:** this representation is not worthwhile on the current JVM. **Not exhausted:** the
+accepted v2 collision family still carried hundreds of MiB of weighted allocation in prior 1,040-DP
+runs. A new exact-window baseline can identify whether a different collision boundary—or another
+combat family entirely—dominates recurring frame clusters.
 
 **Exact next action:** after the console is unlocked, run
-`campaign-simulation-combat-1000dp.json` once with the current B build, verify all 34 receipts and
-active focus-clean frames, then rank combat CPU, allocations, and repeated clusters inside only the
-`combat-sample-1040dp` receipt window.
+`campaign-simulation-combat-1000dp.json` once with the current accepted-v2 build, verify all 34
+receipts and active focus-clean frames, then rank combat CPU, allocations, and repeated clusters
+inside only the `combat-sample-1040dp` receipt window. Do not resurrect v3 unless the runtime layout
+changes or evidence identifies GC reference scanning as a dominant cost.
 
 Analyzer checkpoint `b099f354` makes that last constraint enforceable: `--repeated-clusters` may
 now be combined with `--step`, intersects the state-derived cluster windows with the exact receipt,
@@ -213,7 +210,7 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
 | RAT tooltip scripts | No Preflight optimization exists; source shows per-frame UI copies and reflection, with a "do not modify twice" UI sentinel in the AI-core path. | The worst exact active frame crossed this code. | Does an identity/content guard remove repeated work without missing a tooltip object reused for a different entry? |
 | Stable campaign snapshots | Stable arrays and exhausted cursor reuse are accepted and bounded. | Current allocation samples still show rebuild/cursor cost and cursor identities outnumber owners. | Which owners rebuild, how often, and can stale cursor entries be removed when an owner receives a replacement array? |
 | Paused/unpaused attribution | Frame buckets are state-separated and focus-clean. Repeated clusters now correlate with bounded exact campaign calls and exact scenario steps. This separated seven post-unpause clusters from 15 settled clusters. | Transition work is a broad catch-up burst; the settled route still mixes occasional large spikes with recurring small calls, and retained children explain only part of cluster wall time. | Does the transition ordering repeat, and which individual settled frames align with the 69–90 ms location spikes? |
-| Combat | Deterministic simulation, autopilot, speed-up, zoom, and frame reporting already exist. V2 collision allocation and listener snapshots are accepted. V3 compact collision indexes pass exact tests but remain live-unvalidated. | Campaign work says nothing about 1,000+ DP battles. The accepted collision family still carried hundreds of MiB of sampled allocation, while the compact-index CPU tradeoff is unknown. | Does v3 remove the duplicate-reference allocation shape without worsening clean high-DP pacing, and does any benefit survive ordinary-DP confirmation? |
+| Combat | Deterministic simulation, autopilot, speed-up, zoom, and frame reporting already exist. V2 collision allocation and listener snapshots are accepted. V3 compact indexes were rejected before live launch because compressed references made their steady payload equal to v2 while adding index indirection. | Campaign work says nothing about 1,000+ DP battles. The accepted collision family still carried hundreds of MiB of sampled allocation; rejecting one representation does not spend the collision boundary or the broader combat profile. | In a fresh exact 1,040-DP sample window, which CPU/allocation stacks overlap recurring frame clusters, and does the leading safe direction survive ordinary-DP confirmation? |
 
 ## Open questions, ranked
 
@@ -230,9 +227,10 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
    interval and which listener events already express real market invalidation.
 5. **Stable snapshot ownership:** instrument rebuilds by transformed loop kind before redesigning
    cursor retention.
-6. **Combat compact indexes:** live-validate `a7ffaf78` in the existing symmetric 1,040-DP fixture,
-   then repeat the retained direction in the ordinary fixture. Do not replace the ordinary workload
-   with the stress workload or promote the candidate from unit tests alone.
+6. **Combat cluster frontier:** collect a fresh accepted-v2 baseline in the existing symmetric
+   1,040-DP fixture, constrain attribution to the exact clean sample receipt, and choose the next
+   candidate from recurring clusters rather than aggregate samples alone. Confirm any retained
+   direction in the ordinary fixture; the stress workload does not replace ordinary play.
 
 ## Frequently revisited questions
 
@@ -253,6 +251,13 @@ be mixed into active campaign numbers.
 No. Acceptance proves a particular boundary and implementation under its evidence. A new profile
 can show residual cost inside the optimized wrapper, a different caller, or an invalidation pattern
 the first change deliberately left intact.
+
+### Why was the compact-index candidate rejected without a game run?
+
+Its stated win was lower array allocation. The exact current JVM uses four-byte compressed object
+references and four-byte integers, leaving v2 and v3 at the same 12-byte payload per capacity slot.
+A game run could still produce noise, but it could not restore the disproven allocation premise.
+The result is preserved as a rejection while the larger collision and combat areas remain open.
 
 ### Does a stack found inside a repeated cluster prove it caused the cluster?
 
