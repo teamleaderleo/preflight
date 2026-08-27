@@ -2,12 +2,13 @@
 # Run one labeled combat-scaling discovery pilot on top of the existing gameplay pilot.
 #
 # Example:
-#   scripts/run-combat-scaling-pilot.sh --run-id r1 --cell-id ordinary-8v25 \
-#     --game /Applications/Starsector.app
+#   scripts/run-combat-scaling-pilot.sh --run-id r1 --cell-id symmetric-1040 \
+#     --battle-dp 1040 --game /Applications/Starsector.app
 set -euo pipefail
 
 RUN_ID=""
 CELL_ID=""
+BATTLE_DP=""
 EVERY=60
 DENSITY_SAMPLES=8
 DENSITY_BOX=2000
@@ -17,6 +18,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --run-id) RUN_ID="$2"; shift 2 ;;
         --cell-id) CELL_ID="$2"; shift 2 ;;
+        --battle-dp) BATTLE_DP="$2"; shift 2 ;;
         --every) EVERY="$2"; shift 2 ;;
         --density-samples) DENSITY_SAMPLES="$2"; shift 2 ;;
         --density-box) DENSITY_BOX="$2"; shift 2 ;;
@@ -35,6 +37,10 @@ done
     || { echo "--run-id may contain only letters, digits, dot, underscore, and dash" >&2; exit 2; }
 [[ "$CELL_ID" =~ ^[A-Za-z0-9._-]+$ ]] \
     || { echo "--cell-id may contain only letters, digits, dot, underscore, and dash" >&2; exit 2; }
+if [[ -n "$BATTLE_DP" ]]; then
+    [[ "$BATTLE_DP" =~ ^[0-9]+([.][0-9]+)?$ ]] \
+        || { echo "--battle-dp must be a non-negative number" >&2; exit 2; }
+fi
 [[ "$EVERY" =~ ^[0-9]+$ && "$EVERY" -ge 1 ]] \
     || { echo "--every must be a positive integer" >&2; exit 2; }
 [[ "$DENSITY_SAMPLES" =~ ^[0-9]+$ && "$DENSITY_SAMPLES" -ge 1 ]] \
@@ -60,6 +66,9 @@ trap cleanup EXIT
 SCALING_OPTIONS="-Dpreflight.combatScaling=true"
 SCALING_OPTIONS+=" -Dpreflight.combatScaling.runId=$RUN_ID"
 SCALING_OPTIONS+=" -Dpreflight.combatScaling.cellId=$CELL_ID"
+if [[ -n "$BATTLE_DP" ]]; then
+    SCALING_OPTIONS+=" -Dpreflight.combatScaling.battleDp=$BATTLE_DP"
+fi
 SCALING_OPTIONS+=" -Dpreflight.combatScaling.every=$EVERY"
 SCALING_OPTIONS+=" -Dpreflight.combatScaling.densitySamples=$DENSITY_SAMPLES"
 SCALING_OPTIONS+=" -Dpreflight.combatScaling.densityBox=$DENSITY_BOX"
