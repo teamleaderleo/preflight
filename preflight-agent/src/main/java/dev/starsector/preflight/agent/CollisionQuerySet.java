@@ -41,11 +41,9 @@ public final class CollisionQuerySet extends AbstractSet<Object> {
     private static long hintSlotFills;
     private static long hintReplacements;
 
-    /** One-based indexes into {@link #order}; zero denotes an empty hash slot. */
-    private int[] slots;
+    private Object[] table;
+    private int[] hashes;
     private Object[] order;
-    /** Hash captured at insertion, matching HashMap/LinkedHashSet mutable-key behavior. */
-    private int[] orderHashes;
     private int size;
     private int threshold;
     private int modCount;
@@ -121,29 +119,28 @@ public final class CollisionQuerySet extends AbstractSet<Object> {
     public boolean add(Object value) {
         Object key = maskNull(value);
         int hash = spread(value == null ? 0 : value.hashCode());
-        if (slots == null) initialize();
-        if (size >= slots.length - 1) grow();
-        int slot = findSlot(key, hash, slots, order, orderHashes);
-        if (slots[slot] != 0) return false;
+        if (table == null) initialize();
+        if (size >= table.length - 1) grow();
+        int slot = findSlot(key, hash, table, hashes);
+        if (table[slot] != null) return false;
         if (size + 1 > threshold) {
             grow();
-            slot = findSlot(key, hash, slots, order, orderHashes);
+            slot = findSlot(key, hash, table, hashes);
         }
         ensureOrderCapacity();
-        order[size] = key;
-        orderHashes[size] = hash;
-        slots[slot] = size + 1;
-        size++;
+        table[slot] = key;
+        hashes[slot] = hash;
+        order[size++] = key;
         modCount++;
         return true;
     }
 
     @Override
     public boolean contains(Object value) {
-        if (slots == null) return false;
+        if (table == null) return false;
         Object key = maskNull(value);
         int hash = spread(value == null ? 0 : value.hashCode());
-        return slots[findSlot(key, hash, slots, order, orderHashes)] != 0;
+        return table[findSlot(key, hash, table, hashes)] != null;
     }
 
     @Override
@@ -163,56 +160,57 @@ public final class CollisionQuerySet extends AbstractSet<Object> {
     }
 
     private void initialize() {
-        slots = new int[initialCapacity];
+        table = new Object[initialCapacity];
+        hashes = new int[initialCapacity];
         order = new Object[initialCapacity];
-        orderHashes = new int[initialCapacity];
         threshold = threshold(initialCapacity);
     }
 
     private void grow() {
-        int oldCapacity = slots.length;
+        int oldCapacity = table.length;
         if (oldCapacity >= MAXIMUM_CAPACITY) {
             throw new IllegalStateException("Collision query set is too large");
         }
         int newCapacity = oldCapacity << 1;
-        slots = new int[newCapacity];
+        Object[] oldTable = table;
+        int[] oldHashes = hashes;
+        table = new Object[newCapacity];
+        hashes = new int[newCapacity];
         threshold = threshold(newCapacity);
         growthCount++;
-        for (int index = 0; index < size; index++) {
-            int slot = emptySlot(orderHashes[index], slots);
-            slots[slot] = index + 1;
+        for (int index = 0; index < oldTable.length; index++) {
+            Object key = oldTable[index];
+            if (key == null) continue;
+            int hash = oldHashes[index];
+            int slot = emptySlot(hash, table);
+            table[slot] = key;
+            hashes[slot] = hash;
         }
     }
 
     private void ensureOrderCapacity() {
         if (size < order.length) return;
         Object[] expanded = new Object[order.length << 1];
-        int[] expandedHashes = new int[orderHashes.length << 1];
         System.arraycopy(order, 0, expanded, 0, size);
-        System.arraycopy(orderHashes, 0, expandedHashes, 0, size);
         order = expanded;
-        orderHashes = expandedHashes;
     }
 
-    private static int findSlot(
-            Object key, int hash, int[] indexes, Object[] values, int[] valueHashes) {
-        int mask = indexes.length - 1;
+    private static int findSlot(Object key, int hash, Object[] values, int[] valueHashes) {
+        int mask = values.length - 1;
         int slot = hash & mask;
         while (true) {
-            int encodedIndex = indexes[slot];
-            if (encodedIndex == 0) return slot;
-            int index = encodedIndex - 1;
-            if (valueHashes[index] == hash && equalKey(key, values[index])) {
+            Object existing = values[slot];
+            if (existing == null || (valueHashes[slot] == hash && equalKey(key, existing))) {
                 return slot;
             }
             slot = (slot + 1) & mask;
         }
     }
 
-    private static int emptySlot(int hash, int[] indexes) {
-        int mask = indexes.length - 1;
+    private static int emptySlot(int hash, Object[] values) {
+        int mask = values.length - 1;
         int slot = hash & mask;
-        while (indexes[slot] != 0) slot = (slot + 1) & mask;
+        while (values[slot] != null) slot = (slot + 1) & mask;
         return slot;
     }
 
@@ -248,7 +246,7 @@ public final class CollisionQuerySet extends AbstractSet<Object> {
         totalGrowths += growthCount;
         avoidedGrowths += Math.max(0, growthsForCapacity(requiredCapacity) - growthCount);
         initialCapacitySlots += initialCapacity;
-        finalCapacitySlots += slots == null ? 0 : slots.length;
+        finalCapacitySlots += table == null ? 0 : table.length;
         if (initialCapacity == requiredCapacity) {
             exactInitialCapacities++;
         } else if (initialCapacity < requiredCapacity) {
