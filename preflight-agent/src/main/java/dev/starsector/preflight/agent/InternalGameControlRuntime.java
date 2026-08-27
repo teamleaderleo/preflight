@@ -83,14 +83,15 @@ public final class InternalGameControlRuntime {
     private static boolean pendingCampaignDesiredPaused;
     private static float combatViewportBaselineMult;
     private static float combatViewportBaselineWidth;
+    private static float combatViewportBaselineHeight;
     private static float combatViewportExpectedMult;
     private static int combatCursorExpectedX = -1;
     private static int combatCursorExpectedY = -1;
     private static float combatViewportExpectedCenterX = Float.NaN;
     private static float combatViewportExpectedCenterY = Float.NaN;
     private static Object combatStressViewport;
-    private static Method combatStressSetViewMult;
-    private static Object[] combatStressViewMultArguments;
+    private static Method combatStressSetViewport;
+    private static Object[] combatStressViewportArguments;
     private static String combatStressViewportFailure;
     private static volatile boolean simulationEngaged;
 
@@ -356,42 +357,48 @@ public final class InternalGameControlRuntime {
                 float[] viewport = viewportState(engine);
                 combatViewportBaselineMult = viewport[0];
                 combatViewportBaselineWidth = viewport[1];
+                combatViewportBaselineHeight = viewport[2];
                 publish(parsed, "executed", String.format(java.util.Locale.ROOT,
-                                "captured combat viewport baseline: viewMult %.3f, visibleWidth %.1f",
-                                viewport[0], viewport[1]),
+                                "captured combat viewport baseline: viewMult %.3f, visible %.1fx%.1f",
+                                viewport[0], viewport[1], viewport[2]),
                         accepted, Instant.now(), "combat-engine.advance", COMBAT_STATE, null, null);
                 return;
             }
             if (COMBAT_SET_STRESS_VIEWPORT_ACTION.equals(parsed.action())) {
+                if (combatViewportBaselineMult <= 0f
+                        || combatViewportBaselineWidth <= 0f
+                        || combatViewportBaselineHeight <= 0f) {
+                    throw new IllegalStateException("combat-viewport-baseline-missing");
+                }
                 int[] cursor = centerCombatCursor(engine);
                 Object viewport = viewport(engine);
-                Class<?> vector = Class.forName(
-                        "org.lwjgl.util.vector.Vector2f", false, engine.getClass().getClassLoader());
                 Method setExternalControl = viewport.getClass().getMethod(
                         "setExternalControl", boolean.class);
-                Method setCenter = viewport.getClass().getMethod("setCenter", vector);
-                Method setViewMult = viewport.getClass().getMethod("setViewMult", float.class);
+                Method setViewport = viewport.getClass().getMethod(
+                        "set", float.class, float.class, float.class, float.class);
                 if (setExternalControl.getReturnType() != void.class
-                        || setCenter.getReturnType() != void.class
-                        || setViewMult.getReturnType() != void.class) {
+                        || setViewport.getReturnType() != void.class) {
                     throw new IllegalStateException("combat-viewport-setter-shape-mismatch");
                 }
                 combatViewportExpectedCenterX = 0f;
                 combatViewportExpectedCenterY = 0f;
                 combatViewportExpectedMult = 4.0f;
-                Object center = vector.getConstructor(float.class, float.class).newInstance(
-                        combatViewportExpectedCenterX, combatViewportExpectedCenterY);
+                float factor = combatViewportExpectedMult / combatViewportBaselineMult;
+                float expectedWidth = combatViewportBaselineWidth * factor;
+                float expectedHeight = combatViewportBaselineHeight * factor;
+                Object[] rectangle = new Object[] {
+                    -expectedWidth / 2f, -expectedHeight / 2f, expectedWidth, expectedHeight
+                };
                 invoke(setExternalControl, viewport, true);
-                invoke(setCenter, viewport, center);
-                invoke(setViewMult, viewport, combatViewportExpectedMult);
+                setViewport.invoke(viewport, rectangle);
                 combatStressViewport = viewport;
-                combatStressSetViewMult = setViewMult;
-                combatStressViewMultArguments = new Object[] {combatViewportExpectedMult};
+                combatStressSetViewport = setViewport;
+                combatStressViewportArguments = rectangle;
                 combatStressViewportFailure = null;
                 float[] after = viewportState(engine);
                 publish(parsed, "executed", String.format(java.util.Locale.ROOT,
-                                "set exact externally controlled combat stress viewport: viewMult %.3f, visibleWidth %.1f, center (0,0), cursor (%d,%d)",
-                                after[0], after[1], cursor[0], cursor[1]),
+                                "set exact externally controlled combat stress viewport: viewMult %.3f, visible %.1fx%.1f, center (0,0), cursor (%d,%d)",
+                                after[0], after[1], after[2], cursor[0], cursor[1]),
                         accepted, Instant.now(), "combat-engine.advance", COMBAT_STATE, null, null);
                 return;
             }
@@ -401,7 +408,8 @@ public final class InternalGameControlRuntime {
                 }
                 float[] viewport = viewportState(engine);
                 boolean wider = viewport[0] >= combatViewportBaselineMult * 1.05f
-                        && viewport[1] >= combatViewportBaselineWidth * 1.05f;
+                        && viewport[1] >= combatViewportBaselineWidth * 1.05f
+                        && viewport[2] >= combatViewportBaselineHeight * 1.05f;
                 boolean exactExpected = combatViewportExpectedMult <= 0f
                         || Math.abs(viewport[0] - combatViewportExpectedMult) <= 0.001f;
                 Object viewportObject = viewport(engine);
@@ -416,15 +424,16 @@ public final class InternalGameControlRuntime {
                 }
                 if (!wider || !exactExpected || !externalControl || !exactCenter) {
                     throw new IllegalStateException(String.format(java.util.Locale.ROOT,
-                            "combat-stress-viewport-mismatch: viewMult %.3f -> %.3f, visibleWidth %.1f -> %.1f, center (%.1f,%.1f), externalControl %s",
+                            "combat-stress-viewport-mismatch: viewMult %.3f -> %.3f, visible %.1fx%.1f -> %.1fx%.1f, center (%.1f,%.1f), externalControl %s",
                             combatViewportBaselineMult, viewport[0],
-                            combatViewportBaselineWidth, viewport[1], center[0], center[1],
-                            externalControl));
+                            combatViewportBaselineWidth, combatViewportBaselineHeight,
+                            viewport[1], viewport[2], center[0], center[1], externalControl));
                 }
                 publish(parsed, "executed", String.format(java.util.Locale.ROOT,
-                                "verified externally controlled combat stress viewport: viewMult %.3f -> %.3f, visibleWidth %.1f -> %.1f, center (%.1f,%.1f)",
+                                "verified externally controlled combat stress viewport: viewMult %.3f -> %.3f, visible %.1fx%.1f -> %.1fx%.1f, center (%.1f,%.1f)",
                                 combatViewportBaselineMult, viewport[0],
-                                combatViewportBaselineWidth, viewport[1], center[0], center[1]),
+                                combatViewportBaselineWidth, combatViewportBaselineHeight,
+                                viewport[1], viewport[2], center[0], center[1]),
                         accepted, Instant.now(), "combat-engine.advance", COMBAT_STATE, null, null);
                 return;
             }
@@ -456,12 +465,12 @@ public final class InternalGameControlRuntime {
 
     /** Reasserts the smoke-only stress zoom after Starsector updates its own zoom target. */
     public static void combatAdvanceEnd(Object engine) {
-        if (!enabled || engine == null || combatStressSetViewMult == null
-                || combatStressViewport == null || combatStressViewMultArguments == null
+        if (!enabled || engine == null || combatStressSetViewport == null
+                || combatStressViewport == null || combatStressViewportArguments == null
                 || combatStressViewportFailure != null
                 || !RuntimeSemanticState.is(COMBAT_STATE)) return;
         try {
-            combatStressSetViewMult.invoke(combatStressViewport, combatStressViewMultArguments);
+            combatStressSetViewport.invoke(combatStressViewport, combatStressViewportArguments);
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
         } catch (Throwable failure) {
@@ -586,17 +595,21 @@ public final class InternalGameControlRuntime {
         if (viewport == null) throw new IllegalStateException("combat-viewport-missing");
         Method getViewMult = viewport.getClass().getMethod("getViewMult");
         Method getVisibleWidth = viewport.getClass().getMethod("getVisibleWidth");
+        Method getVisibleHeight = viewport.getClass().getMethod("getVisibleHeight");
         if (getViewMult.getReturnType() != float.class
-                || getVisibleWidth.getReturnType() != float.class) {
+                || getVisibleWidth.getReturnType() != float.class
+                || getVisibleHeight.getReturnType() != float.class) {
             throw new IllegalStateException("combat-viewport-method-shape-mismatch");
         }
         float mult = (Float) invoke(getViewMult, viewport);
         float width = (Float) invoke(getVisibleWidth, viewport);
+        float height = (Float) invoke(getVisibleHeight, viewport);
         if (!Float.isFinite(mult) || mult <= 0f
-                || !Float.isFinite(width) || width <= 0f) {
+                || !Float.isFinite(width) || width <= 0f
+                || !Float.isFinite(height) || height <= 0f) {
             throw new IllegalStateException("combat-viewport-state-invalid");
         }
-        return new float[] {mult, width};
+        return new float[] {mult, width, height};
     }
 
     private static Object viewport(Object engine) throws ReflectiveOperationException {
@@ -676,14 +689,15 @@ public final class InternalGameControlRuntime {
     private static void clearCombatViewportBaseline() {
         combatViewportBaselineMult = 0f;
         combatViewportBaselineWidth = 0f;
+        combatViewportBaselineHeight = 0f;
         combatViewportExpectedMult = 0f;
         combatCursorExpectedX = -1;
         combatCursorExpectedY = -1;
         combatViewportExpectedCenterX = Float.NaN;
         combatViewportExpectedCenterY = Float.NaN;
         combatStressViewport = null;
-        combatStressSetViewMult = null;
-        combatStressViewMultArguments = null;
+        combatStressSetViewport = null;
+        combatStressViewportArguments = null;
         combatStressViewportFailure = null;
     }
 
