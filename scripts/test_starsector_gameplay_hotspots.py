@@ -1,3 +1,4 @@
+import collections
 import contextlib
 import io
 import json
@@ -139,6 +140,100 @@ class GameplayHotspotTest(unittest.TestCase):
         self.assertIn("2.0 MiB  25.00%  game.Avoidance.advance", rendered)
         self.assertIn("calling methods above the filter:", rendered)
         self.assertIn("8.0 MiB  100.00%  game.CombatEngine.advance", rendered)
+
+    def test_cluster_enrichment_ranks_excess_presence_not_common_background(self):
+        cluster = [event(
+            "main", "mod.Hitch.work", "mod.Common.work",
+            "com.fs.starfarer.combat.CombatEngine.advance") for _ in range(6)]
+        cluster.extend(event(
+            "main", "mod.Common.work",
+            "com.fs.starfarer.combat.CombatEngine.advance") for _ in range(4))
+        baseline = list(cluster)
+        baseline.extend(event(
+            "main", "mod.Common.work",
+            "com.fs.starfarer.combat.CombatEngine.advance") for _ in range(80))
+        baseline.extend(event(
+            "main", "mod.Quiet.work",
+            "com.fs.starfarer.combat.CombatEngine.advance") for _ in range(10))
+        baseline.extend(event(
+            "main", "mod.Hitch.work", "mod.Common.work",
+            "com.fs.starfarer.combat.CombatEngine.advance") for _ in range(10))
+        original_thread = module.thread_of
+        try:
+            module.thread_of = lambda value: value["values"]["sampledThread"]["javaName"]
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                module.report_cluster_enrichment(cluster, baseline, top=10)
+            rendered = output.getvalue()
+            self.assertIn("combat enrichment population: cluster=10, background=100", rendered)
+            self.assertIn("mod.Hitch.work", rendered)
+            self.assertIn("6.00x", rendered)
+            # Common work has the same 100% presence in both populations and no positive excess.
+            self.assertNotIn("1.00x  mod.Common.work", rendered)
+        finally:
+            module.thread_of = original_thread
+
+    def test_cluster_enrichment_requires_recurrence_and_positive_excess(self):
+        rows = module.enrichment_rows(
+            collections.Counter({"one-off": 1, "common": 4, "signal": 3}),
+            collections.Counter({"common": 8, "signal": 1}),
+            cluster_total=4,
+            background_total=8,
+            top=10,
+        )
+        self.assertEqual(["signal"], [row[-1] for row in rows])
+
+    def test_cluster_enrichment_api_requires_exact_cluster_and_step_boundaries(self):
+        with self.assertRaisesRegex(SystemExit, "requires repeated clusters"):
+            module.report("fixture.jfr", cluster_enrichment=True)
+        with self.assertRaisesRegex(SystemExit, "requires exact scenario steps"):
+            module.report("fixture.jfr", repeated_clusters=10, cluster_enrichment=True)
+
+    def test_repeated_cluster_report_compares_with_same_step_background(self):
+        original_events = module.events
+        original_thread = module.thread_of
+        original_selected = module.selected_wall_windows
+        original_steps = module.scenario_step_windows
+        original_recording = module.recording_clock_windows
+        try:
+            cluster_one = event(
+                "main", "mod.Hitch.work", "com.fs.starfarer.combat.CombatEngine.advance")
+            cluster_one["values"]["startTime"] = "2026-08-27T01:00:00.200Z"
+            cluster_two = event(
+                "main", "mod.Hitch.work", "com.fs.starfarer.combat.CombatEngine.advance")
+            cluster_two["values"]["startTime"] = "2026-08-27T01:00:00.800Z"
+            background = event(
+                "main", "mod.Ordinary.work", "com.fs.starfarer.combat.CombatEngine.advance")
+            background["values"]["startTime"] = "2026-08-27T01:00:01.500Z"
+            sampled = [cluster_one, cluster_two, background]
+            cluster_window = [(
+                "cluster", module.instant("2026-08-27T01:00:00Z"),
+                module.instant("2026-08-27T01:00:01Z"))]
+            step_window = [(
+                "combat", module.instant("2026-08-27T01:00:00Z"),
+                module.instant("2026-08-27T01:00:02Z"))]
+            module.events = lambda _path, names, **_kwargs: (
+                sampled if names == ["jdk.ExecutionSample"] else [])
+            module.thread_of = lambda value: value["values"]["sampledThread"]["javaName"]
+            module.selected_wall_windows = lambda *_args, **_kwargs: cluster_window
+            module.scenario_step_windows = lambda *_args, **_kwargs: step_window
+            module.recording_clock_windows = lambda _path, windows, _jfr: (windows, 1.0)
+
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                module.report(
+                    "fixture.jfr", steps=["combat"], frame_report="frames.json",
+                    repeated_clusters=10, cluster_enrichment=True)
+            rendered = output.getvalue()
+            self.assertIn("combat enrichment population: cluster=2, background=1", rendered)
+            self.assertIn("mod.Hitch.work", rendered)
+            self.assertNotIn("mod.Ordinary.work", rendered.split("overrepresented leaf methods:")[1])
+        finally:
+            module.events = original_events
+            module.thread_of = original_thread
+            module.selected_wall_windows = original_selected
+            module.scenario_step_windows = original_steps
+            module.recording_clock_windows = original_recording
 
     def test_allocation_window_uses_absolute_event_timestamps(self):
         samples = [

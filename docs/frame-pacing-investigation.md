@@ -69,16 +69,18 @@ receipts and active focus-clean frames, then rank combat CPU, allocations, and r
 inside only the `combat-sample-1040dp` receipt window. Do not resurrect v3 unless the runtime layout
 changes or evidence identifies GC reference scanning as a dominant cost.
 
-Analyzer checkpoint `b099f354` makes that last constraint enforceable: `--repeated-clusters` may
-now be combined with `--step`, intersects the state-derived cluster windows with the exact receipt,
-and fails closed if they do not overlap. Run both CPU and allocation forms of:
+The current analyzer builds on checkpoint `b099f354`: `--repeated-clusters` may be combined with
+`--step`, intersects the state-derived cluster windows with the exact receipt, and fails closed if
+they do not overlap. Its enrichment view then compares those cluster samples with the non-cluster
+remainder of the same exact step, ranked by excess presence rather than rare-event lift. Run the CPU
+form as:
 
-`python3 scripts/starsector_gameplay_hotspots.py RUN/startup.jfr --scenario-evidence RUN/smoke-evidence.json --step combat-sample-1040dp --frame-report RUN/runtime-frame-report.json --frame-series combatAfterCampaignActive --repeated-clusters 32`
+`python3 scripts/starsector_gameplay_hotspots.py RUN/startup.jfr --scenario-evidence RUN/smoke-evidence.json --step combat-sample-1040dp --frame-report RUN/runtime-frame-report.json --frame-series combatAfterCampaignActive --repeated-clusters 32 --cluster-enrichment`
 
-For the candidate-specific allocation family, add
-`--allocations --contains 'com.fs.starfarer.combat.o0OO.G$o'`. This prevents setup, deployment,
-camera motion, or any frame
-outside the declared battle window from entering the cluster attribution.
+For the allocation form, omit `--cluster-enrichment` and add `--allocations`. For the
+candidate-specific allocation family, also add
+`--contains 'com.fs.starfarer.combat.o0OO.G$o'`. This prevents setup, deployment, camera motion, or
+any frame outside the declared battle window from entering the cluster attribution.
 
 ## Resume recipe after compaction
 
@@ -263,7 +265,9 @@ The result is preserved as a rejection while the larger collision and combat are
 
 No. It establishes temporal overlap at the JFR sampling resolution. Repeated appearance, inclusive
 share, exact call-time probes, or an on/off intervention can strengthen causality. A single sampled
-leaf inside one cluster remains a lead, not a conclusion.
+leaf inside one cluster remains a lead, not a conclusion. Cluster enrichment improves prioritization
+by comparing against non-cluster samples from the same exact step, but overrepresentation still does
+not prove that the method caused the frame delay.
 
 ### Does `campaignUnpausedAfter30SecondsActive` mean settled after unpausing?
 

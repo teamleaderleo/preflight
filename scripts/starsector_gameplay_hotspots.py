@@ -318,6 +318,94 @@ def report_execution_events(sampled, top=30, contains=None, include_other=False)
             report_state(name, states[name], top, contains=contains)
 
 
+def method_presence(stacks):
+    """Count useful leaves and inclusive methods at most once per sampled stack."""
+    leaves = collections.Counter()
+    inclusive = collections.Counter()
+    for methods in stacks:
+        useful = [method for method in methods if interesting(method)]
+        if useful:
+            leaves[useful[0]] += 1
+        inclusive.update(set(useful))
+    return leaves, inclusive
+
+
+def enrichment_rows(cluster_counts, background_counts, cluster_total, background_total, top):
+    """Rank cluster overrepresentation by excess samples, not unstable rare-event lift."""
+    if cluster_total <= 0 or background_total <= 0:
+        return []
+    rows = []
+    for method, cluster_count in cluster_counts.items():
+        # One sampled appearance is a lead for inspection, not a recurring-cluster ranking.
+        if cluster_count < 2:
+            continue
+        background_count = background_counts[method]
+        cluster_share = cluster_count / cluster_total
+        background_share = background_count / background_total
+        excess = cluster_count - cluster_total * background_share
+        if excess <= 0:
+            continue
+        lift = cluster_share / background_share if background_share else float("inf")
+        rows.append((excess, cluster_count, lift, background_count, method))
+    rows.sort(key=lambda row: (row[0], row[1], row[2], row[4]), reverse=True)
+    return rows[:top]
+
+
+def report_cluster_enrichment(cluster_events, baseline_events, top=30,
+                              contains=None, include_other=False):
+    """Compare exact-cluster stack presence with the non-cluster portion of the same step."""
+    cluster_ids = {id(event) for event in cluster_events}
+    states = collections.defaultdict(lambda: {"cluster": [], "background": []})
+    populations = (
+        ("cluster", cluster_events),
+        ("background", [event for event in baseline_events if id(event) not in cluster_ids]),
+    )
+    for population, sampled in populations:
+        for event in sampled:
+            if thread_of(event) != "main":
+                continue
+            methods = methods_of(event)
+            if contains and not any(contains in method for method in methods):
+                continue
+            states[gameplay_state(methods)][population].append(methods)
+
+    print("\ncluster enrichment: exact-cluster samples versus non-cluster samples "
+          "inside the same selected scenario step")
+    print("ranking: excess cluster samples; coverage and lift are context, not causality")
+    names = ("campaign", "combat", "other") if include_other else ("campaign", "combat")
+    for name in names:
+        cluster_stacks = states[name]["cluster"]
+        background_stacks = states[name]["background"]
+        if not cluster_stacks:
+            continue
+        print(f"\n{name} enrichment population: cluster={len(cluster_stacks)}, "
+              f"background={len(background_stacks)}")
+        if not background_stacks:
+            print("  unavailable: the exact step has no non-cluster background samples")
+            continue
+        cluster_leaves, cluster_inclusive = method_presence(cluster_stacks)
+        background_leaves, background_inclusive = method_presence(background_stacks)
+        for label, cluster_counts, background_counts in (
+                ("leaf methods", cluster_leaves, background_leaves),
+                ("inclusive methods", cluster_inclusive, background_inclusive)):
+            print(f"  overrepresented {label}:")
+            rows = enrichment_rows(
+                cluster_counts, background_counts,
+                len(cluster_stacks), len(background_stacks), top)
+            if not rows:
+                print("    (none with at least two cluster samples and positive excess)")
+                continue
+            for excess, cluster_count, lift, background_count, method in rows:
+                lift_text = "inf" if lift == float("inf") else f"{lift:.2f}x"
+                print(
+                    f"    +{excess:6.2f}  "
+                    f"cluster {cluster_count:>4}/{len(cluster_stacks):<4} "
+                    f"({cluster_count / len(cluster_stacks) * 100:5.2f}%)  "
+                    f"background {background_count:>4}/{len(background_stacks):<4} "
+                    f"({background_count / len(background_stacks) * 100:5.2f}%)  "
+                    f"{lift_text:>7}  {method}")
+
+
 def selected_wall_windows(path, steps=None, evidence_path=None,
                           frame_report=None, frame_series=None, repeated_clusters=0):
     step_windows = scenario_step_windows(
@@ -382,7 +470,12 @@ def covered_window_seconds(windows):
 
 
 def report(path, top=30, depth=96, contains=None, steps=None, evidence_path=None,
-           frame_report=None, frame_series=None, repeated_clusters=0, include_other=False):
+           frame_report=None, frame_series=None, repeated_clusters=0, include_other=False,
+           cluster_enrichment=False):
+    if cluster_enrichment and not repeated_clusters:
+        raise SystemExit("cluster enrichment requires repeated clusters")
+    if cluster_enrichment and not steps:
+        raise SystemExit("cluster enrichment requires exact scenario steps")
     jfr = _jfr_binary()
     sampled = events(path, ["jdk.ExecutionSample"], depth=depth, jfr=jfr)
     print(f"recording: {path}")
@@ -406,6 +499,15 @@ def report(path, top=30, depth=96, contains=None, steps=None, evidence_path=None
               f"{wall_seconds:.3f}s wall, {len(selected)} execution samples")
         report_execution_events(
             selected, top=top, contains=contains, include_other=include_other)
+        if cluster_enrichment:
+            baseline_wall_windows = scenario_step_windows(
+                path, steps, evidence_path=evidence_path)
+            baseline_windows, _baseline_factor = recording_clock_windows(
+                path, baseline_wall_windows, jfr)
+            baseline = events_in_windows(sampled, baseline_windows)
+            report_cluster_enrichment(
+                selected, baseline, top=top, contains=contains,
+                include_other=include_other)
         return
     for (name, wall_start, wall_end), (_mapped_name, start, end) in zip(wall_windows, windows):
         selected = events_in_window(sampled, start, end)
@@ -487,11 +589,20 @@ def main():
     parser.add_argument("--repeated-clusters", type=int, default=0, metavar="N",
                         help="aggregate samples inside the N longest repeated slow-frame "
                              "clusters for each frame series instead of selecting one worst frame")
+    parser.add_argument("--cluster-enrichment", action="store_true",
+                        help="with repeated clusters and exact steps, rank methods overrepresented "
+                             "against non-cluster samples from the same step")
     parser.add_argument("--include-other", action="store_true",
                         help="also rank startup, menu, and unclassified main-thread stacks")
     args = parser.parse_args()
     if args.repeated_clusters < 0:
         parser.error("--repeated-clusters must be non-negative")
+    if args.cluster_enrichment and not args.repeated_clusters:
+        parser.error("--cluster-enrichment requires --repeated-clusters")
+    if args.cluster_enrichment and not args.step:
+        parser.error("--cluster-enrichment requires at least one --step")
+    if args.cluster_enrichment and args.allocations:
+        parser.error("--cluster-enrichment currently ranks execution samples, not allocations")
     if args.allocations:
         report_allocations(
             args.recording, top=args.top, depth=args.depth, contains=args.contains,
@@ -505,7 +616,8 @@ def main():
             steps=args.step, evidence_path=args.scenario_evidence,
             frame_report=args.frame_report, frame_series=args.frame_series,
             repeated_clusters=args.repeated_clusters,
-            include_other=args.include_other)
+            include_other=args.include_other,
+            cluster_enrichment=args.cluster_enrichment)
 
 
 if __name__ == "__main__":
