@@ -8,10 +8,11 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
+import org.objectweb.asm.tree.VarInsnNode;
 
 /** Replaces one exact collision-query LinkedHashSet with its node-free ordered equivalent. */
 final class CollisionQuerySetPlan {
-    static final String PLAN_ID = "collision-query-open-set-v1";
+    static final String PLAN_ID = "collision-query-open-set-v2";
     static final String TARGET_CLASS = "com/fs/starfarer/combat/o0OO/G$o";
     static final String ORIGINAL_SHA256 =
             "fd932939e0a61ebf73e56e48e06e66b18dcb311ca6a355a274a1df974173dd28";
@@ -25,6 +26,7 @@ final class CollisionQuerySetPlan {
     private static final String SET = "java/util/Set";
     private static final String REPLACEMENT =
             "dev/starsector/preflight/agent/CollisionQuerySet";
+    private static final String REPLACEMENT_CONSTRUCTOR_DESCRIPTOR = "(IIII)V";
     private static final String ADD_ALL_FROM_DESCRIPTOR =
             "(Ljava/util/Set;Ljava/util/Collection;)Z";
 
@@ -86,6 +88,11 @@ final class CollisionQuerySetPlan {
 
         allocation.desc = REPLACEMENT;
         initialization.owner = REPLACEMENT;
+        initialization.desc = REPLACEMENT_CONSTRUCTOR_DESCRIPTOR;
+        constructor.instructions.insertBefore(initialization, new VarInsnNode(Opcodes.ILOAD, 2));
+        constructor.instructions.insertBefore(initialization, new VarInsnNode(Opcodes.ILOAD, 3));
+        constructor.instructions.insertBefore(initialization, new VarInsnNode(Opcodes.ILOAD, 4));
+        constructor.instructions.insertBefore(initialization, new VarInsnNode(Opcodes.ILOAD, 5));
         addAll.setOpcode(Opcodes.INVOKESTATIC);
         addAll.owner = REPLACEMENT;
         addAll.name = "addAllFrom";

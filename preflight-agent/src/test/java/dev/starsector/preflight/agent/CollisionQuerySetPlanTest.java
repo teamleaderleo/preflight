@@ -16,6 +16,7 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
+import org.objectweb.asm.tree.VarInsnNode;
 
 class CollisionQuerySetPlanTest {
     private static final String LINKED_SET = "java/util/LinkedHashSet";
@@ -35,7 +36,13 @@ class CollisionQuerySetPlanTest {
                 CollisionQuerySetPlan.COPY_DESCRIPTOR);
         assertEquals(0, allocations(constructor, LINKED_SET));
         assertEquals(1, allocations(constructor, REPLACEMENT));
-        assertEquals(1, calls(constructor, REPLACEMENT, "<init>"));
+        MethodInsnNode replacementConstructor = uniqueCall(constructor, REPLACEMENT, "<init>");
+        assertNotNull(replacementConstructor);
+        assertEquals("(IIII)V", replacementConstructor.desc);
+        assertEquals(5, previousVariable(replacementConstructor, 0));
+        assertEquals(4, previousVariable(replacementConstructor, 1));
+        assertEquals(3, previousVariable(replacementConstructor, 2));
+        assertEquals(2, previousVariable(replacementConstructor, 3));
         assertEquals(0, calls(constructor, "java/util/Set", "addAll"));
         assertEquals(1, calls(constructor, REPLACEMENT, "addAllFrom"));
         assertEquals(1, calls(constructor, "java/util/Set", "iterator"));
@@ -158,5 +165,29 @@ class CollisionQuerySetPlanTest {
                     && owner.equals(call.owner) && name.equals(call.name)) count++;
         }
         return count;
+    }
+
+    private static MethodInsnNode uniqueCall(MethodNode method, String owner, String name) {
+        MethodInsnNode result = null;
+        for (AbstractInsnNode instruction : method.instructions) {
+            if (instruction instanceof MethodInsnNode call
+                    && owner.equals(call.owner) && name.equals(call.name)) {
+                if (result != null) return null;
+                result = call;
+            }
+        }
+        return result;
+    }
+
+    private static int previousVariable(AbstractInsnNode instruction, int offset) {
+        AbstractInsnNode current = instruction;
+        for (int index = 0; index <= offset; index++) {
+            do {
+                current = current.getPrevious();
+            } while (current != null && current.getOpcode() < 0);
+        }
+        assertTrue(current instanceof VarInsnNode);
+        assertEquals(Opcodes.ILOAD, current.getOpcode());
+        return ((VarInsnNode) current).var;
     }
 }

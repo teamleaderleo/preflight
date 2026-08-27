@@ -9,10 +9,110 @@ import java.util.ArrayList;
 import java.util.ConcurrentModificationException;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class CollisionQuerySetTest {
+    @BeforeEach
+    void resetTelemetryAndCapacityHint() {
+        CollisionQuerySet.beginSession();
+    }
+
+    @Test
+    void learnsThePreviousCompletedQueryCapacityForTheSameShape() {
+        CollisionQuerySet first = new CollisionQuerySet(10, 14, 20, 24);
+        for (int index = 0; index < 100; index++) first.add(index);
+        assertEquals(100, toList(first).size());
+
+        CollisionQuerySet second = new CollisionQuerySet(104, 100, 204, 200);
+        for (int index = 0; index < 100; index++) second.add(index);
+        assertEquals(100, toList(second).size());
+
+        Map<String, Object> telemetry = CollisionQuerySet.telemetry();
+        assertEquals(2L, telemetry.get("completedQueries"));
+        assertEquals(200L, telemetry.get("totalValues"));
+        assertEquals(100L, telemetry.get("maximumValues"));
+        assertEquals(4L, telemetry.get("totalGrowths"));
+        assertEquals(4L, telemetry.get("avoidedGrowths"));
+        assertEquals(1L, telemetry.get("exactInitialCapacities"));
+        assertEquals(1L, telemetry.get("undersizedInitialCapacities"));
+        assertEquals(0L, telemetry.get("oversizedInitialCapacities"));
+        assertEquals(1L, telemetry.get("hintHits"));
+        assertEquals(1L, telemetry.get("hintMisses"));
+        assertEquals(1L, telemetry.get("hintSlotFills"));
+    }
+
+    @Test
+    void aDifferentShapeDoesNotInheritAnOversizedCapacity() {
+        CollisionQuerySet large = new CollisionQuerySet(0, 100, 0, 100);
+        for (int index = 0; index < 5_000; index++) large.add(index);
+        assertEquals(5_000, toList(large).size());
+
+        CollisionQuerySet small = new CollisionQuerySet(0, 1, 0, 1);
+        small.add("one");
+        assertEquals(List.of("one"), toList(small));
+
+        CollisionQuerySet nextSmall = new CollisionQuerySet(50, 51, 70, 71);
+        nextSmall.add("two");
+        assertEquals(List.of("two"), toList(nextSmall));
+
+        Map<String, Object> telemetry = CollisionQuerySet.telemetry();
+        assertEquals(3L, telemetry.get("completedQueries"));
+        assertEquals(5_002L, telemetry.get("totalValues"));
+        assertEquals(5_000L, telemetry.get("maximumValues"));
+        assertEquals(0L, telemetry.get("oversizedInitialCapacities"));
+        assertEquals(48L, telemetry.get("initialCapacitySlots"));
+        assertEquals(1L, telemetry.get("hintHits"));
+        assertEquals(2L, telemetry.get("hintMisses"));
+    }
+
+    @Test
+    void sameShapeCanShrinkAfterASmallerCompletedQuery() {
+        CollisionQuerySet large = new CollisionQuerySet(0, 10, 0, 10);
+        for (int index = 0; index < 100; index++) large.add(index);
+        assertEquals(100, toList(large).size());
+
+        CollisionQuerySet small = new CollisionQuerySet(20, 30, 40, 50);
+        small.add("one");
+        assertEquals(List.of("one"), toList(small));
+
+        CollisionQuerySet nextSmall = new CollisionQuerySet(-10, 0, -10, 0);
+        nextSmall.add("two");
+        assertEquals(List.of("two"), toList(nextSmall));
+
+        Map<String, Object> telemetry = CollisionQuerySet.telemetry();
+        assertEquals(2L, telemetry.get("hintHits"));
+        assertEquals(1L, telemetry.get("hintMisses"));
+        assertEquals(1L, telemetry.get("oversizedInitialCapacities"));
+        assertEquals(288L, telemetry.get("initialCapacitySlots"));
+        assertEquals(0L, telemetry.get("avoidedGrowths"));
+    }
+
+    @Test
+    void directMappedShapeCollisionLosesOnlyTheHint() {
+        CollisionQuerySet first = new CollisionQuerySet(0, 39, 0, 1);
+        for (int index = 0; index < 100; index++) first.add(index);
+        assertEquals(100, toList(first).size());
+
+        // Widths 40 and 41 with height 2 deliberately map to the same one of 1,024 hint slots.
+        CollisionQuerySet collider = new CollisionQuerySet(0, 40, 0, 1);
+        collider.add("collider");
+        assertEquals(List.of("collider"), toList(collider));
+
+        CollisionQuerySet firstAgain = new CollisionQuerySet(10, 49, 20, 21);
+        firstAgain.add("first-again");
+        assertEquals(List.of("first-again"), toList(firstAgain));
+
+        Map<String, Object> telemetry = CollisionQuerySet.telemetry();
+        assertEquals(0L, telemetry.get("hintHits"));
+        assertEquals(3L, telemetry.get("hintMisses"));
+        assertEquals(1L, telemetry.get("hintSlotFills"));
+        assertEquals(2L, telemetry.get("hintReplacements"));
+        assertEquals(48L, telemetry.get("initialCapacitySlots"));
+    }
+
     @Test
     void matchesLinkedHashSetEncounterOrderAcrossNullDuplicatesCollisionsAndGrowth() {
         List<Object> values = new ArrayList<>();

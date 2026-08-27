@@ -78,6 +78,7 @@ final class AdapterRuntime {
         LogisticsNotificationsFuelRuntime.reset();
         MacMemoryWarningRuntime.beginSession();
         CombatRuntimeIntegrityRuntime.beginSession();
+        CollisionQuerySet.beginSession();
         FrameTimeRuntime.beginSession(
                 Boolean.getBoolean("preflight.frameTimes"),
                 Boolean.getBoolean(FrameTimeRuntime.FORCE_VSYNC_OFF_PROPERTY));

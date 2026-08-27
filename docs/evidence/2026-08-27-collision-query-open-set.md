@@ -74,3 +74,40 @@ startup pass should rank startup stall duration and phase attribution alongside 
 The compact metrics and artifact identities are retained in
 [`data/2026-08-27-collision-query-open-set.json`](data/2026-08-27-collision-query-open-set.json).
 Raw JFRs, full logs, screenshots, and transformed binaries remain disposable local artifacts.
+
+## Bounded capacity learning follow-up
+
+The first open-set profile still attributed roughly 411.5 MiB to table growth, 143.0 MiB to initial
+arrays, and 140.2 MiB to order-array growth. The exact collision iterator constructor already
+receives four integer cell bounds. The v2 plan passes those values to the replacement set, which
+uses the two inclusive spans only as a bounded capacity-hint key. On first iterator creation, it
+records the capacity required by that completed query; the next query with the same shape can start
+at that capacity. Hints contain no game objects, cap learned capacity at 4,096 slots, and live in
+three 1,024-entry primitive arrays per participating thread (12 KiB nominal primitive payload).
+
+The first focusless implementation used 64 direct-mapped slots. It avoided 283,807 growths, but
+287,971 misses and 287,937 replacements showed that almost every miss evicted another shape. Its
+73.14% hit rate left 0.4601 growths per completed query, and the collision family carried 691.7 MiB
+of weighted allocation in the 30-second window.
+
+The retained table uses 1,024 slots and a two-dimensional mixed hash. On the same locked,
+focusless route it reached 99.87% hits, 912 misses, 125 first fills, and 787 replacements across
+685,926 completed queries. Growths fell to 0.1092 per query, 76.26% below the 64-slot observation;
+426,041 growths were avoided. The collision family fell to 377.6 MiB of weighted samples, 45.41%
+below that first focusless observation. Both runs completed the measurement step with every
+PID-posted key reporting `frontmost=false`. Locked intervals are deliberately excluded from frame
+telemetry, so this pair supports no FPS claim.
+
+An unlocked follow-up applied the final AI Tweaks correctness correction and exited cleanly. It
+recorded 658,259 completed collision queries, a 99.92% hint rate, 69,441 actual growths, and 400,283
+avoided growths. The collision family was 429.7 MiB. Its active measurement window rendered 522
+frames at 17.98 average FPS, 5.76 FPS 1% low, and 401.31 ms/s stutter burden. That is a useful current
+stress baseline, not an uplift claim: temperature and battle evolution were not paired with an
+on/off observation. All slow frames were pre-swap/game-work dominated rather than native swap or
+message processing.
+
+The 64-slot run's later lifecycle was clean enough for its completed allocation window. The first
+1,024-slot locked run faulted only after that window in the separate AI Tweaks boxed-field
+optimization; [the correction report](2026-08-27-aitweaks-boxed-search-range-correction.md) records
+its removal and the clean unlocked rerun. The collision transform itself remained exact, save-free,
+and free of contained or integrity failures.
