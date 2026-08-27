@@ -1,0 +1,117 @@
+{
+  "format": "starsector-preflight-combat-pair-v1",
+  "date": "2026-08-27",
+  "sourceCommit": "07b5921bf9f0f21cc8924b490456d687271dee7e",
+  "environment": {
+    "game": "Starsector 0.98a-RC8",
+    "scenario": "campaign-simulation-combat-1000dp",
+    "preset": "fast",
+    "java": "17",
+    "platform": "macOS Apple M5 under Rosetta",
+    "battle": "24 mirrored ships per side, 520 DP per side, 2x simulation speed",
+    "measurementMillis": 30000,
+    "thermalWarningBeforeDefault": false,
+    "thermalWarningAfterPair": false
+  },
+  "defaultRun": {
+    "runId": "combat-v2-cluster-20260827-ibQxtR",
+    "status": "passed",
+    "semanticStepsPassed": 34,
+    "measurementWindow": {
+      "frames": 758,
+      "averageFps": 25.06,
+      "medianFps": 27.78,
+      "onePercentLowFps": 8.23,
+      "pointOnePercentLowFps": 6.37,
+      "p95Micros": 63900,
+      "p99Micros": 121500,
+      "stutterBurdenMillisPerSecond": 193.18,
+      "repeatedSlowFramesPercent": 65.70,
+      "longestSlowFrameClusterMillis": 5508.82
+    },
+    "collisionQuerySet": {
+      "completedQueries": 831063,
+      "hintHits": 830242,
+      "hintMisses": 821,
+      "avoidedGrowths": 496928,
+      "totalGrowths": 83213,
+      "maximumValues": 351
+    },
+    "repeatedClusterProfile": {
+      "windows": 28,
+      "wallSeconds": 21.264,
+      "combatExecutionSamples": 536,
+      "backgroundExecutionSamples": 207,
+      "weightedAllocation": "3.8 GiB"
+    },
+    "sha256": {
+      "jfr": "1c1a5cd04726aa92ea5dea8eac5e35890c36e87417c13936ebb11a542213375b",
+      "frameReport": "e5cc258c87c11ab725d72e09c145de7af461cb18240a350e2b5a64a86e17455a",
+      "adapterReport": "75a96d73520e2623b158ba1e86a64b9b225330543684ef39cd2fa1b1ac97acb1",
+      "scenarioEvidence": "ff05f5b4c31bd05718ea84f002f6f5ca6a72e906f864197d2418df047ca52146"
+    }
+  },
+  "acceptedOptInsRun": {
+    "runId": "combat-accepted-optins-20260827-NHnyX9",
+    "status": "passed",
+    "semanticStepsPassed": 34,
+    "properties": [
+      "preflight.combat.aiTweaksArcCapacity=true",
+      "preflight.combat.aiTweaksAffineVectors=true",
+      "preflight.combat.listenerRangeSnapshotArray=true",
+      "preflight.combat.listenerRangeEmptySnapshot=true"
+    ],
+    "measurementWindow": {
+      "frames": 805,
+      "averageFps": 26.63,
+      "medianFps": 28.82,
+      "onePercentLowFps": 8.51,
+      "pointOnePercentLowFps": 7.09,
+      "p95Micros": 58900,
+      "p99Micros": 117500,
+      "stutterBurdenMillisPerSecond": 167.54,
+      "repeatedSlowFramesPercent": 56.15,
+      "longestSlowFrameClusterMillis": 3168.86
+    },
+    "listenerSnapshot": {
+      "enabled": true,
+      "installed": true,
+      "emptySnapshots": 45881368,
+      "nonEmptyDelegations": 0,
+      "nonArrayListDelegations": 0
+    },
+    "collisionQuerySet": {
+      "completedQueries": 857076,
+      "hintHits": 856011,
+      "hintMisses": 1065,
+      "avoidedGrowths": 522638,
+      "totalGrowths": 85399,
+      "maximumValues": 272
+    },
+    "repeatedClusterProfile": {
+      "windows": 26,
+      "wallSeconds": 17.911,
+      "combatExecutionSamples": 436,
+      "backgroundExecutionSamples": 282,
+      "weightedAllocation": "2.9 GiB"
+    },
+    "sha256": {
+      "jfr": "f00f33c5885a2a80f0fbe5e8d148c9ea17fc406d007a957a3c26f8b48b111173",
+      "frameReport": "9a2f00bc16a99581407d8960f09d385caa7c65b3886ac9bf1e41424f62471f36",
+      "adapterReport": "74c886aa1baeb788a2261c7226633609660634be4721dd00d5b9164330a9e13f",
+      "scenarioEvidence": "ed135430eca43ecc672a078924341935f40ec343bfaf30a90e439f0ac4ffb3d3"
+    }
+  },
+  "directionalDelta": {
+    "averageFpsPercent": 6.26,
+    "medianFpsPercent": 3.74,
+    "onePercentLowFpsPercent": 3.40,
+    "pointOnePercentLowFpsPercent": 11.30,
+    "p95MicrosPercent": -7.82,
+    "p99MicrosPercent": -3.29,
+    "stutterBurdenPercent": -13.27,
+    "repeatedSlowFramesPercentagePoints": -9.55,
+    "longestSlowFrameClusterPercent": -42.48
+  },
+  "claimBoundary": "One consecutive warm-machine pair is directional, not a universal FPS claim. Structural transform application and the empty-listener telemetry are direct observations."
+}

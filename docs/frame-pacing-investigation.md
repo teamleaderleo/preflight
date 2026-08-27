@@ -20,8 +20,10 @@ next probe becomes available.
 
 ## Current measurement frontier
 
-The current implementation checkpoint is `bb3ebcc3`, which retains the accepted v2 collision set
-after reverting a compact-index candidate whose allocation premise was falsified offline. The
+The current implementation checkpoint is `07b5921b`, which retains the accepted v2 collision set,
+exact-step hitch enrichment, distinct recurring-cluster breadth, and CI coverage for all gameplay
+analysis scripts. The compact-index candidate remains rejected because its allocation premise was
+falsified offline. The
 latest accepted campaign measurement checkpoint remains `fee6c7b8`, following the cluster
 recorder/analyzer at `cf761d2c9089e7ef46f11d741166f0b3bc1d413c`. One Preflight-only
 `campaign-sample-paused-unpaused` run of those source bytes passed every semantic step on
@@ -45,10 +47,11 @@ thermal state were not locked, so apparent deltas must not be advertised as impr
 
 ## Current live-validation queue
 
-### Fresh accepted-v2 combat cluster baseline (`bb3ebcc3`)
+### Promote the accepted combat opt-ins, then profile the residual (`07b5921b`)
 
-**Status:** pending only because the console was locked; prior launch attempts stopped before game
-process creation. This is a profiling run, not validation of the rejected v3 representation.
+**Status:** the fresh foreground baseline and one combined-opt-in B run are complete. Both passed
+all 34 semantic steps and exact process shutdown. The bounded pair is recorded in
+[accepted combat opt-ins](evidence/2026-08-27-combat-accepted-optins-pair.md).
 
 The compact-index v3 candidate at `a7ffaf78` passed exact tests and full Java 17 verification, but
 an exact layout check falsified its allocation premise before live launch. With the installed
@@ -58,16 +61,24 @@ accepted v2 shape (two `Object[]` plus one `int[]`) and candidate v3 shape (one 
 an established allocation-byte saving and was reverted by `bb3ebcc3`. See the immutable
 [rejection record](evidence/2026-08-27-collision-query-compact-index-rejected.md).
 
-**Observed:** this representation is not worthwhile on the current JVM. **Not exhausted:** the
-accepted v2 collision family still carried hundreds of MiB of weighted allocation in prior 1,040-DP
-runs. A new exact-window baseline can identify whether a different collision boundary—or another
-combat family entirely—dominates recurring frame clusters.
+**Observed:** the default exact window measured 25.06 average FPS, 8.23 FPS 1% low, 193.18 ms/s
+stutter burden, and 65.70% recurring-slow-frame exposure. Collision v2 hit 830,242/831,063 capacity
+hints and avoided 496,928 growths. The combined accepted-opt-in run measured 26.63 average FPS,
+8.51 FPS 1% low, 167.54 ms/s stutter burden, and 56.15% recurring exposure. Its listener shortcut
+served 45,881,368 exact empty snapshots with zero non-empty or unknown-list cases.
 
-**Exact next action:** after the console is unlocked, run
-`campaign-simulation-combat-1000dp.json` once with the current accepted-v2 build, verify all 34
-receipts and active focus-clean frames, then rank combat CPU, allocations, and repeated clusters
-inside only the `combat-sample-1040dp` receipt window. Do not resurrect v3 unless the runtime layout
-changes or evidence identifies GC reference scanning as a dominant cost.
+**Hypothesis:** the already accepted listener and AI Tweaks structural knobs deserve promotion into
+the normal fast path. **Falsifier:** an ordinary-DP or second foreground B observation reverses the
+smoothness direction, an exact transform fails, or live listener telemetry reaches a semantic case
+outside the reviewed empty-list boundary. Do not resurrect collision v3 unless runtime layout
+changes or GC reference scanning becomes a measured dominant cost.
+
+**Exact next action:** retain one more B observation only if it changes the promotion decision;
+otherwise make the accepted knobs easy to exercise as a coherent fast-preset candidate, then rank
+the residual exact-window profile. The first residual candidates are ship/weapon-group advance,
+AI Tweaks target selection without the retired field snapshot, GraphicsLib light rendering, and
+combat damage-analysis mods. Prefer a new narrow boundary or a user-visible diagnostic over another
+unsafe rewrite of `SelectTarget`.
 
 The current analyzer builds on checkpoint `b099f354`: `--repeated-clusters` may be combined with
 `--step`, intersects the state-derived cluster windows with the exact receipt, and fails closed if
@@ -212,7 +223,7 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
 | RAT tooltip scripts | No Preflight optimization exists; source shows per-frame UI copies and reflection, with a "do not modify twice" UI sentinel in the AI-core path. | The worst exact active frame crossed this code. | Does an identity/content guard remove repeated work without missing a tooltip object reused for a different entry? |
 | Stable campaign snapshots | Stable arrays and exhausted cursor reuse are accepted and bounded. | Current allocation samples still show rebuild/cursor cost and cursor identities outnumber owners. | Which owners rebuild, how often, and can stale cursor entries be removed when an owner receives a replacement array? |
 | Paused/unpaused attribution | Frame buckets are state-separated and focus-clean. Repeated clusters now correlate with bounded exact campaign calls and exact scenario steps. This separated seven post-unpause clusters from 15 settled clusters. | Transition work is a broad catch-up burst; the settled route still mixes occasional large spikes with recurring small calls, and retained children explain only part of cluster wall time. | Does the transition ordering repeat, and which individual settled frames align with the 69–90 ms location spikes? |
-| Combat | Deterministic simulation, autopilot, speed-up, zoom, and frame reporting already exist. V2 collision allocation and listener snapshots are accepted. V3 compact indexes were rejected before live launch because compressed references made their steady payload equal to v2 while adding index indirection. | Campaign work says nothing about 1,000+ DP battles. The accepted collision family still carried hundreds of MiB of sampled allocation; rejecting one representation does not spend the collision boundary or the broader combat profile. | In a fresh exact 1,040-DP sample window, which CPU/allocation stacks overlap recurring frame clusters, and does the leading safe direction survive ordinary-DP confirmation? |
+| Combat | Deterministic simulation, autopilot, speed-up, zoom, and exact-window reporting are live. Collision v2 hit 99.90% of capacity hints in the fresh default run. One combined accepted-opt-in B run improved average FPS 6.26%, stutter burden 13.27%, and recurring-cluster exposure 9.55 points while serving 45.9 million exact empty listener snapshots. V3 compact indexes remain rejected. | The pair is directional rather than lockstep, the accepted knobs are still opt-in, and residual hitch samples span AI Tweaks, vanilla ship/weapon work, graphics, collision, and damage-analysis mods. Rejecting one representation or retiring one unsafe target does not spend those families. | Does ordinary-DP or a second decision-relevant B observation preserve the combined direction, and which residual boundary is exact, local, and save-safe without touching the retired `SelectTarget` field snapshot? |
 
 ## Open questions, ranked
 
@@ -229,10 +240,11 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
    interval and which listener events already express real market invalidation.
 5. **Stable snapshot ownership:** instrument rebuilds by transformed loop kind before redesigning
    cursor retention.
-6. **Combat cluster frontier:** collect a fresh accepted-v2 baseline in the existing symmetric
-   1,040-DP fixture, constrain attribution to the exact clean sample receipt, and choose the next
-   candidate from recurring clusters rather than aggregate samples alone. Confirm any retained
-   direction in the ordinary fixture; the stress workload does not replace ordinary play.
+6. **Combat promotion and residual frontier:** the fresh default/combined-opt-in pair is complete.
+   Decide whether to promote the accepted knobs with one decision-relevant ordinary-DP or second B
+   observation, then choose a residual candidate from exact recurring-cluster enrichment. Avoid the
+   retired AI Tweaks `SelectTarget` field snapshot; the stress workload does not replace ordinary
+   play.
 
 ## Frequently revisited questions
 
