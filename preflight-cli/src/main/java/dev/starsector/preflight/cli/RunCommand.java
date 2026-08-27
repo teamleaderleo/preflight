@@ -282,7 +282,10 @@ final class RunCommand {
                 childOutput = ChildProcessOutput.run(builder, console);
             }
             launcherExitCode = childOutput.exitCode();
-            lifecycleEvidence = StarsectorRunLogEvidence.inspect(logSnapshot, childOutput);
+            boolean controllerStopRequested =
+                    StarsectorRunLogEvidence.exactControllerStopRequested(runDirectory);
+            lifecycleEvidence = StarsectorRunLogEvidence.inspect(
+                    logSnapshot, childOutput, controllerStopRequested);
             exitCode = StarsectorRunLogEvidence.effectiveExitCode(launcherExitCode, lifecycleEvidence);
             outcome = lifecycleEvidence.fatalDetected()
                     ? "FATAL_LOG_EVIDENCE"

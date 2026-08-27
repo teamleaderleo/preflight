@@ -86,6 +86,62 @@ class StarsectorRunLogEvidenceTest {
     }
 
     @Test
+    void controllerStopDowngradesOnlyReviewedOpenAlCleanupSignatures() throws Exception {
+        Path log = log("0 [main] INFO com.fs.starfarer.StarfarerLauncher  - Starting\n");
+        StarsectorRunLogEvidence.Snapshot before = StarsectorRunLogEvidence.snapshot(temporaryDirectory);
+        String cleanup = "100 [main] ERROR com.fs.starfarer.combat.CombatMain  - Error cleaning up\n"
+                + "101 [main] ERROR com.fs.starfarer.combat.CombatMain  - "
+                + "java.lang.UnsatisfiedLinkError: 'int org.lwjgl.openal.AL10.nalGetError()'\n"
+                + "java.lang.UnsatisfiedLinkError: synthetic\n"
+                + "\tat org.lwjgl.openal.AL10.nalGetError(Native Method)\n"
+                + "\tat com.fs.starfarer.combat.CombatMain.main(Unknown Source)\n"
+                + "102 [main] ERROR com.fs.starfarer.combat.CombatMain  - "
+                + "java.lang.UnsatisfiedLinkError: unrelated\n"
+                + "java.lang.UnsatisfiedLinkError: unrelated\n"
+                + "\tat example.Native.call(Native Method)\n"
+                + "\tat com.fs.starfarer.combat.CombatMain.main(Unknown Source)\n";
+        Files.writeString(log, cleanup, java.nio.file.StandardOpenOption.APPEND);
+
+        StarsectorRunLogEvidence.Evidence controlled =
+                StarsectorRunLogEvidence.inspect(before, null, true);
+        assertTrue(controlled.fatalDetected());
+        assertTrue(controlled.controllerStopRequested());
+        assertEquals(1, controlled.matches().size());
+        assertEquals(1, controlled.ignoredMatches().size());
+        assertEquals("controller-stop-openal-cleanup",
+                controlled.ignoredMatches().get(0).get("category"));
+
+        StarsectorRunLogEvidence.Evidence ordinary =
+                StarsectorRunLogEvidence.inspect(before, null, false);
+        assertTrue(ordinary.fatalDetected());
+        assertEquals(2, ordinary.matches().size());
+        assertTrue(ordinary.ignoredMatches().isEmpty());
+    }
+
+    @Test
+    void controllerStopReceiptMustMatchTheStrictRuntimeIdentity() throws Exception {
+        Path run = temporaryDirectory.resolve("run");
+        Files.createDirectories(run);
+        Files.writeString(run.resolve("runtime-process.json"), """
+                {"format":"starsector-preflight-runtime-process-v1","pid":1234,
+                 "parentPid":null,"startedAt":"2026-08-27T01:00:00Z",
+                 "observedAt":"2026-08-27T01:00:01Z","state":"stopped",
+                 "stoppedAt":"2026-08-27T01:00:02Z"}
+                """);
+        Path receipt = run.resolve(StarsectorRunLogEvidence.CONTROLLER_STOP_FILE);
+        Files.writeString(receipt,
+                "{\"pid\":1234,\"startedAt\":\"2026-08-27T01:00:00Z\"}\n");
+        assertTrue(StarsectorRunLogEvidence.exactControllerStopRequested(run));
+
+        Files.writeString(receipt,
+                "{\"pid\":1235,\"startedAt\":\"2026-08-27T01:00:00Z\"}\n");
+        assertFalse(StarsectorRunLogEvidence.exactControllerStopRequested(run));
+        Files.writeString(receipt,
+                "{\"pid\":1234,\"startedAt\":\"2026-08-27T01:00:00Z\",\"extra\":true}\n");
+        assertFalse(StarsectorRunLogEvidence.exactControllerStopRequested(run));
+    }
+
+    @Test
     void followsTheSnapshottedFileAcrossLogRotation() throws Exception {
         Path current = log("0 [main] INFO com.fs.starfarer.StarfarerLauncher  - Starting\n");
         StarsectorRunLogEvidence.Snapshot before = StarsectorRunLogEvidence.snapshot(temporaryDirectory);

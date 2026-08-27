@@ -338,6 +338,18 @@ final class DesktopSmokeLaunch {
                     new DesktopSmokeDriver.ProcessTarget(pid, startedAt);
             ProcessHandle process = ProcessHandle.of(pid).orElse(null);
             if (process == null || !sameLifetime(process, target)) return false;
+            Path stopEvidence = runtimeProcess.resolveSibling(
+                    StarsectorRunLogEvidence.CONTROLLER_STOP_FILE);
+            try {
+                atomicWrite(stopEvidence, Json.object(Map.of(
+                        "pid", pid,
+                        "startedAt", startedAt.toString())) + System.lineSeparator());
+            } catch (IOException unavailable) {
+                // The marker narrows post-stop log classification; losing it must never prevent
+                // exact-process cleanup or strand the game's multi-gigabyte JVM.
+                diagnostics.add("Exact runtime stop evidence was unavailable: "
+                        + bounded(unavailable.getMessage()));
+            }
             process.destroy();
             waitForExit(target, Duration.ofSeconds(2));
             if (sameLifetime(process, target)) {

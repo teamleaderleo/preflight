@@ -13,7 +13,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
- * Pre-launch guard for one demonstrated HotSpot/Rosetta combat miscompile.
+ * Pre-launch guard for demonstrated HotSpot/Rosetta game-loop miscompiles.
  *
  * <p>The failing cast is valid in the exact shipped bytecode and at runtime: the source and target
  * classes come from the same archive and loader, and the source directly implements the target.
@@ -21,7 +21,8 @@ import java.util.zip.ZipFile;
  * long combat produced the identical impossible cast from {@code Ship.render}. This
  * guard deliberately matches the entire known-risk contract before changing compilation policy:
  * macOS, the reviewed x86-64 Zulu runtime, the aggressively customized launcher/directives, and the
- * exact combat class. Any drift keeps the launcher's policy and leaves evidence in {@code run.json}.
+ * exact reviewed classes. Any drift keeps the launcher's policy and leaves evidence in
+ * {@code run.json}.
  */
 final class CombatJvmSafeguard {
     static final String DISABLE_ENVIRONMENT = "PREFLIGHT_DISABLE_COMBAT_JVM_SAFEGUARD";
@@ -29,14 +30,21 @@ final class CombatJvmSafeguard {
             "-XX:CompileCommand=exclude,com/fs/starfarer/combat/entities/Ship.advance";
     static final String RENDER_COMPILE_EXCLUSION =
             "-XX:CompileCommand=exclude,com/fs/starfarer/combat/entities/Ship.render";
+    static final String FLEET_ABILITY_RENDER_COMPILE_EXCLUSION =
+            "-XX:CompileCommand=exclude,com/fs/starfarer/campaign/fleet/FleetAbilityRenderer.render";
     static final List<String> COMPILE_EXCLUSIONS =
-            List.of(COMPILE_EXCLUSION, RENDER_COMPILE_EXCLUSION);
+            List.of(COMPILE_EXCLUSION, RENDER_COMPILE_EXCLUSION,
+                    FLEET_ABILITY_RENDER_COMPILE_EXCLUSION);
     static final String MODE_PROPERTY =
-            "-Dpreflight.combatIntegrity.jvmMode=auto-ship-cast-sites-interpreted";
+            "-Dpreflight.combatIntegrity.jvmMode=auto-reviewed-sites-interpreted";
     static final String SHIP_CLASS = "com/fs/starfarer/combat/entities/Ship.class";
-    static final int MAX_SHIP_CLASS_BYTES = 1024 * 1024;
+    static final String FLEET_ABILITY_RENDERER_CLASS =
+            "com/fs/starfarer/campaign/fleet/FleetAbilityRenderer.class";
+    static final int MAX_REVIEWED_CLASS_BYTES = 1024 * 1024;
     static final String REVIEWED_SHIP_SHA256 =
             "71997384a879ba6b0897b9f9e8cbf6d91449f2e767b81576dffed7fdd5b29926";
+    static final String REVIEWED_FLEET_ABILITY_RENDERER_SHA256 =
+            "cc48a9afc218b0e08e7b1731f47b570e55331d3999823aea4c4e27fa049db38c";
 
     private CombatJvmSafeguard() {
     }
@@ -79,11 +87,19 @@ final class CombatJvmSafeguard {
             String shipSha256 = entrySha256(gameJar, SHIP_CLASS);
             if (!REVIEWED_SHIP_SHA256.equals(shipSha256)) {
                 return new Resolution(false, "combat class differs from the reviewed build",
-                        gameJar, shipSha256);
+                        gameJar, shipSha256, null);
+            }
+            String fleetAbilityRendererSha256 =
+                    entrySha256(gameJar, FLEET_ABILITY_RENDERER_CLASS);
+            if (!REVIEWED_FLEET_ABILITY_RENDERER_SHA256.equals(
+                    fleetAbilityRendererSha256)) {
+                return new Resolution(false,
+                        "fleet ability renderer differs from the reviewed build",
+                        gameJar, shipSha256, fleetAbilityRendererSha256);
             }
             return new Resolution(true,
-                    "exact risky macOS x86-JVM/compiler/combat fingerprint matched",
-                    gameJar, shipSha256);
+                    "exact risky macOS x86-JVM/compiler/game-loop fingerprint matched",
+                    gameJar, shipSha256, fleetAbilityRendererSha256);
         } catch (IOException | RuntimeException problem) {
             return Resolution.inactive("fingerprint probe failed: " + message(problem));
         }
@@ -131,14 +147,14 @@ final class CombatJvmSafeguard {
         try (ZipFile zip = new ZipFile(archive.toFile())) {
             ZipEntry entry = zip.getEntry(name);
             if (entry == null || entry.isDirectory()) return null;
-            if (entry.getSize() > MAX_SHIP_CLASS_BYTES) {
-                throw new IOException("refusing oversized combat class " + name
+            if (entry.getSize() > MAX_REVIEWED_CLASS_BYTES) {
+                throw new IOException("refusing oversized reviewed class " + name
                         + " (" + entry.getSize() + " bytes)");
             }
             try (var input = zip.getInputStream(entry)) {
-                byte[] bytes = input.readNBytes(MAX_SHIP_CLASS_BYTES + 1);
-                if (bytes.length > MAX_SHIP_CLASS_BYTES) {
-                    throw new IOException("refusing oversized combat class " + name);
+                byte[] bytes = input.readNBytes(MAX_REVIEWED_CLASS_BYTES + 1);
+                if (bytes.length > MAX_REVIEWED_CLASS_BYTES) {
+                    throw new IOException("refusing oversized reviewed class " + name);
                 }
                 return Hashes.sha256(bytes);
             }
@@ -191,9 +207,14 @@ final class CombatJvmSafeguard {
                 + (detail == null || detail.isBlank() ? "" : ": " + detail);
     }
 
-    record Resolution(boolean active, String reason, Path gameJar, String shipClassSha256) {
+    record Resolution(
+            boolean active,
+            String reason,
+            Path gameJar,
+            String shipClassSha256,
+            String fleetAbilityRendererClassSha256) {
         static Resolution inactive(String reason) {
-            return new Resolution(false, reason, null, null);
+            return new Resolution(false, reason, null, null, null);
         }
 
         Map<String, Object> toReportValues() {
@@ -202,6 +223,7 @@ final class CombatJvmSafeguard {
             result.put("reason", reason);
             result.put("gameJar", gameJar);
             result.put("shipClassSha256", shipClassSha256);
+            result.put("fleetAbilityRendererClassSha256", fleetAbilityRendererClassSha256);
             result.put("compileExclusion", active ? COMPILE_EXCLUSION : null);
             result.put("compileExclusions", active ? COMPILE_EXCLUSIONS : List.of());
             result.put("disableEnvironment", DISABLE_ENVIRONMENT);
