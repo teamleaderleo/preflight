@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -11,7 +12,7 @@ import org.junit.jupiter.api.Test;
 class HitchClassifierTest {
     @Test
     void classifiesGpuHeavyFrameWhenJoinedGpuTimeDominates() {
-        Map<String, Object> result = HitchClassifier.classifyFrame(frame(Map.of(
+        Map<String, Object> result = HitchClassifier.classifyFrame(frame(values(
                 "gpuElapsedMicros", 78_000L,
                 "preSwapMicros", 15_000L,
                 "nativeSwapMicros", 500L,
@@ -27,7 +28,7 @@ class HitchClassifierTest {
 
     @Test
     void classifiesPausedPresentationWaitBelowTheJavaSwapBoundary() {
-        Map<String, Object> result = HitchClassifier.classifyFrame(frame(Map.of(
+        Map<String, Object> result = HitchClassifier.classifyFrame(frame(values(
                 "preSwapMicros", 14_000L,
                 "nativeSwapMicros", 17_000L,
                 "swapThreadCpuComplete", true,
@@ -42,7 +43,7 @@ class HitchClassifierTest {
 
     @Test
     void classifiesLimiterOversleepFromOvershootRatherThanRequestedSleep() {
-        Map<String, Object> result = HitchClassifier.classifyFrame(frame(Map.of(
+        Map<String, Object> result = HitchClassifier.classifyFrame(frame(values(
                 "preSwapMicros", 45_000L,
                 "nativeSwapMicros", 5_000L,
                 "swapThreadCpuComplete", true,
@@ -61,7 +62,7 @@ class HitchClassifierTest {
 
     @Test
     void classifiesPausedPreSwapWorkAfterExactLimiterSubtraction() {
-        Map<String, Object> result = HitchClassifier.classifyFrame(frame(Map.of(
+        Map<String, Object> result = HitchClassifier.classifyFrame(frame(values(
                 "preSwapMicros", 53_000L,
                 "nativeSwapMicros", 400L,
                 "swapThreadCpuComplete", true,
@@ -80,7 +81,7 @@ class HitchClassifierTest {
 
     @Test
     void packetSummaryClassifiesOnlyRetainedTriggerFrames() {
-        Map<String, Object> first = frame(Map.of(
+        Map<String, Object> first = frame(values(
                 "sequence", 10L,
                 "trigger", true,
                 "preSwapMicros", 53_000L,
@@ -92,7 +93,7 @@ class HitchClassifierTest {
                 "otherAfterSwapMicros", 300L,
                 "limiterSplitComplete", true,
                 "preSwapExcludingLimiterMicros", 53_000L));
-        Map<String, Object> context = frame(Map.of(
+        Map<String, Object> context = frame(values(
                 "sequence", 11L,
                 "trigger", false,
                 "preSwapMicros", 10_000L,
@@ -127,13 +128,22 @@ class HitchClassifierTest {
     }
 
     private static Map<String, Object> frame(Map<String, Object> additions) {
-        java.util.LinkedHashMap<String, Object> values = new java.util.LinkedHashMap<>();
+        LinkedHashMap<String, Object> values = new LinkedHashMap<>();
         values.put("sequence", 1L);
         values.put("trigger", true);
         values.put("durationMicros", 60_000L);
         values.put("phasesComplete", true);
         values.put("pause", "paused");
         values.putAll(additions);
+        return values;
+    }
+
+    private static Map<String, Object> values(Object... keyValues) {
+        if ((keyValues.length & 1) != 0) throw new IllegalArgumentException("odd key/value count");
+        LinkedHashMap<String, Object> values = new LinkedHashMap<>();
+        for (int index = 0; index < keyValues.length; index += 2) {
+            values.put((String) keyValues[index], keyValues[index + 1]);
+        }
         return values;
     }
 
