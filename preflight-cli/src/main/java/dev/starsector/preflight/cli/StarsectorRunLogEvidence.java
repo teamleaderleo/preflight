@@ -328,9 +328,10 @@ final class StarsectorRunLogEvidence {
 
     /**
      * Starsector's OpenAL cleanup can race native-library teardown after the smoke controller sends
-     * SIGTERM to its exact owned JVM. Suppress only the two observed shutdown-only calls and only
-     * when the controller published its stop intent before the signal. Any other native-link error,
-     * or the same error during an ordinary run, remains fatal.
+     * SIGTERM to its exact owned JVM. Suppress only the three observed shutdown-only calls, only
+     * when the controller published its stop intent before the signal, and only in the nearby
+     * cleanup sequence. Any other native-link error, or the same error during an ordinary run,
+     * remains fatal.
      */
     private static boolean expectedControllerStopOpenAlCleanup(
             String[] lines,
@@ -341,15 +342,32 @@ final class StarsectorRunLogEvidence {
             return false;
         }
         String message = lines[markerLine];
-        if (!message.contains("java.lang.UnsatisfiedLinkError:")) return false;
+        if (!message.contains("java.lang.UnsatisfiedLinkError:")
+                || !hasControllerStopCleanupContext(lines, markerLine)) {
+            return false;
+        }
         int limit = Math.min(lines.length, markerLine + MAX_STACK_LINES + 1);
         for (int i = markerLine + 1; i < limit; i++) {
             String line = lines[i];
             if (line.contains("at org.lwjgl.openal.AL10.nalGetError(")
-                    || line.contains("at org.lwjgl.openal.AL10.nalListenerfv(")) {
+                    || line.contains("at org.lwjgl.openal.AL10.nalListenerfv(")
+                    || line.contains("at org.lwjgl.openal.AL10.nalGetSourcei(")) {
                 return true;
             }
             if (!line.isBlank() && Character.isDigit(line.charAt(0))) return false;
+        }
+        return false;
+    }
+
+    private static boolean hasControllerStopCleanupContext(String[] lines, int markerLine) {
+        int first = Math.max(0, markerLine - MAX_STACK_LINES);
+        for (int i = markerLine - 1; i >= first; i--) {
+            String line = lines[i];
+            if (line.contains("ERROR com.fs.starfarer.combat.CombatMain  - Error cleaning up")
+                    || line.contains("INFO  sound.oo0O  - Cleaning up music")) {
+                return true;
+            }
+            if (line.contains("Starting Starsector")) return false;
         }
         return false;
     }

@@ -149,6 +149,11 @@ class StarsectorRunLogEvidenceTest {
                 + "java.lang.UnsatisfiedLinkError: synthetic\n"
                 + "\tat org.lwjgl.openal.AL10.nalGetError(Native Method)\n"
                 + "\tat com.fs.starfarer.combat.CombatMain.main(Unknown Source)\n"
+                + "101 [main] ERROR com.fs.starfarer.combat.CombatMain  - "
+                + "java.lang.UnsatisfiedLinkError: 'int org.lwjgl.openal.AL10.nalGetSourcei(int, int)'\n"
+                + "java.lang.UnsatisfiedLinkError: synthetic\n"
+                + "\tat org.lwjgl.openal.AL10.nalGetSourcei(Native Method)\n"
+                + "\tat com.fs.starfarer.combat.CombatMain.main(Unknown Source)\n"
                 + "102 [main] ERROR com.fs.starfarer.combat.CombatMain  - "
                 + "java.lang.UnsatisfiedLinkError: unrelated\n"
                 + "java.lang.UnsatisfiedLinkError: unrelated\n"
@@ -161,15 +166,33 @@ class StarsectorRunLogEvidenceTest {
         assertTrue(controlled.fatalDetected());
         assertTrue(controlled.controllerStopRequested());
         assertEquals(1, controlled.matches().size());
-        assertEquals(1, controlled.ignoredMatches().size());
+        assertEquals(2, controlled.ignoredMatches().size());
         assertEquals("controller-stop-openal-cleanup",
                 controlled.ignoredMatches().get(0).get("category"));
 
         StarsectorRunLogEvidence.Evidence ordinary =
                 StarsectorRunLogEvidence.inspect(before, null, false);
         assertTrue(ordinary.fatalDetected());
-        assertEquals(2, ordinary.matches().size());
+        assertEquals(3, ordinary.matches().size());
         assertTrue(ordinary.ignoredMatches().isEmpty());
+    }
+
+    @Test
+    void controllerStopDoesNotDowngradeOpenAlCallWithoutCleanupContext() throws Exception {
+        Path log = log("0 [main] INFO com.fs.starfarer.StarfarerLauncher  - Starting\n");
+        StarsectorRunLogEvidence.Snapshot before = StarsectorRunLogEvidence.snapshot(temporaryDirectory);
+        Files.writeString(log,
+                "100 [main] ERROR com.fs.starfarer.combat.CombatMain  - "
+                        + "java.lang.UnsatisfiedLinkError: synthetic\n"
+                        + "\tat org.lwjgl.openal.AL10.nalGetSourcei(Native Method)\n"
+                        + "\tat com.fs.starfarer.combat.CombatMain.main(Unknown Source)\n",
+                java.nio.file.StandardOpenOption.APPEND);
+
+        StarsectorRunLogEvidence.Evidence evidence =
+                StarsectorRunLogEvidence.inspect(before, null, true);
+        assertTrue(evidence.fatalDetected());
+        assertEquals(1, evidence.matches().size());
+        assertTrue(evidence.ignoredMatches().isEmpty());
     }
 
     @Test
