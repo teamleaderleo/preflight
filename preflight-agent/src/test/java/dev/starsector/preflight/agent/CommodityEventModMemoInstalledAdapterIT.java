@@ -82,6 +82,12 @@ class CommodityEventModMemoInstalledAdapterIT {
                 CommodityEventModMemoPlan.METHOD.equals(method.name)
                         && CommodityEventModMemoPlan.DESCRIPTOR.equals(method.desc))
                 .findFirst().orElseThrow();
+        var slow = owner.methods.stream().filter(method ->
+                "preflight$eventModValidateOrDelegate".equals(method.name)
+                        && CommodityEventModMemoPlan.DESCRIPTOR.equals(method.desc))
+                .findFirst().orElseThrow();
+        assertTrue((slow.access & Opcodes.ACC_PRIVATE) != 0);
+        assertTrue((slow.access & Opcodes.ACC_SYNTHETIC) != 0);
         int originalCalls = 0;
         for (var instruction : wrapper.instructions) {
             if (instruction instanceof MethodInsnNode call
@@ -121,8 +127,8 @@ class CommodityEventModMemoInstalledAdapterIT {
                     statConstructor.newInstance(0f),
                     statConstructor.newInstance(0f),
                     commoditySpecType.getConstructor(float.class).newInstance(1f));
-            assertEquals(8L, CommodityEventModMemoRuntime.telemetry().get("delegated"));
-            assertEquals(8L, CommodityEventModMemoRuntime.telemetry().get("hits"));
+            assertEquals(9L, CommodityEventModMemoRuntime.telemetry().get("delegated"));
+            assertEquals(13L, CommodityEventModMemoRuntime.telemetry().get("hits"));
             assertEquals(0L,
                     CommodityEventModMemoRuntime.telemetry().get("fastValidationUnavailable"));
         }
@@ -203,7 +209,25 @@ class CommodityEventModMemoInstalledAdapterIT {
         initialize(method, 4, "tradeModMinus");
         invokeReapply(method);
         invokeReapply(method);
-        // Any non-eMod change to available alters the fingerprint and must run vanilla once.
+        // A clean zero-valued backing-stat replacement cannot affect the zero result. The direct
+        // proof deliberately does not require the retained object identity in this state.
+        initialize(method, 3, "tradeMod");
+        invokeReapply(method);
+        initialize(method, 2, "tradeMod");
+        invokeReapply(method);
+        // Cancellation is deliberately outside the narrow three-zero proof. A dirty change
+        // delegates once; after vanilla resolves both stats, the complete fingerprint still hits.
+        // Returning both modifiers to exact zero then exercises the direct proof again.
+        modifyFlat(method, 2, "installed-cancel-trade", 5f);
+        modifyFlat(method, 4, "installed-cancel-minus", -5f);
+        invokeReapply(method);
+        invokeReapply(method);
+        modifyFlat(method, 2, "installed-cancel-trade", 0f);
+        modifyFlat(method, 4, "installed-cancel-minus", 0f);
+        invokeReapply(method);
+        invokeReapply(method);
+        // With no trade quantity and no eMod, unrelated available-stat changes cannot affect the
+        // vanilla result. Both calls therefore use the direct zero-result proof.
         method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
         method.instructions.add(new TypeInsnNode(Opcodes.CHECKCAST,
                 "com/fs/starfarer/api/combat/MutableStatWithTempMods"));

@@ -35,6 +35,7 @@ final class CommodityEventModMemoPlan {
     static final String COMMODITY_DESCRIPTOR = "()Lcom/fs/starfarer/loading/return;";
 
     private static final String ORIGINAL = "preflight$original$reapplyEventMod";
+    private static final String SLOW = "preflight$eventModValidateOrDelegate";
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/CommodityEventModMemoRuntime";
     private static final String MUTABLE = "com/fs/starfarer/api/combat/MutableStat";
@@ -79,7 +80,8 @@ final class CommodityEventModMemoPlan {
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         MethodNode original = unique(owner, METHOD, DESCRIPTOR);
-        if (original == null || hasMethod(owner, ORIGINAL, DESCRIPTOR) || hasMemoFields(owner)
+        if (original == null || hasMethod(owner, ORIGINAL, DESCRIPTOR)
+                || hasMethod(owner, SLOW, DESCRIPTOR) || hasMemoFields(owner)
                 || !reviewOriginal(original)) {
             return null;
         }
@@ -87,7 +89,9 @@ final class CommodityEventModMemoPlan {
         int access = original.access;
         original.name = ORIGINAL;
         addMemoFields(owner);
-        owner.methods.add(wrapper(access, CommodityEventModMemoRuntime.telemetryEnabled()));
+        boolean telemetryEnabled = CommodityEventModMemoRuntime.telemetryEnabled();
+        owner.methods.add(slowPath(telemetryEnabled));
+        owner.methods.add(wrapper(access, telemetryEnabled));
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
@@ -98,7 +102,7 @@ final class CommodityEventModMemoPlan {
     private static MethodNode wrapper(int access, boolean telemetryEnabled) {
         MethodNode method = new MethodNode(Opcodes.ASM9, access, METHOD, DESCRIPTOR, null, null);
         LabelNode enabled = new LabelNode();
-        LabelNode delegated = new LabelNode();
+        LabelNode slow = new LabelNode();
         LabelNode fastStart = new LabelNode();
         LabelNode fastEnd = new LabelNode();
         LabelNode linkageFailure = new LabelNode();
@@ -112,13 +116,74 @@ final class CommodityEventModMemoPlan {
         method.instructions.add(enabled);
         method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
         method.instructions.add(new FieldInsnNode(Opcodes.GETFIELD, TARGET_CLASS, VALID, "Z"));
+        method.instructions.add(new JumpInsnNode(Opcodes.IFEQ, slow));
+
+        // A clean MutableStat's public modified value is authoritative. Read the three trade
+        // inputs directly, avoiding four getModifiedValue calls and the combined quantity
+        // arithmetic on the overwhelmingly common unchanged path. The accessor is added only to
+        // the exact reviewed MutableStat; any missing linkage disables this memo and delegates
+        // forever.
+        method.instructions.add(fastStart);
+        loadStat(method, TRADE_FIELD, 8);
+        loadStat(method, TRADE_PLUS_FIELD, 9);
+        loadStat(method, TRADE_MINUS_FIELD, 10);
+        loadStat(method, AVAILABLE_FIELD, 2);
+        compareClean(method, 8, slow);
+        compareClean(method, 9, slow);
+        compareClean(method, 10, slow);
+
+        // The overwhelmingly common state has three exact zero trade inputs and no eMod entry. In
+        // that state vanilla's complete observable action is an unsuccessful map removal. A clean
+        // stat's public modified value is authoritative, so these three comparisons are a narrow
+        // sufficient proof; cancellation and every other nontrivial quantity continue through the
+        // complete mutation-aware slow path. Changes to available value, commodity
+        // metadata, or backing-stat identities cannot affect this proven-zero result.
+        captureCurrentEventMod(method);
+        compareStatZero(method, 8, slow);
+        compareStatZero(method, 9, slow);
+        compareStatZero(method, 10, slow);
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 4));
+        method.instructions.add(new JumpInsnNode(Opcodes.IFNONNULL, slow));
+        method.instructions.add(fastEnd);
+        emitHitAndReturn(method, telemetryEnabled, true);
+
+        method.instructions.add(linkageFailure);
+        method.instructions.add(new InsnNode(Opcodes.POP));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "fastValidationUnavailable", "()V", false));
+        emitDelegated(method, telemetryEnabled);
+        invokeOriginal(method);
+        method.instructions.add(new InsnNode(Opcodes.RETURN));
+        method.tryCatchBlocks.add(new TryCatchBlockNode(
+                fastStart, fastEnd, linkageFailure, "java/lang/LinkageError"));
+
+        method.instructions.add(slow);
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKESPECIAL, TARGET_CLASS, SLOW, DESCRIPTOR, false));
+        method.instructions.add(new InsnNode(Opcodes.RETURN));
+
+        return method;
+    }
+
+    /** Keeps the complete mutation fingerprint off the overwhelmingly common zero-result method. */
+    private static MethodNode slowPath(boolean telemetryEnabled) {
+        MethodNode method = new MethodNode(
+                Opcodes.ASM9,
+                Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL | Opcodes.ACC_SYNTHETIC,
+                SLOW,
+                DESCRIPTOR,
+                null,
+                null);
+        LabelNode delegated = new LabelNode();
+        LabelNode fastStart = new LabelNode();
+        LabelNode fastEnd = new LabelNode();
+        LabelNode linkageFailure = new LabelNode();
+
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        method.instructions.add(new FieldInsnNode(Opcodes.GETFIELD, TARGET_CLASS, VALID, "Z"));
         method.instructions.add(new JumpInsnNode(Opcodes.IFEQ, delegated));
 
-        // A clean MutableStat's public modified value is authoritative. Compare those values and
-        // their owning objects directly, avoiding four getModifiedValue calls and the combined
-        // quantity arithmetic on the overwhelmingly common unchanged path. The accessor is added
-        // only to the exact reviewed MutableStat; any missing linkage disables this memo and
-        // delegates forever.
         method.instructions.add(fastStart);
         loadStat(method, TRADE_FIELD, 8);
         loadStat(method, TRADE_PLUS_FIELD, 9);
@@ -147,25 +212,20 @@ final class CommodityEventModMemoPlan {
         compareReference(method, EVENT_MOD_DESC, 7, delegated);
         compareEconUnitIfRelevant(method, delegated);
         method.instructions.add(fastEnd);
-        if (telemetryEnabled) {
-            method.instructions.add(new MethodInsnNode(
-                    Opcodes.INVOKESTATIC, RUNTIME, "hit", "()V", false));
-        }
-        method.instructions.add(new InsnNode(Opcodes.RETURN));
+        emitHitAndReturn(method, telemetryEnabled, false);
 
         method.instructions.add(linkageFailure);
         method.instructions.add(new InsnNode(Opcodes.POP));
         method.instructions.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "fastValidationUnavailable", "()V", false));
-        method.instructions.add(new JumpInsnNode(Opcodes.GOTO, delegated));
+        emitDelegated(method, telemetryEnabled);
+        invokeOriginal(method);
+        method.instructions.add(new InsnNode(Opcodes.RETURN));
         method.tryCatchBlocks.add(new TryCatchBlockNode(
                 fastStart, fastEnd, linkageFailure, "java/lang/LinkageError"));
 
         method.instructions.add(delegated);
-        if (telemetryEnabled) {
-            method.instructions.add(new MethodInsnNode(
-                    Opcodes.INVOKESTATIC, RUNTIME, "delegated", "()V", false));
-        }
+        emitDelegated(method, telemetryEnabled);
         invokeOriginal(method);
         // Store the state after vanilla has authored eMod. This also resolves MutableStat's dirty
         // bit once, so the next unchanged frame can compare the actual stable output directly.
@@ -189,6 +249,34 @@ final class CommodityEventModMemoPlan {
         method.instructions.add(new InsnNode(Opcodes.RETURN));
 
         return method;
+    }
+
+    private static void emitDelegated(MethodNode method, boolean telemetryEnabled) {
+        if (telemetryEnabled) {
+            method.instructions.add(new MethodInsnNode(
+                    Opcodes.INVOKESTATIC, RUNTIME, "delegated", "()V", false));
+        }
+    }
+
+    private static void compareStatZero(MethodNode method, int local, LabelNode nonZero) {
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, local));
+        method.instructions.add(new FieldInsnNode(Opcodes.GETFIELD, MUTABLE, "modified", "F"));
+        method.instructions.add(new InsnNode(Opcodes.FCONST_0));
+        method.instructions.add(new InsnNode(Opcodes.FCMPL));
+        method.instructions.add(new JumpInsnNode(Opcodes.IFNE, nonZero));
+    }
+
+    private static void emitHitAndReturn(
+            MethodNode method, boolean telemetryEnabled, boolean zeroQuantity) {
+        if (telemetryEnabled) {
+            method.instructions.add(new MethodInsnNode(
+                    Opcodes.INVOKESTATIC,
+                    RUNTIME,
+                    zeroQuantity ? "zeroQuantityHit" : "hit",
+                    "()V",
+                    false));
+        }
+        method.instructions.add(new InsnNode(Opcodes.RETURN));
     }
 
     /** Captures quantity, current available value, eMod value, and the relevant econ unit. */

@@ -272,11 +272,17 @@ validations and no deep validations. The mechanism and live counters are in
 
 A commodity event-mod path proved even more repetitive: an early pilot observed 16.17 million
 calls with a 98.78 percent cache-hit rate, and a later sample observed 129.03 million calls with a
-99.8269 percent hit rate. Deployment icon scans, campaign radar type construction, GraphicsLib hot
+99.8269 percent hit rate. A later deterministic profile found that all 29.56 million unchanged hits
+had three clean zero trade inputs and no current event modifier. That exact result now returns from
+a small public hot method, while nonzero, cancellation, dirty, mutated, and first-use states retain
+the complete private slow fingerprint. The retained live profile moved the target from 8.37–10.78
+percent in discarded same-wave shapes to 4.08 percent; the overall frame route was not comparable
+enough for an FPS claim. Deployment icon scans, campaign radar type construction, GraphicsLib hot
 settings, AI Tweaks range calculations, and several optional-mod paths were treated in the same way:
 first identify an exact repeated question, then retain only a result whose invalidation can be
 stated and tested. The commodity work is documented in
-[the event-mod report](evidence/2026-08-05-commodity-event-mod-campaign-hotspot.md), with other entry
+[the event-mod report](evidence/2026-08-05-commodity-event-mod-campaign-hotspot.md) and
+[zero-result refinement](evidence/2026-08-27-event-mod-zero-result-fast-path.md), with other entry
 points in [the deployment scan](evidence/2026-08-04-deployment-member-icon-scan.md),
 [the radar set](evidence/2026-08-05-campaign-radar-type-set.md), and
 [the GraphicsLib settings report](evidence/2026-08-05-graphicslib-hot-settings-cache.md).

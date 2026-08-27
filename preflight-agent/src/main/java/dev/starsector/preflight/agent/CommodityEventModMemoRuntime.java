@@ -15,6 +15,7 @@ public final class CommodityEventModMemoRuntime {
     // Starsector advances campaign markets on one thread. These intentionally approximate counters
     // avoid putting an atomic read-modify-write on every commodity's frame-time fast path.
     private static long hits;
+    private static long zeroQuantityHits;
     private static long delegated;
     private static long fastValidationUnavailable;
 
@@ -43,6 +44,13 @@ public final class CommodityEventModMemoRuntime {
         if (telemetryEnabled) hits++;
     }
 
+    public static void zeroQuantityHit() {
+        if (telemetryEnabled) {
+            hits++;
+            zeroQuantityHits++;
+        }
+    }
+
     public static void delegated() {
         if (telemetryEnabled) delegated++;
     }
@@ -60,8 +68,9 @@ public final class CommodityEventModMemoRuntime {
         values.put("enabled", enabled());
         values.put("telemetryEnabled", telemetryEnabled);
         values.put("validationStrategy",
-                "clean-stat-and-direct-exact-key-fast-path-with-exact-post-state-fingerprint");
+                "split-exact-zero-fast-path-with-complete-slow-fingerprint");
         values.put("hits", hits);
+        values.put("zeroQuantityHits", zeroQuantityHits);
         values.put("delegated", delegated);
         values.put("fastValidationUnavailable", fastValidationUnavailable);
         return values;
@@ -76,6 +85,7 @@ public final class CommodityEventModMemoRuntime {
         enabled = false;
         telemetryEnabled = telemetryRequested;
         hits = 0L;
+        zeroQuantityHits = 0L;
         delegated = 0L;
         fastValidationUnavailable = 0L;
     }
