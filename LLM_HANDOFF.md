@@ -16,6 +16,10 @@ Before changing code or collecting release evidence:
 5. Read [scripts/README.md](scripts/README.md) before driving the game. Use
    `scripts/benchmark-startup.sh` for one automatic startup measurement, `--details` to explain a
    changed result, and `--campaign` only for a real comparison.
+6. For current campaign/combat smoothness work, read the maintained
+   [frame-pacing investigation notebook](docs/frame-pacing-investigation.md). It separates durable
+   observations from falsifiable hypotheses and records why a previously explored area may still
+   be worth revisiting.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package
