@@ -5,7 +5,7 @@ Date: 2026-08-27
 Install: Starsector 0.98a-RC8, AI Tweaks 2.2.10, current heavily modded profile,
 macOS on Apple M5, bundled x86-64 Zulu 17 under Rosetta, Preflight fast preset
 
-Status: attribution and exact-bytecode review complete; no new transform enabled
+Status: attribution and exact-bytecode review complete; the first ranked candidate is accepted
 
 ## Why this remains a combat lane
 
@@ -48,6 +48,12 @@ construction, comparison, sort stability, iteration order, floating-point work, 
 objects. That makes it the next narrow candidate after the collision-capacity experiment is
 accepted or rejected. A later affine-vector pass remains worthwhile, but should not be mixed into
 the same live run.
+
+That candidate has now passed its exact installed-JAR tests and the deterministic 1,040-DP live
+route. The accepted result and its claim boundary are recorded in
+[the split-arcs capacity report](2026-08-27-aitweaks-split-arcs-capacity.md). The next profiling
+pass should rank the larger weapon-range listener and vector-allocation families rather than add
+more changes to this method.
 
 ## Exact identity and safety boundary
 
