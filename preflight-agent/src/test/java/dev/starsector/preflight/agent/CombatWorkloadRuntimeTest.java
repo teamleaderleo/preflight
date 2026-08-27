@@ -3,6 +3,7 @@ package dev.starsector.preflight.agent;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -94,7 +95,7 @@ class CombatWorkloadRuntimeTest {
 
         Path report = temporaryDirectory.resolve("combat-scaling.json");
         CombatWorkloadRuntime.writeReport(report);
-        String json = Files.readString(report);
+        String json = Files.readString(report, StandardCharsets.UTF_8);
         assertTrue(json.contains("\"runId\":\"run-a\""));
         assertTrue(json.contains("\"battleDp\":1040.0"));
         assertTrue(json.contains("\"advanceMicros\""));
