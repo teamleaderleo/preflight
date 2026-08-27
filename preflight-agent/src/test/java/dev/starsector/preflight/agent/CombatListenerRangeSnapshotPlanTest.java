@@ -1,5 +1,6 @@
 package dev.starsector.preflight.agent;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -28,10 +29,14 @@ class CombatListenerRangeSnapshotPlanTest {
     private static final String LIST = "java/util/List";
     private static final String ARRAY_LIST = "java/util/ArrayList";
     private static final String ITERATOR = "java/util/Iterator";
+    private static final String SNAPSHOT_RUNTIME =
+            "dev/starsector/preflight/agent/CombatListenerRangeSnapshotRuntime";
 
     @AfterEach
     void clearProperty() {
         System.clearProperty(CombatListenerRangeSnapshotPlan.ENABLED_PROPERTY);
+        System.clearProperty(CombatListenerRangeSnapshotRuntime.ENABLED_PROPERTY);
+        CombatListenerRangeSnapshotRuntime.beginSession();
     }
 
     @Test
@@ -54,12 +59,48 @@ class CombatListenerRangeSnapshotPlanTest {
                     spec.name());
             assertEquals(0, calls(method, ARRAY_LIST, "iterator", "()Ljava/util/Iterator;"),
                     spec.name());
-            assertEquals(1, calls(method, LIST, "toArray", "()[Ljava/lang/Object;"), spec.name());
+            assertEquals(0, calls(method, LIST, "toArray", "()[Ljava/lang/Object;"), spec.name());
+            assertEquals(1, calls(method, SNAPSHOT_RUNTIME, "snapshot",
+                    "(Ljava/util/List;)[Ljava/lang/Object;"), spec.name());
             assertEquals(1, opcodes(method, Opcodes.AALOAD), spec.name());
             assertEquals(1, calls(method, spec.listener(), spec.callback(),
                     "(Lcom/fs/starfarer/api/combat/ShipAPI;"
                             + "Lcom/fs/starfarer/api/combat/WeaponAPI;)F"), spec.name());
         }
+    }
+
+    @Test
+    void reuseSubknobRoutesEachPrivateSnapshotThroughValidatedRuntime() {
+        System.setProperty(CombatListenerRangeSnapshotRuntime.ENABLED_PROPERTY, "true");
+        CombatListenerRangeSnapshotRuntime.beginSession();
+        byte[] transformed = CombatListenerRangeSnapshotPlan.transform(signature(), fixture(false));
+        assertNotNull(transformed);
+
+        ClassNode owner = parse(transformed);
+        for (CombatListenerRangeSnapshotPlan.RangeMethod spec
+                : CombatListenerRangeSnapshotPlan.METHODS) {
+            MethodNode method = unique(owner, spec.name());
+            assertEquals(0, calls(method, LIST, "toArray", "()[Ljava/lang/Object;"), spec.name());
+            assertEquals(1, calls(method, SNAPSHOT_RUNTIME, "snapshot",
+                    "(Ljava/util/List;)[Ljava/lang/Object;"), spec.name());
+            assertEquals(1, opcodes(method, Opcodes.AALOAD), spec.name());
+        }
+        assertEquals(true, CombatListenerRangeSnapshotRuntime.telemetry().get("enabled"));
+        assertEquals(true, CombatListenerRangeSnapshotRuntime.telemetry().get("installed"));
+    }
+
+    @Test
+    void reuseSubknobCannotCreateASecondTransformationCacheVariant() {
+        System.setProperty(CombatListenerRangeSnapshotPlan.ENABLED_PROPERTY, "true");
+        CombatListenerRangeSnapshotRuntime.beginSession();
+        byte[] arrayOnly = CombatListenerRangeSnapshotPlan.transform(signature(), fixture(false));
+
+        System.clearProperty(CombatListenerRangeSnapshotPlan.ENABLED_PROPERTY);
+        System.setProperty(CombatListenerRangeSnapshotRuntime.ENABLED_PROPERTY, "true");
+        CombatListenerRangeSnapshotRuntime.beginSession();
+        byte[] reuse = CombatListenerRangeSnapshotPlan.transform(signature(), fixture(false));
+
+        assertArrayEquals(arrayOnly, reuse);
     }
 
     @Test

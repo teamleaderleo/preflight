@@ -33,6 +33,8 @@ final class CombatListenerRangeSnapshotPlan {
     private static final String LISTENER_MANAGER =
             "com/fs/starfarer/api/combat/listeners/CombatListenerManagerAPI";
     private static final String LIST = "java/util/List";
+    private static final String SNAPSHOT_RUNTIME =
+            "dev/starsector/preflight/agent/CombatListenerRangeSnapshotRuntime";
     private static final String ARRAY_LIST = "java/util/ArrayList";
     private static final String COLLECTION_CONSTRUCTOR = "(Ljava/util/Collection;)V";
     private static final String WEAPON_RANGE_MODIFIER =
@@ -61,7 +63,8 @@ final class CombatListenerRangeSnapshotPlan {
     }
 
     static boolean enabled() {
-        return Boolean.getBoolean(ENABLED_PROPERTY);
+        return Boolean.getBoolean(ENABLED_PROPERTY)
+                || Boolean.getBoolean(CombatListenerRangeSnapshotRuntime.ENABLED_PROPERTY);
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
@@ -84,6 +87,7 @@ final class CombatListenerRangeSnapshotPlan {
         for (RangeMethod spec : METHODS) {
             rewrite(unique(owner, spec.name(), DESCRIPTOR), spec);
         }
+        CombatListenerRangeSnapshotRuntime.installed();
 
         ClassWriter writer = new SafeClassWriter(
                 ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
@@ -133,7 +137,11 @@ final class CombatListenerRangeSnapshotPlan {
                 "(Ljava/lang/Class;)Ljava/util/List;",
                 true));
         method.instructions.add(new MethodInsnNode(
-                Opcodes.INVOKEINTERFACE, LIST, "toArray", "()[Ljava/lang/Object;", true));
+                Opcodes.INVOKESTATIC,
+                SNAPSHOT_RUNTIME,
+                "snapshot",
+                "(Ljava/util/List;)[Ljava/lang/Object;",
+                false));
         method.instructions.add(new VarInsnNode(Opcodes.ASTORE, 3));
         method.instructions.add(new InsnNode(Opcodes.ICONST_0));
         method.instructions.add(new VarInsnNode(Opcodes.ISTORE, 4));

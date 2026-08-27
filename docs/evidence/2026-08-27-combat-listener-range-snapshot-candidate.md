@@ -24,8 +24,9 @@ callbacks run in the current query.
 ## Narrow replacement
 
 `vanilla-combat-listener-range-snapshot-v1` replaces only the six exact range-query method bodies.
-Each method calls the same `ShipAPI.getListeners(Class)`, immediately snapshots the live list once
-with `List.toArray()`, and walks that stable array by index. It preserves:
+Each method calls the same `ShipAPI.getListeners(Class)`, immediately obtains one private array
+snapshot, and walks that stable array by index. The runtime helper delegates directly to
+`List.toArray()` unless the separately gated snapshot-reuse experiment is enabled. It preserves:
 
 - one pre-callback snapshot and the original listener order;
 - callback arguments and invocation count;
@@ -50,7 +51,7 @@ class, archive, loader, method, or instruction drift retains original bytecode. 
 no fields, retains no listeners or game objects, crosses no frame boundary, and touches no save
 state.
 
-Four fixture tests and one exact installed-archive test pass on Java 17. They verify explicit
+The original four fixture tests and exact installed-archive test pass on Java 17. They verify explicit
 opt-in, all-or-nothing shape admission, wrong-hash and second-rewrite fallback, pinned provenance,
 one array snapshot per method, one array element load per loop, and absence of `ArrayList`
 allocation and iterator calls after transformation.

@@ -22,6 +22,8 @@ class CombatListenerRangeSnapshotInstalledAdapterIT {
     @AfterEach
     void clearProperty() {
         System.clearProperty(CombatListenerRangeSnapshotPlan.ENABLED_PROPERTY);
+        System.clearProperty(CombatListenerRangeSnapshotRuntime.ENABLED_PROPERTY);
+        CombatListenerRangeSnapshotRuntime.beginSession();
     }
 
     @Test
@@ -57,8 +59,30 @@ class CombatListenerRangeSnapshotInstalledAdapterIT {
             assertEquals(0, allocations(method, "java/util/ArrayList"), spec.name());
             assertEquals(0, calls(method, "java/util/ArrayList", "iterator",
                     "()Ljava/util/Iterator;"), spec.name());
-            assertEquals(1, calls(method, "java/util/List", "toArray",
+            assertEquals(0, calls(method, "java/util/List", "toArray",
                     "()[Ljava/lang/Object;"), spec.name());
+            assertEquals(1, calls(method,
+                    CombatListenerRangeSnapshotRuntime.class.getName().replace('.', '/'),
+                    "snapshot", "(Ljava/util/List;)[Ljava/lang/Object;"), spec.name());
+            assertEquals(1, opcodes(method, Opcodes.AALOAD), spec.name());
+        }
+
+        System.setProperty(CombatListenerRangeSnapshotRuntime.ENABLED_PROPERTY, "true");
+        CombatListenerRangeSnapshotRuntime.beginSession();
+        transformed = CombatListenerRangeSnapshotPlan.transform(signature, original);
+        assertNotNull(transformed);
+        owner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(transformed).accept(owner, ClassReader.EXPAND_FRAMES);
+        String runtime = CombatListenerRangeSnapshotRuntime.class.getName().replace('.', '/');
+        for (var spec : CombatListenerRangeSnapshotPlan.METHODS) {
+            MethodNode method = owner.methods.stream()
+                    .filter(candidate -> spec.name().equals(candidate.name)
+                            && CombatListenerRangeSnapshotPlan.DESCRIPTOR.equals(candidate.desc))
+                    .findFirst().orElseThrow();
+            assertEquals(0, calls(method, "java/util/List", "toArray",
+                    "()[Ljava/lang/Object;"), spec.name());
+            assertEquals(1, calls(method, runtime, "snapshot",
+                    "(Ljava/util/List;)[Ljava/lang/Object;"), spec.name());
             assertEquals(1, opcodes(method, Opcodes.AALOAD), spec.name());
         }
     }

@@ -399,6 +399,8 @@ final class AdapterReport {
                 .append(Json.value(CombatRuntimeIntegrityRuntime.telemetry())).append(',');
         key(output, "collisionQuerySet")
                 .append(Json.value(CollisionQuerySet.telemetry())).append(',');
+        key(output, "combatListenerRangeSnapshot")
+                .append(Json.value(CombatListenerRangeSnapshotRuntime.telemetry())).append(',');
         key(output, FrameTimeTelemetry.REPORT)
                 .append(Json.value(FrameTimeRuntime.telemetry())).append(',');
         key(output, "runtimeSemanticState")
