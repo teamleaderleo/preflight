@@ -205,6 +205,54 @@ class GameplayHotspotTest(unittest.TestCase):
         finally:
             module.frame_report_windows = original_frame_windows
 
+    def test_frame_report_cluster_windows_rank_bounded_repeated_clusters(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "runtime-frame-report.json"
+            report.write_text(json.dumps({
+                "frameTimes": {
+                    "campaignUnpausedActive": {
+                        "repeatedSlowFrameWindows": [
+                            {
+                                "frames": 3,
+                                "durationMicros": 150_000,
+                                "excessSlowFrameMicros": 50_000,
+                                "startEpochMillis": 1_000,
+                                "endEpochMillis": 1_150,
+                            },
+                            {
+                                "frames": 2,
+                                "durationMicros": 220_000,
+                                "excessSlowFrameMicros": 153_333,
+                                "startEpochMillis": 2_000,
+                                "endEpochMillis": 2_220,
+                            },
+                        ],
+                    },
+                },
+            }), encoding="utf-8")
+            windows = module.frame_report_cluster_windows(
+                report, ["campaignUnpausedActive"], 1)
+            self.assertEqual(1, len(windows))
+            self.assertIn("2 frames, 220.00 ms total", windows[0][0])
+            self.assertEqual(2.0, windows[0][1])
+            self.assertEqual(2.22, windows[0][2])
+
+    def test_events_in_windows_deduplicates_overlapping_windows(self):
+        sample = event("main", "mod.Work.run")
+        sample["values"]["startTime"] = "2026-08-26T17:55:30Z"
+        start = module.instant("2026-08-26T17:55:00Z")
+        end = module.instant("2026-08-26T17:56:00Z")
+        selected = module.events_in_windows(
+            [sample], [("one", start, end), ("two", start, end)])
+        self.assertEqual([sample], selected)
+
+    def test_covered_window_seconds_merges_overlap(self):
+        self.assertEqual(7.0, module.covered_window_seconds([
+            ("one", 1.0, 5.0),
+            ("two", 3.0, 6.0),
+            ("three", 8.0, 10.0),
+        ]))
+
     def test_execution_report_can_select_a_scenario_step(self):
         original_events = module.events
         original_thread = module.thread_of

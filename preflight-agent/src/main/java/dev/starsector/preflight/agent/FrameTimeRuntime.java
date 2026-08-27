@@ -15,6 +15,7 @@ public final class FrameTimeRuntime {
     private static final long HISTOGRAM_BIN_NANOS = 100_000L;
     private static final int HISTOGRAM_REGULAR_BINS = 20_000;
     private static final int WORST_FRAME_LIMIT = 128;
+    private static final int REPEATED_CLUSTER_LIMIT = 32;
     private static final long CAMPAIGN_WARMUP_NANOS = 30_000_000_000L;
     private static final int STATE_UNKNOWN = 0;
     private static final int STATE_CAMPAIGN = 1;
@@ -678,6 +679,10 @@ public final class FrameTimeRuntime {
         private final long[] histogram = new long[HISTOGRAM_REGULAR_BINS + 1];
         private final long[] worstDurations = new long[WORST_FRAME_LIMIT];
         private final long[] worstEndOffsets = new long[WORST_FRAME_LIMIT];
+        private final long[] clusterFrames = new long[REPEATED_CLUSTER_LIMIT];
+        private final long[] clusterDurations = new long[REPEATED_CLUSTER_LIMIT];
+        private final long[] clusterStartOffsets = new long[REPEATED_CLUSTER_LIMIT];
+        private final long[] clusterEndOffsets = new long[REPEATED_CLUSTER_LIMIT];
         private long count;
         private long totalNanos;
         private long minimumNanos;
@@ -697,16 +702,24 @@ public final class FrameTimeRuntime {
         private long isolatedSlowFrames;
         private long currentSlowClusterFrames;
         private long currentSlowClusterNanos;
+        private long currentSlowClusterStartOffsetNanos;
+        private long currentSlowClusterEndOffsetNanos;
         private long longestSlowClusterFrames;
         private long longestSlowClusterNanos;
         private long lastRecordedEndOffsetNanos;
         private int worstCount;
         private int shortestWorst;
+        private int clusterCount;
+        private int shortestCluster;
 
         void reset() {
             Arrays.fill(histogram, 0L);
             Arrays.fill(worstDurations, 0L);
             Arrays.fill(worstEndOffsets, 0L);
+            Arrays.fill(clusterFrames, 0L);
+            Arrays.fill(clusterDurations, 0L);
+            Arrays.fill(clusterStartOffsets, 0L);
+            Arrays.fill(clusterEndOffsets, 0L);
             count = 0L;
             totalNanos = 0L;
             minimumNanos = Long.MAX_VALUE;
@@ -726,11 +739,15 @@ public final class FrameTimeRuntime {
             isolatedSlowFrames = 0L;
             currentSlowClusterFrames = 0L;
             currentSlowClusterNanos = 0L;
+            currentSlowClusterStartOffsetNanos = Long.MIN_VALUE;
+            currentSlowClusterEndOffsetNanos = Long.MIN_VALUE;
             longestSlowClusterFrames = 0L;
             longestSlowClusterNanos = 0L;
             lastRecordedEndOffsetNanos = Long.MIN_VALUE;
             worstCount = 0;
             shortestWorst = 0;
+            clusterCount = 0;
+            shortestCluster = 0;
         }
 
         void record(long durationNanos, long endOffsetNanos) {
@@ -757,17 +774,22 @@ public final class FrameTimeRuntime {
             if (durationNanos > SLOW_FRAME_NANOS) {
                 slowFrameTimeNanos += durationNanos;
                 excessSlowFrameTimeNanos += durationNanos - SLOW_FRAME_NANOS;
-                recordSlowClusterFrame(durationNanos);
+                recordSlowClusterFrame(durationNanos, startOffsetNanos, endOffsetNanos);
             } else {
                 finishSlowCluster();
             }
             retainWorst(durationNanos, endOffsetNanos);
         }
 
-        private void recordSlowClusterFrame(long durationNanos) {
-            if (currentSlowClusterFrames == 0L) slowFrameClusters++;
+        private void recordSlowClusterFrame(
+                long durationNanos, long startOffsetNanos, long endOffsetNanos) {
+            if (currentSlowClusterFrames == 0L) {
+                slowFrameClusters++;
+                currentSlowClusterStartOffsetNanos = startOffsetNanos;
+            }
             currentSlowClusterFrames++;
             currentSlowClusterNanos += durationNanos;
+            currentSlowClusterEndOffsetNanos = endOffsetNanos;
             if (currentSlowClusterFrames == 2L) {
                 repeatedSlowFrameClusters++;
                 framesInRepeatedSlowFrameClusters += 2L;
@@ -780,8 +802,42 @@ public final class FrameTimeRuntime {
 
         private void finishSlowCluster() {
             if (currentSlowClusterFrames == 1L) isolatedSlowFrames++;
+            if (currentSlowClusterFrames > 1L) {
+                retainRepeatedSlowCluster(
+                        currentSlowClusterFrames,
+                        currentSlowClusterNanos,
+                        currentSlowClusterStartOffsetNanos,
+                        currentSlowClusterEndOffsetNanos);
+            }
             currentSlowClusterFrames = 0L;
             currentSlowClusterNanos = 0L;
+            currentSlowClusterStartOffsetNanos = Long.MIN_VALUE;
+            currentSlowClusterEndOffsetNanos = Long.MIN_VALUE;
+        }
+
+        private void retainRepeatedSlowCluster(
+                long frames, long durationNanos, long startOffsetNanos, long endOffsetNanos) {
+            int target;
+            if (clusterCount < REPEATED_CLUSTER_LIMIT) {
+                target = clusterCount++;
+            } else {
+                if (durationNanos <= clusterDurations[shortestCluster]) return;
+                target = shortestCluster;
+            }
+            clusterFrames[target] = frames;
+            clusterDurations[target] = durationNanos;
+            clusterStartOffsets[target] = startOffsetNanos;
+            clusterEndOffsets[target] = endOffsetNanos;
+            recomputeShortestCluster();
+        }
+
+        private void recomputeShortestCluster() {
+            if (clusterCount == 0) return;
+            int shortest = 0;
+            for (int i = 1; i < clusterCount; i++) {
+                if (clusterDurations[i] < clusterDurations[shortest]) shortest = i;
+            }
+            shortestCluster = shortest;
         }
 
         private void retainWorst(long durationNanos, long endOffsetNanos) {
@@ -852,7 +908,45 @@ public final class FrameTimeRuntime {
             stutter.put("longestSlowFrameClusterMillis", nanosToMillis(longestSlowClusterNanos));
             stutter.put("interpretation", "repeated >33.33ms clusters and excess time rank ahead of isolated hitches");
             result.put("stutterProfile", stutter);
+            result.put(FrameTimeTelemetry.REPEATED_SLOW_FRAME_WINDOWS,
+                    repeatedSlowFrameWindows(originEpochMillis));
             result.put("worstFrames", worstFrames(originEpochMillis));
+            return result;
+        }
+
+        private List<Map<String, Object>> repeatedSlowFrameWindows(long originEpochMillis) {
+            List<SlowCluster> clusters = new ArrayList<>(clusterCount + 1);
+            for (int i = 0; i < clusterCount; i++) {
+                clusters.add(new SlowCluster(
+                        clusterFrames[i], clusterDurations[i],
+                        clusterStartOffsets[i], clusterEndOffsets[i]));
+            }
+            if (currentSlowClusterFrames > 1L) {
+                clusters.add(new SlowCluster(
+                        currentSlowClusterFrames,
+                        currentSlowClusterNanos,
+                        currentSlowClusterStartOffsetNanos,
+                        currentSlowClusterEndOffsetNanos));
+            }
+            clusters.sort(Comparator.comparingLong(SlowCluster::durationNanos).reversed());
+            if (clusters.size() > REPEATED_CLUSTER_LIMIT) {
+                clusters = new ArrayList<>(clusters.subList(0, REPEATED_CLUSTER_LIMIT));
+            }
+            List<Map<String, Object>> result = new ArrayList<>(clusters.size());
+            for (SlowCluster cluster : clusters) {
+                Map<String, Object> value = new LinkedHashMap<>();
+                value.put("frames", cluster.frames());
+                value.put("durationMicros", cluster.durationNanos() / 1_000L);
+                value.put("excessSlowFrameMicros",
+                        (cluster.durationNanos() - cluster.frames() * SLOW_FRAME_NANOS) / 1_000L);
+                value.put("startOffsetMillis", cluster.startOffsetNanos() / 1_000_000.0);
+                value.put("endOffsetMillis", cluster.endOffsetNanos() / 1_000_000.0);
+                value.put("startEpochMillis", originEpochMillis < 0L ? null
+                        : originEpochMillis + cluster.startOffsetNanos() / 1_000_000L);
+                value.put("endEpochMillis", originEpochMillis < 0L ? null
+                        : originEpochMillis + cluster.endOffsetNanos() / 1_000_000L);
+                result.add(value);
+            }
             return result;
         }
 
@@ -920,5 +1014,9 @@ public final class FrameTimeRuntime {
     }
 
     private record Frame(long durationNanos, long endOffsetNanos) {
+    }
+
+    private record SlowCluster(
+            long frames, long durationNanos, long startOffsetNanos, long endOffsetNanos) {
     }
 }

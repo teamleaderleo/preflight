@@ -105,6 +105,32 @@ class FrameTimeRuntimeTest {
         assertEquals(2L, stutter.get("longestSlowFrameClusterFrames"));
         assertEquals(85.0, stutter.get("longestSlowFrameClusterMillis"));
         assertEquals(25.0, stutter.get("excessSlowFrameTimeMillis"));
+        List<Object> clusters = list(window.get("repeatedSlowFrameWindows"));
+        assertEquals(1, clusters.size());
+        Map<String, Object> cluster = map(clusters.get(0));
+        assertEquals(2L, cluster.get("frames"));
+        assertEquals(85_000L, cluster.get("durationMicros"));
+        assertEquals(18_333L, cluster.get("excessSlowFrameMicros"));
+        assertEquals(42.0, cluster.get("startOffsetMillis"));
+        assertEquals(127.0, cluster.get("endOffsetMillis"));
+    }
+
+    @Test
+    void reportsAnInProgressRepeatedClusterWithoutMutatingIt() {
+        FrameTimeRuntime.beginSession(true);
+        FrameTimeRuntime.recordBoundary(0L);
+        FrameTimeRuntime.recordBoundary(40_000_000L);
+        FrameTimeRuntime.recordBoundary(90_000_000L);
+
+        Map<String, Object> first = map(list(map(FrameTimeRuntime.telemetry().get("allActive"))
+                .get("repeatedSlowFrameWindows")).get(0));
+        Map<String, Object> second = map(list(map(FrameTimeRuntime.telemetry().get("allActive"))
+                .get("repeatedSlowFrameWindows")).get(0));
+        assertEquals(first, second);
+        assertEquals(2L, first.get("frames"));
+        assertEquals(90_000L, first.get("durationMicros"));
+        assertEquals(0.0, first.get("startOffsetMillis"));
+        assertEquals(90.0, first.get("endOffsetMillis"));
     }
 
     @Test

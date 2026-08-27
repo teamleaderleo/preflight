@@ -138,6 +138,53 @@ def frame_report_windows(report_path, series_names):
     return windows
 
 
+def frame_report_cluster_windows(report_path, series_names, limit):
+    """Return bounded repeated-slow-frame windows, ranked by total cluster duration."""
+    try:
+        with open(report_path, encoding="utf-8") as source:
+            report = json.load(source)
+    except (OSError, ValueError) as error:
+        raise SystemExit(f"could not read runtime frame report {report_path}: {error}") from error
+    frame_times = report.get("frameTimes") or {}
+    windows = []
+    for name in series_names:
+        series = frame_times.get(name) or {}
+        clusters = series.get("repeatedSlowFrameWindows") or []
+        usable = []
+        for cluster in clusters:
+            frames = cluster.get("frames")
+            duration_micros = cluster.get("durationMicros")
+            excess_micros = cluster.get("excessSlowFrameMicros")
+            start_epoch_millis = cluster.get("startEpochMillis")
+            end_epoch_millis = cluster.get("endEpochMillis")
+            if (not isinstance(frames, (int, float)) or frames < 2
+                    or not isinstance(duration_micros, (int, float)) or duration_micros <= 0
+                    or not isinstance(excess_micros, (int, float)) or excess_micros < 0
+                    or not isinstance(start_epoch_millis, (int, float))
+                    or not isinstance(end_epoch_millis, (int, float))
+                    or end_epoch_millis <= start_epoch_millis):
+                continue
+            usable.append((duration_micros, frames, excess_micros,
+                           start_epoch_millis / 1000.0, end_epoch_millis / 1000.0))
+        usable.sort(reverse=True)
+        if not usable:
+            available = ", ".join(sorted(
+                key for key, value in frame_times.items()
+                if isinstance(value, dict) and value.get("repeatedSlowFrameWindows")))
+            raise SystemExit(
+                f"frame series {name!r} has no usable repeated slow-frame windows in "
+                f"{report_path}; available: {available or '(none)'}")
+        for rank, (duration, frames, excess, start, end) in enumerate(usable[:limit], 1):
+            windows.append((
+                f"repeated cluster {rank} {name} "
+                f"({int(frames)} frames, {duration / 1000.0:.2f} ms total, "
+                f"{excess / 1000.0:.2f} ms excess)",
+                start,
+                end,
+            ))
+    return windows
+
+
 def events_in_window(sampled, start, end):
     selected = []
     for event in sampled:
@@ -272,32 +319,74 @@ def report_execution_events(sampled, top=30, contains=None, include_other=False)
 
 
 def selected_wall_windows(path, steps=None, evidence_path=None,
-                          frame_report=None, frame_series=None):
+                          frame_report=None, frame_series=None, repeated_clusters=0):
     windows = scenario_step_windows(
         path, steps, evidence_path=evidence_path) if steps else []
     requested_series = frame_series or (["allActive"] if frame_report else [])
     if requested_series and not frame_report:
         raise SystemExit("--frame-series requires --frame-report")
-    if frame_report:
+    if repeated_clusters and not frame_report:
+        raise SystemExit("--repeated-clusters requires --frame-report")
+    if repeated_clusters:
+        windows.extend(frame_report_cluster_windows(
+            frame_report, requested_series, repeated_clusters))
+    elif frame_report:
         windows.extend(frame_report_windows(frame_report, requested_series))
     return windows
 
 
+def events_in_windows(sampled, windows):
+    """Select each event once when it falls in any non-overlapping or overlapping window."""
+    selected = []
+    for event in sampled:
+        timestamp = instant(event.get("values", {}).get("startTime"))
+        if timestamp is not None and any(start <= timestamp <= end for _name, start, end in windows):
+            selected.append(event)
+    return selected
+
+
+def covered_window_seconds(windows):
+    """Return the union duration so overlapping requested series are not counted twice."""
+    ordered = sorted((start, end) for _name, start, end in windows if end > start)
+    if not ordered:
+        return 0.0
+    covered = 0.0
+    current_start, current_end = ordered[0]
+    for start, end in ordered[1:]:
+        if start <= current_end:
+            current_end = max(current_end, end)
+        else:
+            covered += current_end - current_start
+            current_start, current_end = start, end
+    return covered + current_end - current_start
+
+
 def report(path, top=30, depth=96, contains=None, steps=None, evidence_path=None,
-           frame_report=None, frame_series=None, include_other=False):
+           frame_report=None, frame_series=None, repeated_clusters=0, include_other=False):
     jfr = _jfr_binary()
     sampled = events(path, ["jdk.ExecutionSample"], depth=depth, jfr=jfr)
     print(f"recording: {path}")
     print("interpretation: percentages are shares of observed ExecutionSample events")
     wall_windows = selected_wall_windows(
         path, steps=steps, evidence_path=evidence_path,
-        frame_report=frame_report, frame_series=frame_series)
+        frame_report=frame_report, frame_series=frame_series,
+        repeated_clusters=repeated_clusters)
     if not wall_windows:
         report_execution_events(
             sampled, top=top, contains=contains, include_other=include_other)
         return
     windows, factor = recording_clock_windows(path, wall_windows, jfr)
     print(f"recording-clock calibration: {factor:.3f}x wall time per recorded second")
+    if repeated_clusters:
+        for name, start, end in wall_windows:
+            print(f"  {name}: {end - start:.3f}s wall")
+        selected = events_in_windows(sampled, windows)
+        wall_seconds = covered_window_seconds(wall_windows)
+        print(f"\naggregate repeated clusters: {len(windows)} windows, "
+              f"{wall_seconds:.3f}s wall, {len(selected)} execution samples")
+        report_execution_events(
+            selected, top=top, contains=contains, include_other=include_other)
+        return
     for (name, wall_start, wall_end), (_mapped_name, start, end) in zip(wall_windows, windows):
         selected = events_in_window(sampled, start, end)
         print(f"\nwindow {name}: {wall_end - wall_start:.3f}s wall, "
@@ -324,20 +413,32 @@ def report_allocation_events(sampled, top=30, contains=None, include_other=False
 
 
 def report_allocations(path, top=30, depth=96, contains=None, steps=None, evidence_path=None,
-                       frame_report=None, frame_series=None, include_other=False):
+                       frame_report=None, frame_series=None, repeated_clusters=0,
+                       include_other=False):
     jfr = _jfr_binary()
     sampled = events(path, ["jdk.ObjectAllocationSample"], depth=depth, jfr=jfr)
     print(f"recording: {path}")
     print("interpretation: bytes are JFR ObjectAllocationSample weights, not an exact allocation census")
     wall_windows = selected_wall_windows(
         path, steps=steps, evidence_path=evidence_path,
-        frame_report=frame_report, frame_series=frame_series)
+        frame_report=frame_report, frame_series=frame_series,
+        repeated_clusters=repeated_clusters)
     if not wall_windows:
         report_allocation_events(
             sampled, top=top, contains=contains, include_other=include_other)
         return
     windows, factor = recording_clock_windows(path, wall_windows, jfr)
     print(f"recording-clock calibration: {factor:.3f}x wall time per recorded second")
+    if repeated_clusters:
+        for name, start, end in wall_windows:
+            print(f"  {name}: {end - start:.3f}s wall")
+        selected = events_in_windows(sampled, windows)
+        wall_seconds = covered_window_seconds(wall_windows)
+        print(f"\naggregate repeated clusters: {len(windows)} windows, "
+              f"{wall_seconds:.3f}s wall, {len(selected)} allocation samples")
+        report_allocation_events(
+            selected, top=top, contains=contains, include_other=include_other)
+        return
     for (name, wall_start, wall_end), (_mapped_name, start, end) in zip(wall_windows, windows):
         selected = events_in_window(sampled, start, end)
         print(f"\nwindow {name}: {wall_end - wall_start:.3f}s wall, "
@@ -363,20 +464,29 @@ def main():
     parser.add_argument("--frame-series", action="append", default=[],
                         help="rank the worst frame in this report series; may be repeated; "
                              "defaults to allActive")
+    parser.add_argument("--repeated-clusters", type=int, default=0, metavar="N",
+                        help="aggregate samples inside the N longest repeated slow-frame "
+                             "clusters for each frame series instead of selecting one worst frame")
     parser.add_argument("--include-other", action="store_true",
                         help="also rank startup, menu, and unclassified main-thread stacks")
     args = parser.parse_args()
+    if args.repeated_clusters < 0:
+        parser.error("--repeated-clusters must be non-negative")
+    if args.repeated_clusters and args.step:
+        parser.error("--repeated-clusters cannot be combined with --step")
     if args.allocations:
         report_allocations(
             args.recording, top=args.top, depth=args.depth, contains=args.contains,
             steps=args.step, evidence_path=args.scenario_evidence,
             frame_report=args.frame_report, frame_series=args.frame_series,
+            repeated_clusters=args.repeated_clusters,
             include_other=args.include_other)
     else:
         report(
             args.recording, top=args.top, depth=args.depth, contains=args.contains,
             steps=args.step, evidence_path=args.scenario_evidence,
             frame_report=args.frame_report, frame_series=args.frame_series,
+            repeated_clusters=args.repeated_clusters,
             include_other=args.include_other)
 
 
