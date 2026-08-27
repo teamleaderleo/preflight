@@ -10,7 +10,7 @@ import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
-/** Observes LWJGL's existing focus result and one boundary per display update. */
+/** Observes LWJGL's existing focus result and measures display/presentation spans per update. */
 final class FrameTimePlan {
     static final String TARGET_CLASS = "org/lwjgl/opengl/Display";
     static final String ORIGINAL_SHA256 =
@@ -45,6 +45,9 @@ final class FrameTimePlan {
                 || returns(active, Opcodes.IRETURN) != 1
                 || calls(update, TARGET_CLASS, "swapBuffers") != 1
                 || calls(update, TARGET_CLASS, "processMessages") != 1
+                || calls(update, RUNTIME, "displayUpdateStart") != 0
+                || calls(update, RUNTIME, "swapBuffersStart") != 0
+                || calls(update, RUNTIME, "swapBuffersEnd") != 0
                 || calls(update, RUNTIME, "boundary") != 0
                 || calls(active, RUNTIME, "observeActive") != 0) {
             return null;
@@ -52,6 +55,24 @@ final class FrameTimePlan {
 
         AbstractInsnNode updateReturn = uniqueReturn(update, Opcodes.RETURN);
         AbstractInsnNode activeReturn = uniqueReturn(active, Opcodes.IRETURN);
+        MethodInsnNode swapBuffers = uniqueCall(update, TARGET_CLASS, "swapBuffers", "()V");
+        if (updateReturn == null || activeReturn == null || swapBuffers == null) return null;
+
+        InsnList updateStart = new InsnList();
+        updateStart.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "displayUpdateStart", "()V", false));
+        update.instructions.insertBefore(update.instructions.getFirst(), updateStart);
+
+        InsnList swapStart = new InsnList();
+        swapStart.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "swapBuffersStart", "()V", false));
+        update.instructions.insertBefore(swapBuffers, swapStart);
+
+        InsnList swapEnd = new InsnList();
+        swapEnd.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "swapBuffersEnd", "()V", false));
+        update.instructions.insert(swapBuffers, swapEnd);
+
         InsnList boundary = new InsnList();
         boundary.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "boundary", "()V", false));
@@ -75,6 +96,21 @@ final class FrameTimePlan {
             if (name.equals(method.name) && descriptor.equals(method.desc)) {
                 if (result != null) return null;
                 result = method;
+            }
+        }
+        return result;
+    }
+
+    private static MethodInsnNode uniqueCall(
+            MethodNode method, String owner, String name, String descriptor) {
+        MethodInsnNode result = null;
+        for (AbstractInsnNode instruction : method.instructions) {
+            if (instruction instanceof MethodInsnNode call
+                    && owner.equals(call.owner)
+                    && name.equals(call.name)
+                    && descriptor.equals(call.desc)) {
+                if (result != null) return null;
+                result = call;
             }
         }
         return result;
