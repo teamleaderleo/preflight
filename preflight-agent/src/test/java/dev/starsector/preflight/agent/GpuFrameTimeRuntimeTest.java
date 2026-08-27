@@ -63,6 +63,12 @@ class GpuFrameTimeRuntimeTest {
         Map<String, Object> gpu = map(settled.get("gpuTime"));
         assertEquals(4_000.0, gpu.get("averageMicros"));
         assertFalse(list(settled.get("worstFramePairs")).isEmpty());
+
+        GpuFrameTimeRuntime.release();
+        telemetry = GpuFrameTimeRuntime.telemetry();
+        assertEquals(true, telemetry.get("releasedBeforeContextDestroy"));
+        assertEquals(16L, telemetry.get("queriesDeleted"));
+        assertEquals(false, telemetry.get("active"));
     }
 
     @Test

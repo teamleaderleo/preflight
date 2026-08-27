@@ -23,6 +23,9 @@ final class FrameTimePlan {
     static final String VSYNC_DESCRIPTOR = "(Z)V";
     static final String SWAP_INTERVAL_METHOD = "setSwapInterval";
     static final String SWAP_INTERVAL_DESCRIPTOR = "(I)V";
+    static final String DESTROY_METHOD = "destroy";
+    static final String DESTROY_DESCRIPTOR = "()V";
+    private static final String DRAWABLE = "org/lwjgl/opengl/DrawableLWJGL";
 
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/FrameTimeRuntime";
@@ -48,7 +51,9 @@ final class FrameTimePlan {
         MethodNode active = unique(owner, ACTIVE_METHOD, ACTIVE_DESCRIPTOR);
         MethodNode vsync = unique(owner, VSYNC_METHOD, VSYNC_DESCRIPTOR);
         MethodNode swapInterval = unique(owner, SWAP_INTERVAL_METHOD, SWAP_INTERVAL_DESCRIPTOR);
+        MethodNode destroy = unique(owner, DESTROY_METHOD, DESTROY_DESCRIPTOR);
         if (update == null || active == null || vsync == null || swapInterval == null
+                || destroy == null
                 || returns(update, Opcodes.RETURN) != 1
                 || returns(active, Opcodes.IRETURN) != 1
                 || calls(update, TARGET_CLASS, "swapBuffers") != 1
@@ -61,7 +66,9 @@ final class FrameTimePlan {
                 || calls(active, RUNTIME, "observeActive") != 0
                 || calls(vsync, RUNTIME, "requestedVsync") != 0
                 || calls(vsync, TARGET_CLASS, SWAP_INTERVAL_METHOD) != 1
-                || calls(swapInterval, RUNTIME, "observeSwapInterval") != 0) {
+                || calls(swapInterval, RUNTIME, "observeSwapInterval") != 0
+                || calls(destroy, DRAWABLE, DESTROY_METHOD) != 1
+                || calls(destroy, RUNTIME, "releaseGpuTiming") != 0) {
             return null;
         }
 
@@ -69,12 +76,14 @@ final class FrameTimePlan {
         AbstractInsnNode activeReturn = uniqueReturn(active, Opcodes.IRETURN);
         MethodInsnNode swap = uniqueCall(update, TARGET_CLASS, "swapBuffers");
         MethodInsnNode messages = uniqueCall(update, TARGET_CLASS, "processMessages");
-        if (swap == null || messages == null) return null;
+        MethodInsnNode destroyDrawable = uniqueCall(destroy, DRAWABLE, DESTROY_METHOD);
+        if (swap == null || messages == null || destroyDrawable == null) return null;
 
         update.instructions.insertBefore(swap, runtimeCall("beforeSwap"));
         update.instructions.insert(swap, runtimeCall("afterSwap"));
         update.instructions.insertBefore(messages, runtimeCall("beforeMessages"));
         update.instructions.insert(messages, runtimeCall("afterMessages"));
+        destroy.instructions.insertBefore(destroyDrawable, runtimeCall("releaseGpuTiming"));
         InsnList boundary = new InsnList();
         boundary.add(runtimeCall("boundary"));
         update.instructions.insertBefore(updateReturn, boundary);

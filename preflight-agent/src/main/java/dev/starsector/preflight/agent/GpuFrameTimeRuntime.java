@@ -69,6 +69,8 @@ final class GpuFrameTimeRuntime {
     private static long skippedExistingOwner;
     private static long containedFailures;
     private static long cleanupEnds;
+    private static long queriesDeleted;
+    private static boolean released;
     private static long hookSamples;
     private static long hookNanos;
     private static long hookMaximumNanos;
@@ -110,6 +112,8 @@ final class GpuFrameTimeRuntime {
         skippedExistingOwner = 0L;
         containedFailures = 0L;
         cleanupEnds = 0L;
+        queriesDeleted = 0L;
+        released = false;
         hookSamples = 0L;
         hookNanos = 0L;
         hookMaximumNanos = 0L;
@@ -214,6 +218,39 @@ final class GpuFrameTimeRuntime {
             finishIfReady(slot);
             return;
         }
+    }
+
+    /** Releases only this experiment's fixed query ring while the Display context is still current. */
+    static synchronized void release() {
+        if (!attempted || released) return;
+        released = true;
+        if (!initialized) return;
+        if (activeSlot >= 0) {
+            try {
+                int owner = (int) currentQuery.invokeExact(GL_TIME_ELAPSED_EXT, GL_CURRENT_QUERY);
+                if (owner == queryIds[activeSlot]) {
+                    endQuery.invokeExact(GL_TIME_ELAPSED_EXT);
+                    cleanupEnds++;
+                }
+            } catch (Throwable failure) {
+                containedFailures++;
+                problem = boundedProblem(failure);
+            }
+            activeSlot = -1;
+        }
+        for (int index = 0; index < RING_SIZE; index++) {
+            if (queryIds[index] <= 0) continue;
+            try {
+                deleteQuery.invokeExact(queryIds[index]);
+                queriesDeleted++;
+            } catch (Throwable failure) {
+                containedFailures++;
+                problem = boundedProblem(failure);
+            }
+            queryIds[index] = 0;
+            clearSlot(index);
+        }
+        initialized = false;
     }
 
     private static void initialize(boolean extTimerCapable) throws Throwable {
@@ -394,6 +431,8 @@ final class GpuFrameTimeRuntime {
         result.put("skippedExistingQueryOwner", skippedExistingOwner);
         result.put("containedFailures", containedFailures);
         result.put("cleanupEnds", cleanupEnds);
+        result.put("releasedBeforeContextDestroy", released);
+        result.put("queriesDeleted", queriesDeleted);
         result.put("pendingSlots", pendingSlots());
         result.put("activeSlot", activeSlot >= 0);
         result.put("hookSamples", hookSamples);

@@ -11,7 +11,7 @@ import java.util.Map;
 
 /** Low-allocation frame-pacing telemetry at LWJGL's display-update boundary. */
 public final class FrameTimeRuntime {
-    static final String PLAN_ID = "lwjgl-display-frame-time-and-presentation-v4";
+    static final String PLAN_ID = "lwjgl-display-frame-time-and-presentation-v5";
     static final String FORCE_VSYNC_OFF_PROPERTY = "preflight.framePacing.forceVsyncOff";
 
     private static final long HISTOGRAM_BIN_NANOS = 100_000L;
@@ -391,6 +391,11 @@ public final class FrameTimeRuntime {
         long wallNanos = System.nanoTime();
         recordSwapCompleted(wallNanos, threadCpuNanos);
         GpuFrameTimeRuntime.afterSwap();
+    }
+
+    /** Called immediately before LWJGL destroys the still-current Display drawable. */
+    public static void releaseGpuTiming() {
+        GpuFrameTimeRuntime.release();
     }
 
     /** Timestamp immediately before LWJGL processes native window and input messages. */

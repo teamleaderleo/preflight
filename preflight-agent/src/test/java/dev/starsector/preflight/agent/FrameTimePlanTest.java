@@ -52,6 +52,8 @@ class FrameTimePlanTest {
                 FrameTimePlan.VSYNC_DESCRIPTOR), RUNTIME, "requestedVsync"));
         assertEquals(1, calls(method(owner, FrameTimePlan.SWAP_INTERVAL_METHOD,
                 FrameTimePlan.SWAP_INTERVAL_DESCRIPTOR), RUNTIME, "observeSwapInterval"));
+        assertEquals(1, calls(method(owner, FrameTimePlan.DESTROY_METHOD,
+                FrameTimePlan.DESTROY_DESCRIPTOR), RUNTIME, "releaseGpuTiming"));
         assertEquals(true, FrameTimeRuntime.telemetry().get("installed"));
     }
 
@@ -85,6 +87,8 @@ class FrameTimePlanTest {
         ClassWriter writer = new ClassWriter(0);
         writer.visit(Opcodes.V1_5, Opcodes.ACC_PUBLIC, FrameTimePlan.TARGET_CLASS,
                 null, "java/lang/Object", null);
+        writer.visitInnerClass("org/lwjgl/opengl/DrawableLWJGL", null, null,
+                Opcodes.ACC_PUBLIC | Opcodes.ACC_ABSTRACT | Opcodes.ACC_INTERFACE);
         staticVoid(writer, "swapBuffers");
         staticVoid(writer, "processMessages");
 
@@ -127,6 +131,16 @@ class FrameTimePlanTest {
         swapInterval.visitInsn(Opcodes.RETURN);
         swapInterval.visitMaxs(0, 1);
         swapInterval.visitEnd();
+
+        MethodVisitor destroy = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                FrameTimePlan.DESTROY_METHOD, FrameTimePlan.DESTROY_DESCRIPTOR, null, null);
+        destroy.visitCode();
+        destroy.visitInsn(Opcodes.ACONST_NULL);
+        destroy.visitMethodInsn(Opcodes.INVOKEINTERFACE, "org/lwjgl/opengl/DrawableLWJGL",
+                FrameTimePlan.DESTROY_METHOD, FrameTimePlan.DESTROY_DESCRIPTOR, true);
+        destroy.visitInsn(Opcodes.RETURN);
+        destroy.visitMaxs(1, 0);
+        destroy.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
     }
