@@ -72,7 +72,10 @@ retained maintenance counters and the state the selected save actually loaded in
 `campaign-hitch-limiter-current-state.json` keeps the same route and timing but disables the broad
 campaign call-time probes. It retains only the thin frame/presentation recorder and exact campaign
 FPS-limiter bracket, so a hitch packet can split known limiter sleep from the remaining pre-swap
-wall time without treating an intrusive discovery profile as an FPS measurement.
+wall time without treating an intrusive discovery profile as an FPS measurement. The presentation
+recorder also reports the actual LWJGL swap-interval requests and, when the runtime already exposes
+an enabled current-thread CPU clock, splits native-swap wall time into render-thread CPU and inferred
+off-CPU wait. It never enables a disabled clock and reports an unavailable split instead of guessing.
 
 `campaign-profile-paused-unpaused.json` keeps the first three campaign seconds untouched, ensures a
 paused state through Starsector's mapped pause control, retains a paused warm-up and settled window,

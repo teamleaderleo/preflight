@@ -110,6 +110,32 @@ matching hitch rather than leaving broad discovery timers permanently enabled.
 
 See the [bounded limiter-split record](evidence/2026-08-28-campaign-limiter-split.md).
 
+### Native-swap CPU versus off-CPU split (`5702a9ae`)
+
+**Observed:** all 3,409 settled paused frames produced a valid current-thread CPU split around the
+exact native `Display.swapBuffers()` call. Native-swap p99 was 17.4 ms; render-thread CPU p99 inside
+it was 0.5 ms, while inferred off-CPU p99 was 17.1 ms. Ten of 12 frames above 33.33 ms were
+swap-dominated. Those ten spent 97.948–98.296% of swap wall time off CPU, averaging 98.104%.
+
+**Observed:** the installed settings request VSync and a 60 FPS cap. The live adapter observed four
+actual interval-one and two interval-zero requests, no other values, and a final interval of one.
+The scenario did not change presentation settings and the force-off experiment was disabled. The
+observer does not yet timestamp policy requests per frame, so final interval one is not presented as
+a complete interval history.
+
+**Measurement discipline:** two cached current-thread CPU-clock reads are added per presented frame.
+The shipped x86-64 game runtime's live 10,000-read calibration averaged 587.613 ns/read; all 12,552
+hot-path reads succeeded. No JFR or broad campaign timer was active. The same scenario/profile/pause
+route was retained, but the scenario does not bind exact save bytes, so this is within-run
+attribution rather than a paired FPS claim.
+
+**Exact next action:** inventory the live OpenGL context and nonblocking timer/fence capability.
+If supported, use a bounded asynchronous query ring that never waits on the hot path to split GPU
+execution from the remaining driver/compositor/VSync wait, and carry actual interval state into the
+same window. Do not change rendering or presentation merely because the off-CPU boundary is large.
+
+See the [native-swap CPU/off-CPU record](evidence/2026-08-28-native-swap-cpu-offcpu-split.md).
+
 ### AI Tweaks target-selection location reuse rejected (`5b6035aa`, reverted by `574cfd3b`)
 
 **Observed:** the final exact-build candidate passed all 34 semantic steps in the symmetric
@@ -351,20 +377,24 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
 
 ## Open questions, ranked
 
-1. **Transition versus settled active work:** repeat the exact-step correlation once when a code
+1. **GPU versus presentation wait:** inventory the live OpenGL context and asynchronous timer/fence
+   support. If a nonblocking bounded query ring is available, measure GPU execution for the frame
+   preceding each swap and retain actual interval state in the same window. Do not turn the current
+   off-CPU result into a rendering change without this split.
+2. **Transition versus settled active work:** repeat the exact-step correlation once when a code
    decision depends on it. If the transition ordering is stable, probe its catch-up scheduler;
    independently map settled timer calls to individual slow frames before adding broader timers.
-2. **Commodity residual cost:** the empty/nonempty/delegated traffic split is now known. Map JIT
+3. **Commodity residual cost:** the empty/nonempty/delegated traffic split is now known. Map JIT
    samples or a faithful extracted benchmark to the remaining nonempty exact-key path, runtime
    enable gate, and caller boundary. Production must retain zero diagnostic writes.
-3. **RAT tooltip idempotence:** determine whether tooltip identity plus codex-entry identity is a
+4. **RAT tooltip idempotence:** determine whether tooltip identity plus codex-entry identity is a
    sufficient replay guard. Inspect both `WhichModScript` and `AICoreTooltipScript`; optimizing only
    the reflection cache may leave the per-frame copied UI traversal intact.
-4. **Stellar Networks refresh epochs:** test whether a pass is necessary after a short unpaused
+5. **Stellar Networks refresh epochs:** test whether a pass is necessary after a short unpaused
    interval and which listener events already express real market invalidation.
-5. **Stable snapshot ownership:** instrument rebuilds by transformed loop kind before redesigning
+6. **Stable snapshot ownership:** instrument rebuilds by transformed loop kind before redesigning
    cursor retention.
-6. **Combat residual frontier:** reconcile the current exact-step/JFR tools with issue #449, then
+7. **Combat residual frontier:** reconcile the current exact-step/JFR tools with issue #449, then
    choose the narrowest high-information hitch-attribution slice. Avoid the reverted DCR map rotation,
    retired AI Tweaks `SelectTarget` fields, and rejected global location wrapper. Any new allocation
    candidate must separate intrusive discovery from thin measurement; stress does not replace ordinary play.

@@ -22,11 +22,12 @@ Before changing code or collecting release evidence:
    be worth revisiting. [Gameplay FPS program #449](https://github.com/teamleaderleo/preflight/issues/449)
    is the canonical parent for that lane; use focused child issues once one experiment is concrete.
    The latest diagnostic checkpoint is the bounded
-   [campaign limiter split](docs/evidence/2026-08-28-campaign-limiter-split.md). Thin exact timing
-   showed that two paused >50 ms hitches remained game work after limiter removal, while 23 of 31
-   >33.33 ms frames were native-swap dominated. Treat those as separate fingerprints: presentation
-   attribution is the next broad player-impact slice, and packet-triggered CPU escalation is the
-   next slice for rarer game-work hitches.
+   [native-swap CPU/off-CPU split](docs/evidence/2026-08-28-native-swap-cpu-offcpu-split.md).
+   Ten of 12 settled paused frames above 33.33 ms were swap-dominated and spent about 98.1% of that
+   swap wall time off the render thread. The actual policy ended at interval one. Inventory the live
+   OpenGL context, then use a nonblocking bounded GPU timer/fence experiment only if supported to
+   separate GPU backlog from driver/compositor/VSync wait. The rarer >50 ms pre-swap game-work
+   fingerprint still needs packet-triggered CPU escalation, not permanent broad timers.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package
