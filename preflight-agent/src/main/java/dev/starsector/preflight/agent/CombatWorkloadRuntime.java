@@ -20,14 +20,15 @@ import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
  * Opt-in discovery sampler for the exact reviewed vanilla combat engine.
  *
- * <p>The sampler deliberately runs before the timed CombatEngine.advance region. Its own overhead
- * is reported separately, while {@code advanceMicros} measures the engine tick that followed the
- * sampled workload snapshot. Reflection keeps the agent independent of the licensed game API jar.
+ * <p>The sampler runs before the timed CombatEngine.advance region. Its own overhead is reported
+ * separately, while {@code advanceMicros} measures the engine tick following the sampled workload
+ * snapshot. Reflection keeps the agent independent of the licensed game API jar.
  */
 public final class CombatWorkloadRuntime {
     static final String PLAN_ID = "vanilla-combat-workload-scaling-probe-v1";
@@ -35,6 +36,7 @@ public final class CombatWorkloadRuntime {
     static final String OUTPUT_PROPERTY = "preflight.combatScaling.output";
     static final String RUN_ID_PROPERTY = "preflight.combatScaling.runId";
     static final String CELL_ID_PROPERTY = "preflight.combatScaling.cellId";
+    static final String BATTLE_DP_PROPERTY = "preflight.combatScaling.battleDp";
     static final String EVERY_PROPERTY = "preflight.combatScaling.every";
     static final String SAMPLE_LIMIT_PROPERTY = "preflight.combatScaling.sampleLimit";
     static final String DENSITY_SAMPLE_PROPERTY = "preflight.combatScaling.densitySamples";
@@ -49,15 +51,17 @@ public final class CombatWorkloadRuntime {
 
     private static final ArrayDeque<Map<String, Object>> samples = new ArrayDeque<>();
     private static final ThreadLocal<Pending> pending = new ThreadLocal<>();
-    private static final ClassValue<Map<String, Method>> methods = new ClassValue<>() {
+    private static final ClassValue<Map<String, List<Method>>> methods = new ClassValue<>() {
         @Override
-        protected Map<String, Method> computeValue(Class<?> type) {
-            Map<String, Method> result = new LinkedHashMap<>();
+        protected Map<String, List<Method>> computeValue(Class<?> type) {
+            Map<String, List<Method>> result = new LinkedHashMap<>();
             for (Method method : type.getMethods()) {
                 String key = method.getName() + "#" + method.getParameterCount();
-                result.putIfAbsent(key, method);
+                result.computeIfAbsent(key, ignored -> new ArrayList<>()).add(method);
             }
-            return result;
+            Map<String, List<Method>> frozen = new LinkedHashMap<>();
+            result.forEach((key, value) -> frozen.put(key, List.copyOf(value)));
+            return Map.copyOf(frozen);
         }
     };
     private static final ClassValue<List<Field>> collectionFields = new ClassValue<>() {
@@ -76,7 +80,7 @@ public final class CombatWorkloadRuntime {
                         field.setAccessible(true);
                         result.add(field);
                     } catch (RuntimeException ignored) {
-                        // A closed field is simply absent from the internal collection census.
+                        // A closed field is absent from the diagnostic internal collection census.
                     }
                 }
             }
@@ -177,6 +181,7 @@ public final class CombatWorkloadRuntime {
         result.put("installed", installed);
         result.put("runId", System.getProperty(RUN_ID_PROPERTY, ""));
         result.put("cellId", System.getProperty(CELL_ID_PROPERTY, ""));
+        result.put("battleDp", battleDp());
         result.put("sampleEveryCombatTicks", sampleEvery());
         result.put("sampleLimit", sampleLimit());
         result.put("densitySamples", densitySamples());
@@ -245,6 +250,12 @@ public final class CombatWorkloadRuntime {
         long wrecks = 0L;
         long shipAi = 0L;
         long fighterAi = 0L;
+        long shipsOwner0 = 0L;
+        long shipsOwner1 = 0L;
+        double liveDeployedDp = 0.0;
+        double liveDeployedDpOwner0 = 0.0;
+        double liveDeployedDpOwner1 = 0.0;
+        double shipDpPresent = 0.0;
         long weapons = 0L;
         long firingWeapons = 0L;
         long beamWeapons = 0L;
@@ -255,13 +266,21 @@ public final class CombatWorkloadRuntime {
             if (ship == null) continue;
             boolean hulk = booleanValue(invoke(ship, "isHulk"));
             boolean fighter = booleanValue(invoke(ship, "isFighter"));
+            int owner = numberValue(invokeOptional(ship, "getOwner")).intValue();
+            double deployCost = numberValue(invokeOptional(ship, "getDeployCost")).doubleValue();
             if (hulk) {
                 wrecks++;
             } else if (fighter) {
                 fighters++;
             } else {
                 ships++;
+                if (owner == 0) shipsOwner0++;
+                if (owner == 1) shipsOwner1++;
+                liveDeployedDp += deployCost;
+                if (owner == 0) liveDeployedDpOwner0 += deployCost;
+                if (owner == 1) liveDeployedDpOwner1 += deployCost;
             }
+            if (!fighter) shipDpPresent += deployCost;
             if (!hulk) {
                 Object ai = invokeOptional(ship, "getAI");
                 if (ai != null) {
@@ -294,9 +313,16 @@ public final class CombatWorkloadRuntime {
         result.put("combatTick", ticksInBattle);
         result.put("epochMillis", System.currentTimeMillis());
         result.put("combatElapsedSeconds", elapsed);
+        result.put("battleDp", battleDp());
         result.put("ships", ships);
+        result.put("shipsOwner0", shipsOwner0);
+        result.put("shipsOwner1", shipsOwner1);
         result.put("fighters", fighters);
         result.put("wrecks", wrecks);
+        result.put("liveDeployedDp", liveDeployedDp);
+        result.put("liveDeployedDpOwner0", liveDeployedDpOwner0);
+        result.put("liveDeployedDpOwner1", liveDeployedDpOwner1);
+        result.put("shipDpPresent", shipDpPresent);
         result.put("missiles", missileEntities.size());
         result.put("projectiles", Math.max(0, projectileEntities.size() - missileEntities.size()));
         result.put("beams", beamEntities.size());
@@ -397,7 +423,7 @@ public final class CombatWorkloadRuntime {
             for (Object element : elements(value)) {
                 if (element == null || seen.put(element, Boolean.TRUE) != null) continue;
                 scanned++;
-                String name = typeName(element).toLowerCase();
+                String name = typeName(element).toLowerCase(Locale.ROOT);
                 boolean plugin = name.contains("plugin");
                 boolean particle = name.contains("particle") || name.contains("trail");
                 boolean debris = name.contains("debris") || name.contains("wreck");
@@ -454,12 +480,39 @@ public final class CombatWorkloadRuntime {
 
     private static Object invoke(Object target, String name, Object... arguments) throws Exception {
         if (target == null) throw new IllegalArgumentException("null target for " + name);
-        Method method = methods.get(target.getClass()).get(name + "#" + arguments.length);
-        if (method == null) {
+        List<Method> candidates = methods.get(target.getClass()).get(name + "#" + arguments.length);
+        if (candidates == null) {
             throw new NoSuchMethodException(target.getClass().getName() + "." + name
                     + "/" + arguments.length);
         }
-        return method.invoke(target, arguments);
+        for (Method method : candidates) {
+            if (argumentsMatch(method.getParameterTypes(), arguments)) return method.invoke(target, arguments);
+        }
+        throw new NoSuchMethodException(target.getClass().getName() + "." + name
+                + "/" + arguments.length + " compatible overload");
+    }
+
+    private static boolean argumentsMatch(Class<?>[] parameters, Object[] arguments) {
+        for (int index = 0; index < parameters.length; index++) {
+            Object argument = arguments[index];
+            Class<?> parameter = boxed(parameters[index]);
+            if (argument != null && !parameter.isInstance(argument)) return false;
+            if (argument == null && parameters[index].isPrimitive()) return false;
+        }
+        return true;
+    }
+
+    private static Class<?> boxed(Class<?> type) {
+        if (!type.isPrimitive()) return type;
+        if (type == boolean.class) return Boolean.class;
+        if (type == byte.class) return Byte.class;
+        if (type == short.class) return Short.class;
+        if (type == int.class) return Integer.class;
+        if (type == long.class) return Long.class;
+        if (type == float.class) return Float.class;
+        if (type == double.class) return Double.class;
+        if (type == char.class) return Character.class;
+        return type;
     }
 
     private static Object invokeOptional(Object target, String name, Object... arguments) {
@@ -473,7 +526,7 @@ public final class CombatWorkloadRuntime {
     }
 
     private static List<?> list(Object value) {
-        if (value instanceof List<?> list) return list;
+        if (value instanceof List<?> values) return values;
         if (value instanceof Collection<?> collection) return new ArrayList<>(collection);
         return List.of();
     }
@@ -484,6 +537,17 @@ public final class CombatWorkloadRuntime {
 
     private static Number numberValue(Object value) {
         return value instanceof Number number ? number : 0;
+    }
+
+    private static Double battleDp() {
+        String raw = System.getProperty(BATTLE_DP_PROPERTY);
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            double value = Double.parseDouble(raw.trim());
+            return Double.isFinite(value) && value >= 0.0 ? value : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private static int sampleEvery() {
