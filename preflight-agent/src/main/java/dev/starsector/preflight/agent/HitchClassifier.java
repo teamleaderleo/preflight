@@ -180,8 +180,11 @@ final class HitchClassifier {
         if (history instanceof List<?> frames) {
             for (Object value : frames) {
                 if (!(value instanceof Map<?, ?> rawFrame)) continue;
-                Map<String, Object> frame = cast(rawFrame);
-                if (!Boolean.TRUE.equals(frame.get("trigger"))) continue;
+                Map<String, Object> raw = cast(rawFrame);
+                if (!Boolean.TRUE.equals(raw.get("trigger"))) continue;
+                Map<String, Object> frame = new LinkedHashMap<>(raw);
+                frame.putIfAbsent("state", packet.get("state"));
+                frame.putIfAbsent("pause", packet.get("pause"));
                 Map<String, Object> classified = classifyFrame(frame);
                 String label = string(classified.get("label"));
                 counts.merge(label, 1, Integer::sum);
