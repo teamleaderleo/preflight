@@ -3,13 +3,16 @@ package dev.starsector.preflight.agent;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -21,6 +24,7 @@ class CombatRuntimeIntegrityPlanTest {
     private static final String INTEGRITY_RUNTIME =
             CombatRuntimeIntegrityRuntime.class.getName().replace('.', '/');
     private static final String FRAME_RUNTIME = FrameTimeRuntime.class.getName().replace('.', '/');
+    private static final String WORKLOAD_RUNTIME = CombatWorkloadRuntime.class.getName().replace('.', '/');
 
     @TempDir
     Path temporaryDirectory;
@@ -28,8 +32,11 @@ class CombatRuntimeIntegrityPlanTest {
     @AfterEach
     void reset() {
         CombatRuntimeIntegrityRuntime.beginSession();
+        CombatWorkloadRuntime.reset();
         FrameTimeRuntime.reset();
         RuntimeSemanticState.reset();
+        System.clearProperty(CombatWorkloadRuntime.ENABLE_PROPERTY);
+        System.clearProperty(CombatWorkloadRuntime.OUTPUT_PROPERTY);
     }
 
     @Test
@@ -43,6 +50,8 @@ class CombatRuntimeIntegrityPlanTest {
         assertNotNull(transformed);
         assertEquals(1, calls(method(read(transformed)), INTEGRITY_RUNTIME, "observe"));
         assertEquals(1, calls(method(read(transformed)), FRAME_RUNTIME, "observeCombat"));
+        assertEquals(0, calls(method(read(transformed)), WORKLOAD_RUNTIME, "begin"));
+        assertEquals(0, calls(method(read(transformed)), WORKLOAD_RUNTIME, "end"));
     }
 
     @Test
@@ -53,6 +62,7 @@ class CombatRuntimeIntegrityPlanTest {
         assertNotNull(integrityOnly);
         assertEquals(1, calls(method(read(integrityOnly)), INTEGRITY_RUNTIME, "observe"));
         assertEquals(0, calls(method(read(integrityOnly)), FRAME_RUNTIME, "observeCombat"));
+        assertEquals(0, calls(method(read(integrityOnly)), WORKLOAD_RUNTIME, "begin"));
 
         CombatRuntimeIntegrityRuntime.beginSession();
         FrameTimeRuntime.beginSession(true);
@@ -60,6 +70,21 @@ class CombatRuntimeIntegrityPlanTest {
         assertNotNull(withFrames);
         assertEquals(1, calls(method(read(withFrames)), INTEGRITY_RUNTIME, "observe"));
         assertEquals(1, calls(method(read(withFrames)), FRAME_RUNTIME, "observeCombat"));
+    }
+
+    @Test
+    void composesOptInWorkloadSnapshotAndTimesEveryExit() throws Exception {
+        byte[] original = fixture();
+        System.setProperty(CombatWorkloadRuntime.ENABLE_PROPERTY, "true");
+
+        byte[] transformed = CombatRuntimeIntegrityPlan.transform(exactSignature(original), original);
+
+        assertNotNull(transformed);
+        MethodNode advance = method(read(transformed));
+        assertEquals(1, calls(advance, WORKLOAD_RUNTIME, "begin"));
+        assertEquals(2, calls(advance, WORKLOAD_RUNTIME, "end"));
+        Map<String, Object> telemetry = CombatWorkloadRuntime.telemetry();
+        assertTrue((Boolean) telemetry.get("installed"));
     }
 
     @Test
@@ -73,15 +98,25 @@ class CombatRuntimeIntegrityPlanTest {
     }
 
     private static byte[] fixture() {
-        ClassWriter writer = new ClassWriter(0);
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
                 CombatRuntimeIntegrityPlan.TARGET_CLASS, null, "java/lang/Object", null);
         MethodVisitor advance = writer.visitMethod(Opcodes.ACC_PUBLIC,
                 CombatRuntimeIntegrityPlan.ADVANCE_METHOD,
                 CombatRuntimeIntegrityPlan.ADVANCE_DESCRIPTOR, null, null);
         advance.visitCode();
+        Label throwPath = new Label();
+        advance.visitVarInsn(Opcodes.FLOAD, 1);
+        advance.visitInsn(Opcodes.FCONST_0);
+        advance.visitInsn(Opcodes.FCMPL);
+        advance.visitJumpInsn(Opcodes.IFEQ, throwPath);
         advance.visitInsn(Opcodes.RETURN);
-        advance.visitMaxs(0, 3);
+        advance.visitLabel(throwPath);
+        advance.visitTypeInsn(Opcodes.NEW, "java/lang/RuntimeException");
+        advance.visitInsn(Opcodes.DUP);
+        advance.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/RuntimeException", "<init>", "()V", false);
+        advance.visitInsn(Opcodes.ATHROW);
+        advance.visitMaxs(0, 0);
         advance.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
