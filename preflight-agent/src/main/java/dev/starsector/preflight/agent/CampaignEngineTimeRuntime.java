@@ -102,6 +102,8 @@ public final class CampaignEngineTimeRuntime {
         List<Map<String, Object>> scriptValues = new ArrayList<>();
         for (ScriptStats stats : ordered) scriptValues.add(stats.report(stats.className));
         result.put("scriptClasses", scriptValues);
+        result.put("scriptOwnerTax", RuntimeOwnerTax.report(
+                scriptValues, "totalMillis", "maximumMillis"));
         return result;
     }
 
@@ -145,7 +147,7 @@ public final class CampaignEngineTimeRuntime {
         return new ClassValue<>() {
             @Override
             protected ScriptStats computeValue(Class<?> type) {
-                ScriptStats value = new ScriptStats(type.getName());
+                ScriptStats value = new ScriptStats(type);
                 synchronized (CampaignEngineTimeRuntime.class) {
                     scripts.add(value);
                 }
@@ -203,10 +205,19 @@ public final class CampaignEngineTimeRuntime {
     }
 
     private static final class ScriptStats extends Stats {
+        final Class<?> type;
         final String className;
 
-        ScriptStats(String className) {
-            this.className = className;
+        ScriptStats(Class<?> type) {
+            this.type = type;
+            this.className = type.getName();
+        }
+
+        @Override
+        Map<String, Object> report(String name) {
+            Map<String, Object> result = super.report(name);
+            result.put("ownership", RuntimeClassOwnership.resolve(type).report());
+            return result;
         }
     }
 }
