@@ -15,6 +15,7 @@ final class RuntimeOwnerTax {
             List<Map<String, Object>> classes,
             String totalMillisField,
             String maximumMillisField) {
+        HitchFrames hitchFrames = HitchFrames.capture();
         Map<String, Owner> owners = new LinkedHashMap<>();
         for (Map<String, Object> value : classes) {
             Object ownershipValue = value.get("ownership");
@@ -32,19 +33,18 @@ final class RuntimeOwnerTax {
             owner.totalMillis += decimal(value.get(totalMillisField));
             owner.maximumMillis = Math.max(owner.maximumMillis, decimal(value.get(maximumMillisField)));
 
-            Object hitchValue = value.get("hitchTax");
-            if (hitchValue instanceof Map<?, ?> hitch) {
-                owner.hitchAvailable |= Boolean.TRUE.equals(hitch.get("available"));
-                owner.retainedSlowCalls += integer(hitch.get("retainedSlowCalls"));
-                owner.callsOver50 += integer(hitch.get("callsOverlapping50msFrames"));
-                owner.callsOver100 += integer(hitch.get("callsOverlapping100msFrames"));
-                owner.frameAssociationsOver50 += integer(hitch.get("frameAssociationsOver50ms"));
-                owner.frameAssociationsOver100 += integer(hitch.get("frameAssociationsOver100ms"));
-                owner.callbackOverlapMillis += decimal(hitch.get("callbackOverlapMillis"));
-                owner.maximumAssociatedFrameMillis = Math.max(
-                        owner.maximumAssociatedFrameMillis,
-                        decimal(hitch.get("maximumAssociatedFrameMillis")));
-            }
+            Map<String, Object> classHitch = hitchFrames.associate(value.get("slowestCalls"));
+            value.put("hitchTax", classHitch);
+            owner.hitchAvailable |= Boolean.TRUE.equals(classHitch.get("available"));
+            owner.retainedSlowCalls += integer(classHitch.get("retainedSlowCalls"));
+            owner.callsOver50 += integer(classHitch.get("callsOverlapping50msFrames"));
+            owner.callsOver100 += integer(classHitch.get("callsOverlapping100msFrames"));
+            owner.frameAssociationsOver50 += integer(classHitch.get("frameAssociationsOver50ms"));
+            owner.frameAssociationsOver100 += integer(classHitch.get("frameAssociationsOver100ms"));
+            owner.callbackOverlapMillis += decimal(classHitch.get("callbackOverlapMillis"));
+            owner.maximumAssociatedFrameMillis = Math.max(
+                    owner.maximumAssociatedFrameMillis,
+                    decimal(classHitch.get("maximumAssociatedFrameMillis")));
         }
 
         List<Owner> steady = new ArrayList<>(owners.values());
@@ -65,7 +65,10 @@ final class RuntimeOwnerTax {
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("frameTaxBasis", "aggregate measured/estimated callback CPU time; sampled groups retain their class-level sample metadata");
-        result.put("hitchTaxBasis", "bounded retained >=1ms callback windows joined by System.nanoTime overlap to retained >50ms/>100ms hitch frames");
+        result.put("hitchTaxBasis", "bounded retained >=1ms callback wall-clock windows joined to retained >50ms/>100ms hitch frames through the hitch packet's epoch/offset mapping");
+        result.put("hitchRecorderEnabled", hitchFrames.recorderEnabled);
+        result.put("joinableRetainedHitchFrames", hitchFrames.frames.size());
+        result.put("unjoinableRetainedHitchFrames", hitchFrames.unjoinableFrames);
         result.put("frameTax", frameTax);
         result.put("hitchTax", hitchTax);
         return result;
@@ -81,6 +84,119 @@ final class RuntimeOwnerTax {
 
     private static String string(Object value) {
         return value == null ? "" : value.toString();
+    }
+
+    private static final class HitchFrames {
+        final boolean recorderEnabled;
+        final List<HitchFrame> frames;
+        final long unjoinableFrames;
+
+        HitchFrames(boolean recorderEnabled, List<HitchFrame> frames, long unjoinableFrames) {
+            this.recorderEnabled = recorderEnabled;
+            this.frames = frames;
+            this.unjoinableFrames = unjoinableFrames;
+        }
+
+        static HitchFrames capture() {
+            try {
+                Map<String, Object> telemetry = HitchPacketRuntime.telemetry();
+                boolean enabled = Boolean.TRUE.equals(telemetry.get("enabled"));
+                List<HitchFrame> frames = new ArrayList<>();
+                long skipped = 0L;
+                Object packetsValue = telemetry.get("packets");
+                if (packetsValue instanceof Iterable<?> packets) {
+                    for (Object packetValue : packets) {
+                        if (!(packetValue instanceof Map<?, ?> packet)) continue;
+                        Double packetEpoch = number(packet.get("startEpochMillis"));
+                        Double packetOffset = number(packet.get("startOffsetMillis"));
+                        Object historyValue = packet.get("frameHistory");
+                        if (!(historyValue instanceof Iterable<?> history)) continue;
+                        for (Object frameValue : history) {
+                            if (!(frameValue instanceof Map<?, ?> frame)
+                                    || !Boolean.TRUE.equals(frame.get("trigger"))) {
+                                continue;
+                            }
+                            Double startOffset = number(frame.get("startOffsetMillis"));
+                            Double durationMicros = number(frame.get("durationMicros"));
+                            if (packetEpoch == null || packetOffset == null
+                                    || startOffset == null || durationMicros == null) {
+                                skipped++;
+                                continue;
+                            }
+                            double startEpoch = packetEpoch + startOffset - packetOffset;
+                            double endEpoch = startEpoch + durationMicros / 1_000.0;
+                            frames.add(new HitchFrame(
+                                    startEpoch,
+                                    endEpoch,
+                                    Boolean.TRUE.equals(frame.get("severe")),
+                                    durationMicros / 1_000.0));
+                        }
+                    }
+                }
+                return new HitchFrames(enabled, List.copyOf(frames), skipped);
+            } catch (ThreadDeath | VirtualMachineError fatal) {
+                throw fatal;
+            } catch (Throwable ignored) {
+                return new HitchFrames(false, List.of(), 0L);
+            }
+        }
+
+        Map<String, Object> associate(Object slowCallsValue) {
+            long retained = 0L;
+            long calls50 = 0L;
+            long calls100 = 0L;
+            long frame50 = 0L;
+            long frame100 = 0L;
+            double overlapMillis = 0.0;
+            double maximumFrameMillis = 0.0;
+            if (slowCallsValue instanceof Iterable<?> slowCalls) {
+                for (Object callValue : slowCalls) {
+                    if (!(callValue instanceof Map<?, ?> call)) continue;
+                    Double start = number(call.get("startEpochMillis"));
+                    Double end = number(call.get("endEpochMillis"));
+                    if (start == null || end == null || end <= start) continue;
+                    retained++;
+                    boolean call50 = false;
+                    boolean call100 = false;
+                    for (HitchFrame frame : frames) {
+                        double intersection = Math.min(end, frame.endEpochMillis)
+                                - Math.max(start, frame.startEpochMillis);
+                        if (intersection <= 0.0) continue;
+                        call50 = true;
+                        frame50++;
+                        if (frame.severe) {
+                            call100 = true;
+                            frame100++;
+                        }
+                        overlapMillis += intersection;
+                        maximumFrameMillis = Math.max(maximumFrameMillis, frame.durationMillis);
+                    }
+                    if (call50) calls50++;
+                    if (call100) calls100++;
+                }
+            }
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("available", recorderEnabled && unjoinableFrames == 0L);
+            result.put("retainedSlowCalls", retained);
+            result.put("callsOverlapping50msFrames", calls50);
+            result.put("callsOverlapping100msFrames", calls100);
+            result.put("frameAssociationsOver50ms", frame50);
+            result.put("frameAssociationsOver100ms", frame100);
+            result.put("callbackOverlapMillis", overlapMillis);
+            result.put("maximumAssociatedFrameMillis", maximumFrameMillis);
+            return result;
+        }
+
+        private static Double number(Object value) {
+            return value instanceof Number number ? number.doubleValue() : null;
+        }
+    }
+
+    private record HitchFrame(
+            double startEpochMillis,
+            double endEpochMillis,
+            boolean severe,
+            double durationMillis) {
     }
 
     private static final class Owner {
