@@ -34,6 +34,7 @@ final class GlTextureBindDedupRuntimeTest {
 
     @Test
     void suppressesOnlyARepeatedSupportedBindWithinOneFrame() {
+        GlTextureBindDedupRuntime.endDisplayList();
         assertFalse(GlTextureBindDedupRuntime.shouldSkip(3553, 41));
         GlTextureBindDedupRuntime.originalBindCompleted(3553, 41);
         assertTrue(GlTextureBindDedupRuntime.shouldSkip(3553, 41));
@@ -50,7 +51,7 @@ final class GlTextureBindDedupRuntimeTest {
         assertEquals(5L, telemetry.get("bindCalls"));
         assertEquals(1L, telemetry.get("suppressedCalls"));
         assertEquals(4L, telemetry.get("originalCalls"));
-        assertEquals(1L, telemetry.get("invalidations"));
+        assertEquals(2L, telemetry.get("invalidations"));
     }
 
     @Test
@@ -87,6 +88,25 @@ final class GlTextureBindDedupRuntimeTest {
         assertEquals(false, telemetry.get("runtimeDisabled"));
         assertEquals(1L, telemetry.get("displayListCompilations"));
         assertEquals(3L, telemetry.get("originalCalls"));
+    }
+
+    @Test
+    void initialUnknownAndUnmatchedListEndsRecoverToAKnownOutsideState() {
+        GlTextureBindDedupRuntime.beginSession(true);
+        GlTextureBindDedupRuntime.beginFrame();
+        assertFalse(GlTextureBindDedupRuntime.shouldSkip(3553, 9));
+        GlTextureBindDedupRuntime.originalBindCompleted(3553, 9);
+
+        GlTextureBindDedupRuntime.endDisplayList();
+        assertFalse(GlTextureBindDedupRuntime.shouldSkip(3553, 9));
+        GlTextureBindDedupRuntime.originalBindCompleted(3553, 9);
+        assertTrue(GlTextureBindDedupRuntime.shouldSkip(3553, 9));
+        GlTextureBindDedupRuntime.endDisplayList();
+
+        Map<String, Object> telemetry = GlTextureBindDedupRuntime.telemetry();
+        assertEquals(false, telemetry.get("runtimeDisabled"));
+        assertEquals(1L, telemetry.get("displayListUnknownRecoveries"));
+        assertEquals(1L, telemetry.get("displayListUnmatchedEnds"));
     }
 
     @Test

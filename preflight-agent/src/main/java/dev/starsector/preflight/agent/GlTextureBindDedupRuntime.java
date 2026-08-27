@@ -12,6 +12,9 @@ public final class GlTextureBindDedupRuntime {
     static final String ENABLE_ENVIRONMENT = "PREFLIGHT_GL_TEXTURE_BIND_DEDUP";
 
     private static final int GL_TEXTURE_2D = 3553;
+    private static final int LIST_UNKNOWN = -1;
+    private static final int LIST_OUTSIDE = 0;
+    private static final int LIST_INSIDE = 1;
     private static final Map<String, Integer> installedTargets = new TreeMap<>();
 
     private static volatile boolean requested;
@@ -23,7 +26,7 @@ public final class GlTextureBindDedupRuntime {
     private static String runtimeDisableReason;
     private static boolean known;
     private static int boundTexture;
-    private static int listCompilationDepth;
+    private static int listCompilationState;
     private static boolean pendingOriginalTrack;
     private static long frames;
     private static long bindCalls;
@@ -32,6 +35,9 @@ public final class GlTextureBindDedupRuntime {
     private static long unsupportedCalls;
     private static long invalidations;
     private static long displayListCompilations;
+    private static long displayListNestedBegins;
+    private static long displayListUnmatchedEnds;
+    private static long displayListUnknownRecoveries;
     private static long unexpectedThreadCalls;
 
     private GlTextureBindDedupRuntime() {
@@ -55,7 +61,7 @@ public final class GlTextureBindDedupRuntime {
         runtimeDisableReason = null;
         known = false;
         boundTexture = 0;
-        listCompilationDepth = 0;
+        listCompilationState = LIST_UNKNOWN;
         pendingOriginalTrack = false;
         frames = 0L;
         bindCalls = 0L;
@@ -64,6 +70,9 @@ public final class GlTextureBindDedupRuntime {
         unsupportedCalls = 0L;
         invalidations = 0L;
         displayListCompilations = 0L;
+        displayListNestedBegins = 0L;
+        displayListUnmatchedEnds = 0L;
+        displayListUnknownRecoveries = 0L;
         unexpectedThreadCalls = 0L;
         installedTargets.clear();
     }
@@ -99,7 +108,7 @@ public final class GlTextureBindDedupRuntime {
         pendingOriginalTrack = false;
         if (!eligibleThread()) return false;
         bindCalls++;
-        if (listCompilationDepth != 0 || target != GL_TEXTURE_2D || texture < 0) {
+        if (listCompilationState != LIST_OUTSIDE || target != GL_TEXTURE_2D || texture < 0) {
             unsupportedCalls++;
             known = false;
             originalCalls++;
@@ -118,7 +127,7 @@ public final class GlTextureBindDedupRuntime {
     public static void originalBindCompleted(int target, int texture) {
         if (!pendingOriginalTrack) return;
         pendingOriginalTrack = false;
-        if (enabled && active && !runtimeDisabled && listCompilationDepth == 0
+        if (enabled && active && !runtimeDisabled && listCompilationState == LIST_OUTSIDE
                 && target == GL_TEXTURE_2D && texture >= 0) {
             boundTexture = texture;
             known = true;
@@ -138,19 +147,17 @@ public final class GlTextureBindDedupRuntime {
         known = false;
         invalidations++;
         displayListCompilations++;
-        listCompilationDepth++;
-        if (listCompilationDepth != 1) disable("nested-display-list-compilation");
+        if (listCompilationState == LIST_INSIDE) displayListNestedBegins++;
+        listCompilationState = LIST_INSIDE;
     }
 
     public static void endDisplayList() {
         if (!eligibleLifecycleThread()) return;
         known = false;
         invalidations++;
-        if (listCompilationDepth != 1) {
-            disable("unbalanced-display-list-compilation");
-            return;
-        }
-        listCompilationDepth = 0;
+        if (listCompilationState == LIST_OUTSIDE) displayListUnmatchedEnds++;
+        if (listCompilationState == LIST_UNKNOWN) displayListUnknownRecoveries++;
+        listCompilationState = LIST_OUTSIDE;
     }
 
     static synchronized Map<String, Object> telemetry() {
@@ -176,6 +183,9 @@ public final class GlTextureBindDedupRuntime {
         result.put("unsupportedCalls", unsupportedCalls);
         result.put("invalidations", invalidations);
         result.put("displayListCompilations", displayListCompilations);
+        result.put("displayListNestedBegins", displayListNestedBegins);
+        result.put("displayListUnmatchedEnds", displayListUnmatchedEnds);
+        result.put("displayListUnknownRecoveries", displayListUnknownRecoveries);
         result.put("unexpectedThreadCalls", unexpectedThreadCalls);
         result.put("scope", "GL_TEXTURE_2D binds within one exact Display.update frame");
         result.put("fallback", "unknown state, unsupported input, invalidation, wrong thread, or runtime fault calls original LWJGL wrapper");
@@ -213,6 +223,7 @@ public final class GlTextureBindDedupRuntime {
         runtimeDisableReason = reason;
         active = false;
         known = false;
+        listCompilationState = LIST_UNKNOWN;
         pendingOriginalTrack = false;
     }
 
