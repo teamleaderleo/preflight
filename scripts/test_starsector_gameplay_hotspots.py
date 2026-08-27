@@ -167,6 +167,7 @@ class GameplayHotspotTest(unittest.TestCase):
             rendered = output.getvalue()
             self.assertIn("combat enrichment population: cluster=10, background=100", rendered)
             self.assertIn("mod.Hitch.work", rendered)
+            self.assertIn("clusters  1/1", rendered)
             self.assertIn("6.00x", rendered)
             # Common work has the same 100% presence in both populations and no positive excess.
             self.assertNotIn("1.00x  mod.Common.work", rendered)
@@ -182,6 +183,29 @@ class GameplayHotspotTest(unittest.TestCase):
             top=10,
         )
         self.assertEqual(["signal"], [row[-1] for row in rows])
+
+    def test_cluster_breadth_distinguishes_one_long_hitch_from_recurrence(self):
+        recurring_one = event(
+            "main", "mod.Recurring.work",
+            "com.fs.starfarer.combat.CombatEngine.advance")
+        recurring_two = event(
+            "main", "mod.Recurring.work",
+            "com.fs.starfarer.combat.CombatEngine.advance")
+        burst = [event(
+            "main", "mod.Burst.work",
+            "com.fs.starfarer.combat.CombatEngine.advance") for _ in range(4)]
+        original_thread = module.thread_of
+        try:
+            module.thread_of = lambda value: value["values"]["sampledThread"]["javaName"]
+            breadth = module.cluster_method_breadth([
+                ("first", [recurring_one] + burst),
+                ("second", [recurring_two]),
+            ])
+            self.assertEqual(2, breadth["combat"]["windows"])
+            self.assertEqual(2, breadth["combat"]["leaves"]["mod.Recurring.work"])
+            self.assertEqual(1, breadth["combat"]["leaves"]["mod.Burst.work"])
+        finally:
+            module.thread_of = original_thread
 
     def test_cluster_enrichment_api_requires_exact_cluster_and_step_boundaries(self):
         with self.assertRaisesRegex(SystemExit, "requires repeated clusters"):

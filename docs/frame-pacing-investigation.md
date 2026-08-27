@@ -266,8 +266,9 @@ The result is preserved as a rejection while the larger collision and combat are
 No. It establishes temporal overlap at the JFR sampling resolution. Repeated appearance, inclusive
 share, exact call-time probes, or an on/off intervention can strengthen causality. A single sampled
 leaf inside one cluster remains a lead, not a conclusion. Cluster enrichment improves prioritization
-by comparing against non-cluster samples from the same exact step, but overrepresentation still does
-not prove that the method caused the frame delay.
+by comparing against non-cluster samples from the same exact step and reports how many distinct
+clusters contain each method. Neither overrepresentation nor broad cluster coverage proves that the
+method caused the frame delay.
 
 ### Does `campaignUnpausedAfter30SecondsActive` mean settled after unpausing?
 

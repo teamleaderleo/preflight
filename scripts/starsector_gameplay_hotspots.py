@@ -351,8 +351,34 @@ def enrichment_rows(cluster_counts, background_counts, cluster_total, background
     return rows[:top]
 
 
+def cluster_method_breadth(cluster_groups, contains=None):
+    """Count distinct sampled clusters containing each leaf or inclusive method by state."""
+    breadth = collections.defaultdict(lambda: {
+        "windows": 0,
+        "leaves": collections.Counter(),
+        "inclusive": collections.Counter(),
+    })
+    for _name, sampled in cluster_groups:
+        stacks = collections.defaultdict(list)
+        for event in sampled:
+            if thread_of(event) != "main":
+                continue
+            methods = methods_of(event)
+            if contains and not any(contains in method for method in methods):
+                continue
+            stacks[gameplay_state(methods)].append(methods)
+        for state, state_stacks in stacks.items():
+            if not state_stacks:
+                continue
+            leaves, inclusive = method_presence(state_stacks)
+            breadth[state]["windows"] += 1
+            breadth[state]["leaves"].update(leaves.keys())
+            breadth[state]["inclusive"].update(inclusive.keys())
+    return breadth
+
+
 def report_cluster_enrichment(cluster_events, baseline_events, top=30,
-                              contains=None, include_other=False):
+                              contains=None, include_other=False, cluster_groups=None):
     """Compare exact-cluster stack presence with the non-cluster portion of the same step."""
     cluster_ids = {id(event) for event in cluster_events}
     states = collections.defaultdict(lambda: {"cluster": [], "background": []})
@@ -371,7 +397,10 @@ def report_cluster_enrichment(cluster_events, baseline_events, top=30,
 
     print("\ncluster enrichment: exact-cluster samples versus non-cluster samples "
           "inside the same selected scenario step")
-    print("ranking: excess cluster samples; coverage and lift are context, not causality")
+    print("ranking: excess cluster samples; state-specific distinct-cluster breadth, coverage, "
+          "and lift are context, not causality")
+    breadth = cluster_method_breadth(
+        cluster_groups or [("aggregate", cluster_events)], contains=contains)
     names = ("campaign", "combat", "other") if include_other else ("campaign", "combat")
     for name in names:
         cluster_stacks = states[name]["cluster"]
@@ -385,9 +414,9 @@ def report_cluster_enrichment(cluster_events, baseline_events, top=30,
             continue
         cluster_leaves, cluster_inclusive = method_presence(cluster_stacks)
         background_leaves, background_inclusive = method_presence(background_stacks)
-        for label, cluster_counts, background_counts in (
-                ("leaf methods", cluster_leaves, background_leaves),
-                ("inclusive methods", cluster_inclusive, background_inclusive)):
+        for label, cluster_counts, background_counts, breadth_key in (
+                ("leaf methods", cluster_leaves, background_leaves, "leaves"),
+                ("inclusive methods", cluster_inclusive, background_inclusive, "inclusive")):
             print(f"  overrepresented {label}:")
             rows = enrichment_rows(
                 cluster_counts, background_counts,
@@ -397,8 +426,11 @@ def report_cluster_enrichment(cluster_events, baseline_events, top=30,
                 continue
             for excess, cluster_count, lift, background_count, method in rows:
                 lift_text = "inf" if lift == float("inf") else f"{lift:.2f}x"
+                method_breadth = breadth[name][breadth_key][method]
+                breadth_total = breadth[name]["windows"]
                 print(
                     f"    +{excess:6.2f}  "
+                    f"clusters {method_breadth:>2}/{breadth_total:<2}  "
                     f"cluster {cluster_count:>4}/{len(cluster_stacks):<4} "
                     f"({cluster_count / len(cluster_stacks) * 100:5.2f}%)  "
                     f"background {background_count:>4}/{len(background_stacks):<4} "
@@ -494,6 +526,10 @@ def report(path, top=30, depth=96, contains=None, steps=None, evidence_path=None
         for name, start, end in wall_windows:
             print(f"  {name}: {end - start:.3f}s wall")
         selected = events_in_windows(sampled, windows)
+        cluster_groups = [
+            (name, events_in_window(sampled, start, end))
+            for name, start, end in windows
+        ]
         wall_seconds = covered_window_seconds(wall_windows)
         print(f"\naggregate repeated clusters: {len(windows)} windows, "
               f"{wall_seconds:.3f}s wall, {len(selected)} execution samples")
@@ -507,7 +543,7 @@ def report(path, top=30, depth=96, contains=None, steps=None, evidence_path=None
             baseline = events_in_windows(sampled, baseline_windows)
             report_cluster_enrichment(
                 selected, baseline, top=top, contains=contains,
-                include_other=include_other)
+                include_other=include_other, cluster_groups=cluster_groups)
         return
     for (name, wall_start, wall_end), (_mapped_name, start, end) in zip(wall_windows, windows):
         selected = events_in_window(sampled, start, end)
