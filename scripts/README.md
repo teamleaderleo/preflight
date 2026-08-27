@@ -158,10 +158,13 @@ fleets through the closed in-game runtime action.
 Each side is 520 DP, so its retained 30-second 2× window is a controlled 1,040-DP combat stress
 workload rather than the stock dialog's fleet-order-biased selection. It remains paused until
 autopilot, command-map, speed, and verified zoom setup are complete, and it never saves the fixture.
-The `-thin` variant keeps those semantic phases, disables JFR recording, and sets the public combat
-viewport to an exact 4.000 multiplier instead of relying on timing-sensitive wheel easing. Use it
-for controlled FPS comparisons after the profiled scenario has identified a candidate. Profiler FPS
-belongs to discovery evidence, not to an optimization claim.
+The `-thin` variant keeps those semantic phases, disables JFR recording, centers the LWJGL cursor,
+and sets the public combat viewport to an exact 4.000 multiplier instead of relying on
+timing-sensitive wheel easing. Its verification step rejects a run if either the cursor drifts from
+center or the settled zoom differs, because Starsector's cursor-following combat camera otherwise
+changes the rendered workload. Use it for controlled FPS comparisons after the profiled scenario
+has identified a candidate. Profiler FPS belongs to discovery evidence, not to an optimization
+claim.
 
 ## Read what a launch produced
 

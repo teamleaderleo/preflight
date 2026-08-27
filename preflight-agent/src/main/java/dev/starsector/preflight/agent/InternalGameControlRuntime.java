@@ -84,6 +84,8 @@ public final class InternalGameControlRuntime {
     private static float combatViewportBaselineMult;
     private static float combatViewportBaselineWidth;
     private static float combatViewportExpectedMult;
+    private static int combatCursorExpectedX = -1;
+    private static int combatCursorExpectedY = -1;
     private static volatile boolean simulationEngaged;
 
     private InternalGameControlRuntime() {
@@ -355,6 +357,7 @@ public final class InternalGameControlRuntime {
                 return;
             }
             if (COMBAT_SET_STRESS_VIEWPORT_ACTION.equals(parsed.action())) {
+                int[] cursor = centerCombatCursor(engine);
                 Object viewport = viewport(engine);
                 Method setViewMult = viewport.getClass().getMethod("setViewMult", float.class);
                 if (setViewMult.getReturnType() != void.class) {
@@ -364,8 +367,8 @@ public final class InternalGameControlRuntime {
                 invoke(setViewMult, viewport, combatViewportExpectedMult);
                 float[] after = viewportState(engine);
                 publish(parsed, "executed", String.format(java.util.Locale.ROOT,
-                                "set exact combat stress viewport: viewMult %.3f, visibleWidth %.1f",
-                                after[0], after[1]),
+                                "set exact combat stress viewport: viewMult %.3f, visibleWidth %.1f, cursor (%d,%d)",
+                                after[0], after[1], cursor[0], cursor[1]),
                         accepted, Instant.now(), "combat-engine.advance", COMBAT_STATE, null, null);
                 return;
             }
@@ -378,16 +381,21 @@ public final class InternalGameControlRuntime {
                         && viewport[1] >= combatViewportBaselineWidth * 1.05f;
                 boolean exactExpected = combatViewportExpectedMult <= 0f
                         || Math.abs(viewport[0] - combatViewportExpectedMult) <= 0.001f;
-                if (!wider || !exactExpected) {
+                int[] cursor = combatCursorState(engine);
+                boolean centered = combatCursorExpectedX < 0 || combatCursorExpectedY < 0
+                        || (Math.abs(cursor[0] - combatCursorExpectedX) <= 2
+                        && Math.abs(cursor[1] - combatCursorExpectedY) <= 2);
+                if (!wider || !exactExpected || !centered) {
                     throw new IllegalStateException(String.format(java.util.Locale.ROOT,
-                            "combat-viewport-did-not-zoom-out: viewMult %.3f -> %.3f, visibleWidth %.1f -> %.1f",
+                            "combat-stress-viewport-mismatch: viewMult %.3f -> %.3f, visibleWidth %.1f -> %.1f, cursor (%d,%d) expected (%d,%d)",
                             combatViewportBaselineMult, viewport[0],
-                            combatViewportBaselineWidth, viewport[1]));
+                            combatViewportBaselineWidth, viewport[1], cursor[0], cursor[1],
+                            combatCursorExpectedX, combatCursorExpectedY));
                 }
                 publish(parsed, "executed", String.format(java.util.Locale.ROOT,
-                                "verified combat zoom-out: viewMult %.3f -> %.3f, visibleWidth %.1f -> %.1f",
+                                "verified combat stress viewport: viewMult %.3f -> %.3f, visibleWidth %.1f -> %.1f, cursor (%d,%d)",
                                 combatViewportBaselineMult, viewport[0],
-                                combatViewportBaselineWidth, viewport[1]),
+                                combatViewportBaselineWidth, viewport[1], cursor[0], cursor[1]),
                         accepted, Instant.now(), "combat-engine.advance", COMBAT_STATE, null, null);
                 clearCombatViewportBaseline();
                 return;
@@ -555,10 +563,55 @@ public final class InternalGameControlRuntime {
         return viewport;
     }
 
+    private static int[] centerCombatCursor(Object engine) throws ReflectiveOperationException {
+        ClassLoader loader = engine.getClass().getClassLoader();
+        Class<?> display = Class.forName("org.lwjgl.opengl.Display", false, loader);
+        Method getWidth = display.getMethod("getWidth");
+        Method getHeight = display.getMethod("getHeight");
+        if (getWidth.getReturnType() != int.class || getHeight.getReturnType() != int.class) {
+            throw new IllegalStateException("display-dimensions-method-shape-mismatch");
+        }
+        int width = (Integer) invoke(getWidth, null);
+        int height = (Integer) invoke(getHeight, null);
+        if (width <= 0 || height <= 0) {
+            throw new IllegalStateException("display-dimensions-invalid");
+        }
+
+        Class<?> mouse = Class.forName("org.lwjgl.input.Mouse", false, loader);
+        Method setCursorPosition = mouse.getMethod("setCursorPosition", int.class, int.class);
+        if (setCursorPosition.getReturnType() != void.class) {
+            throw new IllegalStateException("mouse-cursor-setter-shape-mismatch");
+        }
+        combatCursorExpectedX = width / 2;
+        combatCursorExpectedY = height / 2;
+        invoke(setCursorPosition, null, combatCursorExpectedX, combatCursorExpectedY);
+        int[] cursor = combatCursorState(engine);
+        if (Math.abs(cursor[0] - combatCursorExpectedX) > 2
+                || Math.abs(cursor[1] - combatCursorExpectedY) > 2) {
+            throw new IllegalStateException(String.format(java.util.Locale.ROOT,
+                    "combat-cursor-did-not-center: cursor (%d,%d) expected (%d,%d)",
+                    cursor[0], cursor[1], combatCursorExpectedX, combatCursorExpectedY));
+        }
+        return cursor;
+    }
+
+    private static int[] combatCursorState(Object engine) throws ReflectiveOperationException {
+        Class<?> mouse = Class.forName(
+                "org.lwjgl.input.Mouse", false, engine.getClass().getClassLoader());
+        Method getX = mouse.getMethod("getX");
+        Method getY = mouse.getMethod("getY");
+        if (getX.getReturnType() != int.class || getY.getReturnType() != int.class) {
+            throw new IllegalStateException("mouse-cursor-getter-shape-mismatch");
+        }
+        return new int[] {(Integer) invoke(getX, null), (Integer) invoke(getY, null)};
+    }
+
     private static void clearCombatViewportBaseline() {
         combatViewportBaselineMult = 0f;
         combatViewportBaselineWidth = 0f;
         combatViewportExpectedMult = 0f;
+        combatCursorExpectedX = -1;
+        combatCursorExpectedY = -1;
     }
 
     private static String executeSimulationAction(Object dialog, String action)
