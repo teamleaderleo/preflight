@@ -64,7 +64,7 @@ candidate, not to advertise a positive delta.
 | E. Mod frame tax / hitch tax | **Partial** | Concrete runtime-class campaign timers, sampled method rankings, and manual mod/JAR ownership have identified real owners. Cluster overrepresentation is ranked separately from whole-step samples. | No generalized classloader/code-source/JAR-to-mod resolver and no durable separate frame-tax/hitch-tax report. |
 | F. Allocation hunter | **Active but manual** | State/window-filtered JFR analysis and many exact allocation experiments, including accepted and rejected high-volume paths. | No generalized ranked output tying allocation sites to GC/hitch packets and exact owners. Discovery recordings remain intrusive. |
 | G. Bytecode hot-pattern hunter | **Manual precursor only** | Exact bytecode reports and repeated manual pattern audits. | No frequency-weighted candidate scanner; no automated candidate queue. |
-| H. Scenario corpus/fingerprints | **Partial** | Semantic paused/unpaused campaign, ordinary combat, and symmetric 1,040-DP simulation routes; process, save, step, DP, speed, zoom, profile, and adapter receipts. | Dense traversal, market/UI, projectile-heavy, soak, and return phases are incomplete; runtime workload fingerprints are absent. |
+| H. Scenario corpus/fingerprints | **Partial** | Semantic paused/unpaused campaign, ordinary combat, and symmetric 1,040-DP simulation routes; process, save, step, DP, speed, zoom, profile, adapter receipts, and begin/end combat workload fingerprints. | Dense traversal, market/UI, projectile-heavy, soak, and return phases are incomplete; fingerprints bound workload class but do not make battle evolution lockstep. |
 | I. Adaptive escalation | **Not implemented** | The investigation has followed the funnel manually. | No retained probe plan that chooses a bounded next diagnostic run from a bad thin run. |
 | J/K. High-risk rendering | **Correctly deferred** | Vsync opt-in and asset-format research remain separately gated. | Do not advance cosmetic budgeting or GPU-ready gameplay claims until CPU/GPU evidence points there. |
 | L. Causal loop | **Partial** | Exact identities, semantic automation, adapter health, kill switches, evidence sealing, and serious rejection records exist. | Cohort orchestration, workload comparability, and automatic explanation/next-experiment output are not yet one system. |
@@ -133,6 +133,9 @@ an optimization. Once a real bad campaign run emits a packet with presentation t
 campaign phase overlap, the evidence can decide whether the next child should deepen Java ownership
 or move to asynchronous GPU timing.
 
-Before any positive 1,040-DP optimization claim, add the smallest exact combat workload fingerprint
-needed to reject materially divergent simulated work. That is a comparison guard, not a reason to
-skip the hitch recorder.
+The smallest exact 1,040-DP workload fingerprint is now present: begin/end simulation time, ships,
+fighters, hulks, projectiles, missiles, aggregate hull/flux, and combat-ended state. It correctly
+discarded an unnormalized cohort before the final texture-bind B/A/A/B rejection. It is a comparison
+guard, not proof of lockstep evolution. The compact cohort summarizer now surfaces identity,
+workload, adapter, tail metrics, simulated progress, and the candidate's causal counter without
+requiring manual report inspection.

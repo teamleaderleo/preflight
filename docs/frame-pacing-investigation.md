@@ -418,11 +418,11 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
 
 ## Open questions, ranked
 
-1. **Texture-bind suppression correctness:** the exact model observed 540 repeated texture binds per
-   retained active frame, 53.68% of all binds. Audit display-list compilation/execution, texture
-   deletion, active-texture aliases, and context ownership. If the model can remain exact and fail
-   open, test texture binds alone with ordinary/stress correctness and thin shuffled A/B cohorts.
-   Do not combine enable/disable or blend state into the first candidate.
+1. **Matrix-tail attribution:** the texture-only candidate is now rejected after a thin B/A/A/B
+   cohort: it suppressed a median 38.36% of binds but changed p99 +1.6%, 1% low -0.9%, >50 ms/min
+   +41.5%, and stutter burden +8.4%. Do not widen or revive it because the counter is large. Use the
+   matrix-heavy command census to locate one exact redundant/no-op family, retain a direct removed-
+   work counter, add the explicit-window presentation split, and judge it on repeated tail behavior.
 2. **Transition versus settled active work:** repeat the exact-step correlation once when a code
    decision depends on it. If the transition ordering is stable, probe its catch-up scheduler;
    independently map settled timer calls to individual slow frames before adding broader timers.

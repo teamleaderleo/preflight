@@ -21,8 +21,9 @@ Before changing code or collecting release evidence:
    observations from falsifiable hypotheses and records why a previously explored area may still
    be worth revisiting. [Gameplay FPS program #449](https://github.com/teamleaderleo/preflight/issues/449)
    is the canonical parent for that lane; use focused child issues once one experiment is concrete.
-   The latest diagnostic checkpoint is
-   [settled active-campaign OpenGL state reissues](docs/evidence/2026-08-28-opengl-state-reissues.md),
+   The latest completed optimization checkpoint is the rejected
+   [GL texture-bind deduplication cohort](docs/evidence/2026-08-28-gl-texture-bind-dedup-rejected.md),
+   following [settled active-campaign OpenGL state reissues](docs/evidence/2026-08-28-opengl-state-reissues.md),
    following [OpenGL command attribution](docs/evidence/2026-08-28-opengl-command-attribution.md)
    and [asynchronous whole-frame GPU timing](docs/evidence/2026-08-28-asynchronous-gpu-frame-timing.md),
    the bounded [native-swap CPU/off-CPU split](docs/evidence/2026-08-28-native-swap-cpu-offcpu-split.md),
@@ -35,9 +36,12 @@ Before changing code or collecting release evidence:
    large baseline/Rosetta-amplified lead rather than the hitch explanation. The exact follow-up then
    observed 2,294 same-state reissues per active frame: 40.53% of modeled calls and 16.89% of the
    selected command stream. Texture binds repeated 53.68%. Slow-frame redundancy was effectively
-   unchanged, confirming a baseline submission-tax lead rather than the hitch cause. Audit the full
-   texture-binding mutation boundary before testing one texture-only, fail-open suppression candidate;
-   do not combine enable/disable or blend state yet. The paused branch remains a separate thin
+   unchanged, confirming a baseline submission-tax lead rather than the hitch cause. The exact
+   texture-only candidate then suppressed a median 38.36% of binds in a thin B/A/A/B 1,040-DP
+   cohort, but changed p99 +1.6%, 1% low -0.9%, >50 ms/min +41.5%, stutter burden +8.4%, and average
+   FPS -4.3%. Treat it as rejected diagnostic evidence; do not revive or widen it because the causal
+   counter is large. The deterministic route now freezes camera setup, pins the full viewport,
+   records begin/end workload fingerprints, and has a compact cohort summarizer. The paused branch remains a separate thin
    presentation/VSync/compositor experiment. The rarer >50 ms pre-swap game-work fingerprint still
    needs packet-triggered CPU escalation, not permanent broad timers.
 
