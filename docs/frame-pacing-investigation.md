@@ -166,11 +166,14 @@ per frame averaged 428.361 microseconds each, roughly 0.857 ms/frame before any 
 perturbation. Its FPS numbers are not an uplift/regression claim. CPU and GPU tracks overlap and are
 not additive. The scenario still does not bind exact save bytes.
 
-**Exact next action:** add phase-owned counting-only OpenGL command/state attribution for active
-campaign. Count before suppressing anything, preserve the exact five-second transition boundary,
-and return to thin shuffled cohorts for any candidate claim. Keep the paused presentation branch
-separate. Rosetta is an open CPU/submission axis, but it does not explain long GPU elapsed intervals
-or off-CPU swap wait by itself.
+**Follow-up result:** the phase-owned broad census found 13,306 selected legacy-GL calls per active
+frame, then the exact state model found 2,294 same-state reissues per frame. That is 40.53% of its
+modeled families and 16.89% of the selected command stream. Texture binds repeated 53.68%,
+enable/disable 38.23%, and blend state 37.09%. Slow-frame redundancy was effectively identical to
+ordinary-frame redundancy, so this is a baseline submission-tax lead rather than the hitch cause.
+The next action is the remaining correctness audit for a texture-bind-only suppression candidate,
+followed by ordinary/stress correctness and thin shuffled cohorts. Keep the paused presentation
+branch separate.
 
 See the [asynchronous GPU timing record](evidence/2026-08-28-asynchronous-gpu-frame-timing.md).
 
@@ -415,11 +418,11 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
 
 ## Open questions, ranked
 
-1. **Exact GL state redundancy:** the phase-owned census found 13,306 selected legacy-GL calls per
-   retained active-campaign frame. Matrix plus fixed-function state represented 81.62%, and texture
-   binds brought the share to 88.98%. Slow frames carried only 0.54% more selected calls, so this is
-   a baseline-tax lead rather than the hitch explanation. Split exact methods and count consecutive
-   same-argument reissues for independently modeled state before proposing one narrow suppression.
+1. **Texture-bind suppression correctness:** the exact model observed 540 repeated texture binds per
+   retained active frame, 53.68% of all binds. Audit display-list compilation/execution, texture
+   deletion, active-texture aliases, and context ownership. If the model can remain exact and fail
+   open, test texture binds alone with ordinary/stress correctness and thin shuffled A/B cohorts.
+   Do not combine enable/disable or blend state into the first candidate.
 2. **Transition versus settled active work:** repeat the exact-step correlation once when a code
    decision depends on it. If the transition ordering is stable, probe its catch-up scheduler;
    independently map settled timer calls to individual slow frames before adding broader timers.

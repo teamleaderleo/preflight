@@ -22,8 +22,9 @@ Before changing code or collecting release evidence:
    be worth revisiting. [Gameplay FPS program #449](https://github.com/teamleaderleo/preflight/issues/449)
    is the canonical parent for that lane; use focused child issues once one experiment is concrete.
    The latest diagnostic checkpoint is
-   [settled active-campaign OpenGL command attribution](docs/evidence/2026-08-28-opengl-command-attribution.md),
-   following [asynchronous whole-frame GPU timing](docs/evidence/2026-08-28-asynchronous-gpu-frame-timing.md),
+   [settled active-campaign OpenGL state reissues](docs/evidence/2026-08-28-opengl-state-reissues.md),
+   following [OpenGL command attribution](docs/evidence/2026-08-28-opengl-command-attribution.md)
+   and [asynchronous whole-frame GPU timing](docs/evidence/2026-08-28-asynchronous-gpu-frame-timing.md),
    the bounded [native-swap CPU/off-CPU split](docs/evidence/2026-08-28-native-swap-cpu-offcpu-split.md),
    and [live OpenGL capability inventory](docs/evidence/2026-08-28-opengl-context-capability.md).
    Paused recurring 33 ms tails were normally low-GPU and swap-off-CPU dominated, while active
@@ -31,11 +32,14 @@ Before changing code or collecting release evidence:
    materially intrusive and makes no FPS claim. The exact active window then exposed 13,306 selected
    legacy-GL calls per retained frame; matrix plus fixed-function state represented 81.62%, and
    texture binds brought the share to 88.98%. Slow frames carried only 0.54% more calls, so this is a
-   large baseline/Rosetta-amplified lead rather than the hitch explanation. The next narrow slice is
-   an exact-method and same-argument redundancy census before one low-risk state family is considered
-   for suppression. The paused branch remains a separate thin presentation/VSync/compositor
-   experiment. The rarer >50 ms pre-swap game-work fingerprint still needs packet-triggered CPU
-   escalation, not permanent broad timers.
+   large baseline/Rosetta-amplified lead rather than the hitch explanation. The exact follow-up then
+   observed 2,294 same-state reissues per active frame: 40.53% of modeled calls and 16.89% of the
+   selected command stream. Texture binds repeated 53.68%. Slow-frame redundancy was effectively
+   unchanged, confirming a baseline submission-tax lead rather than the hitch cause. Audit the full
+   texture-binding mutation boundary before testing one texture-only, fail-open suppression candidate;
+   do not combine enable/disable or blend state yet. The paused branch remains a separate thin
+   presentation/VSync/compositor experiment. The rarer >50 ms pre-swap game-work fingerprint still
+   needs packet-triggered CPU escalation, not permanent broad timers.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package
