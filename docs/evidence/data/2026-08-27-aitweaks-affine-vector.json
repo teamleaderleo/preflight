@@ -1,0 +1,91 @@
+{
+  "format": "starsector-preflight-optimization-observation-v1",
+  "candidate": "aitweaks-affine-vector-fusion-v1",
+  "status": "accepted-with-limit",
+  "game": "Starsector 0.98a-RC8",
+  "scenario": "campaign-simulation-combat-1000dp",
+  "condition": {
+    "launcher": "Preflight fast preset only",
+    "battle": "24 mirrored ships per side, 520 DP per side",
+    "speed": "2x",
+    "viewportWidthBefore": 1800.0,
+    "viewportWidthAfter": 5744.0,
+    "measurementWindowSeconds": 30.004,
+    "observations": 1,
+    "frontmost": false,
+    "macosThermalWarningBefore": false,
+    "macosPerformanceWarningBefore": false,
+    "macosThermalWarningAfter": false,
+    "macosPerformanceWarningAfter": false
+  },
+  "targets": [
+    {
+      "class": "com/genir/aitweaks/core/shipai/autofire/ballistics/Projectile",
+      "method": "targetMotion",
+      "classSha256": "50db98c94a6589e39bdc4d2e39bfb33161e8f50de1f54cabfbca7cca1c065379",
+      "filteredAllocationSamples": 187,
+      "affineResultWeightedMiB": 58.0,
+      "sampledTimesOrPlusLeaves": 0
+    },
+    {
+      "class": "com/genir/aitweaks/core/shipai/autofire/ballistics/Beam",
+      "method": "targetLocation",
+      "classSha256": "afd4434d05988ddeed96fc5821206399cf32067c6c7f1ac54e63c411fd3f8bc2",
+      "filteredAllocationSamples": 51,
+      "affineResultWeightedMiB": 44.0,
+      "sampledTimesOrPlusLeaves": 0
+    },
+    {
+      "class": "com/genir/aitweaks/core/utils/types/LinearMotion",
+      "method": "positionAfter",
+      "classSha256": "64889050bc99efaa693fe73e8fb6cf80af319907b77dbd9fdb03a433da67cecc",
+      "filteredAllocationSamples": 17,
+      "affineResultWeightedMiB": 24.8,
+      "sampledTimesOrPlusLeaves": 0
+    }
+  ],
+  "sourceArchiveSha256": "9f6179bcd2df2e3ce8cea2da79051c9f1be3c9b71712c6c28d7568b777ecf5b2",
+  "safety": {
+    "fallback": "ORIGINAL_BYTECODE",
+    "addsGameObjectFields": false,
+    "addsMutableGameState": false,
+    "touchesSaveState": false,
+    "preservesFreshResult": true,
+    "preservesFloatingPointOrder": true
+  },
+  "run": {
+    "startedAt": "2026-08-27T10:54:05.363578Z",
+    "endedAt": "2026-08-27T10:55:37.359633Z",
+    "outcome": "COMPLETED",
+    "exitCode": 0,
+    "launcherExitCode": 0,
+    "javaVersion": "17.0.12",
+    "preflightJarSha256": "b78e40b5caceefe238f2e7720ecd0c7992d20caa4c490c04ed8ebf9bcec33b43",
+    "jfrSha256": "91c300557749e9dd1c144db0c34fe1358592af80e9781395e98d304a2ac16951",
+    "scenarioSha256": "62c027df5fe5e34ad1a1f48b949e3d6af5cf60c5cc76b22256715c98e3ccb677",
+    "runReportSha256": "59f631608177b0fcf3e1a7a080ad42f8fcf2a082be60136fcb80db67ff28f068",
+    "scenarioEvidenceSha256": "5c183262c702156f4f6994f49ea88f54c62f7f9d6aff0feb64d498c9e9a82bf8",
+    "adapterReportSha256": "0ff3c8abe35a24737aee9208d4e643c17f914c3bead41326c9e823f71f3f01fb",
+    "frameReportSha256": "792cc05a04869fa0d47b0ea08380bd778333f65b604aaf1ed9c1985f49b6b2d6",
+    "adapterHealthSha256": "f7d02829dea6311b20260a30feb8ea94ce527a0bf1665b71bace6f1d21e28ad5",
+    "logTailSha256": "a42033a4018950085729e6756fafa21c111e7f1cace95c6248305a7eb9748394",
+    "exactTransformsRegistered": 3,
+    "exactTransformsApplied": 3,
+    "transformationDeclines": 0,
+    "containedFailures": 0,
+    "lifecycleFatalDetected": false,
+    "classifiedCombatAllocationSamples": 2775,
+    "inactiveFrameIntervalsDropped": 2009,
+    "eligibleCombatFrames": 0
+  },
+  "verification": {
+    "javaRelease": 17,
+    "focusedTests": 5,
+    "focusedFailures": 0,
+    "focusedErrors": 0,
+    "exactInstalledArchiveTest": "passed",
+    "asmDataFlowAnalysis": "passed",
+    "liveScenario": "passed"
+  },
+  "claimLimit": "The observation proves exact application, clean execution, and absence of sampled Vector2fKt.times/plus leaves in the three transformed method families; inactive-focus filtering retained no combat frames, so it establishes no FPS or percentile uplift."
+}
