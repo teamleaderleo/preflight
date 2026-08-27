@@ -28,7 +28,6 @@ final class AdapterPlanCatalog {
             ContrailRenderScratchRuntime.PLAN_ID,
             CommodityEventModMemoRuntime.PLAN_ID,
             DeploymentIconCacheRuntime.PLAN_ID,
-            DetailedCombatResultsStateReusePlan.PLAN_ID,
             EntityLookupRuntime.PLAN_ID,
             FleetAiProfilerRuntime.PLAN_ID,
             FontWrapAllocationRuntime.PLAN_ID,

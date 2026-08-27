@@ -39,9 +39,6 @@ final class AdapterInstallationEffects {
         if (has(referenced, CombatListenerRangeSnapshotRuntime.class)) {
             CombatListenerRangeSnapshotRuntime.installed();
         }
-        if (has(referenced, DetailedCombatResultsStateReuseRuntime.class)) {
-            DetailedCombatResultsStateReuseRuntime.installed();
-        }
         if (ContrailRenderScratchRuntime.PLAN_ID.equals(target.planId())) {
             ContrailRenderScratchRuntime.installed();
         }

@@ -80,7 +80,6 @@ final class AdapterRuntime {
         CombatRuntimeIntegrityRuntime.beginSession();
         CollisionQuerySet.beginSession();
         CombatListenerRangeSnapshotRuntime.beginSession(frameTimes);
-        DetailedCombatResultsStateReuseRuntime.beginSession(frameTimes);
         FrameTimeRuntime.beginSession(
                 frameTimes,
                 Boolean.getBoolean(FrameTimeRuntime.FORCE_VSYNC_OFF_PROPERTY));

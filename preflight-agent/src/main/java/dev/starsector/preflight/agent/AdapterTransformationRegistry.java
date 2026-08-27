@@ -269,9 +269,6 @@ final class AdapterTransformationRegistry {
         if (CombatListenerRangeSnapshotPlan.PLAN_ID.equals(target.planId())) {
             return CombatListenerRangeSnapshotPlan.transform(signature, originalBytes);
         }
-        if (DetailedCombatResultsStateReusePlan.PLAN_ID.equals(target.planId())) {
-            return DetailedCombatResultsStateReusePlan.transform(signature, originalBytes);
-        }
         if (AshLibVariantLookupRuntime.PLAN_ID.equals(target.planId())) {
             byte[] optimized = AshLibVariantLookupPlan.transform(signature, originalBytes);
             if (optimized == null || !StartupPhaseRuntime.phaseProbeEnabled()
@@ -884,9 +881,6 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (CombatListenerRangeSnapshotPlan.PLAN_ID.equals(planId)) {
-            return true;
-        }
-        if (DetailedCombatResultsStateReusePlan.PLAN_ID.equals(planId)) {
             return true;
         }
         if (AshLibVariantLookupRuntime.PLAN_ID.equals(planId)) {
