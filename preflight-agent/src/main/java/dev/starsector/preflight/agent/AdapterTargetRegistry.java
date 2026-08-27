@@ -221,27 +221,6 @@ final class AdapterTargetRegistry {
         return List.copyOf(targets);
     }
 
-    /** AI Tweaks 2.2.10 reads one immutable-in-call weapon location six times per selection. */
-    static List<AdapterTarget> aiTweaksWeaponLocationSnapshotTargets() {
-        List<AdapterTarget> targets = new ArrayList<>();
-        for (AiTweaksWeaponLocationSnapshotPlan.Target target
-                : AiTweaksWeaponLocationSnapshotPlan.targets()) {
-            targets.add(new AdapterTarget(
-                    "aitweaks-2.2.10-weapon-location-selection-" + targets.size(),
-                    target.internalName(),
-                    target.sha256(),
-                    AiTweaksWeaponLocationSnapshotPlan.PLAN_ID,
-                    List.of(new AdapterTarget.RequiredMethod(
-                            target.method(), target.descriptor())),
-                    "MOD",
-                    AiTweaksWeaponLocationSnapshotPlan.SOURCE_FILE,
-                    AiTweaksWeaponLocationSnapshotPlan.SOURCE_SHA256,
-                    AiTweaksWeaponLocationSnapshotPlan.LOADER,
-                    ""));
-        }
-        return List.copyOf(targets);
-    }
-
     /** Vanilla range modifiers copy a live listener list into an ArrayList before every query. */
     static AdapterTarget combatListenerRangeSnapshotTarget() {
         return new AdapterTarget(
@@ -2130,11 +2109,6 @@ final class AdapterTargetRegistry {
         }
         if (AiTweaksAffineVectorPlan.enabled()) {
             for (AdapterTarget target : aiTweaksAffineVectorTargets()) {
-                registry = registry.withTarget(target);
-            }
-        }
-        if (AiTweaksWeaponLocationSnapshotPlan.enabled()) {
-            for (AdapterTarget target : aiTweaksWeaponLocationSnapshotTargets()) {
                 registry = registry.withTarget(target);
             }
         }

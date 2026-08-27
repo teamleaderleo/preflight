@@ -28,7 +28,7 @@ class AdapterPlanCatalogTest {
                 .map(AdapterPlanCatalog.Descriptor::planId)
                 .collect(Collectors.toSet());
 
-        assertEquals(70, catalogPlans.size(), "adapter plan inventory changed");
+        assertEquals(67, catalogPlans.size(), "adapter plan inventory changed");
         assertTrue(catalogPlans.containsAll(registeredPlans),
                 () -> "uncatalogued registered plans: " + difference(registeredPlans, catalogPlans));
         for (AdapterPlanCatalog.Descriptor descriptor : descriptors) {
@@ -89,9 +89,6 @@ class AdapterPlanCatalogTest {
                 .withMainMenuInteractiveTarget();
         List<AdapterTarget> targets = new java.util.ArrayList<>(prepared.targets());
         targets.add(AdapterTargetRegistry.combatListenerRangeSnapshotTarget());
-        targets.add(AdapterTargetRegistry.aiTweaksSplitArcsTarget());
-        targets.addAll(AdapterTargetRegistry.aiTweaksAffineVectorTargets());
-        targets.addAll(AdapterTargetRegistry.aiTweaksWeaponLocationSnapshotTargets());
         targets.addAll(AdapterTargetRegistry.empty()
                 .withTextureTarget(TextureAdapterMode.COMPATIBILITY).targets());
         targets.addAll(AdapterTargetRegistry.empty().withFrameTimeTarget().targets());

@@ -39,13 +39,6 @@ final class AdapterInstallationEffects {
         if (has(referenced, CombatListenerRangeSnapshotRuntime.class)) {
             CombatListenerRangeSnapshotRuntime.installed();
         }
-        if (AiTweaksWeaponLocationSnapshotRuntime.PLAN_ID.equals(target.planId())) {
-            if (AiTweaksWeaponLocationSnapshotPlan.AUTOFIRE_CLASS.equals(className)) {
-                AiTweaksWeaponLocationSnapshotRuntime.autofireInstalled();
-            } else if (AiTweaksWeaponLocationSnapshotPlan.WEAPON_HANDLE_CLASS.equals(className)) {
-                AiTweaksWeaponLocationSnapshotRuntime.weaponHandleInstalled();
-            }
-        }
         if (ContrailRenderScratchRuntime.PLAN_ID.equals(target.planId())) {
             ContrailRenderScratchRuntime.installed();
         }
