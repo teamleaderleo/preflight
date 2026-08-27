@@ -172,6 +172,38 @@ final class DesktopBenchmarkLaunchTest {
     }
 
     @Test
+    void comparisonRanksRecurringStutterAheadOfSupportingFpsMetrics() {
+        Map<String, Object> baseline = Map.of(
+                "stutterBurdenMillisPerSecond", 80.0,
+                "repeatedSlowFramesPercent", 5.0,
+                "slowFramesPerMinute", 180.0,
+                "longestSlowFrameClusterMillis", 600.0,
+                "onePercentLowFps", 14.0,
+                "averageFps", 52.0);
+        Map<String, Object> optimized = Map.of(
+                "stutterBurdenMillisPerSecond", 40.0,
+                "repeatedSlowFramesPercent", 2.5,
+                "slowFramesPerMinute", 90.0,
+                "longestSlowFrameClusterMillis", 300.0,
+                "onePercentLowFps", 16.0,
+                "averageFps", 53.0);
+
+        Map<String, Object> comparison = DesktopBenchmarkLaunch.comparison(List.of(
+                Map.of("summary", baseline), Map.of("summary", optimized)));
+        @SuppressWarnings("unchecked")
+        List<String> priority = (List<String>) comparison.get("smoothnessPriority");
+        assertEquals("stutterBurdenMillisPerSecond", priority.get(0));
+        assertTrue(priority.indexOf("repeatedSlowFramesPercent")
+                < priority.indexOf("onePercentLowFps"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> metrics = (Map<String, Object>) comparison.get("metrics");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> burden =
+                (Map<String, Object>) metrics.get("stutterBurdenMillisPerSecond");
+        assertEquals(50.0, burden.get("improvementPercent"));
+    }
+
+    @Test
     void sealsMeasurementOnlyIdentityAfterTimingWithoutProfileMetadata(@TempDir Path temporary)
             throws Exception {
         Path install = temporary.resolve("game");
@@ -253,16 +285,24 @@ final class DesktopBenchmarkLaunchTest {
         Files.writeString(frames, Json.object(Map.of(
                 "format", "starsector-preflight-runtime-frame-report-v1",
                 "frameTimes", Map.of(
-                        "campaignAfter30SecondsActive", Map.of(
-                                "frames", 1_800,
-                                "totalActiveNanos", 31_000_000_000L,
-                                "averageFps", 60.0,
-                                "medianFps", 62.0,
-                                "onePercentLowFps", 35.0,
-                                "pointOnePercentLowFps", 22.0,
-                                "p95Micros", 20_000,
-                                "p99Micros", 28_571,
-                                "framesMeeting60FpsPercent", 88.0),
+                        "campaignAfter30SecondsActive", Map.ofEntries(
+                                Map.entry("frames", 1_800),
+                                Map.entry("totalActiveNanos", 31_000_000_000L),
+                                Map.entry("averageFps", 60.0),
+                                Map.entry("medianFps", 62.0),
+                                Map.entry("onePercentLowFps", 35.0),
+                                Map.entry("pointOnePercentLowFps", 22.0),
+                                Map.entry("p95Micros", 20_000),
+                                Map.entry("p99Micros", 28_571),
+                                Map.entry("framesMeeting60FpsPercent", 88.0),
+                                Map.entry("over33_33Millis", 12),
+                                Map.entry("over50Millis", 5),
+                                Map.entry("over100Millis", 1),
+                                Map.entry("stutterProfile", Map.of(
+                                        "slowFramesPerMinute", 12.0,
+                                        "stutterBurdenMillisPerSecond", 3.5,
+                                        "repeatedSlowFramesPercent", 0.4,
+                                        "longestSlowFrameClusterMillis", 80.0))),
                         "measurementOverhead", Map.of(
                                 "samples", 1_200,
                                 "totalNanos", 12_000_000,
@@ -305,6 +345,13 @@ final class DesktopBenchmarkLaunchTest {
         assertEquals(20_000L, summary.get("processToCampaignReadyMs"));
         assertEquals(60.0, summary.get("averageFps"));
         assertEquals(28_571L, summary.get("p99FrameMicros"));
+        assertEquals(12L, summary.get("over33_33Millis"));
+        assertEquals(5L, summary.get("over50Millis"));
+        assertEquals(1L, summary.get("over100Millis"));
+        assertEquals(12.0, summary.get("slowFramesPerMinute"));
+        assertEquals(3.5, summary.get("stutterBurdenMillisPerSecond"));
+        assertEquals(0.4, summary.get("repeatedSlowFramesPercent"));
+        assertEquals(80.0, summary.get("longestSlowFrameClusterMillis"));
         assertEquals("after-first-30-seconds", summary.get("campaignWindow"));
         assertEquals(1_800L, summary.get("campaignFrames"));
         assertEquals(31_000_000_000L, summary.get("campaignActiveNanos"));

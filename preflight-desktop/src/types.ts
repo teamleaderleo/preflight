@@ -27,8 +27,17 @@ export interface FramePacingDistribution {
   activeMillis?: number | null;
   averageFps: number;
   onePercentLowFps: number;
+  pointOnePercentLowFps?: number | null;
   p95Micros: number;
   p99Micros: number;
+  over33_33Millis?: number | null;
+  over50Millis?: number | null;
+  over100Millis?: number | null;
+  slowFramesPerMinute?: number | null;
+  stutterBurdenMillisPerSecond?: number | null;
+  repeatedSlowFrameClusters?: number | null;
+  repeatedSlowFramesPercent?: number | null;
+  longestSlowFrameClusterMillis?: number | null;
 }
 
 export interface FramePacingSummary {
@@ -36,6 +45,8 @@ export interface FramePacingSummary {
   campaign: FramePacingDistribution | null;
   initialCampaign?: FramePacingDistribution | null;
   settledCampaign: FramePacingDistribution | null;
+  settledPausedCampaign?: FramePacingDistribution | null;
+  settledUnpausedCampaign?: FramePacingDistribution | null;
   combat: FramePacingDistribution | null;
   measurementAverageMicros: number | null;
 }
@@ -243,6 +254,7 @@ export interface DesktopBenchmarkMetric {
 
 export interface DesktopBenchmarkComparison {
   available: boolean;
+  smoothnessPriority?: string[];
   metrics: Record<string, DesktopBenchmarkMetric>;
   identity?: {
     profileFingerprint: string;

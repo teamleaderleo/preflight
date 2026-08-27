@@ -72,6 +72,48 @@ test("omits recorder-cost copy when an older summary has no overhead measurement
   expect(screen.getByText(/recorder doesn’t open or change save files/i)).toBeInTheDocument();
 });
 
+test("prioritizes recurring stutter and separates paused from unpaused play", () => {
+  const paused = {
+    frames: 2_000,
+    activeMillis: 34_000,
+    averageFps: 58.82,
+    onePercentLowFps: 29.9,
+    p95Micros: 22_100,
+    p99Micros: 33_400,
+    slowFramesPerMinute: 24.71,
+    stutterBurdenMillisPerSecond: 4.25,
+    repeatedSlowFramesPercent: 0.35,
+  };
+  const unpaused = {
+    ...paused,
+    frames: 2_090,
+    activeMillis: 39_800,
+    averageFps: 52.51,
+    onePercentLowFps: 18.42,
+    slowFramesPerMinute: 92.5,
+    stutterBurdenMillisPerSecond: 41.2,
+    repeatedSlowFramesPercent: 2.8,
+  };
+  render(<FramePacingCard framePacing={{
+    format: "starsector-preflight-frame-pacing-summary-v1",
+    campaign: null,
+    settledCampaign: null,
+    settledPausedCampaign: paused,
+    settledUnpausedCampaign: unpaused,
+    combat: null,
+    measurementAverageMicros: 2.1,
+  }} />);
+
+  const pausedRow = screen.getByRole("group", { name: "Paused campaign after 30 seconds" });
+  expect(pausedRow).toHaveTextContent("4.25 ms/s");
+  expect(pausedRow).toHaveTextContent("0.35%");
+  expect(pausedRow).toHaveTextContent("24.71 / min");
+  const unpausedRow = screen.getByRole("group", { name: "Unpaused campaign after 30 seconds" });
+  expect(unpausedRow).toHaveTextContent("41.2 ms/s");
+  expect(screen.getByText(/disjoint active-state windows/i)).toBeInTheDocument();
+  expect(screen.getByText(/rank ahead of isolated hitches/i)).toBeInTheDocument();
+});
+
 test("stays absent until a valid distribution was recorded", () => {
   const { container } = render(<FramePacingCard framePacing={null} />);
   expect(container).toBeEmptyDOMElement();

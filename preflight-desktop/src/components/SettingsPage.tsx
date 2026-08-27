@@ -127,7 +127,7 @@ export function SettingsPage({
               Record frame pacing
               <small>{framePacingPaused
                 ? "Paused while optimizations are Off."
-                : "Average FPS, one-percent low, frame-time percentiles, and recorder cost. The recorder doesn’t open or change save files."}</small>
+                : "Recurring stutter, slow-frame burden, FPS lows, and recorder cost. The recorder doesn’t open or change save files."}</small>
             </span>
           </label>
           <label className="settings-toggle">

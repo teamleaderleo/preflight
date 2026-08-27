@@ -118,9 +118,11 @@ platform/display paths. Each claim should carry the evidence scope that supports
 routine dependency updates, and post-RC hardening stay outside the frozen candidate unless #652
 records a concrete candidate failure or explicit maintainer decision that changes release priority.
 
-Starsector already renders its own instantaneous FPS counter. Preflight now offers the complementary
-opt-in **Frame pacing** session result — average FPS, one-percent low, and p95/p99 frame time —
-rather than injecting a second overlay. The product boundary and implementation are recorded in
+Starsector already renders its own instantaneous FPS counter. Rather than injecting a second
+overlay, Preflight now offers the complementary opt-in **Frame pacing** session result: recurring
+stutter burden and slow-frame frequency, with average FPS, one-percent low, and p95/p99 frame time
+as context. Complete settled reports separate paused and unpaused active windows. The product
+boundary and implementation are recorded in
 [the FPS counter audit](evidence/2026-08-26-fps-counter-product-audit.md).
 
 ## Historical roadmap

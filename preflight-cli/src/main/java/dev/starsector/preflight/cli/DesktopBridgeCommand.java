@@ -600,9 +600,36 @@ final class DesktopBridgeCommand {
                 : totalActiveNanos / 1_000_000L + (totalActiveNanos % 1_000_000L == 0L ? 0L : 1L));
         result.put("averageFps", averageFps);
         result.put("onePercentLowFps", onePercentLowFps);
+        result.put("pointOnePercentLowFps",
+                finitePositive(distribution.get("pointOnePercentLowFps")));
         result.put("p95Micros", p95Micros);
         result.put("p99Micros", p99Micros);
+        result.put("over33_33Millis", nonNegativeLong(distribution.get("over33_33Millis")));
+        result.put("over50Millis", nonNegativeLong(distribution.get("over50Millis")));
+        result.put("over100Millis", nonNegativeLong(distribution.get("over100Millis")));
+        Map<String, Object> stutter = distribution.get("stutterProfile") instanceof Map<?, ?> rawStutter
+                ? stringMap(rawStutter)
+                : null;
+        result.put("slowFramesPerMinute", finiteNonNegative(
+                stutter == null ? null : stutter.get("slowFramesPerMinute")));
+        result.put("stutterBurdenMillisPerSecond", finiteNonNegative(
+                stutter == null ? null : stutter.get("stutterBurdenMillisPerSecond")));
+        result.put("repeatedSlowFrameClusters", nonNegativeLong(
+                stutter == null ? null : stutter.get("repeatedSlowFrameClusters")));
+        result.put("repeatedSlowFramesPercent", finiteNonNegative(
+                stutter == null ? null : stutter.get("repeatedSlowFramesPercent")));
+        result.put("longestSlowFrameClusterMillis", finiteNonNegative(
+                stutter == null ? null : stutter.get("longestSlowFrameClusterMillis")));
         return result;
+    }
+
+    private static Long nonNegativeLong(Object value) {
+        if (!(value instanceof Number number)
+                || number.doubleValue() != number.longValue()
+                || number.longValue() < 0L) {
+            return null;
+        }
+        return number.longValue();
     }
 
     private static Map<String, Object> stringMap(Map<?, ?> source) {

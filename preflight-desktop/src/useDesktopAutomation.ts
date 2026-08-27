@@ -143,6 +143,10 @@ export function useDesktopAutomation({
           },
           metrics: {
             processToMainMenuMs: { measurementOnly: 88_130, optimized: 15_880, delta: -72_250, improvementPercent: 81.98 },
+            stutterBurdenMillisPerSecond: { measurementOnly: 72.4, optimized: 46.8, delta: -25.6, improvementPercent: 35.36 },
+            repeatedSlowFramesPercent: { measurementOnly: 4.8, optimized: 2.9, delta: -1.9, improvementPercent: 39.58 },
+            slowFramesPerMinute: { measurementOnly: 126.0, optimized: 91.5, delta: -34.5, improvementPercent: 27.38 },
+            onePercentLowFps: { measurementOnly: 14.2, optimized: 18.6, delta: 4.4, improvementPercent: 30.99 },
           },
           context: {
             storage: { scope: "all-prepared-data", bytes: 2_426_028_032, files: 15_104 },

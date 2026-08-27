@@ -27,6 +27,7 @@ than the instantaneous game counter:
 - one-percent and 0.1-percent low FPS;
 - p95 and p99 frame time;
 - frames meeting 60- and 30-FPS budgets;
+- slow-frame frequency, excess slow-frame time per second, and repeated slow-frame clusters;
 - separate campaign, campaign warm-up, settled campaign, and combat distributions;
 - focus-loss exclusion and measurement-overhead accounting.
 
@@ -39,13 +40,15 @@ Do not inject a second counter into Starsector as the first feature. It would du
 the game already owns while adding render-hook, fullscreen, scaling, and compatibility risk.
 
 The desktop now has an optional **Record frame pacing** preference. Recommended and Conservative
-launches reuse the existing exact-pinned frame boundary, then the latest run snapshot exposes only
-a compact average-FPS, one-percent-low, and p95/p99 summary. Each row also states its measured frame
-count and accumulated active time, so a short sample cannot look identical to a representative route.
+launches reuse the existing exact-pinned frame boundary. The latest run snapshot leads with stutter
+burden, repeated slow-frame exposure, and slow frames per active minute, then retains one-percent
+low, p99, and average FPS as context. Each row also states its measured frame count and accumulated
+active time, so a short sample cannot look identical to a representative route.
 Older summaries without the duration field remain readable and show only their frame count. The
-desktop prefers settled campaign frames when available, labels that warm-up exclusion, shows
-campaign and combat separately, and does not expose raw worst-frame details. Reading the adapter
-report is size-bounded and fails closed.
+desktop prefers settled campaign frames when available, separates complete paused and unpaused
+active windows, labels that warm-up and transition exclusion, shows campaign and combat separately,
+and does not expose raw worst-frame details. Reading the adapter report is size-bounded and fails
+closed. Older reports without the stutter profile retain their compact percentile display.
 
 The exact rendered matrix now carries a dedicated frame-pacing scenario. It checks that all three
 preview distributions expose active duration and captures the result at the default and minimum
@@ -65,6 +68,12 @@ state/frame hooks but no reviewed fixes, while optimized enables them. Each phas
 for warm-up, a 5-second transition cushion, and 30 seconds for settled collection; only the
 post-30-second distribution is compared, and fewer than 100 frames or 30 active seconds is a failed
 phase rather than an FPS result.
+
+The sealed comparison carries the existing bounded stutter profile and an explicit ranking. Excess
+slow-frame time and repeated clusters outrank isolated transitions or one favorable percentile; the
+desktop off→on result shows those leading smoothness measures alongside startup time. The detailed
+policy and projection tests are retained in the
+[smoothness reporting note](2026-08-27-smoothness-reporting.md).
 
 The preference stays visibly enabled but collection pauses under **Off / troubleshooting**, because
 that preset promises not to install the runtime adapter. Results remain in Preflight's run directory;

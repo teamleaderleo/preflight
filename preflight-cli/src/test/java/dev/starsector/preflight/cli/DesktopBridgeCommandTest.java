@@ -184,13 +184,23 @@ class DesktopBridgeCommandTest {
                 "onePercentLowFps", 20.45,
                 "p95Micros", 27100,
                 "p99Micros", 48900);
-        Map<String, Object> settledPausedCampaign = Map.of(
-                "frames", 2000,
-                FrameTimeTelemetry.TOTAL_ACTIVE_NANOS, 34_000_000_000L,
-                "averageFps", 58.82,
-                "onePercentLowFps", 29.90,
-                "p95Micros", 22_100,
-                "p99Micros", 33_400);
+        Map<String, Object> settledPausedCampaign = Map.ofEntries(
+                Map.entry("frames", 2000),
+                Map.entry(FrameTimeTelemetry.TOTAL_ACTIVE_NANOS, 34_000_000_000L),
+                Map.entry("averageFps", 58.82),
+                Map.entry("onePercentLowFps", 29.90),
+                Map.entry("pointOnePercentLowFps", 18.75),
+                Map.entry("p95Micros", 22_100),
+                Map.entry("p99Micros", 33_400),
+                Map.entry("over33_33Millis", 14),
+                Map.entry("over50Millis", 3),
+                Map.entry("over100Millis", 1),
+                Map.entry("stutterProfile", Map.of(
+                        "slowFramesPerMinute", 24.71,
+                        "stutterBurdenMillisPerSecond", 4.25,
+                        "repeatedSlowFrameClusters", 2,
+                        "repeatedSlowFramesPercent", 0.35,
+                        "longestSlowFrameClusterMillis", 92.4)));
         Map<String, Object> settledUnpausedCampaign = Map.of(
                 "frames", 2090,
                 FrameTimeTelemetry.TOTAL_ACTIVE_NANOS, 39_800_000_000L,
@@ -243,6 +253,13 @@ class DesktopBridgeCommandTest {
         assertEquals(20.45, settled.get("onePercentLowFps"));
         assertEquals(2000L, settledPaused.get("frames"));
         assertEquals(29.90, settledPaused.get("onePercentLowFps"));
+        assertEquals(18.75, settledPaused.get("pointOnePercentLowFps"));
+        assertEquals(4.25, settledPaused.get("stutterBurdenMillisPerSecond"));
+        assertEquals(0.35, settledPaused.get("repeatedSlowFramesPercent"));
+        assertEquals(24.71, settledPaused.get("slowFramesPerMinute"));
+        assertEquals(2L, settledPaused.get("repeatedSlowFrameClusters"));
+        assertEquals(92.4, settledPaused.get("longestSlowFrameClusterMillis"));
+        assertEquals(3L, settledPaused.get("over50Millis"));
         assertEquals(2090L, settledUnpaused.get("frames"));
         assertEquals(18.42, settledUnpaused.get("onePercentLowFps"));
         assertEquals(1.78, framePacing.get("measurementAverageMicros"));

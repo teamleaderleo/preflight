@@ -77,6 +77,30 @@ test("describes the benchmark as two Preflight launches with only optimizations 
               delta: -25_000,
               improvementPercent: 25,
             },
+            stutterBurdenMillisPerSecond: {
+              measurementOnly: 80,
+              optimized: 40,
+              delta: -40,
+              improvementPercent: 50,
+            },
+            repeatedSlowFramesPercent: {
+              measurementOnly: 5,
+              optimized: 2.5,
+              delta: -2.5,
+              improvementPercent: 50,
+            },
+            slowFramesPerMinute: {
+              measurementOnly: 180,
+              optimized: 90,
+              delta: -90,
+              improvementPercent: 50,
+            },
+            onePercentLowFps: {
+              measurementOnly: 14,
+              optimized: 16,
+              delta: 2,
+              improvementPercent: 14.29,
+            },
           },
         },
         desktopSmokeCancelling: false,
@@ -88,9 +112,14 @@ test("describes the benchmark as two Preflight launches with only optimizations 
     />,
   );
 
-  expect(screen.getByText("Both runs use Preflight: first with its optimizations off, then on. The benchmark compares time to the main menu.")).toBeInTheDocument();
+  expect(screen.getByText(/It compares startup and, when the route reaches campaign, settled frame pacing/)).toBeInTheDocument();
   expect(screen.getByLabelText("About the benchmark")).toHaveAccessibleDescription(/Both runs use Preflight with the same installation and mod setup/);
   expect(screen.getByRole("heading", { name: "Optimizations off → on" })).toBeInTheDocument();
   expect(screen.getByText(/100\.00s with optimizations off/)).toBeInTheDocument();
+  expect(screen.getByText("Settled campaign smoothness")).toBeInTheDocument();
+  expect(screen.getByText("40.00 ms/s")).toBeInTheDocument();
+  expect(screen.getByText(/80\.00 ms\/s with optimizations off · 50\.0% improvement/)).toBeInTheDocument();
+  expect(screen.getByText("16.0 FPS")).toBeInTheDocument();
+  expect(screen.getByText(/Recurring stutter ranks ahead/)).toBeInTheDocument();
   expect(screen.queryByText(/normal launch/i)).not.toBeInTheDocument();
 });

@@ -357,13 +357,33 @@ final class DesktopBenchmarkLaunch {
         metric(metrics, "processToMainMenuMs", baseline, optimized, false);
         metric(metrics, "processToCampaignReadyMs", baseline, optimized, false);
         metric(metrics, "routeElapsedMs", baseline, optimized, false);
+        metric(metrics, "stutterBurdenMillisPerSecond", baseline, optimized, false);
+        metric(metrics, "repeatedSlowFramesPercent", baseline, optimized, false);
+        metric(metrics, "slowFramesPerMinute", baseline, optimized, false);
+        metric(metrics, "longestSlowFrameClusterMillis", baseline, optimized, false);
+        metric(metrics, "over33_33Millis", baseline, optimized, false);
+        metric(metrics, "over50Millis", baseline, optimized, false);
+        metric(metrics, "over100Millis", baseline, optimized, false);
+        metric(metrics, "p99FrameMicros", baseline, optimized, false);
+        metric(metrics, "p95FrameMicros", baseline, optimized, false);
+        metric(metrics, "pointOnePercentLowFps", baseline, optimized, true);
+        metric(metrics, "onePercentLowFps", baseline, optimized, true);
         metric(metrics, "averageFps", baseline, optimized, true);
         metric(metrics, "medianFps", baseline, optimized, true);
-        metric(metrics, "onePercentLowFps", baseline, optimized, true);
-        metric(metrics, "pointOnePercentLowFps", baseline, optimized, true);
-        metric(metrics, "p95FrameMicros", baseline, optimized, false);
-        metric(metrics, "p99FrameMicros", baseline, optimized, false);
         comparison.put("available", !metrics.isEmpty());
+        comparison.put("smoothnessPriority", List.of(
+                "stutterBurdenMillisPerSecond",
+                "repeatedSlowFramesPercent",
+                "slowFramesPerMinute",
+                "longestSlowFrameClusterMillis",
+                "over33_33Millis",
+                "over50Millis",
+                "over100Millis",
+                "p99FrameMicros",
+                "pointOnePercentLowFps",
+                "onePercentLowFps",
+                "averageFps",
+                "medianFps"));
         comparison.put("metrics", metrics);
         return comparison;
     }
@@ -424,6 +444,17 @@ final class DesktopBenchmarkLaunch {
         copyNumber(campaignFrames, summary, "pointOnePercentLowFps", "pointOnePercentLowFps");
         copyNumber(campaignFrames, summary, "p95Micros", "p95FrameMicros");
         copyNumber(campaignFrames, summary, "p99Micros", "p99FrameMicros");
+        copyNumber(campaignFrames, summary, "over33_33Millis", "over33_33Millis");
+        copyNumber(campaignFrames, summary, "over50Millis", "over50Millis");
+        copyNumber(campaignFrames, summary, "over100Millis", "over100Millis");
+        Map<String, Object> stutter = object(campaignFrames.get("stutterProfile"));
+        copyNumber(stutter, summary, "slowFramesPerMinute", "slowFramesPerMinute");
+        copyNumber(stutter, summary,
+                "stutterBurdenMillisPerSecond", "stutterBurdenMillisPerSecond");
+        copyNumber(stutter, summary,
+                "repeatedSlowFramesPercent", "repeatedSlowFramesPercent");
+        copyNumber(stutter, summary,
+                "longestSlowFrameClusterMillis", "longestSlowFrameClusterMillis");
         copyNumber(
                 campaignFrames, summary, "framesMeeting60FpsPercent", "framesMeeting60FpsPercent");
         summary.put("measurementOverhead", measurementOverhead(
@@ -699,6 +730,10 @@ final class DesktopBenchmarkLaunch {
             Map<String, Object> destination,
             String sourceName,
             String destinationName) {
+        if (source == null) {
+            destination.put(destinationName, null);
+            return;
+        }
         Object value = source.get(sourceName);
         destination.put(destinationName, value instanceof Number ? value : null);
     }

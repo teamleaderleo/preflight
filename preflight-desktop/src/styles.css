@@ -1789,6 +1789,10 @@ h2 {
   background: color-mix(in srgb, var(--paper) 78%, transparent);
 }
 
+.benchmark-results__grid--startup {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .benchmark-results__grid > div {
   display: grid;
   gap: 3px;
@@ -1826,6 +1830,24 @@ h2 {
 .benchmark-results > small {
   display: block;
   margin-top: 10px;
+}
+
+.benchmark-results__section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 14px 0 7px;
+}
+
+.benchmark-results__section-heading > strong {
+  font-size: 14px;
+}
+
+.benchmark-results__section-heading > small {
+  color: var(--ink-soft);
+  font-size: 12px;
+  text-align: right;
 }
 
 .benchmark-results__context {
@@ -1906,6 +1928,10 @@ h2 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.frame-pacing-row__metrics--smoothness {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .frame-pacing-row__metrics > span {
   display: grid;
   gap: 3px;
@@ -1915,6 +1941,14 @@ h2 {
 
 .frame-pacing-row__metrics > span:last-child {
   border-right: 0;
+}
+
+.frame-pacing-row__metrics--smoothness > span:nth-child(3) {
+  border-right: 0;
+}
+
+.frame-pacing-row__metrics--smoothness > span:nth-child(n + 4) {
+  border-top: 1px solid var(--line);
 }
 
 .frame-pacing-row__metrics strong {
@@ -2493,12 +2527,24 @@ h2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .frame-pacing-row__metrics--smoothness {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .frame-pacing-row__metrics > span:nth-child(2) {
     border-right: 0;
   }
 
   .frame-pacing-row__metrics > span:nth-child(n + 3) {
     border-top: 1px solid var(--line);
+  }
+
+  .frame-pacing-row__metrics--smoothness > span:nth-child(3) {
+    border-right: 1px solid var(--line);
+  }
+
+  .frame-pacing-row__metrics--smoothness > span:nth-child(even) {
+    border-right: 0;
   }
 }
 
@@ -4133,6 +4179,10 @@ footer {
 
   .benchmark-results__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .benchmark-results__grid--startup {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .benchmark-results__grid > div:nth-child(2) {
