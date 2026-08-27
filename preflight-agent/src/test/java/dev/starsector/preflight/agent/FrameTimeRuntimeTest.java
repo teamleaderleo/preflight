@@ -138,6 +138,39 @@ class FrameTimeRuntimeTest {
     }
 
     @Test
+    void measurementWindowRetainsItsOwnPresentationPhases() {
+        FrameTimeRuntime.beginSession(true);
+        FrameTimeRuntime.recordBoundary(0L);
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(10_000_000L); // state transition
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(26_000_000L); // pre-window setup
+        FrameTimeRuntime.beginCombatMeasurementWindow();
+
+        FrameTimeRuntime.recordSwapStarted(38_000_000L, 1_000_000L);
+        FrameTimeRuntime.recordSwapCompleted(40_000_000L, 1_500_000L);
+        FrameTimeRuntime.recordMessagesStarted(41_000_000L);
+        FrameTimeRuntime.recordMessagesCompleted(42_000_000L);
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(46_000_000L);
+
+        Map<String, Object> window = map(FrameTimeRuntime.telemetry().get("measurementWindow"));
+        Map<String, Object> phases = map(window.get("presentationPhases"));
+        assertEquals(1L, phases.get("frames"));
+        assertEquals(1L, phases.get("completeFrames"));
+        assertEquals(12_000.0, map(phases.get("preSwap")).get("maximumMicros"));
+        assertEquals(2_000.0, map(phases.get("nativeSwap")).get("maximumMicros"));
+        assertEquals(500.0,
+                map(phases.get("nativeSwapThreadCpu")).get("maximumMicros"));
+        assertEquals(1_500.0,
+                map(phases.get("nativeSwapInferredOffCpu")).get("maximumMicros"));
+        assertEquals(1_000.0,
+                map(phases.get("messageProcessing")).get("maximumMicros"));
+        assertEquals(5_000.0,
+                map(phases.get("otherAfterSwap")).get("maximumMicros"));
+    }
+
+    @Test
     void campaignMeasurementWindowOwnsTheExactPauseState() {
         FrameTimeRuntime.beginSession(true);
         FrameTimeRuntime.recordBoundary(0L);

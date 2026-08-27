@@ -120,6 +120,7 @@ public final class FrameTimeRuntime {
     private static final DisplayPhases allActivePhases = new DisplayPhases();
     private static final DisplayPhases campaignActivePhases = new DisplayPhases();
     private static final DisplayPhases campaignAfter30SecondsActivePhases = new DisplayPhases();
+    private static final DisplayPhases measurementWindowPhases = new DisplayPhases();
 
     private FrameTimeRuntime() {
     }
@@ -205,6 +206,7 @@ public final class FrameTimeRuntime {
         allActivePhases.reset();
         campaignActivePhases.reset();
         campaignAfter30SecondsActivePhases.reset();
+        measurementWindowPhases.reset();
         HitchPacketRuntime.beginSession(telemetryRequested);
         GpuFrameTimeRuntime.beginSession(telemetryRequested);
         GlStateReissueRuntime.beginSession(telemetryRequested);
@@ -372,6 +374,7 @@ public final class FrameTimeRuntime {
     static synchronized void beginCombatMeasurementWindow() {
         if (!enabled) throw new IllegalStateException("frame-time-telemetry-is-disabled");
         measurementWindow.reset();
+        measurementWindowPhases.reset();
         measurementWindowState = STATE_COMBAT;
         measurementWindowCampaignPause = PAUSE_UNKNOWN;
         measurementWindowActive = true;
@@ -392,6 +395,7 @@ public final class FrameTimeRuntime {
     static synchronized void beginCampaignMeasurementWindow(boolean paused) {
         if (!enabled) throw new IllegalStateException("frame-time-telemetry-is-disabled");
         measurementWindow.reset();
+        measurementWindowPhases.reset();
         measurementWindowState = STATE_CAMPAIGN;
         measurementWindowCampaignPause = paused ? PAUSE_PAUSED : PAUSE_UNPAUSED;
         measurementWindowActive = true;
@@ -684,6 +688,7 @@ public final class FrameTimeRuntime {
                         || campaignPause == measurementWindowCampaignPause);
         if (comparableMeasurementWindow) {
             measurementWindow.record(duration, endOffset);
+            measurementWindowPhases.record(duration, previousBoundaryNanos, now, endOffset);
         }
         GlCommandCountRuntime.observeFrame(boundaries, duration, comparableMeasurementWindow);
         GlStateReissueRuntime.observeFrame(duration, comparableMeasurementWindow);
@@ -836,6 +841,8 @@ public final class FrameTimeRuntime {
                 ? null : measurementWindowCampaignPause == PAUSE_PAUSED
                         ? "paused" : measurementWindowCampaignPause == PAUSE_UNPAUSED
                                 ? "unpaused" : "unknown");
+        window.put("presentationPhases",
+                measurementWindowPhases.toMap(firstBoundaryEpochMillis));
         result.put("measurementWindow", window);
         result.put("combatWorkloadFingerprint", CombatStressFixtureRuntime.workloadTelemetry());
         Map<String, Object> displayPhases = new LinkedHashMap<>();
