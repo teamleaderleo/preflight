@@ -61,11 +61,6 @@
       "id": "unpaused-settled",
       "kind": "wait-duration",
       "durationMillis": 45000
-    },
-    {
-      "id": "restore-paused",
-      "kind": "click",
-      "target": "campaign.pause"
     }
   ]
 }

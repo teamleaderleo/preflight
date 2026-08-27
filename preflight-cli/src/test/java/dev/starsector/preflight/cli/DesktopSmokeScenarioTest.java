@@ -249,8 +249,8 @@ final class DesktopSmokeScenarioTest {
         assertTrue(scenario.usesOnlyRuntimeControl());
         assertTrue(sampled.usesOnlyRuntimeControl());
         assertTrue(sampled.sampleRecording());
-        assertEquals(scenario.stepIds().subList(0, 10), sampled.stepIds());
-        assertEquals(11, scenario.stepIds().size());
+        assertEquals(scenario.stepIds(), sampled.stepIds());
+        assertEquals(10, scenario.stepIds().size());
         assertEquals(10, sampled.stepIds().size());
         assertTrue(scenario.stepIds().contains("observe-initial-pause-state"));
         assertTrue(scenario.stepIds().contains("paused-settled"));

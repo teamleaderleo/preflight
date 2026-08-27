@@ -71,9 +71,11 @@ retained maintenance counters and the state the selected save actually loaded in
 
 `campaign-profile-paused-unpaused.json` keeps the first three campaign seconds untouched, ensures a
 paused state through Starsector's mapped pause control, retains a paused warm-up and settled window,
-then unpauses for a transition buffer and settled window before restoring pause. Continue and every
+then unpauses for a transition buffer and settled window. Continue and every
 pause transition are internal PID/start-bound actions, so the route does not activate another app,
-move the cursor, or depend on host window focus.
+move the cursor, or depend on host window focus. It stops the exact owned process from the final
+state; a late campaign interaction can legitimately make another pause action unavailable, and the
+profiling run is not retained or saved.
 
 `campaign-paused-unpaused-measurement-only.json` and
 `campaign-paused-unpaused-optimized.json` are the paired FPS form of that pause cycle. The first
