@@ -117,6 +117,22 @@ class CommodityEventModMemoPlanTest {
     }
 
     @Test
+    void ordinaryWrapperOmitsNoOpHotPathTelemetryCalls() {
+        CommodityEventModMemoRuntime.beginSession(false);
+
+        byte[] transformed = CommodityEventModMemoPlan.transform(signature(), fixture());
+
+        assertNotNull(transformed);
+        MethodNode wrapper = method(read(transformed), CommodityEventModMemoPlan.METHOD, "()V");
+        assertEquals(1, calls(wrapper, RUNTIME, "enabled"));
+        assertEquals(0, calls(wrapper, RUNTIME, "hit"));
+        assertEquals(0, calls(wrapper, RUNTIME, "delegated"));
+        assertEquals(1, calls(wrapper, RUNTIME, "fastValidationUnavailable"));
+        assertEquals(2, calls(wrapper, CommodityEventModMemoPlan.TARGET_CLASS,
+                "preflight$original$reapplyEventMod"));
+    }
+
+    @Test
     void targetBindsTheExactCoreArchiveAndAppLoader() {
         AdapterTarget target = AdapterTargetRegistry.commodityEventModMemoTarget();
         AdapterSourceIdentity source = new AdapterSourceIdentity(

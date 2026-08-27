@@ -1,0 +1,117 @@
+{
+  "format": "starsector-preflight-event-mod-production-telemetry-elision-v1",
+  "date": "2026-08-27",
+  "profile": {
+    "gameVersion": "0.98a-RC8",
+    "enabledMods": 83,
+    "hardware": "Apple M5 Mac",
+    "runtime": "x86-64 Zulu 17 under Rosetta",
+    "preflightEnabled": true
+  },
+  "priorHotPathEvidence": {
+    "runId": "campaign-pause-cycle-20260827-0107",
+    "unchangedEventModCalls": 55933399,
+    "source": "docs/evidence/2026-08-27-paused-unpaused-cycle-live.md"
+  },
+  "emittedShapes": {
+    "profiling": {
+      "enabledCalls": 1,
+      "hitCalls": 1,
+      "delegatedCalls": 1,
+      "fastValidationUnavailableCalls": 1
+    },
+    "ordinary": {
+      "enabledCalls": 1,
+      "hitCalls": 0,
+      "delegatedCalls": 0,
+      "fastValidationUnavailableCalls": 1
+    },
+    "retainedOriginalCalls": 2,
+    "privateTransientMemoFields": 14
+  },
+  "cacheSafety": {
+    "implementationIdentityBound": true,
+    "allEffectivePreflightPropertiesBound": true,
+    "campaignTimingModeBound": true,
+    "frameDiagnosticsDisableTransformationCache": true
+  },
+  "verification": {
+    "focusedTests": "passed",
+    "installedClassTests": {
+      "passed": 2,
+      "skipped": 0
+    },
+    "java17Verify": {
+      "status": "passed",
+      "coreTests": 365,
+      "cliUnitTests": 1113,
+      "cliUnitSkipped": 3,
+      "cliIntegrationTests": 54,
+      "cliIntegrationSkipped": 3,
+      "syntheticTests": 22,
+      "syntheticSkipped": 1
+    }
+  },
+  "live": {
+    "runId": "event-mod-noop-elision-20260827-0803",
+    "scenario": "campaign-sample-paused-unpaused",
+    "status": "passed",
+    "recordingBytes": 5190737,
+    "transformationsApplied": 60,
+    "exactMatches": 60,
+    "containedFailures": 0,
+    "eventModRuntime": {
+      "installed": true,
+      "enabled": true,
+      "telemetryEnabled": false,
+      "hits": 0,
+      "delegated": 0,
+      "fastValidationUnavailable": 0
+    },
+    "paused": {
+      "wallSeconds": 45.003,
+      "campaignExecutionSamples": 242,
+      "wrapperInclusiveSamples": 0,
+      "frames": 3563,
+      "averageFps": 58.0,
+      "medianFps": 59.17,
+      "onePercentLowFps": 29.5,
+      "pointOnePercentLowFps": 25.51,
+      "p99FrameMillis": 33.9,
+      "stutterBurdenMillisPerSecond": 2.75,
+      "repeatedSlowFramesPercent": 0.11
+    },
+    "unpaused": {
+      "wallSeconds": 45.005,
+      "campaignExecutionSamples": 618,
+      "wrapperInclusiveSamples": 45,
+      "wrapperInclusiveSharePercent": 7.28,
+      "wrapperLeafSamples": 42,
+      "wrapperLeafSharePercent": 6.8,
+      "frames": 1651,
+      "averageFps": 49.64,
+      "medianFps": 59.17,
+      "onePercentLowFps": 13.66,
+      "pointOnePercentLowFps": 5.09,
+      "p99FrameMillis": 73.2,
+      "stutterBurdenMillisPerSecond": 77.93,
+      "repeatedSlowFramesPercent": 3.88
+    }
+  },
+  "precedingSameRouteReference": {
+    "runId": "mutable-stat-temp-advance-20260827-0746",
+    "unpausedCampaignExecutionSamples": 676,
+    "wrapperLeafSamples": 41,
+    "wrapperLeafSharePercent": 6.07,
+    "comparisonLimit": "non-lockstep; workload and thermal state differ"
+  },
+  "safety": {
+    "addsSaveState": false,
+    "memoFieldsRemainTransient": true,
+    "originalMethodRetained": true,
+    "runtimeEnableGateRetained": true,
+    "linkageFailOpenRetained": true,
+    "killSwitch": "PREFLIGHT_DISABLE_ADAPTER_PLANS=commodity-event-mod-memo-v1"
+  },
+  "claimBoundary": "Ordinary bytecode omits inert telemetry calls. The single live run does not establish an FPS or sampled-share improvement; the remaining validation body is still material."
+}

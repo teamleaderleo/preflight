@@ -35,6 +35,10 @@ public final class CommodityEventModMemoRuntime {
         return installed && enabled;
     }
 
+    static boolean telemetryEnabled() {
+        return telemetryEnabled;
+    }
+
     public static void hit() {
         if (telemetryEnabled) hits++;
     }

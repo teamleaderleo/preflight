@@ -87,7 +87,7 @@ final class CommodityEventModMemoPlan {
         int access = original.access;
         original.name = ORIGINAL;
         addMemoFields(owner);
-        owner.methods.add(wrapper(access));
+        owner.methods.add(wrapper(access, CommodityEventModMemoRuntime.telemetryEnabled()));
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
@@ -95,7 +95,7 @@ final class CommodityEventModMemoPlan {
         return writer.toByteArray();
     }
 
-    private static MethodNode wrapper(int access) {
+    private static MethodNode wrapper(int access, boolean telemetryEnabled) {
         MethodNode method = new MethodNode(Opcodes.ASM9, access, METHOD, DESCRIPTOR, null, null);
         LabelNode enabled = new LabelNode();
         LabelNode delegated = new LabelNode();
@@ -147,8 +147,10 @@ final class CommodityEventModMemoPlan {
         compareReference(method, EVENT_MOD_DESC, 7, delegated);
         compareEconUnitIfRelevant(method, delegated);
         method.instructions.add(fastEnd);
-        method.instructions.add(new MethodInsnNode(
-                Opcodes.INVOKESTATIC, RUNTIME, "hit", "()V", false));
+        if (telemetryEnabled) {
+            method.instructions.add(new MethodInsnNode(
+                    Opcodes.INVOKESTATIC, RUNTIME, "hit", "()V", false));
+        }
         method.instructions.add(new InsnNode(Opcodes.RETURN));
 
         method.instructions.add(linkageFailure);
@@ -160,8 +162,10 @@ final class CommodityEventModMemoPlan {
                 fastStart, fastEnd, linkageFailure, "java/lang/LinkageError"));
 
         method.instructions.add(delegated);
-        method.instructions.add(new MethodInsnNode(
-                Opcodes.INVOKESTATIC, RUNTIME, "delegated", "()V", false));
+        if (telemetryEnabled) {
+            method.instructions.add(new MethodInsnNode(
+                    Opcodes.INVOKESTATIC, RUNTIME, "delegated", "()V", false));
+        }
         invokeOriginal(method);
         // Store the state after vanilla has authored eMod. This also resolves MutableStat's dirty
         // bit once, so the next unchanged frame can compare the actual stable output directly.
