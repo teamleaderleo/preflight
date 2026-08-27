@@ -69,6 +69,8 @@ class FrameTimeInstalledAdapterIT {
                 FrameTimePlan.ACTIVE_DESCRIPTOR), runtime, "observeActive"));
         assertEquals(1, calls(method(owner, FrameTimePlan.VSYNC_METHOD,
                 FrameTimePlan.VSYNC_DESCRIPTOR), runtime, "requestedVsync"));
+        assertEquals(1, calls(method(owner, FrameTimePlan.SWAP_INTERVAL_METHOD,
+                FrameTimePlan.SWAP_INTERVAL_DESCRIPTOR), runtime, "observeSwapInterval"));
 
         ClassSignature wrong = new ClassSignature(signature.internalName(), "0".repeat(64),
                 signature.majorVersion(), signature.access(), signature.methods());

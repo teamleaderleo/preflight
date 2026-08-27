@@ -765,7 +765,10 @@ final class AdapterTargetRegistry {
                         new AdapterTarget.RequiredMethod(
                                 FrameTimePlan.ACTIVE_METHOD, FrameTimePlan.ACTIVE_DESCRIPTOR),
                         new AdapterTarget.RequiredMethod(
-                                FrameTimePlan.VSYNC_METHOD, FrameTimePlan.VSYNC_DESCRIPTOR)),
+                                FrameTimePlan.VSYNC_METHOD, FrameTimePlan.VSYNC_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                FrameTimePlan.SWAP_INTERVAL_METHOD,
+                                FrameTimePlan.SWAP_INTERVAL_DESCRIPTOR)),
                 "STARSECTOR_CORE",
                 "contents/resources/java/lwjgl.jar",
                 "527d509f60132e5b2653c7fc0f8cf299d6f698f4a8013342bef47705dc57ed3f",

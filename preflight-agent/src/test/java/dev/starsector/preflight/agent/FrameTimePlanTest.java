@@ -50,6 +50,8 @@ class FrameTimePlanTest {
                 FrameTimePlan.ACTIVE_DESCRIPTOR), RUNTIME, "observeActive"));
         assertEquals(1, calls(method(owner, FrameTimePlan.VSYNC_METHOD,
                 FrameTimePlan.VSYNC_DESCRIPTOR), RUNTIME, "requestedVsync"));
+        assertEquals(1, calls(method(owner, FrameTimePlan.SWAP_INTERVAL_METHOD,
+                FrameTimePlan.SWAP_INTERVAL_DESCRIPTOR), RUNTIME, "observeSwapInterval"));
         assertEquals(true, FrameTimeRuntime.telemetry().get("installed"));
     }
 
@@ -110,9 +112,21 @@ class FrameTimePlanTest {
         MethodVisitor vsync = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
                 FrameTimePlan.VSYNC_METHOD, FrameTimePlan.VSYNC_DESCRIPTOR, null, null);
         vsync.visitCode();
+        vsync.visitVarInsn(Opcodes.ILOAD, 0);
+        vsync.visitMethodInsn(Opcodes.INVOKESTATIC, FrameTimePlan.TARGET_CLASS,
+                FrameTimePlan.SWAP_INTERVAL_METHOD,
+                FrameTimePlan.SWAP_INTERVAL_DESCRIPTOR, false);
         vsync.visitInsn(Opcodes.RETURN);
-        vsync.visitMaxs(0, 1);
+        vsync.visitMaxs(1, 1);
         vsync.visitEnd();
+
+        MethodVisitor swapInterval = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                FrameTimePlan.SWAP_INTERVAL_METHOD,
+                FrameTimePlan.SWAP_INTERVAL_DESCRIPTOR, null, null);
+        swapInterval.visitCode();
+        swapInterval.visitInsn(Opcodes.RETURN);
+        swapInterval.visitMaxs(0, 1);
+        swapInterval.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
     }

@@ -355,8 +355,8 @@ class FrameTimeRuntimeTest {
     void attributesSlowFramesAcrossGameWorkSwapAndMessagePhases() {
         FrameTimeRuntime.beginSession(true);
         FrameTimeRuntime.recordBoundary(0L);
-        FrameTimeRuntime.recordSwapStarted(20_000_000L);
-        FrameTimeRuntime.recordSwapCompleted(35_000_000L);
+        FrameTimeRuntime.recordSwapStarted(20_000_000L, 1_000_000L);
+        FrameTimeRuntime.recordSwapCompleted(35_000_000L, 4_000_000L);
         FrameTimeRuntime.recordMessagesStarted(36_000_000L);
         FrameTimeRuntime.recordMessagesCompleted(37_000_000L);
         FrameTimeRuntime.recordBoundary(40_000_000L);
@@ -370,12 +370,20 @@ class FrameTimeRuntimeTest {
         assertEquals(1L, all.get("slowFramesWherePreSwapWasLargest"));
         assertEquals(20_000.0, map(all.get("preSwap")).get("maximumMicros"));
         assertEquals(15_000.0, map(all.get("nativeSwap")).get("maximumMicros"));
+        assertEquals(1L, all.get("swapThreadCpuCompleteFrames"));
+        assertEquals(0L, all.get("swapThreadCpuUnavailableFrames"));
+        assertEquals(3_000.0, map(all.get("nativeSwapThreadCpu")).get("maximumMicros"));
+        assertEquals(12_000.0,
+                map(all.get("nativeSwapInferredOffCpu")).get("maximumMicros"));
         assertEquals(1_000.0, map(all.get("messageProcessing")).get("maximumMicros"));
         assertEquals(4_000.0, map(all.get("otherAfterSwap")).get("maximumMicros"));
         Map<String, Object> worst = map(list(all.get("worstFrames")).get(0));
         assertEquals(40_000L, worst.get("durationMicros"));
         assertEquals(20_000L, worst.get("preSwapMicros"));
         assertEquals(15_000L, worst.get("swapMicros"));
+        assertEquals(true, worst.get("swapThreadCpuComplete"));
+        assertEquals(3_000L, worst.get("swapThreadCpuMicros"));
+        assertEquals(12_000L, worst.get("swapInferredOffCpuMicros"));
     }
 
     @Test
@@ -391,8 +399,8 @@ class FrameTimeRuntimeTest {
         FrameTimeRuntime.recordLimiterSleepCompleted(12_500_000L);
         FrameTimeRuntime.observeCampaign();
         FrameTimeRuntime.observeCampaignPaused(true);
-        FrameTimeRuntime.recordSwapStarted(55_000_000L);
-        FrameTimeRuntime.recordSwapCompleted(56_000_000L);
+        FrameTimeRuntime.recordSwapStarted(55_000_000L, 4_000_000L);
+        FrameTimeRuntime.recordSwapCompleted(56_000_000L, 4_200_000L);
         FrameTimeRuntime.recordMessagesStarted(57_000_000L);
         FrameTimeRuntime.recordMessagesCompleted(58_000_000L);
         FrameTimeRuntime.recordBoundary(61_000_000L);
@@ -420,6 +428,30 @@ class FrameTimeRuntimeTest {
         assertEquals(10_500L, trigger.get("limiterElapsedMicros"));
         assertEquals(43_500L, trigger.get("preSwapExcludingLimiterMicros"));
         assertEquals(500L, trigger.get("limiterOvershootMicros"));
+        assertEquals(true, trigger.get("swapThreadCpuComplete"));
+        assertEquals(200L, trigger.get("swapThreadCpuMicros"));
+        assertEquals(800L, trigger.get("swapInferredOffCpuMicros"));
+    }
+
+    @Test
+    void observesRequestedVsyncAndActualSwapIntervalsWithoutChangingNormalPolicy() {
+        FrameTimeRuntime.beginSession(true, false);
+        assertEquals(true, FrameTimeRuntime.requestedVsync(true));
+        assertEquals(false, FrameTimeRuntime.requestedVsync(false));
+        FrameTimeRuntime.observeSwapInterval(1);
+        FrameTimeRuntime.observeSwapInterval(0);
+        FrameTimeRuntime.observeSwapInterval(2);
+
+        Map<String, Object> policy = map(
+                FrameTimeRuntime.telemetry().get("presentationPolicy"));
+        assertEquals(2L, policy.get("requests"));
+        assertEquals(1L, policy.get("enabledRequests"));
+        assertEquals(0L, policy.get("requestsForcedOff"));
+        assertEquals(3L, policy.get("swapIntervalRequests"));
+        assertEquals(1L, policy.get("swapIntervalZeroRequests"));
+        assertEquals(1L, policy.get("swapIntervalOneRequests"));
+        assertEquals(1L, policy.get("swapIntervalOtherRequests"));
+        assertEquals(2, policy.get("lastSwapInterval"));
     }
 
     @Test

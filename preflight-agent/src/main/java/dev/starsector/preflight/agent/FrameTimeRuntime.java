@@ -1,5 +1,7 @@
 package dev.starsector.preflight.agent;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -9,7 +11,7 @@ import java.util.Map;
 
 /** Low-allocation frame-pacing telemetry at LWJGL's display-update boundary. */
 public final class FrameTimeRuntime {
-    static final String PLAN_ID = "lwjgl-display-frame-time-and-presentation-v2";
+    static final String PLAN_ID = "lwjgl-display-frame-time-and-presentation-v3";
     static final String FORCE_VSYNC_OFF_PROPERTY = "preflight.framePacing.forceVsyncOff";
 
     private static final long HISTOGRAM_BIN_NANOS = 100_000L;
@@ -17,6 +19,8 @@ public final class FrameTimeRuntime {
     private static final int WORST_FRAME_LIMIT = 128;
     private static final int REPEATED_CLUSTER_LIMIT = 32;
     private static final long CAMPAIGN_WARMUP_NANOS = 30_000_000_000L;
+    private static final int THREAD_CPU_CLOCK_WARMUP_READS = 1_024;
+    private static final int THREAD_CPU_CLOCK_CALIBRATION_READS = 10_000;
     private static final int STATE_UNKNOWN = 0;
     private static final int STATE_CAMPAIGN = 1;
     private static final int STATE_COMBAT = 2;
@@ -51,6 +55,11 @@ public final class FrameTimeRuntime {
     private static volatile long vsyncRequests;
     private static volatile long vsyncEnabledRequests;
     private static volatile long vsyncRequestsForcedOff;
+    private static volatile long swapIntervalRequests;
+    private static volatile long swapIntervalZeroRequests;
+    private static volatile long swapIntervalOneRequests;
+    private static volatile long swapIntervalOtherRequests;
+    private static volatile int lastSwapInterval = Integer.MIN_VALUE;
     private static volatile long limiterSleepCalls;
     private static volatile long limiterSleepCompletions;
     private static volatile long limiterRequestedMillisTotal;
@@ -65,11 +74,23 @@ public final class FrameTimeRuntime {
     private static int measurementWindowState;
     private static long swapStartedNanos = Long.MIN_VALUE;
     private static long swapCompletedNanos = Long.MIN_VALUE;
+    private static long swapStartedThreadCpuNanos = Long.MIN_VALUE;
+    private static long swapCompletedThreadCpuNanos = Long.MIN_VALUE;
     private static long messagesStartedNanos = Long.MIN_VALUE;
     private static long messagesCompletedNanos = Long.MIN_VALUE;
     private static volatile long limiterSleepStartedNanos = Long.MIN_VALUE;
     private static volatile long limiterSleepCompletedNanos = Long.MIN_VALUE;
     private static volatile long limiterSleepRequestedMillis;
+    private static volatile boolean threadCpuClockInitialized;
+    private static volatile boolean threadCpuClockSupported;
+    private static volatile boolean threadCpuClockEnabled;
+    private static volatile ThreadMXBean threadCpuClock;
+    private static volatile String threadCpuClockProblem;
+    private static volatile long threadCpuClockCalibrationSamples;
+    private static volatile long threadCpuClockCalibrationTotalNanos;
+    private static volatile long threadCpuClockCalibrationMaximumNanos;
+    private static volatile long threadCpuClockReads;
+    private static volatile long threadCpuClockReadFailures;
     private static final Distribution allActive = new Distribution();
     private static final Distribution postStartupActive = new Distribution();
     private static final Distribution postInteractiveActive = new Distribution();
@@ -118,6 +139,13 @@ public final class FrameTimeRuntime {
         vsyncRequests = 0L;
         vsyncEnabledRequests = 0L;
         vsyncRequestsForcedOff = 0L;
+        swapIntervalRequests = 0L;
+        swapIntervalZeroRequests = 0L;
+        swapIntervalOneRequests = 0L;
+        swapIntervalOtherRequests = 0L;
+        lastSwapInterval = Integer.MIN_VALUE;
+        threadCpuClockReads = 0L;
+        threadCpuClockReadFailures = 0L;
         limiterSleepCalls = 0L;
         limiterSleepCompletions = 0L;
         limiterRequestedMillisTotal = 0L;
@@ -152,6 +180,7 @@ public final class FrameTimeRuntime {
         campaignActivePhases.reset();
         campaignAfter30SecondsActivePhases.reset();
         HitchPacketRuntime.beginSession(telemetryRequested);
+        initializeThreadCpuClock(telemetryRequested);
     }
 
     static synchronized void installed() {
@@ -168,6 +197,67 @@ public final class FrameTimeRuntime {
 
     static boolean planEnabled() {
         return enabled || smoothFramePacing;
+    }
+
+    private static synchronized void initializeThreadCpuClock(boolean requested) {
+        if (!requested || threadCpuClockInitialized) return;
+        threadCpuClockInitialized = true;
+        try {
+            ThreadMXBean candidate = ManagementFactory.getThreadMXBean();
+            threadCpuClockSupported = candidate.isCurrentThreadCpuTimeSupported();
+            threadCpuClockEnabled = threadCpuClockSupported
+                    && candidate.isThreadCpuTimeEnabled();
+            if (!threadCpuClockEnabled) {
+                threadCpuClockProblem = threadCpuClockSupported
+                        ? "current-thread CPU time is disabled"
+                        : "current-thread CPU time is unsupported";
+                return;
+            }
+            for (int index = 0; index < THREAD_CPU_CLOCK_WARMUP_READS; index++) {
+                if (candidate.getCurrentThreadCpuTime() < 0L) {
+                    threadCpuClockProblem = "current-thread CPU clock returned an unavailable value";
+                    return;
+                }
+            }
+            long totalNanos = 0L;
+            long maximumNanos = 0L;
+            for (int index = 0; index < THREAD_CPU_CLOCK_CALIBRATION_READS; index++) {
+                long startedNanos = System.nanoTime();
+                long cpuNanos = candidate.getCurrentThreadCpuTime();
+                long elapsedNanos = System.nanoTime() - startedNanos;
+                if (cpuNanos < 0L) {
+                    threadCpuClockProblem = "current-thread CPU clock returned an unavailable value";
+                    return;
+                }
+                totalNanos += elapsedNanos;
+                maximumNanos = Math.max(maximumNanos, elapsedNanos);
+            }
+            threadCpuClockCalibrationSamples = THREAD_CPU_CLOCK_CALIBRATION_READS;
+            threadCpuClockCalibrationTotalNanos = totalNanos;
+            threadCpuClockCalibrationMaximumNanos = maximumNanos;
+            threadCpuClock = candidate;
+        } catch (RuntimeException | LinkageError problem) {
+            threadCpuClockProblem = problem.getClass().getName()
+                    + (problem.getMessage() == null ? "" : ": " + problem.getMessage());
+        }
+    }
+
+    private static long readThreadCpuTime() {
+        ThreadMXBean clock = threadCpuClock;
+        if (clock == null) return Long.MIN_VALUE;
+        threadCpuClockReads++;
+        try {
+            long value = clock.getCurrentThreadCpuTime();
+            if (value >= 0L) return value;
+            threadCpuClockReadFailures++;
+            threadCpuClockProblem = "current-thread CPU clock returned an unavailable value";
+        } catch (RuntimeException | LinkageError problem) {
+            threadCpuClockReadFailures++;
+            threadCpuClockProblem = problem.getClass().getName()
+                    + (problem.getMessage() == null ? "" : ": " + problem.getMessage());
+        }
+        threadCpuClock = null;
+        return Long.MIN_VALUE;
     }
 
     /** Observes the focus result Starsector already requested; it performs no additional OS query. */
@@ -205,12 +295,18 @@ public final class FrameTimeRuntime {
 
     /** Timestamp immediately before LWJGL hands the rendered frame to the native presentation path. */
     public static void beforeSwap() {
-        if (enabled) recordSwapStarted(System.nanoTime());
+        if (!enabled) return;
+        long wallNanos = System.nanoTime();
+        long threadCpuNanos = readThreadCpuTime();
+        recordSwapStarted(wallNanos, threadCpuNanos);
     }
 
     /** Timestamp immediately after the native buffer swap returns. */
     public static void afterSwap() {
-        if (enabled) recordSwapCompleted(System.nanoTime());
+        if (!enabled) return;
+        long threadCpuNanos = readThreadCpuTime();
+        long wallNanos = System.nanoTime();
+        recordSwapCompleted(wallNanos, threadCpuNanos);
     }
 
     /** Timestamp immediately before LWJGL processes native window and input messages. */
@@ -235,14 +331,24 @@ public final class FrameTimeRuntime {
 
     /** Applies the opt-in presentation experiment without changing Starsector's FPS cap. */
     public static boolean requestedVsync(boolean requested) {
-        if (!smoothFramePacing) return requested;
         vsyncRequests++;
         if (requested) vsyncEnabledRequests++;
+        if (!smoothFramePacing) return requested;
         if (requested) {
             vsyncRequestsForcedOff++;
             return false;
         }
         return requested;
+    }
+
+    /** Observes LWJGL's actual swap-interval request after any reviewed policy adjustment. */
+    public static void observeSwapInterval(int interval) {
+        if (!planEnabled()) return;
+        swapIntervalRequests++;
+        lastSwapInterval = interval;
+        if (interval == 0) swapIntervalZeroRequests++;
+        else if (interval == 1) swapIntervalOneRequests++;
+        else swapIntervalOtherRequests++;
     }
 
     /** Marks one completed game-loop/display-update boundary. */
@@ -268,11 +374,21 @@ public final class FrameTimeRuntime {
     }
 
     static void recordSwapStarted(long now) {
-        swapStartedNanos = now;
+        recordSwapStarted(now, Long.MIN_VALUE);
+    }
+
+    static void recordSwapStarted(long wallNanos, long threadCpuNanos) {
+        swapStartedNanos = wallNanos;
+        swapStartedThreadCpuNanos = threadCpuNanos;
     }
 
     static void recordSwapCompleted(long now) {
-        swapCompletedNanos = now;
+        recordSwapCompleted(now, Long.MIN_VALUE);
+    }
+
+    static void recordSwapCompleted(long wallNanos, long threadCpuNanos) {
+        swapCompletedNanos = wallNanos;
+        swapCompletedThreadCpuNanos = threadCpuNanos;
     }
 
     static void recordMessagesStarted(long now) {
@@ -428,6 +544,9 @@ public final class FrameTimeRuntime {
                     allActivePhases.lastComplete,
                     allActivePhases.lastPreSwapNanos,
                     allActivePhases.lastSwapNanos,
+                    allActivePhases.lastSwapThreadCpuComplete,
+                    allActivePhases.lastSwapThreadCpuNanos,
+                    allActivePhases.lastSwapOffCpuNanos,
                     allActivePhases.lastMessageNanos,
                     allActivePhases.lastOtherNanos,
                     allActivePhases.lastLimiterComplete,
@@ -467,8 +586,34 @@ public final class FrameTimeRuntime {
         presentationPolicy.put("requests", vsyncRequests);
         presentationPolicy.put("enabledRequests", vsyncEnabledRequests);
         presentationPolicy.put("requestsForcedOff", vsyncRequestsForcedOff);
+        presentationPolicy.put("swapIntervalRequests", swapIntervalRequests);
+        presentationPolicy.put("swapIntervalZeroRequests", swapIntervalZeroRequests);
+        presentationPolicy.put("swapIntervalOneRequests", swapIntervalOneRequests);
+        presentationPolicy.put("swapIntervalOtherRequests", swapIntervalOtherRequests);
+        presentationPolicy.put("lastSwapInterval",
+                lastSwapInterval == Integer.MIN_VALUE ? null : lastSwapInterval);
         presentationPolicy.put("frameRateCap", "unchanged; owned by Starsector's main loop");
         result.put("presentationPolicy", presentationPolicy);
+        Map<String, Object> threadCpu = new LinkedHashMap<>();
+        threadCpu.put("initialized", threadCpuClockInitialized);
+        threadCpu.put("supported", threadCpuClockSupported);
+        threadCpu.put("enabled", threadCpuClockEnabled);
+        threadCpu.put("available", threadCpuClock != null);
+        threadCpu.put("problem", threadCpuClockProblem);
+        threadCpu.put("calibrationSamples", threadCpuClockCalibrationSamples);
+        threadCpu.put("calibrationAverageNanosPerRead",
+                threadCpuClockCalibrationSamples == 0L ? null
+                        : threadCpuClockCalibrationTotalNanos * 1.0
+                                / threadCpuClockCalibrationSamples);
+        threadCpu.put("calibrationMaximumNanosPerRead",
+                threadCpuClockCalibrationSamples == 0L ? null
+                        : threadCpuClockCalibrationMaximumNanos);
+        threadCpu.put("hotPathReads", threadCpuClockReads);
+        threadCpu.put("readFailures", threadCpuClockReadFailures);
+        threadCpu.put("classification", "thin measurement instrumentation");
+        threadCpu.put("scope",
+                "current render-thread CPU time around native swap; off-CPU is wall minus CPU");
+        result.put("presentationThreadCpuClock", threadCpu);
         Map<String, Object> limiter = new LinkedHashMap<>();
         limiter.put("planId", FrameLimiterTimePlan.PLAN_ID);
         limiter.put("installed", limiterInstalled);
@@ -524,8 +669,11 @@ public final class FrameTimeRuntime {
         result.put("measurementWindow", window);
         Map<String, Object> displayPhases = new LinkedHashMap<>();
         displayPhases.put("baseTimestampReadsPerPresentedFrame", 6);
+        displayPhases.put("baseWallTimestampReadsPerPresentedFrame", 6);
+        displayPhases.put("additionalThreadCpuClockReadsPerPresentedFrame",
+                threadCpuClock != null ? 2 : 0);
         displayPhases.put("additionalTimestampReadsPerCampaignLimiterCall", 2);
-        displayPhases.put("scope", "pre-swap split by exact campaign limiter sleep, native swap, and messages");
+        displayPhases.put("scope", "pre-swap split by exact campaign limiter sleep; native swap split into current-thread CPU and inferred off-CPU wait; then messages");
         displayPhases.put("allActive", allActivePhases.toMap(firstBoundaryEpochMillis));
         displayPhases.put(FrameTimeTelemetry.CAMPAIGN_ACTIVE,
                 campaignActivePhases.toMap(firstBoundaryEpochMillis));
@@ -543,6 +691,8 @@ public final class FrameTimeRuntime {
     private static void resetDisplayPhaseTimestamps() {
         swapStartedNanos = Long.MIN_VALUE;
         swapCompletedNanos = Long.MIN_VALUE;
+        swapStartedThreadCpuNanos = Long.MIN_VALUE;
+        swapCompletedThreadCpuNanos = Long.MIN_VALUE;
         messagesStartedNanos = Long.MIN_VALUE;
         messagesCompletedNanos = Long.MIN_VALUE;
         limiterSleepStartedNanos = Long.MIN_VALUE;
@@ -558,6 +708,8 @@ public final class FrameTimeRuntime {
         private final PhaseStats preSwapExcludingLimiter = new PhaseStats();
         private final PhaseStats limiterSleep = new PhaseStats();
         private final PhaseStats swap = new PhaseStats();
+        private final PhaseStats swapThreadCpu = new PhaseStats();
+        private final PhaseStats swapOffCpu = new PhaseStats();
         private final PhaseStats messages = new PhaseStats();
         private final PhaseStats otherAfterSwap = new PhaseStats();
         private final long[] worstTotal = new long[WORST_LIMIT];
@@ -566,6 +718,9 @@ public final class FrameTimeRuntime {
         private final long[] worstLimiterSleep = new long[WORST_LIMIT];
         private final long[] worstLimiterRequestedMillis = new long[WORST_LIMIT];
         private final long[] worstSwap = new long[WORST_LIMIT];
+        private final long[] worstSwapThreadCpu = new long[WORST_LIMIT];
+        private final long[] worstSwapOffCpu = new long[WORST_LIMIT];
+        private final boolean[] worstSwapThreadCpuComplete = new boolean[WORST_LIMIT];
         private final long[] worstMessages = new long[WORST_LIMIT];
         private final long[] worstOther = new long[WORST_LIMIT];
         private final long[] worstOffsets = new long[WORST_LIMIT];
@@ -576,6 +731,8 @@ public final class FrameTimeRuntime {
         private long invalidOrder;
         private long limiterCompleteFrames;
         private long limiterSplitUnavailableFrames;
+        private long swapThreadCpuCompleteFrames;
+        private long swapThreadCpuUnavailableFrames;
         private long slowFrames;
         private long slowFramesPreSwapLargest;
         private long slowFramesSwapLargest;
@@ -583,6 +740,9 @@ public final class FrameTimeRuntime {
         private boolean lastComplete;
         private long lastPreSwapNanos;
         private long lastSwapNanos;
+        private boolean lastSwapThreadCpuComplete;
+        private long lastSwapThreadCpuNanos;
+        private long lastSwapOffCpuNanos;
         private long lastMessageNanos;
         private long lastOtherNanos;
         private boolean lastLimiterComplete;
@@ -597,6 +757,8 @@ public final class FrameTimeRuntime {
             preSwapExcludingLimiter.reset();
             limiterSleep.reset();
             swap.reset();
+            swapThreadCpu.reset();
+            swapOffCpu.reset();
             messages.reset();
             otherAfterSwap.reset();
             Arrays.fill(worstTotal, 0L);
@@ -605,6 +767,9 @@ public final class FrameTimeRuntime {
             Arrays.fill(worstLimiterSleep, 0L);
             Arrays.fill(worstLimiterRequestedMillis, 0L);
             Arrays.fill(worstSwap, 0L);
+            Arrays.fill(worstSwapThreadCpu, 0L);
+            Arrays.fill(worstSwapOffCpu, 0L);
+            Arrays.fill(worstSwapThreadCpuComplete, false);
             Arrays.fill(worstMessages, 0L);
             Arrays.fill(worstOther, 0L);
             Arrays.fill(worstOffsets, 0L);
@@ -615,6 +780,8 @@ public final class FrameTimeRuntime {
             invalidOrder = 0L;
             limiterCompleteFrames = 0L;
             limiterSplitUnavailableFrames = 0L;
+            swapThreadCpuCompleteFrames = 0L;
+            swapThreadCpuUnavailableFrames = 0L;
             slowFrames = 0L;
             slowFramesPreSwapLargest = 0L;
             slowFramesSwapLargest = 0L;
@@ -622,6 +789,9 @@ public final class FrameTimeRuntime {
             lastComplete = false;
             lastPreSwapNanos = 0L;
             lastSwapNanos = 0L;
+            lastSwapThreadCpuComplete = false;
+            lastSwapThreadCpuNanos = 0L;
+            lastSwapOffCpuNanos = 0L;
             lastMessageNanos = 0L;
             lastOtherNanos = 0L;
             lastLimiterComplete = false;
@@ -636,6 +806,9 @@ public final class FrameTimeRuntime {
             lastComplete = false;
             lastPreSwapNanos = 0L;
             lastSwapNanos = 0L;
+            lastSwapThreadCpuComplete = false;
+            lastSwapThreadCpuNanos = 0L;
+            lastSwapOffCpuNanos = 0L;
             lastMessageNanos = 0L;
             lastOtherNanos = 0L;
             lastLimiterComplete = false;
@@ -661,6 +834,17 @@ public final class FrameTimeRuntime {
             }
             long preSwapNanos = swapStartedNanos - previousBoundary;
             long swapNanos = swapCompletedNanos - swapStartedNanos;
+            boolean swapThreadCpuComplete = swapStartedThreadCpuNanos != Long.MIN_VALUE
+                    && swapCompletedThreadCpuNanos != Long.MIN_VALUE
+                    && swapCompletedThreadCpuNanos >= swapStartedThreadCpuNanos;
+            long swapThreadCpuNanos = swapThreadCpuComplete
+                    ? swapCompletedThreadCpuNanos - swapStartedThreadCpuNanos : 0L;
+            long swapOffCpuNanos = swapNanos - swapThreadCpuNanos;
+            if (swapThreadCpuComplete && swapOffCpuNanos < 0L) {
+                swapThreadCpuComplete = false;
+                swapThreadCpuNanos = 0L;
+                swapOffCpuNanos = 0L;
+            }
             long messageNanos = messagesPresent
                     ? messagesCompletedNanos - messagesStartedNanos : 0L;
             long afterSwapNanos = now - swapCompletedNanos;
@@ -672,6 +856,9 @@ public final class FrameTimeRuntime {
             lastComplete = true;
             lastPreSwapNanos = preSwapNanos;
             lastSwapNanos = swapNanos;
+            lastSwapThreadCpuComplete = swapThreadCpuComplete;
+            lastSwapThreadCpuNanos = swapThreadCpuNanos;
+            lastSwapOffCpuNanos = swapOffCpuNanos;
             lastMessageNanos = messageNanos;
             lastOtherNanos = otherNanos;
             boolean limiterComplete = limiterInstalled
@@ -702,6 +889,13 @@ public final class FrameTimeRuntime {
                 limiterSplitUnavailableFrames++;
             }
             swap.record(swapNanos);
+            if (swapThreadCpuComplete) {
+                swapThreadCpuCompleteFrames++;
+                swapThreadCpu.record(swapThreadCpuNanos);
+                swapOffCpu.record(swapOffCpuNanos);
+            } else {
+                swapThreadCpuUnavailableFrames++;
+            }
             messages.record(messageNanos);
             otherAfterSwap.record(otherNanos);
             if (total > SLOW_FRAME_NANOS) {
@@ -714,7 +908,8 @@ public final class FrameTimeRuntime {
                     slowFramesAfterSwapLargest++;
                 }
             }
-            retainWorst(total, preSwapNanos, swapNanos, messageNanos, otherNanos,
+            retainWorst(total, preSwapNanos, swapNanos, swapThreadCpuComplete,
+                    swapThreadCpuNanos, swapOffCpuNanos, messageNanos, otherNanos,
                     limiterComplete, limiterSleepRequestedMillis, limiterNanos,
                     preSwapExcludingLimiterNanos, endOffset);
         }
@@ -732,6 +927,10 @@ public final class FrameTimeRuntime {
             values.put("limiterSleep", limiterSleep.toMap());
             values.put("preSwapExcludingLimiter", preSwapExcludingLimiter.toMap());
             values.put("nativeSwap", swap.toMap());
+            values.put("swapThreadCpuCompleteFrames", swapThreadCpuCompleteFrames);
+            values.put("swapThreadCpuUnavailableFrames", swapThreadCpuUnavailableFrames);
+            values.put("nativeSwapThreadCpu", swapThreadCpu.toMap());
+            values.put("nativeSwapInferredOffCpu", swapOffCpu.toMap());
             values.put("messageProcessing", messages.toMap());
             values.put("otherAfterSwap", otherAfterSwap.toMap());
             values.put("framesOver33_33Millis", slowFrames);
@@ -758,6 +957,11 @@ public final class FrameTimeRuntime {
                                     - worstLimiterRequestedMillis[index] * 1_000L);
                 }
                 frame.put("swapMicros", worstSwap[index] / 1_000L);
+                frame.put("swapThreadCpuComplete", worstSwapThreadCpuComplete[index]);
+                if (worstSwapThreadCpuComplete[index]) {
+                    frame.put("swapThreadCpuMicros", worstSwapThreadCpu[index] / 1_000L);
+                    frame.put("swapInferredOffCpuMicros", worstSwapOffCpu[index] / 1_000L);
+                }
                 frame.put("messageMicros", worstMessages[index] / 1_000L);
                 frame.put("otherAfterSwapMicros", worstOther[index] / 1_000L);
                 frame.put("endOffsetMillis", worstOffsets[index] / 1_000_000.0);
@@ -769,8 +973,9 @@ public final class FrameTimeRuntime {
             return values;
         }
 
-        private void retainWorst(long total, long preSwapNanos, long swapNanos, long message,
-                long other, boolean limiterComplete, long limiterRequestedMillis,
+        private void retainWorst(long total, long preSwapNanos, long swapNanos,
+                boolean swapThreadCpuComplete, long swapThreadCpuNanos, long swapOffCpuNanos,
+                long message, long other, boolean limiterComplete, long limiterRequestedMillis,
                 long limiterNanos, long preSwapExcludingLimiterNanos, long endOffset) {
             int target;
             if (worstCount < WORST_LIMIT) {
@@ -785,6 +990,9 @@ public final class FrameTimeRuntime {
             worstLimiterSleep[target] = limiterNanos;
             worstPreSwapExcludingLimiter[target] = preSwapExcludingLimiterNanos;
             worstSwap[target] = swapNanos;
+            worstSwapThreadCpuComplete[target] = swapThreadCpuComplete;
+            worstSwapThreadCpu[target] = swapThreadCpuNanos;
+            worstSwapOffCpu[target] = swapOffCpuNanos;
             worstMessages[target] = message;
             worstOther[target] = other;
             worstOffsets[target] = endOffset;

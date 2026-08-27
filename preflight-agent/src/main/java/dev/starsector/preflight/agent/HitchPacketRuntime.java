@@ -29,6 +29,8 @@ final class HitchPacketRuntime {
     private static final long[] recentTotal = new long[RECENT_FRAME_CAPACITY];
     private static final long[] recentPreSwap = new long[RECENT_FRAME_CAPACITY];
     private static final long[] recentSwap = new long[RECENT_FRAME_CAPACITY];
+    private static final long[] recentSwapThreadCpu = new long[RECENT_FRAME_CAPACITY];
+    private static final long[] recentSwapOffCpu = new long[RECENT_FRAME_CAPACITY];
     private static final long[] recentMessages = new long[RECENT_FRAME_CAPACITY];
     private static final long[] recentOther = new long[RECENT_FRAME_CAPACITY];
     private static final long[] recentLimiterRequestedMillis = new long[RECENT_FRAME_CAPACITY];
@@ -37,6 +39,8 @@ final class HitchPacketRuntime {
     private static final int[] recentState = new int[RECENT_FRAME_CAPACITY];
     private static final int[] recentPause = new int[RECENT_FRAME_CAPACITY];
     private static final boolean[] recentPhasesComplete = new boolean[RECENT_FRAME_CAPACITY];
+    private static final boolean[] recentSwapThreadCpuComplete =
+            new boolean[RECENT_FRAME_CAPACITY];
     private static final boolean[] recentLimiterComplete = new boolean[RECENT_FRAME_CAPACITY];
 
     private static final int PACKET_FRAME_SLOTS = PACKET_LIMIT * PACKET_FRAME_CAPACITY;
@@ -46,12 +50,16 @@ final class HitchPacketRuntime {
     private static final long[] packetTotal = new long[PACKET_FRAME_SLOTS];
     private static final long[] packetPreSwap = new long[PACKET_FRAME_SLOTS];
     private static final long[] packetSwap = new long[PACKET_FRAME_SLOTS];
+    private static final long[] packetSwapThreadCpu = new long[PACKET_FRAME_SLOTS];
+    private static final long[] packetSwapOffCpu = new long[PACKET_FRAME_SLOTS];
     private static final long[] packetMessages = new long[PACKET_FRAME_SLOTS];
     private static final long[] packetOther = new long[PACKET_FRAME_SLOTS];
     private static final long[] packetLimiterRequestedMillis = new long[PACKET_FRAME_SLOTS];
     private static final long[] packetLimiter = new long[PACKET_FRAME_SLOTS];
     private static final long[] packetPreSwapExcludingLimiter = new long[PACKET_FRAME_SLOTS];
     private static final boolean[] packetPhasesComplete = new boolean[PACKET_FRAME_SLOTS];
+    private static final boolean[] packetSwapThreadCpuComplete =
+            new boolean[PACKET_FRAME_SLOTS];
     private static final boolean[] packetLimiterComplete = new boolean[PACKET_FRAME_SLOTS];
     private static final int[] packetFrameCounts = new int[PACKET_LIMIT];
     private static final int[] packetStates = new int[PACKET_LIMIT];
@@ -155,6 +163,9 @@ final class HitchPacketRuntime {
             boolean phasesComplete,
             long preSwapNanos,
             long swapNanos,
+            boolean swapThreadCpuComplete,
+            long swapThreadCpuNanos,
+            long swapOffCpuNanos,
             long messagesNanos,
             long otherAfterSwapNanos,
             boolean limiterComplete,
@@ -167,7 +178,9 @@ final class HitchPacketRuntime {
         }
         long totalNanos = endedNanos - startedNanos;
         appendRecent(sequence, startedNanos, endedNanos, state, pause, phasesComplete,
-                totalNanos, preSwapNanos, swapNanos, messagesNanos, otherAfterSwapNanos,
+                totalNanos, preSwapNanos, swapNanos,
+                swapThreadCpuComplete, swapThreadCpuNanos, swapOffCpuNanos,
+                messagesNanos, otherAfterSwapNanos,
                 limiterComplete, limiterRequestedMillis, limiterNanos,
                 preSwapExcludingLimiterNanos);
         boolean trigger = totalNanos >= TRIGGER_NANOS;
@@ -246,6 +259,9 @@ final class HitchPacketRuntime {
             long totalNanos,
             long preSwapNanos,
             long swapNanos,
+            boolean swapThreadCpuComplete,
+            long swapThreadCpuNanos,
+            long swapOffCpuNanos,
             long messagesNanos,
             long otherAfterSwapNanos,
             boolean limiterComplete,
@@ -269,6 +285,9 @@ final class HitchPacketRuntime {
         recentTotal[target] = totalNanos;
         recentPreSwap[target] = preSwapNanos;
         recentSwap[target] = swapNanos;
+        recentSwapThreadCpuComplete[target] = swapThreadCpuComplete;
+        recentSwapThreadCpu[target] = swapThreadCpuNanos;
+        recentSwapOffCpu[target] = swapOffCpuNanos;
         recentMessages[target] = messagesNanos;
         recentOther[target] = otherAfterSwapNanos;
         recentLimiterComplete[target] = limiterComplete;
@@ -337,6 +356,9 @@ final class HitchPacketRuntime {
         packetTotal[target] = recentTotal[recent];
         packetPreSwap[target] = recentPreSwap[recent];
         packetSwap[target] = recentSwap[recent];
+        packetSwapThreadCpuComplete[target] = recentSwapThreadCpuComplete[recent];
+        packetSwapThreadCpu[target] = recentSwapThreadCpu[recent];
+        packetSwapOffCpu[target] = recentSwapOffCpu[recent];
         packetMessages[target] = recentMessages[recent];
         packetOther[target] = recentOther[recent];
         packetLimiterComplete[target] = recentLimiterComplete[recent];
@@ -415,6 +437,11 @@ final class HitchPacketRuntime {
             if (packetPhasesComplete[slot]) {
                 value.put("preSwapMicros", packetPreSwap[slot] / 1_000L);
                 value.put("nativeSwapMicros", packetSwap[slot] / 1_000L);
+                value.put("swapThreadCpuComplete", packetSwapThreadCpuComplete[slot]);
+                if (packetSwapThreadCpuComplete[slot]) {
+                    value.put("swapThreadCpuMicros", packetSwapThreadCpu[slot] / 1_000L);
+                    value.put("swapInferredOffCpuMicros", packetSwapOffCpu[slot] / 1_000L);
+                }
                 value.put("messageMicros", packetMessages[slot] / 1_000L);
                 value.put("otherAfterSwapMicros", packetOther[slot] / 1_000L);
             }

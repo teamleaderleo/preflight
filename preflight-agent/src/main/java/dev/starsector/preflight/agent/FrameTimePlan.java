@@ -21,6 +21,8 @@ final class FrameTimePlan {
     static final String ACTIVE_DESCRIPTOR = "()Z";
     static final String VSYNC_METHOD = "setVSyncEnabled";
     static final String VSYNC_DESCRIPTOR = "(Z)V";
+    static final String SWAP_INTERVAL_METHOD = "setSwapInterval";
+    static final String SWAP_INTERVAL_DESCRIPTOR = "(I)V";
 
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/FrameTimeRuntime";
@@ -35,7 +37,8 @@ final class FrameTimePlan {
                 || signature.majorVersion() != 49
                 || !signature.hasMethod(UPDATE_METHOD, UPDATE_DESCRIPTOR)
                 || !signature.hasMethod(ACTIVE_METHOD, ACTIVE_DESCRIPTOR)
-                || !signature.hasMethod(VSYNC_METHOD, VSYNC_DESCRIPTOR)) {
+                || !signature.hasMethod(VSYNC_METHOD, VSYNC_DESCRIPTOR)
+                || !signature.hasMethod(SWAP_INTERVAL_METHOD, SWAP_INTERVAL_DESCRIPTOR)) {
             return null;
         }
 
@@ -44,7 +47,8 @@ final class FrameTimePlan {
         MethodNode update = unique(owner, UPDATE_METHOD, UPDATE_DESCRIPTOR);
         MethodNode active = unique(owner, ACTIVE_METHOD, ACTIVE_DESCRIPTOR);
         MethodNode vsync = unique(owner, VSYNC_METHOD, VSYNC_DESCRIPTOR);
-        if (update == null || active == null || vsync == null
+        MethodNode swapInterval = unique(owner, SWAP_INTERVAL_METHOD, SWAP_INTERVAL_DESCRIPTOR);
+        if (update == null || active == null || vsync == null || swapInterval == null
                 || returns(update, Opcodes.RETURN) != 1
                 || returns(active, Opcodes.IRETURN) != 1
                 || calls(update, TARGET_CLASS, "swapBuffers") != 1
@@ -55,7 +59,9 @@ final class FrameTimePlan {
                 || calls(update, RUNTIME, "beforeMessages") != 0
                 || calls(update, RUNTIME, "afterMessages") != 0
                 || calls(active, RUNTIME, "observeActive") != 0
-                || calls(vsync, RUNTIME, "requestedVsync") != 0) {
+                || calls(vsync, RUNTIME, "requestedVsync") != 0
+                || calls(vsync, TARGET_CLASS, SWAP_INTERVAL_METHOD) != 1
+                || calls(swapInterval, RUNTIME, "observeSwapInterval") != 0) {
             return null;
         }
 
@@ -85,6 +91,12 @@ final class FrameTimePlan {
                 Opcodes.INVOKESTATIC, RUNTIME, "requestedVsync", "(Z)Z", false));
         vsyncPolicy.add(new org.objectweb.asm.tree.VarInsnNode(Opcodes.ISTORE, 0));
         vsync.instructions.insert(vsyncPolicy);
+
+        InsnList swapIntervalObservation = new InsnList();
+        swapIntervalObservation.add(new org.objectweb.asm.tree.VarInsnNode(Opcodes.ILOAD, 0));
+        swapIntervalObservation.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "observeSwapInterval", "(I)V", false));
+        swapInterval.instructions.insert(swapIntervalObservation);
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
