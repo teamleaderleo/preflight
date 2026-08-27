@@ -224,6 +224,7 @@ final class DesktopSmokeScenarioTest {
 
         assertEquals("campaign-simulation-combat-1000dp-thin", scenario.view().get("name"));
         assertFalse(scenario.sampleRecording());
+        assertTrue(scenario.stepIds().contains("hold-combat-for-camera-setup"));
         assertTrue(scenario.stepIds().contains("begin-frame-window"));
         assertTrue(scenario.stepIds().contains("combat-sample-1040dp"));
         assertTrue(scenario.stepIds().contains("end-frame-window"));

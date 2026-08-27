@@ -156,8 +156,9 @@ game: named actions use the closed in-game channel and its remaining macOS keyst
 the exact recorded PID. It then replaces the deployed ships with mirrored 24-ship fast high-tech
 fleets through the closed in-game runtime action.
 Each side is 520 DP, so its retained 30-second 2× window is a controlled 1,040-DP combat stress
-workload rather than the stock dialog's fleet-order-biased selection. It remains paused until
-autopilot, command-map, speed, and verified zoom setup are complete, and it never saves the fixture.
+workload rather than the stock dialog's fleet-order-biased selection. The thin comparison route
+re-pauses after autopilot, command-map, and speed setup, holds that state through verified camera
+setup, and unpauses only immediately before the measurement window. It never saves the fixture.
 The `-thin` variant keeps those semantic phases and disables JFR recording. It centers the LWJGL
 cursor once, then uses the public viewport's external-control mode to hold the combat camera at the
 battlefield origin and an exact 4.000 multiplier instead of relying on timing-sensitive wheel easing
