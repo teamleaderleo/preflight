@@ -263,6 +263,9 @@ final class AdapterTransformationRegistry {
         if (AiTweaksEngagementRangeRuntime.PLAN_ID.equals(target.planId())) {
             return AiTweaksEngagementRangePlan.transform(signature, originalBytes);
         }
+        if (AiTweaksSplitArcsPlan.PLAN_ID.equals(target.planId())) {
+            return AiTweaksSplitArcsPlan.transform(signature, originalBytes);
+        }
         if (AshLibVariantLookupRuntime.PLAN_ID.equals(target.planId())) {
             byte[] optimized = AshLibVariantLookupPlan.transform(signature, originalBytes);
             if (optimized == null || !StartupPhaseRuntime.phaseProbeEnabled()
@@ -869,6 +872,9 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (AiTweaksEngagementRangeRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (AiTweaksSplitArcsPlan.PLAN_ID.equals(planId)) {
             return true;
         }
         if (AshLibVariantLookupRuntime.PLAN_ID.equals(planId)) {

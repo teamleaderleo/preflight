@@ -199,6 +199,22 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    /** AI Tweaks 2.2.10 grows two bounded temporary arc lists on every facing pass. */
+    static AdapterTarget aiTweaksSplitArcsTarget() {
+        return new AdapterTarget(
+                "aitweaks-2.2.10-split-arcs-capacity",
+                AiTweaksSplitArcsPlan.TARGET_CLASS,
+                AiTweaksSplitArcsPlan.ORIGINAL_SHA256,
+                AiTweaksSplitArcsPlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        AiTweaksSplitArcsPlan.METHOD, AiTweaksSplitArcsPlan.DESCRIPTOR)),
+                "MOD",
+                "aitweaks-core.jar",
+                "9f6179bcd2df2e3ce8cea2da79051c9f1be3c9b71712c6c28d7568b777ecf5b2",
+                "com/genir/aitweaks/launcher/loading/CoreLoader",
+                "");
+    }
+
     /** GraphicsLib 1.12.1's exact normal-map traversal implementation and owning mod archive. */
     static AdapterTarget graphicsLibCompactReplayTarget() {
         return new AdapterTarget(
@@ -2064,6 +2080,9 @@ final class AdapterTargetRegistry {
                 .withTarget(collisionQuerySetTarget());
         if (!AudioStreamSourceErrorRuntime.disabled()) {
             registry = registry.withTarget(audioStreamSourceErrorTarget());
+        }
+        if (AiTweaksSplitArcsPlan.enabled()) {
+            registry = registry.withTarget(aiTweaksSplitArcsTarget());
         }
         return registry;
     }
