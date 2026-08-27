@@ -86,6 +86,8 @@ public final class InternalGameControlRuntime {
     private static float combatViewportExpectedMult;
     private static int combatCursorExpectedX = -1;
     private static int combatCursorExpectedY = -1;
+    private static float combatViewportExpectedCenterX = Float.NaN;
+    private static float combatViewportExpectedCenterY = Float.NaN;
     private static volatile boolean simulationEngaged;
 
     private InternalGameControlRuntime() {
@@ -359,15 +361,28 @@ public final class InternalGameControlRuntime {
             if (COMBAT_SET_STRESS_VIEWPORT_ACTION.equals(parsed.action())) {
                 int[] cursor = centerCombatCursor(engine);
                 Object viewport = viewport(engine);
+                Class<?> vector = Class.forName(
+                        "org.lwjgl.util.vector.Vector2f", false, engine.getClass().getClassLoader());
+                Method setExternalControl = viewport.getClass().getMethod(
+                        "setExternalControl", boolean.class);
+                Method setCenter = viewport.getClass().getMethod("setCenter", vector);
                 Method setViewMult = viewport.getClass().getMethod("setViewMult", float.class);
-                if (setViewMult.getReturnType() != void.class) {
+                if (setExternalControl.getReturnType() != void.class
+                        || setCenter.getReturnType() != void.class
+                        || setViewMult.getReturnType() != void.class) {
                     throw new IllegalStateException("combat-viewport-setter-shape-mismatch");
                 }
+                combatViewportExpectedCenterX = 0f;
+                combatViewportExpectedCenterY = 0f;
                 combatViewportExpectedMult = 4.0f;
+                Object center = vector.getConstructor(float.class, float.class).newInstance(
+                        combatViewportExpectedCenterX, combatViewportExpectedCenterY);
+                invoke(setExternalControl, viewport, true);
+                invoke(setCenter, viewport, center);
                 invoke(setViewMult, viewport, combatViewportExpectedMult);
                 float[] after = viewportState(engine);
                 publish(parsed, "executed", String.format(java.util.Locale.ROOT,
-                                "set exact combat stress viewport: viewMult %.3f, visibleWidth %.1f, cursor (%d,%d)",
+                                "set exact externally controlled combat stress viewport: viewMult %.3f, visibleWidth %.1f, center (0,0), cursor (%d,%d)",
                                 after[0], after[1], cursor[0], cursor[1]),
                         accepted, Instant.now(), "combat-engine.advance", COMBAT_STATE, null, null);
                 return;
@@ -381,21 +396,23 @@ public final class InternalGameControlRuntime {
                         && viewport[1] >= combatViewportBaselineWidth * 1.05f;
                 boolean exactExpected = combatViewportExpectedMult <= 0f
                         || Math.abs(viewport[0] - combatViewportExpectedMult) <= 0.001f;
-                int[] cursor = combatCursorState(engine);
-                boolean centered = combatCursorExpectedX < 0 || combatCursorExpectedY < 0
-                        || (Math.abs(cursor[0] - combatCursorExpectedX) <= 2
-                        && Math.abs(cursor[1] - combatCursorExpectedY) <= 2);
-                if (!wider || !exactExpected || !centered) {
+                Object viewportObject = viewport(engine);
+                boolean externalControl = viewportExternalControl(viewportObject);
+                float[] center = viewportCenter(viewportObject);
+                boolean exactCenter = Float.isNaN(combatViewportExpectedCenterX)
+                        || (Math.abs(center[0] - combatViewportExpectedCenterX) <= 0.01f
+                        && Math.abs(center[1] - combatViewportExpectedCenterY) <= 0.01f);
+                if (!wider || !exactExpected || !externalControl || !exactCenter) {
                     throw new IllegalStateException(String.format(java.util.Locale.ROOT,
-                            "combat-stress-viewport-mismatch: viewMult %.3f -> %.3f, visibleWidth %.1f -> %.1f, cursor (%d,%d) expected (%d,%d)",
+                            "combat-stress-viewport-mismatch: viewMult %.3f -> %.3f, visibleWidth %.1f -> %.1f, center (%.1f,%.1f), externalControl %s",
                             combatViewportBaselineMult, viewport[0],
-                            combatViewportBaselineWidth, viewport[1], cursor[0], cursor[1],
-                            combatCursorExpectedX, combatCursorExpectedY));
+                            combatViewportBaselineWidth, viewport[1], center[0], center[1],
+                            externalControl));
                 }
                 publish(parsed, "executed", String.format(java.util.Locale.ROOT,
-                                "verified combat stress viewport: viewMult %.3f -> %.3f, visibleWidth %.1f -> %.1f, cursor (%d,%d)",
+                                "verified externally controlled combat stress viewport: viewMult %.3f -> %.3f, visibleWidth %.1f -> %.1f, center (%.1f,%.1f)",
                                 combatViewportBaselineMult, viewport[0],
-                                combatViewportBaselineWidth, viewport[1], cursor[0], cursor[1]),
+                                combatViewportBaselineWidth, viewport[1], center[0], center[1]),
                         accepted, Instant.now(), "combat-engine.advance", COMBAT_STATE, null, null);
                 clearCombatViewportBaseline();
                 return;
@@ -606,12 +623,39 @@ public final class InternalGameControlRuntime {
         return new int[] {(Integer) invoke(getX, null), (Integer) invoke(getY, null)};
     }
 
+    private static boolean viewportExternalControl(Object viewport)
+            throws ReflectiveOperationException {
+        Method method = viewport.getClass().getMethod("isExternalControl");
+        if (method.getReturnType() != boolean.class) {
+            throw new IllegalStateException("combat-viewport-external-control-shape-mismatch");
+        }
+        return (Boolean) invoke(method, viewport);
+    }
+
+    private static float[] viewportCenter(Object viewport) throws ReflectiveOperationException {
+        Object center = invoke(viewport.getClass().getMethod("getCenter"), viewport);
+        if (center == null) throw new IllegalStateException("combat-viewport-center-missing");
+        Field x = center.getClass().getField("x");
+        Field y = center.getClass().getField("y");
+        if (x.getType() != float.class || y.getType() != float.class) {
+            throw new IllegalStateException("combat-viewport-center-shape-mismatch");
+        }
+        float centerX = x.getFloat(center);
+        float centerY = y.getFloat(center);
+        if (!Float.isFinite(centerX) || !Float.isFinite(centerY)) {
+            throw new IllegalStateException("combat-viewport-center-invalid");
+        }
+        return new float[] {centerX, centerY};
+    }
+
     private static void clearCombatViewportBaseline() {
         combatViewportBaselineMult = 0f;
         combatViewportBaselineWidth = 0f;
         combatViewportExpectedMult = 0f;
         combatCursorExpectedX = -1;
         combatCursorExpectedY = -1;
+        combatViewportExpectedCenterX = Float.NaN;
+        combatViewportExpectedCenterY = Float.NaN;
     }
 
     private static String executeSimulationAction(Object dialog, String action)
