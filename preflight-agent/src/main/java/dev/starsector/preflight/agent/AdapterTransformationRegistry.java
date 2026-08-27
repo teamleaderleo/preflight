@@ -266,6 +266,9 @@ final class AdapterTransformationRegistry {
         if (AiTweaksAffineVectorPlan.PLAN_ID.equals(target.planId())) {
             return AiTweaksAffineVectorPlan.transform(signature, originalBytes);
         }
+        if (AiTweaksWeaponLocationSnapshotPlan.PLAN_ID.equals(target.planId())) {
+            return AiTweaksWeaponLocationSnapshotPlan.transform(signature, originalBytes);
+        }
         if (CombatListenerRangeSnapshotPlan.PLAN_ID.equals(target.planId())) {
             return CombatListenerRangeSnapshotPlan.transform(signature, originalBytes);
         }
@@ -878,6 +881,9 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (AiTweaksAffineVectorPlan.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (AiTweaksWeaponLocationSnapshotPlan.PLAN_ID.equals(planId)) {
             return true;
         }
         if (CombatListenerRangeSnapshotPlan.PLAN_ID.equals(planId)) {

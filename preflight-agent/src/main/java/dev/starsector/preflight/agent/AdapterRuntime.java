@@ -80,6 +80,7 @@ final class AdapterRuntime {
         CombatRuntimeIntegrityRuntime.beginSession();
         CollisionQuerySet.beginSession();
         CombatListenerRangeSnapshotRuntime.beginSession(frameTimes);
+        AiTweaksWeaponLocationSnapshotRuntime.beginSession();
         FrameTimeRuntime.beginSession(
                 frameTimes,
                 Boolean.getBoolean(FrameTimeRuntime.FORCE_VSYNC_OFF_PROPERTY));
