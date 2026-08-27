@@ -47,6 +47,7 @@ public final class CampaignEngineTimeRuntime {
 
     static synchronized void beginSession(boolean requested) {
         enabled = requested;
+        HitchPacketRuntime.configureCampaignPhaseProducer(requested);
         installed = false;
         for (Stats stats : phases) stats.reset();
         scripts.clear();
@@ -67,7 +68,7 @@ public final class CampaignEngineTimeRuntime {
 
     public static void exit(int id, long startedNanos) {
         if (!enabled || !valid(id) || startedNanos == 0L) return;
-        record(phases[id], startedNanos);
+        record(phases[id], id, startedNanos);
     }
 
     public static long enterScript(Object script) {
@@ -77,7 +78,7 @@ public final class CampaignEngineTimeRuntime {
     public static void exitScript(Object script, long startedNanos) {
         if (!enabled || script == null || startedNanos == 0L) return;
         try {
-            record(scriptStats.get(script.getClass()), startedNanos);
+            record(scriptStats.get(script.getClass()), -1, startedNanos);
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
         } catch (Throwable ignored) {
@@ -108,10 +109,18 @@ public final class CampaignEngineTimeRuntime {
         beginSession(false);
     }
 
-    private static void record(Stats stats, long startedNanos) {
+    static String phaseName(int id) {
+        return valid(id) ? NAMES[id] : "unknown";
+    }
+
+    private static void record(Stats stats, int phaseId, long startedNanos) {
         try {
-            long duration = System.nanoTime() - startedNanos;
+            long endedNanos = System.nanoTime();
+            long duration = endedNanos - startedNanos;
             if (duration <= 0L) return;
+            if (phaseId >= 0) {
+                HitchPacketRuntime.recordCampaignPhase(phaseId, startedNanos, endedNanos);
+            }
             stats.calls++;
             stats.totalNanos += duration;
             long retainedEndEpochMillis = stats.slowestCalls.record(duration);

@@ -140,6 +140,7 @@ public final class FrameTimeRuntime {
         allActivePhases.reset();
         campaignActivePhases.reset();
         campaignAfter30SecondsActivePhases.reset();
+        HitchPacketRuntime.beginSession(telemetryRequested);
     }
 
     static synchronized void installed() {
@@ -292,6 +293,7 @@ public final class FrameTimeRuntime {
         if (firstBoundaryNanos == Long.MIN_VALUE) {
             firstBoundaryNanos = now;
             firstBoundaryEpochMillis = System.currentTimeMillis();
+            HitchPacketRuntime.configureOrigin(firstBoundaryNanos, firstBoundaryEpochMillis);
             lastBoundaryNanos = now;
             lastBoundaryActive = active;
             lastBoundaryState = state;
@@ -340,6 +342,7 @@ public final class FrameTimeRuntime {
         if (state == STATE_CAMPAIGN && firstCampaignBoundaryNanos == Long.MIN_VALUE) {
             firstCampaignBoundaryNanos = now;
         }
+        boolean stableGameplayFrame = false;
         if (state != lastBoundaryState) {
             stateTransitionIntervals++;
         } else if (state == STATE_CAMPAIGN) {
@@ -361,17 +364,33 @@ public final class FrameTimeRuntime {
                 if (now - firstCampaignBoundaryNanos >= CAMPAIGN_WARMUP_NANOS) {
                     campaignPausedAfter30SecondsActive.record(duration, endOffset);
                 }
+                stableGameplayFrame = true;
             } else {
                 campaignUnpausedActive.record(duration, endOffset);
                 if (now - firstCampaignBoundaryNanos >= CAMPAIGN_WARMUP_NANOS) {
                     campaignUnpausedAfter30SecondsActive.record(duration, endOffset);
                 }
+                stableGameplayFrame = true;
             }
         } else if (state == STATE_COMBAT) {
             combatActive.record(duration, endOffset);
             if (firstCampaignBoundaryNanos != Long.MIN_VALUE) {
                 combatAfterCampaignActive.record(duration, endOffset);
+                stableGameplayFrame = true;
             }
+        }
+        if (stableGameplayFrame) {
+            HitchPacketRuntime.recordFrame(
+                    boundaries,
+                    previousBoundaryNanos,
+                    now,
+                    state,
+                    campaignPause,
+                    allActivePhases.lastComplete,
+                    allActivePhases.lastPreSwapNanos,
+                    allActivePhases.lastSwapNanos,
+                    allActivePhases.lastMessageNanos,
+                    allActivePhases.lastOtherNanos);
         }
         if (measurementWindowActive && state == lastBoundaryState
                 && state == measurementWindowState) {
@@ -460,6 +479,7 @@ public final class FrameTimeRuntime {
         displayPhases.put(FrameTimeTelemetry.CAMPAIGN_AFTER_30_SECONDS_ACTIVE,
                 campaignAfter30SecondsActivePhases.toMap(firstBoundaryEpochMillis));
         result.put("displayPhases", displayPhases);
+        result.put(FrameTimeTelemetry.HITCH_PACKETS, HitchPacketRuntime.telemetry());
         return result;
     }
 
@@ -497,6 +517,11 @@ public final class FrameTimeRuntime {
         private long slowFramesPreSwapLargest;
         private long slowFramesSwapLargest;
         private long slowFramesAfterSwapLargest;
+        private boolean lastComplete;
+        private long lastPreSwapNanos;
+        private long lastSwapNanos;
+        private long lastMessageNanos;
+        private long lastOtherNanos;
         private int worstCount;
         private int shortestWorst;
 
@@ -520,11 +545,21 @@ public final class FrameTimeRuntime {
             slowFramesPreSwapLargest = 0L;
             slowFramesSwapLargest = 0L;
             slowFramesAfterSwapLargest = 0L;
+            lastComplete = false;
+            lastPreSwapNanos = 0L;
+            lastSwapNanos = 0L;
+            lastMessageNanos = 0L;
+            lastOtherNanos = 0L;
             worstCount = 0;
             shortestWorst = 0;
         }
 
         void record(long total, long previousBoundary, long now, long endOffset) {
+            lastComplete = false;
+            lastPreSwapNanos = 0L;
+            lastSwapNanos = 0L;
+            lastMessageNanos = 0L;
+            lastOtherNanos = 0L;
             frames++;
             if (swapStartedNanos == Long.MIN_VALUE || swapCompletedNanos == Long.MIN_VALUE) {
                 missingSwap++;
@@ -552,6 +587,11 @@ public final class FrameTimeRuntime {
                 invalidOrder++;
                 return;
             }
+            lastComplete = true;
+            lastPreSwapNanos = preSwapNanos;
+            lastSwapNanos = swapNanos;
+            lastMessageNanos = messageNanos;
+            lastOtherNanos = otherNanos;
             completeFrames++;
             preSwap.record(preSwapNanos);
             swap.record(swapNanos);

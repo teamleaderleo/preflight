@@ -31,7 +31,7 @@ final class DiagnosticBundle {
     static final int DEFAULT_RUNS = 3;
     static final int DEFAULT_BENCHMARKS = 2;
     static final int MAX_SESSIONS_PER_KIND = 20;
-    static final int MAX_FILE_BYTES = 512 * 1024;
+    static final int MAX_FILE_BYTES = 4 * 1024 * 1024;
     static final int MAX_CONTENT_BYTES = 5 * 1024 * 1024;
     private static final long ZIP_ENTRY_TIME_MILLIS = 946_684_800_000L;
 
@@ -87,7 +87,7 @@ final class DiagnosticBundle {
             - Starsector files, mod files, saves and decoded assets
             - console/wrapper/game logs, crash dumps and environment dumps
             - JFR recordings, screenshots, audio and unknown filenames
-            - symbolic links and source files larger than 512 KiB
+            - symbolic links and source files larger than 4 MiB
 
             Absolute paths below the current user's home directory are also replaced with <home>
             before projection as defense in depth. Other bounded metadata, including enabled mod IDs

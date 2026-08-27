@@ -151,6 +151,48 @@ class FrameTimeRuntimeTest {
     }
 
     @Test
+    void hitchPacketsStopAtFocusExcludedSequenceGaps() {
+        FrameTimeRuntime.beginSession(true);
+        FrameTimeRuntime.recordBoundary(0L);
+        FrameTimeRuntime.observeCampaign();
+        FrameTimeRuntime.observeCampaignPaused(true);
+        FrameTimeRuntime.recordBoundary(1_000_000L);
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(10_000_000L); // state transition
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(70_000_000L); // retained 60 ms trigger
+        FrameTimeRuntime.observeActive(false);
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(80_000_000L); // focus loss
+        FrameTimeRuntime.observeActive(true);
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(90_000_000L); // focus recovery
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(100_000_000L); // first stable frame after the gap
+
+        Map<String, Object> recorder = map(FrameTimeRuntime.telemetry().get("hitchPackets"));
+        Map<String, Object> packet = map(list(recorder.get("packets")).get(0));
+        assertEquals("combat", packet.get("state"));
+        assertEquals(1, packet.get("frames"));
+        assertFalse((Boolean) packet.get("postWindowComplete"));
+        assertEquals(4L, map(list(packet.get("frameHistory")).get(0)).get("sequence"));
+    }
+
+    @Test
+    void titleDemoCombatCannotConsumeGameplayHitchPacketSlots() {
+        FrameTimeRuntime.beginSession(true);
+        FrameTimeRuntime.recordBoundary(0L);
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(10_000_000L);
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(70_000_000L);
+
+        Map<String, Object> recorder = map(
+                FrameTimeRuntime.telemetry().get(FrameTimeTelemetry.HITCH_PACKETS));
+        assertTrue(list(recorder.get("packets")).isEmpty());
+    }
+
+    @Test
     void segmentsStableCampaignAndCombatIntervalsAndDropsTransitions() {
         FrameTimeRuntime.beginSession(true);
         FrameTimeRuntime.recordBoundary(0L);

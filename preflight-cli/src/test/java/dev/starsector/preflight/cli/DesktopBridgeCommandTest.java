@@ -316,7 +316,7 @@ class DesktopBridgeCommandTest {
         Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
         Path run = Files.createDirectories(home.resolve(".starsector-preflight/runs/run-1"));
         Files.writeString(run.resolve("run.json"), Json.object(Map.of("installRoot", game)));
-        Files.write(run.resolve("adapter.json"), new byte[512 * 1024 + 1]);
+        Files.write(run.resolve("adapter.json"), new byte[4 * 1024 * 1024 + 1]);
 
         Map<String, Object> snapshot = DesktopBridgeCommand.snapshot(
                 Platform.MAC, home, temporaryDirectory, Map.of(), game, null);
@@ -324,6 +324,35 @@ class DesktopBridgeCommandTest {
         Map<String, Object> lastRun = (Map<String, Object>) snapshot.get("lastRun");
 
         assertNull(lastRun.get("framePacing"));
+    }
+
+    @Test
+    void snapshotReadsBoundedRichFrameReportAboveTheLegacyCeiling() throws Exception {
+        Path home = Files.createDirectories(temporaryDirectory.resolve("rich-frame-home"));
+        Path game = Files.createDirectories(temporaryDirectory.resolve("rich-frame-game"));
+        Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
+        Path run = Files.createDirectories(home.resolve(".starsector-preflight/runs/run-1"));
+        Files.writeString(run.resolve("run.json"), Json.object(Map.of("installRoot", game)));
+        Map<String, Object> campaign = Map.of(
+                "frames", 1802,
+                FrameTimeTelemetry.TOTAL_ACTIVE_NANOS, 180_000_000_000L,
+                "averageFps", 54.2,
+                "onePercentLowFps", 40.1,
+                "p95Micros", 21300,
+                "p99Micros", 30200);
+        Files.writeString(run.resolve("adapter.json"), Json.object(Map.of(
+                "boundedRichEvidence", "x".repeat(600 * 1024),
+                FrameTimeTelemetry.REPORT, Map.of(
+                        FrameTimeTelemetry.ENABLED, true,
+                        FrameTimeTelemetry.CAMPAIGN_ACTIVE, campaign))));
+
+        Map<String, Object> snapshot = DesktopBridgeCommand.snapshot(
+                Platform.MAC, home, temporaryDirectory, Map.of(), game, null);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> lastRun = (Map<String, Object>) snapshot.get("lastRun");
+
+        assertNotNull(lastRun.get("framePacing"));
+        assertTrue(Files.size(run.resolve("adapter.json")) > 512 * 1024);
     }
 
     @Test

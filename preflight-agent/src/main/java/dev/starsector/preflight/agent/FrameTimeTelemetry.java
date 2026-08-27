@@ -19,6 +19,7 @@ public final class FrameTimeTelemetry {
     public static final String TOTAL_ACTIVE_NANOS = "totalActiveNanos";
     public static final String REPEATED_SLOW_FRAME_WINDOWS = "repeatedSlowFrameWindows";
     public static final String MEASUREMENT_OVERHEAD = "measurementOverhead";
+    public static final String HITCH_PACKETS = "hitchPackets";
     public static final String AVERAGE_MICROS = "averageMicros";
 
     private FrameTimeTelemetry() {

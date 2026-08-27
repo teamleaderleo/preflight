@@ -27,7 +27,7 @@ import java.util.stream.Stream;
 final class DesktopBridgeCommand {
     private static final int PROTOCOL_VERSION = 1;
     private static final long MAX_ADAPTER_HEALTH_BYTES = 256 * 1024;
-    private static final long MAX_ADAPTER_REPORT_BYTES = 512 * 1024;
+    private static final long MAX_ADAPTER_REPORT_BYTES = 4L * 1024 * 1024;
     private static final long MAX_RUN_METADATA_BYTES = 256 * 1024;
 
     private DesktopBridgeCommand() {

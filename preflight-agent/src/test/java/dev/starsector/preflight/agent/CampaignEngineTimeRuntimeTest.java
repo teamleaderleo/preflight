@@ -12,12 +12,14 @@ import org.junit.jupiter.api.Test;
 class CampaignEngineTimeRuntimeTest {
     @BeforeEach
     void enable() {
+        HitchPacketRuntime.beginSession(true);
         CampaignEngineTimeRuntime.beginSession(true);
     }
 
     @AfterEach
     void reset() {
         CampaignEngineTimeRuntime.reset();
+        HitchPacketRuntime.beginSession(false);
     }
 
     @Test
@@ -48,6 +50,11 @@ class CampaignEngineTimeRuntimeTest {
                         value -> (String) value.get("name"), value -> value));
         assertEquals(2L, byName.get(FirstScript.class.getName()).get("calls"));
         assertEquals(1L, byName.get(SecondScript.class.getName()).get("calls"));
+
+        Map<String, Object> producer = (Map<String, Object>)
+                HitchPacketRuntime.telemetry().get("campaignPhaseProducer");
+        assertEquals(true, producer.get("enabled"));
+        assertEquals(1L, producer.get("callSpansWritten"));
     }
 
     private static final class FirstScript {
