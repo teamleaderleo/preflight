@@ -24,26 +24,28 @@ class CombatWorkloadRuntimeTest {
         System.clearProperty(CombatWorkloadRuntime.OUTPUT_PROPERTY);
         System.clearProperty(CombatWorkloadRuntime.RUN_ID_PROPERTY);
         System.clearProperty(CombatWorkloadRuntime.CELL_ID_PROPERTY);
+        System.clearProperty(CombatWorkloadRuntime.BATTLE_DP_PROPERTY);
         System.clearProperty(CombatWorkloadRuntime.EVERY_PROPERTY);
         System.clearProperty(CombatWorkloadRuntime.DENSITY_SAMPLE_PROPERTY);
     }
 
     @Test
     @SuppressWarnings("unchecked")
-    void samplesPublicWorkloadDensityAiEffectsAndAdvanceTime() throws Exception {
+    void samplesPublicWorkloadDensityAiEffectsDpAndAdvanceTime() throws Exception {
         System.setProperty(CombatWorkloadRuntime.ENABLE_PROPERTY, "true");
         System.setProperty(CombatWorkloadRuntime.EVERY_PROPERTY, "1");
         System.setProperty(CombatWorkloadRuntime.DENSITY_SAMPLE_PROPERTY, "2");
         System.setProperty(CombatWorkloadRuntime.RUN_ID_PROPERTY, "run-a");
         System.setProperty(CombatWorkloadRuntime.CELL_ID_PROPERTY, "fighter-heavy-24");
+        System.setProperty(CombatWorkloadRuntime.BATTLE_DP_PROPERTY, "1040");
 
         FakeMissile guided = new FakeMissile(new Object());
         FakeMissile dumb = new FakeMissile(null);
         FakeWeapon beam = new FakeWeapon(true, true, new FakeWeaponEffect());
         FakeWeapon gun = new FakeWeapon(false, false, null);
-        FakeShip ship = new FakeShip(false, false, new Object(), List.of(beam, gun));
-        FakeShip fighter = new FakeShip(false, true, new Object(), List.of(gun));
-        FakeShip hulk = new FakeShip(true, false, null, List.of());
+        FakeShip ship = new FakeShip(false, false, new Object(), List.of(beam, gun), 0, 30f);
+        FakeShip fighter = new FakeShip(false, true, new Object(), List.of(gun), 0, 5f);
+        FakeShip hulk = new FakeShip(true, false, null, List.of(), 1, 20f);
         FakeEngine engine = new FakeEngine(
                 List.of(ship, fighter, hulk),
                 List.of(guided, dumb),
@@ -58,13 +60,21 @@ class CombatWorkloadRuntimeTest {
         Map<String, Object> telemetry = CombatWorkloadRuntime.telemetry();
         assertEquals("run-a", telemetry.get("runId"));
         assertEquals("fighter-heavy-24", telemetry.get("cellId"));
+        assertEquals(1040.0, telemetry.get("battleDp"));
         assertEquals(1L, telemetry.get("completedSamples"));
         List<Map<String, Object>> samples = (List<Map<String, Object>>) telemetry.get("samples");
         assertEquals(1, samples.size());
         Map<String, Object> sample = samples.get(0);
+        assertEquals(1040.0, sample.get("battleDp"));
         assertEquals(1L, sample.get("ships"));
+        assertEquals(1L, sample.get("shipsOwner0"));
+        assertEquals(0L, sample.get("shipsOwner1"));
         assertEquals(1L, sample.get("fighters"));
         assertEquals(1L, sample.get("wrecks"));
+        assertEquals(30.0, sample.get("liveDeployedDp"));
+        assertEquals(30.0, sample.get("liveDeployedDpOwner0"));
+        assertEquals(0.0, sample.get("liveDeployedDpOwner1"));
+        assertEquals(50.0, sample.get("shipDpPresent"));
         assertEquals(2, sample.get("missiles"));
         assertEquals(3, sample.get("projectiles"));
         assertEquals(2, sample.get("beams"));
@@ -86,6 +96,7 @@ class CombatWorkloadRuntimeTest {
         CombatWorkloadRuntime.writeReport(report);
         String json = Files.readString(report);
         assertTrue(json.contains("\"runId\":\"run-a\""));
+        assertTrue(json.contains("\"battleDp\":1040.0"));
         assertTrue(json.contains("\"advanceMicros\""));
     }
 
@@ -160,12 +171,16 @@ class CombatWorkloadRuntimeTest {
         private final Object ai;
         private final List<?> weapons;
         private final Object location = new Object();
+        private final int owner;
+        private final float deployCost;
 
-        FakeShip(boolean hulk, boolean fighter, Object ai, List<?> weapons) {
+        FakeShip(boolean hulk, boolean fighter, Object ai, List<?> weapons, int owner, float deployCost) {
             this.hulk = hulk;
             this.fighter = fighter;
             this.ai = ai;
             this.weapons = weapons;
+            this.owner = owner;
+            this.deployCost = deployCost;
         }
 
         public boolean isHulk() {
@@ -186,6 +201,14 @@ class CombatWorkloadRuntimeTest {
 
         public List<?> getAllWeapons() {
             return weapons;
+        }
+
+        public int getOwner() {
+            return owner;
+        }
+
+        public float getDeployCost() {
+            return deployCost;
         }
     }
 
