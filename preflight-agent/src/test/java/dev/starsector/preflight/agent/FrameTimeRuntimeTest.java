@@ -470,6 +470,21 @@ class FrameTimeRuntimeTest {
     }
 
     @Test
+    void unavailableOpenGlInventoryFailsOpenWithoutBreakingSwapTiming() {
+        FrameTimeRuntime.beginSession(true);
+        FrameTimeRuntime.beforeSwap();
+        FrameTimeRuntime.afterSwap();
+
+        Map<String, Object> context = map(
+                FrameTimeRuntime.telemetry().get("openGlContext"));
+        assertEquals(true, context.get("attempted"));
+        assertEquals(false, context.get("available"));
+        assertFalse(((String) context.get("problem")).isBlank());
+        assertEquals("none; no query, fence, or rendering state created",
+                context.get("semanticEffect"));
+    }
+
+    @Test
     void reportsMissingAndInvalidDisplayPhaseObservationsWithoutAffectingFrameTimes() {
         FrameTimeRuntime.beginSession(true);
         FrameTimeRuntime.recordBoundary(0L);

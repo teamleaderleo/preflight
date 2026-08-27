@@ -91,6 +91,18 @@ public final class FrameTimeRuntime {
     private static volatile long threadCpuClockCalibrationMaximumNanos;
     private static volatile long threadCpuClockReads;
     private static volatile long threadCpuClockReadFailures;
+    private static volatile boolean glContextInventoryAttempted;
+    private static volatile boolean glContextInventoryAvailable;
+    private static volatile String glContextInventoryProblem;
+    private static volatile long glContextInventoryElapsedNanos;
+    private static volatile String glVendor;
+    private static volatile String glRenderer;
+    private static volatile String glVersion;
+    private static volatile boolean glOpenGl15;
+    private static volatile boolean glOpenGl33;
+    private static volatile boolean glArbTimerQuery;
+    private static volatile boolean glExtTimerQuery;
+    private static volatile boolean glArbSync;
     private static final Distribution allActive = new Distribution();
     private static final Distribution postStartupActive = new Distribution();
     private static final Distribution postInteractiveActive = new Distribution();
@@ -146,6 +158,18 @@ public final class FrameTimeRuntime {
         lastSwapInterval = Integer.MIN_VALUE;
         threadCpuClockReads = 0L;
         threadCpuClockReadFailures = 0L;
+        glContextInventoryAttempted = false;
+        glContextInventoryAvailable = false;
+        glContextInventoryProblem = null;
+        glContextInventoryElapsedNanos = 0L;
+        glVendor = null;
+        glRenderer = null;
+        glVersion = null;
+        glOpenGl15 = false;
+        glOpenGl33 = false;
+        glArbTimerQuery = false;
+        glExtTimerQuery = false;
+        glArbSync = false;
         limiterSleepCalls = 0L;
         limiterSleepCompletions = 0L;
         limiterRequestedMillisTotal = 0L;
@@ -237,8 +261,7 @@ public final class FrameTimeRuntime {
             threadCpuClockCalibrationMaximumNanos = maximumNanos;
             threadCpuClock = candidate;
         } catch (RuntimeException | LinkageError problem) {
-            threadCpuClockProblem = problem.getClass().getName()
-                    + (problem.getMessage() == null ? "" : ": " + problem.getMessage());
+            threadCpuClockProblem = boundedProblem(problem);
         }
     }
 
@@ -253,11 +276,66 @@ public final class FrameTimeRuntime {
             threadCpuClockProblem = "current-thread CPU clock returned an unavailable value";
         } catch (RuntimeException | LinkageError problem) {
             threadCpuClockReadFailures++;
-            threadCpuClockProblem = problem.getClass().getName()
-                    + (problem.getMessage() == null ? "" : ": " + problem.getMessage());
+            threadCpuClockProblem = boundedProblem(problem);
         }
         threadCpuClock = null;
         return Long.MIN_VALUE;
+    }
+
+    private static void observeGlContextOnce() {
+        if (glContextInventoryAttempted) return;
+        synchronized (FrameTimeRuntime.class) {
+            if (glContextInventoryAttempted) return;
+            glContextInventoryAttempted = true;
+            long startedNanos = System.nanoTime();
+            try {
+                Class<?> context = Class.forName("org.lwjgl.opengl.GLContext");
+                Object capabilities = context.getMethod("getCapabilities").invoke(null);
+                if (capabilities == null) {
+                    glContextInventoryProblem = "LWJGL returned no current context capabilities";
+                    return;
+                }
+                Class<?> capabilityType = capabilities.getClass();
+                glOpenGl15 = capabilityType.getField("OpenGL15").getBoolean(capabilities);
+                glOpenGl33 = capabilityType.getField("OpenGL33").getBoolean(capabilities);
+                glArbTimerQuery = capabilityType.getField("GL_ARB_timer_query")
+                        .getBoolean(capabilities);
+                glExtTimerQuery = capabilityType.getField("GL_EXT_timer_query")
+                        .getBoolean(capabilities);
+                glArbSync = capabilityType.getField("GL_ARB_sync").getBoolean(capabilities);
+                Class<?> gl11 = Class.forName("org.lwjgl.opengl.GL11");
+                java.lang.reflect.Method getString = gl11.getMethod("glGetString", int.class);
+                glVendor = boundedGlIdentity(getString.invoke(null, 0x1F00));
+                glRenderer = boundedGlIdentity(getString.invoke(null, 0x1F01));
+                glVersion = boundedGlIdentity(getString.invoke(null, 0x1F02));
+                glContextInventoryAvailable = glVendor != null
+                        && glRenderer != null && glVersion != null;
+                if (!glContextInventoryAvailable) {
+                    glContextInventoryProblem = "OpenGL identity returned a null value";
+                }
+            } catch (ReflectiveOperationException | RuntimeException | LinkageError problem) {
+                glContextInventoryProblem = boundedProblem(problem);
+            } finally {
+                glContextInventoryElapsedNanos = System.nanoTime() - startedNanos;
+            }
+        }
+    }
+
+    private static String boundedGlIdentity(Object value) {
+        if (!(value instanceof String text) || text.isEmpty()) return null;
+        int limit = Math.min(text.length(), 256);
+        StringBuilder clean = new StringBuilder(limit);
+        for (int index = 0; index < limit; index++) {
+            char character = text.charAt(index);
+            clean.append(character < 0x20 || character == 0x7f ? '?' : character);
+        }
+        return clean.toString();
+    }
+
+    private static String boundedProblem(Throwable problem) {
+        String message = problem.getClass().getName()
+                + (problem.getMessage() == null ? "" : ": " + problem.getMessage());
+        return message.length() <= 512 ? message : message.substring(0, 512);
     }
 
     /** Observes the focus result Starsector already requested; it performs no additional OS query. */
@@ -296,6 +374,7 @@ public final class FrameTimeRuntime {
     /** Timestamp immediately before LWJGL hands the rendered frame to the native presentation path. */
     public static void beforeSwap() {
         if (!enabled) return;
+        observeGlContextOnce();
         long wallNanos = System.nanoTime();
         long threadCpuNanos = readThreadCpuTime();
         recordSwapStarted(wallNanos, threadCpuNanos);
@@ -614,6 +693,25 @@ public final class FrameTimeRuntime {
         threadCpu.put("scope",
                 "current render-thread CPU time around native swap; off-CPU is wall minus CPU");
         result.put("presentationThreadCpuClock", threadCpu);
+        Map<String, Object> glContext = new LinkedHashMap<>();
+        glContext.put("attempted", glContextInventoryAttempted);
+        glContext.put("available", glContextInventoryAvailable);
+        glContext.put("problem", glContextInventoryProblem);
+        glContext.put("inventoryElapsedMicros",
+                glContextInventoryAttempted ? glContextInventoryElapsedNanos / 1_000.0 : null);
+        glContext.put("vendor", glVendor);
+        glContext.put("renderer", glRenderer);
+        glContext.put("version", glVersion);
+        glContext.put("openGL15", glOpenGl15);
+        glContext.put("openGL33", glOpenGl33);
+        glContext.put("arbTimerQuery", glArbTimerQuery);
+        glContext.put("extTimerQuery", glExtTimerQuery);
+        glContext.put("arbSync", glArbSync);
+        glContext.put("nonblockingTimerResultPollCandidate",
+                glOpenGl15 && (glArbTimerQuery || glExtTimerQuery));
+        glContext.put("classification", "one-time read-only capability inventory");
+        glContext.put("semanticEffect", "none; no query, fence, or rendering state created");
+        result.put("openGlContext", glContext);
         Map<String, Object> limiter = new LinkedHashMap<>();
         limiter.put("planId", FrameLimiterTimePlan.PLAN_ID);
         limiter.put("installed", limiterInstalled);
