@@ -1,6 +1,7 @@
 package dev.starsector.preflight.agent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.LinkedHashMap;
@@ -21,6 +22,8 @@ class HitchEvidenceJoinerTest {
         Map<String, Object> frame = map(list(packet.get("frameHistory")).get(0));
         assertEquals(78_000.0, frame.get("gpuElapsedMicros"));
         assertEquals("combatComparable", frame.get("gpuJoinSource"));
+        assertEquals(100.0, frame.get("gpuSwapOffCpuMicros"));
+        assertEquals(1, frame.get("gpuSwapInterval"));
 
         Map<String, Object> classification = HitchClassifier.classifyPackets(joinedHitch);
         Map<String, Object> classifiedPacket = map(list(classification.get("packets")).get(0));
@@ -68,10 +71,87 @@ class HitchEvidenceJoinerTest {
         assertTrue(joined.get("coverageBoundary").toString().contains("unknown"));
     }
 
+    @Test
+    void nonTriggerContextCanJoinWithoutInflatingTriggerCoverage() {
+        Map<String, Object> trigger = frame(70L, 53_000L, true);
+        Map<String, Object> context = frame(71L, 40_000L, false);
+        Map<String, Object> hitch = Map.of(
+                "format", HitchPacketRuntime.FORMAT,
+                "packets", List.of(Map.of(
+                        "index", 0,
+                        "state", "combat",
+                        "pause", "unavailable",
+                        "frameHistory", List.of(trigger, context))));
+        Map<String, Object> gpu = new LinkedHashMap<>();
+        gpu.put("requested", true);
+        gpu.put("allComparable", Map.of("worstFramePairs", List.of(
+                gpuPair(70L, 53_000.0, 2_000.0),
+                gpuPair(71L, 40_000.0, 20_000.0))));
+
+        Map<String, Object> joined = HitchEvidenceJoiner.joinGpu(hitch, gpu);
+
+        assertEquals(2, joined.get("joinedFrames"));
+        assertEquals(1, joined.get("joinedTriggerFrames"));
+        assertEquals(0, joined.get("unjoinedTriggerFrames"));
+    }
+
+    @Test
+    void malformedGpuPairsAreSkippedWithoutInventingEvidence() {
+        Map<String, Object> gpu = Map.of(
+                "requested", true,
+                "allComparable", Map.of("worstFramePairs", List.of(
+                        Map.of("sequence", 1L, "frameMicros", 53_000.0),
+                        Map.of("frameMicros", 53_000.0, "gpuMicros", 10_000.0),
+                        "bad-pair")));
+
+        Map<String, Object> joined = HitchEvidenceJoiner.joinGpu(hitchTelemetry(1L, 53_000L), gpu);
+
+        assertEquals(0, joined.get("gpuIndexedWorstPairs"));
+        assertEquals(1, joined.get("unjoinedTriggerFrames"));
+    }
+
+    @Test
+    void diagnosisBundleCombinesJoinClassifierAndWorkloadSummary() {
+        Map<String, Object> diagnosis = HitchEvidenceJoiner.diagnose(
+                hitchTelemetry(88L, 100_000L),
+                gpuTelemetry("combatComparable", 88L, 100_000.0, 78_000.0),
+                workload());
+
+        assertEquals("starsector-preflight-hitch-diagnosis-v1", diagnosis.get("format"));
+        Map<String, Object> join = map(diagnosis.get("gpuJoin"));
+        assertFalse(join.containsKey("hitchPackets"));
+        assertEquals(1, join.get("joinedTriggerFrames"));
+        Map<String, Object> classifier = map(diagnosis.get("classifier"));
+        Map<String, Object> packet = map(list(classifier.get("packets")).get(0));
+        assertEquals(HitchClassifier.GPU_HEAVY, packet.get("primaryLabel"));
+        Map<String, Object> workload = map(diagnosis.get("combatWorkloadFingerprint"));
+        assertEquals(102, workload.get("beginShips"));
+    }
+
+    @Test
+    void emptyTelemetryProducesBoundedEmptyJoin() {
+        Map<String, Object> joined = HitchEvidenceJoiner.joinGpu(Map.of(), Map.of());
+
+        assertEquals(0, joined.get("packetFrames"));
+        assertEquals(0, joined.get("triggerFrames"));
+        assertEquals(0, joined.get("gpuIndexedWorstPairs"));
+        assertTrue(list(map(joined.get("hitchPackets")).get("packets")).isEmpty());
+    }
+
     private static Map<String, Object> hitchTelemetry(long sequence, long durationMicros) {
+        return Map.of(
+                "format", HitchPacketRuntime.FORMAT,
+                "packets", List.of(Map.of(
+                        "index", 0,
+                        "state", "combat",
+                        "pause", "unavailable",
+                        "frameHistory", List.of(frame(sequence, durationMicros, true)))));
+    }
+
+    private static Map<String, Object> frame(long sequence, long durationMicros, boolean trigger) {
         LinkedHashMap<String, Object> frame = new LinkedHashMap<>();
         frame.put("sequence", sequence);
-        frame.put("trigger", true);
+        frame.put("trigger", trigger);
         frame.put("durationMicros", durationMicros);
         frame.put("phasesComplete", true);
         frame.put("preSwapMicros", Math.max(15_000L, durationMicros - 1_000L));
@@ -84,13 +164,7 @@ class HitchEvidenceJoinerTest {
         frame.put("limiterSplitComplete", true);
         frame.put("limiterOvershootMicros", 0L);
         frame.put("preSwapExcludingLimiterMicros", Math.max(15_000L, durationMicros - 1_000L));
-        return Map.of(
-                "format", HitchPacketRuntime.FORMAT,
-                "packets", List.of(Map.of(
-                        "index", 0,
-                        "state", "combat",
-                        "pause", "unavailable",
-                        "frameHistory", List.of(frame))));
+        return frame;
     }
 
     private static Map<String, Object> gpuTelemetry(
@@ -102,12 +176,39 @@ class HitchEvidenceJoinerTest {
 
     private static Map<String, Object> bucket(
             long sequence, double frameMicros, double gpuMicros) {
-        return Map.of("worstFramePairs", List.of(Map.of(
+        return Map.of("worstFramePairs", List.of(gpuPair(sequence, frameMicros, gpuMicros)));
+    }
+
+    private static Map<String, Object> gpuPair(
+            long sequence, double frameMicros, double gpuMicros) {
+        return Map.of(
                 "sequence", sequence,
                 "frameMicros", frameMicros,
                 "gpuMicros", gpuMicros,
                 "swapOffCpuMicros", 100.0,
-                "swapInterval", 1)));
+                "swapInterval", 1);
+    }
+
+    private static Map<String, Object> workload() {
+        Map<String, Object> side = Map.of(
+                "aliveFighters", 4,
+                "hulks", 0,
+                "aliveNonFighters", 24,
+                "aliveHullFractionSum", 20.0,
+                "aliveFluxFractionSum", 5.0);
+        Map<String, Object> snapshot = Map.of(
+                "ships", 102,
+                "missiles", 20,
+                "projectiles", 200,
+                "combatOver", false,
+                "sideZero", side,
+                "sideOne", side,
+                "otherOwners", Map.of());
+        return Map.of(
+                "recipeId", CombatStressFixtureRuntime.RECIPE_ID,
+                "begin", snapshot,
+                "end", snapshot,
+                "combatSecondsElapsed", 39.0);
     }
 
     @SuppressWarnings("unchecked")
