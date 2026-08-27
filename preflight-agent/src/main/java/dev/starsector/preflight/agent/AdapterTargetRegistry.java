@@ -215,6 +215,24 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    /** Vanilla range modifiers copy a live listener list into an ArrayList before every query. */
+    static AdapterTarget combatListenerRangeSnapshotTarget() {
+        return new AdapterTarget(
+                "vanilla-combat-listener-range-snapshot-0.98a-rc8",
+                CombatListenerRangeSnapshotPlan.TARGET_CLASS,
+                CombatListenerRangeSnapshotPlan.ORIGINAL_SHA256,
+                CombatListenerRangeSnapshotPlan.PLAN_ID,
+                CombatListenerRangeSnapshotPlan.METHODS.stream()
+                        .map(method -> new AdapterTarget.RequiredMethod(
+                                method.name(), CombatListenerRangeSnapshotPlan.DESCRIPTOR))
+                        .toList(),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer.api.jar",
+                "6ac6c78c6116946d487376426340d019938f986ceae1391ae1fa599e890e3185",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** GraphicsLib 1.12.1's exact normal-map traversal implementation and owning mod archive. */
     static AdapterTarget graphicsLibCompactReplayTarget() {
         return new AdapterTarget(
@@ -2083,6 +2101,9 @@ final class AdapterTargetRegistry {
         }
         if (AiTweaksSplitArcsPlan.enabled()) {
             registry = registry.withTarget(aiTweaksSplitArcsTarget());
+        }
+        if (CombatListenerRangeSnapshotPlan.enabled()) {
+            registry = registry.withTarget(combatListenerRangeSnapshotTarget());
         }
         return registry;
     }
