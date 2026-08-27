@@ -34,53 +34,9 @@ final class GlCommandCountInstalledAdapterIT {
     void reset() {
         System.clearProperty(GlCommandCountRuntime.ENABLE_PROPERTY);
         System.clearProperty(GlStateReissueRuntime.ENABLE_PROPERTY);
-        System.clearProperty(GlTextureBindDedupRuntime.ENABLE_PROPERTY);
         GpuFrameTimeRuntime.beginSession(false);
         GlStateReissueRuntime.reset();
         GlCommandCountRuntime.reset();
-        GlTextureBindDedupRuntime.reset();
-    }
-
-    @Test
-    void installedLwjglTargetsAcceptTheExactTextureBindCandidate() throws Exception {
-        String configured = System.getProperty("preflight.lwjgl.jar", "").trim();
-        Assumptions.assumeTrue(!configured.isEmpty(),
-                "set -Dpreflight.lwjgl.jar=<lwjgl.jar>");
-        Path archive = Path.of(configured).toAbsolutePath().normalize();
-        Assumptions.assumeTrue(Files.isRegularFile(archive));
-        System.clearProperty(GlCommandCountRuntime.ENABLE_PROPERTY);
-        GlCommandCountRuntime.beginSession(false);
-        System.setProperty(GlTextureBindDedupRuntime.ENABLE_PROPERTY, "true");
-        GlTextureBindDedupRuntime.beginSession(true);
-
-        try (JarFile jar = new JarFile(archive.toFile())) {
-            for (GlTextureBindDedupPlan.Target target : GlTextureBindDedupPlan.targets()) {
-                var entry = jar.getJarEntry(target.internalName() + ".class");
-                assertNotNull(entry, target.internalName());
-                byte[] original;
-                try (var input = jar.getInputStream(entry)) {
-                    original = input.readAllBytes();
-                }
-                ClassSignature signature = ClassSignature.parse(original);
-                assertEquals(target.sha256(), signature.sha256(), target.internalName());
-                byte[] transformed = GlTextureBindDedupPlan.transform(signature, original);
-                assertNotNull(transformed, target.internalName());
-                int expectedCalls = GlTextureBindDedupPlan.expectedMethods(target.internalName())
-                        + ("gl11".equals(target.idSuffix()) ? 1 : 0);
-                assertEquals(expectedCalls, textureDedupRuntimeCalls(transformed),
-                        target.internalName());
-                assertNull(GlTextureBindDedupPlan.transform(
-                        ClassSignature.parse(transformed), transformed), target.internalName());
-
-                ClassNode owner = new ClassNode(Opcodes.ASM9);
-                new ClassReader(transformed).accept(owner, ClassReader.EXPAND_FRAMES);
-                for (var method : owner.methods) {
-                    new Analyzer<>(new BasicInterpreter()).analyze(owner.name, method);
-                }
-            }
-        }
-        assertEquals(GlTextureBindDedupPlan.targets().size(),
-                GlTextureBindDedupRuntime.telemetry().get("installedTargetCount"));
     }
 
     @Test
@@ -170,19 +126,6 @@ final class GlCommandCountInstalledAdapterIT {
 
     private static int stateRuntimeCalls(byte[] bytes) {
         String runtime = GlStateReissueRuntime.class.getName().replace('.', '/');
-        ClassNode owner = new ClassNode(Opcodes.ASM9);
-        new ClassReader(bytes).accept(owner, ClassReader.EXPAND_FRAMES);
-        int result = 0;
-        for (var method : owner.methods) {
-            for (AbstractInsnNode instruction : method.instructions) {
-                if (instruction instanceof MethodInsnNode call && runtime.equals(call.owner)) result++;
-            }
-        }
-        return result;
-    }
-
-    private static int textureDedupRuntimeCalls(byte[] bytes) {
-        String runtime = GlTextureBindDedupRuntime.class.getName().replace('.', '/');
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(bytes).accept(owner, ClassReader.EXPAND_FRAMES);
         int result = 0;

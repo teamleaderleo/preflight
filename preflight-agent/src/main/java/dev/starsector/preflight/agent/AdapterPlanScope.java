@@ -13,7 +13,6 @@ public enum AdapterPlanScope {
             FrameTimeRuntime.PLAN_ID,
             GlCommandCountRuntime.PLAN_ID,
             GlStateReissueRuntime.PLAN_ID,
-            GlTextureBindDedupRuntime.PLAN_ID,
             FrameLimiterTimePlan.PLAN_ID,
             FrameTimeStatePlan.PLAN_ID,
             FrameTimeStartupCompletionPlan.PLAN_ID,

@@ -123,10 +123,6 @@ final class AdapterInstallationEffects {
         if (has(referenced, StartupPhaseRuntime.class)) {
             StartupPhaseRuntime.installed();
         }
-        if (has(referenced, GlTextureBindDedupRuntime.class)) {
-            GlTextureBindDedupRuntime.installed(
-                    className, GlTextureBindDedupPlan.expectedMethods(className));
-        }
         if (StelnetMarketUpdaterRuntime.PLAN_ID.equals(target.planId())) {
             StelnetMarketUpdaterRuntime.installed();
         }

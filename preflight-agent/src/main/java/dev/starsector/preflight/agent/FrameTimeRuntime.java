@@ -207,7 +207,6 @@ public final class FrameTimeRuntime {
         campaignAfter30SecondsActivePhases.reset();
         HitchPacketRuntime.beginSession(telemetryRequested);
         GpuFrameTimeRuntime.beginSession(telemetryRequested);
-        GlTextureBindDedupRuntime.beginSession(telemetryRequested);
         GlStateReissueRuntime.beginSession(telemetryRequested);
         GlCommandCountRuntime.beginSession(telemetryRequested);
         initializeThreadCpuClock(telemetryRequested);
@@ -702,7 +701,6 @@ public final class FrameTimeRuntime {
                 allActivePhases.lastSwapThreadCpuComplete
                         ? allActivePhases.lastSwapOffCpuNanos : -1L,
                 lastSwapInterval);
-        GlTextureBindDedupRuntime.beginFrame();
         lastBoundaryActive = active;
         lastBoundaryState = state;
         lastBoundaryCampaignPause = campaignPause;
@@ -781,7 +779,6 @@ public final class FrameTimeRuntime {
         result.put("gpuFrameTime", GpuFrameTimeRuntime.telemetry());
         result.put("openGlCommands", GlCommandCountRuntime.telemetry());
         result.put("openGlStateReissues", GlStateReissueRuntime.telemetry());
-        result.put("openGlTextureBindDedup", GlTextureBindDedupRuntime.telemetry());
         Map<String, Object> limiter = new LinkedHashMap<>();
         limiter.put("planId", FrameLimiterTimePlan.PLAN_ID);
         limiter.put("installed", limiterInstalled);
