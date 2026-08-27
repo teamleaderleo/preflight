@@ -355,8 +355,6 @@ final class AdapterReport {
                 .append(Json.value(AudioResourceFallbackRuntime.telemetry())).append(',');
         key(output, "audioMusicTransitions")
                 .append(Json.value(AudioMusicTransitionRuntime.telemetry())).append(',');
-        key(output, "aiTweaksEngagementRange")
-                .append(Json.value(AiTweaksEngagementRangeRuntime.telemetry())).append(',');
         key(output, "ashLibVariantLookup")
                 .append(Json.value(AshLibVariantLookupRuntime.telemetry())).append(',');
         key(output, "graphicsLibCompactReplay")

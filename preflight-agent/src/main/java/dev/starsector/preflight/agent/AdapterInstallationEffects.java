@@ -24,9 +24,6 @@ final class AdapterInstallationEffects {
             throw new IllegalArgumentException("Cached transformation class identity differs");
         }
 
-        if (AiTweaksEngagementRangeRuntime.PLAN_ID.equals(target.planId())) {
-            AiTweaksEngagementRangeRuntime.installed();
-        }
         if (AudioResourceFallbackRuntime.PLAN_ID.equals(target.planId())) {
             AudioResourceFallbackRuntime.installed();
         }

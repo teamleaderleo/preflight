@@ -182,23 +182,6 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
-    /** AI Tweaks 2.2.10 recomputes fixed range and weapon geometry during target selection. */
-    static AdapterTarget aiTweaksEngagementRangeTarget() {
-        return new AdapterTarget(
-                "aitweaks-2.2.10-select-target-range-snapshot",
-                AiTweaksEngagementRangePlan.TARGET_CLASS,
-                AiTweaksEngagementRangePlan.ORIGINAL_SHA256,
-                AiTweaksEngagementRangeRuntime.PLAN_ID,
-                List.of(new AdapterTarget.RequiredMethod(
-                        AiTweaksEngagementRangePlan.CONSTRUCTOR,
-                        AiTweaksEngagementRangePlan.CONSTRUCTOR_DESCRIPTOR)),
-                "MOD",
-                "aitweaks-core.jar",
-                "9f6179bcd2df2e3ce8cea2da79051c9f1be3c9b71712c6c28d7568b777ecf5b2",
-                "com/genir/aitweaks/launcher/loading/CoreLoader",
-                "");
-    }
-
     /** AI Tweaks 2.2.10 grows two bounded temporary arc lists on every facing pass. */
     static AdapterTarget aiTweaksSplitArcsTarget() {
         return new AdapterTarget(
@@ -2074,7 +2057,6 @@ final class AdapterTargetRegistry {
                 .withTarget(indEvoWonderSyntheticMarketTarget())
                 .withTarget(sourceHintIsolationTarget())
                 .withTarget(audioResourceFallbackTarget())
-                .withTarget(aiTweaksEngagementRangeTarget())
                 .withTarget(ashLibVariantRepositoryTarget())
                 .withTarget(ashLibVariantLookupTarget())
                 .withTarget(ashLibShipJsonTarget())

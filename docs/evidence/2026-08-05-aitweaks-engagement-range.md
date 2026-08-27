@@ -4,8 +4,8 @@
 
 **Install:** Starsector 0.98a-RC8, AI Tweaks 2.2.10, current mod profile
 
-**Status:** the primitive range snapshot remains validated; the v2 boxed target-search field was
-removed by the v4 correction after a later real-combat null dereference
+**Status:** retired after v4 reproduced the same null-receiver failure at the original
+target-search field read
 
 ## Runtime lead
 
@@ -108,7 +108,7 @@ A later, heavier deterministic combat run disproved the boxed target-search fiel
 after its measurement window, the exact transformed class failed while reading
 `preflight$targetSearchRangeBoxed`. The v4 plan removes that field and restores the original
 `targetSearchRange -> Float.valueOf` boundary. It retains the primitive engagement-range and
-weapon-location snapshots. The exact failure, narrowed correction, installed-class gate, and clean
-61,413-snapshot follow-up are recorded in
-[the correction report](2026-08-27-aitweaks-boxed-search-range-correction.md). This correction
-supersedes the v2 target-search boxing acceptance above.
+weapon-location snapshots. The exact failure, narrowed correction, installed-class gate, clean
+61,413-snapshot follow-up, and later v4 recurrence are recorded in
+[the correction report](2026-08-27-aitweaks-boxed-search-range-correction.md). That recurrence
+supersedes the v2 target-search boxing acceptance above and retires the entire target.

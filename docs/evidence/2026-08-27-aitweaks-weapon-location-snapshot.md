@@ -64,8 +64,9 @@ other combat state were not held constant, so this pair cannot attribute the dif
 small per-selection snapshot. The candidate is accepted for its exact structural removal and
 successful repeated live execution, with no claim yet that it improves FPS or frame pacing.
 
-The weapon-location snapshot remains in v4. A later heavy combat run exposed a null dereference in
-v3's separate boxed target-search field, so v4 removed only that field and restored the original
-target-search boxing call. See
-[the correction report](2026-08-27-aitweaks-boxed-search-range-correction.md). The historical
-"two constructor boxes" statement above describes v3, not the retained v4 contract.
+The weapon-location snapshot remained in v4 after a heavy combat run exposed a null dereference in
+v3's separate boxed target-search field. A later v4 run reproduced the null-receiver failure at the
+original target-search field read, so Preflight retired the entire combined target rather than
+continuing to ship the geometry subset without a trustworthy semantic boundary. See
+[the correction and retirement report](2026-08-27-aitweaks-boxed-search-range-correction.md). The
+historical "two constructor boxes" statement above describes v3, not a retained contract.

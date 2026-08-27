@@ -260,9 +260,6 @@ final class AdapterTransformationRegistry {
                     : null;
             return pathIndexed == null ? repaired : pathIndexed;
         }
-        if (AiTweaksEngagementRangeRuntime.PLAN_ID.equals(target.planId())) {
-            return AiTweaksEngagementRangePlan.transform(signature, originalBytes);
-        }
         if (AiTweaksSplitArcsPlan.PLAN_ID.equals(target.planId())) {
             return AiTweaksSplitArcsPlan.transform(signature, originalBytes);
         }
@@ -872,9 +869,6 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (AudioResourceFallbackRuntime.PLAN_ID.equals(planId)) {
-            return true;
-        }
-        if (AiTweaksEngagementRangeRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
         if (AiTweaksSplitArcsPlan.PLAN_ID.equals(planId)) {

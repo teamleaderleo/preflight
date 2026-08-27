@@ -13,7 +13,6 @@ import java.util.TreeSet;
 /** Bounded inventory of every runtime plan and the exact target plan that hosts it. */
 final class AdapterPlanCatalog {
     private static final Set<String> DIRECT_PLAN_IDS = Set.of(
-            AiTweaksEngagementRangeRuntime.PLAN_ID,
             AshLibVariantLookupRuntime.PLAN_ID,
             AudioResourceFallbackRuntime.PLAN_ID,
             AudioStreamSourceErrorRuntime.PLAN_ID,

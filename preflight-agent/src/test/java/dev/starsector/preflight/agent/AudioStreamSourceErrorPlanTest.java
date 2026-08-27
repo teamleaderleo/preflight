@@ -158,8 +158,6 @@ class AudioStreamSourceErrorPlanTest {
                     .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS);
             assertTrue(registry.targets().stream()
                     .noneMatch(target -> AudioStreamSourceErrorRuntime.PLAN_ID.equals(target.planId())));
-            assertTrue(registry.targets().stream()
-                    .anyMatch(target -> AiTweaksEngagementRangeRuntime.PLAN_ID.equals(target.planId())));
         } finally {
             if (previous == null) {
                 System.clearProperty(AudioStreamSourceErrorRuntime.DISABLED_PROPERTY);
