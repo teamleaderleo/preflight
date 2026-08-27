@@ -207,6 +207,7 @@ public final class FrameTimeRuntime {
         campaignAfter30SecondsActivePhases.reset();
         HitchPacketRuntime.beginSession(telemetryRequested);
         GpuFrameTimeRuntime.beginSession(telemetryRequested);
+        GlStateReissueRuntime.beginSession(telemetryRequested);
         GlCommandCountRuntime.beginSession(telemetryRequested);
         initializeThreadCpuClock(telemetryRequested);
     }
@@ -375,6 +376,7 @@ public final class FrameTimeRuntime {
         measurementWindowCampaignPause = PAUSE_UNKNOWN;
         measurementWindowActive = true;
         GlCommandCountRuntime.beginMeasurementWindow("combat", null);
+        GlStateReissueRuntime.beginMeasurementWindow();
     }
 
     /** Starts a clean steady-state campaign window with an exact pause-state owner. */
@@ -386,6 +388,7 @@ public final class FrameTimeRuntime {
         measurementWindowActive = true;
         GlCommandCountRuntime.beginMeasurementWindow(
                 "campaign", paused ? "paused" : "unpaused");
+        GlStateReissueRuntime.beginMeasurementWindow();
     }
 
     /** Timestamp immediately before LWJGL hands the rendered frame to the native presentation path. */
@@ -674,6 +677,7 @@ public final class FrameTimeRuntime {
             measurementWindow.record(duration, endOffset);
         }
         GlCommandCountRuntime.observeFrame(boundaries, duration, comparableMeasurementWindow);
+        GlStateReissueRuntime.observeFrame(duration, comparableMeasurementWindow);
         boolean settledCampaign = stableGameplayFrame
                 && state == STATE_CAMPAIGN
                 && now - firstCampaignBoundaryNanos >= CAMPAIGN_WARMUP_NANOS;
@@ -765,6 +769,7 @@ public final class FrameTimeRuntime {
         result.put("openGlContext", glContext);
         result.put("gpuFrameTime", GpuFrameTimeRuntime.telemetry());
         result.put("openGlCommands", GlCommandCountRuntime.telemetry());
+        result.put("openGlStateReissues", GlStateReissueRuntime.telemetry());
         Map<String, Object> limiter = new LinkedHashMap<>();
         limiter.put("planId", FrameLimiterTimePlan.PLAN_ID);
         limiter.put("installed", limiterInstalled);

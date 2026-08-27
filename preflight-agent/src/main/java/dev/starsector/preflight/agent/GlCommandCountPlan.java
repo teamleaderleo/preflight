@@ -135,6 +135,8 @@ final class GlCommandCountPlan {
                     Opcodes.INVOKESTATIC, RUNTIME, "record", "(I)V", false));
             method.method().instructions.insert(hook);
         }
+        int stateMethods = GlStateReissuePlan.instrument(owner);
+        if (stateMethods < 0) return null;
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         GlCommandCountRuntime.installed(target.internalName(), methods.size());

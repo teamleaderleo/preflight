@@ -33,8 +33,49 @@ final class GlCommandCountInstalledAdapterIT {
     @AfterEach
     void reset() {
         System.clearProperty(GlCommandCountRuntime.ENABLE_PROPERTY);
+        System.clearProperty(GlStateReissueRuntime.ENABLE_PROPERTY);
         GpuFrameTimeRuntime.beginSession(false);
+        GlStateReissueRuntime.reset();
         GlCommandCountRuntime.reset();
+    }
+
+    @Test
+    void installedLwjglTargetsAcceptTheExactStateReissueMethods() throws Exception {
+        String configured = System.getProperty("preflight.lwjgl.jar", "").trim();
+        Assumptions.assumeTrue(!configured.isEmpty(),
+                "set -Dpreflight.lwjgl.jar=<lwjgl.jar>");
+        Path archive = Path.of(configured).toAbsolutePath().normalize();
+        Assumptions.assumeTrue(Files.isRegularFile(archive));
+        System.setProperty(GlStateReissueRuntime.ENABLE_PROPERTY, "true");
+        GlStateReissueRuntime.beginSession(true);
+        GlCommandCountRuntime.beginSession(true);
+
+        try (JarFile jar = new JarFile(archive.toFile())) {
+            for (GlCommandCountPlan.Target target : GlCommandCountPlan.targets()) {
+                var entry = jar.getJarEntry(target.internalName() + ".class");
+                byte[] original;
+                try (var input = jar.getInputStream(entry)) {
+                    original = input.readAllBytes();
+                }
+                byte[] transformed = GlCommandCountPlan.transform(
+                        ClassSignature.parse(original), original);
+                assertNotNull(transformed, target.internalName());
+                int expected = switch (target.idSuffix()) {
+                    case "gl11" -> 17;
+                    case "gl13" -> 2;
+                    default -> 0;
+                };
+                assertEquals(expected, stateRuntimeCalls(transformed), target.internalName());
+
+                ClassNode owner = new ClassNode(Opcodes.ASM9);
+                new ClassReader(transformed).accept(owner, ClassReader.EXPAND_FRAMES);
+                for (var method : owner.methods) {
+                    new Analyzer<>(new BasicInterpreter()).analyze(owner.name, method);
+                }
+            }
+        }
+        assertEquals(2, GlStateReissueRuntime.telemetry().get("installedTargetCount"));
+        assertEquals(19, GlStateReissueRuntime.telemetry().get("installedMethodCount"));
     }
 
     @Test
@@ -78,6 +119,19 @@ final class GlCommandCountInstalledAdapterIT {
             for (AbstractInsnNode instruction : method.instructions) {
                 if (instruction instanceof MethodInsnNode call
                         && RUNTIME.equals(call.owner) && "record".equals(call.name)) result++;
+            }
+        }
+        return result;
+    }
+
+    private static int stateRuntimeCalls(byte[] bytes) {
+        String runtime = GlStateReissueRuntime.class.getName().replace('.', '/');
+        ClassNode owner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(bytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        int result = 0;
+        for (var method : owner.methods) {
+            for (AbstractInsnNode instruction : method.instructions) {
+                if (instruction instanceof MethodInsnNode call && runtime.equals(call.owner)) result++;
             }
         }
         return result;

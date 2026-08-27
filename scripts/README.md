@@ -100,6 +100,15 @@ candidate with thin frame telemetry. The totals cover selected wrapper families,
 call; immediate-mode rendering is deliberately counted per `glBegin` batch rather than per vertex
 to keep the discovery probe bounded.
 
+If the family census exposes substantial state traffic, use the narrower
+`PREFLIGHT_FRAME_GL_STATE_REISSUES=1` pass next. It composes exact argument hooks into the same
+reviewed GL11/GL13 boundary and reports per-method calls plus same-state reissues for texture binds,
+capability enable/disable, blend/alpha/depth/cull state, matrix mode, viewport/scissor, and texture
+unit selection. Display-list calls and attribute-stack pops invalidate the model; table overflow,
+unknown calls, and unexpected threads are explicit. A same-state reissue is a candidate ceiling,
+not proof that suppression is safe. This is also intrusive discovery instrumentation and cannot be
+combined with the GPU timer or used for an FPS claim.
+
 `campaign-profile-paused-unpaused.json` keeps the first three campaign seconds untouched, ensures a
 paused state through Starsector's mapped pause control, retains a paused warm-up and settled window,
 then unpauses for a transition buffer, starts an exact campaign-owned frame window, and retains the

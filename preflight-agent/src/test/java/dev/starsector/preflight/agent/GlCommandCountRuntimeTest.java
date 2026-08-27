@@ -14,9 +14,11 @@ final class GlCommandCountRuntimeTest {
     @AfterEach
     void reset() {
         System.clearProperty(GlCommandCountRuntime.ENABLE_PROPERTY);
+        System.clearProperty(GlStateReissueRuntime.ENABLE_PROPERTY);
         System.clearProperty(GpuFrameTimeRuntime.ENABLE_PROPERTY);
         GpuFrameTimeRuntime.beginSession(false);
         GlCommandCountRuntime.reset();
+        GlStateReissueRuntime.reset();
     }
 
     @Test
@@ -80,6 +82,19 @@ final class GlCommandCountRuntimeTest {
         assertTrue((Boolean) telemetry.get("requested"));
         assertFalse((Boolean) telemetry.get("enabled"));
         assertEquals("gpu-frame-timer-also-requested", telemetry.get("problem"));
+    }
+
+    @Test
+    void stateReissueRequestEnablesTheSharedExactCommandBoundary() {
+        System.setProperty(GlStateReissueRuntime.ENABLE_PROPERTY, "true");
+        GpuFrameTimeRuntime.beginSession(false);
+        GlStateReissueRuntime.beginSession(true);
+        GlCommandCountRuntime.beginSession(true);
+
+        Map<String, Object> telemetry = GlCommandCountRuntime.telemetry();
+        assertTrue((Boolean) telemetry.get("requested"));
+        assertTrue((Boolean) telemetry.get("requestedByStateReissue"));
+        assertTrue((Boolean) telemetry.get("enabled"));
     }
 
     private static Map<String, Object> category(

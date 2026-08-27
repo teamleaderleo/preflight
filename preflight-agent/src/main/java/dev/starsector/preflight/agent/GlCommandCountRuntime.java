@@ -57,6 +57,7 @@ public final class GlCommandCountRuntime {
     private static final Map<String, Integer> installedTargets = new TreeMap<>();
 
     private static volatile boolean requested;
+    private static volatile boolean requestedByStateReissue;
     private static volatile boolean enabled;
     private static String problem;
     private static volatile boolean windowActive;
@@ -84,7 +85,8 @@ public final class GlCommandCountRuntime {
     }
 
     static synchronized void beginSession(boolean frameTelemetryRequested) {
-        requested = frameTelemetryRequested && explicitlyRequested();
+        requestedByStateReissue = frameTelemetryRequested && GlStateReissueRuntime.planEnabled();
+        requested = frameTelemetryRequested && (explicitlyRequested() || requestedByStateReissue);
         enabled = requested && !GpuFrameTimeRuntime.requested();
         problem = requested && !enabled ? "gpu-frame-timer-also-requested" : null;
         windowActive = false;
@@ -226,6 +228,7 @@ public final class GlCommandCountRuntime {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("planId", PLAN_ID);
         result.put("requested", requested);
+        result.put("requestedByStateReissue", requestedByStateReissue);
         result.put("enabled", enabled);
         result.put("problem", problem);
         result.put("active", windowActive);

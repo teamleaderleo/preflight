@@ -28,7 +28,7 @@ class AdapterPlanCatalogTest {
                 .map(AdapterPlanCatalog.Descriptor::planId)
                 .collect(Collectors.toSet());
 
-        assertEquals(69, catalogPlans.size(), "adapter plan inventory changed");
+        assertEquals(70, catalogPlans.size(), "adapter plan inventory changed");
         assertTrue(catalogPlans.containsAll(registeredPlans),
                 () -> "uncatalogued registered plans: " + difference(registeredPlans, catalogPlans));
         for (AdapterPlanCatalog.Descriptor descriptor : descriptors) {
@@ -47,6 +47,8 @@ class AdapterPlanCatalogTest {
 
         assertEquals("DISABLED", field(inventory, AudioMusicTransitionRuntime.PLAN_ID, "state"));
         assertEquals("COMPOSED", field(inventory, TexturePaddingRuntime.PLAN_ID, "state"));
+        assertEquals("INACTIVE", field(inventory, GlStateReissueRuntime.PLAN_ID, "state"));
+        assertEquals("COMPOSED", field(inventory, GlStateReissueRuntime.PLAN_ID, "integration"));
         assertEquals("REGISTERED", field(inventory, TexturePreparedPixelRuntime.PLAN_ID, "state"));
         assertEquals("INACTIVE", field(inventory, SimOpponentSafetyRuntime.PLAN_ID, "state"));
         assertEquals("DIRECT", field(inventory, SimOpponentSafetyRuntime.PLAN_ID, "integration"));
