@@ -57,6 +57,12 @@ final class MacDesktopSmokeDriverTest {
                 .contains("kCGWindowOwnerPID)!==" + pid));
         assertTrue(MacDesktopSmokeDriver.appKitActivateScript(pid)
                 .contains("runningApplicationWithProcessIdentifier(" + pid));
+        List<String> compatibility = MacDesktopSmokeDriver.legacyPidActivationCommand(pid);
+        assertEquals("/usr/bin/python3", compatibility.get(0));
+        assertEquals(Long.toString(pid), compatibility.get(3));
+        assertTrue(compatibility.get(2).contains("GetProcessForPID"));
+        assertTrue(compatibility.get(2).contains("SetFrontProcessWithOptions"));
+        assertFalse(compatibility.get(2).toLowerCase(Locale.ROOT).contains("starsector"));
         assertTrue(MacDesktopSmokeDriver.coreGraphicsKeyCodeScript(pid, 13)
                 .contains("CGEventPostToPid(" + pid));
     }
@@ -102,6 +108,11 @@ final class MacDesktopSmokeDriverTest {
                 () -> MacDesktopSmokeDriver.activateExactPid(0));
         assertThrows(IllegalArgumentException.class,
                 () -> MacDesktopSmokeDriver.activateExactPid((long) Integer.MAX_VALUE + 1L));
+        assertThrows(IllegalArgumentException.class,
+                () -> MacDesktopSmokeDriver.legacyPidActivationCommand(0));
+        assertThrows(IllegalArgumentException.class,
+                () -> MacDesktopSmokeDriver.legacyPidActivationCommand(
+                        (long) Integer.MAX_VALUE + 1L));
         assertThrows(IllegalArgumentException.class,
                 () -> MacDesktopSmokeDriver.coreGraphicsKeyCodeScript(1, 128));
 
@@ -240,6 +251,49 @@ final class MacDesktopSmokeDriverTest {
     }
 
     @Test
+    void verifiedExactProcessFocusDoesNotDependOnCarbonRegistration() throws Exception {
+        assumeTrue(Platform.current() == Platform.MAC);
+        FakeCommands commands = new FakeCommands();
+        MacDesktopSmokeDriver driver = new MacDesktopSmokeDriver(
+                commands, Path.of("/usr/bin/osascript"), Path.of("/usr/sbin/screencapture"),
+                null, null, pid -> {
+                    throw new DesktopSmokeDriver.UnavailableException(
+                            "exact PID unavailable to ApplicationServices (status -600)");
+                });
+        driver.descriptor();
+        driver.attach(currentTarget());
+
+        DesktopSmokeDriver.ActionResult result = driver.execute(
+                Map.of("kind", "activate-window"), temporaryDirectory);
+
+        assertTrue(result.detail().contains("ApplicationServices fallback unavailable"),
+                result.detail());
+        assertTrue(result.detail().endsWith("frontmost=true"), result.detail());
+    }
+
+    @Test
+    void rejectedDirectFocusUsesTheBoundedCompatibilityCallOnce() throws Exception {
+        assumeTrue(Platform.current() == Platform.MAC);
+        FakeCommands commands = new FakeCommands();
+        commands.nonfrontmostObservationCount = 1;
+        MacDesktopSmokeDriver driver = new MacDesktopSmokeDriver(
+                commands, Path.of("/usr/bin/osascript"), Path.of("/usr/sbin/screencapture"),
+                null, null, pid -> "direct focus returned success", true);
+        driver.descriptor();
+        driver.attach(currentTarget());
+
+        DesktopSmokeDriver.ActionResult result = driver.execute(
+                Map.of("kind", "activate-window"), temporaryDirectory);
+
+        assertTrue(result.detail().contains("compatibility helper after frontmost verification"),
+                result.detail());
+        assertEquals(1, commands.commands.stream()
+                .filter(command -> command.get(0).equals("/usr/bin/python3"))
+                .count());
+        assertTrue(result.detail().endsWith("frontmost=true"), result.detail());
+    }
+
+    @Test
     void screenshotIsRestrictedToFreshExactWindowBounds() throws Exception {
         assumeTrue(Platform.current() == Platform.MAC);
         FakeCommands commands = new FakeCommands();
@@ -306,6 +360,7 @@ final class MacDesktopSmokeDriverTest {
         private int activationUnavailableCount;
         private int activationWindowUnavailableCount;
         private int windowBoundsUnavailableCount;
+        private int nonfrontmostObservationCount;
 
         @Override
         public Result run(
@@ -343,7 +398,8 @@ final class MacDesktopSmokeDriverTest {
             if (script.contains("frontmost=")) {
                 return new Result(
                         0, "PID " + ProcessHandle.current().pid()
-                                + " window 10,20,1974,1240 frontmost=true\n");
+                                + " window 10,20,1974,1240 frontmost="
+                                + (nonfrontmostObservationCount-- > 0 ? "false" : "true") + "\n");
             }
             return new Result(0, "ok\n");
         }

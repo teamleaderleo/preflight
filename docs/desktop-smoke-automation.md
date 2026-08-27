@@ -161,9 +161,11 @@ writes its capability into evidence.
 The native host runs a closed set of reviewed operations. System Events resolves only
 `application process whose unix id is <pid>`; standalone development keys use CoreGraphics
 `CGEventPostToPid`; and a compatibility foreground call uses the same numeric PID through
-ApplicationServices through the already-bundled Java Native Access library before System Events
-verifies `frontmost=true`. The foreground path has no Python or other helper-runtime dependency.
-No path contains the game's
+ApplicationServices before System Events verifies `frontmost=true`. Preflight first uses the
+already-bundled Java Native Access library. On the reviewed Rosetta/LWJGL path, where the long-lived
+controller can receive `procNotFound` or a no-op success from Carbon, the standalone development
+harness may use the system Python runtime to issue the identical two bounded C calls. This path is
+not part of the game process or release launch path. No path contains the game's
 application name, selects a Dock item, or asks Launch Services to open an application. The direct
 launch probes showed why this matters: the live game window belongs to Azul's generic
 `com.azul.zulu.java` process while Launch Services also registers the dormant `Starsector.app`

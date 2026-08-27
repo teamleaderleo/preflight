@@ -98,7 +98,7 @@
     "singleTrackedPid": 5599,
     "startupActivationFrontmost": true,
     "gameActivationFrontmost": true,
-    "focusImplementation": "direct Java Native Access call to ApplicationServices; no Python helper",
+    "focusImplementation": "bounded system-Python ApplicationServices compatibility call in the standalone development harness; exact PID verified afterward",
     "zoomBoundary": "CombatState input generation",
     "zoomEvents": 12,
     "zoomEventSign": "negative",

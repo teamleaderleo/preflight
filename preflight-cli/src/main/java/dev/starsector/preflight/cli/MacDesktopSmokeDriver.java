@@ -39,6 +39,7 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     private static final String BRIDGE_TOKEN_ENV = "PREFLIGHT_MAC_AUTOMATION_TOKEN";
     private static final String APPLICATION_SERVICES =
             "/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices";
+    private static final Path PYTHON3 = Path.of("/usr/bin/python3");
     private static final Map<String, TargetPoint> TARGETS = targets();
     private static final Map<String, Integer> KEY_CODES = Map.ofEntries(
             Map.entry("a", 0),
@@ -61,6 +62,7 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     private final String bridgeEndpoint;
     private final String bridgeToken;
     private final ExactPidActivator exactPidActivator;
+    private final boolean allowCompatibilityFocus;
     private ProcessTarget target;
 
     MacDesktopSmokeDriver() {
@@ -92,12 +94,25 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
             String bridgeEndpoint,
             String bridgeToken,
             ExactPidActivator exactPidActivator) {
+        this(commands, osascript, screenCapture, bridgeEndpoint, bridgeToken, exactPidActivator,
+                commands instanceof SystemDesktopCommandExecutor);
+    }
+
+    MacDesktopSmokeDriver(
+            DesktopCommandExecutor commands,
+            Path osascript,
+            Path screenCapture,
+            String bridgeEndpoint,
+            String bridgeToken,
+            ExactPidActivator exactPidActivator,
+            boolean allowCompatibilityFocus) {
         this.commands = commands;
         this.osascript = osascript;
         this.screenCapture = screenCapture;
         this.bridgeEndpoint = validatedBridgeEndpoint(bridgeEndpoint);
         this.bridgeToken = validatedBridgeToken(bridgeToken);
         this.exactPidActivator = java.util.Objects.requireNonNull(exactPidActivator);
+        this.allowCompatibilityFocus = allowCompatibilityFocus;
         if ((this.bridgeEndpoint == null) != (this.bridgeToken == null)) {
             throw new IllegalArgumentException(
                     "The macOS native automation bridge needs both endpoint and token");
@@ -186,6 +201,7 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     private ActionResult activate(ProcessTarget attached) throws Exception {
         long deadline = System.nanoTime() + WINDOW_READINESS_TIMEOUT.toNanos();
         UnavailableException lastUnavailable = null;
+        boolean compatibilityAttempted = false;
         do {
             requireSameLifetime(attached);
             try {
@@ -194,10 +210,37 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
                 if (!nativeBridge()) {
                     command(javascript(appKitActivateScript(attached.pid())));
                 }
-                String nativeFocus = exactPidActivator.activate(attached.pid());
+                String nativeFocus;
+                try {
+                    nativeFocus = exactPidActivator.activate(attached.pid());
+                } catch (UnavailableException unavailable) {
+                    if (!compatibilityAttempted && compatibilityFocusAvailable()) {
+                        command(legacyPidActivationCommand(attached.pid()));
+                        compatibilityAttempted = true;
+                        nativeFocus = "foregrounded exact PID " + attached.pid()
+                                + " through the ApplicationServices compatibility helper";
+                    } else {
+                        // The native desktop bridge or an injected test driver can still succeed
+                        // without Carbon, but only when the exact Accessibility process confirms
+                        // its frontmost state below.
+                        nativeFocus = "ApplicationServices fallback unavailable: "
+                                + bounded(unavailable.getMessage());
+                    }
+                }
                 requireSameLifetime(attached);
                 String observed = automation(
                         "observe", attached.pid(), null, observationScript(attached.pid())).trim();
+                if (!observed.contains("frontmost=true")
+                        && !compatibilityAttempted && compatibilityFocusAvailable()) {
+                    command(legacyPidActivationCommand(attached.pid()));
+                    compatibilityAttempted = true;
+                    nativeFocus = "foregrounded exact PID " + attached.pid()
+                            + " through the ApplicationServices compatibility helper after "
+                            + "frontmost verification rejected the direct call";
+                    observed = automation(
+                            "observe", attached.pid(), null,
+                            observationScript(attached.pid())).trim();
+                }
                 if (!observed.contains("frontmost=true")) {
                     throw new UnavailableException("exact PID remains non-frontmost after activation");
                 }
@@ -217,6 +260,10 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
                 "The exact game process did not publish a macOS window within "
                         + WINDOW_READINESS_TIMEOUT.toSeconds() + " seconds: "
                         + lastUnavailable.getMessage());
+    }
+
+    private boolean compatibilityFocusAvailable() {
+        return allowCompatibilityFocus && !nativeBridge() && Files.isExecutable(PYTHON3);
     }
 
     private static boolean windowReadinessUnavailable(UnavailableException unavailable) {
@@ -658,6 +705,24 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
             throw new UnavailableException("exact-PID ApplicationServices focus is unavailable",
                     unavailable);
         }
+    }
+
+    static List<String> legacyPidActivationCommand(long pid) {
+        if (pid <= 0) throw new IllegalArgumentException("PID must be positive");
+        if (pid > Integer.MAX_VALUE) throw new IllegalArgumentException("PID is outside macOS range");
+        String source = "import ctypes,sys\n"
+                + "from ctypes import c_int32,c_uint32,Structure,byref\n"
+                + "class PSN(Structure): _fields_=[('hi',c_uint32),('lo',c_uint32)]\n"
+                + "pid=int(sys.argv[1]); framework=ctypes.CDLL("
+                + "'/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices')\n"
+                + "framework.GetProcessForPID.argtypes=[c_int32,ctypes.POINTER(PSN)]\n"
+                + "framework.GetProcessForPID.restype=c_int32\n"
+                + "framework.SetFrontProcessWithOptions.argtypes=[ctypes.POINTER(PSN),c_uint32]\n"
+                + "framework.SetFrontProcessWithOptions.restype=c_int32\n"
+                + "process=PSN(); first=framework.GetProcessForPID(pid,byref(process))\n"
+                + "second=framework.SetFrontProcessWithOptions(byref(process),3) if first==0 else first\n"
+                + "sys.exit(0 if first==0 and second==0 else 1)\n";
+        return List.of(PYTHON3.toString(), "-c", source, Long.toString(pid));
     }
 
     static String coreGraphicsKeyCodeScript(long pid, int code) {

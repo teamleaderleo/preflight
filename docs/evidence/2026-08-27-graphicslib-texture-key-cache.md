@@ -46,8 +46,9 @@ The measurement lanes remain distinct:
 ## Deterministic combat route
 
 The run also closed two automation gaps. macOS activation now foregrounds and then verifies the
-same recorded PID through direct Java Native Access calls; it has no Python dependency and never
-selects a Dock item or launches by application name. Combat zoom uses
+same recorded PID through ApplicationServices; the retained run used the standalone harness's
+bounded system-Python compatibility call and never selected a Dock item or launched by application
+name. Combat zoom uses
 12 bounded negative wheel events at Starsector's exact input-generation boundary, then verifies the
 public viewport changed. The retained run stayed on PID 5599, reported `frontmost=true` at both
 activation checks, and proved `viewMult` 1.250 to 3.989 and visible width 1,800 to 5,744 before the
@@ -76,8 +77,8 @@ and touches no campaign, combat, or save state.
 
 Focused unit and installed-archive integration checks cover the exact transform, unchanged-input
 rejection, nonanimated and animated keys, invalid values, action protocol, exact combat input seam,
-and macOS PID activation. A direct Java 17 probe foregrounded an already-frontmost exact PID through
-the packaged JNA path. Full Java 17 `mvn verify` passed 2,135 tests with zero failures or errors
+and macOS PID activation. A separate Java 17 probe also foregrounded an already-frontmost exact PID
+through the packaged JNA path. Full Java 17 `mvn verify` passed 2,135 tests with zero failures or errors
 and five environment-gated skips. The source-boundary and claim-provenance checks also passed. The
 retained machine-readable measurements and artifact hashes are in
 `data/2026-08-27-graphicslib-texture-key-cache.json`.

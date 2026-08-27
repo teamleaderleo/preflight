@@ -9,8 +9,8 @@
     "recording": "sample"
   },
   "steps": [
-    {"id":"activate-startup","kind":"activate-window"},
     {"id":"menu","kind":"wait-state","state":"main-menu-interactive","timeoutSeconds":90},
+    {"id":"activate-startup","kind":"activate-window"},
     {"id":"continue","kind":"click","target":"main-menu.continue"},
     {"id":"campaign","kind":"wait-state","state":"campaign-ready","timeoutSeconds":120},
     {"id":"ensure-paused","kind":"click","target":"campaign.pause"},

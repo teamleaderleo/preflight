@@ -92,6 +92,11 @@ same route but explicitly toggles the installed SpeedUp mod's Caps Lock 2× mode
 repeated >33.33 ms clusters and excess slow-frame time separately from isolated hitches, so a single
 menu or transition spike does not masquerade as sustained roughness.
 
+The combat scenarios wait for the internal `main-menu-interactive` receipt before asking macOS to
+foreground the exact recorded PID. LWJGL can exist as a Unix process before it has registered a
+foregroundable application; attempting activation in that gap is neither a useful readiness probe
+nor a reason to hold the launch for another two minutes.
+
 `campaign-simulation-combat-1000dp.json` keeps the same proven entry route, then replaces the
 deployed ships with mirrored 24-ship fast high-tech fleets through the closed in-game runtime action.
 Each side is 520 DP, so its retained 30-second 2× window is a controlled 1,040-DP combat stress
