@@ -11,7 +11,7 @@ import java.util.Map;
 
 /** Low-allocation frame-pacing telemetry at LWJGL's display-update boundary. */
 public final class FrameTimeRuntime {
-    static final String PLAN_ID = "lwjgl-display-frame-time-and-presentation-v3";
+    static final String PLAN_ID = "lwjgl-display-frame-time-and-presentation-v4";
     static final String FORCE_VSYNC_OFF_PROPERTY = "preflight.framePacing.forceVsyncOff";
 
     private static final long HISTOGRAM_BIN_NANOS = 100_000L;
@@ -204,6 +204,7 @@ public final class FrameTimeRuntime {
         campaignActivePhases.reset();
         campaignAfter30SecondsActivePhases.reset();
         HitchPacketRuntime.beginSession(telemetryRequested);
+        GpuFrameTimeRuntime.beginSession(telemetryRequested);
         initializeThreadCpuClock(telemetryRequested);
     }
 
@@ -375,6 +376,9 @@ public final class FrameTimeRuntime {
     public static void beforeSwap() {
         if (!enabled) return;
         observeGlContextOnce();
+        GpuFrameTimeRuntime.beforeSwap(
+                boundaries + 1L,
+                glContextInventoryAvailable && glOpenGl15 && glExtTimerQuery);
         long wallNanos = System.nanoTime();
         long threadCpuNanos = readThreadCpuTime();
         recordSwapStarted(wallNanos, threadCpuNanos);
@@ -386,6 +390,7 @@ public final class FrameTimeRuntime {
         long threadCpuNanos = readThreadCpuTime();
         long wallNanos = System.nanoTime();
         recordSwapCompleted(wallNanos, threadCpuNanos);
+        GpuFrameTimeRuntime.afterSwap();
     }
 
     /** Timestamp immediately before LWJGL processes native window and input messages. */
@@ -534,6 +539,8 @@ public final class FrameTimeRuntime {
             lastBoundaryCampaignPause = campaignPause;
             startupTransitionPending = false;
             interactiveTransitionPending = false;
+            GpuFrameTimeRuntime.observeFrame(boundaries, false, false, PAUSE_UNKNOWN,
+                    false, 0L, -1L, lastSwapInterval);
             resetDisplayPhaseTimestamps();
             return;
         }
@@ -550,6 +557,8 @@ public final class FrameTimeRuntime {
             lastBoundaryActive = active;
             lastBoundaryState = state;
             lastBoundaryCampaignPause = campaignPause;
+            GpuFrameTimeRuntime.observeFrame(boundaries, false, false, PAUSE_UNKNOWN,
+                    false, 0L, -1L, lastSwapInterval);
             resetDisplayPhaseTimestamps();
             return;
         }
@@ -558,6 +567,8 @@ public final class FrameTimeRuntime {
             lastBoundaryActive = active;
             lastBoundaryState = state;
             lastBoundaryCampaignPause = campaignPause;
+            GpuFrameTimeRuntime.observeFrame(boundaries, false, false, PAUSE_UNKNOWN,
+                    false, 0L, -1L, lastSwapInterval);
             resetDisplayPhaseTimestamps();
             return;
         }
@@ -637,6 +648,20 @@ public final class FrameTimeRuntime {
                 && state == measurementWindowState) {
             measurementWindow.record(duration, endOffset);
         }
+        boolean settledCampaign = stableGameplayFrame
+                && state == STATE_CAMPAIGN
+                && now - firstCampaignBoundaryNanos >= CAMPAIGN_WARMUP_NANOS;
+        boolean comparableCombat = stableGameplayFrame && state == STATE_COMBAT;
+        GpuFrameTimeRuntime.observeFrame(
+                boundaries,
+                stableGameplayFrame && allActivePhases.lastComplete,
+                settledCampaign,
+                campaignPause,
+                comparableCombat,
+                duration,
+                allActivePhases.lastSwapThreadCpuComplete
+                        ? allActivePhases.lastSwapOffCpuNanos : -1L,
+                lastSwapInterval);
         lastBoundaryActive = active;
         lastBoundaryState = state;
         lastBoundaryCampaignPause = campaignPause;
@@ -712,6 +737,7 @@ public final class FrameTimeRuntime {
         glContext.put("classification", "one-time read-only capability inventory");
         glContext.put("semanticEffect", "none; no query, fence, or rendering state created");
         result.put("openGlContext", glContext);
+        result.put("gpuFrameTime", GpuFrameTimeRuntime.telemetry());
         Map<String, Object> limiter = new LinkedHashMap<>();
         limiter.put("planId", FrameLimiterTimePlan.PLAN_ID);
         limiter.put("installed", limiterInstalled);
