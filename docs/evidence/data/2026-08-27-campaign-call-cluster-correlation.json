@@ -1,0 +1,96 @@
+{
+  "format": "starsector-preflight-campaign-call-cluster-correlation-v1",
+  "date": "2026-08-27",
+  "status": "diagnostic-accepted-causality-open",
+  "sourceCommit": "1b9ab58bfc859535482ac5ad7dde850333b5d698",
+  "scenario": {
+    "id": "campaign-profile-paused-unpaused",
+    "status": "passed",
+    "initialStateUntouchedMillis": 3000,
+    "initialPauseState": "already-paused",
+    "verifiedUnpauseActions": 1,
+    "inactiveIntervalsDropped": 0,
+    "invalidIntervalsDropped": 0,
+    "stateTransitionIntervalsDropped": 5,
+    "pauseTransitionIntervalsExcluded": 2
+  },
+  "frameDistributions": {
+    "pausedAfter30SecondsActive": {
+      "frames": 3643,
+      "averageFps": 58.2,
+      "medianFps": 58.82,
+      "onePercentLowFps": 30.03,
+      "pointOnePercentLowFps": 20.83,
+      "p99Millis": 33.3,
+      "repeatedClusters": 1,
+      "framesInRepeatedClusters": 2,
+      "stutterBurdenMillisPerSecond": 2.2
+    },
+    "unpausedAfter30SecondsActive": {
+      "frames": 1657,
+      "averageFps": 51.49,
+      "medianFps": 59.17,
+      "onePercentLowFps": 15.41,
+      "pointOnePercentLowFps": 8.27,
+      "p99Millis": 64.9,
+      "repeatedClusters": 22,
+      "framesInRepeatedClusters": 59,
+      "stutterBurdenMillisPerSecond": 62.2
+    }
+  },
+  "exactStepClusters": {
+    "pausedSettled": {
+      "repeatedClusters": 0,
+      "frames": 0,
+      "originalDurationMillis": 0.0,
+      "originalExcessMillis": 0.0
+    },
+    "unpausedTransition": {
+      "repeatedClusters": 7,
+      "frames": 25,
+      "originalDurationMillis": 1715.929,
+      "originalExcessMillis": 882.594
+    },
+    "unpausedSettled": {
+      "repeatedClusters": 15,
+      "frames": 34,
+      "originalDurationMillis": 1672.968,
+      "originalExcessMillis": 539.637
+    }
+  },
+  "settledTopInclusiveOverlaps": [
+    {"timer": "locations", "overlapMillis": 69.272995, "calls": 1, "maximumCallMillis": 69.273},
+    {"timer": "economy", "overlapMillis": 57.791233, "calls": 5, "maximumCallMillis": 15.101375},
+    {"timer": "ModularFleetAI", "overlapMillis": 50.396204, "calls": 4, "maximumCallMillis": 28.343041},
+    {"timer": "economyStepper", "overlapMillis": 33.883333, "calls": 7, "maximumCallMillis": 11.018875},
+    {"timer": "fleetBaseEntity", "overlapMillis": 27.365923, "calls": 4, "maximumCallMillis": 21.726209},
+    {"timer": "qolp_clock", "overlapMillis": 17.298222, "calls": 10, "maximumCallMillis": 2.530458},
+    {"timer": "SupplyDataTracking", "overlapMillis": 15.976191, "calls": 1, "maximumCallMillis": 15.976417},
+    {"timer": "CoreScript", "overlapMillis": 12.127399, "calls": 7, "maximumCallMillis": 3.189041}
+  ],
+  "transitionTopInclusiveOverlaps": [
+    {"timer": "locations", "overlapMillis": 346.024036, "calls": 10, "maximumCallMillis": 90.216791},
+    {"timer": "economy", "overlapMillis": 177.223444, "calls": 13, "maximumCallMillis": 27.68075},
+    {"timer": "ModularFleetAI", "overlapMillis": 136.320829, "calls": 8, "maximumCallMillis": 77.766125},
+    {"timer": "marketAdvance", "overlapMillis": 93.238354, "calls": 16, "maximumCallMillis": 17.675666}
+  ],
+  "measurement": {
+    "slowCallMinimumMillis": 1.0,
+    "slowCallsRetainedPerTimer": 32,
+    "timerRowsInclusiveAndNested": true,
+    "displayBoundarySamples": 8164,
+    "displayBoundaryAverageMicros": 9.930494,
+    "deepTimerOverheadUnmeasured": true,
+    "fpsClaimAllowed": false
+  },
+  "hashes": {
+    "preflightCliJar": "81bb27f4c4322d62d237774b773a18651d9266951aeb42ed09b1afd989fe14ca",
+    "scenario": "2b1f637191854059800857960535fed7506b36b033bce6a838875f46146f3fe2",
+    "smokeEvidence": "01ea30f6f14e0e2e8fa38f5a3a56ac53190a6cb01f2c19733f58b7a8f0b232f0",
+    "runtimeFrameReport": "ad8be472556fabcb4c23fdd8739716ef3206e2436d85824a36d3857f859dc588",
+    "runtimeAdapterHealth": "26dff80ec0b5beb7c4b02e9b2bfcb6d68cc7cbea85729c28feacb79e5603c756",
+    "settledCorrelation": "43eb2c494b4a26524e2e7d5dcc6748199aaf26fa13958d9cf1d2cdb149dc3055",
+    "transitionCorrelation": "4672069ee33063d68b1612b6c989dc14128929b63e9bcdaad1eb73266138f4ab"
+  },
+  "rawArtifacts": "deleted-after-bounded-record"
+}

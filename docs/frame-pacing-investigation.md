@@ -20,7 +20,7 @@ next probe becomes available.
 
 ## Current measurement frontier
 
-The current implementation checkpoint is `0e7c00e45f6f3deb6a17573098b68da34d47a6c2`, following the
+The current implementation checkpoint is `1b9ab58bfc859535482ac5ad7dde850333b5d698`, following the
 cluster recorder/analyzer at `cf761d2c9089e7ef46f11d741166f0b3bc1d413c`. One Preflight-only
 `campaign-sample-paused-unpaused` run of those source bytes passed every semantic step on
 2026-08-27, used one owned game process, and dropped zero inactive or invalid frame intervals. Its
@@ -52,6 +52,9 @@ thermal state were not locked, so apparent deltas must not be advertised as impr
 3. Rank active recurring stutter with:
    `python3 scripts/starsector_gameplay_hotspots.py RUN/startup.jfr --scenario-evidence RUN/smoke-evidence.json --frame-report RUN/runtime-frame-report.json --frame-series campaignUnpausedAfter30SecondsActive --repeated-clusters 10`.
    Add `--allocations` for weighted allocation samples and `--contains TEXT` for a named stack.
+   For deep call timers, run `starsector_campaign_cluster_calls.py` and always add
+   `--scenario-evidence RUN/smoke-evidence.json --step unpaused-settled` when the question is the
+   settled route. The state bucket alone includes the deliberate post-unpause transition.
 4. Keep observations and hypotheses separate below. A previous optimization narrows a boundary; it
    does not make the boundary permanently uninteresting.
 5. Commit bounded JSON/Markdown and hashes, then remove raw JFRs, logs, and rebuildable binaries.
@@ -92,6 +95,21 @@ The follow-up again spread samples across engine, location, fleet, economy, AI, 
 creates the visible clusters. **Falsifier:** another controlled trace concentrates the clusters in
 one unrelated leaf, or cadence probes show no shared burst/catch-up boundary. The current sample
 does not identify the scheduler or justify changing simulation cadence.
+
+### Post-unpause catch-up and settled-route stutter are distinct
+
+An exact deep-timer run split the 22 active repeated clusters by scenario receipt. Seven clusters
+covering 25 frames occurred inside the five-second post-unpause transition; 15 clusters covering 34
+frames occurred in the following 45-second settled route. The transition had far more retained
+overlap with locations (346 ms), economy (177 ms), fleet AI (136 ms), and market advance (93 ms).
+
+The settled route's leading retained timers were one 69 ms location call, 58 ms of economy across
+five calls, 50 ms of fleet AI across four calls, and 34 ms of economy-stepper work across seven
+calls. Timer rows nest and do not explain the rest of the 1.673 seconds of cluster windows.
+
+This partially falsifies the single-boundary interpretation above: a broad catch-up burst is a good
+description of the transition, while settled stutter remains mixed. See
+[the exact call-window record](evidence/2026-08-27-campaign-call-cluster-correlation.md).
 
 ### The slow event-mod fingerprint no longer copies the full modifier map
 
@@ -152,14 +170,14 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
 | Stellar Networks refresh | One shuffled pass per paused interval replaces endless random refresh and then becomes idle. | A second pause starts another expensive 186-market burst, which can overlap a nominally unpaused route. | Can invalidation or refresh cadence be bounded by actual campaign-time advancement without making opened market data stale? |
 | RAT tooltip scripts | No Preflight optimization exists; source shows per-frame UI copies and reflection, with a "do not modify twice" UI sentinel in the AI-core path. | The worst exact active frame crossed this code. | Does an identity/content guard remove repeated work without missing a tooltip object reused for a different entry? |
 | Stable campaign snapshots | Stable arrays and exhausted cursor reuse are accepted and bounded. | Current allocation samples still show rebuild/cursor cost and cursor identities outnumber owners. | Which owners rebuild, how often, and can stale cursor entries be removed when an owner receives a replacement array? |
-| Paused/unpaused attribution | Frame buckets are state-separated and focus-clean. The recorder retains exact repeated-cluster windows and the JFR analyzer maps and aggregates them through the calibrated Rosetta clock. | Attribution now shows broad engine/location/fleet/economy bursts but not the cadence or causal sub-call. | Do clusters align with a stable campaign-time or accumulated-delta boundary, and which sub-call owns excess cluster time? |
+| Paused/unpaused attribution | Frame buckets are state-separated and focus-clean. Repeated clusters now correlate with bounded exact campaign calls and exact scenario steps. This separated seven post-unpause clusters from 15 settled clusters. | Transition work is a broad catch-up burst; the settled route still mixes occasional large spikes with recurring small calls, and retained children explain only part of cluster wall time. | Does the transition ordering repeat, and which individual settled frames align with the 69–90 ms location spikes? |
 | Combat | Deterministic simulation, autopilot, speed-up, zoom, and frame reporting already exist. | Campaign work says nothing about 1,000+ DP battles or combat listener/collision scaling. | Which inclusive stacks dominate a symmetric high-DP clean combat window, and do benefits survive ordinary-DP confirmation? |
 
 ## Open questions, ranked
 
-1. **Recurring active-campaign cadence:** repeated-cluster stacks are now visible and broad. Add a
-   bounded cadence/catch-up probe to identify what schedules the location/fleet/economy bursts and
-   rank excess cluster time rather than whole-window sample count.
+1. **Transition versus settled active work:** repeat the exact-step correlation once when a code
+   decision depends on it. If the transition ordering is stable, probe its catch-up scheduler;
+   independently map settled timer calls to individual slow frames before adding broader timers.
 2. **Commodity residual cost:** the empty/nonempty/delegated traffic split is now known. Map JIT
    samples or a faithful extracted benchmark to the remaining nonempty exact-key path, runtime
    enable gate, and caller boundary. Production must retain zero diagnostic writes.
@@ -198,6 +216,12 @@ the first change deliberately left intact.
 No. It establishes temporal overlap at the JFR sampling resolution. Repeated appearance, inclusive
 share, exact call-time probes, or an on/off intervention can strengthen causality. A single sampled
 leaf inside one cluster remains a lead, not a conclusion.
+
+### Does `campaignUnpausedAfter30SecondsActive` mean settled after unpausing?
+
+No. It means active campaign frames after the recorder's campaign warmup boundary. In the current
+scenario it includes the explicit five-second post-unpause transition. Intersect with the exact
+`unpaused-settled` receipt step before making a steady-state claim.
 
 ### Can raw profiles be committed?
 
