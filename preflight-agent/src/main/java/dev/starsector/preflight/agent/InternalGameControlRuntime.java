@@ -88,6 +88,10 @@ public final class InternalGameControlRuntime {
     private static int combatCursorExpectedY = -1;
     private static float combatViewportExpectedCenterX = Float.NaN;
     private static float combatViewportExpectedCenterY = Float.NaN;
+    private static Object combatStressViewport;
+    private static Method combatStressSetViewMult;
+    private static Object[] combatStressViewMultArguments;
+    private static String combatStressViewportFailure;
     private static volatile boolean simulationEngaged;
 
     private InternalGameControlRuntime() {
@@ -380,6 +384,10 @@ public final class InternalGameControlRuntime {
                 invoke(setExternalControl, viewport, true);
                 invoke(setCenter, viewport, center);
                 invoke(setViewMult, viewport, combatViewportExpectedMult);
+                combatStressViewport = viewport;
+                combatStressSetViewMult = setViewMult;
+                combatStressViewMultArguments = new Object[] {combatViewportExpectedMult};
+                combatStressViewportFailure = null;
                 float[] after = viewportState(engine);
                 publish(parsed, "executed", String.format(java.util.Locale.ROOT,
                                 "set exact externally controlled combat stress viewport: viewMult %.3f, visibleWidth %.1f, center (0,0), cursor (%d,%d)",
@@ -402,6 +410,10 @@ public final class InternalGameControlRuntime {
                 boolean exactCenter = Float.isNaN(combatViewportExpectedCenterX)
                         || (Math.abs(center[0] - combatViewportExpectedCenterX) <= 0.01f
                         && Math.abs(center[1] - combatViewportExpectedCenterY) <= 0.01f);
+                if (combatStressViewportFailure != null) {
+                    throw new IllegalStateException(
+                            "combat-stress-viewport-lock-failed: " + combatStressViewportFailure);
+                }
                 if (!wider || !exactExpected || !externalControl || !exactCenter) {
                     throw new IllegalStateException(String.format(java.util.Locale.ROOT,
                             "combat-stress-viewport-mismatch: viewMult %.3f -> %.3f, visibleWidth %.1f -> %.1f, center (%.1f,%.1f), externalControl %s",
@@ -414,7 +426,6 @@ public final class InternalGameControlRuntime {
                                 combatViewportBaselineMult, viewport[0],
                                 combatViewportBaselineWidth, viewport[1], center[0], center[1]),
                         accepted, Instant.now(), "combat-engine.advance", COMBAT_STATE, null, null);
-                clearCombatViewportBaseline();
                 return;
             }
             Method isPaused = engine.getClass().getMethod("isPaused");
@@ -438,11 +449,25 @@ public final class InternalGameControlRuntime {
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
         } catch (Throwable failure) {
-            if (COMBAT_VERIFY_ZOOM_OUT_ACTION.equals(parsed.action())) {
-                clearCombatViewportBaseline();
-            }
             publish(parsed, "failed", bounded(failure), accepted, Instant.now(),
                     "combat-engine.advance", COMBAT_STATE, before, null);
+        }
+    }
+
+    /** Reasserts the smoke-only stress zoom after Starsector updates its own zoom target. */
+    public static void combatAdvanceEnd(Object engine) {
+        if (!enabled || engine == null || combatStressSetViewMult == null
+                || combatStressViewport == null || combatStressViewMultArguments == null
+                || combatStressViewportFailure != null
+                || !RuntimeSemanticState.is(COMBAT_STATE)) return;
+        try {
+            combatStressSetViewMult.invoke(combatStressViewport, combatStressViewMultArguments);
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable failure) {
+            combatStressViewportFailure = bounded(
+                    failure instanceof InvocationTargetException target && target.getCause() != null
+                            ? target.getCause() : failure);
         }
     }
 
@@ -656,6 +681,10 @@ public final class InternalGameControlRuntime {
         combatCursorExpectedY = -1;
         combatViewportExpectedCenterX = Float.NaN;
         combatViewportExpectedCenterY = Float.NaN;
+        combatStressViewport = null;
+        combatStressSetViewMult = null;
+        combatStressViewMultArguments = null;
+        combatStressViewportFailure = null;
     }
 
     private static String executeSimulationAction(Object dialog, String action)
@@ -968,6 +997,7 @@ public final class InternalGameControlRuntime {
         completedSequence = 0L;
         pendingCampaignRequest = null;
         pendingCampaignAcceptedAt = null;
+        clearCombatViewportBaseline();
         simulationEngaged = false;
         CombatStressFixtureRuntime.reset();
     }

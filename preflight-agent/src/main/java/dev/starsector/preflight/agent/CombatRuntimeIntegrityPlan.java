@@ -53,7 +53,8 @@ final class CombatRuntimeIntegrityPlan {
                 || advance.instructions.getFirst() == null
                 || calls(advance, INTEGRITY_RUNTIME, "observe") != 0
                 || calls(advance, FRAME_RUNTIME, "observeCombat") != 0
-                || calls(advance, CONTROL_RUNTIME, "combatAdvance") != 0) {
+                || calls(advance, CONTROL_RUNTIME, "combatAdvance") != 0
+                || calls(advance, CONTROL_RUNTIME, "combatAdvanceEnd") != 0) {
             return null;
         }
 
@@ -72,6 +73,17 @@ final class CombatRuntimeIntegrityPlan {
                     "(Ljava/lang/Object;Ljava/lang/Object;)V", false));
         }
         advance.instructions.insertBefore(advance.instructions.getFirst(), observations);
+        if (InternalGameControlRuntime.enabled()) {
+            for (AbstractInsnNode instruction : advance.instructions.toArray()) {
+                if (instruction.getOpcode() != Opcodes.RETURN) continue;
+                InsnList control = new InsnList();
+                control.add(new org.objectweb.asm.tree.VarInsnNode(Opcodes.ALOAD, 0));
+                control.add(new MethodInsnNode(
+                        Opcodes.INVOKESTATIC, CONTROL_RUNTIME, "combatAdvanceEnd",
+                        "(Ljava/lang/Object;)V", false));
+                advance.instructions.insertBefore(instruction, control);
+            }
+        }
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         CombatRuntimeIntegrityRuntime.installed();

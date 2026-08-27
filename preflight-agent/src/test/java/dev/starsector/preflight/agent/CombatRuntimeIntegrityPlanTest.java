@@ -77,6 +77,7 @@ class CombatRuntimeIntegrityPlanTest {
 
         assertNotNull(transformed);
         assertEquals(1, calls(method(read(transformed)), CONTROL_RUNTIME, "combatAdvance"));
+        assertEquals(1, calls(method(read(transformed)), CONTROL_RUNTIME, "combatAdvanceEnd"));
     }
 
     @Test
