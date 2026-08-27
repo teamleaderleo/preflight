@@ -21,6 +21,9 @@ from typing import Callable, Iterable
 
 TARGET = "advanceMicros"
 BASE_PREDICTORS = (
+    "battleDp",
+    "liveDeployedDp",
+    "shipDpPresent",
     "ships",
     "fighters",
     "wrecks",
@@ -102,10 +105,13 @@ def load_reports(paths: Iterable[str | pathlib.Path]) -> list[dict]:
             payload = payload["combatWorkload"]
         run_id = str(payload.get("runId") or path.stem)
         cell_id = str(payload.get("cellId") or "unspecified")
+        report_battle_dp = numeric(payload.get("battleDp"))
         for sample in payload.get("samples") or []:
             if numeric(sample.get(TARGET)) is None:
                 continue
             row = dict(sample)
+            if numeric(row.get("battleDp")) is None and report_battle_dp is not None:
+                row["battleDp"] = report_battle_dp
             row["runId"] = run_id
             row["cellId"] = cell_id
             row["source"] = str(path)
@@ -178,8 +184,8 @@ def candidate_models(rows: list[dict]) -> list[Model]:
 
     density = "nearbyEntitiesMean"
     if density in available:
-        for name in ("ships", "fighters", "wrecks", "missiles", "projectiles", "beams",
-                     "totalAi", "effects", "ordnance"):
+        for name in ("battleDp", "liveDeployedDp", "ships", "fighters", "wrecks", "missiles",
+                     "projectiles", "beams", "totalAi", "effects", "ordnance"):
             if name in available:
                 models.append(Model(
                     f"{name}*{density}", "interaction",
@@ -188,7 +194,7 @@ def candidate_models(rows: list[dict]) -> list[Model]:
 
     duration = "combatElapsedSeconds"
     if duration in available:
-        for name in ("wrecks", "effects", "internalCollectionTotal"):
+        for name in ("wrecks", "effects", "internalCollectionTotal", "shipDpPresent"):
             if name in available:
                 models.append(Model(
                     f"{duration}*{name}", "interaction",
@@ -204,8 +210,9 @@ def candidate_models(rows: list[dict]) -> list[Model]:
                 (left, right)))
 
     mixed = [name for name in (
-        "ships", "fighters", "wrecks", "missiles", "projectiles", "beams",
-        "totalAi", "effects", "nearbyEntitiesMean", "combatElapsedSeconds") if name in available]
+        "battleDp", "liveDeployedDp", "ships", "fighters", "wrecks", "missiles", "projectiles",
+        "beams", "totalAi", "effects", "nearbyEntitiesMean", "combatElapsedSeconds")
+             if name in available]
     if 2 <= len(mixed) <= max(2, len(rows) // 4):
         models.append(Model("entity-mix:linear", "multivariate-linear",
                             tuple(term(name) for name in mixed), tuple(mixed)))
@@ -370,7 +377,7 @@ def fit_to_dict(fit: Fit) -> dict:
         "model": fit.model.name,
         "kind": fit.model.kind,
         "predictors": list(fit.model.predictors),
-        "terms": [term.name for term in fit.model.terms],
+        "terms": [model_term.name for model_term in fit.model.terms],
         "observations": fit.observations,
         "rmseMicros": fit.rmse,
         "r2": fit.r2,
