@@ -12,6 +12,7 @@ public enum AdapterPlanScope {
     private static final Set<String> MEASUREMENT_ONLY_PLANS = Set.of(
             FrameTimeRuntime.PLAN_ID,
             GlCommandCountRuntime.PLAN_ID,
+            GlMatrixOperationRuntime.PLAN_ID,
             GlStateReissueRuntime.PLAN_ID,
             FrameLimiterTimePlan.PLAN_ID,
             FrameTimeStatePlan.PLAN_ID,

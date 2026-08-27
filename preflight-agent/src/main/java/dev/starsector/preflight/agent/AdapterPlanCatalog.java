@@ -119,6 +119,9 @@ final class AdapterPlanCatalog {
                 GlStateReissueRuntime.PLAN_ID,
                 Set.of(GlCommandCountRuntime.PLAN_ID)));
         values.add(new Descriptor(
+                GlMatrixOperationRuntime.PLAN_ID,
+                Set.of(GlCommandCountRuntime.PLAN_ID)));
+        values.add(new Descriptor(
                 TexturePaddingRuntime.PLAN_ID,
                 Set.of(TextureCompatibilityRuntime.PLAN_ID, TexturePreparedPixelRuntime.PLAN_ID)));
         values.sort(Comparator.comparing(Descriptor::planId));

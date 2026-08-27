@@ -15,10 +15,12 @@ final class GlCommandCountRuntimeTest {
     void reset() {
         System.clearProperty(GlCommandCountRuntime.ENABLE_PROPERTY);
         System.clearProperty(GlStateReissueRuntime.ENABLE_PROPERTY);
+        System.clearProperty(GlMatrixOperationRuntime.ENABLE_PROPERTY);
         System.clearProperty(GpuFrameTimeRuntime.ENABLE_PROPERTY);
         GpuFrameTimeRuntime.beginSession(false);
         GlCommandCountRuntime.reset();
         GlStateReissueRuntime.reset();
+        GlMatrixOperationRuntime.reset();
     }
 
     @Test
@@ -94,6 +96,19 @@ final class GlCommandCountRuntimeTest {
         Map<String, Object> telemetry = GlCommandCountRuntime.telemetry();
         assertTrue((Boolean) telemetry.get("requested"));
         assertTrue((Boolean) telemetry.get("requestedByStateReissue"));
+        assertTrue((Boolean) telemetry.get("enabled"));
+    }
+
+    @Test
+    void matrixOperationRequestEnablesTheSharedExactCommandBoundary() {
+        System.setProperty(GlMatrixOperationRuntime.ENABLE_PROPERTY, "true");
+        GpuFrameTimeRuntime.beginSession(false);
+        GlMatrixOperationRuntime.beginSession(true);
+        GlCommandCountRuntime.beginSession(true);
+
+        Map<String, Object> telemetry = GlCommandCountRuntime.telemetry();
+        assertTrue((Boolean) telemetry.get("requested"));
+        assertTrue((Boolean) telemetry.get("requestedByMatrixOperations"));
         assertTrue((Boolean) telemetry.get("enabled"));
     }
 

@@ -137,6 +137,8 @@ final class GlCommandCountPlan {
         }
         int stateMethods = GlStateReissuePlan.instrument(owner);
         if (stateMethods < 0) return null;
+        int matrixMethods = GlMatrixOperationPlan.instrument(owner);
+        if (matrixMethods < 0) return null;
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         GlCommandCountRuntime.installed(target.internalName(), methods.size());

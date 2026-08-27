@@ -58,6 +58,7 @@ public final class GlCommandCountRuntime {
 
     private static volatile boolean requested;
     private static volatile boolean requestedByStateReissue;
+    private static volatile boolean requestedByMatrixOperations;
     private static volatile boolean enabled;
     private static String problem;
     private static volatile boolean windowActive;
@@ -86,7 +87,10 @@ public final class GlCommandCountRuntime {
 
     static synchronized void beginSession(boolean frameTelemetryRequested) {
         requestedByStateReissue = frameTelemetryRequested && GlStateReissueRuntime.planEnabled();
-        requested = frameTelemetryRequested && (explicitlyRequested() || requestedByStateReissue);
+        requestedByMatrixOperations = frameTelemetryRequested
+                && GlMatrixOperationRuntime.planEnabled();
+        requested = frameTelemetryRequested && (explicitlyRequested()
+                || requestedByStateReissue || requestedByMatrixOperations);
         enabled = requested && !GpuFrameTimeRuntime.requested();
         problem = requested && !enabled ? "gpu-frame-timer-also-requested" : null;
         windowActive = false;
@@ -229,6 +233,7 @@ public final class GlCommandCountRuntime {
         result.put("planId", PLAN_ID);
         result.put("requested", requested);
         result.put("requestedByStateReissue", requestedByStateReissue);
+        result.put("requestedByMatrixOperations", requestedByMatrixOperations);
         result.put("enabled", enabled);
         result.put("problem", problem);
         result.put("active", windowActive);

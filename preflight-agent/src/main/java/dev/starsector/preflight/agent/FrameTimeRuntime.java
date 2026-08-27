@@ -209,6 +209,7 @@ public final class FrameTimeRuntime {
         measurementWindowPhases.reset();
         HitchPacketRuntime.beginSession(telemetryRequested);
         GpuFrameTimeRuntime.beginSession(telemetryRequested);
+        GlMatrixOperationRuntime.beginSession(telemetryRequested);
         GlStateReissueRuntime.beginSession(telemetryRequested);
         GlCommandCountRuntime.beginSession(telemetryRequested);
         initializeThreadCpuClock(telemetryRequested);
@@ -379,6 +380,7 @@ public final class FrameTimeRuntime {
         measurementWindowCampaignPause = PAUSE_UNKNOWN;
         measurementWindowActive = true;
         GlCommandCountRuntime.beginMeasurementWindow("combat", null);
+        GlMatrixOperationRuntime.beginMeasurementWindow();
         GlStateReissueRuntime.beginMeasurementWindow();
     }
 
@@ -401,6 +403,7 @@ public final class FrameTimeRuntime {
         measurementWindowActive = true;
         GlCommandCountRuntime.beginMeasurementWindow(
                 "campaign", paused ? "paused" : "unpaused");
+        GlMatrixOperationRuntime.beginMeasurementWindow();
         GlStateReissueRuntime.beginMeasurementWindow();
     }
 
@@ -691,6 +694,7 @@ public final class FrameTimeRuntime {
             measurementWindowPhases.record(duration, previousBoundaryNanos, now, endOffset);
         }
         GlCommandCountRuntime.observeFrame(boundaries, duration, comparableMeasurementWindow);
+        GlMatrixOperationRuntime.observeFrame(duration, comparableMeasurementWindow);
         GlStateReissueRuntime.observeFrame(duration, comparableMeasurementWindow);
         boolean settledCampaign = stableGameplayFrame
                 && state == STATE_CAMPAIGN
@@ -783,6 +787,7 @@ public final class FrameTimeRuntime {
         result.put("openGlContext", glContext);
         result.put("gpuFrameTime", GpuFrameTimeRuntime.telemetry());
         result.put("openGlCommands", GlCommandCountRuntime.telemetry());
+        result.put("openGlMatrixOperations", GlMatrixOperationRuntime.telemetry());
         result.put("openGlStateReissues", GlStateReissueRuntime.telemetry());
         Map<String, Object> limiter = new LinkedHashMap<>();
         limiter.put("planId", FrameLimiterTimePlan.PLAN_ID);
