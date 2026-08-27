@@ -44,6 +44,22 @@ class HitchClassifierTest {
     }
 
     @Test
+    void classifiesNativeSwapCpuWhenRenderThreadConsumesTheFrame() {
+        Map<String, Object> result = HitchClassifier.classifyFrame(frame(values(
+                "durationMicros", 20_000L,
+                "preSwapMicros", 4_000L,
+                "nativeSwapMicros", 10_000L,
+                "swapThreadCpuComplete", true,
+                "swapThreadCpuMicros", 9_000L,
+                "swapInferredOffCpuMicros", 1_000L,
+                "messageMicros", 3_000L,
+                "otherAfterSwapMicros", 3_000L)));
+
+        assertEquals(HitchClassifier.NATIVE_SWAP_CPU_OR_DRIVER, result.get("label"));
+        assertEquals("swapThreadCpuMicros", result.get("dominantTrack"));
+    }
+
+    @Test
     void classifiesLimiterOversleepFromOvershootRatherThanRequestedSleep() {
         Map<String, Object> result = HitchClassifier.classifyFrame(frame(values(
                 "preSwapMicros", 45_000L,
@@ -79,6 +95,52 @@ class HitchClassifierTest {
 
         assertEquals(HitchClassifier.PRE_SWAP_WORK, result.get("label"));
         assertTrue(result.get("nextExperiment").toString().contains("simulation advancement"));
+    }
+
+    @Test
+    void unpausedPreSwapWorkRoutesThroughPauseControl() {
+        Map<String, Object> candidate = frame(values(
+                "pause", "unpaused",
+                "preSwapMicros", 40_000L,
+                "nativeSwapMicros", 5_000L,
+                "messageMicros", 2_000L,
+                "otherAfterSwapMicros", 3_000L));
+        Map<String, Object> result = HitchClassifier.classifyFrame(candidate);
+
+        assertEquals(HitchClassifier.PRE_SWAP_WORK, result.get("label"));
+        assertTrue(result.get("nextExperiment").toString().contains("paused/unpaused control"));
+    }
+
+    @Test
+    void classifiesMessagePumpAndResidualAfterSwapDomains() {
+        Map<String, Object> message = HitchClassifier.classifyFrame(frame(values(
+                "durationMicros", 20_000L,
+                "preSwapMicros", 5_000L,
+                "nativeSwapMicros", 3_000L,
+                "messageMicros", 8_000L,
+                "otherAfterSwapMicros", 4_000L)));
+        Map<String, Object> residual = HitchClassifier.classifyFrame(frame(values(
+                "durationMicros", 20_000L,
+                "preSwapMicros", 5_000L,
+                "nativeSwapMicros", 3_000L,
+                "messageMicros", 4_000L,
+                "otherAfterSwapMicros", 8_000L)));
+
+        assertEquals(HitchClassifier.MESSAGE_PUMP, message.get("label"));
+        assertEquals(HitchClassifier.AFTER_SWAP_OTHER, residual.get("label"));
+    }
+
+    @Test
+    void mixedFrameKeepsTheLargestResidualExplicit() {
+        Map<String, Object> result = HitchClassifier.classifyFrame(frame(values(
+                "durationMicros", 20_000L,
+                "preSwapMicros", 8_000L,
+                "nativeSwapMicros", 6_000L,
+                "messageMicros", 3_000L,
+                "otherAfterSwapMicros", 3_000L)));
+
+        assertEquals(HitchClassifier.MIXED, result.get("label"));
+        assertEquals(8_000L, result.get("dominantMicros"));
     }
 
     @Test
@@ -126,12 +188,50 @@ class HitchClassifierTest {
     }
 
     @Test
-    void missingPhaseCaptureStaysExplicit() {
+    void packetSummaryMarksMixedTriggerDomains() {
+        Map<String, Object> preSwap = frame(values(
+                "sequence", 20L,
+                "preSwapMicros", 55_000L,
+                "nativeSwapMicros", 2_000L,
+                "messageMicros", 1_000L,
+                "otherAfterSwapMicros", 2_000L));
+        Map<String, Object> message = frame(values(
+                "sequence", 21L,
+                "durationMicros", 60_000L,
+                "preSwapMicros", 15_000L,
+                "nativeSwapMicros", 10_000L,
+                "messageMicros", 30_000L,
+                "otherAfterSwapMicros", 5_000L));
+        Map<String, Object> classified = HitchClassifier.classifyPackets(Map.of(
+                "format", HitchPacketRuntime.FORMAT,
+                "packets", List.of(Map.of(
+                        "index", 2,
+                        "state", "combat",
+                        "pause", "unavailable",
+                        "frameHistory", List.of(preSwap, message)))));
+
+        Map<String, Object> packet = map(list(classified.get("packets")).get(0));
+        assertTrue((Boolean) packet.get("mixedLabels"));
+        assertEquals(2, map(packet.get("labelCounts")).size());
+    }
+
+    @Test
+    void emptyPacketAndMissingPhaseCaptureStayExplicit() {
         Map<String, Object> result = HitchClassifier.classifyFrame(Map.of(
                 "durationMicros", 60_000L,
                 "phasesComplete", false));
+        Map<String, Object> classified = HitchClassifier.classifyPackets(Map.of(
+                "format", HitchPacketRuntime.FORMAT,
+                "packets", List.of(Map.of(
+                        "index", 9,
+                        "state", "campaign",
+                        "pause", "paused",
+                        "frameHistory", List.of()))));
+        Map<String, Object> packet = map(list(classified.get("packets")).get(0));
 
         assertEquals(HitchClassifier.PHASES_UNAVAILABLE, result.get("label"));
+        assertEquals(HitchClassifier.PHASES_UNAVAILABLE, packet.get("primaryLabel"));
+        assertEquals(0, packet.get("triggerFrames"));
     }
 
     private static Map<String, Object> frame(Map<String, Object> additions) {
