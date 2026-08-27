@@ -20,8 +20,10 @@ next probe becomes available.
 
 ## Current measurement frontier
 
-The current implementation checkpoint is `1b9ab58bfc859535482ac5ad7dde850333b5d698`, following the
-cluster recorder/analyzer at `cf761d2c9089e7ef46f11d741166f0b3bc1d413c`. One Preflight-only
+The current implementation checkpoint is `a7ffaf78`, which contains a combat collision-array
+candidate awaiting live validation. The latest accepted campaign measurement checkpoint remains
+`fee6c7b8`, following the cluster recorder/analyzer at
+`cf761d2c9089e7ef46f11d741166f0b3bc1d413c`. One Preflight-only
 `campaign-sample-paused-unpaused` run of those source bytes passed every semantic step on
 2026-08-27, used one owned game process, and dropped zero inactive or invalid frame intervals. Its
 bounded record is [repeated cluster attribution](evidence/data/2026-08-27-repeated-cluster-attribution.json).
@@ -40,6 +42,35 @@ not exercise combat.
 
 These numbers are one current B observation, not a comparison against the prior run. Workload and
 thermal state were not locked, so apparent deltas must not be advertised as improvement.
+
+## Current live-validation queue
+
+### Collision query compact indexes (`a7ffaf78`)
+
+**Status:** exact tests and full Java 17 verification pass; live acceptance is deliberately pending.
+The first launch attempt was rejected before process creation because macOS was locked.
+
+The accepted v2 collision set stored every unique candidate in both its open-addressed object table
+and its encounter-order object array, alongside a hash array. The v3 candidate stores the candidate
+only in encounter order. A primitive one-based index table points into it, and a parallel primitive
+array retains the insertion hash. This changes the steady capacity shape from two `Object[]` plus
+one `int[]` to one `Object[]` plus two `int[]`; hash-table growth now allocates only an `int[]`.
+
+The insertion hash is not recomputed during growth. Differential tests cover nulls, duplicate and
+colliding values, repeated iterators, fail-fast mutation, and the odd mutable-key behavior of
+`LinkedHashSet`. The target remains the exact RC8 constructor, adds no game-object field or save
+state, and has a new v3 plan/target identity so cached v2 diagnostics cannot be confused with it.
+
+**Hypothesis:** removing the duplicated references and object-table growth will reduce the still
+large collision allocation family without materially worsening lookup CPU. **Falsifier:** a clean
+1,040-DP Preflight run fails structurally, retains the old object-table allocation shape, or shows a
+credible CPU/frame-pacing regression. Do not call it accepted or claim FPS improvement until that
+run succeeds. If it succeeds, confirm the direction at ordinary DP before making a broad claim.
+
+**Exact next action:** after the console is unlocked, run
+`campaign-simulation-combat-1000dp.json` once with the current B build, verify all 34 receipts and
+active focus-clean frames, then rank combat CPU, allocations, and repeated clusters inside only the
+`combat-sample-1040dp` receipt window.
 
 ## Resume recipe after compaction
 
@@ -171,7 +202,7 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
 | RAT tooltip scripts | No Preflight optimization exists; source shows per-frame UI copies and reflection, with a "do not modify twice" UI sentinel in the AI-core path. | The worst exact active frame crossed this code. | Does an identity/content guard remove repeated work without missing a tooltip object reused for a different entry? |
 | Stable campaign snapshots | Stable arrays and exhausted cursor reuse are accepted and bounded. | Current allocation samples still show rebuild/cursor cost and cursor identities outnumber owners. | Which owners rebuild, how often, and can stale cursor entries be removed when an owner receives a replacement array? |
 | Paused/unpaused attribution | Frame buckets are state-separated and focus-clean. Repeated clusters now correlate with bounded exact campaign calls and exact scenario steps. This separated seven post-unpause clusters from 15 settled clusters. | Transition work is a broad catch-up burst; the settled route still mixes occasional large spikes with recurring small calls, and retained children explain only part of cluster wall time. | Does the transition ordering repeat, and which individual settled frames align with the 69–90 ms location spikes? |
-| Combat | Deterministic simulation, autopilot, speed-up, zoom, and frame reporting already exist. | Campaign work says nothing about 1,000+ DP battles or combat listener/collision scaling. | Which inclusive stacks dominate a symmetric high-DP clean combat window, and do benefits survive ordinary-DP confirmation? |
+| Combat | Deterministic simulation, autopilot, speed-up, zoom, and frame reporting already exist. V2 collision allocation and listener snapshots are accepted. V3 compact collision indexes pass exact tests but remain live-unvalidated. | Campaign work says nothing about 1,000+ DP battles. The accepted collision family still carried hundreds of MiB of sampled allocation, while the compact-index CPU tradeoff is unknown. | Does v3 remove the duplicate-reference allocation shape without worsening clean high-DP pacing, and does any benefit survive ordinary-DP confirmation? |
 
 ## Open questions, ranked
 
@@ -188,8 +219,9 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
    interval and which listener events already express real market invalidation.
 5. **Stable snapshot ownership:** instrument rebuilds by transformed loop kind before redesigning
    cursor retention.
-6. **Combat scale:** retain the deterministic ordinary simulation, then add a separate symmetric
-   1,000+ DP stress fixture. Do not replace the ordinary workload with the stress workload.
+6. **Combat compact indexes:** live-validate `a7ffaf78` in the existing symmetric 1,040-DP fixture,
+   then repeat the retained direction in the ordinary fixture. Do not replace the ordinary workload
+   with the stress workload or promote the candidate from unit tests alone.
 
 ## Frequently revisited questions
 
