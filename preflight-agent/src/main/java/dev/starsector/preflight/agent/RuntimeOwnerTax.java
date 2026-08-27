@@ -20,10 +20,10 @@ final class RuntimeOwnerTax {
         for (Map<String, Object> value : classes) {
             Object ownershipValue = value.get("ownership");
             if (!(ownershipValue instanceof Map<?, ?> ownership)) continue;
-            String key = string(ownership.get("ownerKey"));
-            if (key.isBlank()) key = "unresolved";
-            Owner owner = owners.computeIfAbsent(key, ignored -> new Owner(
-                    key,
+            String reportedKey = string(ownership.get("ownerKey"));
+            final String ownerKey = reportedKey.isBlank() ? "unresolved" : reportedKey;
+            Owner owner = owners.computeIfAbsent(ownerKey, ignored -> new Owner(
+                    ownerKey,
                     string(ownership.get("ownerKind")),
                     string(ownership.get("ownerName")),
                     string(ownership.get("modId"))));
@@ -159,17 +159,17 @@ final class RuntimeOwnerTax {
                     boolean call50 = false;
                     boolean call100 = false;
                     for (HitchFrame frame : frames) {
-                        double intersection = Math.min(end, frame.endEpochMillis)
-                                - Math.max(start, frame.startEpochMillis);
+                        double intersection = Math.min(end, frame.endEpochMillis())
+                                - Math.max(start, frame.startEpochMillis());
                         if (intersection <= 0.0) continue;
                         call50 = true;
                         frame50++;
-                        if (frame.severe) {
+                        if (frame.severe()) {
                             call100 = true;
                             frame100++;
                         }
                         overlapMillis += intersection;
-                        maximumFrameMillis = Math.max(maximumFrameMillis, frame.durationMillis);
+                        maximumFrameMillis = Math.max(maximumFrameMillis, frame.durationMillis());
                     }
                     if (call50) calls50++;
                     if (call100) calls100++;
