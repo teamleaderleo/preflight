@@ -60,6 +60,8 @@ final class GpuFrameTimeRuntime {
     private static long queriesGenerated;
     private static long queriesBegun;
     private static long queriesEnded;
+    private static long beginOwnershipChecks;
+    private static boolean beginOwnershipVerified;
     private static long availabilityPolls;
     private static long unavailablePolls;
     private static long resultsRead;
@@ -103,6 +105,8 @@ final class GpuFrameTimeRuntime {
         queriesGenerated = 0L;
         queriesBegun = 0L;
         queriesEnded = 0L;
+        beginOwnershipChecks = 0L;
+        beginOwnershipVerified = false;
         availabilityPolls = 0L;
         unavailablePolls = 0L;
         resultsRead = 0L;
@@ -187,6 +191,16 @@ final class GpuFrameTimeRuntime {
             states[slot] = ACTIVE;
             activeSlot = slot;
             queriesBegun++;
+            if (!beginOwnershipVerified) {
+                beginOwnershipChecks++;
+                int installedOwner = (int) currentQuery.invokeExact(
+                        GL_TIME_ELAPSED_EXT, GL_CURRENT_QUERY);
+                if (installedOwner != queryIds[slot]) {
+                    throw new IllegalStateException(
+                            "OpenGL did not install the owned elapsed-time query");
+                }
+                beginOwnershipVerified = true;
+            }
         } catch (Throwable failure) {
             contain(failure);
         } finally {
@@ -422,6 +436,8 @@ final class GpuFrameTimeRuntime {
         result.put("queriesGenerated", queriesGenerated);
         result.put("queriesBegun", queriesBegun);
         result.put("queriesEnded", queriesEnded);
+        result.put("beginOwnershipChecks", beginOwnershipChecks);
+        result.put("beginOwnershipVerified", beginOwnershipVerified);
         result.put("availabilityPolls", availabilityPolls);
         result.put("unavailablePolls", unavailablePolls);
         result.put("resultsRead", resultsRead);

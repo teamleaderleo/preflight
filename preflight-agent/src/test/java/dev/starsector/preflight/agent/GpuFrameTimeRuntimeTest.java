@@ -57,6 +57,8 @@ class GpuFrameTimeRuntimeTest {
         assertEquals(16L, telemetry.get("queriesGenerated"));
         assertEquals(1L, telemetry.get("queriesBegun"));
         assertEquals(1L, telemetry.get("queriesEnded"));
+        assertEquals(1L, telemetry.get("beginOwnershipChecks"));
+        assertEquals(true, telemetry.get("beginOwnershipVerified"));
         assertEquals(1L, telemetry.get("resultsRead"));
         Map<String, Object> settled = map(telemetry.get("campaignPausedAfter30Seconds"));
         assertEquals(1L, settled.get("pairedFrames"));
@@ -90,6 +92,21 @@ class GpuFrameTimeRuntimeTest {
         assertTrue((Long) telemetry.get("unavailablePolls") > 0L);
         assertEquals(0L, telemetry.get("resultsRead"));
         assertEquals(0L, telemetry.get("containedFailures"));
+    }
+
+    @Test
+    void declinesAQueryTargetAlreadyOwnedByTheGame() {
+        System.setProperty(GpuFrameTimeRuntime.ENABLE_PROPERTY, "true");
+        GpuFrameTimeRuntime.beginSession(true);
+        GpuFrameTimeRuntime.beforeSwap(1L, true);
+        GL15.glBeginQuery(35007, 999);
+        GpuFrameTimeRuntime.afterSwap();
+
+        Map<String, Object> telemetry = GpuFrameTimeRuntime.telemetry();
+        assertEquals(1L, telemetry.get("skippedExistingQueryOwner"));
+        assertEquals(0L, telemetry.get("queriesBegun"));
+        assertEquals(0L, telemetry.get("containedFailures"));
+        GL15.glEndQuery(35007);
     }
 
     @SuppressWarnings("unchecked")
