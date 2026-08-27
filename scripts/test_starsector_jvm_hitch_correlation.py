@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import starsector_jvm_hitch_correlation as correlation
 
 
-def event(name, start, duration="PT0S", thread=None, frames=None, **values):
+def event(event_name, start, duration="PT0S", thread=None, frames=None, **values):
     payload = {"startTime": start, "duration": duration, **values}
     if thread:
         payload["eventThread"] = {"javaName": thread}
@@ -19,7 +19,7 @@ def event(name, start, duration="PT0S", thread=None, frames=None, **values):
                 for owner, method in frames
             ]
         }
-    return {"type": {"name": name}, "values": payload}
+    return {"type": {"name": event_name}, "values": payload}
 
 
 def test_frame_window_deduplication():
