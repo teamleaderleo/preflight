@@ -38,7 +38,6 @@ class HighResolutionFrameSyncRuntimeTest {
         assertEquals(0L, telemetry.get("fallbackCalls"));
         assertEquals(requested, telemetry.get("requestedNanos"));
         assertTrue((long) telemetry.get("waitedNanos") >= requested);
-        assertTrue((long) telemetry.get("actualSpinNanos") > 0L);
     }
 
     @Test

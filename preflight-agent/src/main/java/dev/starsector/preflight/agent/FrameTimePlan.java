@@ -10,7 +10,7 @@ import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
-/** Observes LWJGL frame boundaries and hosts the guarded BaseGameState sync experiment. */
+/** Observes LWJGL frame boundaries and carries guarded #1153 render experiments. */
 final class FrameTimePlan {
     static final String TARGET_CLASS = "org/lwjgl/opengl/Display";
     static final String ORIGINAL_SHA256 =
@@ -27,9 +27,12 @@ final class FrameTimePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        // #1153 experiment: use the already-compiled frame-time plan ID as an external exact-target
-        // carrier so this candidate stays isolated from the central registry until live results say
-        // it deserves a permanent plan ID. AdapterTarget still supplies the exact class/source gate.
+        // #1153 experiments temporarily reuse the compiled frame-time plan ID as an external
+        // exact-target carrier. AdapterTarget still supplies exact class/source identity; each
+        // candidate adds its own semantic bytecode gate and runtime switch.
+        if (GraphicsLibTessellateArrayPlan.TARGET_CLASS.equals(signature.internalName())) {
+            return GraphicsLibTessellateArrayPlan.transform(signature, originalBytes);
+        }
         if (HighResolutionFrameSyncPlan.TARGET_CLASS.equals(signature.internalName())) {
             return HighResolutionFrameSyncPlan.transform(signature, originalBytes);
         }
