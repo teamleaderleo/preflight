@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "starsector-preflight-balance-corpus-v1",
+  "title": "Preflight balance research corpus v1",
+  "type": "object",
+  "required": ["format", "contentVersion", "facts", "observations"],
+  "properties": {
+    "format": {"const": "starsector-preflight-balance-corpus-v1"},
+    "contentVersion": {"type": "string"},
+    "facts": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/fact"}
+    },
+    "observations": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/observation"}
+    },
+    "pairwiseClaims": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/pairwise"}
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "required": ["kind", "reference"],
+      "properties": {
+        "kind": {"enum": ["wiki", "reddit", "youtube", "transcript", "tournament", "game-data", "experiment"]},
+        "reference": {"type": "string"},
+        "publishedAt": {"type": ["string", "null"]},
+        "patch": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "fact": {
+      "type": "object",
+      "required": ["itemId", "itemKind", "displayName", "provider", "gamePatch", "source"],
+      "properties": {
+        "itemId": {"type": "string"},
+        "itemKind": {"enum": ["ship", "weapon", "fighter", "hullmod", "system"]},
+        "displayName": {"type": "string"},
+        "provider": {"type": "string"},
+        "gamePatch": {"type": "string"},
+        "hullSize": {"type": ["string", "null"]},
+        "designType": {"type": ["string", "null"]},
+        "dp": {"type": ["number", "null"]},
+        "op": {"type": ["number", "null"]},
+        "pptSeconds": {"type": ["number", "null"]},
+        "hullIntegrity": {"type": ["number", "null"]},
+        "armor": {"type": ["number", "null"]},
+        "shieldType": {"type": ["string", "null"]},
+        "shieldArcDegrees": {"type": ["number", "null"]},
+        "shieldEfficiency": {"type": ["number", "null"]},
+        "shieldUpkeepPerSecond": {"type": ["number", "null"]},
+        "fluxCapacity": {"type": ["number", "null"]},
+        "fluxDissipation": {"type": ["number", "null"]},
+        "topSpeed": {"type": ["number", "null"]},
+        "system": {"type": ["string", "null"]},
+        "mounts": {"type": "array", "items": {"type": "string"}},
+        "builtIns": {"type": "array", "items": {"type": "string"}},
+        "source": {"$ref": "#/$defs/source"}
+      },
+      "additionalProperties": false
+    },
+    "observation": {
+      "type": "object",
+      "required": ["observationId", "itemId", "source", "scope", "reasonTags"],
+      "properties": {
+        "observationId": {"type": "string"},
+        "itemId": {"type": "string"},
+        "source": {"$ref": "#/$defs/source"},
+        "scope": {"enum": ["general", "campaign", "build-specific", "matchup", "tournament", "spoiler", "other"]},
+        "aiTier": {"type": ["string", "null"]},
+        "playerTier": {"type": ["string", "null"]},
+        "reasonTags": {"type": "array", "items": {"type": "string"}},
+        "conditions": {"type": "array", "items": {"type": "string"}},
+        "summary": {"type": "string"},
+        "contextCompleteness": {"enum": ["high", "medium", "low"]}
+      },
+      "additionalProperties": false
+    },
+    "pairwise": {
+      "type": "object",
+      "required": ["claimId", "subjectA", "relation", "subjectB", "policy", "source"],
+      "properties": {
+        "claimId": {"type": "string"},
+        "subjectA": {"type": "string"},
+        "relation": {"enum": [">", ">=", "~=", "conditional>"]},
+        "subjectB": {"type": "string"},
+        "policy": {"type": "string"},
+        "conditions": {"type": "array", "items": {"type": "string"}},
+        "source": {"$ref": "#/$defs/source"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
