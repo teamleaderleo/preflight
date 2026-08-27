@@ -223,6 +223,9 @@ final class AdapterRuntime {
                 if (GlCommandCountRuntime.planEnabled()) {
                     registry = registry.withGlCommandCountTargets();
                     report.diagnostic("Loaded the exact opt-in LWJGL OpenGL command-count targets");
+                } else if (GlTextureBindDedupRuntime.planEnabled()) {
+                    registry = registry.withGlTextureBindDedupTargets();
+                    report.diagnostic("Loaded the exact opt-in LWJGL texture-bind deduplication targets");
                 }
                 if (CampaignCallTimeRuntime.enabled()) {
                     registry = registry.withCampaignCallTimeTargets();

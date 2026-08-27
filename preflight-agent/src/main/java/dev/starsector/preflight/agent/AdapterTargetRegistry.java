@@ -1980,6 +1980,25 @@ final class AdapterTargetRegistry {
         return registry;
     }
 
+    AdapterTargetRegistry withGlTextureBindDedupTargets() {
+        AdapterTargetRegistry registry = this;
+        for (GlTextureBindDedupPlan.Target target : GlTextureBindDedupPlan.targets()) {
+            registry = registry.withTarget(new AdapterTarget(
+                    "lwjgl-2-texture-bind-dedup-" + target.idSuffix(),
+                    target.internalName(),
+                    target.sha256(),
+                    GlTextureBindDedupRuntime.PLAN_ID,
+                    List.of(new AdapterTarget.RequiredMethod(
+                            target.requiredMethod(), target.requiredDescriptor())),
+                    "STARSECTOR_CORE",
+                    GlTextureBindDedupPlan.SOURCE_FILE,
+                    GlTextureBindDedupPlan.SOURCE_SHA256,
+                    GlTextureBindDedupPlan.LOADER,
+                    GlTextureBindDedupPlan.LOADER_NAME));
+        }
+        return registry;
+    }
+
     AdapterTargetRegistry withCampaignCallTimeTargets() {
         AdapterTargetRegistry registry = this;
         for (CampaignCallTimePlan.Probe probe : CampaignCallTimePlan.probes()) {

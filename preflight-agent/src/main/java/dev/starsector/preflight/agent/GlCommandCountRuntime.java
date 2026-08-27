@@ -292,7 +292,7 @@ public final class GlCommandCountRuntime {
         beginSession(false);
     }
 
-    private static boolean explicitlyRequested() {
+    static boolean explicitlyRequested() {
         try {
             if (Boolean.getBoolean(ENABLE_PROPERTY)) return true;
             String environment = System.getenv(ENABLE_ENVIRONMENT);

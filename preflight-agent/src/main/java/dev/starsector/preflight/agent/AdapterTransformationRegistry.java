@@ -364,6 +364,9 @@ final class AdapterTransformationRegistry {
         if (GlCommandCountRuntime.PLAN_ID.equals(target.planId())) {
             return GlCommandCountPlan.transform(signature, originalBytes);
         }
+        if (GlTextureBindDedupRuntime.PLAN_ID.equals(target.planId())) {
+            return GlTextureBindDedupPlan.transform(signature, originalBytes);
+        }
         if (FrameLimiterTimePlan.PLAN_ID.equals(target.planId())) {
             return FrameLimiterTimePlan.transform(signature, originalBytes);
         }
