@@ -72,6 +72,17 @@ run succeeds. If it succeeds, confirm the direction at ordinary DP before making
 active focus-clean frames, then rank combat CPU, allocations, and repeated clusters inside only the
 `combat-sample-1040dp` receipt window.
 
+Analyzer checkpoint `b099f354` makes that last constraint enforceable: `--repeated-clusters` may
+now be combined with `--step`, intersects the state-derived cluster windows with the exact receipt,
+and fails closed if they do not overlap. Run both CPU and allocation forms of:
+
+`python3 scripts/starsector_gameplay_hotspots.py RUN/startup.jfr --scenario-evidence RUN/smoke-evidence.json --step combat-sample-1040dp --frame-report RUN/runtime-frame-report.json --frame-series combatAfterCampaignActive --repeated-clusters 32`
+
+For the candidate-specific allocation family, add
+`--allocations --contains 'com.fs.starfarer.combat.o0OO.G$o'`. This prevents setup, deployment,
+camera motion, or any frame
+outside the declared battle window from entering the cluster attribution.
+
 ## Resume recipe after compaction
 
 1. Confirm there is no existing Starsector process and use only a Preflight launch. The current
