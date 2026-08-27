@@ -20,15 +20,18 @@ import org.objectweb.asm.tree.MethodNode;
 
 class FramePresentationTimingPlanTest {
     private static final String RUNTIME = FrameTimeRuntime.class.getName().replace('.', '/');
+    private static final String CPU_RUNTIME = FrameCpuTimeRuntime.class.getName().replace('.', '/');
 
     @BeforeEach
     void enable() {
         FrameTimeRuntime.beginSession(true);
+        FrameCpuTimeRuntime.reset();
     }
 
     @AfterEach
     void reset() {
         FrameTimeRuntime.reset();
+        FrameCpuTimeRuntime.reset();
     }
 
     @Test
@@ -37,15 +40,22 @@ class FramePresentationTimingPlanTest {
         byte[] transformed = FrameTimePlan.transform(exactSignature(original), original);
         assertNotNull(transformed);
 
-        MethodNode update = method(read(transformed), FrameTimePlan.UPDATE_METHOD,
+        ClassNode owner = read(transformed);
+        MethodNode update = method(owner, FrameTimePlan.UPDATE_METHOD,
                 FrameTimePlan.UPDATE_DESCRIPTOR);
+        MethodNode active = method(owner, FrameTimePlan.ACTIVE_METHOD,
+                FrameTimePlan.ACTIVE_DESCRIPTOR);
         List<String> calls = calls(update);
+        List<String> activeCalls = calls(active);
 
         assertEquals(1, count(calls, RUNTIME + ".displayUpdateStart"));
         assertEquals(1, count(calls, RUNTIME + ".swapBuffersStart"));
         assertEquals(1, count(calls, FrameTimePlan.TARGET_CLASS + ".swapBuffers"));
         assertEquals(1, count(calls, RUNTIME + ".swapBuffersEnd"));
+        assertEquals(1, count(calls, CPU_RUNTIME + ".boundary"));
         assertEquals(1, count(calls, RUNTIME + ".boundary"));
+        assertEquals(1, count(activeCalls, CPU_RUNTIME + ".observeActive"));
+        assertEquals(1, count(activeCalls, RUNTIME + ".observeActive"));
         assertTrue(calls.indexOf(RUNTIME + ".displayUpdateStart")
                 < calls.indexOf(RUNTIME + ".swapBuffersStart"));
         assertTrue(calls.indexOf(RUNTIME + ".swapBuffersStart")
@@ -53,6 +63,8 @@ class FramePresentationTimingPlanTest {
         assertTrue(calls.indexOf(FrameTimePlan.TARGET_CLASS + ".swapBuffers")
                 < calls.indexOf(RUNTIME + ".swapBuffersEnd"));
         assertTrue(calls.indexOf(RUNTIME + ".swapBuffersEnd")
+                < calls.indexOf(CPU_RUNTIME + ".boundary"));
+        assertTrue(calls.indexOf(CPU_RUNTIME + ".boundary")
                 < calls.indexOf(RUNTIME + ".boundary"));
     }
 
