@@ -18,14 +18,15 @@ import java.util.concurrent.TimeoutException;
 
 /** PID-bound request/receipt client for the closed in-game desktop-smoke action catalog. */
 final class RuntimeGameActionClient {
-    static final String REQUEST_FORMAT = "starsector-preflight-runtime-action-request-v4";
-    static final String RECEIPT_FORMAT = "starsector-preflight-runtime-action-receipt-v4";
+    static final String REQUEST_FORMAT = "starsector-preflight-runtime-action-request-v5";
+    static final String RECEIPT_FORMAT = "starsector-preflight-runtime-action-receipt-v5";
     static final String CONTINUE_ACTION = "main-menu.continue";
     static final String CAMPAIGN_PAUSE_ACTION = "campaign.pause";
     static final String CAMPAIGN_UNPAUSE_ACTION = "campaign.unpause";
     static final String COMBAT_PAUSE_ACTION = "combat.pause";
     static final String COMBAT_UNPAUSE_ACTION = "combat.unpause";
     static final String COMBAT_CAPTURE_VIEWPORT_ACTION = "combat.capture-viewport";
+    static final String COMBAT_ZOOM_OUT_ACTION = "combat.zoom-out";
     static final String COMBAT_VERIFY_ZOOM_OUT_ACTION = "combat.verify-zoom-out";
     static final String COMBAT_BEGIN_FRAME_WINDOW_ACTION = "combat.begin-frame-window";
     static final String COMBAT_STRESS_FIXTURE_ACTION =
@@ -43,7 +44,8 @@ final class RuntimeGameActionClient {
     private static final Set<String> ACTIONS = Set.of(
             CONTINUE_ACTION, CAMPAIGN_PAUSE_ACTION, CAMPAIGN_UNPAUSE_ACTION,
             COMBAT_PAUSE_ACTION, COMBAT_UNPAUSE_ACTION,
-            COMBAT_CAPTURE_VIEWPORT_ACTION, COMBAT_VERIFY_ZOOM_OUT_ACTION,
+            COMBAT_CAPTURE_VIEWPORT_ACTION, COMBAT_ZOOM_OUT_ACTION,
+            COMBAT_VERIFY_ZOOM_OUT_ACTION,
             COMBAT_BEGIN_FRAME_WINDOW_ACTION, COMBAT_STRESS_FIXTURE_ACTION,
             COMBAT_FIXTURE_ACTION, COMBAT_FIXTURE_VERIFY_ACTION,
             SIMULATION_OPPONENTS_ALL, SIMULATION_OPPONENTS_DEPLOY,
@@ -159,6 +161,7 @@ final class RuntimeGameActionClient {
                 throw new IOException("Runtime left combat-ready during " + action);
             }
             if (COMBAT_CAPTURE_VIEWPORT_ACTION.equals(action)
+                    || COMBAT_ZOOM_OUT_ACTION.equals(action)
                     || COMBAT_VERIFY_ZOOM_OUT_ACTION.equals(action)
                     || COMBAT_BEGIN_FRAME_WINDOW_ACTION.equals(action)
                     || COMBAT_STRESS_FIXTURE_ACTION.equals(action)) {
@@ -212,6 +215,8 @@ final class RuntimeGameActionClient {
                 require(value, "beforeState", expectedState);
                 require(value, "boundary", CONTINUE_ACTION.equals(action)
                         ? "title.advanceImpl"
+                        : COMBAT_ZOOM_OUT_ACTION.equals(action)
+                                ? "combat-state.input"
                         : action.startsWith("combat.")
                                 ? "combat-engine.advance"
                         : action.startsWith("simulation.")

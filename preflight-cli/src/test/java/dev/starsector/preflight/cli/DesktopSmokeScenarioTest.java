@@ -208,13 +208,13 @@ final class DesktopSmokeScenarioTest {
         assertTrue(scenario.stepIds().contains("stress-settle"));
         assertTrue(scenario.stepIds().contains("combat-sample-1040dp"));
         assertEquals(Set.of("process-control", "semantic-state", "semantic-control",
-                        "window-control", "screen-capture", "evidence-read"),
+                        "window-control", "evidence-read"),
                 scenario.requiredCapabilities());
     }
 
     @Test
     @SuppressWarnings("unchecked")
-    void combatZoomUsesBoundedPlayerEquivalentWheelInput() throws Exception {
+    void combatZoomUsesTheClosedGameInputAction() throws Exception {
         DesktopSmokeScenario scenario = DesktopSmokeScenario.read(
                 Path.of("..", "scripts", "scenarios", "campaign-simulation-combat.json"));
 
@@ -222,9 +222,12 @@ final class DesktopSmokeScenarioTest {
                 .filter(step -> "zoom-out".equals(step.get("id")))
                 .findFirst()
                 .orElseThrow();
-        assertEquals("scroll-wheel", zoom.get("kind"));
-        assertEquals("out", zoom.get("direction"));
-        assertEquals(12, zoom.get("clicks"));
+        assertEquals("click", zoom.get("kind"));
+        assertEquals("combat.zoom-out", zoom.get("target"));
+    }
+
+    @Test
+    void nativeScrollStepsRemainBoundedWhenUsed() {
         assertThrows(IllegalArgumentException.class, () -> DesktopSmokeScenario.parse("""
                 {"format":"starsector-preflight-smoke-v1","name":"bad-scroll",
                  "timeoutSeconds":60,

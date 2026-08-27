@@ -24,14 +24,15 @@ import java.util.regex.Pattern;
 
 /** Closed, desktop-smoke-only game-thread actions addressed through the run directory. */
 public final class InternalGameControlRuntime {
-    static final String REQUEST_FORMAT = "starsector-preflight-runtime-action-request-v4";
-    static final String RECEIPT_FORMAT = "starsector-preflight-runtime-action-receipt-v4";
+    static final String REQUEST_FORMAT = "starsector-preflight-runtime-action-request-v5";
+    static final String RECEIPT_FORMAT = "starsector-preflight-runtime-action-receipt-v5";
     static final String CONTINUE_ACTION = "main-menu.continue";
     static final String CAMPAIGN_PAUSE_ACTION = "campaign.pause";
     static final String CAMPAIGN_UNPAUSE_ACTION = "campaign.unpause";
     static final String COMBAT_PAUSE_ACTION = "combat.pause";
     static final String COMBAT_UNPAUSE_ACTION = "combat.unpause";
     static final String COMBAT_CAPTURE_VIEWPORT_ACTION = "combat.capture-viewport";
+    static final String COMBAT_ZOOM_OUT_ACTION = "combat.zoom-out";
     static final String COMBAT_VERIFY_ZOOM_OUT_ACTION = "combat.verify-zoom-out";
     static final String COMBAT_BEGIN_FRAME_WINDOW_ACTION = "combat.begin-frame-window";
     static final String INTERACTIVE_STATE = "main-menu-interactive";
@@ -65,7 +66,7 @@ public final class InternalGameControlRuntime {
                     + "\\\"processStartedAt\\\":\\\"([^\\\"]{1,80})\\\","
                     + "\\\"action\\\":\\\"(main-menu\\.continue|campaign\\.(?:pause|unpause|prepare-combat-fixture|verify-combat-fixture)"
                     + "|simulation\\.(?:opponents\\.(?:all|deploy)|allies\\.(?:select|all|deploy)|engage)"
-                    + "|combat\\.(?:pause|unpause|capture-viewport|verify-zoom-out|begin-frame-window|prepare-symmetric-1000dp-fixture))\\\","
+                    + "|combat\\.(?:pause|unpause|capture-viewport|zoom-out|verify-zoom-out|begin-frame-window|prepare-symmetric-1000dp-fixture))\\\","
                     + "\\\"expectedState\\\":\\\"(main-menu-interactive|campaign-ready|simulation-ready|combat-ready)\\\","
                     + "\\\"deadline\\\":\\\"([^\\\"]{1,80})\\\"\\}\\s*");
 
@@ -255,6 +256,46 @@ public final class InternalGameControlRuntime {
         }
     }
 
+    /** Adds a bounded wheel gesture before {@code CombatState} consumes the real input batch. */
+    public static void combatInput(Object state, Object events) {
+        if (!enabled || state == null || events == null || !RuntimeSemanticState.is(COMBAT_STATE)) return;
+        Request parsed = poll();
+        if (parsed == null) return;
+        if (!COMBAT_ZOOM_OUT_ACTION.equals(parsed.action())) {
+            // The engine seam owns every other combat action later in this same frame.
+            nextPollNanos = 0L;
+            return;
+        }
+        completedSequence = parsed.sequence();
+        String rejection = rejection(parsed);
+        if (rejection != null) {
+            publish(parsed, "rejected", rejection, null, Instant.now(),
+                    "combat-state.input", COMBAT_STATE, null, null);
+            return;
+        }
+
+        Instant accepted = Instant.now();
+        try {
+            if (!CombatRuntimeIntegrityPlan.COMBAT_STATE_CLASS.equals(
+                    state.getClass().getName().replace('.', '/'))) {
+                throw new IllegalStateException("combat-state-class-mismatch");
+            }
+            if (!INPUT_EVENTS.equals(events.getClass().getName())) {
+                throw new IllegalStateException("combat-input-shape-mismatch");
+            }
+            @SuppressWarnings("unchecked")
+            List<Object> input = (List<Object>) events;
+            input.addAll(mouseScrollEvents(state.getClass().getClassLoader(), 12, -1));
+            publish(parsed, "executed", "added 12 negative zoom-out wheel events to combat input",
+                    accepted, Instant.now(), "combat-state.input", COMBAT_STATE, null, null);
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable failure) {
+            publish(parsed, "failed", bounded(failure), accepted, Instant.now(),
+                    "combat-state.input", COMBAT_STATE, null, null);
+        }
+    }
+
     /** Ensures a requested pause state from the exact reviewed combat-engine advance seam. */
     public static void combatAdvance(Object engine, Object events) {
         if (!enabled || engine == null || events == null || !RuntimeSemanticState.is(COMBAT_STATE)) return;
@@ -262,7 +303,7 @@ public final class InternalGameControlRuntime {
         if (parsed == null) return;
         completedSequence = parsed.sequence();
         String rejection = rejection(parsed);
-        if (rejection == null && !isCombatAction(parsed.action())) {
+        if (rejection == null && !isCombatEngineAction(parsed.action())) {
             rejection = "action-boundary-mismatch";
         }
         if (rejection != null) {
@@ -431,9 +472,33 @@ public final class InternalGameControlRuntime {
         return COMBAT_PAUSE_ACTION.equals(action)
                 || COMBAT_UNPAUSE_ACTION.equals(action)
                 || COMBAT_CAPTURE_VIEWPORT_ACTION.equals(action)
+                || COMBAT_ZOOM_OUT_ACTION.equals(action)
                 || COMBAT_VERIFY_ZOOM_OUT_ACTION.equals(action)
                 || COMBAT_BEGIN_FRAME_WINDOW_ACTION.equals(action)
                 || CombatStressFixtureRuntime.ACTION.equals(action);
+    }
+
+    private static boolean isCombatEngineAction(String action) {
+        return isCombatAction(action) && !COMBAT_ZOOM_OUT_ACTION.equals(action);
+    }
+
+    private static List<Object> mouseScrollEvents(ClassLoader loader, int count, int direction)
+            throws ReflectiveOperationException {
+        if (count <= 0 || count > 20 || Math.abs(direction) != 1) {
+            throw new IllegalArgumentException("combat-scroll-shape-invalid");
+        }
+        Class<?> eventClass = Class.forName(INPUT_EVENT, true, loader);
+        Class<?> eventCategory = Class.forName(INPUT_EVENT_CLASS, true, loader);
+        Class<?> eventType = Class.forName(INPUT_EVENT_TYPE, true, loader);
+        Constructor<?> constructor = eventClass.getConstructor(
+                eventCategory, eventType, int.class, int.class, int.class, char.class);
+        Object mouse = enumValue(eventCategory, "MOUSE_EVENT");
+        Object scroll = enumValue(eventType, "MOUSE_SCROLL");
+        java.util.ArrayList<Object> result = new java.util.ArrayList<>(count);
+        for (int index = 0; index < count; index++) {
+            result.add(constructor.newInstance(mouse, scroll, 0, 0, direction, '\0'));
+        }
+        return result;
     }
 
     private static float[] viewportState(Object engine) throws ReflectiveOperationException {

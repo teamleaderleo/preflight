@@ -177,6 +177,27 @@ final class InternalGameControlRuntimeTest {
         assertTrue(receipt.contains("combat-engine.advance"), receipt);
     }
 
+    @Test
+    void combatZoomFailsClosedBeforeAddingInputToAnUnknownShape() throws Exception {
+        System.setProperty("preflight.desktopSmoke", "true");
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+        RuntimeSemanticState.combatReady();
+        InternalGameControlRuntime.beginSession(temporaryDirectory.resolve("adapter.json"));
+        Files.writeString(temporaryDirectory.resolve("runtime-action-request.json"),
+                request(Instant.now().plusSeconds(30),
+                        InternalGameControlRuntime.COMBAT_ZOOM_OUT_ACTION,
+                        InternalGameControlRuntime.COMBAT_STATE));
+        ArrayList<Object> events = new ArrayList<>();
+
+        InternalGameControlRuntime.combatInput(new Object(), events);
+
+        assertTrue(events.isEmpty());
+        String receipt = Files.readString(temporaryDirectory.resolve("runtime-action-receipt.json"));
+        assertTrue(receipt.contains("\"status\":\"failed\""), receipt);
+        assertTrue(receipt.contains("combat-state-class-mismatch"), receipt);
+        assertTrue(receipt.contains("combat-state.input"), receipt);
+    }
+
     private static String request(Instant deadline) {
         return request(deadline, InternalGameControlRuntime.CONTINUE_ACTION,
                 InternalGameControlRuntime.INTERACTIVE_STATE);

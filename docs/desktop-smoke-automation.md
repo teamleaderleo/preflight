@@ -158,23 +158,29 @@ a window-bounded capture into the run directory. It accepts no AppleScript sourc
 coordinate, arbitrary key, host, or output path. The bridge ends with the engine child and never
 writes its capability into evidence.
 
-The native host runs the reviewed System Events scripts through `/usr/bin/osascript`. Every window,
-click, key, observation, and quit script resolves `application process whose unix id is <pid>` from
-the injected JVM's runtime record. No script contains the game's application name or asks Launch
-Services to open an application. The 2026-08-06 direct-launch probe showed why this matters: the
-live game window belongs to Azul's generic `com.azul.zulu.java` process while Launch Services also
-registers the dormant `Starsector.app` bundle. Display-name attachment launched that dormant bundle
-and briefly created a second instance. A standalone CLI invocation retains the earlier direct-Java
-driver for development, while the supported packaged path attributes the permission request to
-Preflight.
+The native host runs a closed set of reviewed operations. System Events resolves only
+`application process whose unix id is <pid>`; standalone development keys use CoreGraphics
+`CGEventPostToPid`; and a compatibility foreground call uses the same numeric PID through
+ApplicationServices through the already-bundled Java Native Access library before System Events
+verifies `frontmost=true`. The foreground path has no Python or other helper-runtime dependency.
+No path contains the game's
+application name, selects a Dock item, or asks Launch Services to open an application. The direct
+launch probes showed why this matters: the live game window belongs to Azul's generic
+`com.azul.zulu.java` process while Launch Services also registers the dormant `Starsector.app`
+bundle. Display-name activation and one stale Dock item each launched a second instance during
+learning; both approaches were removed. A standalone CLI invocation retains the direct-Java driver
+for development, while the supported packaged path attributes the permission request to Preflight.
 
 The driver checks the live process start instant in Java before every action and again resolves the
-same numeric PID inside System Events. Its current reviewed coordinate asset covers only
-`main-menu.continue`; the point is relative to freshly queried game-window bounds. Unknown targets
-and keys fail closed. A held key has a `finally` key-up path, child commands have hard timeouts and
-bounded output, screenshots cover only fresh game-window bounds, and orderly Command-Q has a
-bounded fallback that can terminate only the same PID/start-instant lifetime. The runner now calls
-that shutdown path after every attached terminal outcome, including adapter failure and timeout.
+same numeric PID while acting. Its only reviewed coordinate asset is the legacy
+`main-menu.continue` fallback; ordinary Continue and simulation controls use closed semantic
+game-side actions. Combat zoom now adds a fixed event sequence at the exact reviewed
+`CombatState` input-generation boundary and verifies the public viewport grew before measurement.
+Unknown targets and keys fail closed. A held key has a `finally` key-up path, child commands have
+hard timeouts and bounded output, screenshots cover only fresh game-window bounds, and orderly
+Command-Q has a bounded fallback that can terminate only the same PID/start-instant lifetime. The
+runner calls that shutdown path after every attached terminal outcome, including adapter failure
+and timeout.
 
 `--desktop-smoke` is an internal launch switch. It enables frame-time instrumentation and a
 one-second, smoke-only publisher for `runtime-frame-report.json` and
@@ -245,10 +251,13 @@ leave the receipt incomplete.
 
 The macOS command probes current Accessibility permission before attachment. Screen Recording is
 proved by the first bounded capture; a denial becomes `skipped`. Preflight's Info.plist explains the
-System Events use, and the native package verifier requires that exact disclosure. The generated
-scripts, authorization protocol, PID-only boundary, coordinate math, key release, bounded
-screenshot, live evidence, and failure cleanup have isolated tests that don't open the game. One
-live isolated action test is still required before calling the macOS driver production-ready.
+System Events use, and the native package verifier requires that exact disclosure. Generated
+scripts, the authorization protocol, PID-only boundary, coordinate math, key release, bounded
+screenshot, live evidence, and failure cleanup have isolated tests that don't open the game. A
+live Preflight-only route has now foregrounded one exact PID, driven Continue through simulation,
+verified internal zoom, measured 30 active seconds of 1,040-DP combat, and shut down cleanly. That
+validates the current reference macOS development route; signed packaged-host behavior remains a
+separate release gate.
 
 Windows has an exact-PID `MainWindowHandle` adapter backed by PowerShell and User32. Linux has an
 exact-PID X11 adapter backed by `xdotool` and ImageMagick `import`; Wayland and missing helper tools

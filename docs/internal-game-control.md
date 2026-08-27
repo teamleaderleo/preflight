@@ -25,7 +25,7 @@ The 2026-08-26 protected-copy run proved each of these against one existing Pref
 | prepare simulation fleet | exact-gated Console Commands 4.0.9 `AddShip`/`Repair` calls plus computed minimum crew | 24 added ships settled deployable at maximum CR while campaign remained paused |
 | deploy simulation | exact stock simulator dialog callbacks | 8 allied and 25 opposing ships deployed, then `combat-ready` |
 | ensure combat unpaused | `CombatEngine.isPaused()`/`setPaused(false)` at the exact reviewed combat advance seam | receipt proved `afterPaused=false`; already-unpaused runs are left unchanged |
-| combat zoom out | bounded player-equivalent wheel input in the exact game window | semantic viewport receipt proved `viewMult` 1.250 → 4.250 and visible width 1800 → 6120 |
+| combat zoom out | bounded wheel events at the exact `CombatState` input-generation boundary | semantic viewport receipt proves both `viewMult` and visible width increased by at least 5% |
 | prepare symmetric stress combat | exact-gated public combat/fleet APIs on the combat advance boundary | replaces both deployed simulator sides in memory with the same reviewed 24-ship, 520-DP fast high-tech recipe and leaves combat paused |
 
 Selecting encounter choice 2 also reached the normal `Move in to engage` button path, but the campaign
@@ -120,16 +120,18 @@ transport does not expose arbitrary keys, reflection names, or coordinates.
 Combat pause is state-setting rather than a Space toggle: it reads the exact combat engine first and
 only calls the reviewed setter when the requested state differs. This matters because the stock
 simulator may already be running after Engage; an unconditional Space press can pause an otherwise
-valid sample. Combat zoom-out sends a bounded player-equivalent wheel gesture only after exact-PID
-activation and window-bounds lookup. The game-side protocol captures the public viewport before the
-gesture and then requires both `viewMult` and visible world width to increase by at least 5%. A sent
-host event is not success: an unchanged camera fails the scenario before measurement. On the tested
-macOS profile, positive CoreGraphics line-scroll values produced Starsector zoom-out; the opposite
-sign left the viewport unchanged and was rejected. A pure game-batch experiment also failed because
-the existing `CombatEngine.advance` control seam runs after `CombatState` consumes that frame's input;
-it was discarded rather than weakening the verifier. The frame-window action resets a separate
-steady-state distribution after command-map, speed, pause, and camera setup have settled; cumulative
-session telemetry remains intact. Unknown engine or viewport shapes fail the action.
+valid sample. Combat zoom-out adds 12 bounded negative wheel events to the game's real input batch at
+the exact `CombatState` input-generation boundary. The earlier `CombatEngine.advance` experiment was
+too late because `CombatState` had already consumed that frame's input; targeting the earlier boundary
+also removes dependence on macOS focus and window-coordinate bookkeeping. The game-side protocol
+captures the public viewport before the gesture and then requires both `viewMult` and visible world
+width to increase by at least 5%. An injected event is not success: an unchanged camera fails the
+scenario before measurement. The frame-window action resets a separate steady-state distribution
+after command-map, speed, pause, and camera setup have settled; cumulative session telemetry remains
+intact. CoreGraphics and the game's input representation use opposite signs on the tested macOS
+profile: positive game events zoomed in from 1.250 to 0.750 and were rejected before sampling; negative
+game events are the reviewed zoom-out direction. Unknown state, input-batch, engine, or viewport
+shapes fail the action.
 
 The symmetric stress action is deliberately separate from the historical campaign fixture. The old
 fixture preserves earlier measurement identity; its stock DP-limited simulator selection can favor the

@@ -80,6 +80,27 @@ class CombatRuntimeIntegrityPlanTest {
     }
 
     @Test
+    void insertsClosedControlImmediatelyAfterTheRealCombatInputBatchIsGenerated() throws Exception {
+        byte[] original = combatStateFixture();
+        assertNull(CombatRuntimeIntegrityPlan.transform(
+                combatStateSignature(original), original));
+
+        System.setProperty("preflight.desktopSmoke", "true");
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+        InternalGameControlRuntime.beginSession(temporaryDirectory.resolve("adapter.json"));
+
+        byte[] transformed = CombatRuntimeIntegrityPlan.transform(
+                combatStateSignature(original), original);
+
+        assertNotNull(transformed);
+        MethodNode traverse = read(transformed).methods.stream()
+                .filter(candidate -> CombatRuntimeIntegrityPlan.TRAVERSE_METHOD.equals(candidate.name)
+                        && CombatRuntimeIntegrityPlan.TRAVERSE_DESCRIPTOR.equals(candidate.desc))
+                .findFirst().orElseThrow();
+        assertEquals(1, calls(traverse, CONTROL_RUNTIME, "combatInput"));
+    }
+
+    @Test
     void declinesWrongIdentityAndSecondTransform() throws Exception {
         byte[] original = fixture();
         assertNull(CombatRuntimeIntegrityPlan.transform(ClassSignature.parse(original), original));
@@ -104,10 +125,37 @@ class CombatRuntimeIntegrityPlanTest {
         return writer.toByteArray();
     }
 
+    private static byte[] combatStateFixture() {
+        ClassWriter writer = new ClassWriter(0);
+        writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
+                CombatRuntimeIntegrityPlan.COMBAT_STATE_CLASS, null, "java/lang/Object", null);
+        MethodVisitor traverse = writer.visitMethod(Opcodes.ACC_PUBLIC,
+                CombatRuntimeIntegrityPlan.TRAVERSE_METHOD,
+                CombatRuntimeIntegrityPlan.TRAVERSE_DESCRIPTOR, null, null);
+        traverse.visitCode();
+        traverse.visitMethodInsn(Opcodes.INVOKESTATIC,
+                "com/fs/starfarer/util/super/A", "Object",
+                "()Lcom/fs/starfarer/util/super/B;", false);
+        traverse.visitVarInsn(Opcodes.ASTORE, 1);
+        traverse.visitInsn(Opcodes.ACONST_NULL);
+        traverse.visitInsn(Opcodes.ARETURN);
+        traverse.visitMaxs(1, 2);
+        traverse.visitEnd();
+        writer.visitEnd();
+        return writer.toByteArray();
+    }
+
     private static ClassSignature exactSignature(byte[] bytes) throws Exception {
         ClassSignature parsed = ClassSignature.parse(bytes);
         return new ClassSignature(parsed.internalName(),
                 CombatRuntimeIntegrityPlan.ORIGINAL_SHA256, parsed.majorVersion(),
+                parsed.access(), parsed.methods());
+    }
+
+    private static ClassSignature combatStateSignature(byte[] bytes) throws Exception {
+        ClassSignature parsed = ClassSignature.parse(bytes);
+        return new ClassSignature(parsed.internalName(),
+                CombatRuntimeIntegrityPlan.COMBAT_STATE_SHA256, parsed.majorVersion(),
                 parsed.access(), parsed.methods());
     }
 

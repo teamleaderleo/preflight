@@ -37,7 +37,7 @@
     {"id":"enable-two-times-speed","kind":"press-key","key":"capslock"},
     {"id":"ensure-combat-unpaused","kind":"click","target":"combat.unpause"},
     {"id":"capture-viewport","kind":"click","target":"combat.capture-viewport"},
-    {"id":"zoom-out","kind":"scroll-wheel","direction":"out","clicks":12},
+    {"id":"zoom-out","kind":"click","target":"combat.zoom-out"},
     {"id":"camera-settle","kind":"wait-duration","durationMillis":1500},
     {"id":"verify-zoom-out","kind":"click","target":"combat.verify-zoom-out"},
     {"id":"begin-frame-window","kind":"click","target":"combat.begin-frame-window"},

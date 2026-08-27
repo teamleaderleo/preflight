@@ -49,8 +49,16 @@ final class MacDesktopSmokeDriverTest {
         }
         assertTrue(MacDesktopSmokeDriver.observationScript(pid)
                 .contains("set isFrontmost to frontmost of targetProcess"));
-        assertTrue(MacDesktopSmokeDriver.activateScript(pid)
-                .contains("set win to window 1 of targetProcess"));
+        assertFalse(MacDesktopSmokeDriver.activateScript(pid)
+                .contains("window 1 of targetProcess"));
+        assertFalse(MacDesktopSmokeDriver.observationScript(pid)
+                .contains("window 1 of targetProcess"));
+        assertTrue(MacDesktopSmokeDriver.coreGraphicsWindowBoundsScript(pid)
+                .contains("kCGWindowOwnerPID)!==" + pid));
+        assertTrue(MacDesktopSmokeDriver.appKitActivateScript(pid)
+                .contains("runningApplicationWithProcessIdentifier(" + pid));
+        assertTrue(MacDesktopSmokeDriver.coreGraphicsKeyCodeScript(pid, 13)
+                .contains("CGEventPostToPid(" + pid));
     }
 
     @Test
@@ -86,6 +94,16 @@ final class MacDesktopSmokeDriverTest {
     void invalidPidsAndUnreviewedKeysNeverReachTheCommandBoundary() throws Exception {
         assertThrows(IllegalArgumentException.class,
                 () -> MacDesktopSmokeDriver.windowBoundsScript(0));
+        assertThrows(IllegalArgumentException.class,
+                () -> MacDesktopSmokeDriver.coreGraphicsWindowBoundsScript(0));
+        assertThrows(IllegalArgumentException.class,
+                () -> MacDesktopSmokeDriver.appKitActivateScript(0));
+        assertThrows(IllegalArgumentException.class,
+                () -> MacDesktopSmokeDriver.activateExactPid(0));
+        assertThrows(IllegalArgumentException.class,
+                () -> MacDesktopSmokeDriver.activateExactPid((long) Integer.MAX_VALUE + 1L));
+        assertThrows(IllegalArgumentException.class,
+                () -> MacDesktopSmokeDriver.coreGraphicsKeyCodeScript(1, 128));
 
         assumeTrue(Platform.current() == Platform.MAC);
         FakeCommands commands = new FakeCommands();
@@ -114,7 +132,7 @@ final class MacDesktopSmokeDriverTest {
 
         String scripts = String.join("\n", commands.scripts());
         for (int code : List.of(3, 15, 45, 32, 48, 57)) {
-            assertTrue(scripts.contains("key code " + code), scripts);
+            assertTrue(scripts.contains("CGEventCreateKeyboardEvent(null," + code), scripts);
         }
     }
 
@@ -132,8 +150,7 @@ final class MacDesktopSmokeDriverTest {
                 temporaryDirectory);
 
         String scripts = String.join("\n", commands.scripts());
-        assertTrue(scripts.contains("unixId:" + target.pid()), scripts);
-        assertTrue(scripts.contains("kCGEventMouseMoved"), scripts);
+        assertTrue(scripts.contains("CGEventPostToPid(" + target.pid()), scripts);
         assertTrue(scripts.contains("CGEventCreateScrollWheelEvent"), scripts);
         assertTrue(scripts.contains(",1,1)"), scripts);
         assertTrue(result.detail().contains("scrolled out 12 clicks"), result.detail());
@@ -215,8 +232,9 @@ final class MacDesktopSmokeDriverTest {
         DesktopSmokeDriver.ActionResult result = driver.execute(
                 Map.of("kind", "activate-window"), temporaryDirectory);
 
-        assertEquals("ok", result.detail());
-        assertEquals(4, commands.scripts().stream()
+        assertTrue(result.detail().startsWith("ok; foregrounded test PID "), result.detail());
+        assertTrue(result.detail().endsWith("frontmost=true"), result.detail());
+        assertEquals(3, commands.scripts().stream()
                 .filter(script -> script.contains("set frontmost of targetProcess to true"))
                 .count());
     }
@@ -241,6 +259,26 @@ final class MacDesktopSmokeDriverTest {
     }
 
     @Test
+    void screenshotFallsBackToExactPidCoreGraphicsBoundsForOpenGlWindows() throws Exception {
+        assumeTrue(Platform.current() == Platform.MAC);
+        FakeCommands commands = new FakeCommands();
+        commands.windowBoundsUnavailableCount = 1;
+        MacDesktopSmokeDriver driver = driver(commands);
+        driver.descriptor();
+        driver.attach(currentTarget());
+
+        DesktopSmokeDriver.ActionResult result = driver.execute(
+                Map.of("kind", "capture", "artifacts", List.of("screenshot")),
+                temporaryDirectory);
+
+        assertEquals(1, result.artifacts().size());
+        assertTrue(commands.scripts().stream()
+                .anyMatch(script -> script.contains("CGWindowListCopyWindowInfo")));
+        assertTrue(commands.commands.stream().anyMatch(
+                command -> command.contains("-R10,20,1974,1240")));
+    }
+
+    @Test
     void nonzeroDesktopCommandsBecomeUnavailableInsteadOfFalsePasses() throws Exception {
         assumeTrue(Platform.current() == Platform.MAC);
         FakeCommands commands = new FakeCommands();
@@ -252,7 +290,8 @@ final class MacDesktopSmokeDriverTest {
 
     private MacDesktopSmokeDriver driver(FakeCommands commands) {
         return new MacDesktopSmokeDriver(
-                commands, Path.of("/usr/bin/osascript"), Path.of("/usr/sbin/screencapture"));
+                commands, Path.of("/usr/bin/osascript"), Path.of("/usr/sbin/screencapture"),
+                null, null, pid -> "foregrounded test PID " + pid);
     }
 
     private static DesktopSmokeDriver.ProcessTarget currentTarget() {
@@ -266,6 +305,7 @@ final class MacDesktopSmokeDriverTest {
         private boolean fail;
         private int activationUnavailableCount;
         private int activationWindowUnavailableCount;
+        private int windowBoundsUnavailableCount;
 
         @Override
         public Result run(
@@ -284,12 +324,20 @@ final class MacDesktopSmokeDriverTest {
                     && activationUnavailableCount-- > 0) {
                 return new Result(1, "execution error: exact PID unavailable (1728)");
             }
-            if (script.contains("set frontmost of targetProcess to true")
+            if (script.contains("set win to window 1 of targetProcess")
+                    && script.contains("set frontmost of targetProcess to true")
                     && activationWindowUnavailableCount-- > 0) {
                 return new Result(1, "execution error: Can’t get window 1 of application process "
                         + "\"java\". Invalid index. (-1719)");
             }
             if (script.contains("return (item 1 of winPosition")) {
+                if (windowBoundsUnavailableCount-- > 0) {
+                    return new Result(1, "execution error: Can’t get window 1 of application process "
+                            + "\"java\". Invalid index. (-1719)");
+                }
+                return new Result(0, "10, 20, 1974, 1240\n");
+            }
+            if (script.contains("CGWindowListCopyWindowInfo")) {
                 return new Result(0, "10, 20, 1974, 1240\n");
             }
             if (script.contains("frontmost=")) {

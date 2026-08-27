@@ -11,6 +11,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -20,6 +21,9 @@ import org.objectweb.asm.tree.MethodNode;
 
 /** Exact installed CombatEngine check; it never starts the game. */
 class CombatRuntimeIntegrityInstalledAdapterIT {
+    @TempDir
+    Path temporaryDirectory;
+
     @BeforeEach
     void enableFrames() {
         FrameTimeRuntime.beginSession(true);
@@ -27,8 +31,46 @@ class CombatRuntimeIntegrityInstalledAdapterIT {
 
     @AfterEach
     void reset() {
+        System.clearProperty("preflight.desktopSmoke");
         CombatRuntimeIntegrityRuntime.beginSession();
         FrameTimeRuntime.reset();
+        InternalGameControlRuntime.reset();
+        RuntimeSemanticState.reset();
+    }
+
+    @Test
+    void installedCombatStateCarriesTheEarlierClosedInputBoundary() throws Exception {
+        String configured = System.getProperty("preflight.starsector.core.jar", "").trim();
+        Assumptions.assumeTrue(!configured.isEmpty(),
+                "set -Dpreflight.starsector.core.jar=<starfarer_obf.jar>");
+        Path archive = Path.of(configured).toAbsolutePath().normalize();
+        Assumptions.assumeTrue(Files.isRegularFile(archive));
+
+        byte[] original;
+        try (JarFile jar = new JarFile(archive.toFile())) {
+            var entry = jar.getJarEntry(CombatRuntimeIntegrityPlan.COMBAT_STATE_CLASS + ".class");
+            assertNotNull(entry);
+            try (var input = jar.getInputStream(entry)) {
+                original = input.readAllBytes();
+            }
+        }
+        ClassSignature signature = ClassSignature.parse(original);
+        assertEquals(CombatRuntimeIntegrityPlan.COMBAT_STATE_SHA256, signature.sha256());
+        System.setProperty("preflight.desktopSmoke", "true");
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+        InternalGameControlRuntime.beginSession(temporaryDirectory.resolve("adapter.json"));
+
+        byte[] transformed = CombatRuntimeIntegrityPlan.transform(signature, original);
+
+        assertNotNull(transformed);
+        assertNull(CombatRuntimeIntegrityPlan.transform(
+                ClassSignature.parse(transformed), transformed));
+        MethodNode traverse = read(transformed).methods.stream()
+                .filter(candidate -> CombatRuntimeIntegrityPlan.TRAVERSE_METHOD.equals(candidate.name)
+                        && CombatRuntimeIntegrityPlan.TRAVERSE_DESCRIPTOR.equals(candidate.desc))
+                .findFirst().orElseThrow();
+        assertEquals(1, calls(traverse,
+                InternalGameControlRuntime.class.getName().replace('.', '/'), "combatInput"));
     }
 
     @Test

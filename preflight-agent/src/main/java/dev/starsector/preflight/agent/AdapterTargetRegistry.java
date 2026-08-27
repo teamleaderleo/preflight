@@ -920,6 +920,23 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Exact combat input loop used only for closed desktop-smoke input actions. */
+    static AdapterTarget combatStateInputTarget() {
+        return new AdapterTarget(
+                "vanilla-combat-state-input-0.98a-rc8",
+                CombatRuntimeIntegrityPlan.COMBAT_STATE_CLASS,
+                CombatRuntimeIntegrityPlan.COMBAT_STATE_SHA256,
+                CombatRuntimeIntegrityRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        CombatRuntimeIntegrityPlan.TRAVERSE_METHOD,
+                        CombatRuntimeIntegrityPlan.TRAVERSE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** Exact vanilla collision-grid query that builds a temporary insertion-ordered candidate set. */
     static AdapterTarget collisionQuerySetTarget() {
         return new AdapterTarget(
@@ -2043,6 +2060,7 @@ final class AdapterTargetRegistry {
                 .withTarget(logisticsNotificationsFuelTarget())
                 .withTarget(macMemoryWarningTarget())
                 .withTarget(combatRuntimeIntegrityTarget())
+                .withTarget(combatStateInputTarget())
                 .withTarget(collisionQuerySetTarget());
         if (!AudioStreamSourceErrorRuntime.disabled()) {
             registry = registry.withTarget(audioStreamSourceErrorTarget());
