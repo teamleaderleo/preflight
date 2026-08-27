@@ -227,6 +227,7 @@ final class DesktopSmokeScenarioTest {
         assertTrue(scenario.stepIds().contains("begin-frame-window"));
         assertTrue(scenario.stepIds().contains("combat-sample-1040dp"));
         assertTrue(scenario.stepIds().contains("end-frame-window"));
+        assertTrue(scenario.stepIds().contains("fingerprint-flush"));
         assertEquals(Set.of("process-control", "semantic-state", "semantic-control",
                         "window-control", "evidence-read"),
                 scenario.requiredCapabilities());
