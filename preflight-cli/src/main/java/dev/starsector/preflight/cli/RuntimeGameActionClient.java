@@ -184,6 +184,7 @@ final class RuntimeGameActionClient {
                     || COMBAT_SET_STRESS_VIEWPORT_ACTION.equals(action)
                     || COMBAT_VERIFY_ZOOM_OUT_ACTION.equals(action)
                     || COMBAT_BEGIN_FRAME_WINDOW_ACTION.equals(action)
+                    || COMBAT_END_FRAME_WINDOW_ACTION.equals(action)
                     || COMBAT_STRESS_FIXTURE_ACTION.equals(action)) {
                 return String.valueOf(accepted.get("detail"));
             }

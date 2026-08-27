@@ -324,6 +324,53 @@ final class RuntimeGameActionClientTest {
                 temporaryDirectory.resolve("runtime-action-receipt-000011.json")));
     }
 
+    @Test
+    void acceptsCombatWindowEndAsBookkeepingRatherThanAPauseAction() throws Exception {
+        ProcessHandle process = ProcessHandle.current();
+        Instant startedAt = process.info().startInstant().orElseThrow();
+        DesktopSmokeDriver.ProcessTarget target =
+                new DesktopSmokeDriver.ProcessTarget(process.pid(), startedAt);
+        Path runtimeProcess = writeProcess(process, startedAt);
+        writeState(startedAt, "combat-ready", 7L);
+
+        CompletableFuture<Void> game = CompletableFuture.runAsync(() -> {
+            try {
+                Path request = temporaryDirectory.resolve(RuntimeGameActionClient.REQUEST_FILE);
+                for (int count = 0; count < 500 && !Files.isRegularFile(request); count++) {
+                    TimeUnit.MILLISECONDS.sleep(5L);
+                }
+                assertTrue(Files.isRegularFile(request));
+                Map<String, Object> receipt = new LinkedHashMap<>();
+                receipt.put("format", RuntimeGameActionClient.RECEIPT_FORMAT);
+                receipt.put("sequence", 12L);
+                receipt.put("pid", process.pid());
+                receipt.put("processStartedAt", startedAt);
+                receipt.put("action", RuntimeGameActionClient.COMBAT_END_FRAME_WINDOW_ACTION);
+                receipt.put("acceptedAt", Instant.now());
+                receipt.put("executedAt", Instant.now());
+                receipt.put("boundary", "combat-engine.advance");
+                receipt.put("beforeState", "combat-ready");
+                receipt.put("afterState", "combat-ready");
+                receipt.put("beforePaused", null);
+                receipt.put("afterPaused", null);
+                receipt.put("status", "executed");
+                receipt.put("detail", "ended steady-state combat frame window");
+                Files.writeString(
+                        temporaryDirectory.resolve(RuntimeGameActionClient.RECEIPT_FILE),
+                        Json.object(receipt));
+            } catch (Exception failure) {
+                throw new RuntimeException(failure);
+            }
+        });
+
+        String detail = RuntimeGameActionClient.execute(
+                temporaryDirectory, runtimeProcess, target, 12L,
+                RuntimeGameActionClient.COMBAT_END_FRAME_WINDOW_ACTION, 10);
+
+        game.get(10, TimeUnit.SECONDS);
+        assertTrue(detail.contains("ended steady-state combat frame window"), detail);
+    }
+
     private Path writeProcess(ProcessHandle process, Instant startedAt) throws Exception {
         Map<String, Object> identity = new LinkedHashMap<>();
         identity.put("format", "starsector-preflight-runtime-process-v1");
