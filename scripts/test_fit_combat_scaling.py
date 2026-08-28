@@ -21,10 +21,12 @@ class CombatScalingFitTest(unittest.TestCase):
 
         analysis = module.analyze(rows)
 
+        self.assertTrue(analysis.balanced_matrix)
         self.assertEqual("repeatable", analysis.evidence)
         self.assertEqual("ships:quadratic", analysis.fits[0].model.name)
         self.assertTrue(analysis.confirmed_superlinear)
         self.assertIsNotNone(analysis.fits[0].cv_rmse)
+        self.assertIn("ships_squared", module.equation(analysis.fits[0]))
 
     def test_threshold_density_cost_wins_when_a_knee_appears(self):
         rows = []
@@ -44,10 +46,12 @@ class CombatScalingFitTest(unittest.TestCase):
 
         analysis = module.analyze(rows)
 
+        self.assertTrue(analysis.balanced_matrix)
         self.assertEqual("nearbyEntitiesMean:threshold@30", analysis.fits[0].model.name)
         self.assertEqual("threshold", analysis.fits[0].model.kind)
         self.assertTrue(module.worsening_nonlinearity(analysis.fits[0]))
         self.assertTrue(analysis.confirmed_superlinear)
+        self.assertIn("nearbyEntitiesMean_above_30", module.equation(analysis.fits[0]))
 
     def test_density_interaction_wins_when_ordnance_cost_depends_on_nearby_entities(self):
         rows = []
@@ -65,9 +69,31 @@ class CombatScalingFitTest(unittest.TestCase):
 
         analysis = module.analyze(rows)
 
+        self.assertTrue(analysis.balanced_matrix)
         self.assertEqual("missiles*nearbyEntitiesMean", analysis.fits[0].model.name)
         self.assertEqual("interaction", analysis.fits[0].model.kind)
         self.assertTrue(analysis.confirmed_superlinear)
+        self.assertIn("missiles_x_nearbyEntitiesMean", module.equation(analysis.fits[0]))
+
+    def test_incomplete_run_cell_matrix_stays_exploratory(self):
+        rows = []
+        for run in range(4):
+            for ships in (8, 16, 32, 64):
+                if run == 3 and ships == 64:
+                    continue
+                rows.append({
+                    "runId": f"run-{run}",
+                    "cellId": f"ships-{ships}",
+                    "battleId": 1,
+                    "ships": float(ships),
+                    "advanceMicros": 500.0 + 0.75 * ships * ships,
+                })
+
+        analysis = module.analyze(rows)
+
+        self.assertFalse(analysis.balanced_matrix)
+        self.assertEqual("exploratory", analysis.evidence)
+        self.assertFalse(analysis.confirmed_superlinear)
 
     def test_bucketing_uses_medians_inside_run_cell_battle_time_windows(self):
         rows = [
@@ -105,9 +131,11 @@ class CombatScalingFitTest(unittest.TestCase):
             rendered = module.render_markdown(result)
 
         self.assertEqual("exploratory", result["evidence"])
+        self.assertFalse(result["balancedRunCellMatrix"])
         self.assertIn("Combat scaling fit", rendered)
         self.assertIn("Discovery rule", rendered)
         self.assertIn("ships", rendered)
+        self.assertIsNotNone(result["selectedEquation"])
         self.assertEqual(320.0, result["ranges"]["battleDp"]["median"])
 
 
