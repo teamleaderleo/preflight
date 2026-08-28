@@ -148,17 +148,16 @@ final class CombatStressFixtureRuntimeTest {
 
     @Test
     void rejectsNonSimulationAndInvalidMapBeforeCommittingFixture() throws Exception {
-        CombatEngine engine = new CombatEngine();
-        engine.setSimulation(false);
+        CombatEngine nonSimulation = new CombatEngine();
+        nonSimulation.setSimulation(false);
         IllegalStateException simulation = assertThrows(
                 IllegalStateException.class,
-                () -> CombatStressFixtureRuntime.prepare(engine));
+                () -> CombatStressFixtureRuntime.prepare(nonSimulation));
         assertEquals("combat-stress-fixture-requires-simulation", simulation.getMessage());
 
         CombatStressFixtureRuntime.reset();
-        engine = new CombatEngine();
-        engine.setMapSize(2_000f, 1_000f);
-        CombatEngine invalidMap = engine;
+        CombatEngine invalidMap = new CombatEngine();
+        invalidMap.setMapSize(2_000f, 1_000f);
         IllegalStateException map = assertThrows(
                 IllegalStateException.class,
                 () -> CombatStressFixtureRuntime.prepare(invalidMap));
