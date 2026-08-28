@@ -46,6 +46,9 @@ final class FrameTimePlan {
         if (DynamicParticleGroupRenderProbePlan.TARGET_CLASS.equals(signature.internalName())) {
             return DynamicParticleGroupRenderProbePlan.transform(signature, originalBytes);
         }
+        if (GlIsEnabledStateCachePlan.TARGET_CLASS.equals(signature.internalName())) {
+            return GlIsEnabledStateCachePlan.transform(signature, originalBytes);
+        }
         if (HighResolutionFrameSyncPlan.TARGET_CLASS.equals(signature.internalName())) {
             return HighResolutionFrameSyncPlan.transform(signature, originalBytes);
         }
