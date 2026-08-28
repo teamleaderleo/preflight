@@ -93,9 +93,14 @@ Before changing code or collecting release evidence:
    Only 27 real-strength-mode decisions ran, but their exact `inflateIfNeeded()` calls consumed
    232.934 ms and explained 107.371, 65.226, and 45.798 ms inside 200.130, 89.725, and 65.971 ms
    frames. Location-list access and strength math were cheap. Do not cache or skip the outer nearby
-   decision: the selected work materially autofits and mutates a lazy fleet. The next bounded seam
-   is exact phase attribution inside `DefaultFleetInflater.inflate`; `SensorBurstAbilityAI` remains
-   the secondary lead.
+   decision: the selected work materially autofits and mutates a lazy fleet. The exact phase seam
+   is now installed and verified; read the mutable
+   [fleet-inflation phase checkpoint](docs/evidence/2026-08-28-installed-fleet-inflation-phase-checkpoint.md).
+   Its first observation placed 74.2% of inflater time in member work, including 40.6% in autofit,
+   while setup plus availability pools consumed only 9.5%. That run lost foreground focus and has
+   no eligible campaign frames, so it selects no optimization yet. Repeat the dedicated foreground
+   route and require an exact span-to-frame join before deepening autofit or the outer listener
+   residual. `SensorBurstAbilityAI` remains the secondary lead.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package
