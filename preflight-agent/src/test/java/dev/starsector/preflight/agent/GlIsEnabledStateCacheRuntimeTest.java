@@ -101,7 +101,10 @@ class GlIsEnabledStateCacheRuntimeTest {
         GlIsEnabledStateCacheRuntime.enable(GL_TEXTURE_2D, context);
         GlIsEnabledStateCacheRuntime.observedQuery(GL_TEXTURE_2D, true, context);
         assertEquals(-1, GlIsEnabledStateCacheRuntime.cached(GL_TEXTURE_2D, context));
-        assertEquals(2L, GlIsEnabledStateCacheRuntime.telemetry().get("unsupportedQueries"));
+        Map<String, Object> telemetry = GlIsEnabledStateCacheRuntime.telemetry();
+        assertEquals(2L, telemetry.get("unsupportedQueries"));
+        assertEquals(2L, telemetry.get("texture2DQueries"));
+        assertEquals(0L, telemetry.get("otherUnsupportedQueries"));
     }
 
     @Test
@@ -110,7 +113,10 @@ class GlIsEnabledStateCacheRuntimeTest {
         assertEquals(-1, GlIsEnabledStateCacheRuntime.cached(unsupported, context));
         GlIsEnabledStateCacheRuntime.observedQuery(unsupported, true, context);
         assertEquals(-1, GlIsEnabledStateCacheRuntime.cached(unsupported, context));
-        assertEquals(2L, GlIsEnabledStateCacheRuntime.telemetry().get("unsupportedQueries"));
+        Map<String, Object> telemetry = GlIsEnabledStateCacheRuntime.telemetry();
+        assertEquals(2L, telemetry.get("unsupportedQueries"));
+        assertEquals(0L, telemetry.get("texture2DQueries"));
+        assertEquals(2L, telemetry.get("otherUnsupportedQueries"));
     }
 
     @Test
