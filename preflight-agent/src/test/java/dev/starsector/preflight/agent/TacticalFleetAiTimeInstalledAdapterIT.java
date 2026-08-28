@@ -36,10 +36,17 @@ class TacticalFleetAiTimeInstalledAdapterIT {
         assertEquals(TacticalFleetAiTimePlan.ORIGINAL_SHA256, signature.sha256());
         byte[] transformed = TacticalFleetAiTimePlan.transform(signature, original);
         assertNotNull(transformed);
-        MethodNode method = method(transformed);
-        assertEquals(17, calls(method, "enter"));
-        assertEquals(17, calls(method, "exit"));
-        assertEquals(1, calls(method, "candidateVisited"));
+        MethodNode advance = method(
+                transformed, TacticalFleetAiTimePlan.METHOD, TacticalFleetAiTimePlan.DESCRIPTOR);
+        MethodNode nearby = method(transformed, TacticalFleetAiTimePlan.NEARBY_METHOD,
+                TacticalFleetAiTimePlan.NEARBY_DESCRIPTOR);
+        assertEquals(17, calls(advance, "enter"));
+        assertEquals(17, calls(advance, "exit"));
+        assertEquals(1, calls(advance, "candidateVisited"));
+        assertEquals(7, calls(nearby, "enter"));
+        assertEquals(7, calls(nearby, "exit"));
+        assertEquals(1, calls(nearby, "nearbyMode"));
+        assertEquals(1, calls(nearby, "nearbyCandidateVisited"));
         assertNull(TacticalFleetAiTimePlan.transform(signature, transformed));
     }
 
@@ -53,12 +60,12 @@ class TacticalFleetAiTimeInstalledAdapterIT {
         }
     }
 
-    private static MethodNode method(byte[] bytes) {
+    private static MethodNode method(byte[] bytes, String name, String descriptor) {
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(bytes).accept(owner, ClassReader.EXPAND_FRAMES);
         return owner.methods.stream()
-                .filter(candidate -> TacticalFleetAiTimePlan.METHOD.equals(candidate.name)
-                        && TacticalFleetAiTimePlan.DESCRIPTOR.equals(candidate.desc))
+                .filter(candidate -> name.equals(candidate.name)
+                        && descriptor.equals(candidate.desc))
                 .findFirst().orElseThrow();
     }
 

@@ -22,10 +22,14 @@ public final class TacticalFleetAiTimeRuntime {
     static final int PURSUIT = 8;
     static final int BATTLE_JOIN = 9;
     static final int NEARBY_FLEETS = 10;
+    static final int FLEET_INFLATION = 11;
+    static final int NEARBY_FLEET_LIST = 12;
+    static final int FLEET_STRENGTH = 13;
 
     private static final String[] NAMES = {
             "everyFrame", "avoidList", "fleetList", "otherFleets", "encounterOption", "postScan",
-            "visibility", "hostility", "pursuit", "battleJoin", "nearbyFleets"
+            "visibility", "hostility", "pursuit", "battleJoin", "nearbyFleets",
+            "fleetInflation", "nearbyFleetList", "fleetStrength"
     };
     private static final Stats[] phases = new Stats[NAMES.length];
     private static final List<SlowSpan> slowSpans = new ArrayList<>();
@@ -33,6 +37,9 @@ public final class TacticalFleetAiTimeRuntime {
     private static volatile boolean enabled;
     private static volatile boolean installed;
     private static long candidateFleetsVisited;
+    private static long nearbyCandidatesVisited;
+    private static long strengthModeCalls;
+    private static long fleetPointModeCalls;
 
     static {
         for (int id = 0; id < phases.length; id++) phases[id] = new Stats();
@@ -45,6 +52,9 @@ public final class TacticalFleetAiTimeRuntime {
         enabled = requested && !Boolean.getBoolean(DISABLED_PROPERTY);
         installed = false;
         candidateFleetsVisited = 0L;
+        nearbyCandidatesVisited = 0L;
+        strengthModeCalls = 0L;
+        fleetPointModeCalls = 0L;
         for (Stats stats : phases) stats.reset();
         slowSpans.clear();
     }
@@ -63,6 +73,19 @@ public final class TacticalFleetAiTimeRuntime {
 
     public static void candidateVisited() {
         if (enabled) candidateFleetsVisited++;
+    }
+
+    public static void nearbyCandidateVisited() {
+        if (enabled) nearbyCandidatesVisited++;
+    }
+
+    public static void nearbyMode(boolean computesStrength) {
+        if (!enabled) return;
+        if (computesStrength) {
+            strengthModeCalls++;
+        } else {
+            fleetPointModeCalls++;
+        }
     }
 
     public static void exit(Object tacticalAi, int phase, long startedNanos) {
@@ -94,6 +117,9 @@ public final class TacticalFleetAiTimeRuntime {
         result.put("enabled", enabled);
         result.put("installed", installed);
         result.put("candidateFleetsVisited", candidateFleetsVisited);
+        result.put("nearbyCandidatesVisited", nearbyCandidatesVisited);
+        result.put("strengthModeCalls", strengthModeCalls);
+        result.put("fleetPointModeCalls", fleetPointModeCalls);
         result.put("preEncounterDeclines", Math.max(
                 0L, candidateFleetsVisited - phases[ENCOUNTER_OPTION].calls));
         List<Map<String, Object>> reports = new ArrayList<>();

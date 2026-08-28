@@ -21,6 +21,10 @@ final class TacticalFleetAiTimePlan {
             "53d6b876055d44a1dd97c9bf66561d974e102116c818aac654baf5ba1d70531c";
     static final String METHOD = "advance";
     static final String DESCRIPTOR = "(F)V";
+    static final String NEARBY_METHOD = "hasEnoughStuffAround";
+    static final String NEARBY_DESCRIPTOR =
+            "(Lcom/fs/starfarer/api/campaign/SectorEntityToken;FZZZ"
+                    + "Lcom/fs/starfarer/api/campaign/BattleAPI;)Z";
 
     private static final String PROFILER = "com/fs/profiler/Profiler";
     private static final String RUNTIME =
@@ -32,6 +36,8 @@ final class TacticalFleetAiTimePlan {
             "com/fs/starfarer/api/campaign/CampaignFleetAPI";
     private static final String CAMPAIGN_FLEET_AI =
             "com/fs/starfarer/api/campaign/ai/CampaignFleetAIAPI";
+    private static final String COMPUTE_STRENGTH_DESCRIPTOR =
+            "(L" + CAMPAIGN_FLEET_API + ";Z)F";
 
     private static final List<Block> BLOCKS = List.of(
             new Block("Every frame stuff", TacticalFleetAiTimeRuntime.EVERY_FRAME),
@@ -57,8 +63,7 @@ final class TacticalFleetAiTimePlan {
                             "(Lcom/fs/starfarer/api/campaign/BattleAPI;Z)Z"))),
             new CallGroup(TacticalFleetAiTimeRuntime.NEARBY_FLEETS, 1, List.of(
                     new CallSite(TARGET_CLASS, "hasEnoughStuffAround",
-                            "(Lcom/fs/starfarer/api/campaign/SectorEntityToken;FZZZ"
-                                    + "Lcom/fs/starfarer/api/campaign/BattleAPI;)Z"))));
+                            NEARBY_DESCRIPTOR))));
 
     private TacticalFleetAiTimePlan() {
     }
@@ -70,7 +75,9 @@ final class TacticalFleetAiTimePlan {
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         MethodNode method = unique(owner, METHOD, DESCRIPTOR);
-        if (method == null || callsRuntime(method) != 0) return null;
+        MethodNode nearbyMethod = unique(owner, NEARBY_METHOD, NEARBY_DESCRIPTOR);
+        if (method == null || nearbyMethod == null
+                || callsRuntime(method) != 0 || callsRuntime(nearbyMethod) != 0) return null;
 
         List<BlockMatch> matches = new ArrayList<>();
         for (Block block : BLOCKS) {
@@ -93,6 +100,15 @@ final class TacticalFleetAiTimePlan {
             if (calls.size() != group.expectedCalls) return null;
             for (MethodInsnNode call : calls) decisions.add(new DecisionMatch(call, group.phase));
         }
+        MethodInsnNode inflation = uniqueCall(
+                nearbyMethod, CAMPAIGN_FLEET, "inflateIfNeeded", "()V");
+        MethodInsnNode nearbyFleetList = uniqueCall(
+                nearbyMethod, REPOSITORY, "getList", "(Ljava/lang/Class;)Ljava/util/List;");
+        List<MethodInsnNode> strengthCalls = matchingCalls(
+                nearbyMethod, TARGET_CLASS, "computeFleetStrength", COMPUTE_STRENGTH_DESCRIPTOR);
+        VarInsnNode nearbyCandidateStore = uniqueCandidateStore(nearbyMethod);
+        if (inflation == null || nearbyFleetList == null || strengthCalls.size() != 5
+                || nearbyCandidateStore == null) return null;
 
         int nextLocal = method.maxLocals;
         for (BlockMatch match : matches) {
@@ -107,6 +123,22 @@ final class TacticalFleetAiTimePlan {
             nextLocal += 3;
         }
         method.maxLocals = nextLocal;
+
+        int nearbyNextLocal = nearbyMethod.maxLocals;
+        weaveNearbyMode(nearbyMethod);
+        weaveVoidCall(nearbyMethod, inflation,
+                TacticalFleetAiTimeRuntime.FLEET_INFLATION, nearbyNextLocal);
+        nearbyNextLocal += 2;
+        weaveReferenceCall(nearbyMethod, nearbyFleetList,
+                TacticalFleetAiTimeRuntime.NEARBY_FLEET_LIST, nearbyNextLocal);
+        nearbyNextLocal += 3;
+        for (MethodInsnNode strengthCall : strengthCalls) {
+            weaveFloatCall(nearbyMethod, strengthCall,
+                    TacticalFleetAiTimeRuntime.FLEET_STRENGTH, nearbyNextLocal);
+            nearbyNextLocal += 3;
+        }
+        weaveNearbyCandidateVisit(nearbyMethod, nearbyCandidateStore);
+        nearbyMethod.maxLocals = nearbyNextLocal;
 
         TacticalFleetAiTimeRuntime.installed();
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
@@ -185,6 +217,68 @@ final class TacticalFleetAiTimePlan {
         method.instructions.insert(match.call, finish);
     }
 
+    private static void weaveNearbyMode(MethodNode method) {
+        InsnList marker = new InsnList();
+        marker.add(new VarInsnNode(Opcodes.ILOAD, 5));
+        marker.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "nearbyMode", "(Z)V", false));
+        method.instructions.insert(marker);
+    }
+
+    private static void weaveVoidCall(
+            MethodNode method, MethodInsnNode call, int phase, int startedLocal) {
+        weaveCallStart(method, call, phase, startedLocal);
+        method.instructions.insert(call, exitInstructions(phase, startedLocal));
+    }
+
+    private static void weaveReferenceCall(
+            MethodNode method, MethodInsnNode call, int phase, int startedLocal) {
+        int resultLocal = startedLocal + 2;
+        weaveCallStart(method, call, phase, startedLocal);
+        InsnList finish = new InsnList();
+        finish.add(new VarInsnNode(Opcodes.ASTORE, resultLocal));
+        finish.add(exitInstructions(phase, startedLocal));
+        finish.add(new VarInsnNode(Opcodes.ALOAD, resultLocal));
+        method.instructions.insert(call, finish);
+    }
+
+    private static void weaveFloatCall(
+            MethodNode method, MethodInsnNode call, int phase, int startedLocal) {
+        int resultLocal = startedLocal + 2;
+        weaveCallStart(method, call, phase, startedLocal);
+        InsnList finish = new InsnList();
+        finish.add(new VarInsnNode(Opcodes.FSTORE, resultLocal));
+        finish.add(exitInstructions(phase, startedLocal));
+        finish.add(new VarInsnNode(Opcodes.FLOAD, resultLocal));
+        method.instructions.insert(call, finish);
+    }
+
+    private static void weaveCallStart(
+            MethodNode method, MethodInsnNode call, int phase, int startedLocal) {
+        InsnList start = new InsnList();
+        start.add(new LdcInsnNode(phase));
+        start.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "enter", "(I)J", false));
+        start.add(new VarInsnNode(Opcodes.LSTORE, startedLocal));
+        method.instructions.insertBefore(call, start);
+    }
+
+    private static InsnList exitInstructions(int phase, int startedLocal) {
+        InsnList finish = new InsnList();
+        finish.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        finish.add(new LdcInsnNode(phase));
+        finish.add(new VarInsnNode(Opcodes.LLOAD, startedLocal));
+        finish.add(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME, "exit",
+                "(Ljava/lang/Object;IJ)V", false));
+        return finish;
+    }
+
+    private static void weaveNearbyCandidateVisit(
+            MethodNode method, VarInsnNode candidateStore) {
+        method.instructions.insert(candidateStore, new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "nearbyCandidateVisited", "()V", false));
+    }
+
     private static MethodInsnNode uniqueProfilerBegin(MethodNode method, String label) {
         MethodInsnNode result = null;
         for (AbstractInsnNode instruction : method.instructions) {
@@ -243,12 +337,42 @@ final class TacticalFleetAiTimePlan {
         return result;
     }
 
+    private static List<MethodInsnNode> matchingCalls(
+            MethodNode method, String owner, String name, String descriptor) {
+        List<MethodInsnNode> result = new ArrayList<>();
+        for (AbstractInsnNode instruction : method.instructions) {
+            if (instruction instanceof MethodInsnNode call && owner.equals(call.owner)
+                    && name.equals(call.name) && descriptor.equals(call.desc)) result.add(call);
+        }
+        return result;
+    }
+
     private static VarInsnNode uniqueCandidateStore(BlockMatch boundary) {
         if (boundary == null) return null;
         VarInsnNode result = null;
         for (AbstractInsnNode instruction = boundary.begin.getNext();
                 instruction != null && instruction != boundary.end;
                 instruction = instruction.getNext()) {
+            if (!(instruction instanceof TypeInsnNode cast)
+                    || cast.getOpcode() != Opcodes.CHECKCAST
+                    || !CAMPAIGN_FLEET.equals(cast.desc)) continue;
+            AbstractInsnNode previous = previousMeaningful(cast);
+            AbstractInsnNode next = nextMeaningful(cast);
+            if (!(previous instanceof MethodInsnNode call)
+                    || !"java/util/Iterator".equals(call.owner)
+                    || !"next".equals(call.name)
+                    || !"()Ljava/lang/Object;".equals(call.desc)
+                    || !(next instanceof VarInsnNode store)
+                    || store.getOpcode() != Opcodes.ASTORE) continue;
+            if (result != null) return null;
+            result = store;
+        }
+        return result;
+    }
+
+    private static VarInsnNode uniqueCandidateStore(MethodNode method) {
+        VarInsnNode result = null;
+        for (AbstractInsnNode instruction : method.instructions) {
             if (!(instruction instanceof TypeInsnNode cast)
                     || cast.getOpcode() != Opcodes.CHECKCAST
                     || !CAMPAIGN_FLEET.equals(cast.desc)) continue;

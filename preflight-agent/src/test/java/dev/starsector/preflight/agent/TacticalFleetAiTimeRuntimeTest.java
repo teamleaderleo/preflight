@@ -31,6 +31,9 @@ class TacticalFleetAiTimeRuntimeTest {
     void reportsExactSemanticRegion() {
         Object tacticalAi = new Object();
         TacticalFleetAiTimeRuntime.candidateVisited();
+        TacticalFleetAiTimeRuntime.nearbyCandidateVisited();
+        TacticalFleetAiTimeRuntime.nearbyMode(true);
+        TacticalFleetAiTimeRuntime.nearbyMode(false);
         long started = TacticalFleetAiTimeRuntime.enter(TacticalFleetAiTimeRuntime.OTHER_FLEETS);
         TacticalFleetAiTimeRuntime.exit(
                 tacticalAi, TacticalFleetAiTimeRuntime.OTHER_FLEETS, started);
@@ -39,6 +42,9 @@ class TacticalFleetAiTimeRuntimeTest {
         List<Map<String, Object>> phases = (List<Map<String, Object>>) report.get("phases");
         assertEquals(1L, phases.get(TacticalFleetAiTimeRuntime.OTHER_FLEETS).get("calls"));
         assertEquals(1L, report.get("candidateFleetsVisited"));
+        assertEquals(1L, report.get("nearbyCandidatesVisited"));
+        assertEquals(1L, report.get("strengthModeCalls"));
+        assertEquals(1L, report.get("fleetPointModeCalls"));
         assertEquals(1L, report.get("preEncounterDeclines"));
     }
 
