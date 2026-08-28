@@ -77,6 +77,8 @@ final class CombatStressFixtureRuntime {
     private static int requestedBattleDp = 1040;
     private static int activeShipsPerSide = SHIPS_PER_SIDE;
     private static String activeRecipeId = RECIPE_ID;
+    private static List<Object> removedEngineShipIdentities = List.of();
+    private static List<Object> expectedPrimaryEngineShipIdentities = List.of();
     private static Map<String, Object> workloadBegin = Map.of();
     private static Map<String, Object> workloadEnd = Map.of();
     private static String problem;
@@ -173,8 +175,10 @@ final class CombatStressFixtureRuntime {
                     || spawnedSideOne != recipe.side().size()) {
                 throw new IllegalStateException("combat-stress-spawn-count-mismatch");
             }
-            verifiedPrimaryEngineShips = verifyEngineFixture(
-                    engine, getShips, shipApi, originalEngineShips, spawnedZero, spawnedOne);
+            removedEngineShipIdentities = List.copyOf(originalEngineShips);
+            List<Object> expectedPrimaryShips = new ArrayList<>(spawnedZero);
+            expectedPrimaryShips.addAll(spawnedOne);
+            expectedPrimaryEngineShipIdentities = List.copyOf(expectedPrimaryShips);
             invoke(setDoNotEnd, engine, false);
             if (!Boolean.TRUE.equals(invoke(isPaused, engine))) {
                 throw new IllegalStateException("combat-stress-fixture-did-not-remain-paused");
@@ -292,13 +296,12 @@ final class CombatStressFixtureRuntime {
 
     private static int verifyEngineFixture(
             Object engine, Method getShips, Class<?> shipApi,
-            List<Object> originalEngineShips, List<Object> spawnedZero, List<Object> spawnedOne)
+            List<Object> originalEngineShips, List<Object> expectedPrimaryShips)
             throws ReflectiveOperationException {
         IdentityHashMap<Object, Boolean> removed = new IdentityHashMap<>();
         for (Object ship : originalEngineShips) removed.put(ship, Boolean.TRUE);
         IdentityHashMap<Object, Boolean> expected = new IdentityHashMap<>();
-        for (Object ship : spawnedZero) expected.put(ship, Boolean.TRUE);
-        for (Object ship : spawnedOne) expected.put(ship, Boolean.TRUE);
+        for (Object ship : expectedPrimaryShips) expected.put(ship, Boolean.TRUE);
         int matched = 0;
         int dependent = 0;
         for (Object ship : engineShips(engine, getShips, shipApi)) {
@@ -448,6 +451,13 @@ final class CombatStressFixtureRuntime {
         if (!workloadBegin.isEmpty()) {
             throw new IllegalStateException("combat-workload-begin-already-captured");
         }
+        ClassLoader loader = engine.getClass().getClassLoader();
+        Class<?> engineApi = Class.forName(COMBAT_ENGINE_API, false, loader);
+        Class<?> shipApi = Class.forName(SHIP_API, false, loader);
+        Method getShips = exactApi(engineApi, engine, "getShips", List.class);
+        verifiedPrimaryEngineShips = verifyEngineFixture(
+                engine, getShips, shipApi,
+                removedEngineShipIdentities, expectedPrimaryEngineShipIdentities);
         workloadBegin = workloadSnapshot(engine);
     }
 
@@ -578,6 +588,8 @@ final class CombatStressFixtureRuntime {
         requestedBattleDp = 1040;
         activeShipsPerSide = SHIPS_PER_SIDE;
         activeRecipeId = RECIPE_ID;
+        removedEngineShipIdentities = List.of();
+        expectedPrimaryEngineShipIdentities = List.of();
         workloadBegin = Map.of();
         workloadEnd = Map.of();
         problem = null;
