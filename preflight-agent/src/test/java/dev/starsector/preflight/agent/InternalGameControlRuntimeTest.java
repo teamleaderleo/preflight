@@ -274,8 +274,9 @@ final class InternalGameControlRuntimeTest {
         Files.writeString(temporaryDirectory.resolve("runtime-action-request.json"),
                 request(sequence, Instant.now().plusSeconds(30), action,
                         InternalGameControlRuntime.COMBAT_STATE));
-        // The input seam deliberately hands non-wheel combat actions to the engine seam later
-        // in the same frame and resets the poll deadline so the exact request can be consumed.
+        // Production intentionally bounds request-file polling to 20 ms. Exercise the same cadence,
+        // then prove that the input seam defers non-wheel actions to the engine seam in-frame.
+        Thread.sleep(25L);
         InternalGameControlRuntime.combatInput(new Object(), new ArrayList<>());
         InternalGameControlRuntime.combatAdvance(engine, new ArrayList<>());
         return Files.readString(temporaryDirectory.resolve("runtime-action-receipt.json"));
