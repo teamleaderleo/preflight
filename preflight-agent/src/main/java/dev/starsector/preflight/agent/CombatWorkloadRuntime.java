@@ -260,7 +260,7 @@ public final class CombatWorkloadRuntime {
         long firingWeapons = 0L;
         long beamWeapons = 0L;
         long weaponEffectPlugins = 0L;
-        List<Object> densityAnchors = new ArrayList<>();
+        List<Object> densityCandidates = new ArrayList<>();
 
         for (Object ship : shipEntities) {
             if (ship == null) continue;
@@ -287,7 +287,7 @@ public final class CombatWorkloadRuntime {
                     if (fighter) fighterAi++;
                     else shipAi++;
                 }
-                if (densityAnchors.size() < densitySamples()) densityAnchors.add(ship);
+                densityCandidates.add(ship);
             }
             for (Object weapon : list(invokeOptional(ship, "getAllWeapons"))) {
                 if (weapon == null) continue;
@@ -303,6 +303,7 @@ public final class CombatWorkloadRuntime {
             if (missile != null && invokeOptional(missile, "getAI") != null) missileAi++;
         }
 
+        List<Object> densityAnchors = selectDensityAnchors(densityCandidates, densitySamples());
         Density density = density(engine, densityAnchors);
         InternalCensus census = internalCensus(engine);
         float elapsed = numberValue(invoke(engine, "getTotalElapsedTime", false)).floatValue();
@@ -349,6 +350,23 @@ public final class CombatWorkloadRuntime {
         result.put("internalObjectsScanned", census.scanned());
         result.put("engineCollectionSizes", census.largest());
         return result;
+    }
+
+    static List<Object> selectDensityAnchors(List<Object> candidates, int requested) {
+        if (candidates.isEmpty() || requested <= 0) return List.of();
+        int count = Math.min(requested, candidates.size());
+        if (count == candidates.size()) return List.copyOf(candidates);
+        List<Object> result = new ArrayList<>(count);
+        if (count == 1) {
+            result.add(candidates.get(candidates.size() / 2));
+            return List.copyOf(result);
+        }
+        for (int index = 0; index < count; index++) {
+            double fraction = index / (double) (count - 1);
+            int candidate = (int) Math.round(fraction * (candidates.size() - 1));
+            result.add(candidates.get(candidate));
+        }
+        return List.copyOf(result);
     }
 
     private static Density density(Object engine, List<Object> anchors) {
