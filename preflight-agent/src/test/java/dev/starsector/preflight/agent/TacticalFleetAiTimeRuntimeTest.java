@@ -30,6 +30,7 @@ class TacticalFleetAiTimeRuntimeTest {
     @SuppressWarnings("unchecked")
     void reportsExactSemanticRegion() {
         Object tacticalAi = new Object();
+        TacticalFleetAiTimeRuntime.candidateVisited();
         long started = TacticalFleetAiTimeRuntime.enter(TacticalFleetAiTimeRuntime.OTHER_FLEETS);
         TacticalFleetAiTimeRuntime.exit(
                 tacticalAi, TacticalFleetAiTimeRuntime.OTHER_FLEETS, started);
@@ -37,6 +38,8 @@ class TacticalFleetAiTimeRuntimeTest {
         Map<String, Object> report = TacticalFleetAiTimeRuntime.telemetry();
         List<Map<String, Object>> phases = (List<Map<String, Object>>) report.get("phases");
         assertEquals(1L, phases.get(TacticalFleetAiTimeRuntime.OTHER_FLEETS).get("calls"));
+        assertEquals(1L, report.get("candidateFleetsVisited"));
+        assertEquals(1L, report.get("preEncounterDeclines"));
     }
 
     @Test

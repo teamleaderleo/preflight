@@ -37,8 +37,9 @@ class TacticalFleetAiTimeInstalledAdapterIT {
         byte[] transformed = TacticalFleetAiTimePlan.transform(signature, original);
         assertNotNull(transformed);
         MethodNode method = method(transformed);
-        assertEquals(6, calls(method, "enter"));
-        assertEquals(6, calls(method, "exit"));
+        assertEquals(17, calls(method, "enter"));
+        assertEquals(17, calls(method, "exit"));
+        assertEquals(1, calls(method, "candidateVisited"));
         assertNull(TacticalFleetAiTimePlan.transform(signature, transformed));
     }
 

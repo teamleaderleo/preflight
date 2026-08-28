@@ -17,15 +17,22 @@ public final class TacticalFleetAiTimeRuntime {
     static final int OTHER_FLEETS = 3;
     static final int ENCOUNTER_OPTION = 4;
     static final int POST_SCAN = 5;
+    static final int VISIBILITY = 6;
+    static final int HOSTILITY = 7;
+    static final int PURSUIT = 8;
+    static final int BATTLE_JOIN = 9;
+    static final int NEARBY_FLEETS = 10;
 
     private static final String[] NAMES = {
-            "everyFrame", "avoidList", "fleetList", "otherFleets", "encounterOption", "postScan"
+            "everyFrame", "avoidList", "fleetList", "otherFleets", "encounterOption", "postScan",
+            "visibility", "hostility", "pursuit", "battleJoin", "nearbyFleets"
     };
     private static final Stats[] phases = new Stats[NAMES.length];
     private static final List<SlowSpan> slowSpans = new ArrayList<>();
 
     private static volatile boolean enabled;
     private static volatile boolean installed;
+    private static long candidateFleetsVisited;
 
     static {
         for (int id = 0; id < phases.length; id++) phases[id] = new Stats();
@@ -37,6 +44,7 @@ public final class TacticalFleetAiTimeRuntime {
     static synchronized void beginSession(boolean requested) {
         enabled = requested && !Boolean.getBoolean(DISABLED_PROPERTY);
         installed = false;
+        candidateFleetsVisited = 0L;
         for (Stats stats : phases) stats.reset();
         slowSpans.clear();
     }
@@ -51,6 +59,10 @@ public final class TacticalFleetAiTimeRuntime {
 
     public static long enter(int phase) {
         return enabled && phase >= 0 && phase < phases.length ? System.nanoTime() : 0L;
+    }
+
+    public static void candidateVisited() {
+        if (enabled) candidateFleetsVisited++;
     }
 
     public static void exit(Object tacticalAi, int phase, long startedNanos) {
@@ -81,6 +93,9 @@ public final class TacticalFleetAiTimeRuntime {
         result.put("planId", PLAN_ID);
         result.put("enabled", enabled);
         result.put("installed", installed);
+        result.put("candidateFleetsVisited", candidateFleetsVisited);
+        result.put("preEncounterDeclines", Math.max(
+                0L, candidateFleetsVisited - phases[ENCOUNTER_OPTION].calls));
         List<Map<String, Object>> reports = new ArrayList<>();
         for (int id = 0; id < phases.length; id++) reports.add(phases[id].report(NAMES[id]));
         result.put("phases", reports);

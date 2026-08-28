@@ -11,6 +11,7 @@ import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 /** Times reviewed semantic regions in exact vanilla {@code TacticalModule.advance(float)}. */
@@ -25,13 +26,39 @@ final class TacticalFleetAiTimePlan {
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/TacticalFleetAiTimeRuntime";
     private static final String REPOSITORY = "com/fs/util/container/repo/ObjectRepository";
+    private static final String CAMPAIGN_FLEET =
+            "com/fs/starfarer/campaign/fleet/CampaignFleet";
+    private static final String CAMPAIGN_FLEET_API =
+            "com/fs/starfarer/api/campaign/CampaignFleetAPI";
+    private static final String CAMPAIGN_FLEET_AI =
+            "com/fs/starfarer/api/campaign/ai/CampaignFleetAIAPI";
 
     private static final List<Block> BLOCKS = List.of(
             new Block("Every frame stuff", TacticalFleetAiTimeRuntime.EVERY_FRAME),
             new Block("Updating avoid list", TacticalFleetAiTimeRuntime.AVOID_LIST),
             new Block("Looking at other fleets", TacticalFleetAiTimeRuntime.OTHER_FLEETS),
             new Block("Picking encounter option", TacticalFleetAiTimeRuntime.ENCOUNTER_OPTION),
-            new Block("Every frame stuff, post", TacticalFleetAiTimeRuntime.POST_SCAN));
+            new Block("Every frame stuff, post", TacticalFleetAiTimeRuntime.POST_SCAN),
+            new Block("Checking visibility level", TacticalFleetAiTimeRuntime.VISIBILITY));
+
+    private static final List<CallGroup> DECISION_CALLS = List.of(
+            new CallGroup(TacticalFleetAiTimeRuntime.HOSTILITY, 4, List.of(
+                    new CallSite(CAMPAIGN_FLEET_AI, "isHostileTo",
+                            "(L" + CAMPAIGN_FLEET_API + ";)Z"),
+                    new CallSite(CAMPAIGN_FLEET, "isHostileTo",
+                            "(Lcom/fs/starfarer/api/campaign/SectorEntityToken;)Z"),
+                    new CallSite(TARGET_CLASS, "isHostileTo",
+                            "(L" + CAMPAIGN_FLEET_API + ";Z)Z"))),
+            new CallGroup(TacticalFleetAiTimeRuntime.PURSUIT, 3, List.of(
+                    new CallSite(TARGET_CLASS, "isOkToPursue",
+                            "(L" + CAMPAIGN_FLEET + ";)Z"))),
+            new CallGroup(TacticalFleetAiTimeRuntime.BATTLE_JOIN, 2, List.of(
+                    new CallSite(TARGET_CLASS, "wantsToJoin",
+                            "(Lcom/fs/starfarer/api/campaign/BattleAPI;Z)Z"))),
+            new CallGroup(TacticalFleetAiTimeRuntime.NEARBY_FLEETS, 1, List.of(
+                    new CallSite(TARGET_CLASS, "hasEnoughStuffAround",
+                            "(Lcom/fs/starfarer/api/campaign/SectorEntityToken;FZZZ"
+                                    + "Lcom/fs/starfarer/api/campaign/BattleAPI;)Z"))));
 
     private TacticalFleetAiTimePlan() {
     }
@@ -55,6 +82,17 @@ final class TacticalFleetAiTimePlan {
         MethodInsnNode fleetList = uniqueCall(
                 method, REPOSITORY, "getList", "(Ljava/lang/Class;)Ljava/util/List;");
         if (fleetList == null) return null;
+        BlockMatch otherFleets = matches.stream()
+                .filter(match -> match.phase == TacticalFleetAiTimeRuntime.OTHER_FLEETS)
+                .findFirst().orElse(null);
+        VarInsnNode candidateStore = uniqueCandidateStore(otherFleets);
+        if (candidateStore == null) return null;
+        List<DecisionMatch> decisions = new ArrayList<>();
+        for (CallGroup group : DECISION_CALLS) {
+            List<MethodInsnNode> calls = matchingCalls(otherFleets, group);
+            if (calls.size() != group.expectedCalls) return null;
+            for (MethodInsnNode call : calls) decisions.add(new DecisionMatch(call, group.phase));
+        }
 
         int nextLocal = method.maxLocals;
         for (BlockMatch match : matches) {
@@ -62,7 +100,13 @@ final class TacticalFleetAiTimePlan {
             nextLocal += 2;
         }
         weaveFleetListCall(method, fleetList, nextLocal);
-        method.maxLocals = nextLocal + 5;
+        nextLocal += 5;
+        weaveCandidateVisit(method, candidateStore);
+        for (DecisionMatch decision : decisions) {
+            weaveBooleanCall(method, decision, nextLocal);
+            nextLocal += 3;
+        }
+        method.maxLocals = nextLocal;
 
         TacticalFleetAiTimeRuntime.installed();
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
@@ -115,6 +159,32 @@ final class TacticalFleetAiTimePlan {
         method.instructions.insert(call, finish);
     }
 
+    private static void weaveCandidateVisit(MethodNode method, VarInsnNode candidateStore) {
+        method.instructions.insert(candidateStore, new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "candidateVisited", "()V", false));
+    }
+
+    private static void weaveBooleanCall(
+            MethodNode method, DecisionMatch match, int startedLocal) {
+        int resultLocal = startedLocal + 2;
+        InsnList start = new InsnList();
+        start.add(new LdcInsnNode(match.phase));
+        start.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "enter", "(I)J", false));
+        start.add(new VarInsnNode(Opcodes.LSTORE, startedLocal));
+        method.instructions.insertBefore(match.call, start);
+
+        InsnList finish = new InsnList();
+        finish.add(new VarInsnNode(Opcodes.ISTORE, resultLocal));
+        finish.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        finish.add(new LdcInsnNode(match.phase));
+        finish.add(new VarInsnNode(Opcodes.LLOAD, startedLocal));
+        finish.add(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME, "exit",
+                "(Ljava/lang/Object;IJ)V", false));
+        finish.add(new VarInsnNode(Opcodes.ILOAD, resultLocal));
+        method.instructions.insert(match.call, finish);
+    }
+
     private static MethodInsnNode uniqueProfilerBegin(MethodNode method, String label) {
         MethodInsnNode result = null;
         for (AbstractInsnNode instruction : method.instructions) {
@@ -161,11 +231,54 @@ final class TacticalFleetAiTimePlan {
         return result;
     }
 
+    private static List<MethodInsnNode> matchingCalls(BlockMatch boundary, CallGroup group) {
+        List<MethodInsnNode> result = new ArrayList<>();
+        if (boundary == null) return result;
+        for (AbstractInsnNode instruction = boundary.begin.getNext();
+                instruction != null && instruction != boundary.end;
+                instruction = instruction.getNext()) {
+            if (!(instruction instanceof MethodInsnNode call)) continue;
+            if (group.calls.stream().anyMatch(candidate -> candidate.matches(call))) result.add(call);
+        }
+        return result;
+    }
+
+    private static VarInsnNode uniqueCandidateStore(BlockMatch boundary) {
+        if (boundary == null) return null;
+        VarInsnNode result = null;
+        for (AbstractInsnNode instruction = boundary.begin.getNext();
+                instruction != null && instruction != boundary.end;
+                instruction = instruction.getNext()) {
+            if (!(instruction instanceof TypeInsnNode cast)
+                    || cast.getOpcode() != Opcodes.CHECKCAST
+                    || !CAMPAIGN_FLEET.equals(cast.desc)) continue;
+            AbstractInsnNode previous = previousMeaningful(cast);
+            AbstractInsnNode next = nextMeaningful(cast);
+            if (!(previous instanceof MethodInsnNode call)
+                    || !"java/util/Iterator".equals(call.owner)
+                    || !"next".equals(call.name)
+                    || !"()Ljava/lang/Object;".equals(call.desc)
+                    || !(next instanceof VarInsnNode store)
+                    || store.getOpcode() != Opcodes.ASTORE) continue;
+            if (result != null) return null;
+            result = store;
+        }
+        return result;
+    }
+
     private static AbstractInsnNode nextMeaningful(AbstractInsnNode instruction) {
         AbstractInsnNode current = instruction == null ? null : instruction.getNext();
         while (current != null && (current.getType() == AbstractInsnNode.LABEL
                 || current.getType() == AbstractInsnNode.LINE
                 || current.getType() == AbstractInsnNode.FRAME)) current = current.getNext();
+        return current;
+    }
+
+    private static AbstractInsnNode previousMeaningful(AbstractInsnNode instruction) {
+        AbstractInsnNode current = instruction == null ? null : instruction.getPrevious();
+        while (current != null && (current.getType() == AbstractInsnNode.LABEL
+                || current.getType() == AbstractInsnNode.LINE
+                || current.getType() == AbstractInsnNode.FRAME)) current = current.getPrevious();
         return current;
     }
 
@@ -192,5 +305,17 @@ final class TacticalFleetAiTimePlan {
     }
 
     private record BlockMatch(MethodInsnNode begin, MethodInsnNode end, int phase) {
+    }
+
+    private record CallSite(String owner, String name, String descriptor) {
+        boolean matches(MethodInsnNode call) {
+            return owner.equals(call.owner) && name.equals(call.name) && descriptor.equals(call.desc);
+        }
+    }
+
+    private record CallGroup(int phase, int expectedCalls, List<CallSite> calls) {
+    }
+
+    private record DecisionMatch(MethodInsnNode call, int phase) {
     }
 }
