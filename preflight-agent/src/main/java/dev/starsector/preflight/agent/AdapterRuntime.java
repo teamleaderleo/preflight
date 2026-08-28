@@ -92,6 +92,7 @@ final class AdapterRuntime {
         FleetInflationTimeRuntime.beginSession(campaignTimes);
         CoreAutofitTimeRuntime.beginSession(campaignTimes);
         NexEconomyInfoTimeRuntime.beginSession(campaignTimes);
+        NexMarketListScopeRuntime.beginSession();
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         StartupPhaseRuntime.enableMergedReadProbe(options.startupPhaseProbe());
@@ -198,6 +199,11 @@ final class AdapterRuntime {
             registry = loadRegistry(options.adapterTargets(), report);
             if (options.adapterMode() == AdapterMode.ENABLED) {
                 registry = registry.withTextureTarget(options.textureAdapterMode());
+                if (NexMarketListScopeRuntime.configured()) {
+                    registry = registry.withNexMarketListScopeTargets();
+                    report.diagnostic(
+                            "Loaded the exact opt-in Nexerelin scoped market-list targets");
+                }
                 report.diagnostic("Loaded the exact refit simulator opponent-safety target");
                 report.diagnostic("Loaded the exact startup resource-priority index target");
                 report.diagnostic("Loaded the exact save-descriptor compatibility memo target");

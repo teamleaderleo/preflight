@@ -71,6 +71,13 @@ final class AdapterInstallationEffects {
         if (MnemonicSensorsEntityFilterPlan.PLAN_ID.equals(target.planId())) {
             MnemonicSensorsEntityFilterPlan.installed();
         }
+        if (NexMarketListScopeRuntime.PLAN_ID.equals(target.planId())) {
+            if (NexMarketListScopePlan.NEX_CLASS.equals(className)) {
+                NexMarketListScopeRuntime.installedNex();
+            } else if (NexMarketListScopePlan.CORE_CLASS.equals(className)) {
+                NexMarketListScopeRuntime.installedCore();
+            }
+        }
         if (MutableStatTempAdvancePlan.PLAN_ID.equals(target.planId())) {
             MutableStatTempAdvancePlan.installed();
         }

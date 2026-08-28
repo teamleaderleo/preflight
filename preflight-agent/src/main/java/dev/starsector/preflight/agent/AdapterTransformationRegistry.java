@@ -412,7 +412,25 @@ final class AdapterTransformationRegistry {
             return CoreAutofitTimePlan.transform(signature, originalBytes);
         }
         if (NexEconomyInfoTimeRuntime.PLAN_ID.equals(target.planId())) {
-            return NexEconomyInfoTimePlan.transform(signature, originalBytes);
+            byte[] timed = NexEconomyInfoTimePlan.transform(signature, originalBytes);
+            byte[] current = timed == null ? originalBytes : timed;
+            byte[] scoped = AdapterPlanControl.allows(NexMarketListScopeRuntime.PLAN_ID)
+                    && NexMarketListScopeRuntime.configured()
+                    ? NexMarketListScopePlan.transform(signature, current)
+                    : null;
+            return scoped == null ? timed : scoped;
+        }
+        if (NexMarketListScopeRuntime.PLAN_ID.equals(target.planId())) {
+            byte[] current = originalBytes;
+            byte[] timed = null;
+            if (NexMarketListScopePlan.NEX_CLASS.equals(signature.internalName())
+                    && AdapterPlanControl.allows(NexEconomyInfoTimeRuntime.PLAN_ID)
+                    && NexEconomyInfoTimeRuntime.enabled()) {
+                timed = NexEconomyInfoTimePlan.transform(signature, originalBytes);
+                if (timed != null) current = timed;
+            }
+            byte[] scoped = NexMarketListScopePlan.transform(signature, current);
+            return scoped == null ? timed : scoped;
         }
         if (FrameTimeStatePlan.PLAN_ID.equals(target.planId())) {
             return FrameTimeStatePlan.transform(signature, originalBytes);
@@ -1004,6 +1022,9 @@ final class AdapterTransformationRegistry {
         }
         if (NexEconomyInfoTimeRuntime.PLAN_ID.equals(planId)) {
             return NexEconomyInfoTimeRuntime.enabled();
+        }
+        if (NexMarketListScopeRuntime.PLAN_ID.equals(planId)) {
+            return NexMarketListScopeRuntime.configured();
         }
         if (FrameTimeStatePlan.PLAN_ID.equals(planId)) {
             return true;

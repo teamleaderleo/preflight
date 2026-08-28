@@ -427,6 +427,8 @@ final class AdapterReport {
                 .append(Json.value(CoreAutofitTimeRuntime.telemetry())).append(',');
         key(output, "nexEconomyInfoTimes")
                 .append(Json.value(NexEconomyInfoTimeRuntime.telemetry())).append(',');
+        key(output, "nexMarketListScope")
+                .append(Json.value(NexMarketListScopeRuntime.telemetry())).append(',');
         key(output, "campaignEntityMaintenance")
                 .append(Json.value(CampaignEntityMaintenanceRuntime.telemetry())).append(',');
 

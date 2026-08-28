@@ -76,6 +76,11 @@ hot-pattern census, runtime/static triage join, and JFR hitch correlation into o
 Pass `--focus nex-economy` after the broad owner funnel selects Nexerelin's exact economy-info
 rebuild. That mode disables the superseded deep campaign timers, omits JFR/static triage, retains
 only the exact phase/cardinality probe plus thin frame telemetry, and emits the same compact summary.
+Add `--market-list-mode shadow` for intrusive fresh-list identity/order validation. Use
+`--market-list-mode baseline` or `--market-list-mode candidate` for the recording-free thin
+paused/unpaused comparison; those modes turn off the phase probe and differ only by the exact scoped
+market-list candidate. Baseline explicitly disables that plan so an inherited local property cannot
+contaminate the control.
 It foregrounds the exact recorded game PID before its timed windows because inactive-focus
 intervals are deliberately excluded. On macOS the wrapper scopes `caffeinate` to the smoke command
 so the display does not idle-sleep during a capture; it neither moves the pointer nor bypasses the

@@ -5,17 +5,20 @@
 # Usage:
 #   scripts/run-1158-owner-tax-discovery.sh [--game DIR] [--label NAME]
 #       [--focus nex-economy]
+#       [--market-list-mode discovery|shadow|baseline|candidate]
 set -euo pipefail
 
 GAME="${STARSECTOR_HOME:-/Applications/Starsector.app}"
 LABEL="issue-1158-owner-tax"
 FOCUS="all"
+MARKET_LIST_MODE="discovery"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --game) GAME="$2"; shift 2 ;;
         --label) LABEL="$2"; shift 2 ;;
         --focus) FOCUS="$2"; shift 2 ;;
+        --market-list-mode) MARKET_LIST_MODE="$2"; shift 2 ;;
         -h|--help)
             sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
@@ -35,6 +38,14 @@ case "$FOCUS" in
     all|nex-economy) ;;
     *) echo "--focus must be 'all' or 'nex-economy'." >&2; exit 2 ;;
 esac
+case "$MARKET_LIST_MODE" in
+    discovery|shadow|baseline|candidate) ;;
+    *) echo "--market-list-mode must be discovery, shadow, baseline, or candidate." >&2; exit 2 ;;
+esac
+if [[ "$MARKET_LIST_MODE" != "discovery" && "$FOCUS" != "nex-economy" ]]; then
+    echo "Non-discovery market-list modes require --focus nex-economy." >&2
+    exit 2
+fi
 
 STATE_ROOT="${STARSECTOR_PREFLIGHT_HOME:-$HOME/.starsector-preflight}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
@@ -43,6 +54,9 @@ RUN_DIR="$STATE_ROOT/runs/$LABEL-$STAMP"
 SCENARIO="scripts/scenarios/campaign-owner-tax-paused-unpaused.json"
 if [[ "$FOCUS" == "nex-economy" ]]; then
     SCENARIO="scripts/scenarios/campaign-nex-economy-info-paused-unpaused.json"
+fi
+if [[ "$MARKET_LIST_MODE" == "baseline" || "$MARKET_LIST_MODE" == "candidate" ]]; then
+    SCENARIO="scripts/scenarios/campaign-nex-economy-info-paused-unpaused-thin.json"
 fi
 HOT_PATTERNS="$SESSION/hot-patterns.json"
 TRIAGE="$SESSION/mod-tax-triage.json"
@@ -59,6 +73,7 @@ echo "  commit:  $(git rev-parse HEAD)"
 echo "  session: $SESSION"
 echo "  run:     $RUN_DIR"
 echo "  focus:   $FOCUS"
+echo "  market-list mode: $MARKET_LIST_MODE"
 echo
 
 if [[ "$FOCUS" == "all" ]]; then
@@ -73,8 +88,20 @@ if [[ "$FOCUS" == "nex-economy" ]]; then
     if [[ -n "${PREFLIGHT_DISABLE_ADAPTER_PLANS:-}" ]]; then
         FOCUS_DISABLED_PLANS="$PREFLIGHT_DISABLE_ADAPTER_PLANS,$FOCUS_DISABLED_PLANS"
     fi
+    if [[ "$MARKET_LIST_MODE" == "baseline" ]]; then
+        FOCUS_DISABLED_PLANS="$FOCUS_DISABLED_PLANS,nexerelin-market-list-scope-v1"
+    fi
     SMOKE_COMMAND=(env "PREFLIGHT_DISABLE_ADAPTER_PLANS=$FOCUS_DISABLED_PLANS"
         "${SMOKE_COMMAND[@]}")
+fi
+if [[ "$MARKET_LIST_MODE" == "shadow" || "$MARKET_LIST_MODE" == "candidate" ]]; then
+    MARKET_LIST_PROPERTY="-Dpreflight.campaign.nexMarketListScope=true"
+    if [[ "$MARKET_LIST_MODE" == "shadow" ]]; then
+        MARKET_LIST_PROPERTY="-Dpreflight.campaign.nexMarketListScope.shadow=true"
+    fi
+    MARKET_LIST_JAVA_OPTIONS="${JAVA_TOOL_OPTIONS:-}"
+    MARKET_LIST_JAVA_OPTIONS="${MARKET_LIST_JAVA_OPTIONS:+$MARKET_LIST_JAVA_OPTIONS }$MARKET_LIST_PROPERTY"
+    SMOKE_COMMAND=(env "JAVA_TOOL_OPTIONS=$MARKET_LIST_JAVA_OPTIONS" "${SMOKE_COMMAND[@]}")
 fi
 set +e
 if [[ "$(uname -s)" == "Darwin" ]] && command -v caffeinate >/dev/null 2>&1; then
@@ -152,13 +179,16 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
     jq \
         --arg commit "$(git rev-parse HEAD)" \
         --arg run "$RUN_DIR" \
+        --arg marketListMode "$MARKET_LIST_MODE" \
         --slurpfile triage "$TRIAGE_INPUT" \
         --slurpfile jvm "$JVM_INPUT" \
         --slurpfile inflationFrames "$INFLATION_FRAME_INPUT" \
         --slurpfile autofitFrames "$AUTOFIT_FRAME_INPUT" \
         --slurpfile nexEconomyFrames "$NEX_ECONOMY_FRAME_INPUT" \
         '{issue:1158,
-          classification:"intrusive-discovery-no-fps-claim",
+          classification:(if ($marketListMode == "baseline" or $marketListMode == "candidate")
+            then "thin-candidate-measurement" else "intrusive-discovery-no-fps-claim" end),
+          marketListMode:$marketListMode,
           commit:$commit,
           runDirectory:$run,
           frameTimes:(.frameTimes | {
@@ -194,6 +224,7 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
           coreAutofitTimes:.coreAutofitTimes,
           coreAutofitFrameJoin:($autofitFrames[0] // null),
           nexEconomyInfoTimes:.nexEconomyInfoTimes,
+          nexMarketListScope:.nexMarketListScope,
           nexEconomyInfoFrameJoin:($nexEconomyFrames[0] // null),
           triage:($triage[0] // null),
           jvmHitchCorrelation:($jvm[0] // null)}' \
@@ -229,6 +260,7 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
            } end;
          {issue,
          classification,
+         marketListMode,
          commit,
          runDirectory,
          routeStatus:($smoke[0].status // "unavailable"),
@@ -286,6 +318,7 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
            cardinality:.nexEconomyInfoTimes.cardinality,
            phases:(.nexEconomyInfoTimes.phases | map({name,calls,totalMillis,maximumMillis}))
          },
+         nexMarketListScope,
          nexEconomyInfoFrameJoins:(((.nexEconomyInfoFrameJoin.joins // [])[:8]) | map({
            span,durationMillis,frameDurationMillis,overlapShareOfFramePercent,
            spanShareOfFramePercent,containedByFrame

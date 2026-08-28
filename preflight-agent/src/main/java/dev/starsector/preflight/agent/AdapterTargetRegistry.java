@@ -2176,6 +2176,36 @@ final class AdapterTargetRegistry {
                 ""));
     }
 
+    AdapterTargetRegistry withNexMarketListScopeTargets() {
+        AdapterTarget nex = new AdapterTarget(
+                "nexerelin-0.12.2b-economy-market-list-scope",
+                NexMarketListScopePlan.NEX_CLASS,
+                NexMarketListScopePlan.NEX_SHA256,
+                NexMarketListScopeRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        NexMarketListScopePlan.NEX_METHOD,
+                        NexMarketListScopePlan.NEX_DESCRIPTOR)),
+                "MOD",
+                "ExerelinCore.jar",
+                NexMarketListScopePlan.NEX_SOURCE_SHA256,
+                "java/net/URLClassLoader",
+                "");
+        AdapterTarget core = new AdapterTarget(
+                "vanilla-commodity-market-data-nexerelin-scope-0.98a-rc8",
+                NexMarketListScopePlan.CORE_CLASS,
+                NexMarketListScopePlan.CORE_SHA256,
+                NexMarketListScopeRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        NexMarketListScopePlan.CORE_METHOD,
+                        NexMarketListScopePlan.CORE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                NexMarketListScopePlan.CORE_SOURCE_SHA256,
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+        return withTarget(nex).withTarget(core);
+    }
+
     AdapterTargetRegistry withFrameTimeStartupCompletionTarget() {
         return withTarget(frameTimeStartupCompletionTarget());
     }

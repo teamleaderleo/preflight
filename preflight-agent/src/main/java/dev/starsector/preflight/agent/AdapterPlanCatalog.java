@@ -56,6 +56,7 @@ final class AdapterPlanCatalog {
             MnemonicSensorsEntityFilterPlan.PLAN_ID,
             MutableStatTempAdvancePlan.PLAN_ID,
             NexEconomyInfoTimeRuntime.PLAN_ID,
+            NexMarketListScopeRuntime.PLAN_ID,
             PreparedAudioRuntime.PLAN_ID,
             ProjectileJsonCacheRuntime.PLAN_ID,
             RatAbyssFactionFlagPlan.PLAN_ID,
