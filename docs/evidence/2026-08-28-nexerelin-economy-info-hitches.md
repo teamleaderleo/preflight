@@ -138,6 +138,55 @@ semantic route. It must compare refresh-containing frame tails, direct cache hit
 workload identity, adapter/fallback health, and lifecycle health. No further game launch was started
 after this checkpoint while the physical host was reserved for Ubuntu setup.
 
+## Offline stock/Nex call-volume audit
+
+The shadow counters and installed bytecode make the candidate's causal boundary exact without
+another launch. Across four rebuild scopes, the wrapper stored 156 first lists and validated 5,460
+later lists. Therefore each rebuild had 39 eligible commodity-data owners, and each owner requested
+the same group list 36 times:
+
+- one list to discover distinct factions in stock
+  `getMarketSharePercentPerFaction()`;
+- 32 more lists, one for each distinct faction's stock `getMarketSharePercent(faction)` scan;
+- three explicit Nexerelin lists for producer, importer, and demand passes.
+
+The current candidate retains the first list per owner and serves the next 35. It would therefore
+avoid 1,365 of 1,404 list builds per rebuild, or 97.22%. The exact route had 186 total economy
+markets and 177 markets in the relevant economy group. One candidate rebuild should consequently
+avoid 253,890 `ReachEconomy.isInGroup(...)` tests and avoid repopulating 241,605 returned-list
+elements. Across the four shadow-equivalent rebuilds, that is 1,015,560 group tests and 966,420 list
+elements. These are static causal counts, not measured candidate telemetry or an FPS result.
+
+This also reveals the current candidate's limit. Stock `getMarketSharePercent(faction)` still scans
+all 177 group markets once for each of 32 factions. That leaves 220,896
+`getExportMarketSharePercent(market)` visits per rebuild. The installed getter performs a
+`LinkedHashMap.get`, may create a default `MarketShareData`, unconditionally puts that entry back,
+and rounds the share. List reuse does not remove any of those calls.
+
+A distinct one-pass successor could reduce that stock family from 220,896 visits to 6,903 per
+rebuild, a 96.875% reduction, while retaining the three necessary Nexerelin data passes. This is not
+silently part of the current experiment. Its exact equivalence contract is stricter:
+
+- retain `LinkedHashMap` key order by first faction occurrence and ordinary map equality;
+- retain stock's reference-identity test between each market faction and result faction;
+- add a player-owned market to every result key whose faction reports `isPlayerFaction()`, without
+  double-counting the direct identity match;
+- accumulate integer shares in original market order;
+- preserve the final `marketShareData` key order and value identities even though the current stock
+  getter redundantly puts the same entry once per faction;
+- compare complete result-map key identity/order/value equality in shadow mode, keep the exact Nex
+  scope and both source gates, and fall back to the original method on any unexpected state.
+
+Only Nexerelin's current and older installed JARs referenced
+`getMarketSharePercentPerFaction()` in the installed mod archive scan; current Nexerelin also uses it
+from `Nex_PunitiveExpeditionManager`. That is another reason a future one-pass implementation should
+remain inside the reviewed economy-info scope instead of globally changing stock behavior.
+
+Experimental order remains unchanged: settle the already-shadowed list candidate first. If it
+removes the predicted builds but leaves the player-visible tail essentially unchanged, retain that
+v1 rejection and test the materially stronger stock scan-collapse as a separate candidate rather
+than declaring this entire seam exhausted.
+
 Compact retained data is in
 [`data/2026-08-28-nexerelin-economy-info-hitches.json`](data/2026-08-28-nexerelin-economy-info-hitches.json).
 Raw logs, frame packets, and complete local run/session directories remain disposable evidence.

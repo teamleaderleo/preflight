@@ -129,5 +129,33 @@
       "demandCandidates": 27612
     }
   },
+  "staticCallVolumeAudit": {
+    "classification": "installed-bytecode-and-shadow-counter-derivation-no-fps-claim",
+    "rebuildScopes": 4,
+    "eligibleCommodityOwnersPerRebuild": 39,
+    "marketListCallsPerOwner": 36,
+    "distinctFactionScansPerOwner": 32,
+    "explicitNexMarketPassesPerOwner": 3,
+    "totalEconomyMarkets": 186,
+    "marketsInReviewedGroup": 177,
+    "listCandidate": {
+      "originalListBuildsPerRebuild": 1404,
+      "retainedListBuildsPerRebuild": 39,
+      "avoidedListBuildsPerRebuild": 1365,
+      "avoidedListBuildPercent": 97.22222222222223,
+      "avoidedGroupMembershipTestsPerRebuild": 253890,
+      "avoidedReturnedListElementsPerRebuild": 241605,
+      "avoidedGroupMembershipTestsAcrossShadowRoute": 1015560,
+      "avoidedReturnedListElementsAcrossShadowRoute": 966420
+    },
+    "possibleOnePassSuccessor": {
+      "stockExportShareVisitsPerRebuild": 220896,
+      "onePassExportShareVisitsPerRebuild": 6903,
+      "avoidedExportShareVisitsPerRebuild": 213993,
+      "avoidedExportShareVisitPercent": 96.875,
+      "scope": "reviewed-nexerelin-economy-info-rebuild-only",
+      "status": "static-successor-lead-not-implemented"
+    }
+  },
   "decision": "run-clean-interleaved-thin-baseline-candidate-cohort-after-host-launch-pause"
 }

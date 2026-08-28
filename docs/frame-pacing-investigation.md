@@ -383,9 +383,21 @@ suggests. Each `CommodityMarketDataAPI.getMarkets()` call allocates a new list a
 economy market for the commodity's economy group. Nexerelin calls it three times per commodity.
 Before those passes, `getMarketSharePercentPerFaction()` performs another group scan and then calls
 `getMarketSharePercent()` once per distinct faction; each of those calls performs another allocated
-group scan. This is exact static structure, not a timing result. The focused phase/cardinality probe
-at `cf027172` must still show which part owns the live 42.370 ms callback before any list-reuse or
-market-share rewrite is promoted.
+group scan.
+
+The exact phase run resolved the original question: four rebuilds consumed 150.262 ms and the
+commodity scan owned 137.730 ms. Two refreshes together explained 65.4% of a 95.248 ms frame, while
+a third explained 48.9% of a 58.965 ms frame. The exact scoped-list candidate then passed 5,460
+fresh-result order/identity comparisons with no mismatch or failure. Its offline causal derivation is
+also exact: it should collapse 1,404 list builds per rebuild to 39, avoiding 253,890 group-membership
+tests per rebuild.
+
+Do not treat a poor v1 frame result as exhaustion of the whole seam. Stock still performs 220,896
+`getExportMarketSharePercent` visits per rebuild because it rescans 177 markets for each of 32
+factions. A separately shadowed one-pass successor could reduce that to 6,903 while preserving
+first-faction order, identity membership, player-owned semantics, and final private-map state. Settle
+the already-shadowed list candidate before promoting that stronger rewrite. See the
+[Nexerelin economy-info record](evidence/2026-08-28-nexerelin-economy-info-hitches.md).
 
 ### Commodity event-mod validation remains a large CPU category
 

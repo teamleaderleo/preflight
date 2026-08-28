@@ -120,7 +120,11 @@ Before changing code or collecting release evidence:
    post-capture native SIGSEGV during controller shutdown, so the pending interleaved thin
    baseline/candidate cohort must require clean exit. Do not broaden the candidate into a general
    economy cache. At the maintainer's request, all physical game launches are paused while the host
-   is reserved for Ubuntu setup; offline analysis and repository work may continue.
+   is reserved for Ubuntu setup; offline analysis and repository work may continue. The offline
+   stock/Nex audit derives that v1 should collapse 1,404 group-list builds per rebuild to 39. It also
+   preserves a distinct stronger successor: stock still makes 220,896 export-share visits per
+   rebuild, while a carefully shadowed one-pass calculation could need only 6,903. Finish v1 before
+   promoting that rewrite; a v1 rejection would not exhaust the broader seam.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package
