@@ -408,6 +408,9 @@ final class AdapterTransformationRegistry {
         if (FleetInflationTimeRuntime.PLAN_ID.equals(target.planId())) {
             return FleetInflationTimePlan.transform(signature, originalBytes);
         }
+        if (CoreAutofitTimeRuntime.PLAN_ID.equals(target.planId())) {
+            return CoreAutofitTimePlan.transform(signature, originalBytes);
+        }
         if (FrameTimeStatePlan.PLAN_ID.equals(target.planId())) {
             return FrameTimeStatePlan.transform(signature, originalBytes);
         }
@@ -992,6 +995,9 @@ final class AdapterTransformationRegistry {
         }
         if (FleetInflationTimeRuntime.PLAN_ID.equals(planId)) {
             return FleetInflationTimeRuntime.enabled();
+        }
+        if (CoreAutofitTimeRuntime.PLAN_ID.equals(planId)) {
+            return CoreAutofitTimeRuntime.enabled();
         }
         if (FrameTimeStatePlan.PLAN_ID.equals(planId)) {
             return true;

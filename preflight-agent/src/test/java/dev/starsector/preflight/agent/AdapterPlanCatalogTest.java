@@ -28,7 +28,7 @@ class AdapterPlanCatalogTest {
                 .map(AdapterPlanCatalog.Descriptor::planId)
                 .collect(Collectors.toSet());
 
-        assertEquals(74, catalogPlans.size(), "adapter plan inventory changed");
+        assertEquals(75, catalogPlans.size(), "adapter plan inventory changed");
         assertTrue(catalogPlans.containsAll(registeredPlans),
                 () -> "uncatalogued registered plans: " + difference(registeredPlans, catalogPlans));
         for (AdapterPlanCatalog.Descriptor descriptor : descriptors) {
@@ -91,6 +91,7 @@ class AdapterPlanCatalogTest {
                 .withCampaignMarketFleetTimeTargets()
                 .withTacticalFleetAiTimeTarget()
                 .withFleetInflationTimeTarget()
+                .withCoreAutofitTimeTarget()
                 .withFrameTimeStartupCompletionTarget()
                 .withMainMenuInteractiveTarget();
         List<AdapterTarget> targets = new java.util.ArrayList<>(prepared.targets());

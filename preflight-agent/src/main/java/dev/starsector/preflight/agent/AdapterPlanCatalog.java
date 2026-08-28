@@ -25,6 +25,7 @@ final class AdapterPlanCatalog {
             CombatRuntimeIntegrityRuntime.PLAN_ID,
             CombatListenerRangeSnapshotPlan.PLAN_ID,
             CollisionQuerySetPlan.PLAN_ID,
+            CoreAutofitTimeRuntime.PLAN_ID,
             ContrailRenderScratchRuntime.PLAN_ID,
             CommodityEventModMemoRuntime.PLAN_ID,
             DeploymentIconCacheRuntime.PLAN_ID,

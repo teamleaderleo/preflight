@@ -423,6 +423,8 @@ final class AdapterReport {
                 .append(Json.value(TacticalFleetAiTimeRuntime.telemetry())).append(',');
         key(output, "fleetInflationTimes")
                 .append(Json.value(FleetInflationTimeRuntime.telemetry())).append(',');
+        key(output, "coreAutofitTimes")
+                .append(Json.value(CoreAutofitTimeRuntime.telemetry())).append(',');
         key(output, "campaignEntityMaintenance")
                 .append(Json.value(CampaignEntityMaintenanceRuntime.telemetry())).append(',');
 

@@ -90,6 +90,7 @@ final class AdapterRuntime {
         FleetAiModuleTimeRuntime.beginSession(campaignTimes);
         TacticalFleetAiTimeRuntime.beginSession(campaignTimes);
         FleetInflationTimeRuntime.beginSession(campaignTimes);
+        CoreAutofitTimeRuntime.beginSession(campaignTimes);
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         StartupPhaseRuntime.enableMergedReadProbe(options.startupPhaseProbe());
@@ -252,6 +253,9 @@ final class AdapterRuntime {
                 }
                 if (FleetInflationTimeRuntime.enabled()) {
                     registry = registry.withFleetInflationTimeTarget();
+                }
+                if (CoreAutofitTimeRuntime.enabled()) {
+                    registry = registry.withCoreAutofitTimeTarget();
                 }
                 if (campaignTimes) {
                     report.diagnostic("Loaded the exact opt-in detailed campaign timing targets");
@@ -487,6 +491,9 @@ final class AdapterRuntime {
         }
         if (disabledPlans.contains(FleetInflationTimeRuntime.PLAN_ID)) {
             FleetInflationTimeRuntime.beginSession(false);
+        }
+        if (disabledPlans.contains(CoreAutofitTimeRuntime.PLAN_ID)) {
+            CoreAutofitTimeRuntime.beginSession(false);
         }
     }
 

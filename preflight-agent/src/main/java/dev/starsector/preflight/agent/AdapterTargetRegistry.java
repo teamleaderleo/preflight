@@ -2144,6 +2144,22 @@ final class AdapterTargetRegistry {
                 "app"));
     }
 
+    AdapterTargetRegistry withCoreAutofitTimeTarget() {
+        return withTarget(new AdapterTarget(
+                "vanilla-core-autofit-time-0.98a-rc8",
+                CoreAutofitTimePlan.TARGET_CLASS,
+                CoreAutofitTimePlan.ORIGINAL_SHA256,
+                CoreAutofitTimeRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        CoreAutofitTimePlan.METHOD,
+                        CoreAutofitTimePlan.DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer.api.jar",
+                "6ac6c78c6116946d487376426340d019938f986ceae1391ae1fa599e890e3185",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app"));
+    }
+
     AdapterTargetRegistry withFrameTimeStartupCompletionTarget() {
         return withTarget(frameTimeStartupCompletionTarget());
     }

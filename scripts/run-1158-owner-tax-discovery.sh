@@ -38,6 +38,7 @@ HOT_PATTERNS="$SESSION/hot-patterns.json"
 TRIAGE="$SESSION/mod-tax-triage.json"
 JVM_JOIN="$SESSION/jvm-hitch-correlation.json"
 INFLATION_FRAME_JOIN="$SESSION/fleet-inflation-frame-join.json"
+AUTOFIT_FRAME_JOIN="$SESSION/core-autofit-frame-join.json"
 SUMMARY="$SESSION/summary.json"
 mkdir -p "$SESSION"
 
@@ -91,20 +92,34 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
         POSTPROCESS_STATUS=1
     fi
 fi
+if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
+    if ! python3 scripts/starsector_slow_span_frames.py \
+        "$RUN_DIR/runtime-frame-report.json" \
+        --telemetry coreAutofitTimes \
+        --frame-series campaignUnpausedActive \
+        --json >"$AUTOFIT_FRAME_JOIN"; then
+        echo "Core-autofit frame join failed; preserving the installed-game run." >&2
+        rm -f "$AUTOFIT_FRAME_JOIN"
+        POSTPROCESS_STATUS=1
+    fi
+fi
 
 if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
     TRIAGE_INPUT=/dev/null
     JVM_INPUT=/dev/null
     INFLATION_FRAME_INPUT=/dev/null
+    AUTOFIT_FRAME_INPUT=/dev/null
     [[ -f "$TRIAGE" ]] && TRIAGE_INPUT="$TRIAGE"
     [[ -f "$JVM_JOIN" ]] && JVM_INPUT="$JVM_JOIN"
     [[ -f "$INFLATION_FRAME_JOIN" ]] && INFLATION_FRAME_INPUT="$INFLATION_FRAME_JOIN"
+    [[ -f "$AUTOFIT_FRAME_JOIN" ]] && AUTOFIT_FRAME_INPUT="$AUTOFIT_FRAME_JOIN"
     jq \
         --arg commit "$(git rev-parse HEAD)" \
         --arg run "$RUN_DIR" \
         --slurpfile triage "$TRIAGE_INPUT" \
         --slurpfile jvm "$JVM_INPUT" \
         --slurpfile inflationFrames "$INFLATION_FRAME_INPUT" \
+        --slurpfile autofitFrames "$AUTOFIT_FRAME_INPUT" \
         '{issue:1158,
           classification:"intrusive-discovery-no-fps-claim",
           commit:$commit,
@@ -139,6 +154,8 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
           tacticalFleetAiTimes:.tacticalFleetAiTimes,
           fleetInflationTimes:.fleetInflationTimes,
           fleetInflationFrameJoin:($inflationFrames[0] // null),
+          coreAutofitTimes:.coreAutofitTimes,
+          coreAutofitFrameJoin:($autofitFrames[0] // null),
           triage:($triage[0] // null),
           jvmHitchCorrelation:($jvm[0] // null)}' \
         "$RUN_DIR/runtime-frame-report.json" >"$SUMMARY"
@@ -161,6 +178,16 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
            }))
          },
          fleetInflationFrameJoins:(((.fleetInflationFrameJoin.joins // [])[:8]) | map({
+           span,durationMillis,frameDurationMillis,overlapShareOfFramePercent,
+           spanShareOfFramePercent,containedByFrame
+         })),
+         coreAutofit:{
+           installed:.coreAutofitTimes.installed,
+           phases:(.coreAutofitTimes.phases | map({
+             name,calls,totalMillis,maximumMillis,over16Millis,over33Millis,over50Millis,over100Millis
+           }))
+         },
+         coreAutofitFrameJoins:(((.coreAutofitFrameJoin.joins // [])[:8]) | map({
            span,durationMillis,frameDurationMillis,overlapShareOfFramePercent,
            spanShareOfFramePercent,containedByFrame
          })),
