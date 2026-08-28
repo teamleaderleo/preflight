@@ -2160,6 +2160,22 @@ final class AdapterTargetRegistry {
                 "app"));
     }
 
+    AdapterTargetRegistry withNexEconomyInfoTimeTarget() {
+        return withTarget(new AdapterTarget(
+                "nexerelin-0.12.2b-economy-info-time",
+                NexEconomyInfoTimePlan.TARGET_CLASS,
+                NexEconomyInfoTimePlan.ORIGINAL_SHA256,
+                NexEconomyInfoTimeRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        NexEconomyInfoTimePlan.METHOD,
+                        NexEconomyInfoTimePlan.DESCRIPTOR)),
+                "MOD",
+                "ExerelinCore.jar",
+                NexEconomyInfoTimePlan.SOURCE_SHA256,
+                "java/net/URLClassLoader",
+                ""));
+    }
+
     AdapterTargetRegistry withFrameTimeStartupCompletionTarget() {
         return withTarget(frameTimeStartupCompletionTarget());
     }

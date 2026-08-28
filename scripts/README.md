@@ -73,6 +73,9 @@ retained maintenance counters and the state the selected save actually loaded in
 deep campaign timers, owner/tax reporting, thin hitch packets, and SAMPLE JFR in one explicitly
 intrusive paused/unpaused pass. `run-1158-owner-tax-discovery.sh` also builds the enabled-mod static
 hot-pattern census, runtime/static triage join, and JFR hitch correlation into one run-owned bundle.
+Pass `--focus nex-economy` after the broad owner funnel selects Nexerelin's exact economy-info
+rebuild. That mode disables the superseded deep campaign timers, omits JFR/static triage, retains
+only the exact phase/cardinality probe plus thin frame telemetry, and emits the same compact summary.
 It foregrounds the exact recorded game PID before its timed windows because inactive-focus
 intervals are deliberately excluded. On macOS the wrapper scopes `caffeinate` to the smoke command
 so the display does not idle-sleep during a capture; it neither moves the pointer nor bypasses the

@@ -411,6 +411,9 @@ final class AdapterTransformationRegistry {
         if (CoreAutofitTimeRuntime.PLAN_ID.equals(target.planId())) {
             return CoreAutofitTimePlan.transform(signature, originalBytes);
         }
+        if (NexEconomyInfoTimeRuntime.PLAN_ID.equals(target.planId())) {
+            return NexEconomyInfoTimePlan.transform(signature, originalBytes);
+        }
         if (FrameTimeStatePlan.PLAN_ID.equals(target.planId())) {
             return FrameTimeStatePlan.transform(signature, originalBytes);
         }
@@ -998,6 +1001,9 @@ final class AdapterTransformationRegistry {
         }
         if (CoreAutofitTimeRuntime.PLAN_ID.equals(planId)) {
             return CoreAutofitTimeRuntime.enabled();
+        }
+        if (NexEconomyInfoTimeRuntime.PLAN_ID.equals(planId)) {
+            return NexEconomyInfoTimeRuntime.enabled();
         }
         if (FrameTimeStatePlan.PLAN_ID.equals(planId)) {
             return true;

@@ -4,17 +4,20 @@
 #
 # Usage:
 #   scripts/run-1158-owner-tax-discovery.sh [--game DIR] [--label NAME]
+#       [--focus nex-economy]
 set -euo pipefail
 
 GAME="${STARSECTOR_HOME:-/Applications/Starsector.app}"
 LABEL="issue-1158-owner-tax"
+FOCUS="all"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --game) GAME="$2"; shift 2 ;;
         --label) LABEL="$2"; shift 2 ;;
+        --focus) FOCUS="$2"; shift 2 ;;
         -h|--help)
-            sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
@@ -28,17 +31,25 @@ done
 case "$LABEL" in
     *[!A-Za-z0-9._-]*) echo "--label may contain only letters, digits, '.', '_' and '-'." >&2; exit 2 ;;
 esac
+case "$FOCUS" in
+    all|nex-economy) ;;
+    *) echo "--focus must be 'all' or 'nex-economy'." >&2; exit 2 ;;
+esac
 
 STATE_ROOT="${STARSECTOR_PREFLIGHT_HOME:-$HOME/.starsector-preflight}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 SESSION="$STATE_ROOT/issue-1158/$LABEL-$STAMP"
 RUN_DIR="$STATE_ROOT/runs/$LABEL-$STAMP"
 SCENARIO="scripts/scenarios/campaign-owner-tax-paused-unpaused.json"
+if [[ "$FOCUS" == "nex-economy" ]]; then
+    SCENARIO="scripts/scenarios/campaign-nex-economy-info-paused-unpaused.json"
+fi
 HOT_PATTERNS="$SESSION/hot-patterns.json"
 TRIAGE="$SESSION/mod-tax-triage.json"
 JVM_JOIN="$SESSION/jvm-hitch-correlation.json"
 INFLATION_FRAME_JOIN="$SESSION/fleet-inflation-frame-join.json"
 AUTOFIT_FRAME_JOIN="$SESSION/core-autofit-frame-join.json"
+NEX_ECONOMY_FRAME_JOIN="$SESSION/nex-economy-info-frame-join.json"
 SUMMARY="$SESSION/summary.json"
 COMPACT_SUMMARY="$SESSION/compact-summary.json"
 mkdir -p "$SESSION"
@@ -47,13 +58,24 @@ echo "Issue #1158 installed owner-tax discovery"
 echo "  commit:  $(git rev-parse HEAD)"
 echo "  session: $SESSION"
 echo "  run:     $RUN_DIR"
+echo "  focus:   $FOCUS"
 echo
 
-java -jar preflight-cli/target/preflight.jar classpath hot-patterns \
-    --game "$GAME" --limit 500 --json "$HOT_PATTERNS"
+if [[ "$FOCUS" == "all" ]]; then
+    java -jar preflight-cli/target/preflight.jar classpath hot-patterns \
+        --game "$GAME" --limit 500 --json "$HOT_PATTERNS"
+fi
 
 SMOKE_COMMAND=(java -jar preflight-cli/target/preflight.jar desktop smoke launch
     "$SCENARIO" "$RUN_DIR" --game "$GAME")
+if [[ "$FOCUS" == "nex-economy" ]]; then
+    FOCUS_DISABLED_PLANS="campaign-catch-up-call-time-probe-v1,campaign-engine-call-time-probe-v1,campaign-location-economy-call-time-probe-v1,campaign-market-fleet-call-time-probe-v1,vanilla-fleet-ai-profiler-label-v1,vanilla-tactical-fleet-ai-time-probe-v1,vanilla-default-fleet-inflater-time-probe-v1,vanilla-core-autofit-time-probe-v1"
+    if [[ -n "${PREFLIGHT_DISABLE_ADAPTER_PLANS:-}" ]]; then
+        FOCUS_DISABLED_PLANS="$PREFLIGHT_DISABLE_ADAPTER_PLANS,$FOCUS_DISABLED_PLANS"
+    fi
+    SMOKE_COMMAND=(env "PREFLIGHT_DISABLE_ADAPTER_PLANS=$FOCUS_DISABLED_PLANS"
+        "${SMOKE_COMMAND[@]}")
+fi
 set +e
 if [[ "$(uname -s)" == "Darwin" ]] && command -v caffeinate >/dev/null 2>&1; then
     # Scope idle/display sleep prevention to the owned foreground run. This does not move the
@@ -66,11 +88,22 @@ RUN_STATUS=$?
 set -e
 POSTPROCESS_STATUS=0
 
-if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
+if [[ -f "$RUN_DIR/runtime-frame-report.json" && -f "$HOT_PATTERNS" ]]; then
     if ! python3 scripts/starsector_mod_tax_triage.py \
         "$RUN_DIR/runtime-frame-report.json" "$HOT_PATTERNS" >"$TRIAGE"; then
         echo "Owner-tax triage failed; preserving the installed-game run." >&2
         rm -f "$TRIAGE"
+        POSTPROCESS_STATUS=1
+    fi
+fi
+if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
+    if ! python3 scripts/starsector_slow_span_frames.py \
+        "$RUN_DIR/runtime-frame-report.json" \
+        --telemetry nexEconomyInfoTimes \
+        --frame-series campaignUnpausedActive \
+        --json >"$NEX_ECONOMY_FRAME_JOIN"; then
+        echo "Nexerelin economy-info frame join failed; preserving the installed-game run." >&2
+        rm -f "$NEX_ECONOMY_FRAME_JOIN"
         POSTPROCESS_STATUS=1
     fi
 fi
@@ -110,10 +143,12 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
     JVM_INPUT=/dev/null
     INFLATION_FRAME_INPUT=/dev/null
     AUTOFIT_FRAME_INPUT=/dev/null
+    NEX_ECONOMY_FRAME_INPUT=/dev/null
     [[ -f "$TRIAGE" ]] && TRIAGE_INPUT="$TRIAGE"
     [[ -f "$JVM_JOIN" ]] && JVM_INPUT="$JVM_JOIN"
     [[ -f "$INFLATION_FRAME_JOIN" ]] && INFLATION_FRAME_INPUT="$INFLATION_FRAME_JOIN"
     [[ -f "$AUTOFIT_FRAME_JOIN" ]] && AUTOFIT_FRAME_INPUT="$AUTOFIT_FRAME_JOIN"
+    [[ -f "$NEX_ECONOMY_FRAME_JOIN" ]] && NEX_ECONOMY_FRAME_INPUT="$NEX_ECONOMY_FRAME_JOIN"
     jq \
         --arg commit "$(git rev-parse HEAD)" \
         --arg run "$RUN_DIR" \
@@ -121,6 +156,7 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
         --slurpfile jvm "$JVM_INPUT" \
         --slurpfile inflationFrames "$INFLATION_FRAME_INPUT" \
         --slurpfile autofitFrames "$AUTOFIT_FRAME_INPUT" \
+        --slurpfile nexEconomyFrames "$NEX_ECONOMY_FRAME_INPUT" \
         '{issue:1158,
           classification:"intrusive-discovery-no-fps-claim",
           commit:$commit,
@@ -157,6 +193,8 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
           fleetInflationFrameJoin:($inflationFrames[0] // null),
           coreAutofitTimes:.coreAutofitTimes,
           coreAutofitFrameJoin:($autofitFrames[0] // null),
+          nexEconomyInfoTimes:.nexEconomyInfoTimes,
+          nexEconomyInfoFrameJoin:($nexEconomyFrames[0] // null),
           triage:($triage[0] // null),
           jvmHitchCorrelation:($jvm[0] // null)}' \
         "$RUN_DIR/runtime-frame-report.json" >"$SUMMARY"
@@ -238,6 +276,17 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
            ))
          },
          coreAutofitFrameJoins:(((.coreAutofitFrameJoin.joins // [])[:5]) | map({
+           span,durationMillis,frameDurationMillis,overlapShareOfFramePercent,
+           spanShareOfFramePercent,containedByFrame
+         })),
+         nexEconomyInfo:{
+           installed:.nexEconomyInfoTimes.installed,
+           firstRunCalls:.nexEconomyInfoTimes.firstRunCalls,
+           refreshCalls:.nexEconomyInfoTimes.refreshCalls,
+           cardinality:.nexEconomyInfoTimes.cardinality,
+           phases:(.nexEconomyInfoTimes.phases | map({name,calls,totalMillis,maximumMillis}))
+         },
+         nexEconomyInfoFrameJoins:(((.nexEconomyInfoFrameJoin.joins // [])[:8]) | map({
            span,durationMillis,frameDurationMillis,overlapShareOfFramePercent,
            spanShareOfFramePercent,containedByFrame
          })),

@@ -91,6 +91,7 @@ final class AdapterRuntime {
         TacticalFleetAiTimeRuntime.beginSession(campaignTimes);
         FleetInflationTimeRuntime.beginSession(campaignTimes);
         CoreAutofitTimeRuntime.beginSession(campaignTimes);
+        NexEconomyInfoTimeRuntime.beginSession(campaignTimes);
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         StartupPhaseRuntime.enableMergedReadProbe(options.startupPhaseProbe());
@@ -256,6 +257,9 @@ final class AdapterRuntime {
                 }
                 if (CoreAutofitTimeRuntime.enabled()) {
                     registry = registry.withCoreAutofitTimeTarget();
+                }
+                if (NexEconomyInfoTimeRuntime.enabled()) {
+                    registry = registry.withNexEconomyInfoTimeTarget();
                 }
                 if (campaignTimes) {
                     report.diagnostic("Loaded the exact opt-in detailed campaign timing targets");
