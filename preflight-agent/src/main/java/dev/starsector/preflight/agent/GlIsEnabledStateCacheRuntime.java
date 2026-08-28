@@ -26,6 +26,7 @@ public final class GlIsEnabledStateCacheRuntime {
     private static final int GL_BLEND = 0x0BE2;
     private static final int GL_STENCIL_TEST = 0x0B90;
     private static final int GL_SCISSOR_TEST = 0x0C11;
+    private static final int GL_TEXTURE_2D = 0x0DE1;
 
     private static final int GL_LIGHTING_BIT = 0x00000040;
     private static final int GL_STENCIL_BUFFER_BIT = 0x00000400;
@@ -51,6 +52,8 @@ public final class GlIsEnabledStateCacheRuntime {
     private static long misses;
     private static long nativeSeeds;
     private static long unsupportedQueries;
+    private static long texture2DQueries;
+    private static long otherUnsupportedQueries;
     private static long enableUpdates;
     private static long disableUpdates;
     private static long contextChanges;
@@ -84,6 +87,8 @@ public final class GlIsEnabledStateCacheRuntime {
         int index = capIndex(cap);
         if (index < 0) {
             unsupportedQueries++;
+            if (cap == GL_TEXTURE_2D) texture2DQueries++;
+            else otherUnsupportedQueries++;
             misses++;
             return -1;
         }
@@ -200,6 +205,8 @@ public final class GlIsEnabledStateCacheRuntime {
         values.put("hitPercent", queries == 0L ? null : Math.round(10_000.0 * hits / queries) / 100.0);
         values.put("nativeSeeds", nativeSeeds);
         values.put("unsupportedQueries", unsupportedQueries);
+        values.put("texture2DQueries", texture2DQueries);
+        values.put("otherUnsupportedQueries", otherUnsupportedQueries);
         values.put("enableUpdates", enableUpdates);
         values.put("disableUpdates", disableUpdates);
         values.put("contextChanges", contextChanges);
@@ -312,6 +319,8 @@ public final class GlIsEnabledStateCacheRuntime {
         misses = 0L;
         nativeSeeds = 0L;
         unsupportedQueries = 0L;
+        texture2DQueries = 0L;
+        otherUnsupportedQueries = 0L;
         enableUpdates = 0L;
         disableUpdates = 0L;
         contextChanges = 0L;
