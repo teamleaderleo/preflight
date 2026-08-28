@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -52,6 +53,9 @@ class HighResolutionFrameSyncPlanTest {
         assertNull(HighResolutionFrameSyncPlan.transform(ClassSignature.parse(changed), changed));
         byte[] duplicate = fixture(1000f, 2);
         assertNull(HighResolutionFrameSyncPlan.transform(ClassSignature.parse(duplicate), duplicate));
+        byte[] unsafeEntry = fixtureWithEntryIntoSleepBlock();
+        assertNull(HighResolutionFrameSyncPlan.transform(
+                ClassSignature.parse(unsafeEntry), unsafeEntry));
 
         ClassWriter other = new ClassWriter(0);
         other.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, "example/Other", null, "java/lang/Object", null);
@@ -93,6 +97,39 @@ class HighResolutionFrameSyncPlanTest {
             traverse.visitInsn(Opcodes.I2L);
             traverse.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Thread", "sleep", "(J)V", false);
         }
+        traverse.visitInsn(Opcodes.ACONST_NULL);
+        traverse.visitInsn(Opcodes.ARETURN);
+        traverse.visitMaxs(2, 3);
+        traverse.visitEnd();
+        writer.visitEnd();
+        return writer.toByteArray();
+    }
+
+    private static byte[] fixtureWithEntryIntoSleepBlock() {
+        ClassWriter writer = new ClassWriter(0);
+        writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, HighResolutionFrameSyncPlan.TARGET_CLASS,
+                null, "java/lang/Object", null);
+        MethodVisitor traverse = writer.visitMethod(Opcodes.ACC_PUBLIC,
+                HighResolutionFrameSyncPlan.TRAVERSE_METHOD,
+                HighResolutionFrameSyncPlan.TRAVERSE_DESCRIPTOR,
+                null, new String[] {"java/lang/Exception"});
+        traverse.visitCode();
+        traverse.visitLdcInsn(0.016666668f);
+        traverse.visitVarInsn(Opcodes.FSTORE, 1);
+        traverse.visitInsn(Opcodes.ICONST_0);
+        traverse.visitVarInsn(Opcodes.ISTORE, 2);
+        Label inside = new Label();
+        traverse.visitInsn(Opcodes.ICONST_0);
+        traverse.visitJumpInsn(Opcodes.IFNE, inside);
+        traverse.visitVarInsn(Opcodes.FLOAD, 1);
+        traverse.visitLdcInsn(1000f);
+        traverse.visitInsn(Opcodes.FMUL);
+        traverse.visitInsn(Opcodes.F2I);
+        traverse.visitVarInsn(Opcodes.ISTORE, 2);
+        traverse.visitLabel(inside);
+        traverse.visitVarInsn(Opcodes.ILOAD, 2);
+        traverse.visitInsn(Opcodes.I2L);
+        traverse.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Thread", "sleep", "(J)V", false);
         traverse.visitInsn(Opcodes.ACONST_NULL);
         traverse.visitInsn(Opcodes.ARETURN);
         traverse.visitMaxs(2, 3);
