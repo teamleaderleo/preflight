@@ -123,10 +123,6 @@ final class AdapterInstallationEffects {
         if (has(referenced, StartupPhaseRuntime.class)) {
             StartupPhaseRuntime.installed();
         }
-        if (has(referenced, GlMatrixIdentityElisionRuntime.class)) {
-            GlMatrixIdentityElisionRuntime.installed(
-                    className, GlMatrixIdentityElisionPlan.EXPECTED_METHODS);
-        }
         if (StelnetMarketUpdaterRuntime.PLAN_ID.equals(target.planId())) {
             StelnetMarketUpdaterRuntime.installed();
         }

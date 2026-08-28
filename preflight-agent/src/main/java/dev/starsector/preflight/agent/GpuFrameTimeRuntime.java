@@ -145,7 +145,7 @@ final class GpuFrameTimeRuntime {
         combatComparable.reset();
     }
 
-    static boolean explicitlyRequested() {
+    private static boolean explicitlyRequested() {
         try {
             if (Boolean.getBoolean(ENABLE_PROPERTY)) return true;
             String environment = System.getenv(ENABLE_ENVIRONMENT);

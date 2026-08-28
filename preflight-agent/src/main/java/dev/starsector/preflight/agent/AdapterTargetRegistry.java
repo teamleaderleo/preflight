@@ -1980,20 +1980,6 @@ final class AdapterTargetRegistry {
         return registry;
     }
 
-    AdapterTargetRegistry withGlMatrixIdentityElisionTarget() {
-        return withTarget(new AdapterTarget(
-                "lwjgl-2-matrix-identity-elision-gl11",
-                GlMatrixIdentityElisionPlan.TARGET_CLASS,
-                GlMatrixIdentityElisionPlan.TARGET_SHA256,
-                GlMatrixIdentityElisionRuntime.PLAN_ID,
-                List.of(new AdapterTarget.RequiredMethod("glBegin", "(I)V")),
-                "STARSECTOR_CORE",
-                GlMatrixIdentityElisionPlan.SOURCE_FILE,
-                GlMatrixIdentityElisionPlan.SOURCE_SHA256,
-                GlMatrixIdentityElisionPlan.LOADER,
-                GlMatrixIdentityElisionPlan.LOADER_NAME));
-    }
-
     AdapterTargetRegistry withCampaignCallTimeTargets() {
         AdapterTargetRegistry registry = this;
         for (CampaignCallTimePlan.Probe probe : CampaignCallTimePlan.probes()) {

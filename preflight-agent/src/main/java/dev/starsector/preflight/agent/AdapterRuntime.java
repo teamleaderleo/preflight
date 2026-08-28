@@ -223,9 +223,6 @@ final class AdapterRuntime {
                 if (GlCommandCountRuntime.planEnabled()) {
                     registry = registry.withGlCommandCountTargets();
                     report.diagnostic("Loaded the exact opt-in LWJGL OpenGL command-count targets");
-                } else if (GlMatrixIdentityElisionRuntime.planEnabled()) {
-                    registry = registry.withGlMatrixIdentityElisionTarget();
-                    report.diagnostic("Loaded the exact opt-in LWJGL matrix identity-elision target");
                 }
                 if (CampaignCallTimeRuntime.enabled()) {
                     registry = registry.withCampaignCallTimeTargets();
