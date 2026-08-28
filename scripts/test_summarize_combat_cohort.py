@@ -39,6 +39,8 @@ class CombatCohortSummaryTest(unittest.TestCase):
              else "openGlTextureBindDedup"): {
                 "requested": candidate, "active": candidate, "runtimeDisabled": False,
                 "problem": None, "unexpectedThreadCalls": 0,
+                "installedTargetCount": 1 if candidate else 0,
+                "installedMethodCount": 8 if candidate else 0,
                 "suppressedCalls": 1_700_000 if candidate else 0,
                 "suppressedPercent": 38.0 if candidate else None,
             },

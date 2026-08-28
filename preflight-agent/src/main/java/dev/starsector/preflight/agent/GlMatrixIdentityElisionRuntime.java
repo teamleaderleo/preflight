@@ -21,6 +21,7 @@ public final class GlMatrixIdentityElisionRuntime {
     private static volatile boolean runtimeDisabled;
     private static volatile long ownerThreadId;
     private static volatile boolean insidePrimitive;
+    private static volatile int installedMethodCount;
     private static String problem;
     private static String runtimeDisableReason;
     private static long frames;
@@ -62,6 +63,7 @@ public final class GlMatrixIdentityElisionRuntime {
         runtimeDisableReason = null;
         ownerThreadId = -1L;
         insidePrimitive = false;
+        installedMethodCount = 0;
         resetWindowCounters();
         installedTargets.clear();
     }
@@ -73,12 +75,15 @@ public final class GlMatrixIdentityElisionRuntime {
     static synchronized void installed(String internalName, int methods) {
         if (enabled && internalName != null && methods > 0) {
             installedTargets.put(internalName, methods);
+            installedMethodCount = installedTargets.values().stream()
+                    .mapToInt(Integer::intValue).sum();
         }
     }
 
     /** Called after the preceding frame has been measured. */
     static void beginFrame() {
-        if (!enabled || runtimeDisabled) return;
+        if (!enabled || runtimeDisabled
+                || installedMethodCount != GlMatrixIdentityElisionPlan.EXPECTED_METHODS) return;
         long thread = Thread.currentThread().getId();
         if (active && ownerThreadId == thread && insidePrimitive) {
             frameBoundaryPrimitiveLeaks++;
@@ -159,8 +164,7 @@ public final class GlMatrixIdentityElisionRuntime {
         result.put("enableEnvironment", ENABLE_ENVIRONMENT);
         result.put("installedTargets", Map.copyOf(installedTargets));
         result.put("installedTargetCount", installedTargets.size());
-        result.put("installedMethodCount", installedTargets.values().stream()
-                .mapToInt(Integer::intValue).sum());
+        result.put("installedMethodCount", installedMethodCount);
         result.put("frames", frames);
         result.put("transformCalls", transformCalls);
         result.put("originalCalls", originalCalls);

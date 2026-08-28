@@ -109,6 +109,8 @@ def load_run(path: Path) -> Run:
         and not probe.get("problem")
         and int(probe.get("unexpectedThreadCalls", 0)) == 0
         and bool(probe.get("active")) == requested
+        and (not requested or int(probe.get("installedTargetCount", 0)) > 0)
+        and (not requested or int(probe.get("installedMethodCount", 0)) > 0)
     )
     return Run(
         label=path.name,

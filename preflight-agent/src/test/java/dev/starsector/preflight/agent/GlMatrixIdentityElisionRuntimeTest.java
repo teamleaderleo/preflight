@@ -22,6 +22,8 @@ final class GlMatrixIdentityElisionRuntimeTest {
     void suppressesOnlyExactIdentityTransformsOutsideBeginEnd() {
         System.setProperty(GlMatrixIdentityElisionRuntime.ENABLE_PROPERTY, "true");
         GlMatrixIdentityElisionRuntime.beginSession(true);
+        assertTrue(AdapterTransformationRegistry.hasPlan(
+                GlMatrixIdentityElisionRuntime.PLAN_ID));
         GlMatrixIdentityElisionRuntime.installed(
                 GlMatrixIdentityElisionPlan.TARGET_CLASS,
                 GlMatrixIdentityElisionPlan.EXPECTED_METHODS);
@@ -72,9 +74,25 @@ final class GlMatrixIdentityElisionRuntimeTest {
     }
 
     @Test
+    void requestedCandidateStaysInactiveUntilExactTargetIsInstalled() {
+        System.setProperty(GlMatrixIdentityElisionRuntime.ENABLE_PROPERTY, "true");
+        GlMatrixIdentityElisionRuntime.beginSession(true);
+        GlMatrixIdentityElisionRuntime.beginFrame();
+
+        Map<String, Object> telemetry = GlMatrixIdentityElisionRuntime.telemetry();
+        assertTrue((Boolean) telemetry.get("enabled"));
+        assertFalse((Boolean) telemetry.get("active"));
+        assertEquals(0, telemetry.get("installedTargetCount"));
+        assertEquals(0, telemetry.get("installedMethodCount"));
+    }
+
+    @Test
     void frameBoundaryFailsOpenAfterUnbalancedPrimitiveScope() {
         System.setProperty(GlMatrixIdentityElisionRuntime.ENABLE_PROPERTY, "true");
         GlMatrixIdentityElisionRuntime.beginSession(true);
+        GlMatrixIdentityElisionRuntime.installed(
+                GlMatrixIdentityElisionPlan.TARGET_CLASS,
+                GlMatrixIdentityElisionPlan.EXPECTED_METHODS);
         GlMatrixIdentityElisionRuntime.beginFrame();
         GlMatrixIdentityElisionRuntime.beginMeasurementWindow();
         GlMatrixIdentityElisionRuntime.beginFrame();
