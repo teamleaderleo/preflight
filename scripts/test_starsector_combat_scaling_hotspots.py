@@ -129,6 +129,43 @@ class CombatScalingHotspotsTest(unittest.TestCase):
         self.assertEqual(1040.0, predictor)
         self.assertEqual(1500.0, advance)
 
+    def test_load_workload_evaluates_interactions_derived_ai_and_threshold_terms(self):
+        payload = {
+            "runId": "r2",
+            "cellId": "missile-density",
+            "samples": [
+                {
+                    "missiles": 10,
+                    "nearbyEntitiesMean": 4,
+                    "shipAi": 3,
+                    "fighterAi": 7,
+                    "missileAi": 8,
+                    "advanceMicros": 1000.0,
+                },
+                {
+                    "missiles": 20,
+                    "nearbyEntitiesMean": 5,
+                    "shipAi": 4,
+                    "fighterAi": 8,
+                    "missileAi": 10,
+                    "advanceMicros": 1400.0,
+                },
+            ],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "workload.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            _, _, interaction, _ = module.load_workload(
+                path, "missiles*nearbyEntitiesMean")
+            _, _, total_ai, _ = module.load_workload(path, "totalAi")
+            _, _, threshold, _ = module.load_workload(path, "missiles:threshold@12")
+            _, _, quadratic, _ = module.load_workload(path, "missiles:quadratic")
+
+        self.assertEqual(70.0, interaction)
+        self.assertEqual(20.0, total_ai)
+        self.assertEqual(4.0, threshold)
+        self.assertEqual(250.0, quadratic)
+
     def test_requires_four_observations_and_predictor_variation(self):
         observation = module.RunObservation(
             "r1", "c1", 10.0, 1000.0, 10,
