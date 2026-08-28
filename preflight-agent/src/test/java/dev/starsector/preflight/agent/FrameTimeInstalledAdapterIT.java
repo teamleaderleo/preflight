@@ -23,11 +23,13 @@ class FrameTimeInstalledAdapterIT {
     @BeforeEach
     void enable() {
         FrameTimeRuntime.beginSession(true);
+        FrameCpuTimeRuntime.reset();
     }
 
     @AfterEach
     void reset() {
         FrameTimeRuntime.reset();
+        FrameCpuTimeRuntime.reset();
     }
 
     @Test
@@ -55,8 +57,13 @@ class FrameTimeInstalledAdapterIT {
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(transformed).accept(owner, ClassReader.EXPAND_FRAMES);
         String runtime = FrameTimeRuntime.class.getName().replace('.', '/');
+        String cpuRuntime = FrameCpuTimeRuntime.class.getName().replace('.', '/');
+        assertEquals(1, calls(method(owner, FrameTimePlan.UPDATE_METHOD,
+                FrameTimePlan.UPDATE_DESCRIPTOR), cpuRuntime, "boundary"));
         assertEquals(1, calls(method(owner, FrameTimePlan.UPDATE_METHOD,
                 FrameTimePlan.UPDATE_DESCRIPTOR), runtime, "boundary"));
+        assertEquals(1, calls(method(owner, FrameTimePlan.ACTIVE_METHOD,
+                FrameTimePlan.ACTIVE_DESCRIPTOR), cpuRuntime, "observeActive"));
         assertEquals(1, calls(method(owner, FrameTimePlan.ACTIVE_METHOD,
                 FrameTimePlan.ACTIVE_DESCRIPTOR), runtime, "observeActive"));
 
