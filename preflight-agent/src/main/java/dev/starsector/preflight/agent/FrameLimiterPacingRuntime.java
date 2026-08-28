@@ -16,6 +16,7 @@ public final class FrameLimiterPacingRuntime {
     private static final int MAX_SPIN_MICROS = 2_000;
 
     private static volatile boolean initialized;
+    private static volatile boolean installed;
     private static volatile int targetFps;
     private static volatile long targetFrameNanos;
     private static volatile long spinMarginNanos;
@@ -43,6 +44,10 @@ public final class FrameLimiterPacingRuntime {
         return targetFps > 0;
     }
 
+    static synchronized void installed() {
+        installed = true;
+    }
+
     /**
      * Preserves vanilla's integer-millisecond wait as a floor and extends it only as needed to
      * reach the configured absolute frame cadence. The configured cadence can therefore slow a
@@ -52,6 +57,9 @@ public final class FrameLimiterPacingRuntime {
         if (!enabled()) {
             Thread.sleep(requestedMillis);
             return;
+        }
+        if (requestedMillis < 0L) {
+            throw new IllegalArgumentException("timeout value is negative");
         }
         if (Thread.interrupted()) {
             synchronized (FrameLimiterPacingRuntime.class) {
@@ -64,7 +72,7 @@ public final class FrameLimiterPacingRuntime {
         long previous;
         synchronized (FrameLimiterPacingRuntime.class) {
             calls++;
-            requestedMillisTotal += Math.max(0L, requestedMillis);
+            requestedMillisTotal += requestedMillis;
             previous = previousCompletionNanos;
         }
 
@@ -127,11 +135,13 @@ public final class FrameLimiterPacingRuntime {
 
     static synchronized void beginSession(int fps, int spinMicros) {
         initialized = true;
+        installed = false;
         configure(fps, spinMicros);
     }
 
     static synchronized void reset() {
         initialized = false;
+        installed = false;
         targetFps = 0;
         targetFrameNanos = 0L;
         spinMarginNanos = 0L;
@@ -142,7 +152,9 @@ public final class FrameLimiterPacingRuntime {
         initializeFromProperties();
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("planId", PLAN_ID);
-        result.put("enabled", targetFps > 0);
+        result.put("requested", targetFps > 0);
+        result.put("installed", installed);
+        result.put("active", targetFps > 0 && installed);
         result.put("targetFps", targetFps == 0 ? null : targetFps);
         result.put("targetFrameMicros", targetFps == 0 ? null : targetFrameNanos / 1_000.0);
         result.put("spinMarginMicros", targetFps == 0 ? null : spinMarginNanos / 1_000L);
