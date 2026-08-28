@@ -25,12 +25,14 @@ class FramePacingPlanTest {
     @BeforeEach
     void enableFrameProbe() {
         FrameTimeRuntime.beginSession(true);
+        FrameCpuTimeRuntime.reset();
         FramePacingRuntime.reset();
     }
 
     @AfterEach
     void reset() {
         FrameTimeRuntime.reset();
+        FrameCpuTimeRuntime.reset();
         FramePacingRuntime.reset();
     }
 
