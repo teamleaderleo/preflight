@@ -26,6 +26,8 @@ class GraphicsLibTessellateArrayPlanTest {
     private static final String VECTOR = "org/lwjgl/util/vector/Vector2f";
     private static final String GL11 = "org/lwjgl/opengl/GL11";
     private static final String VECTOR_UTILS = "org/lazywizard/lazylib/VectorUtils";
+    private static final String RUNTIME =
+            "dev/starsector/preflight/agent/GraphicsLibTessellateArrayRuntime";
 
     @BeforeEach
     void enable() {
@@ -60,6 +62,34 @@ class GraphicsLibTessellateArrayPlanTest {
         assertEquals(1, calls(helper, SHIP, "getLocation"));
         assertTrue(hasField(owner, "preflight$cachedVertexArray"));
         assertEquals(true, GraphicsLibTessellateArrayRuntime.telemetry().get("installed"));
+    }
+
+    @Test
+    void packedReplayAddsShortcutAndKeepsReviewedIteratorFallback() throws Exception {
+        GraphicsLibTessellateArrayRuntime.beginSessionForTest(true, true);
+        byte[] original = fixture(TARGET, true, 1);
+        byte[] transformed = FrameTimePlan.transform(ClassSignature.parse(original), original);
+        assertNotNull(transformed);
+
+        ClassNode owner = read(transformed);
+        MethodNode helper = method(owner, "preflight$drawCachedTessellation");
+        assertEquals(1, calls(helper, RUNTIME, "fillPacked"));
+        assertEquals(1, calls(helper, "java/util/List", "iterator"));
+        assertEquals(1, calls(helper, "java/util/Iterator", "hasNext"));
+        assertEquals(1, calls(helper, GL11, "glDrawArrays"));
+        assertEquals(1, calls(helper, "org/lwjgl/opengl/GL15", "glBindBuffer"));
+    }
+
+    @Test
+    void packedReplayPlanDeclinesSecondApplication() throws Exception {
+        GraphicsLibTessellateArrayRuntime.beginSessionForTest(true, true);
+        byte[] original = fixture(TARGET, true, 1);
+        byte[] array = GraphicsLibTessellateArrayPlan.transform(
+                ClassSignature.parse(original), original);
+        assertNotNull(array);
+        byte[] packed = GraphicsLibTessellatePackedReplayPlan.transform(array);
+        assertNotNull(packed);
+        assertNull(GraphicsLibTessellatePackedReplayPlan.transform(packed));
     }
 
     @Test
