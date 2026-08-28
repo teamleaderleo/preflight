@@ -4,6 +4,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +20,8 @@ final class CombatStressFixtureRuntime {
     private static final String SETTINGS_API = "com.fs.starfarer.api.SettingsAPI";
     private static final String COMBAT_ENGINE_API =
             "com.fs.starfarer.api.combat.CombatEngineAPI";
+    private static final String COMBAT_ENTITY_API =
+            "com.fs.starfarer.api.combat.CombatEntityAPI";
     private static final String COMBAT_FLEET_MANAGER_API =
             "com.fs.starfarer.api.combat.CombatFleetManagerAPI";
     private static final String SHIP_API = "com.fs.starfarer.api.combat.ShipAPI";
@@ -64,6 +67,8 @@ final class CombatStressFixtureRuntime {
     private static boolean prepared;
     private static int removedSideZero;
     private static int removedSideOne;
+    private static int removedEngineShips;
+    private static int verifiedEngineNonFighters;
     private static int spawnedSideZero;
     private static int spawnedSideOne;
     private static float deploymentPointsSideZero;
@@ -96,6 +101,7 @@ final class CombatStressFixtureRuntime {
             activeRecipeId = recipe.id();
             ClassLoader loader = engine.getClass().getClassLoader();
             Class<?> shipApi = Class.forName(SHIP_API, false, loader);
+            Class<?> combatEntityApi = Class.forName(COMBAT_ENTITY_API, false, loader);
             Class<?> fleetMemberApi = Class.forName(FLEET_MEMBER_API, false, loader);
             Class<?> vector = Class.forName(VECTOR, false, loader);
             Class<?> engineApi = Class.forName(COMBAT_ENGINE_API, false, loader);
@@ -114,6 +120,9 @@ final class CombatStressFixtureRuntime {
                     engineApi, engine, "getMapWidth", float.class);
             Method getMapHeight = exactApi(
                     engineApi, engine, "getMapHeight", float.class);
+            Method getShips = exactApi(engineApi, engine, "getShips", List.class);
+            Method removeEntity = exactApi(
+                    engineApi, engine, "removeEntity", void.class, combatEntityApi);
             if (!Boolean.TRUE.equals(invoke(isSimulation, engine))) {
                 throw new IllegalStateException("combat-stress-fixture-requires-simulation");
             }
@@ -126,6 +135,7 @@ final class CombatStressFixtureRuntime {
             ManagerApi api = managerApi(loader, sideZero, fleetMemberApi, shipApi, vector);
             List<Object> originalZero = deployedShips(sideZero, api);
             List<Object> originalOne = deployedShips(sideOne, api);
+            List<Object> originalEngineShips = engineShips(engine, getShips, shipApi);
 
             beforePaused = (Boolean) invoke(isPaused, engine);
             if (!beforePaused) invoke(setPaused, engine, true);
@@ -150,6 +160,10 @@ final class CombatStressFixtureRuntime {
             originalsRemoved = true;
             removedSideZero = originalZero.size();
             removedSideOne = originalOne.size();
+            for (Object ship : originalEngineShips) {
+                invoke(removeEntity, engine, ship);
+                removedEngineShips++;
+            }
             invoke(setPlayerShip, engine, spawnedZero.get(0));
 
             spawnedSideZero = deployedCount(sideZero, api);
@@ -158,6 +172,8 @@ final class CombatStressFixtureRuntime {
                     || spawnedSideOne != recipe.side().size()) {
                 throw new IllegalStateException("combat-stress-spawn-count-mismatch");
             }
+            verifiedEngineNonFighters = verifyEngineFixture(
+                    engine, getShips, shipApi, spawnedZero, spawnedOne);
             invoke(setDoNotEnd, engine, false);
             if (!Boolean.TRUE.equals(invoke(isPaused, engine))) {
                 throw new IllegalStateException("combat-stress-fixture-did-not-remain-paused");
@@ -255,6 +271,44 @@ final class CombatStressFixtureRuntime {
             throw new IllegalStateException("combat-stress-deployed-list-mismatch");
         }
         return members.size();
+    }
+
+    private static List<Object> engineShips(Object engine, Method getShips, Class<?> shipApi)
+            throws ReflectiveOperationException {
+        Object value = invoke(getShips, engine);
+        if (!(value instanceof List<?> ships)) {
+            throw new IllegalStateException("combat-stress-engine-ships-list-mismatch");
+        }
+        List<Object> snapshot = new ArrayList<>();
+        for (Object ship : ships) {
+            if (ship == null || !shipApi.isInstance(ship)) {
+                throw new IllegalStateException("combat-stress-engine-ship-shape-mismatch");
+            }
+            snapshot.add(ship);
+        }
+        return snapshot;
+    }
+
+    private static int verifyEngineFixture(
+            Object engine, Method getShips, Class<?> shipApi,
+            List<Object> spawnedZero, List<Object> spawnedOne)
+            throws ReflectiveOperationException {
+        IdentityHashMap<Object, Boolean> expected = new IdentityHashMap<>();
+        for (Object ship : spawnedZero) expected.put(ship, Boolean.TRUE);
+        for (Object ship : spawnedOne) expected.put(ship, Boolean.TRUE);
+        Method isFighter = exact(shipApi, "isFighter", boolean.class);
+        int matched = 0;
+        for (Object ship : engineShips(engine, getShips, shipApi)) {
+            if (expected.containsKey(ship)) {
+                matched++;
+            } else if (!Boolean.TRUE.equals(invoke(isFighter, ship))) {
+                throw new IllegalStateException("combat-stress-unexpected-engine-nonfighter");
+            }
+        }
+        if (matched != expected.size()) {
+            throw new IllegalStateException("combat-stress-engine-spawn-count-mismatch");
+        }
+        return matched;
     }
 
     private static float deploymentPoints(List<Object> ships, ManagerApi api)
@@ -371,6 +425,8 @@ final class CombatStressFixtureRuntime {
         values.put("shipsPerSide", activeShipsPerSide);
         values.put("removedSideZero", removedSideZero);
         values.put("removedSideOne", removedSideOne);
+        values.put("removedEngineShips", removedEngineShips);
+        values.put("verifiedEngineNonFighters", verifiedEngineNonFighters);
         values.put("spawnedSideZero", spawnedSideZero);
         values.put("spawnedSideOne", spawnedSideOne);
         values.put("deploymentPointsSideZero", deploymentPointsSideZero);
@@ -505,6 +561,8 @@ final class CombatStressFixtureRuntime {
         prepared = false;
         removedSideZero = 0;
         removedSideOne = 0;
+        removedEngineShips = 0;
+        verifiedEngineNonFighters = 0;
         spawnedSideZero = 0;
         spawnedSideOne = 0;
         deploymentPointsSideZero = 0f;

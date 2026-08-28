@@ -40,6 +40,9 @@ final class CombatStressFixtureRuntimeTest {
         assertEquals("symmetric-fast-high-tech-1040dp-v1",
                 CombatStressFixtureRuntime.RECIPE_ID);
         assertFalse((Boolean) CombatStressFixtureRuntime.telemetry().get("attempted"));
+        assertEquals(0, CombatStressFixtureRuntime.telemetry().get("removedEngineShips"));
+        assertEquals(0,
+                CombatStressFixtureRuntime.telemetry().get("verifiedEngineNonFighters"));
         assertEquals(null, CombatStressFixtureRuntime.workloadTelemetry().get("begin"));
         assertEquals(null, CombatStressFixtureRuntime.workloadTelemetry().get("end"));
     }
