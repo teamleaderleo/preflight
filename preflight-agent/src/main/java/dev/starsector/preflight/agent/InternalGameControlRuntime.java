@@ -351,12 +351,14 @@ public final class InternalGameControlRuntime {
             if (COMBAT_BEGIN_FRAME_WINDOW_ACTION.equals(parsed.action())) {
                 CombatStressFixtureRuntime.captureWorkloadBegin(engine);
                 FrameTimeRuntime.beginCombatMeasurementWindow();
+                CombatWorkloadRuntime.beginMeasurementWindow();
                 publish(parsed, "executed", "started a clean steady-state combat frame window",
                         accepted, Instant.now(), "combat-engine.advance", COMBAT_STATE, null, null);
                 return;
             }
             if (COMBAT_END_FRAME_WINDOW_ACTION.equals(parsed.action())) {
                 FrameTimeRuntime.endCombatMeasurementWindow();
+                CombatWorkloadRuntime.endMeasurementWindow();
                 String detail = CombatStressFixtureRuntime.captureWorkloadEnd(engine);
                 publish(parsed, "executed", detail, accepted, Instant.now(),
                         "combat-engine.advance", COMBAT_STATE, null, null);

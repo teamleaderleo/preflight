@@ -54,6 +54,8 @@ class CombatWorkloadRuntimeTest {
                 List.of(new Object(), new Object()));
         engine.effects.add(new FakeExplosionEffect());
 
+        assertEquals(0L, CombatWorkloadRuntime.begin(engine));
+        CombatWorkloadRuntime.beginMeasurementWindow();
         long started = CombatWorkloadRuntime.begin(engine);
         assertTrue(started > 0L);
         CombatWorkloadRuntime.end(started);
@@ -107,6 +109,7 @@ class CombatWorkloadRuntimeTest {
         System.setProperty(CombatWorkloadRuntime.EVERY_PROPERTY, "3");
         FakeEngine engine = new FakeEngine(List.of(), List.of(), List.of(), List.of());
 
+        CombatWorkloadRuntime.beginMeasurementWindow();
         assertEquals(0L, CombatWorkloadRuntime.begin(engine));
         assertEquals(0L, CombatWorkloadRuntime.begin(engine));
         long started = CombatWorkloadRuntime.begin(engine);
@@ -221,7 +224,11 @@ class CombatWorkloadRuntimeTest {
             return owner;
         }
 
-        public float getDeployCost() {
+        public FakeShip getFleetMember() {
+            return this;
+        }
+
+        public float getDeploymentPointsCost() {
             return deployCost;
         }
     }

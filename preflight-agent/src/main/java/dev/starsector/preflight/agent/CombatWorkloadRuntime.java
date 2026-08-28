@@ -94,6 +94,9 @@ public final class CombatWorkloadRuntime {
     private static Object lastEngine;
     private static long battleId;
     private static long ticksInBattle;
+    private static boolean measurementWindowActive;
+    private static long measurementWindowTicks;
+    private static long ignoredTicksOutsideMeasurementWindow;
     private static long attemptedSamples;
     private static long completedSamples;
     private static long failedSamples;
@@ -121,13 +124,18 @@ public final class CombatWorkloadRuntime {
         if (!enabled() || engine == null) return 0L;
         try {
             configureOutputHook();
+            if (!measurementWindowActive) {
+                ignoredTicksOutsideMeasurementWindow++;
+                return 0L;
+            }
             if (engine != lastEngine) {
                 lastEngine = engine;
                 battleId++;
                 ticksInBattle = 0L;
             }
             ticksInBattle++;
-            if (ticksInBattle % sampleEvery() != 0L) return 0L;
+            measurementWindowTicks++;
+            if (measurementWindowTicks % sampleEvery() != 0L) return 0L;
 
             attemptedSamples++;
             long overheadStarted = System.nanoTime();
@@ -174,11 +182,45 @@ public final class CombatWorkloadRuntime {
         }
     }
 
+    /** Starts the exact sealed combat interval used by the corresponding frame report. */
+    static synchronized void beginMeasurementWindow() {
+        if (!enabled()) return;
+        if (measurementWindowActive) {
+            throw new IllegalStateException("combat-scaling-measurement-window-already-active");
+        }
+        samples.clear();
+        pending.remove();
+        lastEngine = null;
+        battleId = 0L;
+        ticksInBattle = 0L;
+        measurementWindowTicks = 0L;
+        attemptedSamples = 0L;
+        completedSamples = 0L;
+        failedSamples = 0L;
+        sampleOverheadNanos = 0L;
+        maximumSampleOverheadNanos = 0L;
+        droppedSamples = 0L;
+        lastFailure = null;
+        measurementWindowActive = true;
+    }
+
+    /** Stops discovery sampling before post-window workload bookkeeping. */
+    static synchronized void endMeasurementWindow() {
+        if (!enabled()) return;
+        if (!measurementWindowActive) {
+            throw new IllegalStateException("combat-scaling-measurement-window-not-active");
+        }
+        measurementWindowActive = false;
+    }
+
     static synchronized Map<String, Object> telemetry() {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("planId", PLAN_ID);
         result.put("enabled", enabled());
         result.put("installed", installed);
+        result.put("measurementWindowActive", measurementWindowActive);
+        result.put("measurementWindowTicks", measurementWindowTicks);
+        result.put("ignoredTicksOutsideMeasurementWindow", ignoredTicksOutsideMeasurementWindow);
         result.put("runId", System.getProperty(RUN_ID_PROPERTY, ""));
         result.put("cellId", System.getProperty(CELL_ID_PROPERTY, ""));
         result.put("battleDp", battleDp());
@@ -207,6 +249,9 @@ public final class CombatWorkloadRuntime {
         lastEngine = null;
         battleId = 0L;
         ticksInBattle = 0L;
+        measurementWindowActive = false;
+        measurementWindowTicks = 0L;
+        ignoredTicksOutsideMeasurementWindow = 0L;
         attemptedSamples = 0L;
         completedSamples = 0L;
         failedSamples = 0L;
@@ -260,6 +305,7 @@ public final class CombatWorkloadRuntime {
         long firingWeapons = 0L;
         long beamWeapons = 0L;
         long weaponEffectPlugins = 0L;
+        long shipDpUnavailable = 0L;
         List<Object> densityCandidates = new ArrayList<>();
 
         for (Object ship : shipEntities) {
@@ -267,7 +313,10 @@ public final class CombatWorkloadRuntime {
             boolean hulk = booleanValue(invoke(ship, "isHulk"));
             boolean fighter = booleanValue(invoke(ship, "isFighter"));
             int owner = numberValue(invokeOptional(ship, "getOwner")).intValue();
-            double deployCost = numberValue(invokeOptional(ship, "getDeployCost")).doubleValue();
+            Object fleetMember = invokeOptional(ship, "getFleetMember");
+            Object deployCostValue = invokeOptional(fleetMember, "getDeploymentPointsCost");
+            double deployCost = numberValue(deployCostValue).doubleValue();
+            if (!Double.isFinite(deployCost) || deployCost < 0.0) deployCost = 0.0;
             if (hulk) {
                 wrecks++;
             } else if (fighter) {
@@ -281,6 +330,7 @@ public final class CombatWorkloadRuntime {
                 if (owner == 1) liveDeployedDpOwner1 += deployCost;
             }
             if (!fighter) shipDpPresent += deployCost;
+            if (!fighter && !(deployCostValue instanceof Number)) shipDpUnavailable++;
             if (!hulk) {
                 Object ai = invokeOptional(ship, "getAI");
                 if (ai != null) {
@@ -324,6 +374,7 @@ public final class CombatWorkloadRuntime {
         result.put("liveDeployedDpOwner0", liveDeployedDpOwner0);
         result.put("liveDeployedDpOwner1", liveDeployedDpOwner1);
         result.put("shipDpPresent", shipDpPresent);
+        result.put("shipDpUnavailable", shipDpUnavailable);
         result.put("missiles", missileEntities.size());
         result.put("projectiles", Math.max(0, projectileEntities.size() - missileEntities.size()));
         result.put("beams", beamEntities.size());
