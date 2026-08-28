@@ -21,11 +21,23 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.MethodNode;
 
-/** Opt-in stock-archive check for issue #1153's GraphicsLib tessellation array experiment. */
+/** Opt-in stock-archive check for issue #1153's GraphicsLib tessellation experiments. */
 class GraphicsLibTessellateArrayInstalledAdapterIT {
     private static final String STOCK_GRAPHICS_JAR_SHA256 =
             "832064013fe853731941e547842884ba121fb8b20eff08d24137f7a2c916903a";
+    private static final String HELPER = "preflight$drawCachedTessellation";
+    private static final String HELPER_DESCRIPTOR =
+            "(Lorg/dark/graphics/util/Tessellate$TessData;"
+                    + "Lcom/fs/starfarer/api/combat/ShipAPI;)V";
+    private static final String RUNTIME =
+            "dev/starsector/preflight/agent/GraphicsLibTessellateArrayRuntime";
 
     @TempDir
     Path temporaryDirectory;
@@ -58,16 +70,18 @@ class GraphicsLibTessellateArrayInstalledAdapterIT {
 
         Path targets = exactTargetFile(originalSignature.sha256());
         AdapterTargetRegistry registry = AdapterTargetRegistry.load(targets);
-        GraphicsLibTessellateArrayRuntime.beginSessionForTest(true);
+        GraphicsLibTessellateArrayRuntime.beginSessionForTest(true, true);
 
         byte[] transformed = transform(
                 registry, exact, original, temporaryDirectory.resolve("exact-report.json"));
         assertNotNull(transformed, Files.readString(temporaryDirectory.resolve("exact-report.json")));
         ClassSignature transformedSignature = ClassSignature.parse(transformed);
-        assertTrue(transformedSignature.hasMethod(
-                "preflight$drawCachedTessellation",
-                "(Lorg/dark/graphics/util/Tessellate$TessData;"
-                        + "Lcom/fs/starfarer/api/combat/ShipAPI;)V"));
+        assertTrue(transformedSignature.hasMethod(HELPER, HELPER_DESCRIPTOR));
+        MethodNode helper = method(transformed, HELPER, HELPER_DESCRIPTOR);
+        assertEquals(1, calls(helper, RUNTIME, "fillPacked"));
+        assertEquals(1, calls(helper, "java/util/List", "iterator"));
+        assertEquals(1, calls(helper, "org/lwjgl/opengl/GL11", "glDrawArrays"));
+        assertEquals(1, calls(helper, "org/lwjgl/opengl/GL15", "glBindBuffer"));
 
         assertNull(transform(
                 registry,
@@ -132,6 +146,27 @@ class GraphicsLibTessellateArrayInstalledAdapterIT {
                 return input.readAllBytes();
             }
         }
+    }
+
+    private static MethodNode method(byte[] bytes, String name, String descriptor) {
+        ClassNode owner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(bytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        return owner.methods.stream()
+                .filter(candidate -> name.equals(candidate.name) && descriptor.equals(candidate.desc))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static int calls(MethodNode method, String owner, String name) {
+        int count = 0;
+        for (AbstractInsnNode instruction : method.instructions) {
+            if (instruction instanceof MethodInsnNode call
+                    && owner.equals(call.owner)
+                    && name.equals(call.name)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private static String sha256(Path file) throws Exception {
