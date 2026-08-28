@@ -6,9 +6,10 @@ elapsed-combat buckets used by the scaling-law fitter, with JFR timestamp drift 
 recording's periodic clock calibration. Window associations are centered inside each run so late
 battle wreck/effect/duration growth is separated from persistent between-run sample-share offsets.
 
-ExecutionSample shares are sample-composition evidence, never elapsed CPU or wall time. Use this
-after a workload family has a repeatable scaling signal, then inspect exact returned methods and
-their semantics before building an intervention.
+JFR samples that land inside the workload probe's measured wall-clock interval are discarded so
+reflection, public game getters, and collision-grid reads performed by the probe cannot become
+false owners. ExecutionSample shares are sample-composition evidence, never elapsed CPU or wall
+time. Inspect exact returned methods and their semantics before building an intervention.
 """
 from __future__ import annotations
 
@@ -32,6 +33,9 @@ from starsector_critical_path import (
 from starsector_gameplay_hotspots import gameplay_state, interesting, methods_of
 
 
+PROBE_INTERVAL_MARGIN_SECONDS = 0.005
+
+
 @dataclass(frozen=True)
 class RunObservation:
     run_id: str
@@ -42,6 +46,7 @@ class RunObservation:
     inclusive_shares: dict[str, float]
     leaf_shares: dict[str, float]
     window: str = "whole-run"
+    excluded_probe_samples: int = 0
 
 
 @dataclass(frozen=True)
@@ -90,6 +95,32 @@ def workload_payload(path: str | pathlib.Path) -> tuple[pathlib.Path, dict]:
     if "combatWorkload" in payload:
         payload = payload["combatWorkload"]
     return path, payload
+
+
+def probe_intervals(
+        path: str | pathlib.Path,
+        margin_seconds: float = PROBE_INTERVAL_MARGIN_SECONDS,
+) -> list[tuple[float, float]]:
+    _, payload = workload_payload(path)
+    result = []
+    for sample in payload.get("samples") or []:
+        epoch_millis = numeric(sample.get("epochMillis"))
+        overhead_micros = numeric(sample.get("sampleOverheadMicros"))
+        if epoch_millis is None or overhead_micros is None:
+            continue
+        end = epoch_millis / 1000.0 + margin_seconds
+        start = epoch_millis / 1000.0 - overhead_micros / 1_000_000.0 - margin_seconds
+        result.append((start, end))
+    return sorted(result)
+
+
+def inside_intervals(epoch_seconds: float, intervals: list[tuple[float, float]]) -> bool:
+    for start, end in intervals:
+        if epoch_seconds < start:
+            return False
+        if start <= epoch_seconds <= end:
+            return True
+    return False
 
 
 def load_workload(path: str | pathlib.Path, predictor: str) -> tuple[str, str, float, float]:
@@ -168,14 +199,14 @@ def load_jfr_events(
     return sampled, calibration
 
 
-def combat_sample_stacks(sampled: list[dict]) -> list[tuple[dict, list[str]]]:
+def combat_sample_stacks(sampled: list[dict]) -> list[tuple[int, list[str]]]:
     result = []
-    for event in sampled:
+    for index, event in enumerate(sampled):
         if thread_of(event) != "main":
             continue
         methods = methods_of(event)
         if gameplay_state(methods) == "combat":
-            result.append((event, methods))
+            result.append((index, methods))
     return result
 
 
@@ -196,30 +227,6 @@ def sample_shares(stacks: list[list[str]]) -> tuple[dict[str, float], dict[str, 
     )
 
 
-def observe_run(
-        workload_path: str | pathlib.Path,
-        recording_path: str | pathlib.Path,
-        predictor: str,
-        depth: int = 96,
-        event_loader: Callable = events,
-) -> RunObservation:
-    run_id, cell_id, predictor_value, advance = load_workload(workload_path, predictor)
-    sampled, _ = load_jfr_events(recording_path, depth, event_loader=event_loader)
-    stacks = [methods for _, methods in combat_sample_stacks(sampled)]
-    if not stacks:
-        raise ValueError(f"{recording_path}: no main-thread combat ExecutionSample stacks")
-    inclusive, leaves = sample_shares(stacks)
-    return RunObservation(
-        run_id,
-        cell_id,
-        predictor_value,
-        advance,
-        len(stacks),
-        inclusive,
-        leaves,
-    )
-
-
 def corrected_event_times(sampled: list[dict], calibration: list[dict]) -> dict[int, float]:
     raw = [(index, instant(event.get("values", {}).get("startTime")))
            for index, event in enumerate(sampled)]
@@ -232,6 +239,50 @@ def corrected_event_times(sampled: list[dict], calibration: list[dict]) -> dict[
         if (stamp := instant(event.get("values", {}).get("startTime"))) is not None)
     anchor = calibration_stamps[0] if calibration_stamps else raw[0][1]
     return {index: anchor + (stamp - anchor) * factor for index, stamp in raw}
+
+
+def probe_clean_combat_stacks(
+        sampled: list[dict],
+        calibration: list[dict],
+        intervals: list[tuple[float, float]],
+) -> tuple[list[tuple[int, list[str]]], int, dict[int, float]]:
+    corrected = corrected_event_times(sampled, calibration)
+    kept = []
+    excluded = 0
+    for index, methods in combat_sample_stacks(sampled):
+        timestamp = corrected.get(index)
+        if timestamp is not None and inside_intervals(timestamp, intervals):
+            excluded += 1
+            continue
+        kept.append((index, methods))
+    return kept, excluded, corrected
+
+
+def observe_run(
+        workload_path: str | pathlib.Path,
+        recording_path: str | pathlib.Path,
+        predictor: str,
+        depth: int = 96,
+        event_loader: Callable = events,
+) -> RunObservation:
+    run_id, cell_id, predictor_value, advance = load_workload(workload_path, predictor)
+    sampled, calibration = load_jfr_events(recording_path, depth, event_loader=event_loader)
+    clean, excluded, _ = probe_clean_combat_stacks(
+        sampled, calibration, probe_intervals(workload_path))
+    stacks = [methods for _, methods in clean]
+    if not stacks:
+        raise ValueError(f"{recording_path}: no probe-clean main-thread combat ExecutionSample stacks")
+    inclusive, leaves = sample_shares(stacks)
+    return RunObservation(
+        run_id,
+        cell_id,
+        predictor_value,
+        advance,
+        len(stacks),
+        inclusive,
+        leaves,
+        excluded_probe_samples=excluded,
+    )
 
 
 def nearest_window_index(windows: list[WorkloadWindow], epoch_seconds: float,
@@ -258,14 +309,12 @@ def observe_windows(
     if len(windows) < 2:
         raise ValueError(f"{workload_path}: fewer than two timestamped workload windows")
     sampled, calibration = load_jfr_events(recording_path, depth, event_loader=event_loader)
-    corrected = corrected_event_times(sampled, calibration)
-    combat = combat_sample_stacks(sampled)
+    clean, excluded, corrected = probe_clean_combat_stacks(
+        sampled, calibration, probe_intervals(workload_path))
     by_window: list[list[list[str]]] = [[] for _ in windows]
     maximum_distance = max(bucket_seconds, 1.0)
-    event_indexes = {id(event): index for index, event in enumerate(sampled)}
-    for event, methods in combat:
-        event_index = event_indexes.get(id(event))
-        if event_index is None or event_index not in corrected:
+    for event_index, methods in clean:
+        if event_index not in corrected:
             continue
         window_index = nearest_window_index(
             windows, corrected[event_index], maximum_distance=maximum_distance)
@@ -273,10 +322,12 @@ def observe_windows(
             by_window[window_index].append(methods)
 
     result = []
+    retained_total = sum(len(stacks) for stacks in by_window)
     for window, stacks in zip(windows, by_window):
         if len(stacks) < minimum_combat_samples:
             continue
         inclusive, leaves = sample_shares(stacks)
+        excluded_share = round(excluded * len(stacks) / retained_total) if retained_total else 0
         result.append(RunObservation(
             run_id=window.run_id,
             cell_id=window.cell_id,
@@ -286,11 +337,12 @@ def observe_windows(
             inclusive_shares=inclusive,
             leaf_shares=leaves,
             window=window.label,
+            excluded_probe_samples=excluded_share,
         ))
     if len(result) < 4:
         raise ValueError(
             f"{recording_path}: only {len(result)} workload windows had "
-            f">={minimum_combat_samples} aligned combat samples")
+            f">={minimum_combat_samples} aligned probe-clean combat samples")
     return result
 
 
@@ -402,18 +454,19 @@ def render(
         f"Predictor: `{predictor}`; {scope}={len(observations)}; JFR mode={mode}.",
         f"Predictor vs sampled `CombatEngine.advance`: r={pearson(predictor_values, advance_values):.3f}.",
         f"Association basis: {share_label}.",
+        f"Probe-time combat samples excluded: {sum(item.excluded_probe_samples for item in observations)}.",
         "ExecutionSample shares below describe observed sample composition only; they are not elapsed CPU/wall time.",
         "",
         "## Paired observations",
         "",
-        "| run | cell | window | predictor | median advance µs | combat samples |",
-        "| --- | --- | --- | ---: | ---: | ---: |",
+        "| run | cell | window | predictor | median advance µs | combat samples | probe samples excluded |",
+        "| --- | --- | --- | ---: | ---: | ---: | ---: |",
     ]
     for item in sorted(observations,
                        key=lambda value: (value.run_id, value.cell_id, value.window, value.predictor)):
         lines.append(
             f"| `{item.run_id}` | `{item.cell_id}` | `{item.window}` | {item.predictor:.3f} | "
-            f"{item.advance_micros:.3f} | {item.combat_samples} |")
+            f"{item.advance_micros:.3f} | {item.combat_samples} | {item.excluded_probe_samples} |")
     lines.extend([
         "",
         "## Methods rising with predictor",
