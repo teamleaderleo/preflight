@@ -73,11 +73,15 @@ Before changing code or collecting release evidence:
    stress routes, so it is rejected for those workloads without manufacturing a no-op A/B cohort.
    Read the current
    [physical-host reconciliation](docs/evidence/2026-08-28-fps-physical-host-reconciliation.md)
-   before continuing #1153–#1158. The next highest-information physical-host pass is #1158's
-   generalized runtime owner-tax/hitch-tax discovery after reconciling draft #1160 onto the current
-   carrier. #1154's classifier can consume retained reports after integration; #1156's async GPU
-   path is already in the carrier. Use the physical machine for real game/LWJGL/driver/mod/runtime
-   measurements and move large concurrency policy sweeps to synthetic harnesses.
+   and the completed
+   [installed owner/hitch-tax pass](docs/evidence/2026-08-28-installed-owner-hitch-tax.md) before
+   continuing #1153–#1158. #1158's first current-profile run resolved 53 mods, found that only one
+   of 46 retained hitches overlapped GC, and selected core `ModularFleetAI` as the next exact
+   decomposition target (113.618 ms maximum callback; five >100 ms hitch associations). Do not jump
+   to a collector or FULL-JFR experiment from this result. #1154's classifier can consume retained
+   reports after integration; #1156's async GPU path is already in the carrier. Use the physical
+   machine for real game/LWJGL/driver/mod/runtime measurements and move large concurrency policy
+   sweeps to synthetic harnesses.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package

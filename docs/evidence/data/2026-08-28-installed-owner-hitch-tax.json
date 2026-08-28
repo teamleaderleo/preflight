@@ -1,0 +1,1063 @@
+{
+  "format": "starsector-preflight-installed-owner-hitch-tax-v1",
+  "date": "2026-08-28",
+  "classification": "intrusive discovery; direct callback/owner counters are leads, frame-rate values are not an optimization claim",
+  "sourceCommit": "6f90a3905bf12f85dfebccbfb7ae4355518ab672",
+  "postprocessorFixCommit": "3eaa8798",
+  "runId": "issue-1158-owner-tax-r1-20260828-111641",
+  "identity": {
+    "game": "Starsector 0.98a-RC8",
+    "installRoot": "/Applications/Starsector.app",
+    "profileFingerprint": "2995668308ac3d31d645ccac30fb1a7e644e64fce5609050a1488df4cadc5af6",
+    "enabledMods": 83,
+    "gameRuntime": "Zulu OpenJDK 17.0.10 x86_64 under Rosetta",
+    "hostRuntime": {
+      "javaVersion": "21.0.10",
+      "javaVendor": "Oracle Corporation",
+      "javaRuntimeName": "Java(TM) SE Runtime Environment",
+      "javaRuntimeVersion": "21.0.10+8-LTS-217",
+      "javaVmName": "Java HotSpot(TM) 64-Bit Server VM",
+      "javaVmVendor": "Oracle Corporation",
+      "javaVmVersion": "21.0.10+8-LTS-217",
+      "osName": "Mac OS X",
+      "osVersion": "26.6.2",
+      "osArch": "aarch64"
+    },
+    "resolution": "1440x932",
+    "fullscreen": false,
+    "vsync": {
+      "forceOff": false,
+      "lastSwapInterval": 1
+    },
+    "gameCapFps": 60,
+    "adapter": {
+      "attempted": true,
+      "available": true,
+      "problem": null,
+      "inventoryElapsedMicros": 1442.083,
+      "vendor": "Apple",
+      "renderer": "Apple M5",
+      "version": "2.1 Metal - 90.5",
+      "openGL15": true,
+      "openGL33": false,
+      "arbTimerQuery": false,
+      "extTimerQuery": true,
+      "arbSync": true,
+      "nonblockingTimerResultPollCandidate": true,
+      "classification": "one-time read-only capability inventory",
+      "semanticEffect": "none; no query, fence, or rendering state created"
+    },
+    "recordingMode": "SAMPLE",
+    "jfrClockFactor": 2.4925186467879126,
+    "gcPolicy": {
+      "active": true,
+      "reason": "reviewed macOS x86-64 Zulu launcher/runtime policy matched",
+      "launcher": "/Applications/Starsector.app/Contents/MacOS/starsector_mac.sh",
+      "runtimeRelease": "/Applications/Starsector.app/Contents/Home/release",
+      "javaOptions": [
+        "-XX:-UseShenandoahGC",
+        "-XX:+UseG1GC",
+        "-XX:-AlwaysPreTouch",
+        "-Dpreflight.macos.gcPolicy=reviewed-g1"
+      ],
+      "disableEnvironment": "PREFLIGHT_DISABLE_MAC_G1_POLICY"
+    }
+  },
+  "scenario": {
+    "id": "campaign-owner-tax-paused-unpaused",
+    "status": "passed",
+    "steps": [
+      {
+        "id": "menu",
+        "status": "passed",
+        "detail": "observed main-menu-interactive"
+      },
+      {
+        "id": "continue",
+        "status": "passed",
+        "detail": "title callback accepted Continue; receipt executed; campaign observed campaign-ready"
+      },
+      {
+        "id": "campaign",
+        "status": "passed",
+        "detail": "observed campaign-ready"
+      },
+      {
+        "id": "observe-initial-pause-state",
+        "status": "passed",
+        "detail": "held exact process for 3000 ms"
+      },
+      {
+        "id": "ensure-paused",
+        "status": "passed",
+        "detail": "campaign pause state already matched request; pause state verified true"
+      },
+      {
+        "id": "paused-warmup",
+        "status": "passed",
+        "detail": "held exact process for 27000 ms"
+      },
+      {
+        "id": "paused-settled",
+        "status": "passed",
+        "detail": "held exact process for 45000 ms"
+      },
+      {
+        "id": "unpause",
+        "status": "passed",
+        "detail": "mapped pause control reached requested state; pause state verified false"
+      },
+      {
+        "id": "unpaused-transition",
+        "status": "passed",
+        "detail": "held exact process for 5000 ms"
+      },
+      {
+        "id": "begin-unpaused-window",
+        "status": "passed",
+        "detail": "started a clean steady-state campaign frame window; campaign pause state remained false"
+      },
+      {
+        "id": "unpaused-settled",
+        "status": "passed",
+        "detail": "held exact process for 45000 ms"
+      }
+    ]
+  },
+  "frameWindows": {
+    "pausedAfter30Seconds": {
+      "frames": 3214,
+      "totalActiveNanos": 57486316584,
+      "p50Micros": 17800,
+      "p95Micros": 21400,
+      "p99Micros": 24100,
+      "p999Micros": 35000,
+      "maximumMicros": 45640,
+      "averageFps": 55.91,
+      "medianFps": 56.18,
+      "onePercentLowFps": 41.49,
+      "pointOnePercentLowFps": 28.57,
+      "over33_33Millis": 9,
+      "over50Millis": 0,
+      "over100Millis": 0,
+      "over250Millis": 0,
+      "stutterProfile": {
+        "slowFrameThresholdMicros": 33333,
+        "slowFramesPerMinute": 9.39,
+        "slowFrameTimePercent": 0.58,
+        "excessFrameTimeOver16_67Millis": 4507.12,
+        "excessSlowFrameTimeMillis": 30.98,
+        "stutterBurdenMillisPerSecond": 0.54,
+        "slowFrameClusters": 9,
+        "isolatedSlowFrames": 9,
+        "repeatedSlowFrameClusters": 0,
+        "framesInRepeatedSlowFrameClusters": 0,
+        "repeatedSlowFramesPercent": 0.0,
+        "longestSlowFrameClusterFrames": 1,
+        "longestSlowFrameClusterMillis": 45.64,
+        "interpretation": "repeated >33.33ms clusters and excess time rank ahead of isolated hitches"
+      }
+    },
+    "unpausedMeasurementWindow": {
+      "frames": 1708,
+      "totalActiveNanos": 32591849416,
+      "p50Micros": 17300,
+      "p95Micros": 31600,
+      "p99Micros": 59600,
+      "p999Micros": 107100,
+      "maximumMicros": 125444,
+      "averageFps": 52.41,
+      "medianFps": 57.8,
+      "onePercentLowFps": 16.78,
+      "pointOnePercentLowFps": 9.34,
+      "over33_33Millis": 73,
+      "over50Millis": 35,
+      "over100Millis": 2,
+      "over250Millis": 0,
+      "stutterProfile": {
+        "slowFrameThresholdMicros": 33333,
+        "slowFramesPerMinute": 134.39,
+        "slowFrameTimePercent": 11.35,
+        "excessFrameTimeOver16_67Millis": 5525.99,
+        "excessSlowFrameTimeMillis": 1267.09,
+        "stutterBurdenMillisPerSecond": 38.88,
+        "slowFrameClusters": 46,
+        "isolatedSlowFrames": 28,
+        "repeatedSlowFrameClusters": 18,
+        "framesInRepeatedSlowFrameClusters": 45,
+        "repeatedSlowFramesPercent": 2.63,
+        "longestSlowFrameClusterFrames": 4,
+        "longestSlowFrameClusterMillis": 251.52,
+        "interpretation": "repeated >33.33ms clusters and excess time rank ahead of isolated hitches"
+      }
+    }
+  },
+  "presentationAfter30Seconds": {
+    "frames": 5075,
+    "preSwapExcludingLimiter": {
+      "samples": 5075,
+      "totalMillis": 44182.196473,
+      "averageMicros": 8705.851521773398,
+      "maximumMicros": 246272.542,
+      "p95Micros": 19200,
+      "p99Micros": 49600
+    },
+    "limiterSleep": {
+      "samples": 5075,
+      "totalMillis": 42967.198699,
+      "averageMicros": 8466.443093399015,
+      "maximumMicros": 15563.458,
+      "p95Micros": 13100,
+      "p99Micros": 14100
+    },
+    "nativeSwap": {
+      "samples": 5075,
+      "totalMillis": 6764.995427,
+      "averageMicros": 1333.0040250246307,
+      "maximumMicros": 17781.75,
+      "p95Micros": 4700,
+      "p99Micros": 14200
+    },
+    "nativeSwapThreadCpu": {
+      "samples": 5075,
+      "totalMillis": 1381.727,
+      "averageMicros": 272.2614778325123,
+      "maximumMicros": 783.0,
+      "p95Micros": 400,
+      "p99Micros": 500
+    },
+    "nativeSwapInferredOffCpu": {
+      "samples": 5075,
+      "totalMillis": 5383.268427,
+      "averageMicros": 1060.7425471921183,
+      "maximumMicros": 17457.75,
+      "p95Micros": 4400,
+      "p99Micros": 13900
+    },
+    "slowFramesWherePreSwapWasLargest": 116,
+    "slowFramesWhereSwapWasLargest": 6
+  },
+  "broadPhases": {
+    "locations": {
+      "calls": 50892,
+      "totalMillis": 9149.521156,
+      "averageMicros": 179.78309274542167,
+      "maximumMillis": 124.340042,
+      "over16Millis": 42,
+      "over33Millis": 18,
+      "over100Millis": 1
+    },
+    "economy": {
+      "calls": 1861,
+      "totalMillis": 5056.966206,
+      "averageMicros": 2717.3381010209564,
+      "maximumMillis": 74.449042,
+      "over16Millis": 10,
+      "over33Millis": 3,
+      "over100Millis": 0
+    },
+    "marketCommodityStats": {
+      "calls": 156157056,
+      "sampledCalls": 2200904,
+      "sampleRate": 32,
+      "measuredMillis": 95.981553,
+      "estimatedTotalMillis": 3071.409696,
+      "averageMicros": 0.043610058866720224,
+      "sampledMaximumMillis": 0.084625
+    },
+    "marketEventMods": {
+      "calls": 39039264,
+      "sampledCalls": 576754,
+      "sampleRate": 32,
+      "measuredMillis": 25.287326,
+      "estimatedTotalMillis": 809.194432,
+      "averageMicros": 0.0438442143444172,
+      "sampledMaximumMillis": 0.265917
+    }
+  },
+  "recurringOwnerLeads": [
+    {
+      "ownerKey": "mod:pt_qolpack",
+      "ownerKind": "MOD",
+      "modId": "pt_qolpack",
+      "classes": 2,
+      "calls": 8605,
+      "sampledCalls": null,
+      "totalMillis": 1032.7512159999999,
+      "maximumCallbackMillis": 14.9625
+    },
+    {
+      "ownerKey": "mod:stelnet",
+      "ownerKind": "MOD",
+      "modId": "stelnet",
+      "classes": 2,
+      "calls": 8605,
+      "sampledCalls": null,
+      "totalMillis": 558.402378,
+      "maximumCallbackMillis": 26.283209
+    },
+    {
+      "ownerKey": "mod:nexerelin",
+      "ownerKind": "MOD",
+      "modId": "nexerelin",
+      "classes": 31,
+      "calls": 114798,
+      "sampledCalls": null,
+      "totalMillis": 552.7741739999999,
+      "maximumCallbackMillis": 27.360958
+    },
+    {
+      "ownerKey": "mod:niko_morePlanetaryConditions",
+      "ownerKind": "MOD",
+      "modId": "niko_morePlanetaryConditions",
+      "classes": 7,
+      "calls": 7968,
+      "sampledCalls": 249,
+      "totalMillis": 1048.352416,
+      "maximumCallbackMillis": 17.799834
+    },
+    {
+      "ownerKey": "mod:IndEvo",
+      "ownerKind": "MOD",
+      "modId": "IndEvo",
+      "classes": 5,
+      "calls": 325600,
+      "sampledCalls": 10175,
+      "totalMillis": 959.925856,
+      "maximumCallbackMillis": 27.428792
+    },
+    {
+      "ownerKey": "mod:Csp",
+      "ownerKind": "MOD",
+      "modId": "Csp",
+      "classes": 18,
+      "calls": 1280,
+      "sampledCalls": 40,
+      "totalMillis": 569.9053120000001,
+      "maximumCallbackMillis": 17.109541
+    },
+    {
+      "ownerKey": "starsector-core",
+      "ownerKind": "STARSECTOR_CORE",
+      "modId": null,
+      "classes": 1,
+      "calls": 30787,
+      "sampledCalls": 30787,
+      "totalMillis": 1401.361432,
+      "maximumCallbackMillis": 113.618041
+    },
+    {
+      "ownerKey": "starsector-core",
+      "ownerKind": "STARSECTOR_CORE",
+      "modId": null,
+      "classes": 8,
+      "calls": 3023552,
+      "sampledCalls": 47243,
+      "totalMillis": 5982.988032,
+      "maximumCallbackMillis": 7.506958
+    }
+  ],
+  "hitchOwnerLeads": [
+    {
+      "ownerKey": "mod:nexerelin",
+      "ownerKind": "MOD",
+      "modId": "nexerelin",
+      "retainedSlowCalls": 62,
+      "callsOverlapping50msFrames": 20,
+      "callsOverlapping100msFrames": 5,
+      "frameAssociationsOver50ms": 24,
+      "frameAssociationsOver100ms": 5,
+      "callbackOverlapMillis": 159.518798828125,
+      "maximumAssociatedFrameMillis": 135.562
+    },
+    {
+      "ownerKey": "mod:pt_qolpack",
+      "ownerKind": "MOD",
+      "modId": "pt_qolpack",
+      "retainedSlowCalls": 32,
+      "callsOverlapping50msFrames": 15,
+      "callsOverlapping100msFrames": 5,
+      "frameAssociationsOver50ms": 18,
+      "frameAssociationsOver100ms": 5,
+      "callbackOverlapMillis": 32.478759765625,
+      "maximumAssociatedFrameMillis": 168.335
+    },
+    {
+      "ownerKey": "mod:ORK",
+      "ownerKind": "MOD",
+      "modId": "ORK",
+      "retainedSlowCalls": 4,
+      "callsOverlapping50msFrames": 1,
+      "callsOverlapping100msFrames": 0,
+      "frameAssociationsOver50ms": 1,
+      "frameAssociationsOver100ms": 0,
+      "callbackOverlapMillis": 47.373779296875,
+      "maximumAssociatedFrameMillis": 68.329
+    },
+    {
+      "ownerKey": "mod:IndEvo",
+      "ownerKind": "MOD",
+      "modId": "IndEvo",
+      "retainedSlowCalls": 1,
+      "callsOverlapping50msFrames": 1,
+      "callsOverlapping100msFrames": 0,
+      "frameAssociationsOver50ms": 2,
+      "frameAssociationsOver100ms": 0,
+      "callbackOverlapMillis": 54.857421875,
+      "maximumAssociatedFrameMillis": 50.866
+    },
+    {
+      "ownerKey": "mod:Csp",
+      "ownerKind": "MOD",
+      "modId": "Csp",
+      "retainedSlowCalls": 1,
+      "callsOverlapping50msFrames": 1,
+      "callsOverlapping100msFrames": 0,
+      "frameAssociationsOver50ms": 1,
+      "frameAssociationsOver100ms": 0,
+      "callbackOverlapMillis": 17.109619140625,
+      "maximumAssociatedFrameMillis": 50.623
+    },
+    {
+      "ownerKey": "starsector-core",
+      "ownerKind": "STARSECTOR_CORE",
+      "modId": null,
+      "retainedSlowCalls": 32,
+      "callsOverlapping50msFrames": 9,
+      "callsOverlapping100msFrames": 5,
+      "frameAssociationsOver50ms": 10,
+      "frameAssociationsOver100ms": 5,
+      "callbackOverlapMillis": 234.435791015625,
+      "maximumAssociatedFrameMillis": 168.335
+    }
+  ],
+  "exactCallbacks": {
+    "orkGestalt": {
+      "name": "data.campaign.procgen.GestaltSeededFleetManager",
+      "calls": 31,
+      "totalMillis": 83.123832,
+      "averageMicros": 2681.413935483871,
+      "maximumMillis": 47.373833,
+      "slowestCalls": [
+        {
+          "durationMillis": 47.373833,
+          "startEpochMillis": 1787887130581.6262,
+          "endEpochMillis": 1787887130629
+        },
+        {
+          "durationMillis": 15.9155,
+          "startEpochMillis": 1787887134020.0845,
+          "endEpochMillis": 1787887134036
+        },
+        {
+          "durationMillis": 14.024875,
+          "startEpochMillis": 1787887147428.975,
+          "endEpochMillis": 1787887147443
+        },
+        {
+          "durationMillis": 5.461167,
+          "startEpochMillis": 1787887141744.5388,
+          "endEpochMillis": 1787887141750
+        }
+      ],
+      "hitchTax": {
+        "available": true,
+        "retainedSlowCalls": 4,
+        "callsOverlapping50msFrames": 1,
+        "callsOverlapping100msFrames": 0,
+        "frameAssociationsOver50ms": 1,
+        "frameAssociationsOver100ms": 0,
+        "callbackOverlapMillis": 47.373779296875,
+        "maximumAssociatedFrameMillis": 68.329
+      },
+      "ownership": {
+        "className": "data.campaign.procgen.GestaltSeededFleetManager",
+        "ownerKey": "mod:ORK",
+        "ownerKind": "MOD",
+        "ownerName": "ORK",
+        "modId": "ORK",
+        "modDirectory": "Bultach Coalition-1.1.7 release",
+        "modRoot": "/Applications/Starsector.app/mods/Bultach Coalition-1.1.7 release",
+        "sourceArtifact": "ORKS.jar",
+        "sourceKind": "MOD",
+        "codeSource": "file:/Applications/Starsector.app/Contents/Resources/Java/../../../mods/Bultach Coalition-1.1.7 release/jars/ORKS.jar",
+        "normalizedSource": "/Applications/Starsector.app/mods/Bultach Coalition-1.1.7 release/jars/ORKS.jar",
+        "loaderClass": "java/net/URLClassLoader",
+        "loaderName": null,
+        "resolution": "mod-info-id"
+      }
+    },
+    "nexEconomyInfo": {
+      "name": "exerelin.campaign.econ.EconomyInfoHelper$1",
+      "calls": 10,
+      "totalMillis": 46.170957,
+      "averageMicros": 4617.0957,
+      "maximumMillis": 26.958708,
+      "slowestCalls": [
+        {
+          "durationMillis": 26.958708,
+          "startEpochMillis": 1787887121135.0413,
+          "endEpochMillis": 1787887121162
+        },
+        {
+          "durationMillis": 19.20275,
+          "startEpochMillis": 1787887121161.7974,
+          "endEpochMillis": 1787887121181
+        }
+      ],
+      "hitchTax": {
+        "available": true,
+        "retainedSlowCalls": 2,
+        "callsOverlapping50msFrames": 2,
+        "callsOverlapping100msFrames": 2,
+        "frameAssociationsOver50ms": 2,
+        "frameAssociationsOver100ms": 2,
+        "callbackOverlapMillis": 46.161376953125,
+        "maximumAssociatedFrameMillis": 129.985
+      },
+      "ownership": {
+        "className": "exerelin.campaign.econ.EconomyInfoHelper$1",
+        "ownerKey": "mod:nexerelin",
+        "ownerKind": "MOD",
+        "ownerName": "nexerelin",
+        "modId": "nexerelin",
+        "modDirectory": "Nexerelin-0.12.2b",
+        "modRoot": "/Applications/Starsector.app/mods/Nexerelin-0.12.2b",
+        "sourceArtifact": "ExerelinCore.jar",
+        "sourceKind": "MOD",
+        "codeSource": "file:/Applications/Starsector.app/Contents/Resources/Java/../../../mods/Nexerelin-0.12.2b/jars/ExerelinCore.jar",
+        "normalizedSource": "/Applications/Starsector.app/mods/Nexerelin-0.12.2b/jars/ExerelinCore.jar",
+        "loaderClass": "java/net/URLClassLoader",
+        "loaderName": null,
+        "resolution": "mod-info-id"
+      }
+    },
+    "indevoDerelict": {
+      "name": "indevo.industries.ruinfra.conditions.DerelictInfrastructureCondition",
+      "calls": 1024,
+      "sampledCalls": 32,
+      "averageMicros": 860.07165625,
+      "slowestCalls": [
+        {
+          "durationMillis": 27.428792,
+          "startEpochMillis": 1787887127172.5713,
+          "endEpochMillis": 1787887127200
+        }
+      ],
+      "hitchTax": {
+        "available": true,
+        "retainedSlowCalls": 1,
+        "callsOverlapping50msFrames": 1,
+        "callsOverlapping100msFrames": 0,
+        "frameAssociationsOver50ms": 2,
+        "frameAssociationsOver100ms": 0,
+        "callbackOverlapMillis": 54.857421875,
+        "maximumAssociatedFrameMillis": 50.866
+      },
+      "ownership": {
+        "className": "indevo.industries.ruinfra.conditions.DerelictInfrastructureCondition",
+        "ownerKey": "mod:IndEvo",
+        "ownerKind": "MOD",
+        "ownerName": "IndEvo",
+        "modId": "IndEvo",
+        "modDirectory": "Industrial.Evolution-4.1.b",
+        "modRoot": "/Applications/Starsector.app/mods/Industrial.Evolution-4.1.b",
+        "sourceArtifact": "IndEvo.jar",
+        "sourceKind": "MOD",
+        "codeSource": "file:/Applications/Starsector.app/Contents/Resources/Java/../../../mods/Industrial.Evolution-4.1.b/jars/IndEvo.jar",
+        "normalizedSource": "/Applications/Starsector.app/mods/Industrial.Evolution-4.1.b/jars/IndEvo.jar",
+        "loaderClass": "java/net/URLClassLoader",
+        "loaderName": null,
+        "resolution": "mod-info-id"
+      }
+    },
+    "mpcDerelictEscort": {
+      "name": "data.scripts.campaign.econ.conditions.derelictEscort.niko_MPC_derelictEscort",
+      "calls": 864,
+      "sampledCalls": 27,
+      "averageMicros": 1183.7808518518518,
+      "slowestCalls": [
+        {
+          "durationMillis": 17.799834,
+          "startEpochMillis": 1787887130803.2002,
+          "endEpochMillis": 1787887130821
+        },
+        {
+          "durationMillis": 13.585792,
+          "startEpochMillis": 1787887136600.4143,
+          "endEpochMillis": 1787887136614
+        }
+      ],
+      "hitchTax": {
+        "available": true,
+        "retainedSlowCalls": 2,
+        "callsOverlapping50msFrames": 0,
+        "callsOverlapping100msFrames": 0,
+        "frameAssociationsOver50ms": 0,
+        "frameAssociationsOver100ms": 0,
+        "callbackOverlapMillis": 0.0,
+        "maximumAssociatedFrameMillis": 0.0
+      },
+      "ownership": {
+        "className": "data.scripts.campaign.econ.conditions.derelictEscort.niko_MPC_derelictEscort",
+        "ownerKey": "mod:niko_morePlanetaryConditions",
+        "ownerKind": "MOD",
+        "ownerName": "niko_morePlanetaryConditions",
+        "modId": "niko_morePlanetaryConditions",
+        "modDirectory": "What We Left Behind",
+        "modRoot": "/Applications/Starsector.app/mods/What We Left Behind",
+        "sourceArtifact": "niko_morePlanetaryConditions.jar",
+        "sourceKind": "MOD",
+        "codeSource": "file:/Applications/Starsector.app/Contents/Resources/Java/../../../mods/What We Left Behind/jars/niko_morePlanetaryConditions.jar",
+        "normalizedSource": "/Applications/Starsector.app/mods/What We Left Behind/jars/niko_morePlanetaryConditions.jar",
+        "loaderClass": "java/net/URLClassLoader",
+        "loaderName": null,
+        "resolution": "mod-info-id"
+      }
+    },
+    "modularFleetAI": {
+      "name": "com.fs.starfarer.campaign.ai.ModularFleetAI",
+      "calls": 30787,
+      "sampledCalls": 30787,
+      "averageMicros": 45.51795991814727,
+      "slowestCalls": [
+        {
+          "durationMillis": 113.618041,
+          "startEpochMillis": 1787887121792.382,
+          "endEpochMillis": 1787887121906
+        },
+        {
+          "durationMillis": 51.348292,
+          "startEpochMillis": 1787887148368.6516,
+          "endEpochMillis": 1787887148420
+        },
+        {
+          "durationMillis": 49.069292,
+          "startEpochMillis": 1787887143994.9307,
+          "endEpochMillis": 1787887144044
+        },
+        {
+          "durationMillis": 17.01325,
+          "startEpochMillis": 1787887121003.9868,
+          "endEpochMillis": 1787887121021
+        },
+        {
+          "durationMillis": 16.853709,
+          "startEpochMillis": 1787887157234.1462,
+          "endEpochMillis": 1787887157251
+        },
+        {
+          "durationMillis": 14.867958,
+          "startEpochMillis": 1787887126741.132,
+          "endEpochMillis": 1787887126756
+        },
+        {
+          "durationMillis": 13.831417,
+          "startEpochMillis": 1787887120840.1687,
+          "endEpochMillis": 1787887120854
+        },
+        {
+          "durationMillis": 11.599583,
+          "startEpochMillis": 1787887154623.4004,
+          "endEpochMillis": 1787887154635
+        },
+        {
+          "durationMillis": 10.597459,
+          "startEpochMillis": 1787887123849.4026,
+          "endEpochMillis": 1787887123860
+        },
+        {
+          "durationMillis": 10.338708,
+          "startEpochMillis": 1787887157075.6614,
+          "endEpochMillis": 1787887157086
+        },
+        {
+          "durationMillis": 9.565333,
+          "startEpochMillis": 1787887122770.4346,
+          "endEpochMillis": 1787887122780
+        },
+        {
+          "durationMillis": 9.488167,
+          "startEpochMillis": 1787887124749.5117,
+          "endEpochMillis": 1787887124759
+        },
+        {
+          "durationMillis": 8.275125,
+          "startEpochMillis": 1787887149382.7249,
+          "endEpochMillis": 1787887149391
+        },
+        {
+          "durationMillis": 8.187625,
+          "startEpochMillis": 1787887121720.8123,
+          "endEpochMillis": 1787887121729
+        },
+        {
+          "durationMillis": 7.7105,
+          "startEpochMillis": 1787887124087.2896,
+          "endEpochMillis": 1787887124095
+        },
+        {
+          "durationMillis": 7.678167,
+          "startEpochMillis": 1787887142758.3218,
+          "endEpochMillis": 1787887142766
+        },
+        {
+          "durationMillis": 7.422208,
+          "startEpochMillis": 1787887133253.578,
+          "endEpochMillis": 1787887133261
+        },
+        {
+          "durationMillis": 7.370042,
+          "startEpochMillis": 1787887155615.63,
+          "endEpochMillis": 1787887155623
+        },
+        {
+          "durationMillis": 7.023875,
+          "startEpochMillis": 1787887044743.976,
+          "endEpochMillis": 1787887044751
+        },
+        {
+          "durationMillis": 7.002875,
+          "startEpochMillis": 1787887120558.997,
+          "endEpochMillis": 1787887120566
+        },
+        {
+          "durationMillis": 6.33225,
+          "startEpochMillis": 1787887120966.6677,
+          "endEpochMillis": 1787887120973
+        },
+        {
+          "durationMillis": 6.259916,
+          "startEpochMillis": 1787887153943.74,
+          "endEpochMillis": 1787887153950
+        },
+        {
+          "durationMillis": 5.772,
+          "startEpochMillis": 1787887155706.228,
+          "endEpochMillis": 1787887155712
+        },
+        {
+          "durationMillis": 5.619167,
+          "startEpochMillis": 1787887120976.3809,
+          "endEpochMillis": 1787887120982
+        },
+        {
+          "durationMillis": 5.224125,
+          "startEpochMillis": 1787887153114.776,
+          "endEpochMillis": 1787887153120
+        },
+        {
+          "durationMillis": 5.019541,
+          "startEpochMillis": 1787887143731.9805,
+          "endEpochMillis": 1787887143737
+        },
+        {
+          "durationMillis": 4.949417,
+          "startEpochMillis": 1787887127476.0505,
+          "endEpochMillis": 1787887127481
+        },
+        {
+          "durationMillis": 4.905417,
+          "startEpochMillis": 1787887122930.0945,
+          "endEpochMillis": 1787887122935
+        },
+        {
+          "durationMillis": 4.537667,
+          "startEpochMillis": 1787887143750.4624,
+          "endEpochMillis": 1787887143755
+        },
+        {
+          "durationMillis": 4.520792,
+          "startEpochMillis": 1787887122075.4792,
+          "endEpochMillis": 1787887122080
+        },
+        {
+          "durationMillis": 4.314458,
+          "startEpochMillis": 1787887123437.6855,
+          "endEpochMillis": 1787887123442
+        },
+        {
+          "durationMillis": 4.284125,
+          "startEpochMillis": 1787887123603.7158,
+          "endEpochMillis": 1787887123608
+        }
+      ],
+      "hitchTax": {
+        "available": true,
+        "retainedSlowCalls": 32,
+        "callsOverlapping50msFrames": 9,
+        "callsOverlapping100msFrames": 5,
+        "frameAssociationsOver50ms": 10,
+        "frameAssociationsOver100ms": 5,
+        "callbackOverlapMillis": 234.435791015625,
+        "maximumAssociatedFrameMillis": 168.335
+      },
+      "ownership": {
+        "className": "com.fs.starfarer.campaign.ai.ModularFleetAI",
+        "ownerKey": "starsector-core",
+        "ownerKind": "STARSECTOR_CORE",
+        "ownerName": "Starsector core",
+        "modId": null,
+        "modDirectory": null,
+        "modRoot": null,
+        "sourceArtifact": "starfarer_obf.jar",
+        "sourceKind": "STARSECTOR_CORE",
+        "codeSource": "file:/Applications/Starsector.app/Contents/Resources/Java/starfarer_obf.jar",
+        "normalizedSource": "/Applications/Starsector.app/Contents/Resources/Java/starfarer_obf.jar",
+        "loaderClass": "jdk/internal/loader/ClassLoaders$AppClassLoader",
+        "loaderName": "app",
+        "resolution": "source-kind"
+      }
+    }
+  },
+  "jvm": {
+    "retainedHitchFrames": 46,
+    "retainedSevereHitchFrames": 8,
+    "gcPhasePause": {
+      "eventAssociations": 1,
+      "hitchFramesWithEvent": 1,
+      "recordedEvents": 55,
+      "topDetails": [
+        {
+          "associations": 1,
+          "detail": "GC Pause"
+        }
+      ],
+      "wallOverlapMillis": 5.788713488188042
+    },
+    "garbageCollection": {
+      "eventAssociations": 1,
+      "hitchFramesWithEvent": 1,
+      "recordedEvents": 50,
+      "topDetails": [
+        {
+          "associations": 1,
+          "detail": "G1New"
+        }
+      ],
+      "wallOverlapMillis": 5.788713488188042
+    },
+    "safepoint": {
+      "eventAssociations": 4,
+      "hitchFramesWithEvent": 4,
+      "recordedEvents": 196,
+      "topDetails": [
+        {
+          "associations": 4,
+          "detail": "jdk.SafepointBegin"
+        }
+      ],
+      "wallOverlapMillis": 2.7175635747340023
+    },
+    "vmOperation": {
+      "eventAssociations": 8,
+      "hitchFramesWithEvent": 7,
+      "recordedEvents": 350,
+      "topDetails": [
+        {
+          "associations": 4,
+          "detail": "HandshakeAllThreads"
+        },
+        {
+          "associations": 2,
+          "detail": "Cleanup"
+        },
+        {
+          "associations": 1,
+          "detail": "G1CollectForAllocation"
+        },
+        {
+          "associations": 1,
+          "detail": "ICBufferFull"
+        }
+      ],
+      "wallOverlapMillis": 6.835804461002674
+    },
+    "deoptimization": {
+      "eventAssociations": 89,
+      "hitchFramesWithEvent": 24,
+      "recordedEvents": 1539,
+      "topDetails": [
+        {
+          "associations": 5,
+          "detail": "com.fs.starfarer.campaign.fleet.FleetMember.getCrewFraction"
+        },
+        {
+          "associations": 4,
+          "detail": "com.fs.starfarer.api.impl.campaign.terrain.HyperspaceTerrainPlugin.clearCellsNotNearPlayer"
+        },
+        {
+          "associations": 4,
+          "detail": "com.fs.starfarer.campaign.econ.Market.advance"
+        },
+        {
+          "associations": 4,
+          "detail": "java.util.ArrayList.batchRemove"
+        },
+        {
+          "associations": 4,
+          "detail": "com.fs.starfarer.api.impl.campaign.terrain.HyperspaceTerrainPlugin.advance"
+        },
+        {
+          "associations": 4,
+          "detail": "com.fs.starfarer.api.impl.campaign.abilities.BaseDurationAbility.advance"
+        },
+        {
+          "associations": 4,
+          "detail": "com.fs.starfarer.api.impl.campaign.terrain.BaseTerrain.advance"
+        },
+        {
+          "associations": 3,
+          "detail": "com.fs.starfarer.campaign.CircularOrbitWithSpin.advance"
+        }
+      ],
+      "wallOverlapMillis": 0.0
+    },
+    "mainThreadSleep": {
+      "eventAssociations": 79,
+      "hitchFramesWithEvent": 27,
+      "recordedEvents": 21631,
+      "topDetails": [
+        {
+          "associations": 79,
+          "detail": "java/lang/Thread.sleep <- com/fs/starfarer/BaseGameState.traverse <- com/fs/state/AppDriver.begin"
+        }
+      ],
+      "wallOverlapMillis": 425.7625215254863
+    },
+    "executionSamples": {
+      "eventAssociations": 73,
+      "hitchFramesWithEvent": 36,
+      "recordedEvents": 2036,
+      "topDetails": [
+        {
+          "associations": 4,
+          "detail": "dev/starsector/preflight/agent/HitchPacketRuntime.joinCalls <- dev/starsector/preflight/agent/HitchPacketRuntime.reportPacket <- dev/starsector/preflight/agent/HitchPacketRuntime.telemetry"
+        },
+        {
+          "associations": 3,
+          "detail": "com/fs/starfarer/campaign/fleet/CampaignFleet.advance <- com/fs/starfarer/campaign/BaseLocation.advance <- com/fs/starfarer/campaign/StarSystem.advance"
+        },
+        {
+          "associations": 2,
+          "detail": "com/fs/starfarer/campaign/BaseCampaignEntity.advance <- com/fs/starfarer/campaign/CampaignPlanet.advance <- com/fs/starfarer/campaign/BaseLocation.advance"
+        },
+        {
+          "associations": 2,
+          "detail": "com/fs/starfarer/api/impl/campaign/terrain/HyperspaceTerrainPlugin.clearCellsNotNearPlayer <- com/fs/starfarer/api/impl/campaign/terrain/HyperspaceTerrainPlugin.advance <- data/scripts/campaign/econ/conditions/terrain/hyperspace/niko_MPC_realspaceHyperspace.advance"
+        },
+        {
+          "associations": 2,
+          "detail": "com/fs/starfarer/coreui/A/oOoO.renderStuff <- com/fs/starfarer/coreui/A/oOoO.renderImpl <- com/fs/starfarer/ui/R.render"
+        },
+        {
+          "associations": 2,
+          "detail": "com/fs/starfarer/campaign/BaseLocation.advance <- com/fs/starfarer/campaign/StarSystem.advance <- com/fs/starfarer/campaign/CampaignEngine.advance"
+        },
+        {
+          "associations": 1,
+          "detail": "com/fs/starfarer/campaign/fleet/FleetData$2.o00000 <- com/fs/starfarer/campaign/fleet/FleetData$2.compare <- java/util/Arrays.mergeSort"
+        },
+        {
+          "associations": 1,
+          "detail": "com/fs/starfarer/combat/CombatViewport.isNearViewport <- com/fs/starfarer/campaign/BaseLocation.renderIndicators <- com/fs/starfarer/campaign/CampaignEngine.render"
+        }
+      ],
+      "wallOverlapMillis": 0.0
+    },
+    "nativeSamples": {
+      "eventAssociations": 29,
+      "hitchFramesWithEvent": 23,
+      "recordedEvents": 2037,
+      "topDetails": [
+        {
+          "associations": 6,
+          "detail": "org/lwjgl/opengl/MacOSXContextImplementation.nSwapBuffers <- org/lwjgl/opengl/MacOSXContextImplementation.swapBuffers <- org/lwjgl/opengl/ContextGL.swapBuffers"
+        },
+        {
+          "associations": 5,
+          "detail": "org/lwjgl/opengl/GL11.nglCallList <- org/lwjgl/opengl/GL11.glCallList <- com/fs/graphics/util/GLListManager.callList"
+        },
+        {
+          "associations": 4,
+          "detail": "org/lwjgl/opengl/GL11.nglEnd <- org/lwjgl/opengl/GL11.glEnd <- com/fs/graphics/Sprite.render"
+        },
+        {
+          "associations": 3,
+          "detail": "org/lwjgl/opengl/MacOSXContextImplementation.nUpdate <- org/lwjgl/opengl/MacOSXContextImplementation.update <- org/lwjgl/opengl/ContextGL.update"
+        },
+        {
+          "associations": 2,
+          "detail": "org/lwjgl/opengl/GL11.nglBegin <- org/lwjgl/opengl/GL11.glBegin <- com/fs/starfarer/renderers/oo0O.super"
+        },
+        {
+          "associations": 2,
+          "detail": "org/lwjgl/opengl/GL11.nglBegin <- org/lwjgl/opengl/GL11.glBegin <- com/fs/starfarer/renderers/E.super"
+        },
+        {
+          "associations": 1,
+          "detail": "org/lwjgl/opengl/GL11.nglFlush <- org/lwjgl/opengl/GL11.glFlush <- com/fs/starfarer/BaseGameState.traverse"
+        },
+        {
+          "associations": 1,
+          "detail": "org/lwjgl/opengl/GL11.nglBegin <- org/lwjgl/opengl/GL11.glBegin <- com/fs/starfarer/renderers/oo0O.Õ00000"
+        }
+      ],
+      "wallOverlapMillis": 0.0
+    }
+  },
+  "attribution": {
+    "runtimeOwnerTaxFamilies": 10,
+    "runtimeObservedModCount": 53,
+    "staticObservedModCount": 42,
+    "unresolvedRuntimeOwners": [
+      {
+        "family": "$.campaignMarketFleetTimes.marketConditionClassesOwnerTax",
+        "ownerKey": "dynamic:janino",
+        "ownerKind": "DYNAMIC_JANINO",
+        "ownerName": "Janino generated/loaded class",
+        "rank": 17,
+        "totalMillis": 2.754656
+      },
+      {
+        "family": "$.campaignMarketFleetTimes.fleetHullmodShipClassesOwnerTax",
+        "ownerKey": "dynamic:janino",
+        "ownerKind": "DYNAMIC_JANINO",
+        "ownerName": "Janino generated/loaded class",
+        "rank": 3,
+        "totalMillis": 272.77292800000004
+      }
+    ]
+  },
+  "observerCost": {
+    "frameBoundary": {
+      "samples": 7856,
+      "totalNanos": 238934615,
+      "averageMicros": 30.41428398676171,
+      "maximumMicros": 12427.459,
+      "scope": "display-boundary hook; presentation and limiter timestamp hooks excluded"
+    },
+    "ownerCallbacks": "sampled/exact intrusive timing; per-callback observer cost not independently subtracted"
+  },
+  "adapterHealth": {
+    "status": "ACTIVE",
+    "mode": "ENABLED",
+    "killSwitchActive": false,
+    "registryTargets": 88,
+    "exactMatches": 74,
+    "sourceBindingRejected": 0,
+    "unavailablePlans": 0,
+    "transformationsDeclined": 0,
+    "transformationsApplied": 74,
+    "containedFailures": 0,
+    "runtimeIntegrityFailures": 0
+  },
+  "limitations": [
+    "current Continue save is not hashed in the run artifact; use this route for discovery, not an A/B claim",
+    "owner family totals are inclusive and must not be summed across nested families",
+    "sampled owner totals are estimates; exact retained slow-call spans carry separate hitch evidence",
+    "JFR execution/native/deoptimization events are associations, not elapsed-time attribution",
+    "GPU timing and GL command counters were not requested in this route",
+    "the 45-second host unpaused hold retained 32.592 seconds of exact unpaused frame intervals; the pause-state gate excluded later auto-paused evolution"
+  ]
+}

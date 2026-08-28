@@ -27,6 +27,12 @@ to rerun a settled candidate.
   transform installed and passed ordinary visual/correctness plus 1,040-DP health gates, but both
   candidate routes reported zero batches, vertices, buffer growths, and calls avoided. Retained on
   `codex/1153-tess-array-physical` at `d528366b`.
+- **#1158 installed owner/hitch tax:** the first current-profile route resolved 53 runtime mods
+  across ten callback families. Only one of 46 retained hitches overlapped GC; 116 of 122 settled
+  campaign slow frames were pre-swap dominated. Core `ModularFleetAI` produced the strongest exact
+  hitch spans (113.618 ms maximum; five >100 ms associations), while recurring mod tax remained
+  distributed across QoL Pack, More Planetary Conditions, IndEvo, Nexerelin, Stellar Networks, and
+  Csp. Retained on `codex/1158-physical`.
 - **Earlier carrier candidates:** AI Tweaks weapon-location caching, texture-bind deduplication,
   matrix identity elision, and the current precision waiter are useful rejected experiments. Do not
   revive them unchanged because their work-reduction counters were large.
@@ -43,7 +49,7 @@ The following state was refreshed from GitHub on 2026-08-28. Branch counts are r
 | #1155 / draft #1162 | `research/1155-combat-scaling` (`6279a5a0`) plus installed continuation `codex/1155-installed-scaling` (`4861a6ea`) | real coefficients complete for the bounded DP ladder | keep broader fighter/effect/wreck dimensions open only when a concrete question needs them |
 | #1156 | `codex/prism-1156-gpu` (`d0a3cd02`) is already an ancestor of the carrier | async GPU timing and GL attribution are live; resource/sync questions remain | use a bounded resource/synchronization diagnostic only when bad-frame evidence points there |
 | #1157 / draft #1164 | PR branch `metronome/1157-cap-vsync` (`4626e369`); installed rejection branch above | current 60-Hz precision candidate settled negative | no unchanged rerun; high-refresh or new deadline semantics is a different experiment |
-| #1158 / draft #1160 | `toolbox/1158-runtime-attribution` (`a3ff83d5`), 37 commits ahead and 10 behind the carrier | implementation and synthetic gates exist; no current installed owner-tax discovery result | highest-information next physical-host slice after reconciliation |
+| #1158 / draft #1160 | `toolbox/1158-runtime-attribution` (`a3ff83d5`) reconciled onto `codex/1158-physical` | installed owner/JFR discovery complete; parser and real-host runner hardened | decompose exact `ModularFleetAI` modules before any JVM or mod optimization |
 
 PR #1159 and #1160 currently show coverage/release-contract failures alongside many green focused
 checks. Treat those as integration debt requiring fresh verification on the current carrier, not as
@@ -53,38 +59,33 @@ instead of merging them wholesale into a moving gameplay carrier.
 
 ## Assumptions that need fresh verification
 
-1. **Runtime owner tax on the real profile.** Historical owners are concrete leads, but current
-   CodeSource-to-mod attribution, unresolved/dynamic counts, steady tax, and >50/>100 ms hitch tax
-   have not been measured together on the installed machine.
-2. **JFR correlation after owner-tax integration.** GC/JIT/safepoint/blocking attribution should be
-   run only against retained hitch windows. Existing G1 plus deferred heap commit is already a
-   startup win; collector changes do not advance without gameplay-tail evidence.
-3. **Downstream particle submission.** The wrapper's 1.95% inclusive stress share is an upper bound.
+1. **Exact fleet-AI submodule owner.** `ModularFleetAI` is now the strongest core hitch owner, but
+   assignment, strategic, tactical, navigation, and ability-AI work remain aggregated.
+2. **Downstream particle submission.** The wrapper's 1.95% inclusive stress share is an upper bound.
    Draw mode, texture, blend, layer, owner, batch compatibility, and probe overhead remain unknown.
-4. **GL synchronization frequency.** The broad queue topology is understood well enough for
+3. **GL synchronization frequency.** The broad queue topology is understood well enough for
    synthetic work, but real getter/readback/sync frequency still needs calibration before any
    render-thread bridge model can claim relevance.
-5. **Guarded GL state queries.** A source-safe `glIsEnabled` cache exists on #1163, but it should get
+4. **Guarded GL state queries.** A source-safe `glIsEnabled` cache exists on #1163, but it should get
    a causal count/materiality check before a performance cohort. The current tessellation zero-work
    result is a warning against assuming an implemented branch is exercised.
 
 ## Highest-information next slice
 
-Reconcile #1160's runtime-owner attribution onto the current physical-host carrier and run one
-discovery-only ordinary campaign/combat route with the existing hitch packets and thin frame
-recorder. Preserve:
+Add a bounded exact subphase timer around the existing `ModularFleetAI.advance` module calls and run
+one discovery-only unpaused campaign route. Preserve:
 
-- top core/mod steady frame tax and retained >50/>100 ms hitch tax;
-- unresolved, directory-only, and dynamic-Janino ownership separately;
-- runtime/static hot-pattern intersections;
+- assignment, strategic, tactical, navigation, and ability-AI time separately;
+- the concrete fleet/module class only in bounded report-time evidence;
 - exact game/profile/save/runtime/display/adapter identity;
 - workload fingerprint and semantic phases;
-- JFR configuration and observer cost;
+- observer cost and retained >50/>100 ms hitch joins;
 - adapter health, declines, fallbacks, and kill switch.
 
-If SAMPLE JFR leaves a retained pre-swap family unexplained, one FULL repeat may answer the narrow
-JIT/class-load question. Otherwise do not spend another game launch. The output should select one
-exact owner for a focused child experiment or show that the tax remains diffuse.
+The completed SAMPLE route does not justify FULL JFR: GC explained only 5.789 ms of one 166.545 ms
+hitch and the sampled JIT/native events are non-duration associations. If the AI submodule work is
+diffuse, stop this seam and use thin async GPU timing plus bounded GL synchronization counts to split
+the remaining pre-swap family.
 
 After that, compare its information value with the downstream particle census. The former can rank
 the whole live callback surface; the latter has a measured ~2% wrapper upper bound and is the better
