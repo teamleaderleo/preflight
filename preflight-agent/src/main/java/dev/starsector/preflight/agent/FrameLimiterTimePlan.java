@@ -14,7 +14,7 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
-/** Brackets the exact campaign main-loop FPS-cap sleep without changing its argument or control flow. */
+/** Brackets the exact campaign main-loop FPS-cap sleep and can opt into precision pacing. */
 final class FrameLimiterTimePlan {
     static final String PLAN_ID = "campaign-frame-limiter-time-v1";
     static final String TARGET_CLASS = "com/fs/starfarer/BaseGameState";
@@ -28,6 +28,8 @@ final class FrameLimiterTimePlan {
     private static final String SLEEP_DESCRIPTOR = "(J)V";
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/FrameTimeRuntime";
+    private static final String PACING_RUNTIME =
+            "dev/starsector/preflight/agent/FrameLimiterPacingRuntime";
 
     private FrameLimiterTimePlan() {
     }
@@ -46,7 +48,8 @@ final class FrameLimiterTimePlan {
         MethodNode method = unique(owner, METHOD, DESCRIPTOR);
         if (method == null
                 || calls(method, RUNTIME, "beforeLimiterSleep") != 0
-                || calls(method, RUNTIME, "afterLimiterSleep") != 0) {
+                || calls(method, RUNTIME, "afterLimiterSleep") != 0
+                || calls(method, PACING_RUNTIME, SLEEP) != 0) {
             return null;
         }
 
@@ -71,12 +74,20 @@ final class FrameLimiterTimePlan {
         before.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "beforeLimiterSleep", "(J)V", false));
         method.instructions.insertBefore(limiterSleep, before);
+        boolean precisionPacing = FrameLimiterPacingRuntime.enabled();
+        if (precisionPacing) {
+            limiterSleep.owner = PACING_RUNTIME;
+            limiterSleep.name = SLEEP;
+            limiterSleep.desc = SLEEP_DESCRIPTOR;
+            limiterSleep.itf = false;
+        }
         method.instructions.insert(limiterSleep, new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "afterLimiterSleep", "()V", false));
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         FrameTimeRuntime.limiterInstalled();
+        if (precisionPacing) FrameLimiterPacingRuntime.installed();
         return writer.toByteArray();
     }
 
