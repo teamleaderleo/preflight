@@ -127,12 +127,13 @@ def triage(runtime, hot_patterns, static_limit_per_mod=12):
     mods = []
     all_mod_ids = sorted(set(runtime_mods) | set(static_mods))
     for mod_id in all_mod_ids:
+        runtime_entry = runtime_mods.get(mod_id, {"frameTax": [], "hitchTax": []})
         frame_tax = sorted(
-            runtime_mods[mod_id]["frameTax"],
+            runtime_entry["frameTax"],
             key=lambda row: (row["rank"], -(float(row.get("totalMillis") or 0.0)), row["family"]),
         )
         hitch_tax = sorted(
-            runtime_mods[mod_id]["hitchTax"],
+            runtime_entry["hitchTax"],
             key=lambda row: (
                 -int(row.get("callsOverlapping100msFrames") or 0),
                 -int(row.get("callsOverlapping50msFrames") or 0),
@@ -141,7 +142,8 @@ def triage(runtime, hot_patterns, static_limit_per_mod=12):
                 row["family"],
             ),
         )
-        static_findings = static_mods[mod_id][:static_limit_per_mod]
+        all_static_findings = static_mods.get(mod_id, [])
+        static_findings = all_static_findings[:static_limit_per_mod]
         mods.append({
             "modId": mod_id,
             "priority": priority(frame_tax, hitch_tax, static_findings),
@@ -149,7 +151,7 @@ def triage(runtime, hot_patterns, static_limit_per_mod=12):
             "runtimeFrameTaxFamilies": frame_tax,
             "runtimeHitchTaxFamilies": hitch_tax,
             "promotedStaticFindings": static_findings if frame_tax or hitch_tax else [],
-            "staticFindingCount": len(static_mods[mod_id]),
+            "staticFindingCount": len(all_static_findings),
             "runtimeObserved": bool(frame_tax or hitch_tax),
         })
     tier_order = {
