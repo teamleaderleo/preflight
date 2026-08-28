@@ -13,7 +13,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Client-side cache for the six GL11 enable bits Fast Rendering tracks without a getter stall.
+ * Client-side cache for five unit-independent GL11 enable bits Fast Rendering tracks without a
+ * getter stall. GL_TEXTURE_2D remains native because its enable state is per active texture unit.
  * Unknown state always falls through to LWJGL's original glIsEnabled implementation.
  */
 public final class GlIsEnabledStateCacheRuntime {
@@ -25,7 +26,6 @@ public final class GlIsEnabledStateCacheRuntime {
     private static final int GL_BLEND = 0x0BE2;
     private static final int GL_STENCIL_TEST = 0x0B90;
     private static final int GL_SCISSOR_TEST = 0x0C11;
-    private static final int GL_TEXTURE_2D = 0x0DE1;
 
     private static final int GL_LIGHTING_BIT = 0x00000040;
     private static final int GL_STENCIL_BUFFER_BIT = 0x00000400;
@@ -35,7 +35,7 @@ public final class GlIsEnabledStateCacheRuntime {
 
     private static final byte UNKNOWN = -1;
     private static final String[] CAP_NAMES = {
-        "stencilTest", "alphaTest", "texture2D", "blend", "lighting", "scissorTest"
+        "stencilTest", "alphaTest", "blend", "lighting", "scissorTest"
     };
 
     private static final ThreadLocal<State> STATE = ThreadLocal.withInitial(State::new);
@@ -263,20 +263,19 @@ public final class GlIsEnabledStateCacheRuntime {
         if ((mask & GL_STENCIL_BUFFER_BIT) != 0) target[0] = source[0];
         if ((mask & GL_COLOR_BUFFER_BIT) != 0) {
             target[1] = source[1];
-            target[3] = source[3];
+            target[2] = source[2];
         }
-        if ((mask & GL_LIGHTING_BIT) != 0) target[4] = source[4];
-        if ((mask & GL_SCISSOR_BIT) != 0) target[5] = source[5];
+        if ((mask & GL_LIGHTING_BIT) != 0) target[3] = source[3];
+        if ((mask & GL_SCISSOR_BIT) != 0) target[4] = source[4];
     }
 
     private static int capIndex(int cap) {
         return switch (cap) {
             case GL_STENCIL_TEST -> 0;
             case GL_ALPHA_TEST -> 1;
-            case GL_TEXTURE_2D -> 2;
-            case GL_BLEND -> 3;
-            case GL_LIGHTING -> 4;
-            case GL_SCISSOR_TEST -> 5;
+            case GL_BLEND -> 2;
+            case GL_LIGHTING -> 3;
+            case GL_SCISSOR_TEST -> 4;
             default -> -1;
         };
     }
