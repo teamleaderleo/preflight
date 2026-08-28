@@ -51,7 +51,11 @@ class GlIsEnabledStateCacheInstalledAdapterIT {
         assertEquals(STOCK_LWJGL_JAR_SHA256, sha256(installed),
                 "configured jar is not Starsector's reviewed LWJGL archive");
 
-        Path exact = temporaryDirectory.resolve("exact/contents/resources/java/lwjgl.jar");
+        // AdapterSourceIdentity classifies the real game archive as STARSECTOR_CORE because its
+        // normalized path contains the Starsector installation name. Keep that real source signal
+        // in the fixture instead of weakening the production target to OTHER.
+        Path exact = temporaryDirectory.resolve(
+                "Starsector/contents/resources/java/lwjgl.jar");
         Files.createDirectories(exact.getParent());
         Files.copy(installed, exact);
         byte[] original = classBytes(exact);
@@ -84,7 +88,8 @@ class GlIsEnabledStateCacheInstalledAdapterIT {
                 transformed,
                 temporaryDirectory.resolve("changed-class-report.json")));
 
-        Path changedArchive = temporaryDirectory.resolve("changed/contents/resources/java/lwjgl.jar");
+        Path changedArchive = temporaryDirectory.resolve(
+                "Starsector-changed/contents/resources/java/lwjgl.jar");
         Files.createDirectories(changedArchive.getParent());
         Files.copy(installed, changedArchive);
         Files.write(changedArchive, new byte[] {0}, StandardOpenOption.APPEND);
