@@ -185,6 +185,113 @@ def frame_report_cluster_windows(report_path, series_names, limit):
     return windows
 
 
+def frame_report_hitch_frame_windows(report_path, threshold_millis):
+    """Return exact retained hitch-frame groups at or above a packet threshold.
+
+    Hitch packets overlap because each packet includes bounded pre-trigger history. Deduplicate by
+    frame sequence, verify the built-in 50/100 ms populations against the recorder's trigger
+    counters, and group only consecutive qualifying frames. This keeps a sustained two-frame hitch
+    distinct from unrelated severe frames while preserving the exact frame extents.
+    """
+    try:
+        with open(report_path, encoding="utf-8") as source:
+            report = json.load(source)
+    except (OSError, ValueError) as error:
+        raise SystemExit(f"could not read runtime frame report {report_path}: {error}") from error
+    hitch = (report.get("frameTimes") or {}).get("hitchPackets") or {}
+    trigger_millis = hitch.get("triggerMillis")
+    severe_millis = hitch.get("severeMillis")
+    if not hitch.get("enabled") or not isinstance(trigger_millis, (int, float)):
+        raise SystemExit(f"runtime frame report {report_path} has no enabled hitch packets")
+    if threshold_millis < trigger_millis:
+        raise SystemExit(
+            f"hitch-frame threshold {threshold_millis:g} ms is below the recorder's complete "
+            f"{trigger_millis:g} ms trigger population")
+    dropped = hitch.get("packetTriggersDropped", 0)
+    if not isinstance(dropped, (int, float)) or dropped != 0:
+        raise SystemExit(
+            f"hitch packets dropped {dropped!r} triggers; exact hitch-frame attribution is incomplete")
+
+    frames = {}
+    origins = []
+    expected = 0
+    threshold_micros = threshold_millis * 1000.0
+    packets = hitch.get("packets") or []
+    for packet in packets:
+        state = packet.get("state", "unknown")
+        packet_start_epoch = packet.get("startEpochMillis")
+        packet_start_offset = packet.get("startOffsetMillis")
+        if (isinstance(packet_start_epoch, (int, float))
+                and isinstance(packet_start_offset, (int, float))):
+            origins.append(packet_start_epoch - packet_start_offset)
+        if threshold_millis == trigger_millis:
+            expected += packet.get("triggers", 0)
+        elif isinstance(severe_millis, (int, float)) and threshold_millis == severe_millis:
+            expected += packet.get("severeTriggers", 0)
+        for frame in packet.get("frameHistory") or []:
+            sequence = frame.get("sequence")
+            duration = frame.get("durationMicros")
+            start = frame.get("startOffsetMillis")
+            end = frame.get("endOffsetMillis")
+            if (not isinstance(sequence, int)
+                    or not isinstance(duration, (int, float)) or duration < threshold_micros
+                    or not isinstance(start, (int, float))
+                    or not isinstance(end, (int, float)) or end <= start):
+                continue
+            candidate = (state, duration, start, end)
+            previous = frames.get(sequence)
+            if previous is not None and previous != candidate:
+                raise SystemExit(
+                    f"hitch frame sequence {sequence} disagrees across overlapping packets")
+            frames[sequence] = candidate
+
+    if not frames or not origins:
+        raise SystemExit(
+            f"runtime frame report {report_path} has no usable frames at or above "
+            f"{threshold_millis:g} ms")
+    if expected and len(frames) != expected:
+        raise SystemExit(
+            f"retained hitch history has {len(frames)} unique >= {threshold_millis:g} ms frames "
+            f"but trigger counters require {expected}; attribution is incomplete")
+    if max(origins) - min(origins) > 2.0:
+        raise SystemExit("hitch packet epoch/offset origins disagree by more than 2 ms")
+    origin_epoch_millis = sum(origins) / len(origins)
+
+    groups = []
+    current = []
+    for sequence, frame in sorted(frames.items()):
+        state, _duration, start, _end = frame
+        if current:
+            previous_sequence, previous_frame = current[-1]
+            previous_state, _previous_duration, _previous_start, previous_end = previous_frame
+            consecutive = sequence == previous_sequence + 1
+            contiguous = start <= previous_end + 2.0
+            if state != previous_state or not consecutive or not contiguous:
+                groups.append(current)
+                current = []
+        current.append((sequence, frame))
+    if current:
+        groups.append(current)
+
+    windows = []
+    for rank, group in enumerate(groups, 1):
+        first_sequence, first = group[0]
+        last_sequence, last = group[-1]
+        state = first[0]
+        start_offset = first[2]
+        end_offset = last[3]
+        duration = sum(frame[1] for _sequence, frame in group)
+        sequence = (str(first_sequence) if first_sequence == last_sequence
+                    else f"{first_sequence}-{last_sequence}")
+        windows.append((
+            f">={threshold_millis:g} ms hitch group {rank} {state} "
+            f"(sequences {sequence}, {len(group)} frames, {duration / 1000.0:.2f} ms total)",
+            (origin_epoch_millis + start_offset) / 1000.0,
+            (origin_epoch_millis + end_offset) / 1000.0,
+        ))
+    return windows
+
+
 def events_in_window(sampled, start, end):
     selected = []
     for event in sampled:
@@ -439,7 +546,8 @@ def report_cluster_enrichment(cluster_events, baseline_events, top=30,
 
 
 def selected_wall_windows(path, steps=None, evidence_path=None,
-                          frame_report=None, frame_series=None, repeated_clusters=0):
+                          frame_report=None, frame_series=None, repeated_clusters=0,
+                          hitch_frame_millis=0):
     step_windows = scenario_step_windows(
         path, steps, evidence_path=evidence_path) if steps else []
     requested_series = frame_series or (["allActive"] if frame_report else [])
@@ -447,7 +555,15 @@ def selected_wall_windows(path, steps=None, evidence_path=None,
         raise SystemExit("--frame-series requires --frame-report")
     if repeated_clusters and not frame_report:
         raise SystemExit("--repeated-clusters requires --frame-report")
-    if repeated_clusters:
+    if hitch_frame_millis and not frame_report:
+        raise SystemExit("--hitch-frame-millis requires --frame-report")
+    if repeated_clusters and hitch_frame_millis:
+        raise SystemExit("--repeated-clusters and --hitch-frame-millis are mutually exclusive")
+    if hitch_frame_millis and frame_series:
+        raise SystemExit("--hitch-frame-millis reads packet state directly; omit --frame-series")
+    if hitch_frame_millis:
+        frame_windows = frame_report_hitch_frame_windows(frame_report, hitch_frame_millis)
+    elif repeated_clusters:
         frame_windows = frame_report_cluster_windows(
             frame_report, requested_series, repeated_clusters)
     elif frame_report:
@@ -503,9 +619,9 @@ def covered_window_seconds(windows):
 
 def report(path, top=30, depth=96, contains=None, steps=None, evidence_path=None,
            frame_report=None, frame_series=None, repeated_clusters=0, include_other=False,
-           cluster_enrichment=False):
-    if cluster_enrichment and not repeated_clusters:
-        raise SystemExit("cluster enrichment requires repeated clusters")
+           cluster_enrichment=False, hitch_frame_millis=0):
+    if cluster_enrichment and not (repeated_clusters or hitch_frame_millis):
+        raise SystemExit("cluster enrichment requires repeated clusters or hitch frames")
     if cluster_enrichment and not steps:
         raise SystemExit("cluster enrichment requires exact scenario steps")
     jfr = _jfr_binary()
@@ -515,14 +631,14 @@ def report(path, top=30, depth=96, contains=None, steps=None, evidence_path=None
     wall_windows = selected_wall_windows(
         path, steps=steps, evidence_path=evidence_path,
         frame_report=frame_report, frame_series=frame_series,
-        repeated_clusters=repeated_clusters)
+        repeated_clusters=repeated_clusters, hitch_frame_millis=hitch_frame_millis)
     if not wall_windows:
         report_execution_events(
             sampled, top=top, contains=contains, include_other=include_other)
         return
     windows, factor = recording_clock_windows(path, wall_windows, jfr)
     print(f"recording-clock calibration: {factor:.3f}x wall time per recorded second")
-    if repeated_clusters:
+    if repeated_clusters or hitch_frame_millis:
         for name, start, end in wall_windows:
             print(f"  {name}: {end - start:.3f}s wall")
         selected = events_in_windows(sampled, windows)
@@ -531,7 +647,8 @@ def report(path, top=30, depth=96, contains=None, steps=None, evidence_path=None
             for name, start, end in windows
         ]
         wall_seconds = covered_window_seconds(wall_windows)
-        print(f"\naggregate repeated clusters: {len(windows)} windows, "
+        label = "repeated clusters" if repeated_clusters else "hitch-frame groups"
+        print(f"\naggregate {label}: {len(windows)} windows, "
               f"{wall_seconds:.3f}s wall, {len(selected)} execution samples")
         report_execution_events(
             selected, top=top, contains=contains, include_other=include_other)
@@ -572,7 +689,7 @@ def report_allocation_events(sampled, top=30, contains=None, include_other=False
 
 def report_allocations(path, top=30, depth=96, contains=None, steps=None, evidence_path=None,
                        frame_report=None, frame_series=None, repeated_clusters=0,
-                       include_other=False):
+                       include_other=False, hitch_frame_millis=0):
     jfr = _jfr_binary()
     sampled = events(path, ["jdk.ObjectAllocationSample"], depth=depth, jfr=jfr)
     print(f"recording: {path}")
@@ -580,19 +697,20 @@ def report_allocations(path, top=30, depth=96, contains=None, steps=None, eviden
     wall_windows = selected_wall_windows(
         path, steps=steps, evidence_path=evidence_path,
         frame_report=frame_report, frame_series=frame_series,
-        repeated_clusters=repeated_clusters)
+        repeated_clusters=repeated_clusters, hitch_frame_millis=hitch_frame_millis)
     if not wall_windows:
         report_allocation_events(
             sampled, top=top, contains=contains, include_other=include_other)
         return
     windows, factor = recording_clock_windows(path, wall_windows, jfr)
     print(f"recording-clock calibration: {factor:.3f}x wall time per recorded second")
-    if repeated_clusters:
+    if repeated_clusters or hitch_frame_millis:
         for name, start, end in wall_windows:
             print(f"  {name}: {end - start:.3f}s wall")
         selected = events_in_windows(sampled, windows)
         wall_seconds = covered_window_seconds(wall_windows)
-        print(f"\naggregate repeated clusters: {len(windows)} windows, "
+        label = "repeated clusters" if repeated_clusters else "hitch-frame groups"
+        print(f"\naggregate {label}: {len(windows)} windows, "
               f"{wall_seconds:.3f}s wall, {len(selected)} allocation samples")
         report_allocation_events(
             selected, top=top, contains=contains, include_other=include_other)
@@ -625,16 +743,23 @@ def main():
     parser.add_argument("--repeated-clusters", type=int, default=0, metavar="N",
                         help="aggregate samples inside the N longest repeated slow-frame "
                              "clusters for each frame series instead of selecting one worst frame")
+    parser.add_argument("--hitch-frame-millis", type=float, default=0, metavar="MS",
+                        help="aggregate exact retained hitch frames at or above MS, grouping only "
+                             "consecutive frames and deduplicating overlapping packets")
     parser.add_argument("--cluster-enrichment", action="store_true",
-                        help="with repeated clusters and exact steps, rank methods overrepresented "
+                        help="with repeated clusters or hitch frames and exact steps, rank methods overrepresented "
                              "against non-cluster samples from the same step")
     parser.add_argument("--include-other", action="store_true",
                         help="also rank startup, menu, and unclassified main-thread stacks")
     args = parser.parse_args()
     if args.repeated_clusters < 0:
         parser.error("--repeated-clusters must be non-negative")
-    if args.cluster_enrichment and not args.repeated_clusters:
-        parser.error("--cluster-enrichment requires --repeated-clusters")
+    if args.hitch_frame_millis < 0:
+        parser.error("--hitch-frame-millis must be non-negative")
+    if args.repeated_clusters and args.hitch_frame_millis:
+        parser.error("--repeated-clusters and --hitch-frame-millis are mutually exclusive")
+    if args.cluster_enrichment and not (args.repeated_clusters or args.hitch_frame_millis):
+        parser.error("--cluster-enrichment requires --repeated-clusters or --hitch-frame-millis")
     if args.cluster_enrichment and not args.step:
         parser.error("--cluster-enrichment requires at least one --step")
     if args.cluster_enrichment and args.allocations:
@@ -645,7 +770,7 @@ def main():
             steps=args.step, evidence_path=args.scenario_evidence,
             frame_report=args.frame_report, frame_series=args.frame_series,
             repeated_clusters=args.repeated_clusters,
-            include_other=args.include_other)
+            include_other=args.include_other, hitch_frame_millis=args.hitch_frame_millis)
     else:
         report(
             args.recording, top=args.top, depth=args.depth, contains=args.contains,
@@ -653,7 +778,8 @@ def main():
             frame_report=args.frame_report, frame_series=args.frame_series,
             repeated_clusters=args.repeated_clusters,
             include_other=args.include_other,
-            cluster_enrichment=args.cluster_enrichment)
+            cluster_enrichment=args.cluster_enrichment,
+            hitch_frame_millis=args.hitch_frame_millis)
 
 
 if __name__ == "__main__":

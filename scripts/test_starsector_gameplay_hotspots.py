@@ -356,6 +356,73 @@ class GameplayHotspotTest(unittest.TestCase):
             self.assertEqual(2.0, windows[0][1])
             self.assertEqual(2.22, windows[0][2])
 
+    def test_hitch_frame_windows_deduplicate_packets_and_group_consecutive_frames(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "runtime-frame-report.json"
+            repeated = {
+                "sequence": 11,
+                "durationMicros": 120_000,
+                "startOffsetMillis": 120.0,
+                "endOffsetMillis": 240.0,
+            }
+            report.write_text(json.dumps({
+                "frameTimes": {
+                    "hitchPackets": {
+                        "enabled": True,
+                        "triggerMillis": 50,
+                        "severeMillis": 100,
+                        "packetTriggersDropped": 0,
+                        "packets": [
+                            {
+                                "state": "combat",
+                                "startEpochMillis": 10_000,
+                                "startOffsetMillis": 100.0,
+                                "severeTriggers": 1,
+                                "frameHistory": [repeated],
+                            },
+                            {
+                                "state": "combat",
+                                "startEpochMillis": 10_020,
+                                "startOffsetMillis": 120.0,
+                                "severeTriggers": 1,
+                                "frameHistory": [
+                                    repeated,
+                                    {
+                                        "sequence": 12,
+                                        "durationMicros": 150_000,
+                                        "startOffsetMillis": 240.0,
+                                        "endOffsetMillis": 390.0,
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                },
+            }), encoding="utf-8")
+
+            windows = module.frame_report_hitch_frame_windows(report, 100)
+            self.assertEqual(1, len(windows))
+            self.assertIn("sequences 11-12, 2 frames, 270.00 ms total", windows[0][0])
+            self.assertAlmostEqual(10.02, windows[0][1], places=6)
+            self.assertAlmostEqual(10.29, windows[0][2], places=6)
+
+    def test_hitch_frame_windows_fail_when_trigger_population_is_incomplete(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "runtime-frame-report.json"
+            report.write_text(json.dumps({
+                "frameTimes": {
+                    "hitchPackets": {
+                        "enabled": True,
+                        "triggerMillis": 50,
+                        "severeMillis": 100,
+                        "packetTriggersDropped": 1,
+                        "packets": [],
+                    },
+                },
+            }), encoding="utf-8")
+            with self.assertRaisesRegex(SystemExit, "attribution is incomplete"):
+                module.frame_report_hitch_frame_windows(report, 100)
+
     def test_events_in_windows_deduplicates_overlapping_windows(self):
         sample = event("main", "mod.Work.run")
         sample["values"]["startTime"] = "2026-08-26T17:55:30Z"

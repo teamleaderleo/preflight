@@ -21,7 +21,9 @@ Before changing code or collecting release evidence:
    observations from falsifiable hypotheses and records why a previously explored area may still
    be worth revisiting. [Gameplay FPS program #449](https://github.com/teamleaderleo/preflight/issues/449)
    is the canonical parent for that lane; use focused child issues once one experiment is concrete.
-   The latest completed optimization checkpoint is the rejected
+   The latest completed discovery checkpoint is the
+   [1,040-DP severe-frame attribution pass](docs/evidence/2026-08-28-combat-severe-frame-attribution.md),
+   following the rejected
    [GL matrix identity-elision cohort](docs/evidence/2026-08-28-gl-matrix-identity-elision-rejected.md),
    following the rejected
    [GL texture-bind deduplication cohort](docs/evidence/2026-08-28-gl-texture-bind-dedup-rejected.md)
@@ -48,10 +50,20 @@ Before changing code or collecting release evidence:
    widen either merely because its causal counter is large. The deterministic route now freezes
    camera setup, pins the full viewport, records begin/end workload fingerprints, and has a compact
    cohort summarizer. The paused branch remains a separate thin presentation/VSync/compositor
-   experiment. The 1,040-DP matrix cohort found every slow frame
-   pre-swap dominated, while native swap averaged only about 0.31 ms. The highest-information next
-   slice is therefore packet-triggered CPU/bytecode escalation for repeated combat clusters, not
-   another speculative GL cache or permanent broad timers.
+   experiment. The 1,040-DP matrix cohort found every slow frame pre-swap dominated, while native
+   swap averaged only about 0.31 ms. The follow-up JFR pass corrected an important selector failure:
+   because the stress fixture averaged 50.9 ms/frame, fixed `>33.33 ms` clusters covered nearly the
+   whole 30-second step. Use `--hitch-frame-millis 100` there. Its 18 exact severe groups did not
+   reveal a broadly recurring narrow CPU or allocation family, so no candidate was promoted.
+
+   Before adding more probes, reconcile the live coordination map in
+   [#1152](https://github.com/teamleaderleo/preflight/issues/1152) and child lanes #1153–#1158. At the
+   2026-08-28 checkpoint, #1157's precision limiter is the highest-value installed-host candidate
+   after its quality-grind carrier and CI gates are clean; #1154/#1158 have complementary classifier,
+   owner-tax, and JVM-correlation work but still need integration cleanup. #1155 needs real scaling
+   coefficients, #1156 owns bounded GPU/resource diagnostics, and #1153 owns separate render-sync and
+   GraphicsLib replay candidates. Use the physical machine for real game/LWJGL/driver/mod/runtime
+   measurements and move large concurrency policy sweeps to synthetic harnesses.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package

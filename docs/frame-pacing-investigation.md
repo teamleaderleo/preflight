@@ -310,6 +310,19 @@ candidate-specific allocation family, also add
 `--contains 'com.fs.starfarer.combat.o0OO.G$o'`. This prevents setup, deployment, camera motion, or
 any frame outside the declared battle window from entering the cluster attribution.
 
+For the symmetric 1,040-DP fixture, do not use the fixed 33.33 ms cluster threshold as hitch
+enrichment when ordinary frames already exceed it. The 2026-08-28 profiled run averaged 50.889
+ms/frame, so that selector covered 29.372 of the 30-second step. Use the complete packet-backed severe
+population instead:
+
+`python3 scripts/starsector_gameplay_hotspots.py RUN/startup.jfr --scenario-evidence RUN/smoke-evidence.json --step combat-sample-1040dp --frame-report RUN/runtime-frame-report.json --hitch-frame-millis 100 --cluster-enrichment`
+
+That pass produced 18 intersected severe groups, 51 combat execution samples, and 607 same-step
+background samples. Advanced Gunnery Control was the strongest narrow lift but appeared in only two
+groups; `WeaponGroup.advance` was broad but only 1.25x enriched. Allocation composition was similar in
+the severe and whole-step populations. No candidate was promoted. See the
+[bounded severe-frame attribution record](evidence/2026-08-28-combat-severe-frame-attribution.md).
+
 ## Resume recipe after compaction
 
 1. Confirm there is no existing Starsector process and use only a Preflight launch. The current
@@ -325,6 +338,9 @@ any frame outside the declared battle window from entering the cluster attributi
    For deep call timers, run `starsector_campaign_cluster_calls.py` and always add
    `--scenario-evidence RUN/smoke-evidence.json --step unpaused-settled` when the question is the
    settled route. The state bucket alone includes the deliberate post-unpause transition.
+   In a workload whose baseline frame time already exceeds 33.33 ms, replace the repeated-cluster
+   selector with `--hitch-frame-millis 100`; otherwise the selected windows can swallow almost the
+   entire step and make enrichment meaningless.
 4. Keep observations and hypotheses separate below. A previous optimization narrows a boundary; it
    does not make the boundary permanently uninteresting.
 5. Commit bounded JSON/Markdown and hashes, then remove raw JFRs, logs, and rebuildable binaries.
