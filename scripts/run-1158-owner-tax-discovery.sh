@@ -66,6 +66,8 @@ AUTOFIT_FRAME_JOIN="$SESSION/core-autofit-frame-join.json"
 NEX_ECONOMY_FRAME_JOIN="$SESSION/nex-economy-info-frame-join.json"
 SUMMARY="$SESSION/summary.json"
 COMPACT_SUMMARY="$SESSION/compact-summary.json"
+SAVE_IDENTITY_BEFORE="$SESSION/save-identity-before.json"
+SAVE_IDENTITY="$SESSION/save-identity.json"
 mkdir -p "$SESSION"
 
 echo "Issue #1158 installed owner-tax discovery"
@@ -75,6 +77,20 @@ echo "  run:     $RUN_DIR"
 echo "  focus:   $FOCUS"
 echo "  market-list mode: $MARKET_LIST_MODE"
 echo
+
+# Name and hash the Continue save before launch. The post-run capture below proves that a thin
+# comparison loaded the same bytes and did not silently autosave a different workload.
+if ! python3 scripts/capture_loaded_save_identity.py --game "$GAME" \
+    >"$SAVE_IDENTITY_BEFORE.tmp"; then
+    rm -f "$SAVE_IDENTITY_BEFORE.tmp"
+    if [[ "$MARKET_LIST_MODE" == "baseline" || "$MARKET_LIST_MODE" == "candidate" ]]; then
+        echo "Pre-run loaded-save identity unavailable; refusing to waste a thin cohort launch." >&2
+        exit 1
+    fi
+    echo "Pre-run loaded-save identity unavailable; discovery may proceed without a cohort claim." >&2
+else
+    mv "$SAVE_IDENTITY_BEFORE.tmp" "$SAVE_IDENTITY_BEFORE"
+fi
 
 if [[ "$FOCUS" == "all" ]]; then
     java -jar preflight-cli/target/preflight.jar classpath hot-patterns \
@@ -114,6 +130,29 @@ fi
 RUN_STATUS=$?
 set -e
 POSTPROCESS_STATUS=0
+
+SAVE_IDENTITY_COMMAND=(python3 scripts/capture_loaded_save_identity.py --game "$GAME")
+if [[ -f "$SAVE_IDENTITY_BEFORE" ]]; then
+    SAVE_IDENTITY_COMMAND+=(--before "$SAVE_IDENTITY_BEFORE")
+fi
+if ! "${SAVE_IDENTITY_COMMAND[@]}" >"$SAVE_IDENTITY.tmp"; then
+    echo "Post-run loaded-save identity unavailable; preserving the installed-game run." >&2
+    rm -f "$SAVE_IDENTITY.tmp"
+    if [[ "$MARKET_LIST_MODE" == "baseline" || "$MARKET_LIST_MODE" == "candidate" ]]; then
+        POSTPROCESS_STATUS=1
+    fi
+else
+    mv "$SAVE_IDENTITY.tmp" "$SAVE_IDENTITY"
+    [[ -d "$RUN_DIR" ]] && cp "$SAVE_IDENTITY" "$RUN_DIR/save-identity.json"
+    if [[ "$MARKET_LIST_MODE" == "baseline" || "$MARKET_LIST_MODE" == "candidate" ]]; then
+        if ! jq -e '.comparison.beforeAvailable == true
+            and .comparison.sameSelectedSave == true
+            and .comparison.contentUnchanged == true' "$SAVE_IDENTITY" >/dev/null; then
+            echo "Thin comparison save identity changed or lacks a pre-run identity; rejecting the run." >&2
+            POSTPROCESS_STATUS=1
+        fi
+    fi
+fi
 
 if [[ -f "$RUN_DIR/runtime-frame-report.json" && -f "$HOT_PATTERNS" ]]; then
     if ! python3 scripts/starsector_mod_tax_triage.py \
@@ -171,11 +210,13 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
     INFLATION_FRAME_INPUT=/dev/null
     AUTOFIT_FRAME_INPUT=/dev/null
     NEX_ECONOMY_FRAME_INPUT=/dev/null
+    SAVE_IDENTITY_INPUT=/dev/null
     [[ -f "$TRIAGE" ]] && TRIAGE_INPUT="$TRIAGE"
     [[ -f "$JVM_JOIN" ]] && JVM_INPUT="$JVM_JOIN"
     [[ -f "$INFLATION_FRAME_JOIN" ]] && INFLATION_FRAME_INPUT="$INFLATION_FRAME_JOIN"
     [[ -f "$AUTOFIT_FRAME_JOIN" ]] && AUTOFIT_FRAME_INPUT="$AUTOFIT_FRAME_JOIN"
     [[ -f "$NEX_ECONOMY_FRAME_JOIN" ]] && NEX_ECONOMY_FRAME_INPUT="$NEX_ECONOMY_FRAME_JOIN"
+    [[ -f "$SAVE_IDENTITY" ]] && SAVE_IDENTITY_INPUT="$SAVE_IDENTITY"
     jq \
         --arg commit "$(git rev-parse HEAD)" \
         --arg run "$RUN_DIR" \
@@ -185,12 +226,14 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
         --slurpfile inflationFrames "$INFLATION_FRAME_INPUT" \
         --slurpfile autofitFrames "$AUTOFIT_FRAME_INPUT" \
         --slurpfile nexEconomyFrames "$NEX_ECONOMY_FRAME_INPUT" \
+        --slurpfile saveIdentity "$SAVE_IDENTITY_INPUT" \
         '{issue:1158,
           classification:(if ($marketListMode == "baseline" or $marketListMode == "candidate")
             then "thin-candidate-measurement" else "intrusive-discovery-no-fps-claim" end),
           marketListMode:$marketListMode,
           commit:$commit,
           runDirectory:$run,
+          saveIdentity:($saveIdentity[0] // null),
           frameTimes:(.frameTimes | {
             measurementOverhead,
             campaignFirst30SecondsActive,
@@ -263,6 +306,13 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
          marketListMode,
          commit,
          runDirectory,
+         saveIdentity:(if .saveIdentity == null then null else {
+           selectedSave:.saveIdentity.selectedSave,
+           treeSha256:.saveIdentity.tree.treeSha256,
+           bytes:.saveIdentity.tree.bytes,
+           files:.saveIdentity.tree.files,
+           comparison:.saveIdentity.comparison
+         } end),
          routeStatus:($smoke[0].status // "unavailable"),
          runOutcome:($run[0].outcome // "unavailable"),
          runExitCode:($run[0].exitCode // null),

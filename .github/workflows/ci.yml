@@ -96,6 +96,11 @@ jobs:
           python3 scripts/test_starsector_campaign_cluster_calls.py
           python3 -m py_compile scripts/summarize_combat_cohort.py scripts/test_summarize_combat_cohort.py
           python3 scripts/test_summarize_combat_cohort.py
+          bash -n scripts/run-1158-owner-tax-discovery.sh
+          python3 -m py_compile scripts/capture_loaded_save_identity.py scripts/test_capture_loaded_save_identity.py
+          python3 scripts/test_capture_loaded_save_identity.py
+          python3 -m py_compile scripts/summarize_nex_market_list_cohort.py scripts/test_summarize_nex_market_list_cohort.py
+          python3 scripts/test_summarize_nex_market_list_cohort.py
           python3 -m py_compile scripts/starsector_jvm_hitch_correlation.py scripts/test_starsector_jvm_hitch_correlation.py
           python3 scripts/test_starsector_jvm_hitch_correlation.py
           python3 -m py_compile scripts/starsector_mod_tax_triage.py scripts/test_starsector_mod_tax_triage.py

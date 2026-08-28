@@ -81,6 +81,13 @@ Add `--market-list-mode shadow` for intrusive fresh-list identity/order validati
 paused/unpaused comparison; those modes turn off the phase probe and differ only by the exact scoped
 market-list candidate. Baseline explicitly disables that plan so an inherited local property cannot
 contaminate the control.
+Before launch, the runner reads the latest loaded-save marker and hashes that complete
+`save_*` tree. After shutdown it identifies the save actually loaded, hashes it again, and rejects a
+thin run unless the selected name and content stayed exact. The hashes are evidence only; the runner
+does not copy or edit the save. After at least two runs per arm in an interleaved order, pass the run
+directories in execution order to `summarize_nex_market_list_cohort.py`. It exits nonzero for an
+incomplete design or failed identity, workload, lifecycle, adapter, or thin-probe gate while still
+printing the compact diagnosis.
 It foregrounds the exact recorded game PID before its timed windows because inactive-focus
 intervals are deliberately excluded. On macOS the wrapper scopes `caffeinate` to the smoke command
 so the display does not idle-sleep during a capture; it neither moves the pointer nor bypasses the
@@ -203,6 +210,8 @@ guards, not hot-path probes, and their reflection/allocation cost is excluded fr
 |---|---|
 | `summarize_startup_probe.py` | Summarise one `--startup-phase-probe` run into where the launch spent its time. |
 | `summarize_combat_cohort.py RUN...` | Compact thin-combat A/B table with tail metrics, causal counters, and identity/workload/adapter gates. Prefers the final shutdown report over the mid-run artifact copy. |
+| `summarize_nex_market_list_cohort.py RUN...` | Compact #1158 Nex market-list A/B readout. Keeps unpaused tail/smoothness metrics primary, paused and presentation p99 as context, direct list-build avoidance and recorder overhead, and fails closed on dirty shutdowns, save/profile/runtime/display drift, dead or shadow adapters, divergent candidate recurrence, and non-interleaved/incomplete cohorts. |
+| `capture_loaded_save_identity.py --game DIR [--before JSON]` | Reads the latest exact loaded-save marker from that install's log and hashes the complete resolved `save_*` tree without changing it. With `--before`, records whether the same content survived the run; the #1158 runner invokes this automatically. |
 | `startup_scorecard.py` | The Preflight startup record and the measured per-component scorecard. |
 | `starsector_log_load_times.py` | Recover every launch's load time from Starsector's own logs, with no harness involved. Works on runs nobody instrumented. |
 | `starsector_log_ready_detector.py` | Snapshot, delta, classify and detect readiness in the game's log. This is what makes `--unattended` possible; run it directly when you are debugging why a launch was not detected as finished. |

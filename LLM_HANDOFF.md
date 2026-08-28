@@ -118,7 +118,10 @@ Before changing code or collecting release evidence:
    rebuild cardinalities. Both exact source gates installed and original fallback plus an independent
    kill switch remain intact. This intrusive shadow pass makes no FPS claim. It again encountered a
    post-capture native SIGSEGV during controller shutdown, so the pending interleaved thin
-   baseline/candidate cohort must require clean exit. Do not broaden the candidate into a general
+   baseline/candidate cohort must require clean exit. The runner now automatically hashes the exact
+   loaded save before/after each pass, and `summarize_nex_market_list_cohort.py` fails closed on save,
+   runtime, display, adapter, lifecycle, thin-probe, recurrence, or cohort-design drift while keeping
+   its output compact. Do not broaden the candidate into a general
    economy cache. At the maintainer's request, all physical game launches are paused while the host
    is reserved for Ubuntu setup; offline analysis and repository work may continue. The offline
    stock/Nex audit derives that v1 should collapse 1,404 group-list builds per rebuild to 39. It also

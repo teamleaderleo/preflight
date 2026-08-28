@@ -138,6 +138,19 @@ semantic route. It must compare refresh-containing frame tails, direct cache hit
 workload identity, adapter/fallback health, and lifecycle health. No further game launch was started
 after this checkpoint while the physical host was reserved for Ubuntu setup.
 
+The launch-free harness pass now makes those requirements executable. Each future thin run hashes
+the complete Continue save tree before launch, identifies and hashes the save actually loaded after
+shutdown, and rejects changed or unavailable save identity. The compact cohort reader also rejects
+fatal lifecycle evidence, deep timing/JFR contamination, shadow mode, a missing or unhealthy half of
+the adapter, fallback/decline/failure counters, runtime/profile/texture/display identity drift, and
+candidate runs whose exact scope/store/hit recurrence diverges. A serious comparison requires at
+least two runs per arm and at least two arm transitions in the supplied execution order. It retains
+unpaused median/p95/p99/1%-low/severe-frame rates and stutter burden, paused context, presentation
+p99, recorder overhead, and direct avoided-list counters without copying the save into the
+repository. The baseline cannot expose Nex refresh counts without adding intrusive neutral timing;
+its workload recurrence is therefore guarded by exact save/scenario identity and repeated
+interleaving, while the candidate arm additionally requires exact recurring scope/store/hit counts.
+
 ## Offline stock/Nex call-volume audit
 
 The shadow counters and installed bytecode make the candidate's causal boundary exact without
