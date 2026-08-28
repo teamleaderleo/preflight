@@ -154,7 +154,27 @@ if [[ -d "$RUN_DIR" ]]; then
               containedFailures}' \
             "$RUN_DIR/adapter.json" >"$SUMMARY"
         cp "$SUMMARY" "$RUN_DIR/issue-1153-particle-probe-summary.json"
-        jq . "$SUMMARY"
+        jq '{issue,
+             experiment,
+             route,
+             workloadId,
+             commit,
+             measurementOverhead,
+             combatActive: (.combatActive | {
+               frames,
+               totalActiveNanos,
+               p50Micros,
+               p95Micros,
+               p99Micros,
+               onePercentLowFps,
+               maximumMicros,
+               over50Millis,
+               over100Millis
+             }),
+             particleProbe,
+             transformationsApplied,
+             transformationsDeclined,
+             containedFailures}' "$SUMMARY"
     fi
 fi
 
