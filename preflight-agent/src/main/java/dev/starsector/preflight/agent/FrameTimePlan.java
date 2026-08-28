@@ -43,6 +43,9 @@ final class FrameTimePlan {
             }
             return GraphicsLibTessellateArrayVboStatePlan.transform(transformed);
         }
+        if (DynamicParticleGroupRenderProbePlan.TARGET_CLASS.equals(signature.internalName())) {
+            return DynamicParticleGroupRenderProbePlan.transform(signature, originalBytes);
+        }
         if (HighResolutionFrameSyncPlan.TARGET_CLASS.equals(signature.internalName())) {
             return HighResolutionFrameSyncPlan.transform(signature, originalBytes);
         }
