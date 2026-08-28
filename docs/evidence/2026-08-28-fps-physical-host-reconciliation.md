@@ -33,6 +33,10 @@ to rerun a settled candidate.
   hitch spans (113.618 ms maximum; five >100 ms associations), while recurring mod tax remained
   distributed across QoL Pack, More Planetary Conditions, IndEvo, Nexerelin, Stellar Networks, and
   Csp. Retained on `codex/1158-physical`.
+- **#1158 exact fleet-AI successor:** module timing split the aggregate owner: tactical AI used
+  745.422 ms and produced 34.492/33.661 ms spans explaining 66.7%/52.2% of retained measurement
+  frames. Vanilla `SensorBurstAbilityAI` produced a 22.919 ms span explaining 53.9% of another.
+  Assignment, strategic, and navigation were cleared as current priorities. Retained at `4626fcff`.
 - **Earlier carrier candidates:** AI Tweaks weapon-location caching, texture-bind deduplication,
   matrix identity elision, and the current precision waiter are useful rejected experiments. Do not
   revive them unchanged because their work-reduction counters were large.
@@ -59,8 +63,9 @@ instead of merging them wholesale into a moving gameplay carrier.
 
 ## Assumptions that need fresh verification
 
-1. **Exact fleet-AI submodule owner.** `ModularFleetAI` is now the strongest core hitch owner, but
-   assignment, strategic, tactical, navigation, and ability-AI work remain aggregated.
+1. **Exact tactical-AI semantic region.** Module timing selected the interval-gated tactical path,
+   but its every-frame, avoid-list, location-list, other-fleet scan, encounter-option, and post-scan
+   regions remain aggregated.
 2. **Downstream particle submission.** The wrapper's 1.95% inclusive stress share is an upper bound.
    Draw mode, texture, blend, layer, owner, batch compatibility, and probe overhead remain unknown.
 3. **GL synchronization frequency.** The broad queue topology is understood well enough for
@@ -72,11 +77,12 @@ instead of merging them wholesale into a moving gameplay carrier.
 
 ## Highest-information next slice
 
-Add a bounded exact subphase timer around the existing `ModularFleetAI.advance` module calls and run
-one discovery-only unpaused campaign route. Preserve:
+Add a bounded exact subphase timer around the existing `TacticalModule.advance` semantic regions and
+run one discovery-only unpaused campaign route. Preserve:
 
-- assignment, strategic, tactical, navigation, and ability-AI time separately;
-- the concrete fleet/module class only in bounded report-time evidence;
+- every-frame, avoid-list, fleet-list acquisition, other-fleet scan, encounter-option, and post-scan
+  time separately;
+- bounded per-run tactical/fleet identity only in slow-span evidence;
 - exact game/profile/save/runtime/display/adapter identity;
 - workload fingerprint and semantic phases;
 - observer cost and retained >50/>100 ms hitch joins;

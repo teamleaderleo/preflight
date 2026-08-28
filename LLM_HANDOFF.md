@@ -82,6 +82,11 @@ Before changing code or collecting release evidence:
    reports after integration; #1156's async GPU path is already in the carrier. Use the physical
    machine for real game/LWJGL/driver/mod/runtime measurements and move large concurrency policy
    sweeps to synthetic harnesses.
+   The exact successor is complete too: read
+   [installed fleet-AI module tax](docs/evidence/2026-08-28-installed-fleet-ai-module-tax.md).
+   Tactical AI, not assignment/strategic/navigation, produced the material exact measurement-window
+   spans; the next bounded seam is its interval-gated other-fleet scan and neighboring semantic
+   regions. `SensorBurstAbilityAI` is the secondary lead.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package
