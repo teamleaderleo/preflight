@@ -49,7 +49,7 @@ class CombatScalingHotspotsTest(unittest.TestCase):
         self.assertGreater(ranked[0].high_minus_low_points, 60.0)
         self.assertEqual(4, ranked[0].runs_with_samples)
 
-    def test_window_alignment_finds_late_battle_owner_inside_one_run(self):
+    def test_window_alignment_finds_late_battle_owner_and_excludes_probe_samples(self):
         base = 1_704_067_200.0
         payload = {
             "runId": "r1",
@@ -63,6 +63,7 @@ class CombatScalingHotspotsTest(unittest.TestCase):
                 "battleId": 1,
                 "combatElapsedSeconds": bucket * 10.0 + 5.0,
                 "epochMillis": center * 1000.0,
+                "sampleOverheadMicros": 200_000.0,
                 "wrecks": wrecks,
                 "advanceMicros": 1000.0 + wrecks * 100.0,
             })
@@ -75,6 +76,11 @@ class CombatScalingHotspotsTest(unittest.TestCase):
                     method,
                     "com.fs.starfarer.combat.CombatEngine.advance",
                 ))
+            sampled.append(execution_event(
+                center,
+                "com.fs.starfarer.combat.CombatEngine.getShips",
+                "com.fs.starfarer.combat.CombatEngine.advance",
+            ))
         calibration = [calibration_event(base + offset) for offset in (0.0, 1.0, 2.0)]
 
         def loader(path, names, depth=1, jfr=None):
@@ -97,6 +103,11 @@ class CombatScalingHotspotsTest(unittest.TestCase):
         self.assertEqual("com.fs.starfarer.combat.WreckCleanup.scan", ranked[0].method)
         self.assertGreater(ranked[0].correlation, 0.9)
         self.assertGreater(ranked[0].high_minus_low_points, 50.0)
+        self.assertEqual(4, sum(item.excluded_probe_samples for item in observations))
+        self.assertTrue(all(
+            "com.fs.starfarer.combat.CombatEngine.getShips" not in item.inclusive_shares
+            for item in observations
+        ))
 
     def test_load_workload_uses_report_level_predictor_and_sampled_advance(self):
         payload = {
