@@ -64,12 +64,20 @@ Before changing code or collecting release evidence:
    VSync-off runs were healthy but changed historical-context p99 only -1.5% and 1% low +1.6%, while
    average FPS was -2.6%. Its roughly 0.63 ms deadline extension plus 0.68 ms average overshoot is a
    concrete successor-design warning. VSync-off itself remains the large accepted experimental win.
-   #1154/#1158 have complementary classifier, owner-tax, and JVM-correlation work but still need
-   integration cleanup. The next high-information physical-host pass is #1155's real combat-scaling
-   coefficients using the 1,040-DP harness, followed by one separated #1153 render-sync/GraphicsLib
-   candidate or a bounded #1156 GPU/resource diagnostic. Use the physical machine for real
-   game/LWJGL/driver/mod/runtime measurements and move large concurrency policy sweeps to synthetic
-   harnesses.
+   #1155 now has three shuffled real 260/520/780/1,040-DP ladders. Cost increased with battle size,
+   but the best nonlinear model improved run-blocked RMSE by less than one percent over a simple
+   linear model; the retained result is diffuse AI/entity/ordnance tax, not a stable cliff. #1153's
+   exact vanilla particle wrapper consumed 0.496 ms/frame and 1.95% of the exact stress window, which
+   justifies a downstream submission census but not a batching claim. Its separate GraphicsLib
+   tessellation-array candidate installed cleanly yet executed zero batches in ordinary and exact
+   stress routes, so it is rejected for those workloads without manufacturing a no-op A/B cohort.
+   Read the current
+   [physical-host reconciliation](docs/evidence/2026-08-28-fps-physical-host-reconciliation.md)
+   before continuing #1153–#1158. The next highest-information physical-host pass is #1158's
+   generalized runtime owner-tax/hitch-tax discovery after reconciling draft #1160 onto the current
+   carrier. #1154's classifier can consume retained reports after integration; #1156's async GPU
+   path is already in the carrier. Use the physical machine for real game/LWJGL/driver/mod/runtime
+   measurements and move large concurrency policy sweeps to synthetic harnesses.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package
