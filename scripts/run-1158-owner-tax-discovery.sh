@@ -37,6 +37,7 @@ SCENARIO="scripts/scenarios/campaign-owner-tax-paused-unpaused.json"
 HOT_PATTERNS="$SESSION/hot-patterns.json"
 TRIAGE="$SESSION/mod-tax-triage.json"
 JVM_JOIN="$SESSION/jvm-hitch-correlation.json"
+INFLATION_FRAME_JOIN="$SESSION/fleet-inflation-frame-join.json"
 SUMMARY="$SESSION/summary.json"
 mkdir -p "$SESSION"
 
@@ -72,17 +73,31 @@ if [[ -f "$RUN_DIR/startup.jfr" && -f "$RUN_DIR/runtime-frame-report.json" ]]; t
         POSTPROCESS_STATUS=1
     fi
 fi
+if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
+    if ! python3 scripts/starsector_slow_span_frames.py \
+        "$RUN_DIR/runtime-frame-report.json" \
+        --telemetry fleetInflationTimes \
+        --frame-series campaignUnpausedActive \
+        --json >"$INFLATION_FRAME_JOIN"; then
+        echo "Fleet-inflation frame join failed; preserving the installed-game run." >&2
+        rm -f "$INFLATION_FRAME_JOIN"
+        POSTPROCESS_STATUS=1
+    fi
+fi
 
 if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
     TRIAGE_INPUT=/dev/null
     JVM_INPUT=/dev/null
+    INFLATION_FRAME_INPUT=/dev/null
     [[ -f "$TRIAGE" ]] && TRIAGE_INPUT="$TRIAGE"
     [[ -f "$JVM_JOIN" ]] && JVM_INPUT="$JVM_JOIN"
+    [[ -f "$INFLATION_FRAME_JOIN" ]] && INFLATION_FRAME_INPUT="$INFLATION_FRAME_JOIN"
     jq \
         --arg commit "$(git rev-parse HEAD)" \
         --arg run "$RUN_DIR" \
         --slurpfile triage "$TRIAGE_INPUT" \
         --slurpfile jvm "$JVM_INPUT" \
+        --slurpfile inflationFrames "$INFLATION_FRAME_INPUT" \
         '{issue:1158,
           classification:"intrusive-discovery-no-fps-claim",
           commit:$commit,
@@ -115,6 +130,8 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
           },
           fleetAiModuleTimes:.fleetAiModuleTimes,
           tacticalFleetAiTimes:.tacticalFleetAiTimes,
+          fleetInflationTimes:.fleetInflationTimes,
+          fleetInflationFrameJoin:($inflationFrames[0] // null),
           triage:($triage[0] // null),
           jvmHitchCorrelation:($jvm[0] // null)}' \
         "$RUN_DIR/runtime-frame-report.json" >"$SUMMARY"
@@ -129,6 +146,17 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
          unresolvedRuntimeOwnerCount:(.triage.unresolvedRuntimeOwners | length),
          fleetAiModuleTimes,
          tacticalFleetAiTimes,
+         fleetInflation:{
+           installed:.fleetInflationTimes.installed,
+           membersVisited:.fleetInflationTimes.membersVisited,
+           phases:(.fleetInflationTimes.phases | map({
+             name,calls,totalMillis,maximumMillis,over16Millis,over33Millis,over50Millis,over100Millis
+           }))
+         },
+         fleetInflationFrameJoins:(((.fleetInflationFrameJoin.joins // [])[:8]) | map({
+           span,durationMillis,frameDurationMillis,overlapShareOfFramePercent,
+           spanShareOfFramePercent,containedByFrame
+         })),
          topMods:(.triage.mods[:12] | map({modId,priority,bestFrameTaxRank})),
          retainedHitchFrames:(.jvmHitchCorrelation.retainedHitchFrames // 0),
          retainedSevereHitchFrames:(.jvmHitchCorrelation.retainedSevereHitchFrames // 0),
