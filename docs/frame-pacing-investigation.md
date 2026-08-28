@@ -371,6 +371,22 @@ the severe and whole-step populations. No candidate was promoted. See the
 
 ## Confirmed observations
 
+### The Nexerelin economy-info callback is an exact whole-cache rebuild
+
+Installed Nexerelin 0.12.2b bytecode and its source-bearing `ExerelinCore.jar` agree: anonymous
+`EconomyInfoHelper$1.doAction()` contains only `collectEconomicData(false)`. That method clears all
+ten maintained cache collections, then rebuilds commodity producers/importers/demand, heavy-industry
+membership, AI-core use, and faction income.
+
+The shipped core implementation makes the commodity loop more interesting than the source alone
+suggests. Each `CommodityMarketDataAPI.getMarkets()` call allocates a new list and scans every
+economy market for the commodity's economy group. Nexerelin calls it three times per commodity.
+Before those passes, `getMarketSharePercentPerFaction()` performs another group scan and then calls
+`getMarketSharePercent()` once per distinct faction; each of those calls performs another allocated
+group scan. This is exact static structure, not a timing result. The focused phase/cardinality probe
+at `cf027172` must still show which part owns the live 42.370 ms callback before any list-reuse or
+market-share rewrite is promoted.
+
 ### Commodity event-mod validation remains a large CPU category
 
 The 45-second `unpaused-settled` wall window contained 471 campaign main-thread execution samples.
@@ -480,35 +496,40 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
 | Stellar Networks refresh | One shuffled pass per paused interval replaces endless random refresh and then becomes idle. | A second pause starts another expensive 186-market burst, which can overlap a nominally unpaused route. | Can invalidation or refresh cadence be bounded by actual campaign-time advancement without making opened market data stale? |
 | RAT tooltip scripts | No Preflight optimization exists; source shows per-frame UI copies and reflection, with a "do not modify twice" UI sentinel in the AI-core path. | The worst exact active frame crossed this code. | Does an identity/content guard remove repeated work without missing a tooltip object reused for a different entry? |
 | Stable campaign snapshots | Stable arrays and exhausted cursor reuse are accepted and bounded. | Current allocation samples still show rebuild/cursor cost and cursor identities outnumber owners. | Which owners rebuild, how often, and can stale cursor entries be removed when an owner receives a replacement array? |
+| Nexerelin economy-info rebuild | Two slow anonymous callbacks overlapped >100 ms frames; installed bytecode resolves both to `collectEconomicData(false)`. Static inspection proves repeated allocated full-market scans nested under every commodity and faction. | The exact rebuild is compact but potentially superlinear in commodities × markets × factions. Static structure does not establish which phase dominates or whether list reuse produces a player-visible win. | In the focused foreground run, how much time belongs to market-share setup versus producer/importer/demand passes, and how many commodities/market visits drive it? |
 | Paused/unpaused attribution | Frame buckets are state-separated and focus-clean. Repeated clusters now correlate with bounded exact campaign calls and exact scenario steps. This separated seven post-unpause clusters from 15 settled clusters. | Transition work is a broad catch-up burst; the settled route still mixes occasional large spikes with recurring small calls, and retained children explain only part of cluster wall time. | Does the transition ordering repeat, and which individual settled frames align with the 69–90 ms location spikes? |
 | Combat | Deterministic simulation, autopilot, speed-up, exact 4x viewport, explicit frame windows, presentation splits, and bounded workload fingerprints are live. Collision v2 hit 99.90% of capacity hints in the fresh default run. The accepted plans are in Recommended; v3 compact indexes, DCR state-map reuse, the global AI Tweaks location wrapper, texture-bind deduplication, and exact matrix-identity elision are rejected. The GL candidates each removed millions of calls in thin B/A/A/B cohorts but did not move tail smoothness reproducibly. | The AI simulation is workload-bounded rather than lockstep, and residual hitches span AI Tweaks, vanilla ship/weapon work, graphics, collision, and damage-analysis mods. The two GL rejections show that even enormous JNI/driver-call volume may be diffuse baseline tax rather than the bad-frame cause. Rejecting those implementations does not spend their underlying families. | Which semantic CPU/bytecode family has the highest excess presence across repeated >33 ms clusters, and can a thin hitch packet escalate only around those frames? |
 
 ## Open questions, ranked
 
-1. **Combat scaling coefficients:** the exact `>=100 ms` stress-frame pass did not find a broad narrow
+1. **Nexerelin economy-info decomposition:** run the exact focused phase/cardinality probe with the
+   foreground route. Require exact span/frame joins and clean adapter health. If the repeated
+   allocated market scans dominate, test only a reviewed per-commodity reuse boundary; otherwise
+   retain the owner explanation and move on.
+2. **Combat scaling coefficients:** the exact `>=100 ms` stress-frame pass did not find a broad narrow
    CPU or allocation family to promote, and the unchanged 60 Hz precision waiter is now rejected.
    Use the existing 1,040-DP fixture and thin recorder to populate #1155's real scaling coefficients
    across a bounded DP ladder. This should distinguish superlinear simulation/render families from
    diffuse per-entity tax before another bytecode intervention.
-2. **Transition versus settled active work:** repeat the exact-step correlation once when a code
+3. **Transition versus settled active work:** repeat the exact-step correlation once when a code
    decision depends on it. If the transition ordering is stable, probe its catch-up scheduler;
    independently map settled timer calls to individual slow frames before adding broader timers.
-3. **Commodity residual cost:** the empty/nonempty/delegated traffic split is now known. Map JIT
+4. **Commodity residual cost:** the empty/nonempty/delegated traffic split is now known. Map JIT
    samples or a faithful extracted benchmark to the remaining nonempty exact-key path, runtime
    enable gate, and caller boundary. Production must retain zero diagnostic writes.
-4. **RAT tooltip idempotence:** determine whether tooltip identity plus codex-entry identity is a
+5. **RAT tooltip idempotence:** determine whether tooltip identity plus codex-entry identity is a
    sufficient replay guard. Inspect both `WhichModScript` and `AICoreTooltipScript`; optimizing only
    the reflection cache may leave the per-frame copied UI traversal intact.
-5. **Stellar Networks refresh epochs:** test whether a pass is necessary after a short unpaused
+6. **Stellar Networks refresh epochs:** test whether a pass is necessary after a short unpaused
    interval and which listener events already express real market invalidation.
-6. **Stable snapshot ownership:** instrument rebuilds by transformed loop kind before redesigning
+7. **Stable snapshot ownership:** instrument rebuilds by transformed loop kind before redesigning
    cursor retention.
-7. **Combat residual frontier:** after the scaling coefficients, choose either one separated
+8. **Combat residual frontier:** after the scaling coefficients, choose either one separated
    render-sync/GraphicsLib candidate from #1153 or a bounded #1156 GPU/resource diagnostic. Avoid the
    reverted DCR map rotation, retired AI Tweaks `SelectTarget` fields, rejected global location wrapper,
    and unchanged precision waiter. Any new allocation candidate must separate intrusive discovery from
    thin measurement; stress does not replace ordinary play.
-8. **Rosetta tax:** if GL command counts show a large CPU-side dispatch boundary, compare an extracted
+9. **Rosetta tax:** if GL command counts show a large CPU-side dispatch boundary, compare an extracted
    equivalent call stream under native ARM and x86/Rosetta, then seek a same-scenario cross-machine
    control. Do not attribute GPU elapsed time or off-CPU swap wait directly to instruction translation.
 

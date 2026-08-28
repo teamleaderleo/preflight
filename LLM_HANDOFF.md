@@ -105,6 +105,17 @@ Before changing code or collecting release evidence:
    exact owner is Nexerelin `EconomyInfoHelper$1`: its two slow calls took 42.370 and 13.759 ms and
    both overlapped >100 ms frames. The scheduled route passed, but shutdown emitted a native
    SIGSEGV; preserve that lifecycle failure and require clean exit in any later thin cohort.
+   The exact Nexerelin successor is implemented and pushed on `codex/1158-physical` at `cf027172`.
+   Installed source/bytecode proves the anonymous callback only invokes
+   `collectEconomicData(false)`; the focused probe splits its cache reset, market snapshot,
+   commodity producer/importer/demand passes, heavy-industry refresh, and market summary while
+   retaining loop cardinalities. Use `scripts/run-1158-owner-tax-discovery.sh --focus nex-economy`:
+   it disables the superseded deep timers and omits JFR/static triage. Its first launch attempt
+   refused before starting the game because macOS reported the console locked. Retry only after the
+   console is unlocked; no rebuild is needed. Static inspection also found that every core
+   `CommodityMarketData.getMarkets()` allocates and scans the full economy group, with additional
+   nested scans under market-share-per-faction calculation. That is a falsifiable candidate lead,
+   not yet a timing or FPS result.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package
