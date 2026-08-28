@@ -2,7 +2,7 @@
 
 Date: 2026-08-28
 
-Issues: #1158, #449. Branch: `codex/1158-physical` at `665a170c`.
+Issues: #1158, #449. Branch: `codex/1158-physical` at `d5fee527`.
 
 Status: **phase boundary verified; first observation retained; frame association still pending**.
 
@@ -73,6 +73,18 @@ window. `scripts/starsector_slow_span_frames.py` also performs the phase-to-fram
 automatically and refuses to interpret missing retained frames as a negative result. A foreground
 rerun remains the next required physical check.
 
+To avoid another physical round trip if that rerun confirms the member/autofit lead, it now also
+contains the discovery-only `vanilla-core-autofit-time-probe-v1` boundary. That plan requires exact
+installed `CoreAutofitPlugin` SHA-256
+`5ccef552d487617232057f17a5b009566179b53862aade7bee8aabccff703b5c`, Java class-file major 61,
+the reviewed `doFit(...)` descriptor, ten semantic regions, and 35 fixed helper call sites. Its 46
+paired entry/exit sites preserve every original call and result, decline on a second transform, and
+have the independent kill switch `preflight.campaign.coreAutofitTimes.disabled=true`. Broad regions
+are intentionally inclusive of their named helper families, and `setupModules` may include a
+recursive `moduleAutofit`; the report labels that nesting. It retains at most 48 spans of at least
+one millisecond. Focused installed-byte tests and the complete `./mvnw verify` gate passed. There is
+not yet any installed-run telemetry from this deeper boundary.
+
 ## Explored questions
 
 - **Are availability-pool builds the large reusable seam?** Current answer: unlikely. Initial setup
@@ -104,4 +116,3 @@ rerun remains the next required physical check.
 5. Any future candidate must preserve generated fleet variants, D-/S-mod state, listener behavior,
    synchronization, exact adapter health, and a comparable campaign workload. Discovery FPS from
    this intrusive plan cannot be used as its performance claim.
-
