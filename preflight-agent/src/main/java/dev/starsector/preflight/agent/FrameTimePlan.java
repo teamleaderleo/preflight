@@ -34,6 +34,12 @@ final class FrameTimePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
+        // #1153 temporarily reuses the compiled frame-time plan ID as an external exact-target
+        // carrier. AdapterTarget supplies the class/source identity; the probe keeps its own
+        // runtime switch and semantic bytecode gate.
+        if (DynamicParticleGroupRenderProbePlan.TARGET_CLASS.equals(signature.internalName())) {
+            return DynamicParticleGroupRenderProbePlan.transform(signature, originalBytes);
+        }
         if (!FrameTimeRuntime.planEnabled()
                 || !TARGET_CLASS.equals(signature.internalName())
                 || !ORIGINAL_SHA256.equals(signature.sha256())
