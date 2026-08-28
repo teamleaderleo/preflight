@@ -26,6 +26,29 @@ class CombatScalingFitTest(unittest.TestCase):
         self.assertTrue(analysis.confirmed_superlinear)
         self.assertIsNotNone(analysis.fits[0].cv_rmse)
 
+    def test_threshold_density_cost_wins_when_a_knee_appears(self):
+        rows = []
+        for run in range(4):
+            for density in (10, 20, 30, 40, 50, 60):
+                rows.append({
+                    "runId": f"run-{run}",
+                    "cellId": f"density-{density}",
+                    "battleId": 1,
+                    "nearbyEntitiesMean": float(density),
+                    "advanceMicros": (
+                        800.0 + 2.0 * density
+                        + 30.0 * max(0.0, density - 30.0)
+                        + run * 2.0
+                    ),
+                })
+
+        analysis = module.analyze(rows)
+
+        self.assertEqual("nearbyEntitiesMean:threshold@30", analysis.fits[0].model.name)
+        self.assertEqual("threshold", analysis.fits[0].model.kind)
+        self.assertTrue(module.worsening_nonlinearity(analysis.fits[0]))
+        self.assertTrue(analysis.confirmed_superlinear)
+
     def test_density_interaction_wins_when_ordnance_cost_depends_on_nearby_entities(self):
         rows = []
         cells = ((10, 2), (10, 9), (40, 2), (40, 9))
