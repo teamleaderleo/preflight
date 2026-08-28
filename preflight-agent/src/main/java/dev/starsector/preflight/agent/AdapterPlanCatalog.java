@@ -122,6 +122,9 @@ final class AdapterPlanCatalog {
                 GlMatrixOperationRuntime.PLAN_ID,
                 Set.of(GlCommandCountRuntime.PLAN_ID)));
         values.add(new Descriptor(
+                FleetAiModuleTimeRuntime.PLAN_ID,
+                Set.of(FleetAiProfilerRuntime.PLAN_ID)));
+        values.add(new Descriptor(
                 TexturePaddingRuntime.PLAN_ID,
                 Set.of(TextureCompatibilityRuntime.PLAN_ID, TexturePreparedPixelRuntime.PLAN_ID)));
         values.sort(Comparator.comparing(Descriptor::planId));

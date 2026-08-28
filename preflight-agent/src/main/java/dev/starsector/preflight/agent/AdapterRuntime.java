@@ -87,6 +87,7 @@ final class AdapterRuntime {
         CampaignEngineTimeRuntime.beginSession(campaignTimes);
         CampaignLocationEconomyTimeRuntime.beginSession(campaignTimes);
         CampaignMarketFleetTimeRuntime.beginSession(campaignTimes);
+        FleetAiModuleTimeRuntime.beginSession(campaignTimes);
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         StartupPhaseRuntime.enableMergedReadProbe(options.startupPhaseProbe());
@@ -469,6 +470,9 @@ final class AdapterRuntime {
         }
         if (disabledPlans.contains(CampaignMarketFleetTimeRuntime.PLAN_ID)) {
             CampaignMarketFleetTimeRuntime.beginSession(false);
+        }
+        if (disabledPlans.contains(FleetAiModuleTimeRuntime.PLAN_ID)) {
+            FleetAiModuleTimeRuntime.beginSession(false);
         }
     }
 

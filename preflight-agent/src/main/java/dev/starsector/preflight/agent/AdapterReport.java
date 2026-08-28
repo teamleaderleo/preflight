@@ -417,6 +417,8 @@ final class AdapterReport {
                 .append(Json.value(CampaignLocationEconomyTimeRuntime.telemetry())).append(',');
         key(output, "campaignMarketFleetTimes")
                 .append(Json.value(CampaignMarketFleetTimeRuntime.telemetry())).append(',');
+        key(output, "fleetAiModuleTimes")
+                .append(Json.value(FleetAiModuleTimeRuntime.telemetry())).append(',');
         key(output, "campaignEntityMaintenance")
                 .append(Json.value(CampaignEntityMaintenanceRuntime.telemetry())).append(',');
 

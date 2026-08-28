@@ -395,7 +395,12 @@ final class AdapterTransformationRegistry {
             return timed == null ? maintained : timed;
         }
         if (FleetAiProfilerRuntime.PLAN_ID.equals(target.planId())) {
-            return FleetAiProfilerPlan.transform(signature, originalBytes);
+            byte[] profiler = FleetAiProfilerPlan.transform(signature, originalBytes);
+            byte[] current = profiler == null ? originalBytes : profiler;
+            byte[] timed = AdapterPlanControl.allows(FleetAiModuleTimeRuntime.PLAN_ID)
+                    ? FleetAiModuleTimePlan.transform(signature, current)
+                    : null;
+            return timed == null ? profiler : timed;
         }
         if (FrameTimeStatePlan.PLAN_ID.equals(target.planId())) {
             return FrameTimeStatePlan.transform(signature, originalBytes);

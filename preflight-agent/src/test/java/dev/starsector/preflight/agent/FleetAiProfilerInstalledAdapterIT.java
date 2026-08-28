@@ -21,6 +21,7 @@ class FleetAiProfilerInstalledAdapterIT {
     @BeforeEach
     void enable() {
         FleetAiProfilerRuntime.beginSession();
+        FleetAiModuleTimeRuntime.beginSession(true);
     }
 
     @Test
@@ -40,6 +41,14 @@ class FleetAiProfilerInstalledAdapterIT {
         assertNotNull(transformedFleet);
         assertEquals(1, calls(method(transformedFleet, FleetAiProfilerPlan.ADVANCE,
                 FleetAiProfilerPlan.ADVANCE_DESCRIPTOR), "abilityLabelNeeded"));
+        byte[] timedFleet = FleetAiModuleTimePlan.transform(fleetSignature, transformedFleet);
+        assertNotNull(timedFleet);
+        assertEquals(5, calls(method(timedFleet, FleetAiProfilerPlan.ADVANCE,
+                FleetAiProfilerPlan.ADVANCE_DESCRIPTOR),
+                FleetAiModuleTimeRuntime.class, "enter"));
+        assertEquals(5, calls(method(timedFleet, FleetAiProfilerPlan.ADVANCE,
+                FleetAiProfilerPlan.ADVANCE_DESCRIPTOR),
+                FleetAiModuleTimeRuntime.class, "exit"));
 
         byte[] profiler = entry(common, FleetAiProfilerPlan.PROFILER_CLASS);
         ClassSignature profilerSignature = ClassSignature.parse(profiler);
@@ -69,10 +78,14 @@ class FleetAiProfilerInstalledAdapterIT {
     }
 
     private static int calls(MethodNode method, String name) {
+        return calls(method, FleetAiProfilerRuntime.class, name);
+    }
+
+    private static int calls(MethodNode method, Class<?> runtime, String name) {
         int result = 0;
         for (AbstractInsnNode instruction : method.instructions) {
             if (instruction instanceof MethodInsnNode call
-                    && FleetAiProfilerRuntime.class.getName().replace('.', '/').equals(call.owner)
+                    && runtime.getName().replace('.', '/').equals(call.owner)
                     && name.equals(call.name)) result++;
         }
         return result;
