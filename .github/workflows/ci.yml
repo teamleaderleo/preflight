@@ -90,9 +90,13 @@ jobs:
           python3 scripts/test_prepared_comparison_pilot.py
           python3 -m py_compile scripts/starsector_critical_path.py
           python3 scripts/test_starsector_critical_path.py
+          python3 -m py_compile scripts/starsector_hitch_attribution.py
+          python3 scripts/test_starsector_hitch_attribution.py
           python3 -m py_compile scripts/starsector_gameplay_hotspots.py scripts/starsector_campaign_cluster_calls.py
           python3 scripts/test_starsector_gameplay_hotspots.py
           python3 scripts/test_starsector_campaign_cluster_calls.py
+          python3 -m py_compile scripts/summarize_combat_cohort.py scripts/test_summarize_combat_cohort.py
+          python3 scripts/test_summarize_combat_cohort.py
           python3 -m py_compile scripts/starsector_balance_analysis.py
           python3 scripts/test_starsector_balance_analysis.py
           python3 -m py_compile scripts/desktop_ci_scope.py scripts/test_desktop_ci_scope.py
