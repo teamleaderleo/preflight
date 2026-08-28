@@ -402,6 +402,9 @@ final class AdapterTransformationRegistry {
                     : null;
             return timed == null ? profiler : timed;
         }
+        if (TacticalFleetAiTimeRuntime.PLAN_ID.equals(target.planId())) {
+            return TacticalFleetAiTimePlan.transform(signature, originalBytes);
+        }
         if (FrameTimeStatePlan.PLAN_ID.equals(target.planId())) {
             return FrameTimeStatePlan.transform(signature, originalBytes);
         }

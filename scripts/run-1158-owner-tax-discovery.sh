@@ -114,6 +114,7 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
             }
           },
           fleetAiModuleTimes:.fleetAiModuleTimes,
+          tacticalFleetAiTimes:.tacticalFleetAiTimes,
           triage:($triage[0] // null),
           jvmHitchCorrelation:($jvm[0] // null)}' \
         "$RUN_DIR/runtime-frame-report.json" >"$SUMMARY"
@@ -127,6 +128,7 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
          runtimeObservedModCount:(.triage.runtimeObservedModCount // 0),
          unresolvedRuntimeOwnerCount:(.triage.unresolvedRuntimeOwners | length),
          fleetAiModuleTimes,
+         tacticalFleetAiTimes,
          topMods:(.triage.mods[:12] | map({modId,priority,bestFrameTaxRank})),
          retainedHitchFrames:(.jvmHitchCorrelation.retainedHitchFrames // 0),
          retainedSevereHitchFrames:(.jvmHitchCorrelation.retainedSevereHitchFrames // 0),

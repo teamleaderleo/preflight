@@ -70,6 +70,7 @@ final class AdapterPlanCatalog {
             SpecStoreQuoteNormalizationPlan.PLAN_ID,
             StartupPhaseRuntime.PLAN_ID,
             StelnetMarketUpdaterRuntime.PLAN_ID,
+            TacticalFleetAiTimeRuntime.PLAN_ID,
             TextureCompatibilityRuntime.PLAN_ID,
             TexturePrefetchBypassPlan.PLAN_ID,
             TexturePreparedPixelRuntime.PLAN_ID,
