@@ -72,3 +72,12 @@ Move to a local particle batching rewrite when:
 - the live visual result remains unchanged with the timing-only probe.
 
 If aggregate particle time is tiny on both #449/#1152 routes, record that result and stop spending compatibility budget on this lane.
+
+## Installed-host checkpoint
+
+The 2026-08-28 ordinary-combat and exact symmetric 1,040-DP probes passed. The sealed stress
+window observed 44,992 calls and 586.879 ms inclusive (38 calls and 0.496 ms per frame, 1.95% of
+active wall time). Because the exact group method contains no direct legacy draw/state calls, this
+result promotes only a tighter downstream particle-submission census—not a batching implementation
+or FPS claim. See
+[`../evidence/2026-08-28-vanilla-particle-render-probe.md`](../evidence/2026-08-28-vanilla-particle-render-probe.md).
