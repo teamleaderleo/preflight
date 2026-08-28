@@ -88,7 +88,8 @@ This intentionally trades some hit rate for a tight correctness boundary.
 The report includes:
 
 - total `queries`, `hits`, `misses`, `hitPercent`;
-- `nativeSeeds` and unsupported query count;
+- `nativeSeeds` and `unsupportedQueries`;
+- `texture2DQueries` separately from `otherUnsupportedQueries`;
 - enable/disable updates;
 - context changes;
 - attrib pushes/pops/underflows;
@@ -96,7 +97,7 @@ The report includes:
 - invalidation count;
 - per-capability queries/hits/native seeds and hit rate for the five cached capabilities.
 
-`unsupportedQueries` includes `GL_TEXTURE_2D`; that count tells us whether a later active-texture-aware extension is even worth investigating.
+`texture2DQueries` is the direct evidence gate for any later active-texture-aware extension. A high count says that work may be useful; a low count closes that branch cheaply.
 
 The important live sanity signal is a high cache hit rate with zero visual regressions. A low hit rate means the compatibility guards erase the expected win and the candidate should be dropped.
 
