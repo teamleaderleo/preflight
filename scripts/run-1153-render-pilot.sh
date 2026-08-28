@@ -3,12 +3,12 @@
 # Run one exact issue #1153 renderer A/B leg using the existing gameplay pilot.
 #
 # Usage:
-#   scripts/run-1153-render-pilot.sh --experiment frame-sync|tess-array|tess-packed --variant baseline|candidate --route ordinary|symmetric-1040 [--workload-id NAME] [--game DIR] [--label NAME] [--core-jar FILE] [--graphics-jar FILE] [gameplay-pilot options]
+#   scripts/run-1153-render-pilot.sh --experiment frame-sync|tess-array|tess-packed|tess-world --variant baseline|candidate --route ordinary|symmetric-1040 [--workload-id NAME] [--game DIR] [--label NAME] [--core-jar FILE] [--graphics-jar FILE] [gameplay-pilot options]
 #
 # Run the same experiment/route/workload-id twice: once as baseline and once as candidate.
 # The baseline keeps the same exact external target and adapter overhead while leaving the selected
-# experiment disabled. tess-packed deliberately keeps tess-array enabled in both legs and flips only
-# the primitive packed-replay shortcut.
+# experiment disabled. tess-packed keeps tess-array enabled in both legs. tess-world keeps both
+# tess-array and primitive packed replay enabled in both legs and flips only repeated world replay.
 set -euo pipefail
 
 GAME="${STARSECTOR_HOME:-/Applications/Starsector.app}"
@@ -36,7 +36,7 @@ while [[ $# -gt 0 ]]; do
         --disable-plans)
             PILOT_EXTRA_ARGS+=("$1" "$2"); shift 2 ;;
         -h|--help)
-            sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
@@ -44,8 +44,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$EXPERIMENT" in
-    frame-sync|tess-array|tess-packed) ;;
-    *) echo "--experiment must be frame-sync, tess-array, or tess-packed" >&2; exit 2 ;;
+    frame-sync|tess-array|tess-packed|tess-world) ;;
+    *) echo "--experiment must be frame-sync, tess-array, tess-packed, or tess-world" >&2; exit 2 ;;
 esac
 case "$VARIANT" in
     baseline|candidate) ;;
@@ -208,6 +208,7 @@ fi
 FRAME_SYNC=false
 TESS_ARRAY=false
 TESS_PACKED=false
+TESS_WORLD=false
 case "$EXPERIMENT" in
     frame-sync)
         [[ "$VARIANT" == candidate ]] && FRAME_SYNC=true
@@ -220,9 +221,15 @@ case "$EXPERIMENT" in
         TESS_ARRAY=true
         [[ "$VARIANT" == candidate ]] && TESS_PACKED=true
         ;;
+    tess-world)
+        # Isolate repeated world-space replay from both earlier GraphicsLib reductions.
+        TESS_ARRAY=true
+        TESS_PACKED=true
+        [[ "$VARIANT" == candidate ]] && TESS_WORLD=true
+        ;;
 esac
 
-JAVA_EXPERIMENT_OPTIONS="-Dpreflight.frameSync=$FRAME_SYNC -Dpreflight.graphicsLibTessellateArray=$TESS_ARRAY -Dpreflight.graphicsLibTessellatePackedReplay=$TESS_PACKED"
+JAVA_EXPERIMENT_OPTIONS="-Dpreflight.frameSync=$FRAME_SYNC -Dpreflight.graphicsLibTessellateArray=$TESS_ARRAY -Dpreflight.graphicsLibTessellatePackedReplay=$TESS_PACKED -Dpreflight.graphicsLibTessellateWorldReplay=$TESS_WORLD"
 if [[ "$EXPERIMENT" == frame-sync ]]; then
     JAVA_EXPERIMENT_OPTIONS+=" -Dpreflight.frameSync.report='$REPORT'"
 else
@@ -248,6 +255,7 @@ candidateReport=$REPORT
 frameSyncEnabled=$FRAME_SYNC
 graphicsLibTessellateArrayEnabled=$TESS_ARRAY
 graphicsLibTessellatePackedReplayEnabled=$TESS_PACKED
+graphicsLibTessellateWorldReplayEnabled=$TESS_WORLD
 EOF
 
 echo "Issue #1153 renderer pilot"
@@ -269,6 +277,8 @@ fi
 echo "Use the same --workload-id for the matching baseline/candidate pair."
 if [[ "$EXPERIMENT" == tess-packed ]]; then
     echo "Both legs keep tess-array enabled; only packed replay changes between them."
+elif [[ "$EXPERIMENT" == tess-world ]]; then
+    echo "Both legs keep tess-array + packed replay enabled; only repeated world replay changes."
 fi
 echo
 
