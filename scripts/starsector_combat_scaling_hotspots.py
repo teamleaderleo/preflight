@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Rank exact combat methods whose sampled presence rises with a workload predictor.
+"""Rank exact combat methods whose sampled presence rises with a fitted workload expression.
 
 Whole-run mode compares repeated sweep cells. Window mode aligns JFR combat samples to the same
 elapsed-combat buckets used by the scaling-law fitter, with JFR timestamp drift corrected from the
 recording's periodic clock calibration. Window associations are centered inside each run so late
 battle wreck/effect/duration growth is separated from persistent between-run sample-share offsets.
 
-JFR samples that land inside the workload probe's measured wall-clock interval are discarded so
+The predictor accepts raw fields, derived fields, interaction products, and single-predictor model
+expressions such as ``missiles*nearbyEntitiesMean`` or ``nearbyEntitiesMean:threshold@30``. JFR
+samples that land inside the workload probe's measured wall-clock interval are discarded so
 reflection, public game getters, and collision-grid reads performed by the probe cannot become
 false owners. ExecutionSample shares are sample-composition evidence, never elapsed CPU or wall
 time. Inspect exact returned methods and their semantics before building an intervention.
@@ -89,6 +91,67 @@ def numeric(value) -> float | None:
     return None
 
 
+def scalar(values: dict, name: str, fallback: dict | None = None) -> float | None:
+    value = numeric(values.get(name))
+    if value is None and fallback is not None:
+        value = numeric(fallback.get(name))
+    return value
+
+
+def derived_sum(values: dict, names: tuple[str, ...], fallback: dict | None) -> float | None:
+    observed = [scalar(values, name, fallback) for name in names]
+    if all(value is None for value in observed):
+        return None
+    return sum(value or 0.0 for value in observed)
+
+
+def predictor_value(values: dict, expression: str, fallback: dict | None = None) -> float | None:
+    expression = expression.strip()
+    if not expression:
+        return None
+    if expression == "totalAi":
+        return derived_sum(values, ("shipAi", "fighterAi", "missileAi"), fallback)
+    if expression == "ordnance":
+        return derived_sum(values, ("missiles", "projectiles", "beams"), fallback)
+    if expression == "effects":
+        candidates = [
+            scalar(values, "weaponEffectPlugins", fallback),
+            scalar(values, "effectLikeObjectsHeuristic", fallback),
+        ]
+        candidates = [value for value in candidates if value is not None]
+        return max(candidates) if candidates else None
+    if "*" in expression:
+        parts = [part.strip() for part in expression.split("*")]
+        if any(not part for part in parts):
+            return None
+        result = 1.0
+        for part in parts:
+            value = predictor_value(values, part, fallback)
+            if value is None:
+                return None
+            result *= value
+        return result
+    if ":" in expression:
+        base, transform = expression.split(":", 1)
+        value = predictor_value(values, base, fallback)
+        if value is None:
+            return None
+        if transform == "linear":
+            return value
+        if transform == "quadratic":
+            return value * value
+        if transform == "nlogn":
+            return value * math.log2(max(2.0, value))
+        if transform.startswith("threshold@"):
+            try:
+                threshold = float(transform.split("@", 1)[1])
+            except ValueError:
+                return None
+            return max(0.0, value - threshold)
+        return None
+    return scalar(values, expression, fallback)
+
+
 def workload_payload(path: str | pathlib.Path) -> tuple[pathlib.Path, dict]:
     path = pathlib.Path(path)
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -127,25 +190,25 @@ def load_workload(path: str | pathlib.Path, predictor: str) -> tuple[str, str, f
     path, payload = workload_payload(path)
     run_id = str(payload.get("runId") or path.stem)
     cell_id = str(payload.get("cellId") or "unspecified")
-    report_value = numeric(payload.get(predictor))
+    report_value = predictor_value(payload, predictor)
     predictor_values = []
     advance_values = []
     for sample in payload.get("samples") or []:
-        value = numeric(sample.get(predictor))
+        value = predictor_value(sample, predictor, payload)
         if value is not None:
             predictor_values.append(value)
         advance = numeric(sample.get("advanceMicros"))
         if advance is not None:
             advance_values.append(advance)
     if predictor_values:
-        predictor_value = statistics.median(predictor_values)
+        observed_predictor = statistics.median(predictor_values)
     elif report_value is not None:
-        predictor_value = report_value
+        observed_predictor = report_value
     else:
         raise ValueError(f"{path}: predictor {predictor!r} has no numeric observations")
     if not advance_values:
         raise ValueError(f"{path}: no advanceMicros observations")
-    return run_id, cell_id, predictor_value, statistics.median(advance_values)
+    return run_id, cell_id, observed_predictor, statistics.median(advance_values)
 
 
 def workload_windows(
@@ -156,15 +219,12 @@ def workload_windows(
     path, payload = workload_payload(path)
     run_id = str(payload.get("runId") or path.stem)
     cell_id = str(payload.get("cellId") or "unspecified")
-    report_value = numeric(payload.get(predictor))
     grouped = collections.defaultdict(list)
     for sample in payload.get("samples") or []:
         elapsed = numeric(sample.get("combatElapsedSeconds"))
         epoch_millis = numeric(sample.get("epochMillis"))
         advance = numeric(sample.get("advanceMicros"))
-        value = numeric(sample.get(predictor))
-        if value is None:
-            value = report_value
+        value = predictor_value(sample, predictor, payload)
         if elapsed is None or epoch_millis is None or advance is None or value is None:
             continue
         battle_id = int(numeric(sample.get("battleId")) or 0)
@@ -265,7 +325,7 @@ def observe_run(
         depth: int = 96,
         event_loader: Callable = events,
 ) -> RunObservation:
-    run_id, cell_id, predictor_value, advance = load_workload(workload_path, predictor)
+    run_id, cell_id, observed_predictor, advance = load_workload(workload_path, predictor)
     sampled, calibration = load_jfr_events(recording_path, depth, event_loader=event_loader)
     clean, excluded, _ = probe_clean_combat_stacks(
         sampled, calibration, probe_intervals(workload_path))
@@ -276,7 +336,7 @@ def observe_run(
     return RunObservation(
         run_id,
         cell_id,
-        predictor_value,
+        observed_predictor,
         advance,
         len(stacks),
         inclusive,
@@ -451,7 +511,7 @@ def render(
     lines = [
         "# Combat scaling owner attribution",
         "",
-        f"Predictor: `{predictor}`; {scope}={len(observations)}; JFR mode={mode}.",
+        f"Predictor expression: `{predictor}`; {scope}={len(observations)}; JFR mode={mode}.",
         f"Predictor vs sampled `CombatEngine.advance`: r={pearson(predictor_values, advance_values):.3f}.",
         f"Association basis: {share_label}.",
         f"Probe-time combat samples excluded: {sum(item.excluded_probe_samples for item in observations)}.",
@@ -488,8 +548,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--pair", action="append", nargs=2, metavar=("WORKLOAD_JSON", "STARTUP_JFR"),
                         required=True, help="repeat for each paired run/cell")
-    parser.add_argument("--predictor", required=True,
-                        help="numeric workload field, e.g. missiles or nearbyEntitiesMean")
+    parser.add_argument(
+        "--predictor",
+        required=True,
+        help=(
+            "workload field/model expression, e.g. missiles, totalAi, "
+            "missiles*nearbyEntitiesMean, or nearbyEntitiesMean:threshold@30"
+        ),
+    )
     parser.add_argument("--bucket-seconds", type=float,
                         help="align JFR samples to elapsed-combat windows; centers associations within run")
     parser.add_argument("--min-window-samples", type=int, default=3,
