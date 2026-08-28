@@ -3,9 +3,9 @@
 
 Discovery timing and final frame-rate measurement stay separate. This fitter consumes the sampled
 CombatEngine.advance timings paired with workload snapshots, aggregates them into time buckets, and
-compares constant, linear, N log N, quadratic, threshold, and selected interaction models. When at
-least three independent runs are present, model ranking uses leave-one-run-out RMSE; smaller
-datasets fall back to AICc and are labeled exploratory.
+compares constant, linear, N log N, quadratic, threshold, and selected interaction models. Repeated
+confirmation requires a complete interleaved run-by-cell matrix so leave-one-run-out RMSE holds out
+one replicate block across every sweep cell.
 """
 from __future__ import annotations
 
@@ -83,6 +83,7 @@ class Analysis:
     fits: list[Fit]
     runs: tuple[str, ...]
     cells: tuple[str, ...]
+    balanced_matrix: bool
     evidence: str
     best_linear_score: float | None
     confirmed_superlinear: bool
@@ -210,8 +211,10 @@ def candidate_models(rows: list[dict]) -> list[Model]:
 
     density = "nearbyEntitiesMean"
     if density in available:
-        for name in ("battleDp", "liveDeployedDp", "ships", "fighters", "wrecks", "missiles",
-                     "projectiles", "beams", "totalAi", "effects", "ordnance"):
+        for name in (
+                "battleDp", "liveDeployedDp", "ships", "fighters", "wrecks", "missiles",
+                "projectiles", "beams", "shipAi", "fighterAi", "missileAi", "totalAi",
+                "effects", "ordnance"):
             if name in available:
                 models.append(Model(
                     f"{name}*{density}", "interaction",
@@ -254,6 +257,24 @@ def nonnegative(rows: list[dict], name: str) -> bool:
     values = [numeric(row.get(name)) for row in rows]
     values = [value for value in values if value is not None]
     return bool(values) and min(values) >= 0.0
+
+
+def balanced_design(rows: list[dict], runs: list[str], cells: list[str]) -> bool:
+    if len(runs) < 3 or len(cells) < 4:
+        return False
+    expected_cells = set(cells)
+    expected_runs = set(runs)
+    run_cells = collections.defaultdict(set)
+    cell_runs = collections.defaultdict(set)
+    for row in rows:
+        run = str(row["runId"])
+        cell = str(row["cellId"])
+        run_cells[run].add(cell)
+        cell_runs[cell].add(run)
+    return (
+        all(run_cells[run] == expected_cells for run in runs)
+        and all(cell_runs[cell] == expected_runs for cell in cells)
+    )
 
 
 def solve(matrix: list[list[float]], vector: list[float]) -> list[float] | None:
@@ -368,14 +389,34 @@ def worsening_nonlinearity(fit: Fit) -> bool:
     return len(fit.coefficients) >= 2 and fit.coefficients[-1] > 0.0
 
 
+def raw_coefficients(fit: Fit) -> tuple[float, list[float]]:
+    intercept = fit.coefficients[0]
+    terms = []
+    for index in range(len(fit.model.terms)):
+        coefficient = fit.coefficients[index + 1] / fit.scales[index]
+        intercept -= coefficient * fit.means[index]
+        terms.append(coefficient)
+    return intercept, terms
+
+
+def equation(fit: Fit) -> str:
+    intercept, coefficients = raw_coefficients(fit)
+    result = f"{TARGET} = {intercept:.6g}"
+    for coefficient, model_term in zip(coefficients, fit.model.terms):
+        sign = "+" if coefficient >= 0.0 else "-"
+        result += f" {sign} {abs(coefficient):.6g}*{model_term.name}"
+    return result
+
+
 def analyze(rows: list[dict]) -> Analysis:
     usable = [row for row in rows if numeric(row.get(TARGET)) is not None]
     runs = sorted({str(row["runId"]) for row in usable})
     cells = sorted({str(row["cellId"]) for row in usable})
+    balanced = balanced_design(usable, runs, cells)
     fits = [fit for model in candidate_models(usable)
             if (fit := fit_model(usable, model, runs)) is not None]
     fits.sort(key=lambda fit: (fit.score, fit.model.name))
-    evidence = "repeatable" if len(runs) >= 3 and len(cells) >= 4 and len(usable) >= 16 else "exploratory"
+    evidence = "repeatable" if balanced and len(usable) >= 16 else "exploratory"
     linear_scores = [fit.score for fit in fits if fit.model.kind in ("linear", "multivariate-linear")]
     best_linear = min(linear_scores) if linear_scores else None
     best = fits[0] if fits else None
@@ -387,7 +428,8 @@ def analyze(rows: list[dict]) -> Analysis:
         and best_linear is not None
         and best.score <= best_linear * 0.90
     )
-    return Analysis(usable, fits, tuple(runs), tuple(cells), evidence, best_linear, confirmed)
+    return Analysis(
+        usable, fits, tuple(runs), tuple(cells), balanced, evidence, best_linear, confirmed)
 
 
 def range_summary(rows: list[dict]) -> dict[str, dict[str, float]]:
@@ -405,6 +447,7 @@ def range_summary(rows: list[dict]) -> dict[str, dict[str, float]]:
 
 
 def fit_to_dict(fit: Fit) -> dict:
+    intercept, coefficients = raw_coefficients(fit)
     return {
         "model": fit.model.name,
         "kind": fit.model.kind,
@@ -416,6 +459,9 @@ def fit_to_dict(fit: Fit) -> dict:
         "aicc": fit.aicc,
         "leaveOneRunOutRmseMicros": fit.cv_rmse,
         "standardizedCoefficients": fit.coefficients,
+        "rawInterceptMicros": intercept,
+        "rawTermCoefficients": coefficients,
+        "equation": equation(fit),
         "worseningNonlinearity": worsening_nonlinearity(fit),
     }
 
@@ -428,10 +474,12 @@ def analysis_to_dict(analysis: Analysis, bucket_seconds: float, sources: list[st
         "sources": sources,
         "runs": list(analysis.runs),
         "cells": list(analysis.cells),
+        "balancedRunCellMatrix": analysis.balanced_matrix,
         "observations": len(analysis.rows),
         "evidence": analysis.evidence,
         "selectedModel": best.model.name if best else None,
         "selectedKind": best.model.kind if best else None,
+        "selectedEquation": equation(best) if best else None,
         "confirmedSuperlinear": analysis.confirmed_superlinear,
         "confirmedBadScaling": analysis.confirmed_superlinear,
         "ranges": range_summary(analysis.rows),
@@ -445,8 +493,10 @@ def render_markdown(result: dict, limit: int = 12) -> str:
         "",
         f"Target: `{result['target']}` from sampled `CombatEngine.advance` ticks.",
         f"Evidence: **{result['evidence']}**; runs={len(result['runs'])}, "
-        f"cells={len(result['cells'])}, bucketed observations={result['observations']}.",
+        f"cells={len(result['cells'])}, bucketed observations={result['observations']}, "
+        f"balanced run×cell matrix={str(result['balancedRunCellMatrix']).lower()}.",
         f"Selected model: **{result['selectedModel'] or 'none'}**.",
+        f"Selected equation: `{result['selectedEquation'] or 'none'}`.",
         f"Confirmed materially bad nonlinear/threshold/interaction path: "
         f"**{str(result['confirmedBadScaling']).lower()}**.",
         "",
