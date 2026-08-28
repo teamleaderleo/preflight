@@ -42,7 +42,7 @@ final class CombatStressFixtureRuntimeTest {
         assertFalse((Boolean) CombatStressFixtureRuntime.telemetry().get("attempted"));
         assertEquals(0, CombatStressFixtureRuntime.telemetry().get("removedEngineShips"));
         assertEquals(0,
-                CombatStressFixtureRuntime.telemetry().get("verifiedEngineNonFighters"));
+                CombatStressFixtureRuntime.telemetry().get("verifiedPrimaryEngineShips"));
         assertEquals(null, CombatStressFixtureRuntime.workloadTelemetry().get("begin"));
         assertEquals(null, CombatStressFixtureRuntime.workloadTelemetry().get("end"));
     }

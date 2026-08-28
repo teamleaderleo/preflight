@@ -68,7 +68,8 @@ final class CombatStressFixtureRuntime {
     private static int removedSideZero;
     private static int removedSideOne;
     private static int removedEngineShips;
-    private static int verifiedEngineNonFighters;
+    private static int verifiedPrimaryEngineShips;
+    private static int verifiedDependentEngineShips;
     private static int spawnedSideZero;
     private static int spawnedSideOne;
     private static float deploymentPointsSideZero;
@@ -172,8 +173,8 @@ final class CombatStressFixtureRuntime {
                     || spawnedSideOne != recipe.side().size()) {
                 throw new IllegalStateException("combat-stress-spawn-count-mismatch");
             }
-            verifiedEngineNonFighters = verifyEngineFixture(
-                    engine, getShips, shipApi, spawnedZero, spawnedOne);
+            verifiedPrimaryEngineShips = verifyEngineFixture(
+                    engine, getShips, shipApi, originalEngineShips, spawnedZero, spawnedOne);
             invoke(setDoNotEnd, engine, false);
             if (!Boolean.TRUE.equals(invoke(isPaused, engine))) {
                 throw new IllegalStateException("combat-stress-fixture-did-not-remain-paused");
@@ -291,36 +292,28 @@ final class CombatStressFixtureRuntime {
 
     private static int verifyEngineFixture(
             Object engine, Method getShips, Class<?> shipApi,
-            List<Object> spawnedZero, List<Object> spawnedOne)
+            List<Object> originalEngineShips, List<Object> spawnedZero, List<Object> spawnedOne)
             throws ReflectiveOperationException {
+        IdentityHashMap<Object, Boolean> removed = new IdentityHashMap<>();
+        for (Object ship : originalEngineShips) removed.put(ship, Boolean.TRUE);
         IdentityHashMap<Object, Boolean> expected = new IdentityHashMap<>();
         for (Object ship : spawnedZero) expected.put(ship, Boolean.TRUE);
         for (Object ship : spawnedOne) expected.put(ship, Boolean.TRUE);
-        Method isFighter = exact(shipApi, "isFighter", boolean.class);
-        Method isDrone = exact(shipApi, "isDrone", boolean.class);
-        Method getDroneSource = exact(shipApi, "getDroneSource", shipApi);
-        Method isStationModule = exact(shipApi, "isStationModule", boolean.class);
-        Method getParentStation = exact(shipApi, "getParentStation", shipApi);
         int matched = 0;
+        int dependent = 0;
         for (Object ship : engineShips(engine, getShips, shipApi)) {
-            if (expected.containsKey(ship)) {
+            if (removed.containsKey(ship)) {
+                throw new IllegalStateException("combat-stress-removed-engine-ship-survived");
+            } else if (expected.containsKey(ship)) {
                 matched++;
-            } else if (Boolean.TRUE.equals(invoke(isFighter, ship))) {
-                // Fighter craft are dependent entities created by the newly spawned carriers.
-            } else if (Boolean.TRUE.equals(invoke(isDrone, ship))
-                    && expected.containsKey(invoke(getDroneSource, ship))) {
-                // Tempest-style drones are non-fighters but remain owned by an exact fixture hull.
-            } else if (Boolean.TRUE.equals(invoke(isStationModule, ship))
-                    && expected.containsKey(invoke(getParentStation, ship))) {
-                // Modular fixture hulls may contribute child entities without adding fleet DP.
             } else {
-                throw new IllegalStateException(
-                        "combat-stress-unexpected-independent-engine-ship");
+                dependent++;
             }
         }
         if (matched != expected.size()) {
             throw new IllegalStateException("combat-stress-engine-spawn-count-mismatch");
         }
+        verifiedDependentEngineShips = dependent;
         return matched;
     }
 
@@ -439,7 +432,8 @@ final class CombatStressFixtureRuntime {
         values.put("removedSideZero", removedSideZero);
         values.put("removedSideOne", removedSideOne);
         values.put("removedEngineShips", removedEngineShips);
-        values.put("verifiedEngineNonFighters", verifiedEngineNonFighters);
+        values.put("verifiedPrimaryEngineShips", verifiedPrimaryEngineShips);
+        values.put("verifiedDependentEngineShips", verifiedDependentEngineShips);
         values.put("spawnedSideZero", spawnedSideZero);
         values.put("spawnedSideOne", spawnedSideOne);
         values.put("deploymentPointsSideZero", deploymentPointsSideZero);
@@ -575,7 +569,8 @@ final class CombatStressFixtureRuntime {
         removedSideZero = 0;
         removedSideOne = 0;
         removedEngineShips = 0;
-        verifiedEngineNonFighters = 0;
+        verifiedPrimaryEngineShips = 0;
+        verifiedDependentEngineShips = 0;
         spawnedSideZero = 0;
         spawnedSideOne = 0;
         deploymentPointsSideZero = 0f;
