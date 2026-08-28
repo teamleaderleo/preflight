@@ -35,6 +35,7 @@ class Run:
     combat_over: bool
     suppressed_calls: int
     suppressed_percent: float | None
+    causal_unit: str
     identity: str
     adapter_ok: bool
 
@@ -61,8 +62,15 @@ def load_run(path: Path) -> Run:
     end = workload.get("end")
     if not isinstance(begin, dict) or not isinstance(end, dict):
         raise ValueError(f"combat workload fingerprint is incomplete: {path}")
-    dedup = frame["openGlTextureBindDedup"]
-    requested = bool(dedup["requested"])
+    if "openGlMatrixIdentityElision" in frame:
+        probe = frame["openGlMatrixIdentityElision"]
+        causal_unit = "identity matrix transforms"
+    elif "openGlTextureBindDedup" in frame:
+        probe = frame["openGlTextureBindDedup"]
+        causal_unit = "texture binds"
+    else:
+        raise ValueError(f"no supported optimization counter: {path}")
+    requested = bool(probe["requested"])
     active_seconds = float(window["totalActiveNanos"]) / 1_000_000_000.0
     if active_seconds <= 0:
         raise ValueError(f"measurement window is empty: {path}")
@@ -97,10 +105,10 @@ def load_run(path: Path) -> Run:
         smoke.get("status") == "passed"
         and run.get("outcome") == "COMPLETED"
         and not run.get("lifecycleEvidence", {}).get("fatalDetected", True)
-        and not dedup.get("runtimeDisabled", False)
-        and not dedup.get("problem")
-        and int(dedup.get("unexpectedThreadCalls", 0)) == 0
-        and bool(dedup.get("active")) == requested
+        and not probe.get("runtimeDisabled", False)
+        and not probe.get("problem")
+        and int(probe.get("unexpectedThreadCalls", 0)) == 0
+        and bool(probe.get("active")) == requested
     )
     return Run(
         label=path.name,
@@ -123,9 +131,10 @@ def load_run(path: Path) -> Run:
         begin_missiles=int(begin["missiles"]),
         end_ships=int(end["ships"]),
         combat_over=bool(end["combatOver"]),
-        suppressed_calls=int(dedup["suppressedCalls"]),
-        suppressed_percent=(None if dedup["suppressedPercent"] is None
-                            else float(dedup["suppressedPercent"])),
+        suppressed_calls=int(probe["suppressedCalls"]),
+        suppressed_percent=(None if probe["suppressedPercent"] is None
+                            else float(probe["suppressedPercent"])),
+        causal_unit=causal_unit,
         identity=identity,
         adapter_ok=adapter_ok,
     )
@@ -195,9 +204,11 @@ def render(runs: list[Run]) -> str:
         lines.append("B vs A (arm medians): " + ", ".join(deltas))
         suppressed = [run for run in arms["B"] if run.suppressed_percent is not None]
         if suppressed:
+            units = {run.causal_unit for run in suppressed}
+            unit = units.pop() if len(units) == 1 else "operations"
             lines.append(
                 "causal counter: median "
-                f"{median_for(suppressed, 'suppressed_percent'):.2f}% binds suppressed "
+                f"{median_for(suppressed, 'suppressed_percent'):.2f}% {unit} suppressed "
                 f"({int(statistics.median(run.suppressed_calls for run in suppressed)):,} calls/run)"
             )
     return "\n".join(lines)

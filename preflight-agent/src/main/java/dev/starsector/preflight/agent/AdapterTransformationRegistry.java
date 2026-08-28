@@ -364,6 +364,9 @@ final class AdapterTransformationRegistry {
         if (GlCommandCountRuntime.PLAN_ID.equals(target.planId())) {
             return GlCommandCountPlan.transform(signature, originalBytes);
         }
+        if (GlMatrixIdentityElisionRuntime.PLAN_ID.equals(target.planId())) {
+            return GlMatrixIdentityElisionPlan.transform(signature, originalBytes);
+        }
         if (FrameLimiterTimePlan.PLAN_ID.equals(target.planId())) {
             return FrameLimiterTimePlan.transform(signature, originalBytes);
         }
