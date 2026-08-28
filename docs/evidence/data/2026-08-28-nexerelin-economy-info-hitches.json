@@ -1,5 +1,5 @@
 {
-  "format": "preflight-nexerelin-economy-info-hitches-v1",
+  "format": "preflight-nexerelin-economy-info-hitches-v2",
   "date": "2026-08-28",
   "issues": [449, 1158],
   "commit": "781bea3965cd445ec1cdf97be8281df6e9e8caa5",
@@ -78,5 +78,56 @@
       {"durationMillis": 28.860083, "frameDurationMillis": 58.965, "sharePercent": 48.94}
     ]
   },
-  "decision": "build-exact-nexerelin-scoped-market-list-snapshot-with-shadow-equivalence-gate"
+  "shadowEquivalence": {
+    "commit": "2278f512007012801115b8124a43d2d43ae1b35e",
+    "run": "issue-1158-nex-market-list-shadow-r1-20260828-182645",
+    "classification": "intrusive-discovery-no-fps-claim",
+    "routeStatus": "passed",
+    "runOutcome": "FATAL_LOG_EVIDENCE",
+    "postCaptureFailure": {
+      "category": "native-process-crash",
+      "message": "SIGSEGV (0xb) after scheduled capture while controller stopped the run"
+    },
+    "adapterHealth": {
+      "exactMatches": 62,
+      "transformationsApplied": 62,
+      "sourceBindingRejected": 0,
+      "unavailablePlans": 0,
+      "transformationsDeclined": 0,
+      "containedFailures": 0,
+      "cacheRejectionSignals": 0,
+      "wrapperFailureSignals": 0,
+      "runtimeIntegrityFailures": 0
+    },
+    "candidate": {
+      "planId": "nexerelin-market-list-scope-v1",
+      "requested": false,
+      "shadowRequested": true,
+      "enabled": false,
+      "shadowEnabled": true,
+      "healthy": true,
+      "nexInstalled": true,
+      "coreInstalled": true,
+      "scopesBegun": 4,
+      "scopesEnded": 4,
+      "nestedScopes": 0,
+      "outsideScopeDeclines": 0,
+      "misses": 0,
+      "stores": 156,
+      "hits": 0,
+      "shadowMatches": 5460,
+      "shadowMismatches": 0,
+      "failures": 0,
+      "maximumEntries": 39
+    },
+    "cardinality": {
+      "firstRunCalls": 1,
+      "refreshCalls": 3,
+      "commoditiesVisited": 384,
+      "producerCandidates": 27612,
+      "importerCandidates": 27612,
+      "demandCandidates": 27612
+    }
+  },
+  "decision": "run-clean-interleaved-thin-baseline-candidate-cohort-after-host-launch-pause"
 }

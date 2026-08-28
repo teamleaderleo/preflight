@@ -112,12 +112,15 @@ Before changing code or collecting release evidence:
    one 95.248 ms frame, and the third explained 48.9% of a 58.965 ms frame. Installed bytecode shows
    that `getMarketSharePercentPerFaction()` repeatedly allocates and scans the complete economy
    market group once per distinct faction, followed by three more Nexerelin `getMarkets()` passes.
-   The next narrow candidate is a current-thread, identity-keyed market-list snapshot scoped only to
-   this exact Nexerelin rebuild, with shadow order/identity validation, two exact source gates,
-   original fallback, an independent kill switch, and direct hit/miss/mismatch counters. Do not
-   broaden it into a general economy cache, and do not claim FPS from the intrusive discovery run.
-   Its scenario passed but the game emitted a post-capture SIGSEGV during controller shutdown, so a
-   later thin cohort must also require clean exit.
+   The exact current-thread, identity-keyed market-list snapshot is now implemented at `2278f512`.
+   Its first shadow route passed 4/4 balanced scopes and 5,460 fresh-result size/order/element-
+   identity comparisons with zero mismatch, failure, or decline while preserving the observed
+   rebuild cardinalities. Both exact source gates installed and original fallback plus an independent
+   kill switch remain intact. This intrusive shadow pass makes no FPS claim. It again encountered a
+   post-capture native SIGSEGV during controller shutdown, so the pending interleaved thin
+   baseline/candidate cohort must require clean exit. Do not broaden the candidate into a general
+   economy cache. At the maintainer's request, all physical game launches are paused while the host
+   is reserved for Ubuntu setup; offline analysis and repository work may continue.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package

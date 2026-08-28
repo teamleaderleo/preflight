@@ -4,7 +4,8 @@ Date: 2026-08-28
 
 Issues: #1158, #449. Branch: `codex/1158-physical` at `781bea39` plus this report.
 
-Status: **exact recurring owner established; narrow scoped-list candidate selected; no FPS claim**.
+Status: **exact recurring owner established; narrow scoped-list candidate passed shadow equivalence;
+thin performance cohort pending; no FPS claim**.
 
 ## Run identity and health
 
@@ -94,6 +95,48 @@ and every caller outside the reviewed scope unchanged. Its first pass must inclu
 
 Do not broaden this into a general economy cache. If the scoped snapshot removes scans but does not
 reproducibly improve the refresh-containing frame tail, retain it as another useful rejection.
+
+## Candidate and shadow-equivalence checkpoint
+
+Commit `2278f512` implements the candidate as an opt-in exact adapter. It brackets only the installed
+Nexerelin `EconomyInfoHelper.collectEconomicData(boolean)` invocation and lets the installed core
+`CommodityMarketData.getMarkets()` wrapper reuse one identity-keyed list snapshot on the same
+thread and inside that scope. Both exact transformed halves must install before the candidate can
+activate. A property kill switch, original implementation, fail-open health latch, bounded
+thread-local state, and scope cleanup in a `finally` path remain available.
+
+Run `issue-1158-nex-market-list-shadow-r1-20260828-182645` exercised shadow mode against the same
+installed game, profile, save, display, adapter, and semantic paused/unpaused route. The route
+passed, both exact halves installed, all four scopes ended, and the wrapper compared every fresh
+original result against its scoped snapshot without returning the snapshot:
+
+| shadow counter | result |
+| --- | ---: |
+| scopes begun / ended | 4 / 4 |
+| per-commodity snapshot stores | 156 |
+| fresh original comparisons | 5,460 |
+| size/order/element-identity matches | 5,460 |
+| mismatches | 0 |
+| failures | 0 |
+| outside-scope declines | 0 |
+| maximum entries in one scope | 39 |
+
+Adapter health retained 62 exact matches and 62 applied transformations, with zero source-binding
+rejections, unavailable plans, transformation declines, contained failures, cache rejections,
+wrapper failures, or runtime-integrity failures. The first-run plus three recurring refreshes
+retained the expected cardinalities: 384 commodity visits and 27,612 producer, importer, and demand
+candidates apiece. That is evidence that the proposed snapshot is semantically equivalent for this
+reviewed workload, not evidence that it improves frame pacing.
+
+As in the discovery pass, the controller completed the semantic capture and then the game emitted a
+native `SIGSEGV` during shutdown. The harness correctly retained `FATAL_LOG_EVIDENCE`. This does not
+invalidate the completed shadow comparisons, but it keeps the run out of the performance cohort and
+reinforces that the later thin baseline/candidate cohort must require clean exits.
+
+The next launch-dependent gate is a repeated interleaved thin baseline/candidate cohort on the same
+semantic route. It must compare refresh-containing frame tails, direct cache hits/scans avoided,
+workload identity, adapter/fallback health, and lifecycle health. No further game launch was started
+after this checkpoint while the physical host was reserved for Ubuntu setup.
 
 Compact retained data is in
 [`data/2026-08-28-nexerelin-economy-info-hitches.json`](data/2026-08-28-nexerelin-economy-info-hitches.json).
