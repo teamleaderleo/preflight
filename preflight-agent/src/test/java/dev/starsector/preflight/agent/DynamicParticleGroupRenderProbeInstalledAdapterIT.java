@@ -30,8 +30,8 @@ import org.objectweb.asm.tree.MethodNode;
 
 /** Opt-in installed-core check for issue #1153's vanilla particle render probe. */
 class DynamicParticleGroupRenderProbeInstalledAdapterIT {
-    private static final String STOCK_CORE_JAR_SHA256 =
-            "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149";
+    private static final String STOCK_COMMON_JAR_SHA256 =
+            "10d89e113f6d1627cc7bc90b692e8a7f450fdd820c5a4ac5edaecd6710afe708";
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/DynamicParticleGroupRenderProbeRuntime";
 
@@ -45,16 +45,16 @@ class DynamicParticleGroupRenderProbeInstalledAdapterIT {
 
     @Test
     void exactInstalledCoreTransformsWhileChangedClassAndArchiveFailClosed() throws Exception {
-        String configured = System.getProperty("preflight.starsector.core.jar", "").trim();
+        String configured = System.getProperty("preflight.starsector.common.jar", "").trim();
         Assumptions.assumeTrue(!configured.isEmpty(),
-                "set -Dpreflight.starsector.core.jar=<starfarer_obf.jar>");
+                "set -Dpreflight.starsector.common.jar=<fs.common_obf.jar>");
         Path installed = Path.of(configured).toAbsolutePath().normalize();
         Assumptions.assumeTrue(Files.isRegularFile(installed),
-                "configured starfarer_obf.jar does not exist");
-        assertEquals(STOCK_CORE_JAR_SHA256, sha256(installed),
-                "configured jar is not the reviewed Starsector 0.98a-RC8 core archive");
+                "configured fs.common_obf.jar does not exist");
+        assertEquals(STOCK_COMMON_JAR_SHA256, sha256(installed),
+                "configured jar is not the reviewed Starsector 0.98a-RC8 common archive");
 
-        Path exact = temporaryDirectory.resolve("exact/contents/resources/java/starfarer_obf.jar");
+        Path exact = temporaryDirectory.resolve("exact/contents/resources/java/fs.common_obf.jar");
         Files.createDirectories(exact.getParent());
         Files.copy(installed, exact);
         byte[] original = classBytes(exact);
@@ -86,7 +86,7 @@ class DynamicParticleGroupRenderProbeInstalledAdapterIT {
                 temporaryDirectory.resolve("changed-class-report.json")));
 
         Path changedArchive = temporaryDirectory.resolve(
-                "changed/contents/resources/java/starfarer_obf.jar");
+                "changed/contents/resources/java/fs.common_obf.jar");
         Files.createDirectories(changedArchive.getParent());
         Files.copy(installed, changedArchive);
         Files.write(changedArchive, new byte[] {0}, StandardOpenOption.APPEND);
@@ -105,8 +105,8 @@ class DynamicParticleGroupRenderProbeInstalledAdapterIT {
                 "sha256 " + classSha256,
                 "plan " + FrameTimeRuntime.PLAN_ID,
                 "source-kind STARSECTOR_CORE",
-                "source-suffix contents/resources/java/starfarer_obf.jar",
-                "source-sha256 " + STOCK_CORE_JAR_SHA256,
+                "source-suffix contents/resources/java/fs.common_obf.jar",
+                "source-sha256 " + STOCK_COMMON_JAR_SHA256,
                 "loader-class jdk/internal/loader/ClassLoaders$AppClassLoader",
                 "loader-name app",
                 "method " + DynamicParticleGroupRenderProbePlan.RENDER_METHOD + " "
@@ -137,7 +137,7 @@ class DynamicParticleGroupRenderProbeInstalledAdapterIT {
     private static byte[] classBytes(Path archive) throws Exception {
         try (JarFile jar = new JarFile(archive.toFile())) {
             var entry = jar.getJarEntry(DynamicParticleGroupRenderProbePlan.TARGET_CLASS + ".class");
-            assertNotNull(entry, "starfarer_obf.jar has no DynamicParticleGroup.class");
+            assertNotNull(entry, "fs.common_obf.jar has no DynamicParticleGroup.class");
             try (InputStream input = jar.getInputStream(entry)) {
                 return input.readAllBytes();
             }

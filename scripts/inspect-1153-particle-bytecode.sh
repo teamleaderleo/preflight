@@ -3,17 +3,17 @@
 # Inspect the reviewed vanilla DynamicParticleGroup.render(FF)V bytecode without launching Starsector.
 #
 # Usage:
-#   scripts/inspect-1153-particle-bytecode.sh [--game DIR] [--core-jar FILE] [--output FILE]
+#   scripts/inspect-1153-particle-bytecode.sh [--game DIR] [--common-jar FILE] [--output FILE]
 set -euo pipefail
 
 GAME="${STARSECTOR_HOME:-/Applications/Starsector.app}"
-CORE_JAR="${STARSECTOR_CORE_JAR:-}"
+COMMON_JAR="${STARSECTOR_COMMON_JAR:-}"
 OUTPUT=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --game) GAME="$2"; shift 2 ;;
-        --core-jar) CORE_JAR="$2"; shift 2 ;;
+        --common-jar) COMMON_JAR="$2"; shift 2 ;;
         --output) OUTPUT="$2"; shift 2 ;;
         -h|--help)
             sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'
@@ -40,22 +40,22 @@ hash_file() {
     fi
 }
 
-if [[ -z "$CORE_JAR" ]]; then
+if [[ -z "$COMMON_JAR" ]]; then
     [[ -d "$GAME" ]] || { echo "Starsector installation not found: $GAME" >&2; exit 1; }
-    matches="$(find "$GAME" -type f -name starfarer_obf.jar -print 2>/dev/null | head -2)"
+    matches="$(find "$GAME" -type f -name fs.common_obf.jar -print 2>/dev/null | head -2)"
     [[ "$(printf '%s\n' "$matches" | sed '/^$/d' | wc -l | tr -d '[:space:]')" == 1 ]] || {
-        echo "Could not resolve exactly one starfarer_obf.jar under $GAME; pass --core-jar." >&2
+        echo "Could not resolve exactly one fs.common_obf.jar under $GAME; pass --common-jar." >&2
         exit 1
     }
-    CORE_JAR="$matches"
+    COMMON_JAR="$matches"
 fi
-[[ -f "$CORE_JAR" ]] || { echo "Core archive not found: $CORE_JAR" >&2; exit 1; }
-CORE_JAR="$(cd "$(dirname "$CORE_JAR")" && printf '%s/%s\n' "$(pwd -P)" "$(basename "$CORE_JAR")")"
+[[ -f "$COMMON_JAR" ]] || { echo "Common archive not found: $COMMON_JAR" >&2; exit 1; }
+COMMON_JAR="$(cd "$(dirname "$COMMON_JAR")" && printf '%s/%s\n' "$(pwd -P)" "$(basename "$COMMON_JAR")")"
 
-EXPECTED="a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149"
-ACTUAL="$(hash_file "$CORE_JAR")"
+EXPECTED="10d89e113f6d1627cc7bc90b692e8a7f450fdd820c5a4ac5edaecd6710afe708"
+ACTUAL="$(hash_file "$COMMON_JAR")"
 [[ "$ACTUAL" == "$EXPECTED" ]] || {
-    echo "Core archive differs from reviewed Starsector 0.98a-RC8." >&2
+    echo "Common archive differs from reviewed Starsector 0.98a-RC8." >&2
     echo "Expected: $EXPECTED" >&2
     echo "Actual:   $ACTUAL" >&2
     exit 1
@@ -64,9 +64,9 @@ ACTUAL="$(hash_file "$CORE_JAR")"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/preflight-1153-particle-inspect.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 DISASM="$TMP/dynamic-particle-group.javap"
-javap -classpath "$CORE_JAR" -p -c -s com.fs.graphics.particle.DynamicParticleGroup >"$DISASM"
+javap -classpath "$COMMON_JAR" -p -c -s com.fs.graphics.particle.DynamicParticleGroup >"$DISASM"
 
-python3 - "$DISASM" "$CORE_JAR" "$ACTUAL" "$OUTPUT" <<'PY'
+python3 - "$DISASM" "$COMMON_JAR" "$ACTUAL" "$OUTPUT" <<'PY'
 import json
 import pathlib
 import re

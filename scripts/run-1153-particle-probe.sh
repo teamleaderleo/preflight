@@ -3,14 +3,14 @@
 # Profile vanilla DynamicParticleGroup.render(FF)V for issue #1153 with an exact installed-core target.
 #
 # Usage:
-#   scripts/run-1153-particle-probe.sh --route ordinary|symmetric-1040 [--workload-id NAME] [--game DIR] [--label NAME] [--core-jar FILE] [gameplay-pilot options]
+#   scripts/run-1153-particle-probe.sh --route ordinary|symmetric-1040 [--workload-id NAME] [--game DIR] [--label NAME] [--common-jar FILE] [gameplay-pilot options]
 set -euo pipefail
 
 GAME="${STARSECTOR_HOME:-/Applications/Starsector.app}"
 ROUTE=""
 WORKLOAD_ID=""
 LABEL=""
-CORE_JAR="${STARSECTOR_CORE_JAR:-}"
+COMMON_JAR="${STARSECTOR_COMMON_JAR:-}"
 PILOT_EXTRA_ARGS=()
 
 while [[ $# -gt 0 ]]; do
@@ -19,7 +19,7 @@ while [[ $# -gt 0 ]]; do
         --workload-id) WORKLOAD_ID="$2"; shift 2 ;;
         --game) GAME="$2"; shift 2 ;;
         --label) LABEL="$2"; shift 2 ;;
-        --core-jar) CORE_JAR="$2"; shift 2 ;;
+        --common-jar) COMMON_JAR="$2"; shift 2 ;;
         --safer-jvm|--without-audio-repair|--without-profile|--without-startup-caches|--without-gameplay-caches)
             PILOT_EXTRA_ARGS+=("$1"); shift ;;
         --disable-plans)
@@ -94,27 +94,27 @@ extract_class() {
     [[ -s "$destination" ]] || { echo "Could not extract $entry from $archive" >&2; return 1; }
 }
 
-if [[ -z "$CORE_JAR" ]]; then
-    matches="$(find "$GAME" -type f -name starfarer_obf.jar -print 2>/dev/null | head -2)"
+if [[ -z "$COMMON_JAR" ]]; then
+    matches="$(find "$GAME" -type f -name fs.common_obf.jar -print 2>/dev/null | head -2)"
     [[ "$(printf '%s\n' "$matches" | sed '/^$/d' | wc -l | tr -d '[:space:]')" == 1 ]] || {
-        echo "Could not resolve exactly one starfarer_obf.jar under $GAME; pass --core-jar." >&2
+        echo "Could not resolve exactly one fs.common_obf.jar under $GAME; pass --common-jar." >&2
         exit 1
     }
-    CORE_JAR="$matches"
+    COMMON_JAR="$matches"
 fi
-CORE_JAR="$(absolute_file "$CORE_JAR")" || { echo "Core archive not found." >&2; exit 1; }
+COMMON_JAR="$(absolute_file "$COMMON_JAR")" || { echo "Common archive not found." >&2; exit 1; }
 
-EXPECTED_CORE_SHA="a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149"
-ACTUAL_CORE_SHA="$(hash_file "$CORE_JAR")"
-[[ "$ACTUAL_CORE_SHA" == "$EXPECTED_CORE_SHA" ]] || {
-    echo "Core archive differs from reviewed Starsector 0.98a-RC8." >&2
-    echo "Expected: $EXPECTED_CORE_SHA" >&2
-    echo "Actual:   $ACTUAL_CORE_SHA" >&2
+EXPECTED_COMMON_SHA="10d89e113f6d1627cc7bc90b692e8a7f450fdd820c5a4ac5edaecd6710afe708"
+ACTUAL_COMMON_SHA="$(hash_file "$COMMON_JAR")"
+[[ "$ACTUAL_COMMON_SHA" == "$EXPECTED_COMMON_SHA" ]] || {
+    echo "Common archive differs from reviewed Starsector 0.98a-RC8." >&2
+    echo "Expected: $EXPECTED_COMMON_SHA" >&2
+    echo "Actual:   $ACTUAL_COMMON_SHA" >&2
     exit 1
 }
 
 CLASS_FILE="$TMP/DynamicParticleGroup.class"
-extract_class "$CORE_JAR" "com/fs/graphics/particle/DynamicParticleGroup.class" "$CLASS_FILE"
+extract_class "$COMMON_JAR" "com/fs/graphics/particle/DynamicParticleGroup.class" "$CLASS_FILE"
 CLASS_SHA="$(hash_file "$CLASS_FILE")"
 cat >"$TARGETS" <<EOF
 target issue-1153-dynamic-particle-group-probe
@@ -122,8 +122,8 @@ class com/fs/graphics/particle/DynamicParticleGroup
 sha256 $CLASS_SHA
 plan lwjgl-display-frame-time-probe-v1
 source-kind STARSECTOR_CORE
-source-suffix contents/resources/java/starfarer_obf.jar
-source-sha256 $EXPECTED_CORE_SHA
+source-suffix contents/resources/java/fs.common_obf.jar
+source-sha256 $EXPECTED_COMMON_SHA
 loader-class jdk/internal/loader/ClassLoaders\$AppClassLoader
 loader-name app
 method render (FF)V
@@ -136,7 +136,7 @@ echo "Issue #1153 vanilla particle render probe"
 echo "  route:       $ROUTE"
 echo "  workload id: $WORKLOAD_ID"
 echo "  class sha:   $CLASS_SHA"
-echo "  core sha:    $ACTUAL_CORE_SHA"
+echo "  common sha:  $ACTUAL_COMMON_SHA"
 echo "  session:     $SESSION"
 echo
 

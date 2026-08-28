@@ -18,7 +18,7 @@ Method:
 render(FF)V
 ```
 
-The runner derives the class SHA from the installed reviewed Starsector 0.98a-RC8 `starfarer_obf.jar` and binds the external AdapterTarget to the reviewed core archive SHA, code-source suffix, and application classloader.
+The runner derives the class SHA from the installed reviewed Starsector 0.98a-RC8 `fs.common_obf.jar` and binds the external AdapterTarget to the reviewed common archive SHA, code-source suffix, and application classloader.
 
 If another renderer shadows the class or the core archive/class changes, the target declines.
 

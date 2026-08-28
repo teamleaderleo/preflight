@@ -132,7 +132,8 @@ record AdapterSourceIdentity(
         if (normalized.contains("/mods/")) {
             return "MOD";
         }
-        if (normalized.contains("starsector-core") || normalized.contains("starfarer_obf")
+        if (fileName.equals("fs.common_obf.jar")
+                || normalized.contains("starsector-core") || normalized.contains("starfarer_obf")
                 || normalized.contains("starsector")) {
             return "STARSECTOR_CORE";
         }
