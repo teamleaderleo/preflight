@@ -26,11 +26,14 @@ public final class FramePacingRuntime {
     private static long calls;
     private static long waits;
     private static long lateFrames;
+    private static long interruptedWaits;
+    private static long parkCalls;
     private static long totalWaitNanos;
     private static long totalSpinNanos;
     private static long maximumWaitNanos;
     private static long maximumSpinNanos;
     private static long maximumOvershootNanos;
+    private static long zeroOvershoots;
     private static final long[] overshootHistogram = new long[OVERSHOOT_BINS + 1];
 
     private FramePacingRuntime() {
@@ -63,27 +66,51 @@ public final class FramePacingRuntime {
             return;
         }
 
-        long parkNanos = Math.max(0L, deadline - started - spinMarginNanos);
-        if (parkNanos > 0L) LockSupport.parkNanos(parkNanos);
-
-        long spinStarted = System.nanoTime();
-        while (System.nanoTime() < deadline) {
-            Thread.onSpinWait();
+        long localParkCalls = 0L;
+        long spinStarted;
+        while (true) {
+            spinStarted = System.nanoTime();
+            long parkNanos = plannedParkNanos(spinStarted, deadline, spinMarginNanos);
+            if (parkNanos <= 0L) break;
+            LockSupport.parkNanos(parkNanos);
+            localParkCalls++;
+            if (Thread.currentThread().isInterrupted()) {
+                long completed = System.nanoTime();
+                synchronized (FramePacingRuntime.class) {
+                    parkCalls += localParkCalls;
+                    interruptedWaits++;
+                    previousCompletionNanos = completed;
+                }
+                return;
+            }
         }
-        long completed = System.nanoTime();
+
+        long completed = spinStarted;
+        if (spinStarted < deadline) {
+            do {
+                Thread.onSpinWait();
+                completed = System.nanoTime();
+            } while (completed < deadline);
+        }
         long waitNanos = completed - started;
-        long spinNanos = Math.max(0L, completed - spinStarted);
+        long spinNanos = spinStarted < deadline ? completed - spinStarted : 0L;
         long overshootNanos = Math.max(0L, completed - deadline);
 
         synchronized (FramePacingRuntime.class) {
             waits++;
+            parkCalls += localParkCalls;
             totalWaitNanos += waitNanos;
             totalSpinNanos += spinNanos;
             maximumWaitNanos = Math.max(maximumWaitNanos, waitNanos);
             maximumSpinNanos = Math.max(maximumSpinNanos, spinNanos);
             maximumOvershootNanos = Math.max(maximumOvershootNanos, overshootNanos);
-            int bin = (int) Math.min(OVERSHOOT_BINS, overshootNanos / OVERSHOOT_BIN_NANOS);
-            overshootHistogram[bin]++;
+            if (overshootNanos == 0L) {
+                zeroOvershoots++;
+            } else {
+                int bin = (int) Math.min(OVERSHOOT_BINS,
+                        (overshootNanos - 1L) / OVERSHOOT_BIN_NANOS);
+                overshootHistogram[bin]++;
+            }
             // Match Fast Rendering's no-catch-up policy: an overshoot moves the next deadline.
             previousCompletionNanos = completed;
         }
@@ -117,6 +144,9 @@ public final class FramePacingRuntime {
         result.put("calls", calls);
         result.put("waits", waits);
         result.put("lateFrames", lateFrames);
+        result.put("interruptedWaits", interruptedWaits);
+        result.put("parkCalls", parkCalls);
+        result.put("averageParksPerWait", waits == 0L ? null : parkCalls / (double) waits);
         result.put("averageWaitMicros", waits == 0L ? null : totalWaitNanos / 1_000.0 / waits);
         result.put("maximumWaitMicros", waits == 0L ? null : maximumWaitNanos / 1_000.0);
         result.put("averageSpinMicros", waits == 0L ? null : totalSpinNanos / 1_000.0 / waits);
@@ -163,18 +193,22 @@ public final class FramePacingRuntime {
         calls = 0L;
         waits = 0L;
         lateFrames = 0L;
+        interruptedWaits = 0L;
+        parkCalls = 0L;
         totalWaitNanos = 0L;
         totalSpinNanos = 0L;
         maximumWaitNanos = 0L;
         maximumSpinNanos = 0L;
         maximumOvershootNanos = 0L;
+        zeroOvershoots = 0L;
         Arrays.fill(overshootHistogram, 0L);
     }
 
     private static Double percentileOvershootMicros(int perThousand) {
         if (waits == 0L) return null;
         long rank = Math.max(1L, (waits * perThousand + 999L) / 1_000L);
-        long cumulative = 0L;
+        if (rank <= zeroOvershoots) return 0.0;
+        long cumulative = zeroOvershoots;
         for (int i = 0; i < overshootHistogram.length; i++) {
             cumulative += overshootHistogram[i];
             if (cumulative >= rank) {
