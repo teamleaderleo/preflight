@@ -49,20 +49,20 @@ class GlIsEnabledStateCacheRuntimeTest {
     @Test
     void attribStackRestoresOnlyCapabilitiesCoveredByMask() {
         GlIsEnabledStateCacheRuntime.disable(GL_BLEND, context);
-        GlIsEnabledStateCacheRuntime.disable(GL_TEXTURE_2D, context);
+        GlIsEnabledStateCacheRuntime.disable(GL_LIGHTING, context);
         GlIsEnabledStateCacheRuntime.pushAttrib(GL_COLOR_BUFFER_BIT, context);
         GlIsEnabledStateCacheRuntime.enable(GL_BLEND, context);
-        GlIsEnabledStateCacheRuntime.enable(GL_TEXTURE_2D, context);
+        GlIsEnabledStateCacheRuntime.enable(GL_LIGHTING, context);
         GlIsEnabledStateCacheRuntime.popAttrib(context);
 
         assertEquals(0, GlIsEnabledStateCacheRuntime.cached(GL_BLEND, context));
-        assertEquals(1, GlIsEnabledStateCacheRuntime.cached(GL_TEXTURE_2D, context));
+        assertEquals(1, GlIsEnabledStateCacheRuntime.cached(GL_LIGHTING, context));
 
         GlIsEnabledStateCacheRuntime.pushAttrib(GL_ENABLE_BIT, context);
-        GlIsEnabledStateCacheRuntime.disable(GL_TEXTURE_2D, context);
+        GlIsEnabledStateCacheRuntime.disable(GL_LIGHTING, context);
         GlIsEnabledStateCacheRuntime.enable(GL_STENCIL_TEST, context);
         GlIsEnabledStateCacheRuntime.popAttrib(context);
-        assertEquals(1, GlIsEnabledStateCacheRuntime.cached(GL_TEXTURE_2D, context));
+        assertEquals(1, GlIsEnabledStateCacheRuntime.cached(GL_LIGHTING, context));
         assertEquals(-1, GlIsEnabledStateCacheRuntime.cached(GL_STENCIL_TEST, context));
     }
 
@@ -96,8 +96,17 @@ class GlIsEnabledStateCacheRuntimeTest {
     }
 
     @Test
-    void unsupportedCapabilityAlwaysFallsThrough() {
-        int unsupported = 0x0B44; // GL_CULL_FACE: deliberately outside FR's tracked six.
+    void texture2dAlwaysFallsThroughBecauseStateIsPerActiveTextureUnit() {
+        assertEquals(-1, GlIsEnabledStateCacheRuntime.cached(GL_TEXTURE_2D, context));
+        GlIsEnabledStateCacheRuntime.enable(GL_TEXTURE_2D, context);
+        GlIsEnabledStateCacheRuntime.observedQuery(GL_TEXTURE_2D, true, context);
+        assertEquals(-1, GlIsEnabledStateCacheRuntime.cached(GL_TEXTURE_2D, context));
+        assertEquals(2L, GlIsEnabledStateCacheRuntime.telemetry().get("unsupportedQueries"));
+    }
+
+    @Test
+    void otherUnsupportedCapabilityAlwaysFallsThrough() {
+        int unsupported = 0x0B44; // GL_CULL_FACE: outside this narrow cache.
         assertEquals(-1, GlIsEnabledStateCacheRuntime.cached(unsupported, context));
         GlIsEnabledStateCacheRuntime.observedQuery(unsupported, true, context);
         assertEquals(-1, GlIsEnabledStateCacheRuntime.cached(unsupported, context));
@@ -105,10 +114,8 @@ class GlIsEnabledStateCacheRuntimeTest {
     }
 
     @Test
-    void allSixFastRenderingCapabilitiesCanBecomeKnown() {
-        int[] caps = {
-            GL_STENCIL_TEST, GL_ALPHA_TEST, GL_TEXTURE_2D, GL_BLEND, GL_LIGHTING, GL_SCISSOR_TEST
-        };
+    void allFiveTrackedCapabilitiesCanBecomeKnown() {
+        int[] caps = {GL_STENCIL_TEST, GL_ALPHA_TEST, GL_BLEND, GL_LIGHTING, GL_SCISSOR_TEST};
         for (int cap : caps) {
             GlIsEnabledStateCacheRuntime.enable(cap, context);
             assertEquals(1, GlIsEnabledStateCacheRuntime.cached(cap, context));
