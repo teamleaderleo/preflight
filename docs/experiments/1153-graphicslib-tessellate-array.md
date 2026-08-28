@@ -55,3 +55,28 @@ The optional report records:
 ## Gameplay gate
 
 Measure this candidate separately from the frame-sync candidate first. Use the ordinary combat route and symmetric 1,040-DP route from #449/#1152 with identical frame-time probe settings. Compare average FPS, p50/p95/p99 frame time, 1% low, >50 ms frames, >100 ms frames, workload fingerprint, report counters, and visual correctness.
+
+## Installed-host result
+
+Status: **rejected for the current profile and routes because the candidate path did no work**.
+
+The exact installed GraphicsLib 1.12.1 archive gate passed, and the candidate transformed and
+completed both an ordinary-combat correctness route and the symmetric 1,040-DP fixture with ACTIVE
+adapter health, zero declines, and zero contained failures. The ordinary captured frame showed no
+obvious transform, attachment, UI, or GL-state corruption.
+
+However, the direct causal counter remained exactly zero in both candidate runs: zero array batches,
+zero vertices, zero buffer growths, and zero estimated immediate vertex calls avoided. GraphicsLib
+textures and shaders were active in the same sessions, so this is specifically a finding about the
+reviewed cached `Tessellate.render` replay branch, not evidence that GraphicsLib was absent.
+
+The ordinary baseline/candidate frame numbers are retained only as route context. With no candidate
+work, their differences cannot be caused by this rewrite. A candidate-only 1,040-DP materiality run
+then confirmed the same zero counter in the exact stress fixture. A baseline stress run and repeated
+cohort were intentionally skipped because they could not change the decision and would manufacture
+an FPS comparison around a no-op candidate.
+
+See
+[`../evidence/2026-08-28-graphicslib-tessellate-array-rejected.md`](../evidence/2026-08-28-graphicslib-tessellate-array-rejected.md)
+for the retained installed-host evidence. Revisit this branch only if a workload first proves nonzero
+cached replay traffic. Do not promote it from the current evidence.
