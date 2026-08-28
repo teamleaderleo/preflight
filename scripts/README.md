@@ -73,8 +73,9 @@ retained maintenance counters and the state the selected save actually loaded in
 deep campaign timers, owner/tax reporting, thin hitch packets, and SAMPLE JFR in one explicitly
 intrusive paused/unpaused pass. `run-1158-owner-tax-discovery.sh` also builds the enabled-mod static
 hot-pattern census, runtime/static triage join, and JFR hitch correlation into one run-owned bundle.
-Its frame numbers describe discovery overhead and are never an FPS claim. Normal launches are
-unchanged.
+It foregrounds the exact recorded game PID before its timed windows because inactive-focus
+intervals are deliberately excluded. Its frame numbers describe discovery overhead and are never
+an FPS claim. Normal launches are unchanged.
 
 `campaign-hitch-limiter-current-state.json` keeps the same route and timing but disables the broad
 campaign call-time probes. It retains only the thin frame/presentation recorder and exact campaign

@@ -34,6 +34,10 @@
       "durationMillis": 3000
     },
     {
+      "id": "activate-game",
+      "kind": "activate-window"
+    },
+    {
       "id": "ensure-paused",
       "kind": "click",
       "target": "campaign.pause"
