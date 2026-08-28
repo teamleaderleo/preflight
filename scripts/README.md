@@ -74,8 +74,10 @@ deep campaign timers, owner/tax reporting, thin hitch packets, and SAMPLE JFR in
 intrusive paused/unpaused pass. `run-1158-owner-tax-discovery.sh` also builds the enabled-mod static
 hot-pattern census, runtime/static triage join, and JFR hitch correlation into one run-owned bundle.
 It foregrounds the exact recorded game PID before its timed windows because inactive-focus
-intervals are deliberately excluded. Its frame numbers describe discovery overhead and are never
-an FPS claim. Normal launches are unchanged.
+intervals are deliberately excluded. On macOS the wrapper scopes `caffeinate` to the smoke command
+so the display does not idle-sleep during a capture; it neither moves the pointer nor bypasses the
+locked-console guard, and the assertion ends with the command. Its frame numbers describe discovery
+overhead and are never an FPS claim. Normal launches are unchanged.
 
 `campaign-hitch-limiter-current-state.json` keeps the same route and timing but disables the broad
 campaign call-time probes. It retains only the thin frame/presentation recorder and exact campaign

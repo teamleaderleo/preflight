@@ -50,9 +50,16 @@ echo
 java -jar preflight-cli/target/preflight.jar classpath hot-patterns \
     --game "$GAME" --limit 500 --json "$HOT_PATTERNS"
 
+SMOKE_COMMAND=(java -jar preflight-cli/target/preflight.jar desktop smoke launch
+    "$SCENARIO" "$RUN_DIR" --game "$GAME")
 set +e
-java -jar preflight-cli/target/preflight.jar desktop smoke launch \
-    "$SCENARIO" "$RUN_DIR" --game "$GAME"
+if [[ "$(uname -s)" == "Darwin" ]] && command -v caffeinate >/dev/null 2>&1; then
+    # Scope idle/display sleep prevention to the owned foreground run. This does not move the
+    # pointer, bypass a locked console, or leave a helper alive after the smoke command exits.
+    caffeinate -dimsu "${SMOKE_COMMAND[@]}"
+else
+    "${SMOKE_COMMAND[@]}"
+fi
 RUN_STATUS=$?
 set -e
 POSTPROCESS_STATUS=0
