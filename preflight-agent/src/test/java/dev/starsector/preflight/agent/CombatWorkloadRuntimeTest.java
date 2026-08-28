@@ -116,6 +116,19 @@ class CombatWorkloadRuntimeTest {
         assertEquals(1L, CombatWorkloadRuntime.telemetry().get("completedSamples"));
     }
 
+    @Test
+    void densityAnchorsCoverTheFullCandidateOrderDeterministically() {
+        List<Object> candidates = new ArrayList<>();
+        for (int index = 0; index < 10; index++) candidates.add(index);
+
+        assertEquals(
+                List.of(0, 3, 6, 9),
+                CombatWorkloadRuntime.selectDensityAnchors(candidates, 4));
+        assertEquals(
+                List.of(5),
+                CombatWorkloadRuntime.selectDensityAnchors(candidates, 1));
+    }
+
     public static final class FakeEngine {
         public final List<Object> effects = new ArrayList<>();
         private final List<?> ships;
