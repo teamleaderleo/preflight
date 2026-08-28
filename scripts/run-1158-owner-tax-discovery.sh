@@ -113,6 +113,7 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
               fleetHullmodShipClassesOwnerTax:.campaignMarketFleetTimes.fleetHullmodShipClassesOwnerTax
             }
           },
+          fleetAiModuleTimes:.fleetAiModuleTimes,
           triage:($triage[0] // null),
           jvmHitchCorrelation:($jvm[0] // null)}' \
         "$RUN_DIR/runtime-frame-report.json" >"$SUMMARY"
@@ -125,6 +126,7 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
          runtimeOwnerTaxFamilies:(.triage.runtimeOwnerTaxFamilies // 0),
          runtimeObservedModCount:(.triage.runtimeObservedModCount // 0),
          unresolvedRuntimeOwnerCount:(.triage.unresolvedRuntimeOwners | length),
+         fleetAiModuleTimes,
          topMods:(.triage.mods[:12] | map({modId,priority,bestFrameTaxRank})),
          retainedHitchFrames:(.jvmHitchCorrelation.retainedHitchFrames // 0),
          retainedSevereHitchFrames:(.jvmHitchCorrelation.retainedSevereHitchFrames // 0),
