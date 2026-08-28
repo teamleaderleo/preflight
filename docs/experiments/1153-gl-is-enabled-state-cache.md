@@ -1,6 +1,6 @@
 # Issue #1153: guarded GL11 `glIsEnabled` state cache
 
-Fast Rendering avoids a class of asynchronous pipeline stalls by answering selected OpenGL state getters from client-side tracked state instead of synchronizing with the renderer. Its current `AttribTracker` exposes cached `glIsEnabled` values for exactly six capabilities:
+Fast Rendering avoids a class of asynchronous pipeline stalls by answering selected OpenGL state getters from client-side tracked state instead of synchronizing with the renderer. Its current `AttribTracker` exposes cached `glIsEnabled` values for six capabilities:
 
 - `GL_STENCIL_TEST`
 - `GL_ALPHA_TEST`
@@ -9,7 +9,9 @@ Fast Rendering avoids a class of asynchronous pipeline stalls by answering selec
 - `GL_LIGHTING`
 - `GL_SCISSOR_TEST`
 
-This experiment ports that narrow idea without FR's deferred render-thread bridge.
+This experiment starts with five unit-independent capabilities: stencil, alpha test, blend, lighting, and scissor test.
+
+`GL_TEXTURE_2D` stays on the original native getter path. In OpenGL 2.1 its enable state belongs to the active texture image unit, so caching it safely requires tracking `GL13.glActiveTexture` plus the relevant texture attrib semantics. Fast Rendering can do that because its wider GL bridge already tracks active texture state. This narrow GL11-only candidate deliberately leaves that extra state out. If live telemetry later shows texture-enable queries dominate the remaining getter traffic, active-unit tracking can be evaluated as a separate extension.
 
 ## Exact target
 
@@ -48,16 +50,16 @@ Property:
 -Dpreflight.glIsEnabledCache.report=<path>
 ```
 
-The cache never assumes OpenGL's initial enable state.
+The cache begins every context with unknown values.
 
-For one of the six tracked capabilities:
+For one of the five tracked capabilities:
 
 1. an unknown `glIsEnabled` call runs the original LWJGL/native getter;
 2. the returned value seeds the client-side cache;
 3. later `glEnable` / `glDisable` calls update that known value after the original LWJGL setter returns;
 4. a known `glIsEnabled` returns directly from the Java cache.
 
-Every other capability always takes the original getter.
+Every other capability, including `GL_TEXTURE_2D`, always takes the original getter.
 
 ### Context changes
 
@@ -65,9 +67,9 @@ Each cache access is keyed by the identity of LWJGL's current `ContextCapabiliti
 
 ### Attribute stack
 
-`glPushAttrib` snapshots the tracked values. `glPopAttrib` restores only the capabilities covered by the pushed mask, following the same relevant mask ownership used by FR's `AttribState`:
+`glPushAttrib` snapshots the tracked values. `glPopAttrib` restores only the capabilities covered by the pushed mask, following the relevant mask ownership used by FR's `AttribState`:
 
-- `GL_ENABLE_BIT`: all six;
+- `GL_ENABLE_BIT`: all five tracked values;
 - `GL_COLOR_BUFFER_BIT`: alpha test + blend;
 - `GL_STENCIL_BUFFER_BIT`: stencil test;
 - `GL_LIGHTING_BIT`: lighting;
@@ -92,9 +94,11 @@ The report includes:
 - attrib pushes/pops/underflows;
 - display-list compiles/calls;
 - invalidation count;
-- per-capability queries/hits/native seeds and hit rate.
+- per-capability queries/hits/native seeds and hit rate for the five cached capabilities.
 
-The important live sanity signal is a high cache hit rate with zero visual regressions. A low hit rate means the compatibility guards are erasing the expected win and the candidate should be dropped.
+`unsupportedQueries` includes `GL_TEXTURE_2D`; that count tells us whether a later active-texture-aware extension is even worth investigating.
+
+The important live sanity signal is a high cache hit rate with zero visual regressions. A low hit rate means the compatibility guards erase the expected win and the candidate should be dropped.
 
 ## Gameplay A/B
 
