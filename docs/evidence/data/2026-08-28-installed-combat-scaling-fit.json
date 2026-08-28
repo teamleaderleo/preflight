@@ -1,0 +1,4332 @@
+{
+  "balancedRunCellMatrix": true,
+  "bucketSeconds": 10.0,
+  "cells": [
+    "symmetric-1040",
+    "symmetric-260",
+    "symmetric-520",
+    "symmetric-780"
+  ],
+  "confirmedBadScaling": false,
+  "confirmedSuperlinear": false,
+  "evidence": "repeatable",
+  "models": [
+    {
+      "aicc": 1245.102429060353,
+      "equation": "advanceMicros = 1249.44 + 129.346*fighters + 34.5499*missiles + 1.73555*fighters_x_missiles",
+      "kind": "interaction",
+      "leaveOneRunOutRmseMicros": 5415.10648394884,
+      "model": "fighters*missiles",
+      "observations": 72,
+      "predictors": [
+        "fighters",
+        "missiles"
+      ],
+      "r2": 0.28962991655387793,
+      "rawInterceptMicros": 1249.4443820040367,
+      "rawTermCoefficients": [
+        129.3458280645839,
+        34.549905206214454,
+        1.735551787395067
+      ],
+      "rmseMicros": 5360.664143268271,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1327.3562964589764,
+        996.6200436530369,
+        1688.288683375388
+      ],
+      "terms": [
+        "fighters",
+        "missiles",
+        "fighters_x_missiles"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1242.48366272848,
+      "equation": "advanceMicros = 1508.43 + 9.65311*totalAi_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 5463.830408363887,
+      "model": "totalAi:nlogn",
+      "observations": 72,
+      "predictors": [
+        "totalAi"
+      ],
+      "r2": 0.2716029524584328,
+      "rawInterceptMicros": 1508.4273255682601,
+      "rawTermCoefficients": [
+        9.653113482740373
+      ],
+      "rmseMicros": 5428.256428829668,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3314.6945200864866
+      ],
+      "terms": [
+        "totalAi_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1242.4059881819057,
+      "equation": "advanceMicros = 429.573 + 76.3812*totalAi",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 5464.840620131109,
+      "model": "totalAi:linear",
+      "observations": 72,
+      "predictors": [
+        "totalAi"
+      ],
+      "r2": 0.27238833305383037,
+      "rawInterceptMicros": 429.5732350471826,
+      "rawTermCoefficients": [
+        76.38123435473376
+      ],
+      "rmseMicros": 5425.3291811889685,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3319.483528255765
+      ],
+      "terms": [
+        "totalAi"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1244.521306641908,
+      "equation": "advanceMicros = 1219.32 + 58.4776*totalAi + 21.337*totalAi_above_56.5",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5468.199200940721,
+      "model": "totalAi:threshold@56.5",
+      "observations": 72,
+      "predictors": [
+        "totalAi"
+      ],
+      "r2": 0.2730318802517605,
+      "rawInterceptMicros": 1219.3205688529395,
+      "rawTermCoefficients": [
+        58.477574483699,
+        21.33698874717525
+      ],
+      "rmseMicros": 5422.929393011879,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2541.400998699075,
+        794.6357313103546
+      ],
+      "terms": [
+        "totalAi",
+        "totalAi_above_56.5"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1244.1190679435244,
+      "equation": "advanceMicros = 3463.81 + 0.381485*totalAi_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 5517.96099207043,
+      "model": "totalAi:quadratic",
+      "observations": 72,
+      "predictors": [
+        "totalAi"
+      ],
+      "r2": 0.2548688405644799,
+      "rawInterceptMicros": 3463.8095934414023,
+      "rawTermCoefficients": [
+        0.3814852744574389
+      ],
+      "rmseMicros": 5490.2564321282825,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3210.9581012678923
+      ],
+      "terms": [
+        "totalAi_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1244.4842559342358,
+      "equation": "advanceMicros = 952.501 + 66.9989*totalAi + 16.9694*totalAi_above_88.5",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5522.990124789227,
+      "model": "totalAi:threshold@88.5",
+      "observations": 72,
+      "predictors": [
+        "totalAi"
+      ],
+      "r2": 0.2734058768389592,
+      "rawInterceptMicros": 952.5008923529203,
+      "rawTermCoefficients": [
+        66.99888421852565,
+        16.96935975209582
+      ],
+      "rmseMicros": 5421.534271307471,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2911.732108727405,
+        455.4383486595209
+      ],
+      "terms": [
+        "totalAi",
+        "totalAi_above_88.5"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1250.8892516279157,
+      "equation": "advanceMicros = 2716 - 43.9519*combatElapsedSeconds + 2.56434*shipDpPresent + 0.205333*combatElapsedSeconds_x_shipDpPresent",
+      "kind": "interaction",
+      "leaveOneRunOutRmseMicros": 5640.306005757925,
+      "model": "combatElapsedSeconds*shipDpPresent",
+      "observations": 72,
+      "predictors": [
+        "combatElapsedSeconds",
+        "shipDpPresent"
+      ],
+      "r2": 0.23017854280690297,
+      "rawInterceptMicros": 2715.9960858724653,
+      "rawTermCoefficients": [
+        -43.951935509436616,
+        2.5643361356537877,
+        0.2053333791605945
+      ],
+      "rmseMicros": 5580.476363561419,
+      "standardizedCoefficients": [
+        7052.46276388889,
+        -721.1885210691919,
+        745.4885643428365,
+        2945.455779868061
+      ],
+      "terms": [
+        "combatElapsedSeconds",
+        "shipDpPresent",
+        "combatElapsedSeconds_x_shipDpPresent"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1245.5964221004183,
+      "equation": "advanceMicros = -789.035 + 112.984*totalAi + 6.79695*nearbyEntitiesMean - 0.989878*totalAi_x_nearbyEntitiesMean",
+      "kind": "interaction",
+      "leaveOneRunOutRmseMicros": 5643.841600583181,
+      "model": "totalAi*nearbyEntitiesMean",
+      "observations": 72,
+      "predictors": [
+        "totalAi",
+        "nearbyEntitiesMean"
+      ],
+      "r2": 0.28473929903595585,
+      "rawInterceptMicros": -789.0354208508111,
+      "rawTermCoefficients": [
+        112.9837610639248,
+        6.7969515656905,
+        -0.9898777088563765
+      ],
+      "rmseMicros": 5379.085519596557,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        4910.207814530294,
+        66.93283172737722,
+        -1802.2968275534042
+      ],
+      "terms": [
+        "totalAi",
+        "nearbyEntitiesMean",
+        "totalAi_x_nearbyEntitiesMean"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1247.4954865663628,
+      "equation": "advanceMicros = 4058.49 + 16.3253*missileAi_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 5646.220254442257,
+      "model": "missileAi:nlogn",
+      "observations": 72,
+      "predictors": [
+        "missileAi"
+      ],
+      "r2": 0.21909386347315407,
+      "rawInterceptMicros": 4058.488627081257,
+      "rawTermCoefficients": [
+        16.325344158866198
+      ],
+      "rmseMicros": 5620.509481831237,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2977.0859549688944
+      ],
+      "terms": [
+        "missileAi_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1247.4954865663628,
+      "equation": "advanceMicros = 4058.49 + 16.3253*missiles_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 5646.220254442257,
+      "model": "missiles:nlogn",
+      "observations": 72,
+      "predictors": [
+        "missiles"
+      ],
+      "r2": 0.21909386347315407,
+      "rawInterceptMicros": 4058.488627081257,
+      "rawTermCoefficients": [
+        16.325344158866198
+      ],
+      "rmseMicros": 5620.509481831237,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2977.0859549688944
+      ],
+      "terms": [
+        "missiles_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1247.6273087256384,
+      "equation": "advanceMicros = 3750.65 + 102.869*missileAi",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 5655.568077288824,
+      "model": "missileAi:linear",
+      "observations": 72,
+      "predictors": [
+        "missileAi"
+      ],
+      "r2": 0.21766282144743543,
+      "rawInterceptMicros": 3750.6451035462646,
+      "rawTermCoefficients": [
+        102.86926505610946
+      ],
+      "rmseMicros": 5625.6570299202,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2967.347401356551
+      ],
+      "terms": [
+        "missileAi"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1247.6273087256384,
+      "equation": "advanceMicros = 3750.65 + 102.869*missiles",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 5655.568077288824,
+      "model": "missiles:linear",
+      "observations": 72,
+      "predictors": [
+        "missiles"
+      ],
+      "r2": 0.21766282144743543,
+      "rawInterceptMicros": 3750.6451035462646,
+      "rawTermCoefficients": [
+        102.86926505610946
+      ],
+      "rmseMicros": 5625.6570299202,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2967.347401356551
+      ],
+      "terms": [
+        "missiles"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1243.1934360373655,
+      "equation": "advanceMicros = -544.724 + 92.2622*totalAi - 123.385*totalAi_above_137",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5684.548815541748,
+      "model": "totalAi:threshold@137",
+      "observations": 72,
+      "predictors": [
+        "totalAi"
+      ],
+      "r2": 0.28631622113249433,
+      "rawInterceptMicros": -544.7235471943607,
+      "rawTermCoefficients": [
+        92.26221245584448,
+        -123.38543814401304
+      ],
+      "rmseMicros": 5373.152662379931,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        4009.661497551183,
+        -1019.6925126289374
+      ],
+      "terms": [
+        "totalAi",
+        "totalAi_above_137"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1249.3629395151636,
+      "equation": "advanceMicros = 4180.12 + 45.8736*missileAi + 78.9*missileAi_above_22",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5687.851778916067,
+      "model": "missileAi:threshold@22",
+      "observations": 72,
+      "predictors": [
+        "missileAi"
+      ],
+      "r2": 0.22246588119431498,
+      "rawInterceptMicros": 4180.119751855629,
+      "rawTermCoefficients": [
+        45.87362844408064,
+        78.89999337152591
+      ],
+      "rmseMicros": 5608.361439606728,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1323.2620266130134,
+        1702.1503166506866
+      ],
+      "terms": [
+        "missileAi",
+        "missileAi_above_22"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1249.3629395151636,
+      "equation": "advanceMicros = 4180.12 + 45.8736*missiles + 78.9*missiles_above_22",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5687.851778916067,
+      "model": "missiles:threshold@22",
+      "observations": 72,
+      "predictors": [
+        "missiles"
+      ],
+      "r2": 0.22246588119431498,
+      "rawInterceptMicros": 4180.119751855629,
+      "rawTermCoefficients": [
+        45.87362844408064,
+        78.89999337152591
+      ],
+      "rmseMicros": 5608.361439606728,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1323.2620266130134,
+        1702.1503166506866
+      ],
+      "terms": [
+        "missiles",
+        "missiles_above_22"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1248.1342481783777,
+      "equation": "advanceMicros = 4159.02 + 9.69875*ordnance_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 5692.395849839297,
+      "model": "ordnance:nlogn",
+      "observations": 72,
+      "predictors": [
+        "ordnance"
+      ],
+      "r2": 0.21213508462901298,
+      "rawInterceptMicros": 4159.019082321458,
+      "rawTermCoefficients": [
+        9.698751816530525
+      ],
+      "rmseMicros": 5645.4965664995325,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2929.4259055778602
+      ],
+      "terms": [
+        "ordnance_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1248.2508744256806,
+      "equation": "advanceMicros = 3878.39 + 66.9891*ordnance",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 5699.297546436158,
+      "model": "ordnance:linear",
+      "observations": 72,
+      "predictors": [
+        "ordnance"
+      ],
+      "r2": 0.2108578598050741,
+      "rawInterceptMicros": 3878.387754201622,
+      "rawTermCoefficients": [
+        66.98912522277098
+      ],
+      "rmseMicros": 5650.070731614562,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2920.5938345448394
+      ],
+      "terms": [
+        "ordnance"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1249.9252668334238,
+      "equation": "advanceMicros = 4342.15 + 28.8359*ordnance + 53.3897*ordnance_above_34.5",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5706.483046858227,
+      "model": "ordnance:threshold@34.5",
+      "observations": 72,
+      "predictors": [
+        "ordnance"
+      ],
+      "r2": 0.21636948494756358,
+      "rawInterceptMicros": 4342.14988460111,
+      "rawTermCoefficients": [
+        28.83589340444783,
+        53.38972521900486
+      ],
+      "rmseMicros": 5630.305193904431,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1257.188121363841,
+        1729.1273123713802
+      ],
+      "terms": [
+        "ordnance",
+        "ordnance_above_34.5"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1251.8661415382328,
+      "equation": "advanceMicros = 1778.48 + 70.4391*fighterAi - 13.6438*nearbyEntitiesMean + 7.2018*fighterAi_x_nearbyEntitiesMean",
+      "kind": "interaction",
+      "leaveOneRunOutRmseMicros": 5728.672492194205,
+      "model": "fighterAi*nearbyEntitiesMean",
+      "observations": 72,
+      "predictors": [
+        "fighterAi",
+        "nearbyEntitiesMean"
+      ],
+      "r2": 0.2196624912604449,
+      "rawInterceptMicros": 1778.483455161942,
+      "rawTermCoefficients": [
+        70.4391086662691,
+        -13.64375544938656,
+        7.201799626538404
+      ],
+      "rmseMicros": 5618.462782662437,
+      "standardizedCoefficients": [
+        7052.462763888888,
+        722.8512570072673,
+        -134.35658306482333,
+        2537.9329973003264
+      ],
+      "terms": [
+        "fighterAi",
+        "nearbyEntitiesMean",
+        "fighterAi_x_nearbyEntitiesMean"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1251.8661415382328,
+      "equation": "advanceMicros = 1778.48 + 70.4391*fighters - 13.6438*nearbyEntitiesMean + 7.2018*fighters_x_nearbyEntitiesMean",
+      "kind": "interaction",
+      "leaveOneRunOutRmseMicros": 5728.672492194205,
+      "model": "fighters*nearbyEntitiesMean",
+      "observations": 72,
+      "predictors": [
+        "fighters",
+        "nearbyEntitiesMean"
+      ],
+      "r2": 0.2196624912604449,
+      "rawInterceptMicros": 1778.483455161942,
+      "rawTermCoefficients": [
+        70.4391086662691,
+        -13.64375544938656,
+        7.201799626538404
+      ],
+      "rmseMicros": 5618.462782662437,
+      "standardizedCoefficients": [
+        7052.462763888888,
+        722.8512570072673,
+        -134.35658306482333,
+        2537.9329973003264
+      ],
+      "terms": [
+        "fighters",
+        "nearbyEntitiesMean",
+        "fighters_x_nearbyEntitiesMean"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1249.6605909347782,
+      "equation": "advanceMicros = 4784.08 + 1.21804*missileAi_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 5743.667479932013,
+      "model": "missileAi:quadratic",
+      "observations": 72,
+      "predictors": [
+        "missileAi"
+      ],
+      "r2": 0.19525468142679225,
+      "rawInterceptMicros": 4784.084815559134,
+      "rawTermCoefficients": [
+        1.2180436679288547
+      ],
+      "rmseMicros": 5705.654849582814,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2810.4573215159676
+      ],
+      "terms": [
+        "missileAi_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1249.6605909347782,
+      "equation": "advanceMicros = 4784.08 + 1.21804*missiles_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 5743.667479932013,
+      "model": "missiles:quadratic",
+      "observations": 72,
+      "predictors": [
+        "missiles"
+      ],
+      "r2": 0.19525468142679225,
+      "rawInterceptMicros": 4784.084815559134,
+      "rawTermCoefficients": [
+        1.2180436679288547
+      ],
+      "rmseMicros": 5705.654849582814,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2810.4573215159676
+      ],
+      "terms": [
+        "missiles_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1249.6691421333564,
+      "equation": "advanceMicros = 3945.2 + 85.1665*missileAi + 36.7786*missileAi_above_38",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5753.349068245015,
+      "model": "missileAi:threshold@38",
+      "observations": 72,
+      "predictors": [
+        "missileAi"
+      ],
+      "r2": 0.21915213171246384,
+      "rawInterceptMicros": 3945.195018551118,
+      "rawTermCoefficients": [
+        85.16648502242298,
+        36.778579326725854
+      ],
+      "rmseMicros": 5620.29978742266,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2456.696350227782,
+        566.5790446262633
+      ],
+      "terms": [
+        "missileAi",
+        "missileAi_above_38"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1249.6691421333564,
+      "equation": "advanceMicros = 3945.2 + 85.1665*missiles + 36.7786*missiles_above_38",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5753.349068245015,
+      "model": "missiles:threshold@38",
+      "observations": 72,
+      "predictors": [
+        "missiles"
+      ],
+      "r2": 0.21915213171246384,
+      "rawInterceptMicros": 3945.195018551118,
+      "rawTermCoefficients": [
+        85.16648502242298,
+        36.778579326725854
+      ],
+      "rmseMicros": 5620.29978742266,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2456.696350227782,
+        566.5790446262633
+      ],
+      "terms": [
+        "missiles",
+        "missiles_above_38"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1250.0865972205374,
+      "equation": "advanceMicros = 4883.45 + 0.52318*ordnance_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 5762.246371460279,
+      "model": "ordnance:quadratic",
+      "observations": 72,
+      "predictors": [
+        "ordnance"
+      ],
+      "r2": 0.19047908729340013,
+      "rawInterceptMicros": 4883.445202527386,
+      "rawTermCoefficients": [
+        0.5231796771293431
+      ],
+      "rmseMicros": 5722.5593201403035,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2775.875077539777
+      ],
+      "terms": [
+        "ordnance_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1249.6265973974632,
+      "equation": "advanceMicros = 4131.08 + 130.849*firingWeapons",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 5764.192048270595,
+      "model": "firingWeapons:linear",
+      "observations": 72,
+      "predictors": [
+        "firingWeapons"
+      ],
+      "r2": 0.19563453813750475,
+      "rawInterceptMicros": 4131.080940578447,
+      "rawTermCoefficients": [
+        130.84882816693738
+      ],
+      "rmseMicros": 5704.308096112829,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2813.189784435486
+      ],
+      "terms": [
+        "firingWeapons"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1249.840184671325,
+      "equation": "advanceMicros = 4490.96 + 21.8525*firingWeapons_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 5770.02059225408,
+      "model": "firingWeapons:nlogn",
+      "observations": 72,
+      "predictors": [
+        "firingWeapons"
+      ],
+      "r2": 0.19324485337168773,
+      "rawInterceptMicros": 4490.962712494647,
+      "rawTermCoefficients": [
+        21.852451131938874
+      ],
+      "rmseMicros": 5712.775260218601,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2795.955372473798
+      ],
+      "terms": [
+        "firingWeapons_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1253.6087675301912,
+      "equation": "advanceMicros = 947.252 + 104.702*shipAi + 66.5496*nearbyEntitiesMean + 2.38158*shipAi_x_nearbyEntitiesMean",
+      "kind": "interaction",
+      "leaveOneRunOutRmseMicros": 5779.594908960921,
+      "model": "shipAi*nearbyEntitiesMean",
+      "observations": 72,
+      "predictors": [
+        "shipAi",
+        "nearbyEntitiesMean"
+      ],
+      "r2": 0.20054546138755713,
+      "rawInterceptMicros": 947.2517118210676,
+      "rawTermCoefficients": [
+        104.7023240518084,
+        66.54959667600464,
+        2.3815777169007877
+      ],
+      "rmseMicros": 5686.868070738204,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1404.417241031483,
+        655.345696197752,
+        1148.52455851537
+      ],
+      "terms": [
+        "shipAi",
+        "nearbyEntitiesMean",
+        "shipAi_x_nearbyEntitiesMean"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1253.6087675301912,
+      "equation": "advanceMicros = 947.252 + 104.702*ships + 66.5496*nearbyEntitiesMean + 2.38158*ships_x_nearbyEntitiesMean",
+      "kind": "interaction",
+      "leaveOneRunOutRmseMicros": 5779.594908960921,
+      "model": "ships*nearbyEntitiesMean",
+      "observations": 72,
+      "predictors": [
+        "ships",
+        "nearbyEntitiesMean"
+      ],
+      "r2": 0.20054546138755713,
+      "rawInterceptMicros": 947.2517118210676,
+      "rawTermCoefficients": [
+        104.7023240518084,
+        66.54959667600464,
+        2.3815777169007877
+      ],
+      "rmseMicros": 5686.868070738204,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1404.417241031483,
+        655.345696197752,
+        1148.52455851537
+      ],
+      "terms": [
+        "ships",
+        "nearbyEntitiesMean",
+        "ships_x_nearbyEntitiesMean"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1253.6257539748467,
+      "equation": "advanceMicros = 928.069 + 4.86663*liveDeployedDp + 67.7957*nearbyEntitiesMean + 0.107866*liveDeployedDp_x_nearbyEntitiesMean",
+      "kind": "interaction",
+      "leaveOneRunOutRmseMicros": 5779.889565798322,
+      "model": "liveDeployedDp*nearbyEntitiesMean",
+      "observations": 72,
+      "predictors": [
+        "liveDeployedDp",
+        "nearbyEntitiesMean"
+      ],
+      "r2": 0.20035682955000234,
+      "rawInterceptMicros": 928.0686400969503,
+      "rawTermCoefficients": [
+        4.866628742042247,
+        67.79571480949674,
+        0.10786607624672942
+      ],
+      "rmseMicros": 5687.538941345762,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1414.5555664788972,
+        667.6168172341995,
+        1127.9854597806998
+      ],
+      "terms": [
+        "liveDeployedDp",
+        "nearbyEntitiesMean",
+        "liveDeployedDp_x_nearbyEntitiesMean"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1253.6357591394064,
+      "equation": "advanceMicros = 916.563 + 4.88702*battleDp + 68.5443*nearbyEntitiesMean + 0.10664*battleDp_x_nearbyEntitiesMean",
+      "kind": "interaction",
+      "leaveOneRunOutRmseMicros": 5780.0648180823155,
+      "model": "battleDp*nearbyEntitiesMean",
+      "observations": 72,
+      "predictors": [
+        "battleDp",
+        "nearbyEntitiesMean"
+      ],
+      "r2": 0.20024570291921895,
+      "rawInterceptMicros": 916.5625935590188,
+      "rawTermCoefficients": [
+        4.887018164828492,
+        68.54431678839563,
+        0.10664028497560846
+      ],
+      "rmseMicros": 5687.934127040015,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1420.6016270982611,
+        674.9886588311509,
+        1115.700248501302
+      ],
+      "terms": [
+        "battleDp",
+        "nearbyEntitiesMean",
+        "battleDp_x_nearbyEntitiesMean"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1251.589486555346,
+      "equation": "advanceMicros = 4432.64 + 83.2512*firingWeapons + 68.1599*firingWeapons_above_18",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5790.257177810819,
+      "model": "firingWeapons:threshold@18",
+      "observations": 72,
+      "predictors": [
+        "firingWeapons"
+      ],
+      "r2": 0.19804556643729143,
+      "rawInterceptMicros": 4432.644686688953,
+      "rawTermCoefficients": [
+        83.25122030641737,
+        68.15990661172818
+      ],
+      "rmseMicros": 5695.752551106287,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1789.863048746653,
+        1069.9211839780364
+      ],
+      "terms": [
+        "firingWeapons",
+        "firingWeapons_above_18"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1245.8286124976398,
+      "equation": "advanceMicros = 4175.28 + 49.2503*missiles - 190.403*projectiles + 9.34264*missiles_x_projectiles",
+      "kind": "interaction",
+      "leaveOneRunOutRmseMicros": 5812.513952909788,
+      "model": "missiles*projectiles",
+      "observations": 72,
+      "predictors": [
+        "missiles",
+        "projectiles"
+      ],
+      "r2": 0.28242895539824764,
+      "rawInterceptMicros": 4175.275315052478,
+      "rawTermCoefficients": [
+        49.25033698148996,
+        -190.40321768339973,
+        9.342643068515818
+      ],
+      "rmseMicros": 5387.76593270033,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1420.6659236677338,
+        -1049.7980705615378,
+        3208.682709934784
+      ],
+      "terms": [
+        "missiles",
+        "projectiles",
+        "missiles_x_projectiles"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1250.4295730789372,
+      "equation": "advanceMicros = 3886.81 + 66.55*ordnance + 1.13782*ordnance_above_67.5",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5820.02431083424,
+      "model": "ordnance:threshold@67.5",
+      "observations": 72,
+      "predictors": [
+        "ordnance"
+      ],
+      "r2": 0.21086147099602992,
+      "rawInterceptMicros": 3886.8051930773768,
+      "rawTermCoefficients": [
+        66.54999198424069,
+        1.1378156175915086
+      ],
+      "rmseMicros": 5650.057803963998,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2901.4484908083714,
+        22.6412963404758
+      ],
+      "terms": [
+        "ordnance",
+        "ordnance_above_67.5"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1249.7401346002978,
+      "equation": "advanceMicros = 3631.71 + 77.451*ordnance - 97.1814*ordnance_above_103.5",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5821.649911072107,
+      "model": "ordnance:threshold@103.5",
+      "observations": 72,
+      "predictors": [
+        "ordnance"
+      ],
+      "r2": 0.21838183095194041,
+      "rawInterceptMicros": 3631.7115824441944,
+      "rawTermCoefficients": [
+        77.45099185215547,
+        -97.18142894097772
+      ],
+      "rmseMicros": 5623.071296567867,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3376.7106008707347,
+        -715.8288695495298
+      ],
+      "terms": [
+        "ordnance",
+        "ordnance_above_103.5"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1250.9900989518922,
+      "equation": "advanceMicros = 3805.32 + 159.71*firingWeapons - 170.561*firingWeapons_above_48.5",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5837.243463225192,
+      "model": "firingWeapons:threshold@48.5",
+      "observations": 72,
+      "predictors": [
+        "firingWeapons"
+      ],
+      "r2": 0.20469398714582565,
+      "rawInterceptMicros": 3805.3223785423543,
+      "rawTermCoefficients": [
+        159.7104689568974,
+        -170.56112344432762
+      ],
+      "rmseMicros": 5672.093744474973,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3433.7018224093795,
+        -866.9017236860328
+      ],
+      "terms": [
+        "firingWeapons",
+        "firingWeapons_above_48.5"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1252.226644849288,
+      "equation": "advanceMicros = 5191.23 + 1.93737*firingWeapons_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 5858.308887942098,
+      "model": "firingWeapons:quadratic",
+      "observations": 72,
+      "predictors": [
+        "firingWeapons"
+      ],
+      "r2": 0.1660566364670253,
+      "rawInterceptMicros": 5191.233226348814,
+      "rawTermCoefficients": [
+        1.9373723053319216
+      ],
+      "rmseMicros": 5808.239894276259,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2591.8173062875335
+      ],
+      "terms": [
+        "firingWeapons_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1248.865178866646,
+      "equation": "advanceMicros = 3452.11 + 121.481*missileAi - 129.226*missileAi_above_63.5",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5880.223835708936,
+      "model": "missileAi:threshold@63.5",
+      "observations": 72,
+      "predictors": [
+        "missileAi"
+      ],
+      "r2": 0.2278227026333759,
+      "rawInterceptMicros": 3452.108882359334,
+      "rawTermCoefficients": [
+        121.48053972604582,
+        -129.22551253311684
+      ],
+      "rmseMicros": 5589.008645698281,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3504.204717267634,
+        -836.19085993649
+      ],
+      "terms": [
+        "missileAi",
+        "missileAi_above_63.5"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1248.865178866646,
+      "equation": "advanceMicros = 3452.11 + 121.481*missiles - 129.226*missiles_above_63.5",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5880.223835708936,
+      "model": "missiles:threshold@63.5",
+      "observations": 72,
+      "predictors": [
+        "missiles"
+      ],
+      "r2": 0.2278227026333759,
+      "rawInterceptMicros": 3452.108882359334,
+      "rawTermCoefficients": [
+        121.48053972604582,
+        -129.22551253311684
+      ],
+      "rmseMicros": 5589.008645698281,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3504.204717267634,
+        -836.19085993649
+      ],
+      "terms": [
+        "missiles",
+        "missiles_above_63.5"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1248.9788130374627,
+      "equation": "advanceMicros = 5219.63 + 209.273*missileAi - 162.412*nearbyEntitiesMean - 1.67178*missileAi_x_nearbyEntitiesMean",
+      "kind": "interaction",
+      "leaveOneRunOutRmseMicros": 5886.9558165677545,
+      "model": "missileAi*nearbyEntitiesMean",
+      "observations": 72,
+      "predictors": [
+        "missileAi",
+        "nearbyEntitiesMean"
+      ],
+      "r2": 0.2503362708344916,
+      "rawInterceptMicros": 5219.632808295729,
+      "rawTermCoefficients": [
+        209.27259433855008,
+        -162.4121836626379,
+        -1.6717810301885778
+      ],
+      "rmseMicros": 5506.929497783354,
+      "standardizedCoefficients": [
+        7052.462763888888,
+        6036.637752266703,
+        -1599.350422686567,
+        -1730.164420256611
+      ],
+      "terms": [
+        "missileAi",
+        "nearbyEntitiesMean",
+        "missileAi_x_nearbyEntitiesMean"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1248.9788130374627,
+      "equation": "advanceMicros = 5219.63 + 209.273*missiles - 162.412*nearbyEntitiesMean - 1.67178*missiles_x_nearbyEntitiesMean",
+      "kind": "interaction",
+      "leaveOneRunOutRmseMicros": 5886.9558165677545,
+      "model": "missiles*nearbyEntitiesMean",
+      "observations": 72,
+      "predictors": [
+        "missiles",
+        "nearbyEntitiesMean"
+      ],
+      "r2": 0.2503362708344916,
+      "rawInterceptMicros": 5219.632808295729,
+      "rawTermCoefficients": [
+        209.27259433855008,
+        -162.4121836626379,
+        -1.6717810301885778
+      ],
+      "rmseMicros": 5506.929497783354,
+      "standardizedCoefficients": [
+        7052.462763888888,
+        6036.637752266703,
+        -1599.350422686567,
+        -1730.164420256611
+      ],
+      "terms": [
+        "missiles",
+        "nearbyEntitiesMean",
+        "missiles_x_nearbyEntitiesMean"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.0899747820956,
+      "equation": "advanceMicros = 1435.32 + 187.281*shipAi",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 5898.076598451399,
+      "model": "shipAi:linear",
+      "observations": 72,
+      "predictors": [
+        "shipAi"
+      ],
+      "r2": 0.15599688602656958,
+      "rawInterceptMicros": 1435.3245145398469,
+      "rawTermCoefficients": [
+        187.2812937963098
+      ],
+      "rmseMicros": 5843.166901623798,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2512.0844289957968
+      ],
+      "terms": [
+        "shipAi"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.0899747820956,
+      "equation": "advanceMicros = 1435.32 + 187.281*ships",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 5898.076598451399,
+      "model": "ships:linear",
+      "observations": 72,
+      "predictors": [
+        "ships"
+      ],
+      "r2": 0.15599688602656958,
+      "rawInterceptMicros": 1435.3245145398469,
+      "rawTermCoefficients": [
+        187.2812937963098
+      ],
+      "rmseMicros": 5843.166901623798,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2512.0844289957968
+      ],
+      "terms": [
+        "ships"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.0923329294294,
+      "equation": "advanceMicros = 1435.78 + 8.64179*liveDeployedDp",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 5898.364718164509,
+      "model": "liveDeployedDp:linear",
+      "observations": 72,
+      "predictors": [
+        "liveDeployedDp"
+      ],
+      "r2": 0.1559692427448146,
+      "rawInterceptMicros": 1435.7761957267367,
+      "rawTermCoefficients": [
+        8.641794873657469
+      ],
+      "rmseMicros": 5843.26259024376,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2511.861843353008
+      ],
+      "terms": [
+        "liveDeployedDp"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.0938060763808,
+      "equation": "advanceMicros = 1436.08 + 8.64059*battleDp",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 5898.539408163182,
+      "model": "battleDp:linear",
+      "observations": 72,
+      "predictors": [
+        "battleDp"
+      ],
+      "r2": 0.1559519733829139,
+      "rawInterceptMicros": 1436.079888896691,
+      "rawTermCoefficients": [
+        8.640589038449535
+      ],
+      "rmseMicros": 5843.322368219458,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2511.7227792296517
+      ],
+      "terms": [
+        "battleDp"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.095347653157,
+      "equation": "advanceMicros = 1436.41 + 8.63934*shipDpPresent",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 5898.718554514534,
+      "model": "shipDpPresent:linear",
+      "observations": 72,
+      "predictors": [
+        "shipDpPresent"
+      ],
+      "r2": 0.15593390145561403,
+      "rawInterceptMicros": 1436.41257573465,
+      "rawTermCoefficients": [
+        8.6393388075187
+      ],
+      "rmseMicros": 5843.384923624158,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2511.5772440832643
+      ],
+      "terms": [
+        "shipDpPresent"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1249.4449948997785,
+      "equation": "advanceMicros = 5475.72 + 142.699*ordnance - 173.88*nearbyEntitiesMean - 1.16809*ordnance_x_nearbyEntitiesMean",
+      "kind": "interaction",
+      "leaveOneRunOutRmseMicros": 5898.796453771196,
+      "model": "ordnance*nearbyEntitiesMean",
+      "observations": 72,
+      "predictors": [
+        "ordnance",
+        "nearbyEntitiesMean"
+      ],
+      "r2": 0.2454666392308834,
+      "rawInterceptMicros": 5475.721476180795,
+      "rawTermCoefficients": [
+        142.69873639131097,
+        -173.87954760270546,
+        -1.1680856411190466
+      ],
+      "rmseMicros": 5524.786377504408,
+      "standardizedCoefficients": [
+        7052.462763888888,
+        6221.383669600975,
+        -1712.2750380143448,
+        -1847.8525519143845
+      ],
+      "terms": [
+        "ordnance",
+        "nearbyEntitiesMean",
+        "ordnance_x_nearbyEntitiesMean"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.1426985692658,
+      "equation": "advanceMicros = 1402.4 + 36.0131*beamWeapons",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 5899.456439458587,
+      "model": "beamWeapons:linear",
+      "observations": 72,
+      "predictors": [
+        "beamWeapons"
+      ],
+      "r2": 0.15537861745304848,
+      "rawInterceptMicros": 1402.40335319086,
+      "rawTermCoefficients": [
+        36.01312655544069
+      ],
+      "rmseMicros": 5845.30669533001,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2507.101365355058
+      ],
+      "terms": [
+        "beamWeapons"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.2092934559105,
+      "equation": "advanceMicros = 1452.49 + 17.6223*weapons",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 5901.94640489703,
+      "model": "weapons:linear",
+      "observations": 72,
+      "predictors": [
+        "weapons"
+      ],
+      "r2": 0.15459704126269858,
+      "rawInterceptMicros": 1452.4946343344964,
+      "rawTermCoefficients": [
+        17.62227733076557
+      ],
+      "rmseMicros": 5848.010567287377,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2500.787880554908
+      ],
+      "terms": [
+        "weapons"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.2153748251187,
+      "equation": "advanceMicros = 2090.72 + 0.803783*liveDeployedDp_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 5902.22541873459,
+      "model": "liveDeployedDp:nlogn",
+      "observations": 72,
+      "predictors": [
+        "liveDeployedDp"
+      ],
+      "r2": 0.15452563258700236,
+      "rawInterceptMicros": 2090.7159311683527,
+      "rawTermCoefficients": [
+        0.8037829893976532
+      ],
+      "rmseMicros": 5848.257544109372,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2500.2102544392046
+      ],
+      "terms": [
+        "liveDeployedDp_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1253.2167553653755,
+      "equation": "advanceMicros = 2090.89 + 0.803675*battleDp_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 5902.395123910562,
+      "model": "battleDp:nlogn",
+      "observations": 72,
+      "predictors": [
+        "battleDp"
+      ],
+      "r2": 0.15450942116213207,
+      "rawInterceptMicros": 2090.891524151639,
+      "rawTermCoefficients": [
+        0.8036746472053403
+      ],
+      "rmseMicros": 5848.313612121002,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2500.079101331667
+      ],
+      "terms": [
+        "battleDp_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1253.218209089531,
+      "equation": "advanceMicros = 2091.09 + 0.803562*shipDpPresent_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 5902.569572549812,
+      "model": "shipDpPresent:nlogn",
+      "observations": 72,
+      "predictors": [
+        "shipDpPresent"
+      ],
+      "r2": 0.15449235001649286,
+      "rawInterceptMicros": 2091.094588220485,
+      "rawTermCoefficients": [
+        0.8035618237356299
+      ],
+      "rmseMicros": 5848.372652938234,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2499.9409855033305
+      ],
+      "terms": [
+        "shipDpPresent_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1251.4895155827137,
+      "equation": "advanceMicros = -306.688 + 52.1983*beamWeapons - 835.994*beamWeapons_above_246",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5903.093120670632,
+      "model": "beamWeapons:threshold@246",
+      "observations": 72,
+      "predictors": [
+        "beamWeapons"
+      ],
+      "r2": 0.19915829604184898,
+      "rawInterceptMicros": -306.6881748624261,
+      "rawTermCoefficients": [
+        52.198336885126956,
+        -835.9936484517401
+      ],
+      "rmseMicros": 5691.799687816357,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3633.856157212609,
+        -1743.7325016186214
+      ],
+      "terms": [
+        "beamWeapons",
+        "beamWeapons_above_246"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1251.4658891071974,
+      "equation": "advanceMicros = -979.802 + 363.4*fighterAi - 808.905*fighterAi_above_33",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5903.161310067015,
+      "model": "fighterAi:threshold@33",
+      "observations": 72,
+      "predictors": [
+        "fighterAi"
+      ],
+      "r2": 0.1994210455254476,
+      "rawInterceptMicros": -979.802375245488,
+      "rawTermCoefficients": [
+        363.39952565921067,
+        -808.9046329537276
+      ],
+      "rmseMicros": 5690.865895215301,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3729.232366683758,
+        -1956.2728375036932
+      ],
+      "terms": [
+        "fighterAi",
+        "fighterAi_above_33"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1251.4658891071974,
+      "equation": "advanceMicros = -979.802 + 363.4*fighters - 808.905*fighters_above_33",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5903.161310067015,
+      "model": "fighters:threshold@33",
+      "observations": 72,
+      "predictors": [
+        "fighters"
+      ],
+      "r2": 0.1994210455254476,
+      "rawInterceptMicros": -979.802375245488,
+      "rawTermCoefficients": [
+        363.39952565921067,
+        -808.9046329537276
+      ],
+      "rmseMicros": 5690.865895215301,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3729.232366683758,
+        -1956.2728375036932
+      ],
+      "terms": [
+        "fighters",
+        "fighters_above_33"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.306531223525,
+      "equation": "advanceMicros = 2221.64 + 4.13608*beamWeapons_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 5904.600124001043,
+      "model": "beamWeapons:nlogn",
+      "observations": 72,
+      "predictors": [
+        "beamWeapons"
+      ],
+      "r2": 0.15345453249268914,
+      "rawInterceptMicros": 2221.6383112485637,
+      "rawTermCoefficients": [
+        4.1360756142127935
+      ],
+      "rmseMicros": 5851.960841793441,
+      "standardizedCoefficients": [
+        7052.462763888888,
+        2491.5300368952967
+      ],
+      "terms": [
+        "beamWeapons_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1251.556882503434,
+      "equation": "advanceMicros = -248.161 + 25.591*weapons - 418.72*weapons_above_500",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5904.7522184104555,
+      "model": "weapons:threshold@500",
+      "observations": 72,
+      "predictors": [
+        "weapons"
+      ],
+      "r2": 0.19840863650338347,
+      "rawInterceptMicros": -248.16061062303356,
+      "rawTermCoefficients": [
+        25.590986829050877,
+        -418.7195502365428
+      ],
+      "rmseMicros": 5694.463081730607,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3631.6321955620047,
+        -1746.7474547511222
+      ],
+      "terms": [
+        "weapons",
+        "weapons_above_500"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.3107943863076,
+      "equation": "advanceMicros = 2554.75 + 29.6355*shipAi_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 5905.190284138452,
+      "model": "shipAi:nlogn",
+      "observations": 72,
+      "predictors": [
+        "shipAi"
+      ],
+      "r2": 0.15340440654856147,
+      "rawInterceptMicros": 2554.749567619305,
+      "rawTermCoefficients": [
+        29.635512679581492
+      ],
+      "rmseMicros": 5852.1340933973515,
+      "standardizedCoefficients": [
+        7052.46276388889,
+        2491.123074344509
+      ],
+      "terms": [
+        "shipAi_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1253.3107943863076,
+      "equation": "advanceMicros = 2554.75 + 29.6355*ships_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 5905.190284138452,
+      "model": "ships:nlogn",
+      "observations": 72,
+      "predictors": [
+        "ships"
+      ],
+      "r2": 0.15340440654856147,
+      "rawInterceptMicros": 2554.749567619305,
+      "rawTermCoefficients": [
+        29.635512679581492
+      ],
+      "rmseMicros": 5852.1340933973515,
+      "standardizedCoefficients": [
+        7052.46276388889,
+        2491.123074344509
+      ],
+      "terms": [
+        "ships_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1253.3564411321445,
+      "equation": "advanceMicros = 2177.27 + 1.81234*weapons_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 5906.592095209439,
+      "model": "weapons:nlogn",
+      "observations": 72,
+      "predictors": [
+        "weapons"
+      ],
+      "r2": 0.15286750951540462,
+      "rawInterceptMicros": 2177.269556992339,
+      "rawTermCoefficients": [
+        1.8123428887476993
+      ],
+      "rmseMicros": 5853.9894629884575,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2486.7599373191315
+      ],
+      "terms": [
+        "weapons_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1251.6090416768516,
+      "equation": "advanceMicros = 3918.8 + 152.822*firingWeapons - 53.1517*firingWeapons_above_32.5",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5918.775578849779,
+      "model": "firingWeapons:threshold@32.5",
+      "observations": 72,
+      "predictors": [
+        "firingWeapons"
+      ],
+      "r2": 0.19782772690627481,
+      "rawInterceptMicros": 3918.804033760662,
+      "rawTermCoefficients": [
+        152.8221617546565,
+        -53.15171472514057
+      ],
+      "rmseMicros": 5696.526083719442,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3285.6063772696275,
+        -558.4790685986917
+      ],
+      "terms": [
+        "firingWeapons",
+        "firingWeapons_above_32.5"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1254.9156051574812,
+      "equation": "advanceMicros = -1725.92 + 430.912*fighterAi - 363.384*fighterAi_above_24",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5925.392338929907,
+      "model": "fighterAi:threshold@24",
+      "observations": 72,
+      "predictors": [
+        "fighterAi"
+      ],
+      "r2": 0.16012935835048625,
+      "rawInterceptMicros": -1725.9156424557311,
+      "rawTermCoefficients": [
+        430.9115718355055,
+        -363.3837913819342
+      ],
+      "rmseMicros": 5828.844469072152,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        4422.045895498847,
+        -2124.48605610832
+      ],
+      "terms": [
+        "fighterAi",
+        "fighterAi_above_24"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1254.9156051574812,
+      "equation": "advanceMicros = -1725.92 + 430.912*fighters - 363.384*fighters_above_24",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5925.392338929907,
+      "model": "fighters:threshold@24",
+      "observations": 72,
+      "predictors": [
+        "fighters"
+      ],
+      "r2": 0.16012935835048625,
+      "rawInterceptMicros": -1725.9156424557311,
+      "rawTermCoefficients": [
+        430.9115718355055,
+        -363.3837913819342
+      ],
+      "rmseMicros": 5828.844469072152,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        4422.045895498847,
+        -2124.48605610832
+      ],
+      "terms": [
+        "fighters",
+        "fighters_above_24"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1249.6282284266692,
+      "equation": "advanceMicros = 5015.17 + 510.208*projectiles",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 5932.185152185659,
+      "model": "projectiles:linear",
+      "observations": 72,
+      "predictors": [
+        "projectiles"
+      ],
+      "r2": 0.19561631649277378,
+      "rawInterceptMicros": 5015.17361925075,
+      "rawTermCoefficients": [
+        510.20806404850794
+      ],
+      "rmseMicros": 5704.372706847525,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2813.0587693831744
+      ],
+      "terms": [
+        "projectiles"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.9087188918968,
+      "equation": "advanceMicros = 1225.43 + 237.099*fighterAi",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 5932.535572169525,
+      "model": "fighterAi:linear",
+      "observations": 72,
+      "predictors": [
+        "fighterAi"
+      ],
+      "r2": 0.14634457385610722,
+      "rawInterceptMicros": 1225.428646159532,
+      "rawTermCoefficients": [
+        237.0988733972951
+      ],
+      "rmseMicros": 5876.4841565659935,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2433.1258858236124
+      ],
+      "terms": [
+        "fighterAi"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.9087188918968,
+      "equation": "advanceMicros = 1225.43 + 237.099*fighters",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 5932.535572169525,
+      "model": "fighters:linear",
+      "observations": 72,
+      "predictors": [
+        "fighters"
+      ],
+      "r2": 0.14634457385610722,
+      "rawInterceptMicros": 1225.428646159532,
+      "rawTermCoefficients": [
+        237.0988733972951
+      ],
+      "rmseMicros": 5876.4841565659935,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2433.1258858236124
+      ],
+      "terms": [
+        "fighters"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1255.3130524311287,
+      "equation": "advanceMicros = 1157.64 + 38.7514*beamWeapons - 3.8748*beamWeapons_above_124.5",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5934.289049308523,
+      "model": "beamWeapons:threshold@124.5",
+      "observations": 72,
+      "predictors": [
+        "beamWeapons"
+      ],
+      "r2": 0.1554803679191551,
+      "rawInterceptMicros": 1157.6350758246376,
+      "rawTermCoefficients": [
+        38.75137993561465,
+        -3.8747981400719236
+      ],
+      "rmseMicros": 5844.954596385601,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2697.7284906493232,
+        -201.13385979789973
+      ],
+      "terms": [
+        "beamWeapons",
+        "beamWeapons_above_124.5"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1255.9167359083176,
+      "equation": "advanceMicros = -1770.3 + 470.606*fighterAi - 262.455*fighterAi_above_15",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5934.8516468127245,
+      "model": "fighterAi:threshold@15",
+      "observations": 72,
+      "predictors": [
+        "fighterAi"
+      ],
+      "r2": 0.14836973131201658,
+      "rawInterceptMicros": -1770.3045687819326,
+      "rawTermCoefficients": [
+        470.60551241634573,
+        -262.4547591606973
+      ],
+      "rmseMicros": 5869.509520254062,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        4829.388001151756,
+        -2413.295704911145
+      ],
+      "terms": [
+        "fighterAi",
+        "fighterAi_above_15"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1255.9167359083176,
+      "equation": "advanceMicros = -1770.3 + 470.606*fighters - 262.455*fighters_above_15",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5934.8516468127245,
+      "model": "fighters:threshold@15",
+      "observations": 72,
+      "predictors": [
+        "fighters"
+      ],
+      "r2": 0.14836973131201658,
+      "rawInterceptMicros": -1770.3045687819326,
+      "rawTermCoefficients": [
+        470.60551241634573,
+        -262.4547591606973
+      ],
+      "rmseMicros": 5869.509520254062,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        4829.388001151756,
+        -2413.295704911145
+      ],
+      "terms": [
+        "fighters",
+        "fighters_above_15"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1248.651427762017,
+      "equation": "advanceMicros = 4623.27 + 694.202*projectiles - 1175.31*projectiles_above_14",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5936.18308192307,
+      "model": "projectiles:threshold@14",
+      "observations": 72,
+      "predictors": [
+        "projectiles"
+      ],
+      "r2": 0.23011171637819772,
+      "rawInterceptMicros": 4623.2749351607645,
+      "rawTermCoefficients": [
+        694.2021357529578,
+        -1175.3138266928756
+      ],
+      "rmseMicros": 5580.718572459056,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3827.519679341489,
+        -1557.1060116306421
+      ],
+      "terms": [
+        "projectiles",
+        "projectiles_above_14"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1255.264298862439,
+      "equation": "advanceMicros = 1262.89 + 197.339*shipAi - 14.3679*shipAi_above_24",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5936.8602935716335,
+      "model": "shipAi:threshold@24",
+      "observations": 72,
+      "predictors": [
+        "shipAi"
+      ],
+      "r2": 0.15605202637922044,
+      "rawInterceptMicros": 1262.8876335058974,
+      "rawTermCoefficients": [
+        197.33855369074712,
+        -14.367872289718997
+      ],
+      "rmseMicros": 5842.976025819678,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2646.9867754450806,
+        -142.93090990007468
+      ],
+      "terms": [
+        "shipAi",
+        "shipAi_above_24"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1255.264298862439,
+      "equation": "advanceMicros = 1262.89 + 197.339*ships - 14.3679*ships_above_24",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5936.8602935716335,
+      "model": "ships:threshold@24",
+      "observations": 72,
+      "predictors": [
+        "ships"
+      ],
+      "r2": 0.15605202637922044,
+      "rawInterceptMicros": 1262.8876335058974,
+      "rawTermCoefficients": [
+        197.33855369074712,
+        -14.367872289718997
+      ],
+      "rmseMicros": 5842.976025819678,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2646.9867754450806,
+        -142.93090990007468
+      ],
+      "terms": [
+        "ships",
+        "ships_above_24"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1255.2666660668704,
+      "equation": "advanceMicros = 1263.49 + 9.10562*liveDeployedDp - 0.66261*liveDeployedDp_above_520",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5937.179283421346,
+      "model": "liveDeployedDp:threshold@520",
+      "observations": 72,
+      "predictors": [
+        "liveDeployedDp"
+      ],
+      "r2": 0.15602427873720837,
+      "rawInterceptMicros": 1263.4900009549062,
+      "rawTermCoefficients": [
+        9.105616449384506,
+        -0.6626096063088215
+      ],
+      "rmseMicros": 5843.072078822651,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2646.6782484199716,
+        -142.8350212641945
+      ],
+      "terms": [
+        "liveDeployedDp",
+        "liveDeployedDp_above_520"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1255.2681402737499,
+      "equation": "advanceMicros = 1263.8 + 9.10441*battleDp - 0.6626*battleDp_above_520",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5937.368439062015,
+      "model": "battleDp:threshold@520",
+      "observations": 72,
+      "predictors": [
+        "battleDp"
+      ],
+      "r2": 0.15600699807676166,
+      "rawInterceptMicros": 1263.8040185672915,
+      "rawTermCoefficients": [
+        9.104408689336864,
+        -0.662599501268534
+      ],
+      "rmseMicros": 5843.131897858414,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2646.549974158609,
+        -142.84360557898236
+      ],
+      "terms": [
+        "battleDp",
+        "battleDp_above_520"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1255.269679781048,
+      "equation": "advanceMicros = 1264.09 + 9.10331*shipDpPresent - 0.662808*shipDpPresent_above_520",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5937.559384742437,
+      "model": "shipDpPresent:threshold@520",
+      "observations": 72,
+      "predictors": [
+        "shipDpPresent"
+      ],
+      "r2": 0.15598895158680082,
+      "rawInterceptMicros": 1264.0895244366684,
+      "rawTermCoefficients": [
+        9.103310589839236,
+        -0.6628080038646905
+      ],
+      "rmseMicros": 5843.194367249286,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2646.460363768172,
+        -142.8999935593352
+      ],
+      "terms": [
+        "shipDpPresent",
+        "shipDpPresent_above_520"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1255.3793097941193,
+      "equation": "advanceMicros = 1209.38 + 18.9693*weapons - 1.91846*weapons_above_253",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5938.025072649978,
+      "model": "weapons:threshold@253",
+      "observations": 72,
+      "predictors": [
+        "weapons"
+      ],
+      "r2": 0.1547028485016808,
+      "rawInterceptMicros": 1209.3779296418359,
+      "rawTermCoefficients": [
+        18.969323751974148,
+        -1.9184583459704234
+      ],
+      "rmseMicros": 5847.64459907842,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2691.948041155838,
+        -202.0456507162388
+      ],
+      "terms": [
+        "weapons",
+        "weapons_above_253"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1254.2564679713446,
+      "equation": "advanceMicros = 2512.75 + 38.8846*fighterAi_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 5943.940402678591,
+      "model": "fighterAi:nlogn",
+      "observations": 72,
+      "predictors": [
+        "fighterAi"
+      ],
+      "r2": 0.1422115747804733,
+      "rawInterceptMicros": 2512.7501325586527,
+      "rawTermCoefficients": [
+        38.884560200169226
+      ],
+      "rmseMicros": 5890.692569362747,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2398.522184990387
+      ],
+      "terms": [
+        "fighterAi_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1254.2564679713446,
+      "equation": "advanceMicros = 2512.75 + 38.8846*fighters_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 5943.940402678591,
+      "model": "fighters:nlogn",
+      "observations": 72,
+      "predictors": [
+        "fighters"
+      ],
+      "r2": 0.1422115747804733,
+      "rawInterceptMicros": 2512.7501325586527,
+      "rawTermCoefficients": [
+        38.884560200169226
+      ],
+      "rmseMicros": 5890.692569362747,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2398.522184990387
+      ],
+      "terms": [
+        "fighters_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1255.5771683567175,
+      "equation": "advanceMicros = 4641.28 + 283.087*beams - 402.184*beams_above_24.5",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 5944.460967957788,
+      "model": "beams:threshold@24.5",
+      "observations": 72,
+      "predictors": [
+        "beams"
+      ],
+      "r2": 0.15237674720310834,
+      "rawInterceptMicros": 4641.280002645297,
+      "rawTermCoefficients": [
+        283.08688256316964,
+        -402.18381101392407
+      ],
+      "rmseMicros": 5855.684889307154,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3114.2827173361197,
+        -1180.6719071663106
+      ],
+      "terms": [
+        "beams",
+        "beams_above_24.5"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1254.416782986988,
+      "equation": "advanceMicros = 3907.14 + 2.91367*shipAi_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 5947.388606897963,
+      "model": "shipAi:quadratic",
+      "observations": 72,
+      "predictors": [
+        "shipAi"
+      ],
+      "r2": 0.14029949734585978,
+      "rawInterceptMicros": 3907.141630285911,
+      "rawTermCoefficients": [
+        2.913673938563761
+      ],
+      "rmseMicros": 5897.254321776173,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2382.343191676842
+      ],
+      "terms": [
+        "shipAi_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1254.416782986988,
+      "equation": "advanceMicros = 3907.14 + 2.91367*ships_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 5947.388606897963,
+      "model": "ships:quadratic",
+      "observations": 72,
+      "predictors": [
+        "ships"
+      ],
+      "r2": 0.14029949734585978,
+      "rawInterceptMicros": 3907.141630285911,
+      "rawTermCoefficients": [
+        2.913673938563761
+      ],
+      "rmseMicros": 5897.254321776173,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2382.343191676842
+      ],
+      "terms": [
+        "ships_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1254.4174621094387,
+      "equation": "advanceMicros = 3906.6 + 0.00620591*liveDeployedDp_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 5947.579667594982,
+      "model": "liveDeployedDp:quadratic",
+      "observations": 72,
+      "predictors": [
+        "liveDeployedDp"
+      ],
+      "r2": 0.14029138839216704,
+      "rawInterceptMicros": 3906.604341144623,
+      "rawTermCoefficients": [
+        0.006205907078765214
+      ],
+      "rmseMicros": 5897.28213404876,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2382.274343996941
+      ],
+      "terms": [
+        "liveDeployedDp_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1254.4179763239192,
+      "equation": "advanceMicros = 3906.32 + 0.00620541*battleDp_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 5947.698779640053,
+      "model": "battleDp:quadratic",
+      "observations": 72,
+      "predictors": [
+        "battleDp"
+      ],
+      "r2": 0.14028524844500312,
+      "rawInterceptMicros": 3906.318204784731,
+      "rawTermCoefficients": [
+        0.006205413331566386
+      ],
+      "rmseMicros": 5897.3031928910095,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2382.22221250543
+      ],
+      "terms": [
+        "battleDp_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1254.4185782592347,
+      "equation": "advanceMicros = 3906.05 + 0.00620487*shipDpPresent_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 5947.823352111307,
+      "model": "shipDpPresent:quadratic",
+      "observations": 72,
+      "predictors": [
+        "shipDpPresent"
+      ],
+      "r2": 0.14027806101676288,
+      "rawInterceptMicros": 3906.0534519804933,
+      "rawTermCoefficients": [
+        0.0062048721448955185
+      ],
+      "rmseMicros": 5897.327844297096,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2382.1611858803576
+      ],
+      "terms": [
+        "shipDpPresent_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1254.5155301024436,
+      "equation": "advanceMicros = 3899.48 + 0.107024*beamWeapons_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 5949.693382101979,
+      "model": "beamWeapons:quadratic",
+      "observations": 72,
+      "predictors": [
+        "beamWeapons"
+      ],
+      "r2": 0.13911961975931764,
+      "rawInterceptMicros": 3899.4811936896963,
+      "rawTermCoefficients": [
+        0.1070238327397942
+      ],
+      "rmseMicros": 5901.29971459556,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2372.304638353019
+      ],
+      "terms": [
+        "beamWeapons_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1254.6012637034485,
+      "equation": "advanceMicros = 3926.04 + 0.0258123*weapons_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 5953.305871356827,
+      "model": "weapons:quadratic",
+      "observations": 72,
+      "predictors": [
+        "weapons"
+      ],
+      "r2": 0.13809392066563686,
+      "rawInterceptMicros": 3926.0371976252595,
+      "rawTermCoefficients": [
+        0.02581234436760628
+      ],
+      "rmseMicros": 5904.81423068064,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2363.5432130148142
+      ],
+      "terms": [
+        "weapons_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1254.9926631098876,
+      "equation": "advanceMicros = 5003.93 + 211.159*beams",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 5977.680790417081,
+      "model": "beams:linear",
+      "observations": 72,
+      "predictors": [
+        "beams"
+      ],
+      "r2": 0.13339575226284717,
+      "rawInterceptMicros": 5003.930108017204,
+      "rawTermCoefficients": [
+        211.15869895885658
+      ],
+      "rmseMicros": 5920.885651044725,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2322.9896095097415
+      ],
+      "terms": [
+        "beams"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1257.3842785293177,
+      "equation": "advanceMicros = 2450.72 + 390.292*beams + 163.693*nearbyEntitiesMean - 8.80917*beams_x_nearbyEntitiesMean",
+      "kind": "interaction",
+      "leaveOneRunOutRmseMicros": 5989.048181590589,
+      "model": "beams*nearbyEntitiesMean",
+      "observations": 72,
+      "predictors": [
+        "beams",
+        "nearbyEntitiesMean"
+      ],
+      "r2": 0.15750534234039149,
+      "rawInterceptMicros": 2450.7187699194305,
+      "rawTermCoefficients": [
+        390.29230753244826,
+        163.69261105106764,
+        -8.809169817197617
+      ],
+      "rmseMicros": 5837.942925733636,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        4293.666230848079,
+        1611.9594033598298,
+        -3483.510243711571
+      ],
+      "terms": [
+        "beams",
+        "nearbyEntitiesMean",
+        "beams_x_nearbyEntitiesMean"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1255.6281826158863,
+      "equation": "advanceMicros = 3949.66 + 4.37441*fighterAi_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 5992.9346668015305,
+      "model": "fighterAi:quadratic",
+      "observations": 72,
+      "predictors": [
+        "fighterAi"
+      ],
+      "r2": 0.12571267330219082,
+      "rawInterceptMicros": 3949.6566998809244,
+      "rawTermCoefficients": [
+        4.37440655975981
+      ],
+      "rmseMicros": 5947.074219628513,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2255.099963387056
+      ],
+      "terms": [
+        "fighterAi_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1255.6281826158863,
+      "equation": "advanceMicros = 3949.66 + 4.37441*fighters_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 5992.9346668015305,
+      "model": "fighters:quadratic",
+      "observations": 72,
+      "predictors": [
+        "fighters"
+      ],
+      "r2": 0.12571267330219082,
+      "rawInterceptMicros": 3949.6566998809244,
+      "rawTermCoefficients": [
+        4.37440655975981
+      ],
+      "rmseMicros": 5947.074219628513,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2255.099963387056
+      ],
+      "terms": [
+        "fighters_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1250.1950407406443,
+      "equation": "advanceMicros = 5405.48 + 124.592*projectiles_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 6012.974873559962,
+      "model": "projectiles:nlogn",
+      "observations": 72,
+      "predictors": [
+        "projectiles"
+      ],
+      "r2": 0.18925890060679385,
+      "rawInterceptMicros": 5405.477827370609,
+      "rawTermCoefficients": [
+        124.5916676269533
+      ],
+      "rmseMicros": 5726.870488240849,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2766.969828087627
+      ],
+      "terms": [
+        "projectiles_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1256.575917980192,
+      "equation": "advanceMicros = 2546.85 + 218.197*nearbyEntitiesMean",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 6027.801946250723,
+      "model": "nearbyEntitiesMean:linear",
+      "observations": 72,
+      "predictors": [
+        "nearbyEntitiesMean"
+      ],
+      "r2": 0.11412836210890054,
+      "rawInterceptMicros": 2546.8539141000165,
+      "rawTermCoefficients": [
+        218.19662834020434
+      ],
+      "rmseMicros": 5986.343947370456,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2148.6865202771673
+      ],
+      "terms": [
+        "nearbyEntitiesMean"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1251.674448492553,
+      "equation": "advanceMicros = 5170.66 + 351.333*projectiles + 218.931*projectiles_above_4",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6031.082168540887,
+      "model": "projectiles:threshold@4",
+      "observations": 72,
+      "predictors": [
+        "projectiles"
+      ],
+      "r2": 0.19709868006275433,
+      "rawInterceptMicros": 5170.65996897982,
+      "rawTermCoefficients": [
+        351.3326443238805,
+        218.93121263706192
+      ],
+      "rmseMicros": 5699.114113321362,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1937.0908570976792,
+        909.5526841951348
+      ],
+      "terms": [
+        "projectiles",
+        "projectiles_above_4"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1258.4334073417406,
+      "equation": "advanceMicros = -444.998 + 486.947*nearbyEntitiesMean - 294.202*nearbyEntitiesMean_above_12.625",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6032.00583293602,
+      "model": "nearbyEntitiesMean:threshold@12.625",
+      "observations": 72,
+      "predictors": [
+        "nearbyEntitiesMean"
+      ],
+      "r2": 0.11807568152065717,
+      "rawInterceptMicros": -444.9984632598607,
+      "rawTermCoefficients": [
+        486.9473614765021,
+        -294.2015477910808
+      ],
+      "rmseMicros": 5972.991903762363,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        4795.203480677732,
+        -2676.515196194542
+      ],
+      "terms": [
+        "nearbyEntitiesMean",
+        "nearbyEntitiesMean_above_12.625"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1256.078350755435,
+      "equation": "advanceMicros = 5359.59 + 40.6508*beams_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 6033.294159910311,
+      "model": "beams:nlogn",
+      "observations": 72,
+      "predictors": [
+        "beams"
+      ],
+      "r2": 0.12022921145422549,
+      "rawInterceptMicros": 5359.586517441602,
+      "rawTermCoefficients": [
+        40.65079413259519
+      ],
+      "rmseMicros": 5965.694861039769,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2205.3690039543717
+      ],
+      "terms": [
+        "beams_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1256.4815345320374,
+      "equation": "advanceMicros = 4677.94 + 291.916*beams - 207.157*beams_above_17",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6038.5527616043855,
+      "model": "beams:threshold@17",
+      "observations": 72,
+      "predictors": [
+        "beams"
+      ],
+      "r2": 0.14166291007379261,
+      "rawInterceptMicros": 4677.9415607496385,
+      "rawTermCoefficients": [
+        291.91613912819304,
+        -207.15658210702446
+      ],
+      "rmseMicros": 5892.5761914540635,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3211.414738708544,
+        -1060.0622297012062
+      ],
+      "terms": [
+        "beams",
+        "beams_above_17"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1251.7853760230173,
+      "equation": "advanceMicros = 5068.08 + 476.799*projectiles + 68.5905*projectiles_above_7.5",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6042.729831931185,
+      "model": "projectiles:threshold@7.5",
+      "observations": 72,
+      "predictors": [
+        "projectiles"
+      ],
+      "r2": 0.1958607286121291,
+      "rawInterceptMicros": 5068.07832111043,
+      "rawTermCoefficients": [
+        476.79923559269093,
+        68.59052836864308
+      ],
+      "rmseMicros": 5703.506003695853,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2628.857451362613,
+        209.3259897722817
+      ],
+      "terms": [
+        "projectiles",
+        "projectiles_above_7.5"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1257.1840091133859,
+      "equation": "advanceMicros = -996.763 + 486.835*nearbyEntitiesMean - 388.246*nearbyEntitiesMean_above_18.5",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6048.7745247146195,
+      "model": "nearbyEntitiesMean:threshold@18.5",
+      "observations": 72,
+      "predictors": [
+        "nearbyEntitiesMean"
+      ],
+      "r2": 0.13324747959507788,
+      "rawInterceptMicros": -996.7630648576358,
+      "rawTermCoefficients": [
+        486.8349316920205,
+        -388.2457864379794
+      ],
+      "rmseMicros": 5921.392149809861,
+      "standardizedCoefficients": [
+        7052.46276388889,
+        4794.096330836642,
+        -2787.762889873524
+      ],
+      "terms": [
+        "nearbyEntitiesMean",
+        "nearbyEntitiesMean_above_18.5"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1257.0473597023465,
+      "equation": "advanceMicros = 3695.6 + 35.8962*nearbyEntitiesMean_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 6050.136050115893,
+      "model": "nearbyEntitiesMean:nlogn",
+      "observations": 72,
+      "predictors": [
+        "nearbyEntitiesMean"
+      ],
+      "r2": 0.10830881847862905,
+      "rawInterceptMicros": 3695.598917740087,
+      "rawTermCoefficients": [
+        35.89618625953683
+      ],
+      "rmseMicros": 6005.974761032411,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2093.1877098057926
+      ],
+      "terms": [
+        "nearbyEntitiesMean_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1253.561852791303,
+      "equation": "advanceMicros = -335.657 + 52.7754*beamWeapons - 54.8299*beamWeapons_above_187",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6057.150238097259,
+      "model": "beamWeapons:threshold@187",
+      "observations": 72,
+      "predictors": [
+        "beamWeapons"
+      ],
+      "r2": 0.17577317445750684,
+      "rawInterceptMicros": -335.65683583127907,
+      "rawTermCoefficients": [
+        52.77535132178403,
+        -54.82985256278416
+      ],
+      "rmseMicros": 5774.303934627994,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3674.0257792459943,
+        -1478.761989209223
+      ],
+      "terms": [
+        "beamWeapons",
+        "beamWeapons_above_187"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.6308236337304,
+      "equation": "advanceMicros = -276.791 + 25.8722*weapons - 26.6158*weapons_above_378",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6059.024746563798,
+      "model": "weapons:threshold@378",
+      "observations": 72,
+      "predictors": [
+        "weapons"
+      ],
+      "r2": 0.17498324591336423,
+      "rawInterceptMicros": -276.7907771105914,
+      "rawTermCoefficients": [
+        25.87224145061773,
+        -26.615836552680626
+      ],
+      "rmseMicros": 5777.070281835188,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3671.5452065629433,
+        -1481.6744818713673
+      ],
+      "terms": [
+        "weapons",
+        "weapons_above_378"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1257.5071140077064,
+      "equation": "advanceMicros = 1056.05 + 314.951*nearbyEntitiesMean - 311.394*nearbyEntitiesMean_above_27.875",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6071.991828756922,
+      "model": "nearbyEntitiesMean:threshold@27.875",
+      "observations": 72,
+      "predictors": [
+        "nearbyEntitiesMean"
+      ],
+      "r2": 0.12934912822458866,
+      "rawInterceptMicros": 1056.0478839903305,
+      "rawTermCoefficients": [
+        314.95060220329043,
+        -311.3939144822677
+      ],
+      "rmseMicros": 5934.693391680538,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3101.4691595153945,
+        -1234.3107228676572
+      ],
+      "terms": [
+        "nearbyEntitiesMean",
+        "nearbyEntitiesMean_above_27.875"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.6767867818587,
+      "equation": "advanceMicros = -228.363 + 271.506*shipAi - 265.944*shipAi_above_35.5",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6074.176395655847,
+      "model": "shipAi:threshold@35.5",
+      "observations": 72,
+      "predictors": [
+        "shipAi"
+      ],
+      "r2": 0.17445640600227263,
+      "rawInterceptMicros": -228.36323312666718,
+      "rawTermCoefficients": [
+        271.50613387350114,
+        -265.94442961330077
+      ],
+      "rmseMicros": 5778.914550717538,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3641.828382616126,
+        -1422.3457584093833
+      ],
+      "terms": [
+        "shipAi",
+        "shipAi_above_35.5"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.6767867818587,
+      "equation": "advanceMicros = -228.363 + 271.506*ships - 265.944*ships_above_35.5",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6074.176395655847,
+      "model": "ships:threshold@35.5",
+      "observations": 72,
+      "predictors": [
+        "ships"
+      ],
+      "r2": 0.17445640600227263,
+      "rawInterceptMicros": -228.36323312666718,
+      "rawTermCoefficients": [
+        271.50613387350114,
+        -265.94442961330077
+      ],
+      "rmseMicros": 5778.914550717538,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3641.828382616126,
+        -1422.3457584093833
+      ],
+      "terms": [
+        "ships",
+        "ships_above_35.5"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.5723803378626,
+      "equation": "advanceMicros = -195.649 + 268.824*shipAi - 271.585*shipAi_above_36",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6075.59926203974,
+      "model": "shipAi:threshold@36",
+      "observations": 72,
+      "predictors": [
+        "shipAi"
+      ],
+      "r2": 0.17565265055922208,
+      "rawInterceptMicros": -195.64858282063256,
+      "rawTermCoefficients": [
+        268.82444536646324,
+        -271.5850592860733
+      ],
+      "rmseMicros": 5774.726097653438,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3605.857742914791,
+        -1411.1973637802541
+      ],
+      "terms": [
+        "shipAi",
+        "shipAi_above_36"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.5723803378626,
+      "equation": "advanceMicros = -195.649 + 268.824*ships - 271.585*ships_above_36",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6075.59926203974,
+      "model": "ships:threshold@36",
+      "observations": 72,
+      "predictors": [
+        "ships"
+      ],
+      "r2": 0.17565265055922208,
+      "rawInterceptMicros": -195.64858282063256,
+      "rawTermCoefficients": [
+        268.82444536646324,
+        -271.5850592860733
+      ],
+      "rmseMicros": 5774.726097653438,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3605.857742914791,
+        -1411.1973637802541
+      ],
+      "terms": [
+        "ships",
+        "ships_above_36"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.620712418405,
+      "equation": "advanceMicros = -202.576 + 12.4405*liveDeployedDp - 12.4075*liveDeployedDp_above_776",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6076.1973909631315,
+      "model": "liveDeployedDp:threshold@776",
+      "observations": 72,
+      "predictors": [
+        "liveDeployedDp"
+      ],
+      "r2": 0.17509909780686783,
+      "rawInterceptMicros": -202.57601197992835,
+      "rawTermCoefficients": [
+        12.440529896777889,
+        -12.407519748353376
+      ],
+      "rmseMicros": 5776.664648843349,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3616.018757175527,
+        -1411.7456299470443
+      ],
+      "terms": [
+        "liveDeployedDp",
+        "liveDeployedDp_above_776"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.5823211074535,
+      "equation": "advanceMicros = -189.776 + 12.393*liveDeployedDp - 12.5*liveDeployedDp_above_780",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6076.651235250949,
+      "model": "liveDeployedDp:threshold@780",
+      "observations": 72,
+      "predictors": [
+        "liveDeployedDp"
+      ],
+      "r2": 0.1755388281593373,
+      "rawInterceptMicros": -189.77609814050174,
+      "rawTermCoefficients": [
+        12.392967473982267,
+        -12.500023044093611
+      ],
+      "rmseMicros": 5775.1247587858215,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3602.1940556240097,
+        -1407.2938755298744
+      ],
+      "terms": [
+        "liveDeployedDp",
+        "liveDeployedDp_above_780"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.5883211967346,
+      "equation": "advanceMicros = -186.234 + 12.3844*battleDp - 12.4793*battleDp_above_780",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6077.284463044965,
+      "model": "battleDp:threshold@780",
+      "observations": 72,
+      "predictors": [
+        "battleDp"
+      ],
+      "r2": 0.17547011917646083,
+      "rawInterceptMicros": -186.23412034236947,
+      "rawTermCoefficients": [
+        12.384390598234583,
+        -12.479338532634166
+      ],
+      "rmseMicros": 5775.365397578079,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3600.004100883036,
+        -1404.965144919337
+      ],
+      "terms": [
+        "battleDp",
+        "battleDp_above_780"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.5882716379058,
+      "equation": "advanceMicros = -187.414 + 12.3878*shipDpPresent - 12.4951*shipDpPresent_above_780",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6077.5124390390465,
+      "model": "shipDpPresent:threshold@780",
+      "observations": 72,
+      "predictors": [
+        "shipDpPresent"
+      ],
+      "r2": 0.17547068671425614,
+      "rawInterceptMicros": -187.41439264195344,
+      "rawTermCoefficients": [
+        12.387795229867995,
+        -12.495135070136858
+      ],
+      "rmseMicros": 5775.363409937131,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3601.306222256561,
+        -1406.3548964095064
+      ],
+      "terms": [
+        "shipDpPresent",
+        "shipDpPresent_above_780"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.594454275455,
+      "equation": "advanceMicros = -182.615 + 12.3757*shipDpPresent - 12.653*shipDpPresent_above_784",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6077.930568868605,
+      "model": "shipDpPresent:threshold@784",
+      "observations": 72,
+      "predictors": [
+        "shipDpPresent"
+      ],
+      "r2": 0.17539988137020512,
+      "rawInterceptMicros": -182.61543853886326,
+      "rawTermCoefficients": [
+        12.375668679000071,
+        -12.653030876111364
+      ],
+      "rmseMicros": 5775.611380390117,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3597.780863442922,
+        -1402.604310218408
+      ],
+      "terms": [
+        "shipDpPresent",
+        "shipDpPresent_above_784"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1243.3323180311615,
+      "equation": "advanceMicros = 331.983 - 318.416*battleDp - 57.9801*liveDeployedDp + 8380.97*ships + 2060.85*fighters + 2527.52*wrecks + 1158.37*missiles + 580.905*projectiles - 190.294*beams - 963.982*totalAi - 228.96*nearbyEntitiesMean - 27.042*combatElapsedSeconds",
+      "kind": "multivariate-linear",
+      "leaveOneRunOutRmseMicros": 6081.293379927029,
+      "model": "entity-mix:linear",
+      "observations": 72,
+      "predictors": [
+        "battleDp",
+        "liveDeployedDp",
+        "ships",
+        "fighters",
+        "wrecks",
+        "missiles",
+        "projectiles",
+        "beams",
+        "totalAi",
+        "nearbyEntitiesMean",
+        "combatElapsedSeconds"
+      ],
+      "r2": 0.4800022278822791,
+      "rawInterceptMicros": 331.9831951769022,
+      "rawTermCoefficients": [
+        -318.41607191222823,
+        -57.980050776499525,
+        8380.965155734155,
+        2060.853956826924,
+        2527.5165220181943,
+        1158.3739360242907,
+        580.9048210238964,
+        -190.2935107801228,
+        -963.982300047147,
+        -228.95990829118136,
+        -27.04198200667846
+      ],
+      "rmseMicros": 4586.453644898642,
+      "standardizedCoefficients": [
+        7052.462763888898,
+        -92559.99765014648,
+        -16852.734802246094,
+        112417.48516845703,
+        21148.633215373222,
+        1633.675019466005,
+        33414.23589432649,
+        3202.8490259277273,
+        -2093.4484370236005,
+        -41894.103879957715,
+        -2254.6776839379327,
+        -443.7203227600504
+      ],
+      "terms": [
+        "battleDp",
+        "liveDeployedDp",
+        "ships",
+        "fighters",
+        "wrecks",
+        "missiles",
+        "projectiles",
+        "beams",
+        "totalAi",
+        "nearbyEntitiesMean",
+        "combatElapsedSeconds"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1256.3634159763787,
+      "equation": "advanceMicros = -2942.58 + 342.916*ships + 242.94*fighters - 7.19063*ships_x_fighters",
+      "kind": "interaction",
+      "leaveOneRunOutRmseMicros": 6097.20125144204,
+      "model": "ships*fighters",
+      "observations": 72,
+      "predictors": [
+        "ships",
+        "fighters"
+      ],
+      "r2": 0.16936649010904026,
+      "rawInterceptMicros": -2942.580239358863,
+      "rawTermCoefficients": [
+        342.91582834182094,
+        242.94028812181512,
+        -7.190634170844119
+      ],
+      "rmseMicros": 5796.702218096825,
+      "standardizedCoefficients": [
+        7052.46276388889,
+        4599.677284217147,
+        2493.070908642194,
+        -4607.95427215917
+      ],
+      "terms": [
+        "ships",
+        "fighters",
+        "ships_x_fighters"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1260.7755314984072,
+      "equation": "advanceMicros = 2131.5 + 989.925*wrecks + 244.917*nearbyEntitiesMean - 45.638*wrecks_x_nearbyEntitiesMean",
+      "kind": "interaction",
+      "leaveOneRunOutRmseMicros": 6101.219515801996,
+      "model": "wrecks*nearbyEntitiesMean",
+      "observations": 72,
+      "predictors": [
+        "wrecks",
+        "nearbyEntitiesMean"
+      ],
+      "r2": 0.11687384894068409,
+      "rawInterceptMicros": 2131.4967094454514,
+      "rawTermCoefficients": [
+        989.9250507816544,
+        244.91650527476625,
+        -45.63803525035151
+      ],
+      "rmseMicros": 5977.060332405717,
+      "standardizedCoefficients": [
+        7052.46276388889,
+        639.8438200175547,
+        2411.809923372298,
+        -971.239537358297
+      ],
+      "terms": [
+        "wrecks",
+        "nearbyEntitiesMean",
+        "wrecks_x_nearbyEntitiesMean"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1259.7993023547112,
+      "equation": "advanceMicros = 3006.49 + 165.428*combatElapsedSeconds - 563.819*combatElapsedSeconds_above_44.5154",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6113.4159927633855,
+      "model": "combatElapsedSeconds:threshold@44.5154",
+      "observations": 72,
+      "predictors": [
+        "combatElapsedSeconds"
+      ],
+      "r2": 0.10118519720809527,
+      "rawInterceptMicros": 3006.4890728888336,
+      "rawTermCoefficients": [
+        165.42838820221874,
+        -563.8194276253208
+      ],
+      "rmseMicros": 6029.917567883248,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2714.443704186887,
+        -1965.2414994394367
+      ],
+      "terms": [
+        "combatElapsedSeconds",
+        "combatElapsedSeconds_above_44.5154"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1258.293399994613,
+      "equation": "advanceMicros = 4938.43 + 273.791*nearbyMissilesMean",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 6113.944586142676,
+      "model": "nearbyMissilesMean:linear",
+      "observations": 72,
+      "predictors": [
+        "nearbyMissilesMean"
+      ],
+      "r2": 0.09274280306907023,
+      "rawInterceptMicros": 4938.428701440497,
+      "rawTermCoefficients": [
+        273.79058346717784
+      ],
+      "rmseMicros": 6058.170306344626,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1936.940927846372
+      ],
+      "terms": [
+        "nearbyMissilesMean"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1258.5359972997894,
+      "equation": "advanceMicros = 4976.88 + 3.96583*nearbyEntitiesMean_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 6122.1605593256145,
+      "model": "nearbyEntitiesMean:quadratic",
+      "observations": 72,
+      "predictors": [
+        "nearbyEntitiesMean"
+      ],
+      "r2": 0.08968072851331843,
+      "rawInterceptMicros": 4976.879618734507,
+      "rawTermCoefficients": [
+        3.96583000678632
+      ],
+      "rmseMicros": 6068.385129170722,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1904.696706224398
+      ],
+      "terms": [
+        "nearbyEntitiesMean_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1256.0459979359791,
+      "equation": "advanceMicros = 4491.16 + 396.272*beams - 287.795*beams_above_10",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6129.286579608543,
+      "model": "beams:threshold@10",
+      "observations": 72,
+      "predictors": [
+        "beams"
+      ],
+      "r2": 0.14683942115575155,
+      "rawInterceptMicros": 4491.157094043012,
+      "rawTermCoefficients": [
+        396.2721417389199,
+        -287.79465039168974
+      ],
+      "rmseMicros": 5874.780668383542,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        4359.451314752821,
+        -2165.8751736953122
+      ],
+      "terms": [
+        "beams",
+        "beams_above_10"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1253.0458372001506,
+      "equation": "advanceMicros = 5836.35 + 26.241*projectiles_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 6141.478550526855,
+      "model": "projectiles:quadratic",
+      "observations": 72,
+      "predictors": [
+        "projectiles"
+      ],
+      "r2": 0.1565141199253427,
+      "rawInterceptMicros": 5836.354348565112,
+      "rawTermCoefficients": [
+        26.241044700175912
+      ],
+      "rmseMicros": 5841.376181228764,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2516.245601686803
+      ],
+      "terms": [
+        "projectiles_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1260.3260890579863,
+      "equation": "advanceMicros = 4777.74 + 314.53*nearbyMissilesMean - 158.974*nearbyMissilesMean_above_13.5625",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6151.528861734145,
+      "model": "nearbyMissilesMean:threshold@13.5625",
+      "observations": 72,
+      "predictors": [
+        "nearbyMissilesMean"
+      ],
+      "r2": 0.094584918925809,
+      "rawInterceptMicros": 4777.73609603476,
+      "rawTermCoefficients": [
+        314.5296367673238,
+        -158.97398894833066
+      ],
+      "rmseMicros": 6052.016857143583,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2225.1507658163005,
+        -396.9689310592145
+      ],
+      "terms": [
+        "nearbyMissilesMean",
+        "nearbyMissilesMean_above_13.5625"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1258.5695569363122,
+      "equation": "advanceMicros = 5895.01 + 5.37992*beams_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 6154.074894462856,
+      "model": "beams:quadratic",
+      "observations": 72,
+      "predictors": [
+        "beams"
+      ],
+      "r2": 0.0892563242807688,
+      "rawInterceptMicros": 5895.014408036053,
+      "rawTermCoefficients": [
+        5.379918440399876
+      ],
+      "rmseMicros": 6069.799549531909,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1900.1844771349772
+      ],
+      "terms": [
+        "beams_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1259.2681037981376,
+      "equation": "advanceMicros = 5376.15 + 58.9272*nearbyMissilesMean_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 6170.681857498395,
+      "model": "nearbyMissilesMean:nlogn",
+      "observations": 72,
+      "predictors": [
+        "nearbyMissilesMean"
+      ],
+      "r2": 0.08037725002190943,
+      "rawInterceptMicros": 5376.153413717808,
+      "rawTermCoefficients": [
+        58.92722317235574
+      ],
+      "rmseMicros": 6099.315801857604,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1803.1955988892664
+      ],
+      "terms": [
+        "nearbyMissilesMean_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1258.7819495475878,
+      "equation": "advanceMicros = 1765.97 + 249.5*combatElapsedSeconds - 412.325*combatElapsedSeconds_above_33.8771",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6186.447107106814,
+      "model": "combatElapsedSeconds:threshold@33.8771",
+      "observations": 72,
+      "predictors": [
+        "combatElapsedSeconds"
+      ],
+      "r2": 0.11379605567708351,
+      "rawInterceptMicros": 1765.9689752600502,
+      "rawTermCoefficients": [
+        249.50042254887245,
+        -412.32478765203757
+      ],
+      "rmseMicros": 5987.466634897094,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        4093.9457764158483,
+        -3146.8221170097463
+      ],
+      "terms": [
+        "combatElapsedSeconds",
+        "combatElapsedSeconds_above_33.8771"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1259.061680715852,
+      "equation": "advanceMicros = 4318.13 + 474.418*nearbyMissilesMean - 446.389*nearbyMissilesMean_above_9.875",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6189.488165402546,
+      "model": "nearbyMissilesMean:threshold@9.875",
+      "observations": 72,
+      "predictors": [
+        "nearbyMissilesMean"
+      ],
+      "r2": 0.11034631884803048,
+      "rawInterceptMicros": 4318.125970118847,
+      "rawTermCoefficients": [
+        474.41818572348393,
+        -446.38872573521155
+      ],
+      "rmseMicros": 5999.109057701139,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3356.2878211719,
+        -1651.2612083076015
+      ],
+      "terms": [
+        "nearbyMissilesMean",
+        "nearbyMissilesMean_above_9.875"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1250.675077159273,
+      "equation": "advanceMicros = 2223.77 + 982.109*projectiles + 160.502*nearbyEntitiesMean - 20.8951*projectiles_x_nearbyEntitiesMean",
+      "kind": "interaction",
+      "leaveOneRunOutRmseMicros": 6191.5610012760235,
+      "model": "projectiles*nearbyEntitiesMean",
+      "observations": 72,
+      "predictors": [
+        "projectiles",
+        "nearbyEntitiesMean"
+      ],
+      "r2": 0.23246508614782635,
+      "rawInterceptMicros": 2223.7695924256973,
+      "rawTermCoefficients": [
+        982.1090152419006,
+        160.50165704722036,
+        -20.895088701800677
+      ],
+      "rmseMicros": 5572.182563702485,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        5414.909274256073,
+        1580.536553671241,
+        -3780.2952251290276
+      ],
+      "terms": [
+        "projectiles",
+        "nearbyEntitiesMean",
+        "projectiles_x_nearbyEntitiesMean"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1263.3992076384827,
+      "equation": "advanceMicros = 2385.27 + 273.208*combatElapsedSeconds - 214.724*combatElapsedSeconds_above_15.0144",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6217.763863224068,
+      "model": "combatElapsedSeconds:threshold@15.0144",
+      "observations": 72,
+      "predictors": [
+        "combatElapsedSeconds"
+      ],
+      "r2": 0.05510321984548339,
+      "rawInterceptMicros": 2385.27021234071,
+      "rawTermCoefficients": [
+        273.2083443228418,
+        -214.72386526002802
+      ],
+      "rmseMicros": 6182.561591275554,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        4482.958930071439,
+        -3126.601199384456
+      ],
+      "terms": [
+        "combatElapsedSeconds",
+        "combatElapsedSeconds_above_15.0144"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1261.4538131616434,
+      "equation": "advanceMicros = -1517.22 + 968.439*nearbyShipsMean - 916.706*nearbyShipsMean_above_10.125",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6218.163603349765,
+      "model": "nearbyShipsMean:threshold@10.125",
+      "observations": 72,
+      "predictors": [
+        "nearbyShipsMean"
+      ],
+      "r2": 0.08029190979048473,
+      "rawInterceptMicros": -1517.2154934844723,
+      "rawTermCoefficients": [
+        968.439215173976,
+        -916.7063560937418
+      ],
+      "rmseMicros": 6099.598801025876,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        3032.7118329630594,
+        -1654.7112255109894
+      ],
+      "terms": [
+        "nearbyShipsMean",
+        "nearbyShipsMean_above_10.125"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1260.591509446897,
+      "equation": "advanceMicros = 1940.44 + 511.07*nearbyShipsMean",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 6227.718348783005,
+      "model": "nearbyShipsMean:linear",
+      "observations": 72,
+      "predictors": [
+        "nearbyShipsMean"
+      ],
+      "r2": 0.06331769843120283,
+      "rawInterceptMicros": 1940.4358559676857,
+      "rawTermCoefficients": [
+        511.06959975051865
+      ],
+      "rmseMicros": 6155.628818470764,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1600.4378987819641
+      ],
+      "terms": [
+        "nearbyShipsMean"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1261.726397488766,
+      "equation": "advanceMicros = 4496.51 + 85.3083*combatElapsedSeconds",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 6237.067297812396,
+      "model": "combatElapsedSeconds:linear",
+      "observations": 72,
+      "predictors": [
+        "combatElapsedSeconds"
+      ],
+      "r2": 0.04843642552999983,
+      "rawInterceptMicros": 4496.508246210744,
+      "rawTermCoefficients": [
+        85.30834354731294
+      ],
+      "rmseMicros": 6204.334031774808,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1399.7881414014155
+      ],
+      "terms": [
+        "combatElapsedSeconds"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1260.5479924487777,
+      "equation": "advanceMicros = 5832.89 + 11.1206*nearbyMissilesMean_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 6241.927961658955,
+      "model": "nearbyMissilesMean:quadratic",
+      "observations": 72,
+      "predictors": [
+        "nearbyMissilesMean"
+      ],
+      "r2": 0.06388366073987994,
+      "rawInterceptMicros": 5832.889406039447,
+      "rawTermCoefficients": [
+        11.120559160961113
+      ],
+      "rmseMicros": 6153.768860027895,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1607.5747061944965
+      ],
+      "terms": [
+        "nearbyMissilesMean_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1260.8618604100745,
+      "equation": "advanceMicros = 3489.35 + 104.919*nearbyShipsMean_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 6243.722116296581,
+      "model": "nearbyShipsMean:nlogn",
+      "observations": 72,
+      "predictors": [
+        "nearbyShipsMean"
+      ],
+      "r2": 0.05979396250018032,
+      "rawInterceptMicros": 3489.351555535801,
+      "rawTermCoefficients": [
+        104.91896413898604
+      ],
+      "rmseMicros": 6167.196480658719,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1555.2669184408508
+      ],
+      "terms": [
+        "nearbyShipsMean_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1262.6210094264886,
+      "equation": "advanceMicros = 1137.26 + 612.297*nearbyShipsMean - 502.452*nearbyShipsMean_above_12.625",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6243.782426043434,
+      "model": "nearbyShipsMean:threshold@12.625",
+      "observations": 72,
+      "predictors": [
+        "nearbyShipsMean"
+      ],
+      "r2": 0.06526096285090222,
+      "rawInterceptMicros": 1137.2555310731345,
+      "rawTermCoefficients": [
+        612.2967892442673,
+        -502.4524380373803
+      ],
+      "rmseMicros": 6149.24019286044,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1917.4354868444584,
+        -423.200510553801
+      ],
+      "terms": [
+        "nearbyShipsMean",
+        "nearbyShipsMean_above_12.625"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1262.1264202764125,
+      "equation": "advanceMicros = 5057.45 + 12.9433*combatElapsedSeconds_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 6254.2554802328705,
+      "model": "combatElapsedSeconds:nlogn",
+      "observations": 72,
+      "predictors": [
+        "combatElapsedSeconds"
+      ],
+      "r2": 0.043134946529724494,
+      "rawInterceptMicros": 5057.448273813259,
+      "rawTermCoefficients": [
+        12.94326701519803
+      ],
+      "rmseMicros": 6221.593236178652,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1320.9637474903375
+      ],
+      "terms": [
+        "combatElapsedSeconds_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1259.4066740908663,
+      "equation": "advanceMicros = 4246.03 + 665.012*nearbyMissilesMean - 537.636*nearbyMissilesMean_above_5.25",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6263.441411465778,
+      "model": "nearbyMissilesMean:threshold@5.25",
+      "observations": 72,
+      "predictors": [
+        "nearbyMissilesMean"
+      ],
+      "r2": 0.1060732476251316,
+      "rawInterceptMicros": 4246.02714893356,
+      "rawTermCoefficients": [
+        665.011995894918,
+        -537.6363750364314
+      ],
+      "rmseMicros": 6013.498877743158,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        4704.6503062516285,
+        -2863.4723521159135
+      ],
+      "terms": [
+        "nearbyMissilesMean",
+        "nearbyMissilesMean_above_5.25"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1261.4324886601296,
+      "equation": "advanceMicros = 4559.42 + 22.6932*nearbyShipsMean_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 6276.112362404946,
+      "model": "nearbyShipsMean:quadratic",
+      "observations": 72,
+      "predictors": [
+        "nearbyShipsMean"
+      ],
+      "r2": 0.05231285455256973,
+      "rawInterceptMicros": 4559.4187847973,
+      "rawTermCoefficients": [
+        22.693192861239194
+      ],
+      "rmseMicros": 6191.683692246174,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1454.7235729922782
+      ],
+      "terms": [
+        "nearbyShipsMean_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1260.9926241718795,
+      "equation": "advanceMicros = -5435.81 + 1627.9*nearbyShipsMean - 1430.55*nearbyShipsMean_above_7.8125",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6284.878452806027,
+      "model": "nearbyShipsMean:threshold@7.8125",
+      "observations": 72,
+      "predictors": [
+        "nearbyShipsMean"
+      ],
+      "r2": 0.0861641831998522,
+      "rawInterceptMicros": -5435.811754315656,
+      "rawTermCoefficients": [
+        1627.8976320233037,
+        -1430.5537201678321
+      ],
+      "rmseMicros": 6080.09485723246,
+      "standardizedCoefficients": [
+        7052.462763888888,
+        5097.836120362718,
+        -3627.12103438902
+      ],
+      "terms": [
+        "nearbyShipsMean",
+        "nearbyShipsMean_above_7.8125"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1263.79623640172,
+      "equation": "advanceMicros = 8739.72 - 46.4281*internalCollectionTotal + 3156.75*internalCollectionTotal_above_48",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6303.807524925769,
+      "model": "internalCollectionTotal:threshold@48",
+      "observations": 72,
+      "predictors": [
+        "internalCollectionTotal"
+      ],
+      "r2": 0.04987839415362294,
+      "rawInterceptMicros": 8739.716782935557,
+      "rawTermCoefficients": [
+        -46.428068128565435,
+        3156.7476201903755
+      ],
+      "rmseMicros": 6199.631326087607,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        -74.60526398489174,
+        1482.2807907028707
+      ],
+      "terms": [
+        "internalCollectionTotal",
+        "internalCollectionTotal_above_48"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1263.3145166885497,
+      "equation": "advanceMicros = 5845.35 + 1.03444*combatElapsedSeconds_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 6308.594306272087,
+      "model": "combatElapsedSeconds:quadratic",
+      "observations": 72,
+      "predictors": [
+        "combatElapsedSeconds"
+      ],
+      "r2": 0.027214397919314237,
+      "rawInterceptMicros": 5845.353639585417,
+      "rawTermCoefficients": [
+        1.0344361632610763
+      ],
+      "rmseMicros": 6273.137892473095,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1049.2419171324009
+      ],
+      "terms": [
+        "combatElapsedSeconds_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1264.520168274204,
+      "equation": "advanceMicros = 4287.86 + 89.0436*combatElapsedSeconds + 8649.1*wrecks - 175.882*combatElapsedSeconds_x_wrecks",
+      "kind": "interaction",
+      "leaveOneRunOutRmseMicros": 6315.318702256911,
+      "model": "combatElapsedSeconds*wrecks",
+      "observations": 72,
+      "predictors": [
+        "combatElapsedSeconds",
+        "wrecks"
+      ],
+      "r2": 0.06972810750594705,
+      "rawInterceptMicros": 4287.855058577474,
+      "rawTermCoefficients": [
+        89.04357402022752,
+        8649.099551185507,
+        -175.88160590951077
+      ],
+      "rmseMicros": 6134.528897803239,
+      "standardizedCoefficients": [
+        7052.462763888888,
+        1461.0779414839506,
+        5590.395850850421,
+        -5469.762904738558
+      ],
+      "terms": [
+        "combatElapsedSeconds",
+        "wrecks",
+        "combatElapsedSeconds_x_wrecks"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1265.1399227165527,
+      "equation": "advanceMicros = -123067 + 2473.08*combatElapsedSeconds + 2899.74*internalCollectionTotal - 54.4666*combatElapsedSeconds_x_internalCollectionTotal",
+      "kind": "interaction",
+      "leaveOneRunOutRmseMicros": 6320.924910137,
+      "model": "combatElapsedSeconds*internalCollectionTotal",
+      "observations": 72,
+      "predictors": [
+        "combatElapsedSeconds",
+        "internalCollectionTotal"
+      ],
+      "r2": 0.06168604340447992,
+      "rawInterceptMicros": -123067.17285498664,
+      "rawTermCoefficients": [
+        2473.0822417154195,
+        2899.7360466555087,
+        -54.466587948260084
+      ],
+      "rmseMicros": 6160.987888730151,
+      "standardizedCoefficients": [
+        7052.462763888885,
+        40579.74930369767,
+        4659.585935132577,
+        -42004.958085233644
+      ],
+      "terms": [
+        "combatElapsedSeconds",
+        "internalCollectionTotal",
+        "combatElapsedSeconds_x_internalCollectionTotal"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1263.9430895581645,
+      "equation": "advanceMicros = 22388.1 - 355.55*internalCollectionTotal + 1901.18*internalCollectionTotal_above_46",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6331.5296029140745,
+      "model": "internalCollectionTotal:threshold@46",
+      "observations": 72,
+      "predictors": [
+        "internalCollectionTotal"
+      ],
+      "r2": 0.047938522674049855,
+      "rawInterceptMicros": 22388.10998973193,
+      "rawTermCoefficients": [
+        -355.55017797917725,
+        1901.1804063076038
+      ],
+      "rmseMicros": 6205.9570193104455,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        -571.333591019941,
+        1896.5906154240147
+      ],
+      "terms": [
+        "internalCollectionTotal",
+        "internalCollectionTotal_above_46"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1262.7798917186194,
+      "equation": "advanceMicros = -8805.37 + 7.8768*internalCollectionTotal_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 6352.303960568219,
+      "model": "internalCollectionTotal:quadratic",
+      "observations": 72,
+      "predictors": [
+        "internalCollectionTotal"
+      ],
+      "r2": 0.03441091699088661,
+      "rawInterceptMicros": -8805.368161946277,
+      "rawTermCoefficients": [
+        7.876800037668357
+      ],
+      "rmseMicros": 6249.890961105532,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1179.8434612015308
+      ],
+      "terms": [
+        "internalCollectionTotal_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1262.8302701869723,
+      "equation": "advanceMicros = -18561.3 + 104.093*internalCollectionTotal_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 6354.970329008172,
+      "model": "internalCollectionTotal:nlogn",
+      "observations": 72,
+      "predictors": [
+        "internalCollectionTotal"
+      ],
+      "r2": 0.03373505697044721,
+      "rawInterceptMicros": -18561.286190993662,
+      "rawTermCoefficients": [
+        104.09270421770034
+      ],
+      "rmseMicros": 6252.077870948363,
+      "standardizedCoefficients": [
+        7052.462763888888,
+        1168.1994325655646
+      ],
+      "terms": [
+        "internalCollectionTotal_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1262.8434124372156,
+      "equation": "advanceMicros = -25460.6 + 725.086*internalCollectionTotal",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 6355.667080477773,
+      "model": "internalCollectionTotal:linear",
+      "observations": 72,
+      "predictors": [
+        "internalCollectionTotal"
+      ],
+      "r2": 0.03355866732147883,
+      "rawInterceptMicros": -25460.612984742766,
+      "rawTermCoefficients": [
+        725.0864035624838
+      ],
+      "rmseMicros": 6252.64849679223,
+      "standardizedCoefficients": [
+        7052.46276388889,
+        1165.1413623293122
+      ],
+      "terms": [
+        "internalCollectionTotal"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1264.316821440668,
+      "equation": "advanceMicros = 46838.6 - 911.621*internalCollectionTotal + 2095.06*internalCollectionTotal_above_45",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6390.064497790234,
+      "model": "internalCollectionTotal:threshold@45",
+      "observations": 72,
+      "predictors": [
+        "internalCollectionTotal"
+      ],
+      "r2": 0.042983789367187386,
+      "rawInterceptMicros": 46838.63372147393,
+      "rawTermCoefficients": [
+        -911.6211963147724,
+        2095.0592894965152
+      ],
+      "rmseMicros": 6222.084633183385,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        -1464.8841260625566,
+        2701.5384712271734
+      ],
+      "terms": [
+        "internalCollectionTotal",
+        "internalCollectionTotal_above_45"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1263.1843394250327,
+      "equation": "advanceMicros = 7052.46",
+      "kind": "constant",
+      "leaveOneRunOutRmseMicros": 6392.29884392106,
+      "model": "constant",
+      "observations": 72,
+      "predictors": [],
+      "r2": -2.220446049250313e-16,
+      "rawInterceptMicros": 7052.462763888889,
+      "rawTermCoefficients": [],
+      "rmseMicros": 6360.280466980408,
+      "standardizedCoefficients": [
+        7052.462763888889
+      ],
+      "terms": [],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1265.4693191710126,
+      "equation": "advanceMicros = 6520.82 + 1779.43*wrecks - 7076.44*wrecks_above_2",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6467.485216949728,
+      "model": "wrecks:threshold@2",
+      "observations": 72,
+      "predictors": [
+        "wrecks"
+      ],
+      "r2": 0.02754165347242854,
+      "rawInterceptMicros": 6520.81978947461,
+      "rawTermCoefficients": [
+        1779.4260451094192,
+        -7076.435804486621
+      ],
+      "rmseMicros": 6272.082628141749,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1150.1423842567945,
+        -414.07713853383336
+      ],
+      "terms": [
+        "wrecks",
+        "wrecks_above_2"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1263.5536379416483,
+      "equation": "advanceMicros = 6555.13 + 1523.75*wrecks",
+      "kind": "linear",
+      "leaveOneRunOutRmseMicros": 6470.4761101871945,
+      "model": "wrecks:linear",
+      "observations": 72,
+      "predictors": [
+        "wrecks"
+      ],
+      "r2": 0.023978281111603494,
+      "rawInterceptMicros": 6555.1278009934185,
+      "rawTermCoefficients": [
+        1523.7496735520792
+      ],
+      "rmseMicros": 6283.563494836162,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        984.8844729267382
+      ],
+      "terms": [
+        "wrecks"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1265.4784702400743,
+      "equation": "advanceMicros = 6465.93 + 2616.37*wrecks - 2567.23*wrecks_above_1",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6481.978788587249,
+      "model": "wrecks:threshold@1",
+      "observations": 72,
+      "predictors": [
+        "wrecks"
+      ],
+      "r2": 0.02741804793023217,
+      "rawInterceptMicros": 6465.928190867729,
+      "rawTermCoefficients": [
+        2616.370811541405,
+        -2567.229975159936
+      ],
+      "rmseMicros": 6272.481225954732,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        1691.1065068180883,
+        -798.6858110878086
+      ],
+      "terms": [
+        "wrecks",
+        "wrecks_above_1"
+      ],
+      "worseningNonlinearity": false
+    },
+    {
+      "aicc": 1263.746514950976,
+      "equation": "advanceMicros = 6597.28 + 1348.41*wrecks_nlogn",
+      "kind": "nlogn",
+      "leaveOneRunOutRmseMicros": 6498.423274193494,
+      "model": "wrecks:nlogn",
+      "observations": 72,
+      "predictors": [
+        "wrecks"
+      ],
+      "r2": 0.02136016271059693,
+      "rawInterceptMicros": 6597.284375966543,
+      "rawTermCoefficients": [
+        1348.4092295495873
+      ],
+      "rmseMicros": 6291.985487599208,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        929.5623930060193
+      ],
+      "terms": [
+        "wrecks_nlogn"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1264.0799005913198,
+      "equation": "advanceMicros = 6711.23 + 650.832*wrecks_squared",
+      "kind": "quadratic",
+      "leaveOneRunOutRmseMicros": 6540.095061286002,
+      "model": "wrecks:quadratic",
+      "observations": 72,
+      "predictors": [
+        "wrecks"
+      ],
+      "r2": 0.01681820442763904,
+      "rawInterceptMicros": 6711.227879000347,
+      "rawTermCoefficients": [
+        650.8320983304649
+      ],
+      "rmseMicros": 6306.569430038527,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        824.833099938501
+      ],
+      "terms": [
+        "wrecks_squared"
+      ],
+      "worseningNonlinearity": true
+    },
+    {
+      "aicc": 1265.4447953494428,
+      "equation": "advanceMicros = 6444.03 + 4197.48*wrecks - 3781.63*wrecks_above_0.5",
+      "kind": "threshold",
+      "leaveOneRunOutRmseMicros": 6542.017898624661,
+      "model": "wrecks:threshold@0.5",
+      "observations": 72,
+      "predictors": [
+        "wrecks"
+      ],
+      "r2": 0.027872824777301353,
+      "rawInterceptMicros": 6444.031740750316,
+      "rawTermCoefficients": [
+        4197.4760743201705,
+        -3781.6313158997796
+      ],
+      "rmseMicros": 6271.014556348199,
+      "standardizedCoefficients": [
+        7052.462763888889,
+        2713.0630987715986,
+        -1773.174551622089
+      ],
+      "terms": [
+        "wrecks",
+        "wrecks_above_0.5"
+      ],
+      "worseningNonlinearity": false
+    }
+  ],
+  "observations": 72,
+  "ranges": {
+    "advanceMicros": {
+      "max": 53158.292,
+      "median": 5531.2505,
+      "min": 1899.958
+    },
+    "battleDp": {
+      "max": 1040.0,
+      "median": 650.0,
+      "min": 260.0
+    },
+    "beamWeapons": {
+      "max": 252.0,
+      "median": 154.75,
+      "min": 62.0
+    },
+    "beams": {
+      "max": 41.5,
+      "median": 7.0,
+      "min": 0.0
+    },
+    "combatElapsedSeconds": {
+      "max": 55.955612,
+      "median": 29.6442815,
+      "min": 6.26432885
+    },
+    "effectLikeObjectsHeuristic": {
+      "max": 15.0,
+      "median": 15.0,
+      "min": 15.0
+    },
+    "effects": {
+      "max": 15.0,
+      "median": 15.0,
+      "min": 15.0
+    },
+    "fighterAi": {
+      "max": 40.0,
+      "median": 22.0,
+      "min": 8.0
+    },
+    "fighters": {
+      "max": 40.0,
+      "median": 22.0,
+      "min": 8.0
+    },
+    "firingWeapons": {
+      "max": 72.0,
+      "median": 16.5,
+      "min": 0.0
+    },
+    "internalCollectionTotal": {
+      "max": 50.0,
+      "median": 44.0,
+      "min": 44.0
+    },
+    "liveDeployedDp": {
+      "max": 1040.0,
+      "median": 648.0,
+      "min": 260.0
+    },
+    "missileAi": {
+      "max": 93.0,
+      "median": 27.75,
+      "min": 0.0
+    },
+    "missiles": {
+      "max": 93.0,
+      "median": 27.75,
+      "min": 0.0
+    },
+    "nearbyEntitiesMean": {
+      "max": 45.75,
+      "median": 18.8125,
+      "min": 5.6875
+    },
+    "nearbyMissilesMean": {
+      "max": 23.625,
+      "median": 7.75,
+      "min": 0.0
+    },
+    "nearbyShipsMean": {
+      "max": 15.625,
+      "median": 10.09375,
+      "min": 4.1875
+    },
+    "ordnance": {
+      "max": 144.0,
+      "median": 35.25,
+      "min": 0.0
+    },
+    "projectiles": {
+      "max": 22.0,
+      "median": 1.0,
+      "min": 0.0
+    },
+    "shipAi": {
+      "max": 48.0,
+      "median": 29.75,
+      "min": 12.0
+    },
+    "shipDpPresent": {
+      "max": 1040.0,
+      "median": 650.0,
+      "min": 260.0
+    },
+    "ships": {
+      "max": 48.0,
+      "median": 29.75,
+      "min": 12.0
+    },
+    "totalAi": {
+      "max": 178.0,
+      "median": 85.5,
+      "min": 24.0
+    },
+    "weaponEffectPlugins": {
+      "max": 0.0,
+      "median": 0.0,
+      "min": 0.0
+    },
+    "weapons": {
+      "max": 512.0,
+      "median": 313.5,
+      "min": 124.0
+    },
+    "wrecks": {
+      "max": 2.5,
+      "median": 0.0,
+      "min": 0.0
+    }
+  },
+  "runs": [
+    "dp-ladder-r1",
+    "dp-ladder-r2",
+    "dp-ladder-r3"
+  ],
+  "selectedEquation": "advanceMicros = 1249.44 + 129.346*fighters + 34.5499*missiles + 1.73555*fighters_x_missiles",
+  "selectedKind": "interaction",
+  "selectedModel": "fighters*missiles",
+  "sources": [
+    "/Users/leoli/.starsector-preflight/combat-scaling/combat-scaling-dp-ladder-r1-symmetric-1040-20260828-095237.json",
+    "/Users/leoli/.starsector-preflight/combat-scaling/combat-scaling-dp-ladder-r1-symmetric-260-20260828-094648.json",
+    "/Users/leoli/.starsector-preflight/combat-scaling/combat-scaling-dp-ladder-r1-symmetric-520-20260828-094920.json",
+    "/Users/leoli/.starsector-preflight/combat-scaling/combat-scaling-dp-ladder-r1-symmetric-780-20260828-095053.json",
+    "/Users/leoli/.starsector-preflight/combat-scaling/combat-scaling-dp-ladder-r2-symmetric-1040-20260828-095438.json",
+    "/Users/leoli/.starsector-preflight/combat-scaling/combat-scaling-dp-ladder-r2-symmetric-260-20260828-095853.json",
+    "/Users/leoli/.starsector-preflight/combat-scaling/combat-scaling-dp-ladder-r2-symmetric-520-20260828-095601.json",
+    "/Users/leoli/.starsector-preflight/combat-scaling/combat-scaling-dp-ladder-r2-symmetric-780-20260828-095726.json",
+    "/Users/leoli/.starsector-preflight/combat-scaling/combat-scaling-dp-ladder-r3-symmetric-1040-20260828-100331.json",
+    "/Users/leoli/.starsector-preflight/combat-scaling/combat-scaling-dp-ladder-r3-symmetric-260-20260828-100201.json",
+    "/Users/leoli/.starsector-preflight/combat-scaling/combat-scaling-dp-ladder-r3-symmetric-520-20260828-100034.json",
+    "/Users/leoli/.starsector-preflight/combat-scaling/combat-scaling-dp-ladder-r3-symmetric-780-20260828-100459.json"
+  ],
+  "target": "advanceMicros"
+}
