@@ -18,15 +18,18 @@ import org.objectweb.asm.tree.MethodNode;
 
 class FrameTimePlanTest {
     private static final String RUNTIME = FrameTimeRuntime.class.getName().replace('.', '/');
+    private static final String CPU_RUNTIME = FrameCpuTimeRuntime.class.getName().replace('.', '/');
 
     @BeforeEach
     void enable() {
         FrameTimeRuntime.beginSession(true);
+        FrameCpuTimeRuntime.reset();
     }
 
     @AfterEach
     void reset() {
         FrameTimeRuntime.reset();
+        FrameCpuTimeRuntime.reset();
     }
 
     @Test
@@ -37,7 +40,11 @@ class FrameTimePlanTest {
 
         ClassNode owner = read(transformed);
         assertEquals(1, calls(method(owner, FrameTimePlan.UPDATE_METHOD,
+                FrameTimePlan.UPDATE_DESCRIPTOR), CPU_RUNTIME, "boundary"));
+        assertEquals(1, calls(method(owner, FrameTimePlan.UPDATE_METHOD,
                 FrameTimePlan.UPDATE_DESCRIPTOR), RUNTIME, "boundary"));
+        assertEquals(1, calls(method(owner, FrameTimePlan.ACTIVE_METHOD,
+                FrameTimePlan.ACTIVE_DESCRIPTOR), CPU_RUNTIME, "observeActive"));
         assertEquals(1, calls(method(owner, FrameTimePlan.ACTIVE_METHOD,
                 FrameTimePlan.ACTIVE_DESCRIPTOR), RUNTIME, "observeActive"));
         assertEquals(true, FrameTimeRuntime.telemetry().get("installed"));
