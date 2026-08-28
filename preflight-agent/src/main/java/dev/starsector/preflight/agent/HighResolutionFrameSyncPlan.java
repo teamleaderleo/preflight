@@ -1,14 +1,20 @@
 package dev.starsector.preflight.agent;
 
+import java.util.HashSet;
+import java.util.Set;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.InsnList;
+import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
+import org.objectweb.asm.tree.LookupSwitchInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TableSwitchInsnNode;
+import org.objectweb.asm.tree.TryCatchBlockNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 /** Replaces only BaseGameState's reviewed millisecond-truncating final frame wait. */
@@ -40,7 +46,7 @@ final class HighResolutionFrameSyncPlan {
         }
 
         SleepBlock block = uniqueSleepBlock(traverse);
-        if (block == null) {
+        if (block == null || hasUnsafeReferences(traverse, block.start, block.end)) {
             return null;
         }
 
@@ -102,6 +108,49 @@ final class HighResolutionFrameSyncPlan {
             found = new SleepBlock(instruction, sleep, seconds.var);
         }
         return found;
+    }
+
+    private static boolean hasUnsafeReferences(
+            MethodNode method, AbstractInsnNode start, AbstractInsnNode end) {
+        Set<AbstractInsnNode> removed = new HashSet<>();
+        for (AbstractInsnNode instruction = start; instruction != null; instruction = instruction.getNext()) {
+            removed.add(instruction);
+            if (instruction == end) {
+                break;
+            }
+        }
+        if (!removed.contains(end)) {
+            return true;
+        }
+
+        for (AbstractInsnNode instruction = method.instructions.getFirst();
+                instruction != null;
+                instruction = instruction.getNext()) {
+            if (removed.contains(instruction)) {
+                continue;
+            }
+            if (instruction instanceof JumpInsnNode jump && removed.contains(jump.label)) {
+                return true;
+            }
+            if (instruction instanceof TableSwitchInsnNode table) {
+                if (removed.contains(table.dflt) || table.labels.stream().anyMatch(removed::contains)) {
+                    return true;
+                }
+            }
+            if (instruction instanceof LookupSwitchInsnNode lookup) {
+                if (removed.contains(lookup.dflt) || lookup.labels.stream().anyMatch(removed::contains)) {
+                    return true;
+                }
+            }
+        }
+        for (TryCatchBlockNode block : method.tryCatchBlocks) {
+            if (removed.contains(block.start)
+                    || removed.contains(block.end)
+                    || removed.contains(block.handler)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static AbstractInsnNode nextCode(AbstractInsnNode instruction) {
