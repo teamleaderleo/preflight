@@ -73,6 +73,12 @@ jobs:
           python3 scripts/test_vps_runner_boundary.py
           bash -n scripts/run-prepared-pixel-coherent-direct-gameplay-smoke.sh
           bash -n scripts/run-prepared-pixel-main-menu-comparison-pilot.sh
+          bash -n scripts/run-gameplay-pilot.sh
+          bash -n scripts/run-1153-render-pilot.sh
+          bash -n scripts/compare-1153-render-pilots.sh
+          bash -n scripts/run-1153-particle-probe.sh
+          scripts/run-1153-render-pilot.sh --help >/dev/null
+          bash scripts/run-1153-particle-probe.sh --help >/dev/null
           python3 -m py_compile scripts/starsector_log_ready_detector.py
           python3 scripts/test_starsector_log_ready_detector.py
           python3 -m py_compile scripts/starsector_profile_guard.py
