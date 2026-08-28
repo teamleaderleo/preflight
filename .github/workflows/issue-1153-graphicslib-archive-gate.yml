@@ -1,0 +1,38 @@
+name: Issue 1153 GraphicsLib archive gate
+
+on:
+  push:
+    branches:
+      - lantern/1153-render-sync
+    paths:
+      - '.github/workflows/issue-1153-graphicslib-archive-gate.yml'
+      - 'preflight-agent/**'
+
+permissions:
+  contents: read
+
+jobs:
+  installed-graphicslib:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-build-jdk
+      - name: Fetch reviewed GraphicsLib 1.12.1 archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            --output "$RUNNER_TEMP/Graphics.jar" \
+            'https://raw.githubusercontent.com/ZMKiller/starsector-ru-mods/6e16cb47ee0bf8e3ac01e2121b5527083c744dca/GraphicsLib/jars/Graphics.jar'
+          actual="$(sha256sum "$RUNNER_TEMP/Graphics.jar" | awk '{print $1}')"
+          expected='832064013fe853731941e547842884ba121fb8b20eff08d24137f7a2c916903a'
+          test "$actual" = "$expected"
+      - name: Run installed archive transform gate
+        shell: bash
+        run: |
+          mvn --batch-mode --no-transfer-progress \
+            -pl preflight-agent -am \
+            -Dtest=GraphicsLibTessellateArrayInstalledAdapterIT \
+            -Dpreflight.graphicslib.jar="$RUNNER_TEMP/Graphics.jar" \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            test
