@@ -41,7 +41,10 @@ final class FrameTimePlan {
             return DynamicParticleGroupRenderProbePlan.transform(signature, originalBytes);
         }
         if (GraphicsLibTessellateArrayPlan.TARGET_CLASS.equals(signature.internalName())) {
-            return GraphicsLibTessellateArrayPlan.transform(signature, originalBytes);
+            byte[] transformed = GraphicsLibTessellateArrayPlan.transform(signature, originalBytes);
+            return transformed == null
+                    ? null
+                    : GraphicsLibTessellateArrayVboStatePlan.transform(transformed);
         }
         if (!FrameTimeRuntime.planEnabled()
                 || !TARGET_CLASS.equals(signature.internalName())
