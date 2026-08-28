@@ -22,8 +22,10 @@ Before changing code or collecting release evidence:
    be worth revisiting. [Gameplay FPS program #449](https://github.com/teamleaderleo/preflight/issues/449)
    is the canonical parent for that lane; use focused child issues once one experiment is concrete.
    The latest completed optimization checkpoint is the rejected
-   [GL texture-bind deduplication cohort](docs/evidence/2026-08-28-gl-texture-bind-dedup-rejected.md),
-   following [settled active-campaign OpenGL state reissues](docs/evidence/2026-08-28-opengl-state-reissues.md),
+   [GL matrix identity-elision cohort](docs/evidence/2026-08-28-gl-matrix-identity-elision-rejected.md),
+   following the rejected
+   [GL texture-bind deduplication cohort](docs/evidence/2026-08-28-gl-texture-bind-dedup-rejected.md)
+   and [settled active-campaign OpenGL state reissues](docs/evidence/2026-08-28-opengl-state-reissues.md),
    following [OpenGL command attribution](docs/evidence/2026-08-28-opengl-command-attribution.md)
    and [asynchronous whole-frame GPU timing](docs/evidence/2026-08-28-asynchronous-gpu-frame-timing.md),
    the bounded [native-swap CPU/off-CPU split](docs/evidence/2026-08-28-native-swap-cpu-offcpu-split.md),
@@ -39,11 +41,17 @@ Before changing code or collecting release evidence:
    unchanged, confirming a baseline submission-tax lead rather than the hitch cause. The exact
    texture-only candidate then suppressed a median 38.36% of binds in a thin B/A/A/B 1,040-DP
    cohort, but changed p99 +1.6%, 1% low -0.9%, >50 ms/min +41.5%, stutter burden +8.4%, and average
-   FPS -4.3%. Treat it as rejected diagnostic evidence; do not revive or widen it because the causal
-   counter is large. The deterministic route now freezes camera setup, pins the full viewport,
-   records begin/end workload fingerprints, and has a compact cohort summarizer. The paused branch remains a separate thin
-   presentation/VSync/compositor experiment. The rarer >50 ms pre-swap game-work fingerprint still
-   needs packet-triggered CPU escalation, not permanent broad timers.
+   FPS -4.3%. The subsequent exact matrix census found 29.18 million operations/500 frames and 2.39
+   million identity/no-op calls. A fail-open candidate removed a median 2.53 million exact identity
+   transforms per run in a thin B/A/A/B 1,040-DP cohort, yet moved p99 -1.4%, 1% low +1.5%, >50
+   ms/min +2.6%, and average FPS +0.8%. Both candidates are rejected and retired; do not revive or
+   widen either merely because its causal counter is large. The deterministic route now freezes
+   camera setup, pins the full viewport, records begin/end workload fingerprints, and has a compact
+   cohort summarizer. The paused branch remains a separate thin presentation/VSync/compositor
+   experiment. The 1,040-DP matrix cohort found every slow frame
+   pre-swap dominated, while native swap averaged only about 0.31 ms. The highest-information next
+   slice is therefore packet-triggered CPU/bytecode escalation for repeated combat clusters, not
+   another speculative GL cache or permanent broad timers.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package

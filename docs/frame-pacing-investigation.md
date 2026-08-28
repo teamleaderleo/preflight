@@ -27,15 +27,19 @@ public `main` baseline from this working branch, maps the implemented and missin
 defines the next narrow hitch-packet slice. Do not treat a local experiment commit as evidence that
 the public branch already contains the capability.
 
-The current implementation checkpoint is `5e465911`, which adds a bounded asynchronous whole-frame
-GPU timer with explicit query ownership and pre-context-destroy cleanup while retaining the first
-bounded joined hitch packet and the accepted v2 collision set,
+The current implementation checkpoint is `fbe62fcc`, which retains the completed and rejected exact
+matrix-identity experiment while removing its candidate from active code. It also retains the bounded
+asynchronous whole-frame GPU timer with explicit query ownership and pre-context-destroy cleanup, the
+first bounded joined hitch packet, and the accepted v2 collision set,
 exact-step hitch enrichment, distinct recurring-cluster breadth, and CI coverage for all gameplay
 analysis scripts. The AI Tweaks weapon-location helper candidate at `5b6035aa` and the Detailed Combat
 Results state-map reuse candidate were both live-tested and reverted. The AI Tweaks candidate removed
 its exact allocation target but did not demonstrate a player-visible improvement and added a sampled
-global getter tax; DCR installed and completed safely but substantially regressed the 1,040-DP stress window. The
-compact-index candidate remains rejected because its allocation premise was falsified offline. The
+global getter tax; DCR installed and completed safely but substantially regressed the 1,040-DP
+stress window.
+The compact-index, texture-bind deduplication, and matrix-identity elision candidates remain rejected.
+The latter two removed millions of exact GL calls in thin 1,040-DP cohorts without a reproducible
+tail-smoothness win. The
 latest accepted campaign measurement checkpoint remains `fee6c7b8`, following the cluster
 recorder/analyzer at `cf761d2c9089e7ef46f11d741166f0b3bc1d413c`. One Preflight-only
 `campaign-sample-paused-unpaused` run of those source bytes passed every semantic step on
@@ -171,11 +175,34 @@ frame, then the exact state model found 2,294 same-state reissues per frame. Tha
 modeled families and 16.89% of the selected command stream. Texture binds repeated 53.68%,
 enable/disable 38.23%, and blend state 37.09%. Slow-frame redundancy was effectively identical to
 ordinary-frame redundancy, so this is a baseline submission-tax lead rather than the hitch cause.
-The next action is the remaining correctness audit for a texture-bind-only suppression candidate,
-followed by ordinary/stress correctness and thin shuffled cohorts. Keep the paused presentation
-branch separate.
+The texture-bind and exact matrix-identity suppression candidates subsequently completed ordinary
+correctness and thin interleaved 1,040-DP cohorts. Both removed millions of exact calls without a
+reproducible tail-smoothness win. Keep the paused presentation branch separate; for combat, return
+to bad-frame CPU/bytecode attribution before trying another speculative GL cache.
 
 See the [asynchronous GPU timing record](evidence/2026-08-28-asynchronous-gpu-frame-timing.md).
+
+### Exact GL matrix identity elision rejected (`9e263701`, retired by `fbe62fcc`)
+
+**Observed:** the intrusive census counted 29,179,941 legacy matrix operations over 500 stress
+frames. Exact identity/no-op operations contributed 2,387,807 calls (8.18%); zero-angle
+`glRotatef` calls alone contributed 2,100,158. This is discovery evidence, not an FPS claim.
+
+**Observed:** the exact candidate passed ordinary combat with all eight expected LWJGL methods
+installed, a verified 4x viewport, clean visual evidence, no wrong-thread call, no scope leak, and no
+runtime disable. In the thin B/A/A/B 1,040-DP cohort it removed a median 2,526,231 transforms/run
+(13.40%), yet changed p99 -1.4%, 1% low +1.5%, >50 ms/min +2.6%, >100 ms/min +0.1%, stutter burden
+-1.2%, and average FPS +0.8%. That is mixed run noise, not a player-visible win.
+
+**Observed:** every measured slow frame was pre-swap dominated. Native swap averaged roughly 0.31
+ms, so presentation wait did not hide a matrix improvement in this workload. The workload gate kept
+the exact 32-versus-50 non-fighter fleets and bounded transient fighter-launch timing rather than
+incorrectly requiring lockstep entity counts.
+
+**Explored, not exhausted:** this rejects exact identity suppression at the LWJGL wrapper seam. It
+does not reject all matrix work or neighboring GL families. Any successor must first show excess
+presence in the bad combat frames and then use a thin cohort for the claim. See the
+[bounded rejection record](evidence/2026-08-28-gl-matrix-identity-elision-rejected.md).
 
 ### AI Tweaks target-selection location reuse rejected (`5b6035aa`, reverted by `574cfd3b`)
 
@@ -414,15 +441,15 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
 | RAT tooltip scripts | No Preflight optimization exists; source shows per-frame UI copies and reflection, with a "do not modify twice" UI sentinel in the AI-core path. | The worst exact active frame crossed this code. | Does an identity/content guard remove repeated work without missing a tooltip object reused for a different entry? |
 | Stable campaign snapshots | Stable arrays and exhausted cursor reuse are accepted and bounded. | Current allocation samples still show rebuild/cursor cost and cursor identities outnumber owners. | Which owners rebuild, how often, and can stale cursor entries be removed when an owner receives a replacement array? |
 | Paused/unpaused attribution | Frame buckets are state-separated and focus-clean. Repeated clusters now correlate with bounded exact campaign calls and exact scenario steps. This separated seven post-unpause clusters from 15 settled clusters. | Transition work is a broad catch-up burst; the settled route still mixes occasional large spikes with recurring small calls, and retained children explain only part of cluster wall time. | Does the transition ordering repeat, and which individual settled frames align with the 69–90 ms location spikes? |
-| Combat | Deterministic simulation, autopilot, speed-up, zoom, and exact-window reporting are live. Collision v2 hit 99.90% of capacity hints in the fresh default run. One combined accepted-plan B improved average FPS 6.26%, stutter burden 13.27%, and recurring-cluster exposure 9.55 points while serving 45.9 million exact empty listener snapshots. An ordinary 8-v-25 B exercised 6,867 non-empty fallbacks cleanly. The accepted plans are now in Recommended; v3 compact indexes, DCR state-map reuse, and the global AI Tweaks location wrapper are rejected. The latter removed roughly 99% of its exact sampled allocation family but acquired up to 3.21% sampled CPU share and no thin paired FPS win. | The stress pair is directional rather than lockstep, and residual hitch samples span AI Tweaks, vanilla ship/weapon work, graphics, collision, and damage-analysis mods. DCR map reuse changed unordered-map behavior; the AI Tweaks wrapper showed that even enormous redundant-call volume may not repay an added global interception boundary. Rejecting those implementations does not spend their underlying families. | Which semantic hitch family has the highest excess presence across repeated clusters, and can its next experiment use thin measurement after intrusive discovery rather than combining both roles? |
+| Combat | Deterministic simulation, autopilot, speed-up, exact 4x viewport, explicit frame windows, presentation splits, and bounded workload fingerprints are live. Collision v2 hit 99.90% of capacity hints in the fresh default run. The accepted plans are in Recommended; v3 compact indexes, DCR state-map reuse, the global AI Tweaks location wrapper, texture-bind deduplication, and exact matrix-identity elision are rejected. The GL candidates each removed millions of calls in thin B/A/A/B cohorts but did not move tail smoothness reproducibly. | The AI simulation is workload-bounded rather than lockstep, and residual hitches span AI Tweaks, vanilla ship/weapon work, graphics, collision, and damage-analysis mods. The two GL rejections show that even enormous JNI/driver-call volume may be diffuse baseline tax rather than the bad-frame cause. Rejecting those implementations does not spend their underlying families. | Which semantic CPU/bytecode family has the highest excess presence across repeated >33 ms clusters, and can a thin hitch packet escalate only around those frames? |
 
 ## Open questions, ranked
 
-1. **Matrix-tail attribution:** the texture-only candidate is now rejected after a thin B/A/A/B
-   cohort: it suppressed a median 38.36% of binds but changed p99 +1.6%, 1% low -0.9%, >50 ms/min
-   +41.5%, and stutter burden +8.4%. Do not widen or revive it because the counter is large. Use the
-   matrix-heavy command census to locate one exact redundant/no-op family, retain a direct removed-
-   work counter, add the explicit-window presentation split, and judge it on repeated tail behavior.
+1. **Combat repeated-cluster CPU escalation:** texture-bind and exact matrix-identity suppression are
+   both rejected after thin B/A/A/B cohorts. The matrix candidate removed a median 2.53 million
+   calls/run but changed p99 -1.4%, 1% low +1.5%, and >50 ms/min +2.6%. Use the existing thin hitch
+   packet and workload fingerprint to arm a short sampled CPU/bytecode capture around repeated bad
+   combat frames; rank excess cluster presence before selecting another intervention.
 2. **Transition versus settled active work:** repeat the exact-step correlation once when a code
    decision depends on it. If the transition ordering is stable, probe its catch-up scheduler;
    independently map settled timer calls to individual slow frames before adding broader timers.
@@ -487,6 +514,13 @@ served more than eight million repeated reads per run. As a gameplay optimizatio
 frame observations did not improve consistently, the wrapper itself appeared in CPU samples, and the
 only thin ordinary observation lacked an A cohort. The code is preserved in Git history and reverted.
 That area is explored, not exhausted; a future design must avoid taxing every global getter call.
+
+### Did removing millions of exact matrix operations improve combat smoothness?
+
+No. The exact candidate removed a median 2.53 million identity transforms per 30-second stress run,
+but its thin interleaved cohort moved p99 only -1.4%, 1% low +1.5%, and >50 ms frame rate in the
+wrong direction by 2.6%. The candidate was retired. The result narrows one wrapper seam; it does not
+prove that all matrix or OpenGL work is irrelevant.
 
 ### Does `campaignUnpausedAfter30SecondsActive` mean settled after unpausing?
 
