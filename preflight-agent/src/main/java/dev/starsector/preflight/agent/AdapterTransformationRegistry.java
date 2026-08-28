@@ -984,6 +984,9 @@ final class AdapterTransformationRegistry {
         if (FleetAiProfilerRuntime.PLAN_ID.equals(planId)) {
             return FleetAiProfilerRuntime.enabled();
         }
+        if (TacticalFleetAiTimeRuntime.PLAN_ID.equals(planId)) {
+            return TacticalFleetAiTimeRuntime.enabled();
+        }
         if (FrameTimeStatePlan.PLAN_ID.equals(planId)) {
             return true;
         }

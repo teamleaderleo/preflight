@@ -2,9 +2,11 @@ package dev.starsector.preflight.agent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,6 +14,7 @@ import org.junit.jupiter.api.Test;
 class TacticalFleetAiTimeRuntimeTest {
     @BeforeEach
     void enable() {
+        AdapterPlanControl.configure(Set.of());
         System.clearProperty(TacticalFleetAiTimeRuntime.DISABLED_PROPERTY);
         TacticalFleetAiTimeRuntime.beginSession(true);
     }
@@ -20,6 +23,7 @@ class TacticalFleetAiTimeRuntimeTest {
     void reset() {
         System.clearProperty(TacticalFleetAiTimeRuntime.DISABLED_PROPERTY);
         TacticalFleetAiTimeRuntime.reset();
+        AdapterPlanControl.configure(Set.of());
     }
 
     @Test
@@ -42,5 +46,10 @@ class TacticalFleetAiTimeRuntimeTest {
 
         assertFalse(TacticalFleetAiTimeRuntime.enabled());
         assertEquals(0L, TacticalFleetAiTimeRuntime.enter(TacticalFleetAiTimeRuntime.POST_SCAN));
+    }
+
+    @Test
+    void requestedProductionPlanIsAvailableToTheTransformer() {
+        assertTrue(AdapterTransformationRegistry.hasPlan(TacticalFleetAiTimeRuntime.PLAN_ID));
     }
 }
