@@ -31,7 +31,11 @@ class CombatCohortSummaryTest(unittest.TestCase):
             },
             "combatWorkloadFingerprint": {
                 "combatSecondsElapsed": 38.0,
-                "begin": {"ships": 102, "projectiles": 3, "missiles": 3},
+                "begin": {
+                    "ships": 102, "projectiles": 3, "missiles": 3,
+                    "sideZero": {"aliveNonFighters": 32},
+                    "sideOne": {"aliveNonFighters": 50},
+                },
                 "end": {"ships": 125, "projectiles": 200, "missiles": 100,
                         "combatOver": False},
             },
@@ -92,6 +96,24 @@ class CombatCohortSummaryTest(unittest.TestCase):
             rendered = cohort.render(runs)
         self.assertIn("gates: identity=PASS  workload=PASS  adapter=PASS", rendered)
         self.assertIn("38.00% identity matrix transforms suppressed", rendered)
+
+    def test_workload_gate_allows_bounded_fighter_launch_timing_only(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            first_path = self.write_run(root, "a1", False, 20.0, "matrix")
+            second_path = self.write_run(root, "b1", True, 22.0, "matrix")
+            report_path = second_path / "runtime-frame-report.json"
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            report["frameTimes"]["combatWorkloadFingerprint"]["begin"]["ships"] = 106
+            report_path.write_text(json.dumps(report), encoding="utf-8")
+            runs = [cohort.load_run(first_path), cohort.load_run(second_path)]
+            self.assertTrue(cohort.workload_gate(runs))
+
+            report["frameTimes"]["combatWorkloadFingerprint"]["begin"]["sideOne"][
+                "aliveNonFighters"] = 49
+            report_path.write_text(json.dumps(report), encoding="utf-8")
+            runs = [cohort.load_run(first_path), cohort.load_run(second_path)]
+            self.assertFalse(cohort.workload_gate(runs))
 
 
 if __name__ == "__main__":

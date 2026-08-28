@@ -29,6 +29,8 @@ class Run:
     stutter_burden: float
     combat_seconds: float
     begin_ships: int
+    begin_side_zero_nonfighters: int
+    begin_side_one_nonfighters: int
     begin_projectiles: int
     begin_missiles: int
     end_ships: int
@@ -129,6 +131,8 @@ def load_run(path: Path) -> Run:
         stutter_burden=float(window["stutterProfile"]["stutterBurdenMillisPerSecond"]),
         combat_seconds=float(workload["combatSecondsElapsed"]),
         begin_ships=int(begin["ships"]),
+        begin_side_zero_nonfighters=int(begin["sideZero"]["aliveNonFighters"]),
+        begin_side_one_nonfighters=int(begin["sideOne"]["aliveNonFighters"]),
         begin_projectiles=int(begin["projectiles"]),
         begin_missiles=int(begin["missiles"]),
         end_ships=int(end["ships"]),
@@ -144,6 +148,8 @@ def load_run(path: Path) -> Run:
 
 def workload_gate(runs: list[Run]) -> bool:
     begin_ships = [run.begin_ships for run in runs]
+    begin_side_zero_nonfighters = [run.begin_side_zero_nonfighters for run in runs]
+    begin_side_one_nonfighters = [run.begin_side_one_nonfighters for run in runs]
     begin_projectiles = [run.begin_projectiles for run in runs]
     begin_missiles = [run.begin_missiles for run in runs]
     combat_seconds = [run.combat_seconds for run in runs]
@@ -151,7 +157,11 @@ def workload_gate(runs: list[Run]) -> bool:
     seconds_limit = max(2.0, statistics.median(combat_seconds) * 0.10)
     end_ship_limit = max(2.0, statistics.median(end_ships) * 0.15)
     return (
-        min(begin_ships) == max(begin_ships)
+        min(begin_side_zero_nonfighters) == max(begin_side_zero_nonfighters)
+        and min(begin_side_one_nonfighters) == max(begin_side_one_nonfighters)
+        # Fighters may launch during the sub-second boundary handshake. Bound
+        # that timing noise while requiring the deployed combatants exactly.
+        and max(begin_ships) - min(begin_ships) <= 8
         and max(begin_projectiles) - min(begin_projectiles) <= 5
         and max(begin_missiles) - min(begin_missiles) <= 5
         and max(combat_seconds) - min(combat_seconds) <= seconds_limit

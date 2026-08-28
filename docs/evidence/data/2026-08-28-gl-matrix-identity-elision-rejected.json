@@ -1,0 +1,142 @@
+{
+  "format": "starsector-preflight-gl-matrix-identity-elision-rejection-v1",
+  "date": "2026-08-28",
+  "decision": "rejected",
+  "candidateCommits": ["9e263701", "ff0da811"],
+  "planId": "lwjgl-matrix-identity-elision-v1",
+  "reason": "A median 2,526,231 exact identity transforms (13.40%) were suppressed per candidate run, but the comparable thin candidate arm did not improve tail smoothness reproducibly.",
+  "identity": {
+    "gameVersion": "0.98a-RC8",
+    "profileFingerprint": "2995668308ac3d31d645ccac30fb1a7e644e64fce5609050a1488df4cadc5af6",
+    "textureProfileFingerprint": "59b01dc050f39a9f07053bd168cc8c1ecd55086b429b2d732456f87ca217a702",
+    "preflightJarSha256": "1c2f47ad8dce69dc6a2735345fdfbe90b62716679db1ae3ed7c90def728e3736",
+    "profileMods": 83,
+    "resolution": "1440x932 windowed",
+    "swapInterval": 1,
+    "frameRateCap": "unchanged; owned by Starsector's main loop",
+    "preset": "recommended",
+    "adapterScope": "full",
+    "gameRuntime": "Java 17.0.10 x86_64 under Rosetta",
+    "wrapperRuntime": "Java 21.0.10 aarch64",
+    "scenario": "campaign-simulation-combat-1000dp-thin",
+    "fixture": "24 mirrored ships and 520 DP per side",
+    "viewport": {
+      "centerX": 0.0,
+      "centerY": 0.0,
+      "viewMult": 4.0,
+      "visibleWidth": 5760.0,
+      "visibleHeight": 3728.0
+    }
+  },
+  "discoveryCensus": {
+    "classification": "intrusive discovery instrumentation; never an FPS claim",
+    "frames": 500,
+    "matrixCalls": 29179941,
+    "meanCallsPerFrame": 58359.882,
+    "identityOrNoOpCalls": 2387807,
+    "identityOrNoOpPercent": 8.183,
+    "rotateCalls": 5958583,
+    "zeroAngleRotateCalls": 2100158,
+    "zeroAngleRotatePercent": 35.246,
+    "translateCalls": 10523400,
+    "zeroTranslateCalls": 241301,
+    "unitScaleCalls": 46348,
+    "hashes": {
+      "runtimeFrameReport": "15fb2aa7c2d0ef29a90634eba95b013654286af32962ed643d2594b8025c96db",
+      "smokeEvidence": "2d40c6bf3a79699f29b020af38dabf313ff304ee3286605d7810b1c6ddcb979e",
+      "run": "b96fd3b85ffe434865712e8656bba324a414fe6f70a75a39fd93d53349718c96",
+      "profile": "82e670ab1a1fdf8f61e1b24d4d06ac40496e8333fce6ba527523931ac3cc7636",
+      "runtimeAdapterHealth": "4c991e00578ae7b40eaf06057f26da26025b9d67f12eaa3c99b6d33039f05128"
+    }
+  },
+  "ordinaryCandidateSanity": {
+    "semanticStatus": "passed",
+    "battle": "8 allied versus 25 opposing ships",
+    "durationSeconds": 60,
+    "installedTargetCount": 1,
+    "installedMethodCount": 8,
+    "active": true,
+    "runtimeDisabled": false,
+    "unexpectedThreadCalls": 0,
+    "visualResult": "no visible sprite, transform, effect, zoom, or UI displacement in retained sample",
+    "hashes": {
+      "runtimeFrameReport": "ad10b72b6b7691775d68a396c9ae60290939ad3aad17419fc1bb27387790e200",
+      "smokeEvidence": "4dc5de02f2231968194d4735953ad32c8ac6f09d4356f7729a65516b23bdcc63",
+      "run": "fd62ef4ec80d4e4a3b10d32e154e57b9c516183294ec578080997770de017e39",
+      "profile": "0ef62a3153d81836cf5b9720faee927430c336bd3e744711673813b17058e846",
+      "runtimeAdapterHealth": "370c5093530e6d42c7930e5d27a3b1104b55666c180c1836b3b50f1287c7bc05",
+      "screenshot": "28765d7ab82b7452f8a0e6accac0c6a3402d596f5dd5e1eebdf7ac1dcd21b2ac"
+    }
+  },
+  "stressCohort": {
+    "order": ["B1", "A1", "A2", "B2"],
+    "identityGate": "passed",
+    "workloadGate": "passed",
+    "adapterHealthGate": "passed",
+    "measurement": "thin; no JFR; no asynchronous GPU timer",
+    "runs": [
+      {
+        "id": "B1", "arm": "candidate", "frames": 548, "activeSeconds": 30.029893458,
+        "averageFps": 18.25, "p50Millis": 50.9, "p95Millis": 90.4, "p99Millis": 145.8,
+        "onePercentLowFps": 6.86, "maximumMillis": 230.873, "framesOver50Millis": 303,
+        "framesOver100Millis": 25, "framesOver50MillisPerMinute": 605.4,
+        "framesOver100MillisPerMinute": 50.0, "stutterBurdenMillisPerSecond": 393.72,
+        "simulationSeconds": 36.410126, "beginShips": 102, "beginSideZeroNonFighters": 32,
+        "beginSideOneNonFighters": 50, "endShips": 135, "matrixTransformCalls": 19869695,
+        "suppressedCalls": 2700905, "suppressedPercent": 13.5931,
+        "presentation": {"preSwapAverageMillis": 54.245, "preSwapP99Millis": 144.3, "nativeSwapAverageMillis": 0.313, "nativeSwapP99Millis": 0.7},
+        "measurementOverheadAverageMicros": 37.348,
+        "hashes": {"runtimeFrameReport": "6827d8c6c899b771c06c065e8e4e4483a5f55ea6ce544efd9e01b637ac14a384", "smokeEvidence": "65dbfb1a076d30bf55088b783108c20ce8452d1f38380c56a3c7c9a7e7957f36", "run": "201a00a987140a406a191a5e442702ab470c9f05f639b3636d5bbd478cb759b3", "profile": "c21668e3c0044eb648348a61f1301316b8d1f4ef9ce8e670ea7313de1b6b10b0", "runtimeAdapterHealth": "acfd4b3da6e4b19e7214dffd2f722554ba67f6c03cbd148b6d627cf76cb1245e"}
+      },
+      {
+        "id": "A1", "arm": "baseline", "frames": 564, "activeSeconds": 30.063883625,
+        "averageFps": 18.76, "p50Millis": 49.1, "p95Millis": 86.6, "p99Millis": 151.1,
+        "onePercentLowFps": 6.62, "maximumMillis": 200.335, "framesOver50Millis": 254,
+        "framesOver100Millis": 24, "framesOver50MillisPerMinute": 506.9,
+        "framesOver100MillisPerMinute": 47.9, "stutterBurdenMillisPerSecond": 377.41,
+        "simulationSeconds": 37.43678, "beginShips": 102, "beginSideZeroNonFighters": 32,
+        "beginSideOneNonFighters": 50, "endShips": 136,
+        "presentation": {"preSwapAverageMillis": 52.738, "preSwapP99Millis": 150.0, "nativeSwapAverageMillis": 0.314, "nativeSwapP99Millis": 0.7},
+        "measurementOverheadAverageMicros": 35.273,
+        "hashes": {"runtimeFrameReport": "5ab9a8202b2afae9089a1d3e85d1fbe3cdb5ea5abab19796ba9b379c442dcf42", "smokeEvidence": "6a1437d93bf410a2c45d3a79fb158b69f47578b66a6ffafa40d7ed315e970e67", "run": "1c63865f63d331773b7ca7bcfe0d86520cd7583ca4c573eacbcd1cdf8eb20227", "profile": "16439cf7f29a31868b661aca8bae819b75406fe1d23451162eec4e210b7d8731", "runtimeAdapterHealth": "14525b79eb5a32e8ea4bafae454fb798e46d491fe50ebe9fef6c50ed38562834"}
+      },
+      {
+        "id": "A2", "arm": "baseline", "frames": 526, "activeSeconds": 30.056621125,
+        "averageFps": 17.50, "p50Millis": 53.1, "p95Millis": 95.4, "p99Millis": 153.9,
+        "onePercentLowFps": 6.50, "maximumMillis": 166.217, "framesOver50Millis": 334,
+        "framesOver100Millis": 26, "framesOver50MillisPerMinute": 666.7,
+        "framesOver100MillisPerMinute": 51.9, "stutterBurdenMillisPerSecond": 417.11,
+        "simulationSeconds": 35.040817, "beginShips": 102, "beginSideZeroNonFighters": 32,
+        "beginSideOneNonFighters": 50, "endShips": 129,
+        "presentation": {"preSwapAverageMillis": 56.575, "preSwapP99Millis": 152.4, "nativeSwapAverageMillis": 0.319, "nativeSwapP99Millis": 0.8},
+        "measurementOverheadAverageMicros": 35.629,
+        "hashes": {"runtimeFrameReport": "091c87f6cd832a009db4e3c273fb27961201dd94446457bc44aaa6fd82f2c45b", "smokeEvidence": "12148d166f7cd63dd930c64719d6718c9533dd8d9eb901ae701a90946d987ced", "run": "a2577767bb825049fb9e507d55b66370ecf1596d4538947cfca213c5f4971afe", "profile": "15a40e00b706a77dd58b43b78bc55d532dc69897c3107fda4856713aeda47e82", "runtimeAdapterHealth": "a99ba17833969d506d3d060cf71476792edbab852113c47951ecebc95356e90c"}
+      },
+      {
+        "id": "B2", "arm": "candidate", "frames": 550, "activeSeconds": 30.032718375,
+        "averageFps": 18.31, "p50Millis": 50.8, "p95Millis": 92.4, "p99Millis": 154.8,
+        "onePercentLowFps": 6.46, "maximumMillis": 198.421, "framesOver50Millis": 300,
+        "framesOver100Millis": 25, "framesOver50MillisPerMinute": 599.3,
+        "framesOver100MillisPerMinute": 49.9, "stutterBurdenMillisPerSecond": 391.49,
+        "simulationSeconds": 36.54746, "beginShips": 106, "beginSideZeroNonFighters": 32,
+        "beginSideOneNonFighters": 50, "endShips": 122, "matrixTransformCalls": 17809446,
+        "suppressedCalls": 2351558, "suppressedPercent": 13.2040,
+        "presentation": {"preSwapAverageMillis": 54.045, "preSwapP99Millis": 153.7, "nativeSwapAverageMillis": 0.309, "nativeSwapP99Millis": 0.6},
+        "measurementOverheadAverageMicros": 39.973,
+        "hashes": {"runtimeFrameReport": "16fdf2c49198ac86b887fa07548f2718a12d8578a30c2509c9fd2933027d4455", "smokeEvidence": "5957b49c0a16083f976b9f584f365b91a1394ed51d3548c344bebf2f084dea5c", "run": "7bb3a4b1549e6dc28d56c68c22a4757fe2d20e55e57e188bdb6871282cb8c96f", "profile": "de488c8feb31146bcc7a7bbf150745819e13bf651bc32477b365f06ad6e5b9ef", "runtimeAdapterHealth": "6e01f52704102d4ac2bdda779966b07c123cc8a16c5146b13de1523b038c5a0e"}
+      }
+    ],
+    "candidateVsBaselineArmMedianPercent": {
+      "averageFps": 0.8,
+      "p99Millis": -1.4,
+      "onePercentLowFps": 1.5,
+      "framesOver50MillisPerMinute": 2.6,
+      "framesOver100MillisPerMinute": 0.1,
+      "stutterBurdenMillisPerSecond": -1.2
+    },
+    "candidateCausalCounterMedian": {
+      "identityMatrixTransformsSuppressed": 2526231,
+      "suppressedPercent": 13.40
+    }
+  }
+}
