@@ -70,6 +70,13 @@ def test_frame_window_deduplication():
     assert frames[1]["severe"] is True
 
 
+def test_event_type_accepts_real_and_legacy_jfr_json_shapes():
+    assert correlation.event_type({"type": "jdk.ExecutionSample"}) == "jdk.ExecutionSample"
+    assert correlation.event_type({"type": {"name": "jdk.ThreadSleep"}}) == "jdk.ThreadSleep"
+    assert correlation.event_type({"type": {}}) == "?"
+    assert correlation.event_type({}) == "?"
+
+
 def test_correlation_keeps_duration_and_samples_distinct():
     frames = [
         {
@@ -146,6 +153,7 @@ def test_recording_clock_mapping_uses_calibrated_factor():
 
 def main():
     test_frame_window_deduplication()
+    test_event_type_accepts_real_and_legacy_jfr_json_shapes()
     test_correlation_keeps_duration_and_samples_distinct()
     test_recording_clock_mapping_uses_calibrated_factor()
     print("starsector_jvm_hitch_correlation: ok")

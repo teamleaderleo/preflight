@@ -49,7 +49,13 @@ SAMPLE_TYPES = {"jdk.ExecutionSample", "jdk.NativeMethodSample"}
 
 
 def event_type(event):
-    return event.get("type", {}).get("name", "?")
+    value = event.get("type")
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        name = value.get("name")
+        return name if isinstance(name, str) else "?"
+    return "?"
 
 
 def frame_windows(report):

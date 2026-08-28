@@ -54,14 +54,23 @@ java -jar preflight-cli/target/preflight.jar desktop smoke launch \
     "$SCENARIO" "$RUN_DIR" --game "$GAME"
 RUN_STATUS=$?
 set -e
+POSTPROCESS_STATUS=0
 
 if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
-    python3 scripts/starsector_mod_tax_triage.py \
-        "$RUN_DIR/runtime-frame-report.json" "$HOT_PATTERNS" >"$TRIAGE"
+    if ! python3 scripts/starsector_mod_tax_triage.py \
+        "$RUN_DIR/runtime-frame-report.json" "$HOT_PATTERNS" >"$TRIAGE"; then
+        echo "Owner-tax triage failed; preserving the installed-game run." >&2
+        rm -f "$TRIAGE"
+        POSTPROCESS_STATUS=1
+    fi
 fi
 if [[ -f "$RUN_DIR/startup.jfr" && -f "$RUN_DIR/runtime-frame-report.json" ]]; then
-    python3 scripts/starsector_jvm_hitch_correlation.py \
-        "$RUN_DIR/startup.jfr" "$RUN_DIR/runtime-frame-report.json" >"$JVM_JOIN"
+    if ! python3 scripts/starsector_jvm_hitch_correlation.py \
+        "$RUN_DIR/startup.jfr" "$RUN_DIR/runtime-frame-report.json" >"$JVM_JOIN"; then
+        echo "JVM hitch correlation failed; preserving the installed-game run." >&2
+        rm -f "$JVM_JOIN"
+        POSTPROCESS_STATUS=1
+    fi
 fi
 
 if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
@@ -83,13 +92,26 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
             campaignFirst30SecondsActive,
             campaignAfter30SecondsActive,
             campaignPausedActive,
+            campaignPausedAfter30SecondsActive,
             campaignUnpausedActive,
-            campaignMeasurementWindowActive
+            campaignUnpausedAfter30SecondsActive,
+            measurementWindow
           }),
           ownerTaxFamilies:{
-            campaignEngineTimesOwnerTax:.campaignEngineTimes.ownerTax,
-            campaignLocationEconomyTimesOwnerTax:.campaignLocationEconomyTimes.ownerTax,
-            campaignMarketFleetTimesOwnerTax:.campaignMarketFleetTimes.ownerTax
+            campaignEngineTimesOwnerTax:.campaignEngineTimes.scriptOwnerTax,
+            campaignLocationEconomyTimesOwnerTax:{
+              locationScriptClassesOwnerTax:.campaignLocationEconomyTimes.locationScriptClassesOwnerTax,
+              entityActiveClassesOwnerTax:.campaignLocationEconomyTimes.entityActiveClassesOwnerTax,
+              entityPausedClassesOwnerTax:.campaignLocationEconomyTimes.entityPausedClassesOwnerTax
+            },
+            campaignMarketFleetTimesOwnerTax:{
+              marketConditionClassesOwnerTax:.campaignMarketFleetTimes.marketConditionClassesOwnerTax,
+              marketIndustryClassesOwnerTax:.campaignMarketFleetTimes.marketIndustryClassesOwnerTax,
+              marketSubmarketClassesOwnerTax:.campaignMarketFleetTimes.marketSubmarketClassesOwnerTax,
+              fleetAiClassesOwnerTax:.campaignMarketFleetTimes.fleetAiClassesOwnerTax,
+              fleetHullmodFleetClassesOwnerTax:.campaignMarketFleetTimes.fleetHullmodFleetClassesOwnerTax,
+              fleetHullmodShipClassesOwnerTax:.campaignMarketFleetTimes.fleetHullmodShipClassesOwnerTax
+            }
           },
           triage:($triage[0] // null),
           jvmHitchCorrelation:($jvm[0] // null)}' \
@@ -104,9 +126,14 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
          runtimeObservedModCount:(.triage.runtimeObservedModCount // 0),
          unresolvedRuntimeOwnerCount:(.triage.unresolvedRuntimeOwners | length),
          topMods:(.triage.mods[:12] | map({modId,priority,bestFrameTaxRank})),
+         retainedHitchFrames:(.jvmHitchCorrelation.retainedHitchFrames // 0),
+         retainedSevereHitchFrames:(.jvmHitchCorrelation.retainedSevereHitchFrames // 0),
          jvmHitchSummary:(.jvmHitchCorrelation.summary // null)}' "$SUMMARY"
 fi
 
 echo "Issue #1158 session: $SESSION"
 echo "Installed-game run: $RUN_DIR"
-exit "$RUN_STATUS"
+if [[ "$RUN_STATUS" -ne 0 ]]; then
+    exit "$RUN_STATUS"
+fi
+exit "$POSTPROCESS_STATUS"
