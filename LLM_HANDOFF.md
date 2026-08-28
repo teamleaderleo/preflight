@@ -23,6 +23,8 @@ Before changing code or collecting release evidence:
    is the canonical parent for that lane; use focused child issues once one experiment is concrete.
    The latest completed discovery checkpoint is the
    [1,040-DP severe-frame attribution pass](docs/evidence/2026-08-28-combat-severe-frame-attribution.md),
+   and the rejected
+   [60 Hz precision-limiter pass](docs/evidence/2026-08-28-campaign-precision-limiter-rejected.md),
    following the rejected
    [GL matrix identity-elision cohort](docs/evidence/2026-08-28-gl-matrix-identity-elision-rejected.md),
    following the rejected
@@ -58,12 +60,16 @@ Before changing code or collecting release evidence:
 
    Before adding more probes, reconcile the live coordination map in
    [#1152](https://github.com/teamleaderleo/preflight/issues/1152) and child lanes #1153–#1158. At the
-   2026-08-28 checkpoint, #1157's precision limiter is the highest-value installed-host candidate
-   after its quality-grind carrier and CI gates are clean; #1154/#1158 have complementary classifier,
-   owner-tax, and JVM-correlation work but still need integration cleanup. #1155 needs real scaling
-   coefficients, #1156 owns bounded GPU/resource diagnostics, and #1153 owns separate render-sync and
-   GraphicsLib replay candidates. Use the physical machine for real game/LWJGL/driver/mod/runtime
-   measurements and move large concurrency policy sweeps to synthetic harnesses.
+   2026-08-28 installed-host checkpoint, #1157's current 60 Hz precision waiter is rejected: two thin
+   VSync-off runs were healthy but changed historical-context p99 only -1.5% and 1% low +1.6%, while
+   average FPS was -2.6%. Its roughly 0.63 ms deadline extension plus 0.68 ms average overshoot is a
+   concrete successor-design warning. VSync-off itself remains the large accepted experimental win.
+   #1154/#1158 have complementary classifier, owner-tax, and JVM-correlation work but still need
+   integration cleanup. The next high-information physical-host pass is #1155's real combat-scaling
+   coefficients using the 1,040-DP harness, followed by one separated #1153 render-sync/GraphicsLib
+   candidate or a bounded #1156 GPU/resource diagnostic. Use the physical machine for real
+   game/LWJGL/driver/mod/runtime measurements and move large concurrency policy sweeps to synthetic
+   harnesses.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package

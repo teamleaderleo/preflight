@@ -61,6 +61,12 @@ not exercise combat.
 These numbers are one current B observation, not a comparison against the prior run. Workload and
 thermal state were not locked, so apparent deltas must not be advertised as improvement.
 
+The later 60 Hz precision-limiter successor is also settled as a rejection. Two thin installed-host
+candidate runs remained mechanically healthy but changed the retained VSync-off context by only about
+-1.5% p99 and +1.6% 1% low while lowering average FPS about 2.6%. Its deadline policy added about
+0.63 ms beyond the game's integer-millisecond request and still overshot about 0.68 ms on average.
+Do not rerun that waiter unchanged; the large paused-campaign result remains VSync-off itself.
+
 ## Current live-validation queue
 
 ### Hitch packet v1 retained (`2f0ea0b3`)
@@ -114,6 +120,24 @@ the rarer >50 ms game-work fingerprint, let the thin trigger arm a short CPU cap
 matching hitch rather than leaving broad discovery timers permanently enabled.
 
 See the [bounded limiter-split record](evidence/2026-08-28-campaign-limiter-split.md).
+
+### Precision limiter rejected at 60 Hz (`codex/1157-installed-pacing`)
+
+**Observed:** two Preflight-only 60-second paused windows exact-installed the deadline-based limiter,
+forced swap interval zero, and reported zero adapter decline/failure or interrupted wait. B1/B2 were
+57.52/57.48 average FPS, 22.3/22.7 ms p99, 44.84/44.05 FPS 1% low, and two isolated >33.33 ms frames
+each. Every slow frame was pre-swap dominated; no presentation wait hid the result.
+
+**Observed:** against the retained VSync-off observations, candidate arm medians moved p99 -1.5% and
+1% low +1.6% while average FPS moved -2.6%. That is historical decision context, not an exact current
+interleaved cohort, but it is far below the acceptance target and mixed enough to reject promotion.
+The candidate extended the coarse request about 0.63 ms and then overshot the computed deadline about
+0.68 ms on average while spinning only 2.3-2.6 microseconds. A successor must change deadline semantics
+before another same-host run.
+
+**Explored, not exhausted:** this rejects the current 60 Hz park/spin policy, not precision pacing in
+general. Reconsider only for a materially different policy or a separate high-refresh display contract.
+See the [bounded rejection record](evidence/2026-08-28-campaign-precision-limiter-rejected.md).
 
 ### Native-swap CPU versus off-CPU split (`5702a9ae`)
 
@@ -461,11 +485,11 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
 
 ## Open questions, ranked
 
-1. **Combat repeated-cluster CPU escalation:** texture-bind and exact matrix-identity suppression are
-   both rejected after thin B/A/A/B cohorts. The matrix candidate removed a median 2.53 million
-   calls/run but changed p99 -1.4%, 1% low +1.5%, and >50 ms/min +2.6%. Use the existing thin hitch
-   packet and workload fingerprint to arm a short sampled CPU/bytecode capture around repeated bad
-   combat frames; rank excess cluster presence before selecting another intervention.
+1. **Combat scaling coefficients:** the exact `>=100 ms` stress-frame pass did not find a broad narrow
+   CPU or allocation family to promote, and the unchanged 60 Hz precision waiter is now rejected.
+   Use the existing 1,040-DP fixture and thin recorder to populate #1155's real scaling coefficients
+   across a bounded DP ladder. This should distinguish superlinear simulation/render families from
+   diffuse per-entity tax before another bytecode intervention.
 2. **Transition versus settled active work:** repeat the exact-step correlation once when a code
    decision depends on it. If the transition ordering is stable, probe its catch-up scheduler;
    independently map settled timer calls to individual slow frames before adding broader timers.
@@ -479,10 +503,11 @@ snapshot rebuilds and old cursor identities can still accumulate within the boun
    interval and which listener events already express real market invalidation.
 6. **Stable snapshot ownership:** instrument rebuilds by transformed loop kind before redesigning
    cursor retention.
-7. **Combat residual frontier:** reconcile the current exact-step/JFR tools with issue #449, then
-   choose the narrowest high-information hitch-attribution slice. Avoid the reverted DCR map rotation,
-   retired AI Tweaks `SelectTarget` fields, and rejected global location wrapper. Any new allocation
-   candidate must separate intrusive discovery from thin measurement; stress does not replace ordinary play.
+7. **Combat residual frontier:** after the scaling coefficients, choose either one separated
+   render-sync/GraphicsLib candidate from #1153 or a bounded #1156 GPU/resource diagnostic. Avoid the
+   reverted DCR map rotation, retired AI Tweaks `SelectTarget` fields, rejected global location wrapper,
+   and unchanged precision waiter. Any new allocation candidate must separate intrusive discovery from
+   thin measurement; stress does not replace ordinary play.
 8. **Rosetta tax:** if GL command counts show a large CPU-side dispatch boundary, compare an extracted
    equivalent call stream under native ARM and x86/Rosetta, then seek a same-scenario cross-machine
    control. Do not attribute GPU elapsed time or off-CPU swap wait directly to instruction translation.
