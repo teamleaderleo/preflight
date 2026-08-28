@@ -24,6 +24,10 @@ import org.objectweb.asm.tree.VarInsnNode;
 /** Replays GraphicsLib's already-cached tessellation through one client-array draw. */
 final class GraphicsLibTessellateArrayPlan {
     static final String TARGET_CLASS = "org/dark/graphics/util/Tessellate";
+    static final String ORIGINAL_SHA256 =
+            "0e25f52eb84a184bd426afaa69372a49d57befe672bda88a71691e09facfeacf";
+    static final String SOURCE_SHA256 =
+            "832064013fe853731941e547842884ba121fb8b20eff08d24137f7a2c916903a";
     static final String RENDER_METHOD = "render";
     static final String RENDER_DESCRIPTOR =
             "(Lcom/fs/starfarer/api/combat/BoundsAPI;FFFLcom/fs/starfarer/api/combat/ShipAPI;)V";

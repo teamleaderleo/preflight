@@ -1977,6 +1977,22 @@ final class AdapterTargetRegistry {
                 "app"));
     }
 
+    AdapterTargetRegistry withGraphicsLibTessellateArrayTarget() {
+        return withTarget(new AdapterTarget(
+                "graphicslib-1.12.1-tessellate-array-replay",
+                GraphicsLibTessellateArrayPlan.TARGET_CLASS,
+                GraphicsLibTessellateArrayPlan.ORIGINAL_SHA256,
+                FrameTimeRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        GraphicsLibTessellateArrayPlan.RENDER_METHOD,
+                        GraphicsLibTessellateArrayPlan.RENDER_DESCRIPTOR)),
+                "MOD",
+                "graphics.jar",
+                GraphicsLibTessellateArrayPlan.SOURCE_SHA256,
+                "java/net/URLClassLoader",
+                ""));
+    }
+
     AdapterTargetRegistry withGlCommandCountTargets() {
         AdapterTargetRegistry registry = this;
         for (GlCommandCountPlan.Target target : GlCommandCountPlan.targets()) {

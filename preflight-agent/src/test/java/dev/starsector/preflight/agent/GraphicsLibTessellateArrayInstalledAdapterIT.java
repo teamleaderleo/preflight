@@ -56,8 +56,9 @@ class GraphicsLibTessellateArrayInstalledAdapterIT {
                 GraphicsLibTessellateArrayPlan.RENDER_METHOD,
                 GraphicsLibTessellateArrayPlan.RENDER_DESCRIPTOR));
 
-        Path targets = exactTargetFile(originalSignature.sha256());
-        AdapterTargetRegistry registry = AdapterTargetRegistry.load(targets);
+        assertEquals(GraphicsLibTessellateArrayPlan.ORIGINAL_SHA256, originalSignature.sha256());
+        AdapterTargetRegistry registry = AdapterTargetRegistry.empty()
+                .withGraphicsLibTessellateArrayTarget();
         GraphicsLibTessellateArrayRuntime.beginSessionForTest(true);
 
         byte[] transformed = transform(
@@ -84,24 +85,6 @@ class GraphicsLibTessellateArrayInstalledAdapterIT {
                 changedArchive,
                 original,
                 temporaryDirectory.resolve("changed-archive-report.json")));
-    }
-
-    private Path exactTargetFile(String classSha256) throws Exception {
-        Path file = temporaryDirectory.resolve("tessellate-targets.txt");
-        Files.writeString(file, String.join(System.lineSeparator(),
-                "target graphicslib-1.12.1-tessellate-array-live",
-                "class " + GraphicsLibTessellateArrayPlan.TARGET_CLASS,
-                "sha256 " + classSha256,
-                "plan " + FrameTimeRuntime.PLAN_ID,
-                "source-kind MOD",
-                "source-suffix graphics.jar",
-                "source-sha256 " + STOCK_GRAPHICS_JAR_SHA256,
-                "loader-class java/net/URLClassLoader",
-                "method " + GraphicsLibTessellateArrayPlan.RENDER_METHOD + " "
-                        + GraphicsLibTessellateArrayPlan.RENDER_DESCRIPTOR,
-                "end",
-                ""));
-        return file;
     }
 
     private byte[] transform(

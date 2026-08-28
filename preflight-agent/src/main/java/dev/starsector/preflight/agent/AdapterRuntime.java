@@ -224,6 +224,10 @@ final class AdapterRuntime {
                     registry = registry.withDynamicParticleGroupProbeTarget();
                     report.diagnostic("Loaded the exact opt-in vanilla particle render probe target");
                 }
+                if (GraphicsLibTessellateArrayRuntime.enabled()) {
+                    registry = registry.withGraphicsLibTessellateArrayTarget();
+                    report.diagnostic("Loaded the exact opt-in GraphicsLib tessellation-array target");
+                }
                 if (GlCommandCountRuntime.planEnabled()) {
                     registry = registry.withGlCommandCountTargets();
                     report.diagnostic("Loaded the exact opt-in LWJGL OpenGL command-count targets");
