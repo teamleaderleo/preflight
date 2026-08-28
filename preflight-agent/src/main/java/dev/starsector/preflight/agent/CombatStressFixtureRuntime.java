@@ -297,12 +297,25 @@ final class CombatStressFixtureRuntime {
         for (Object ship : spawnedZero) expected.put(ship, Boolean.TRUE);
         for (Object ship : spawnedOne) expected.put(ship, Boolean.TRUE);
         Method isFighter = exact(shipApi, "isFighter", boolean.class);
+        Method isDrone = exact(shipApi, "isDrone", boolean.class);
+        Method getDroneSource = exact(shipApi, "getDroneSource", shipApi);
+        Method isStationModule = exact(shipApi, "isStationModule", boolean.class);
+        Method getParentStation = exact(shipApi, "getParentStation", shipApi);
         int matched = 0;
         for (Object ship : engineShips(engine, getShips, shipApi)) {
             if (expected.containsKey(ship)) {
                 matched++;
-            } else if (!Boolean.TRUE.equals(invoke(isFighter, ship))) {
-                throw new IllegalStateException("combat-stress-unexpected-engine-nonfighter");
+            } else if (Boolean.TRUE.equals(invoke(isFighter, ship))) {
+                // Fighter craft are dependent entities created by the newly spawned carriers.
+            } else if (Boolean.TRUE.equals(invoke(isDrone, ship))
+                    && expected.containsKey(invoke(getDroneSource, ship))) {
+                // Tempest-style drones are non-fighters but remain owned by an exact fixture hull.
+            } else if (Boolean.TRUE.equals(invoke(isStationModule, ship))
+                    && expected.containsKey(invoke(getParentStation, ship))) {
+                // Modular fixture hulls may contribute child entities without adding fleet DP.
+            } else {
+                throw new IllegalStateException(
+                        "combat-stress-unexpected-independent-engine-ship");
             }
         }
         if (matched != expected.size()) {
