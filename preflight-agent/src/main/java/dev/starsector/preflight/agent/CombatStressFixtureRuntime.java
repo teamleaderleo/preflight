@@ -8,12 +8,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Builds one closed, symmetric, in-memory 1,000+ DP simulation stress fixture. */
+/** Builds one closed, symmetric, in-memory simulation stress fixture. */
 final class CombatStressFixtureRuntime {
     static final String ACTION = "combat.prepare-symmetric-1000dp-fixture";
     static final String RECIPE_ID = "symmetric-fast-high-tech-1040dp-v1";
     static final int SHIPS_PER_SIDE = 24;
     static final float MINIMUM_DP_PER_SIDE = 500f;
+    static final List<Integer> SCALING_BATTLE_DP = List.of(260, 520, 780, 1040);
     private static final String GLOBAL = "com.fs.starfarer.api.Global";
     private static final String SETTINGS_API = "com.fs.starfarer.api.SettingsAPI";
     private static final String COMBAT_ENGINE_API =
@@ -48,6 +49,16 @@ final class CombatStressFixtureRuntime {
             new Variant("tempest_Attack", 8f),
             new Variant("scarab_Experimental", 8f),
             new Variant("scarab_Experimental", 8f));
+    /*
+     * Four composition-balanced 130-DP blocks. The 1,040-DP cell deliberately uses SIDE in its
+     * original order so the established stress fixture remains byte-for-byte equivalent. Lower
+     * cells use prefixes of this index order, preserving the same major-hull proportions.
+     */
+    private static final List<Integer> SCALING_ORDER = List.of(
+            0, 4, 8, 12, 16, 20,
+            1, 5, 9, 13, 17, 22,
+            2, 6, 10, 14, 18, 21,
+            3, 7, 11, 15, 19, 23);
 
     private static boolean attempted;
     private static boolean prepared;
@@ -57,6 +68,9 @@ final class CombatStressFixtureRuntime {
     private static int spawnedSideOne;
     private static float deploymentPointsSideZero;
     private static float deploymentPointsSideOne;
+    private static int requestedBattleDp = 1040;
+    private static int activeShipsPerSide = SHIPS_PER_SIDE;
+    private static String activeRecipeId = RECIPE_ID;
     private static Map<String, Object> workloadBegin = Map.of();
     private static Map<String, Object> workloadEnd = Map.of();
     private static String problem;
@@ -76,6 +90,10 @@ final class CombatStressFixtureRuntime {
         Method setDoNotEnd = null;
         boolean originalsRemoved = false;
         try {
+            FixtureRecipe recipe = configuredRecipe();
+            requestedBattleDp = recipe.battleDp();
+            activeShipsPerSide = recipe.side().size();
+            activeRecipeId = recipe.id();
             ClassLoader loader = engine.getClass().getClassLoader();
             Class<?> shipApi = Class.forName(SHIP_API, false, loader);
             Class<?> fleetMemberApi = Class.forName(FLEET_MEMBER_API, false, loader);
@@ -99,7 +117,7 @@ final class CombatStressFixtureRuntime {
             if (!Boolean.TRUE.equals(invoke(isSimulation, engine))) {
                 throw new IllegalStateException("combat-stress-fixture-requires-simulation");
             }
-            validateVariants(loader);
+            validateVariants(loader, recipe.side());
             sideZero = invoke(getFleetManager, engine, 0);
             sideOne = invoke(getFleetManager, engine, 1);
             if (sideZero == null || sideOne == null || sideZero.getClass() != sideOne.getClass()) {
@@ -115,12 +133,14 @@ final class CombatStressFixtureRuntime {
             float width = (Float) invoke(getMapWidth, engine);
             float height = (Float) invoke(getMapHeight, engine);
             validateMap(width, height);
-            spawnSide(sideZero, api, vector, -1, width, height, spawnedZero);
-            spawnSide(sideOne, api, vector, 1, width, height, spawnedOne);
+            spawnSide(sideZero, api, vector, -1, width, height, recipe.side(), spawnedZero);
+            spawnSide(sideOne, api, vector, 1, width, height, recipe.side(), spawnedOne);
             deploymentPointsSideZero = deploymentPoints(spawnedZero, api);
             deploymentPointsSideOne = deploymentPoints(spawnedOne, api);
-            if (spawnedZero.size() != SHIPS_PER_SIDE || spawnedOne.size() != SHIPS_PER_SIDE
-                    || deploymentPointsSideZero < MINIMUM_DP_PER_SIDE
+            float expectedDpPerSide = requestedBattleDp / 2f;
+            if (spawnedZero.size() != recipe.side().size()
+                    || spawnedOne.size() != recipe.side().size()
+                    || Math.abs(deploymentPointsSideZero - expectedDpPerSide) > 0.01f
                     || Math.abs(deploymentPointsSideZero - deploymentPointsSideOne) > 0.01f) {
                 throw new IllegalStateException("combat-stress-spawned-fleet-mismatch");
             }
@@ -134,7 +154,8 @@ final class CombatStressFixtureRuntime {
 
             spawnedSideZero = deployedCount(sideZero, api);
             spawnedSideOne = deployedCount(sideOne, api);
-            if (spawnedSideZero != SHIPS_PER_SIDE || spawnedSideOne != SHIPS_PER_SIDE) {
+            if (spawnedSideZero != recipe.side().size()
+                    || spawnedSideOne != recipe.side().size()) {
                 throw new IllegalStateException("combat-stress-spawn-count-mismatch");
             }
             invoke(setDoNotEnd, engine, false);
@@ -145,7 +166,7 @@ final class CombatStressFixtureRuntime {
             return new Result(beforePaused, true,
                     String.format(java.util.Locale.ROOT,
                             "prepared %s: %d mirrored ships and %.1f DP per side; combat paused",
-                            RECIPE_ID, spawnedSideZero, deploymentPointsSideZero));
+                            activeRecipeId, spawnedSideZero, deploymentPointsSideZero));
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
         } catch (ReflectiveOperationException | RuntimeException failure) {
@@ -162,13 +183,14 @@ final class CombatStressFixtureRuntime {
         }
     }
 
-    private static void validateVariants(ClassLoader loader) throws ReflectiveOperationException {
+    private static void validateVariants(ClassLoader loader, List<Variant> side)
+            throws ReflectiveOperationException {
         Class<?> global = Class.forName(GLOBAL, false, loader);
         Object settings = invoke(global.getMethod("getSettings"), null);
         Class<?> settingsApi = Class.forName(SETTINGS_API, false, loader);
         Method exists = exactApi(
                 settingsApi, settings, "doesVariantExist", boolean.class, String.class);
-        for (Variant variant : SIDE) {
+        for (Variant variant : side) {
             if (!Boolean.TRUE.equals(invoke(exists, settings, variant.id()))) {
                 throw new IllegalStateException("combat-stress-variant-missing:" + variant.id());
             }
@@ -208,11 +230,11 @@ final class CombatStressFixtureRuntime {
 
     private static void spawnSide(
             Object manager, ManagerApi api, Class<?> vector, int side,
-            float width, float height, List<Object> spawned)
+            float width, float height, List<Variant> recipe, List<Object> spawned)
             throws ReflectiveOperationException {
         float xBase = side * Math.min(width * 0.25f, 4_000f);
         float ySpacing = Math.min(height / 8f, 700f);
-        for (int index = 0; index < SIDE.size(); index++) {
+        for (int index = 0; index < recipe.size(); index++) {
             int column = index / 6;
             int row = index % 6;
             float x = xBase + side * column * 650f;
@@ -220,7 +242,7 @@ final class CombatStressFixtureRuntime {
             Object location = vector.getConstructor(float.class, float.class).newInstance(x, y);
             float facing = side < 0 ? 0f : 180f;
             Object ship = invoke(api.spawnShipOrWing(), manager,
-                    SIDE.get(index).id(), location, facing, 0f);
+                    recipe.get(index).id(), location, facing, 0f);
             if (ship == null) throw new IllegalStateException("combat-stress-spawn-returned-null");
             spawned.add(ship);
         }
@@ -283,20 +305,70 @@ final class CombatStressFixtureRuntime {
     }
 
     static List<Map<String, Object>> recipe() {
+        return recipeRows(SIDE);
+    }
+
+    static List<Map<String, Object>> recipeForBattleDp(int battleDp) {
+        return recipeRows(fixtureRecipe(battleDp).side());
+    }
+
+    private static List<Map<String, Object>> recipeRows(List<Variant> side) {
         List<Map<String, Object>> values = new ArrayList<>();
-        for (Variant variant : SIDE) {
+        for (Variant variant : side) {
             values.add(Map.of("variantId", variant.id(), "deploymentPoints", variant.dp()));
         }
         return List.copyOf(values);
     }
 
+    private static FixtureRecipe configuredRecipe() {
+        if (!CombatWorkloadRuntime.enabled()) return fixtureRecipe(1040);
+        String configured = System.getProperty(CombatWorkloadRuntime.BATTLE_DP_PROPERTY);
+        if (configured == null || configured.isBlank()) return fixtureRecipe(1040);
+        final double parsed;
+        try {
+            parsed = Double.parseDouble(configured);
+        } catch (NumberFormatException problem) {
+            throw new IllegalStateException("combat-scaling-battle-dp-invalid", problem);
+        }
+        int rounded = (int) Math.rint(parsed);
+        if (!Double.isFinite(parsed) || Math.abs(parsed - rounded) > 0.001) {
+            throw new IllegalStateException("combat-scaling-battle-dp-invalid");
+        }
+        return fixtureRecipe(rounded);
+    }
+
+    private static FixtureRecipe fixtureRecipe(int battleDp) {
+        int ships = switch (battleDp) {
+            case 260 -> 6;
+            case 520 -> 12;
+            case 780 -> 18;
+            case 1040 -> 24;
+            default -> throw new IllegalStateException(
+                    "combat-scaling-battle-dp-unsupported:" + battleDp);
+        };
+        List<Variant> side;
+        if (battleDp == 1040) {
+            side = SIDE;
+        } else {
+            List<Variant> selected = new ArrayList<>();
+            for (int index = 0; index < ships; index++) {
+                selected.add(SIDE.get(SCALING_ORDER.get(index)));
+            }
+            side = List.copyOf(selected);
+        }
+        return new FixtureRecipe(
+                "symmetric-fast-high-tech-" + battleDp + "dp-v1", battleDp, side);
+    }
+
     static synchronized Map<String, Object> telemetry() {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("action", ACTION);
-        values.put("recipeId", RECIPE_ID);
+        values.put("recipeId", activeRecipeId);
+        values.put("requestedBattleDp", requestedBattleDp);
+        values.put("actualBattleDp", deploymentPointsSideZero + deploymentPointsSideOne);
         values.put("attempted", attempted);
         values.put("prepared", prepared);
-        values.put("shipsPerSide", SHIPS_PER_SIDE);
+        values.put("shipsPerSide", activeShipsPerSide);
         values.put("removedSideZero", removedSideZero);
         values.put("removedSideOne", removedSideOne);
         values.put("spawnedSideZero", spawnedSideZero);
@@ -334,7 +406,8 @@ final class CombatStressFixtureRuntime {
 
     static synchronized Map<String, Object> workloadTelemetry() {
         Map<String, Object> values = new LinkedHashMap<>();
-        values.put("recipeId", RECIPE_ID);
+        values.put("recipeId", activeRecipeId);
+        values.put("requestedBattleDp", requestedBattleDp);
         values.put("begin", workloadBegin.isEmpty() ? null : workloadBegin);
         values.put("end", workloadEnd.isEmpty() ? null : workloadEnd);
         if (!workloadBegin.isEmpty() && !workloadEnd.isEmpty()) {
@@ -436,6 +509,9 @@ final class CombatStressFixtureRuntime {
         spawnedSideOne = 0;
         deploymentPointsSideZero = 0f;
         deploymentPointsSideOne = 0f;
+        requestedBattleDp = 1040;
+        activeShipsPerSide = SHIPS_PER_SIDE;
+        activeRecipeId = RECIPE_ID;
         workloadBegin = Map.of();
         workloadEnd = Map.of();
         problem = null;
@@ -484,6 +560,9 @@ final class CombatStressFixtureRuntime {
     }
 
     private record Variant(String id, float dp) {
+    }
+
+    private record FixtureRecipe(String id, int battleDp, List<Variant> side) {
     }
 
     private static final class SideWorkload {

@@ -45,6 +45,40 @@ final class CombatStressFixtureRuntimeTest {
     }
 
     @Test
+    void scalingRecipesVaryActualDpWithoutChangingFamilyProportions() {
+        int expectedShips = 6;
+        for (int battleDp : CombatStressFixtureRuntime.SCALING_BATTLE_DP) {
+            List<Map<String, Object>> recipe =
+                    CombatStressFixtureRuntime.recipeForBattleDp(battleDp);
+            float deploymentPoints = 0f;
+            Map<String, Integer> families = new LinkedHashMap<>();
+            for (Map<String, Object> row : recipe) {
+                String variant = (String) row.get("variantId");
+                deploymentPoints += (Float) row.get("deploymentPoints");
+                String family = variant.substring(0, variant.indexOf('_'));
+                families.merge(family, 1, Integer::sum);
+            }
+
+            assertEquals(expectedShips, recipe.size());
+            assertEquals(battleDp / 2f, deploymentPoints);
+            assertEquals(expectedShips / 6, families.get("odyssey"));
+            assertEquals(expectedShips / 6, families.get("aurora"));
+            assertEquals(expectedShips / 6, families.get("fury"));
+            assertEquals(expectedShips / 6, families.get("medusa"));
+            assertEquals(expectedShips / 6, families.get("hyperion"));
+            assertEquals(expectedShips / 6,
+                    families.getOrDefault("tempest", 0) + families.getOrDefault("scarab", 0));
+            expectedShips += 6;
+        }
+    }
+
+    @Test
+    void scalingRecipeRejectsAValueTheFixtureCannotActuallyProduce() {
+        assertThrows(IllegalStateException.class,
+                () -> CombatStressFixtureRuntime.recipeForBattleDp(600));
+    }
+
+    @Test
     void publicApiMethodRemainsInvocableOnNonPublicImplementation() throws Exception {
         List<Object> receiver = List.of();
 
