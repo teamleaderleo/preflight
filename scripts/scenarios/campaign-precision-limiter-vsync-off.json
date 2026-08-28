@@ -1,0 +1,62 @@
+{
+  "format": "starsector-preflight-smoke-v1",
+  "name": "campaign-precision-limiter-vsync-off",
+  "timeoutSeconds": 300,
+  "launch": {
+    "preset": "fast",
+    "textureStorage": "balanced",
+    "profile": null,
+    "recording": "none",
+    "campaignTimes": false,
+    "smoothFramePacing": true
+  },
+  "steps": [
+    {
+      "id": "menu",
+      "kind": "wait-state",
+      "state": "main-menu-interactive",
+      "timeoutSeconds": 180
+    },
+    {
+      "id": "continue",
+      "kind": "click",
+      "target": "main-menu.continue"
+    },
+    {
+      "id": "campaign",
+      "kind": "wait-state",
+      "state": "campaign-ready",
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "observe-initial-pause-state",
+      "kind": "wait-duration",
+      "durationMillis": 3000
+    },
+    {
+      "id": "ensure-paused",
+      "kind": "click",
+      "target": "campaign.pause"
+    },
+    {
+      "id": "paused-warmup",
+      "kind": "wait-duration",
+      "durationMillis": 27000
+    },
+    {
+      "id": "begin-paused-frame-window",
+      "kind": "click",
+      "target": "campaign.begin-frame-window"
+    },
+    {
+      "id": "paused-settled",
+      "kind": "wait-duration",
+      "durationMillis": 60000
+    },
+    {
+      "id": "capture",
+      "kind": "capture",
+      "artifacts": ["frame-report", "adapter-health", "log-tail"]
+    }
+  ]
+}
