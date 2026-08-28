@@ -20,6 +20,10 @@ Start with [LLM_HANDOFF.md](LLM_HANDOFF.md) for current project state. These are
   post factual progress, evidence, experiment results, rejected results, and implementation status
   to the project's own issues and pull requests when that communication is part of work the
   maintainer already requested.
+- Do not interrupt an active work pass merely to reconfirm those routine updates. Prepare and post
+  them when the evidence is ready. If the execution environment itself requires action-time
+  confirmation for a public post, batch the exact destinations and final text into one confirmation
+  instead of repeatedly stopping the work.
 - Keep autonomous repository comments tightly scoped and link durable evidence when available.
   This exception does not permit replying to outside participants, assigning or conceding work,
   making promises on the maintainer's behalf, changing the public roadmap, or communicating
