@@ -74,7 +74,8 @@ final class FrameLimiterTimePlan {
         before.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "beforeLimiterSleep", "(J)V", false));
         method.instructions.insertBefore(limiterSleep, before);
-        if (FrameLimiterPacingRuntime.enabled()) {
+        boolean precisionPacing = FrameLimiterPacingRuntime.enabled();
+        if (precisionPacing) {
             limiterSleep.owner = PACING_RUNTIME;
             limiterSleep.name = SLEEP;
             limiterSleep.desc = SLEEP_DESCRIPTOR;
@@ -86,6 +87,7 @@ final class FrameLimiterTimePlan {
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         FrameTimeRuntime.limiterInstalled();
+        if (precisionPacing) FrameLimiterPacingRuntime.installed();
         return writer.toByteArray();
     }
 
