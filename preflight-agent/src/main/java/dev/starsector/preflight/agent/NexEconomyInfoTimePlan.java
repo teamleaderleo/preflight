@@ -29,10 +29,12 @@ final class NexEconomyInfoTimePlan {
     private static final List<LineBlock> BLOCKS = List.of(
             new LineBlock(122, 134, NexEconomyInfoTimeRuntime.CACHE_RESET),
             new LineBlock(134, 140, NexEconomyInfoTimeRuntime.MARKET_SNAPSHOT),
-            new LineBlock(140, 235, NexEconomyInfoTimeRuntime.COMMODITY_SCAN),
             new LineBlock(153, 196, NexEconomyInfoTimeRuntime.PRODUCER_PASS),
             new LineBlock(196, 228, NexEconomyInfoTimeRuntime.IMPORTER_PASS),
             new LineBlock(228, 235, NexEconomyInfoTimeRuntime.DEMAND_PASS),
+            // Weave the enclosing scan after its inner passes so shared end-boundary exits retain
+            // proper inner-before-outer ordering.
+            new LineBlock(140, 235, NexEconomyInfoTimeRuntime.COMMODITY_SCAN),
             new LineBlock(235, 270, NexEconomyInfoTimeRuntime.HEAVY_INDUSTRY),
             new LineBlock(270, 280, NexEconomyInfoTimeRuntime.MARKET_SUMMARY));
 

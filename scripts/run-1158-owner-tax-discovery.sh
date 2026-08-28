@@ -290,7 +290,7 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
            span,durationMillis,frameDurationMillis,overlapShareOfFramePercent,
            spanShareOfFramePercent,containedByFrame
          })),
-         topMods:(.triage.mods[:8] | map({modId,priority,bestFrameTaxRank})),
+         topMods:((.triage.mods // [])[:8] | map({modId,priority,bestFrameTaxRank})),
          retainedHitchFrames:(.jvmHitchCorrelation.retainedHitchFrames // 0),
          retainedSevereHitchFrames:(.jvmHitchCorrelation.retainedSevereHitchFrames // 0),
          jvmHitchAssociations:{
