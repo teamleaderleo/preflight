@@ -48,7 +48,7 @@ This distinguishes two next-step cases:
 1. the group directly owns immediate-mode submission, in which case a local primitive-buffer/array rewrite is plausible;
 2. the group delegates rendering elsewhere, in which case the fingerprint points us away from rewriting the wrong class.
 
-Runtime telemetry records whole-process aggregate calls, total milliseconds, mean/max microseconds, and counts above 0.25/0.5/1/2/5 ms. A separate combat-measurement-window aggregate aligns the useful result to the scenario's exact frame window instead of mixing startup and menu particles into the combat claim.
+Runtime telemetry records whole-process aggregate calls, total milliseconds, mean/max microseconds, and counts above 0.25/0.5/1/2/5 ms. A semantic-combat aggregate excludes startup/menu particles for the ordinary sanity route. A separate combat-measurement-window aggregate aligns the 1,040-DP result to the scenario's exact sealed frame window.
 
 ## Live command
 

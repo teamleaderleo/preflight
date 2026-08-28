@@ -13,6 +13,7 @@ class DynamicParticleGroupRenderProbeRuntimeTest {
     void reset() {
         DynamicParticleGroupRenderProbeRuntime.resetForTest();
         FrameTimeRuntime.reset();
+        RuntimeSemanticState.reset();
     }
 
     @Test
@@ -29,6 +30,9 @@ class DynamicParticleGroupRenderProbeRuntimeTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> combatWindow =
                 (Map<String, Object>) telemetry.get("combatMeasurementWindow");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> combat = (Map<String, Object>) telemetry.get("semanticCombat");
+        assertEquals(0L, combat.get("calls"));
         assertEquals(0L, combatWindow.get("calls"));
         assertNotNull(telemetry.get("meanMicros"));
         assertTrue(((Double) telemetry.get("maximumMicros")) >= 0.0);
@@ -69,5 +73,27 @@ class DynamicParticleGroupRenderProbeRuntimeTest {
         assertEquals(3L, telemetry.get("calls"));
         assertEquals(1L, combatWindow.get("calls"));
         assertNotNull(combatWindow.get("meanMicros"));
+    }
+
+    @Test
+    void separatesSemanticCombatFromDecorativeAndMenuParticleTraffic() throws Exception {
+        DynamicParticleGroupRenderProbeRuntime.beginSessionForTest(true);
+        java.nio.file.Path state = java.nio.file.Files.createTempFile("particle-state", ".json");
+        RuntimeSemanticState.beginSession(state);
+
+        DynamicParticleGroupRenderProbeRuntime.end(
+                DynamicParticleGroupRenderProbeRuntime.begin());
+        RuntimeSemanticState.combatReady();
+        DynamicParticleGroupRenderProbeRuntime.end(
+                DynamicParticleGroupRenderProbeRuntime.begin());
+
+        Map<String, Object> telemetry = DynamicParticleGroupRenderProbeRuntime.telemetry();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> combat = (Map<String, Object>) telemetry.get("semanticCombat");
+        assertEquals(2L, telemetry.get("calls"));
+        assertEquals(1L, combat.get("calls"));
+        assertNotNull(combat.get("meanMicros"));
+        java.nio.file.Files.deleteIfExists(state);
+        RuntimeSemanticState.reset();
     }
 }

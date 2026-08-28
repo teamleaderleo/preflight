@@ -38,10 +38,7 @@
     {"id":"camera-settle","kind":"wait-duration","durationMillis":1500},
     {"id":"verify-zoom-out","kind":"click","target":"combat.verify-zoom-out"},
     {"id":"ensure-combat-unpaused","kind":"click","target":"combat.unpause"},
-    {"id":"begin-frame-window","kind":"click","target":"combat.begin-frame-window"},
     {"id":"combat-sanity","kind":"wait-duration","durationMillis":30000},
-    {"id":"end-frame-window","kind":"click","target":"combat.end-frame-window"},
-    {"id":"fingerprint-flush","kind":"wait-duration","durationMillis":500},
     {"id":"capture","kind":"capture","artifacts":["screenshot","frame-report","adapter-health","log-tail"]}
   ]
 }

@@ -39,6 +39,12 @@ public final class DynamicParticleGroupRenderProbeRuntime {
     private static long over1Millis;
     private static long over2Millis;
     private static long over5Millis;
+    private static long combatCalls;
+    private static long combatTotalNanos;
+    private static long combatMaximumNanos;
+    private static long combatOver250Micros;
+    private static long combatOver500Micros;
+    private static long combatOver1Millis;
     private static long combatWindowCalls;
     private static long combatWindowTotalNanos;
     private static long combatWindowMaximumNanos;
@@ -73,6 +79,14 @@ public final class DynamicParticleGroupRenderProbeRuntime {
         if (elapsed > 1_000_000L) over1Millis++;
         if (elapsed > 2_000_000L) over2Millis++;
         if (elapsed > 5_000_000L) over5Millis++;
+        if (RuntimeSemanticState.combatActive()) {
+            combatCalls++;
+            combatTotalNanos += elapsed;
+            combatMaximumNanos = Math.max(combatMaximumNanos, elapsed);
+            if (elapsed > 250_000L) combatOver250Micros++;
+            if (elapsed > 500_000L) combatOver500Micros++;
+            if (elapsed > 1_000_000L) combatOver1Millis++;
+        }
         if (FrameTimeRuntime.combatMeasurementWindowActive()) {
             combatWindowCalls++;
             combatWindowTotalNanos += elapsed;
@@ -117,6 +131,15 @@ public final class DynamicParticleGroupRenderProbeRuntime {
         values.put("over1Millis", over1Millis);
         values.put("over2Millis", over2Millis);
         values.put("over5Millis", over5Millis);
+        Map<String, Object> combat = new LinkedHashMap<>();
+        combat.put("calls", combatCalls);
+        combat.put("totalMillis", combatTotalNanos / 1_000_000.0);
+        combat.put("meanMicros", combatCalls == 0L ? null : combatTotalNanos / 1_000.0 / combatCalls);
+        combat.put("maximumMicros", combatCalls == 0L ? null : combatMaximumNanos / 1_000.0);
+        combat.put("over250Micros", combatOver250Micros);
+        combat.put("over500Micros", combatOver500Micros);
+        combat.put("over1Millis", combatOver1Millis);
+        values.put("semanticCombat", combat);
         Map<String, Object> combatWindow = new LinkedHashMap<>();
         combatWindow.put("calls", combatWindowCalls);
         combatWindow.put("totalMillis", combatWindowTotalNanos / 1_000_000.0);
@@ -194,6 +217,12 @@ public final class DynamicParticleGroupRenderProbeRuntime {
         over1Millis = 0L;
         over2Millis = 0L;
         over5Millis = 0L;
+        combatCalls = 0L;
+        combatTotalNanos = 0L;
+        combatMaximumNanos = 0L;
+        combatOver250Micros = 0L;
+        combatOver500Micros = 0L;
+        combatOver1Millis = 0L;
         combatWindowCalls = 0L;
         combatWindowTotalNanos = 0L;
         combatWindowMaximumNanos = 0L;

@@ -67,6 +67,11 @@ public final class RuntimeSemanticState {
         return name(state);
     }
 
+    /** Lock-free phase gate for high-volume opt-in diagnostic counters. */
+    static boolean combatActive() {
+        return enabled && state == COMBAT;
+    }
+
     static synchronized Instant processStartedAt() {
         return processStartedAt;
     }
