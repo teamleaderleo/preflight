@@ -1,0 +1,82 @@
+{
+  "format": "preflight-nexerelin-economy-info-hitches-v1",
+  "date": "2026-08-28",
+  "issues": [449, 1158],
+  "commit": "781bea3965cd445ec1cdf97be8281df6e9e8caa5",
+  "run": "issue-1158-nex-economy-r2-20260828-180835",
+  "classification": "intrusive-discovery-no-fps-claim",
+  "routeStatus": "passed",
+  "runOutcome": "FATAL_LOG_EVIDENCE",
+  "postCaptureFailure": {
+    "category": "native-process-crash",
+    "message": "SIGSEGV (0xb) after scheduled capture while controller stopped the run"
+  },
+  "adapterHealth": {
+    "status": "ACTIVE",
+    "exactMatches": 61,
+    "transformationsApplied": 61,
+    "sourceBindingRejected": 0,
+    "unavailablePlans": 0,
+    "transformationsDeclined": 0,
+    "containedFailures": 0,
+    "cacheRejectionSignals": 0,
+    "wrapperFailureSignals": 0,
+    "runtimeIntegrityFailures": 0
+  },
+  "measurementOverhead": {
+    "samples": 8021,
+    "averageMicros": 15.834612143124298,
+    "maximumMicros": 13017.708
+  },
+  "frameContext": {
+    "pausedSettled": {
+      "frames": 3623,
+      "p50Millis": 17.0,
+      "p95Millis": 19.2,
+      "p99Millis": 33.3,
+      "onePercentLowFps": 30.03,
+      "maximumMillis": 64.978,
+      "over50Millis": 2,
+      "over100Millis": 0
+    },
+    "unpausedSettled": {
+      "frames": 1522,
+      "p50Millis": 21.8,
+      "p95Millis": 28.5,
+      "p99Millis": 51.1,
+      "onePercentLowFps": 19.57,
+      "maximumMillis": 126.681,
+      "over50Millis": 16,
+      "over100Millis": 1,
+      "repeatedSlowFrameClusters": 5
+    }
+  },
+  "nexEconomyInfo": {
+    "installed": true,
+    "firstRunCalls": 1,
+    "refreshCalls": 3,
+    "cardinality": {
+      "commoditiesVisited": 384,
+      "producerCandidates": 27612,
+      "importerCandidates": 27612,
+      "demandCandidates": 27612,
+      "firstRunMarkets": 186,
+      "refreshFactions": 354,
+      "summaryMarkets": 744
+    },
+    "phases": {
+      "total": {"calls": 4, "totalMillis": 150.26175, "maximumMillis": 59.09425},
+      "commodityScan": {"calls": 4, "totalMillis": 137.730124, "maximumMillis": 53.138542},
+      "producerPass": {"calls": 156, "totalMillis": 12.175121, "maximumMillis": 2.316083},
+      "importerPass": {"calls": 156, "totalMillis": 8.589458, "maximumMillis": 2.400459},
+      "demandPass": {"calls": 4, "totalMillis": 0.191499, "maximumMillis": 0.070333},
+      "marketSummary": {"calls": 4, "totalMillis": 11.689458, "maximumMillis": 5.310375}
+    },
+    "frameJoins": [
+      {"durationMillis": 33.0205, "frameDurationMillis": 95.248, "sharePercent": 34.67},
+      {"durationMillis": 29.286917, "frameDurationMillis": 95.248, "sharePercent": 30.75},
+      {"durationMillis": 28.860083, "frameDurationMillis": 58.965, "sharePercent": 48.94}
+    ]
+  },
+  "decision": "build-exact-nexerelin-scoped-market-list-snapshot-with-shadow-equivalence-gate"
+}

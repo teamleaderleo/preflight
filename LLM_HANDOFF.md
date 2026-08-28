@@ -105,17 +105,19 @@ Before changing code or collecting release evidence:
    exact owner is Nexerelin `EconomyInfoHelper$1`: its two slow calls took 42.370 and 13.759 ms and
    both overlapped >100 ms frames. The scheduled route passed, but shutdown emitted a native
    SIGSEGV; preserve that lifecycle failure and require clean exit in any later thin cohort.
-   The exact Nexerelin successor is implemented and pushed on `codex/1158-physical` at `cf027172`.
-   Installed source/bytecode proves the anonymous callback only invokes
-   `collectEconomicData(false)`; the focused probe splits its cache reset, market snapshot,
-   commodity producer/importer/demand passes, heavy-industry refresh, and market summary while
-   retaining loop cardinalities. Use `scripts/run-1158-owner-tax-discovery.sh --focus nex-economy`:
-   it disables the superseded deep timers and omits JFR/static triage. Its first launch attempt
-   refused before starting the game because macOS reported the console locked. Retry only after the
-   console is unlocked; no rebuild is needed. Static inspection also found that every core
-   `CommodityMarketData.getMarkets()` allocates and scans the full economy group, with additional
-   nested scans under market-share-per-faction calculation. That is a falsifiable candidate lead,
-   not yet a timing or FPS result.
+   The exact Nexerelin successor is now measured; read
+   [the recurring economy-info hitch attribution](docs/evidence/2026-08-28-nexerelin-economy-info-hitches.md).
+   Four exact rebuilds consumed 150.262 ms, of which the commodity scan owned 137.730 ms. The three
+   unpaused refreshes took 33.021, 29.287, and 28.860 ms; the first two together explained 65.4% of
+   one 95.248 ms frame, and the third explained 48.9% of a 58.965 ms frame. Installed bytecode shows
+   that `getMarketSharePercentPerFaction()` repeatedly allocates and scans the complete economy
+   market group once per distinct faction, followed by three more Nexerelin `getMarkets()` passes.
+   The next narrow candidate is a current-thread, identity-keyed market-list snapshot scoped only to
+   this exact Nexerelin rebuild, with shadow order/identity validation, two exact source gates,
+   original fallback, an independent kill switch, and direct hit/miss/mismatch counters. Do not
+   broaden it into a general economy cache, and do not claim FPS from the intrusive discovery run.
+   Its scenario passed but the game emitted a post-capture SIGSEGV during controller shutdown, so a
+   later thin cohort must also require clean exit.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package
