@@ -207,7 +207,10 @@ final class DesktopSmokeScenarioTest {
         assertTrue(scenario.sampleRecording());
         assertTrue(scenario.stepIds().contains("prepare-symmetric-stress"));
         assertTrue(scenario.stepIds().contains("stress-settle"));
+        assertTrue(scenario.stepIds().contains("hold-combat-for-camera-setup"));
         assertTrue(scenario.stepIds().contains("combat-sample-1040dp"));
+        assertTrue(scenario.stepIds().contains("end-frame-window"));
+        assertTrue(scenario.stepIds().contains("fingerprint-flush"));
         assertFalse(scenario.stepIds().contains("activate-startup"));
         assertFalse(scenario.stepIds().contains("activate-game"));
         assertEquals(Set.of("process-control", "semantic-state", "semantic-control",

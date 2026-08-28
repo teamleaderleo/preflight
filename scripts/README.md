@@ -154,7 +154,9 @@ nor a reason to hold the launch for another two minutes.
 `campaign-simulation-combat-1000dp.json` keeps the same proven entry route without foregrounding the
 game: named actions use the closed in-game channel and its remaining macOS keystrokes are posted to
 the exact recorded PID. It then replaces the deployed ships with mirrored 24-ship fast high-tech
-fleets through the closed in-game runtime action.
+fleets through the closed in-game runtime action. The profiled and thin variants share the same
+pause-held exact camera setup, sealed frame window, and workload fingerprint; only JFR recording
+differs.
 Each side is 520 DP, so its retained 30-second 2× window is a controlled 1,040-DP combat stress
 workload rather than the stock dialog's fleet-order-biased selection. The thin comparison route
 re-pauses after autopilot, command-map, and speed setup, holds that state through verified camera
