@@ -94,6 +94,12 @@ jobs:
           python3 -m py_compile scripts/starsector_gameplay_hotspots.py scripts/starsector_campaign_cluster_calls.py
           python3 scripts/test_starsector_gameplay_hotspots.py
           python3 scripts/test_starsector_campaign_cluster_calls.py
+          python3 -m py_compile scripts/summarize_combat_cohort.py scripts/test_summarize_combat_cohort.py
+          python3 scripts/test_summarize_combat_cohort.py
+          python3 -m py_compile scripts/starsector_jvm_hitch_correlation.py scripts/test_starsector_jvm_hitch_correlation.py
+          python3 scripts/test_starsector_jvm_hitch_correlation.py
+          python3 -m py_compile scripts/starsector_mod_tax_triage.py scripts/test_starsector_mod_tax_triage.py
+          python3 scripts/test_starsector_mod_tax_triage.py
           python3 -m py_compile scripts/starsector_balance_analysis.py
           python3 scripts/test_starsector_balance_analysis.py
           python3 -m py_compile scripts/fit_combat_scaling.py scripts/test_fit_combat_scaling.py

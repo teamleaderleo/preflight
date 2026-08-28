@@ -115,6 +115,8 @@ public final class CampaignLocationEconomyTimeRuntime {
             List<Map<String, Object>> values = new ArrayList<>();
             for (ClassStats stats : ordered) values.add(stats.report(stats.className));
             result.put(CLASS_GROUP_NAMES[group], values);
+            result.put(CLASS_GROUP_NAMES[group] + "OwnerTax",
+                    RuntimeOwnerTax.report(values, "totalMillis", "maximumMillis"));
         }
         return result;
     }
@@ -155,7 +157,7 @@ public final class CampaignLocationEconomyTimeRuntime {
             replacements[group] = new ClassValue<>() {
                 @Override
                 protected ClassStats computeValue(Class<?> type) {
-                    ClassStats value = new ClassStats(type.getName(), CLASS_SAMPLE_RATES[groupId]);
+                    ClassStats value = new ClassStats(type, CLASS_SAMPLE_RATES[groupId]);
                     synchronized (CampaignLocationEconomyTimeRuntime.class) {
                         classGroups[groupId].add(value);
                     }
@@ -219,25 +221,29 @@ public final class CampaignLocationEconomyTimeRuntime {
     }
 
     private static final class ClassStats extends Stats {
+        final Class<?> type;
         final String className;
         final int sampleRate;
 
-        ClassStats(String className, int sampleRate) {
-            this.className = className;
+        ClassStats(Class<?> type, int sampleRate) {
+            this.type = type;
+            this.className = type.getName();
             this.sampleRate = sampleRate;
         }
 
         @Override
         Map<String, Object> report(String name) {
             Map<String, Object> result = super.report(name);
-            if (sampleRate == 1) return result;
-            long sampledCalls = calls;
-            double measuredMillis = totalNanos / 1_000_000.0;
-            result.put("calls", sampledCalls * sampleRate);
-            result.put("sampledCalls", sampledCalls);
-            result.put("sampleRate", sampleRate);
-            result.put("measuredMillis", measuredMillis);
-            result.put("totalMillis", measuredMillis * sampleRate);
+            if (sampleRate != 1) {
+                long sampledCalls = calls;
+                double measuredMillis = totalNanos / 1_000_000.0;
+                result.put("calls", sampledCalls * sampleRate);
+                result.put("sampledCalls", sampledCalls);
+                result.put("sampleRate", sampleRate);
+                result.put("measuredMillis", measuredMillis);
+                result.put("totalMillis", measuredMillis * sampleRate);
+            }
+            result.put("ownership", RuntimeClassOwnership.resolve(type).report());
             return result;
         }
     }

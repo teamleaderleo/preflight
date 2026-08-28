@@ -9,13 +9,16 @@ final class ClasspathCommand {
 
     static int execute(String[] args, int offset) throws Exception {
         if (offset >= args.length) {
-            throw new IllegalArgumentException("Expected: classpath <audit|index> ...");
+            throw new IllegalArgumentException("Expected: classpath <audit|index|hot-patterns> ...");
         }
         if ("index".equals(args[offset])) {
             return ClasspathIndexCommand.execute(args, offset + 1);
         }
+        if ("hot-patterns".equals(args[offset])) {
+            return ModHotPatternCommand.execute(args, offset + 1);
+        }
         if (!"audit".equals(args[offset])) {
-            throw new IllegalArgumentException("Expected: classpath <audit|index> ...");
+            throw new IllegalArgumentException("Expected: classpath <audit|index|hot-patterns> ...");
         }
         Options options = parse(args, offset + 1);
         DiscoveryResult discovery = StarsectorDiscovery.discover(
