@@ -21,15 +21,19 @@ import org.objectweb.asm.tree.MethodNode;
 
 class FrameLimiterTimePlanTest {
     private static final String RUNTIME = FrameTimeRuntime.class.getName().replace('.', '/');
+    private static final String PACING_RUNTIME =
+            FrameLimiterPacingRuntime.class.getName().replace('.', '/');
 
     @BeforeEach
     void enable() {
         FrameTimeRuntime.beginSession(true);
+        FrameLimiterPacingRuntime.reset();
     }
 
     @AfterEach
     void reset() {
         FrameTimeRuntime.reset();
+        FrameLimiterPacingRuntime.reset();
     }
 
     @Test
@@ -41,12 +45,30 @@ class FrameLimiterTimePlanTest {
         MethodNode method = method(read(transformed));
         List<MethodInsnNode> sleeps = calls(method, "java/lang/Thread", "sleep");
         assertEquals(2, sleeps.size());
+        assertEquals(0, calls(method, PACING_RUNTIME, "sleep").size());
         assertEquals(1, calls(method, RUNTIME, "beforeLimiterSleep").size());
         assertEquals(1, calls(method, RUNTIME, "afterLimiterSleep").size());
         MethodInsnNode limiter = sleeps.get(1);
         assertEquals("beforeLimiterSleep", previousCall(limiter).name);
         assertEquals("afterLimiterSleep", nextCall(limiter).name);
         assertEquals(true, map(FrameTimeRuntime.telemetry().get("frameLimiter")).get("installed"));
+    }
+
+    @Test
+    void precisionCandidateReplacesOnlyTheExactSecondLimiterSleep() throws Exception {
+        FrameLimiterPacingRuntime.beginSession(60, 250);
+        byte[] original = fixture(50L, true);
+        byte[] transformed = FrameLimiterTimePlan.transform(exactSignature(original), original);
+        assertNotNull(transformed);
+
+        MethodNode method = method(read(transformed));
+        List<MethodInsnNode> sleeps = calls(method, "java/lang/Thread", "sleep");
+        List<MethodInsnNode> pacing = calls(method, PACING_RUNTIME, "sleep");
+        assertEquals(1, sleeps.size());
+        assertEquals(1, pacing.size());
+        MethodInsnNode limiter = pacing.get(0);
+        assertEquals("beforeLimiterSleep", previousCall(limiter).name);
+        assertEquals("afterLimiterSleep", nextCall(limiter).name);
     }
 
     @Test
