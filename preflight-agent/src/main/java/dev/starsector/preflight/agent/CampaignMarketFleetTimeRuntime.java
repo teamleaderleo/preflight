@@ -153,6 +153,8 @@ public final class CampaignMarketFleetTimeRuntime {
             List<Map<String, Object>> values = new ArrayList<>();
             for (ClassStats stats : ordered) values.add(stats.report(stats.className));
             result.put(CLASS_GROUP_NAMES[group], values);
+            result.put(CLASS_GROUP_NAMES[group] + "OwnerTax",
+                    RuntimeOwnerTax.report(values, "estimatedTotalMillis", "sampledMaximumMillis"));
         }
         return result;
     }
@@ -197,7 +199,7 @@ public final class CampaignMarketFleetTimeRuntime {
             replacements[group] = new ClassValue<>() {
                 @Override
                 protected ClassStats computeValue(Class<?> type) {
-                    ClassStats value = new ClassStats(type.getName(), CLASS_SAMPLE_RATES[groupId]);
+                    ClassStats value = new ClassStats(type, CLASS_SAMPLE_RATES[groupId]);
                     synchronized (CampaignMarketFleetTimeRuntime.class) {
                         classGroups[groupId].add(value);
                     }
@@ -260,11 +262,20 @@ public final class CampaignMarketFleetTimeRuntime {
     }
 
     private static final class ClassStats extends Stats {
+        final Class<?> type;
         final String className;
 
-        ClassStats(String className, int sampleRate) {
+        ClassStats(Class<?> type, int sampleRate) {
             super(sampleRate);
-            this.className = className;
+            this.type = type;
+            this.className = type.getName();
+        }
+
+        @Override
+        Map<String, Object> report(String name) {
+            Map<String, Object> result = super.report(name);
+            result.put("ownership", RuntimeClassOwnership.resolve(type).report());
+            return result;
         }
     }
 }
