@@ -40,6 +40,7 @@ JVM_JOIN="$SESSION/jvm-hitch-correlation.json"
 INFLATION_FRAME_JOIN="$SESSION/fleet-inflation-frame-join.json"
 AUTOFIT_FRAME_JOIN="$SESSION/core-autofit-frame-join.json"
 SUMMARY="$SESSION/summary.json"
+COMPACT_SUMMARY="$SESSION/compact-summary.json"
 mkdir -p "$SESSION"
 
 echo "Issue #1158 installed owner-tax discovery"
@@ -160,41 +161,95 @@ if [[ -f "$RUN_DIR/runtime-frame-report.json" ]]; then
           jvmHitchCorrelation:($jvm[0] // null)}' \
         "$RUN_DIR/runtime-frame-report.json" >"$SUMMARY"
     cp "$SUMMARY" "$RUN_DIR/issue-1158-owner-tax-summary.json"
-    jq '{issue,
+    RUN_INPUT=/dev/null
+    SMOKE_INPUT=/dev/null
+    [[ -f "$RUN_DIR/run.json" ]] && RUN_INPUT="$RUN_DIR/run.json"
+    [[ -f "$RUN_DIR/smoke-evidence.json" ]] && SMOKE_INPUT="$RUN_DIR/smoke-evidence.json"
+    jq \
+        --slurpfile run "$RUN_INPUT" \
+        --slurpfile smoke "$SMOKE_INPUT" \
+        'def frameSummary:
+           if . == null then null else {
+             frames,
+             activeSeconds:((.totalActiveNanos // 0) / 1000000000),
+             p50Millis:((.p50Micros // 0) / 1000),
+             p95Millis:((.p95Micros // 0) / 1000),
+             p99Millis:((.p99Micros // 0) / 1000),
+             maximumMillis:((.maximumMicros // 0) / 1000),
+             averageFps,
+             onePercentLowFps,
+             over50Millis,
+             over100Millis,
+             repeatedSlowFrameClusters:(.stutterProfile.repeatedSlowFrameClusters // 0),
+             stutterBurdenMillisPerSecond:(.stutterProfile.stutterBurdenMillisPerSecond // 0)
+           } end;
+         def eventSummary:
+           if . == null then null else {
+             eventAssociations,
+             hitchFramesWithEvent,
+             wallOverlapMillis
+           } end;
+         {issue,
          classification,
          commit,
          runDirectory,
-         frameTimes,
+         routeStatus:($smoke[0].status // "unavailable"),
+         runOutcome:($run[0].outcome // "unavailable"),
+         runExitCode:($run[0].exitCode // null),
+         fatalLifecycleMatches:($run[0].lifecycleEvidence.matches // []),
+         frameTimes:{
+           measurementOverhead:.frameTimes.measurementOverhead,
+           pausedSettled:(.frameTimes.campaignPausedAfter30SecondsActive | frameSummary),
+           unpausedSettled:(.frameTimes.campaignUnpausedAfter30SecondsActive | frameSummary)
+         },
          runtimeOwnerTaxFamilies:(.triage.runtimeOwnerTaxFamilies // 0),
          runtimeObservedModCount:(.triage.runtimeObservedModCount // 0),
          unresolvedRuntimeOwnerCount:(.triage.unresolvedRuntimeOwners | length),
-         fleetAiModuleTimes,
-         tacticalFleetAiTimes,
+         fleetAiModuleTimes:{
+           installed:.fleetAiModuleTimes.installed,
+           phases:(.fleetAiModuleTimes.phases | map({name,calls,totalMillis,maximumMillis})),
+           slowSpans:(.fleetAiModuleTimes.slowSpans[:5])
+         },
+         tacticalFleetAiTimes:{
+           installed:.tacticalFleetAiTimes.installed,
+           candidateFleetsVisited:.tacticalFleetAiTimes.candidateFleetsVisited,
+           nearbyCandidatesVisited:.tacticalFleetAiTimes.nearbyCandidatesVisited,
+           strengthModeCalls:.tacticalFleetAiTimes.strengthModeCalls,
+           fleetPointModeCalls:.tacticalFleetAiTimes.fleetPointModeCalls,
+           preEncounterDeclines:.tacticalFleetAiTimes.preEncounterDeclines,
+           phases:(.tacticalFleetAiTimes.phases | map({name,calls,totalMillis,maximumMillis})),
+           slowSpans:(.tacticalFleetAiTimes.slowSpans[:5])
+         },
          fleetInflation:{
            installed:.fleetInflationTimes.installed,
            membersVisited:.fleetInflationTimes.membersVisited,
-           phases:(.fleetInflationTimes.phases | map({
-             name,calls,totalMillis,maximumMillis,over16Millis,over33Millis,over50Millis,over100Millis
-           }))
+           phases:(.fleetInflationTimes.phases | map({name,calls,totalMillis,maximumMillis}))
          },
-         fleetInflationFrameJoins:(((.fleetInflationFrameJoin.joins // [])[:8]) | map({
+         fleetInflationFrameJoins:(((.fleetInflationFrameJoin.joins // [])[:5]) | map({
            span,durationMillis,frameDurationMillis,overlapShareOfFramePercent,
            spanShareOfFramePercent,containedByFrame
          })),
          coreAutofit:{
            installed:.coreAutofitTimes.installed,
-           phases:(.coreAutofitTimes.phases | map({
-             name,calls,totalMillis,maximumMillis,over16Millis,over33Millis,over50Millis,over100Millis
-           }))
+           phases:(.coreAutofitTimes.phases | map(
+             select(.name == "total" or .name == "setupModules" or .name == "primaryFit" or
+                    .name == "fighterFitCalls" or .name == "weaponFitCalls") |
+             {name,calls,totalMillis,maximumMillis}
+           ))
          },
-         coreAutofitFrameJoins:(((.coreAutofitFrameJoin.joins // [])[:8]) | map({
+         coreAutofitFrameJoins:(((.coreAutofitFrameJoin.joins // [])[:5]) | map({
            span,durationMillis,frameDurationMillis,overlapShareOfFramePercent,
            spanShareOfFramePercent,containedByFrame
          })),
-         topMods:(.triage.mods[:12] | map({modId,priority,bestFrameTaxRank})),
+         topMods:(.triage.mods[:8] | map({modId,priority,bestFrameTaxRank})),
          retainedHitchFrames:(.jvmHitchCorrelation.retainedHitchFrames // 0),
          retainedSevereHitchFrames:(.jvmHitchCorrelation.retainedSevereHitchFrames // 0),
-         jvmHitchSummary:(.jvmHitchCorrelation.summary // null)}' "$SUMMARY"
+         jvmHitchAssociations:{
+           garbageCollection:(.jvmHitchCorrelation.summary["jdk.GarbageCollection"] | eventSummary),
+           vmOperations:(.jvmHitchCorrelation.summary["jdk.ExecuteVMOperation"] | eventSummary),
+           nativeSamples:(.jvmHitchCorrelation.summary["jdk.NativeMethodSample"] | eventSummary)
+         }}' "$SUMMARY" >"$COMPACT_SUMMARY"
+    jq . "$COMPACT_SUMMARY"
 fi
 
 echo "Issue #1158 session: $SESSION"

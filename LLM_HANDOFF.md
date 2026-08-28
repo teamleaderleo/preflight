@@ -93,14 +93,18 @@ Before changing code or collecting release evidence:
    Only 27 real-strength-mode decisions ran, but their exact `inflateIfNeeded()` calls consumed
    232.934 ms and explained 107.371, 65.226, and 45.798 ms inside 200.130, 89.725, and 65.971 ms
    frames. Location-list access and strength math were cheap. Do not cache or skip the outer nearby
-   decision: the selected work materially autofits and mutates a lazy fleet. The exact phase seam
-   is now installed and verified; read the mutable
+   decision: the selected work materially autofits and mutates a lazy fleet. The exact
+   phase/autofit successor is now settled; read the
+   [fleet-inflation/autofit rejection](docs/evidence/2026-08-28-installed-fleet-inflation-autofit-rejected.md)
+   after the earlier mutable
    [fleet-inflation phase checkpoint](docs/evidence/2026-08-28-installed-fleet-inflation-phase-checkpoint.md).
-   Its first observation placed 74.2% of inflater time in member work, including 40.6% in autofit,
-   while setup plus availability pools consumed only 9.5%. That run lost foreground focus and has
-   no eligible campaign frames, so it selects no optimization yet. Repeat the dedicated foreground
-   route and require an exact span-to-frame join before deepening autofit or the outer listener
-   residual. `SensorBurstAbilityAI` remains the secondary lead.
+   A foreground run joined three real inflations to 65.780, 31.762, and 32.233 ms frames. The
+   largest occupied 39.5% of its frame, but reusable setup/pools were only 5.006 ms total, Core
+   Autofit's worst complete call was 8.574 ms, and the stateful family explained none of five
+   >100 ms frames or the repeated clusters. Do not build a broad inflater/autofit cache. The next
+   exact owner is Nexerelin `EconomyInfoHelper$1`: its two slow calls took 42.370 and 13.759 ms and
+   both overlapped >100 ms frames. The scheduled route passed, but shutdown emitted a native
+   SIGSEGV; preserve that lifecycle failure and require clean exit in any later thin cohort.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package
