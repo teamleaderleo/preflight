@@ -2128,6 +2128,22 @@ final class AdapterTargetRegistry {
                 "app"));
     }
 
+    AdapterTargetRegistry withFleetInflationTimeTarget() {
+        return withTarget(new AdapterTarget(
+                "vanilla-default-fleet-inflater-time-0.98a-rc8",
+                FleetInflationTimePlan.TARGET_CLASS,
+                FleetInflationTimePlan.ORIGINAL_SHA256,
+                FleetInflationTimeRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        FleetInflationTimePlan.METHOD,
+                        FleetInflationTimePlan.DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer.api.jar",
+                "6ac6c78c6116946d487376426340d019938f986ceae1391ae1fa599e890e3185",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app"));
+    }
+
     AdapterTargetRegistry withFrameTimeStartupCompletionTarget() {
         return withTarget(frameTimeStartupCompletionTarget());
     }

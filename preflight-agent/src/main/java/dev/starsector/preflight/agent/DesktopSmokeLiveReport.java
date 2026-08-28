@@ -101,6 +101,7 @@ final class DesktopSmokeLiveReport implements AutoCloseable {
         frame.put("campaignMarketFleetTimes", CampaignMarketFleetTimeRuntime.telemetry());
         frame.put("fleetAiModuleTimes", FleetAiModuleTimeRuntime.telemetry());
         frame.put("tacticalFleetAiTimes", TacticalFleetAiTimeRuntime.telemetry());
+        frame.put("fleetInflationTimes", FleetInflationTimeRuntime.telemetry());
         frame.put("campaignEntityMaintenance", CampaignEntityMaintenanceRuntime.telemetry());
         atomicWrite(frameDestination, Json.object(frame) + System.lineSeparator());
 
