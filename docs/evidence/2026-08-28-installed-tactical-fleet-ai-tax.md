@@ -6,6 +6,10 @@ Issues: #1158, #449. Branch: `codex/1158-physical` at `9fda91e3`.
 
 Status: **successful intrusive decomposition; no FPS optimization claim**.
 
+Successor status: the bounded decision census completed and selected lazy fleet inflation rather
+than the repository scan or strength loop. Continue at
+[installed lazy fleet-inflation hitches](2026-08-28-installed-lazy-fleet-inflation-hitches.md).
+
 The prior exact `ModularFleetAI.advance(float)` pass selected vanilla tactical AI as a concrete
 campaign hitch owner. This successor preserves `TacticalModule.advance(float)` and times six
 existing semantic regions: every-frame work, avoid-list update, location fleet-list acquisition,

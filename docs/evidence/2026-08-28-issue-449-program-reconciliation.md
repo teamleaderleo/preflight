@@ -139,3 +139,20 @@ discarded an unnormalized cohort before the final texture-bind B/A/A/B rejection
 guard, not proof of lockstep evolution. The compact cohort summarizer now surfaces identity,
 workload, adapter, tail metrics, simulated progress, and the candidate's causal counter without
 requiring manual report inspection.
+
+## Later #1158 campaign-hitch checkpoint
+
+The subsequent exact owner funnel progressed from `ModularFleetAI` to `TacticalModule`, its
+other-fleet scan, `hasEnoughStuffAround(...)`, and finally lazy fleet inflation. In one intrusive
+semantic paused/unpaused run, 27 exact `inflateIfNeeded()` calls consumed 232.934 ms. Three calls of
+107.371, 65.226, and 45.798 ms occupied most of containing 200.130, 89.725, and 65.971 ms frames.
+Location-list access and fleet-strength math were immaterial. A separate SAMPLE run placed all
+three observed inflater samples in per-member autofit/D-mod work.
+
+This is a concrete partial success for workstreams A, E, F, and L: a bad campaign frame now has an
+exact core owner and a narrow next experiment rather than only an FPS drop. It is not yet an
+optimization. Lazy inflation changes fleet variants, random/autofit state, listener timing, and
+fleet-data synchronization, so the outer decision must not be cached or skipped. The next child
+should time the exact shipped `DefaultFleetInflater` phases before considering immutable-input reuse
+inside per-member materialization. See
+[the retained checkpoint](2026-08-28-installed-lazy-fleet-inflation-hitches.md).

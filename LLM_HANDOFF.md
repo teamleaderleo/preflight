@@ -88,9 +88,14 @@ Before changing code or collecting release evidence:
    spans. Its next decomposition is also complete: read
    [installed tactical fleet-AI tax](docs/evidence/2026-08-28-installed-tactical-fleet-ai-tax.md).
    Fleet-list acquisition is immaterial; the interval-gated other-fleet scan produced 36.219 and
-   32.413 ms spans occupying 62.0% and 64.4% of retained frames. The next bounded seam is one exact
-   visibility/decision census inside that loop; stop if it remains diffuse. `SensorBurstAbilityAI`
-   remains the secondary lead.
+   32.413 ms spans occupying 62.0% and 64.4% of retained frames. Its decision census is now complete:
+   read [installed lazy fleet-inflation hitches](docs/evidence/2026-08-28-installed-lazy-fleet-inflation-hitches.md).
+   Only 27 real-strength-mode decisions ran, but their exact `inflateIfNeeded()` calls consumed
+   232.934 ms and explained 107.371, 65.226, and 45.798 ms inside 200.130, 89.725, and 65.971 ms
+   frames. Location-list access and strength math were cheap. Do not cache or skip the outer nearby
+   decision: the selected work materially autofits and mutates a lazy fleet. The next bounded seam
+   is exact phase attribution inside `DefaultFleetInflater.inflate`; `SensorBurstAbilityAI` remains
+   the secondary lead.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package

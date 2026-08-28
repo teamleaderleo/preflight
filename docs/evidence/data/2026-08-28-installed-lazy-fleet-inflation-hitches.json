@@ -1,0 +1,93 @@
+{
+  "date": "2026-08-28",
+  "issues": [1158, 449],
+  "classification": "intrusive-discovery-no-fps-claim",
+  "commit": "0500059961765b24093e594cc3a01d70f377aaeb",
+  "runs": {
+    "currentStateRefusal": {
+      "id": "issue-1158-nearby-helper-r1-20260828-123116",
+      "status": "passed",
+      "classification": "selected path not exercised because save remained paused",
+      "nearbyFleetCalls": 0
+    },
+    "exactDecisionDecomposition": {
+      "id": "issue-1158-nearby-helper-r2-20260828-123406",
+      "scenario": "campaign-profile-paused-unpaused",
+      "status": "passed"
+    },
+    "sampledSupport": {
+      "id": "issue-1158-inflation-sample-r1-20260828-124007",
+      "scenario": "campaign-sample-paused-unpaused",
+      "status": "passed",
+      "defaultFleetInflaterSamplesAllCampaign": 3,
+      "defaultFleetInflaterSamplesUnpausedSettled": 0,
+      "sampleLeaves": [
+        "CoreAutofitPlugin.doFit",
+        "CoreAutofitPlugin.addRandomizedHullmodsPost",
+        "DModManager.removeUnsuitedMods"
+      ]
+    }
+  },
+  "identity": {
+    "game": "Starsector 0.98a-RC8",
+    "profileFingerprint": "2995668308ac3d31d645ccac30fb1a7e644e64fce5609050a1488df4cadc5af6",
+    "resolvedMods": 83,
+    "resolution": "1440x932",
+    "fullscreen": false,
+    "renderer": "Apple M5",
+    "openGlVersion": "2.1 Metal - 90.5",
+    "lastSwapInterval": 1,
+    "tacticalModuleSha256": "53d6b876055d44a1dd97c9bf66561d974e102116c818aac654baf5ba1d70531c",
+    "campaignFleetSha256": "e407bde405304b4915a709ca15ec82b9d9098a6c0ad5a6acbed1f358d656b8b2",
+    "defaultFleetInflaterSha256": "80a07787e75edbdd5ae0b80da023aeaa59f43d08263de10b77af4595452b08ae"
+  },
+  "adapter": {
+    "mode": "ENABLED",
+    "planScope": "full",
+    "observedClasses": 73,
+    "parsedClasses": 73,
+    "exactMatches": 73,
+    "containedFailures": 0,
+    "killSwitchActive": false,
+    "tacticalPlanInstalled": true,
+    "tacticalPlanKillSwitch": "preflight.campaign.tacticalFleetAiTimes.disabled"
+  },
+  "decisionCensus": {
+    "candidateFleetsVisited": 15692,
+    "preEncounterDeclines": 13891,
+    "nearbyCandidatesVisited": 55837,
+    "strengthModeCalls": 27,
+    "fleetPointModeCalls": 4564
+  },
+  "phases": {
+    "otherFleets": {"calls": 2239, "totalMillis": 526.71957, "maximumMillis": 121.772333},
+    "nearbyFleets": {"calls": 531, "totalMillis": 264.943554, "maximumMillis": 111.905625},
+    "fleetInflation": {"calls": 27, "totalMillis": 232.933793, "maximumMillis": 107.371125, "over50Millis": 2, "over100Millis": 1},
+    "nearbyFleetList": {"calls": 3638, "totalMillis": 1.04049, "maximumMillis": 0.198},
+    "fleetStrength": {"calls": 73, "totalMillis": 5.390543, "maximumMillis": 1.016084}
+  },
+  "exactFrameJoins": [
+    {"inflationMillis": 107.371125, "nearbyDecisionMillis": 111.905625, "frameMillis": 200.13},
+    {"inflationMillis": 65.226375, "nearbyDecisionMillis": 66.080458, "frameMillis": 89.725},
+    {"inflationMillis": 45.798, "nearbyDecisionMillis": 46.54925, "frameMillis": 65.971}
+  ],
+  "activeDiscoveryWindow": {
+    "frames": 1868,
+    "activeSeconds": 36.994283625,
+    "p50Millis": 17.3,
+    "p95Millis": 34.7,
+    "p99Millis": 69.1,
+    "onePercentLowFps": 14.47,
+    "maximumMillis": 200.13,
+    "over50Millis": 53,
+    "over100Millis": 4,
+    "slowFrameClusters": 61
+  },
+  "measurementOverhead": {
+    "displayBoundaryAverageMicros": 21.542639088432004,
+    "displayBoundaryMaximumMicros": 9730.041,
+    "deepTimerOverheadSubtracted": false
+  },
+  "decision": "reject nearby-list or strength-result caching as the explanation; select exact DefaultFleetInflater phase decomposition",
+  "rawRunsRetainedLocally": true
+}
