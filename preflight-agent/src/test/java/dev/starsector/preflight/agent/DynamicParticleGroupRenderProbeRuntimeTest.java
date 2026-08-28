@@ -12,6 +12,7 @@ class DynamicParticleGroupRenderProbeRuntimeTest {
     @AfterEach
     void reset() {
         DynamicParticleGroupRenderProbeRuntime.resetForTest();
+        FrameTimeRuntime.reset();
     }
 
     @Test
@@ -25,6 +26,10 @@ class DynamicParticleGroupRenderProbeRuntimeTest {
         assertEquals(true, telemetry.get("enabled"));
         assertEquals(true, telemetry.get("installed"));
         assertEquals(1L, telemetry.get("calls"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> combatWindow =
+                (Map<String, Object>) telemetry.get("combatMeasurementWindow");
+        assertEquals(0L, combatWindow.get("calls"));
         assertNotNull(telemetry.get("meanMicros"));
         assertTrue(((Double) telemetry.get("maximumMicros")) >= 0.0);
         assertEquals(2, telemetry.get("returnSites"));
@@ -41,5 +46,28 @@ class DynamicParticleGroupRenderProbeRuntimeTest {
     void disabledSessionDoesNotEnablePlanSelection() {
         DynamicParticleGroupRenderProbeRuntime.beginSessionForTest(false);
         assertEquals(false, DynamicParticleGroupRenderProbeRuntime.enabled());
+    }
+
+    @Test
+    void separatesTheExactCombatMeasurementWindowFromWholeProcessTraffic() {
+        DynamicParticleGroupRenderProbeRuntime.beginSessionForTest(true);
+        FrameTimeRuntime.beginSession(true);
+
+        DynamicParticleGroupRenderProbeRuntime.end(
+                DynamicParticleGroupRenderProbeRuntime.begin());
+        FrameTimeRuntime.beginCombatMeasurementWindow();
+        DynamicParticleGroupRenderProbeRuntime.end(
+                DynamicParticleGroupRenderProbeRuntime.begin());
+        FrameTimeRuntime.endCombatMeasurementWindow();
+        DynamicParticleGroupRenderProbeRuntime.end(
+                DynamicParticleGroupRenderProbeRuntime.begin());
+
+        Map<String, Object> telemetry = DynamicParticleGroupRenderProbeRuntime.telemetry();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> combatWindow =
+                (Map<String, Object>) telemetry.get("combatMeasurementWindow");
+        assertEquals(3L, telemetry.get("calls"));
+        assertEquals(1L, combatWindow.get("calls"));
+        assertNotNull(combatWindow.get("meanMicros"));
     }
 }

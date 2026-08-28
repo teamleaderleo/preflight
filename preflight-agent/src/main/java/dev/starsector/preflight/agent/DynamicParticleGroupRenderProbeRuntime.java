@@ -39,6 +39,12 @@ public final class DynamicParticleGroupRenderProbeRuntime {
     private static long over1Millis;
     private static long over2Millis;
     private static long over5Millis;
+    private static long combatWindowCalls;
+    private static long combatWindowTotalNanos;
+    private static long combatWindowMaximumNanos;
+    private static long combatWindowOver250Micros;
+    private static long combatWindowOver500Micros;
+    private static long combatWindowOver1Millis;
 
     private DynamicParticleGroupRenderProbeRuntime() {
     }
@@ -67,6 +73,14 @@ public final class DynamicParticleGroupRenderProbeRuntime {
         if (elapsed > 1_000_000L) over1Millis++;
         if (elapsed > 2_000_000L) over2Millis++;
         if (elapsed > 5_000_000L) over5Millis++;
+        if (FrameTimeRuntime.combatMeasurementWindowActive()) {
+            combatWindowCalls++;
+            combatWindowTotalNanos += elapsed;
+            combatWindowMaximumNanos = Math.max(combatWindowMaximumNanos, elapsed);
+            if (elapsed > 250_000L) combatWindowOver250Micros++;
+            if (elapsed > 500_000L) combatWindowOver500Micros++;
+            if (elapsed > 1_000_000L) combatWindowOver1Millis++;
+        }
     }
 
     static void installed(
@@ -103,6 +117,17 @@ public final class DynamicParticleGroupRenderProbeRuntime {
         values.put("over1Millis", over1Millis);
         values.put("over2Millis", over2Millis);
         values.put("over5Millis", over5Millis);
+        Map<String, Object> combatWindow = new LinkedHashMap<>();
+        combatWindow.put("calls", combatWindowCalls);
+        combatWindow.put("totalMillis", combatWindowTotalNanos / 1_000_000.0);
+        combatWindow.put("meanMicros", combatWindowCalls == 0L
+                ? null : combatWindowTotalNanos / 1_000.0 / combatWindowCalls);
+        combatWindow.put("maximumMicros", combatWindowCalls == 0L
+                ? null : combatWindowMaximumNanos / 1_000.0);
+        combatWindow.put("over250Micros", combatWindowOver250Micros);
+        combatWindow.put("over500Micros", combatWindowOver500Micros);
+        combatWindow.put("over1Millis", combatWindowOver1Millis);
+        values.put("combatMeasurementWindow", combatWindow);
         values.put("returnSites", returnSites);
         values.put("glBeginSites", glBeginSites);
         values.put("glEndSites", glEndSites);
@@ -169,6 +194,12 @@ public final class DynamicParticleGroupRenderProbeRuntime {
         over1Millis = 0L;
         over2Millis = 0L;
         over5Millis = 0L;
+        combatWindowCalls = 0L;
+        combatWindowTotalNanos = 0L;
+        combatWindowMaximumNanos = 0L;
+        combatWindowOver250Micros = 0L;
+        combatWindowOver500Micros = 0L;
+        combatWindowOver1Millis = 0L;
     }
 
     private static Path readPath(String raw) {

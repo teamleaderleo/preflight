@@ -64,8 +64,8 @@ class DynamicParticleGroupRenderProbeInstalledAdapterIT {
                 DynamicParticleGroupRenderProbePlan.RENDER_METHOD,
                 DynamicParticleGroupRenderProbePlan.RENDER_DESCRIPTOR));
 
-        AdapterTargetRegistry registry = AdapterTargetRegistry.load(
-                exactTargetFile(originalSignature.sha256()));
+        AdapterTargetRegistry registry = AdapterTargetRegistry.empty()
+                .withDynamicParticleGroupProbeTarget();
         DynamicParticleGroupRenderProbeRuntime.beginSessionForTest(true);
 
         byte[] transformed = transform(
@@ -95,25 +95,6 @@ class DynamicParticleGroupRenderProbeInstalledAdapterIT {
                 changedArchive,
                 original,
                 temporaryDirectory.resolve("changed-archive-report.json")));
-    }
-
-    private Path exactTargetFile(String classSha256) throws Exception {
-        Path file = temporaryDirectory.resolve("dynamic-particle-group-targets.txt");
-        Files.writeString(file, String.join(System.lineSeparator(),
-                "target starsector-0.98a-rc8-dynamic-particle-group-probe",
-                "class " + DynamicParticleGroupRenderProbePlan.TARGET_CLASS,
-                "sha256 " + classSha256,
-                "plan " + FrameTimeRuntime.PLAN_ID,
-                "source-kind STARSECTOR_CORE",
-                "source-suffix contents/resources/java/fs.common_obf.jar",
-                "source-sha256 " + STOCK_COMMON_JAR_SHA256,
-                "loader-class jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "loader-name app",
-                "method " + DynamicParticleGroupRenderProbePlan.RENDER_METHOD + " "
-                        + DynamicParticleGroupRenderProbePlan.RENDER_DESCRIPTOR,
-                "end",
-                ""));
-        return file;
     }
 
     private byte[] transform(

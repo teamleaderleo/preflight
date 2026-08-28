@@ -18,7 +18,7 @@ Method:
 render(FF)V
 ```
 
-The runner derives the class SHA from the installed reviewed Starsector 0.98a-RC8 `fs.common_obf.jar` and binds the external AdapterTarget to the reviewed common archive SHA, code-source suffix, and application classloader.
+The runner derives the class SHA from the installed reviewed Starsector 0.98a-RC8 `fs.common_obf.jar`. The opt-in adapter target is pinned to that class SHA, the reviewed common-archive SHA, its code-source suffix, and the application classloader.
 
 If another renderer shadows the class or the core archive/class changes, the target declines.
 
@@ -48,7 +48,7 @@ This distinguishes two next-step cases:
 1. the group directly owns immediate-mode submission, in which case a local primitive-buffer/array rewrite is plausible;
 2. the group delegates rendering elsewhere, in which case the fingerprint points us away from rewriting the wrong class.
 
-Runtime telemetry records aggregate calls, total milliseconds, mean/max microseconds, and counts above 0.25/0.5/1/2/5 ms.
+Runtime telemetry records whole-process aggregate calls, total milliseconds, mean/max microseconds, and counts above 0.25/0.5/1/2/5 ms. A separate combat-measurement-window aggregate aligns the useful result to the scenario's exact frame window instead of mixing startup and menu particles into the combat claim.
 
 ## Live command
 
@@ -60,7 +60,7 @@ bash scripts/run-1153-particle-probe.sh \
 
 Then repeat on `symmetric-1040` if the ordinary run shows meaningful particle time.
 
-The script explicitly disables the frame-sync, GraphicsLib tess-array, and packed-replay experiments so the profile describes vanilla particle rendering plus the normal frame-time probe.
+The script is unattended on the installed deterministic combat harness. It explicitly disables the frame-sync, GraphicsLib tess-array, and packed-replay experiments so the profile describes vanilla particle rendering plus the normal thin frame-time probe.
 
 ## Decision rule
 

@@ -13,6 +13,8 @@ import org.objectweb.asm.tree.VarInsnNode;
 /** Exact-target aggregate timer for vanilla DynamicParticleGroup.render(float,float). */
 final class DynamicParticleGroupRenderProbePlan {
     static final String TARGET_CLASS = "com/fs/graphics/particle/DynamicParticleGroup";
+    static final String ORIGINAL_SHA256 =
+            "d7196220741a093654625e5910547458df82b0b76b9809a376295f732d3dc07f";
     static final String RENDER_METHOD = "render";
     static final String RENDER_DESCRIPTOR = "(FF)V";
 

@@ -1961,6 +1961,22 @@ final class AdapterTargetRegistry {
                 .withTarget(campaignFrameTimeStateTarget());
     }
 
+    AdapterTargetRegistry withDynamicParticleGroupProbeTarget() {
+        return withTarget(new AdapterTarget(
+                "vanilla-dynamic-particle-group-render-probe-0.98a-rc8",
+                DynamicParticleGroupRenderProbePlan.TARGET_CLASS,
+                DynamicParticleGroupRenderProbePlan.ORIGINAL_SHA256,
+                FrameTimeRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        DynamicParticleGroupRenderProbePlan.RENDER_METHOD,
+                        DynamicParticleGroupRenderProbePlan.RENDER_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/fs.common_obf.jar",
+                "10d89e113f6d1627cc7bc90b692e8a7f450fdd820c5a4ac5edaecd6710afe708",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app"));
+    }
+
     AdapterTargetRegistry withGlCommandCountTargets() {
         AdapterTargetRegistry registry = this;
         for (GlCommandCountPlan.Target target : GlCommandCountPlan.targets()) {

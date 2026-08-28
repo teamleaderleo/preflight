@@ -3,7 +3,7 @@
 # Profile vanilla DynamicParticleGroup.render(FF)V for issue #1153 with an exact installed-core target.
 #
 # Usage:
-#   scripts/run-1153-particle-probe.sh --route ordinary|symmetric-1040 [--workload-id NAME] [--game DIR] [--label NAME] [--common-jar FILE] [gameplay-pilot options]
+#   scripts/run-1153-particle-probe.sh --route ordinary|symmetric-1040 [--workload-id NAME] [--game DIR] [--label NAME] [--common-jar FILE]
 set -euo pipefail
 
 GAME="${STARSECTOR_HOME:-/Applications/Starsector.app}"
@@ -11,7 +11,6 @@ ROUTE=""
 WORKLOAD_ID=""
 LABEL=""
 COMMON_JAR="${STARSECTOR_COMMON_JAR:-}"
-PILOT_EXTRA_ARGS=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -20,10 +19,6 @@ while [[ $# -gt 0 ]]; do
         --game) GAME="$2"; shift 2 ;;
         --label) LABEL="$2"; shift 2 ;;
         --common-jar) COMMON_JAR="$2"; shift 2 ;;
-        --safer-jvm|--without-audio-repair|--without-profile|--without-startup-caches|--without-gameplay-caches)
-            PILOT_EXTRA_ARGS+=("$1"); shift ;;
-        --disable-plans)
-            PILOT_EXTRA_ARGS+=("$1" "$2"); shift 2 ;;
         -h|--help)
             sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
@@ -39,7 +34,8 @@ esac
 
 [[ -f pom.xml ]] || { echo "Run this from the Preflight repository root." >&2; exit 1; }
 [[ -d "$GAME" ]] || { echo "Starsector installation not found: $GAME" >&2; exit 1; }
-[[ -x scripts/run-gameplay-pilot.sh ]] || { echo "Gameplay pilot is missing or not executable." >&2; exit 1; }
+[[ -f preflight-cli/target/preflight.jar ]] \
+    || { echo "Build preflight-cli/target/preflight.jar before running the probe." >&2; exit 1; }
 
 [[ -n "$WORKLOAD_ID" ]] || WORKLOAD_ID="$ROUTE"
 [[ -n "$LABEL" ]] || LABEL="issue-1153-particle-probe-${ROUTE}"
@@ -49,9 +45,7 @@ esac
 
 STATE_ROOT="${STARSECTOR_PREFLIGHT_HOME:-$HOME/.starsector-preflight}"
 SESSION="$STATE_ROOT/issue-1153/$LABEL-$(date +%Y%m%d-%H%M%S)"
-TARGETS="$SESSION/adapter-targets.txt"
 REPORT="$SESSION/particle-probe.json"
-CONSOLE="$SESSION/pilot-console.log"
 SUMMARY="$SESSION/summary.json"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/preflight-1153-particles.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
@@ -116,20 +110,6 @@ ACTUAL_COMMON_SHA="$(hash_file "$COMMON_JAR")"
 CLASS_FILE="$TMP/DynamicParticleGroup.class"
 extract_class "$COMMON_JAR" "com/fs/graphics/particle/DynamicParticleGroup.class" "$CLASS_FILE"
 CLASS_SHA="$(hash_file "$CLASS_FILE")"
-cat >"$TARGETS" <<EOF
-target issue-1153-dynamic-particle-group-probe
-class com/fs/graphics/particle/DynamicParticleGroup
-sha256 $CLASS_SHA
-plan lwjgl-display-frame-time-probe-v1
-source-kind STARSECTOR_CORE
-source-suffix contents/resources/java/fs.common_obf.jar
-source-sha256 $EXPECTED_COMMON_SHA
-loader-class jdk/internal/loader/ClassLoaders\$AppClassLoader
-loader-name app
-method render (FF)V
-end
-EOF
-
 export _JAVA_OPTIONS="${_JAVA_OPTIONS:+$_JAVA_OPTIONS }-Dpreflight.frameSync=false -Dpreflight.graphicsLibTessellateArray=false -Dpreflight.graphicsLibTessellatePackedReplay=false -Dpreflight.dynamicParticleGroupProbe=true -Dpreflight.dynamicParticleGroupProbe.report='$REPORT'"
 
 echo "Issue #1153 vanilla particle render probe"
@@ -140,18 +120,21 @@ echo "  common sha:  $ACTUAL_COMMON_SHA"
 echo "  session:     $SESSION"
 echo
 
-PILOT_ARGS=(--game "$GAME" --label "$LABEL" --adapter-targets "$TARGETS")
-PILOT_ARGS+=("${PILOT_EXTRA_ARGS[@]}")
+if [[ "$ROUTE" == ordinary ]]; then
+    SCENARIO="scripts/scenarios/campaign-simulation-combat-particle-sanity.json"
+else
+    SCENARIO="scripts/scenarios/campaign-simulation-combat-1000dp-thin.json"
+fi
+RUN_DIR="$STATE_ROOT/runs/$LABEL-$(date +%Y%m%d-%H%M%S)"
 set +e
-scripts/run-gameplay-pilot.sh "${PILOT_ARGS[@]}" 2>&1 | tee "$CONSOLE"
-PILOT_STATUS=${PIPESTATUS[0]}
+java -jar preflight-cli/target/preflight.jar desktop smoke launch \
+    "$SCENARIO" "$RUN_DIR" --game "$GAME"
+PILOT_STATUS=$?
 set -e
 
-PILOT_DIR="$(sed -n 's/^Full pilot data: //p' "$CONSOLE" | tail -1)"
-if [[ -n "$PILOT_DIR" && -d "$PILOT_DIR" ]]; then
-    cp "$TARGETS" "$PILOT_DIR/issue-1153-particle-target.txt"
-    [[ -f "$REPORT" ]] && cp "$REPORT" "$PILOT_DIR/issue-1153-particle-probe.json"
-    if [[ -f "$PILOT_DIR/adapter.json" && -f "$REPORT" ]]; then
+if [[ -d "$RUN_DIR" ]]; then
+    [[ -f "$REPORT" ]] && cp "$REPORT" "$RUN_DIR/issue-1153-particle-probe.json"
+    if [[ -f "$RUN_DIR/adapter.json" && -f "$REPORT" ]]; then
         jq \
             --arg route "$ROUTE" \
             --arg workloadId "$WORKLOAD_ID" \
@@ -169,11 +152,12 @@ if [[ -n "$PILOT_DIR" && -d "$PILOT_DIR" ]]; then
               transformationsApplied,
               transformationsDeclined,
               containedFailures}' \
-            "$PILOT_DIR/adapter.json" >"$SUMMARY"
-        cp "$SUMMARY" "$PILOT_DIR/issue-1153-particle-probe-summary.json"
+            "$RUN_DIR/adapter.json" >"$SUMMARY"
+        cp "$SUMMARY" "$RUN_DIR/issue-1153-particle-probe-summary.json"
         jq . "$SUMMARY"
     fi
 fi
 
 echo "Issue #1153 particle probe session: $SESSION"
+echo "Installed-game run: $RUN_DIR"
 exit "$PILOT_STATUS"

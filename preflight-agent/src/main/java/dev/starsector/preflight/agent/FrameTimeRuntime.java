@@ -70,8 +70,8 @@ public final class FrameTimeRuntime {
     private static boolean lastBoundaryActive = true;
     private static int lastBoundaryState;
     private static int lastBoundaryCampaignPause;
-    private static boolean measurementWindowActive;
-    private static int measurementWindowState;
+    private static volatile boolean measurementWindowActive;
+    private static volatile int measurementWindowState;
     private static int measurementWindowCampaignPause;
     private static long swapStartedNanos = Long.MIN_VALUE;
     private static long swapCompletedNanos = Long.MIN_VALUE;
@@ -391,6 +391,11 @@ public final class FrameTimeRuntime {
             throw new IllegalStateException("combat-frame-window-is-not-active");
         }
         measurementWindowActive = false;
+    }
+
+    /** Cheap render-thread gate for opt-in probes aligned to the exact combat sample window. */
+    static boolean combatMeasurementWindowActive() {
+        return measurementWindowActive && measurementWindowState == STATE_COMBAT;
     }
 
     /** Starts a clean steady-state campaign window with an exact pause-state owner. */
