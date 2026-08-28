@@ -69,6 +69,13 @@ frame is rendered.
 probes enabled. It never changes pause state: classify the run as paused or unpaused from the
 retained maintenance counters and the state the selected save actually loaded into.
 
+`campaign-owner-tax-paused-unpaused.json` is the #1158 discovery route. It combines the reviewed
+deep campaign timers, owner/tax reporting, thin hitch packets, and SAMPLE JFR in one explicitly
+intrusive paused/unpaused pass. `run-1158-owner-tax-discovery.sh` also builds the enabled-mod static
+hot-pattern census, runtime/static triage join, and JFR hitch correlation into one run-owned bundle.
+Its frame numbers describe discovery overhead and are never an FPS claim. Normal launches are
+unchanged.
+
 `campaign-hitch-limiter-current-state.json` keeps the same route and timing but disables the broad
 campaign call-time probes. It retains only the thin frame/presentation recorder and exact campaign
 FPS-limiter bracket, so a hitch packet can split known limiter sleep from the remaining pre-swap

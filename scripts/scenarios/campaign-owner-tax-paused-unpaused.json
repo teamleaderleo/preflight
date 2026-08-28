@@ -1,0 +1,72 @@
+{
+  "format": "starsector-preflight-smoke-v1",
+  "name": "campaign-owner-tax-paused-unpaused",
+  "timeoutSeconds": 360,
+  "launch": {
+    "preset": "fast",
+    "textureStorage": "balanced",
+    "profile": null,
+    "recording": "sample",
+    "campaignTimes": true,
+    "smoothFramePacing": false
+  },
+  "steps": [
+    {
+      "id": "menu",
+      "kind": "wait-state",
+      "state": "main-menu-interactive",
+      "timeoutSeconds": 180
+    },
+    {
+      "id": "continue",
+      "kind": "click",
+      "target": "main-menu.continue"
+    },
+    {
+      "id": "campaign",
+      "kind": "wait-state",
+      "state": "campaign-ready",
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "observe-initial-pause-state",
+      "kind": "wait-duration",
+      "durationMillis": 3000
+    },
+    {
+      "id": "ensure-paused",
+      "kind": "click",
+      "target": "campaign.pause"
+    },
+    {
+      "id": "paused-warmup",
+      "kind": "wait-duration",
+      "durationMillis": 27000
+    },
+    {
+      "id": "paused-settled",
+      "kind": "wait-duration",
+      "durationMillis": 45000
+    },
+    {
+      "id": "unpause",
+      "kind": "click",
+      "target": "campaign.unpause"
+    },
+    {
+      "id": "unpaused-transition",
+      "kind": "wait-duration",
+      "durationMillis": 5000
+    },
+    {
+      "id": "begin-unpaused-window",
+      "kind": "click",
+      "target": "campaign.begin-frame-window"
+    },
+    {
+      "id": "unpaused-settled",
+      "kind": "wait-duration",
+      "durationMillis": 45000
+    }
+  ]
+}
