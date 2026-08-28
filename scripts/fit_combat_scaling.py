@@ -3,9 +3,9 @@
 
 Discovery timing and final frame-rate measurement stay separate. This fitter consumes the sampled
 CombatEngine.advance timings paired with workload snapshots, aggregates them into time buckets, and
-compares constant, linear, N log N, quadratic, and selected interaction models. When at least three
-independent runs are present, model ranking uses leave-one-run-out RMSE; smaller datasets fall back
-to AICc and are labeled exploratory.
+compares constant, linear, N log N, quadratic, threshold, and selected interaction models. When at
+least three independent runs are present, model ranking uses leave-one-run-out RMSE; smaller
+datasets fall back to AICc and are labeled exploratory.
 """
 from __future__ import annotations
 
@@ -166,12 +166,38 @@ def interaction(left: str, right: str) -> Term:
                 lambda row, a=left, b=right: float(row.get(a, 0.0)) * float(row.get(b, 0.0)))
 
 
+def hinge(name: str, threshold: float) -> Term:
+    return Term(
+        f"{name}_above_{threshold:g}",
+        lambda row, n=name, t=threshold: max(0.0, float(row.get(n, 0.0)) - t),
+    )
+
+
+def threshold_candidates(rows: list[dict], name: str) -> list[float]:
+    values = sorted({float(row[name]) for row in rows if numeric(row.get(name)) is not None})
+    if len(values) < 4:
+        return []
+    indexes = set()
+    for quantile in (0.25, 0.50, 0.75):
+        index = round((len(values) - 1) * quantile)
+        index = max(1, min(len(values) - 2, index))
+        indexes.add(index)
+    return [values[index] for index in sorted(indexes)]
+
+
 def candidate_models(rows: list[dict]) -> list[Model]:
     available = [name for name in BASE_PREDICTORS + ("totalAi", "ordnance", "effects")
                  if varied(rows, name)]
     models = [Model("constant", "constant", (), ())]
     for name in available:
         models.append(Model(f"{name}:linear", "linear", (term(name),), (name,)))
+        for threshold in threshold_candidates(rows, name):
+            models.append(Model(
+                f"{name}:threshold@{threshold:g}",
+                "threshold",
+                (term(name), hinge(name, threshold)),
+                (name,),
+            ))
         if nonnegative(rows, name):
             models.append(Model(
                 f"{name}:nlogn", "nlogn",
@@ -336,6 +362,12 @@ def fit_model(rows: list[dict], model: Model, runs: list[str]) -> Fit | None:
                cross_validated_rmse(rows, model, runs), len(rows))
 
 
+def worsening_nonlinearity(fit: Fit) -> bool:
+    if fit.model.kind not in ("nlogn", "quadratic", "threshold", "interaction"):
+        return False
+    return len(fit.coefficients) >= 2 and fit.coefficients[-1] > 0.0
+
+
 def analyze(rows: list[dict]) -> Analysis:
     usable = [row for row in rows if numeric(row.get(TARGET)) is not None]
     runs = sorted({str(row["runId"]) for row in usable})
@@ -350,7 +382,7 @@ def analyze(rows: list[dict]) -> Analysis:
     confirmed = bool(
         evidence == "repeatable"
         and best is not None
-        and best.model.kind in ("nlogn", "quadratic", "interaction")
+        and worsening_nonlinearity(best)
         and best.cv_rmse is not None
         and best_linear is not None
         and best.score <= best_linear * 0.90
@@ -384,6 +416,7 @@ def fit_to_dict(fit: Fit) -> dict:
         "aicc": fit.aicc,
         "leaveOneRunOutRmseMicros": fit.cv_rmse,
         "standardizedCoefficients": fit.coefficients,
+        "worseningNonlinearity": worsening_nonlinearity(fit),
     }
 
 
@@ -400,6 +433,7 @@ def analysis_to_dict(analysis: Analysis, bucket_seconds: float, sources: list[st
         "selectedModel": best.model.name if best else None,
         "selectedKind": best.model.kind if best else None,
         "confirmedSuperlinear": analysis.confirmed_superlinear,
+        "confirmedBadScaling": analysis.confirmed_superlinear,
         "ranges": range_summary(analysis.rows),
         "models": [fit_to_dict(fit) for fit in analysis.fits],
     }
@@ -413,21 +447,23 @@ def render_markdown(result: dict, limit: int = 12) -> str:
         f"Evidence: **{result['evidence']}**; runs={len(result['runs'])}, "
         f"cells={len(result['cells'])}, bucketed observations={result['observations']}.",
         f"Selected model: **{result['selectedModel'] or 'none'}**.",
-        f"Confirmed superlinear model under the fitter gate: **{str(result['confirmedSuperlinear']).lower()}**.",
+        f"Confirmed materially bad nonlinear/threshold/interaction path: "
+        f"**{str(result['confirmedBadScaling']).lower()}**.",
         "",
         "Discovery rule: final player-facing FPS claims still require the independent frame-time cohort.",
         "",
         "## Top models",
         "",
-        "| rank | model | kind | run-blocked RMSE (µs) | fit RMSE (µs) | R² | AICc |",
-        "| ---: | --- | --- | ---: | ---: | ---: | ---: |",
+        "| rank | model | kind | run-blocked RMSE (µs) | fit RMSE (µs) | R² | AICc | worsening |",
+        "| ---: | --- | --- | ---: | ---: | ---: | ---: | --- |",
     ]
     for index, model in enumerate(result["models"][:limit], 1):
         cv = model["leaveOneRunOutRmseMicros"]
         lines.append(
             f"| {index} | `{model['model']}` | {model['kind']} | "
             f"{format_number(cv)} | {format_number(model['rmseMicros'])} | "
-            f"{format_number(model['r2'])} | {format_number(model['aicc'])} |")
+            f"{format_number(model['r2'])} | {format_number(model['aicc'])} | "
+            f"{str(model['worseningNonlinearity']).lower()} |")
     lines.extend(["", "## Observed ranges", "",
                   "| predictor | min | median | max |", "| --- | ---: | ---: | ---: |"])
     for name, values in result["ranges"].items():
