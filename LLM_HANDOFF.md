@@ -85,8 +85,12 @@ Before changing code or collecting release evidence:
    The exact successor is complete too: read
    [installed fleet-AI module tax](docs/evidence/2026-08-28-installed-fleet-ai-module-tax.md).
    Tactical AI, not assignment/strategic/navigation, produced the material exact measurement-window
-   spans; the next bounded seam is its interval-gated other-fleet scan and neighboring semantic
-   regions. `SensorBurstAbilityAI` is the secondary lead.
+   spans. Its next decomposition is also complete: read
+   [installed tactical fleet-AI tax](docs/evidence/2026-08-28-installed-tactical-fleet-ai-tax.md).
+   Fleet-list acquisition is immaterial; the interval-gated other-fleet scan produced 36.219 and
+   32.413 ms spans occupying 62.0% and 64.4% of retained frames. The next bounded seam is one exact
+   visibility/decision census inside that loop; stop if it remains diffuse. `SensorBurstAbilityAI`
+   remains the secondary lead.
 
 Private signing rehearsals prove that the release machinery works. They are not final release
 evidence. Final operator evidence must use the same selected tag, source, Distribution, and package

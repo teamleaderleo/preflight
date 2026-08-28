@@ -1,0 +1,34 @@
+{
+  "format": "starsector-preflight-installed-tactical-fleet-ai-tax-v1",
+  "date": "2026-08-28",
+  "issue": 1158,
+  "parentIssue": 449,
+  "classification": "intrusive-discovery-no-fps-claim",
+  "sourceCommit": "9fda91e314c10c40cbd853cbfc0401529dbb1e83",
+  "runId": "issue-1158-tactical-seams-r2-20260828-120350",
+  "profileFingerprint": "2995668308ac3d31d645ccac30fb1a7e644e64fce5609050a1488df4cadc5af6",
+  "resolvedModCount": 83,
+  "display": {"resolution":"1440x932","fullscreen":false,"fpsCap":60,"vsyncRequested":true},
+  "runtime": {"game":"Starsector 0.98a-RC8","gameJava":"Zulu 17.0.10 x86-64 under Rosetta","wrapperJava":"Oracle 21.0.10 aarch64","os":"macOS 26.6.2","cpu":"Apple M5"},
+  "adapterHealth": {"status":"ACTIVE","mode":"ENABLED","transformationsApplied":75,"transformationsDeclined":0,"unavailablePlans":0,"sourceBindingRejected":0,"containedFailures":0,"runtimeIntegrityFailures":0,"killSwitchActive":false,"tacticalPlanInstalled":true},
+  "probe": {"planId":"vanilla-tactical-fleet-ai-time-probe-v1","classSha256":"53d6b876055d44a1dd97c9bf66561d974e102116c818aac654baf5ba1d70531c","killSwitch":"preflight.campaign.tacticalFleetAiTimes.disabled=true","slowSpanThresholdMillis":2,"slowSpanCapacity":32,"fallback":"ORIGINAL_BYTECODE"},
+  "phases": [
+    {"name":"everyFrame","calls":16427,"totalMillis":126.423896,"averageMicros":7.696104,"maximumMillis":5.509167,"over16Millis":0,"over33Millis":0,"over50Millis":0},
+    {"name":"avoidList","calls":2000,"totalMillis":150.225190,"averageMicros":75.112595,"maximumMillis":20.169583,"over16Millis":1,"over33Millis":0,"over50Millis":0},
+    {"name":"fleetList","calls":1901,"totalMillis":1.123549,"averageMicros":0.591031,"maximumMillis":0.185792,"over16Millis":0,"over33Millis":0,"over50Millis":0},
+    {"name":"otherFleets","calls":1998,"totalMillis":494.738285,"averageMicros":247.616759,"maximumMillis":129.012000,"over16Millis":4,"over33Millis":2,"over50Millis":1,"over100Millis":1},
+    {"name":"encounterOption","calls":1516,"totalMillis":87.618298,"averageMicros":57.795711,"maximumMillis":9.752875,"over16Millis":0,"over33Millis":0,"over50Millis":0},
+    {"name":"postScan","calls":16510,"totalMillis":19.227187,"averageMicros":1.164578,"maximumMillis":0.996917,"over16Millis":0,"over33Millis":0,"over50Millis":0}
+  ],
+  "measurementWindow": {"frames":1441,"activeSeconds":29.333848,"p50Millis":16.9,"p95Millis":39.2,"p99Millis":65.8,"onePercentLowFps":15.20,"maximumMillis":280.094,"over50Millis":40,"over100Millis":4,"repeatedSlowFrameClusters":22},
+  "measurementWindowJoins": [
+    {"phase":"otherFleets","tacticalAiIdentity":"1236006731","spanMillis":36.218875,"frameMillis":58.436,"spanSharePercent":62.0},
+    {"phase":"otherFleets","tacticalAiIdentity":"1264349993","spanMillis":32.413083,"frameMillis":50.348,"spanSharePercent":64.4},
+    {"phase":"otherFleets","tacticalAiIdentity":"208630822","spanMillis":23.845792,"frameMillis":48.576,"spanSharePercent":49.1},
+    {"phase":"otherFleets","tacticalAiIdentity":"672135372","spanMillis":9.774542,"nestedEncounterOptionMillis":9.752875,"frameMillis":33.425,"spanSharePercent":29.2}
+  ],
+  "excludedTransition": {"phase":"otherFleets","spanMillis":129.012,"reason":"five-second unpause transition"},
+  "measurementOverhead": {"displayBoundaryAverageMicros":29.353313,"displayBoundaryMaximumMillis":11.745,"tacticalProbeIndependentlySubtracted":false},
+  "workloadComparability": {"sameScenario":true,"sameProfileFingerprint":true,"sameDisplayAndAdapterPath":true,"campaignEvolutionComparableForFpsClaim":false,"reason":"the measurement window was materially harsher than the prior module route; this is causal discovery only"},
+  "decision": "Fleet-list acquisition is immaterial. Retain the other-fleet scan as the exact lead; run one narrower visibility and semantic-decision census before considering a behavior-preserving candidate."
+}

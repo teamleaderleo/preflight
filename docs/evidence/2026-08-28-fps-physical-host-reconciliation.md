@@ -37,6 +37,10 @@ to rerun a settled candidate.
   745.422 ms and produced 34.492/33.661 ms spans explaining 66.7%/52.2% of retained measurement
   frames. Vanilla `SensorBurstAbilityAI` produced a 22.919 ms span explaining 53.9% of another.
   Assignment, strategic, and navigation were cleared as current priorities. Retained at `4626fcff`.
+- **#1158 exact tactical successor:** fleet-list acquisition used only 1.124 ms across 1,901 calls,
+  while the other-fleet scan used 494.738 ms and produced 36.219/32.413/23.846 ms spans explaining
+  62.0%/64.4%/49.1% of retained frames. Encounter selection was nested but did not explain the
+  largest measurement spans. Retained at `9fda91e3`.
 - **Earlier carrier candidates:** AI Tweaks weapon-location caching, texture-bind deduplication,
   matrix identity elision, and the current precision waiter are useful rejected experiments. Do not
   revive them unchanged because their work-reduction counters were large.
@@ -63,9 +67,9 @@ instead of merging them wholesale into a moving gameplay carrier.
 
 ## Assumptions that need fresh verification
 
-1. **Exact tactical-AI semantic region.** Module timing selected the interval-gated tactical path,
-   but its every-frame, avoid-list, location-list, other-fleet scan, encounter-option, and post-scan
-   regions remain aggregated.
+1. **Exact other-fleet decision cost.** Tactical decomposition selected the interval-gated scan and
+   cleared fleet-list acquisition, every-frame, and post-scan work. Visibility, pursuit eligibility,
+   nearby-fleet/battle-join decisions, and loop candidate counts remain aggregated.
 2. **Downstream particle submission.** The wrapper's 1.95% inclusive stress share is an upper bound.
    Draw mode, texture, blend, layer, owner, batch compatibility, and probe overhead remain unknown.
 3. **GL synchronization frequency.** The broad queue topology is understood well enough for
@@ -77,26 +81,24 @@ instead of merging them wholesale into a moving gameplay carrier.
 
 ## Highest-information next slice
 
-Add a bounded exact subphase timer around the existing `TacticalModule.advance` semantic regions and
-run one discovery-only unpaused campaign route. Preserve:
+Add one bounded exact census inside the selected `TacticalModule.advance` other-fleet loop. Preserve:
 
-- every-frame, avoid-list, fleet-list acquisition, other-fleet scan, encounter-option, and post-scan
-  time separately;
+- the existing `Checking visibility level` semantic boundary plus pursuit, battle-join/nearby-fleet,
+  encounter-option, candidate, and decline counts;
 - bounded per-run tactical/fleet identity only in slow-span evidence;
 - exact game/profile/save/runtime/display/adapter identity;
 - workload fingerprint and semantic phases;
 - observer cost and retained >50/>100 ms hitch joins;
 - adapter health, declines, fallbacks, and kill switch.
 
-The completed SAMPLE route does not justify FULL JFR: GC explained only 5.789 ms of one 166.545 ms
-hitch and the sampled JIT/native events are non-duration associations. If the AI submodule work is
-diffuse, stop this seam and use thin async GPU timing plus bounded GL synchronization counts to split
-the remaining pre-swap family.
+The completed SAMPLE routes do not justify FULL JFR: GC explained only 5.789 ms of one earlier
+166.545 ms hitch and overlapped none of the retained hitches in the tactical successor. If the
+other-fleet decision work is diffuse, stop this seam and use thin async GPU timing plus bounded GL
+synchronization counts to split the remaining pre-swap family.
 
-After that, compare its information value with the downstream particle census. The former can rank
-the whole live callback surface; the latter has a measured ~2% wrapper upper bound and is the better
-render-specific continuation. Neither requires changing normal Preflight behavior: both remain
-opt-in unattended probes with exact target gates.
+After that, compare its information value with the downstream particle census. The latter has a
+measured ~2% wrapper upper bound and is the better render-specific continuation. Neither requires
+changing normal Preflight behavior: both remain opt-in unattended probes with exact target gates.
 
 ## FAQ / reopen conditions
 
