@@ -3,7 +3,7 @@
 # Launch one manually played combat pilot with every relevant beta probe enabled.
 #
 # Usage:
-#   scripts/run-gameplay-pilot.sh [--game DIR] [--label NAME] [--safer-jvm] [--without-audio-repair] [--without-profile] [--without-adapter] [--disable-plans IDS]
+#   scripts/run-gameplay-pilot.sh [--game DIR] [--label NAME] [--safer-jvm] [--without-audio-repair] [--without-profile] [--without-adapter] [--disable-plans IDS] [--adapter-targets FILE]
 #
 # Load a representative campaign, open a simulation, raise the DP cap, deploy many capitals,
 # fight for three to five minutes, then exit Starsector normally. Preflight keeps a coherent JFR
@@ -19,6 +19,7 @@ AUDIO_REPAIR=true
 PROFILE=true
 ADAPTER=true
 DISABLED_PLANS=""
+ADAPTER_TARGETS=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -31,6 +32,7 @@ while [[ $# -gt 0 ]]; do
         --without-profile) PROFILE=false; shift ;;
         --without-adapter) ADAPTER=false; shift ;;
         --disable-plans) DISABLED_PLANS="$2"; shift 2 ;;
+        --adapter-targets) ADAPTER_TARGETS="$2"; shift 2 ;;
         -h|--help) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
@@ -45,6 +47,13 @@ fi
 
 [[ -f pom.xml ]] || { echo "Run this from the Preflight repository root." >&2; exit 1; }
 [[ -d "$GAME" ]] || { echo "Starsector installation not found: $GAME" >&2; exit 1; }
+if [[ -n "$ADAPTER_TARGETS" ]]; then
+    [[ "$ADAPTER" == true ]] \
+        || { echo "--adapter-targets requires the adapter to be enabled." >&2; exit 2; }
+    [[ -f "$ADAPTER_TARGETS" ]] \
+        || { echo "Adapter target file not found: $ADAPTER_TARGETS" >&2; exit 1; }
+    ADAPTER_TARGETS="$(cd "$(dirname "$ADAPTER_TARGETS")" && pwd -P)/$(basename "$ADAPTER_TARGETS")"
+fi
 
 JAR="$PWD/preflight-cli/target/preflight.jar"
 PREFLIGHT_STATE_ROOT="${STARSECTOR_PREFLIGHT_HOME:-$HOME/.starsector-preflight}"
@@ -171,6 +180,7 @@ echo "Safer JVM:        $SAFER_JVM"
 echo "Audio repair:     $AUDIO_REPAIR"
 echo "Profile:          $PROFILE"
 echo "Adapter:          $ADAPTER"
+echo "Adapter targets:  ${ADAPTER_TARGETS:-built-in registry}"
 echo "Disabled plans:   ${DISABLED_PLANS:-none}"
 echo
 echo "In Starsector:"
@@ -217,6 +227,9 @@ RUN_ARGS=(run \
     --direct)
 if [[ "$ADAPTER" == true ]]; then
     RUN_ARGS+=(--adapter)
+    if [[ -n "$ADAPTER_TARGETS" ]]; then
+        RUN_ARGS+=(--adapter-targets "$ADAPTER_TARGETS")
+    fi
 else
     RUN_ARGS+=(--no-adapter)
 fi
