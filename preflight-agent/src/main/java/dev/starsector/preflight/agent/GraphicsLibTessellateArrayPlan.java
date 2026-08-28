@@ -33,6 +33,7 @@ final class GraphicsLibTessellateArrayPlan {
     private static final String SHIP = "com/fs/starfarer/api/combat/ShipAPI";
     private static final String VECTOR = "org/lwjgl/util/vector/Vector2f";
     private static final String VECTOR_UTILS = "org/lazywizard/lazylib/VectorUtils";
+    private static final String FAST_TRIG = "org/lazywizard/lazylib/FastTrig";
     private static final String GL11 = "org/lwjgl/opengl/GL11";
     private static final String BUFFER_UTILS = "org/lwjgl/BufferUtils";
     private static final String FLOAT_BUFFER = "java/nio/FloatBuffer";
@@ -219,6 +220,8 @@ final class GraphicsLibTessellateArrayPlan {
         var returnLabel = new org.objectweb.asm.tree.LabelNode();
         var grow = new org.objectweb.asm.tree.LabelNode();
         var bufferReady = new org.objectweb.asm.tree.LabelNode();
+        var trig = new org.objectweb.asm.tree.LabelNode();
+        var transformReady = new org.objectweb.asm.tree.LabelNode();
         var loop = new org.objectweb.asm.tree.LabelNode();
         var draw = new org.objectweb.asm.tree.LabelNode();
 
@@ -270,28 +273,46 @@ final class GraphicsLibTessellateArrayPlan {
                 false));
         code.add(new InsnNode(Opcodes.POP));
 
-        // Cache ship transform once. The old loop called VectorUtils.rotate/getFacing/getLocation per vertex.
+        // Preserve VectorUtils.rotate's float/FastTrig arithmetic, computed once per polygon.
         code.add(new VarInsnNode(Opcodes.ALOAD, 1));
         code.add(new MethodInsnNode(Opcodes.INVOKEINTERFACE, SHIP, "getFacing", "()F", true));
+        code.add(new VarInsnNode(Opcodes.FSTORE, 6));
+        code.add(new VarInsnNode(Opcodes.FLOAD, 6));
+        code.add(new InsnNode(Opcodes.FCONST_0));
+        code.add(new InsnNode(Opcodes.FCMPL));
+        code.add(new JumpInsnNode(Opcodes.IFNE, trig));
+        code.add(new InsnNode(Opcodes.FCONST_1));
+        code.add(new VarInsnNode(Opcodes.FSTORE, 8));
+        code.add(new InsnNode(Opcodes.FCONST_0));
+        code.add(new VarInsnNode(Opcodes.FSTORE, 9));
+        code.add(new JumpInsnNode(Opcodes.GOTO, transformReady));
+        code.add(trig);
+        code.add(new VarInsnNode(Opcodes.FLOAD, 6));
         code.add(new InsnNode(Opcodes.F2D));
         code.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "java/lang/Math", "toRadians", "(D)D", false));
-        code.add(new VarInsnNode(Opcodes.DSTORE, 6));
-        code.add(new VarInsnNode(Opcodes.DLOAD, 6));
-        code.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "java/lang/Math", "cos", "(D)D", false));
-        code.add(new VarInsnNode(Opcodes.DSTORE, 8));
-        code.add(new VarInsnNode(Opcodes.DLOAD, 6));
-        code.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "java/lang/Math", "sin", "(D)D", false));
-        code.add(new VarInsnNode(Opcodes.DSTORE, 10));
+        code.add(new InsnNode(Opcodes.D2F));
+        code.add(new VarInsnNode(Opcodes.FSTORE, 7));
+        code.add(new VarInsnNode(Opcodes.FLOAD, 7));
+        code.add(new InsnNode(Opcodes.F2D));
+        code.add(new MethodInsnNode(Opcodes.INVOKESTATIC, FAST_TRIG, "cos", "(D)D", false));
+        code.add(new InsnNode(Opcodes.D2F));
+        code.add(new VarInsnNode(Opcodes.FSTORE, 8));
+        code.add(new VarInsnNode(Opcodes.FLOAD, 7));
+        code.add(new InsnNode(Opcodes.F2D));
+        code.add(new MethodInsnNode(Opcodes.INVOKESTATIC, FAST_TRIG, "sin", "(D)D", false));
+        code.add(new InsnNode(Opcodes.D2F));
+        code.add(new VarInsnNode(Opcodes.FSTORE, 9));
+        code.add(transformReady);
         code.add(new VarInsnNode(Opcodes.ALOAD, 1));
         code.add(new MethodInsnNode(
                 Opcodes.INVOKEINTERFACE, SHIP, "getLocation", "()L" + VECTOR + ";", true));
-        code.add(new VarInsnNode(Opcodes.ASTORE, 12));
-        code.add(new VarInsnNode(Opcodes.ALOAD, 12));
+        code.add(new VarInsnNode(Opcodes.ASTORE, 10));
+        code.add(new VarInsnNode(Opcodes.ALOAD, 10));
         code.add(new FieldInsnNode(Opcodes.GETFIELD, VECTOR, "x", "F"));
-        code.add(new VarInsnNode(Opcodes.FSTORE, 13));
-        code.add(new VarInsnNode(Opcodes.ALOAD, 12));
+        code.add(new VarInsnNode(Opcodes.FSTORE, 11));
+        code.add(new VarInsnNode(Opcodes.ALOAD, 10));
         code.add(new FieldInsnNode(Opcodes.GETFIELD, VECTOR, "y", "F"));
-        code.add(new VarInsnNode(Opcodes.FSTORE, 14));
+        code.add(new VarInsnNode(Opcodes.FSTORE, 12));
 
         // Transform every cached local vertex into the reusable world-space float buffer.
         code.add(new VarInsnNode(Opcodes.ALOAD, 2));
@@ -301,13 +322,13 @@ final class GraphicsLibTessellateArrayPlan {
                 "iterator",
                 "()Ljava/util/Iterator;",
                 true));
-        code.add(new VarInsnNode(Opcodes.ASTORE, 15));
+        code.add(new VarInsnNode(Opcodes.ASTORE, 13));
         code.add(loop);
-        code.add(new VarInsnNode(Opcodes.ALOAD, 15));
+        code.add(new VarInsnNode(Opcodes.ALOAD, 13));
         code.add(new MethodInsnNode(
                 Opcodes.INVOKEINTERFACE, "java/util/Iterator", "hasNext", "()Z", true));
         code.add(new JumpInsnNode(Opcodes.IFEQ, draw));
-        code.add(new VarInsnNode(Opcodes.ALOAD, 15));
+        code.add(new VarInsnNode(Opcodes.ALOAD, 13));
         code.add(new MethodInsnNode(
                 Opcodes.INVOKEINTERFACE,
                 "java/util/Iterator",
@@ -315,51 +336,45 @@ final class GraphicsLibTessellateArrayPlan {
                 "()Ljava/lang/Object;",
                 true));
         code.add(new TypeInsnNode(Opcodes.CHECKCAST, VERTEX_DATA));
-        code.add(new VarInsnNode(Opcodes.ASTORE, 16));
-        code.add(new VarInsnNode(Opcodes.ALOAD, 16));
+        code.add(new VarInsnNode(Opcodes.ASTORE, 14));
+        code.add(new VarInsnNode(Opcodes.ALOAD, 14));
         code.add(new FieldInsnNode(Opcodes.GETFIELD, VERTEX_DATA, "data", "[D"));
-        code.add(new VarInsnNode(Opcodes.ASTORE, 17));
-        code.add(new VarInsnNode(Opcodes.ALOAD, 17));
+        code.add(new VarInsnNode(Opcodes.ASTORE, 15));
+        code.add(new VarInsnNode(Opcodes.ALOAD, 15));
         code.add(new InsnNode(Opcodes.ICONST_0));
         code.add(new InsnNode(Opcodes.DALOAD));
         code.add(new InsnNode(Opcodes.D2F));
-        code.add(new VarInsnNode(Opcodes.FSTORE, 18));
-        code.add(new VarInsnNode(Opcodes.ALOAD, 17));
+        code.add(new VarInsnNode(Opcodes.FSTORE, 16));
+        code.add(new VarInsnNode(Opcodes.ALOAD, 15));
         code.add(new InsnNode(Opcodes.ICONST_1));
         code.add(new InsnNode(Opcodes.DALOAD));
         code.add(new InsnNode(Opcodes.D2F));
+        code.add(new VarInsnNode(Opcodes.FSTORE, 17));
+
+        code.add(new VarInsnNode(Opcodes.FLOAD, 16));
+        code.add(new VarInsnNode(Opcodes.FLOAD, 8));
+        code.add(new InsnNode(Opcodes.FMUL));
+        code.add(new VarInsnNode(Opcodes.FLOAD, 17));
+        code.add(new VarInsnNode(Opcodes.FLOAD, 9));
+        code.add(new InsnNode(Opcodes.FMUL));
+        code.add(new InsnNode(Opcodes.FSUB));
+        code.add(new VarInsnNode(Opcodes.FLOAD, 11));
+        code.add(new InsnNode(Opcodes.FADD));
+        code.add(new VarInsnNode(Opcodes.FSTORE, 18));
+
+        code.add(new VarInsnNode(Opcodes.FLOAD, 16));
+        code.add(new VarInsnNode(Opcodes.FLOAD, 9));
+        code.add(new InsnNode(Opcodes.FMUL));
+        code.add(new VarInsnNode(Opcodes.FLOAD, 17));
+        code.add(new VarInsnNode(Opcodes.FLOAD, 8));
+        code.add(new InsnNode(Opcodes.FMUL));
+        code.add(new InsnNode(Opcodes.FADD));
+        code.add(new VarInsnNode(Opcodes.FLOAD, 12));
+        code.add(new InsnNode(Opcodes.FADD));
         code.add(new VarInsnNode(Opcodes.FSTORE, 19));
 
-        code.add(new VarInsnNode(Opcodes.FLOAD, 18));
-        code.add(new InsnNode(Opcodes.F2D));
-        code.add(new VarInsnNode(Opcodes.DLOAD, 8));
-        code.add(new InsnNode(Opcodes.DMUL));
-        code.add(new VarInsnNode(Opcodes.FLOAD, 19));
-        code.add(new InsnNode(Opcodes.F2D));
-        code.add(new VarInsnNode(Opcodes.DLOAD, 10));
-        code.add(new InsnNode(Opcodes.DMUL));
-        code.add(new InsnNode(Opcodes.DSUB));
-        code.add(new InsnNode(Opcodes.D2F));
-        code.add(new VarInsnNode(Opcodes.FLOAD, 13));
-        code.add(new InsnNode(Opcodes.FADD));
-        code.add(new VarInsnNode(Opcodes.FSTORE, 20));
-
-        code.add(new VarInsnNode(Opcodes.FLOAD, 18));
-        code.add(new InsnNode(Opcodes.F2D));
-        code.add(new VarInsnNode(Opcodes.DLOAD, 10));
-        code.add(new InsnNode(Opcodes.DMUL));
-        code.add(new VarInsnNode(Opcodes.FLOAD, 19));
-        code.add(new InsnNode(Opcodes.F2D));
-        code.add(new VarInsnNode(Opcodes.DLOAD, 8));
-        code.add(new InsnNode(Opcodes.DMUL));
-        code.add(new InsnNode(Opcodes.DADD));
-        code.add(new InsnNode(Opcodes.D2F));
-        code.add(new VarInsnNode(Opcodes.FLOAD, 14));
-        code.add(new InsnNode(Opcodes.FADD));
-        code.add(new VarInsnNode(Opcodes.FSTORE, 21));
-
         code.add(new VarInsnNode(Opcodes.ALOAD, 5));
-        code.add(new VarInsnNode(Opcodes.FLOAD, 20));
+        code.add(new VarInsnNode(Opcodes.FLOAD, 18));
         code.add(new MethodInsnNode(
                 Opcodes.INVOKEVIRTUAL,
                 FLOAT_BUFFER,
@@ -368,7 +383,7 @@ final class GraphicsLibTessellateArrayPlan {
                 false));
         code.add(new InsnNode(Opcodes.POP));
         code.add(new VarInsnNode(Opcodes.ALOAD, 5));
-        code.add(new VarInsnNode(Opcodes.FLOAD, 21));
+        code.add(new VarInsnNode(Opcodes.FLOAD, 19));
         code.add(new MethodInsnNode(
                 Opcodes.INVOKEVIRTUAL,
                 FLOAT_BUFFER,
