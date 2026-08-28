@@ -77,7 +77,8 @@ def test_join_promotes_static_findings_only_for_runtime_observed_mods():
     assert result["staticObservedModCount"] == 2
     assert by_mod["hot_mod"]["priority"] == "A_HITCH_AND_STATIC"
     assert len(by_mod["hot_mod"]["runtimeFrameTaxFamilies"]) == 2
-    assert [row["totalMillis"] for row in by_mod["hot_mod"]["runtimeFrameTaxFamilies"]] == [300.0, 500.0]
+    # Profiler families stay separate. Equal family-local ranks use larger measured time first.
+    assert [row["totalMillis"] for row in by_mod["hot_mod"]["runtimeFrameTaxFamilies"]] == [500.0, 300.0]
     assert len(by_mod["hot_mod"]["runtimeHitchTaxFamilies"]) == 2
     assert by_mod["hot_mod"]["promotedStaticFindings"][0]["pattern"] == "SORT_OR_SHUFFLE"
     assert by_mod["steady_mod"]["priority"] == "D_STEADY_RUNTIME_ONLY"
