@@ -31,7 +31,10 @@ final class FrameTimePlan {
         // exact-target carrier. AdapterTarget still supplies exact class/source identity; each
         // candidate adds its own semantic bytecode gate and runtime switch.
         if (GraphicsLibTessellateArrayPlan.TARGET_CLASS.equals(signature.internalName())) {
-            return GraphicsLibTessellateArrayPlan.transform(signature, originalBytes);
+            byte[] transformed = GraphicsLibTessellateArrayPlan.transform(signature, originalBytes);
+            return transformed == null
+                    ? null
+                    : GraphicsLibTessellateArrayVboStatePlan.transform(transformed);
         }
         if (HighResolutionFrameSyncPlan.TARGET_CLASS.equals(signature.internalName())) {
             return HighResolutionFrameSyncPlan.transform(signature, originalBytes);
