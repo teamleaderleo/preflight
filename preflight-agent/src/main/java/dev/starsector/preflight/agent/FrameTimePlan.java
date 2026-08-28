@@ -32,9 +32,16 @@ final class FrameTimePlan {
         // candidate adds its own semantic bytecode gate and runtime switch.
         if (GraphicsLibTessellateArrayPlan.TARGET_CLASS.equals(signature.internalName())) {
             byte[] transformed = GraphicsLibTessellateArrayPlan.transform(signature, originalBytes);
-            return transformed == null
-                    ? null
-                    : GraphicsLibTessellateArrayVboStatePlan.transform(transformed);
+            if (transformed == null) {
+                return null;
+            }
+            if (GraphicsLibTessellateArrayRuntime.packedReplayEnabled()) {
+                transformed = GraphicsLibTessellatePackedReplayPlan.transform(transformed);
+                if (transformed == null) {
+                    return null;
+                }
+            }
+            return GraphicsLibTessellateArrayVboStatePlan.transform(transformed);
         }
         if (HighResolutionFrameSyncPlan.TARGET_CLASS.equals(signature.internalName())) {
             return HighResolutionFrameSyncPlan.transform(signature, originalBytes);
