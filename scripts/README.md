@@ -74,6 +74,11 @@ from launch time. Phase-probe time also uses a different clock and cannot be com
 |---|---|
 | `verify-all.sh` | Everything the repository owns: Java reactor, desktop dependencies, packaged-engine contract, frontend, native host, and the report-intake worker and its bindings. |
 | `verify-in-container.sh [full\|focused\|analysis\|coverage\|package]` | The same work inside a memory-, CPU- and PID-limited Linux container. **This is how to reproduce a Linux-only failure from a Mac.** |
+| `java-dev.py test MODULE CLASS[#METHOD]` | One exact JUnit test plus required reactor parents. Modules use the short names `core`, `agent`, `cli`, and `synthetic`. |
+| `java-dev.py it CLASS[#METHOD]` | One exact packaged child-JVM test in `preflight-cli`, without replaying the ordinary unit-test inventory. |
+| `java-dev.py module MODULE` | One module only. This expects its reactor dependencies to be available already. |
+| `java-dev.py deps MODULE` | One module plus required reactor parents: the reliable routine-edit default. |
+| `java-dev.py full [--threads N] [--forks N]` | The full Java integration oracle. Parallelism is explicit and opt-in; it is not a laptop default. |
 
 Routine Java correctness belongs to `mvn verify`. Focused JUnit tests stay in the normal reactor
 unless they require a genuinely different OS, package, operator, or stress environment. Medium
