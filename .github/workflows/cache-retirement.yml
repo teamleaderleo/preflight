@@ -1,0 +1,38 @@
+name: Retire closed pull request caches
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  actions: write
+
+concurrency:
+  group: cache-retirement-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  retire:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete caches scoped to the closed pull request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || {
+            echo "Refusing invalid pull request number: $PR_NUMBER" >&2
+            exit 2
+          }
+
+          pr_ref="refs/pull/$PR_NUMBER/merge"
+          mapfile -t cache_ids < <(
+            gh cache list --ref "$pr_ref" --limit 1000 --json id --jq '.[].id'
+          )
+          for cache_id in "${cache_ids[@]}"; do
+            gh cache delete "$cache_id"
+          done
+          echo "Retired ${#cache_ids[@]} cache entries from $pr_ref"

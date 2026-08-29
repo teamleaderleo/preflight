@@ -94,6 +94,8 @@ jobs:
           python3 scripts/test_repository_ci_scope.py
           python3 -m py_compile scripts/java-dev.py scripts/test_java_dev.py
           python3 scripts/test_java_dev.py
+          python3 -m py_compile scripts/test_cache_retirement_workflow.py
+          python3 scripts/test_cache_retirement_workflow.py
           bash -n scripts/run-startup-benchmark.sh
           python3 scripts/test_startup_benchmark.py
           python3 -m py_compile scripts/starsector_log_load_times.py
