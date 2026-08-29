@@ -15,6 +15,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { runtimeInventory, verifyEngineBoundary } from "./engine-boundary.mjs";
+import { engineInputIdentity } from "./engine-input-identity.mjs";
 import { writeCapabilityReceipt } from "./capability-receipt.mjs";
 
 const desktopDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -34,18 +35,25 @@ const legalSources = [
 ];
 const argumentsSet = new Set(process.argv.slice(2));
 const useVerifiedJar = argumentsSet.delete("--use-verified-jar");
+const reuseIfCurrent = argumentsSet.delete("--reuse-if-current");
 if (argumentsSet.size > 0) {
   throw new Error(`Unknown prepare-engine option: ${[...argumentsSet][0]}`);
 }
+if (useVerifiedJar && reuseIfCurrent) {
+  throw new Error("Verified artifact preparation cannot reuse a developer engine");
+}
+const javaHome = findJavaHome();
+const inputIdentity = currentEngineInputIdentity(javaHome);
+const identityPath = join(desktopDirectory, "src-tauri", "target", "engine-input.json");
+if (reuseIfCurrent && reuseCurrentEngine(inputIdentity, identityPath)) process.exit(0);
 if (!useVerifiedJar) {
-  runMaven(["-pl", "preflight-cli", "-am", "-DskipTests", "package"]);
+  runMaven(["-pl", "preflight-cli", "-am", "-Dmaven.test.skip=true", "package"]);
 }
 if (!existsSync(sourceJar)) {
   const context = useVerifiedJar ? "The verified engine JAR is missing" : "Maven produced no engine JAR";
   throw new Error(`${context}: ${sourceJar}`);
 }
 
-const javaHome = findJavaHome();
 const jlink = join(javaHome, "bin", process.platform === "win32" ? "jlink.exe" : "jlink");
 const jdeps = join(javaHome, "bin", process.platform === "win32" ? "jdeps.exe" : "jdeps");
 if (!existsSync(jlink)) {
@@ -128,8 +136,12 @@ const manifest = {
 writeFileSync(join(engineDirectory, "bundle.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 
 const boundary = verifyEngineBoundary(engineDirectory);
+mkdirSync(dirname(identityPath), { recursive: true });
+writeFileSync(identityPath, `${JSON.stringify(inputIdentity, null, 2)}\n`);
 
-console.log(`Desktop engine ready at ${engineDirectory} (${boundary.runtimeFiles} runtime files)`);
+console.log(
+  `Desktop engine ready at ${engineDirectory} (${boundary.runtimeFiles} runtime files; input ${inputIdentity.sha256})`,
+);
 
 function run(command, args, cwd) {
   const result = spawnSync(command, args, { cwd, stdio: "inherit" });
@@ -199,6 +211,88 @@ function findJavaHome() {
     throw new Error("Could not locate a full Java development kit.");
   }
   return match[1].trim();
+}
+
+function currentEngineInputIdentity(javaHome) {
+  const executableName = (name) => process.platform === "win32" ? `bin/${name}.exe` : `bin/${name}`;
+  const jdkIdentity = engineInputIdentity(javaHome, [
+    executableName("java"),
+    executableName("jdeps"),
+    executableName("jlink"),
+    "jmods",
+    "release",
+  ]);
+  return engineInputIdentity(repositoryRoot, [
+    ".mvn",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "docs/known-limitations.md",
+    "docs/privacy.md",
+    "mvnw",
+    "mvnw.cmd",
+    "pom.xml",
+    "preflight-agent/pom.xml",
+    "preflight-agent/src/main",
+    "preflight-cli/pom.xml",
+    "preflight-cli/src/main",
+    "preflight-core/pom.xml",
+    "preflight-core/src/main",
+    "preflight-desktop/capabilities",
+    "preflight-desktop/scripts/capability-receipt.mjs",
+    "preflight-desktop/scripts/engine-boundary.mjs",
+    "preflight-desktop/scripts/engine-input-identity.mjs",
+    "preflight-desktop/scripts/prepare-engine.mjs",
+    "preflight-desktop/src-tauri/capabilities/default.json",
+    "preflight-desktop/src-tauri/src/lib.rs",
+    "preflight-desktop/src-tauri/src/updates.rs",
+    "preflight-desktop/src-tauri/tauri.conf.json",
+    "scripts/scenarios/campaign-roam-measurement-only.json",
+    "scripts/scenarios/campaign-roam.json",
+    "scripts/scenarios/startup-measurement-only.json",
+    "scripts/scenarios/startup.json",
+  ], {
+    architecture: process.arch,
+    jdk: jdkIdentity.sha256,
+    platform: process.platform,
+    reportIntakeOrigin: process.env.PREFLIGHT_REPORT_INTAKE_ORIGIN ?? "",
+    updateEndpoint: process.env.PREFLIGHT_UPDATER_ENDPOINT ?? "",
+    updateKeyConfigured: Boolean(process.env.PREFLIGHT_UPDATER_PUBLIC_KEY?.trim()),
+  });
+}
+
+function reuseCurrentEngine(expected, path) {
+  try {
+    const retained = JSON.parse(readFileSync(path, "utf8"));
+    if (retained.format !== expected.format || retained.sha256 !== expected.sha256) {
+      console.log(`Desktop engine input changed; rebuilding (${expected.sha256})`);
+      return false;
+    }
+    refreshCapabilityReceipt();
+    const boundary = verifyEngineBoundary(engineDirectory);
+    console.log(
+      `Desktop engine reused at ${engineDirectory} (${boundary.runtimeFiles} runtime files; input ${expected.sha256})`,
+    );
+    return true;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message.split("\n", 1)[0] : String(error);
+    console.log(`Desktop engine reuse unavailable; rebuilding (${reason})`);
+    return false;
+  }
+}
+
+function refreshCapabilityReceipt() {
+  const receiptPath = join(engineDirectory, "capability-receipt.json");
+  rmSync(receiptPath, { force: true });
+  writeCapabilityReceipt(receiptPath, {
+    engineJarPath: join(engineDirectory, "preflight.jar"),
+    productVersion: readProjectVersion(),
+  });
+  const receipt = readFileSync(receiptPath);
+  const manifestPath = join(engineDirectory, "bundle.json");
+  const retainedManifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  retainedManifest.capabilityReceiptBytes = receipt.length;
+  retainedManifest.capabilityReceiptSha256 = createHash("sha256").update(receipt).digest("hex");
+  writeFileSync(manifestPath, `${JSON.stringify(retainedManifest, null, 2)}\n`);
 }
 
 function readProjectVersion() {
