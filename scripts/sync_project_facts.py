@@ -13,12 +13,13 @@ ROOT = Path(__file__).resolve().parent.parent
 FACTS = ROOT / "docs/project-facts.json"
 HEADLINES = ROOT / "docs/claim-headlines.md"
 
+# Only surfaces that intentionally repeat the current benchmark belong here.
+# Creator-wide funding profiles may describe Preflight without carrying that claim.
 PUBLIC_COPY = (
     "README.md",
     "docs/beta-announcement-draft.md",
     "docs/beta-announcement-leo-draft.md",
     "docs/engineering-overview.md",
-    "docs/github-sponsors-page-draft.md",
     "docs/leo-talking-points.md",
     "docs/patreon-page-draft.md",
     "docs/public-writing-sales-inventory.md",
@@ -31,7 +32,6 @@ TECHNICAL_COPY = ("docs/optimization-history.md", "docs/technical-writeup-draft.
 SPEEDUP_COPY = (
     "docs/beta-announcement-draft.md",
     "docs/beta-announcement-leo-draft.md",
-    "docs/github-sponsors-page-draft.md",
     "docs/leo-talking-points.md",
     "docs/patreon-page-draft.md",
     "docs/public-writing-sales-inventory.md",
