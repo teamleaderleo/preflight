@@ -26,7 +26,10 @@ npm ci
 npm run desktop:dev
 ```
 
-`desktop:dev` packages the current Preflight JAR plus a small Java runtime, then starts Tauri.
+`desktop:dev` packages the current Preflight JAR plus a small Java runtime, then starts Tauri. A
+repeat launch reuses that generated engine only when its complete production-source, policy,
+scenario, environment, and JDK identity still matches and the retained bundle passes its normal
+integrity checks. Native packages and release candidates always rebuild this boundary.
 
 For visual-only work:
 
