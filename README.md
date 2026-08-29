@@ -94,6 +94,18 @@ The Java reactor uses JDK 17+ and Maven 3.9+:
 ./mvnw verify
 ```
 
+For routine edits, declare the smaller feedback scope instead of memorizing Maven flags:
+
+```bash
+./scripts/java-dev.py test core ContentFingerprintTest
+./scripts/java-dev.py deps agent
+./scripts/java-dev.py full
+```
+
+The command prints the exact Maven inventory before running it. Focused modes do not certify
+unrelated modules; `full` remains the Java integration oracle. See [`scripts/README.md`](scripts/README.md)
+for every mode and the opt-in parallel form.
+
 The resulting self-contained launcher is `preflight-cli/target/preflight.jar`.
 
 ```bash
