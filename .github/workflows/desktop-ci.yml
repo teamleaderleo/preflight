@@ -423,6 +423,34 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
 
+      - name: Read Linux Rust and builder cache identity
+        id: linux-cache-identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "rust-version=$(rustc -V | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          echo "builder-id=$(printf '%s' "$PREFLIGHT_LINUX_BUILDER_IMAGE" | sha256sum | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Cargo downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: desktop-cargo-downloads-${{ runner.os }}-${{ hashFiles('preflight-desktop/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            desktop-cargo-downloads-${{ runner.os }}-
+
+      - name: Cache Linux compatibility package build state
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            preflight-desktop/src-tauri/target/release
+            !preflight-desktop/src-tauri/target/release/bundle
+          key: desktop-rust-package-linux-compat-${{ steps.linux-cache-identity.outputs.builder-id }}-${{ runner.arch }}-${{ steps.linux-cache-identity.outputs.rust-version }}-${{ hashFiles('preflight-desktop/src-tauri/Cargo.lock', 'preflight-desktop/src-tauri/Cargo.toml') }}
+          restore-keys: |
+            desktop-rust-package-linux-compat-${{ steps.linux-cache-identity.outputs.builder-id }}-${{ runner.arch }}-${{ steps.linux-cache-identity.outputs.rust-version }}-
+
       - name: Install frontend tooling
         working-directory: preflight-desktop
         run: npm ci
