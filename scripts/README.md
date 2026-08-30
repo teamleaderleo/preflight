@@ -76,6 +76,7 @@ from launch time. Phase-probe time also uses a different clock and cannot be com
 | `verify-in-container.sh [full\|focused\|analysis\|coverage\|package]` | The same work inside a memory-, CPU- and PID-limited Linux container. **This is how to reproduce a Linux-only failure from a Mac.** |
 | `java-dev.py test MODULE CLASS[#METHOD]` | One exact JUnit test plus required reactor parents. Modules use the short names `core`, `agent`, `cli`, and `synthetic`. |
 | `java-dev.py test MODULE CLASS[#METHOD] --reuse` | Opt in to selector/toolchain/policy-partitioned exact-result reuse. The receipt distinguishes current execution from reuse. |
+| `java-dev-cache.py inspect` | Read-only inventory of exact-result namespaces, locks, generations, timestamps, and logical/allocated bytes. Never repairs or deletes data. |
 | `java-dev.py it CLASS[#METHOD]` | One exact packaged child-JVM test in `preflight-cli`, without replaying the ordinary unit-test inventory. |
 | `java-dev.py module MODULE` | One module only. This expects its reactor dependencies to be available already. |
 | `java-dev.py deps MODULE` | One module plus required reactor parents: the reliable routine-edit default. |
@@ -113,6 +114,31 @@ After Maven exits, the helper accepts only one of two evidence shapes:
 A successful Maven exit with neither shape is refused. A reuse receipt is focused feedback, not a
 claim that the test ran now and not a substitute for `java-dev.py full` when the integration oracle
 is required.
+
+### Read-only cache inventory
+
+Inspect the default platform cache without running Maven or creating the cache root:
+
+```bash
+./scripts/java-dev-cache.py inspect
+```
+
+Use `--root /absolute/path` or the same absolute `PREFLIGHT_JAVA_DEV_CACHE` override as the reuse
+helper to inspect disposable state. The JSON report names the cache and Apache format versions,
+opaque semantic namespaces, project/generation counts, advisory lock observations, and logical plus
+allocated-block bytes. It never reads `buildinfo.xml` contents, guesses selector names from hashes,
+follows links, repairs entries, or emits deletion candidates.
+
+The command writes no cache bytes. Directory reads can still update `atime` under the filesystem's
+mount policy, and the advisory shared-lock probes briefly change kernel lock state; neither is used
+as retention evidence.
+
+An absent root is a complete zero state. A link, unknown/future format, malformed namespace,
+missing lock, exclusive writer, scan race, or unsupported file type makes the inventory refuse with
+exit 2. `oldestMtime` and `newestMtime` are filesystem observations, not use times: Maven 1.3.0 does
+not refresh a checksum directory when an exact result is read. `allocatedBytes` uses unique-inode
+`st_blocks`; it does not discover shared reflink extents. The command therefore supplies evidence
+for a future retention decision but grants no prune or eviction authority.
 
 ## Guards that fail closed
 
