@@ -75,6 +75,7 @@ from launch time. Phase-probe time also uses a different clock and cannot be com
 | `verify-all.sh` | Everything the repository owns: Java reactor, desktop dependencies, packaged-engine contract, frontend, native host, and the report-intake worker and its bindings. |
 | `verify-in-container.sh [full\|focused\|analysis\|coverage\|package]` | The same work inside a memory-, CPU- and PID-limited Linux container. **This is how to reproduce a Linux-only failure from a Mac.** |
 | `java-dev.py test MODULE CLASS[#METHOD]` | One exact JUnit test plus required reactor parents. Modules use the short names `core`, `agent`, `cli`, and `synthetic`. |
+| `java-dev.py test MODULE CLASS[#METHOD] --reuse` | Opt in to selector/toolchain/policy-partitioned exact-result reuse. The receipt distinguishes current execution from reuse. |
 | `java-dev.py it CLASS[#METHOD]` | One exact packaged child-JVM test in `preflight-cli`, without replaying the ordinary unit-test inventory. |
 | `java-dev.py module MODULE` | One module only. This expects its reactor dependencies to be available already. |
 | `java-dev.py deps MODULE` | One module plus required reactor parents: the reliable routine-edit default. |
@@ -83,6 +84,35 @@ from launch time. Phase-probe time also uses a different clock and cannot be com
 Routine Java correctness belongs to `mvn verify`. Focused JUnit tests stay in the normal reactor
 unless they require a genuinely different OS, package, operator, or stress environment. Medium
 synthetic workloads live in the dispatch-only `Synthetic stress` workflow.
+
+### Opt-in exact-result reuse
+
+`--reuse` is deliberately narrower than an ordinary Surefire selector. It accepts one literal Java
+class or `Class#method`; lists, wildcards, parameter patterns, and other expressions are refused.
+The helper runs `clean verify`, derives a namespace from the module, selector, command, Maven
+wrapper/configuration, JDK, platform, and the complete environment Maven may observe (values are
+hashed, never printed). The helper-only cache-location override and its replaced Maven base are not
+forwarded. The namespace also binds cache policy, then the extension adds its source/project/plugin
+content checksum. A relevant source or environment edit therefore misses and executes inside the
+same semantic namespace.
+
+The pinned Apache extension is loaded through a temporary external Maven base only for that command.
+The repository does not carry `.mvn/extensions.xml`, and ordinary Maven or `java-dev.py` commands do
+not pay extension startup/logging cost. The first opt-in command may resolve the extension into the
+normal Maven artifact repository. The result cache is local-only, restores compiled main/test
+classes but not a historical Surefire report, and keeps at most two source generations per project
+and semantic namespace. Set `PREFLIGHT_JAVA_DEV_CACHE` to an absolute route-private directory for a
+disposable experiment.
+
+After Maven exits, the helper accepts only one of two evidence shapes:
+
+- `executed`: the exact requested Surefire XML report exists after mandatory `clean`;
+- `reused`: the requested module has exact cache-restore and cached-Surefire-skip markers, with no
+  requested report.
+
+A successful Maven exit with neither shape is refused. A reuse receipt is focused feedback, not a
+claim that the test ran now and not a substitute for `java-dev.py full` when the integration oracle
+is required.
 
 ## Guards that fail closed
 

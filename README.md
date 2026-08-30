@@ -106,6 +106,16 @@ The command prints the exact Maven inventory before running it. Focused modes do
 unrelated modules; `full` remains the Java integration oracle. See [`scripts/README.md`](scripts/README.md)
 for every mode and the opt-in parallel form.
 
+When the exact same focused JUnit result is requested repeatedly, opt in explicitly:
+
+```bash
+./scripts/java-dev.py test core ContentFingerprintTest --reuse
+```
+
+The receipt says `executed` when the requested Surefire report was produced and `reused` when Maven
+restored the matching content result without running Surefire. Ordinary focused commands do not
+load the build-cache extension.
+
 The resulting self-contained launcher is `preflight-cli/target/preflight.jar`.
 
 ```bash
