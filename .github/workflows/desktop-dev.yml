@@ -1,0 +1,51 @@
+name: Desktop focused feedback
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '.github/workflows/desktop-dev.yml'
+      - 'scripts/desktop-dev.py'
+      - 'scripts/test_desktop_dev.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: python3
+          - os: macos-latest
+            python: python3
+          - os: windows-latest
+            python: python
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify focused frontend selection
+        run: |
+          ${{ matrix.python }} -m py_compile scripts/desktop-dev.py scripts/test_desktop_dev.py
+          ${{ matrix.python }} scripts/test_desktop_dev.py
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: preflight-desktop/package-lock.json
+      - name: Exercise one real adjacent-test selection
+        working-directory: preflight-desktop
+        run: |
+          npm ci
+          ../scripts/desktop-dev.py frontend src/uiFormat.ts

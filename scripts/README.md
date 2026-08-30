@@ -74,6 +74,7 @@ from launch time. Phase-probe time also uses a different clock and cannot be com
 |---|---|
 | `verify-all.sh` | Everything the repository owns: Java reactor, desktop dependencies, packaged-engine contract, frontend, native host, and the report-intake worker and its bindings. |
 | `verify-in-container.sh [full\|focused\|analysis\|coverage\|package]` | The same work inside a memory-, CPU- and PID-limited Linux container. **This is how to reproduce a Linux-only failure from a Mac.** |
+| `desktop-dev.py frontend PATH...` | Batch the exact adjacent Vitest files for edited frontend sources/tests. Refuses an unmapped source instead of claiming transitive completeness. |
 | `java-dev.py test MODULE CLASS[#METHOD]` | One exact JUnit test plus required reactor parents. Modules use the short names `core`, `agent`, `cli`, and `synthetic`. |
 | `java-dev.py test MODULE CLASS[#METHOD] --reuse` | Opt in to selector/toolchain/policy-partitioned exact-result reuse. The receipt distinguishes current execution from reuse. |
 | `java-dev-cache.py inspect` | Read-only inventory of exact-result namespaces, locks, generations, timestamps, and logical/allocated bytes. Never repairs or deletes data. |
@@ -85,6 +86,26 @@ from launch time. Phase-probe time also uses a different clock and cannot be com
 Routine Java correctness belongs to `mvn verify`. Focused JUnit tests stay in the normal reactor
 unless they require a genuinely different OS, package, operator, or stress environment. Medium
 synthetic workloads live in the dispatch-only `Synthetic stress` workflow.
+
+### Focused desktop frontend feedback
+
+After `npm ci` in `preflight-desktop`, pass one or more edited source or test paths from the
+repository root:
+
+```bash
+./scripts/desktop-dev.py frontend preflight-desktop/src/uiFormat.ts
+./scripts/desktop-dev.py frontend \
+  preflight-desktop/src/uiFormat.ts \
+  preflight-desktop/src/nativeErrors.ts
+```
+
+The helper selects only adjacent files named `Owner.test.ts[x]` or
+`Owner.variant.test.ts[x]`, prints the deduplicated inventory, and invokes Vitest once. Use
+`--list` to inspect the selection without running Node. If any source lacks an adjacent test, the
+whole batch refuses; pass an exact test file when its name intentionally differs.
+
+This is edit-owner feedback, not dependency-graph inference. It does not claim transitive coverage
+and never substitutes for the full `npm test` frontend oracle or `npm run verify` integration gate.
 
 ### Opt-in exact-result reuse
 
