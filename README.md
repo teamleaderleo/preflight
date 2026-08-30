@@ -106,6 +106,15 @@ The command prints the exact Maven inventory before running it. Focused modes do
 unrelated modules; `full` remains the Java integration oracle. See [`scripts/README.md`](scripts/README.md)
 for every mode and the opt-in parallel form.
 
+For a routine desktop frontend edit, batch its adjacent tests without running all frontend files:
+
+```bash
+./scripts/desktop-dev.py frontend preflight-desktop/src/uiFormat.ts
+```
+
+The command prints the exact selected files and refuses sources without a nearby test. It is
+focused feedback; `npm test` remains the complete frontend inventory.
+
 When the exact same focused JUnit result is requested repeatedly, opt in explicitly:
 
 ```bash
