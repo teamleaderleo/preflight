@@ -44,7 +44,7 @@ class JavaDevCacheTest(unittest.TestCase):
 
     def test_absent_cache_is_a_complete_zero_state_and_is_not_created(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "absent"
+            root = Path(temporary).resolve() / "absent"
 
             report, status = java_dev_cache.inspect_cache(root)
 
@@ -55,7 +55,7 @@ class JavaDevCacheTest(unittest.TestCase):
 
     def test_existing_empty_root_is_distinct_from_an_absent_root(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "cache"
+            root = Path(temporary).resolve() / "cache"
             root.mkdir()
 
             report, status = java_dev_cache.inspect_cache(root)
@@ -66,7 +66,7 @@ class JavaDevCacheTest(unittest.TestCase):
 
     def test_incomplete_current_format_is_refused(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "cache"
+            root = Path(temporary).resolve() / "cache"
             (root / java_dev_cache.REUSE_FORMAT).mkdir(parents=True)
 
             report, status = java_dev_cache.inspect_cache(root)
@@ -80,7 +80,7 @@ class JavaDevCacheTest(unittest.TestCase):
 
     def test_valid_cache_reports_opaque_namespace_layout_and_bytes(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "cache"
+            root = Path(temporary).resolve() / "cache"
             self.valid_cache(root)
 
             report, status = java_dev_cache.inspect_cache(root)
@@ -107,9 +107,10 @@ class JavaDevCacheTest(unittest.TestCase):
 
     def test_symlink_is_reported_without_following_its_target(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "cache"
+            temporary_root = Path(temporary).resolve()
+            root = temporary_root / "cache"
             namespace, _ = self.valid_cache(root)
-            outside = Path(temporary) / "outside"
+            outside = temporary_root / "outside"
             outside.write_bytes(b"x" * 10_000)
             (namespace / "linked-output").symlink_to(outside)
 
@@ -122,9 +123,10 @@ class JavaDevCacheTest(unittest.TestCase):
 
     def test_symlinked_root_is_refused(self):
         with tempfile.TemporaryDirectory() as temporary:
-            target = Path(temporary) / "target"
+            temporary_root = Path(temporary).resolve()
+            target = temporary_root / "target"
             self.valid_cache(target)
-            root = Path(temporary) / "linked-cache"
+            root = temporary_root / "linked-cache"
             root.symlink_to(target, target_is_directory=True)
 
             report, status = java_dev_cache.inspect_cache(root)
@@ -138,10 +140,11 @@ class JavaDevCacheTest(unittest.TestCase):
 
     def test_symlinked_root_ancestor_is_refused_before_traversal(self):
         with tempfile.TemporaryDirectory() as temporary:
-            real_parent = Path(temporary) / "real-parent"
+            temporary_root = Path(temporary).resolve()
+            real_parent = temporary_root / "real-parent"
             target = real_parent / "cache"
             self.valid_cache(target)
-            linked_parent = Path(temporary) / "linked-parent"
+            linked_parent = temporary_root / "linked-parent"
             linked_parent.symlink_to(real_parent, target_is_directory=True)
 
             report, status = java_dev_cache.inspect_cache(linked_parent / "cache")
@@ -155,7 +158,7 @@ class JavaDevCacheTest(unittest.TestCase):
 
     def test_future_format_and_apache_version_fail_closed(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "cache"
+            root = Path(temporary).resolve() / "cache"
             namespace, _ = self.valid_cache(root)
             (root / "preflight-java-dev-reuse-v2").mkdir()
             version = namespace.parents[3]
@@ -170,7 +173,7 @@ class JavaDevCacheTest(unittest.TestCase):
 
     def test_busy_namespace_is_not_scanned_or_called_stable(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "cache"
+            root = Path(temporary).resolve() / "cache"
             namespace, lock = self.valid_cache(root)
             secret = namespace / "must-not-be-counted.bin"
             secret.write_bytes(b"x" * 20_000)
@@ -205,7 +208,7 @@ class JavaDevCacheTest(unittest.TestCase):
 
     def test_missing_lock_and_lock_without_namespace_are_both_visible(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "cache"
+            root = Path(temporary).resolve() / "cache"
             _, lock = self.valid_cache(root)
             lock.unlink()
             orphan = root / java_dev_cache.REUSE_FORMAT / "locks" / f"cache-{'d' * 64}.lock"
@@ -222,7 +225,7 @@ class JavaDevCacheTest(unittest.TestCase):
 
     def test_generation_without_exact_build_info_is_incomplete(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "cache"
+            root = Path(temporary).resolve() / "cache"
             namespace, _ = self.valid_cache(root)
             (namespace / "buildinfo.xml").unlink()
 
@@ -240,7 +243,7 @@ class JavaDevCacheTest(unittest.TestCase):
 
     def test_entry_budget_refuses_instead_of_walking_an_unbounded_tree(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "cache"
+            root = Path(temporary).resolve() / "cache"
             self.valid_cache(root)
 
             with mock.patch.object(java_dev_cache, "MAX_ENTRIES", 3):

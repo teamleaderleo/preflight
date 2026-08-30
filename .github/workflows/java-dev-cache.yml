@@ -1,12 +1,6 @@
 name: Java dev cache inspector
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/java-dev-cache.yml'
-      - 'scripts/java-dev-cache.py'
-      - 'scripts/test_java_dev_cache.py'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
@@ -26,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(github.event_name == 'push' && '["ubuntu-latest","macos-latest"]' || '["ubuntu-latest"]') }}
+        os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
