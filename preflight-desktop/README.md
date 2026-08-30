@@ -18,7 +18,8 @@ For the project-wide explanation, read [How Preflight works](../docs/how-preflig
 
 ## Run it locally
 
-You need Node 22+, JDK 17+, Maven, and stable Rust.
+You need Node 24 (use the exact patch in the repository's `.node-version`), JDK 17+, Maven,
+and stable Rust.
 
 ```bash
 cd preflight-desktop

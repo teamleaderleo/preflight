@@ -35,7 +35,7 @@ The wrapper downloads the reviewed Maven distribution on first use.
 
 Repository-wide desktop/report-intake work also needs:
 
-- Node.js 22
+- Node.js 24 (the exact patch is in `.node-version`)
 - npm
 - stable Rust with `rustfmt` and `clippy`
 
