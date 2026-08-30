@@ -56,12 +56,12 @@ export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
 if [[ ! -d "$XDG_RUNTIME_DIR" ]]; then
   echo "Missing rootless Podman runtime directory: $XDG_RUNTIME_DIR" >&2
-  echo "Run the VPS bootstrap script or enable lingering for this user." >&2
+  echo "Start a rootless Podman session for this user." >&2
   exit 69
 fi
 podman image exists "$image" || {
   echo "Build image '$image' is not installed." >&2
-  echo "Run scripts/bootstrap-vps-runner.sh prepare from a repository checkout." >&2
+  echo "Build it with: podman build --tag $image --file build/ci/Containerfile build/ci" >&2
   exit 69
 }
 
@@ -140,12 +140,9 @@ set -e
 
 if [[ "$status" -eq 125 || "$status" -eq 126 ]]; then
   cat >&2 <<'MESSAGE'
-Podman or the OCI runtime failed before Maven completed. This workflow selects
-Podman's cgroupfs manager so a rootless container launched by the GitHub runner
-service does not need to create a transient systemd scope. Confirm that the
-runner service delegation helper has been applied, then retry the workflow:
-
-  bash ./scripts/configure-vps-runner-service.sh
+Podman or the OCI runtime failed before Maven completed. Confirm that rootless
+Podman works for the current user and that the selected cgroup manager can
+apply memory, CPU, and PID limits, then retry.
 MESSAGE
 fi
 exit "$status"
