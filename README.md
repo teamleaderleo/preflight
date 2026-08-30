@@ -116,6 +116,15 @@ The receipt says `executed` when the requested Surefire report was produced and 
 restored the matching content result without running Surefire. Ordinary focused commands do not
 load the build-cache extension.
 
+Inspect cache shape without running Maven or writing, repairing, or deleting cache bytes:
+
+```bash
+./scripts/java-dev-cache.py inspect
+```
+
+The inventory is deliberately read-only; links, unknown formats, active writers, and incomplete
+scans refuse instead of proposing cleanup.
+
 The resulting self-contained launcher is `preflight-cli/target/preflight.jar`.
 
 ```bash
