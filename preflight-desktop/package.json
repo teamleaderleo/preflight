@@ -8,6 +8,9 @@
     "type": "git",
     "url": "git+https://github.com/teamleaderleo/preflight.git"
   },
+  "engines": {
+    "node": ">=24.15.0 <25"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

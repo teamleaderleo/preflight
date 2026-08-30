@@ -37,7 +37,7 @@ list would make regression gates harder to review.
 When changing several workflows at once, look first for these repeated mechanics:
 
 1. focused Maven invocation plus failure-log collection (`surefire-reports` / `failsafe-reports`);
-2. Node 22 + `npm ci` setup for desktop jobs;
+2. the exact Node 24 patch in `.node-version` + `npm ci` setup for desktop jobs;
 3. Rust toolchain + Cargo download/build caches for native-host jobs;
 4. repeated artifact upload/download conventions used by candidate validation.
 

@@ -12,10 +12,10 @@ exclusion disclosure, byte count, and SHA-256 before consent.
 
 ## Local verification
 
-Node.js 22 or newer is required by the current Wrangler release.
+Use Node 24, preferably the exact patch in the repository's `.node-version`.
 
 ```bash
-npm install
+npm ci
 npm run cf-typegen
 npm run check
 ```

@@ -37,7 +37,8 @@ The manual rehearsal appears in Actions as **Distribution**, not as a separate w
 
 Immediately before setup, refresh the live repository and #965. Do not reuse a SHA copied from this document.
 
-For local key generation, use a clean checkout. Hosted release jobs use Node 22, so Node 22 is the preferred parity target.
+For local key generation, use a clean checkout. Hosted release jobs use the exact Node 24 patch
+in `.node-version`, so that file is the preferred local parity target.
 
 ```bash
 git switch main
