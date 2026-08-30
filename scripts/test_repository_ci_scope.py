@@ -21,7 +21,7 @@ def test_java_inputs_run_maven():
 
 def test_operator_inputs_run_operator_checks_without_maven():
     for path in (
-        "build/ci/starsector-preflight-ci-v1",
+        "build/ci/Containerfile",
         "scripts/repository_ci_scope.py",
         "scripts/run-startup-benchmark.sh",
     ):

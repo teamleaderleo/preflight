@@ -17,10 +17,6 @@
 /report-intake/ @teamleaderleo
 /.github/workflows/report-intake.yml @teamleaderleo
 
-# Self-hosted verification runner trust boundary.
-/.github/workflows/vps-verify.yml @teamleaderleo
+# Disposable container verification boundary.
 /build/ci/ @teamleaderleo
-/docs/self-hosted-runner.md @teamleaderleo
-/scripts/test_vps_runner_boundary.py @teamleaderleo
-/scripts/test_vps_trust_boundary.py @teamleaderleo
 /scripts/verify-in-container.sh @teamleaderleo

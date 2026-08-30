@@ -106,12 +106,11 @@ Each of these is a refusal, not a report: they exist to stop something reaching 
 | `download-private-candidate.sh RUN_ID [DEST]` | Fetch a private signed candidate produced by a workflow run. |
 | `preflight-desktop/scripts/exercise-package-lifecycle.mjs OLDER NEWER` | Install a package, upgrade it, roll it back, and remove it. Dispatch the `Package lifecycle` workflow rather than running this by hand — it needs two built versions. See [the rehearsal](../docs/package-lifecycle-rehearsal.md). |
 
-## Self-hosted runner
+## Disposable container verification
 
 | | |
 |---|---|
-| `bootstrap-vps-runner.sh` | Provision the VPS verification runner. |
-| `configure-vps-runner-service.sh` | Install the runner's service delegation. |
+| `verify-in-container.sh [SUITE]` | Run a bounded Maven suite in a local rootless Podman container. |
 
 ## Prepared-pixel probes
 

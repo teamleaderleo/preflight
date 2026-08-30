@@ -69,8 +69,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Validate operator runners
         run: |
-          bash -n build/ci/starsector-preflight-ci-v1
-          python3 scripts/test_vps_runner_boundary.py
+          bash -n scripts/verify-in-container.sh
           bash -n scripts/run-prepared-pixel-coherent-direct-gameplay-smoke.sh
           bash -n scripts/run-prepared-pixel-main-menu-comparison-pilot.sh
           python3 -m py_compile scripts/starsector_log_ready_detector.py
