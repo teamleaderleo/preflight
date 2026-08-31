@@ -59,34 +59,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Measure worker and repository context tokens
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          python3 -m pip install --disable-pip-version-check --quiet tiktoken
-          git fetch --no-tags --depth=1 origin "$BASE_SHA"
-          python3 - <<'PY'
-          import os
-          import subprocess
-          from pathlib import Path
-          import tiktoken
-
-          paths = ["AGENTS.md", "CLAUDE.md", "LLM_HANDOFF.md", "README.md", "docs/README.md"]
-          encoding = tiktoken.get_encoding("o200k_base")
-          base_sha = os.environ["BASE_SHA"]
-          before_total = 0
-          after_total = 0
-          for path in paths:
-              before = subprocess.check_output(["git", "show", f"{base_sha}:{path}"], text=True)
-              after = Path(path).read_text(encoding="utf-8")
-              before_tokens = len(encoding.encode(before))
-              after_tokens = len(encoding.encode(after))
-              before_total += before_tokens
-              after_total += after_tokens
-              print(f"TOKEN_COUNT {path} before={before_tokens} after={after_tokens} removed={before_tokens - after_tokens}")
-          removed = before_total - after_total
-          percent = removed / before_total * 100
-          print(f"TOKEN_TOTAL encoding=o200k_base before={before_total} after={after_total} removed={removed} reduction={percent:.2f}%")
-          PY
       - name: Verify synchronized benchmark facts and retained evidence
         run: python3 scripts/sync_project_facts.py --check
