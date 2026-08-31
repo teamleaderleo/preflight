@@ -25,8 +25,6 @@ PUBLIC_COPY = (
     "docs/public-writing-sales-inventory.md",
     "docs/release-post-draft.md",
     "docs/releases/0.1.0.md",
-    "CLAUDE.md",
-    "LLM_HANDOFF.md",
 )
 TECHNICAL_COPY = ("docs/optimization-history.md", "docs/technical-writeup-draft.md")
 SPEEDUP_COPY = (
