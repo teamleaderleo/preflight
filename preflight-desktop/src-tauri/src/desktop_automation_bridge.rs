@@ -205,7 +205,7 @@ mod platform {
                 "{header}\nset frontmost of targetProcess to true\nreturn \"activated PID {pid}\"\nend tell"
             )),
             "observe" if request.argument.is_none() => Ok(format!(
-                "{header}\nset win to window 1 of targetProcess\nset winPosition to position of win\nset winSize to size of win\nset focused to frontmost of targetProcess\nreturn \"PID {pid} window \" & (item 1 of winPosition as text) & \",\" & (item 2 of winPosition as text) & \",\" & (item 1 of winSize as text) & \",\" & (item 2 of winSize as text) & \" frontmost=\" & (focused as text)\nend tell"
+                "{header}\nset isFrontmost to frontmost of targetProcess\nset win to window 1 of targetProcess\nset winPosition to position of win\nset winSize to size of win\nreturn \"PID {pid} window \" & (item 1 of winPosition as text) & \",\" & (item 2 of winPosition as text) & \",\" & (item 1 of winSize as text) & \",\" & (item 2 of winSize as text) & \" frontmost=\" & (isFrontmost as text)\nend tell"
             )),
             "click" if request.argument.as_deref() == Some("main-menu.continue") => Ok(format!(
                 "{header}\nset frontmost of targetProcess to true\nset win to window 1 of targetProcess\nset winPosition to position of win\nset winSize to size of win\nset clickX to (item 1 of winPosition) + (round ((item 1 of winSize) * {CONTINUE_X}))\nset clickY to (item 2 of winPosition) + (round ((item 2 of winSize) * {CONTINUE_Y}))\nclick at {{clickX, clickY}}\nreturn \"clicked main-menu.continue at \" & clickX & \",\" & clickY\nend tell"

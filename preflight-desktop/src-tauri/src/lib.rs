@@ -18,6 +18,38 @@ mod report_transport;
 mod reports;
 mod updates;
 
+/// Temporary maintainer harness for the separately opt-in campaign smoke scenario.
+///
+/// This is deliberately not connected to the player-facing startup benchmark. It exists in the
+/// throwaway campaign-smoke worktree so the native, PID-bound macOS bridge can prove an engine
+/// candidate without granting desktop-control capability to the game or its mods.
+#[cfg(target_os = "macos")]
+pub fn run_campaign_smoke_harness(
+    java: &std::path::Path,
+    engine: &std::path::Path,
+    scenario: &std::path::Path,
+    run_directory: &std::path::Path,
+    game: &std::path::Path,
+) -> Result<i32, String> {
+    let automation =
+        desktop_automation_bridge::DesktopAutomationBridge::start(Some(run_directory))?;
+    let mut command = std::process::Command::new(java);
+    automation.configure(&mut command);
+    let status = command
+        .arg("-jar")
+        .arg(engine)
+        .arg("desktop")
+        .arg("smoke")
+        .arg("launch")
+        .arg(scenario)
+        .arg(run_directory)
+        .arg("--game")
+        .arg(game)
+        .status()
+        .map_err(|error| format!("Could not start the campaign smoke controller: {error}"))?;
+    Ok(status.code().unwrap_or(1))
+}
+
 use automation::{
     cancel_desktop_smoke, get_desktop_smoke_probe, request_desktop_smoke_cancellation,
     start_desktop_smoke,
