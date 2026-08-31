@@ -1,38 +1,9 @@
 # Preflight LLM handoff
 
-This file is a route to current state, not a copy of it.
-
-Before changing code or collecting release evidence:
+This file routes to live state; it carries no task, owner, SHA, benchmark-value, or release snapshot.
 
 1. Read [CLAUDE.md](CLAUDE.md).
-2. Fetch `main`, list the open PRs in the area, and read the live
-   [release board #652](https://github.com/teamleaderleo/preflight/issues/652).
-3. Read [Release readiness](docs/release-readiness.md).
-4. Follow the current owner. [#965](https://github.com/teamleaderleo/preflight/issues/965)
-   owns candidate exercises, [#818](https://github.com/teamleaderleo/preflight/issues/818) owns
-   final package identity, [#418](https://github.com/teamleaderleo/preflight/issues/418) owns the
-   packaged startup benchmark, and [#1023](https://github.com/teamleaderleo/preflight/issues/1023)
-   holds product observations until one becomes a concrete defect.
-5. Read [scripts/README.md](scripts/README.md) before driving the game. Use
-   `scripts/benchmark-startup.sh` for one automatic startup measurement, `--details` to explain a
-   changed result, and `--campaign` only for a real comparison.
-
-Selected repeated product facts live in [docs/project-facts.json](docs/project-facts.json). When the
-maintainer changes one of those facts, edit that file and run:
-
-```bash
-python3 scripts/sync_project_facts.py --write
-```
-
-Generated current headline: **112.17s → 13.69s**. Do not hand-edit that value here; the sync command
-owns it along with the public copies and claim headline page. Historical measurements stay in their
-evidence records and technical chronology. Campaign statistics answer comparison/attribution
-questions; they do not choose the current public headline.
-
-Private signing rehearsals prove that the release machinery works. They are not final release
-evidence. Final operator evidence must use the same selected tag, source, Distribution, and package
-generation throughout. A source change creates new bytes and invalidates affected package evidence.
-
-Use [the engineering chronology](docs/next-llm-handoff.md) and dated
-[evidence](docs/evidence/) when implementation history is relevant. Never take a SHA, owner, or
-priority from historical notes without checking the live repository first.
+2. Fetch `main` and relevant open PRs, then read the assigned issue and all current comments. Follow live issue ownership and maintainer direction.
+3. For release work, fetch the live [release board #652](https://github.com/teamleaderleo/preflight/issues/652), then read [Release readiness](docs/release-readiness.md). Follow the board's current links for operator and evidence owners.
+4. For performance or evidence work, [project facts](docs/project-facts.json) owns selected current values, [Startup benchmark](docs/startup-benchmark.md) owns measurement semantics, and [scripts/README.md](scripts/README.md) owns commands.
+5. For implementation history, use [the engineering chronology](docs/next-llm-handoff.md) and dated [evidence](docs/evidence/). Verify anything current-looking against the live repository before acting.
