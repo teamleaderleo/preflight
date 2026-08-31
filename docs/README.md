@@ -40,7 +40,7 @@ Start with the codebase tour if the repository is still unfamiliar. It follows u
 - [Performance and storage tradeoffs](performance-storage-tradeoffs.md)
 - [Evidence archive](evidence/)
 
-The current development startup headline is **112.17s → 13.69s** on the documented 83-mod development setup. Historical campaigns stay in the history/evidence docs instead of competing with the current headline.
+Selected current startup values live in [project facts](project-facts.json), with the audited rendered claim in [claim headlines](claim-headlines.md). Historical campaigns stay in the history/evidence docs for the questions they measured.
 
 Use **Findings and outreach** when the question is whether a discovery should become a mod-author/base-game report at all. Its default answer is to keep the finding in Preflight unless external outreach clearly improves the outcome.
 

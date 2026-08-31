@@ -1,5 +1,3 @@
-# Working notes for agents
+# Agent entry point
 
-Read and follow [CLAUDE.md](CLAUDE.md) before changing files. It is the single copy of the repository rules.
-
-Start with [LLM_HANDOFF.md](LLM_HANDOFF.md) for current project state.
+Read [CLAUDE.md](CLAUDE.md) for durable repository rules. Then use [LLM_HANDOFF.md](LLM_HANDOFF.md) to resolve live task and project state before editing.
