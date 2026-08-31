@@ -6,6 +6,7 @@ import java.util.Locale;
 /** User-facing space/time policy for exact prepared texture blobs. */
 enum TextureStoragePolicy {
     FASTEST(PreparedTextureIO.StorageCodec.RAW, false),
+    COMPACT(PreparedTextureIO.StorageCodec.LZ4, false),
     BALANCED(PreparedTextureIO.StorageCodec.LZ4, true);
 
     static final TextureStoragePolicy DEFAULT = BALANCED;
@@ -34,9 +35,11 @@ enum TextureStoragePolicy {
     static TextureStoragePolicy parse(String value) {
         return switch (value.toLowerCase(Locale.ROOT)) {
             case "fastest" -> FASTEST;
+            case "compact" -> COMPACT;
             case "balanced" -> BALANCED;
             default -> throw new IllegalArgumentException(
-                    "Unknown texture storage policy: " + value + " (expected fastest or balanced)");
+                    "Unknown texture storage policy: " + value
+                            + " (expected fastest, compact, or balanced)");
         };
     }
 }

@@ -266,10 +266,11 @@ public final class PreflightCli {
                         + " icon cache and per-commodity event-mod memo use the same gameplay-cache"
                         + " switch; --fast enables all three."));
         usage.put("prepare", List.of(
-                "preflight prepare [--game <path>] [--launcher <path>] [--cache-dir <path>] [--report <path>] [--workers <count>] [--memory-mb <MiB>] [--texture-storage fastest|balanced] [--parallel-stages|--serial-stages] [--deep] [--verify-lookups] [--lookup-queries <count>] [--seed <long>] [--no-resource-index] [--no-classpath] [--no-textures]",
-                "preflight prepare --plan [--json] [--game <path>] [--cache-dir <path>] [--workers <count>] [--texture-storage fastest|balanced]",
+                "preflight prepare [--game <path>] [--launcher <path>] [--cache-dir <path>] [--report <path>] [--workers <count>] [--memory-mb <MiB>] [--texture-storage fastest|compact|balanced] [--parallel-stages|--serial-stages] [--deep] [--verify-lookups] [--lookup-queries <count>] [--seed <long>] [--no-resource-index] [--no-classpath] [--no-textures]",
+                "preflight prepare --plan [--json] [--game <path>] [--cache-dir <path>] [--workers <count>] [--texture-storage fastest|compact|balanced]",
                 "  balanced (default) uses exact lossless LZ4 except where compression saves under"
-                        + " 23.1%; fastest stores every upload-ready pixel array raw.",
+                        + " 23.1%; compact keeps every texture losslessly compressed; fastest stores"
+                        + " every upload-ready pixel array raw.",
                 "  --plan is read-only. Every real preparation refuses before writing when its"
                         + " conservative upper bound and safety reserve do not fit."));
         usage.put("stop", List.of(
