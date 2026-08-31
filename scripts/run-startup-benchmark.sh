@@ -53,7 +53,9 @@ Usage: scripts/run-startup-benchmark.sh [options]
                       a reportable claim). Fewer rounds cannot reach significance: with
                       three per condition the smallest possible p-value is 0.1.
   --conditions LIST   Comma-separated subset of vanilla,agent,enabled,compatibility,fast,
-                      fast-eager,full,profile,fast-profile,prepared
+                      fast-eager,fast-no-zero-tlab,fast-no-string-dedup,
+                      fast-no-zero-tlab-dedup,fast-default-tier,fast-default-compiler,
+                      fast-g1,fast-g1-on-demand,full,profile,fast-profile,prepared
                       (default vanilla,agent,enabled,fast; every other condition is opt-in).
   --unattended        Start the game without its launcher and stop it once the main menu is
                       up, so the campaign needs no clicks at all. Uses Starsector's own
@@ -98,6 +100,22 @@ Conditions:
             the same preset with --eager-heap-commit, an exact control for the Recommended
             preset's on-demand heap commitment. This is a diagnostic condition, not a player
             configuration.
+  fast-no-zero-tlab
+            exploratory control: Recommended plus -XX:-ZeroTLAB.
+  fast-no-string-dedup
+            exploratory control: Recommended plus -XX:-UseStringDeduplication.
+  fast-no-zero-tlab-dedup
+            exploratory control: Recommended with both options disabled.
+  fast-default-tier
+            exploratory control: Recommended with the bundled JVM's ordinary tiered-compilation
+            thresholds instead of the launcher's extreme delayed-profiling values.
+  fast-default-compiler
+            exploratory control: Recommended without the launcher's always-atomic and
+            always-compile-loops toggles, and with dynamic compiler-thread sizing restored.
+  fast-g1   exploratory control: Recommended with the bundled JVM's default G1 collector instead
+            of the launcher's Shenandoah policy.
+  fast-g1-on-demand
+            G1 plus -XX:-AlwaysPreTouch, isolating the full reviewed macOS startup policy.
   full      the frozen 2026-08-03 explicit stack (prepared pixels plus the two rule caches).
             It remains available to reproduce the accepted historical campaign, but newer
             live-gated optimizations are present only in `fast`.
@@ -278,7 +296,7 @@ done
 IFS=',' read -r -a CONDITION_LIST <<< "$CONDITIONS"
 for condition in "${CONDITION_LIST[@]}"; do
     case "$condition" in
-        vanilla|agent|enabled|compatibility|fast|fast-eager|full|profile|fast-profile|prepared|prepared-unpadded) ;;
+        vanilla|agent|enabled|compatibility|fast|fast-eager|fast-no-zero-tlab|fast-no-string-dedup|fast-no-zero-tlab-dedup|fast-default-tier|fast-default-compiler|fast-g1|fast-g1-on-demand|full|profile|fast-profile|prepared|prepared-unpadded) ;;
         *) bad "Unknown condition: $condition"; exit 2 ;;
     esac
 done
@@ -839,6 +857,34 @@ launch_once() {
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --fast --eager-heap-commit
                      --texture-cache-dir "$CACHE") ;;
+        fast-no-zero-tlab)
+            command=(env "_JAVA_OPTIONS=${_JAVA_OPTIONS:-} -XX:-ZeroTLAB"
+                     java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
+                     --trace-dir "$run_dir" --fast --texture-cache-dir "$CACHE") ;;
+        fast-no-string-dedup)
+            command=(env "_JAVA_OPTIONS=${_JAVA_OPTIONS:-} -XX:-UseStringDeduplication"
+                     java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
+                     --trace-dir "$run_dir" --fast --texture-cache-dir "$CACHE") ;;
+        fast-no-zero-tlab-dedup)
+            command=(env "_JAVA_OPTIONS=${_JAVA_OPTIONS:-} -XX:-ZeroTLAB -XX:-UseStringDeduplication"
+                     java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
+                     --trace-dir "$run_dir" --fast --texture-cache-dir "$CACHE") ;;
+        fast-default-tier)
+            command=(env "_JAVA_OPTIONS=${_JAVA_OPTIONS:-} -XX:Tier0Delay=20 -XX:Tier0ProfilingStartPercentage=200 -XX:IncreaseFirstTierCompileThresholdAt=50 -XX:InterpreterProfilePercentage=33 -XX:ProfileMaturityPercentage=20 -XX:TieredOldPercentage=1000"
+                     java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
+                     --trace-dir "$run_dir" --fast --texture-cache-dir "$CACHE") ;;
+        fast-default-compiler)
+            command=(env "_JAVA_OPTIONS=${_JAVA_OPTIONS:-} -XX:-AlwaysAtomicAccesses -XX:-AlwaysCompileLoopMethods -XX:+UseDynamicNumberOfCompilerThreads"
+                     java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
+                     --trace-dir "$run_dir" --fast --texture-cache-dir "$CACHE") ;;
+        fast-g1)
+            command=(env "_JAVA_OPTIONS=${_JAVA_OPTIONS:-} -XX:-UseShenandoahGC -XX:+UseG1GC"
+                     java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
+                     --trace-dir "$run_dir" --fast --texture-cache-dir "$CACHE") ;;
+        fast-g1-on-demand)
+            command=(env "_JAVA_OPTIONS=${_JAVA_OPTIONS:-} -XX:-UseShenandoahGC -XX:+UseG1GC -XX:-AlwaysPreTouch"
+                     java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
+                     --trace-dir "$run_dir" --fast --texture-cache-dir "$CACHE") ;;
         profile)
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
@@ -979,6 +1025,13 @@ launch_once() {
         status=excluded; reason="profile-drift"
     elif [[ "$condition" == prepared || "$condition" == prepared-unpadded \
             || "$condition" == fast || "$condition" == fast-eager \
+            || "$condition" == fast-no-zero-tlab \
+            || "$condition" == fast-no-string-dedup \
+            || "$condition" == fast-no-zero-tlab-dedup \
+            || "$condition" == fast-default-tier \
+            || "$condition" == fast-default-compiler \
+            || "$condition" == fast-g1 \
+            || "$condition" == fast-g1-on-demand \
             || "$condition" == fast-profile || "$condition" == full ]] \
             && { ! served_prepared_textures "$run_dir" || ! bypassed_pixel_conversions "$run_dir"; }; then
         status=excluded; reason="prepared-pixels-served-nothing"

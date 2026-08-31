@@ -357,6 +357,30 @@ class ReportTest(unittest.TestCase):
         self.assertIn("heap commitment", comparison["isolates"])
         self.assertTrue(comparison["meetsCampaignMinimum"])
 
+    def test_fast_g1_compares_only_the_collector(self):
+        summary = report.summarize(runs(
+            *[("fast", i, 16.0, "accepted") for i in range(1, 6)],
+            *[("fast-g1", i, 14.0, "accepted") for i in range(1, 6)],
+        ))
+        comparison = summary["comparisons"]["fast-g1 vs fast"]
+        self.assertEqual(-2.0, comparison["deltaSeconds"])
+        self.assertIn("garbage collector", comparison["isolates"])
+        self.assertTrue(comparison["meetsCampaignMinimum"])
+
+    def test_fast_g1_on_demand_reports_both_clean_comparisons(self):
+        summary = report.summarize(runs(
+            *[("fast", i, 16.0, "accepted") for i in range(1, 6)],
+            *[("fast-g1", i, 15.5, "accepted") for i in range(1, 6)],
+            *[("fast-g1-on-demand", i, 14.0, "accepted") for i in range(1, 6)],
+        ))
+        self.assertEqual(
+            -2.0,
+            summary["comparisons"]["fast-g1-on-demand vs fast"]["deltaSeconds"],
+        )
+        heap = summary["comparisons"]["fast-g1-on-demand vs fast-g1"]
+        self.assertEqual(-1.5, heap["deltaSeconds"])
+        self.assertIn("heap commitment", heap["isolates"])
+
     def test_fast_profile_is_diagnostic_too(self):
         summary = report.summarize(runs(
             *[("vanilla", i, 100.0, "accepted") for i in range(1, 6)],

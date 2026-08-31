@@ -27,6 +27,8 @@ ORDER = [
     "full",
     "fast",
     "fast-eager",
+    "fast-g1",
+    "fast-g1-on-demand",
     "prepared-unpadded",
     "profile",
     "fast-profile",
@@ -38,6 +40,8 @@ LABELS = {
     "compatibility": "compatibility textures, no recorder",
     "fast": "current --fast preset",
     "fast-eager": "current --fast, eager heap",
+    "fast-g1": "fast + G1",
+    "fast-g1-on-demand": "fast + macOS startup policy",
     "full": "legacy 2026-08-03 full stack",
     "prepared": "prepared pixels",
     "prepared-unpadded": "prepared pixels, unpadded",
@@ -54,6 +58,9 @@ DIAGNOSTIC = {"profile", "fast-profile"}
 # a texture cache worth -15% behind a recorder worth +24%. A comparison is only clean when
 # the two conditions differ in one thing.
 INTERESTING = [
+    ("fast", "fast-g1-on-demand", "the reviewed macOS collector and heap policy"),
+    ("fast-g1", "fast-g1-on-demand", "eager heap commitment, G1 held constant"),
+    ("fast", "fast-g1", "the garbage collector, everything else held constant"),
     ("fast-eager", "fast", "on-demand heap commitment, everything else held constant"),
     ("compatibility", "prepared", "the pixel conversion, cache and recorder held constant"),
     ("prepared", "prepared-unpadded", "removing the power-of-two padding"),
