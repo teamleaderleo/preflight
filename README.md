@@ -86,68 +86,9 @@ Preflight is still in the release-candidate phase. The source and desktop UI are
 
 If you want the moving release details, use [Release readiness](docs/release-readiness.md). The README intentionally doesn't duplicate that whole checklist.
 
-## Development quick start
+## Development
 
-The Java reactor uses JDK 17+ and Maven 3.9+:
-
-```bash
-./mvnw verify
-```
-
-For routine edits, declare the smaller feedback scope instead of memorizing Maven flags:
-
-```bash
-./scripts/java-dev.py test core ContentFingerprintTest
-./scripts/java-dev.py deps agent
-./scripts/java-dev.py full
-```
-
-The command prints the exact Maven inventory before running it. Focused modes do not certify
-unrelated modules; `full` remains the Java integration oracle. See [`scripts/README.md`](scripts/README.md)
-for every mode and the opt-in parallel form.
-
-For a routine desktop frontend edit, batch its adjacent tests without running all frontend files:
-
-```bash
-./scripts/desktop-dev.py frontend preflight-desktop/src/uiFormat.ts
-```
-
-The command prints the exact selected files and refuses sources without a nearby test. It is
-focused feedback; `npm test` remains the complete frontend inventory.
-
-When the exact same focused JUnit result is requested repeatedly, opt in explicitly:
-
-```bash
-./scripts/java-dev.py test core ContentFingerprintTest --reuse
-```
-
-The receipt says `executed` when the requested Surefire report was produced and `reused` when Maven
-restored the matching content result without running Surefire. Ordinary focused commands do not
-load the build-cache extension.
-
-Inspect cache shape without running Maven or writing, repairing, or deleting cache bytes:
-
-```bash
-./scripts/java-dev-cache.py inspect
-```
-
-The inventory is deliberately read-only; links, unknown formats, active writers, and incomplete
-scans refuse instead of proposing cleanup.
-
-The resulting self-contained launcher is `preflight-cli/target/preflight.jar`.
-
-```bash
-# Inspect discovery without launching
-java -jar preflight-cli/target/preflight.jar doctor
-
-# Prepare the detected profile
-java -jar preflight-cli/target/preflight.jar install --prepare
-
-# Launch with the recommended optimization preset
-java -jar preflight-cli/target/preflight.jar run --optimization-preset recommended
-```
-
-The desktop app uses the same Java engine and safety checks. See [`preflight-desktop/`](preflight-desktop/) for local desktop development and packaging.
+Contributor entry points live under the [documentation map](docs/README.md). Start with the [Codebase tour](docs/codebase-tour.md), then use [Verification strategy](docs/verification-strategy.md) and [scripts/README.md](scripts/README.md) for current feedback, benchmark, and repository-gate commands. Java uses JDK 17+ and Maven 3.9+; `./mvnw verify` is its correctness gate. Desktop development and packaging live under [`preflight-desktop/`](preflight-desktop/).
 
 ## Where to go next
 
