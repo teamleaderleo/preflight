@@ -70,7 +70,9 @@ fn retained_root_derives_children_without_reopening_a_public_path() {
     file.write_all(b"owned").unwrap();
     drop(file);
     drop(child);
+    drop(root);
 
+    let root = BoundDirectory::open_existing(&base, Path::new("owned")).unwrap();
     let reopened = root
         .open_existing_child(Path::new("support/authority"))
         .unwrap();

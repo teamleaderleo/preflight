@@ -17,7 +17,7 @@ struct TestHook {
 
 #[cfg(test)]
 static TEST_AFTER_COMPONENT_OPEN: Mutex<Option<TestHook>> = Mutex::new(None);
-#[cfg(test)]
+#[cfg(all(test, unix))]
 static TEST_BEFORE_CREATED_COMPONENT_PUBLISH: Mutex<Option<TestHook>> = Mutex::new(None);
 #[cfg(test)]
 static TEST_BEFORE_BOUNDED_READ: Mutex<Option<TestHook>> = Mutex::new(None);
@@ -266,7 +266,7 @@ pub(crate) fn install_after_component_open_test_hook(
     });
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(crate) fn install_before_created_component_publish_test_hook(
     name: &OsStr,
     callback: impl FnOnce() + Send + 'static,
@@ -340,12 +340,12 @@ fn run_after_component_open_test_hook(name: &OsStr) {
 #[cfg(not(test))]
 fn run_after_component_open_test_hook(_name: &OsStr) {}
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 fn run_before_created_component_publish_test_hook(name: &OsStr) {
     run_test_hook(&TEST_BEFORE_CREATED_COMPONENT_PUBLISH, name);
 }
 
-#[cfg(not(test))]
+#[cfg(all(not(test), unix))]
 fn run_before_created_component_publish_test_hook(_name: &OsStr) {}
 
 #[cfg(test)]
@@ -1168,7 +1168,7 @@ mod imp {
             }
             let name_bytes =
                 u32::from_ne_bytes(buffer[8..12].try_into().expect("fixed slice")) as usize;
-            if name_bytes % 2 != 0 || 12usize.saturating_add(name_bytes) > information {
+            if !name_bytes.is_multiple_of(2) || 12usize.saturating_add(name_bytes) > information {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     "NtQueryDirectoryFile returned an invalid filename length",
