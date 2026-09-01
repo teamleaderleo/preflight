@@ -295,13 +295,22 @@ final class WindowsDesktopSmokeDriver implements DesktopSmokeDriver {
         if (!(install instanceof String value) || value.isBlank()) {
             throw new UnavailableException("run.json doesn't identify the Starsector installation");
         }
-        Path source = Path.of(value).toAbsolutePath().normalize().resolve("logs/starsector.log");
-        if (!Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) {
+        Path source = resolveGameLog(Path.of(value).toAbsolutePath().normalize());
+        if (source == null) {
             throw new UnavailableException("The current Starsector log is unavailable");
         }
         Path destination = runDirectory.resolve("desktop-smoke-log-tail.txt");
         copyTail(source, destination, LOG_TAIL_BYTES);
         return new Artifact("log-tail", destination);
+    }
+
+    static Path resolveGameLog(Path installRoot) {
+        for (String relative : List.of(
+                "starsector-core/starsector.log", "starsector.log", "logs/starsector.log")) {
+            Path candidate = installRoot.resolve(relative).normalize();
+            if (Files.isRegularFile(candidate, LinkOption.NOFOLLOW_LINKS)) return candidate;
+        }
+        return null;
     }
 
     private static Artifact snapshotArtifact(

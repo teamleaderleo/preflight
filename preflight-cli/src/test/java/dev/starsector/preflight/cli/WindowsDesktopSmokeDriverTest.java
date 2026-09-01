@@ -1,9 +1,11 @@
 package dev.starsector.preflight.cli;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -37,6 +39,16 @@ final class WindowsDesktopSmokeDriverTest {
     void invalidPidsNeverReachPowerShell() {
         assertThrows(IllegalArgumentException.class,
                 () -> WindowsDesktopSmokeDriver.windowScript(0, "test"));
+    }
+
+    @Test
+    void resolvesTheInstalledWindowsCoreLog() throws Exception {
+        Path install = temporaryDirectory.resolve("game");
+        Path log = install.resolve("starsector-core/starsector.log");
+        Files.createDirectories(log.getParent());
+        Files.writeString(log, "current");
+
+        assertEquals(log, WindowsDesktopSmokeDriver.resolveGameLog(install));
     }
 
     @Test
