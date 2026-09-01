@@ -55,3 +55,29 @@ Primary evidence:
 `doctor` also reports that the developer checkout has no installed `~/.local/bin/preflight`
 wrapper or desktop entry. That is an installation/packaging state, not a launch-readiness failure;
 the candidate JAR itself completed the full direct-launch flow above.
+
+## 2026-09-02 current-main confirmation
+
+Big Red pulled current `main` after the Windows integration work and rebuilt the engine natively.
+The checkout JAR SHA-256 was
+`e7409172bf7f44d7bee1795695fab9510d5f8f8b07acdf4cbdc0f07eab915f1c`. A direct desktop launch
+reached the main-menu boundary in 23.206 seconds and exited cleanly. Its adapter applied 23 of 23
+exact matches with zero source-binding rejects, declines, or contained failures. Evidence:
+`/home/leo/.starsector-preflight/benchmarks/20260902-025914`. A preceding SSH-only attempt is
+retained as an excluded headless run at `20260902-025818`; it raised `HeadlessException` because it
+did not inherit Big Red's active GNOME display and is not a product result.
+
+The native Linux desktop package lifecycle also passed after installing the same host dependencies
+used by the repository workflows and setting their documented AppImage environment:
+`APPIMAGE_EXTRACT_AND_RUN=1` plus the bounded engine `runtime/lib/server` directory in
+`LD_LIBRARY_PATH`. The Debian package was 45,865,436 bytes, exposed 170 inspected entries, retained
+108 runtime files totaling 52,389,105 bytes with no changes, passed engine smoke, installed, and
+removed cleanly. The AppImage was 130,472,440 bytes, exposed 757 inspected entries, retained 108
+runtime files totaling 52,408,937 bytes, and passed engine smoke. Its only changed runtime paths
+were the three already reviewed `linuxdeploy` rewrites: `lib/jexec`, `lib/jspawnhelper`, and
+`lib/server/libjvm.so`.
+
+Finally, the packaged AppImage was launched on Big Red's active desktop. The window manager
+observed a real `Preflight` window owned by `starsector-preflight-desktop`; closing that exact
+window removed both the AppImage wrapper and application process. Fast Rendering is not part of
+the Linux acceptance matrix because its upstream project explicitly targets Windows.
