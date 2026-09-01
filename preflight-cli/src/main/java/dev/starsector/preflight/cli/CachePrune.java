@@ -113,6 +113,7 @@ final class CachePrune {
         removals.addAll(byFingerprint(TextureManifestIO.directory(cache), ".spfm", survivors));
         removals.addAll(byFingerprint(MinimalPreparationMarker.directory(cache), ".spmn", survivors));
         removals.addAll(byFingerprint(TexturePreparationReceipt.directory(cache), ".sptp", survivors));
+        removals.addAll(byFingerprint(TexturePreparationReceipt.directory(cache), ".sptq", survivors));
         removals.addAll(byFingerprint(LaunchProfileSelectionReceipt.directory(cache), ".spls", survivors));
         removals.addAll(byFingerprint(PreparedTexturePackIO.directory(cache), ".spfp", survivors));
         removals.addAll(byFingerprint(PreparedTexturePackIO.directory(cache), ".spfo", survivors));

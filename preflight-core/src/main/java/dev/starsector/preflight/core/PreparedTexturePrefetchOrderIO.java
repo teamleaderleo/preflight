@@ -14,7 +14,7 @@ public final class PreparedTexturePrefetchOrderIO {
         Path accessOrder = PreparedTextureAccessOrderIO.path(cacheRoot, profileFingerprint);
         String name = accessOrder.getFileName().toString();
         return accessOrder.resolveSibling(
-                name.substring(0, name.length() - ".spta".length()) + ".sptp");
+                name.substring(0, name.length() - ".spta".length()) + ".sptq");
     }
 
     public static void write(
