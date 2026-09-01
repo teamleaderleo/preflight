@@ -9,6 +9,7 @@ import java.awt.image.BufferedImage;
 import java.lang.reflect.Method;
 import java.util.LinkedList;
 import java.util.List;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
@@ -22,6 +23,11 @@ import org.objectweb.asm.tree.MethodNode;
 class TexturePreparedPrefetchPlanTest {
     private static final String IMAGE_QUEUE = "imageQueue";
     private static final String ENQUEUE = "enqueueImage";
+
+    @AfterEach
+    void clearWorkerProperty() {
+        System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_WORKERS_PROPERTY);
+    }
 
     @Test
     void deduplicatesPreparedEnqueuesAndFeedsTheOriginalWorkerDecoder() throws Exception {
@@ -76,6 +82,32 @@ class TexturePreparedPrefetchPlanTest {
                 ClassSignature.parse(transformed), transformed));
     }
 
+    @Test
+    void rewritesTheExactStartAndStopMethodsForThreeRaceFreeWorkers() throws Exception {
+        System.setProperty(TexturePreparedPrefetchPlan.WINDOWS_WORKERS_PROPERTY, "3");
+        byte[] original = syntheticPrefetcher();
+
+        byte[] transformed = TexturePreparedPrefetchPlan.transform(
+                ClassSignature.parse(original), original);
+
+        assertNotNull(transformed);
+        ClassNode parsed = parse(transformed);
+        assertEquals(
+                List.of("start"),
+                calls(method(parsed, TexturePreparedPrefetchPlan.START_METHOD, "()V"))
+                        .stream()
+                        .filter(call -> call.owner.contains("PrefetchPoolRuntime"))
+                        .map(call -> call.name)
+                        .toList());
+        assertEquals(
+                List.of("stop"),
+                calls(method(parsed, TexturePreparedPrefetchPlan.STOP_METHOD, "()V"))
+                        .stream()
+                        .filter(call -> call.owner.contains("PrefetchPoolRuntime"))
+                        .map(call -> call.name)
+                        .toList());
+    }
+
     private static Class<?> loadRedirected(byte[] transformed) throws Exception {
         ClassNode node = parse(transformed);
         String runtime = TexturePreparedPixelRuntime.class.getName().replace('.', '/');
@@ -126,6 +158,16 @@ class TexturePreparedPrefetchPlanTest {
                 "Ljava/util/List;",
                 null,
                 null).visitEnd();
+        writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                "imageResults", "Ljava/util/Map;", null, null).visitEnd();
+        writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                "imageMarker", "Ljava/awt/image/BufferedImage;", null, null).visitEnd();
+        writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                "byteQueue", "Ljava/util/List;", null, null).visitEnd();
+        writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                "byteResults", "Ljava/util/Map;", null, null).visitEnd();
+        writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                "byteMarker", "[B", null, null).visitEnd();
 
         MethodVisitor init = writer.visitMethod(
                 Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
@@ -134,6 +176,31 @@ class TexturePreparedPrefetchPlanTest {
         init.visitInsn(Opcodes.DUP);
         init.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/util/LinkedList", "<init>", "()V", false);
         init.visitFieldInsn(Opcodes.PUTSTATIC, owner, IMAGE_QUEUE, "Ljava/util/List;");
+        init.visitTypeInsn(Opcodes.NEW, "java/util/concurrent/ConcurrentHashMap");
+        init.visitInsn(Opcodes.DUP);
+        init.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/util/concurrent/ConcurrentHashMap",
+                "<init>", "()V", false);
+        init.visitFieldInsn(Opcodes.PUTSTATIC, owner, "imageResults", "Ljava/util/Map;");
+        init.visitTypeInsn(Opcodes.NEW, "java/awt/image/BufferedImage");
+        init.visitInsn(Opcodes.DUP);
+        init.visitInsn(Opcodes.ICONST_1);
+        init.visitInsn(Opcodes.ICONST_1);
+        init.visitInsn(Opcodes.ICONST_2);
+        init.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/awt/image/BufferedImage",
+                "<init>", "(III)V", false);
+        init.visitFieldInsn(Opcodes.PUTSTATIC, owner, "imageMarker", "Ljava/awt/image/BufferedImage;");
+        init.visitTypeInsn(Opcodes.NEW, "java/util/LinkedList");
+        init.visitInsn(Opcodes.DUP);
+        init.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/util/LinkedList", "<init>", "()V", false);
+        init.visitFieldInsn(Opcodes.PUTSTATIC, owner, "byteQueue", "Ljava/util/List;");
+        init.visitTypeInsn(Opcodes.NEW, "java/util/concurrent/ConcurrentHashMap");
+        init.visitInsn(Opcodes.DUP);
+        init.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/util/concurrent/ConcurrentHashMap",
+                "<init>", "()V", false);
+        init.visitFieldInsn(Opcodes.PUTSTATIC, owner, "byteResults", "Ljava/util/Map;");
+        init.visitInsn(Opcodes.ICONST_0);
+        init.visitIntInsn(Opcodes.NEWARRAY, Opcodes.T_BYTE);
+        init.visitFieldInsn(Opcodes.PUTSTATIC, owner, "byteMarker", "[B");
         init.visitInsn(Opcodes.RETURN);
         init.visitMaxs(0, 0);
         init.visitEnd();
@@ -149,6 +216,13 @@ class TexturePreparedPrefetchPlanTest {
         consumer.visitVarInsn(Opcodes.ALOAD, 0);
         consumer.visitMethodInsn(Opcodes.INVOKEINTERFACE, "java/util/List",
                 "contains", "(Ljava/lang/Object;)Z", true);
+        consumer.visitInsn(Opcodes.POP);
+        consumer.visitFieldInsn(Opcodes.GETSTATIC, owner, "imageResults", "Ljava/util/Map;");
+        consumer.visitVarInsn(Opcodes.ALOAD, 0);
+        consumer.visitMethodInsn(Opcodes.INVOKEINTERFACE, "java/util/Map",
+                "get", "(Ljava/lang/Object;)Ljava/lang/Object;", true);
+        consumer.visitInsn(Opcodes.POP);
+        consumer.visitFieldInsn(Opcodes.GETSTATIC, owner, "imageMarker", "Ljava/awt/image/BufferedImage;");
         consumer.visitInsn(Opcodes.POP);
         consumer.visitInsn(Opcodes.ACONST_NULL);
         consumer.visitInsn(Opcodes.ARETURN);
@@ -188,6 +262,41 @@ class TexturePreparedPrefetchPlanTest {
         decode.visitInsn(Opcodes.ARETURN);
         decode.visitMaxs(0, 0);
         decode.visitEnd();
+
+        MethodVisitor byteDecode = writer.visitMethod(
+                Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC,
+                "decodeBytes",
+                "(Ljava/lang/String;)[B",
+                null,
+                new String[] {"java/io/IOException"});
+        byteDecode.visitCode();
+        byteDecode.visitInsn(Opcodes.ICONST_0);
+        byteDecode.visitIntInsn(Opcodes.NEWARRAY, Opcodes.T_BYTE);
+        byteDecode.visitInsn(Opcodes.ARETURN);
+        byteDecode.visitMaxs(0, 0);
+        byteDecode.visitEnd();
+
+        MethodVisitor start = writer.visitMethod(
+                Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                TexturePreparedPrefetchPlan.START_METHOD,
+                "()V",
+                null,
+                null);
+        start.visitCode();
+        start.visitInsn(Opcodes.RETURN);
+        start.visitMaxs(0, 0);
+        start.visitEnd();
+
+        MethodVisitor stop = writer.visitMethod(
+                Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                TexturePreparedPrefetchPlan.STOP_METHOD,
+                "()V",
+                null,
+                null);
+        stop.visitCode();
+        stop.visitInsn(Opcodes.RETURN);
+        stop.visitMaxs(0, 0);
+        stop.visitEnd();
 
         writer.visitEnd();
         return writer.toByteArray();

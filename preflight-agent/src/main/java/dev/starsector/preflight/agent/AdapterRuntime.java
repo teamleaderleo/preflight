@@ -34,6 +34,7 @@ final class AdapterRuntime {
         TextureCompatibilityRuntime.beginSession();
         TextureAccessLearningRuntime.beginSession();
         TexturePreparedPixelRuntime.beginSession();
+        TexturePreparedPrefetchPoolRuntime.beginSession();
         TextureUploadProbeRuntime.beginSession(
                 sibling(options.adapterReport(), "texture-upload-probe.json"));
         TexturePaddingRuntime.beginSession();

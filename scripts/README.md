@@ -41,6 +41,9 @@ against the rejected exact Windows bypass; the bypass remains absent from ordina
 use either probe's startup numbers as a performance claim. `-WindowsPreparedPrefetchProbe` is the
 separate successor experiment: it keeps Starsector's exact worker queue, deduplicates prepared
 enqueues, lets that worker build prepared carriers, and retains the original decoder on every miss.
+`-WindowsPreparedPrefetchWorkers N` is an opt-in successor to that successor: it uses race-free
+consumers for the same two exact queues and records claims, completions, failures, and worker health.
+The default remains one live worker.
 Pair it with `-WindowsUnpaddedMaxDimension N` only for the bounded llvmpipe diagnostic: textures at
 or below `N` use true-size NPOT uploads, while larger textures retain the original padded path. The
 cohort identity and adapter report retain the ceiling, declines, and padding avoided.

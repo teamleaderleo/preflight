@@ -15,6 +15,8 @@ param(
     [switch]$TextureUploadProbe,
     [switch]$WindowsPrefetchBypassProbe,
     [switch]$WindowsPreparedPrefetchProbe,
+    [ValidateRange(1, 8)]
+    [int]$WindowsPreparedPrefetchWorkers = 1,
     [ValidateRange(0, 8192)]
     [int]$WindowsUnpaddedMaxDimension = 0,
     [ValidateSet('starsector', 'preflight', 'fast-rendering', 'preflight-fast-rendering')]
@@ -140,8 +142,9 @@ function Measure-OneRun(
                     Where-Object { $_ }) -join ' ').Trim()
             }
             if ($WindowsPreparedPrefetchProbe) {
-                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
-                    '-Dpreflight.texture.windowsPreparedPrefetchProbe=true' |
+                $preparedPrefetchOptions = '-Dpreflight.texture.windowsPreparedPrefetchProbe=true ' +
+                    "-Dpreflight.texture.windowsPreparedPrefetchWorkers=$WindowsPreparedPrefetchWorkers"
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS, $preparedPrefetchOptions |
                     Where-Object { $_ }) -join ' ').Trim()
             }
             if ($WindowsUnpaddedMaxDimension -gt 0) {
@@ -396,6 +399,7 @@ $identity = [ordered]@{
     textureUploadProbe = [bool]$TextureUploadProbe
     windowsPrefetchBypassProbe = [bool]$WindowsPrefetchBypassProbe
     windowsPreparedPrefetchProbe = [bool]$WindowsPreparedPrefetchProbe
+    windowsPreparedPrefetchWorkers = $WindowsPreparedPrefetchWorkers
     windowsUnpaddedMaxDimension = $WindowsUnpaddedMaxDimension
     game = $Game
     preflightJar = $PreflightJar
