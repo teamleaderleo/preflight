@@ -1,6 +1,6 @@
 # Preflight
 
-**A free, open-source cross-platform performance launcher and mod-analysis toolkit for Starsector. On my 83-mod development setup, startup moved from 112.17 seconds to 13.69 seconds.**
+**A free, open-source cross-platform performance launcher and mod-analysis toolkit for Starsector. On my 83-mod development setup, startup moved from 112.17 seconds to 13.69 seconds — 87.8% less time, an 8.19× speedup.**
 
 > Preflight is an independent, unofficial project. It isn't affiliated with or endorsed by Fractal Softworks.
 >
