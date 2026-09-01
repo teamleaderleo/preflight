@@ -11,6 +11,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -362,7 +363,9 @@ final class WindowsDesktopSmokeDriver implements DesktopSmokeDriver {
         try {
             result = commands.run(List.of(
                     powerShell, "-NoLogo", "-NoProfile", "-NonInteractive",
-                    "-ExecutionPolicy", "Bypass", "-Command", script), COMMAND_TIMEOUT);
+                    "-ExecutionPolicy", "Bypass", "-EncodedCommand",
+                    Base64.getEncoder().encodeToString(script.getBytes(StandardCharsets.UTF_16LE))),
+                    COMMAND_TIMEOUT);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             throw interrupted;

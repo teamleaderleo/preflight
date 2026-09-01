@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -65,6 +66,10 @@ final class WindowsDesktopSmokeDriverTest {
                 script.contains("keybd_event(87,0,2")));
         assertTrue(commands.scripts().stream().allMatch(script ->
                 !script.toLowerCase(Locale.ROOT).contains("starsector")));
+        assertTrue(commands.commands().stream().allMatch(command ->
+                command.contains("-EncodedCommand") && !command.contains("-Command")));
+        assertTrue(commands.scripts().stream().allMatch(script ->
+                script.contains("[DllImport(\"user32.dll\")]")));
     }
 
     @Test
@@ -114,7 +119,15 @@ final class WindowsDesktopSmokeDriverTest {
         }
 
         private List<String> scripts() {
-            return commands.stream().map(command -> command.get(command.size() - 1)).toList();
+            return commands.stream()
+                    .map(command -> new String(
+                            Base64.getDecoder().decode(command.get(command.size() - 1)),
+                            java.nio.charset.StandardCharsets.UTF_16LE))
+                    .toList();
+        }
+
+        private List<List<String>> commands() {
+            return List.copyOf(commands);
         }
     }
 }
