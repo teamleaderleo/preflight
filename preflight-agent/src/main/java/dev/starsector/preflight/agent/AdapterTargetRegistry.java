@@ -167,6 +167,26 @@ final class AdapterTargetRegistry {
                 "app").withAlternativeGroup("vanilla-image-prefetcher-0.98a-rc8");
     }
 
+    static AdapterTarget windowsTexturePreparedPrefetchTarget() {
+        return new AdapterTarget(
+                "vanilla-image-prefetcher-windows-0.98a-rc8-prepared-worker",
+                TexturePreparedPrefetchPlan.TARGET_CLASS,
+                "9e339c5a0edadebdd81b088e0882f5a00b4696b9f5e862a9beec3ff03c439f3e",
+                TexturePreparedPrefetchPlan.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                TexturePrefetchBypassPlan.WINDOWS_CONSUMER_METHOD,
+                                TexturePrefetchBypassPlan.CONSUMER_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                TexturePreparedPrefetchPlan.DECODE_METHOD,
+                                TexturePreparedPrefetchPlan.DECODE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "fs.common_obf.jar",
+                "5a26d047baefc6dcd763121a17d170e3b864bfb19a83d11f645ba8be49f1641b",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app").withAlternativeGroup("vanilla-image-prefetcher-0.98a-rc8");
+    }
+
     /**
      * The resource resolver every load in the game goes through, game code and mod code alike.
      *
@@ -2846,11 +2866,20 @@ final class AdapterTargetRegistry {
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {
         return withTextureTarget(
-                mode, Boolean.getBoolean(TexturePrefetchBypassPlan.WINDOWS_PROBE_PROPERTY));
+                mode,
+                Boolean.getBoolean(TexturePrefetchBypassPlan.WINDOWS_PROBE_PROPERTY),
+                Boolean.getBoolean(TexturePreparedPrefetchPlan.WINDOWS_PROBE_PROPERTY));
     }
 
     AdapterTargetRegistry withTextureTarget(
             TextureAdapterMode mode, boolean includeWindowsPrefetchBypassProbe) {
+        return withTextureTarget(mode, includeWindowsPrefetchBypassProbe, false);
+    }
+
+    AdapterTargetRegistry withTextureTarget(
+            TextureAdapterMode mode,
+            boolean includeWindowsPrefetchBypassProbe,
+            boolean includeWindowsPreparedPrefetchProbe) {
         // Both cache-backed modes read through the same manifest, so both want the prefetcher to
         // stop queueing what that manifest can serve.
         AdapterTargetRegistry registry = withTarget(mode == TextureAdapterMode.PREPARED_PIXELS
@@ -2866,7 +2895,9 @@ final class AdapterTargetRegistry {
         // The exact Windows shape is reviewed, tested, and diagnosed. It remains absent by default;
         // this explicit discovery gate exists only to compare upload attribution against the safe
         // stock queue without turning a rejected llvmpipe experiment into product behavior.
-        if (includeWindowsPrefetchBypassProbe) {
+        if (includeWindowsPreparedPrefetchProbe) {
+            registry = registry.withTarget(windowsTexturePreparedPrefetchTarget());
+        } else if (includeWindowsPrefetchBypassProbe) {
             registry = registry.withTarget(windowsTexturePrefetchBypassTarget());
         }
         registry = registry

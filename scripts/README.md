@@ -38,7 +38,9 @@ the shipped `recommended` preset. Pass `-TextureUploadProbe` only for intrusive 
 times the exact reviewed stock `glTexImage2D`/`glTexSubImage2D` calls and retains bounded top
 offenders in adapter telemetry. Add `-WindowsPrefetchBypassProbe` only to compare that attribution
 against the rejected exact Windows bypass; the bypass remains absent from ordinary launches. Do not
-use either probe's startup numbers as a performance claim.
+use either probe's startup numbers as a performance claim. `-WindowsPreparedPrefetchProbe` is the
+separate successor experiment: it keeps Starsector's exact worker queue, deduplicates prepared
+enqueues, lets that worker build prepared carriers, and retains the original decoder on every miss.
 
 `run-windows-gameplay-scenario.ps1` is the reviewable interactive-session entry point for the same
 checked-in gameplay scenarios used on macOS and Linux. It defaults to the optimized Lindsey

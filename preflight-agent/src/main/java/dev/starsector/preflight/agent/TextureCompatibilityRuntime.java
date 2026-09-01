@@ -203,38 +203,18 @@ public final class TextureCompatibilityRuntime {
      * prefetched exactly as it always was.
      */
     public static boolean prefetchRedundant(String logicalPath) {
-        State current = state;
-        if (!current.ready || current.circuitBreaker.get()) {
-            return false;
-        }
-        // Taking a path off the game's queue means this cache answers for it, so whatever it
-        // answers with has to be readable by every consumer, not just the rewritten conversion.
-        // This is why prepared-pixel mode stopped serving token carriers; the check stays because
-        // it is the thing that would have to be re-satisfied before any future mode serves one.
-        if (TexturePreparedPixelRuntime.servesUnreadableCarriers()) {
-            return false;
-        }
         try {
-            String normalized;
-            try {
-                normalized = ResourceIndex.normalizeLogicalPath(logicalPath);
-            } catch (IllegalArgumentException error) {
-                TELEMETRY.prefetchKept();
-                return false;
-            }
-            // GraphicsLib's generated normal/surface cache is mutable runtime output, not immutable
-            // game/mod input. Taking these paths off the original queue made Windows eagerly upload
-            // more than six thousand generated textures that its safe path never loaded before the
-            // interactive menu. Keep the entire generated namespace on the game's original path.
-            if (generatedCachePath(normalized)) {
-                TELEMETRY.prefetchKeptGenerated();
-                TELEMETRY.prefetchKept();
-                return false;
-            }
-            TextureManifest.Entry entry = current.manifest.entry(normalized).orElse(null);
-            // Only an identity entry is servable by load(); anything else falls back, and a path
-            // that is going to fall back is better left prefetched than decoded on the loader.
-            if (entry == null || entry.transformation() != PreparedTexture.Transformation.IDENTITY) {
+            String normalized = preparedPrefetchKey(logicalPath);
+            if (normalized == null) {
+                try {
+                    normalized = ResourceIndex.normalizeLogicalPath(logicalPath);
+                } catch (IllegalArgumentException error) {
+                    TELEMETRY.prefetchKept();
+                    return false;
+                }
+                if (generatedCachePath(normalized)) {
+                    TELEMETRY.prefetchKeptGenerated();
+                }
                 TELEMETRY.prefetchKept();
                 return false;
             }
@@ -246,6 +226,31 @@ public final class TextureCompatibilityRuntime {
             internalFailure();
             return false;
         }
+    }
+
+    /** Returns the normalized exact prepared key a worker may serve, without changing telemetry. */
+    static String preparedPrefetchKey(String logicalPath) {
+        State current = state;
+        if (!current.ready
+                || current.circuitBreaker.get()
+                || TexturePreparedPixelRuntime.servesUnreadableCarriers()) {
+            return null;
+        }
+        String normalized;
+        try {
+            normalized = ResourceIndex.normalizeLogicalPath(logicalPath);
+        } catch (IllegalArgumentException error) {
+            return null;
+        }
+        // GraphicsLib's generated normal/surface cache is mutable runtime output, not immutable
+        // game/mod input. Never let a prepared worker eagerly materialize that namespace.
+        if (generatedCachePath(normalized)) {
+            return null;
+        }
+        TextureManifest.Entry entry = current.manifest.entry(normalized).orElse(null);
+        return entry != null && entry.transformation() == PreparedTexture.Transformation.IDENTITY
+                ? normalized
+                : null;
     }
 
     static boolean generatedCachePath(String normalizedLogicalPath) {

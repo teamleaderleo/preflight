@@ -15,11 +15,13 @@ import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Runtime bridge for upload-ready SPFT pixels with bounded direct-buffer ownership. */
@@ -39,6 +41,7 @@ public final class TexturePreparedPixelRuntime {
     private static final Object LOCK = new Object();
     private static final IdentityHashMap<ByteBuffer, ActiveBuffer> ACTIVE = new IdentityHashMap<>();
     private static final IdentityHashMap<Thread, ArrayDeque<ByteBuffer>> IN_FLIGHT = new IdentityHashMap<>();
+    private static final Set<String> PREFETCH_QUEUED = new HashSet<>();
     private static final Telemetry TELEMETRY = new Telemetry();
     private static final SeamTimer LOAD_CLOCK = new SeamTimer();
     private static final SeamTimer PREPARE_CLOCK = new SeamTimer();
@@ -55,6 +58,7 @@ public final class TexturePreparedPixelRuntime {
         synchronized (LOCK) {
             ACTIVE.clear();
             IN_FLIGHT.clear();
+            PREFETCH_QUEUED.clear();
             activeBytes = 0;
             peakBytes = 0;
             pendingBuffers = 0;
@@ -104,6 +108,40 @@ public final class TexturePreparedPixelRuntime {
         } finally {
             LOAD_CLOCK.exit(entry);
         }
+    }
+
+    /** Keeps only the first exact prepared enqueue; ordinary and generated paths stay untouched. */
+    public static boolean shouldQueuePreparedPrefetch(String logicalPath) {
+        String key = TextureCompatibilityRuntime.preparedPrefetchKey(logicalPath);
+        if (key == null) {
+            TELEMETRY.prefetchOriginalEnqueue();
+            return true;
+        }
+        boolean first;
+        synchronized (LOCK) {
+            first = PREFETCH_QUEUED.add(key);
+        }
+        if (first) {
+            TELEMETRY.prefetchPreparedEnqueue();
+            return true;
+        }
+        TELEMETRY.prefetchDuplicateDecline();
+        return false;
+    }
+
+    /** Supplies a worker-owned carrier, or null so the exact original image decoder runs. */
+    public static BufferedImage prefetchLoad(String logicalPath) {
+        if (TextureCompatibilityRuntime.preparedPrefetchKey(logicalPath) == null) {
+            TELEMETRY.prefetchOriginalDecode();
+            return null;
+        }
+        BufferedImage image = load(logicalPath);
+        if (image == null) {
+            TELEMETRY.prefetchOriginalDecode();
+        } else {
+            TELEMETRY.prefetchPreparedHit();
+        }
+        return image;
     }
 
     private static BufferedImage carrierFor(String logicalPath) {
@@ -881,6 +919,11 @@ public final class TexturePreparedPixelRuntime {
         private long bytesBypassed;
         private long uploadBytesSupplied;
         private long releasedBytes;
+        private long prefetchPreparedEnqueues;
+        private long prefetchOriginalEnqueues;
+        private long prefetchDuplicateDeclines;
+        private long prefetchPreparedHits;
+        private long prefetchOriginalDecodes;
         private final List<Map<String, Object>> originalLayoutObservations = new ArrayList<>();
 
         synchronized void reset() {
@@ -906,6 +949,11 @@ public final class TexturePreparedPixelRuntime {
             bytesBypassed = 0;
             uploadBytesSupplied = 0;
             releasedBytes = 0;
+            prefetchPreparedEnqueues = 0;
+            prefetchOriginalEnqueues = 0;
+            prefetchDuplicateDeclines = 0;
+            prefetchPreparedHits = 0;
+            prefetchOriginalDecodes = 0;
             originalLayoutObservations.clear();
         }
 
@@ -992,6 +1040,26 @@ public final class TexturePreparedPixelRuntime {
             releasedBytes = saturatedAdd(releasedBytes, bytes);
         }
 
+        synchronized void prefetchPreparedEnqueue() {
+            prefetchPreparedEnqueues++;
+        }
+
+        synchronized void prefetchOriginalEnqueue() {
+            prefetchOriginalEnqueues++;
+        }
+
+        synchronized void prefetchDuplicateDecline() {
+            prefetchDuplicateDeclines++;
+        }
+
+        synchronized void prefetchPreparedHit() {
+            prefetchPreparedHits++;
+        }
+
+        synchronized void prefetchOriginalDecode() {
+            prefetchOriginalDecodes++;
+        }
+
         synchronized Map<String, Object> snapshot(
                 long activeDirectBytes,
                 long peakDirectBytes,
@@ -1032,6 +1100,11 @@ public final class TexturePreparedPixelRuntime {
             values.put("bytesBypassed", bytesBypassed);
             values.put("uploadBytesSupplied", uploadBytesSupplied);
             values.put("releasedBytes", releasedBytes);
+            values.put("prefetchPreparedEnqueues", prefetchPreparedEnqueues);
+            values.put("prefetchOriginalEnqueues", prefetchOriginalEnqueues);
+            values.put("prefetchDuplicateDeclines", prefetchDuplicateDeclines);
+            values.put("prefetchPreparedHits", prefetchPreparedHits);
+            values.put("prefetchOriginalDecodes", prefetchOriginalDecodes);
             values.put("activeDirectBytes", activeDirectBytes);
             values.put("peakDirectBytes", peakDirectBytes);
             values.put("activeBuffers", activeBuffers);

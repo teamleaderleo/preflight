@@ -77,6 +77,7 @@ final class AdapterPlanCatalog {
             TacticalFleetAiTimeRuntime.PLAN_ID,
             TextureCompatibilityRuntime.PLAN_ID,
             TexturePrefetchBypassPlan.PLAN_ID,
+            TexturePreparedPrefetchPlan.PLAN_ID,
             TexturePreparedPixelRuntime.PLAN_ID,
             VariantJsonCacheRuntime.PLAN_ID,
             VersionCheckResponseDedupRuntime.PLAN_ID,

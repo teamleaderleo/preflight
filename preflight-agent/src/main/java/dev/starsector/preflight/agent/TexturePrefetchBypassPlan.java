@@ -95,7 +95,7 @@ final class TexturePrefetchBypassPlan {
     }
 
     /** The static {@code List} field whose membership the decoded-image consumer tests first. */
-    private static String imageQueueField(ClassNode owner) {
+    static String imageQueueField(ClassNode owner) {
         for (MethodNode method : owner.methods) {
             if (!(CONSUMER_METHOD.equals(method.name)
                             || WINDOWS_CONSUMER_METHOD.equals(method.name))
@@ -134,7 +134,7 @@ final class TexturePrefetchBypassPlan {
      * <p>Requiring the whole body to match, and requiring exactly one match, is what makes dropping
      * the call safe: a method that also did something else would lose that something else.
      */
-    private static MethodNode soleEnqueueOf(ClassNode owner, String queueField) {
+    static MethodNode soleEnqueueOf(ClassNode owner, String queueField) {
         MethodNode found = null;
         for (MethodNode method : owner.methods) {
             if (!ENQUEUE_DESCRIPTOR.equals(method.desc)

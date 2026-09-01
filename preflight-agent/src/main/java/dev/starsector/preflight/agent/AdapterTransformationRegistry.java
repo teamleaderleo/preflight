@@ -24,6 +24,11 @@ final class AdapterTransformationRegistry {
             }
             return withFoldBypass(TexturePreparedPixelPlan.transform(signature, originalBytes));
         }
+        if (TexturePreparedPrefetchPlan.PLAN_ID.equals(target.planId())) {
+            return TexturePreparedPixelRuntime.ready()
+                    ? TexturePreparedPrefetchPlan.transform(signature, originalBytes)
+                    : null;
+        }
         // Gated on the compatibility runtime because the predicate it installs reads that manifest.
         // Without a ready cache the bypass would drop prefetches it cannot replace.
         if (TexturePrefetchBypassPlan.PLAN_ID.equals(target.planId())) {
@@ -842,6 +847,9 @@ final class AdapterTransformationRegistry {
         }
         if (TexturePrefetchBypassPlan.PLAN_ID.equals(planId)) {
             return TextureCompatibilityRuntime.ready();
+        }
+        if (TexturePreparedPrefetchPlan.PLAN_ID.equals(planId)) {
+            return TexturePreparedPixelRuntime.ready();
         }
         if (TexturePaddingRuntime.PLAN_ID.equals(planId)) {
             return TexturePaddingRuntime.ready();

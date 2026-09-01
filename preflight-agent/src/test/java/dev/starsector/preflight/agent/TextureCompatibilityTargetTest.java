@@ -110,6 +110,24 @@ class TextureCompatibilityTargetTest {
     }
 
     @Test
+    void windowsPreparedPrefetchTargetPinsTheWorkerDecoderAndConsumer() {
+        AdapterTarget target = AdapterTargetRegistry.windowsTexturePreparedPrefetchTarget();
+        ClassSignature exactClass = signature(target, target.sha256(), target.requiredMethods());
+        AdapterSourceIdentity exactSource = source(
+                target.sourceKind(),
+                "C:/Games/Starsector/starsector-core/fs.common_obf.jar",
+                target.sourceSha256(),
+                target.loaderClass(),
+                target.loaderName());
+
+        assertEquals(TexturePreparedPrefetchPlan.PLAN_ID, target.planId());
+        assertEquals(2, target.requiredMethods().size());
+        assertEquals(TexturePreparedPrefetchPlan.DECODE_METHOD,
+                target.requiredMethods().get(1).name());
+        assertTrue(target.match(exactClass, exactSource).exact());
+    }
+
+    @Test
     void preparedTextureRegistryKeepsTheReviewedWindowsPrefetchBypassFailClosed() {
         AdapterTarget expected = AdapterTargetRegistry.windowsTexturePrefetchBypassTarget();
 
@@ -123,6 +141,18 @@ class TextureCompatibilityTargetTest {
                 .targets()
                 .stream()
                 .anyMatch(target -> expected.id().equals(target.id())));
+    }
+
+    @Test
+    void preparedWorkerProbeIsExplicitAndSupersedesTheRejectedBypassProbe() {
+        AdapterTarget worker = AdapterTargetRegistry.windowsTexturePreparedPrefetchTarget();
+        AdapterTarget bypass = AdapterTargetRegistry.windowsTexturePrefetchBypassTarget();
+        List<AdapterTarget> selected = AdapterTargetRegistry.empty()
+                .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS, true, true)
+                .targets();
+
+        assertTrue(selected.stream().anyMatch(target -> worker.id().equals(target.id())));
+        assertFalse(selected.stream().anyMatch(target -> bypass.id().equals(target.id())));
     }
 
     private static void assertExactIdentity(AdapterTarget target, String planId) {
