@@ -54,6 +54,52 @@
         "bigRedPath": "/home/leo/Windows-Share/Diagnostics/20260901-windows-preflight-campaign/lindsey-campaign.png",
         "sha256": "f5677d25f3f44e1820dd7364ca5e165e221b29a77e17e0e973ba0ecc1328c849"
       }
+    },
+    "windowsExactAdapterRepair": {
+      "pullRequest": 1201,
+      "firstLiveCandidate": {
+        "runDirectory": "C:\\Users\\Leo\\Documents\\Starsector Preflight Runs\\20260901-122243-preflight-lindsey-windows-core",
+        "preflightJarSha256": "c3be23d64289ebe21a009f8a1420402eaf31452be6ccc9afd10f7081fc401435",
+        "pid": 9764,
+        "startedAt": "2026-09-01T16:23:24.387Z",
+        "exactGameplayTargets": 4,
+        "result": "Lindsey save loaded paused and campaign frames were classified",
+        "campaignPaused": {
+          "frames": 3623,
+          "medianFrameMs": 29.1,
+          "p95FrameMs": 51.2,
+          "p99FrameMs": 138.7,
+          "onePercentLowFps": 7.21,
+          "over50Millis": 193,
+          "over100Millis": 79,
+          "claimEligible": false,
+          "reason": "Windows VM uses Mesa llvmpipe; compatibility evidence only"
+        },
+        "controlFinding": "title-demo combat overwrote the controller state without the Windows interactive-title hook"
+      },
+      "installedCoreTests": {
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skips": 0
+      },
+      "automatedPausedUnpaused": {
+        "sampledAttempt": {
+          "runDirectory": "C:\\Users\\Leo\\Documents\\Starsector Preflight Runs\\20260901-124320-lindsey-paused-unpaused-automated",
+          "status": "rejected",
+          "reason": "sampled JFR launch exceeded the 180-second main-menu deadline while the llvmpipe VM was still loading textures",
+          "actionRequestsIssued": 0
+        },
+        "thinAttempt": {
+          "runDirectory": "C:\\Users\\Leo\\Documents\\Starsector Preflight Runs\\20260901-124848-lindsey-paused-unpaused-thin",
+          "status": "rejected",
+          "mainMenuInteractiveObserved": true,
+          "continueRequestStatus": "failed",
+          "reason": "the exact Windows title hook fired, but the control runtime still admitted only the pinned macOS title identity",
+          "failure": "IllegalStateException: title-class-mismatch",
+          "campaignActionsAccepted": 0
+        }
+      }
     }
   },
   "saveCorpus": {

@@ -29,9 +29,10 @@ is `20260901-155000-preflight-lindsey`; exact PID 1052 started at
 That run isolated the semantic-state cause. The adapter loaded the exact plan inventory, but its
 diagnostics declined the Windows `CampaignState` and neighboring vanilla targets because their
 code source ended in `C:/Games/Starsector/starsector-core/starfarer_obf.jar` instead of the pinned
-macOS suffix `contents/resources/java/starfarer_obf.jar`. The archive SHA and exact class identity
-otherwise matched. This is a Windows source-binding compatibility defect; save loading and gameplay
-were successful.
+macOS suffix `contents/resources/java/starfarer_obf.jar`. Deeper inspection corrected the initial
+diagnosis: Windows also carries a distinct core-archive SHA, `CampaignState` class SHA, and
+obfuscated input-batch descriptor. This is an exact Windows adapter-identity gap, not a path-only
+normalization bug; save loading and gameplay were successful.
 
 The retained all-active frame population is diagnostic only. It mixes startup, menu, and campaign
 under Mesa llvmpipe because the missed semantic transitions prevented phase classification. Its
@@ -41,6 +42,42 @@ performance claims and are not representative of hardware rendering.
 Artifacts remain on Big Red under
 `/home/leo/Windows-Share/Diagnostics/20260901-windows-preflight-campaign`. The campaign screenshot
 SHA-256 is `afca1675a78cfdf8986e59ed2fb227320b0c723e5fff5445c2a7cbe66ff058da`.
+
+## Exact Windows gameplay adapter repair
+
+PR #1201 adds reviewed Windows 0.98a-RC8 alternatives for the campaign state, frame limiter,
+combat engine, combat input boundary, and interactive title overlay. Every alternative keeps the
+exact Windows core-archive SHA, class SHA, method descriptor, application classloader, and platform
+alternative group. It does not weaken the existing macOS or Linux gates. Five installed-core tests
+exercise the real Windows archive without launching the game; all passed without skips, failures,
+or errors, and the full Maven verification suite passed.
+
+The first live candidate run used JAR SHA-256
+`c3be23d64289ebe21a009f8a1420402eaf31452be6ccc9afd10f7081fc401435` and exact game PID 9764,
+started at `2026-09-01T16:23:24.387Z`. All four gameplay targets present in that candidate matched
+and transformed. After Continue loaded `save_LindseyEulalia_1276093397646055078`, the recorder
+classified 3,623 paused campaign frames instead of zero. The paused population had a 29.1 ms
+median, 51.2 ms p95, 138.7 ms p99, 7.21 FPS 1% low, 193 frames over 50 ms, and 79 over 100 ms.
+Those values are **compatibility evidence only**: the VM uses llvmpipe and is not a hardware-FPS
+claim.
+
+That run also exposed a separate control-state race. Windows' decorative title-screen battle
+entered `CombatState` before the Mac/Linux-only interactive-title hook could claim menu ownership,
+so the controller file said `combat-ready` while the real Lindsey campaign and the frame recorder
+were correctly paused-campaign active. The follow-up candidate binds the exact Windows title
+overlay, publishes `main-menu-interactive`, and retains title-demo combat as non-actionable menu
+telemetry. The automated paused/unpaused Lindsey scenario is the acceptance check for that
+follow-up; its result belongs here even if it rejects the candidate. The first unattended attempt
+did reject: the sampled/JFR scenario reached its 180-second menu deadline while the llvmpipe VM was
+still loading textures, and the controller stopped the exact game PID without issuing an action.
+That is a discovery-instrumentation timeout, not a failed title hook or an FPS result. A second pass
+uses the existing non-JFR optimized scenario so the compatibility check is not decided by intrusive
+startup overhead. That thin run did reach `main-menu-interactive`, proving the exact Windows title
+transform on the installed game, but its Continue request failed closed with
+`IllegalStateException: title-class-mismatch`. No campaign action or FPS claim was accepted. The
+control runtime had retained the exact macOS title identity even though the transformer admitted
+the separately pinned Windows identity. The next candidate makes those two reviewed identities
+explicit at the control boundary; unknown and Linux title identities still decline.
 
 ## Curated save corpus
 

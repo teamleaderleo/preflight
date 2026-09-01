@@ -909,7 +909,7 @@ public final class InternalGameControlRuntime {
     }
 
     private static void invokeContinue(Object title) throws ReflectiveOperationException {
-        if (!MainMenuInteractivePlan.TARGET_CLASS.replace('/', '.').equals(title.getClass().getName())) {
+        if (!supportedTitleClassName(title.getClass().getName())) {
             throw new IllegalStateException("title-class-mismatch");
         }
         Object menu = invoke(title.getClass().getMethod("getMainMenu"), title);
@@ -934,6 +934,11 @@ public final class InternalGameControlRuntime {
         if (selectionMethods.length != 1) throw new IllegalStateException("title-action-shape-mismatch");
         Object continueAction = enumValue(selectionMethods[0].getParameterTypes()[0], "CONTINUE");
         invoke(selectionMethods[0], callback, continueAction);
+    }
+
+    static boolean supportedTitleClassName(String className) {
+        return MainMenuInteractivePlan.TARGET_CLASS.replace('/', '.').equals(className)
+                || MainMenuInteractivePlan.WINDOWS_TARGET_CLASS.replace('/', '.').equals(className);
     }
 
     private static Object invoke(Method method, Object receiver, Object... arguments)

@@ -79,6 +79,17 @@ final class InternalGameControlRuntimeTest {
     }
 
     @Test
+    void acceptsOnlyReviewedMacAndWindowsTitleClassNames() {
+        assertTrue(InternalGameControlRuntime.supportedTitleClassName(
+                MainMenuInteractivePlan.TARGET_CLASS.replace('/', '.')));
+        assertTrue(InternalGameControlRuntime.supportedTitleClassName(
+                MainMenuInteractivePlan.WINDOWS_TARGET_CLASS.replace('/', '.')));
+        assertFalse(InternalGameControlRuntime.supportedTitleClassName(
+                MainMenuInteractivePlan.LINUX_TARGET_CLASS.replace('/', '.')));
+        assertFalse(InternalGameControlRuntime.supportedTitleClassName("java.lang.Object"));
+    }
+
+    @Test
     void campaignActionsFailClosedBeforeAddingInputToAnUnknownShape() throws Exception {
         System.setProperty("preflight.desktopSmoke", "true");
         RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
