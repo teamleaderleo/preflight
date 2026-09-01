@@ -109,6 +109,17 @@ class TextureCompatibilityTargetTest {
         assertFalse(mac.match(exactClass, exactSource).exact());
     }
 
+    @Test
+    void preparedTextureRegistryIncludesTheReviewedWindowsPrefetchBypass() {
+        AdapterTarget expected = AdapterTargetRegistry.windowsTexturePrefetchBypassTarget();
+
+        assertTrue(AdapterTargetRegistry.empty()
+                .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS)
+                .targets()
+                .stream()
+                .anyMatch(target -> expected.id().equals(target.id())));
+    }
+
     private static void assertExactIdentity(AdapterTarget target, String planId) {
         ClassSignature exactClass = signature(target, target.sha256(), target.requiredMethods());
         AdapterSourceIdentity exactSource = source(

@@ -2857,10 +2857,7 @@ final class AdapterTargetRegistry {
         registry = registry
                 .withTarget(texturePrefetchBypassTarget())
                 .withTarget(linuxTexturePrefetchBypassTarget())
-                // The exact Windows shape is reviewed and tested, but is not live-gated yet: its
-                // first full-profile run stopped making progress after 39 seconds. Keep the
-                // target fail-closed until a captured thread dump explains that platform-specific
-                // liveness failure; the prepared-pixel loader itself remains enabled on Windows.
+                .withTarget(windowsTexturePrefetchBypassTarget())
                 .withTarget(campaignEntityIndexTarget())
                 .withTarget(campaignEntityRepositoryTarget())
                 .withTarget(campaignEntityIdMutationTarget())
