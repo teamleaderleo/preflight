@@ -1175,8 +1175,10 @@ mod imp {
                 ));
             }
             let wide = buffer[12..12 + name_bytes]
-                .chunks_exact(2)
-                .map(|pair| u16::from_ne_bytes([pair[0], pair[1]]))
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pair| u16::from_ne_bytes(*pair))
                 .collect::<Vec<_>>();
             let name = OsString::from_wide(&wide);
             if name == OsStr::new(".") || name == OsStr::new("..") {
