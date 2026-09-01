@@ -1,7 +1,7 @@
 # Windows VM startup tuning — scheduling fixed, serialized texture loading remains
 
 Date: 2026-09-01 (host) / 2026-09-02 (Windows guest)  
-Status: accepted exploratory A-B-A; not a repeated release claim
+Status: accepted exploratory A-B-A plus same-semantics native confirmation; not a repeated release claim
 
 ## Answer first
 
@@ -27,6 +27,12 @@ workers plus 542 main-thread operations across 49.467 seconds. Preflight's stock
 adapter served 460 exact hits and 229,314,384 bytes with zero prepared-pixel fallbacks; its own code
 spent only 0.763-1.855 seconds inside the intercepted loads while 106.6-108.8 seconds elapsed between
 them. Hashing and pixel conversion are no longer the dominant Windows startup cost in this fixture.
+
+After the cohort runner was repaired and pushed to `main` at `1ba9286f`, a native confirmation made
+both Preflight-backed conditions wait for the exact interactive title boundary. Stock Preflight took
+112.455 seconds to graphics preload and 125.255 seconds to the interactive menu. Preflight plus Fast
+Rendering took 37.002 and 49.551 seconds respectively. On the same time-to-play boundary, the
+combined route was 60.4% faster, or 2.53 times quicker.
 
 ## Exact A-B-A
 
@@ -55,6 +61,20 @@ for the title overlay's stricter interactive transition. The Windows cohort runn
 requires that exact boundary for Preflight-backed conditions and reports it separately from graphics
 preload. This preserves the historical clock without presenting it as time-to-play.
 
+## Same-semantics native confirmation
+
+The repaired runner retained the same game/profile/JAR/display identity and automatically recorded
+the High Performance power GUID, fourteen guest processors, Defender still enabled, and the two
+exact path exclusions.
+
+| Condition | Game-log start -> graphics preload | Process start -> interactive menu | Accepted |
+| --- | ---: | ---: | --- |
+| Preflight + Fast Rendering | 37.002 s | 49.551 s | yes |
+| Preflight | 112.455 s | 125.255 s | yes |
+
+This confirmation is still one run per condition. It establishes the boundary and direction; a
+release-performance claim still needs the ordinary shuffled repeated cohort.
+
 ## Tuned VM identity
 
 - Big Red: Intel Core Ultra 7 255H, 30 GiB RAM, NVMe storage.
@@ -81,16 +101,17 @@ map of observed behavior, not one controlled leaderboard.
 | --- | ---: | --- |
 | Linux Preflight, best warm learned pack | 18.27 s | game log -> graphics preload |
 | Linux Preflight, current-main confirmation | 23.206 s | game log -> main menu |
-| Tuned Windows Preflight + Fast Rendering | 38.010 s | game log -> graphics preload |
-| Tuned Windows Preflight + Fast Rendering | 50.998 s | process start -> interactive menu |
-| Tuned Windows Preflight | 111.910 / 115.413 s | game log -> graphics preload |
+| Tuned Windows Preflight + Fast Rendering | 37.002 s | game log -> graphics preload |
+| Tuned Windows Preflight + Fast Rendering | 49.551 s | process start -> interactive menu |
+| Tuned Windows Preflight | 112.455 s | game log -> graphics preload |
+| Tuned Windows Preflight | 125.255 s | process start -> interactive menu |
 | Earlier Windows Preflight | about 181.313 s | accepted startup route |
 | Earlier Windows vanilla | about 369.326 s | accepted startup route |
 
-On the historical anchors, tuned stock Preflight is roughly 3.2 times faster than the retained
-Windows vanilla run. Tuned Preflight plus Fast Rendering is the fastest Windows configuration seen,
-but it remains about 2.8 times slower than the best Linux result on the stricter interactive-menu
-clock versus Linux's graphics marker.
+On the historical anchors, tuned stock Preflight is roughly 3.3 times faster than the retained
+Windows vanilla run on the graphics clock. Tuned Preflight plus Fast Rendering is the fastest
+Windows configuration seen, but it remains about 2.7 times slower than the best Linux result on the
+stricter interactive-menu clock versus Linux's graphics marker.
 
 ## Explored questions
 
@@ -118,19 +139,18 @@ was enabled and the host display was not disturbed.
 
 ## Open questions / next experiment
 
-1. Re-run the A-B-A with the repaired interactive-menu gate; use that semantic clock for the claim.
-2. Inspect the exact installed Fast Rendering texture-loader bytecode outside the repository and
+1. Inspect the exact installed Fast Rendering texture-loader bytecode outside the repository and
    determine whether a fail-closed prepared-byte bridge can feed its worker loader without changing
    ordering, GL ownership, fallback, or shutdown semantics.
-3. If that seam is unsafe, treat Fast Rendering as the supported parallel texture owner and focus
+2. If that seam is unsafe, treat Fast Rendering as the supported parallel texture owner and focus
    stock work on the 100+ seconds between prepared-pixel calls rather than further optimizing the
    sub-two-second Preflight bridge.
-4. Investigate Intel SR-IOV only after obtaining the exact supported Windows guest driver and a
+3. Investigate Intel SR-IOV only after obtaining the exact supported Windows guest driver and a
    recovery plan; do not turn an exposed sysfs capability into a product-performance claim.
 
 ## Preserved evidence
 
-The complete 51-file bundle is on Big Red at:
+The complete 85-file exploratory and confirmation bundle is on Big Red at:
 
 ```text
 /home/leo/Windows-Share/Diagnostics/20260902-windows-startup-tuned
@@ -142,3 +162,5 @@ full logs for:
 - `20260902-031639-windows-startup-2x2`
 - `20260902-032225-windows-startup-2x2`
 - `20260902-032437-windows-startup-2x2`
+- `20260902-034011-windows-startup-2x2`
+- `20260902-034211-windows-startup-2x2`
