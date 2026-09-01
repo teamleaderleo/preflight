@@ -2857,7 +2857,12 @@ final class AdapterTargetRegistry {
         registry = registry
                 .withTarget(texturePrefetchBypassTarget())
                 .withTarget(linuxTexturePrefetchBypassTarget())
-                .withTarget(windowsTexturePrefetchBypassTarget())
+                // The exact Windows shape is reviewed, tested, and now diagnosed. Enabling it on
+                // the llvmpipe Windows fixture moved the main thread into thousands of synchronous
+                // glTexImage2D uploads: the former 39-second apparent stall was one such upload,
+                // and the padded fallback still missed the interactive menu after 247 seconds.
+                // Keep the target fail-closed until Windows has a bounded upload strategy; the
+                // prepared-pixel loader itself remains enabled on Windows.
                 .withTarget(campaignEntityIndexTarget())
                 .withTarget(campaignEntityRepositoryTarget())
                 .withTarget(campaignEntityIdMutationTarget())

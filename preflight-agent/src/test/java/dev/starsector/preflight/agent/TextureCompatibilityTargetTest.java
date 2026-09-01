@@ -110,10 +110,10 @@ class TextureCompatibilityTargetTest {
     }
 
     @Test
-    void preparedTextureRegistryIncludesTheReviewedWindowsPrefetchBypass() {
+    void preparedTextureRegistryKeepsTheReviewedWindowsPrefetchBypassFailClosed() {
         AdapterTarget expected = AdapterTargetRegistry.windowsTexturePrefetchBypassTarget();
 
-        assertTrue(AdapterTargetRegistry.empty()
+        assertFalse(AdapterTargetRegistry.empty()
                 .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS)
                 .targets()
                 .stream()

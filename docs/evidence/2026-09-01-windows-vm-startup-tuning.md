@@ -75,6 +75,34 @@ exact path exclusions.
 This confirmation is still one run per condition. It establishes the boundary and direction; a
 release-performance claim still needs the ordinary shuffled repeated cohort.
 
+## Rejected Windows prefetch-bypass experiment
+
+The Windows `com/fs/graphics/L` prefetch-bypass target had already been reviewed and unit-tested,
+but remained outside the live prepared-pixel registry after an earlier full-profile run appeared to
+stop at about 39 seconds. A live `jcmd Thread.print -l` on the reproduced run explained that stop:
+the main thread was runnable in `GL11.nglTexImage2D`, reached from the exact stock
+`TextureLoader` upload method. This was not a Java deadlock, cache wait, or failed bytecode match.
+
+Enabling the exact target with Recommended true-size uploads made one large NPOT upload
+pathologically slow under the fixture's Mesa llvmpipe renderer. A second run used Conservative's
+padded coherent-direct carrier to test whether only that true-size allocation was at fault. It
+passed the old `graphics/stations/rat_probe.png` stopping point, but did not produce a useful launch:
+
+| Candidate | Graphics preload | Interactive menu | Texture cleanup observations | Outcome |
+| --- | ---: | ---: | ---: | --- |
+| Windows prefetch bypass + Conservative padded prepared pixels | 114.609 s | not reached after about 247 s | 21,795 from 0.760-235.518 s | rejected |
+
+The run was intentionally retained as a rejection. Its prepared cache check passed, it used the
+same installed profile and llvmpipe fixture, and it shut down cleanly when the cohort deadline was
+reached. Because the menu was not reached, no completed adapter report was available; the result is
+not evidence for an exact prepared-hit count. It is sufficient evidence that moving all of this
+fixture's uploads onto stock synchronous `glTexImage2D` is a major regression, not a Windows port of
+the native Mac/Linux win.
+
+The live Windows bypass registration is therefore fail-closed again. The exact target and its unit
+coverage remain available for a future bounded upload strategy or a native-GPU Windows cohort. The
+current product must not infer renderer performance from GL2/NPOT correctness capability alone.
+
 ## Tuned VM identity
 
 - Big Red: Intel Core Ultra 7 255H, 30 GiB RAM, NVMe storage.
@@ -139,13 +167,15 @@ was enabled and the host display was not disturbed.
 
 ## Open questions / next experiment
 
-1. Inspect the exact installed Fast Rendering texture-loader bytecode outside the repository and
+1. Separate the renderer gate from the operating-system gate. Re-test the exact Windows bypass on a
+   native GPU before enabling it for Windows generally; keep llvmpipe on the original queue.
+2. Inspect the exact installed Fast Rendering texture-loader bytecode outside the repository and
    determine whether a fail-closed prepared-byte bridge can feed its worker loader without changing
    ordering, GL ownership, fallback, or shutdown semantics.
-2. If that seam is unsafe, treat Fast Rendering as the supported parallel texture owner and focus
+3. If that seam is unsafe, treat Fast Rendering as the supported parallel texture owner and focus
    stock work on the 100+ seconds between prepared-pixel calls rather than further optimizing the
    sub-two-second Preflight bridge.
-3. Investigate Intel SR-IOV only after obtaining the exact supported Windows guest driver and a
+4. Investigate Intel SR-IOV only after obtaining the exact supported Windows guest driver and a
    recovery plan; do not turn an exposed sysfs capability into a product-performance claim.
 
 ## Preserved evidence
@@ -164,3 +194,9 @@ full logs for:
 - `20260902-032437-windows-startup-2x2`
 - `20260902-034011-windows-startup-2x2`
 - `20260902-034211-windows-startup-2x2`
+
+The rejected live Windows prefetch-bypass cohort is retained separately at:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260902-windows-prefetch-bypass-rejection/20260902-041450-windows-startup-2x2
+```
