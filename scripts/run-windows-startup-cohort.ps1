@@ -25,8 +25,13 @@ function Get-Sha256([string]$Path) {
 function Get-GameProcesses([string]$GamePath) {
     $escaped = [regex]::Escape($GamePath)
     return @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
-        $_.Name -in @('java.exe', 'javaw.exe', 'starsector.exe', 'cmd.exe') -and
-        $_.CommandLine -match $escaped
+        if ($_.Name -eq 'starsector.exe') { return $true }
+        if ($_.Name -eq 'cmd.exe') { return $_.CommandLine -match $escaped }
+        if ($_.Name -notin @('java.exe', 'javaw.exe')) { return $false }
+        return $_.CommandLine -match $escaped -or
+            $_.CommandLine -match 'com\.fs\.starfarer\.StarfarerLauncher' -or
+            $_.CommandLine -match '(?:^|[\\/;])starfarer_obf\.jar(?:[;" ]|$)' -or
+            $_.CommandLine -match '(?:^|[\\/;])fr\.(?:jar|agent\.jar)(?:[;" ]|$)'
     })
 }
 
