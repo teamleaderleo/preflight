@@ -59,6 +59,23 @@ final class RuntimeProcessIdentityTest {
         assertTrue(inspected.get("reason").toString().contains("no process start instant"));
     }
 
+    @Test
+    void canonicalizesCrossJdkWindowsStartTimePrecisionWithoutWeakeningOtherPlatforms() {
+        Instant bundledJava = Instant.parse("2026-09-01T14:42:46.981Z");
+        Instant controllerJava = Instant.parse("2026-09-01T14:42:46.981575Z");
+
+        assertTrue(RuntimeProcessIdentity.sameStartInstant(
+                Platform.WINDOWS, bundledJava, controllerJava));
+        assertFalse(RuntimeProcessIdentity.sameStartInstant(
+                Platform.WINDOWS, bundledJava, controllerJava.plusMillis(1)));
+        assertFalse(RuntimeProcessIdentity.sameStartInstant(
+                Platform.MAC, bundledJava, controllerJava));
+        assertFalse(RuntimeProcessIdentity.sameStartInstant(
+                Platform.LINUX, bundledJava, controllerJava));
+        assertFalse(RuntimeProcessIdentity.sameStartInstant(
+                Platform.WINDOWS, null, controllerJava));
+    }
+
     private Path write(long pid, Instant startedAt, String state, Instant stoppedAt) throws Exception {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("format", "starsector-preflight-runtime-process-v1");

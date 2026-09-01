@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -97,7 +98,7 @@ final class RuntimeProcessIdentity {
                 && process != null
                 && process.isAlive()
                 && startedAt != null
-                && startedAt.equals(liveStartedAt);
+                && sameStartInstant(Platform.current(), startedAt, liveStartedAt);
     }
 
     Path source() {
@@ -108,9 +109,7 @@ final class RuntimeProcessIdentity {
         ProcessHandle process = ProcessHandle.of(pid).orElse(null);
         Instant liveStartedAt = process == null ? null : process.info().startInstant().orElse(null);
         boolean alive = process != null && process.isAlive();
-        boolean startMatches = startedAt != null
-                && liveStartedAt != null
-                && liveStartedAt.equals(startedAt);
+        boolean startMatches = sameStartInstant(Platform.current(), startedAt, liveStartedAt);
         boolean attachable = "running".equals(state) && alive && startMatches;
         String reason = attachable
                 ? null
@@ -134,6 +133,25 @@ final class RuntimeProcessIdentity {
         result.put("attachable", attachable);
         result.put("reason", reason);
         return result;
+    }
+
+    /**
+     * Compares one process lifetime across the game and controller JVMs.
+     *
+     * <p>Windows exposes process creation time at finer than millisecond precision, but the
+     * bundled Java 17 runtime truncates {@link ProcessHandle.Info#startInstant()} to milliseconds
+     * while current Java 21 preserves the finer FILETIME value. The same live process therefore
+     * arrived as, for example, {@code .981Z} from the game and {@code .981575Z} from the
+     * controller. Keep the PID gate and compare the creation instant at the greatest precision
+     * both supported runtimes preserve. A different Windows millisecond still fails closed.
+     */
+    static boolean sameStartInstant(Platform platform, Instant recorded, Instant live) {
+        if (recorded == null || live == null) return false;
+        if (platform == Platform.WINDOWS) {
+            return recorded.truncatedTo(ChronoUnit.MILLIS)
+                    .equals(live.truncatedTo(ChronoUnit.MILLIS));
+        }
+        return recorded.equals(live);
     }
 
     private static String string(Map<String, Object> root, String field) {
