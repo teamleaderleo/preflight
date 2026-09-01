@@ -32,7 +32,8 @@ function Get-GameProcesses([string]$GamePath) {
         return $_.CommandLine -match $escaped -or
             $_.CommandLine -match 'com\.fs\.starfarer\.StarfarerLauncher' -or
             $_.CommandLine -match '(?:^|[\\/;])starfarer_obf\.jar(?:[;" ]|$)' -or
-            $_.CommandLine -match '(?:^|[\\/;])fr\.(?:jar|agent\.jar)(?:[;" ]|$)'
+            $_.CommandLine -match '(?:^|[\\/;])fr\.(?:jar|agent\.jar)(?:[;" ]|$)' -or
+            $_.CommandLine -match '(?:^|[\s"])[@]?(?:[^\s"]*[\\/])?fr\.vmparams(?:[\s"]|$)'
     })
 }
 
