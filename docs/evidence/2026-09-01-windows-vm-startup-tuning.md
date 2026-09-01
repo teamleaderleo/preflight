@@ -46,7 +46,10 @@ seconds by 18.640 seconds.
 That one-worker path is now the Prepared Pixels default on the exact pinned Windows class. The
 rejected full bypass and the multi-worker rewrite remain opt-in diagnostics, and
 `preflight.adapter.disablePlans=texture-prepared-prefetch-v1` remains the immediate kill switch.
-Mac and Linux do not match the Windows class identity and are unchanged.
+Mac and Linux do not match the Windows class identity and are unchanged. A no-probe run from the
+promoted `main` completed 15,003/15,003 prepared hits with no original decode, fallback, error, or
+live buffer and reached the menu in 73.926 seconds. Across the three healthy default-equivalent
+runs, the interactive times are 66.741, 69.640, and 73.926 seconds (69.640-second median).
 
 Adding workers to the stock queue did not close the remaining gap. The first live attempt correctly
 declined because the real class has a public byte-result consumer and a private byte decoder with
