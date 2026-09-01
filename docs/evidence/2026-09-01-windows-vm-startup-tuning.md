@@ -140,6 +140,31 @@ the normal adapter report boundary and exposed a diagnostics gap: the upload pro
 bounded periodic/shutdown sidecar. That sidecar is now part of the opt-in probe; this incomplete run
 is retained rather than interpreted as an upload total.
 
+The repaired sidecar made the repeated rejection causal. That run reached graphics preload in
+97.972 seconds but still had no exact ready/interactive transition when it ended cleanly after about
+230 seconds. The last bounded sidecar checkpoint, at 20,480 uploads, reported 3,805,399,712 bytes
+and 27.069 seconds inside native GL, with a 56.061 ms maximum, one call at least 50 ms, and none at
+least 100 ms. The native GL total was already slightly below the safe run's 27.768 seconds; the
+missing time is therefore outside `glTexImage2D`.
+
+The resource identity explained the workload divergence:
+
+| Log set | Cleanup observations | Unique paths | `cache/` paths |
+| --- | ---: | ---: | ---: |
+| safe Windows queue | 15,468 | 15,468 | 7 |
+| prepared bypass | 21,748 | 21,726 | 6,206 |
+
+The bypass set contained every safe path plus 6,258 more. Of those additions, 6,177 were generated
+GraphicsLib `cache/..._normal.png` assets and 66 were `graphics/shaders/` assets. Only 22 bypass
+observations repeated a path, so “duplicate uploads” was the wrong first interpretation: the bypass
+made a materially larger generated-resource workload enter startup.
+
+Generated `cache/` resources are mutable runtime output, not immutable game/mod input. The next
+narrow candidate therefore leaves that namespace on Starsector's original prefetch path while
+bypassing exact prepared immutable resources. It has an explicit telemetry counter and remains
+behind the Windows diagnostic gate until a same-probe run reaches the semantic menu and restores a
+comparable texture workload.
+
 ## Tuned VM identity
 
 - Big Red: Intel Core Ultra 7 255H, 30 GiB RAM, NVMe storage.

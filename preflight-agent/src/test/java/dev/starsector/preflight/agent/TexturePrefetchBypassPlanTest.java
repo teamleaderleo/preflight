@@ -123,6 +123,15 @@ class TexturePrefetchBypassPlanTest {
         assertFalse(TextureCompatibilityRuntime.prefetchRedundant(null));
     }
 
+    @Test
+    void generatedGraphicsCacheAlwaysStaysOnTheOriginalQueue() {
+        assertTrue(TextureCompatibilityRuntime.generatedCachePath(
+                "cache/example___SHIP_normal.png"));
+        assertFalse(TextureCompatibilityRuntime.generatedCachePath(
+                "graphics/ships/example.png"));
+        assertFalse(TextureCompatibilityRuntime.generatedCachePath(null));
+    }
+
     private static byte[] transformedPrefetcher() throws Exception {
         byte[] original = syntheticPrefetcher();
         byte[] transformed =

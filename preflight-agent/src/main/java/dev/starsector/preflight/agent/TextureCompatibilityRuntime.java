@@ -222,6 +222,15 @@ public final class TextureCompatibilityRuntime {
                 TELEMETRY.prefetchKept();
                 return false;
             }
+            // GraphicsLib's generated normal/surface cache is mutable runtime output, not immutable
+            // game/mod input. Taking these paths off the original queue made Windows eagerly upload
+            // more than six thousand generated textures that its safe path never loaded before the
+            // interactive menu. Keep the entire generated namespace on the game's original path.
+            if (generatedCachePath(normalized)) {
+                TELEMETRY.prefetchKeptGenerated();
+                TELEMETRY.prefetchKept();
+                return false;
+            }
             TextureManifest.Entry entry = current.manifest.entry(normalized).orElse(null);
             // Only an identity entry is servable by load(); anything else falls back, and a path
             // that is going to fall back is better left prefetched than decoded on the loader.
@@ -237,6 +246,10 @@ public final class TextureCompatibilityRuntime {
             internalFailure();
             return false;
         }
+    }
+
+    static boolean generatedCachePath(String normalizedLogicalPath) {
+        return normalizedLogicalPath != null && normalizedLogicalPath.startsWith("cache/");
     }
 
     /** Shared exact lookup used by independently selectable texture consumers. */
@@ -657,6 +670,7 @@ public final class TextureCompatibilityRuntime {
         private long bytesServed;
         private long prefetchSkipped;
         private long prefetchKept;
+        private long prefetchKeptGenerated;
         private boolean packConfigured;
         private long packHits;
         private long packBytes;
@@ -677,6 +691,7 @@ public final class TextureCompatibilityRuntime {
             bytesServed = 0;
             prefetchSkipped = 0;
             prefetchKept = 0;
+            prefetchKeptGenerated = 0;
             packConfigured = false;
             packHits = 0;
             packBytes = 0;
@@ -729,6 +744,10 @@ public final class TextureCompatibilityRuntime {
             prefetchKept++;
         }
 
+        synchronized void prefetchKeptGenerated() {
+            prefetchKeptGenerated++;
+        }
+
         synchronized void packConfigured() {
             packConfigured = true;
         }
@@ -772,6 +791,7 @@ public final class TextureCompatibilityRuntime {
             // that does not. It is not visible in hits, which count only what the cache served.
             values.put("prefetchSkipped", prefetchSkipped);
             values.put("prefetchKept", prefetchKept);
+            values.put("prefetchKeptGenerated", prefetchKeptGenerated);
             values.put("packConfigured", packConfigured);
             values.put("packHits", packHits);
             values.put("packBytes", packBytes);
