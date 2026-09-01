@@ -1464,7 +1464,7 @@ mod imp {
         }
 
         let word = size_of::<usize>();
-        let words = (required as usize + word - 1) / word;
+        let words = (required as usize).div_ceil(word);
         let mut buffer = vec![0usize; words];
         if unsafe {
             GetTokenInformation(
