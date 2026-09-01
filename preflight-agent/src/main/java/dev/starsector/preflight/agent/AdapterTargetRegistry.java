@@ -985,6 +985,18 @@ final class AdapterTargetRegistry {
                 "app").withAlternativeGroup("vanilla-main-menu-interactive-0.98a-rc8");
     }
 
+    static AdapterTarget windowsMainMenuInteractiveTarget() {
+        return windowsCoreTarget(
+                "vanilla-title-windows-0.98a-rc8-main-menu-interactive-and-control",
+                MainMenuInteractivePlan.WINDOWS_TARGET_CLASS,
+                MainMenuInteractivePlan.WINDOWS_ORIGINAL_SHA256,
+                MainMenuInteractivePlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        MainMenuInteractivePlan.ADVANCE_METHOD,
+                        MainMenuInteractivePlan.ADVANCE_DESCRIPTOR)),
+                "vanilla-main-menu-interactive-0.98a-rc8");
+    }
+
     /** Starsector reprioritizes a large resource list with a quadratic ArrayList.removeAll. */
     static AdapterTarget resourcePriorityTarget() {
         return new AdapterTarget(
@@ -2828,7 +2840,8 @@ final class AdapterTargetRegistry {
 
     AdapterTargetRegistry withMainMenuInteractiveTarget() {
         return withTarget(mainMenuInteractiveTarget())
-                .withTarget(linuxMainMenuInteractiveTarget());
+                .withTarget(linuxMainMenuInteractiveTarget())
+                .withTarget(windowsMainMenuInteractiveTarget());
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {

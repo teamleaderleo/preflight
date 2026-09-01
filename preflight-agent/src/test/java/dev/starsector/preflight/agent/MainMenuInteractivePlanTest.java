@@ -60,6 +60,22 @@ final class MainMenuInteractivePlanTest {
     }
 
     @Test
+    void marksTheExactWindowsTitleOverlayAndInstallsClosedControl() throws Exception {
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+        byte[] original = fixture(
+                MainMenuInteractivePlan.WINDOWS_TARGET_CLASS,
+                "(Lcom/fs/starfarer/ui/c;)V",
+                1);
+
+        byte[] transformed = MainMenuInteractivePlan.transform(
+                exactSignature(original, MainMenuInteractivePlan.WINDOWS_ORIGINAL_SHA256), original);
+
+        assertNotNull(transformed);
+        assertEquals(1, calls(method(transformed), RUNTIME, "mainMenuInteractive"));
+        assertEquals(1, calls(method(transformed), CONTROL_RUNTIME, "titleAdvance"));
+    }
+
+    @Test
     void declinesDisabledWrongAmbiguousAndAlreadyTransformedInputs() throws Exception {
         byte[] original = fixture();
         assertNull(MainMenuInteractivePlan.transform(

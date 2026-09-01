@@ -17,6 +17,11 @@ final class MainMenuInteractivePlan {
     static final String LINUX_TARGET_CLASS = "com/fs/starfarer/title/OoOO";
     static final String LINUX_ORIGINAL_SHA256 =
             "fcc26761e5ab5896bd100f0b99d02bb008bf07cd2565418daee7409c1d1dafc7";
+    // Windows' obfuscator emits the title overlay as a 256-character class name.
+    static final String WINDOWS_TARGET_CLASS =
+            "com/fs/starfarer/title/Oo" + "O".repeat(254);
+    static final String WINDOWS_ORIGINAL_SHA256 =
+            "7a034024de849f2829ad5e41dbb0e58f5979a6e7a81e55527f6839055db3d4c6";
     static final String ADVANCE_METHOD = "advanceImpl";
     static final String ADVANCE_DESCRIPTOR = "(F)V";
     static final String SHOW_METHOD = "show";
@@ -106,7 +111,9 @@ final class MainMenuInteractivePlan {
         return (TARGET_CLASS.equals(signature.internalName())
                         && ORIGINAL_SHA256.equals(signature.sha256()))
                 || (LINUX_TARGET_CLASS.equals(signature.internalName())
-                        && LINUX_ORIGINAL_SHA256.equals(signature.sha256()));
+                        && LINUX_ORIGINAL_SHA256.equals(signature.sha256()))
+                || (WINDOWS_TARGET_CLASS.equals(signature.internalName())
+                        && WINDOWS_ORIGINAL_SHA256.equals(signature.sha256()));
     }
 
     private static AbstractInsnNode uniqueReturn(MethodNode method) {
