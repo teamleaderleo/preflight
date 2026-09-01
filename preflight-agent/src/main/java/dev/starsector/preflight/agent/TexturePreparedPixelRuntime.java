@@ -230,7 +230,8 @@ public final class TexturePreparedPixelRuntime {
         // other half of the invariant TexturePaddingRuntime governs: the buffer below is unpadded
         // only while the installed fold is also bypassed, so the glTexImage2D allocation agrees with
         // it. Neither half is safe alone, and both read the same gate for that reason.
-        boolean unpadded = layout.paddingBytes() > 0 && TexturePaddingRuntime.available();
+        boolean unpadded = layout.paddingBytes() > 0
+                && TexturePaddingRuntime.availableFor(texture.originalWidth(), texture.originalHeight());
 
         // The safe default keeps NPOT textures on Starsector's original path. The explicit
         // coherent-direct diagnostic is the only path allowed to supply a direct NPOT buffer.

@@ -32,6 +32,7 @@ class TexturePreparedPixelRuntimeTest {
     @AfterEach
     void resetRuntime() {
         System.clearProperty(TexturePaddingRuntime.UNPADDED_PROPERTY);
+        System.clearProperty(TexturePaddingRuntime.MAX_UNPADDED_DIMENSION_PROPERTY);
         TexturePaddingRuntime.reset();
         TexturePreparedPixelRuntime.beginSession();
         TextureCompatibilityRuntime.beginSession();
@@ -98,6 +99,23 @@ class TexturePreparedPixelRuntimeTest {
         // The padded-upload telemetry must not also claim the padding, or the two reports would
         // disagree about whether those bytes were written.
         assertEquals(0L, TexturePreparedPixelRuntime.telemetry().get("paddingBytes"));
+    }
+
+    @Test
+    void keepsTexturesAboveTheDiagnosticDimensionCeilingOnTheOriginalPath() throws Exception {
+        int width = 3;
+        int height = 3;
+        int channels = 3;
+        configure(fixture(width, height, channels, sequential(width * height * channels)));
+        System.setProperty(TexturePaddingRuntime.UNPADDED_PROPERTY, "true");
+        System.setProperty(TexturePaddingRuntime.MAX_UNPADDED_DIMENSION_PROPERTY, "2");
+        TexturePaddingRuntime.foldBypassInstalled();
+
+        assertNull(TexturePreparedPixelRuntime.prepare(
+                TexturePreparedPixelRuntime.load("graphics/test.png")));
+        assertEquals(1L, TexturePaddingRuntime.report().get("dimensionCeilingDeclines"));
+        assertEquals(2, TexturePaddingRuntime.report().get("maxUnpaddedDimension"));
+        assertEquals(0L, TexturePaddingRuntime.report().get("texturesServedUnpadded"));
     }
 
     @Test

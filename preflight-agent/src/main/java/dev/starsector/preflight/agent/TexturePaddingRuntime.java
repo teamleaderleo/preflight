@@ -44,6 +44,18 @@ public final class TexturePaddingRuntime {
      */
     public static final String UNPADDED_PROPERTY = "preflight.padding.unpadded";
 
+    /**
+     * Optional diagnostic ceiling for true-size uploads. A positive value keeps textures whose
+     * original width or height exceeds the ceiling on Starsector's padded path. Missing, zero, and
+     * negative values preserve the existing all-sizes behavior.
+     *
+     * <p>This exists for software OpenGL drivers that advertise NPOT support but may have a
+     * size-dependent slow or broken path. It is deliberately a property rather than a preset: a
+     * host must first prove a safe threshold against its exact driver and workload.
+     */
+    public static final String MAX_UNPADDED_DIMENSION_PROPERTY =
+            "preflight.padding.maxUnpaddedDimension";
+
     private static volatile boolean FOLD_BYPASS_INSTALLED;
     private static volatile NpotCapability NPOT_CAPABILITY = NpotCapability.UNCHECKED;
     private static volatile String NPOT_CAPABILITY_REASON = "not checked";
@@ -54,6 +66,7 @@ public final class TexturePaddingRuntime {
     private static final AtomicLong FOLDED = new AtomicLong();
     private static final AtomicLong TEXTURES = new AtomicLong();
     private static final AtomicLong BYTES_AVOIDED = new AtomicLong();
+    private static final AtomicLong DIMENSION_CEILING_DECLINES = new AtomicLong();
 
     private TexturePaddingRuntime() {
     }
@@ -75,6 +88,19 @@ public final class TexturePaddingRuntime {
         return FOLD_BYPASS_INSTALLED
                 && Boolean.getBoolean(UNPADDED_PROPERTY)
                 && npotSupported();
+    }
+
+    /** Whether this exact texture is inside the optional, explicitly configured NPOT ceiling. */
+    static boolean availableFor(int width, int height) {
+        if (!available()) {
+            return false;
+        }
+        int ceiling = maxUnpaddedDimension();
+        if (ceiling > 0 && (width > ceiling || height > ceiling)) {
+            DIMENSION_CEILING_DECLINES.incrementAndGet();
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -140,6 +166,8 @@ public final class TexturePaddingRuntime {
         values.put("planId", PLAN_ID);
         values.put("unpaddedProperty", UNPADDED_PROPERTY);
         values.put("unpaddedEnabled", Boolean.getBoolean(UNPADDED_PROPERTY));
+        values.put("maxUnpaddedDimensionProperty", MAX_UNPADDED_DIMENSION_PROPERTY);
+        values.put("maxUnpaddedDimension", maxUnpaddedDimension());
         values.put("foldBypassInstalled", FOLD_BYPASS_INSTALLED);
         values.put("npotCapability", NPOT_CAPABILITY.name().toLowerCase(Locale.ROOT));
         values.put("npotCapabilityReason", NPOT_CAPABILITY_REASON);
@@ -150,6 +178,7 @@ public final class TexturePaddingRuntime {
         values.put("dimensionsFolded", FOLDED.get());
         values.put("texturesServedUnpadded", TEXTURES.get());
         values.put("paddingBytesAvoided", BYTES_AVOIDED.get());
+        values.put("dimensionCeilingDeclines", DIMENSION_CEILING_DECLINES.get());
         return values;
     }
 
@@ -158,6 +187,11 @@ public final class TexturePaddingRuntime {
         FOLDED.set(0);
         TEXTURES.set(0);
         BYTES_AVOIDED.set(0);
+        DIMENSION_CEILING_DECLINES.set(0);
+    }
+
+    private static int maxUnpaddedDimension() {
+        return Integer.getInteger(MAX_UNPADDED_DIMENSION_PROPERTY, 0);
     }
 
     /**

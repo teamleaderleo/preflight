@@ -15,6 +15,8 @@ param(
     [switch]$TextureUploadProbe,
     [switch]$WindowsPrefetchBypassProbe,
     [switch]$WindowsPreparedPrefetchProbe,
+    [ValidateRange(0, 8192)]
+    [int]$WindowsUnpaddedMaxDimension = 0,
     [ValidateSet('starsector', 'preflight', 'fast-rendering', 'preflight-fast-rendering')]
     [string[]]$Conditions = @('starsector', 'preflight', 'fast-rendering', 'preflight-fast-rendering')
 )
@@ -140,6 +142,14 @@ function Measure-OneRun(
             if ($WindowsPreparedPrefetchProbe) {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.texture.windowsPreparedPrefetchProbe=true' |
+                    Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($WindowsUnpaddedMaxDimension -gt 0) {
+                $unpaddedOptions = @(
+                    '-Dpreflight.padding.unpadded=true',
+                    "-Dpreflight.padding.maxUnpaddedDimension=$WindowsUnpaddedMaxDimension"
+                )
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS, $unpaddedOptions |
                     Where-Object { $_ }) -join ' ').Trim()
             }
             $arguments = @(
@@ -388,6 +398,7 @@ $identity = [ordered]@{
     textureUploadProbe = [bool]$TextureUploadProbe
     windowsPrefetchBypassProbe = [bool]$WindowsPrefetchBypassProbe
     windowsPreparedPrefetchProbe = [bool]$WindowsPreparedPrefetchProbe
+    windowsUnpaddedMaxDimension = $WindowsUnpaddedMaxDimension
     game = $Game
     preflightJar = $PreflightJar
     preflightJarSha256 = Get-Sha256 $PreflightJar
