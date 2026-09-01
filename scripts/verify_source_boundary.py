@@ -26,12 +26,22 @@ REVIEWED_OVERSIZED_BLOBS = {
             (2_046_260, "294ea99d507c5c30707e4c67fbb2de843b6e237e18fe7b4ff8cd3a3c7e2547b6"),
             (2_119_411, "af22e6391350c15a0b9067d685c34891e3ce5ea63c416bee47a94db9200c0a45"),
         }
-    )
+    ),
+    "docs/evidence/images/2026-08-28-gl-matrix-identity-ordinary.png": frozenset(
+        {
+            (3_348_423, "28765d7ab82b7452f8a0e6accac0c6a3402d596f5dd5e1eebdf7ac1dcd21b2ac"),
+        }
+    ),
 }
 # Documentation screenshots are reviewed as exact Git blobs. Keeping the byte size
 # alongside the blob id makes accidental truncation or substitution obvious and
 # lets the history audit accept only the reviewed image bytes.
 REVIEWED_DOCUMENTATION_IMAGES = {
+    "docs/evidence/images/2026-08-28-gl-matrix-identity-ordinary.png": frozenset(
+        {
+            (3_348_423, "c4ad1792e18c57b6f5060d018eafacd6b77e3107"),
+        }
+    ),
     "docs/images/desktop-home-dark.png": frozenset(
         {
             (61_109, "6b8308d1b71cb8e85a350bfb6d31956c51556ee5"),
