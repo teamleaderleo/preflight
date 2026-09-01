@@ -68,6 +68,85 @@ class TexturePreparedPixelPlanTest {
         assertNull(TexturePreparedPixelPlan.transform(ClassSignature.parse(noDimensions), noDimensions));
     }
 
+    @Test
+    void rewritesTheReviewedLinuxObfuscationNames() throws Exception {
+        byte[] original = linuxNames(textureLoader(3, true, true));
+
+        byte[] transformed = TexturePreparedPixelPlan.transform(ClassSignature.parse(original), original);
+
+        assertNotNull(transformed);
+        ClassNode node = read(transformed);
+        assertTrue(hasCall(
+                method(node, TexturePreparedPixelPlan.LINUX_DECODE_METHOD,
+                        TexturePreparedPixelPlan.DECODE_DESCRIPTOR),
+                "TexturePreparedPixelRuntime", "load"));
+        assertNotNull(method(node, TexturePreparedPixelPlan.LINUX_CONVERT_METHOD,
+                TexturePreparedPixelPlan.CONVERT_DESCRIPTOR));
+        assertNotNull(method(node, TexturePreparedPixelPlan.LINUX_CLEANUP_METHOD,
+                TexturePreparedPixelPlan.CLEANUP_DESCRIPTOR));
+    }
+
+    @Test
+    void rewritesTheReviewedWindowsPreloaderName() throws Exception {
+        ClassNode windows = read(textureLoader(3, true, true));
+        for (MethodNode method : windows.methods) {
+            for (AbstractInsnNode instruction : method.instructions) {
+                if (instruction instanceof MethodInsnNode call
+                        && "com/fs/graphics/L".equals(call.owner)
+                        && "class".equals(call.name)) {
+                    call.name = "Õ00000";
+                }
+            }
+        }
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        windows.accept(writer);
+        byte[] original = writer.toByteArray();
+
+        byte[] transformed = TexturePreparedPixelPlan.transform(
+                ClassSignature.parse(original), original);
+
+        assertNotNull(transformed);
+        MethodNode decode = method(read(transformed), TexturePreparedPixelPlan.DECODE_METHOD,
+                TexturePreparedPixelPlan.DECODE_DESCRIPTOR);
+        assertTrue(hasCall(decode, "com/fs/graphics/L", "Õ00000"));
+        assertTrue(hasCall(decode, "TexturePreparedPixelRuntime", "load"));
+    }
+
+    private static byte[] linuxNames(byte[] bytes) {
+        ClassNode node = read(bytes);
+        for (MethodNode method : node.methods) {
+            if (TexturePreparedPixelPlan.DECODE_METHOD.equals(method.name)
+                    && TexturePreparedPixelPlan.DECODE_DESCRIPTOR.equals(method.desc)) {
+                method.name = TexturePreparedPixelPlan.LINUX_DECODE_METHOD;
+            } else if (TexturePreparedPixelPlan.CONVERT_METHOD.equals(method.name)
+                    && TexturePreparedPixelPlan.CONVERT_DESCRIPTOR.equals(method.desc)) {
+                method.name = TexturePreparedPixelPlan.LINUX_CONVERT_METHOD;
+            } else if (TexturePreparedPixelPlan.CLEANUP_METHOD.equals(method.name)
+                    && TexturePreparedPixelPlan.CLEANUP_DESCRIPTOR.equals(method.desc)) {
+                method.name = TexturePreparedPixelPlan.LINUX_CLEANUP_METHOD;
+            }
+        }
+        for (MethodNode method : node.methods) {
+            for (AbstractInsnNode instruction = method.instructions.getFirst();
+                    instruction != null; instruction = instruction.getNext()) {
+                if (!(instruction instanceof MethodInsnNode call)
+                        || !TexturePreparedPixelPlan.TARGET_CLASS.equals(call.owner)) {
+                    continue;
+                }
+                if (TexturePreparedPixelPlan.CONVERT_METHOD.equals(call.name)
+                        && TexturePreparedPixelPlan.CONVERT_DESCRIPTOR.equals(call.desc)) {
+                    call.name = TexturePreparedPixelPlan.LINUX_CONVERT_METHOD;
+                } else if (TexturePreparedPixelPlan.CLEANUP_METHOD.equals(call.name)
+                        && TexturePreparedPixelPlan.CLEANUP_DESCRIPTOR.equals(call.desc)) {
+                    call.name = TexturePreparedPixelPlan.LINUX_CLEANUP_METHOD;
+                }
+            }
+        }
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        node.accept(writer);
+        return writer.toByteArray();
+    }
+
     private static List<String> fieldWrites(MethodNode method) {
         List<String> writes = new ArrayList<>();
         for (AbstractInsnNode instruction = method.instructions.getFirst();

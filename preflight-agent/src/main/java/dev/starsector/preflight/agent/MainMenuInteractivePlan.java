@@ -8,14 +8,19 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
-/** Publishes the point where Starsector removes its title-screen "Preloading..." label. */
+/** Publishes the point where Starsector finishes showing its interactive title screen. */
 final class MainMenuInteractivePlan {
     static final String PLAN_ID = "vanilla-main-menu-interactive-state-and-control-v2";
     static final String TARGET_CLASS = "com/fs/starfarer/title/B";
     static final String ORIGINAL_SHA256 =
             "a07eb94f8229ac0bb42139cebc6450518e8fe036023bd7687fb1a76347079f22";
+    static final String LINUX_TARGET_CLASS = "com/fs/starfarer/title/OoOO";
+    static final String LINUX_ORIGINAL_SHA256 =
+            "fcc26761e5ab5896bd100f0b99d02bb008bf07cd2565418daee7409c1d1dafc7";
     static final String ADVANCE_METHOD = "advanceImpl";
     static final String ADVANCE_DESCRIPTOR = "(F)V";
+    static final String SHOW_METHOD = "show";
+    static final String SHOW_DESCRIPTOR = "()V";
 
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/RuntimeSemanticState";
@@ -27,29 +32,45 @@ final class MainMenuInteractivePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
+        boolean linuxTarget = LINUX_TARGET_CLASS.equals(signature.internalName());
         if (!RuntimeSemanticState.enabled()
-                || !TARGET_CLASS.equals(signature.internalName())
-                || !ORIGINAL_SHA256.equals(signature.sha256())
+                || !supportedTarget(signature)
                 || signature.majorVersion() != 61
-                || !signature.hasMethod(ADVANCE_METHOD, ADVANCE_DESCRIPTOR)) {
+                || (linuxTarget
+                        ? !signature.hasMethod(SHOW_METHOD, SHOW_DESCRIPTOR)
+                        : !signature.hasMethod(ADVANCE_METHOD, ADVANCE_DESCRIPTOR))) {
             return null;
         }
 
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
-        MethodNode advance = unique(owner, ADVANCE_METHOD, ADVANCE_DESCRIPTOR);
-        MethodInsnNode removal = uniqueRemoval(advance);
-        if (removal == null || callsMarker(advance) != 0 || callsControl(advance) != 0) return null;
+        if (linuxTarget) {
+            MethodNode show = unique(owner, SHOW_METHOD, SHOW_DESCRIPTOR);
+            AbstractInsnNode completion = uniqueReturn(show);
+            if (completion == null || callsMarker(show) != 0) return null;
+            show.instructions.insertBefore(completion, new MethodInsnNode(
+                    Opcodes.INVOKESTATIC, RUNTIME, "mainMenuInteractive", "()V", false));
+        } else {
+            MethodNode advance = unique(owner, ADVANCE_METHOD, ADVANCE_DESCRIPTOR);
+            MethodInsnNode removal = uniqueRemoval(advance);
+            if (removal == null || callsMarker(advance) != 0 || callsControl(advance) != 0) {
+                return null;
+            }
 
-        advance.instructions.insert(removal, new MethodInsnNode(
-                Opcodes.INVOKESTATIC, RUNTIME, "mainMenuInteractive", "()V", false));
-        AbstractInsnNode onlyReturn = uniqueReturn(advance);
-        if (onlyReturn == null) return null;
-        org.objectweb.asm.tree.InsnList control = new org.objectweb.asm.tree.InsnList();
-        control.add(new org.objectweb.asm.tree.VarInsnNode(Opcodes.ALOAD, 0));
-        control.add(new MethodInsnNode(
-                Opcodes.INVOKESTATIC, CONTROL_RUNTIME, "titleAdvance", "(Ljava/lang/Object;)V", false));
-        advance.instructions.insertBefore(onlyReturn, control);
+            advance.instructions.insert(removal, new MethodInsnNode(
+                    Opcodes.INVOKESTATIC, RUNTIME, "mainMenuInteractive", "()V", false));
+            AbstractInsnNode onlyReturn = uniqueReturn(advance);
+            if (onlyReturn == null) return null;
+            org.objectweb.asm.tree.InsnList control = new org.objectweb.asm.tree.InsnList();
+            control.add(new org.objectweb.asm.tree.VarInsnNode(Opcodes.ALOAD, 0));
+            control.add(new MethodInsnNode(
+                    Opcodes.INVOKESTATIC,
+                    CONTROL_RUNTIME,
+                    "titleAdvance",
+                    "(Ljava/lang/Object;)V",
+                    false));
+            advance.instructions.insertBefore(onlyReturn, control);
+        }
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         return writer.toByteArray();
@@ -76,6 +97,26 @@ final class MainMenuInteractivePlan {
                     && REMOVE_DESCRIPTOR.equals(call.desc)) {
                 if (result != null) return null;
                 result = call;
+            }
+        }
+        return result;
+    }
+
+    private static boolean supportedTarget(ClassSignature signature) {
+        return (TARGET_CLASS.equals(signature.internalName())
+                        && ORIGINAL_SHA256.equals(signature.sha256()))
+                || (LINUX_TARGET_CLASS.equals(signature.internalName())
+                        && LINUX_ORIGINAL_SHA256.equals(signature.sha256()));
+    }
+
+    private static AbstractInsnNode uniqueReturn(MethodNode method) {
+        if (method == null) return null;
+        AbstractInsnNode result = null;
+        for (AbstractInsnNode instruction = method.instructions.getFirst();
+                instruction != null; instruction = instruction.getNext()) {
+            if (instruction.getOpcode() == Opcodes.RETURN) {
+                if (result != null) return null;
+                result = instruction;
             }
         }
         return result;
@@ -109,15 +150,4 @@ final class MainMenuInteractivePlan {
         return result;
     }
 
-    private static AbstractInsnNode uniqueReturn(MethodNode method) {
-        AbstractInsnNode result = null;
-        for (AbstractInsnNode instruction = method.instructions.getFirst();
-                instruction != null; instruction = instruction.getNext()) {
-            if (instruction.getOpcode() == Opcodes.RETURN) {
-                if (result != null) return null;
-                result = instruction;
-            }
-        }
-        return result;
-    }
 }

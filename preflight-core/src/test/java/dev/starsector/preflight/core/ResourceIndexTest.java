@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -12,23 +13,44 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class ResourceIndexTest {
     @Test
-    void returnsOrderedProvidersAndLastWinner() {
+    void returnsOrderedProvidersAndLastWinner(@TempDir Path directory) throws Exception {
+        Path core = Files.createDirectories(directory.resolve("core/graphics/ships"));
+        Path alpha = Files.createDirectories(directory.resolve("mods/alpha/graphics/ships"));
+        Files.writeString(core.resolve("example.png"), "core");
+        Files.writeString(alpha.resolve("example.png"), "alpha");
         ResourceIndex index = new ResourceIndex(
                 "fingerprint",
                 List.of(
-                        new ResourceIndex.Root("core", Path.of("core"), true),
-                        new ResourceIndex.Root("alpha", Path.of("mods", "alpha"), false)),
-                Map.of("Graphics\\Ships//Example.PNG", List.of(
+                        new ResourceIndex.Root("core", directory.resolve("core"), true),
+                        new ResourceIndex.Root("alpha", directory.resolve("mods/alpha"), false)),
+                Map.of("Graphics\\Ships//example.png", List.of(
                         new ResourceIndex.Provider(0, "graphics/ships/example.png", 10, 1),
-                        new ResourceIndex.Provider(1, "graphics/ships/Example.PNG", 20, 2))));
+                        new ResourceIndex.Provider(1, "graphics/ships/example.png", 20, 2))));
 
         assertEquals(2, index.providers("./graphics/ships/example.png").size());
-        assertEquals(1, index.winner("GRAPHICS/SHIPS/EXAMPLE.PNG").orElseThrow().rootIndex());
+        assertEquals(1, index.winner("graphics/ships/example.png").orElseThrow().rootIndex());
         assertTrue(index.winningFile("graphics/ships/example.png").orElseThrow()
-                .endsWith(Path.of("mods", "alpha", "graphics", "ships", "Example.PNG")));
+                .endsWith(Path.of("mods", "alpha", "graphics", "ships", "example.png")));
+    }
+
+    @Test
+    void foldedHitsFollowTheProviderFilesystem(@TempDir Path directory) throws Exception {
+        Path root = Files.createDirectories(directory.resolve("mod/graphics"));
+        Path actual = Files.writeString(root.resolve("Example.PNG"), "image");
+        ResourceIndex index = new ResourceIndex(
+                "fingerprint",
+                List.of(new ResourceIndex.Root("mod", directory.resolve("mod"), false)),
+                Map.of("graphics/Example.PNG", List.of(
+                        new ResourceIndex.Provider(0, "graphics/Example.PNG", 5, 1))));
+
+        assertEquals(1, index.providers("graphics/Example.PNG").size());
+        Path folded = root.resolve("example.png");
+        boolean filesystemMatches = Files.isRegularFile(folded) && Files.isSameFile(actual, folded);
+        assertEquals(filesystemMatches ? 1 : 0, index.providers("graphics/example.png").size());
     }
 
     @Test

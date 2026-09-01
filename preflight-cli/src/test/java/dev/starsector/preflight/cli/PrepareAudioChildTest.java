@@ -10,6 +10,7 @@ import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import org.junit.jupiter.api.Test;
@@ -44,6 +45,16 @@ class PrepareAudioChildTest {
             assertNotNull(loader.getResource("sound/marker.txt"),
                     "the jar is only readable if its path survived as itself");
         }
+    }
+
+    @Test
+    void findsJarsAtTheRootOfAFlatLinuxInstallation() throws Exception {
+        Path game = Files.createDirectories(directory.resolve("linux-game"));
+        Path gameJar = Files.writeString(game.resolve("starfarer_obf.jar"), "game");
+        Path soundJar = Files.writeString(game.resolve("fs.sound_obf.jar"), "sound");
+        Files.writeString(game.resolve("not-a-jar.txt"), "ignored");
+
+        assertEquals(List.of(soundJar, gameJar), PrepareAudioCommand.jars(game));
     }
 
     @Test

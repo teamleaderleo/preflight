@@ -33,19 +33,16 @@ final class WeaponJsonCachePlan {
     }
 
     static boolean apply(ClassSignature signature, ClassNode owner) {
+        String loadAllName = WeaponLoaderPhasePlan.loadAllMethod(signature);
+        String loadOneName = WeaponLoaderPhasePlan.loadOneMethod(signature);
         if (!TARGET.equals(signature.internalName())
-                || !signature.hasMethod(
-                        WeaponLoaderPhasePlan.LOAD_ALL_METHOD,
-                        WeaponLoaderPhasePlan.LOAD_ALL_DESCRIPTOR)
-                || !signature.hasMethod(
-                        WeaponLoaderPhasePlan.LOAD_ONE_METHOD,
-                        WeaponLoaderPhasePlan.LOAD_ONE_DESCRIPTOR)) {
+                || loadAllName == null || loadOneName == null) {
             return false;
         }
         MethodNode loadAll = uniqueMethod(
-                owner, WeaponLoaderPhasePlan.LOAD_ALL_METHOD, WeaponLoaderPhasePlan.LOAD_ALL_DESCRIPTOR);
+                owner, loadAllName, WeaponLoaderPhasePlan.LOAD_ALL_DESCRIPTOR);
         MethodNode loadOne = uniqueMethod(
-                owner, WeaponLoaderPhasePlan.LOAD_ONE_METHOD, WeaponLoaderPhasePlan.LOAD_ONE_DESCRIPTOR);
+                owner, loadOneName, WeaponLoaderPhasePlan.LOAD_ONE_DESCRIPTOR);
         MethodInsnNode originalCall = uniqueJsonCall(loadOne);
         AbstractInsnNode loadAllReturn = uniqueReturn(loadAll);
         if (loadAll == null || loadOne == null || originalCall == null || loadAllReturn == null

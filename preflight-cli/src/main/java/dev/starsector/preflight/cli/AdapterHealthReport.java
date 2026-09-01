@@ -234,6 +234,15 @@ final class AdapterHealthReport {
         if (!(value instanceof List<?> evaluations)) {
             return List.of();
         }
+        Set<String> exactAlternativeGroups = new LinkedHashSet<>();
+        for (Object item : evaluations) {
+            if (!(item instanceof Map<?, ?> raw)) continue;
+            Map<String, Object> evaluation = (Map<String, Object>) raw;
+            String group = string(evaluation, "alternativeGroup");
+            if (bool(evaluation, "exact") && !group.isBlank()) {
+                exactAlternativeGroups.add(group);
+            }
+        }
         Set<String> details = new LinkedHashSet<>();
         for (Object item : evaluations) {
             if (!(item instanceof Map<?, ?> raw)) {
@@ -241,6 +250,10 @@ final class AdapterHealthReport {
             }
             Map<String, Object> evaluation = (Map<String, Object>) raw;
             if (bool(evaluation, "exact")) {
+                continue;
+            }
+            String alternativeGroup = string(evaluation, "alternativeGroup");
+            if (!alternativeGroup.isBlank() && exactAlternativeGroups.contains(alternativeGroup)) {
                 continue;
             }
             String target = string(evaluation, "targetId");

@@ -17,20 +17,26 @@ import org.objectweb.asm.tree.TypeInsnNode;
 final class RulesLoaderPhasePlan {
     static final String TARGET_CLASS = "com/fs/starfarer/campaign/rules/Rules";
     static final String LOAD_METHOD = "super";
+    static final String WINDOWS_LOAD_METHOD = "o00000";
     static final String LOAD_DESCRIPTOR = "(Lcom/fs/starfarer/loading/ResourceLoaderState;)V";
+    static final String TRIGGER_LOOKUP_METHOD = "super";
+    static final String WINDOWS_TRIGGER_LOOKUP_METHOD = "o00000";
+    static final String TRIGGER_LOOKUP_DESCRIPTOR = "(Ljava/lang/String;)Ljava/util/List;";
     private static final String RUNTIME = "dev/starsector/preflight/agent/StartupPhaseRuntime";
 
     private RulesLoaderPhasePlan() {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
+        String loadMethod = loadMethod(signature);
+        String triggerLookupMethod = triggerLookupMethod(signature);
         if (!TARGET_CLASS.equals(signature.internalName())
-                || !signature.hasMethod(LOAD_METHOD, LOAD_DESCRIPTOR)) {
+                || loadMethod == null || triggerLookupMethod == null) {
             return null;
         }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
-        MethodNode load = uniqueMethod(owner, LOAD_METHOD, LOAD_DESCRIPTOR);
+        MethodNode load = uniqueMethod(owner, loadMethod, LOAD_DESCRIPTOR);
         if (load == null || hasRuntimeCalls(load)) {
             return null;
         }
@@ -41,15 +47,19 @@ final class RulesLoaderPhasePlan {
         List<MethodInsnNode> ruleObjects = calls(load, Opcodes.INVOKESPECIAL,
                 "com/fs/starfarer/campaign/rules/ooOO", "<init>",
                 "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
-        List<MethodInsnNode> expressions = calls(load, Opcodes.INVOKESPECIAL,
-                "com/fs/starfarer/campaign/rules/super", "<init>",
-                "(Ljava/lang/String;)V");
+        List<MethodInsnNode> expressions = new ArrayList<>();
+        expressions.addAll(calls(load, Opcodes.INVOKESPECIAL,
+                RuleExpressionPhasePlan.TARGET_CLASS, "<init>", "(Ljava/lang/String;)V"));
+        expressions.addAll(calls(load, Opcodes.INVOKESPECIAL,
+                RuleExpressionPhasePlan.LINUX_TARGET_CLASS, "<init>", "(Ljava/lang/String;)V"));
+        expressions.addAll(calls(load, Opcodes.INVOKESPECIAL,
+                RuleExpressionPhasePlan.WINDOWS_TARGET_CLASS, "<init>", "(Ljava/lang/String;)V"));
         List<MethodInsnNode> options = calls(load, Opcodes.INVOKESPECIAL,
                 "com/fs/starfarer/api/campaign/rules/Option", "<init>", "()V");
         List<MethodInsnNode> scripts = calls(load, Opcodes.INVOKESTATIC,
                 "com/fs/starfarer/loading/scripts/ScriptStore", "Object", "(Ljava/lang/String;)V");
         List<MethodInsnNode> triggerMap = calls(load, Opcodes.INVOKESTATIC,
-                TARGET_CLASS, "super", "(Ljava/lang/String;)Ljava/util/List;");
+                TARGET_CLASS, triggerLookupMethod, TRIGGER_LOOKUP_DESCRIPTOR);
         List<MethodInsnNode> replacements = calls(load, Opcodes.INVOKEVIRTUAL,
                 "java/lang/String", "replaceAll",
                 "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
@@ -77,6 +87,18 @@ final class RulesLoaderPhasePlan {
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         return writer.toByteArray();
+    }
+
+    static String loadMethod(ClassSignature signature) {
+        if (signature.hasMethod(LOAD_METHOD, LOAD_DESCRIPTOR)) return LOAD_METHOD;
+        if (signature.hasMethod(WINDOWS_LOAD_METHOD, LOAD_DESCRIPTOR)) return WINDOWS_LOAD_METHOD;
+        return null;
+    }
+
+    static String triggerLookupMethod(ClassSignature signature) {
+        String load = loadMethod(signature);
+        if (WINDOWS_LOAD_METHOD.equals(load)) return WINDOWS_TRIGGER_LOOKUP_METHOD;
+        return load == null ? null : TRIGGER_LOOKUP_METHOD;
     }
 
     private static void wrapCall(MethodNode method, MethodInsnNode call, String label) {

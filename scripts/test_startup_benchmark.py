@@ -74,6 +74,12 @@ class PublicEntryPointTest(unittest.TestCase):
         self.assertIn("gameLogStartToGraphicsPreloadMs", SCRIPT_TEXT)
         self.assertIn('printf "Startup: %.2fs', SCRIPT_TEXT)
 
+    def test_zero_accepted_launches_returns_failure(self):
+        self.assertIn(
+            "if ! jq -s -e 'any(.[]; .status == \"accepted\")' \"$RESULTS\" >/dev/null",
+            SCRIPT_TEXT,
+        )
+
     def test_concise_mode_avoids_the_expensive_convenience_run_scans(self):
         self.assertIn('doctor --game "$GAME" --no-scan', SCRIPT_TEXT)
         self.assertIn('if [[ "$CONCISE" != true || "$CONDITIONS" != fast ]]', SCRIPT_TEXT)
@@ -148,6 +154,17 @@ class PublicEntryPointTest(unittest.TestCase):
         self.assertIn('if [[ "$ONE_SHOT_DIRECT" == true ]]', settings.group("body"))
         self.assertIn('command+=(--direct)', SCRIPT_TEXT)
 
+    def test_every_direct_protocol_preflight_launch_skips_the_launcher(self):
+        launch = re.search(
+            r'if \[\[ "\$condition" != vanilla \]\](?P<body>.*?)\n\s*banner "\$label"',
+            SCRIPT_TEXT,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(launch, "benchmarked Preflight launch assembly not found")
+        self.assertIn('if [[ "$PROTOCOL" == direct ]]', launch.group("body"))
+        self.assertNotIn('if [[ "$ONE_SHOT_DIRECT" == true ]]', launch.group("body"))
+        self.assertIn('command+=(--direct)', launch.group("body"))
+
     def test_benchmarked_preflight_launches_do_not_run_the_profile_census(self):
         self.assertIn('if [[ "$condition" != vanilla ]]', SCRIPT_TEXT)
         self.assertIn('command+=(--no-scan)', SCRIPT_TEXT)
@@ -207,6 +224,15 @@ class ConditionTest(unittest.TestCase):
         block = re.search(r"vanilla\)\n(?P<body>.*?);;", SCRIPT_TEXT, re.DOTALL)
         self.assertIsNotNone(block, "vanilla condition not found")
         self.assertIn("env -u JAVA_TOOL_OPTIONS", block.group("body"))
+
+    def test_vanilla_launches_from_the_game_directory(self):
+        # Linux's stock starsector.sh uses ./jre_linux and relative classpath entries. Running
+        # the baseline from the repository makes the launcher exit before Java starts.
+        block = re.search(r"launch_once\(\) \{(?P<body>.*?)\n\}", SCRIPT_TEXT, re.DOTALL)
+        self.assertIsNotNone(block, "launch_once not found")
+        body = block.group("body")
+        self.assertIn('launch_directory="$GAME"', body)
+        self.assertIn('(cd "$launch_directory" && exec "${command[@]}")', body)
 
     def test_agent_condition_carries_the_recorder_but_no_adapter(self):
         block = re.search(r"agent\)\n(?P<body>.*?);;", SCRIPT_TEXT, re.DOTALL)
@@ -428,7 +454,7 @@ class CandidateEngineTest(unittest.TestCase):
         self.assertNotIn("CHECKOUT_JAR", branch.group("body"))
         self.assertIn("Refusing to fall back to the checkout build", branch.group("body"))
         # The checkout branch is the only place the checkout JAR is ever selected.
-        self.assertIn("mvn -q -DskipTests package", branch.group("checkout"))
+        self.assertIn('"$MAVEN" -q -DskipTests package', branch.group("checkout"))
         self.assertIn('JAR="$CHECKOUT_JAR"', branch.group("checkout"))
 
     def test_a_named_digest_is_enforced_against_the_resolved_engine(self):

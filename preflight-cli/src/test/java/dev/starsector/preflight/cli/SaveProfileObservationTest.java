@@ -278,7 +278,7 @@ final class SaveProfileObservationTest {
                     "savedAt": "%s",
                     "enabledMods": ["mod_a", "mod_b"]
                 }
-                """.formatted(fixture.install.toString(), Instant.now().toString()));
+                """.formatted(jsonString(fixture.install.toString()), Instant.now().toString()));
 
         SaveProfileObservation.Prepared prepared = SaveProfileObservation.testPrepare(
                 fixture.home, fixture.install, "profile-id-only", false);
@@ -318,7 +318,7 @@ final class SaveProfileObservationTest {
                     "savedAt": "%s",
                     "enabledMods": []
                 }
-                """.formatted(fixture.install.toString(), Instant.now().toString()));
+                """.formatted(jsonString(fixture.install.toString()), Instant.now().toString()));
 
         SaveProfileObservation.Prepared prepared = SaveProfileObservation.testPrepare(
                 fixture.home, fixture.install, "vanilla-fp", false);
@@ -373,6 +373,10 @@ final class SaveProfileObservationTest {
         assertEquals(
                 List.of(SaveProfileObservation.Difference.MOD_METADATA),
                 SaveProfileObservation.differences(observedWithMods, currentWithEmptyMods));
+    }
+
+    private static String jsonString(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     @Test

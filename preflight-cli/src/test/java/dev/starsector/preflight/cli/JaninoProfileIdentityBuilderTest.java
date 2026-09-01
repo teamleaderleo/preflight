@@ -32,6 +32,18 @@ class JaninoProfileIdentityBuilderTest {
     }
 
     @Test
+    void findsTheRuntimeImageInAFlatLinuxInstallation() throws Exception {
+        Fixture fixture = Fixture.create(temporaryDirectory.resolve("linux"));
+        Path linuxModules = fixture.root.resolve("jre_linux/lib/modules");
+        Files.createDirectories(linuxModules.getParent());
+        Files.move(fixture.modules, linuxModules);
+
+        JaninoProfileIdentityBuilder.Result result = fixture.build();
+
+        assertEquals(linuxModules.toAbsolutePath().normalize(), result.runtimeModules());
+    }
+
+    @Test
     void everyCompilationInputMovesItsPartOfTheIdentity() throws Exception {
         Fixture fixture = Fixture.create(temporaryDirectory.resolve("mutations"));
         var before = fixture.build().context();

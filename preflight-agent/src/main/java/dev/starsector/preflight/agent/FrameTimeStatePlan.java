@@ -21,6 +21,8 @@ final class FrameTimeStatePlan {
     static final String CAMPAIGN_CLASS = "com/fs/starfarer/campaign/CampaignState";
     static final String CAMPAIGN_SHA256 =
             "bdd3e9801c6bd8ae216fc40510d7f9f33fa16a540426cd137ca85dc640163372";
+    static final String LINUX_CAMPAIGN_SHA256 =
+            "fed3c68c8fed0d948d1c4464b7bfa549cda6b3f7e0cfb3df74967037656403d5";
     static final String ADVANCE_METHOD = "advance";
     static final String ADVANCE_DESCRIPTOR = "(FLcom/fs/starfarer/util/super/B;)V";
     static final String PROCESS_INPUT_METHOD = "processInput";
@@ -44,7 +46,8 @@ final class FrameTimeStatePlan {
         String observer = "observeCampaign";
         if ((!FrameTimeRuntime.enabled() && !RuntimeSemanticState.enabled())
                 || !CAMPAIGN_CLASS.equals(signature.internalName())
-                || !CAMPAIGN_SHA256.equals(signature.sha256())
+                || (!CAMPAIGN_SHA256.equals(signature.sha256())
+                        && !LINUX_CAMPAIGN_SHA256.equals(signature.sha256()))
                 || signature.majorVersion() != 61
                 || !signature.hasMethod(ADVANCE_METHOD, ADVANCE_DESCRIPTOR)) {
             return null;

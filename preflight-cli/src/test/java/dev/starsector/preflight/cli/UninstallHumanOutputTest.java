@@ -26,7 +26,7 @@ class UninstallHumanOutputTest {
 
         String output = render(plan, false);
 
-        assertTrue(output.startsWith("Preview: Would remove:\n"), output);
+        assertTrue(output.startsWith("Preview: Would remove:" + System.lineSeparator()), output);
         assertTrue(output.contains("Preview only; nothing was removed."), output);
         assertTrue(output.contains("Re-run with --yes to apply this exact scope."), output);
         assertFalse(output.contains("\u001b["), output);
@@ -46,8 +46,8 @@ class UninstallHumanOutputTest {
 
         String output = render(plan, false);
 
-        assertTrue(output.startsWith("Removed:\n"), output);
-        assertTrue(output.endsWith("Done.\n"), output);
+        assertTrue(output.startsWith("Removed:" + System.lineSeparator()), output);
+        assertTrue(output.endsWith("Done." + System.lineSeparator()), output);
         assertFalse(output.contains("Preview:"), output);
     }
 
@@ -57,7 +57,7 @@ class UninstallHumanOutputTest {
                 UninstallCommand.Scope.LAUNCHER, true, false, 0, 0, List.of(), List.of());
 
         assertEquals(
-                "Preview: nothing to remove for the selected scope.\n",
+                platformLines("Preview: nothing to remove for the selected scope.\n"),
                 render(plan, false));
     }
 
@@ -73,7 +73,7 @@ class UninstallHumanOutputTest {
                 List.of("Home path could not be verified."));
 
         assertEquals(
-                "Preview refused:\n  Home path could not be verified.\n",
+                platformLines("Preview refused:\n  Home path could not be verified.\n"),
                 render(plan, false));
     }
 
@@ -97,5 +97,9 @@ class UninstallHumanOutputTest {
             UninstallCommand.print(plan, json, out);
         }
         return bytes.toString(StandardCharsets.UTF_8);
+    }
+
+    private static String platformLines(String value) {
+        return value.replace("\n", System.lineSeparator());
     }
 }

@@ -19,6 +19,7 @@ class TexturePaddingPlanTest {
     @AfterEach
     void clearGate() {
         System.clearProperty(TexturePaddingRuntime.UNPADDED_PROPERTY);
+        TexturePaddingRuntime.beginSession();
         TexturePaddingRuntime.reset();
     }
 
@@ -110,6 +111,17 @@ class TexturePaddingPlanTest {
         assertNull(TexturePaddingPlan.transform(ClassSignature.parse(bare), bare));
     }
 
+    @Test
+    void transformsTheExactLinuxFoldName() throws Exception {
+        byte[] original = loaderWithFold(TexturePaddingPlan.LINUX_FOLD_METHOD, get2FoldBody());
+        byte[] transformed = TexturePaddingPlan.transform(ClassSignature.parse(original), original);
+        assertNotNull(transformed);
+
+        Method fold = define(transformed).getDeclaredMethod(TexturePaddingPlan.LINUX_FOLD_METHOD, int.class);
+        fold.setAccessible(true);
+        assertEquals(512, fold.invoke(instance(fold), 288));
+    }
+
     private static Method transformedFold(byte[] original) throws Exception {
         byte[] transformed = TexturePaddingPlan.transform(ClassSignature.parse(original), original);
         assertNotNull(transformed);
@@ -155,6 +167,11 @@ class TexturePaddingPlanTest {
     }
 
     private static byte[] loaderWithFold(java.util.function.Consumer<MethodVisitor> body) {
+        return loaderWithFold(TexturePaddingPlan.FOLD_METHOD, body);
+    }
+
+    private static byte[] loaderWithFold(
+            String foldName, java.util.function.Consumer<MethodVisitor> body) {
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, TexturePaddingPlan.TARGET_CLASS,
                 null, "java/lang/Object", null);
@@ -172,7 +189,7 @@ class TexturePaddingPlanTest {
 
         if (body != null) {
             MethodVisitor fold = writer.visitMethod(
-                    Opcodes.ACC_PRIVATE, TexturePaddingPlan.FOLD_METHOD,
+                    Opcodes.ACC_PRIVATE, foldName,
                     TexturePaddingPlan.FOLD_DESCRIPTOR, null, null);
             fold.visitCode();
             body.accept(fold);
@@ -180,5 +197,27 @@ class TexturePaddingPlanTest {
         }
         writer.visitEnd();
         return writer.toByteArray();
+    }
+
+    private static java.util.function.Consumer<MethodVisitor> get2FoldBody() {
+        return visitor -> {
+            Label test = new Label();
+            Label body = new Label();
+            visitor.visitInsn(Opcodes.ICONST_2);
+            visitor.visitVarInsn(Opcodes.ISTORE, 2);
+            visitor.visitJumpInsn(Opcodes.GOTO, test);
+            visitor.visitLabel(body);
+            visitor.visitVarInsn(Opcodes.ILOAD, 2);
+            visitor.visitInsn(Opcodes.ICONST_2);
+            visitor.visitInsn(Opcodes.IMUL);
+            visitor.visitVarInsn(Opcodes.ISTORE, 2);
+            visitor.visitLabel(test);
+            visitor.visitVarInsn(Opcodes.ILOAD, 2);
+            visitor.visitVarInsn(Opcodes.ILOAD, 1);
+            visitor.visitJumpInsn(Opcodes.IF_ICMPLT, body);
+            visitor.visitVarInsn(Opcodes.ILOAD, 2);
+            visitor.visitInsn(Opcodes.IRETURN);
+            visitor.visitMaxs(2, 3);
+        };
     }
 }

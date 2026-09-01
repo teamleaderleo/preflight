@@ -28,6 +28,87 @@ class TextureCompatibilityTargetTest {
         assertFalse(compatibility.planId().equals(prepared.planId()));
     }
 
+    @Test
+    void linuxPreparedPixelTargetPinsTheFlatDistribution() {
+        AdapterTarget target = AdapterTargetRegistry.linuxTexturePreparedPixelTarget();
+        ClassSignature exactClass = signature(target, target.sha256(), target.requiredMethods());
+        AdapterSourceIdentity exactSource = source(
+                target.sourceKind(),
+                "/home/player/Games/starsector/fs.common_obf.jar",
+                target.sourceSha256(),
+                target.loaderClass(),
+                target.loaderName());
+
+        assertEquals(TexturePreparedPixelRuntime.PLAN_ID, target.planId());
+        assertEquals(9, target.requiredMethods().size());
+        assertTrue(target.match(exactClass, exactSource).exact());
+        assertFalse(target.match(exactClass, source(
+                target.sourceKind(),
+                "/home/player/Games/starsector/other.jar",
+                target.sourceSha256(),
+                target.loaderClass(),
+                target.loaderName())).exact());
+    }
+
+    @Test
+    void windowsPreparedPixelTargetPinsTheReviewedNativeDistribution() {
+        AdapterTarget mac = AdapterTargetRegistry.texturePreparedPixelTarget();
+        AdapterTarget target = AdapterTargetRegistry.windowsTexturePreparedPixelTarget();
+        ClassSignature exactClass = signature(target, target.sha256(), target.requiredMethods());
+        AdapterSourceIdentity exactSource = source(
+                target.sourceKind(),
+                "C:/Games/Starsector/starsector-core/fs.common_obf.jar",
+                target.sourceSha256(),
+                target.loaderClass(),
+                target.loaderName());
+
+        assertEquals(TexturePreparedPixelRuntime.PLAN_ID, target.planId());
+        assertEquals(mac.alternativeGroup(), target.alternativeGroup());
+        assertEquals(9, target.requiredMethods().size());
+        assertTrue(target.match(exactClass, exactSource).exact());
+        assertFalse(mac.match(exactClass, exactSource).exact());
+    }
+
+    @Test
+    void linuxPrefetchTargetPinsTheFlatDistributionAsAMacAlternative() {
+        AdapterTarget mac = AdapterTargetRegistry.texturePrefetchBypassTarget();
+        AdapterTarget linux = AdapterTargetRegistry.linuxTexturePrefetchBypassTarget();
+        ClassSignature exactClass = signature(linux, linux.sha256(), linux.requiredMethods());
+        AdapterSourceIdentity exactSource = source(
+                linux.sourceKind(),
+                "/home/player/Games/starsector/fs.common_obf.jar",
+                linux.sourceSha256(),
+                linux.loaderClass(),
+                linux.loaderName());
+
+        assertEquals(TexturePrefetchBypassPlan.PLAN_ID, linux.planId());
+        assertEquals(mac.alternativeGroup(), linux.alternativeGroup());
+        assertFalse(linux.alternativeGroup().isBlank());
+        assertEquals(1, linux.requiredMethods().size());
+        assertTrue(linux.match(exactClass, exactSource).exact());
+        assertFalse(mac.match(exactClass, exactSource).exact());
+    }
+
+    @Test
+    void windowsPrefetchTargetPinsTheReviewedNativeDistribution() {
+        AdapterTarget mac = AdapterTargetRegistry.texturePrefetchBypassTarget();
+        AdapterTarget target = AdapterTargetRegistry.windowsTexturePrefetchBypassTarget();
+        ClassSignature exactClass = signature(target, target.sha256(), target.requiredMethods());
+        AdapterSourceIdentity exactSource = source(
+                target.sourceKind(),
+                "C:/Games/Starsector/starsector-core/fs.common_obf.jar",
+                target.sourceSha256(),
+                target.loaderClass(),
+                target.loaderName());
+
+        assertEquals(TexturePrefetchBypassPlan.PLAN_ID, target.planId());
+        assertEquals(mac.alternativeGroup(), target.alternativeGroup());
+        assertEquals(TexturePrefetchBypassPlan.WINDOWS_CONSUMER_METHOD,
+                target.requiredMethods().get(0).name());
+        assertTrue(target.match(exactClass, exactSource).exact());
+        assertFalse(mac.match(exactClass, exactSource).exact());
+    }
+
     private static void assertExactIdentity(AdapterTarget target, String planId) {
         ClassSignature exactClass = signature(target, target.sha256(), target.requiredMethods());
         AdapterSourceIdentity exactSource = source(

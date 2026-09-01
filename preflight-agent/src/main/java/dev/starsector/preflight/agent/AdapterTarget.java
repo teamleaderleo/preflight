@@ -16,7 +16,23 @@ record AdapterTarget(
         String sourceSuffix,
         String sourceSha256,
         String loaderClass,
-        String loaderName) {
+        String loaderName,
+        String alternativeGroup) {
+    AdapterTarget(
+            String id,
+            String internalClassName,
+            String sha256,
+            String planId,
+            List<RequiredMethod> requiredMethods,
+            String sourceKind,
+            String sourceSuffix,
+            String sourceSha256,
+            String loaderClass,
+            String loaderName) {
+        this(id, internalClassName, sha256, planId, requiredMethods, sourceKind, sourceSuffix,
+                sourceSha256, loaderClass, loaderName, "");
+    }
+
     AdapterTarget(
             String id,
             String internalClassName,
@@ -42,6 +58,13 @@ record AdapterTarget(
                 : requireSha256(sourceSha256, "Target source SHA-256");
         loaderClass = normalizeClass(optional(loaderClass));
         loaderName = optional(loaderName);
+        alternativeGroup = optional(alternativeGroup);
+    }
+
+    AdapterTarget withAlternativeGroup(String group) {
+        return new AdapterTarget(id, internalClassName, sha256, planId, requiredMethods,
+                sourceKind, sourceSuffix, sourceSha256, loaderClass, loaderName,
+                requireText(group, "alternative group"));
     }
 
     Match match(ClassSignature actual) {

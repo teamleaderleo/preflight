@@ -19,6 +19,7 @@ import org.objectweb.asm.tree.VarInsnNode;
 final class TextureCompatibilityPlan {
     static final String TARGET_CLASS = "com/fs/graphics/TextureLoader";
     static final String DECODE_METHOD = "Ô00000";
+    static final String LINUX_DECODE_METHOD = "String";
     static final String DECODE_DESCRIPTOR = "(Ljava/lang/String;)Ljava/awt/image/BufferedImage;";
     private static final String PRELOADER = "com/fs/graphics/L";
     private static final String PRELOADER_METHOD = "class";
@@ -29,7 +30,8 @@ final class TextureCompatibilityPlan {
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
         if (!TARGET_CLASS.equals(signature.internalName())
-                || !signature.hasMethod(DECODE_METHOD, DECODE_DESCRIPTOR)) {
+                || (!signature.hasMethod(DECODE_METHOD, DECODE_DESCRIPTOR)
+                        && !signature.hasMethod(LINUX_DECODE_METHOD, DECODE_DESCRIPTOR))) {
             return null;
         }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
@@ -40,7 +42,8 @@ final class TextureCompatibilityPlan {
 
         MethodNode decode = null;
         for (MethodNode method : owner.methods) {
-            if (DECODE_METHOD.equals(method.name) && DECODE_DESCRIPTOR.equals(method.desc)) {
+            if ((DECODE_METHOD.equals(method.name) || LINUX_DECODE_METHOD.equals(method.name))
+                    && DECODE_DESCRIPTOR.equals(method.desc)) {
                 if (decode != null) {
                     return null;
                 }

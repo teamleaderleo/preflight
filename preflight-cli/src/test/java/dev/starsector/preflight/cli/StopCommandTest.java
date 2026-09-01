@@ -120,17 +120,17 @@ class StopCommandTest {
                 true);
 
         assertEquals(
-                """
+                platformLines("""
                 Preview: would stop PID 424246.
                 Preview: would leave PID 424247 alone: PID may have been reused.
-                """,
+                """),
                 rendered);
     }
 
     @Test
     void emptyPreviewStillSaysItIsAPreview() {
         assertEquals(
-                "Preview: no Preflight-started Starsector process is running.\n",
+                platformLines("Preview: no Preflight-started Starsector process is running.\n"),
                 render(List.of(), List.of(), true));
     }
 
@@ -145,13 +145,17 @@ class StopCommandTest {
                 false);
 
         assertEquals(
-                """
+                platformLines("""
                 Stopped PID 424248.
                 PID 424249 already exited.
                 Could not stop PID 424250: still alive after 20s; re-run with --force to end it.
                 Left PID 424251 alone: PID may have been reused.
-                """,
+                """),
                 rendered);
+    }
+
+    private static String platformLines(String value) {
+        return value.replace("\n", System.lineSeparator());
     }
 
     private static String render(

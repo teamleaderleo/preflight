@@ -18,6 +18,10 @@ final class AdapterTargetRegistry {
     private static final int MAX_LINE_CHARS = 4_096;
     private static final int MAX_TARGETS = 256;
     private static final int MAX_METHODS_PER_TARGET = 128;
+    private static final String LINUX_CORE_JAR_SHA256 =
+            "3d41d31d4840158491426f0570f42d71c176d9bc9cc84605a284e4c76c8b91b0";
+    private static final String WINDOWS_CORE_JAR_SHA256 =
+            "5dd222b9e266d2ac2d63b3dad4983eb05caaf5a247d7dfb82aaeba47ea774cc8";
 
     private final List<AdapterTarget> targets;
     private final Map<String, List<AdapterTarget>> byClass;
@@ -37,6 +41,46 @@ final class AdapterTargetRegistry {
         return new AdapterTargetRegistry(List.of());
     }
 
+    private static AdapterTarget linuxCoreTarget(
+            String id,
+            String className,
+            String classSha256,
+            String planId,
+            List<AdapterTarget.RequiredMethod> methods,
+            String alternativeGroup) {
+        return new AdapterTarget(
+                id,
+                className,
+                classSha256,
+                planId,
+                methods,
+                "STARSECTOR_CORE",
+                "starfarer_obf.jar",
+                LINUX_CORE_JAR_SHA256,
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app").withAlternativeGroup(alternativeGroup);
+    }
+
+    private static AdapterTarget windowsCoreTarget(
+            String id,
+            String className,
+            String classSha256,
+            String planId,
+            List<AdapterTarget.RequiredMethod> methods,
+            String alternativeGroup) {
+        return new AdapterTarget(
+                id,
+                className,
+                classSha256,
+                planId,
+                methods,
+                "STARSECTOR_CORE",
+                "starfarer_obf.jar",
+                WINDOWS_CORE_JAR_SHA256,
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app").withAlternativeGroup(alternativeGroup);
+    }
+
     static AdapterTarget textureCompatibilityTarget() {
         return textureTarget(
                 "vanilla-texture-loader-0.98a-rc8-compatibility",
@@ -47,6 +91,26 @@ final class AdapterTargetRegistry {
         return textureTarget(
                 "vanilla-texture-loader-0.98a-rc8-prepared-pixels",
                 TexturePreparedPixelRuntime.PLAN_ID);
+    }
+
+    static AdapterTarget linuxTexturePreparedPixelTarget() {
+        return linuxTextureTarget(
+                "vanilla-texture-loader-linux-0.98a-rc8-prepared-pixels",
+                TexturePreparedPixelRuntime.PLAN_ID);
+    }
+
+    static AdapterTarget windowsTexturePreparedPixelTarget() {
+        return new AdapterTarget(
+                "vanilla-texture-loader-windows-0.98a-rc8-prepared-pixels",
+                TexturePreparedPixelPlan.TARGET_CLASS,
+                "7d89b44c9401a122529450d17407dbfc8d52e13a9f7eb941dc93125eb5fc153b",
+                TexturePreparedPixelRuntime.PLAN_ID,
+                windowsTextureMethods(),
+                "STARSECTOR_CORE",
+                "fs.common_obf.jar",
+                "5a26d047baefc6dcd763121a17d170e3b864bfb19a83d11f645ba8be49f1641b",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app").withAlternativeGroup("vanilla-texture-loader-0.98a-rc8");
     }
 
     /**
@@ -68,7 +132,39 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/fs.common_obf.jar",
                 "10d89e113f6d1627cc7bc90b692e8a7f450fdd820c5a4ac5edaecd6710afe708",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-image-prefetcher-0.98a-rc8");
+    }
+
+    static AdapterTarget linuxTexturePrefetchBypassTarget() {
+        return new AdapterTarget(
+                "vanilla-image-prefetcher-linux-0.98a-rc8-bypass",
+                TexturePrefetchBypassPlan.TARGET_CLASS,
+                "85cd54eb52dd70c30b11e8d964a726878516529d1d1fba8b348c03e83352da43",
+                TexturePrefetchBypassPlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        TexturePrefetchBypassPlan.CONSUMER_METHOD,
+                        TexturePrefetchBypassPlan.CONSUMER_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "fs.common_obf.jar",
+                "83f4367bfb55416f25614f5a5ccf2199de35cb5c1599e630f6cd54538843cf9c",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app").withAlternativeGroup("vanilla-image-prefetcher-0.98a-rc8");
+    }
+
+    static AdapterTarget windowsTexturePrefetchBypassTarget() {
+        return new AdapterTarget(
+                "vanilla-image-prefetcher-windows-0.98a-rc8-bypass",
+                TexturePrefetchBypassPlan.TARGET_CLASS,
+                "9e339c5a0edadebdd81b088e0882f5a00b4696b9f5e862a9beec3ff03c439f3e",
+                TexturePrefetchBypassPlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        TexturePrefetchBypassPlan.WINDOWS_CONSUMER_METHOD,
+                        TexturePrefetchBypassPlan.CONSUMER_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "fs.common_obf.jar",
+                "5a26d047baefc6dcd763121a17d170e3b864bfb19a83d11f645ba8be49f1641b",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app").withAlternativeGroup("vanilla-image-prefetcher-0.98a-rc8");
     }
 
     /**
@@ -465,7 +561,7 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/janino.jar",
                 "60f05562c22b6de06641a1f76148692ef336ad1f6712fe6a76f9e2611f766344",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-janino-2.7.8-complete-map-bytecode-cache");
     }
 
     /** GraphicsLib 1.12.1's exact per-frame insignia renderer and owning mod archive. */
@@ -776,7 +872,25 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/lwjgl.jar",
                 "527d509f60132e5b2653c7fc0f8cf299d6f698f4a8013342bef47705dc57ed3f",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("lwjgl-display-frame-time-probe");
+    }
+
+    static AdapterTarget linuxFrameTimeTarget() {
+        return new AdapterTarget(
+                "lwjgl-2-display-linux-frame-time-probe",
+                FrameTimePlan.TARGET_CLASS,
+                FrameTimePlan.ORIGINAL_SHA256,
+                FrameTimeRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                FrameTimePlan.UPDATE_METHOD, FrameTimePlan.UPDATE_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                FrameTimePlan.ACTIVE_METHOD, FrameTimePlan.ACTIVE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "lwjgl.jar",
+                "527d509f60132e5b2653c7fc0f8cf299d6f698f4a8013342bef47705dc57ed3f",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app").withAlternativeGroup("lwjgl-display-frame-time-probe");
     }
 
     /** Exact campaign main-loop limiter sleep, enabled only with frame-time telemetry. */
@@ -809,7 +923,23 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-resource-loader-startup-completion-0.98a-rc8");
+    }
+
+    static AdapterTarget linuxFrameTimeStartupCompletionTarget() {
+        return new AdapterTarget(
+                "vanilla-resource-loader-linux-0.98a-rc8-frame-time-startup-completion",
+                FrameTimeStartupCompletionPlan.TARGET_CLASS,
+                FrameTimeStartupCompletionPlan.LINUX_ORIGINAL_SHA256,
+                FrameTimeStartupCompletionPlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        FrameTimeStartupCompletionPlan.INIT_METHOD,
+                        FrameTimeStartupCompletionPlan.INIT_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "starfarer_obf.jar",
+                "3d41d31d4840158491426f0570f42d71c176d9bc9cc84605a284e4c76c8b91b0",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app").withAlternativeGroup("vanilla-resource-loader-startup-completion-0.98a-rc8");
     }
 
     static AdapterTarget mainMenuInteractiveTarget() {
@@ -825,7 +955,23 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-main-menu-interactive-0.98a-rc8");
+    }
+
+    static AdapterTarget linuxMainMenuInteractiveTarget() {
+        return new AdapterTarget(
+                "vanilla-title-linux-0.98a-rc8-main-menu-interactive",
+                MainMenuInteractivePlan.LINUX_TARGET_CLASS,
+                MainMenuInteractivePlan.LINUX_ORIGINAL_SHA256,
+                MainMenuInteractivePlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        MainMenuInteractivePlan.SHOW_METHOD,
+                        MainMenuInteractivePlan.SHOW_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "starfarer_obf.jar",
+                "3d41d31d4840158491426f0570f42d71c176d9bc9cc84605a284e4c76c8b91b0",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app").withAlternativeGroup("vanilla-main-menu-interactive-0.98a-rc8");
     }
 
     /** Starsector reprioritizes a large resource list with a quadratic ArrayList.removeAll. */
@@ -841,7 +987,32 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-resource-priority-0.98a-rc8");
+    }
+
+    static AdapterTarget linuxResourcePriorityTarget() {
+        return new AdapterTarget(
+                "vanilla-resource-loader-linux-0.98a-rc8-priority-index",
+                ResourcePriorityPlan.TARGET_CLASS,
+                FrameTimeStartupCompletionPlan.LINUX_ORIGINAL_SHA256,
+                ResourcePriorityRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        ResourcePriorityPlan.INIT_METHOD, ResourcePriorityPlan.INIT_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "starfarer_obf.jar",
+                "3d41d31d4840158491426f0570f42d71c176d9bc9cc84605a284e4c76c8b91b0",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app").withAlternativeGroup("vanilla-resource-priority-0.98a-rc8");
+    }
+
+    static AdapterTarget windowsResourcePriorityTarget() {
+        return windowsCoreTarget(
+                "vanilla-resource-loader-windows-0.98a-rc8-priority-index",
+                ResourcePriorityPlan.TARGET_CLASS,
+                FrameTimeStartupCompletionPlan.WINDOWS_ORIGINAL_SHA256,
+                ResourcePriorityRuntime.PLAN_ID,
+                resourcePriorityTarget().requiredMethods(),
+                "vanilla-resource-priority-0.98a-rc8");
     }
 
     /** Vanilla parses an entire save descriptor merely to enable the Continue button. */
@@ -962,7 +1133,24 @@ final class AdapterTargetRegistry {
         return frameTimeStateTarget(
                 "vanilla-campaign-frame-time-segment-0.98a-rc8",
                 FrameTimeStatePlan.CAMPAIGN_CLASS,
-                FrameTimeStatePlan.CAMPAIGN_SHA256);
+                FrameTimeStatePlan.CAMPAIGN_SHA256)
+                .withAlternativeGroup("vanilla-campaign-frame-time-segment-0.98a-rc8");
+    }
+
+    static AdapterTarget linuxCampaignFrameTimeStateTarget() {
+        return new AdapterTarget(
+                "vanilla-campaign-linux-frame-time-segment-0.98a-rc8",
+                FrameTimeStatePlan.CAMPAIGN_CLASS,
+                FrameTimeStatePlan.LINUX_CAMPAIGN_SHA256,
+                FrameTimeStatePlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        FrameTimeStatePlan.ADVANCE_METHOD,
+                        FrameTimeStatePlan.ADVANCE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "starfarer_obf.jar",
+                "3d41d31d4840158491426f0570f42d71c176d9bc9cc84605a284e4c76c8b91b0",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app").withAlternativeGroup("vanilla-campaign-frame-time-segment-0.98a-rc8");
     }
 
     /** Exact vanilla combat loop used for one-shot runtime integrity and opt-in frame segments. */
@@ -1523,7 +1711,27 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-rule-expression-0.98a-rc8-token-cache");
+    }
+
+    static AdapterTarget linuxRuleTokenCacheTarget() {
+        return linuxCoreTarget(
+                "vanilla-rule-expression-linux-0.98a-rc8-token-cache",
+                RuleExpressionPhasePlan.LINUX_TARGET_CLASS,
+                "894b652ad366387a6fb15dd066fca922c70411b502496a079cec2fd065a57760",
+                RuleTokenCacheRuntime.PLAN_ID,
+                ruleTokenCacheTarget().requiredMethods(),
+                "vanilla-rule-expression-0.98a-rc8-token-cache");
+    }
+
+    static AdapterTarget windowsRuleTokenCacheTarget() {
+        return windowsCoreTarget(
+                "vanilla-rule-expression-windows-0.98a-rc8-token-cache",
+                RuleExpressionPhasePlan.WINDOWS_TARGET_CLASS,
+                "2161e729532ae56c5e3eb6738584f28742d95d272f7d87172fc4fffe5cbeeb13",
+                RuleTokenCacheRuntime.PLAN_ID,
+                ruleTokenCacheTarget().requiredMethods(),
+                "vanilla-rule-expression-0.98a-rc8-token-cache");
     }
 
     /** Exact campaign-rules loader used by the trigger-local duplicate index. */
@@ -1540,7 +1748,29 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-rules-loader-0.98a-rc8-duplicate-index");
+    }
+
+    static AdapterTarget linuxRulesDuplicateIndexTarget() {
+        return linuxCoreTarget(
+                "vanilla-rules-loader-linux-0.98a-rc8-duplicate-index",
+                RulesLoaderPhasePlan.TARGET_CLASS,
+                "7865fa80d98032c50346f800daecdd2d0dd6935a67e0ab58159410aa7c7c2842",
+                RulesDuplicateIndexRuntime.PLAN_ID,
+                rulesDuplicateIndexTarget().requiredMethods(),
+                "vanilla-rules-loader-0.98a-rc8-duplicate-index");
+    }
+
+    static AdapterTarget windowsRulesDuplicateIndexTarget() {
+        return windowsCoreTarget(
+                "vanilla-rules-loader-windows-0.98a-rc8-duplicate-index",
+                RulesLoaderPhasePlan.TARGET_CLASS,
+                "72f0925d83ff48bfa2c4b8d2f691b10935d4567dc6ab1e12392a2ee388539df9",
+                RulesDuplicateIndexRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        RulesLoaderPhasePlan.WINDOWS_LOAD_METHOD,
+                        RulesLoaderPhasePlan.LOAD_DESCRIPTOR)),
+                "vanilla-rules-loader-0.98a-rc8-duplicate-index");
     }
 
     /** Exact campaign-rules loader used by the strict-profile merged-CSV cache. */
@@ -1557,7 +1787,29 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-rules-loader-0.98a-rc8-csv-cache");
+    }
+
+    static AdapterTarget linuxRulesCsvCacheTarget() {
+        return linuxCoreTarget(
+                "vanilla-rules-loader-linux-0.98a-rc8-csv-cache",
+                RulesLoaderPhasePlan.TARGET_CLASS,
+                "7865fa80d98032c50346f800daecdd2d0dd6935a67e0ab58159410aa7c7c2842",
+                RulesCsvCacheRuntime.PLAN_ID,
+                rulesCsvCacheTarget().requiredMethods(),
+                "vanilla-rules-loader-0.98a-rc8-csv-cache");
+    }
+
+    static AdapterTarget windowsRulesCsvCacheTarget() {
+        return windowsCoreTarget(
+                "vanilla-rules-loader-windows-0.98a-rc8-csv-cache",
+                RulesLoaderPhasePlan.TARGET_CLASS,
+                "72f0925d83ff48bfa2c4b8d2f691b10935d4567dc6ab1e12392a2ee388539df9",
+                RulesCsvCacheRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        RulesLoaderPhasePlan.WINDOWS_LOAD_METHOD,
+                        RulesLoaderPhasePlan.LOAD_DESCRIPTOR)),
+                "vanilla-rules-loader-0.98a-rc8-csv-cache");
     }
 
     /** Exact campaign-rules loader used by the fixed-pattern regex cache. */
@@ -1574,7 +1826,29 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-rules-loader-0.98a-rc8-regex-cache");
+    }
+
+    static AdapterTarget linuxRulesRegexCacheTarget() {
+        return linuxCoreTarget(
+                "vanilla-rules-loader-linux-0.98a-rc8-regex-cache",
+                RulesRegexCachePlan.TARGET_CLASS,
+                "7865fa80d98032c50346f800daecdd2d0dd6935a67e0ab58159410aa7c7c2842",
+                RulesRegexCacheRuntime.PLAN_ID,
+                rulesRegexCacheTarget().requiredMethods(),
+                "vanilla-rules-loader-0.98a-rc8-regex-cache");
+    }
+
+    static AdapterTarget windowsRulesRegexCacheTarget() {
+        return windowsCoreTarget(
+                "vanilla-rules-loader-windows-0.98a-rc8-regex-cache",
+                RulesRegexCachePlan.TARGET_CLASS,
+                "72f0925d83ff48bfa2c4b8d2f691b10935d4567dc6ab1e12392a2ee388539df9",
+                RulesRegexCacheRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        RulesLoaderPhasePlan.WINDOWS_LOAD_METHOD,
+                        RulesRegexCachePlan.LOAD_DESCRIPTOR)),
+                "vanilla-rules-loader-0.98a-rc8-regex-cache");
     }
 
     /** The expression class again, this time for its static command-name resolver. */
@@ -1591,7 +1865,27 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-rule-expression-0.98a-rc8-command-class-cache");
+    }
+
+    static AdapterTarget linuxRuleCommandClassLookupTarget() {
+        return linuxCoreTarget(
+                "vanilla-rule-expression-linux-0.98a-rc8-command-class-cache",
+                RuleExpressionPhasePlan.LINUX_TARGET_CLASS,
+                "894b652ad366387a6fb15dd066fca922c70411b502496a079cec2fd065a57760",
+                RuleCommandClassCacheRuntime.PLAN_ID,
+                ruleCommandClassLookupTarget().requiredMethods(),
+                "vanilla-rule-expression-0.98a-rc8-command-class-cache");
+    }
+
+    static AdapterTarget windowsRuleCommandClassLookupTarget() {
+        return windowsCoreTarget(
+                "vanilla-rule-expression-windows-0.98a-rc8-command-class-cache",
+                RuleExpressionPhasePlan.WINDOWS_TARGET_CLASS,
+                "2161e729532ae56c5e3eb6738584f28742d95d272f7d87172fc4fffe5cbeeb13",
+                RuleCommandClassCacheRuntime.PLAN_ID,
+                ruleCommandClassLookupTarget().requiredMethods(),
+                "vanilla-rule-expression-0.98a-rc8-command-class-cache");
     }
 
     /** The rules loader, where the learning run publishes what it observed. */
@@ -1608,7 +1902,29 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-rules-loader-0.98a-rc8-command-class-publish");
+    }
+
+    static AdapterTarget linuxRuleCommandClassPublishTarget() {
+        return linuxCoreTarget(
+                "vanilla-rules-loader-linux-0.98a-rc8-command-class-publish",
+                RulesLoaderPhasePlan.TARGET_CLASS,
+                "7865fa80d98032c50346f800daecdd2d0dd6935a67e0ab58159410aa7c7c2842",
+                RuleCommandClassCacheRuntime.PLAN_ID,
+                ruleCommandClassPublishTarget().requiredMethods(),
+                "vanilla-rules-loader-0.98a-rc8-command-class-publish");
+    }
+
+    static AdapterTarget windowsRuleCommandClassPublishTarget() {
+        return windowsCoreTarget(
+                "vanilla-rules-loader-windows-0.98a-rc8-command-class-publish",
+                RulesLoaderPhasePlan.TARGET_CLASS,
+                "72f0925d83ff48bfa2c4b8d2f691b10935d4567dc6ab1e12392a2ee388539df9",
+                RuleCommandClassCacheRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        RulesLoaderPhasePlan.WINDOWS_LOAD_METHOD,
+                        RulesLoaderPhasePlan.LOAD_DESCRIPTOR)),
+                "vanilla-rules-loader-0.98a-rc8-command-class-publish");
     }
 
     /** Exact reviewed variant loader used by the strict-profile merged-JSON cache. */
@@ -1624,7 +1940,27 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-spec-store-0.98a-rc8-variant-json-cache");
+    }
+
+    static AdapterTarget linuxVariantJsonCacheTarget() {
+        return linuxCoreTarget(
+                "vanilla-spec-store-linux-0.98a-rc8-variant-json-cache",
+                SpecStorePhasePlan.TARGET_CLASS,
+                "c24e0891883158c29767bd1d94cb41f4ce281418669d80b39472745626e23172",
+                VariantJsonCacheRuntime.PLAN_ID,
+                variantJsonCacheTarget().requiredMethods(),
+                "vanilla-spec-store-0.98a-rc8-variant-json-cache");
+    }
+
+    static AdapterTarget windowsVariantJsonCacheTarget() {
+        return windowsCoreTarget(
+                "vanilla-spec-store-windows-0.98a-rc8-variant-json-cache",
+                SpecStorePhasePlan.TARGET_CLASS,
+                "011125fae8e21c0c1618d50258e9cf4b2292f0179093b3659ddc4f9a2555a5d8",
+                VariantJsonCacheRuntime.PLAN_ID,
+                variantJsonCacheTarget().requiredMethods(),
+                "vanilla-spec-store-0.98a-rc8-variant-json-cache");
     }
 
     /** Exact SpecStore smart-quote cleanup used when no prepared variant cache is available. */
@@ -1641,7 +1977,29 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-spec-store-0.98a-rc8-quote-normalization");
+    }
+
+    static AdapterTarget linuxSpecStoreQuoteNormalizationTarget() {
+        return linuxCoreTarget(
+                "vanilla-spec-store-linux-0.98a-rc8-quote-normalization",
+                SpecStoreQuoteNormalizationPlan.TARGET_CLASS,
+                "c24e0891883158c29767bd1d94cb41f4ce281418669d80b39472745626e23172",
+                SpecStoreQuoteNormalizationPlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        SpecStoreQuoteNormalizationPlan.LINUX_METHOD,
+                        SpecStoreQuoteNormalizationPlan.DESCRIPTOR)),
+                "vanilla-spec-store-0.98a-rc8-quote-normalization");
+    }
+
+    static AdapterTarget windowsSpecStoreQuoteNormalizationTarget() {
+        return windowsCoreTarget(
+                "vanilla-spec-store-windows-0.98a-rc8-quote-normalization",
+                SpecStoreQuoteNormalizationPlan.TARGET_CLASS,
+                "011125fae8e21c0c1618d50258e9cf4b2292f0179093b3659ddc4f9a2555a5d8",
+                SpecStoreQuoteNormalizationPlan.PLAN_ID,
+                specStoreQuoteNormalizationTarget().requiredMethods(),
+                "vanilla-spec-store-0.98a-rc8-quote-normalization");
     }
 
     /** Exact reviewed weapon loader used by the strict-profile merged-JSON cache. */
@@ -1662,7 +2020,33 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-weapon-loader-0.98a-rc8-json-cache");
+    }
+
+    static AdapterTarget linuxWeaponJsonCacheTarget() {
+        return linuxCoreTarget(
+                "vanilla-weapon-loader-linux-0.98a-rc8-json-cache",
+                WeaponLoaderPhasePlan.TARGET_CLASS,
+                "d551ae2441d94c338cc4000bff809a5bd0f8d0783dfe2d9147831d289f91644e",
+                WeaponJsonCacheRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                WeaponLoaderPhasePlan.LINUX_LOAD_ALL_METHOD,
+                                WeaponLoaderPhasePlan.LOAD_ALL_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                WeaponLoaderPhasePlan.LINUX_LOAD_ONE_METHOD,
+                                WeaponLoaderPhasePlan.LOAD_ONE_DESCRIPTOR)),
+                "vanilla-weapon-loader-0.98a-rc8-json-cache");
+    }
+
+    static AdapterTarget windowsWeaponJsonCacheTarget() {
+        return windowsCoreTarget(
+                "vanilla-weapon-loader-windows-0.98a-rc8-json-cache",
+                WeaponLoaderPhasePlan.TARGET_CLASS,
+                "fb7a0efe7ecd7e9b56b31832d89288ac8909da68fc49bbea7b721a4bca2e05bd",
+                WeaponJsonCacheRuntime.PLAN_ID,
+                linuxWeaponJsonCacheTarget().requiredMethods(),
+                "vanilla-weapon-loader-0.98a-rc8-json-cache");
     }
 
     /** Exact reviewed projectile loader used by the strict-profile merged-JSON cache. */
@@ -1683,7 +2067,27 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-projectile-loader-0.98a-rc8-json-cache");
+    }
+
+    static AdapterTarget linuxProjectileJsonCacheTarget() {
+        return linuxCoreTarget(
+                "vanilla-projectile-loader-linux-0.98a-rc8-json-cache",
+                WeaponLoaderPhasePlan.TARGET_CLASS,
+                "d551ae2441d94c338cc4000bff809a5bd0f8d0783dfe2d9147831d289f91644e",
+                ProjectileJsonCacheRuntime.PLAN_ID,
+                projectileJsonCacheTarget().requiredMethods(),
+                "vanilla-projectile-loader-0.98a-rc8-json-cache");
+    }
+
+    static AdapterTarget windowsProjectileJsonCacheTarget() {
+        return windowsCoreTarget(
+                "vanilla-projectile-loader-windows-0.98a-rc8-json-cache",
+                WeaponLoaderPhasePlan.TARGET_CLASS,
+                "fb7a0efe7ecd7e9b56b31832d89288ac8909da68fc49bbea7b721a4bca2e05bd",
+                ProjectileJsonCacheRuntime.PLAN_ID,
+                projectileJsonCacheTarget().requiredMethods(),
+                "vanilla-projectile-loader-0.98a-rc8-json-cache");
     }
 
     /** Exact reviewed ship-hull loader used by the strict-profile merged-JSON cache. */
@@ -1704,7 +2108,33 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-ship-hull-loader-0.98a-rc8-json-cache");
+    }
+
+    static AdapterTarget linuxHullJsonCacheTarget() {
+        return linuxCoreTarget(
+                "vanilla-ship-hull-loader-linux-0.98a-rc8-json-cache",
+                ShipHullLoaderPhasePlan.TARGET_CLASS,
+                "1132ea9ddf52b2d6293f9ac8379fbb7dee3181ca5652a87bcf6f64a655fc5c00",
+                HullJsonCacheRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                ShipHullLoaderPhasePlan.LOAD_ALL_METHOD,
+                                ShipHullLoaderPhasePlan.LOAD_ALL_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                ShipHullLoaderPhasePlan.LINUX_LOAD_ONE_METHOD,
+                                ShipHullLoaderPhasePlan.LOAD_ONE_DESCRIPTOR)),
+                "vanilla-ship-hull-loader-0.98a-rc8-json-cache");
+    }
+
+    static AdapterTarget windowsHullJsonCacheTarget() {
+        return windowsCoreTarget(
+                "vanilla-ship-hull-loader-windows-0.98a-rc8-json-cache",
+                ShipHullLoaderPhasePlan.TARGET_CLASS,
+                "93a78a8b95c8f9abf0cbcc5523efb706efe0c5f02cf6f3956a3a7dae78f91f43",
+                HullJsonCacheRuntime.PLAN_ID,
+                hullJsonCacheTarget().requiredMethods(),
+                "vanilla-ship-hull-loader-0.98a-rc8-json-cache");
     }
 
     private static AdapterTarget textureTarget(String id, String planId) {
@@ -1718,7 +2148,21 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/fs.common_obf.jar",
                 "10d89e113f6d1627cc7bc90b692e8a7f450fdd820c5a4ac5edaecd6710afe708",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-texture-loader-0.98a-rc8");
+    }
+
+    private static AdapterTarget linuxTextureTarget(String id, String planId) {
+        return new AdapterTarget(
+                id,
+                "com/fs/graphics/TextureLoader",
+                "9679ffab9f56e12183bce93dd6a459b6f6d26dfd7ec2230a67476d8cc20c0680",
+                planId,
+                linuxTextureMethods(),
+                "STARSECTOR_CORE",
+                "fs.common_obf.jar",
+                "83f4367bfb55416f25614f5a5ccf2199de35cb5c1599e630f6cd54538843cf9c",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app").withAlternativeGroup("vanilla-texture-loader-0.98a-rc8");
     }
 
     private static List<AdapterTarget.RequiredMethod> textureMethods() {
@@ -1739,6 +2183,56 @@ final class AdapterTargetRegistry {
                         "o00000", "(Ljava/nio/ByteBuffer;Ljava/lang/String;)V"),
                 new AdapterTarget.RequiredMethod(
                         "Ò00000", "(Ljava/lang/String;)Ljava/nio/ByteBuffer;"),
+                new AdapterTarget.RequiredMethod(
+                        "o00000",
+                        "(Lcom/fs/graphics/Object;Ljava/lang/String;IIIIZ)Lcom/fs/graphics/Object;"),
+                new AdapterTarget.RequiredMethod(
+                        "o00000", "(Ljava/lang/String;)Lcom/fs/graphics/Object;"));
+    }
+
+    private static List<AdapterTarget.RequiredMethod> linuxTextureMethods() {
+        return List.of(
+                new AdapterTarget.RequiredMethod(
+                        "super",
+                        "(Ljava/awt/image/BufferedImage;Lcom/fs/graphics/Object;)Ljava/nio/ByteBuffer;"),
+                new AdapterTarget.RequiredMethod(
+                        "super", "(Ljava/lang/String;Ljava/awt/image/BufferedImage;)V"),
+                new AdapterTarget.RequiredMethod(
+                        "Ò00000",
+                        "(Ljava/lang/String;Ljava/awt/image/BufferedImage;)Lcom/fs/graphics/Object;"),
+                new AdapterTarget.RequiredMethod(
+                        "String", "(Ljava/lang/String;)Ljava/awt/image/BufferedImage;"),
+                new AdapterTarget.RequiredMethod(
+                        "super", "(Ljava/awt/image/BufferedImage;IIII)Lcom/fs/graphics/Object;"),
+                new AdapterTarget.RequiredMethod(
+                        "super", "(Ljava/nio/ByteBuffer;Ljava/lang/String;)V"),
+                new AdapterTarget.RequiredMethod(
+                        "Ò00000", "(Ljava/lang/String;)Ljava/nio/ByteBuffer;"),
+                new AdapterTarget.RequiredMethod(
+                        "super",
+                        "(Lcom/fs/graphics/Object;Ljava/lang/String;IIIIZ)Lcom/fs/graphics/Object;"),
+                new AdapterTarget.RequiredMethod(
+                        "super", "(Ljava/lang/String;)Lcom/fs/graphics/Object;"));
+    }
+
+    private static List<AdapterTarget.RequiredMethod> windowsTextureMethods() {
+        return List.of(
+                new AdapterTarget.RequiredMethod(
+                        "o00000",
+                        "(Ljava/awt/image/BufferedImage;Lcom/fs/graphics/Object;)Ljava/nio/ByteBuffer;"),
+                new AdapterTarget.RequiredMethod(
+                        "o00000", "(Ljava/lang/String;Ljava/awt/image/BufferedImage;)V"),
+                new AdapterTarget.RequiredMethod(
+                        "new",
+                        "(Ljava/lang/String;Ljava/awt/image/BufferedImage;)Lcom/fs/graphics/Object;"),
+                new AdapterTarget.RequiredMethod(
+                        "Ô00000", "(Ljava/lang/String;)Ljava/awt/image/BufferedImage;"),
+                new AdapterTarget.RequiredMethod(
+                        "o00000", "(Ljava/awt/image/BufferedImage;IIII)Lcom/fs/graphics/Object;"),
+                new AdapterTarget.RequiredMethod(
+                        "o00000", "(Ljava/nio/ByteBuffer;Ljava/lang/String;)V"),
+                new AdapterTarget.RequiredMethod(
+                        "new", "(Ljava/lang/String;)Ljava/nio/ByteBuffer;"),
                 new AdapterTarget.RequiredMethod(
                         "o00000",
                         "(Lcom/fs/graphics/Object;Ljava/lang/String;IIIIZ)Lcom/fs/graphics/Object;"),
@@ -1814,48 +2308,72 @@ final class AdapterTargetRegistry {
     }
 
     AdapterTargetRegistry withVariantJsonCacheTarget() {
-        return withTarget(variantJsonCacheTarget());
+        return withTarget(variantJsonCacheTarget())
+                .withTarget(linuxVariantJsonCacheTarget())
+                .withTarget(windowsVariantJsonCacheTarget());
     }
 
     AdapterTargetRegistry withSpecStoreQuoteNormalizationTarget() {
-        return withTarget(specStoreQuoteNormalizationTarget());
+        return withTarget(specStoreQuoteNormalizationTarget())
+                .withTarget(linuxSpecStoreQuoteNormalizationTarget())
+                .withTarget(windowsSpecStoreQuoteNormalizationTarget());
     }
 
     AdapterTargetRegistry withWeaponJsonCacheTarget() {
-        return withTarget(weaponJsonCacheTarget());
+        return withTarget(weaponJsonCacheTarget())
+                .withTarget(linuxWeaponJsonCacheTarget())
+                .withTarget(windowsWeaponJsonCacheTarget());
     }
 
     AdapterTargetRegistry withProjectileJsonCacheTarget() {
-        return withTarget(projectileJsonCacheTarget());
+        return withTarget(projectileJsonCacheTarget())
+                .withTarget(linuxProjectileJsonCacheTarget())
+                .withTarget(windowsProjectileJsonCacheTarget());
     }
 
     AdapterTargetRegistry withHullJsonCacheTarget() {
-        return withTarget(hullJsonCacheTarget());
+        return withTarget(hullJsonCacheTarget())
+                .withTarget(linuxHullJsonCacheTarget())
+                .withTarget(windowsHullJsonCacheTarget());
     }
 
     AdapterTargetRegistry withRulesDuplicateIndexTarget() {
-        return withTarget(rulesDuplicateIndexTarget());
+        return withTarget(rulesDuplicateIndexTarget())
+                .withTarget(linuxRulesDuplicateIndexTarget())
+                .withTarget(windowsRulesDuplicateIndexTarget());
     }
 
     AdapterTargetRegistry withRulesCsvCacheTarget() {
-        return withTarget(rulesCsvCacheTarget());
+        return withTarget(rulesCsvCacheTarget())
+                .withTarget(linuxRulesCsvCacheTarget())
+                .withTarget(windowsRulesCsvCacheTarget());
     }
 
     AdapterTargetRegistry withRulesRegexCacheTarget() {
-        return withTarget(rulesRegexCacheTarget());
+        return withTarget(rulesRegexCacheTarget())
+                .withTarget(linuxRulesRegexCacheTarget())
+                .withTarget(windowsRulesRegexCacheTarget());
     }
 
     AdapterTargetRegistry withRuleTokenCacheTarget() {
-        return withTarget(ruleTokenCacheTarget());
+        return withTarget(ruleTokenCacheTarget())
+                .withTarget(linuxRuleTokenCacheTarget())
+                .withTarget(windowsRuleTokenCacheTarget());
     }
 
     AdapterTargetRegistry withRuleCommandClassCacheTarget() {
         return withTarget(ruleCommandClassLookupTarget())
-                .withTarget(ruleCommandClassPublishTarget());
+                .withTarget(linuxRuleCommandClassLookupTarget())
+                .withTarget(windowsRuleCommandClassLookupTarget())
+                .withTarget(ruleCommandClassPublishTarget())
+                .withTarget(linuxRuleCommandClassPublishTarget())
+                .withTarget(windowsRuleCommandClassPublishTarget());
     }
 
     AdapterTargetRegistry withMergedReadCacheTarget() {
-        return withTarget(mergedReadCacheTarget());
+        return withTarget(mergedReadCacheTarget())
+                .withTarget(linuxMergedReadCacheTarget())
+                .withTarget(windowsMergedReadCacheTarget());
     }
 
     /**
@@ -1907,7 +2425,27 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-loading-utils-0.98a-rc8-merged-read-cache");
+    }
+
+    static AdapterTarget linuxMergedReadCacheTarget() {
+        return linuxCoreTarget(
+                "vanilla-loading-utils-linux-0.98a-rc8-merged-read-cache",
+                MergedReadCachePlan.TARGET_CLASS,
+                "b1737290343c69e71dfa3d3a28ddd7757f3bdc5a230f877043312f510ba85e2e",
+                MergedReadCacheRuntime.PLAN_ID,
+                mergedReadCacheTarget().requiredMethods(),
+                "vanilla-loading-utils-0.98a-rc8-merged-read-cache");
+    }
+
+    static AdapterTarget windowsMergedReadCacheTarget() {
+        return windowsCoreTarget(
+                "vanilla-loading-utils-windows-0.98a-rc8-merged-read-cache",
+                MergedReadCachePlan.TARGET_CLASS,
+                "35581e89dabe9befac66ca1d3602db234033e38baef1036d2a196c8703e30b37",
+                MergedReadCacheRuntime.PLAN_ID,
+                mergedReadCacheTarget().requiredMethods(),
+                "vanilla-loading-utils-0.98a-rc8-merged-read-cache");
     }
 
     /**
@@ -1928,11 +2466,33 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-loading-utils-0.98a-rc8-loadjson-memo");
+    }
+
+    static AdapterTarget linuxLoadJsonMemoTarget() {
+        return linuxCoreTarget(
+                "vanilla-loading-utils-linux-0.98a-rc8-loadjson-memo",
+                LoadJsonMemoPlan.TARGET_CLASS,
+                "b1737290343c69e71dfa3d3a28ddd7757f3bdc5a230f877043312f510ba85e2e",
+                LoadJsonMemoRuntime.PLAN_ID,
+                loadJsonMemoTarget().requiredMethods(),
+                "vanilla-loading-utils-0.98a-rc8-loadjson-memo");
+    }
+
+    static AdapterTarget windowsLoadJsonMemoTarget() {
+        return windowsCoreTarget(
+                "vanilla-loading-utils-windows-0.98a-rc8-loadjson-memo",
+                LoadJsonMemoPlan.TARGET_CLASS,
+                "35581e89dabe9befac66ca1d3602db234033e38baef1036d2a196c8703e30b37",
+                LoadJsonMemoRuntime.PLAN_ID,
+                loadJsonMemoTarget().requiredMethods(),
+                "vanilla-loading-utils-0.98a-rc8-loadjson-memo");
     }
 
     AdapterTargetRegistry withLoadJsonMemoTarget() {
-        return withTarget(loadJsonMemoTarget());
+        return withTarget(loadJsonMemoTarget())
+                .withTarget(linuxLoadJsonMemoTarget())
+                .withTarget(windowsLoadJsonMemoTarget());
     }
 
     AdapterTargetRegistry withResourceProbeCacheTarget() {
@@ -1948,6 +2508,10 @@ final class AdapterTargetRegistry {
     }
 
     AdapterTargetRegistry withJaninoBytecodeCacheTarget() {
+        // Linux has the same Janino class bytes but not the same runtime semantics: replaying a
+        // complete cached map skips source-loader state that Starsector later needs for mission
+        // resource discovery.  Exact warm launches then reject mission_text.txt files that are
+        // physically present.  Keep the reviewed macOS target and fail closed on Linux.
         return withTarget(janinoBytecodeCacheTarget());
     }
 
@@ -1957,8 +2521,10 @@ final class AdapterTargetRegistry {
 
     AdapterTargetRegistry withFrameTimeTarget() {
         return withTarget(frameTimeTarget())
+                .withTarget(linuxFrameTimeTarget())
                 .withTarget(frameLimiterTimeTarget())
-                .withTarget(campaignFrameTimeStateTarget());
+                .withTarget(campaignFrameTimeStateTarget())
+                .withTarget(linuxCampaignFrameTimeStateTarget());
     }
 
     AdapterTargetRegistry withDynamicParticleGroupProbeTarget() {
@@ -2207,11 +2773,13 @@ final class AdapterTargetRegistry {
     }
 
     AdapterTargetRegistry withFrameTimeStartupCompletionTarget() {
-        return withTarget(frameTimeStartupCompletionTarget());
+        return withTarget(frameTimeStartupCompletionTarget())
+                .withTarget(linuxFrameTimeStartupCompletionTarget());
     }
 
     AdapterTargetRegistry withMainMenuInteractiveTarget() {
-        return withTarget(mainMenuInteractiveTarget());
+        return withTarget(mainMenuInteractiveTarget())
+                .withTarget(linuxMainMenuInteractiveTarget());
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {
@@ -2219,8 +2787,18 @@ final class AdapterTargetRegistry {
         // stop queueing what that manifest can serve.
         AdapterTargetRegistry registry = withTarget(mode == TextureAdapterMode.PREPARED_PIXELS
                 ? texturePreparedPixelTarget()
-                : textureCompatibilityTarget())
+                : textureCompatibilityTarget());
+        if (mode == TextureAdapterMode.PREPARED_PIXELS) {
+            registry = registry.withTarget(linuxTexturePreparedPixelTarget())
+                    .withTarget(windowsTexturePreparedPixelTarget());
+        }
+        registry = registry
                 .withTarget(texturePrefetchBypassTarget())
+                .withTarget(linuxTexturePrefetchBypassTarget())
+                // The exact Windows shape is reviewed and tested, but is not live-gated yet: its
+                // first full-profile run stopped making progress after 39 seconds. Keep the
+                // target fail-closed until a captured thread dump explains that platform-specific
+                // liveness failure; the prepared-pixel loader itself remains enabled on Windows.
                 .withTarget(campaignEntityIndexTarget())
                 .withTarget(campaignEntityRepositoryTarget())
                 .withTarget(campaignEntityIdMutationTarget())
@@ -2239,6 +2817,8 @@ final class AdapterTargetRegistry {
                 .withTarget(simOpponentSafetyTarget())
                 .withTarget(simOpponentDialogProbeTarget())
                 .withTarget(resourcePriorityTarget())
+                .withTarget(linuxResourcePriorityTarget())
+                .withTarget(windowsResourcePriorityTarget())
                 .withTarget(saveDescriptorCompatibilityTarget())
                 .withTarget(industryDemandSupplySettingsTarget())
                 .withTarget(industryDemandSupplyCodexTarget())
@@ -2337,6 +2917,8 @@ final class AdapterTargetRegistry {
                 case "source-sha256" -> requireBuilder(absolute, lineNumber, builder).sourceSha256 = value;
                 case "loader-class" -> requireBuilder(absolute, lineNumber, builder).loaderClass = value;
                 case "loader-name" -> requireBuilder(absolute, lineNumber, builder).loaderName = value;
+                case "alternative-group" ->
+                        requireBuilder(absolute, lineNumber, builder).alternativeGroup = value;
                 case "method" -> {
                     Builder active = requireBuilder(absolute, lineNumber, builder);
                     if (active.methods.size() >= MAX_METHODS_PER_TARGET) {
@@ -2419,6 +3001,7 @@ final class AdapterTargetRegistry {
         private String sourceSha256 = "";
         private String loaderClass = "";
         private String loaderName = "";
+        private String alternativeGroup = "";
         private final List<AdapterTarget.RequiredMethod> methods = new ArrayList<>();
 
         private Builder(String id) {
@@ -2437,7 +3020,8 @@ final class AdapterTargetRegistry {
                         sourceSuffix,
                         sourceSha256,
                         loaderClass,
-                        loaderName);
+                        loaderName,
+                        alternativeGroup);
             } catch (RuntimeException error) {
                 throw syntax(path, lineNumber, error.getMessage());
             }

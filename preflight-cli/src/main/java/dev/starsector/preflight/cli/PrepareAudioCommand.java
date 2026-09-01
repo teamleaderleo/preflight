@@ -279,6 +279,10 @@ public final class PrepareAudioCommand {
         if (!Files.isDirectory(javaDirectory)) {
             javaDirectory = install.resolve("starsector-core");
         }
+        if (!Files.isDirectory(javaDirectory)
+                && Files.isRegularFile(install.resolve("starfarer_obf.jar"))) {
+            javaDirectory = install;
+        }
         if (!Files.isDirectory(javaDirectory)) {
             throw new IOException("Could not find the installation's jar directory under " + install);
         }

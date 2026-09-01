@@ -29,7 +29,7 @@ final class LinuxDesktopSmokeDriverTest {
                 "kind", "click",
                 "target", "main-menu.continue"), temporaryDirectory);
 
-        assertTrue(result.detail().contains("X11 window 202"));
+        assertTrue(result.detail().contains("Linux window 202"));
         assertTrue(commands.commands.stream().anyMatch(command -> command.equals(List.of(
                 "xdotool", "search", "--onlyvisible", "--pid",
                 Long.toString(current.pid())))));
@@ -88,7 +88,94 @@ final class LinuxDesktopSmokeDriverTest {
                 temporaryDirectory);
 
         assertTrue(commands.commands.stream().anyMatch(command ->
-                command.containsAll(List.of("windowactivate", "202", "mousemove", "--repeat", "12", "5"))));
+                command.containsAll(List.of(
+                        "windowactivate", "202", "mousemove", "--repeat", "12", "5"))));
+    }
+
+    @Test
+    void waylandUsesExactPidLogicalCoordinatesAndRealInput() throws Exception {
+        FakeCommands commands = new FakeCommands();
+        LinuxDesktopSmokeDriver driver = new LinuxDesktopSmokeDriver(
+                commands, "xdotool", "import", "ydotool", "wmctrl", "python3",
+                Map.of("DISPLAY", ":0", "XDG_SESSION_TYPE", "wayland"));
+        ProcessHandle current = ProcessHandle.current();
+        driver.attach(new DesktopSmokeDriver.ProcessTarget(
+                current.pid(), current.info().startInstant().orElseThrow()));
+
+        DesktopSmokeDriver.ActionResult result = driver.execute(Map.of(
+                "kind", "click",
+                "target", "main-menu.continue"), temporaryDirectory);
+
+        assertTrue(result.detail().contains("Linux window 202"));
+        assertTrue(commands.commands.stream().anyMatch(command -> command.equals(List.of(
+                "wmctrl", "-ia", "0xca"))));
+        assertTrue(commands.commands.stream().anyMatch(command -> command.size() >= 5
+                && command.get(0).equals("python3")
+                && command.get(command.size() - 3).equals("1554")
+                && command.get(command.size() - 2).equals("269")
+                && command.get(command.size() - 1).equals("ydotool")));
+        assertTrue(commands.commands.stream().noneMatch(command -> command.contains("mousemove")));
+        assertTrue(commands.commands.stream().anyMatch(command -> command.equals(List.of(
+                "ydotool", "key", "28:1"))));
+        assertTrue(commands.commands.stream().anyMatch(command -> command.equals(List.of(
+                "ydotool", "key", "28:0"))));
+        int finalFocusAssertion = commands.commands.lastIndexOf(List.of("wmctrl", "-ia", "0xca"));
+        int returnKeydown = commands.commands.indexOf(List.of("ydotool", "key", "28:1"));
+        assertTrue(finalFocusAssertion >= 0 && returnKeydown > finalFocusAssertion,
+                "Return must follow the final GNOME focus assertion");
+    }
+
+    @Test
+    void waylandMapsLoadGameAtTheObservedLinuxMenuPosition() throws Exception {
+        FakeCommands commands = new FakeCommands();
+        LinuxDesktopSmokeDriver driver = new LinuxDesktopSmokeDriver(
+                commands, "xdotool", "import", "ydotool", "wmctrl", "python3",
+                Map.of("DISPLAY", ":0", "XDG_SESSION_TYPE", "wayland"));
+        ProcessHandle current = ProcessHandle.current();
+        driver.attach(new DesktopSmokeDriver.ProcessTarget(
+                current.pid(), current.info().startInstant().orElseThrow()));
+
+        driver.execute(Map.of(
+                "kind", "click",
+                "target", "main-menu.load-game"), temporaryDirectory);
+
+        assertTrue(commands.commands.stream().anyMatch(command -> command.size() >= 5
+                && command.get(0).equals("python3")
+                && command.get(command.size() - 3).equals("1554")
+                && command.get(command.size() - 2).equals("487")
+                && command.get(command.size() - 1).equals("ydotool")));
+    }
+
+    @Test
+    void waylandMapsTheProvenLinuxNewGamePath() throws Exception {
+        FakeCommands commands = new FakeCommands();
+        LinuxDesktopSmokeDriver driver = new LinuxDesktopSmokeDriver(
+                commands, "xdotool", "import", "ydotool", "wmctrl", "python3",
+                Map.of("DISPLAY", ":0", "XDG_SESSION_TYPE", "wayland"));
+        ProcessHandle current = ProcessHandle.current();
+        driver.attach(new DesktopSmokeDriver.ProcessTarget(
+                current.pid(), current.info().startInstant().orElseThrow()));
+
+        driver.execute(Map.of("kind", "click", "target", "main-menu.new-game"),
+                temporaryDirectory);
+        driver.execute(Map.of("kind", "press-key", "key", "tab"), temporaryDirectory);
+        driver.execute(Map.of("kind", "press-key", "key", "4"), temporaryDirectory);
+        driver.execute(Map.of("kind", "click", "target", "new-game.fleet.carrier-small"),
+                temporaryDirectory);
+
+        assertTrue(commands.commands.stream().anyMatch(command -> command.size() >= 5
+                && command.get(0).equals("python3")
+                && command.get(command.size() - 2).equals("438")
+                && command.get(command.size() - 1).equals("ydotool")));
+        assertTrue(commands.commands.stream().anyMatch(command -> command.size() >= 5
+                && command.get(0).equals("python3")
+                && command.get(command.size() - 3).equals("1200")
+                && command.get(command.size() - 2).equals("625")
+                && command.get(command.size() - 1).equals("ydotool")));
+        assertTrue(commands.commands.stream().anyMatch(command -> command.equals(List.of(
+                "ydotool", "key", "15:1", "15:0"))));
+        assertTrue(commands.commands.stream().anyMatch(command -> command.equals(List.of(
+                "ydotool", "key", "5:1", "5:0"))));
     }
 
     private static final class FakeCommands implements DesktopCommandExecutor {
@@ -97,6 +184,7 @@ final class LinuxDesktopSmokeDriverTest {
         @Override
         public Result run(List<String> command, Duration timeout) {
             commands.add(List.copyOf(command));
+            if (command.contains("python3")) return new Result(0, "202 2\n");
             if (command.contains("search")) return new Result(0, "101\n202\n");
             if (command.contains("getwindowpid")) {
                 return new Result(0, Long.toString(ProcessHandle.current().pid()));

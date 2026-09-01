@@ -18,6 +18,7 @@ final class ShipHullLoaderPhasePlan {
     static final String LOAD_ALL_METHOD = "Ò00000";
     static final String LOAD_ALL_DESCRIPTOR = "()V";
     static final String LOAD_ONE_METHOD = "o00000";
+    static final String LINUX_LOAD_ONE_METHOD = "super";
     static final String LOAD_ONE_DESCRIPTOR = "(Ljava/lang/String;)V";
     private static final String RUNTIME = "dev/starsector/preflight/agent/StartupPhaseRuntime";
     private static final String LOADING_UTILS = "com/fs/starfarer/loading/LoadingUtils";
@@ -35,20 +36,21 @@ final class ShipHullLoaderPhasePlan {
     }
 
     static boolean apply(ClassSignature signature, ClassNode owner) {
+        String loadOneName = loadOneMethod(signature);
         if (!TARGET_CLASS.equals(signature.internalName())
                 || !signature.hasMethod(LOAD_ALL_METHOD, LOAD_ALL_DESCRIPTOR)
-                || !signature.hasMethod(LOAD_ONE_METHOD, LOAD_ONE_DESCRIPTOR)) {
+                || loadOneName == null) {
             return false;
         }
         MethodNode loadAll = uniqueMethod(owner, LOAD_ALL_METHOD, LOAD_ALL_DESCRIPTOR);
-        MethodNode loadOne = uniqueMethod(owner, LOAD_ONE_METHOD, LOAD_ONE_DESCRIPTOR);
+        MethodNode loadOne = uniqueMethod(owner, loadOneName, LOAD_ONE_DESCRIPTOR);
         if (loadAll == null || loadOne == null || hasRuntimeCalls(loadAll) || hasRuntimeCalls(loadOne)) {
             return false;
         }
 
         List<MethodInsnNode> listings = calls(loadAll, LOADING_UTILS, "super",
                 "(Ljava/lang/String;Ljava/lang/String;)Ljava/util/List;");
-        List<MethodInsnNode> itemLoads = calls(loadAll, TARGET_CLASS, LOAD_ONE_METHOD, LOAD_ONE_DESCRIPTOR);
+        List<MethodInsnNode> itemLoads = calls(loadAll, TARGET_CLASS, loadOneName, LOAD_ONE_DESCRIPTOR);
         List<MethodInsnNode> json = calls(loadOne, LOADING_UTILS, "Ó00000",
                 "(Ljava/lang/String;)Lorg/json/JSONObject;");
         List<MethodInsnNode> lookups = calls(loadOne, SPEC_STORE, "o00000",
@@ -66,6 +68,14 @@ final class ShipHullLoaderPhasePlan {
         registrations.forEach(call -> wrapCall(loadOne, call, "hull-registry-insert"));
 
         return true;
+    }
+
+    static String loadOneMethod(ClassSignature signature) {
+        if (signature.hasMethod(LOAD_ONE_METHOD, LOAD_ONE_DESCRIPTOR)) return LOAD_ONE_METHOD;
+        if (signature.hasMethod(LINUX_LOAD_ONE_METHOD, LOAD_ONE_DESCRIPTOR)) {
+            return LINUX_LOAD_ONE_METHOD;
+        }
+        return null;
     }
 
     static byte[] write(ClassNode owner) {

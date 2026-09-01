@@ -28,6 +28,7 @@ import org.objectweb.asm.tree.VarInsnNode;
 final class TexturePaddingPlan {
     static final String TARGET_CLASS = "com/fs/graphics/TextureLoader";
     static final String FOLD_METHOD = "o00000";
+    static final String LINUX_FOLD_METHOD = "super";
     static final String FOLD_DESCRIPTOR = "(I)I";
 
     private static final String ORIGINAL_FOLD = "preflight$original$foldDimension";
@@ -44,7 +45,8 @@ final class TexturePaddingPlan {
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
         if (!TARGET_CLASS.equals(signature.internalName())
-                || !signature.hasMethod(FOLD_METHOD, FOLD_DESCRIPTOR)) {
+                || (!signature.hasMethod(FOLD_METHOD, FOLD_DESCRIPTOR)
+                        && !signature.hasMethod(LINUX_FOLD_METHOD, FOLD_DESCRIPTOR))) {
             return null;
         }
 
@@ -54,14 +56,15 @@ final class TexturePaddingPlan {
             return null;
         }
 
-        MethodNode fold = uniqueMethod(owner);
+        MethodNode fold = uniqueFold(owner);
         if (fold == null || !eligible(fold) || !pureIntegerFold(fold)) {
             return null;
         }
 
         int access = fold.access;
+        String foldName = fold.name;
         fold.name = ORIGINAL_FOLD;
-        owner.methods.add(wrapper(owner.name, access));
+        owner.methods.add(wrapper(owner.name, foldName, access));
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
@@ -78,8 +81,8 @@ final class TexturePaddingPlan {
      * <p>The runtime call comes first so that the ordinary path is a property read and a branch. It
      * runs once per axis per texture, which on this profile is tens of thousands of times.
      */
-    private static MethodNode wrapper(String owner, int access) {
-        MethodNode wrapper = new MethodNode(Opcodes.ASM9, access, FOLD_METHOD, FOLD_DESCRIPTOR, null, null);
+    private static MethodNode wrapper(String owner, String foldName, int access) {
+        MethodNode wrapper = new MethodNode(Opcodes.ASM9, access, foldName, FOLD_DESCRIPTOR, null, null);
         LabelNode delegate = new LabelNode();
 
         wrapper.instructions.add(new MethodInsnNode(
@@ -145,11 +148,22 @@ final class TexturePaddingPlan {
                 && (fold.tryCatchBlocks == null || fold.tryCatchBlocks.isEmpty());
     }
 
-    /** Null unless exactly one method carries the name and descriptor, so an overload cannot slip in. */
-    private static MethodNode uniqueMethod(ClassNode owner) {
+    /**
+     * Null unless exactly one reviewed platform name carries a safe fold body.
+     *
+     * <p>The macOS distribution names Slick's extracted {@code get2Fold} {@code o00000}; the Linux
+     * distribution of the same game build names it {@code super}. The surrounding target registry
+     * pins each variant to its exact class and jar hashes, while this final structural gate prevents
+     * an unrelated same-name integer method from opening the true-size upload path.
+     */
+    private static MethodNode uniqueFold(ClassNode owner) {
         MethodNode found = null;
         for (MethodNode method : owner.methods) {
-            if (FOLD_METHOD.equals(method.name) && FOLD_DESCRIPTOR.equals(method.desc)) {
+            boolean supportedName = FOLD_METHOD.equals(method.name) || LINUX_FOLD_METHOD.equals(method.name);
+            if (supportedName
+                    && FOLD_DESCRIPTOR.equals(method.desc)
+                    && eligible(method)
+                    && pureIntegerFold(method)) {
                 if (found != null) {
                     return null;
                 }

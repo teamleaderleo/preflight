@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 final class AdapterRuntime {
     static final String DISABLED_PLANS_PROPERTY = "preflight.adapter.disabledPlans";
     static final String DISABLED_PLANS_ENVIRONMENT = "PREFLIGHT_DISABLE_ADAPTER_PLANS";
+    private static volatile AdapterReport activeReport;
 
     private AdapterRuntime() {
     }
@@ -101,6 +102,7 @@ final class AdapterRuntime {
                 options.adapterReport(),
                 options.adapterTargets(),
                 options.candidatePrefixes());
+        activeReport = report;
         RuntimeProcessReport runtimeProcess = RuntimeProcessReport.current(
                 options.adapterReport().resolveSibling("runtime-process.json"));
         try {
@@ -417,6 +419,29 @@ final class AdapterRuntime {
         return session;
     }
 
+    /** Publishes live telemetry before benchmark harnesses close the game at main-menu readiness. */
+    static void publishSnapshot() {
+        AdapterReport report = activeReport;
+        if (report == null) return;
+        try {
+            Thread publisher = new Thread(() -> {
+                try {
+                    report.write();
+                } catch (IOException error) {
+                    System.err.println("[Preflight] Failed to write live adapter report: "
+                            + error.getMessage());
+                }
+            }, "Preflight-Adapter-Snapshot");
+            publisher.setDaemon(true);
+            publisher.start();
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable unavailable) {
+            System.err.println("[Preflight] Could not start live adapter report: "
+                    + unavailable.getMessage());
+        }
+    }
+
     static boolean killSwitch(Map<String, String> environment, Properties properties) {
         String property = properties.getProperty("preflight.adapter.disabled");
         String environmentValue = environment.get("PREFLIGHT_DISABLE_ADAPTER");
@@ -602,6 +627,7 @@ final class AdapterRuntime {
             }
             RuntimeSemanticState.stopped();
             desktopSmoke.close();
+            if (activeReport == report) activeReport = null;
             if (!writeReport) return;
             try {
                 MergedReadCacheRuntime.complete();

@@ -150,6 +150,7 @@ final class AdapterReport {
                     target.sourceSha256(),
                     target.loaderClass(),
                     target.loaderName(),
+                    target.alternativeGroup(),
                     match.problems()));
         }
     }
@@ -479,6 +480,7 @@ final class AdapterReport {
             nullableField(output, "requiredSourceSha256", emptyToNull(evaluation.sourceSha256()));
             nullableField(output, "requiredLoaderClass", emptyToNull(evaluation.loaderClass()));
             nullableField(output, "requiredLoaderName", emptyToNull(evaluation.loaderName()));
+            nullableField(output, "alternativeGroup", emptyToNull(evaluation.alternativeGroup()));
             arrayField(output, "problems", evaluation.problems());
             trimComma(output).append('}');
         }
@@ -633,6 +635,7 @@ final class AdapterReport {
             String sourceSha256,
             String loaderClass,
             String loaderName,
+            String alternativeGroup,
             List<String> problems) {
         private Evaluation {
             problems = List.copyOf(problems);

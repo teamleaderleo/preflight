@@ -22,20 +22,22 @@ final class RulesDuplicateIndexPlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
+        String loadMethod = RulesLoaderPhasePlan.loadMethod(signature);
+        String triggerLookupMethod = RulesLoaderPhasePlan.triggerLookupMethod(signature);
         if (!TARGET.equals(signature.internalName())
-                || !signature.hasMethod(RulesLoaderPhasePlan.LOAD_METHOD, RulesLoaderPhasePlan.LOAD_DESCRIPTOR)) {
+                || loadMethod == null || triggerLookupMethod == null) {
             return null;
         }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         MethodNode load = uniqueMethod(
-                owner, RulesLoaderPhasePlan.LOAD_METHOD, RulesLoaderPhasePlan.LOAD_DESCRIPTOR);
+                owner, loadMethod, RulesLoaderPhasePlan.LOAD_DESCRIPTOR);
         if (load == null || hasRuntimeCalls(load)) {
             return null;
         }
 
         List<MethodInsnNode> triggerLists = calls(load, Opcodes.INVOKESTATIC,
-                TARGET, "super", "(Ljava/lang/String;)Ljava/util/List;");
+                TARGET, triggerLookupMethod, RulesLoaderPhasePlan.TRIGGER_LOOKUP_DESCRIPTOR);
         if (triggerLists.size() != 2) {
             return null;
         }

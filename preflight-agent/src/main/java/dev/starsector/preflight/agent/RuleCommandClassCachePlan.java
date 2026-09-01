@@ -87,7 +87,7 @@ final class RuleCommandClassCachePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        if (!TARGET_CLASS.equals(signature.internalName())
+        if (!RuleExpressionPhasePlan.isTarget(signature.internalName())
                 || !signature.hasMethod(LOOKUP_METHOD, LOOKUP_DESCRIPTOR)) {
             return null;
         }
@@ -161,15 +161,15 @@ final class RuleCommandClassCachePlan {
      * has not failed.
      */
     static byte[] transformLoader(ClassSignature signature, byte[] originalBytes) {
+        String loadMethod = RulesLoaderPhasePlan.loadMethod(signature);
         if (!RulesLoaderPhasePlan.TARGET_CLASS.equals(signature.internalName())
-                || !signature.hasMethod(
-                        RulesLoaderPhasePlan.LOAD_METHOD, RulesLoaderPhasePlan.LOAD_DESCRIPTOR)) {
+                || loadMethod == null) {
             return null;
         }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         MethodNode load = uniqueMethod(
-                owner, RulesLoaderPhasePlan.LOAD_METHOD, RulesLoaderPhasePlan.LOAD_DESCRIPTOR);
+                owner, loadMethod, RulesLoaderPhasePlan.LOAD_DESCRIPTOR);
         if (load == null || hasRuntimeCalls(load)) {
             return null;
         }

@@ -122,6 +122,46 @@ class DetectorTest(unittest.TestCase):
         self.assertFalse(accepted)
         self.assertFalse(json.loads(output.read_text())["detected"])
 
+    def test_fresh_install_can_waive_the_absent_save_descriptor(self):
+        output = self.root / "main-menu-no-save.json"
+        self.append("7000 [Thread-3] INFO  com.fs.starfarer.StarfarerLauncher  - "
+                    "Running with the following mods (in order of priority):")
+        self.append("9500 [Thread-3] INFO org.dark.shaders.util.TextureData  - "
+                    "VRAM after unload/preload: 450555 bytes")
+
+        accepted = module.watch_main_menu(
+            self.root, self.snapshot, output, os.getpid(),
+            timeout_seconds=0.3, quiet_seconds=0.05, sleep_seconds=0.01,
+            allow_missing_save_descriptor=True,
+        )
+
+        self.assertTrue(accepted)
+        result = json.loads(output.read_text())
+        self.assertTrue(result["detected"])
+        self.assertFalse(result["saveDescriptorSeen"])
+        self.assertIsNone(result["saveDescriptorLine"])
+        self.assertEqual("waived-no-campaign-save", result["saveDescriptorRequirement"])
+
+    def test_post_preload_fatal_is_not_certified_as_main_menu(self):
+        output = self.root / "main-menu-fatal-after-preload.json"
+        self.append("7000 [main] INFO com.fs.starfarer.StarfarerLauncher  - "
+                    "Running with the following mods (in order of priority):")
+        self.append("9500 [main] INFO org.dark.shaders.util.TextureData  - "
+                    "VRAM after unload/preload: 450555 bytes")
+        self.append("9530 [main] ERROR com.fs.starfarer.combat.CombatMain  - "
+                    "java.lang.IllegalArgumentException: Number of remaining buffer elements is 4800")
+
+        accepted = module.watch_main_menu(
+            self.root, self.snapshot, output, os.getpid(),
+            timeout_seconds=0.3, quiet_seconds=0.05, sleep_seconds=0.01,
+            allow_missing_save_descriptor=True,
+        )
+
+        self.assertFalse(accepted)
+        result = json.loads(output.read_text())
+        self.assertEqual("fatal-after-game-start", result["failure"])
+        self.assertIn("Number of remaining buffer elements", result["fatalLine"])
+
     def test_main_menu_reports_absolute_instants_the_recorder_can_consume(self):
         # The benchmark recorder needs absolute milestones, but durations are measured on
         # the monotonic clock. Both boundaries must land inside the wall-clock window the

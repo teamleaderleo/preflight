@@ -2,7 +2,7 @@
   "format": "preflight-capability-source-lock-v1",
   "sources": {
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/DesktopRunEvents.java": "86269855fb5fb51ab07f1b19d3427372b838afa7e694633ec3fa651fcb982f3d",
-    "preflight-cli/src/main/java/dev/starsector/preflight/cli/ExclusiveMove.java": "bca990d36339ec7ce3d39897d2b0ef8a4f40ae30333a594663a147bfdcf77ce1",
+    "preflight-cli/src/main/java/dev/starsector/preflight/cli/ExclusiveMove.java": "b8304d7cdf5594c86c9babb1d755674f062ab002e41b8a802e846b447d82e174",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/InstallCommand.java": "bffac2224f4cfcf7e6c5a5377b9551368b0f101f55ec8158d81b5a964b5e106e",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/IntegrationMutation.java": "3c7bfb1624d25d6a11a6f6530c93b64396242bcaa188a710c27be9dd226377de",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/IntegrationOwnership.java": "a965023e6ba2ed945443c001ad1d63953523f8dbc6f9ec167f9a8def8ba206f5",
@@ -12,7 +12,7 @@
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/LaunchSettingsCommand.java": "aa6b5d538eb0805e8482bbe8c1c5c16b190c74a4f1d3fb20c20788f1013b3729",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/PreflightHome.java": "32bd3cb14080f145ba2eec5d0570718d7c93f9e50c9e07f7cc58ae740b5f1c1a",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/ProfileCommand.java": "25c04ef8a33904f2e859de0d9f983a383d096b4ba4b46c5dcac1a608946787f5",
-    "preflight-cli/src/main/java/dev/starsector/preflight/cli/RunCommand.java": "2ad957820f26430dc3472061b4974a5167d634f82e719cce78c62e310e0f8061",
+    "preflight-cli/src/main/java/dev/starsector/preflight/cli/RunCommand.java": "c1ee4c10c3793dc384355347b8e723b0289a3f5dd476f48e089759fcdd243957",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/RuntimeProcessIdentity.java": "5043135473179ce1964d6ec597cf9996c2cf553376c46a7acb170921951fe069",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/StopCommand.java": "40b7e4696ebe0968066dfa7812da0de2e5998e48464593b3be1e15ca9f7887e5",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/UninstallCommand.java": "5ea2d7f7f448d12cf6f2700429c4b9d6619f163f05f58ec845ce64e57a57c560",

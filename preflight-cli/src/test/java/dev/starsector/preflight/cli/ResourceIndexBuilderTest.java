@@ -31,7 +31,7 @@ class ResourceIndexBuilderTest {
         Files.createDirectories(beta.resolve("graphics"));
         Files.writeString(core.resolve("graphics/shared.png"), "core");
         Files.writeString(alpha.resolve("graphics/shared.png"), "alpha");
-        Files.writeString(beta.resolve("graphics/Shared.PNG"), "beta");
+        Files.writeString(beta.resolve("graphics/shared.png"), "beta");
         Files.writeString(alpha.resolve("mod_info.json"), "{\"id\":\"alpha\"}");
         Files.writeString(beta.resolve("mod_info.json"), "{\"id\":\"beta\"}");
         Path enabled = mods.resolve("enabled_mods.json");
@@ -43,7 +43,7 @@ class ResourceIndexBuilderTest {
         assertEquals(List.of("core", "alpha", "beta"), index.roots().stream().map(ResourceIndex.Root::id).toList());
         assertEquals(3, index.providers("graphics/shared.png").size());
         assertEquals("beta", index.roots().get(index.winner("graphics/shared.png").orElseThrow().rootIndex()).id());
-        assertTrue(index.winningFile("graphics/shared.png").orElseThrow().endsWith(Path.of("graphics", "Shared.PNG")));
+        assertTrue(index.winningFile("graphics/shared.png").orElseThrow().endsWith(Path.of("graphics", "shared.png")));
 
         Files.writeString(enabled, "{\"enabledMods\":[\"beta\",\"alpha\"]}");
         ResourceIndexBuilder.BuildResult reordered = ResourceIndexBuilder.build(temporaryDirectory);

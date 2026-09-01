@@ -2,8 +2,11 @@ package dev.starsector.preflight.agent;
 
 import java.lang.instrument.ClassFileTransformer;
 import java.security.ProtectionDomain;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /** Observes candidate classes and only delegates exact source-bound targets to a registered plan. */
 final class AdapterProbeTransformer implements ClassFileTransformer {
@@ -131,8 +134,23 @@ final class AdapterProbeTransformer implements ClassFileTransformer {
             if (janinoCandidate) {
                 janinoLoaderReport.observed(signature, source, classfileBuffer);
             }
+            List<AdapterTarget.Match> matches = new ArrayList<>(targets.size());
+            Set<String> exactAlternativeGroups = new HashSet<>();
             for (AdapterTarget target : targets) {
                 AdapterTarget.Match match = target.match(signature, source);
+                matches.add(match);
+                if (match.exact() && !target.alternativeGroup().isBlank()) {
+                    exactAlternativeGroups.add(target.alternativeGroup());
+                }
+            }
+            for (int index = 0; index < targets.size(); index++) {
+                AdapterTarget target = targets.get(index);
+                AdapterTarget.Match match = matches.get(index);
+                if (!match.exact()
+                        && !target.alternativeGroup().isBlank()
+                        && exactAlternativeGroups.contains(target.alternativeGroup())) {
+                    continue;
+                }
                 report.evaluation(target, match);
                 if (!match.exact()) {
                     // Distinguish "another agent supplied this class" from "these bytes drifted".

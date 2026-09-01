@@ -33,7 +33,8 @@ class ResourceIndexIOTest {
         assertEquals(index.profileFingerprint(), restored.profileFingerprint());
         assertEquals(index.roots(), restored.roots());
         assertEquals(index.entries(), restored.entries());
-        assertEquals("beta", restored.roots().get(restored.winner("graphics/shared.png").orElseThrow().rootIndex()).id());
+        assertEquals("beta", restored.roots().get(
+                restored.winner("graphics/Shared.PNG").orElseThrow().rootIndex()).id());
         assertTrue(Files.isRegularFile(output));
     }
 

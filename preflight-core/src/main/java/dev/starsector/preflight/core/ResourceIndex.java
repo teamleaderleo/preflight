@@ -1,7 +1,9 @@
 package dev.starsector.preflight.core;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -87,8 +89,44 @@ public final class ResourceIndex {
     }
 
     public List<Provider> providers(String logicalPath) {
-        List<Provider> providers = entries.get(normalizeLogicalPath(logicalPath));
-        return providers == null ? List.of() : providers;
+        String relativePath = normalizeRelativePath(logicalPath);
+        List<Provider> providers = entries.get(relativePath.toLowerCase(Locale.ROOT));
+        if (providers == null) {
+            return List.of();
+        }
+        List<Provider> matching = null;
+        for (int index = 0; index < providers.size(); index++) {
+            Provider provider = providers.get(index);
+            if (provider.relativePath().equals(relativePath)
+                    || sameFileOnThisMount(provider, relativePath)) {
+                if (matching != null) {
+                    matching.add(provider);
+                }
+            } else {
+                if (matching == null) {
+                    matching = new ArrayList<>(providers.size());
+                    matching.addAll(providers.subList(0, index));
+                }
+            }
+        }
+        return matching == null ? providers : List.copyOf(matching);
+    }
+
+    /**
+     * Settles a folded-but-not-exact hit with the filesystem that owns that provider. On a
+     * case-insensitive mount it names the same file; on a case-sensitive mount it does not exist.
+     */
+    private boolean sameFileOnThisMount(Provider provider, String requestedRelativePath) {
+        Path root = roots.get(provider.rootIndex()).path().toAbsolutePath().normalize();
+        Path requested = root.resolve(requestedRelativePath).normalize();
+        if (!requested.startsWith(root) || !Files.isRegularFile(requested)) {
+            return false;
+        }
+        try {
+            return Files.isSameFile(requested, resolve(provider));
+        } catch (IOException error) {
+            return false;
+        }
     }
 
     public Optional<Provider> winner(String logicalPath) {

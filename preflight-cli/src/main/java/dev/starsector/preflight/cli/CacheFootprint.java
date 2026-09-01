@@ -43,6 +43,8 @@ final class CacheFootprint {
                     acceleration("profiles intentionally prepared without textures")),
             Map.entry(relative(TexturePreparationReceipt.directory(Path.of("cache"))),
                     acceleration("the storage and coverage of each prepared texture profile")),
+            Map.entry(relative(LaunchProfileSelectionReceipt.directory(Path.of("cache"))),
+                    acceleration("validated profile-to-cache identity selections")),
             Map.entry("cache/spec-store", acceleration(
                     "prepared JSON, rules and command-class artifacts")),
             Map.entry(relative(PreparedAudioCache.root(Path.of("cache"))), acceleration(

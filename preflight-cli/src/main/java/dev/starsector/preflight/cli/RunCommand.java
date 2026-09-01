@@ -55,12 +55,22 @@ final class RunCommand {
         if (operationOwnership != null && operationOwnership.recovered() != null) {
             System.err.println("Recovered an interrupted Preflight operation.");
         }
+        Execution execution;
         try (OperationLease ignored = operationOwnership == null ? null : operationOwnership.lease()) {
-            return executeOwned(options, discovery, target, platform);
+            execution = executeOwned(options, discovery, target, platform);
         }
+        if (!options.dryRun()) {
+            AutomaticTextureGraduation.afterRun(
+                    options,
+                    target,
+                    execution.textureContext(),
+                    execution.exitCode(),
+                    System.getenv());
+        }
+        return execution.exitCode();
     }
 
-    private static int executeOwned(
+    private static Execution executeOwned(
             CommandLine options,
             DiscoveryResult discovery,
             LaunchTarget target,
@@ -71,8 +81,16 @@ final class RunCommand {
         MacRosettaGcPolicy.Resolution macRosettaGcPolicy =
                 MacRosettaGcPolicy.resolve(
                         platform, target, options.optimizationPreset(), System.getenv());
+        LinuxStartupGcPolicy.Resolution linuxStartupGcPolicy =
+                LinuxStartupGcPolicy.resolve(
+                        platform, target, options.optimizationPreset(), System.getenv());
         LaunchOwnership ownership = LaunchOwnership.detect(target);
-        boolean janinoCacheOwned = options.janinoBytecodeCache() && !ownership.fastRendering();
+        // The complete-map replay remains a reviewed macOS-only seam. Linux shares the Janino
+        // class bytes but not the source-loader/resource-discovery semantics, so even selecting
+        // its artifact would produce misleading health noise for an intentionally inactive plan.
+        boolean janinoCacheOwned = options.janinoBytecodeCache()
+                && platform == Platform.MAC
+                && !ownership.fastRendering();
         LaunchCacheContexts.Result cacheContexts =
                 LaunchCacheContexts.select(options, target, janinoCacheOwned);
         LaunchCacheContexts.Texture textureContext = cacheContexts.texture();
@@ -206,6 +224,7 @@ final class RunCommand {
         }
         String javaOptions = MacRosettaGcPolicy.appendOptions(
                 System.getenv("_JAVA_OPTIONS"), macRosettaGcPolicy);
+        javaOptions = LinuxStartupGcPolicy.appendOptions(javaOptions, linuxStartupGcPolicy);
         javaOptions = CombatJvmSafeguard.appendOptions(javaOptions, combatJvmSafeguard);
 
         List<String> command = new ArrayList<>(target.command());
@@ -224,8 +243,9 @@ final class RunCommand {
                     janinoBytecodeCache,
                     combatJvmSafeguard,
                     macRosettaGcPolicy,
+                    linuxStartupGcPolicy,
                     javaOptions);
-            return 0;
+            return new Execution(0, textureContext);
         }
 
         RunIdentity runIdentity = RunIdentity.capture(agentJar);
@@ -264,7 +284,8 @@ final class RunCommand {
             writeMetadata(
                     metadata, target, command, runIdentity, launchId, started, null, null, null, null, outcome, null,
                     null, options, directSettings, textureContext, adapterReport, adapterAnalysis, console, null,
-                    postprocessingFailures, null, combatJvmSafeguard, macRosettaGcPolicy);
+                    postprocessingFailures, null, combatJvmSafeguard, macRosettaGcPolicy,
+                    linuxStartupGcPolicy);
 
             ProcessBuilder builder = new ProcessBuilder(command);
             builder.directory(target.workingDirectory().toFile());
@@ -376,7 +397,7 @@ final class RunCommand {
             } else if (options.adapterMode() != dev.starsector.preflight.agent.AdapterMode.OFF) {
                 System.err.println("Preflight adapter report was not created: " + adapterReport);
             }
-            return exitCode;
+            return new Execution(exitCode, textureContext);
         } catch (InterruptedException error) {
             Thread.currentThread().interrupt();
             exitCode = 1;
@@ -398,7 +419,7 @@ final class RunCommand {
                         lifecycleEvidence, collectCensus(census, postprocessingFailures),
                         options, directSettings, textureContext, adapterReport, adapterAnalysis,
                         console, childOutput, postprocessingFailures, executionFailure,
-                        combatJvmSafeguard, macRosettaGcPolicy);
+                    combatJvmSafeguard, macRosettaGcPolicy, linuxStartupGcPolicy);
             } catch (IOException error) {
                 System.err.println("Preflight could not finalize run metadata: " + message(error));
             }
@@ -427,6 +448,9 @@ final class RunCommand {
                 LaunchHeartbeat.complete(runDirectory, launchId);
             }
         }
+    }
+
+    private record Execution(int exitCode, LaunchCacheContexts.Texture textureContext) {
     }
 
     static Path defaultRunDirectory(Path home, Instant started, String nonce) {
@@ -621,6 +645,7 @@ final class RunCommand {
             LaunchCacheContexts.Janino janinoBytecodeCache,
             CombatJvmSafeguard.Resolution combatJvmSafeguard,
             MacRosettaGcPolicy.Resolution macRosettaGcPolicy,
+            LinuxStartupGcPolicy.Resolution linuxStartupGcPolicy,
             String javaOptions) {
         System.out.println("Preflight selected:");
         System.out.println("  install:  " + target.installRoot());
@@ -660,6 +685,9 @@ final class RunCommand {
         System.out.println("  macOS startup collector: "
                 + (macRosettaGcPolicy.active() ? "G1 active: " : "launcher default: ")
                 + macRosettaGcPolicy.reason());
+        System.out.println("  Linux startup collector: "
+                + (linuxStartupGcPolicy.active() ? "G1 active: " : "launcher default: ")
+                + linuxStartupGcPolicy.reason());
         System.out.println("  quiet logs: " + (options.quietLogs()
                 ? QuietLogConfiguration.path(runDirectory)
                 : "off"));
@@ -810,7 +838,8 @@ final class RunCommand {
             List<String> postprocessingFailures,
             String executionFailure,
             CombatJvmSafeguard.Resolution combatJvmSafeguard,
-            MacRosettaGcPolicy.Resolution macRosettaGcPolicy) throws IOException {
+            MacRosettaGcPolicy.Resolution macRosettaGcPolicy,
+            LinuxStartupGcPolicy.Resolution linuxStartupGcPolicy) throws IOException {
         Map<String, Object> values = new LinkedHashMap<>();
         ProcessHandle wrapper = ProcessHandle.current();
         values.put("launchId", launchId);
@@ -857,6 +886,7 @@ final class RunCommand {
         values.put("graphicsLibInsigniaManagerCache", options.graphicsLibInsigniaManagerCache());
         values.put("combatJvmSafeguard", combatJvmSafeguard.toReportValues());
         values.put("macRosettaGcPolicy", macRosettaGcPolicy.toReportValues());
+        values.put("linuxStartupGcPolicy", linuxStartupGcPolicy.toReportValues());
         values.put("quietLogs", options.quietLogs());
         values.put("fileOnlyLogs", options.fileOnlyLogs());
         values.put("assetProgressLogsSuppressed", options.suppressAssetProgressLogs());

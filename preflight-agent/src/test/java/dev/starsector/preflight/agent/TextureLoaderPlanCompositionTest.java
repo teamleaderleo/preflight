@@ -93,6 +93,20 @@ class TextureLoaderPlanCompositionTest {
     }
 
     @Test
+    void cachedPreparedRewriteWithoutFoldDoesNotReplayThePaddingLatch() throws Exception {
+        byte[] withoutFold = TexturePreparedPixelPlanTest.textureLoader(3, true, true);
+        ClassSignature signature = ClassSignature.parse(withoutFold);
+        byte[] rewritten = TexturePreparedPixelPlan.transform(signature, withoutFold);
+        assertNotNull(rewritten);
+
+        AdapterInstallationEffects.replay(
+                AdapterTargetRegistry.texturePreparedPixelTarget(), signature, rewritten);
+
+        assertFalse(TexturePaddingRuntime.foldBypassReady(),
+                "calling TexturePaddingRuntime.enabled() is not evidence that the fold was woven");
+    }
+
+    @Test
     void foldPlanFilterKeepsThePreparedPixelRewriteAlone() throws Exception {
         byte[] loader = withFold(TexturePreparedPixelPlanTest.textureLoader(3, true, true));
         byte[] rewritten = TexturePreparedPixelPlan.transform(ClassSignature.parse(loader), loader);

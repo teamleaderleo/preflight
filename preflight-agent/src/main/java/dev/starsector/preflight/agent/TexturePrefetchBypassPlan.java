@@ -38,6 +38,7 @@ final class TexturePrefetchBypassPlan {
     static final String TARGET_CLASS = "com/fs/graphics/L";
     /** The prefetcher's consumer: it is what identifies which of the two queues holds images. */
     static final String CONSUMER_METHOD = "class";
+    static final String WINDOWS_CONSUMER_METHOD = "Õ00000";
     static final String CONSUMER_DESCRIPTOR = "(Ljava/lang/String;)Ljava/awt/image/BufferedImage;";
     static final String ENQUEUE_DESCRIPTOR = "(Ljava/lang/String;)V";
     private static final String LIST = "java/util/List";
@@ -51,7 +52,7 @@ final class TexturePrefetchBypassPlan {
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
         if (!TARGET_CLASS.equals(signature.internalName())
-                || !signature.hasMethod(CONSUMER_METHOD, CONSUMER_DESCRIPTOR)) {
+                || !hasConsumer(signature)) {
             return null;
         }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
@@ -94,7 +95,9 @@ final class TexturePrefetchBypassPlan {
     /** The static {@code List} field whose membership the decoded-image consumer tests first. */
     private static String imageQueueField(ClassNode owner) {
         for (MethodNode method : owner.methods) {
-            if (!CONSUMER_METHOD.equals(method.name) || !CONSUMER_DESCRIPTOR.equals(method.desc)) {
+            if (!(CONSUMER_METHOD.equals(method.name)
+                            || WINDOWS_CONSUMER_METHOD.equals(method.name))
+                    || !CONSUMER_DESCRIPTOR.equals(method.desc)) {
                 continue;
             }
             AbstractInsnNode first = firstOpcode(method.instructions.getFirst());
@@ -116,6 +119,11 @@ final class TexturePrefetchBypassPlan {
             return field.name;
         }
         return null;
+    }
+
+    private static boolean hasConsumer(ClassSignature signature) {
+        return signature.hasMethod(CONSUMER_METHOD, CONSUMER_DESCRIPTOR)
+                || signature.hasMethod(WINDOWS_CONSUMER_METHOD, CONSUMER_DESCRIPTOR);
     }
 
     /**

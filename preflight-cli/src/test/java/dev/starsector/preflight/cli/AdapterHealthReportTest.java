@@ -65,6 +65,31 @@ class AdapterHealthReportTest {
     }
 
     @Test
+    void exactPlatformAlternativeDoesNotCountItsSiblingAsARealMismatch() throws Exception {
+        Map<String, Object> adapter = base();
+        adapter.put("exactMatches", 1);
+        adapter.put("transformationsApplied", 1);
+        adapter.put("evaluations", List.of(
+                Map.of(
+                        "targetId", "mac-layout",
+                        "alternativeGroup", "vanilla-platform-layout",
+                        "exact", false,
+                        "problems", List.of("code-source suffix differs")),
+                Map.of(
+                        "targetId", "linux-layout",
+                        "alternativeGroup", "vanilla-platform-layout",
+                        "exact", true,
+                        "problems", List.of())));
+
+        AdapterHealthReport.Result result = analyze(adapter);
+
+        assertEquals(AdapterHealthReport.Status.ACTIVE, result.status());
+        assertTrue(result.mismatchDetails().isEmpty());
+        assertFalse(result.originalCodeRetained());
+        assertFalse(result.reviewRecommended());
+    }
+
+    @Test
     void killSwitchIsAnIntentionalDisabledState() throws Exception {
         Map<String, Object> adapter = base();
         adapter.put("transformerInstalled", false);
