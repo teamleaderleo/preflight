@@ -48,6 +48,7 @@ final class WindowsDesktopSmokeDriverTest {
         Instant startedAt = current.info().startInstant().orElseThrow();
         driver.attach(new DesktopSmokeDriver.ProcessTarget(current.pid(), startedAt));
 
+        driver.observe();
         driver.execute(Map.of(
                 "kind", "click",
                 "target", "main-menu.continue"), temporaryDirectory);
@@ -70,6 +71,8 @@ final class WindowsDesktopSmokeDriverTest {
                 command.contains("-EncodedCommand") && !command.contains("-Command")));
         assertTrue(commands.scripts().stream().allMatch(script ->
                 script.contains("[DllImport(\"user32.dll\")]")));
+        assertTrue(commands.scripts().stream().anyMatch(script ->
+                script.contains("[Console]::Out.Write((\"PID " + current.pid())));
     }
 
     @Test

@@ -108,8 +108,8 @@ final class WindowsDesktopSmokeDriver implements DesktopSmokeDriver {
         requireSameLifetime(attached);
         return new Observation(command(windowScript(attached.pid(), """
                 $foreground = [PreflightNative]::GetForegroundWindow()
-                [Console]::Out.Write("PID %d window {0},{1},{2},{3} frontmost={4}" -f `
-                    $rect.Left,$rect.Top,($rect.Right-$rect.Left),($rect.Bottom-$rect.Top),($foreground -eq $hwnd))
+                [Console]::Out.Write(("PID %d window {0},{1},{2},{3} frontmost={4}" -f `
+                    $rect.Left,$rect.Top,($rect.Right-$rect.Left),($rect.Bottom-$rect.Top),($foreground -eq $hwnd)))
                 """.formatted(attached.pid()))).output().trim());
     }
 
