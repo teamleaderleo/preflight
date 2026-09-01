@@ -31,6 +31,13 @@ launcher/content hashes, adapter ownership/health, renderer process proof, and p
 clock is not labelled time-to-play; renderer conditions still need their own comparable interactive
 readiness evidence.
 
+`run-windows-gameplay-scenario.ps1` is the reviewable interactive-session entry point for the same
+checked-in gameplay scenarios used on macOS and Linux. It defaults to the optimized Lindsey
+paused/unpaused scenario, uses the JAR built in the current Windows checkout, creates a timestamped
+run directory, and keeps llvmpipe explicit for the current VM. Pass `-GalliumDriver ''` on a host
+with a real graphics adapter. It is suitable as a Scheduled Task action and does not embed an
+opaque encoded command.
+
 ## Launch the game and find out where the time went
 
 | | |
