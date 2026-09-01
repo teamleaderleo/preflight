@@ -15,6 +15,7 @@ import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { verifyInstalledEngine } from "./verify-installed-engine.mjs";
 import { privilegedCommand } from "./privileged-command.mjs";
+import { sevenZipCommand } from "./seven-zip.mjs";
 
 /**
  * Install, upgrade, roll back, and remove a real package.
@@ -340,7 +341,7 @@ function debianPackageEngineDigest(path) {
 
 function windowsPackageEngineDigest(path) {
   return extractedPackageEngineDigest("preflight-lifecycle-nsis-", (directory) => {
-    run("7z", ["x", "-y", `-o${directory}`, path]);
+    run(sevenZipCommand(), ["x", "-y", `-o${directory}`, path]);
   });
 }
 

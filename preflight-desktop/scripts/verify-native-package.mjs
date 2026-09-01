@@ -13,6 +13,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { verifyEngineBoundary, verifyEngineIntegrity } from "./engine-boundary.mjs";
+import { sevenZipCommand } from "./seven-zip.mjs";
 
 const desktopDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const bundleDirectory = join(desktopDirectory, "src-tauri", "target", "release", "bundle");
@@ -141,7 +142,7 @@ export function verifyWindowsPackage(directory = bundleDirectory) {
   if (installers.length !== 1) throw new Error(`Expected one Windows installer, found ${installers.length}`);
   const extractDirectory = mkdtempSync(join(tmpdir(), "preflight-nsis-"));
   try {
-    run("7z", ["x", "-y", `-o${extractDirectory}`, installers[0]], true);
+    run(sevenZipCommand(), ["x", "-y", `-o${extractDirectory}`, installers[0]], true);
     const payload = verifyExtractedPayload(extractDirectory);
     const signatureRequired = readBooleanEnvironment("PREFLIGHT_REQUIRE_PLATFORM_SIGNATURE", false);
     const signature = spawnSync(
