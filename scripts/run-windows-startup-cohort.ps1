@@ -74,6 +74,27 @@ function Read-GameLog([string]$Path) {
     }
 }
 
+function Read-JsonFile([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
+    try {
+        return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    } catch {
+        return $null
+    }
+}
+
+function Get-IsoElapsedMillis([object]$Start, [object]$End) {
+    if (-not $Start -or -not $End) { return $null }
+    try {
+        $culture = [System.Globalization.CultureInfo]::InvariantCulture
+        $started = [DateTimeOffset]::Parse([string]$Start, $culture)
+        $finished = [DateTimeOffset]::Parse([string]$End, $culture)
+        return [long][Math]::Round(($finished - $started).TotalMilliseconds)
+    } catch {
+        return $null
+    }
+}
+
 function Measure-OneRun(
     [string]$Condition,
     [int]$Iteration,
@@ -163,16 +184,27 @@ function Measure-OneRun(
         [long]$readyMatch.Groups[1].Value - [long]$startMatch.Groups[1].Value
     } else { $null }
 
+    $adapterPath = Join-Path $RunDirectory 'adapter.json'
+    $runtimeStatePath = Join-Path $RunDirectory 'runtime-state.json'
+    $runtimeState = $null
+    $mainMenuInteractiveObserved = $false
     if ($usesPreflight -and $graphicsPreloadObserved) {
-        $adapterDeadline = (Get-Date).AddSeconds(20)
-        $adapterPath = Join-Path $RunDirectory 'adapter.json'
-        while (-not (Test-Path -LiteralPath $adapterPath -PathType Leaf) -and
-                (Get-Date) -lt $adapterDeadline -and (Get-GameProcesses $Game).Count -gt 0) {
+        # The graphics-preload marker is intentionally retained as the historical clock, but Fast
+        # Rendering can emit it while worker texture loads are still active. Wait for the exact
+        # transformed title boundary as well so the report cannot mistake an early renderer marker
+        # for time-to-play.
+        $interactiveDeadline = (Get-Date).AddSeconds(120)
+        while ((Get-Date) -lt $interactiveDeadline -and (Get-GameProcesses $Game).Count -gt 0) {
+            $runtimeState = Read-JsonFile $runtimeStatePath
+            $mainMenuInteractiveObserved = $runtimeState -and $runtimeState.mainMenuInteractiveAt
+            $adapterWritten = Test-Path -LiteralPath $adapterPath -PathType Leaf
+            if ($mainMenuInteractiveObserved -and $adapterWritten) { break }
             Start-Sleep -Seconds 2
         }
+        $runtimeState = Read-JsonFile $runtimeStatePath
+        $mainMenuInteractiveObserved = [bool]($runtimeState -and $runtimeState.mainMenuInteractiveAt)
     }
     $gracefulShutdown = Stop-GameProcesses $Game
-    $adapterPath = Join-Path $RunDirectory 'adapter.json'
     $adapter = if (Test-Path -LiteralPath $adapterPath) {
         Get-Content -LiteralPath $adapterPath -Raw | ConvertFrom-Json
     } else { $null }
@@ -184,6 +216,10 @@ function Measure-OneRun(
     $runtimeOwner = if ($run -and $run.PSObject.Properties.Name -contains 'runtimeOwner') {
         [string]$run.runtimeOwner
     } else { $null }
+    $mainMenuReadyElapsedMs = Get-IsoElapsedMillis `
+        $runtimeState.processStartedAt $runtimeState.mainMenuReadyAt
+    $mainMenuInteractiveElapsedMs = Get-IsoElapsedMillis `
+        $runtimeState.processStartedAt $runtimeState.mainMenuInteractiveAt
     $adapterHealthy = if (-not $usesPreflight) {
         $null
     } else {
@@ -194,7 +230,9 @@ function Measure-OneRun(
         $runtimeOwner -eq $expectedOwner
     }
     $accepted = $graphicsPreloadObserved -and $elapsedMs -ne $null -and $gracefulShutdown
-    if ($usesPreflight) { $accepted = $accepted -and $adapterHealthy }
+    if ($usesPreflight) {
+        $accepted = $accepted -and $adapterHealthy -and $mainMenuInteractiveObserved
+    }
     if ($usesFastRendering) { $accepted = $accepted -and $fastRenderingObserved }
 
     if (Test-Path -LiteralPath $GameLog) {
@@ -212,6 +250,10 @@ function Measure-OneRun(
         launcherFailed = [bool]$launcherFailed
         launcherExitCode = if ($process.HasExited) { $process.ExitCode } else { $null }
         gracefulShutdown = [bool]$gracefulShutdown
+        mainMenuReadyObserved = [bool]($runtimeState -and $runtimeState.mainMenuReadyAt)
+        processStartToMainMenuReadyMs = $mainMenuReadyElapsedMs
+        mainMenuInteractiveObserved = [bool]$mainMenuInteractiveObserved
+        processStartToMainMenuInteractiveMs = $mainMenuInteractiveElapsedMs
         usesPreflight = [bool]$usesPreflight
         usesFastRendering = [bool]$usesFastRendering
         fastRenderingObserved = [bool]$fastRenderingObserved
@@ -300,6 +342,18 @@ if (@($Conditions | Where-Object { $_ -match 'preflight' }).Count -gt 0) {
 }
 
 $enabledMods = Join-Path $Game 'mods\enabled_mods.json'
+$powerScheme = (& powercfg.exe /getactivescheme | Out-String)
+$powerSchemeGuid = if ($powerScheme -match '(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}') {
+    $Matches[0].ToLowerInvariant()
+} else { $null }
+$defenderPreference = try { Get-MpPreference -ErrorAction Stop } catch { $null }
+$defenderExclusions = if ($defenderPreference) { @($defenderPreference.ExclusionPath) } else { @() }
+$gameDefenderExcluded = @($defenderExclusions | Where-Object {
+    [string]::Equals($_, $Game, [StringComparison]::OrdinalIgnoreCase)
+}).Count -gt 0
+$cacheDefenderExcluded = @($defenderExclusions | Where-Object {
+    [string]::Equals($_, $Cache, [StringComparison]::OrdinalIgnoreCase)
+}).Count -gt 0
 $identity = [ordered]@{
     version = 2
     startedAt = (Get-Date).ToString('o')
@@ -307,6 +361,12 @@ $identity = [ordered]@{
     machine = $env:COMPUTERNAME
     processorCount = [System.Environment]::ProcessorCount
     physicalMemoryBytes = (Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory
+    activePowerSchemeGuid = $powerSchemeGuid
+    defenderRealtimeMonitoringDisabled = if ($defenderPreference) {
+        [bool]$defenderPreference.DisableRealtimeMonitoring
+    } else { $null }
+    gameDefenderExcluded = $gameDefenderExcluded
+    cacheDefenderExcluded = $cacheDefenderExcluded
     galliumDriver = $env:GALLIUM_DRIVER
     game = $Game
     preflightJar = $PreflightJar
@@ -361,7 +421,7 @@ foreach ($entry in $schedule) {
     $result = Measure-OneRun $entry.condition $entry.iteration $runDirectory $java $vanillaLauncher $fastRenderingLauncher $gameLog $Resolution
     $results.Add($result)
     $result | ConvertTo-Json -Compress | Add-Content -LiteralPath (Join-Path $sessionDirectory 'results.jsonl') -Encoding UTF8
-    $result | Format-List condition, iteration, accepted, gameLogStartToGraphicsPreloadMs, gracefulShutdown, fastRenderingObserved, adapterHealthy, runtimeOwner
+    $result | Format-List condition, iteration, accepted, gameLogStartToGraphicsPreloadMs, processStartToMainMenuInteractiveMs, gracefulShutdown, fastRenderingObserved, adapterHealthy, runtimeOwner
     if ($CooldownSeconds -gt 0 -and $runNumber -lt $schedule.Count) { Start-Sleep -Seconds $CooldownSeconds }
 }
 
@@ -370,6 +430,9 @@ foreach ($condition in $Conditions) {
     $matching = @($results | Where-Object { $_.condition -eq $condition })
     $accepted = @($matching | Where-Object accepted)
     $seconds = @($accepted | ForEach-Object { [double]$_.gameLogStartToGraphicsPreloadMs / 1000.0 })
+    $interactiveSeconds = @($accepted | Where-Object {
+        $_.processStartToMainMenuInteractiveMs -ne $null
+    } | ForEach-Object { [double]$_.processStartToMainMenuInteractiveMs / 1000.0 })
     $conditionSummaries[$condition] = [ordered]@{
         acceptedRuns = $accepted.Count
         totalRuns = $matching.Count
@@ -377,6 +440,11 @@ foreach ($condition in $Conditions) {
         minimumSeconds = if ($seconds.Count) { ($seconds | Measure-Object -Minimum).Minimum } else { $null }
         maximumSeconds = if ($seconds.Count) { ($seconds | Measure-Object -Maximum).Maximum } else { $null }
         samplesSeconds = $seconds
+        mainMenuInteractive = [ordered]@{
+            observedRuns = $interactiveSeconds.Count
+            medianSeconds = Get-Median $interactiveSeconds
+            samplesSeconds = $interactiveSeconds
+        }
     }
 }
 $summary = [ordered]@{

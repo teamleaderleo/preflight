@@ -28,8 +28,11 @@ refuses a locked/non-interactive VM, sizes the game to the primary display's wor
 keeps the exact start-marker-to-graphics-preload clock, and retains display geometry,
 launcher/content hashes, adapter ownership/health, renderer process proof, and per-run logs. Pass
 `-Resolution WIDTHxHEIGHT` only when a fixture needs an explicit override. The graphics-preload
-clock is not labelled time-to-play; renderer conditions still need their own comparable interactive
-readiness evidence.
+clock is not labelled time-to-play. Preflight-backed conditions also wait for, require, and report
+the exact `main-menu-interactive` title boundary, because Fast Rendering can emit the earlier
+graphics marker while worker texture loads are still active. The identity records the active Windows
+power-scheme GUID and whether Defender excludes the exact game/cache roots; non-Preflight renderer
+conditions still need their own comparable interactive-readiness evidence.
 
 `run-windows-gameplay-scenario.ps1` is the reviewable interactive-session entry point for the same
 checked-in gameplay scenarios used on macOS and Linux. It defaults to the optimized Lindsey
