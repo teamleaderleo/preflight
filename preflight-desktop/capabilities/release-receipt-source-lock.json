@@ -18,7 +18,7 @@
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/UninstallCommand.java": "5ea2d7f7f448d12cf6f2700429c4b9d6619f163f05f58ec845ce64e57a57c560",
     "preflight-desktop/src-tauri/capabilities/default.json": "672c31fd87a1d3b116c4becdb059048605caa57978c5060a5cc2d5c28f352d13",
     "preflight-desktop/src-tauri/src/automation.rs": "95806d1ef19df8b692a56a9eea56536ed83bb111fa8caff2c179fad168ab003a",
-    "preflight-desktop/src-tauri/src/bound_directory.rs": "ba313aebbe61f5b6ff90c52c007f6ed11f1b2ad5782da4b493c0ee355aa591f0",
+    "preflight-desktop/src-tauri/src/bound_directory.rs": "1534e537b7d12e0c8b0e5070884af87b799999d10d157832b63104c4124f51e5",
     "preflight-desktop/src-tauri/src/desktop_automation_bridge.rs": "7276ad8ece31d98f9febba2b8e417af59fa3203701ff973556b61cc09a0bcc9f",
     "preflight-desktop/src-tauri/src/engine.rs": "5c0b17cf91670718b038e5275042e2e4501adf1a3d80f771a7b914f0eef8ce6d",
     "preflight-desktop/src-tauri/src/hull_sprite_tracer.rs": "1994d50d50f22f766daf9c785be26210a587a413bd701a381947c5a11ebf2e0a",
