@@ -1,68 +1,72 @@
-# Single-command profile preparation
+# Profile preparation
 
-Prepare every renderer-independent cache and write a validation report:
+## TL;DR
 
 ```bash
 java -jar preflight.jar prepare
 ```
 
-Preflight discovers Starsector, reads the enabled profile, prepares reusable artifacts, validates them, and writes:
+Preflight reads the current Starsector/mod profile, does reusable work ahead of launch, validates the result, and stores it under Preflight's own cache directory.
+
+It doesn't rewrite the installation, mods, saves, launcher, game preferences, or VM parameter files.
+
+Want to know the disk cost first? Use:
+
+```bash
+java -jar preflight.jar prepare --plan
+```
+
+That's the normal mental model. The rest of this page is the exact pipeline and CLI detail.
+
+## What preparation writes
+
+The latest validation report is written to:
 
 ```text
 ~/.starsector-preflight/cache/reports/preparation-latest.json
 ```
 
-Preparation writes only Preflight-owned, content-addressed data and its validation report. The
-installation, mods, saves, launcher, game preferences, and VM parameter files remain unchanged.
+Prepared artifacts are content-addressed and tied to the inputs that produced them. Matching data can be reused on later runs; changed inputs select different profile artifacts.
 
-Before any write, the command scans the winning texture set and calculates a storage plan from
-encoded content hashes, decoded dimensions and alpha channels, deduplication, reusable checked
-blobs, the profile pack, and filesystem free space. The initial gate uses the expected temporary
-build peak plus a 128 MiB to 512 MiB reserve. The writer checks live free space again before every
-large blob write and before publishing the exact pack, so an unusual corpus stops safely instead
-of filling the disk. The same checks run whether preparation starts from the desktop app, the CLI,
-or installation.
+Before writing large data, Preflight calculates the expected temporary peak, finished retained size, reusable checked data, and a free-space reserve. It checks free space again before large writes and final publication, so an unusual profile can stop before filling the disk.
 
-Inspect the plan without writing anything:
+The same storage checks apply whether preparation starts from the desktop app, CLI, or installation flow.
+
+For JSON planning detail:
 
 ```bash
-java -jar preflight.jar prepare --plan
 java -jar preflight.jar prepare --plan --json --texture-storage balanced
 ```
 
-The player-facing plan shows the expected temporary requirement and finished retained size.
-`predictedAdditionalBytes`, `safetyReserveBytes`, and `usableBytes` remain in the JSON report for
-diagnostics. Existing loose blobs count as reusable
-only after their full checked read succeeds. On the reviewed 83-mod cold profile, Balanced needs
-about 2.32 GiB free while preparing and finishes at about 2.26 GB. Compact needs about 1.15 GiB free
-and finishes at about 1.09 GB. The read-only plan leaves a nonexistent target directory nonexistent.
+The player-facing plan shows the temporary requirement and finished retained size. More detailed quantities such as `predictedAdditionalBytes`, `safetyReserveBytes`, and `usableBytes` stay in the JSON report for diagnostics.
+
+On the reviewed 83-mod development profile, Balanced needs about 2.32 GiB free while preparing and finishes around 2.26 GB. Compact needs about 1.15 GiB free and finishes around 1.09 GB. Those are development observations, not universal requirements; Preflight calculates the current profile's actual plan.
 
 ## Pipeline
 
-The default command starts the independent census, resource-index, and classpath-index stages
-together, joins them before their dependants, and then prepares the enabled cache families:
+The default preparation runs independent opening work concurrently where it can, joins dependencies before later stages, and then prepares the enabled offline cache families:
 
 1. enabled-profile census
-2. loose-resource provider index build or artifact reuse
+2. loose-resource provider index reuse or creation
 3. resource-index validation
-4. persistent JAR/classpath profile build or reuse
+4. persistent JAR/classpath profile reuse or creation
 5. classpath metadata validation
-6. exact SpecStore profile identity build or reuse
-7. prepared texture pack/blob build or reuse
+6. exact SpecStore profile identity reuse or creation
+7. prepared texture pack/blob reuse or creation
 8. texture-manifest validation
-9. an atomic report write
+9. atomic report publication
 
-Other Recommended caches are learned or materialized at their own exact runtime boundaries; this
-command doesn't pretend to prepare them offline. A stage can be skipped or rejected without
-turning the report into a claim that it was prepared.
+Some Recommended optimizations learn or materialize data at their own runtime boundaries. `prepare` doesn't claim those were prepared offline when they weren't.
 
-Add semantic lookup verification:
+A stage can succeed, fail, or be skipped independently, and the report says which happened.
+
+## Extra lookup verification
 
 ```bash
 java -jar preflight.jar prepare --verify-lookups
 ```
 
-That runs the deterministic baseline-versus-index comparison for both available indexes and fails the preparation result on any provider mismatch.
+This compares deterministic baseline lookups with the prepared indexes and fails preparation on a provider mismatch.
 
 ## Useful options
 
@@ -79,14 +83,18 @@ java -jar preflight.jar prepare \
   --seed 42
 ```
 
-`--deep` rehashes source JARs during classpath validation. The texture memory budget applies to concurrent image decoding, conversion, blob reads, and writes.
+`--deep` rehashes source JARs during classpath validation. The texture memory budget covers concurrent image decoding, conversion, blob reads, and writes.
 
-Opening-stage overlap is bounded to two helper threads in addition to the calling thread; texture
-decoding doesn't begin until those jobs have joined. Use `--serial-stages` (or
-`-Dpreflight.prepare.parallel=false`) as a diagnostic kill switch. `--parallel-stages` overrides a
-disabled system property for a command.
+Opening-stage overlap is bounded. Texture decoding starts after the required opening jobs have joined.
 
-Individual stages may be disabled:
+For debugging, you can force serial/parallel opening stages:
+
+```bash
+java -jar preflight.jar prepare --serial-stages
+java -jar preflight.jar prepare --parallel-stages
+```
+
+Individual stages can also be disabled:
 
 ```bash
 java -jar preflight.jar prepare --no-textures
@@ -94,33 +102,24 @@ java -jar preflight.jar prepare --no-classpath
 java -jar preflight.jar prepare --no-resource-index --no-textures
 ```
 
-Texture preparation requires the loose-resource index. Disabling that index causes the texture stage to be reported as skipped rather than silently using an unverified provider set.
+Texture preparation depends on the loose-resource index. If that index is disabled, the texture stage reports itself as skipped instead of silently using an unverified provider set.
 
 ## Repeat runs
 
-An unchanged repeat run can report:
+An unchanged repeat can reuse:
 
-- resource index artifact hit after profile rescan and fingerprint comparison
-- classpath profile hit after ordered JAR metadata comparison
-- prepared texture blob hits without ImageIO decoding
-- zero lookup-equivalence mismatches
+- the resource-index artifact after profile/fingerprint checks;
+- the classpath profile after ordered JAR metadata checks;
+- prepared texture blobs without decoding the same source again.
 
-Changing enabled mod order rebuilds ordered profile artifacts while preserving content-addressed JAR inventories and prepared texture blobs whose source content is unchanged.
+Changing enabled-mod order creates the ordered profile artifacts that need a new identity while still allowing unchanged content-addressed JAR/texture data to be reused where valid.
 
-## Report
+## Report and runtime readiness
 
-Every stage records:
+Each stage records status, duration, reuse/creation counts, validation results, and diagnostics.
 
-- `SUCCESS`, `FAILED`, or `SKIPPED`
-- duration
-- artifact hits and builds
-- validation counts and problems
-- diagnostics
+Preparation and runtime activation are separate decisions. A prepared artifact can exist while a runtime adapter declines because the game/mod code no longer matches the target it was reviewed against.
 
-The report also has a separate readiness section. Preparation never installs an in-memory
-transformation by itself; a launch preset must select a reader, exact code/profile identities must
-match, and runtime validation must pass. A prepared artifact can therefore be ready while its
-adapter declines on a different game or mod build. Fast Rendering remains an optional, separately
-identified launcher/ownership target.
+A launch preset must select the relevant reader, exact identities must match, and runtime validation must pass before the in-memory shortcut is used.
 
-This distinction keeps offline preparation useful without overstating runtime integration or activation readiness.
+That distinction lets offline preparation remain useful without pretending every prepared artifact is active in every launch.

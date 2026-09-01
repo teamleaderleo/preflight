@@ -1,0 +1,26 @@
+{
+  "format": "preflight-project-facts-v1",
+  "startup": {
+    "development": {
+      "baselineSeconds": "112.17",
+      "endpointSeconds": "13.69",
+      "modCount": 83,
+      "hardware": "M5 MacBook Air",
+      "gameBuild": "0.98a-RC8",
+      "runtime": "Starsector's bundled x86-64 Java runtime through Rosetta",
+      "baselineEvidence": "docs/evidence/2026-08-26-recent-ordinary-startup-observation.md",
+      "endpointEvidence": "docs/evidence/2026-08-23-storage-to-fourteen-seconds.md"
+    },
+    "historicalSameProfileAB": {
+      "baselineSeconds": "89.00",
+      "endpointSeconds": "15.53",
+      "deltaSeconds": "73.47",
+      "reductionPercent": "82.55",
+      "evidence": "docs/evidence/2026-08-15-controlled-vanilla-fast-campaign.md"
+    },
+    "validatedAcceleratedGate": {
+      "seconds": "15.88",
+      "evidence": "docs/evidence/2026-08-06-codex-lazy-fleet-members.md"
+    }
+  }
+}

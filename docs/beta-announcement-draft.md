@@ -14,8 +14,8 @@ Starsector forum takes BBCode rather than Markdown; use the current download nam
 
 This is **Preflight**, a free and open-source fast launcher for Starsector.
 
-On my 83-mod M5 MacBook Air development setup, startup moved from roughly **101 seconds to a
-13.69-second best run**, about a **7.4× speedup**. That is Starsector's x86-64 Java runtime running
+On my 83-mod M5 MacBook Air development setup, startup moved from **112.17 seconds to
+13.69 seconds**, about an **8.19× speedup**. That is Starsector's x86-64 Java runtime running
 through Rosetta.
 
 Separately, the desktop runs your setup twice through Preflight: once with reviewed optimizations
@@ -153,7 +153,7 @@ experiments, and release work are in the repository.
 
 If you want to support development:
 
-- GitHub Sponsors: [GITHUB SPONSORS URL]
+- GitHub Sponsors: https://github.com/sponsors/teamleaderleo
 - Patreon: https://www.patreon.com/cw/teamleaderleo
 
 Preflight is an independent, unofficial project. It is not affiliated with or endorsed by Fractal

@@ -1,134 +1,81 @@
 # Getting started with Preflight
 
-Preflight makes a heavily modded Starsector start faster. It does the slow, repetitive work once —
-decoding textures, merging mod data, generating bytecode — keeps the result, and reuses it on every
-later launch of the same game and mod profile.
+## TL;DR
 
-This page is the whole path from download to a faster launch. It assumes nothing except that you
-have Starsector installed and some mods.
+Preflight is still in release-candidate work, so public desktop downloads aren't live yet.
 
-## 1. Download
+When the beta is published, the normal path is:
 
-Grab the package for your system from the
-**[latest release](https://github.com/teamleaderleo/preflight/releases/latest)**:
+```text
+install Preflight
+      ↓
+let it find Starsector
+      ↓
+Prepare and launch once
+      ↓
+Launch Starsector normally after that
+```
 
-| System | File |
-| --- | --- |
-| Windows | `Preflight-Windows-x86_64.exe` |
-| macOS (Apple silicon) | `Preflight-macOS-arm64.dmg` |
-| Linux | `Preflight-Linux-x86_64.AppImage` or the `.deb` |
+Preflight prepares reusable work under its own data directory. It doesn't rewrite game/mod JARs or saves. If a runtime shortcut doesn't recognize the code it expects, it steps aside and the normal game path runs.
 
-There is no Intel Mac build in the beta.
+For the current release state, use [Release readiness](release-readiness.md). For the explanation of what all this means, read [How Preflight works](how-preflight-works.md).
 
-Each package has a `SHA256SUMS-<platform>-<architecture>.txt` beside it if you want to check the
-download before opening it.
+## Before the public beta
 
-## 2. Get past the security warning
+There isn't a supported public-download path yet. Contributors can run the Java/desktop development versions from source; the root [README](../README.md) has the short development commands.
 
-Preflight isn't signed with a paid Apple or Microsoft developer identity, so both systems will warn
-you the first time. This is expected, and the warning is about the absence of a paid certificate,
-not about anything found in the file.
+Once the first public package is accepted, this page can become the ordinary install guide without pretending that package already exists.
 
-- **macOS** — the first open is refused. Open **System Settings → Privacy & Security**, scroll to
-  the message naming Preflight, and choose **Open Anyway**.
-- **Windows** — SmartScreen shows "Windows protected your PC". Choose **More info**, then
-  **Run anyway**.
-- **Linux** — mark the AppImage executable (`chmod +x`), or install the `.deb` with your package
-  manager.
+## What the normal desktop flow will be
 
-If you would rather not do this, the checksums and the full source are published; you can build it
-yourself.
+### 1. Open Preflight
 
-## 3. Point it at Starsector
+Preflight looks in the usual installation locations. If it finds Starsector, you're done with discovery.
 
-On first open, Preflight looks in the usual install locations. If it finds your game, there's
-nothing to do.
+If it doesn't, choose the folder containing `Starsector.app`, `starsector.exe`, or `starsector.sh`.
 
-If it doesn't, choose the folder that contains `Starsector.app`, `starsector.exe`, or
-`starsector.sh`. Preflight starts with the mod list you already have enabled. It does not install,
-remove, or toggle individual mods during setup. If you later use a saved profile, Preflight previews
-the exact enabled-mod change and saves a backup before applying it.
+Preflight starts from the mods you already have enabled. Setup doesn't install or remove mods.
 
 ![Preflight asking for a Starsector installation](images/walkthrough-setup.png)
 
-## 4. Prepare and launch
+### 2. Prepare and launch
 
-Click **Prepare and launch**. Preflight automatically uses the reviewed optimizations and its normal
-storage choice, then opens Starsector when preparation finishes. You don't need to choose a mode.
+Use **Prepare and launch** the first time.
 
-Before it writes anything, Preflight calculates how much disk the prepared data will need and
-refuses to start if the current build wouldn't leave its safety reserve free. On the 83-mod profile
-used in development the finished Balanced cache was about 2.3 GB. Compact finished at about 1.1 GB
-after one observed launch. If that doesn't fit, the same screen offers a much smaller preparation.
+Before writing prepared data, Preflight calculates the current profile's disk requirement. If the normal preparation doesn't fit with its reserve, the app can offer a smaller storage option.
 
-## 5. Let the first preparation finish
+Preparation does reusable work such as texture/data/generated-code processing ahead of launch. The result belongs to the exact game and ordered-mod inputs that produced it.
 
-Preparation is the slow step, and it only happens when your game or mod profile changes. It shows
-which phase it's on and can be cancelled at any point without leaving anything half-written.
+You can stop preparation. Completed immutable data stays reusable; incomplete temporary work doesn't become a published cache entry.
 
-On the development profile, a cold Balanced preparation took 44.6 seconds and Compact took 16.5
-seconds. This is the work you're moving off future launches; matching preparation becomes much
-faster once the data already exists.
+### 3. Launch normally after that
 
-Preflight isn't linking or rewriting the installation. It reads the game build, enabled mods, and
-the files those mods contribute, gives that exact combination an identity, then writes reusable
-answers under its own data folder. A different combination gets a different identity. If the check
-can't be completed, Preflight leaves the prepared data alone and still offers a normal-speed launch.
+Once the current profile is prepared, **Launch Starsector** is the routine action.
 
-## 6. Launch
-
-After that first run, the big button simply starts Starsector. Resolution, battle size, RAM,
-antialiasing, UI scale, fullscreen, and sound sit beside it, so you don't need the vanilla launcher
-for the usual settings.
-
-Once the actual game process is running, Preflight minimizes by default. Restore it if you want to
-see the run status or stop a frozen game. **Stop Starsector** first requests a normal shutdown so
-the run report can finish; force stop appears only if that exact process doesn't respond. Settings
-also lets Preflight stay open or quit after launch. Playtime and run evidence continue recording
-in every mode. If you enable **Record frame pacing** in Settings, ordinary Recommended or
-Conservative launches also leave a bounded local FPS/frame-time summary on Speed after the game
-exits, including the measured frames and active time behind each result. Starsector's own counter
-remains the live display; Preflight's summary does not read or write your save. Recording pauses
-while optimizations are Off.
+Resolution, battle size, RAM, antialiasing, UI scale, fullscreen, and sound are available beside Launch, so the common settings don't require a separate launcher ritual.
 
 ![Preflight ready to launch an 83-mod profile](images/walkthrough-ready.png)
 
-## 7. Optional: measure it
+### 4. Optional: benchmark your own setup
 
-The built-in benchmark runs both launches through Preflight—first with reviewed optimizations off,
-then with them on—and compares the time each
-took to reach the main menu. That's your number, on your machine, with your mods — more useful than
-anyone else's.
+The built-in benchmark compares a normal launch with a Preflight launch on the current installation.
+
+That's more useful than assuming the development machine's **112.17s → 13.69s** result will match yours.
 
 ![Preflight startup benchmark](images/walkthrough-benchmark.png)
 
 ## If something goes wrong
 
-Preflight doesn't rewrite game or mod archives or save files. Every optimization is pinned to the
-exact game and mod code it was reviewed against; if what it finds doesn't match, that optimization
-declines and the original code runs. A future Starsector release can still need a Preflight update.
+A changed or unknown runtime target can lose an optimization while keeping the original game behavior available.
 
-There's also a global switch that turns every runtime change off, and the game still launches.
+Preflight also has an **Off / troubleshooting** preset that disables runtime acceleration while retaining the launch wrapper and bounded outcome reporting.
 
-If something goes wrong, open **Help**. It can build a support file that shows you the exact
-contents, the exclusions, the size, and the checksum before anything is sent, and sending is a
-separate, explicit choice. It never includes saves, game or mod assets, screenshots, audio, or
-arbitrary logs. A failed launch offers the same page directly from the card that reports it.
+Help can create a small setup summary or a separate allowlisted diagnostics ZIP. Sending a report is an explicit action; ordinary launches don't act as an ambient telemetry channel.
 
-## Removing it
+## Storage and removal
 
-To reclaim space while keeping Preflight, choose **Free space** on Home. The review keeps the
-current and saved profiles ready, keeps a small recent set of reports and benchmarks, and removes
-older unreachable data. Nothing is removed until you confirm the measured plan.
+Prepared data lives under Preflight-owned storage and can be rebuilt.
 
-Routine reports don't accumulate indefinitely: while the desktop is open and idle, Preflight keeps
-10 launch reports—including the latest completed paired comparison and save/reload check for its
-recorded setup when available—and the 5 newest benchmark campaigns automatically. **Free space**
-remains useful for inspecting prepared-data cleanup or retrying maintenance that couldn't run earlier.
+Cleanup is preview-first. Removing Preflight-owned data doesn't remove Starsector, mods, saves, or game-owned content.
 
-Two separate choices, both preview-first:
-
-- **App only** — removes Preflight and leaves the prepared caches, in case you reinstall.
-- **All Preflight data** — also clears caches, profiles, evidence, and backups.
-
-Neither one touches Starsector, your mods, your saves, or your game preferences.
+For the exact storage modes and current measurements, see [Performance and storage tradeoffs](performance-storage-tradeoffs.md). For exact product/write boundaries, see [Product contract](product-contract.md).

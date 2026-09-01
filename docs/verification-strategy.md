@@ -1,6 +1,6 @@
 # Verification strategy: what can be proved without the game, and with what
 
-Surveyed 2026-07-26.
+Surveyed 2026-07-26; infrastructure refreshed 2026-08-30.
 
 ## Why this doc exists
 
@@ -20,8 +20,8 @@ one, and it is not where it looks.
 
 | tier | needs | covers | where it runs | status |
 |---|---|---|---|---|
-| A | JVM only | agent injection, bytecode transformation, cache hit/miss, fail-open fallback, index and lookup, all IO formats | anywhere, including the Linode VPS | automated |
-| B | a real GPU, no display, no game | whether a driver reads the blocks preflight writes | Modal; not Lima, not the VPS | automated |
+| A | JVM only | agent injection, bytecode transformation, cache hit/miss, fail-open fallback, index and lookup, all IO formats | ordinary hosted CI or a local container | automated |
+| B | a real GPU, no display, no game | whether a driver reads the blocks preflight writes | Modal; not Lima | automated |
 | C | the reviewed installation | the real `TextureLoader`, preloader handoff timing, "no visible corruption" | the operator's machine | partly manual |
 
 **Tier A** is `preflight-synthetic-startup` plus the synthetic Starsector in the test tree —
@@ -63,14 +63,11 @@ installation unchanged. The injection properties require the explicit
 
 ## Infrastructure topology, and why Modal specifically
 
-Three machines are available and they are not interchangeable.
+The remaining environments are not interchangeable.
 
-- **Linode VPS** — no GPU. Tier A only. Already wired: [vps-verify.yml](../.github/workflows/vps-verify.yml)
-  registers a self-hosted runner (`runs-on: [self-hosted, linux, starsector-preflight]`), runs the suite
-  in rootless Podman under 768 MiB / 0.85 CPU / 512 PIDs, and is triggered by a `/vps verify` PR comment
-  gated to repo-owner comments on same-repository heads. Setup lives in
-  [bootstrap-vps-runner.sh](../scripts/bootstrap-vps-runner.sh) and
-  [configure-vps-runner-service.sh](../scripts/configure-vps-runner-service.sh).
+- **Hosted CI or a local Podman container** — Tier A needs no dedicated host.
+  [verify-in-container.sh](../scripts/verify-in-container.sh) retains the bounded
+  rootless-container path for local reproduction without a persistent runner.
 - **Lima VM** — no real GPU. A GL context there resolves to Mesa llvmpipe, which the conformance probe
   correctly refuses to classify as hardware. Useful for Linux-behaviour checks, useless for driver
   conformance.
@@ -89,13 +86,13 @@ is the entire requirement. Any future migration has to re-check that one propert
 
 Surveyed `teamleaderleo/renderprove` and `teamleaderleo/smolrunner` for reusable parts.
 
-### SmolRunner: the problem is already hand-solved here
+### SmolRunner: no capability depends on a persistent runner
 
 SmolRunner is pre-alpha — `doctor`, `plan`, `host plan`, all read-only, with runner installation and
-reconciliation still roadmap work. Its problem domain (self-hosted GitHub Actions runners on ordinary
-Linux boxes, rootless Podman, cgroup limits, disposable execution) is precisely what `vps-verify.yml`
-and the two bootstrap scripts already do by hand for this repo. Adopting SmolRunner would be about
-*maintaining* that setup, not extending its reach. No verification capability is gated on it.
+reconciliation still roadmap work. The retired VPS experiment covered that same problem domain:
+self-hosted GitHub Actions runners on ordinary Linux boxes, rootless Podman, cgroup limits, and
+disposable execution. Tier A already runs elsewhere, so adopting SmolRunner would be new
+infrastructure rather than preserving a project capability.
 
 ### RenderProve: convergent evolution on renderer identity
 

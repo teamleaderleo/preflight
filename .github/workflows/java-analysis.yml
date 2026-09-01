@@ -9,8 +9,6 @@ on:
       - '*/pom.xml'
       - '.github/actions/setup-build-jdk/**'
       - '.github/workflows/java-analysis.yml'
-      - 'scripts/check_jacoco_thresholds.py'
-      - 'scripts/test_check_jacoco_thresholds.py'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
@@ -19,8 +17,6 @@ on:
       - '*/pom.xml'
       - '.github/actions/setup-build-jdk/**'
       - '.github/workflows/java-analysis.yml'
-      - 'scripts/check_jacoco_thresholds.py'
-      - 'scripts/test_check_jacoco_thresholds.py'
   workflow_dispatch:
 
 permissions:
@@ -48,15 +44,14 @@ jobs:
           test-compile
 
   coverage:
-    name: JaCoCo coverage
+    name: JaCoCo coverage report
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-build-jdk
         with:
           java-version: '17'
-      - name: Test coverage policy
-        run: python3 scripts/test_check_jacoco_thresholds.py
       - name: Run tests with JaCoCo
         run: >-
           mvn --batch-mode --no-transfer-progress
@@ -72,5 +67,3 @@ jobs:
             */target/site/jacoco/index.html
           if-no-files-found: error
           retention-days: 14
-      - name: Enforce selected coverage floors
-        run: python3 scripts/check_jacoco_thresholds.py

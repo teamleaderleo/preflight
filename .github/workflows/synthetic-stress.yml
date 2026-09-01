@@ -1,0 +1,52 @@
+name: Synthetic stress
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Synthetic workload to exercise
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - extended-index
+          - production-caches
+
+permissions:
+  contents: read
+
+concurrency:
+  group: synthetic-stress-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  extended-index:
+    if: inputs.suite == 'all' || inputs.suite == 'extended-index'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-build-jdk
+      - name: Run medium extended provider-index workload
+        run: >-
+          ./mvnw --batch-mode --no-transfer-progress
+          -pl preflight-synthetic-startup -am
+          -Dpreflight.synthetic.medium=true
+          -Dtest=SyntheticExtendedMediumProfileTest,SyntheticExtendedIndexCrossProcessTest
+          -Dsurefire.failIfNoSpecifiedTests=false
+          test
+
+  production-caches:
+    if: inputs.suite == 'all' || inputs.suite == 'production-caches'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-build-jdk
+      - name: Run medium production-cache workload
+        run: >-
+          ./mvnw --batch-mode --no-transfer-progress
+          -pl preflight-synthetic-startup -am
+          -Dpreflight.synthetic.medium=true
+          -Dtest=SyntheticProductionCacheCrossProcessTest
+          -Dsurefire.failIfNoSpecifiedTests=false
+          test

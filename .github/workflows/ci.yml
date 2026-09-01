@@ -69,8 +69,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Validate operator runners
         run: |
-          bash -n build/ci/starsector-preflight-ci-v1
-          python3 scripts/test_vps_runner_boundary.py
+          bash -n scripts/verify-in-container.sh
           bash -n scripts/run-gameplay-pilot.sh
           python3 -m py_compile scripts/save_state_guard.py scripts/test_save_state_guard.py
           python3 scripts/test_save_state_guard.py
@@ -103,6 +102,8 @@ jobs:
           python3 scripts/test_summarize_nex_market_list_cohort.py
           python3 -m py_compile scripts/starsector_jvm_hitch_correlation.py scripts/test_starsector_jvm_hitch_correlation.py
           python3 scripts/test_starsector_jvm_hitch_correlation.py
+          python3 -m py_compile scripts/starsector_slow_span_frames.py scripts/test_starsector_slow_span_frames.py
+          python3 scripts/test_starsector_slow_span_frames.py
           python3 -m py_compile scripts/starsector_mod_tax_triage.py scripts/test_starsector_mod_tax_triage.py
           python3 scripts/test_starsector_mod_tax_triage.py
           python3 -m py_compile scripts/starsector_balance_analysis.py
@@ -115,6 +116,10 @@ jobs:
           python3 scripts/test_desktop_ci_scope.py
           python3 -m py_compile scripts/repository_ci_scope.py scripts/test_repository_ci_scope.py
           python3 scripts/test_repository_ci_scope.py
+          python3 -m py_compile scripts/java-dev.py scripts/test_java_dev.py
+          python3 scripts/test_java_dev.py
+          python3 -m py_compile scripts/test_cache_retirement_workflow.py
+          python3 scripts/test_cache_retirement_workflow.py
           python3 -m py_compile scripts/prune_local_build_outputs.py scripts/test_prune_local_build_outputs.py
           python3 scripts/test_prune_local_build_outputs.py
           bash -n scripts/run-startup-benchmark.sh

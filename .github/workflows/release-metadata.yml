@@ -1,24 +1,6 @@
 name: Release metadata
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - '.github/actions/setup-build-jdk/**'
-      - '.github/workflows/distribution.yml'
-      - '.github/workflows/release-metadata.yml'
-      - 'pom.xml'
-      - 'preflight-*/pom.xml'
-      - 'preflight-desktop/package.json'
-      - 'preflight-desktop/package-lock.json'
-      - 'preflight-desktop/src-tauri/Cargo.toml'
-      - 'preflight-desktop/src-tauri/Cargo.lock'
-      - 'scripts/generate-release-sboms.sh'
-      - 'scripts/assemble-core-release.sh'
-      - 'scripts/verify_release_boundary.py'
-      - 'scripts/test_verify_release_boundary.py'
-      - 'scripts/verify_complete_release.py'
-      - 'scripts/test_verify_complete_release.py'
   push:
     branches: [main]
     paths:
@@ -43,7 +25,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -51,21 +33,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
       - uses: ./.github/actions/setup-build-jdk
-
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
-
+          node-version-file: .node-version
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
-
       - name: Install the pinned Rust SBOM generator
         run: cargo install cargo-cyclonedx --version 0.5.9 --locked
-
       - name: Generate release SBOMs
         run: scripts/generate-release-sboms.sh "$RUNNER_TEMP/preflight-sboms"
-
       - name: Assemble and verify the real core release
         shell: bash
         run: |
@@ -74,7 +50,6 @@ jobs:
           scripts/assemble-core-release.sh \
             "$RUNNER_TEMP/preflight-release" \
             "$RUNNER_TEMP/preflight-sboms"
-
       - name: Upload verified SBOMs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -82,7 +57,6 @@ jobs:
           path: ${{ runner.temp }}/preflight-sboms/*
           if-no-files-found: error
           retention-days: 30
-
       - name: Upload verified core release
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

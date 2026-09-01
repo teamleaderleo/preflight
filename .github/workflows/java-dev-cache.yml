@@ -1,0 +1,30 @@
+name: Java dev cache inspector
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '.github/workflows/java-dev-cache.yml'
+      - 'scripts/java-dev-cache.py'
+      - 'scripts/test_java_dev_cache.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify bounded read-only inspection
+        run: |
+          python3 -m py_compile scripts/java-dev-cache.py scripts/test_java_dev_cache.py
+          python3 -W error::ResourceWarning scripts/test_java_dev_cache.py

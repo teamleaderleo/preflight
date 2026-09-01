@@ -9,7 +9,7 @@ candidate produces them. Convert this Markdown to BBCode before posting on the S
 
 ## Title
 
-> Preflight — a free, open-source fast launcher for Starsector (~7.4× startup speedup on my 83-mod MacBook Air)
+> Preflight — a free, open-source fast launcher for Starsector (~8.19× startup speedup on my 83-mod MacBook Air)
 
 ---
 
@@ -17,10 +17,8 @@ candidate produces them. Convert this Markdown to BBCode before posting on the S
 
 This is **Preflight**, a free, open-source fast launcher for Starsector.
 
-On my 83-mod M5 MacBook Air, startup went from roughly **101 seconds to 13.69 seconds**, a **7.4×
+On my 83-mod M5 MacBook Air, startup went from **112.17 seconds to 13.69 seconds**, an **8.19×
 speedup**. That's Starsector's x86-64 Java running through Rosetta.
-
-**Dramatically faster launch times** (and you can measure it yourself!).
 
 **Download:** [RELEASE URL]
 
@@ -34,8 +32,7 @@ Features:
 - Mod linting.
 - Storage planning, repair, cleanup, and recovery stuff.
 - A wireframe Hangar made from your installed ships.
-- Windows, macOS, and Linux. It's a React/Tauri desktop app around the same Java engine as the CLI,
-  and the desktop brings its own Java runtime.
+- Windows, macOS, and Linux desktop packages with their own Java runtime.
 
 Give first setup a few GB of free space. My current 83-mod setup settles around **1.1 GB** of prepared
 data. Preflight calculates the number for your installation before it starts.

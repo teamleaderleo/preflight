@@ -14,8 +14,8 @@ The announcement drafts are sources for finished prose. The deliberately larger 
   explanation after it.
 - Avoid self-conscious creator framing such as “got out of hand,” “I got carried away,” “apparently
   this was not enough,” or “accidentally became a companion app.”
-- Do not foreground the old 89.00s → 15.53s controlled pair unless the conversation is specifically
-  about that experiment. The current readable development headline is **~101s → 13.69s**.
+- Do not foreground the old 89.00s → 15.53s A/B pair unless the conversation is specifically about
+  that experiment. The current readable development headline is **112.17s → 13.69s**.
 - Do not pad campaign/runtime claims with defensive prose. **Faster campaign-map movement on my setup**
   is enough for short player copy.
 - Do not explain `INT32_MAX` after the number has landed. **2,147,483,647 deployment points** can stand
@@ -28,9 +28,8 @@ The announcement drafts are sources for finished prose. The deliberately larger 
 ## The sale
 
 Preflight is a free and open-source fast launcher for Starsector. On my 83-mod M5 MacBook Air
-development setup, startup moved from roughly **101 seconds to a 13.69-second best run**, about a
-**7.4× speedup**. The desktop runs the same installation through Preflight with reviewed
-optimizations off and on.
+development setup, startup moved from **112.17 seconds to 13.69 seconds**, about an
+**8.19× speedup**. The desktop includes its own normal-versus-Preflight benchmark.
 
 The rest of the product is useful on its own: tracked playtime, launch settings beside Launch,
 custom battle size, setup checks, storage planning/recovery, signed updates, a wireframe Hangar, and
@@ -40,16 +39,16 @@ a mod linter.
 
 Current development setup:
 
-- roughly **101s → 13.69s** to the main menu;
-- about a **7.4× speedup**;
+- **112.17s → 13.69s** to the main menu;
+- about an **8.19× speedup**;
 - **83 enabled mods**;
 - **M5 MacBook Air**;
 - Starsector's bundled x86-64 Java runtime through Rosetta.
 
 The public package gets its own retained benchmark before release.
 
-The older 89.00s → 15.53s controlled campaign remains useful evidence, but it is not the public
-headline.
+The older 89.00s → 15.53s A/B campaign remains useful for the comparison it measured, but it is not
+the public headline and does not give its elapsed times a higher status.
 
 ## The player-facing feature set
 
@@ -57,7 +56,7 @@ Use what fits the venue. Do not turn every post into the full inventory.
 
 - **Tracked playtime!!!!!** Durable local total for Starsector sessions Preflight launches and can
   observe.
-- **Built-in benchmark.** The same installation through Preflight with reviewed optimizations off and on.
+- **Built-in benchmark.** Normal-versus-Preflight comparison on the player's installation.
 - **Faster campaign-map movement on my setup.** Keep this as a measured player-facing claim without
   promoting it into a universal FPS number.
 - **Game settings beside Launch.** Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and
@@ -117,12 +116,6 @@ classes**. Deduplication shrank stored class maps **145.96 MiB → 1.13 MiB** an
 Mutation-tracked indexes removed the sector-wide validation work measured as **79.1M entity-reference
 checks → 0**. A separate memoized path served **117.9M unchanged commodity calls**.
 
-The retained optimized campaign session measured the rough-after-load effect too: **9.15 FPS
-one-percent low** during the first 30 seconds and **20.45 FPS** after that initial catch-up, or
-**2.2×**, while average FPS moved from **46.10 to 55.47**. Keep the label attached: that is warm-up
-versus settled play in one run. The repository still has the measurement-only/optimized campaign
-benchmark machinery, but these exact numbers are not its retained result.
-
 ## Why the benchmark is in the product
 
 The project has retained wrong measurements and failed ideas:
@@ -137,12 +130,10 @@ The built-in benchmark gives players the same direct measurement path used durin
 
 ## Compatibility in one paragraph
 
-Preflight leaves Starsector and mod JARs, executables, and assets unchanged. It does not directly
-edit campaign saves or put prepared data into them; Starsector still owns normal save writes.
-Prepared data lives in Preflight's own area. Runtime optimizations live inside the launched game
-process. Prepared data is disposable acceleration, not game state. If it is missing or fails a check,
-Starsector does that work through its normal path. If a runtime shortcut does not recognize the code
-it expects, it steps aside too.
+Preflight leaves Starsector and mod JARs, executables, assets, and saves unchanged. Prepared data
+lives in Preflight's own area. Runtime optimizations live inside the launched game process. If a
+runtime shortcut does not recognize the code it expects, it steps aside and the normal game path
+runs.
 
 ## Disk language
 

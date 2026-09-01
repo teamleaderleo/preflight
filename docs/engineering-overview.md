@@ -1,121 +1,160 @@
 # Engineering overview
 
-Preflight began as a performance investigation into heavily modded Starsector and grew into a cross-platform launcher and companion app. The interesting part is not one cache or one benchmark. It is the sequence of engineering decisions required to find repeated work inside an obfuscated JVM application assembled from the base game and dozens of independently maintained mods, move that work to better boundaries, prove the replacement behavior, and then turn the result into a product that can survive changing inputs, failed launches, restarts, updates, and ordinary player use.
+## TL;DR
 
-On the reviewed 83-mod development installation, the observed startup arc moved from roughly **101 seconds to a 13.69-second best run**. That headline is a development chronology, not one synthetic A/B pair. The repository keeps the direct comparison campaigns, intermediate measurements, rejected experiments, and later controls separately so the engineering story does not depend on one screenshot or one benchmark number.
+Preflight started with one question: **why does a heavily modded Starsector redo so much expensive work every launch?**
+
+The recurring answer was:
+
+```text
+measure the real bottleneck
+        ↓
+find repeated deterministic work
+        ↓
+move/reuse the answer earlier
+        ↓
+bind it to exact inputs
+        ↓
+fall back when those inputs stop matching
+```
+
+On the documented 83-mod development setup, the selected startup headline is **112.17s → 13.69s**.
+
+The biggest lesson wasn't “add more caches.” It was **put reusable answers at the boundary where the repeated work actually happens, before the cost you want to avoid**.
+
+If you'd rather get the gentler tour first, read [How Preflight works](how-preflight-works.md). This page is the compact engineering story.
 
 ## The recurring pattern
 
-Most of the largest wins followed the same loop:
+Most useful optimizations followed the same loop:
 
-1. profile or instrument the real launch rather than infer the bottleneck from the loading screen
-2. find repeated deterministic work at the boundary where it actually occurs
-3. cache or prepare the result without replacing the game's live objects or mod ordering
-4. bind reuse to the exact game/mod inputs that produced it
-5. decline to the original path when the target is changed, unsupported, stale, damaged, or ambiguous
-6. measure the result again and keep the failures that changed the design
+1. profile/instrument the real launch or runtime path;
+2. find repeated work instead of guessing from the loading screen;
+3. identify the inputs that make the answer valid;
+4. prepare, memoize, or index the result at the useful boundary;
+5. let the original path run when identity/validation stops matching;
+6. measure again;
+7. keep the failures that changed the design.
 
-The first implementation is often not the final abstraction. Several of Preflight's strongest changes came from discovering that a local cache was sitting above a more useful shared boundary, or that the cache decision itself happened after the expensive work had already been serialized.
+Several early optimizations were locally correct and still disappointing because they sat on the wrong side of the expensive queue/read/representation.
 
-## Shared data reads instead of a sixth loader cache
+## Shared data reads: five caches pointed to one lower boundary
 
-The visible 0% loading plateau led to five loader-specific JSON/CSV caches for variants, weapons, projectiles, hulls, and campaign rules. Those changes took `SpecStore` from **19.8s to 9.8s**, but the remaining profile showed that the same merge-and-parse work was still being repeated below those loaders.
+The visible 0% loading plateau first produced separate JSON/CSV caches for variants, weapons, projectiles, hulls, and campaign rules. Those changes moved `SpecStore` from **19.8s to 9.8s**.
 
-One measured launch issued **39,017 JSON calls across 8,378 distinct paths**. The repeated work was not really a variant-cache problem or a weapon-cache problem. It belonged at the common data-read boundary used by the game and mods.
+Profiling then showed the same lower merge/parse work repeating beneath those loaders. One measured launch issued **39,017 JSON calls across 8,378 distinct paths**.
 
-Preflight moved that work into a shared memoized layer beneath the loader-specific caches. The remaining merged-read seam moved from **2.172s to 0.300s**. Stored JSON text was also replaced with a typed-tree representation so cached data could be rehydrated without reparsing text. That representation was replayed through the installed JSON runtime and compared across roughly **990,000 recursively visited values** before it became part of the normal path.
+So Preflight moved reuse to the shared data-read boundary. The remaining merged-read seam moved from **2.172s to 0.300s**.
 
-The useful lesson was not “cache JSON.” It was that five local caches exposed the wrong abstraction boundary.
+Stored JSON text also became a typed-tree representation so replay didn't need to parse the same text again. The representation was replayed through the installed JSON runtime and compared across roughly **990,000 recursively visited values** before becoming part of the normal path.
 
-## Put the cache decision before the bottleneck
+The useful lesson: five local caches can be evidence that the reusable answer belongs lower.
 
-The first prepared-texture implementation had healthy cache-hit counters and a disappointing end-to-end result. Profiling showed why: the loading thread could still wait roughly **27 seconds** behind Starsector's single-threaded texture prefetch queue before the prepared-texture decision was even consulted.
+## Textures: put the decision before the expensive wait
 
-Moving the cache lookup ahead of that queue changed the critical path. Later texture work also stopped allocating power-of-two upload padding that the logical images did not need, removing **1.22 GiB of VRAM padding** in the measured full load.
+Prepared textures initially showed healthy hit counters without delivering the expected whole-launch win.
 
-This was one of the project's recurring failure modes: an optimization can be locally correct and still be placed on the wrong side of the cost it is supposed to avoid.
+The reason was simple after profiling: the loading thread could still wait roughly **27 seconds** behind Starsector's single-threaded texture-prefetch queue before the prepared-data decision was consulted.
 
-## Rebuildable texture data does not need per-file durability
+Moving the decision ahead of that wait changed the critical path.
 
-Preflight initially made thousands of rebuildable texture intermediates durable before writing the final pack. On the reviewed profile, the broader preparation path reached **200.77s** and **4.76 GB**.
+Later texture work also removed unnecessary power-of-two upload padding, cutting **1.22 GiB of VRAM padding** from the measured full load.
 
-The final design treats those intermediates as what they are: rebuildable staging data. They stream into one final published pack instead of forcing thousands of individual files. The retained Compact preparation endpoint is **16.21s** with roughly **1.1 GB** of storage on the same development profile.
+So “cache hit” was never enough. The hit had to happen before the cost.
 
-Physical layout mattered after publication cost was fixed. Writing the same logical Compact texture corpus in observed startup order instead of alphabetical order moved launch from **33.53s to 14.174s**. The data set did not change. Its physical order did.
+## Texture storage: rebuildable data doesn't need thousands of durable files
 
-That sequence is why the texture work is better described as storage and I/O engineering than as “another cache.”
+An early preparation path made thousands of rebuildable texture intermediates durable. On the reviewed profile, that broader path reached **200.77s** and **4.76 GB**.
 
-## Generated code: remove repeated compilation, then remove repeated representation
+The later design streams rebuildable staging data into a final published pack instead. Compact preparation reached **16.21s** with roughly **1.1 GB** of retained data on that development profile.
 
-The game and mods use Janino to generate Java bytecode during startup. Preflight first memoized **228 compilation requests**, reducing the measured compiler seam from **18.014s to 2.364s**.
+Physical order also mattered. With the same logical Compact texture corpus:
 
-The persisted result then exposed a second problem. Across those requests, the cache contained **36,332 generated-class occurrences** but only **280 unique classes**. Deduplicating the stored class maps reduced them from **145.96 MiB to 1.13 MiB**, while replay moved from **1.501s to 29ms**.
+- alphabetical layout: **33.53s** launch;
+- observed startup-access order: **14.174s** launch.
 
-The two changes solve different problems: the first avoids repeated compilation, the second avoids repeatedly storing and replaying equivalent generated output.
+Same data. Different physical order. Very different I/O behavior.
 
-## Runtime work did not stop at startup
+## Generated code: avoid repeated compilation, then avoid repeated duplicate output
 
-The same profiling approach found high-frequency work during campaign simulation.
+Starsector mods can compile Java code at runtime through Janino.
 
-A sector-wide entity lookup path repeatedly validated large lists. Mutation-tracked indexes moved **227,805 full-list validations to zero** and **79.1 million entity-reference checks to zero** in the adjacent live pilots that established the before/after work. The lookups still happen; the expensive validation scans do not.
+Preflight memoized **228 compilation requests**, moving the measured compiler seam from **18.014s to 2.364s**.
 
-A separate campaign hotspot repeatedly recomputed commodity state that had not changed. The final memoized path served **117.9 million unchanged calls** while delegating the comparatively small set of real state changes to the original implementation.
+Persisting that result exposed another waste: **36,332 generated-class occurrences** represented only **280 unique classes**.
 
-These are operation-count claims rather than a universal FPS claim. The repository retains the measured campaign profiles, but the final work was not reduced to one controlled frame-rate number.
+Deduplication moved the stored class maps from **145.96 MiB to 1.13 MiB**, while replay moved from **1.501s to 29ms**.
 
-## Exact fallback is part of the optimization
+Those are two separate optimizations:
 
-Preflight does not permanently patch Starsector or mod JARs. Runtime changes exist only inside the launched child JVM.
+1. don't compile the same answer again;
+2. don't store/replay the same answer thousands of times either.
 
-Prepared artifacts and bytecode adapters are bound to the inputs and code they were reviewed against. If a game class, mod archive, provider order, cache representation, or expected target changes, the optimization declines and the original game path remains available.
+## Runtime work: the same idea applies after startup
 
-This matters because the surrounding system is not under Preflight's control. It includes obfuscated game code, third-party mods, mutable JSON objects, ordered resource overlays, generated classes, changing JARs, and code paths that were not designed around an external accelerator.
+Profiling found repeated work during campaign simulation too.
 
-Compatibility is therefore not a separate cleanup phase after performance work. The fallback boundary is part of the performance design.
+One sector-wide lookup path repeatedly revalidated large lists. Mutation-tracked indexes moved **227,805 full-list validations to zero** and **79.1 million entity-reference checks to zero** in the adjacent live pilots that established the before/after work.
 
-## From performance engine to desktop product
+Another hotspot repeatedly recomputed commodity state that hadn't changed. The memoized path served **117.9 million unchanged calls**, while real state changes still delegated to the original implementation.
 
-The same Java engine powers the CLI and the desktop application. React renders the interface, while a narrow Rust/Tauri host owns native process and filesystem capabilities. Native Windows, macOS, and Linux packages include the minimal Java runtime used by Preflight, so ordinary desktop use does not depend on a system JDK.
+These are operation-count results, not a universal FPS promise. The point is the same one: recompute when the answer changes, not every time somebody asks for it.
 
-The product grew around the engineering work rather than beside it:
+## Fallback is part of the optimization
 
-- durable launch/playtime history derived from the launch ledger rather than a second mutable counter
-- named mod profiles and launch settings
-- storage planning, cleanup, repair, and interrupted-operation recovery
-- setup analysis and a mod linter
-- bounded diagnostics and support-report handling
-- signed update installation with rollback-aware cache formats
-- package capability receipts describing native commands, writes, child processes, links, and network endpoints
+Preflight doesn't permanently rewrite Starsector or mod JARs. Runtime transformations live inside the launched child JVM.
 
-That product layer forced a different class of correctness work: process identity, ownership locks, restart recovery, stale responses, interrupted preparation, update failure, rollback, and cleanup all matter even when the underlying performance optimization is correct.
+Prepared artifacts and adapters are bound to the inputs/code they were reviewed against. A changed class, archive, provider order, representation, loader, or profile can make one shortcut decline while the original game path stays available.
 
-## Source-side analysis
+That lets Preflight be aggressive at narrow, proven boundaries without pretending every current/future mod version is equivalent.
 
-The profiling work also produced tools that inspect the mod ecosystem itself. The current linter has reported **1,392 asset/configuration findings across 84 resource roots**, including four broken released configurations, substantial VRAM/decode waste, and progressive textures that decode **8.75× slower** through the measured game path.
+Compatibility therefore isn't a cleanup step after performance work. The eligibility/fallback rule is part of each optimization from the start.
 
-The linter is intentionally diagnostic rather than corrective. It reports measurable problems and leaves the installation unchanged.
+## Turning the performance work into a desktop product
 
-## Failure history is part of the evidence
+The same Java engine powers the CLI and desktop app. React renders the UI; a narrow Rust/Tauri host owns native process/filesystem/update capabilities.
 
-The repository keeps rejected and misleading results because several of them changed the architecture:
+The product work added its own correctness problems:
 
-- prepared textures initially hit the cache while still waiting behind the real serialized bottleneck
-- early texture experiments produced cropped, tiled, black, or displaced output despite plausible counters
-- one GraphicsLib replay made a small path much slower and was removed
-- a supposed timing pattern turned out to depend on a stale benchmark anchor
-- JFR timing under one runtime configuration diverged materially from wall time
-- AppCDS did not establish a safe enough win for the reviewed obfuscated classes and was removed
+- launch/playtime history that survives UI restarts;
+- named mod profiles and launch settings;
+- disk planning, cleanup, repair, and interrupted-operation recovery;
+- setup analysis and mod linting;
+- bounded diagnostics/support reports;
+- signed updates and rollback-aware formats;
+- exact package capability receipts.
 
-The purpose of retaining these is practical: future changes can see which assumptions already failed and which regression boundaries were added because of them.
+A clever accelerator that loses track of processes, corrupts settings after a restart, or deletes the wrong files would still be a bad product. The desktop work exists to make the performance engine dependable in ordinary use.
+
+## Mod/setup analysis
+
+The same investigation tools also became read-only analysis features.
+
+The linter has reported **1,392 asset/configuration findings across 84 resource roots** in the reviewed work, including broken released configurations, avoidable VRAM/decode cost, and progressive textures that decoded **8.75× slower** through the measured game path.
+
+The linter reports problems. It doesn't edit somebody else's mod to guess what the author intended.
+
+## Failures are retained because they prevent reruns of bad ideas
+
+Useful failures include:
+
+- prepared textures hitting while the thread still waited behind the real bottleneck;
+- texture experiments with plausible counters but cropped/tiled/black/displaced output;
+- a GraphicsLib replay that made a small path slower and was removed;
+- a timing pattern that turned out to use a stale benchmark anchor;
+- JFR timing under one runtime configuration diverging materially from wall time;
+- AppCDS failing to establish a safe enough win for the reviewed obfuscated classes and being removed.
+
+The evidence archive keeps these because “we tried this already, and here is exactly why it failed” is useful engineering information.
 
 ## Where to go deeper
 
-- [`optimization-history.md`](optimization-history.md) — chronological performance work and accepted/rejected steps
-- [`evidence/`](evidence/) — retained measurements and experiment records
-- [`performance-storage-tradeoffs.md`](performance-storage-tradeoffs.md) — preparation/storage modes and current tradeoffs
-- [`product-contract.md`](product-contract.md) — player-visible behavior and ownership boundaries
-- [`capability-receipt.md`](capability-receipt.md) — packaged native capability model
-- [`asset-lint.md`](asset-lint.md) — source-side asset/configuration analysis
-- [`../preflight-desktop/README.md`](../preflight-desktop/README.md) — desktop architecture and packaging boundary
+You usually need only one next document:
 
-The short version is simple: profile the real system, move deterministic work to the boundary where it can actually be reused, bind reuse to exact inputs, and keep the original path available whenever that proof stops holding.
+- **chronological optimization history:** [Optimization history](optimization-history.md)
+- **raw retained experiments:** [Evidence archive](evidence/)
+- **preparation/storage choices:** [Performance and storage tradeoffs](performance-storage-tradeoffs.md)
+- **exact player/write/fallback rules:** [Product contract](product-contract.md)
+- **desktop/native boundary:** [`preflight-desktop/README.md`](../preflight-desktop/README.md)
+
+Short version again: **measure the real system, reuse deterministic work at the useful boundary, bind reuse to exact inputs, and keep the original behavior available when the proof stops holding.**

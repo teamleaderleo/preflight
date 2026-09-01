@@ -5,28 +5,18 @@ page changes; do not treat this document as a permanent tier contract.
 
 ## Short bio
 
-I make stuff. Stuff... becomes more stuff.
+Software and other creative stuff.
 
 ## Introduction
 
-Right now, most of my public work is going into Preflight.
+I make stuff that tends to become much larger than I expect.
 
-On my 83-mod M5 MacBook Air development setup, startup moved from roughly **101 seconds to a
-13.69-second best run**, about a **7.4× speedup**. Preflight runs its built-in benchmark with
-reviewed optimizations off and on, so players can measure their own installations.
+Right now, most of my public work is going into Preflight, a fast launcher for Starsector. It is free
+and open source.
 
-The desktop also tracks Starsector playtime, puts the useful game settings beside Launch, checks large
-mod setups, plans storage before preparation, handles repair and recovery, ships signed updates, and
-includes a mod linter. The desktop and terminal versions use the same Java engine.
-
-A lot of the work is underneath that surface. Runtime shortcuts are checked against the code they
-expect and fall back to the normal game path when they do not match. Release packages have signed
-updates, rollback checks, checksums, dependency inventories, and machine-readable capability receipts
-for the native commands, writes, child processes, links, and network endpoints they contain.
-
-Sponsorship helps pay for development time, testing hardware, hosting, release work, compatibility
-work, and future projects. Preflight remains free and open source. Sponsors do not get a different
-application or private feature set.
+This page is for people who want to support what I make. Sponsorship helps with the time and costs
+behind current and future projects. It doesn't buy access, priority, or a private version of the
+work.
 
 ## Featured work
 
@@ -41,39 +31,41 @@ if there is a reason to curate it.
 
 **Target:** 10 sponsors
 
-10 sponsors would help cover testing hardware, hosting, release work, and continued development.
+10 sponsors would be a cool milestone. It would help with the time and costs behind current and
+future projects.
 
 ## Monthly tiers
 
+These are contribution levels. They don't buy access, priority, or a different version of anything.
+
 ### $5 a month
 
-**Supporter.** Support Preflight and my open-source work.
+**Supporter.** Support what I make.
 
 ### $10 a month
 
-**Backer.** A little more toward ongoing development, compatibility work, testing, and future
-projects.
+**Backer.** A little more support for current and future projects.
 
 ### $20 a month
 
-**Sustainer.** Help cover a larger share of cross-platform testing, release preparation, hardware,
-hosting, and continued development.
+**Sustainer.** Help cover a larger share of the time and costs behind the work.
 
 ### $50 a month
 
-**Sponsor.** For people, modders, developers, or organizations who want to make a substantial
-contribution to Preflight and my other work.
+**Sponsor.** For people or organizations who want to make a substantial contribution to what I make.
 
 ## One-time tier
 
 ### $10 one time
 
-**One-time supporter.** If Preflight saved you some waiting or you want to support the work, thank
-you. One-time support goes toward the same development, testing, hardware, hosting, and release costs.
+**One-time supporter.** If something I made was useful to you, or you just want to support the work,
+thank you.
 
-## When the Sponsors profile is live
+## Repository integration
 
-- Add `github: teamleaderleo` beside the existing Patreon entry in `.github/FUNDING.yml`.
-- Replace `[GITHUB SPONSORS URL]` in the beta announcement drafts with the live Sponsors URL.
-- Add the live Sponsors link to the README support section.
-- Keep Patreon available as the alternate membership/payment route.
+- `.github/FUNDING.yml` lists GitHub Sponsors and Patreon under the same creator identity.
+- The README support section links both routes.
+- Public beta/release drafts use `https://github.com/sponsors/teamleaderleo` directly.
+- Patreon remains available as the alternate membership/payment route.
+- The desktop's quiet footer link remains Patreon for 0.1.0; adding another native outbound link is
+  unnecessary for funding discovery and would change the package capability boundary before release.

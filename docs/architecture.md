@@ -1,146 +1,154 @@
 # Architecture
 
+## TL;DR
+
+```text
+React UI
+   ↓ typed desktop commands
+Rust/Tauri host
+   ↓ starts / queries
+Java CLI + engine
+   ↓ launches with
+Java agent inside Starsector
+
+Preflight-owned cache/history sits beside that path.
+```
+
+The important rules are simple:
+
+- game/mod binaries and saves stay source material;
+- reusable acceleration data lives under Preflight-owned storage;
+- runtime changes live inside the launched JVM;
+- exact identity checks decide whether an optimization can run;
+- when a shortcut can't prove its target, the original game path stays available;
+- the CLI and desktop share the same Java engine instead of implementing separate product logic.
+
+For a conversational walkthrough, read [How Preflight works](how-preflight-works.md). This page is the contributor-facing module/data map.
+
 ## Principles
 
-1. Source mods, saves, launcher files, and VM parameter files remain untouched except for explicit,
-   confirmed preference/launcher-setting operations owned by the product contract.
-2. Preflight-owned acceleration data is disposable and rebuildable.
-3. Cache failures return to the original Starsector path.
-4. Every persisted format and runtime integration interface is versioned.
-5. Content identity, enabled-mod order, source bindings, and transformation configuration
-   participate in invalidation.
-6. Existing files are resolved through canonical roots; links that escape an approved root are
-   rejected.
-7. First preparation and repeat-launch performance are reported separately.
-8. A performance claim requires repeated successful real-install comparisons with its exact context.
+1. Game/mod source material stays unchanged except for explicit, confirmed preference/profile operations owned by the [product contract](product-contract.md).
+2. Preflight-owned acceleration data is rebuildable.
+3. Cache/runtime eligibility failures return to the owning original path or rebuild path.
+4. Persisted formats and runtime integration interfaces are versioned.
+5. Content identity, enabled-mod order, source bindings, and relevant transformation configuration participate in invalidation.
+6. Files are resolved through approved canonical roots; links that escape those roots are rejected.
+7. First preparation and repeat-launch performance are measured separately.
+8. Performance claims carry their actual profile/machine/measurement context.
 
-The current behavioral boundary is [product-contract.md](product-contract.md). Current beta blockers
-live in [#652](https://github.com/teamleaderleo/preflight/issues/652) and are mirrored in
-[release-readiness.md](release-readiness.md).
+Moving release blockers belong in [Release readiness](release-readiness.md) / [#652](https://github.com/teamleaderleo/preflight/issues/652), not in this architecture page.
 
-## Modules
+## Java modules
 
 ### `preflight-core`
 
-Portable identity, format, validation, and report code. Persisted families include resource-provider
-indexes, classpath profile/archive indexes, texture manifests and prepared blobs/packs, SpecStore
-profile/data stores, generated-bytecode records, and bounded evidence formats. Format changes use
-explicit versioning and, where required, version-qualified cache directories.
+Reusable identity, format, validation, storage, and report logic.
+
+Persisted families include resource-provider indexes, classpath profile/archive indexes, texture manifests/packs/blobs, SpecStore data, generated-bytecode records, and bounded evidence formats. Format changes use explicit versioning and version-qualified cache directories where needed.
 
 ### `preflight-agent`
 
-A Java 17 agent injected into the selected child launcher through process-local `JAVA_TOOL_OPTIONS`.
-It starts the configured JFR recording, records bounded evidence, applies exact source-bound adapter
-targets, and leaves unknown or changed installations on the original path.
+The Java agent that runs inside the selected Starsector child JVM.
 
-Ordinary rotating recordings use the JVM's JFR shutdown behavior. Single-chunk benchmark recordings
-use the live request/ack path so the benchmark can require the final agent event before accepting the
-recording.
+It owns reviewed in-memory transformations, adapter/runtime evidence, and related JVM-side instrumentation. Exact class/source/loader/profile checks gate each plan. Unknown or changed targets leave that optimization inactive.
 
-The texture runtime keeps two reviewed paths: compatibility preserves Starsector's asynchronous
-preloader contract, while prepared pixels can serve validated upload-ready data and retain the
-game's upload/lifetime path. Exact current behavior and accepted history are recorded in
-[optimization-history.md](optimization-history.md).
-
-Generated-bytecode and mod-owned adapters use the same fail-open rule: incomplete or changed
-identity evidence returns to the original implementation. Each optimization remains independently
-disableable through its reviewed plan/preset boundary.
+Optimizations remain independently disableable through the reviewed preset/plan boundary.
 
 ### `preflight-cli`
 
-The runnable wrapper and preparation engine. It discovers the existing launcher, inventories the
-enabled profile, prepares and validates eligible artifacts, injects the agent, records run evidence,
-summarizes JFR, and exposes deterministic benchmark and analysis commands.
+The runnable command engine and launcher wrapper.
 
-`prepare` is an offline preparation command. It currently coordinates the profile census,
-resource-provider index, classpath profile/archive indexes, exact SpecStore profile identity, and
-prepared texture pack/blob work. Other Recommended acceleration data is learned or materialized at
-its own exact runtime boundary. See [prepare.md](prepare.md) for the operator-facing command.
+It owns installation discovery, profile inventory, preparation, launch orchestration, profiles/settings/history, benchmark/analysis commands, evidence export, and the packaged executable JAR.
+
+`prepare` handles the offline families that can actually be prepared at that boundary. Other Recommended acceleration data can be learned/materialized at its own exact runtime boundary. See [Preparation](prepare.md).
 
 ### `preflight-synthetic-startup`
 
-Packaged child-JVM fixtures verify agent startup, exact target selection, fallback behavior,
-reporting, and cross-platform launch behavior without distributing Starsector binaries.
+Synthetic child-JVM workloads and experiments that let the project exercise performance/runtime mechanisms without requiring a real Starsector launch for every test.
+
+Player-facing product logic belongs in the normal engine modules, not here.
+
+## Desktop application
+
+`preflight-desktop/` is the React + Tauri desktop product.
+
+- **React** owns presentation and user interaction.
+- **Rust/Tauri** owns the narrow native bridge: typed commands, process/native-dialog/update/package behavior.
+- **Java** remains the source of truth for Starsector-facing operations.
+
+The browser layer doesn't receive a generic shell/filesystem interface. The Rust host exposes the operations the product needs instead.
+
+See [`preflight-desktop/README.md`](../preflight-desktop/README.md) for desktop development/package detail and [UI design](ui-design.md) for visual/interaction guidance.
 
 ## Launch flow
 
 ```text
 preflight.jar run
-  -> discover the existing Starsector or supported alternate launcher
-  -> resolve the selected profile and eligible prepared artifacts
+  -> discover the selected Starsector/supported launcher
+  -> resolve profile + eligible prepared artifacts
   -> create an isolated run directory
-  -> add the same JAR as a process-local javaagent
-  -> start the original launcher as a child process
-  -> preserve the child's result and bounded fatal-log evidence
-  -> write final run, adapter, profile, and JFR-derived reports
+  -> add the Preflight JAR as a process-local Java agent
+  -> start the existing launcher as a child process
+  -> track that exact process/run
+  -> write bounded run/adapter/profile/JFR-derived evidence
 ```
 
-A raw CLI `run` is unoptimized unless a preset or individual adapter option is selected. The
-installed launcher and desktop product select **Recommended**; **Conservative** limits acceleration
-to its reviewed portable subset; **Off** retains process ownership and bounded outcome reporting.
-Preparation alone never activates a runtime transformation. Exact identity, artifact validation,
-and environment/property kill switches remain authoritative.
+A launch preset chooses the reviewed optimization set:
 
-## Current prepared-data layout
+- **Recommended:** normal accelerated path;
+- **Conservative:** portable/less invasive subset;
+- **Off / troubleshooting:** keeps launch/process ownership and bounded outcome reporting while runtime acceleration is disabled.
 
-The cache root contains several independent, versioned families. Directory names can gain version
-suffixes when an on-disk format changes, so operator code should use the owning directory helper
-instead of constructing paths from this diagram.
+Preparation by itself doesn't activate a runtime transformation. The launch still has to select the reader/plan, and its exact identity/runtime checks still have to pass.
+
+## Prepared-data layout
+
+The cache root has independent versioned families. Code should use the owning directory helpers rather than reconstructing paths from this overview.
 
 ```text
 ~/.starsector-preflight/
   cache/
-    resource-indexes[/version-qualified]/
-      PROFILE.spfi
-    classpath[/version-qualified]/
-      profiles/PROFILE.spfc
-      archives/HH/SOURCE_HASH.spfj
+    resource-indexes[/version]/
+    classpath[/version]/
+      profiles/
+      archives/
     spec-store/
       profiles/
-      variant-json[/version-qualified]/
-      weapon-json[/version-qualified]/
-      projectile-json[/version-qualified]/
-      hull-json[/version-qualified]/
-      rules-csv[/version-qualified]/
-      rule-command-classes[/version-qualified]/
-      merged-reads[/version-qualified]/
-    manifests[/version-qualified]/
-      PROFILE.spfm
+      variant-json[/version]/
+      weapon-json[/version]/
+      projectile-json[/version]/
+      hull-json[/version]/
+      rules-csv[/version]/
+      rule-command-classes[/version]/
+      merged-reads[/version]/
+    manifests[/version]/
     packs/
-      PROFILE.spfp
-    blobs/...
-    quarantine/...
-    reports/preparation-latest.json
-  runs/YYYYMMDD-HHMMSS-SSS-NONCE/
-    run.json
-    profile.json
-    startup.jfr
-    summary.json
-    adapter.json
-    adapter-analysis.json
+    blobs/
+    quarantine/
+    reports/
+  runs/
+    RUN/
+      run.json
+      profile.json
+      startup.jfr
+      summary.json
+      adapter.json
+      adapter-analysis.json
 ```
 
-The profile texture pack is a single indexed `.spfp` file for the profile's prepared texture blobs;
-its header carries the pack format version. SpecStore data uses its own cache family beneath
-`spec-store/`. Classpath profiles and content-addressed archive indexes share their co-versioned
-classpath namespace. These families were missing from the older cache diagram and are part of the
-current implementation.
+Content-addressed artifacts can be shared across profiles when their identities permit it. Profile-named artifacts bind ordered/profile-specific selection to exact inputs.
 
-Content-addressed artifacts may be reused across profiles where their identities allow it.
-Fingerprint-named profile artifacts bind launch-time selection to exact inputs. Corrupt,
-identity-mismatched, missing, stale, ambiguous, unsupported, or escaped paths decline to the
-original game behavior or a rebuild path according to the owning component.
+Missing, corrupt, stale, ambiguous, escaped, or identity-mismatched data is rejected by its owning component and either rebuilt or left to the original game path.
 
-## Current evidence boundary
+## Evidence belongs with evidence
 
-The development profile has accepted live evidence for the Recommended stack across the reviewed
-game/mod identities. That evidence establishes the tested profile and exact targets; broader
-compatibility claims continue to require their own runs. Unknown class, source, loader, artifact, or
-profile identities decline the affected optimization and are reported.
+Architecture tells you where responsibilities and boundaries live. It doesn't own the performance chronology.
 
-Performance history is chronological. Earlier gates include the retained 15.88-second warm record;
-the newer controlled same-profile comparison measured an 89.00-second ordinary median and a
-15.53-second Preflight median, with a 15.25-second low. All of those are development evidence on the
-reviewed machine/profile. The remaining release task is the benchmark on the exact packaged
-candidate bytes. [Optimization history](optimization-history.md) owns the readable chronology and
-[startup-benchmark.md](startup-benchmark.md) owns the measurement protocol.
+For current/rejected optimization history and benchmark context, use:
+
+- [Engineering overview](engineering-overview.md)
+- [Optimization history](optimization-history.md)
+- [Startup benchmark protocol](startup-benchmark.md)
+- [Evidence archive](evidence/)
+
+The selected current development headline is **112.17s → 13.69s**; the historical A/B/gate numbers stay in those evidence/history documents rather than being recopied here.

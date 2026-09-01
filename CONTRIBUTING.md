@@ -1,72 +1,95 @@
 # Contributing
 
-Preflight is pre-beta and is not taking outside code yet. Unsolicited pull requests will be closed
-without review — the release surface is still moving, and reviewing against a moving surface costs
-more than it saves. Bug reports are welcome.
+## TL;DR
 
-An offer to take on an item in an issue is not an assignment, and no reply to one should be read as
-granting it.
+Preflight is still pre-beta and **isn't accepting outside code contributions yet**. Bug reports are welcome; unsolicited PRs will be closed while the release surface is still moving.
 
-By contributing you agree that your contributions are licensed under the repository's [MIT license](LICENSE).
-
-## Development requirements
-
-For Java-only work:
-
-- JDK 17
-- the checked-in Maven Wrapper (`./mvnw` on macOS/Linux, `mvnw.cmd` on Windows), which downloads the reviewed Maven 3.9.16 distribution on first use
-
-For repository-wide desktop and report-intake verification, also install:
-
-- Node.js 22
-- npm
-- the stable Rust toolchain with `rustfmt` and `clippy`
-
-Run the Java verification suite:
+If you're working in the repository with the maintainer/agent workflow:
 
 ```bash
 ./mvnw verify
 ```
 
-On Windows Command Prompt or PowerShell, use:
-
-```text
-mvnw.cmd verify
-```
-
-Before merging a change that crosses Java, desktop, packaging, or report-intake boundaries, run the repository-wide verification entrypoint:
+For changes that cross Java + desktop/package/report-intake boundaries:
 
 ```bash
 bash ./scripts/verify-all.sh
 ```
 
-That command runs the Maven reactor first, reuses its verified runnable JAR for the desktop packaged-engine contract, verifies the React and Rust hosts, regenerates and checks the report-intake bindings, runs Worker tests and the production dependency audit, and performs a Wrangler dry-run without deploying. Native DMG/NSIS/Debian/AppImage assembly remains in the platform GitHub Actions matrix.
+That's the contributor doorway. The rest below is setup/detail.
 
-## Optional analysis profiles
+## Contribution status
 
-Two opt-in Maven profiles are available and are intentionally kept out of the default
-build so an unrelated change never breaks on them:
+An offer to take an issue isn't an assignment, and a reply shouldn't be read as granting one.
+
+When outside contributions open later, contributions will be under the repository's [MIT license](LICENSE).
+
+## Development requirements
+
+Java-only work needs:
+
+- JDK 17+
+- the checked-in Maven Wrapper (`./mvnw` or `mvnw.cmd`)
+
+The wrapper downloads the reviewed Maven distribution on first use.
+
+Repository-wide desktop/report-intake work also needs:
+
+- Node.js 24 (the exact patch is in `.node-version`)
+- npm
+- stable Rust with `rustfmt` and `clippy`
+
+## Normal verification
+
+Java:
 
 ```bash
-./mvnw -Panalysis verify   # Error Prone static analysis; reports findings as warnings
-./mvnw -Pcoverage verify   # JaCoCo coverage, reported under each module's target/site/jacoco
+./mvnw verify
 ```
 
-`-Panalysis` reports findings as advisory warnings rather than failing the build. The
-`SelfAssignment` check is disabled because it misfires on this codebase's compact record
-constructor normalization. Treat new findings as a triage prompt, not an automatic gate.
+Windows Command Prompt / PowerShell:
+
+```text
+mvnw.cmd verify
+```
+
+Repository-wide boundary check:
+
+```bash
+bash ./scripts/verify-all.sh
+```
+
+That entrypoint runs the Maven reactor, reuses its verified runnable JAR for the desktop contract, verifies React/Rust, checks report-intake bindings/tests/dependencies, and performs the deployment dry-run. Native installer assembly stays in the platform GitHub Actions jobs.
+
+See [CI policy](docs/ci-philosophy.md) for why ordinary regression tests generally belong in the normal suites instead of one-off workflows.
+
+## Optional analysis
+
+```bash
+./mvnw -Panalysis verify   # Error Prone report
+./mvnw -Pcoverage verify   # JaCoCo report
+```
+
+These are analysis/reporting tools rather than percentage/style vetoes on unrelated work. Triage findings in context.
 
 ## Performance changes
 
-A performance pull request should include:
+A performance change should retain enough evidence to answer:
 
-- The issue it addresses
-- Before and after traces
-- Raw benchmark runs
-- First-build and repeat-launch numbers
-- Peak-memory observations
-- Compatibility and fallback behavior
+- what was slow;
+- how it was measured;
+- what changed;
+- before/after behavior;
+- first-preparation vs repeat-launch cost where relevant;
+- memory/storage impact;
+- compatibility/fallback behavior.
 
-## Compatibility
+The exact evidence format depends on the question. Don't create a new permanent workflow just because an investigation produced a focused regression test.
 
-Avoid committing Starsector, Fast Rendering, mod, or other third-party proprietary binaries. Integration tests should use synthetic fixtures or user-supplied local paths excluded by `.gitignore`.
+## Proprietary/source boundary
+
+Don't commit Starsector, mod, Fast Rendering, or other third-party proprietary binaries/assets.
+
+Use synthetic fixtures or user-supplied local paths excluded from Git for integration work.
+
+For the broader project map, read [How Preflight works](docs/how-preflight-works.md). For current visual work, use [UI design](docs/ui-design.md).

@@ -14,23 +14,23 @@ forum/Reddit post is [beta-announcement-leo-draft.md](beta-announcement-leo-draf
 ## Headline options
 
 - **Preflight 0.1.0: a free, open-source fast launcher for Starsector**
-- **Preflight public beta: ~101s → 13.69s on my 83-mod development setup**
+- **Preflight public beta: 112.17s → 13.69s on my 83-mod development setup**
 - **Preflight: faster Starsector launches, tracked playtime, setup checks, and mod tools**
 
-Use the packaged-candidate result once it exists. Until then, label the 101s → 13.69s result as the
+Use the packaged-candidate result once it exists. Until then, label the 112.17s → 13.69s result as the
 development setup.
 
 ## Subtitle options
 
-- **A fast Starsector launcher with a built-in benchmark for your own setup.**
+- **A fast Starsector launcher with its own normal-versus-Preflight benchmark.**
 - **Faster launches, tracked playtime, launch settings, storage/recovery, setup checks, signed updates, and a mod linter.**
 
 ## Short product description
 
 Preflight is a free and open-source fast launcher for Starsector. On my 83-mod M5 MacBook Air
-development setup, startup moved from roughly **101 seconds to a 13.69-second best run**, about a
-**7.4× speedup**. Separately, the desktop runs its benchmark through Preflight with reviewed
-optimizations off and on. It also tracks playtime, puts the useful game settings beside Launch, checks large mod setups, plans storage before
+development setup, startup moved from **112.17 seconds to 13.69 seconds**, about an
+**8.19× speedup**. The desktop includes its own normal-versus-Preflight benchmark and also tracks
+playtime, puts the useful game settings beside Launch, checks large mod setups, plans storage before
 preparation, handles repair and recovery, ships signed updates, and includes a mod linter.
 
 ## GitHub Release body source
@@ -39,12 +39,11 @@ preparation, handles repair and recovery, ships signed updates, and includes a m
 
 Preflight is a free and open-source fast launcher for Starsector.
 
-On my 83-mod M5 MacBook Air development setup, startup moved from roughly **101 seconds to a
-13.69-second best run**, about a **7.4× speedup**. That development setup uses Starsector's bundled
+On my 83-mod M5 MacBook Air development setup, startup moved from **112.17 seconds to
+13.69 seconds**, about an **8.19× speedup**. That development setup uses Starsector's bundled
 x86-64 Java runtime through Rosetta.
 
-Separately, the desktop runs your setup through Preflight with reviewed optimizations off and on, so
-you can measure your installation.
+The desktop includes its own normal-versus-Preflight benchmark so you can measure your installation.
 
 The public candidate recorded **[PACKAGED CANDIDATE BENCHMARK RESULT]** on **[CANDIDATE HARDWARE /
 GAME / RUNTIME]**.
@@ -59,14 +58,11 @@ more working room; Preflight calculates the actual requirement before it starts 
 
 ## Compatibility
 
-Preflight leaves Starsector and mod JARs, executables, and assets unchanged. It does not directly
-edit campaign saves or put prepared data into them; Starsector still owns normal save writes.
-Prepared data lives in Preflight's own area. Runtime optimizations live inside the launched game
-process.
+Preflight leaves Starsector and mod JARs, executables, assets, and saves unchanged. Prepared data
+lives in Preflight's own area. Runtime optimizations live inside the launched game process.
 
-Prepared data is disposable acceleration, not game state. If it is missing or fails a check,
-Starsector does that work through its normal path. If a runtime shortcut does not recognize the code
-it expects, it steps aside too.
+If a runtime shortcut does not recognize the code it expects, it steps aside and the normal game
+path runs.
 
 Profile switching and launch settings are explicit game-owned preference changes. The app shows the
 change and keeps a backup.
@@ -102,9 +98,8 @@ See [Known limitations](known-limitations.md) for the complete list.
 
 ## Support and reporting
 
-**Copy setup** and **Save setup summary** produce the same compact public support text. Saving creates
-a new `.txt` file and never replaces one. Help can create a separate support ZIP and show what it
-contains before sending. The first beta sends one only when you press Send.
+**Copy setup** produces a compact support summary. Help can create a separate support ZIP and show
+what it contains before sending. The first beta sends one only when you press Send.
 
 Fill these from the accepted packaged run:
 
@@ -126,7 +121,7 @@ Fill it only from the frozen candidate.
 
 - **Fast launch.** Reuse matching texture, merged/spec-data, generated-bytecode, audio, and related
   startup work.
-- **Built-in benchmark.** Compare optimizations off and on through Preflight, then copy the result.
+- **Built-in benchmark.** Compare a normal launch with a Preflight launch and copy the result.
 - **Tracked playtime!!!!!** Keep a local total for sessions launched through Preflight and export the
   history as JSON or spreadsheet-safe CSV.
 - **Launch settings.** Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and custom battle
@@ -136,8 +131,8 @@ Fill it only from the frozen candidate.
 - **Storage planning and recovery.** See the preparation requirement before writing, stop safely, and
   repair damaged prepared data.
 - **Setup checks and mod linting.** Inspect dependency/setup problems and measurable asset/config costs.
-- **Support and updates.** Copy or save a setup summary, review a deeper support ZIP before sending
-  it, and use signed desktop updates.
+- **Support and updates.** Copy a setup summary, review a deeper support ZIP before sending it, and use
+  signed desktop updates.
 - **Hangar.** Generate wireframe ships from the installed hull catalog and sprites.
 - **CLI.** `doctor`, `scan`, `--dry-run`, explicit launcher selection, and the same Java engine as the desktop.
 
@@ -173,7 +168,7 @@ Use the detailed storage table only when the storage modes themselves are the to
 
 Preflight is free and open source. If you want to support development:
 
-- GitHub Sponsors: [GITHUB SPONSORS URL]
+- GitHub Sponsors: https://github.com/sponsors/teamleaderleo
 - Patreon: https://www.patreon.com/cw/teamleaderleo
 
 Sponsorship supports development time, testing hardware, hosting, release work, and future projects.

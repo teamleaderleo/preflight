@@ -9,6 +9,9 @@ when a fact changes.
 
 ## Front-facing voice
 
+- `teamleaderleo` funding profiles are creator profiles, not permanent Preflight landing pages. Keep
+  the profile identity broad, mention the current public focus briefly, and put benchmarks, feature
+  lists, and project-specific support details in posts or project pages.
 - Prefer **made** or **created** to **built** in promotional copy unless `built` is the natural
   technical verb.
 - Let good facts stand. Do not append a joke, caveat, explanation, or personality tag merely because
@@ -16,10 +19,9 @@ when a fact changes.
 - Avoid self-conscious creator framing such as “got out of hand,” “I got carried away,” “apparently
   this was not enough,” or “accidentally became a companion app.”
 - Short feature copy can be blunt. **Tracked playtime!!!!!** is fine.
-- Use **~101s → 13.69s** as the readable development headline. Keep the old 89.00s → 15.53s campaign
-  for evidence conversations rather than making every public surface carry it.
-- Keep the development chronology separate from the built-in benchmark. The current benchmark runs
-  both conditions through Preflight; it is not the source of the ~101s → 13.69s headline.
+- Use **112.17s → 13.69s** as the readable development headline. Keep the old 89.00s → 15.53s campaign
+  for evidence conversations rather than making every public surface carry it. It is an A/B comparison,
+  not a higher class of elapsed-time observation.
 - Use concrete behavior instead of adjectives such as safe, robust, privacy-focused, secure, or
   compatible.
 - Do not add defensive prose after campaign/runtime claims. **Faster campaign-map movement on my
@@ -31,11 +33,11 @@ when a fact changes.
 ## The strongest sale
 
 Preflight is a free and open-source fast launcher for Starsector. On my 83-mod M5 MacBook Air
-development setup, startup moved from roughly **101 seconds to a 13.69-second best run**, about a
-**7.4× speedup**.
+development setup, startup moved from **112.17 seconds to 13.69 seconds**, about an
+**8.19× speedup**.
 
-The desktop runs the same setup through Preflight with reviewed optimizations off and on, so players
-can measure their own installations.
+The desktop includes its own normal-versus-Preflight benchmark, so players can measure their own
+installations.
 
 The broader feature set is useful without a long explanation: tracked playtime, launch settings,
 custom battle size, setup checks, storage/recovery, signed updates, a wireframe Hangar, and a mod
@@ -45,8 +47,8 @@ linter.
 
 Lead with whichever few fit the venue:
 
-- ~101s → 13.69s on the development setup;
-- built-in comparison through Preflight with reviewed optimizations off and on;
+- 112.17s → 13.69s on the development setup;
+- built-in normal-versus-Preflight benchmark;
 - **Tracked playtime!!!!!**
 - faster campaign-map movement on my setup;
 - battle size through **2,147,483,647 deployment points**;
@@ -68,8 +70,6 @@ Use behavior:
 
 - Starsector and mod JARs, executables, assets, and saves remain unchanged;
 - runtime optimizations live inside the launched game process;
-- prepared data is disposable acceleration rather than game state;
-- if prepared data is missing or fails a check, Starsector does that work through its normal path;
 - an optimization that does not recognize its target steps aside and the normal game path runs;
 - prepared data lives below Preflight's own area;
 - profile/settings writes are explicit and backed up;
@@ -87,7 +87,7 @@ Useful line:
 Use behavior:
 
 - ordinary launches upload no logs or telemetry;
-- **Copy setup** and **Save setup summary** produce the same small public support summary;
+- **Copy setup** produces a small support summary;
 - the deeper support ZIP has a fixed inclusion/exclusion contract;
 - the app shows the support file before sending;
 - sending is an explicit action;
@@ -97,9 +97,6 @@ Use behavior:
 Useful line:
 
 > The first beta sends a support file only when you press Send.
-
-> Copy the public setup summary, or save the same text to a new file that Preflight will not
-> overwrite.
 
 ## Hooks for a mod author
 
@@ -247,13 +244,6 @@ the preparation/storage path dramatically.
 Mutation-tracked indexes removed the sector-wide validation work measured as **79.1M entity-reference
 checks → 0**. A separate memoized path served **117.9M unchanged commodity calls**.
 
-One retained optimized 83-mod session also measured the campaign's initial catch-up directly. The
-first 30 seconds averaged **46.10 FPS** with a **9.15 FPS one-percent low**; the remaining 4,091
-frames averaged **55.47 FPS** with a **20.45 FPS one-percent low**. The one-percent low was **2.2×**
-higher after the initial 30 seconds. Say exactly that: this pair is warm-up versus settled play
-inside one run, not the measurement-only-versus-optimized pair that the campaign benchmark
-machinery can produce.
-
 ## Release/trust hooks
 
 ### Signed updates
@@ -288,15 +278,6 @@ Use:
 
 Weak:
 
-> Preflight won't mess up your saves.
-
-Use:
-
-> Preflight does not directly edit campaign saves or put prepared cache data into them. Starsector
-> remains responsible for its normal save writes.
-
-Weak:
-
 > Preflight respects privacy.
 
 Use:
@@ -323,7 +304,7 @@ Use:
 
 ## Good future-post titles / hooks
 
-- “How 101 seconds became 13.69”
+- “How 112.17 seconds became 13.69”
 - “The cache was on the wrong side of the queue”
 - “36,332 generated classes were 280 classes”
 - “The same texture pack, in a different order”
