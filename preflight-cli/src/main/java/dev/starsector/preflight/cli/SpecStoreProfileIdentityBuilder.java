@@ -1,16 +1,15 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.ClasspathProfileIndex;
-import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.SpecStoreProfileIdentity;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 
@@ -26,8 +25,17 @@ final class SpecStoreProfileIdentityBuilder {
             Path installRoot,
             ResourceIndex resources,
             ClasspathProfileIndex classpath) throws IOException {
-        Path gameJar = locateGameJar(installRoot);
-        String gameJarSha256 = Hashes.sha256(gameJar);
+        try (ProfileIdentityContext profile = ProfileIdentityContext.of(installRoot, resources)) {
+            return build(profile, classpath);
+        }
+    }
+
+    static Result build(
+            ProfileIdentityContext profile,
+            ClasspathProfileIndex classpath) throws IOException {
+        ResourceIndex resources = profile.resources();
+        Path gameJar = profile.gameJar();
+        String gameJarSha256 = profile.gameJarSha256();
 
         MessageDigest data = sha256();
         update(data, DATA_SCHEMA);
@@ -35,7 +43,8 @@ final class SpecStoreProfileIdentityBuilder {
             update(data, root.id());
             update(data, root.core());
         }
-        long dataProviderCount = 0;
+        List<OrderedDataProvider> orderedProviders = new ArrayList<>();
+        List<ResourceIndex.Provider> providers = new ArrayList<>();
         long dataProviderBytes = 0;
         for (var item : resources.entries().entrySet()) {
             if (!item.getKey().startsWith("data/")) {
@@ -43,18 +52,24 @@ final class SpecStoreProfileIdentityBuilder {
             }
             for (ResourceIndex.Provider provider : item.getValue()) {
                 ResourceIndex.Root root = resources.roots().get(provider.rootIndex());
-                Path source = resources.resolveExisting(provider);
-                String sourceSha256 = Hashes.sha256(source);
-                update(data, item.getKey());
-                update(data, provider.rootIndex());
-                update(data, root.id());
-                update(data, provider.relativePath());
-                update(data, provider.size());
-                update(data, sourceSha256);
-                dataProviderCount = Math.addExact(dataProviderCount, 1);
+                orderedProviders.add(new OrderedDataProvider(item.getKey(), provider, root));
+                providers.add(provider);
                 dataProviderBytes = Math.addExact(dataProviderBytes, provider.size());
             }
         }
+        List<Path> sources = profile.resolveAll(providers);
+        List<String> sourceHashes = profile.sha256All(sources);
+        for (int index = 0; index < orderedProviders.size(); index++) {
+            OrderedDataProvider ordered = orderedProviders.get(index);
+            ResourceIndex.Provider provider = ordered.provider();
+            update(data, ordered.logicalPath());
+            update(data, provider.rootIndex());
+            update(data, ordered.root().id());
+            update(data, provider.relativePath());
+            update(data, provider.size());
+            update(data, sourceHashes.get(index));
+        }
+        long dataProviderCount = orderedProviders.size();
 
         MessageDigest archives = sha256();
         update(archives, CLASSPATH_SCHEMA);
@@ -80,20 +95,6 @@ final class SpecStoreProfileIdentityBuilder {
         return new Result(identity, gameJar);
     }
 
-    private static Path locateGameJar(Path installRoot) throws IOException {
-        Path root = installRoot.toAbsolutePath().normalize();
-        List<Path> candidates = List.of(
-                root.resolve("Contents/Resources/Java/starfarer_obf.jar"),
-                root.resolve("starsector-core/starfarer_obf.jar"),
-                root.resolve("starfarer_obf.jar"));
-        for (Path candidate : candidates) {
-            if (Files.isRegularFile(candidate)) {
-                return candidate.toAbsolutePath().normalize();
-            }
-        }
-        throw new IOException("Could not locate starfarer_obf.jar under " + root);
-    }
-
     private static void update(MessageDigest digest, String value) {
         byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
         update(digest, bytes.length);
@@ -117,5 +118,11 @@ final class SpecStoreProfileIdentityBuilder {
     }
 
     record Result(SpecStoreProfileIdentity identity, Path gameJar) {
+    }
+
+    private record OrderedDataProvider(
+            String logicalPath,
+            ResourceIndex.Provider provider,
+            ResourceIndex.Root root) {
     }
 }

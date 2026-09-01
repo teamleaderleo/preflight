@@ -17,6 +17,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -188,9 +189,13 @@ final class PrepareCommand {
                 if (Files.isRegularFile(output)) {
                     try {
                         ResourceIndex existing = ResourceIndexIO.read(output);
-                        ResourceIndexValidator.Result existingValidation = ResourceIndexValidator.validate(existing);
-                        if (existing.profileFingerprint().equals(selected.profileFingerprint())
-                                && existingValidation.valid()) {
+                        // The builder just walked the installed profile. Compare the checksum-backed
+                        // artifact with that fresh answer in memory, then run the one exact
+                        // on-disk validation below. Validating both copies separately doubled more
+                        // than sixty thousand containment/attribute checks on Windows.
+                        if (Arrays.equals(
+                                ResourceIndexIO.toBytes(existing),
+                                ResourceIndexIO.toBytes(selected))) {
                             selected = existing;
                             artifactHit = true;
                         }
@@ -264,8 +269,13 @@ final class PrepareCommand {
         } else {
             try {
                 long stageStarted = System.nanoTime();
-                SpecStoreProfileIdentityBuilder.Result built = SpecStoreProfileIdentityBuilder.build(
-                        target.installRoot(), resourceIndex, classpathIndex);
+                SpecStoreProfileIdentityBuilder.Result built;
+                int contentHashWorkers;
+                try (ProfileIdentityContext profile =
+                        ProfileIdentityContext.of(target.installRoot(), resourceIndex)) {
+                    contentHashWorkers = profile.contentHashWorkers();
+                    built = SpecStoreProfileIdentityBuilder.build(profile, classpathIndex);
+                }
                 SpecStoreProfileIdentity identity = built.identity();
                 Path output = SpecStoreCacheDirectories.profiles(cache)
                         .resolve(identity.identitySha256() + ".json")
@@ -288,6 +298,7 @@ final class PrepareCommand {
                 if (!artifactHit) {
                     writeAtomic(output, content);
                 }
+                artifact.put("contentHashWorkers", contentHashWorkers);
                 artifact.put("file", output);
                 artifact.put("artifactHit", artifactHit);
                 specStoreStage = Stage.success(artifact, System.nanoTime() - stageStarted);
