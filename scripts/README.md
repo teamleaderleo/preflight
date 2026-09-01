@@ -32,7 +32,10 @@ clock is not labelled time-to-play. Preflight-backed conditions also wait for, r
 the exact `main-menu-interactive` title boundary, because Fast Rendering can emit the earlier
 graphics marker while worker texture loads are still active. The identity records the active Windows
 power-scheme GUID and whether Defender excludes the exact game/cache roots; non-Preflight renderer
-conditions still need their own comparable interactive-readiness evidence. Use
+conditions still need their own comparable interactive-readiness evidence. Add
+`-StartupPhaseProbe` for the exact-gated semantic startup timeline; it now supports the pinned macOS,
+Linux, and Windows `ResourceLoaderState` variants and records the executing thread for each boundary.
+Use
 `-OptimizationPreset conservative` to isolate the padded prepared-pixel path; the default remains
 the shipped `recommended` preset. Pass `-TextureUploadProbe` only for intrusive discovery runs: it
 times the exact reviewed stock `glTexImage2D`/`glTexSubImage2D` calls and retains bounded top

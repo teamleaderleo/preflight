@@ -12,6 +12,7 @@ param(
     [string]$Resolution,
     [ValidateSet('recommended', 'conservative')]
     [string]$OptimizationPreset = 'recommended',
+    [switch]$StartupPhaseProbe,
     [switch]$TextureUploadProbe,
     [switch]$WindowsPrefetchBypassProbe,
     [switch]$WindowsPreparedPrefetchProbe,
@@ -161,6 +162,9 @@ function Measure-OneRun(
                 '--texture-cache-dir', $Cache,
                 '--no-scan', '--optimization-preset', $OptimizationPreset, '--no-record'
             )
+            if ($StartupPhaseProbe) {
+                $arguments += '--startup-phase-probe'
+            }
             $process = Start-Process -FilePath $Java -ArgumentList (Quote-Arguments $arguments) `
                 -WorkingDirectory $Game -PassThru `
                 -RedirectStandardOutput (Join-Path $RunDirectory 'stdout.log') `
@@ -396,6 +400,7 @@ $identity = [ordered]@{
     gameDefenderExcluded = $gameDefenderExcluded
     cacheDefenderExcluded = $cacheDefenderExcluded
     galliumDriver = $env:GALLIUM_DRIVER
+    startupPhaseProbe = [bool]$StartupPhaseProbe
     textureUploadProbe = [bool]$TextureUploadProbe
     windowsPrefetchBypassProbe = [bool]$WindowsPrefetchBypassProbe
     windowsPreparedPrefetchProbe = [bool]$WindowsPreparedPrefetchProbe
