@@ -35,6 +35,8 @@ import org.objectweb.asm.tree.VarInsnNode;
  */
 final class TexturePrefetchBypassPlan {
     static final String PLAN_ID = "texture-prefetch-bypass-v1";
+    static final String WINDOWS_PROBE_PROPERTY =
+            "preflight.texture.windowsPrefetchBypassProbe";
     static final String TARGET_CLASS = "com/fs/graphics/L";
     /** The prefetcher's consumer: it is what identifies which of the two queues holds images. */
     static final String CONSUMER_METHOD = "class";

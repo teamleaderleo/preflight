@@ -103,6 +103,34 @@ The live Windows bypass registration is therefore fail-closed again. The exact t
 coverage remain available for a future bounded upload strategy or a native-GPU Windows cohort. The
 current product must not infer renderer performance from GL2/NPOT correctness capability alone.
 
+## Intrusive stock-upload attribution
+
+An opt-in probe then timed the three exact reviewed stock `glTexImage2D`/`glTexSubImage2D` call
+sites without replacing or deferring the original calls. The probe retains only aggregate counters
+and the 32 slowest uploads. It is disabled at transformation time unless explicitly requested, so
+ordinary launches have no added call-site hook.
+
+The one discovery run was healthy: 25 transformations applied from 26 exact matches, one bounded
+decline, zero process failure, exact interactive-menu detection, and graceful shutdown. Its
+159.863-second process-to-interactive time is deliberately excluded from performance claims because
+the probe is intrusive.
+
+| Counter | Observation |
+| --- | ---: |
+| `glTexImage2D` calls | 15,483 |
+| `glTexSubImage2D` calls | 0 |
+| upload bytes | 3,064,515,568 |
+| time inside the native calls | 27.768 s |
+| maximum call | 82.291 ms |
+| calls at least 50 ms | 2 |
+| calls at least 100 ms | 0 |
+
+This is a meaningful cumulative tax, not one giant-texture explanation. Even assigning the entire
+27.768 seconds to removable upload work would not explain the full gap between standalone Preflight
+and the 49.551-second Preflight-plus-Fast-Rendering result. The next comparison must measure the
+same counters with the diagnostic Windows bypass enabled: that distinguishes native upload time
+from prepared-buffer construction, lost prefetch overlap, and other serialized loader work.
+
 ## Tuned VM identity
 
 - Big Red: Intel Core Ultra 7 255H, 30 GiB RAM, NVMe storage.
@@ -199,4 +227,10 @@ The rejected live Windows prefetch-bypass cohort is retained separately at:
 
 ```text
 /home/leo/Windows-Share/Diagnostics/20260902-windows-prefetch-bypass-rejection/20260902-041450-windows-startup-2x2
+```
+
+The intrusive stock-upload attribution cohort is retained at:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260902-windows-texture-upload-attribution/20260902-043303-windows-startup-2x2
 ```

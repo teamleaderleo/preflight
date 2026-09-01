@@ -2845,6 +2845,12 @@ final class AdapterTargetRegistry {
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {
+        return withTextureTarget(
+                mode, Boolean.getBoolean(TexturePrefetchBypassPlan.WINDOWS_PROBE_PROPERTY));
+    }
+
+    AdapterTargetRegistry withTextureTarget(
+            TextureAdapterMode mode, boolean includeWindowsPrefetchBypassProbe) {
         // Both cache-backed modes read through the same manifest, so both want the prefetcher to
         // stop queueing what that manifest can serve.
         AdapterTargetRegistry registry = withTarget(mode == TextureAdapterMode.PREPARED_PIXELS
@@ -2856,13 +2862,14 @@ final class AdapterTargetRegistry {
         }
         registry = registry
                 .withTarget(texturePrefetchBypassTarget())
-                .withTarget(linuxTexturePrefetchBypassTarget())
-                // The exact Windows shape is reviewed, tested, and now diagnosed. Enabling it on
-                // the llvmpipe Windows fixture moved the main thread into thousands of synchronous
-                // glTexImage2D uploads: the former 39-second apparent stall was one such upload,
-                // and the padded fallback still missed the interactive menu after 247 seconds.
-                // Keep the target fail-closed until Windows has a bounded upload strategy; the
-                // prepared-pixel loader itself remains enabled on Windows.
+                .withTarget(linuxTexturePrefetchBypassTarget());
+        // The exact Windows shape is reviewed, tested, and diagnosed. It remains absent by default;
+        // this explicit discovery gate exists only to compare upload attribution against the safe
+        // stock queue without turning a rejected llvmpipe experiment into product behavior.
+        if (includeWindowsPrefetchBypassProbe) {
+            registry = registry.withTarget(windowsTexturePrefetchBypassTarget());
+        }
+        registry = registry
                 .withTarget(campaignEntityIndexTarget())
                 .withTarget(campaignEntityRepositoryTarget())
                 .withTarget(campaignEntityIdMutationTarget())

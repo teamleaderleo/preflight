@@ -13,6 +13,7 @@ param(
     [ValidateSet('recommended', 'conservative')]
     [string]$OptimizationPreset = 'recommended',
     [switch]$TextureUploadProbe,
+    [switch]$WindowsPrefetchBypassProbe,
     [ValidateSet('starsector', 'preflight', 'fast-rendering', 'preflight-fast-rendering')]
     [string[]]$Conditions = @('starsector', 'preflight', 'fast-rendering', 'preflight-fast-rendering')
 )
@@ -129,6 +130,11 @@ function Measure-OneRun(
             if ($TextureUploadProbe) {
                 $env:JAVA_TOOL_OPTIONS = (($savedJavaToolOptions,
                     '-Dpreflight.texture.uploadProbe=true' | Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($WindowsPrefetchBypassProbe) {
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.texture.windowsPrefetchBypassProbe=true' |
+                    Where-Object { $_ }) -join ' ').Trim()
             }
             $arguments = @(
                 '-jar', $PreflightJar,
@@ -374,6 +380,7 @@ $identity = [ordered]@{
     cacheDefenderExcluded = $cacheDefenderExcluded
     galliumDriver = $env:GALLIUM_DRIVER
     textureUploadProbe = [bool]$TextureUploadProbe
+    windowsPrefetchBypassProbe = [bool]$WindowsPrefetchBypassProbe
     game = $Game
     preflightJar = $PreflightJar
     preflightJarSha256 = Get-Sha256 $PreflightJar

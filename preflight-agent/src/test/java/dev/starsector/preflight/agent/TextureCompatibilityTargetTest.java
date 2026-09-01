@@ -114,7 +114,12 @@ class TextureCompatibilityTargetTest {
         AdapterTarget expected = AdapterTargetRegistry.windowsTexturePrefetchBypassTarget();
 
         assertFalse(AdapterTargetRegistry.empty()
-                .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS)
+                .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS, false)
+                .targets()
+                .stream()
+                .anyMatch(target -> expected.id().equals(target.id())));
+        assertTrue(AdapterTargetRegistry.empty()
+                .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS, true)
                 .targets()
                 .stream()
                 .anyMatch(target -> expected.id().equals(target.id())));
