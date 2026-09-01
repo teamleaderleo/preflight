@@ -391,16 +391,45 @@ possible in principle. Intel's Windows-guest procedure requires a platform-match
 driver package; that package has not been identified or installed for this Arrow Lake fixture. No VF
 was enabled and the host display was not disturbed.
 
+### Can a bounded producer hide prepared-carrier work under early serial loading?
+
+Not usefully in the reviewed form. The opt-in `texture-prepared-staging-v1` experiment starts one
+daemon producer at the exact pre-SpecStore boundary, holds at most 64 MiB of ordinary heap-backed
+carriers, never waits in the game's consumer, and clears unconsumed state at resource-load
+completion. It has an exact Windows class/archive gate, original decode fallback, per-plan kill
+switch, and causal/settlement telemetry.
+
+The first correctness run exposed an invalid input assumption rather than a performance result:
+the general texture-access order caused 81 carriers to be staged but **0 hits / 15,003 misses**. All
+15,003 prepared requests still succeeded with zero original decodes, fallbacks, or internal errors,
+and every staged/direct buffer and producer settled. The run reached the interactive menu in 66.810
+seconds, but the producer had done no useful causal work.
+
+Commit `58088161` therefore split the learned game-prefetch sequence from general texture access.
+The initial `.sptp` suffix collided with the existing preparation-receipt format; commit `ef787584`
+gave the queue its own `.sptq` identity and cache-pruning rule. Commit `6bea6c35` publishes learned
+order at the established semantic menu snapshot so Windows harness shutdown cannot lose it. The
+resulting exact full-profile queue is 763,209 bytes.
+
+With that valid queue, the candidate served **2,170 staged hits** out of 15,003 prepared requests
+(14.5%). It retained 15,003 prepared hits, zero original decodes, zero fallbacks, zero internal
+errors, zero active/pending buffers, zero queued bytes/entries, and an inactive producer at the
+snapshot. Peak staged memory was 66,566,075 bytes under the 64 MiB bound; 8,996 late races and 3,837
+already-consumed keys declined immediately to the existing path. Yet process start to interactive
+menu was **65.239 seconds**. Recent thin standalone observations were **65.205, 66.937, and 71.556
+seconds**. The candidate is therefore a useful rejected experiment: it proved safe overlap and
+removed some consumer work, but produced no defensible player-visible improvement. It remains
+opt-in and is not promoted; no interleaved cohort is justified without a stronger causal design.
+
 ## Open questions / next experiment
 
-1. Use the new exact phase timeline to prototype the smallest bounded live producer/main-thread GL
-   commit seam under #1205. Preserve original ordering, exception propagation, queue settlement,
-   fallback, source gates, and a kill switch.
-2. Count which of the 7.609-second SpecStore block, 7.720-second pre-progress block, and 18.224-second
-   callback block the candidate can actually overlap. Do not call concurrency itself a win.
-3. After exploratory correctness, run an interleaved standalone default/candidate cohort on the
-   semantic interactive boundary. Keep llvmpipe padded; the bounded NPOT result rejects
-   capability-only gating.
+1. Do not promote or retest prepared-carrier staging merely because it achieved 2,170 hits. Reopen
+   only if a new design can avoid producer/consumer CPU contention or target a materially larger
+   serial block.
+2. Use the exact phase timeline to attribute the 7.609-second SpecStore block, 7.720-second
+   pre-progress block, and 18.224-second callback block before choosing another overlap seam.
+3. Require an exploratory causal signal before paying for an interleaved standalone cohort. Keep
+   llvmpipe padded; the bounded NPOT result rejects capability-only gating.
 4. Run the exact worker successor on a native-GPU Windows machine before promoting any
    renderer-specific behavior.
 5. Investigate Intel SR-IOV only after obtaining the exact supported Windows guest driver and a
@@ -447,4 +476,14 @@ The comparable padded bypass, worker successor, and bounded-NPOT rejection are r
 /home/leo/Windows-Share/Diagnostics/20260902-windows-recommended-padded-bypass-candidate
 /home/leo/Windows-Share/Diagnostics/20260902-windows-prepared-prefetch-worker
 /home/leo/Windows-Share/Diagnostics/20260902-windows-bounded-unpadded
+```
+
+The prepared-carrier staging correctness, thin learning, and valid causal rejection are retained at:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260902-windows-prepared-staging-correctness
+/home/leo/Windows-Share/Diagnostics/20260902-windows-prefetch-order-learning
+/home/leo/Windows-Share/Diagnostics/20260902-windows-prefetch-order-learning2
+/home/leo/Windows-Share/Diagnostics/20260902-windows-prefetch-order-learning3
+/home/leo/Windows-Share/Diagnostics/20260902-windows-prepared-staging-valid
 ```
