@@ -79,6 +79,18 @@ control runtime had retained the exact macOS title identity even though the tran
 the separately pinned Windows identity. The next candidate makes those two reviewed identities
 explicit at the control boundary; unknown and Linux title identities still decline.
 
+The final native-Windows pass used the JAR built from the Windows checkout and run directory
+`20260902-015505-windows-gameplay`. It passed the semantic Continue action, exact foreground-window
+activation, paused-state verification, mapped `true -> false` pause transition, the 45-second
+paused and unpaused windows, three-artifact capture, and bounded exact-PID quit. The adapter applied
+27 of 27 exact matches with zero source-binding rejects or contained failures. The retained
+llvmpipe figures are compatibility diagnostics, not hardware-performance claims: paused after 30
+seconds recorded 1,759 frames with a 25.7 ms median, 90.3 ms p99, and 11.07 FPS 1% low; the clean
+unpaused window recorded 839 frames with a 45.7 ms median, 252.4 ms p99, and 3.96 FPS 1% low.
+The run captured the frame report, adapter health, and bounded log tail before stopping exact PID
+8628. Evidence is mirrored under
+`/home/leo/Windows-Share/Diagnostics/20260902-windows-lindsey-paused-unpaused-final`.
+
 ## Curated save corpus
 
 The cross-platform automation corpus now uses two Lindsey slots rather than an indiscriminate save

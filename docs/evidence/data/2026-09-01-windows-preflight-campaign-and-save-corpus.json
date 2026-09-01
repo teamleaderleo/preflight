@@ -98,6 +98,40 @@
           "reason": "the exact Windows title hook fired, but the control runtime still admitted only the pinned macOS title identity",
           "failure": "IllegalStateException: title-class-mismatch",
           "campaignActionsAccepted": 0
+        },
+        "successfulNativeWindowsAttempt": {
+          "runDirectory": "C:\\Users\\Leo\\Documents\\Starsector Preflight Runs\\20260902-015505-windows-gameplay",
+          "status": "passed",
+          "preflightJarSha256": "c8f45aef4b12bef0c7bc1f1cfefeed12a48e24867a7a35d1f8fd615ca74f0f13",
+          "javaVersion": "21.0.12.1",
+          "renderer": "llvmpipe (LLVM 22.1.8, 256 bits)",
+          "exactMatches": 27,
+          "transformationsApplied": 27,
+          "sourceBindingRejected": 0,
+          "containedFailures": 0,
+          "pausedAfter30Seconds": {
+            "frames": 1759,
+            "medianFrameMs": 25.7,
+            "p95FrameMs": 39.5,
+            "p99FrameMs": 90.3,
+            "onePercentLowFps": 11.07,
+            "over50Millis": 33,
+            "over100Millis": 14
+          },
+          "unpausedCleanWindow": {
+            "frames": 839,
+            "medianFrameMs": 45.7,
+            "p95FrameMs": 106.8,
+            "p99FrameMs": 252.4,
+            "onePercentLowFps": 3.96,
+            "over50Millis": 315,
+            "over100Millis": 48
+          },
+          "claimEligible": false,
+          "claimExclusion": "Windows VM uses Mesa llvmpipe; compatibility evidence only",
+          "artifactsCaptured": ["frame-report", "adapter-health", "log-tail"],
+          "quit": "stopped exact PID 8628",
+          "bigRedEvidence": "/home/leo/Windows-Share/Diagnostics/20260902-windows-lindsey-paused-unpaused-final"
         }
       }
     }
