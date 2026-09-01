@@ -32,6 +32,7 @@ import type {
   ReportIntakeStatus,
   ReportReceipt,
   RunStarted,
+  SetupSummaryExport,
   StopGameResult,
   UpdateStatus,
   WireframeHull,
@@ -51,8 +52,10 @@ export type BrowserPreviewScenario =
   | "first-run"
   | "low-disk"
   | "cache-repair"
+  | "cache-unsafe"
   | "mod-problems"
   | "profile-mismatch"
+  | "frame-pacing"
   | "benchmark-unavailable"
   | "update-error"
   | "report-error"
@@ -65,8 +68,10 @@ const browserPreviewScenarios = new Set<BrowserPreviewScenario>([
   "first-run",
   "low-disk",
   "cache-repair",
+  "cache-unsafe",
   "mod-problems",
   "profile-mismatch",
+  "frame-pacing",
   "benchmark-unavailable",
   "update-error",
   "report-error",
@@ -105,6 +110,73 @@ const previewSnapshot: DesktopSnapshot = {
     first: "2026-05-02T08:14:00Z",
     last: "2026-08-15T22:31:00Z",
   },
+};
+
+const previewFramePacingRun: NonNullable<DesktopSnapshot["lastRun"]> = {
+  directory: "~/.starsector-preflight/runs/preview-run",
+  modifiedAt: "2026-08-15T22:31:00Z",
+  installRoot: "/Applications/Starsector",
+  profileFingerprint: "preview-profile",
+  adapterHealth: null,
+  framePacing: {
+    format: "starsector-preflight-frame-pacing-summary-v1",
+    campaign: {
+      frames: 9_428,
+      activeMillis: 160_613,
+      averageFps: 58.7,
+      onePercentLowFps: 41.3,
+      p95Micros: 18_420,
+      p99Micros: 24_910,
+    },
+    initialCampaign: {
+      frames: 1_765,
+      activeMillis: 29_982,
+      averageFps: 55.8,
+      onePercentLowFps: 28.4,
+      p95Micros: 22_610,
+      p99Micros: 35_210,
+    },
+    settledCampaign: {
+      frames: 7_663,
+      activeMillis: 130_631,
+      averageFps: 59.4,
+      onePercentLowFps: 45.8,
+      p95Micros: 17_860,
+      p99Micros: 22_740,
+    },
+    settledPausedCampaign: {
+      frames: 3_980,
+      activeMillis: 68_050,
+      averageFps: 58.5,
+      onePercentLowFps: 35.1,
+      p95Micros: 17_940,
+      p99Micros: 28_500,
+      slowFramesPerMinute: 10.6,
+      stutterBurdenMillisPerSecond: 1.2,
+      repeatedSlowFramesPercent: 0.12,
+    },
+    settledUnpausedCampaign: {
+      frames: 3_683,
+      activeMillis: 62_581,
+      averageFps: 53.6,
+      onePercentLowFps: 16.8,
+      p95Micros: 30_900,
+      p99Micros: 59_700,
+      slowFramesPerMinute: 101.5,
+      stutterBurdenMillisPerSecond: 56.4,
+      repeatedSlowFramesPercent: 3.2,
+    },
+    combat: {
+      frames: 3_172,
+      activeMillis: 58_524,
+      averageFps: 54.2,
+      onePercentLowFps: 34.6,
+      p95Micros: 20_110,
+      p99Micros: 28_640,
+    },
+    measurementAverageMicros: 1.78,
+  },
+  startupMillis: 31_240,
 };
 
 const previewProfiles: NamedProfile[] = [
@@ -150,6 +222,9 @@ export function isDesktopHost(): boolean {
 
 export async function getSnapshot(game?: string): Promise<DesktopSnapshot> {
   if (!isDesktopHost()) {
+    if (browserPreviewScenario() === "frame-pacing") {
+      return { ...previewSnapshot, lastRun: previewFramePacingRun };
+    }
     if (browserPreviewScenario() === "setup") {
       return {
         ...previewSnapshot,
@@ -417,12 +492,21 @@ export async function startGame(
   optimizationPreset: OptimizationPreset,
   disabledOptimizationDomains: OptimizationDomain[],
   afterLaunchBehavior: AfterLaunchBehavior,
+  recordFramePacing: boolean,
+  smoothFramePacing: boolean,
 ): Promise<RunStarted> {
   if (!isDesktopHost()) {
     await new Promise((resolve) => window.setTimeout(resolve, 350));
     return { pid: 4242 };
   }
-  return invoke<RunStarted>("start_game", { game, optimizationPreset, disabledOptimizationDomains, afterLaunchBehavior });
+  return invoke<RunStarted>("start_game", {
+    game,
+    optimizationPreset,
+    disabledOptimizationDomains,
+    afterLaunchBehavior,
+    recordFramePacing,
+    smoothFramePacing,
+  });
 }
 
 export async function stopGame(force = false): Promise<StopGameResult> {
@@ -478,6 +562,24 @@ export async function getCache(game: string): Promise<CacheSnapshot> {
 
 export async function getCacheHealth(game: string): Promise<CacheHealth> {
   if (!isDesktopHost()) {
+    if (browserPreviewScenario() === "cache-unsafe") {
+      return {
+        format: "starsector-preflight-cache-health-v1",
+        status: "unsafe",
+        profileFingerprint: "preview-profile",
+        preparedTextures: null,
+        textureStorage: null,
+        textureScope: null,
+        compactAvailable: false,
+        issues: [{
+          artifact: "prepared-textures",
+          summary: "The prepared data location could not be verified.",
+          path: "~/.starsector-preflight/cache/packs/preview-profile.spfp",
+        }],
+        repairBytes: 0,
+        repairFiles: 0,
+      };
+    }
     if (browserPreviewScenario() === "cache-repair") {
       return {
         format: "starsector-preflight-cache-health-v1",
@@ -576,6 +678,17 @@ export async function exportDiagnostics(output: string): Promise<DiagnosticsExpo
     };
   }
   return invoke<DiagnosticsExport>("export_diagnostics", { output });
+}
+
+export async function saveSetupSummary(output: string, text: string): Promise<SetupSummaryExport> {
+  if (!isDesktopHost()) {
+    return {
+      format: "starsector-preflight-setup-summary-export-v1",
+      output,
+      bytes: new TextEncoder().encode(text).byteLength,
+    };
+  }
+  return invoke<SetupSummaryExport>("save_setup_summary", { output, text });
 }
 
 export async function getReportIntakeStatus(): Promise<ReportIntakeStatus> {
@@ -953,6 +1066,7 @@ export async function getCacheCleanup(game: string): Promise<CacheCleanupPlan> {
       files: 8_914,
       reachableTextureBlobs: 30_639,
       reachablePreparedAudioBlobs: 412,
+      reachableClasspathArchiveIndexes: 146,
       refusals: [],
       groups: [
         { reason: "unused profile artifact", bytes: 1_245_118_464, files: 5 },
@@ -984,6 +1098,7 @@ export async function applyDiscardableCacheCleanup(): Promise<CacheCleanupPlan> 
       files: 0,
       reachableTextureBlobs: 0,
       reachablePreparedAudioBlobs: 0,
+      reachableClasspathArchiveIndexes: 0,
       refusals: [],
       groups: [],
       removals: [],

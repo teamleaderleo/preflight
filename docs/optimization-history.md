@@ -286,11 +286,17 @@ validations and no deep validations. The mechanism and live counters are in
 
 A commodity event-mod path proved even more repetitive: an early pilot observed 16.17 million
 calls with a 98.78 percent cache-hit rate, and a later sample observed 129.03 million calls with a
-99.8269 percent hit rate. Deployment icon scans, campaign radar type construction, GraphicsLib hot
+99.8269 percent hit rate. A later deterministic profile found that all 29.56 million unchanged hits
+had three clean zero trade inputs and no current event modifier. That exact result now returns from
+a small public hot method, while nonzero, cancellation, dirty, mutated, and first-use states retain
+the complete private slow fingerprint. The retained live profile moved the target from 8.37–10.78
+percent in discarded same-wave shapes to 4.08 percent; the overall frame route was not comparable
+enough for an FPS claim. Deployment icon scans, campaign radar type construction, GraphicsLib hot
 settings, AI Tweaks range calculations, and several optional-mod paths were treated in the same way:
 first identify an exact repeated question, then retain only a result whose invalidation can be
 stated and tested. The commodity work is documented in
-[the event-mod report](evidence/2026-08-05-commodity-event-mod-campaign-hotspot.md), with other entry
+[the event-mod report](evidence/2026-08-05-commodity-event-mod-campaign-hotspot.md) and
+[zero-result refinement](evidence/2026-08-27-event-mod-zero-result-fast-path.md), with other entry
 points in [the deployment scan](evidence/2026-08-04-deployment-member-icon-scan.md),
 [the radar set](evidence/2026-08-05-campaign-radar-type-set.md), and
 [the GraphicsLib settings report](evidence/2026-08-05-graphicslib-hot-settings-cache.md).
@@ -302,12 +308,79 @@ the 60-FPS budget; 96.32 percent met 30 FPS. That sample also included title-dem
 campaign-warm-up frames. Later reports split those phases. The metric contract is in
 [the FPS report](evidence/2026-08-05-frame-time-fps-reporting.md).
 
+A later exact-window audit separated a repeatable roughly 6.1-second startup presentation gap from
+gameplay. It was synchronous pre-swap resource/title initialization, but the legacy
+`postStartupActive` bucket included the crossing frame because its marker fired inside that frame.
+Telemetry now excludes marker-crossing intervals and adds `postInteractiveActive`, beginning only
+after the title screen removes its final preloading label. Startup stall severity, time to
+interactive, and gameplay/combat frame pacing are consequently reported as separate quantities.
+The attribution and boundary contract are in
+[the startup-hitch audit](evidence/2026-08-27-startup-hitch-boundary.md).
+
+A later paused-campaign phase probe separated pre-swap work, native buffer swap, and message
+processing. Native swap was the largest phase in 33 of the control's 41 frames beyond 33.33
+milliseconds. Two explicit vsync-off candidates kept Starsector's own 60-FPS limiter and measured
+43.67 and 43.86 FPS at the 1-percent low, compared with 30.77 in the longer control. The switch is
+experimental because it may tear, and the unequal-duration observations are not a release cohort.
+The implementation boundary and retained distributions are in
+[the campaign presentation report](evidence/2026-08-26-campaign-frame-pacing.md).
+
+An attached paused-campaign allocation profile then separated a repeat renderer cost from that
+presentation result. Two 30-second wall observations advanced the game thread's allocation counter
+by about 309 and 301 MB, while repeated JFR samples found `Vector2f` construction in the exact
+contrail render loop. The candidate reuses eight transient vectors per engine and leaves save state
+and draw decisions untouched. A smaller LunaLib private-list snapshot candidate was also retained,
+with its public API unchanged and its owner cache bounded. These are implementation results awaiting
+a Preflight-only live A/B, not yet FPS claims; see
+[the paused render/allocation profile](evidence/2026-08-26-paused-campaign-render-allocation-profile.md).
+
+A follow-up attached trace found that the earlier campaign-maintenance adapter still copied
+unchanged market lists into arrays on paused passes. The retained boundary now identity-checks and
+reuses bounded stable arrays, rebuilding on mutation so nested callbacks keep their original
+snapshot. The same trace sampled vanilla font wrapping 19 times and exposed 21 builder sites in one
+method: 18 for fixed punctuation tables and three one-character `contains` conversions inside
+loops. Exact literal and `indexOf(char)` rewrites remove those allocations without adding object or
+save state. Both remain live-A/B candidates rather than FPS claims.
+
+Settled paused/unpaused allocation sampling then found Mnemonic Sensors materializing all non-null
+entities before building the smaller matching-entity snapshot it actually consumed. An exact
+Java-17 transform now iterates the source list with a null guard, retains the original match
+snapshot and mutation pass, and adds no field or cross-frame state. The old Kotlin
+`filterNotNullTo` stack carried 22.0 MiB paused and 12.1 MiB unpaused in the prior trace; it was
+absent from both windows of the successful live candidate run. This is a structural and sampled
+allocation result, not a lockstep FPS claim; see
+[the Mnemonic Sensors report](evidence/2026-08-27-mnemonic-sensors-entity-filter.md).
+
+The same unpaused profile put `MutableStatWithTempMods.advance` at 5.27% of campaign execution
+samples. The exact base implementation reread its private map through a virtual lazy getter and
+generic interfaces. A direct base-class body now reads the existing `LinkedHashMap` once and keeps
+the original method as the complete fallback for subclass receivers. Real installed-class tests
+cover empty, active, and expiring mods. A live candidate moved the targeted sampled share to 2.22%,
+but its frame distribution was worse in the non-lockstep workload, so the retained result is CPU
+category reduction rather than an FPS claim; see
+[the temporary-stat report](evidence/2026-08-27-mutable-stat-temp-advance.md).
+
 Several investigations ended in correctness fixes. Stale mod simulation
 opponents reached vanilla as invalid fleet members, a full-retreat race could end in an incompatible
 combat cast, startup became fast enough to expose notification and fuel calculations running before
 their state was ready, and the macOS memory warning interpreted free pages too literally. The
 adapters added for these cases either validate and fall through or decline entirely when their exact
 target drifts. They are reported as safeguards.
+
+The deterministic combat route then exposed GraphicsLib rebuilding private texture-data lookup
+strings hundreds of thousands of times. A bounded session cache served 567,477 of 579,711 observed
+requests, a 97.8896-percent hit rate with zero bypasses. Two earlier combat recordings attributed
+60.0 and 22.1 MiB of sampled weighted allocation directly to the key builder; the candidate
+recording had no matching allocation sample. The same run remained visibly slow and thermally
+noisy, so this is an allocation result rather than an FPS claim. Its clean window and separate
+startup lane are retained in
+[the texture-key report](evidence/2026-08-27-graphicslib-texture-key-cache.md).
+
+That run also completed the 1,040-DP route without operator input. Exact-PID activation is verified
+after foregrounding, and zoom is now injected at Starsector's reviewed input-generation seam rather
+than through a host scroll gesture. The scenario verifies the resulting public viewport before
+opening a clean combat frame window. Startup time and its approximately six-second pre-interactive
+hitch remain separate from paused campaign, unpaused campaign, and combat distributions.
 
 ## What the disk buys
 
@@ -359,3 +432,13 @@ because they explain the final validation boundaries.
 For a personal-site version, the milestone table and two pipeline diagrams can become a scrolling
 timeline in which the active launch path changes as each bottleneck is removed. This Markdown file
 remains the cited source for that presentation.
+# 2026-08-27: collision-query ordered-set allocation reduction
+
+The deterministic 1,040-DP combat route identified the exact vanilla collision iterator as a
+1.2-GiB weighted allocation family. An exact-gated compact insertion-ordered set and iterator-free
+copy for exact `ArrayList` grid cells reduced that family to 686.3 MiB in one final B run. Against
+the original observation, average FPS moved 25.39 → 27.00, stutter burden 205.93 → 161.42 ms/s,
+and repeated slow-frame exposure 57.78% → 51.80%; the 1% low moved down, so no broad percentile or
+FPS claim is made. Startup retained a separate roughly 6.1-second presentation gap and remains a
+distinct optimization lane. See
+[the bounded evidence](evidence/2026-08-27-collision-query-open-set.md).

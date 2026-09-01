@@ -47,6 +47,7 @@ public final class CampaignEngineTimeRuntime {
 
     static synchronized void beginSession(boolean requested) {
         enabled = requested;
+        HitchPacketRuntime.configureCampaignPhaseProducer(requested);
         installed = false;
         for (Stats stats : phases) stats.reset();
         scripts.clear();
@@ -67,7 +68,7 @@ public final class CampaignEngineTimeRuntime {
 
     public static void exit(int id, long startedNanos) {
         if (!enabled || !valid(id) || startedNanos == 0L) return;
-        record(phases[id], startedNanos);
+        record(phases[id], id, startedNanos);
     }
 
     public static long enterScript(Object script) {
@@ -77,7 +78,7 @@ public final class CampaignEngineTimeRuntime {
     public static void exitScript(Object script, long startedNanos) {
         if (!enabled || script == null || startedNanos == 0L) return;
         try {
-            record(scriptStats.get(script.getClass()), startedNanos);
+            record(scriptStats.get(script.getClass()), -1, startedNanos);
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
         } catch (Throwable ignored) {
@@ -101,6 +102,8 @@ public final class CampaignEngineTimeRuntime {
         List<Map<String, Object>> scriptValues = new ArrayList<>();
         for (ScriptStats stats : ordered) scriptValues.add(stats.report(stats.className));
         result.put("scriptClasses", scriptValues);
+        result.put("scriptOwnerTax", RuntimeOwnerTax.report(
+                scriptValues, "totalMillis", "maximumMillis"));
         return result;
     }
 
@@ -108,15 +111,25 @@ public final class CampaignEngineTimeRuntime {
         beginSession(false);
     }
 
-    private static void record(Stats stats, long startedNanos) {
+    static String phaseName(int id) {
+        return valid(id) ? NAMES[id] : "unknown";
+    }
+
+    private static void record(Stats stats, int phaseId, long startedNanos) {
         try {
-            long duration = System.nanoTime() - startedNanos;
+            long endedNanos = System.nanoTime();
+            long duration = endedNanos - startedNanos;
             if (duration <= 0L) return;
+            if (phaseId >= 0) {
+                HitchPacketRuntime.recordCampaignPhase(phaseId, startedNanos, endedNanos);
+            }
             stats.calls++;
             stats.totalNanos += duration;
+            long retainedEndEpochMillis = stats.slowestCalls.record(duration);
             if (duration > stats.maximumNanos) {
                 stats.maximumNanos = duration;
-                stats.maximumEndEpochMillis = System.currentTimeMillis();
+                stats.maximumEndEpochMillis = retainedEndEpochMillis == 0L
+                        ? System.currentTimeMillis() : retainedEndEpochMillis;
             }
             if (duration > 1_000_000L) stats.overOneMillis++;
             if (duration > 5_000_000L) stats.overFiveMillis++;
@@ -134,7 +147,7 @@ public final class CampaignEngineTimeRuntime {
         return new ClassValue<>() {
             @Override
             protected ScriptStats computeValue(Class<?> type) {
-                ScriptStats value = new ScriptStats(type.getName());
+                ScriptStats value = new ScriptStats(type);
                 synchronized (CampaignEngineTimeRuntime.class) {
                     scripts.add(value);
                 }
@@ -157,6 +170,7 @@ public final class CampaignEngineTimeRuntime {
         long overSixteenMillis;
         long overThirtyThreeMillis;
         long overOneHundredMillis;
+        final SlowCallWindows slowestCalls = new SlowCallWindows();
 
         void reset() {
             calls = 0L;
@@ -168,6 +182,7 @@ public final class CampaignEngineTimeRuntime {
             overSixteenMillis = 0L;
             overThirtyThreeMillis = 0L;
             overOneHundredMillis = 0L;
+            slowestCalls.reset();
         }
 
         Map<String, Object> report(String name) {
@@ -184,15 +199,25 @@ public final class CampaignEngineTimeRuntime {
             result.put("over16Millis", overSixteenMillis);
             result.put("over33Millis", overThirtyThreeMillis);
             result.put("over100Millis", overOneHundredMillis);
+            result.put("slowestCalls", slowestCalls.report());
             return result;
         }
     }
 
     private static final class ScriptStats extends Stats {
+        final Class<?> type;
         final String className;
 
-        ScriptStats(String className) {
-            this.className = className;
+        ScriptStats(Class<?> type) {
+            this.type = type;
+            this.className = type.getName();
+        }
+
+        @Override
+        Map<String, Object> report(String name) {
+            Map<String, Object> result = super.report(name);
+            result.put("ownership", RuntimeClassOwnership.resolve(type).report());
+            return result;
         }
     }
 }

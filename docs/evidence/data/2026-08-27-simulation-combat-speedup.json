@@ -1,0 +1,57 @@
+{
+  "format": "starsector-preflight-simulation-combat-evidence-v1",
+  "scenario": "campaign-simulation-combat-speedup",
+  "status": "passed",
+  "startedAt": "2026-08-26T21:13:14.632589Z",
+  "completedAt": "2026-08-26T21:14:38.308240Z",
+  "platform": "mac",
+  "gameVersion": "0.98a-RC8",
+  "fixture": {
+    "addedShips": 24,
+    "minimumCrewAdded": 4898,
+    "verifiedDeployableAtMaximumCr": 24,
+    "saved": false
+  },
+  "deployment": {
+    "alliedShips": 8,
+    "opposingShips": 25,
+    "autopilotKeyCode": 32,
+    "closeCommandMapKeyCode": 48,
+    "speedupKeyCode": 57,
+    "combatPausedBeforeEnsure": false,
+    "combatPausedAfterEnsure": false,
+    "externalWheelClicks": 12,
+    "viewportViewMultBefore": 1.25,
+    "viewportViewMultAfter": 4.25,
+    "viewportVisibleWidthBefore": 1800.0,
+    "viewportVisibleWidthAfter": 6120.0
+  },
+  "measurementWindow": {
+    "frames": 1391,
+    "averageFps": 46.39,
+    "medianFps": 54.35,
+    "onePercentLowFps": 12.48,
+    "pointOnePercentLowFps": 8.5,
+    "p50Micros": 18400,
+    "p95Micros": 38600,
+    "p99Micros": 80100,
+    "maximumMicros": 137219,
+    "framesMeeting30FpsPercent": 93.39,
+    "stutterProfile": {
+      "stutterBurdenMillisPerSecond": 65.78,
+      "slowFrameClusters": 47,
+      "isolatedSlowFrames": 24,
+      "repeatedSlowFrameClusters": 23,
+      "framesInRepeatedSlowFrameClusters": 68,
+      "repeatedSlowFramesPercent": 4.89,
+      "longestSlowFrameClusterFrames": 6,
+      "longestSlowFrameClusterMillis": 386.5
+    }
+  },
+  "artifacts": {
+    "screenshotSha256": "48fdeeba27363f7ff54cbba0e3ca543887c0d15a03e5da8e47c989c8f6c477d6",
+    "frameReportSha256": "347756b12a4aa6cbc4ac02fb5421b8954fe9ac7b1e001f4101cb3f41fd316c59",
+    "adapterHealthSha256": "7e5227514c6dea441e2d8803bd6892c00385259ea93a9bb4af7569fee7cfe05f"
+  },
+  "interpretation": "One explicit 2x stress window after verified setup; not interchangeable with the 1x baseline"
+}

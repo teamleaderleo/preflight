@@ -38,9 +38,11 @@ There are three distinct kinds of change:
    boundary is narrow: class bytes, source archive, classloader, protection domain, required method
    descriptors, and cache identity are checked before a plan can install.
 2. **Content-addressed acceleration data.** Prepared textures, audio, merged JSON, generated
-   bytecode, resource indexes, and reports live below Preflight's own home. Inputs that affect an
-   answer are hashed into its identity. A miss, corrupt entry, uncertain source, or runtime
-   validation failure takes the original game path.
+   bytecode, resource indexes, and reports live below Preflight's own home. Each format checks its
+   own source identity and prepared representation before use. A miss, corrupt entry, uncertain
+   source, or runtime validation failure takes the original game path. The current texture
+   source-identity limit is documented in the [cache and save-safety
+   audit](evidence/2026-08-25-cache-and-save-safety-audit.md).
 3. **Explicit preferences.** A confirmed named-profile switch backs up only
    `mods/enabled_mods.json`, stages the complete replacement beside it, rechecks the reviewed source,
    and requests an atomic move; filesystems without atomic-move support use a staged same-directory
@@ -121,7 +123,8 @@ The primary control is a preset, not a wall of bytecode-plan names. The CLI, des
 now carry a typed choice end to end:
 
 - **Recommended (default):** every optimization that passed its live correctness gate; exactly the
-  behavior of `--fast`.
+  behavior of `--fast`. This includes exact-gated combat paper cuts where the installed game and
+  mod bytecode match; an explicit per-plan override still wins.
 - **Conservative:** broadly applicable, immutable-input startup caches only; omit mod-specific and
   gameplay-runtime shortcuts.
 - **Off / troubleshooting:** no adapter transformations and no profiling recorder overhead. The

@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Low-frequency live evidence publisher enabled only for unattended desktop smoke runs. */
 final class DesktopSmokeLiveReport implements AutoCloseable {
-    static final String FRAME_FORMAT = "starsector-preflight-runtime-frame-report-v1";
+    static final String FRAME_FORMAT = FrameTimeTelemetry.FRAME_REPORT_FORMAT;
     static final String HEALTH_FORMAT = "starsector-preflight-runtime-adapter-health-v1";
     private static final long PUBLISH_INTERVAL_MILLIS = 1_000L;
 
@@ -94,11 +94,17 @@ final class DesktopSmokeLiveReport implements AutoCloseable {
         Map<String, Object> frame = new LinkedHashMap<>();
         frame.put("format", FRAME_FORMAT);
         frame.putAll(identity);
-        frame.put("frameTimes", FrameTimeRuntime.telemetry());
+        frame.put(FrameTimeTelemetry.REPORT, FrameTimeRuntime.telemetry());
         frame.put("campaignCallTimes", CampaignCallTimeRuntime.telemetry());
         frame.put("campaignEngineTimes", CampaignEngineTimeRuntime.telemetry());
         frame.put("campaignLocationEconomyTimes", CampaignLocationEconomyTimeRuntime.telemetry());
         frame.put("campaignMarketFleetTimes", CampaignMarketFleetTimeRuntime.telemetry());
+        frame.put("fleetAiModuleTimes", FleetAiModuleTimeRuntime.telemetry());
+        frame.put("tacticalFleetAiTimes", TacticalFleetAiTimeRuntime.telemetry());
+        frame.put("fleetInflationTimes", FleetInflationTimeRuntime.telemetry());
+        frame.put("coreAutofitTimes", CoreAutofitTimeRuntime.telemetry());
+        frame.put("nexEconomyInfoTimes", NexEconomyInfoTimeRuntime.telemetry());
+        frame.put("nexMarketListScope", NexMarketListScopeRuntime.telemetry());
         frame.put("campaignEntityMaintenance", CampaignEntityMaintenanceRuntime.telemetry());
         atomicWrite(frameDestination, Json.object(frame) + System.lineSeparator());
 

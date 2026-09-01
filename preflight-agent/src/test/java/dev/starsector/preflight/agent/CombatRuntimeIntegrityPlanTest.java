@@ -3,13 +3,16 @@ package dev.starsector.preflight.agent;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -21,15 +24,23 @@ class CombatRuntimeIntegrityPlanTest {
     private static final String INTEGRITY_RUNTIME =
             CombatRuntimeIntegrityRuntime.class.getName().replace('.', '/');
     private static final String FRAME_RUNTIME = FrameTimeRuntime.class.getName().replace('.', '/');
+    private static final String CONTROL_RUNTIME =
+            InternalGameControlRuntime.class.getName().replace('.', '/');
+    private static final String WORKLOAD_RUNTIME = CombatWorkloadRuntime.class.getName().replace('.', '/');
 
     @TempDir
     Path temporaryDirectory;
 
     @AfterEach
     void reset() {
+        System.clearProperty("preflight.desktopSmoke");
         CombatRuntimeIntegrityRuntime.beginSession();
+        CombatWorkloadRuntime.reset();
         FrameTimeRuntime.reset();
+        InternalGameControlRuntime.reset();
         RuntimeSemanticState.reset();
+        System.clearProperty(CombatWorkloadRuntime.ENABLE_PROPERTY);
+        System.clearProperty(CombatWorkloadRuntime.OUTPUT_PROPERTY);
     }
 
     @Test
@@ -43,6 +54,8 @@ class CombatRuntimeIntegrityPlanTest {
         assertNotNull(transformed);
         assertEquals(1, calls(method(read(transformed)), INTEGRITY_RUNTIME, "observe"));
         assertEquals(1, calls(method(read(transformed)), FRAME_RUNTIME, "observeCombat"));
+        assertEquals(0, calls(method(read(transformed)), WORKLOAD_RUNTIME, "begin"));
+        assertEquals(0, calls(method(read(transformed)), WORKLOAD_RUNTIME, "end"));
     }
 
     @Test
@@ -53,6 +66,7 @@ class CombatRuntimeIntegrityPlanTest {
         assertNotNull(integrityOnly);
         assertEquals(1, calls(method(read(integrityOnly)), INTEGRITY_RUNTIME, "observe"));
         assertEquals(0, calls(method(read(integrityOnly)), FRAME_RUNTIME, "observeCombat"));
+        assertEquals(0, calls(method(read(integrityOnly)), WORKLOAD_RUNTIME, "begin"));
 
         CombatRuntimeIntegrityRuntime.beginSession();
         FrameTimeRuntime.beginSession(true);
@@ -60,6 +74,56 @@ class CombatRuntimeIntegrityPlanTest {
         assertNotNull(withFrames);
         assertEquals(1, calls(method(read(withFrames)), INTEGRITY_RUNTIME, "observe"));
         assertEquals(1, calls(method(read(withFrames)), FRAME_RUNTIME, "observeCombat"));
+    }
+
+    @Test
+    void composesClosedCombatControlOnlyForDesktopSmoke() throws Exception {
+        byte[] original = fixture();
+        System.setProperty("preflight.desktopSmoke", "true");
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+        InternalGameControlRuntime.beginSession(temporaryDirectory.resolve("adapter.json"));
+
+        byte[] transformed = CombatRuntimeIntegrityPlan.transform(exactSignature(original), original);
+
+        assertNotNull(transformed);
+        assertEquals(1, calls(method(read(transformed)), CONTROL_RUNTIME, "combatAdvance"));
+        assertEquals(1, calls(method(read(transformed)), CONTROL_RUNTIME, "combatAdvanceEnd"));
+    }
+
+    @Test
+    void composesOptInWorkloadSnapshotAndTimesEveryExit() throws Exception {
+        byte[] original = fixture();
+        System.setProperty(CombatWorkloadRuntime.ENABLE_PROPERTY, "true");
+
+        byte[] transformed = CombatRuntimeIntegrityPlan.transform(exactSignature(original), original);
+
+        assertNotNull(transformed);
+        MethodNode advance = method(read(transformed));
+        assertEquals(1, calls(advance, WORKLOAD_RUNTIME, "begin"));
+        assertEquals(2, calls(advance, WORKLOAD_RUNTIME, "end"));
+        Map<String, Object> telemetry = CombatWorkloadRuntime.telemetry();
+        assertTrue((Boolean) telemetry.get("installed"));
+    }
+
+    @Test
+    void insertsClosedControlImmediatelyAfterTheRealCombatInputBatchIsGenerated() throws Exception {
+        byte[] original = combatStateFixture();
+        assertNull(CombatRuntimeIntegrityPlan.transform(
+                combatStateSignature(original), original));
+
+        System.setProperty("preflight.desktopSmoke", "true");
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+        InternalGameControlRuntime.beginSession(temporaryDirectory.resolve("adapter.json"));
+
+        byte[] transformed = CombatRuntimeIntegrityPlan.transform(
+                combatStateSignature(original), original);
+
+        assertNotNull(transformed);
+        MethodNode traverse = read(transformed).methods.stream()
+                .filter(candidate -> CombatRuntimeIntegrityPlan.TRAVERSE_METHOD.equals(candidate.name)
+                        && CombatRuntimeIntegrityPlan.TRAVERSE_DESCRIPTOR.equals(candidate.desc))
+                .findFirst().orElseThrow();
+        assertEquals(1, calls(traverse, CONTROL_RUNTIME, "combatInput"));
     }
 
     @Test
@@ -73,16 +137,46 @@ class CombatRuntimeIntegrityPlanTest {
     }
 
     private static byte[] fixture() {
-        ClassWriter writer = new ClassWriter(0);
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
                 CombatRuntimeIntegrityPlan.TARGET_CLASS, null, "java/lang/Object", null);
         MethodVisitor advance = writer.visitMethod(Opcodes.ACC_PUBLIC,
                 CombatRuntimeIntegrityPlan.ADVANCE_METHOD,
                 CombatRuntimeIntegrityPlan.ADVANCE_DESCRIPTOR, null, null);
         advance.visitCode();
+        Label throwPath = new Label();
+        advance.visitVarInsn(Opcodes.FLOAD, 1);
+        advance.visitInsn(Opcodes.FCONST_0);
+        advance.visitInsn(Opcodes.FCMPL);
+        advance.visitJumpInsn(Opcodes.IFEQ, throwPath);
         advance.visitInsn(Opcodes.RETURN);
-        advance.visitMaxs(0, 3);
+        advance.visitLabel(throwPath);
+        advance.visitTypeInsn(Opcodes.NEW, "java/lang/RuntimeException");
+        advance.visitInsn(Opcodes.DUP);
+        advance.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/RuntimeException", "<init>", "()V", false);
+        advance.visitInsn(Opcodes.ATHROW);
+        advance.visitMaxs(0, 0);
         advance.visitEnd();
+        writer.visitEnd();
+        return writer.toByteArray();
+    }
+
+    private static byte[] combatStateFixture() {
+        ClassWriter writer = new ClassWriter(0);
+        writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
+                CombatRuntimeIntegrityPlan.COMBAT_STATE_CLASS, null, "java/lang/Object", null);
+        MethodVisitor traverse = writer.visitMethod(Opcodes.ACC_PUBLIC,
+                CombatRuntimeIntegrityPlan.TRAVERSE_METHOD,
+                CombatRuntimeIntegrityPlan.TRAVERSE_DESCRIPTOR, null, null);
+        traverse.visitCode();
+        traverse.visitMethodInsn(Opcodes.INVOKESTATIC,
+                "com/fs/starfarer/util/super/A", "Object",
+                "()Lcom/fs/starfarer/util/super/B;", false);
+        traverse.visitVarInsn(Opcodes.ASTORE, 1);
+        traverse.visitInsn(Opcodes.ACONST_NULL);
+        traverse.visitInsn(Opcodes.ARETURN);
+        traverse.visitMaxs(1, 2);
+        traverse.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
     }
@@ -91,6 +185,13 @@ class CombatRuntimeIntegrityPlanTest {
         ClassSignature parsed = ClassSignature.parse(bytes);
         return new ClassSignature(parsed.internalName(),
                 CombatRuntimeIntegrityPlan.ORIGINAL_SHA256, parsed.majorVersion(),
+                parsed.access(), parsed.methods());
+    }
+
+    private static ClassSignature combatStateSignature(byte[] bytes) throws Exception {
+        ClassSignature parsed = ClassSignature.parse(bytes);
+        return new ClassSignature(parsed.internalName(),
+                CombatRuntimeIntegrityPlan.COMBAT_STATE_SHA256, parsed.majorVersion(),
                 parsed.access(), parsed.methods());
     }
 

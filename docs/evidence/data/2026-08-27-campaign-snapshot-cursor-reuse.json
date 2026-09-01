@@ -1,0 +1,64 @@
+{
+  "format": "starsector-preflight-campaign-snapshot-cursor-reuse-v1",
+  "date": "2026-08-27",
+  "allocationInterpretation": "JFR ObjectAllocationSample weight is a statistical allocation estimate, not an exact byte counter.",
+  "runs": [
+    {
+      "id": "campaign-sample-cycle-20260827-0121",
+      "variant": "before",
+      "campaignAllocationSamples": 1104,
+      "campaignAllocationWeightBytes": 1816544544,
+      "snapshotCursorAllocationWeightBytes": 62577560,
+      "pausedOnePercentLowFps": 30.21,
+      "pausedPointOnePercentLowFps": 20.83,
+      "pausedP99Micros": 33100
+    },
+    {
+      "id": "campaign-sample-no-hot-counters-20260827-0133",
+      "variant": "before",
+      "campaignAllocationSamples": 1174,
+      "campaignAllocationWeightBytes": 1978671528,
+      "snapshotCursorAllocationWeightBytes": 31878456,
+      "pausedOnePercentLowFps": 30.03,
+      "pausedPointOnePercentLowFps": 20.58,
+      "pausedP99Micros": 33300
+    },
+    {
+      "id": "campaign-sample-reused-cursors-20260827-0148",
+      "variant": "after",
+      "recordingBytes": 5523876,
+      "recordingChunks": 1,
+      "campaignAllocationSamples": 1088,
+      "campaignAllocationWeightBytes": 1738373784,
+      "snapshotCursorAllocationWeightBytes": 10474584,
+      "stableSnapshotOwners": 479,
+      "stableSnapshotCursors": 475,
+      "inactiveIntervalsDropped": 0,
+      "pausedOnePercentLowFps": 30.03,
+      "pausedPointOnePercentLowFps": 29.59,
+      "pausedP99Micros": 33300
+    },
+    {
+      "id": "campaign-sample-reused-cursors-2-20260827-0154",
+      "variant": "after",
+      "recordingBytes": 5654573,
+      "recordingChunks": 1,
+      "campaignAllocationSamples": 1066,
+      "campaignAllocationWeightBytes": 1732583248,
+      "snapshotCursorAllocationWeightBytes": 20712832,
+      "stableSnapshotOwners": 482,
+      "stableSnapshotCursors": 485,
+      "inactiveIntervalsDropped": 0,
+      "pausedOnePercentLowFps": 38.61,
+      "pausedPointOnePercentLowFps": 22.03,
+      "pausedP99Micros": 25900
+    }
+  ],
+  "safety": {
+    "reuseRequiresObservedExhaustion": true,
+    "overlappingTraversalGetsIndependentCursor": true,
+    "disabledStableSnapshotsRetainNoCursors": true,
+    "saveStateChanged": false
+  },
+  "interpretation": "The targeted cursor allocation category fell in both follow-ups. Total allocation and paused tail metrics moved directionally better, but workload and thermal variation preclude a universal FPS claim."
+}

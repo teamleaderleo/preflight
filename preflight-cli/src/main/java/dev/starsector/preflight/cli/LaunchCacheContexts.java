@@ -33,8 +33,28 @@ final class LaunchCacheContexts {
 
     static Result select(CommandLine options, LaunchTarget target, boolean janinoCacheOwned)
             throws IOException {
-        Texture texture = textureContext(options, target);
-        Profiles profiles = profileContexts(options, target, texture, janinoCacheOwned);
+        return select(
+                options,
+                target,
+                janinoCacheOwned,
+                PrepareCommand.defaultCacheDirectory());
+    }
+
+    static Result select(
+            CommandLine options,
+            LaunchTarget target,
+            boolean janinoCacheOwned,
+            Path defaultCacheDirectory) throws IOException {
+        boolean defaultCacheNeeded = (options.textureAuto() && options.textureCacheDirectory() == null)
+                || (options.adapterMode() == AdapterMode.ENABLED
+                        && ((janinoCacheOwned && !options.textureAuto())
+                                || options.preparedAudio()));
+        Path defaultCache = defaultCacheNeeded
+                ? verifiedLaunchCacheRoot(defaultCacheDirectory)
+                : null;
+        Texture texture = textureContext(options, target, defaultCache);
+        Profiles profiles = profileContexts(
+                options, target, texture, janinoCacheOwned, defaultCache);
         return new Result(
                 texture,
                 profiles.variantJson(),
@@ -49,11 +69,15 @@ final class LaunchCacheContexts {
                 profiles.preparedAudio());
     }
 
-    private static Texture textureContext(CommandLine options, LaunchTarget target) throws IOException {
+    private static Texture textureContext(
+            CommandLine options, LaunchTarget target, Path defaultCache) throws IOException {
         if (options.textureAuto()) {
             System.out.println("Preflight is matching prepared textures to the current installed profile...");
+            Path requestedCache = options.textureCacheDirectory() == null
+                    ? defaultCache
+                    : verifiedLaunchCacheRoot(options.textureCacheDirectory());
             CurrentTextureCache.Resolution resolved = CurrentTextureCache.resolve(
-                    target.installRoot(), options.textureCacheDirectory());
+                    target.installRoot(), requestedCache);
             if (resolved.minimal()) {
                 System.out.println("Preflight is using Minimal preparation; prepared textures remain off.");
             }
@@ -74,7 +98,7 @@ final class LaunchCacheContexts {
             return null;
         }
         return new Texture(
-                options.textureCacheDirectory().toAbsolutePath().normalize(),
+                verifiedLaunchCacheRoot(options.textureCacheDirectory()),
                 options.textureManifest().toAbsolutePath().normalize(),
                 options.textureIndex().toAbsolutePath().normalize(),
                 null,
@@ -87,6 +111,18 @@ final class LaunchCacheContexts {
                 true);
     }
 
+    private static Path verifiedLaunchCacheRoot(Path path) throws IOException {
+        try {
+            return CacheRootBoundary.canonical(path);
+        } catch (IOException error) {
+            throw new IOException(
+                    "Prepared data cannot be used because the cache boundary couldn't be verified ("
+                            + message(error)
+                            + "). Use `--optimization-preset off` to launch without prepared data.",
+                    error);
+        }
+    }
+
     /**
      * Selects every spec-store cache artifact from one pass over the launch profile.
      *
@@ -97,7 +133,8 @@ final class LaunchCacheContexts {
             CommandLine options,
             LaunchTarget target,
             Texture textures,
-            boolean janinoCacheOwned) {
+            boolean janinoCacheOwned,
+            Path defaultCache) {
         boolean textureProfiles = textures != null && textures.automatic();
         if (options.adapterMode() != AdapterMode.ENABLED
                 || (!textureProfiles && !janinoCacheOwned && !options.preparedAudio())) {
@@ -110,7 +147,7 @@ final class LaunchCacheContexts {
                     : ResourceIndexBuilder.build(target.installRoot()).index();
             Path cacheRoot = textureProfiles
                     ? textures.cacheDirectory()
-                    : PrepareCommand.defaultCacheDirectory().toAbsolutePath().normalize();
+                    : defaultCache;
             try (ProfileIdentityContext context =
                     ProfileIdentityContext.of(target.installRoot(), resources)) {
                 System.out.printf(Locale.ROOT,
@@ -118,7 +155,14 @@ final class LaunchCacheContexts {
                         (System.nanoTime() - opened) / 1_000_000.0,
                         context.resources().providerCount());
                 return selectProfileContexts(
-                        options, target, textures, context, cacheRoot, textureProfiles, janinoCacheOwned);
+                        options,
+                        target,
+                        textures,
+                        context,
+                        cacheRoot,
+                        defaultCache,
+                        textureProfiles,
+                        janinoCacheOwned);
             }
         } catch (Exception error) {
             System.err.println("Preflight launch profile identity failed: " + message(error)
@@ -133,11 +177,19 @@ final class LaunchCacheContexts {
             Texture textures,
             ProfileIdentityContext context,
             Path cacheRoot,
+            Path defaultCache,
             boolean textureProfiles,
             boolean janinoCacheOwned) {
         if (!parallelProfileSelectionEnabled() || profileSelectionWorkers() == 1) {
             return selectProfileContextsSerial(
-                    options, target, textures, context, cacheRoot, textureProfiles, janinoCacheOwned);
+                    options,
+                    target,
+                    textures,
+                    context,
+                    cacheRoot,
+                    defaultCache,
+                    textureProfiles,
+                    janinoCacheOwned);
         }
 
         int workers = profileSelectionWorkers();
@@ -176,7 +228,7 @@ final class LaunchCacheContexts {
                     options.preparedAudio(),
                     () -> preparedAudioCacheContext(
                             context,
-                            PrepareCommand.defaultCacheDirectory().toAbsolutePath().normalize()));
+                            defaultCache));
 
             MergedRead mergedRead = profileResult("merged read", merged);
             Profiles selected = new Profiles(
@@ -207,6 +259,7 @@ final class LaunchCacheContexts {
             Texture textures,
             ProfileIdentityContext context,
             Path cacheRoot,
+            Path defaultCache,
             boolean textureProfiles,
             boolean janinoCacheOwned) {
         MergedRead mergedRead = textureProfiles ? mergedReadCacheContext(context, textures) : null;
@@ -225,7 +278,7 @@ final class LaunchCacheContexts {
                 options.preparedAudio()
                         ? preparedAudioCacheContext(
                                 context,
-                                PrepareCommand.defaultCacheDirectory().toAbsolutePath().normalize())
+                                defaultCache)
                         : null);
     }
 

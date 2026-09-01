@@ -53,11 +53,12 @@ final class RuntimeSemanticStateIdentityTest {
                 readyAt, readyAt.plusSeconds(3), readyAt.plusSeconds(4));
         assertTrue(RuntimeSemanticStateIdentity.read(valid).is("main-menu-interactive"));
 
-        Path advanced = write(42L, startedAt, "combat-ready", 3L,
+        Path advanced = write(42L, startedAt, "simulation-ready", 3L,
                 readyAt, readyAt.plusSeconds(3), readyAt.plusSeconds(4));
         RuntimeSemanticStateIdentity advancedState = RuntimeSemanticStateIdentity.read(advanced);
+        assertTrue(advancedState.is("simulation-ready"));
         assertTrue(advancedState.reached("main-menu-ready"));
-        assertTrue(advancedState.reached("main-menu-interactive"));
+        assertTrue(!advancedState.reached("main-menu-interactive"));
 
         Path impossible = write(42L, startedAt, "main-menu-interactive", 2L,
                 readyAt, readyAt.minusMillis(1), readyAt.plusSeconds(4));

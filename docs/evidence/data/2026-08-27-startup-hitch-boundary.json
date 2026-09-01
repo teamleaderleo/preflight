@@ -1,0 +1,79 @@
+{
+  "format": "starsector-preflight-frame-boundary-audit-v1",
+  "date": "2026-08-27",
+  "game": "Starsector 0.98a-RC8",
+  "condition": {
+    "launcher": "Preflight fast preset only",
+    "platform": "macOS on Apple M5 under Rosetta",
+    "javaRelease": 17,
+    "profiledRecordingDisablesTransformationCache": true
+  },
+  "corroboratingStartupRuns": [
+    {
+      "timeToInteractiveSeconds": 31.421,
+      "worstPresentationGapMillis": 6155.433
+    },
+    {
+      "timeToInteractiveSeconds": 31.995,
+      "worstPresentationGapMillis": 6100.576
+    },
+    {
+      "timeToInteractiveSeconds": 30.807,
+      "worstPresentationGapMillis": 6131.933
+    }
+  ],
+  "retainedProfile": {
+    "jfrSha256": "0f3a5959d9d21033fd9e3ad9c34bbaf08dea18905b0842196aad8fb84afcb889",
+    "frameReportSha256": "c32479413768992ebde0f15e460375f0089e7d04ba8f97f22a3fbfe0c8bf4b7c",
+    "recordingClockFactor": 2.4936654333103916,
+    "worstFrame": {
+      "durationMicros": 6358476,
+      "preSwapMicros": 6357666,
+      "swapMicros": 541,
+      "messageMicros": 266,
+      "otherAfterSwapMicros": 2,
+      "endOffsetMillis": 16254.641584,
+      "endEpochMillis": 1787778815875
+    },
+    "executionSamples": {
+      "window": 285,
+      "mainThread": 133,
+      "startupTitleOther": 126,
+      "titleDecorativeCombat": 7,
+      "inclusiveOwners": {
+        "resourceLoaderStateInit": 81,
+        "titleScreenStatePrepare": 30,
+        "graphicsLibApplicationLoad": 21,
+        "campaignGameManager": 16
+      }
+    },
+    "allocationSamples": {
+      "window": 551,
+      "mainThread": 339,
+      "mainThreadWeightedBytes": 1204330984,
+      "startupTitleWeightedBytes": 1201764912,
+      "titleDecorativeCombatWeightedBytes": 2566072,
+      "interpretation": "JFR ObjectAllocationSample weights, not an exact allocation census"
+    }
+  },
+  "telemetryChange": {
+    "legacyDistribution": "postStartupActive",
+    "legacyBoundary": "resource initialization return",
+    "newDistribution": "postInteractiveActive",
+    "newBoundary": "title screen removes final preloading label and accepts input",
+    "crossingIntervalsExcluded": true,
+    "changesGameOrSaveState": false
+  },
+  "verification": {
+    "javaRelease": 17,
+    "tests": 2182,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 9,
+    "focusedJavaTests": 17,
+    "focusedPythonTests": 10,
+    "sourceBoundary": "passed",
+    "benchmarkClaimProvenance": "passed"
+  },
+  "claimLimit": "The retained profile attributes one reproducible startup stall and corrects metric segmentation; it does not establish a universal startup-time or FPS improvement."
+}

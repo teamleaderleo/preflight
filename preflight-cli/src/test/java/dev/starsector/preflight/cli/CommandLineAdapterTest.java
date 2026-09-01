@@ -148,6 +148,9 @@ class CommandLineAdapterTest {
         assertEquals(false, defaults.quietLogs());
         assertEquals(false, defaults.suppressAssetProgressLogs());
         assertEquals(false, defaults.trustValidatedTextureIndex());
+        assertEquals(false, defaults.frameTimes());
+        assertEquals(false, defaults.campaignTimes());
+        assertEquals(false, defaults.smoothFramePacing());
         assertEquals(false, defaults.desktopSmoke());
 
         CommandLine direct = CommandLine.parse(
@@ -159,6 +162,27 @@ class CommandLineAdapterTest {
         CommandLine smoke = CommandLine.parse(
                 new String[] {"run", "--fast", "--direct", "--desktop-smoke"}, 1);
         assertEquals(true, smoke.desktopSmoke());
+
+        CommandLine frameTimes = CommandLine.parse(
+                new String[] {"run", "--fast", "--frame-times"}, 1);
+        assertEquals(true, frameTimes.frameTimes());
+        assertEquals(false, frameTimes.desktopSmoke());
+        assertThrows(IllegalArgumentException.class, () -> CommandLine.parse(
+                new String[] {"run", "--optimization-preset", "off", "--frame-times"}, 1));
+
+        CommandLine campaignTimes = CommandLine.parse(
+                new String[] {"run", "--fast", "--campaign-times"}, 1);
+        assertEquals(true, campaignTimes.campaignTimes());
+        assertThrows(IllegalArgumentException.class, () -> CommandLine.parse(
+                new String[] {"run", "--optimization-preset", "off", "--campaign-times"}, 1));
+        assertThrows(IllegalArgumentException.class, () -> CommandLine.parse(
+                new String[] {"run", "--optimization-preset", "conservative", "--campaign-times"}, 1));
+
+        CommandLine smoothFramePacing = CommandLine.parse(
+                new String[] {"run", "--fast", "--smooth-frame-pacing"}, 1);
+        assertEquals(true, smoothFramePacing.smoothFramePacing());
+        assertThrows(IllegalArgumentException.class, () -> CommandLine.parse(
+                new String[] {"run", "--optimization-preset", "off", "--smooth-frame-pacing"}, 1));
 
         CommandLine measurement = CommandLine.parse(new String[] {
                 "run", "--optimization-preset", "off", "--direct", "--desktop-smoke"

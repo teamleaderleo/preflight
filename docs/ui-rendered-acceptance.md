@@ -109,7 +109,10 @@ Run the manual **Desktop rendered layout** workflow when Home or Hangar composit
 checks every width from 720 to 1440 pixels, exercises full, compact, and minimal Home, verifies that
 refocus doesn't replace or move controls, and uploads the rendered matrix. Run the same pass locally
 from `preflight-desktop/` with `npm run ui:matrix`. It writes the individual screenshots, exact
-geometry, a browsable contact sheet, and `overview.png` under `.ui-matrix/`.
+geometry, a browsable contact sheet, and `overview.png` under `.ui-matrix/`. The first local run
+creates an isolated Python/Chromium environment under `node_modules/.preflight-ui-layout`; later
+runs reuse it, `npm ci` can replace it, and the repository worktree pruner treats it as generated
+binary output.
 
 A good rendered review leaves behind enough durable evidence that the next person can tell:
 

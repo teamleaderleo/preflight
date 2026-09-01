@@ -20,9 +20,14 @@ interface SettingsPageProps {
   removalPlan: RemovalPlan | null;
   removalBusy: boolean;
   afterLaunchBehavior: AfterLaunchBehavior;
+  recordFramePacing: boolean;
+  smoothFramePacing: boolean;
+  framePacingPaused: boolean;
   installation: string | null;
   installationChangeBlockedReason?: string | null;
   onAfterLaunchBehaviorChange: (behavior: AfterLaunchBehavior) => void;
+  onRecordFramePacingChange: (record: boolean) => void;
+  onSmoothFramePacingChange: (smooth: boolean) => void;
   onChooseInstall: () => void;
   onReviewRemoval: (scope: RemovalScope) => void;
   onDismissRemoval: () => void;
@@ -38,9 +43,14 @@ export function SettingsPage({
   removalPlan,
   removalBusy,
   afterLaunchBehavior,
+  recordFramePacing,
+  smoothFramePacing,
+  framePacingPaused,
   installation,
   installationChangeBlockedReason,
   onAfterLaunchBehaviorChange,
+  onRecordFramePacingChange,
+  onSmoothFramePacingChange,
   onChooseInstall,
   onReviewRemoval,
   onDismissRemoval,
@@ -100,6 +110,40 @@ export function SettingsPage({
           >
             {installation ? "Change folder" : "Choose game folder"}
           </button>
+        </div>
+        <div className="preference-block">
+          <div>
+            <h2>Frame pacing</h2>
+            <p>Starsector shows live FPS while you play. Preflight can keep a local frame-pacing summary after you quit.</p>
+          </div>
+          <label className="settings-toggle">
+            <input
+              type="checkbox"
+              aria-label="Record frame pacing"
+              checked={recordFramePacing}
+              onChange={(event) => onRecordFramePacingChange(event.target.checked)}
+            />
+            <span>
+              Record frame pacing
+              <small>{framePacingPaused
+                ? "Paused while optimizations are Off."
+                : "Recurring stutter, slow-frame burden, FPS lows, and recorder cost. The recorder doesn’t open or change save files."}</small>
+            </span>
+          </label>
+          <label className="settings-toggle">
+            <input
+              type="checkbox"
+              aria-label="Smooth frame pacing"
+              checked={smoothFramePacing}
+              onChange={(event) => onSmoothFramePacingChange(event.target.checked)}
+            />
+            <span>
+              Smooth frame pacing
+              <small>{framePacingPaused
+                ? "Paused while optimizations are Off."
+                : "Experimental. Keeps Starsector’s FPS cap but disables vsync to reduce doubled-frame drops. May show tearing. This display-only change doesn’t open or alter saves."}</small>
+            </span>
+          </label>
         </div>
         <div className="preference-block">
           <div>

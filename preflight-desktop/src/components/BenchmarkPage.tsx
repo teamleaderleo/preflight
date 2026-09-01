@@ -57,6 +57,13 @@ export function BenchmarkPage({
     || status === "launching"
     || status === "running";
   const benchmarkMetric = desktopBenchmarkComparison?.metrics.processToMainMenuMs;
+  const stutterBurden = desktopBenchmarkComparison?.metrics.stutterBurdenMillisPerSecond;
+  const repeatedSlowFrames = desktopBenchmarkComparison?.metrics.repeatedSlowFramesPercent;
+  const slowFramesPerMinute = desktopBenchmarkComparison?.metrics.slowFramesPerMinute;
+  const onePercentLow = desktopBenchmarkComparison?.metrics.onePercentLowFps;
+  const hasCampaignSmoothness = Boolean(
+    stutterBurden || repeatedSlowFrames || slowFramesPerMinute || onePercentLow,
+  );
   const copyBenchmarkResult = async () => {
     if (!benchmarkMetric) return;
     try {
@@ -75,10 +82,10 @@ export function BenchmarkPage({
         <div>
           <div className="heading-with-info">
             <h2>Startup benchmark</h2>
-            <InfoTip label="About the benchmark">Opens Starsector twice and times each launch at the main menu: first without Preflight optimizations, then with them. Preflight closes only the Starsector process it started.</InfoTip>
+            <InfoTip label="About the benchmark">Both runs use Preflight with the same installation and mod setup. The first keeps Preflight’s optimizations off; the second turns them on. Preflight closes only the Starsector process it started.</InfoTip>
           </div>
           <p>{isReady
-            ? "Runs Starsector twice, once normally and once with Preflight, then compares the launch times."
+            ? "Both runs use Preflight: first with its optimizations off, then on. It compares startup and, when the route reaches campaign, settled frame pacing."
             : "Choose Starsector on Home before running the benchmark."}</p>
           {isReady || desktopSmokeRunDirectory ? (
             <small>
@@ -119,12 +126,26 @@ export function BenchmarkPage({
       {desktopBenchmarkComparison?.available ? (
         <section className="card benchmark-results" aria-label="Latest benchmark result">
           <div className="card__heading">
-            <div><p className="eyebrow">Latest comparison</p><h2>Normal launch → Preflight</h2></div>
+            <div><p className="eyebrow">Latest comparison</p><h2>Optimizations off → on</h2></div>
             <CheckIcon className="settings-check" />
           </div>
-          <div className="benchmark-results__grid">
+          <div className="benchmark-results__grid benchmark-results__grid--startup">
             <BenchmarkResult label="Main menu" metric={benchmarkMetric} unit="time" />
           </div>
+          {hasCampaignSmoothness ? (
+            <>
+              <div className="benchmark-results__section-heading">
+                <strong>Settled campaign smoothness</strong>
+                <small>Recurring stutter ranks ahead of percentile and average FPS changes.</small>
+              </div>
+              <div className="benchmark-results__grid">
+                <BenchmarkResult label="Stutter burden" metric={stutterBurden} unit="burden" />
+                <BenchmarkResult label="Repeated slow frames" metric={repeatedSlowFrames} unit="percent" />
+                <BenchmarkResult label="Slow frames" metric={slowFramesPerMinute} unit="rate" />
+                <BenchmarkResult label="One-percent low" metric={onePercentLow} unit="fps" />
+              </div>
+            </>
+          ) : null}
           <BenchmarkContext comparison={desktopBenchmarkComparison} />
           {benchmarkMetric ? (
             <div className="benchmark-card__actions">
@@ -192,22 +213,33 @@ export function BenchmarkResult({
 }: {
   label: string;
   metric: { measurementOnly: number; optimized: number; improvementPercent: number | null } | undefined;
-  unit: "time" | "fps";
+  unit: "time" | "fps" | "burden" | "percent" | "rate";
 }) {
   if (!metric) return null;
-  const format = (value: number) => unit === "time"
-    ? `${(value / 1_000).toFixed(2)}s`
-    : value.toFixed(1);
+  const format = (value: number) => {
+    if (unit === "time") return `${(value / 1_000).toFixed(2)}s`;
+    if (unit === "fps") return `${value.toFixed(1)} FPS`;
+    if (unit === "burden") return `${value.toFixed(2)} ms/s`;
+    if (unit === "percent") return `${value.toFixed(2)}%`;
+    return `${value.toFixed(1)} / min`;
+  };
   const comparison = unit === "time"
     ? startupComparisonPresentation(metric.measurementOnly, metric.optimized)
     : null;
+  const metricChange = metric.improvementPercent === null
+    ? ""
+    : metric.improvementPercent > 0
+      ? ` · ${metric.improvementPercent.toFixed(1)}% improvement`
+      : metric.improvementPercent < 0
+        ? ` · ${Math.abs(metric.improvementPercent).toFixed(1)}% regression`
+        : " · no measured change";
   return (
     <div>
       <span>{label}</span>
       <strong>{format(metric.optimized)}</strong>
       <small>
-        {format(metric.measurementOnly)} before
-        {comparison ? ` · ${comparison.headline} · ${comparison.detail}` : metric.improvementPercent === null ? "" : ` · ${metric.improvementPercent.toFixed(1)}% change`}
+        {format(metric.measurementOnly)} with optimizations off
+        {comparison ? ` · ${comparison.headline} · ${comparison.detail}` : metricChange}
       </small>
     </div>
   );

@@ -38,8 +38,22 @@ class FrameTimePlanTest {
         ClassNode owner = read(transformed);
         assertEquals(1, calls(method(owner, FrameTimePlan.UPDATE_METHOD,
                 FrameTimePlan.UPDATE_DESCRIPTOR), RUNTIME, "boundary"));
+        assertEquals(1, calls(method(owner, FrameTimePlan.UPDATE_METHOD,
+                FrameTimePlan.UPDATE_DESCRIPTOR), RUNTIME, "beforeSwap"));
+        assertEquals(1, calls(method(owner, FrameTimePlan.UPDATE_METHOD,
+                FrameTimePlan.UPDATE_DESCRIPTOR), RUNTIME, "afterSwap"));
+        assertEquals(1, calls(method(owner, FrameTimePlan.UPDATE_METHOD,
+                FrameTimePlan.UPDATE_DESCRIPTOR), RUNTIME, "beforeMessages"));
+        assertEquals(1, calls(method(owner, FrameTimePlan.UPDATE_METHOD,
+                FrameTimePlan.UPDATE_DESCRIPTOR), RUNTIME, "afterMessages"));
         assertEquals(1, calls(method(owner, FrameTimePlan.ACTIVE_METHOD,
                 FrameTimePlan.ACTIVE_DESCRIPTOR), RUNTIME, "observeActive"));
+        assertEquals(1, calls(method(owner, FrameTimePlan.VSYNC_METHOD,
+                FrameTimePlan.VSYNC_DESCRIPTOR), RUNTIME, "requestedVsync"));
+        assertEquals(1, calls(method(owner, FrameTimePlan.SWAP_INTERVAL_METHOD,
+                FrameTimePlan.SWAP_INTERVAL_DESCRIPTOR), RUNTIME, "observeSwapInterval"));
+        assertEquals(1, calls(method(owner, FrameTimePlan.DESTROY_METHOD,
+                FrameTimePlan.DESTROY_DESCRIPTOR), RUNTIME, "releaseGpuTiming"));
         assertEquals(true, FrameTimeRuntime.telemetry().get("installed"));
     }
 
@@ -59,10 +73,22 @@ class FrameTimePlanTest {
         assertNull(FrameTimePlan.transform(ClassSignature.parse(transformed), transformed));
     }
 
+    @Test
+    void smoothPresentationAloneInstallsOnlyTheRequiredExactPlan() throws Exception {
+        FrameTimeRuntime.beginSession(false, true);
+        byte[] original = fixture(false);
+        byte[] transformed = FrameTimePlan.transform(exactSignature(original), original);
+        assertNotNull(transformed);
+        assertEquals(false, FrameTimeRuntime.telemetry().get("enabled"));
+        assertEquals(true, FrameTimeRuntime.telemetry().get("installed"));
+    }
+
     private static byte[] fixture(boolean omitMessages) {
         ClassWriter writer = new ClassWriter(0);
         writer.visit(Opcodes.V1_5, Opcodes.ACC_PUBLIC, FrameTimePlan.TARGET_CLASS,
                 null, "java/lang/Object", null);
+        writer.visitInnerClass("org/lwjgl/opengl/DrawableLWJGL", null, null,
+                Opcodes.ACC_PUBLIC | Opcodes.ACC_ABSTRACT | Opcodes.ACC_INTERFACE);
         staticVoid(writer, "swapBuffers");
         staticVoid(writer, "processMessages");
 
@@ -86,6 +112,35 @@ class FrameTimePlanTest {
         update.visitInsn(Opcodes.RETURN);
         update.visitMaxs(0, 1);
         update.visitEnd();
+
+        MethodVisitor vsync = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                FrameTimePlan.VSYNC_METHOD, FrameTimePlan.VSYNC_DESCRIPTOR, null, null);
+        vsync.visitCode();
+        vsync.visitVarInsn(Opcodes.ILOAD, 0);
+        vsync.visitMethodInsn(Opcodes.INVOKESTATIC, FrameTimePlan.TARGET_CLASS,
+                FrameTimePlan.SWAP_INTERVAL_METHOD,
+                FrameTimePlan.SWAP_INTERVAL_DESCRIPTOR, false);
+        vsync.visitInsn(Opcodes.RETURN);
+        vsync.visitMaxs(1, 1);
+        vsync.visitEnd();
+
+        MethodVisitor swapInterval = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                FrameTimePlan.SWAP_INTERVAL_METHOD,
+                FrameTimePlan.SWAP_INTERVAL_DESCRIPTOR, null, null);
+        swapInterval.visitCode();
+        swapInterval.visitInsn(Opcodes.RETURN);
+        swapInterval.visitMaxs(0, 1);
+        swapInterval.visitEnd();
+
+        MethodVisitor destroy = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                FrameTimePlan.DESTROY_METHOD, FrameTimePlan.DESTROY_DESCRIPTOR, null, null);
+        destroy.visitCode();
+        destroy.visitInsn(Opcodes.ACONST_NULL);
+        destroy.visitMethodInsn(Opcodes.INVOKEINTERFACE, "org/lwjgl/opengl/DrawableLWJGL",
+                FrameTimePlan.DESTROY_METHOD, FrameTimePlan.DESTROY_DESCRIPTOR, true);
+        destroy.visitInsn(Opcodes.RETURN);
+        destroy.visitMaxs(1, 0);
+        destroy.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
     }

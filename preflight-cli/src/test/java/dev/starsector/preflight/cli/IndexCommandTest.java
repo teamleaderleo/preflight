@@ -1,13 +1,16 @@
 package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -69,5 +72,35 @@ class IndexCommandTest {
         assertEquals(5, PreflightCli.run(new String[] {
                 "index", "validate", indexFile.toString()
         }));
+    }
+
+    @Test
+    void defaultOutputRefusesASymlinkedCacheRootWithoutTouchingItsTarget() throws Exception {
+        Path outside = Files.createDirectory(temporaryDirectory.resolve("outside"));
+        Path sentinel = Files.writeString(outside.resolve("keep.txt"), "keep");
+        Path root = Files.createDirectory(temporaryDirectory.resolve("owned-home"));
+        symlinkOrSkip(root.resolve("cache"), outside);
+        PreflightHome home = new PreflightHome(root, List.of());
+        ResourceIndex index = new ResourceIndex(
+                "0".repeat(64),
+                List.of(new ResourceIndex.Root("core", temporaryDirectory, true)),
+                java.util.Map.of());
+
+        IOException error = assertThrows(IOException.class, () -> IndexCommand.defaultOutput(home, index));
+
+        assertTrue(error.getMessage().contains("cache root isn't a real directory"));
+        assertEquals("keep", Files.readString(sentinel));
+        try (var children = Files.list(outside)) {
+            assertEquals(List.of("keep.txt"), children.map(path -> path.getFileName().toString()).toList());
+        }
+    }
+
+    private static Path symlinkOrSkip(Path link, Path target) throws IOException {
+        try {
+            return Files.createSymbolicLink(link, target);
+        } catch (UnsupportedOperationException | SecurityException | IOException error) {
+            Assumptions.assumeTrue(false, "Symbolic links aren't available: " + error);
+            throw error;
+        }
     }
 }

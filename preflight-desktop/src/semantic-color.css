@@ -15,7 +15,7 @@
   --success-soft: #d8ece8;
 
   --ink-soft: color-mix(in srgb, var(--ink) 71%, var(--paper-solid));
-  --ink-faint: color-mix(in srgb, var(--ink) 60%, var(--paper-solid));
+  --ink-faint: color-mix(in srgb, var(--ink) 66%, var(--paper-solid));
   --line: color-mix(in srgb, var(--ink) 22%, transparent);
   --line-strong: color-mix(in srgb, var(--ink) 35%, transparent);
   --grid-line: color-mix(in srgb, var(--ink) 5.5%, transparent);

@@ -1,10 +1,12 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.core.ClasspathCacheDirectories;
+import dev.starsector.preflight.core.ClasspathProfileIndex;
+import dev.starsector.preflight.core.ClasspathProfileIndexIO;
 import dev.starsector.preflight.core.GeneratedBytecodeBundle;
 import dev.starsector.preflight.core.GeneratedBytecodeBundleIO;
 import dev.starsector.preflight.core.GeneratedBytecodeCache;
 import dev.starsector.preflight.core.GeneratedBytecodePack;
-import dev.starsector.preflight.core.ClasspathCacheDirectories;
 import dev.starsector.preflight.core.PreparedAudioManifest;
 import dev.starsector.preflight.core.PreparedAudioManifestIO;
 import dev.starsector.preflight.core.PreparedAudioCache;
@@ -44,9 +46,9 @@ import java.util.regex.Pattern;
  *
  * <p>That asymmetry drives the safety rule here: <b>a manifest that cannot be read aborts the whole
  * plan.</b> An unreadable survivor means an incomplete reachable set, and an incomplete reachable
- * set means deleting blobs a live profile still needs -- which would not fail loudly, it would fail
- * on the next launch as a cache miss on a texture that was supposed to be prepared. Refusing to
- * plan is the only correct response.
+ * set means deleting shared artifacts a live profile still needs -- which would not fail loudly,
+ * it would fail on the next launch as a cache miss on data that was supposed to be prepared.
+ * Refusing to plan is the only correct response.
  */
 final class CachePrune {
     /** Spec-store corpora, and the extension each writes. */
@@ -79,11 +81,11 @@ final class CachePrune {
             CacheDeletionBoundary.requireSafeTree(cache);
         } catch (IOException unsafe) {
             refusals.add("cache deletion boundary could not be verified (" + message(unsafe) + ")");
-            return new Plan(cache, List.of(), List.copyOf(refusals), 0, 0);
+            return new Plan(cache, List.of(), List.copyOf(refusals), 0, 0, 0);
         }
         List<Removal> removals = discardedQuarantineArtifacts(cache);
         removals.sort(Comparator.comparingLong(Removal::bytes).reversed());
-        return new Plan(cache, List.copyOf(removals), List.of(), 0, 0);
+        return new Plan(cache, List.copyOf(removals), List.of(), 0, 0, 0);
     }
 
     /**
@@ -104,7 +106,7 @@ final class CachePrune {
             CacheDeletionBoundary.requireSafeTree(cache);
         } catch (IOException unsafe) {
             refusals.add("cache deletion boundary could not be verified (" + message(unsafe) + ")");
-            return new Plan(cache, List.of(), List.copyOf(refusals), 0, 0);
+            return new Plan(cache, List.of(), List.copyOf(refusals), 0, 0, 0);
         }
 
         removals.addAll(byFingerprint(ResourceIndexIO.directory(cache), ".spfi", survivors));
@@ -173,6 +175,40 @@ final class CachePrune {
                 : List.of();
         removals.addAll(audioBlobs);
 
+        Set<Path> reachableClasspathArchives = new HashSet<>();
+        Path classpathArchives = ClasspathCacheDirectories.archives(cache).toAbsolutePath().normalize();
+        for (String survivor : survivors) {
+            Path profile = ClasspathCacheDirectories.profiles(cache).resolve(survivor + ".spfc");
+            if (!Files.isRegularFile(profile, LinkOption.NOFOLLOW_LINKS)) {
+                continue;
+            }
+            try {
+                ClasspathProfileIndex read = ClasspathProfileIndexIO.read(profile);
+                if (!survivor.equals(read.profileFingerprint())) {
+                    throw new IOException("profile fingerprint does not match its filename");
+                }
+                for (ClasspathProfileIndex.Archive archive : read.archives()) {
+                    String source = archive.sourceSha256();
+                    Path expected = classpathArchives.resolve(source.substring(0, 2))
+                            .resolve(source + ".spfj").normalize();
+                    Path referenced = cache.resolve(archive.archiveIndexRelativePath())
+                            .toAbsolutePath().normalize();
+                    if (!referenced.equals(expected)) {
+                        throw new IOException("archive index path does not match its source identity");
+                    }
+                    reachableClasspathArchives.add(referenced);
+                }
+            } catch (Exception unreadable) {
+                refusals.add("classpath index for surviving profile " + survivor.substring(0, 16)
+                        + " could not be read (" + message(unreadable) + "), so the set of archive"
+                        + " indexes it still needs is unknown");
+            }
+        }
+        List<Removal> classpathArchiveIndexes = refusals.isEmpty()
+                ? unreachableClasspathArchiveIndexes(cache, reachableClasspathArchives)
+                : List.of();
+        removals.addAll(classpathArchiveIndexes);
+
         if (!keepIdentities.isEmpty()) {
             removals.addAll(specStore(cache, keepIdentities));
         }
@@ -186,7 +222,8 @@ final class CachePrune {
                 List.copyOf(removals),
                 List.copyOf(refusals),
                 reachable.size(),
-                reachableAudio.size());
+                reachableAudio.size(),
+                reachableClasspathArchives.size());
     }
 
     private static List<Removal> byFingerprint(Path directory, String extension, Set<String> keep)
@@ -364,6 +401,36 @@ final class CachePrune {
         return removals;
     }
 
+    private static List<Removal> unreachableClasspathArchiveIndexes(
+            Path cache, Set<Path> reachable) throws IOException {
+        Path root = ClasspathCacheDirectories.archives(cache).toAbsolutePath().normalize();
+        List<Removal> removals = new ArrayList<>();
+        if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) {
+            return removals;
+        }
+        Files.walkFileTree(root, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) {
+                if (!attributes.isRegularFile()) {
+                    return FileVisitResult.CONTINUE;
+                }
+                String name = file.getFileName().toString();
+                if (!name.matches("[0-9a-f]{64}\\.spfj")) {
+                    return FileVisitResult.CONTINUE;
+                }
+                String source = name.substring(0, 64);
+                Path owned = root.resolve(source.substring(0, 2)).resolve(name).normalize();
+                Path actual = file.toAbsolutePath().normalize();
+                if (actual.equals(owned) && !reachable.contains(actual)) {
+                    removals.add(new Removal(
+                            file, attributes.size(), "unreferenced classpath archive index"));
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        return removals;
+    }
+
     private static List<Removal> specStore(Path cache, Set<String> keepIdentities)
             throws IOException {
         List<Removal> removals = new ArrayList<>();
@@ -450,13 +517,14 @@ final class CachePrune {
             List<Removal> removals,
             List<String> refusals,
             int reachableBlobs,
-            int reachableAudioBlobs) {
+            int reachableAudioBlobs,
+            int reachableClasspathArchives) {
         Plan(
                 List<Removal> removals,
                 List<String> refusals,
                 int reachableBlobs,
                 int reachableAudioBlobs) {
-            this(null, removals, refusals, reachableBlobs, reachableAudioBlobs);
+            this(null, removals, refusals, reachableBlobs, reachableAudioBlobs, 0);
         }
 
         long bytes() {

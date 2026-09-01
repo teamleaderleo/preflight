@@ -4,8 +4,8 @@
 
 **Install:** Starsector 0.98a-RC8, AI Tweaks 2.2.10, current mod profile
 
-**Status:** the v1 exact range snapshot and v2 live application/use are validated. A direct v2
-allocation comparison remains unavailable because JFR is unstable under this Rosetta JVM.
+**Status:** retired after v4 reproduced the same null-receiver failure at the original
+target-search field read
 
 ## Runtime lead
 
@@ -101,3 +101,14 @@ The run deliberately omitted JFR after the preceding Rosetta/HotSpot safepoint c
 directly prove that the sampled `Float.valueOf` stack disappeared or support a controlled FPS speed
 claim. The allocation removal remains structurally exact and executable-fixture verified; passive
 frame telemetry is retained for future controlled A/B work.
+
+## 2026-08-27 correction
+
+A later, heavier deterministic combat run disproved the boxed target-search field's retained safety:
+after its measurement window, the exact transformed class failed while reading
+`preflight$targetSearchRangeBoxed`. The v4 plan removes that field and restores the original
+`targetSearchRange -> Float.valueOf` boundary. It retains the primitive engagement-range and
+weapon-location snapshots. The exact failure, narrowed correction, installed-class gate, clean
+61,413-snapshot follow-up, and later v4 recurrence are recorded in
+[the correction report](2026-08-27-aitweaks-boxed-search-range-correction.md). That recurrence
+supersedes the v2 target-search boxing acceptance above and retires the entire target.

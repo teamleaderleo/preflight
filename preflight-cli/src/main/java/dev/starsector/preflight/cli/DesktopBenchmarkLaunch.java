@@ -1,5 +1,6 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.agent.FrameTimeTelemetry;
 import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.Json;
 import java.io.IOException;
@@ -22,6 +23,21 @@ import java.util.concurrent.atomic.AtomicBoolean;
 final class DesktopBenchmarkLaunch {
     static final String FORMAT = "starsector-preflight-desktop-benchmark-v1";
     static final String RESULT_FILE = "benchmark-result.json";
+    static final long MIN_SETTLED_CAMPAIGN_ACTIVE_NANOS = Duration.ofSeconds(30).toNanos();
+    static final long MIN_SETTLED_CAMPAIGN_FRAMES = 100L;
+    private static final List<String> SMOOTHNESS_PRIORITY = List.of(
+            "stutterBurdenMillisPerSecond",
+            "repeatedSlowFramesPercent",
+            "slowFramesPerMinute",
+            "longestSlowFrameClusterMillis",
+            "over33_33Millis",
+            "over50Millis",
+            "over100Millis",
+            "p99FrameMicros",
+            "pointOnePercentLowFps",
+            "onePercentLowFps",
+            "averageFps",
+            "medianFps");
 
     private DesktopBenchmarkLaunch() {
     }
@@ -354,15 +370,56 @@ final class DesktopBenchmarkLaunch {
         metric(metrics, "processToMainMenuMs", baseline, optimized, false);
         metric(metrics, "processToCampaignReadyMs", baseline, optimized, false);
         metric(metrics, "routeElapsedMs", baseline, optimized, false);
+        performanceMetrics(metrics, baseline, optimized);
+        Map<String, Object> stateComparisons = stateComparisons(baseline, optimized);
+        comparison.put("available", !metrics.isEmpty() || !stateComparisons.isEmpty());
+        comparison.put("smoothnessPriority", SMOOTHNESS_PRIORITY);
+        comparison.put("metrics", metrics);
+        if (!stateComparisons.isEmpty()) {
+            comparison.put("campaignStateWindows", stateComparisons);
+        }
+        return comparison;
+    }
+
+    private static void performanceMetrics(
+            Map<String, Object> metrics,
+            Map<String, Object> baseline,
+            Map<String, Object> optimized) {
+        metric(metrics, "stutterBurdenMillisPerSecond", baseline, optimized, false);
+        metric(metrics, "repeatedSlowFramesPercent", baseline, optimized, false);
+        metric(metrics, "slowFramesPerMinute", baseline, optimized, false);
+        metric(metrics, "longestSlowFrameClusterMillis", baseline, optimized, false);
+        metric(metrics, "over33_33Millis", baseline, optimized, false);
+        metric(metrics, "over50Millis", baseline, optimized, false);
+        metric(metrics, "over100Millis", baseline, optimized, false);
+        metric(metrics, "p99FrameMicros", baseline, optimized, false);
+        metric(metrics, "p95FrameMicros", baseline, optimized, false);
+        metric(metrics, "pointOnePercentLowFps", baseline, optimized, true);
+        metric(metrics, "onePercentLowFps", baseline, optimized, true);
         metric(metrics, "averageFps", baseline, optimized, true);
         metric(metrics, "medianFps", baseline, optimized, true);
-        metric(metrics, "onePercentLowFps", baseline, optimized, true);
-        metric(metrics, "pointOnePercentLowFps", baseline, optimized, true);
-        metric(metrics, "p95FrameMicros", baseline, optimized, false);
-        metric(metrics, "p99FrameMicros", baseline, optimized, false);
-        comparison.put("available", !metrics.isEmpty());
-        comparison.put("metrics", metrics);
-        return comparison;
+    }
+
+    private static Map<String, Object> stateComparisons(
+            Map<String, Object> baseline, Map<String, Object> optimized) {
+        Map<String, Object> baselineStates = object(baseline.get("campaignStateWindows"));
+        Map<String, Object> optimizedStates = object(optimized.get("campaignStateWindows"));
+        if (baselineStates == null || optimizedStates == null) return Map.of();
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (String state : List.of("paused", "unpaused")) {
+            Map<String, Object> baselineState = object(baselineStates.get(state));
+            Map<String, Object> optimizedState = object(optimizedStates.get(state));
+            if (baselineState == null || optimizedState == null) continue;
+            Map<String, Object> metrics = new LinkedHashMap<>();
+            performanceMetrics(metrics, baselineState, optimizedState);
+            Map<String, Object> comparison = new LinkedHashMap<>();
+            comparison.put("available", !metrics.isEmpty());
+            comparison.put("smoothnessPriority", SMOOTHNESS_PRIORITY);
+            comparison.put("metrics", metrics);
+            result.put(state, comparison);
+        }
+        return result;
     }
 
     private static Map<String, Object> summary(Map<String, Object> launch) throws IOException {
@@ -386,33 +443,100 @@ final class DesktopBenchmarkLaunch {
         Instant routeStart = instant(evidence, "startedAt");
         Instant routeEnd = instant(evidence, "completedAt");
         Map<String, Object> frameTimes = frameTimes(evidence);
-        Map<String, Object> campaignFrames = object(frameTimes.get("campaignActive"));
-        if (campaignFrames == null) throw new IOException("Benchmark frame report lacks campaign frames");
-        Map<String, Object> measurement = object(frameTimes.get("measurementOverhead"));
+        Map<String, Object> campaignFrames = object(
+                frameTimes.get(FrameTimeTelemetry.CAMPAIGN_AFTER_30_SECONDS_ACTIVE));
+        Map<String, Object> aggregate = campaignFrameSummary(campaignFrames, "campaign");
+        Map<String, Object> measurement = object(frameTimes.get(FrameTimeTelemetry.MEASUREMENT_OVERHEAD));
 
         summary.put("processToCampaignReadyMs", millis(processStart, campaign));
         summary.put("routeElapsedMs", millis(routeStart, routeEnd));
         summary.put("selectedSave", selectedSave(evidence, launch));
         summary.put("runtimeContext", healthContext(evidence));
-        copyNumber(campaignFrames, summary, "frames", "campaignFrames");
-        copyNumber(campaignFrames, summary, "averageFps", "averageFps");
-        copyNumber(campaignFrames, summary, "medianFps", "medianFps");
-        copyNumber(campaignFrames, summary, "onePercentLowFps", "onePercentLowFps");
-        copyNumber(campaignFrames, summary, "pointOnePercentLowFps", "pointOnePercentLowFps");
-        copyNumber(campaignFrames, summary, "p95Micros", "p95FrameMicros");
-        copyNumber(campaignFrames, summary, "p99Micros", "p99FrameMicros");
-        copyNumber(
-                campaignFrames, summary, "framesMeeting60FpsPercent", "framesMeeting60FpsPercent");
+        summary.put("campaignWindow", "after-first-30-seconds");
+        summary.put("campaignFrames", aggregate.get("frames"));
+        summary.put("campaignActiveNanos", aggregate.get("activeNanos"));
+        summary.put("campaignCoverage", aggregate.get("coverage"));
+        copyPerformanceMetrics(aggregate, summary);
+        if (hasStep(evidence, "paused-settled") || hasStep(evidence, "unpaused-settled")) {
+            if (!hasStep(evidence, "paused-settled") || !hasStep(evidence, "unpaused-settled")) {
+                throw new IOException(
+                        "State-specific benchmark requires both paused-settled and unpaused-settled steps");
+            }
+            Map<String, Object> states = new LinkedHashMap<>();
+            states.put("paused", campaignFrameSummary(object(frameTimes.get(
+                    FrameTimeTelemetry.CAMPAIGN_PAUSED_AFTER_30_SECONDS_ACTIVE)), "paused campaign"));
+            states.put("unpaused", campaignFrameSummary(object(frameTimes.get(
+                    FrameTimeTelemetry.CAMPAIGN_UNPAUSED_AFTER_30_SECONDS_ACTIVE)), "unpaused campaign"));
+            summary.put("campaignStateWindows", states);
+        }
         summary.put("measurementOverhead", measurementOverhead(
                 measurement, ((Number) summary.get("routeElapsedMs")).longValue()));
         return summary;
+    }
+
+    static Map<String, Object> campaignFrameSummary(
+            Map<String, Object> frames, String label) throws IOException {
+        if (frames == null) {
+            throw new IOException("Benchmark frame report lacks settled " + label + " frames");
+        }
+        Long count = number(frames, "frames");
+        Long activeNanos = number(frames, FrameTimeTelemetry.TOTAL_ACTIVE_NANOS);
+        if (count == null || count < MIN_SETTLED_CAMPAIGN_FRAMES
+                || activeNanos == null || activeNanos < MIN_SETTLED_CAMPAIGN_ACTIVE_NANOS) {
+            throw new IOException(
+                    "Benchmark settled " + label + " coverage requires at least "
+                            + MIN_SETTLED_CAMPAIGN_FRAMES + " frames and "
+                            + Duration.ofNanos(MIN_SETTLED_CAMPAIGN_ACTIVE_NANOS).toSeconds()
+                            + " active seconds");
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("frames", count);
+        result.put("activeNanos", activeNanos);
+        result.put("coverage", Map.of(
+                "minimumFrames", MIN_SETTLED_CAMPAIGN_FRAMES,
+                "minimumActiveNanos", MIN_SETTLED_CAMPAIGN_ACTIVE_NANOS,
+                "accepted", true));
+        copyNumber(frames, result, "averageFps", "averageFps");
+        copyNumber(frames, result, "medianFps", "medianFps");
+        copyNumber(frames, result, "onePercentLowFps", "onePercentLowFps");
+        copyNumber(frames, result, "pointOnePercentLowFps", "pointOnePercentLowFps");
+        copyNumber(frames, result, "p95Micros", "p95FrameMicros");
+        copyNumber(frames, result, "p99Micros", "p99FrameMicros");
+        copyNumber(frames, result, "over33_33Millis", "over33_33Millis");
+        copyNumber(frames, result, "over50Millis", "over50Millis");
+        copyNumber(frames, result, "over100Millis", "over100Millis");
+        Map<String, Object> stutter = object(frames.get("stutterProfile"));
+        copyNumber(stutter, result, "slowFramesPerMinute", "slowFramesPerMinute");
+        copyNumber(stutter, result,
+                "stutterBurdenMillisPerSecond", "stutterBurdenMillisPerSecond");
+        copyNumber(stutter, result,
+                "repeatedSlowFramesPercent", "repeatedSlowFramesPercent");
+        copyNumber(stutter, result,
+                "longestSlowFrameClusterMillis", "longestSlowFrameClusterMillis");
+        copyNumber(frames, result,
+                "framesMeeting60FpsPercent", "framesMeeting60FpsPercent");
+        return result;
+    }
+
+    private static void copyPerformanceMetrics(
+            Map<String, Object> source, Map<String, Object> destination) {
+        for (String name : List.of(
+                "averageFps", "medianFps", "onePercentLowFps", "pointOnePercentLowFps",
+                "p95FrameMicros", "p99FrameMicros", "over33_33Millis", "over50Millis",
+                "over100Millis", "slowFramesPerMinute", "stutterBurdenMillisPerSecond",
+                "repeatedSlowFramesPercent", "longestSlowFrameClusterMillis",
+                "framesMeeting60FpsPercent")) {
+            if (source.get(name) instanceof Number value) destination.put(name, value);
+        }
     }
 
     private static Map<String, Object> measurementOverhead(
             Map<String, Object> measurement, long routeElapsedMs) throws IOException {
         Long samples = number(measurement, "samples");
         Long totalNanos = number(measurement, "totalNanos");
-        Object averageValue = measurement == null ? null : measurement.get("averageMicros");
+        Object averageValue = measurement == null
+                ? null
+                : measurement.get(FrameTimeTelemetry.AVERAGE_MICROS);
         Object maximumValue = measurement == null ? null : measurement.get("maximumMicros");
         if (samples == null || samples <= 0L || totalNanos == null || totalNanos < 0L
                 || !(averageValue instanceof Number average)
@@ -607,10 +731,10 @@ final class DesktopBenchmarkLaunch {
             throws IOException {
         Path frameReport = artifact(evidence, "frame-report", "frame report");
         Map<String, Object> report = boundedJson(frameReport, "frame report");
-        if (!"starsector-preflight-runtime-frame-report-v1".equals(report.get("format"))) {
+        if (!FrameTimeTelemetry.FRAME_REPORT_FORMAT.equals(report.get("format"))) {
             throw new IOException("Benchmark frame report format is unsupported");
         }
-        Map<String, Object> frameTimes = object(report.get("frameTimes"));
+        Map<String, Object> frameTimes = object(report.get(FrameTimeTelemetry.REPORT));
         if (frameTimes == null) throw new IOException("Benchmark frame report lacks frame telemetry");
         return frameTimes;
     }
@@ -674,6 +798,10 @@ final class DesktopBenchmarkLaunch {
             Map<String, Object> destination,
             String sourceName,
             String destinationName) {
+        if (source == null) {
+            destination.put(destinationName, null);
+            return;
+        }
         Object value = source.get(sourceName);
         destination.put(destinationName, value instanceof Number ? value : null);
     }

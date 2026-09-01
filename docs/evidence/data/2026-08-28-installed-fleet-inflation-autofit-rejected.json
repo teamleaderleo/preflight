@@ -1,0 +1,60 @@
+{
+  "format": "preflight-installed-fleet-inflation-autofit-rejection-v1",
+  "date": "2026-08-28",
+  "issues": [1158, 449],
+  "classification": "intrusive-discovery-rejected-optimization-no-fps-claim",
+  "run": {
+    "label": "issue-1158-inflater-autofit-r2-20260828-174009",
+    "commit": "a07341432e8a2dd683f00b3842ec4df21c1eb496",
+    "profileFingerprint": "2995668308ac3d31d645ccac30fb1a7e644e64fce5609050a1488df4cadc5af6",
+    "resolvedModCount": 83,
+    "resolution": "1440x932",
+    "javaVersion": "21.0.10",
+    "renderer": "Apple M5",
+    "openGlVersion": "2.1 Metal - 90.5",
+    "finalSwapInterval": 1,
+    "routeStatus": "passed",
+    "outcome": "FATAL_LOG_EVIDENCE",
+    "fatalLifecycleEvidence": "SIGSEGV (0xb) at pc=0x000000010f380213, pid=28217, tid=32771",
+    "adapter": {
+      "status": "ACTIVE",
+      "exactMatches": 73,
+      "transformationsApplied": 73,
+      "transformationsDeclined": 0,
+      "containedFailures": 0,
+      "runtimeIntegrityFailures": 0,
+      "sourceBindingRejected": 0,
+      "unavailablePlans": 0
+    },
+    "focusObservations": 7749,
+    "inactiveIntervalsDropped": 0,
+    "measurementOverheadAverageMicros": 26.856437026344278,
+    "measurementOverheadMaximumMicros": 25360.166
+  },
+  "frames": {
+    "pausedSettled": {"frames": 3581, "activeSeconds": 61.196624667, "p50Millis": 17.0, "p95Millis": 19.9, "p99Millis": 32.9, "onePercentLowFps": 30.4, "maximumMillis": 48.929, "over50Millis": 0, "over100Millis": 0},
+    "unpausedSettled": {"frames": 1847, "activeSeconds": 35.4349385, "p50Millis": 16.9, "p95Millis": 31.1, "p99Millis": 63.8, "onePercentLowFps": 15.67, "maximumMillis": 167.956, "over50Millis": 35, "over100Millis": 5, "repeatedSlowFrameClusters": 19, "framesInRepeatedSlowFrameClusters": 46, "stutterBurdenMillisPerSecond": 46.95}
+  },
+  "fleetInflation": {
+    "calls": 3,
+    "membersVisited": 21,
+    "totalMillis": 42.245833,
+    "maximumMillis": 25.989417,
+    "phases": {"initialSetupMillis": 1.963251, "hullmodPoolMillis": 0.204251, "weaponPoolMillis": 2.201708, "fighterPoolMillis": 0.636958, "memberWorkMillis": 33.227083, "autofitMillis": 21.428207, "dmodWorkMillis": 7.964039, "finalSyncMillis": 4.015709},
+    "joinedFrames": [
+      {"durationMillis": 25.989417, "frameMillis": 65.78, "frameSharePercent": 39.51},
+      {"durationMillis": 9.861208, "frameMillis": 31.762, "frameSharePercent": 31.05},
+      {"durationMillis": 6.395208, "frameMillis": 32.233, "frameSharePercent": 19.84}
+    ]
+  },
+  "coreAutofit": {"calls": 21, "totalMillis": 19.854585, "maximumMillis": 8.5735, "primaryFitTotalMillis": 16.566295, "primaryFitMaximumMillis": 7.09675, "weaponFitCallsTotalMillis": 9.242416, "weaponFitCallsMaximumMillis": 2.220875, "fighterFitCallsTotalMillis": 2.00729, "worstJoinedFrameMillis": 65.78, "worstCompleteAutofitFrameSharePercent": 13.03},
+  "decision": {
+    "disposition": "reject broad inflater/autofit optimization",
+    "reason": "The reusable setup pools were immaterial, the dominant path mutates fleet variants and random/autofit/D-mod/synchronization state, and the family did not explain the severe recurring tail.",
+    "nextExactOwner": "exerelin.campaign.econ.EconomyInfoHelper$1",
+    "nextOwnerCalls": 10,
+    "nextOwnerSlowCallsMillis": [42.369917, 13.759292],
+    "nextOwnerFrameAssociationsOver100Millis": 2,
+    "nextOwnerCallbackOverlapMillis": 56.129150390625
+  }
+}

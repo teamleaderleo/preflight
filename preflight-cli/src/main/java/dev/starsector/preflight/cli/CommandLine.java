@@ -47,6 +47,9 @@ record CommandLine(
         boolean quietLogs,
         boolean suppressAssetProgressLogs,
         boolean trustValidatedTextureIndex,
+        boolean frameTimes,
+        boolean campaignTimes,
+        boolean smoothFramePacing,
         boolean desktopSmoke,
         List<String> forwardedArgs) {
     static CommandLine parse(String[] args, int offset) {
@@ -79,6 +82,9 @@ record CommandLine(
         boolean quietLogs = false;
         boolean suppressAssetProgressLogs = false;
         boolean trustValidatedTextureIndex = false;
+        boolean frameTimes = false;
+        boolean campaignTimes = false;
+        boolean smoothFramePacing = false;
         boolean desktopSmoke = false;
         AdapterMode adapterMode = AdapterMode.OFF;
         boolean adapterModeSpecified = false;
@@ -183,6 +189,9 @@ record CommandLine(
                 case "--full-asset-progress-logs" -> suppressAssetProgressLogs = false;
                 case "--trust-validated-texture-index" -> trustValidatedTextureIndex = true;
                 case "--recheck-texture-sources" -> trustValidatedTextureIndex = false;
+                case "--frame-times" -> frameTimes = true;
+                case "--campaign-times" -> campaignTimes = true;
+                case "--smooth-frame-pacing" -> smoothFramePacing = true;
                 case "--desktop-smoke" -> desktopSmoke = true;
                 case "--texture-mode" -> {
                     textureAdapterMode = TextureAdapterMode.valueOf(
@@ -230,6 +239,22 @@ record CommandLine(
         }
         if (adapterTargets != null && adapterMode == AdapterMode.OFF) {
             throw new IllegalArgumentException("--adapter-targets requires --adapter-probe or --adapter");
+        }
+        if (frameTimes && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException(
+                    "--frame-times requires an optimization preset with the runtime adapter enabled");
+        }
+        if (smoothFramePacing && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException(
+                    "--smooth-frame-pacing requires an optimization preset with the runtime adapter enabled");
+        }
+        if (campaignTimes && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException(
+                    "--campaign-times requires an optimization preset with the runtime adapter enabled");
+        }
+        if (campaignTimes && adapterPlanScope != AdapterPlanScope.FULL) {
+            throw new IllegalArgumentException(
+                    "--campaign-times requires the full exact-gated runtime plan scope");
         }
         int textureArtifacts = (textureManifest == null ? 0 : 1) + (textureIndex == null ? 0 : 1);
         boolean manualTextureContext = textureCacheDirectory != null && textureArtifacts == 2;
@@ -350,6 +375,9 @@ record CommandLine(
                 quietLogs,
                 suppressAssetProgressLogs,
                 trustValidatedTextureIndex,
+                frameTimes,
+                campaignTimes,
+                smoothFramePacing,
                 desktopSmoke,
                 List.copyOf(forwarded));
     }

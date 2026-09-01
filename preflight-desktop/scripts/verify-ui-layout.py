@@ -33,7 +33,7 @@ VIEWPORTS = (
 
 PAGE_SWEEP_WIDTHS = {480, 720, 1040, 1440}
 PRIMARY_PAGES = ("Speed", "Mods", "Help", "Settings")
-HOME_RECOVERY_SCENARIOS = ("setup", "cache-repair", "run-failure", "running")
+HOME_RECOVERY_SCENARIOS = ("setup", "cache-repair", "cache-unsafe", "run-failure", "running")
 PAGE_RECOVERY_SCENARIOS = (
     "benchmark-unavailable",
     "mod-problems",
@@ -41,6 +41,7 @@ PAGE_RECOVERY_SCENARIOS = (
     "update-error",
     "report-error",
 )
+PAGE_DATA_SCENARIOS = ("frame-pacing",)
 
 GEOMETRY_SELECTORS = (
     ".home-playtime",
@@ -460,6 +461,15 @@ def assert_keyboard_controls(page: Page, label: str) -> None:
         raise RuntimeError(f"{label}: Launch has no visible keyboard focus: {focus}")
 
     page.get_by_role("button", name="Hangar", exact=True).click()
+    hangar_heading = page.get_by_role("heading", name="Hangar", exact=True)
+    hangar_heading.wait_for()
+    # The shell announces each destination by focusing its heading in a zero-delay task. Wait for
+    # that accessibility handoff before moving focus into the page; otherwise the delayed heading
+    # focus blurs the chooser and makes the canary race normal route housekeeping.
+    page.wait_for_function(
+        "heading => document.activeElement === heading",
+        arg=hangar_heading.element_handle(),
+    )
     chooser = page.get_by_role("combobox", name="Display ship")
     chooser.focus()
     chooser.fill("Para")
@@ -696,6 +706,39 @@ def exercise_recovery_state(
         context.close()
 
 
+def exercise_frame_pacing_state(
+    browser: Browser,
+    base_url: str,
+    width: int,
+    height: int,
+    output_dir: Path | None,
+) -> tuple[dict[str, object], list[str]]:
+    scenario = "frame-pacing"
+    label = f"{width}x{height} {scenario}"
+    context, page, errors = open_preview(
+        browser,
+        base_url,
+        width,
+        height,
+        scenario,
+        "#page-workspace",
+    )
+    try:
+        page.get_by_role("button", name="Speed", exact=True).click()
+        card = page.get_by_role("region", name="Latest frame pacing", exact=True)
+        card.wait_for()
+        coverage = card.get_by_text(re.compile(r"frames · .+ active"))
+        if coverage.count() != 3:
+            raise RuntimeError(
+                f"{label}: expected active duration beside all three pacing distributions"
+            )
+        result = assert_page_width(page, label)
+        capture(page, output_dir, f"state-{scenario}-{width}x{height}.png")
+        return result, errors
+    finally:
+        context.close()
+
+
 def settle_hangar_for_capture(page: Page) -> None:
     """Put every captured Hangar at the same saved view and animation phase."""
     page.evaluate("localStorage.removeItem('preflight.instrumentHullView.v1')")
@@ -753,7 +796,11 @@ def render_contact_sheet(browser: Browser, output_dir: Path) -> None:
                     f'<figure><figcaption>{html.escape(label)} · profile menu</figcaption>'
                     f'<img src="{html.escape(filename)}" alt="Open profile menu at {html.escape(label)}"></figure>'
                 )
-            for scenario in (*HOME_RECOVERY_SCENARIOS, *PAGE_RECOVERY_SCENARIOS):
+            for scenario in (
+                *HOME_RECOVERY_SCENARIOS,
+                *PAGE_RECOVERY_SCENARIOS,
+                *PAGE_DATA_SCENARIOS,
+            ):
                 filename = f"state-{scenario}-{label}.png"
                 cards.append(
                     f'<figure><figcaption>{html.escape(label)} · {html.escape(scenario)}</figcaption>'
@@ -973,6 +1020,7 @@ def main() -> int:
                                 page.get_by_role("heading", name={
                                     "setup": "Setup",
                                     "cache-repair": "Fast launch",
+                                    "cache-unsafe": "Fast launch",
                                     "run-failure": "Needs attention",
                                     "running": "Running",
                                 }[scenario], exact=True).wait_for()
@@ -982,7 +1030,7 @@ def main() -> int:
                                     raise RuntimeError(
                                         f"{label} {scenario}: recovery left the ship picker on screen"
                                     )
-                                if scenario in ("cache-repair", "running"):
+                                if scenario in ("cache-repair", "cache-unsafe", "running"):
                                     geometry[key]["home"] = assert_home_geometry(page, f"{label} {scenario}")
                                 capture(page, args.output_dir, f"state-{scenario}-{label}.png")
                                 if errors:
@@ -1006,6 +1054,19 @@ def main() -> int:
                                 raise RuntimeError(
                                     f"{label} {scenario}: browser errors: {' | '.join(errors)}"
                                 )
+
+                        result, errors = exercise_frame_pacing_state(
+                            browser,
+                            base_url,
+                            width,
+                            height,
+                            args.output_dir,
+                        )
+                        geometry[f"{label}-frame-pacing"] = result
+                        if errors:
+                            raise RuntimeError(
+                                f"{label} frame-pacing: browser errors: {' | '.join(errors)}"
+                            )
                 if args.output_dir is not None:
                     args.output_dir.mkdir(parents=True, exist_ok=True)
                     (args.output_dir / "geometry.json").write_text(

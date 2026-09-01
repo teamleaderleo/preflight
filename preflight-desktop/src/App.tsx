@@ -24,6 +24,7 @@ import { WorkflowLockNotice } from "./components/WorkflowLockNotice";
 import { useDesktopAutomation } from "./useDesktopAutomation";
 import { useAutomaticMaintenance } from "./useAutomaticMaintenance";
 import { useAfterLaunchBehavior } from "./useAfterLaunchBehavior";
+import { useFramePacingPreference } from "./useFramePacingPreference";
 import { lastRunForCurrentProfile } from "./lastRunApplicability";
 import { launchProfileNameFor } from "./launchProfileIdentity";
 import { useCacheCleanup } from "./useCacheCleanup";
@@ -54,6 +55,7 @@ import type {
   AppStatus,
   DesktopSnapshot,
   NoticeTone,
+  OptimizationPreset,
   RunStateEvent,
 } from "./types";
 
@@ -81,12 +83,17 @@ interface RunFailure {
   profileFingerprint?: string;
 }
 
+type RetryIntent =
+  | { kind: "discovery" }
+  | { kind: "installation"; game: string }
+  | { kind: "launch"; preset: OptimizationPreset };
+
 export default function App() {
   const theme = useTheme();
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | null>(null);
   const [status, setStatus] = useState<AppStatus>(() =>
     !isDesktopHost() && browserPreviewScenario() === "running" ? "running" : "loading");
-  const [retryIntent, setRetryIntent] = useState<{ kind: "discovery" | "installation" | "launch"; game?: string } | null>(null);
+  const [retryIntent, setRetryIntent] = useState<RetryIntent | null>(null);
   const [runFailure, setRunFailure] = useState<RunFailure | null>(previewRunFailure);
   const [maintenanceEpoch, setMaintenanceEpoch] = useState(0);
   const [page, setPage] = useState<Page>("home");
@@ -118,6 +125,12 @@ export default function App() {
     setOptimizationDomainEnabled,
   } = useOptimizationPolicy();
   const { afterLaunchBehavior, setAfterLaunchBehavior } = useAfterLaunchBehavior();
+  const {
+    recordFramePacing,
+    setRecordFramePacing,
+    smoothFramePacing,
+    setSmoothFramePacing,
+  } = useFramePacingPreference();
   const refreshRequest = useRef(0);
   const setInstallationStatus = useCallback((next: AppStatus) => {
     setStatus((current) => (current === "running" || current === "launching" ? current : next));
@@ -169,18 +182,22 @@ export default function App() {
       return false;
     }
   }, [announceInstallation, clearNotice, setInstallationStatus]);
-  const launch = useCallback(async () => {
+  const launch = useCallback(async (presetOverride?: OptimizationPreset) => {
     const game = snapshot?.selected?.installRoot;
     if (!game) return;
+    const launchPreset = presetOverride ?? optimizationPreset;
+    const launchDisabledDomains = launchPreset === "off" ? [] : disabledOptimizationDomains;
     setStatus("launching");
     setRetryIntent(null);
     announceGame("Opening Starsector…");
     try {
       const started = await startGame(
         game,
-        optimizationPreset,
-        disabledOptimizationDomains,
+        launchPreset,
+        launchDisabledDomains,
         afterLaunchBehavior,
+        recordFramePacing,
+        smoothFramePacing,
       );
       setForceStopAvailable(false);
       if (!isDesktopHost()) setStatus("running");
@@ -190,8 +207,8 @@ export default function App() {
         installRoot: game,
         profileFingerprint: fingerprint,
       };
-      countWhenFinished.current = optimizationPreset === "recommended"
-        && disabledOptimizationDomains.length === 0
+      countWhenFinished.current = launchPreset === "recommended"
+        && launchDisabledDomains.length === 0
         && fingerprint
         ? { pid: started.pid, profileFingerprint: fingerprint }
         : null;
@@ -200,10 +217,10 @@ export default function App() {
       launchTargetWhenFinished.current = null;
       countWhenFinished.current = null;
       setStatus("error");
-      setRetryIntent({ kind: "launch" });
+      setRetryIntent({ kind: "launch", preset: launchPreset });
       announceGame(String(error), "error");
     }
-  }, [afterLaunchBehavior, announceGame, disabledOptimizationDomains, optimizationPreset, snapshot?.selected?.installRoot]);
+  }, [afterLaunchBehavior, announceGame, disabledOptimizationDomains, optimizationPreset, recordFramePacing, smoothFramePacing, snapshot?.selected?.installRoot]);
 
   const stopRunningGame = useCallback(async () => {
     if (stoppingGame) return;
@@ -304,7 +321,9 @@ export default function App() {
   };
   const launchWithoutPreparing = async () => {
     if (!requireAppliedLauncherSettings()) return;
-    await launch();
+    // This is the recovery baseline, not merely a preparation skip. In particular, an unsafe or
+    // uninspectable cache must never flow into the adapter just because the saved preference is On.
+    await launch("off");
   };
   const removal = useRemoval(
     snapshot?.platform,
@@ -581,7 +600,8 @@ export default function App() {
   );
   const retryFailedOperation = () => {
     if (retryIntent?.kind === "launch") {
-      void primaryLaunch();
+      if (!requireAppliedLauncherSettings()) return;
+      void launch(retryIntent.preset);
       return;
     }
     void refresh(retryIntent?.kind === "installation" ? retryIntent.game : undefined);
@@ -726,7 +746,10 @@ export default function App() {
             diagnostics={diagnostics}
             operationBlocked={operationBlocked}
             optimizationPreset={optimizationPreset}
-            onTurnOffOptimizations={() => setOptimizationPreset("off")}
+            onTurnOffOptimizations={() => {
+              setOptimizationPreset("off");
+              navigate("home");
+            }}
             onChooseInstall={() => {
               void chooseInstall().then((changed) => {
                 if (changed) navigate("home");
@@ -746,9 +769,14 @@ export default function App() {
             removalPlan={removal.plan}
             removalBusy={removal.busy}
             afterLaunchBehavior={afterLaunchBehavior}
+            recordFramePacing={recordFramePacing}
+            smoothFramePacing={smoothFramePacing}
+            framePacingPaused={optimizationPreset === "off"}
             installation={snapshot?.selected?.installRoot ?? null}
             installationChangeBlockedReason={activeOperation?.reason ?? null}
             onAfterLaunchBehaviorChange={setAfterLaunchBehavior}
+            onRecordFramePacingChange={setRecordFramePacing}
+            onSmoothFramePacingChange={setSmoothFramePacing}
             onChooseInstall={() => void chooseInstall()}
             onReviewRemoval={(scope) => void removal.review(scope)}
             onDismissRemoval={removal.dismiss}

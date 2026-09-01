@@ -28,6 +28,13 @@
         "safety": "ambiguous or out-of-installation files are refused; the exact file is backed up and replaced through a same-directory temporary file"
       }
     ],
+    "userSelectedWrites": [
+      {
+        "target": "a new .txt setup-summary file chosen through the operating-system save dialog",
+        "when": "the user selects Save setup summary",
+        "safety": "only the versioned, 128 KiB-bounded public setup projection is accepted; existing files and non-text destinations are refused"
+      }
+    ],
     "excluded": [
       "save files",
       "game JARs",

@@ -1,0 +1,158 @@
+{
+  "format": "starsector-preflight-combat-severe-frame-attribution-v1",
+  "date": "2026-08-28",
+  "disposition": "diagnostic-no-narrow-candidate",
+  "reason": "The exact retained >=100 ms combat-frame population did not contain a broadly recurring CPU or allocation family with enough excess presence to justify an optimization candidate.",
+  "identity": {
+    "gameVersion": "0.98a-RC8",
+    "profileFingerprint": "2995668308ac3d31d645ccac30fb1a7e644e64fce5609050a1488df4cadc5af6",
+    "textureProfileFingerprint": "59b01dc050f39a9f07053bd168cc8c1ecd55086b429b2d732456f87ca217a702",
+    "profileMods": 83,
+    "preflightJarSha256": "d3c8ef4078596f379efa0ce2233af7bd562218e900c3cef2b23bf22b14193eae",
+    "resolution": "1440x932 windowed",
+    "swapInterval": 1,
+    "frameRateCap": "unchanged; owned by Starsector's main loop",
+    "preset": "recommended",
+    "adapterScope": "full",
+    "gameRuntime": "Java 17 x86_64 under Rosetta",
+    "wrapperRuntime": "Java 21.0.10 aarch64",
+    "scenario": "campaign-simulation-combat-1000dp",
+    "scenarioStep": "combat-sample-1040dp",
+    "fixture": "24 mirrored ships and 520 DP per side",
+    "viewport": {
+      "centerX": 0.0,
+      "centerY": 0.0,
+      "viewMult": 4.0,
+      "visibleWidth": 5760.0,
+      "visibleHeight": 3728.0
+    }
+  },
+  "workload": {
+    "wallSeconds": 30.005,
+    "simulationSeconds": 39.174084,
+    "combatEnded": false,
+    "begin": {
+      "ships": 102,
+      "sideZeroNonFighters": 32,
+      "sideZeroFighters": 10,
+      "sideOneNonFighters": 50,
+      "sideOneFighters": 10,
+      "projectiles": 3,
+      "missiles": 3
+    },
+    "end": {
+      "ships": 121,
+      "sideZeroNonFighters": 29,
+      "sideZeroFighters": 12,
+      "sideOneNonFighters": 52,
+      "sideOneFighters": 16,
+      "hulks": 12,
+      "projectiles": 228,
+      "missiles": 106
+    }
+  },
+  "frameMeasurement": {
+    "classification": "intrusive JFR discovery capture; never an FPS claim",
+    "frames": 589,
+    "activeSeconds": 29.973782583,
+    "averageFps": 19.65,
+    "medianFps": 21.37,
+    "p50Millis": 46.8,
+    "p95Millis": 81.7,
+    "p99Millis": 145.8,
+    "onePercentLowFps": 6.86,
+    "maximumMillis": 170.677,
+    "framesOver50Millis": 211,
+    "framesOver100Millis": 20,
+    "presentation": {
+      "completeFrames": 589,
+      "preSwapAverageMillis": 50.342,
+      "preSwapP99Millis": 144.9,
+      "nativeSwapAverageMillis": 0.304,
+      "nativeSwapP99Millis": 0.6,
+      "nativeSwapThreadCpuAverageMillis": 0.221,
+      "nativeSwapInferredOffCpuAverageMillis": 0.083,
+      "slowFramesWherePreSwapWasLargest": 571,
+      "slowFramesWhereSwapWasLargest": 0
+    },
+    "measurementOverhead": {
+      "samples": 2159,
+      "averageMicros": 39.915,
+      "maximumMicros": 9897.167
+    },
+    "asyncGpuTimerRequested": false
+  },
+  "severeFrameAttribution": {
+    "thresholdMillis": 100,
+    "sessionSevereFramesRetained": 29,
+    "packetTriggersDropped": 0,
+    "stepIntersectedGroups": 18,
+    "stepIntersectedWallSeconds": 2.657,
+    "executionSamples": {
+      "severeCombat": 51,
+      "sameStepBackgroundCombat": 607
+    },
+    "strongestNarrowLead": {
+      "owner": "Advanced Gunnery Control",
+      "method": "com.dp.advancedgunnerycontrol.weaponais.TagBasedAI.advance",
+      "severeSamples": 4,
+      "severeSharePercent": 7.84,
+      "backgroundSamples": 13,
+      "backgroundSharePercent": 2.14,
+      "lift": 3.66,
+      "distinctGroups": 2,
+      "totalGroups": 18,
+      "decision": "insufficient breadth for a candidate"
+    },
+    "broadLead": {
+      "method": "com.fs.starfarer.combat.systems.WeaponGroup.advance",
+      "severeSamples": 13,
+      "severeSharePercent": 25.49,
+      "backgroundSamples": 124,
+      "backgroundSharePercent": 20.43,
+      "lift": 1.25,
+      "distinctGroups": 10,
+      "totalGroups": 18,
+      "decision": "broadly present but weakly enriched"
+    }
+  },
+  "allocationSampling": {
+    "interpretation": "JFR ObjectAllocationSample weights are estimates, not an exact allocation census",
+    "wholeStep": {
+      "combatSamples": 2804,
+      "weightedGiB": 4.0,
+      "topObject": "org.lwjgl.util.vector.Vector2f",
+      "topObjectWeightedGiB": 1.2,
+      "topObjectSharePercent": 30.77,
+      "topOwnersWeightedMiB": {
+        "com.fs.starfarer.loading.specs.voidsuper.computePosition": 469.6,
+        "dev.starsector.preflight.agent.CollisionQuerySet.initialize": 331.3,
+        "com.genir.aitweaks.core.shipai.autofire.SelectTarget.selectTarget": 218.7
+      }
+    },
+    "severeWindows": {
+      "combatSamples": 246,
+      "weightedMiB": 342.7,
+      "topObject": "org.lwjgl.util.vector.Vector2f",
+      "topObjectWeightedMiB": 95.1,
+      "topObjectSharePercent": 27.74,
+      "collisionQuerySetWeightedMiB": 40.0,
+      "vanillaComputePositionWeightedMiB": 30.0
+    },
+    "decision": "The severe-window mix broadly resembles the whole step; no severe-specific allocation family was established. CollisionQuerySet v2 is already accepted-with-limit, and the WeaponHandle location successor is already rejected."
+  },
+  "analysis": {
+    "recordingClockWallPerRecordedSecond": 2.494,
+    "fixedSlowClusterFinding": "The 33.33 ms cluster selector covered 29.372 of 30 seconds because the stress fixture itself averaged roughly 50.9 ms/frame; it is invalid as hitch enrichment for this workload.",
+    "newAnalyzerMode": "--hitch-frame-millis 100",
+    "nextDecision": "Use the already-developed runtime owner/JVM correlation and hitch classifier after their carrier branches are integration-safe, or run an existing exact child-lane candidate. Do not invent a CPU patch from this sparse severe sample."
+  },
+  "hashes": {
+    "jfr": "52d4fa461deccaafcafb6636f0a58694c425af6371333e85aece4c90e8bca52a",
+    "runtimeFrameReport": "e02fd558b4d0ddffd1555a6466e0afa110adf5c1cd715e3a9b1842f7003cf627",
+    "runtimeAdapterHealth": "62ee65011e7d9de57217cd5eea82cee96ecdeb6ddb954a442cf2581628215671",
+    "smokeEvidence": "2c2da7b97eef2947eac79da2c3eff3d2c3b4756579f0601e3198a121f0cdb669",
+    "run": "a5972b7a6248e6af630e50cb606a399a8f6fe993080e90d8bf68849fc76651d0",
+    "profile": "0c6f660fa1ddac162fc1351c5a6f84ab41e5c38b3a94280046e92d62c676639e"
+  }
+}

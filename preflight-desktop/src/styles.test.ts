@@ -4,6 +4,21 @@ import homePresentationStyles from "./homePresentation.css?raw";
 
 const homeCascade = [styles, releaseReadinessStyles, homePresentationStyles].join("\n");
 
+function relativeLuminance(hex: string) {
+  const channels = [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16) / 255);
+  const linear = channels.map((channel) => channel <= 0.04045
+    ? channel / 12.92
+    : ((channel + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+}
+
+function contrastRatio(one: string, two: string) {
+  const oneLuminance = relativeLuminance(one);
+  const twoLuminance = relativeLuminance(two);
+  return (Math.max(oneLuminance, twoLuminance) + 0.05)
+    / (Math.min(oneLuminance, twoLuminance) + 0.05);
+}
+
 test("responsive layouts keep document scrolling locked to bounded workspaces", () => {
   expect(styles).toMatch(/body\s*\{[^}]*overflow:\s*hidden;/s);
   expect(styles).toMatch(/@media \(max-width: 1000px\)[\s\S]*?\.app-shell\s*\{[^}]*height:\s*100dvh;[^}]*overflow:\s*hidden;/);
@@ -73,6 +88,28 @@ test("status colours stay separable from the structural gold", () => {
   // the error red, which is the nearest thing to both that still reads as a warning.
 });
 
+test("the active-profile badge keeps small-text contrast", () => {
+  const badge = /\.profile-card__copy b\s*\{([^}]*)\}/s.exec(styles)?.[1];
+  expect(badge).toBeTruthy();
+  const foreground = /color:\s*(#[0-9a-f]{6});/.exec(badge!)?.[1];
+  const background = /background:\s*(#[0-9a-f]{6});/.exec(badge!)?.[1];
+  expect(foreground).toBeTruthy();
+  expect(background).toBeTruthy();
+
+  expect(contrastRatio(foreground!, background!)).toBeGreaterThanOrEqual(4.5);
+});
+
+test("primary actions keep white-text contrast at rest and become darker on hover", () => {
+  const actions = Array.from(styles.matchAll(/--action:\s*(#[0-9a-f]{6});/g), (match) => match[1]);
+  expect(actions).toHaveLength(10);
+  for (const action of actions) {
+    expect(contrastRatio("#ffffff", action), action).toBeGreaterThanOrEqual(4.5);
+  }
+  expect(styles).not.toContain("--action-hover");
+  expect(styles).toMatch(/\.button--primary:not\(:disabled\):hover\s*\{[^}]*background:\s*color-mix\(in srgb, var\(--action\) 88%, black\);/s);
+  expect(styles).toMatch(/\.button--launch:not\(:disabled\):hover\s*\{[^}]*background:\s*color-mix\(in srgb, var\(--action\) 88%, black\);/s);
+});
+
 test("active controls look active without relying on gradients", () => {
   expect(styles).toContain("--action: #9a6a24");
   expect(styles).toMatch(/\.button--primary\s*\{[^}]*background:\s*var\(--action\);/s);
@@ -92,7 +129,7 @@ test("wide, narrow, and short windows keep content inside the desktop shell", ()
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.prepare-page\s*\{[^}]*gap:\s*10px;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.settings-page\s*\{[^}]*gap:\s*10px;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.settings-page \.removal-card\s*\{[^}]*margin-top:\s*0;/);
-  expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.help-page :is\(\.support-card, \.help-links-card\)\s*\{[^}]*padding-top:\s*21px;/);
+  expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.help-page :is\(\.support-card, \.help-links-card, \.help-boundary-card\)\s*\{[^}]*padding-top:\s*21px;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.prepare-page \.scoreboard\s*\{[^}]*padding:\s*14px 22px;/);
   expect(styles).toMatch(/\.preferences-card > \.preference-block:only-child\s*\{[^}]*grid-column:\s*1 \/ -1;[^}]*grid-template-columns:\s*minmax\(220px, 0\.7fr\) minmax\(320px, 1\.3fr\);/s);
   expect(styles).toMatch(/@media \(max-width: 760px\)[\s\S]*?\.preferences-card,[\s\S]*?grid-template-columns:\s*1fr;/);

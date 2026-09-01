@@ -162,12 +162,14 @@ test("the default cold-profile action prepares with balanced settings and then l
   expect(screen.queryByText("First launch setup")).not.toBeInTheDocument();
   expect(screen.getByText(/Uses about .* · .* free\./))
     .toBeInTheDocument();
-  expect(screen.getByLabelText("186h played across 78 recorded sessions")).toBeInTheDocument();
+  expect(screen.getByText(/Prepared data stays in Preflight’s own folder/))
+    .toHaveTextContent("It isn’t written into game files, mods, or saves.");
+  expect(screen.getByRole("group", { name: "186h played across 78 recorded sessions" })).toBeInTheDocument();
   expect(within(screen.getByRole("main")).queryByText(/^for Starsector$/i)).not.toBeInTheDocument();
   expect(screen.getByText(/^for Starsector$/i)).toBeInTheDocument();
   await user.click(action);
   await waitFor(() => expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256));
-  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize"));
+  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize", false, false));
 
   cache.mockRestore();
   preparation.mockRestore();
@@ -184,6 +186,7 @@ test("the first-run preview keeps empty history out of the setup flow", async ()
   expect(visibleLabel(/recorded playtime/i)).toHaveLength(0);
   expect(visibleLabel("Hide time")).toHaveLength(0);
   expect(visibleLabel("Show time")).toHaveLength(0);
+  expect(screen.getByText(/Prepared data stays in Preflight’s own folder/)).toBeVisible();
 });
 
 test("repairs only the reviewed profile before rebuilding and launching", async () => {
@@ -223,7 +226,7 @@ test("repairs only the reviewed profile before rebuilding and launching", async 
   await user.click(screen.getByRole("button", { name: "Repair and launch" }));
   await waitFor(() => expect(repair).toHaveBeenCalledWith("/Applications/Starsector", "preview-profile"));
   await waitFor(() => expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256));
-  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize"));
+  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize", false, false));
 
   health.mockRestore();
   repair.mockRestore();
@@ -258,7 +261,7 @@ test("preparation started on Home remains visible and can be stopped safely", as
   game.mockRestore();
 });
 
-test("a refused preparation still leaves a way to launch the game", async () => {
+test("a refused preparation still leaves an unoptimized way to launch the game", async () => {
   const user = userEvent.setup();
   const cold = cacheSnapshot({ profiles: [] });
   const basePlan = await bridge.getPreparationPlan("/Applications/Starsector", "balanced", 4);
@@ -282,7 +285,7 @@ test("a refused preparation still leaves a way to launch the game", async () => 
   expect(screen.getByText(/Preparation needs .* free; .* is available\./)).toBeInTheDocument();
   await user.click(launch);
 
-  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize"));
+  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "off", [], "minimize", false, false));
   expect(preparation).not.toHaveBeenCalled();
 
   cache.mockRestore();
@@ -290,6 +293,49 @@ test("a refused preparation still leaves a way to launch the game", async () => 
   preparation.mockRestore();
   game.mockRestore();
 });
+
+test.each(["unsafe", "unknown"] as const)(
+  "launching normally bypasses %s prepared data with optimizations off",
+  async (status) => {
+    const user = userEvent.setup();
+    const blocked: CacheHealth = {
+      format: "starsector-preflight-cache-health-v1",
+      status,
+      profileFingerprint: "preview-profile",
+      issues: [{
+        artifact: "prepared-textures",
+        summary: status === "unsafe"
+          ? "The prepared data location could not be verified."
+          : "Prepared data could not be inspected.",
+        path: "~/.starsector-preflight/cache/packs/preview-profile.spfp",
+      }],
+      repairBytes: 0,
+      repairFiles: 0,
+    };
+    const health = vi.spyOn(bridge, "getCacheHealth").mockResolvedValue(blocked);
+    const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 4242 });
+
+    render(<App />);
+
+    expect(await screen.findByText(
+      status === "unsafe" ? "Prepared data location needs attention" : "Prepared data couldn't be checked",
+    )).toBeInTheDocument();
+    expect(screen.getByText(/Starsector, your mods, and your saves are unchanged/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Launch normally" }));
+
+    await waitFor(() => expect(game).toHaveBeenCalledWith(
+      "/Applications/Starsector",
+      "off",
+      [],
+      "minimize",
+      false,
+      false,
+    ));
+
+    health.mockRestore();
+    game.mockRestore();
+  },
+);
 
 test("a refused preparation offers the preparation that barely uses disk", async () => {
   const user = userEvent.setup();
@@ -366,7 +412,7 @@ test("shows a useful ready-state home screen in browser preview", async () => {
   expect(screen.getAllByText("Launch Starsector")).toHaveLength(1);
   expect(screen.queryByRole("button", { name: "Choose another" })).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Active profile")).not.toBeInTheDocument();
-  expect(screen.getByLabelText("186h played across 78 recorded sessions")).toBeInTheDocument();
+  expect(screen.getByRole("group", { name: "186h played across 78 recorded sessions" })).toBeInTheDocument();
   expect(screen.queryByLabelText("Mod profile")).not.toBeInTheDocument();
   expect(window.localStorage.getItem(HOME_OPTIONS_STORAGE_KEY)).toBeNull();
   await user.click(screen.getByRole("button", { name: "Options" }));
@@ -504,6 +550,7 @@ test("setup keeps a single installation action and hides unavailable ready-state
   expect(await screen.findByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Make a support file" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "Copy setup" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Save setup summary…" })).toBeVisible();
   expect(screen.getByRole("button", { name: "Open issue" })).toBeVisible();
 
   snapshot.mockRestore();
@@ -523,6 +570,42 @@ test("a failed launch is an alert and retries the launch operation", async () =>
 
   await waitFor(() => expect(game).toHaveBeenCalledTimes(2));
   expect(await screen.findByRole("heading", { name: "Running", level: 1 })).toBeInTheDocument();
+  game.mockRestore();
+});
+
+test("a failed normal launch retries with optimizations off", async () => {
+  const user = userEvent.setup();
+  const blocked: CacheHealth = {
+    format: "starsector-preflight-cache-health-v1",
+    status: "unsafe",
+    profileFingerprint: "preview-profile",
+    issues: [{
+      artifact: "prepared-textures",
+      summary: "The prepared data location could not be verified.",
+      path: "~/.starsector-preflight/cache/packs/preview-profile.spfp",
+    }],
+    repairBytes: 0,
+    repairFiles: 0,
+  };
+  const health = vi.spyOn(bridge, "getCacheHealth").mockResolvedValue(blocked);
+  const preparation = vi.spyOn(bridge, "startPreparation").mockResolvedValue({ pid: 4243 });
+  const game = vi.spyOn(bridge, "startGame")
+    .mockRejectedValueOnce(new Error("launcher refused"))
+    .mockResolvedValueOnce({ pid: 4242 });
+
+  render(<App />);
+
+  await user.click(await screen.findByRole("button", { name: "Launch normally" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("launcher refused");
+  await user.click(screen.getByRole("button", { name: "Try launch again" }));
+
+  await waitFor(() => expect(game).toHaveBeenCalledTimes(2));
+  expect(game).toHaveBeenNthCalledWith(1, "/Applications/Starsector", "off", [], "minimize", false, false);
+  expect(game).toHaveBeenNthCalledWith(2, "/Applications/Starsector", "off", [], "minimize", false, false);
+  expect(preparation).not.toHaveBeenCalled();
+
+  health.mockRestore();
+  preparation.mockRestore();
   game.mockRestore();
 });
 
@@ -566,9 +649,10 @@ test("does not rediscover a stable installation when the window regains focus", 
   await screen.findByRole("heading", { name: "Ready", level: 1 });
   const afterSetup = snapshot.mock.calls.length;
 
-  window.dispatchEvent(new Event("focus"));
-  document.dispatchEvent(new Event("visibilitychange"));
-  await Promise.resolve();
+  await act(async () => {
+    window.dispatchEvent(new Event("focus"));
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
 
   expect(snapshot.mock.calls.length).toBe(afterSetup);
   expect(screen.getByRole("heading", { name: "Ready", level: 1 })).toBeInTheDocument();
@@ -597,10 +681,11 @@ test("window focus never changes the quick game controls", async () => {
   expect(sound).toBeEnabled();
   expect(sound).toBeChecked();
 
-  window.dispatchEvent(new Event("blur"));
-  document.dispatchEvent(new Event("visibilitychange"));
-  window.dispatchEvent(new Event("focus"));
-  await Promise.resolve();
+  await act(async () => {
+    window.dispatchEvent(new Event("blur"));
+    document.dispatchEvent(new Event("visibilitychange"));
+    window.dispatchEvent(new Event("focus"));
+  });
 
   expect(sound).toBeEnabled();
   expect(sound).toBeChecked();
@@ -628,8 +713,10 @@ test("window focus does not reveal and re-hide an idle Home HUD", async () => {
     act(() => vi.advanceTimersByTime(2200));
     expect(home).toHaveClass("home-hud--idle");
 
-    fireEvent.blur(window);
-    fireEvent.focus(window);
+    await act(async () => {
+      fireEvent.blur(window);
+      fireEvent.focus(window);
+    });
     expect(home).toHaveClass("home-hud--idle");
   } finally {
     vi.useRealTimers();
@@ -646,8 +733,9 @@ test("returning to the window does not re-read the installation while the game r
   await waitFor(() => expect(game).toHaveBeenCalled());
   const whileRunning = snapshot.mock.calls.length;
 
-  window.dispatchEvent(new Event("focus"));
-  await Promise.resolve();
+  await act(async () => {
+    window.dispatchEvent(new Event("focus"));
+  });
 
   expect(snapshot.mock.calls.length).toBe(whileRunning);
   snapshot.mockRestore();
@@ -840,6 +928,8 @@ test("the primary action requires an explicit Apply before launching edited glob
     "recommended",
     [],
     "minimize",
+    false,
+    false,
   ));
   update.mockRestore();
   game.mockRestore();
@@ -936,7 +1026,8 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   await user.click(screen.getByRole("radio", { name: "Conservative optimizations" }));
   expect(screen.getByRole("radio", { name: "Conservative optimizations" })).toBeChecked();
   expect(screen.getByRole("checkbox", { name: "Use Preflight optimizations" }).closest("label"))
-    .toHaveTextContent("Compatibility");
+    .toHaveTextContent("Conservative");
+  expect(screen.getByText(/Conservative mode uses startup caches/)).toBeInTheDocument();
   expect(screen.getByRole("radio", { name: /Balanced/ })).toBeChecked();
   expect(screen.getByRole("checkbox", { name: /Prepared textures/ })).toBeChecked();
   expect(screen.getByRole("checkbox", { name: /Prepared audio/ })).toBeChecked();
@@ -969,6 +1060,8 @@ test("advanced domain selections are validated on restore and reach the typed la
     "recommended",
     ["prepared-textures"],
     "minimize",
+    false,
+    false,
   ));
   expect(window.localStorage.getItem("preflight.disabledOptimizationDomains"))
     .toBe('["prepared-textures"]');
@@ -985,6 +1078,8 @@ test("after-launch behavior defaults to minimize and remains an explicit setting
   const behavior = await screen.findByRole("combobox", { name: "Preflight window" });
   expect(behavior).toHaveValue("minimize");
   await user.selectOptions(behavior, "keep");
+  await user.click(screen.getByRole("checkbox", { name: "Record frame pacing" }));
+  await user.click(screen.getByRole("checkbox", { name: "Smooth frame pacing" }));
   await user.click(screen.getByRole("button", { name: "Home" }));
   await user.click(await screen.findByRole("button", { name: "Launch Starsector" }));
   await waitFor(() => expect(game).toHaveBeenCalledWith(
@@ -992,9 +1087,35 @@ test("after-launch behavior defaults to minimize and remains an explicit setting
     "recommended",
     [],
     "keep",
+    true,
+    true,
   ));
   expect(window.localStorage.getItem("preflight.afterLaunchBehavior")).toBe("keep");
+  expect(window.localStorage.getItem("preflight.framePacing.v1")).toBe("on");
+  expect(window.localStorage.getItem("preflight.smoothFramePacing.v1")).toBe("on");
   game.mockRestore();
+});
+
+test("an opted-in session surfaces bounded campaign and combat pacing on Speed", async () => {
+  window.history.replaceState(null, "", "/?scenario=frame-pacing");
+  const user = userEvent.setup();
+
+  render(<App />);
+  await user.click(await screen.findByRole("button", { name: "Speed" }));
+
+  const card = await screen.findByRole("region", { name: "Latest frame pacing" });
+  expect(within(card).getByRole("group", { name: "Campaign first 30 seconds" })).toHaveTextContent("55.8 FPS");
+  expect(within(card).getByRole("group", { name: "Campaign first 30 seconds" })).toHaveTextContent("30.0s active");
+  expect(within(card).getByRole("group", { name: "Paused campaign after 30 seconds" })).toHaveTextContent("1.2 ms/s");
+  expect(within(card).getByRole("group", { name: "Paused campaign after 30 seconds" })).toHaveTextContent("1m 8s active");
+  expect(within(card).getByRole("group", { name: "Unpaused campaign after 30 seconds" })).toHaveTextContent("56.4 ms/s");
+  expect(within(card).getByRole("group", { name: "Unpaused campaign after 30 seconds" })).toHaveTextContent("1m 3s active");
+  expect(within(card).getByRole("group", { name: "Combat" })).toHaveTextContent("54.2 FPS");
+  expect(within(card).getByRole("group", { name: "Combat" })).toHaveTextContent("58.5s active");
+  expect(card).toHaveTextContent("come from the same launch");
+  expect(card).toHaveTextContent("They don’t compare optimizations off and on.");
+  expect(card).toHaveTextContent("disjoint active-state windows");
+  expect(card).toHaveTextContent("recorder doesn’t open or change save files");
 });
 
 test("the Hangar keeps the ship central and its compact customization local to that hull", async () => {
@@ -1306,6 +1427,9 @@ test("diagnostics disclose their boundary and export a bounded bundle", async ()
   await user.click(screen.getByText("What’s inside?"));
   expect(screen.getByText("Run details")).toBeInTheDocument();
   expect(screen.getByText("Your game and data")).toBeInTheDocument();
+  expect(screen.getByText(/Whether the launch finished, which Java version ran/)).toBeInTheDocument();
+  expect(screen.getByText(/Game, mod, save, texture, audio or compiled-code contents/)).toBeInTheDocument();
+  expect(screen.getByText(/Performance recordings, screenshots, audio or files Preflight doesn’t recognize/)).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Make a support file" }));
 
   expect(await screen.findByText("Support file ready")).toBeInTheDocument();
@@ -1591,13 +1715,10 @@ test("help performs its fixes instead of only pointing at other pages", async ()
   await screen.findByRole("heading", { name: "Common fixes", level: 2 });
 
   await user.click(screen.getByRole("button", { name: "Try without optimizations" }));
-  expect(screen.getByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Go to launch" })).toBeEnabled();
-  await waitFor(() => expect(window.localStorage.getItem("preflight.optimizationPreset")).toBe("off"));
-
-  await user.click(screen.getByRole("button", { name: "Go to launch" }));
   expect(await screen.findByRole("heading", { name: "Ready", level: 1 })).toBeInTheDocument();
   expect(screen.getByText("Optimizations off")).toBeVisible();
+  expect(visibleText("Go to launch")).toHaveLength(0);
+  await waitFor(() => expect(window.localStorage.getItem("preflight.optimizationPreset")).toBe("off"));
 
   await user.click(screen.getByRole("button", { name: "Help" }));
   await user.click(await screen.findByRole("button", { name: "Open Speed" }));

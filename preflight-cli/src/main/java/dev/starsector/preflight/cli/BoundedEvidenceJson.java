@@ -7,9 +7,12 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Map;
+import java.util.Objects;
 
 /** Bounded encoded-byte admission for already-reviewed local evidence JSON paths. */
 final class BoundedEvidenceJson {
@@ -18,13 +21,29 @@ final class BoundedEvidenceJson {
 
     static Map<String, Object> readObject(Path source, long maximumBytes, String label) throws IOException {
         validateLimit(maximumBytes);
-        long size = Files.size(source);
-        if (size > maximumBytes) {
+        Path absolute = source.toAbsolutePath().normalize();
+        BasicFileAttributes before = Files.readAttributes(
+                absolute, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        if (!before.isRegularFile() || Files.isSymbolicLink(absolute)) {
+            throw new IOException(label + " is not a regular file: " + absolute);
+        }
+        if (before.size() > maximumBytes) {
             throw new IOException(label + " exceeds " + maximumBytes + " bytes: " + source);
         }
-        try (InputStream input = Files.newInputStream(source, StandardOpenOption.READ)) {
-            return readObject(input, maximumBytes, source.toString(), label);
+        Map<String, Object> result;
+        try (InputStream input = Files.newInputStream(
+                absolute, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+            result = readObject(input, maximumBytes, absolute.toString(), label);
         }
+        BasicFileAttributes after = Files.readAttributes(
+                absolute, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        if (!after.isRegularFile()
+                || !Objects.equals(before.fileKey(), after.fileKey())
+                || before.size() != after.size()
+                || !before.lastModifiedTime().equals(after.lastModifiedTime())) {
+            throw new IOException(label + " changed while it was being read: " + absolute);
+        }
+        return result;
     }
 
     static Map<String, Object> readObject(

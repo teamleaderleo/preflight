@@ -149,8 +149,11 @@ def main() -> int:
                 browser, args.base_url, width=1040, height=700, theme="light"
             )
             page.get_by_role("button", name="Mods").click()
-            page.get_by_role("heading", name="Mods").wait_for()
-            page.get_by_text("Main campaign").wait_for()
+            # React Activity retains the hidden Home tree, which carries the same profile name.
+            # Bind the readiness check to the visible destination instead of a duplicated page-wide
+            # string so a retained page cannot make the strict locator ambiguous.
+            mods_page = page.locator(".profiles-page:visible")
+            mods_page.get_by_text("Main campaign", exact=True).wait_for()
             page.wait_for_timeout(100)
             capture(page, output_dir / "desktop-profiles-light.png")
             assert_clean(errors, "Mods/profile view")

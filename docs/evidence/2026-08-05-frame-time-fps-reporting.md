@@ -24,6 +24,20 @@ allocation, or sampling work:
 Values are rounded to two decimal places. Empty distributions report `null`, not an invented zero.
 Campaign and combat remain separate distributions, and focus-lost time remains excluded.
 
+## Later stutter-ranking extension
+
+Percentiles intentionally remain in the report, but they are no longer the only way to rank
+roughness. Every distribution now also reports a bounded `stutterProfile`: slow frames per minute,
+time spent in frames over 33.33ms, excess time beyond that budget, stutter burden per second,
+isolated slow frames, repeated consecutive slow-frame clusters, frames inside repeated clusters, and
+the longest cluster. The recorder adds only primitive counters to the existing frame boundary; it
+does not retain an unbounded timeline.
+
+Desktop-smoke combat can additionally start a clean `measurementWindow` after tactical-map, speed,
+pause, and camera setup has settled. That makes the ranking semantic: repeated slow frames during the
+steady workload outrank a one-off UI transition, while the cumulative session distributions remain
+available for diagnosis.
+
 ## First live readout
 
 Run `~/.starsector-preflight/runs/campaign-radar-fps-v2-20260805-055942` used passive frame telemetry
@@ -97,6 +111,37 @@ the next optimization an actual A/B instead of another log-gap guess.
 
 Targeted tests pin the 30-second boundary, campaign-start timestamp, title-demo exclusion, and the
 existing pulse/transition behavior. Full `mvn verify` passes.
+
+## Direct paused/unpaused campaign segmentation
+
+The exact campaign-state transform now reads `CampaignEngine.isPaused()` at the same reviewed
+`CampaignState.advance` seam used for campaign classification. It adds no clock or allocation and
+does not modify the engine. The exact class hash, Java 17 bytecode version, private engine field,
+advance descriptor, and pre-existing vanilla pause-call shape are all required; drift declines the
+transform.
+
+The report adds `campaignPausedActive`, `campaignPausedAfter30SecondsActive`,
+`campaignUnpausedActive`, and `campaignUnpausedAfter30SecondsActive`. The interval crossing a pause
+change is excluded from both pause-specific distributions while remaining in the overall campaign
+distribution. Missing engine/pause observations are counted and excluded rather than guessed.
+The bounded desktop summary exposes both whole-session and settled pause-specific results. This
+replaces the earlier need to infer pause state from campaign-maintenance counters and makes one
+Preflight launch sufficient for a controlled paused/unpaused route.
+
+Two Preflight-only live launches validated the installed transform. The first intentionally left
+Codex frontmost after Continue; focus exclusion discarded almost the entire route, but all 282
+eligible campaign frames were classified paused, with zero unpaused, unknown, or pause-transition
+intervals. The second kept the controlled game active: all 5,231 eligible campaign frames were
+classified paused, including all 3,496 after the 30-second warm-up. It recorded zero inactive,
+unpaused, unknown, or pause-transition intervals. The pause-specific settled distribution exactly
+matched the overall settled campaign distribution, which is the expected invariant for an
+unchanged paused save.
+
+An attempted computer-control lookup launched a separate plain Starsector process during the
+second run. It was identified by its missing Preflight agent, terminated by its exact launcher/game
+PIDs, and is why that run is classification evidence only rather than an FPS comparison. The
+controlled Preflight PID stopped normally. Bounded data and this claim boundary are preserved in
+[`data/2026-08-27-paused-state-segmentation-live.json`](data/2026-08-27-paused-state-segmentation-live.json).
 
 ## First warm-up optimization A/B
 

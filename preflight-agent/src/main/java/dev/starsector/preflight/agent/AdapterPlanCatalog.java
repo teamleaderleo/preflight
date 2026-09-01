@@ -13,7 +13,6 @@ import java.util.TreeSet;
 /** Bounded inventory of every runtime plan and the exact target plan that hosts it. */
 final class AdapterPlanCatalog {
     private static final Set<String> DIRECT_PLAN_IDS = Set.of(
-            AiTweaksEngagementRangeRuntime.PLAN_ID,
             AshLibVariantLookupRuntime.PLAN_ID,
             AudioResourceFallbackRuntime.PLAN_ID,
             AudioStreamSourceErrorRuntime.PLAN_ID,
@@ -24,11 +23,19 @@ final class AdapterPlanCatalog {
             CampaignMarketFleetTimeRuntime.PLAN_ID,
             CodexLazyFleetMemberRuntime.PLAN_ID,
             CombatRuntimeIntegrityRuntime.PLAN_ID,
+            CombatListenerRangeSnapshotPlan.PLAN_ID,
+            CollisionQuerySetPlan.PLAN_ID,
+            CoreAutofitTimeRuntime.PLAN_ID,
+            ContrailRenderScratchRuntime.PLAN_ID,
             CommodityEventModMemoRuntime.PLAN_ID,
             DeploymentIconCacheRuntime.PLAN_ID,
             EntityLookupRuntime.PLAN_ID,
             FleetAiProfilerRuntime.PLAN_ID,
+            FontWrapAllocationRuntime.PLAN_ID,
+            FrameLimiterTimePlan.PLAN_ID,
             FrameTimeRuntime.PLAN_ID,
+            FleetInflationTimeRuntime.PLAN_ID,
+            GlCommandCountRuntime.PLAN_ID,
             FrameTimeStartupCompletionPlan.PLAN_ID,
             FrameTimeStatePlan.PLAN_ID,
             GraphicsLibCompactReplayPlan.PLAN_ID,
@@ -40,13 +47,19 @@ final class AdapterPlanCatalog {
             JaninoBytecodeCacheRuntime.PLAN_ID,
             LoadJsonMemoRuntime.PLAN_ID,
             LogisticsNotificationsFuelRuntime.PLAN_ID,
+            LunaCampaignRendererSnapshotRuntime.PLAN_ID,
             MainMenuInteractivePlan.PLAN_ID,
             MacMemoryWarningRuntime.PLAN_ID,
             MagicLibPaintjobNotificationRuntime.PLAN_ID,
             MagicLibPaintjobRuntime.PLAN_ID,
             MergedReadCacheRuntime.PLAN_ID,
+            MnemonicSensorsEntityFilterPlan.PLAN_ID,
+            MutableStatTempAdvancePlan.PLAN_ID,
+            NexEconomyInfoTimeRuntime.PLAN_ID,
+            NexMarketListScopeRuntime.PLAN_ID,
             PreparedAudioRuntime.PLAN_ID,
             ProjectileJsonCacheRuntime.PLAN_ID,
+            RatAbyssFactionFlagPlan.PLAN_ID,
             RadarRenderRuntime.PLAN_ID,
             ResourcePriorityRuntime.PLAN_ID,
             ResourceProbeRuntime.PLAN_ID,
@@ -61,6 +74,7 @@ final class AdapterPlanCatalog {
             SpecStoreQuoteNormalizationPlan.PLAN_ID,
             StartupPhaseRuntime.PLAN_ID,
             StelnetMarketUpdaterRuntime.PLAN_ID,
+            TacticalFleetAiTimeRuntime.PLAN_ID,
             TextureCompatibilityRuntime.PLAN_ID,
             TexturePrefetchBypassPlan.PLAN_ID,
             TexturePreparedPixelRuntime.PLAN_ID,
@@ -103,6 +117,18 @@ final class AdapterPlanCatalog {
         values.add(new Descriptor(
                 MagicLibPaintjobLoadRuntime.PLAN_ID,
                 Set.of(MagicLibPaintjobNotificationRuntime.PLAN_ID)));
+        values.add(new Descriptor(
+                MagicLibPaintjobSnapshotRuntime.PLAN_ID,
+                Set.of(MagicLibPaintjobNotificationRuntime.PLAN_ID)));
+        values.add(new Descriptor(
+                GlStateReissueRuntime.PLAN_ID,
+                Set.of(GlCommandCountRuntime.PLAN_ID)));
+        values.add(new Descriptor(
+                GlMatrixOperationRuntime.PLAN_ID,
+                Set.of(GlCommandCountRuntime.PLAN_ID)));
+        values.add(new Descriptor(
+                FleetAiModuleTimeRuntime.PLAN_ID,
+                Set.of(FleetAiProfilerRuntime.PLAN_ID)));
         values.add(new Descriptor(
                 TexturePaddingRuntime.PLAN_ID,
                 Set.of(TextureCompatibilityRuntime.PLAN_ID, TexturePreparedPixelRuntime.PLAN_ID)));

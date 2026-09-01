@@ -1,5 +1,6 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.agent.FrameTimeTelemetry;
 import dev.starsector.preflight.core.Json;
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,6 +27,7 @@ import java.util.stream.Stream;
 final class DesktopBridgeCommand {
     private static final int PROTOCOL_VERSION = 1;
     private static final long MAX_ADAPTER_HEALTH_BYTES = 256 * 1024;
+    private static final long MAX_ADAPTER_REPORT_BYTES = 4L * 1024 * 1024;
     private static final long MAX_RUN_METADATA_BYTES = 256 * 1024;
 
     private DesktopBridgeCommand() {
@@ -452,6 +454,7 @@ final class DesktopBridgeCommand {
             result.put("installRoot", selected.installRoot());
             result.put("profileFingerprint", latest.run().get("profileFingerprint"));
             result.put("adapterHealth", adapterHealth(latest.directory().resolve("adapter-health.json")));
+            result.put("framePacing", framePacing(latest.directory().resolve("adapter.json")));
             result.put("started", latest.run().get("started"));
             result.put("ended", latest.run().get("ended"));
             result.put("wrapperPid", latest.run().get("wrapperPid"));
@@ -518,6 +521,134 @@ final class DesktopBridgeCommand {
         } catch (IOException | RuntimeException unreadable) {
             return null;
         }
+    }
+
+    private static Map<String, Object> framePacing(Path adapterFile) {
+        try {
+            if (!Files.isRegularFile(adapterFile, LinkOption.NOFOLLOW_LINKS)
+                    || Files.size(adapterFile) > MAX_ADAPTER_REPORT_BYTES) {
+                return null;
+            }
+            byte[] encoded;
+            try (InputStream input = Files.newInputStream(adapterFile, LinkOption.NOFOLLOW_LINKS)) {
+                encoded = input.readNBytes(Math.toIntExact(MAX_ADAPTER_REPORT_BYTES + 1));
+            }
+            if (encoded.length > MAX_ADAPTER_REPORT_BYTES) return null;
+            Map<String, Object> adapter = StrictJson.object(new String(encoded, StandardCharsets.UTF_8));
+            if (!(adapter.get(FrameTimeTelemetry.REPORT) instanceof Map<?, ?> rawFrameTimes)) return null;
+            Map<String, Object> frameTimes = stringMap(rawFrameTimes);
+            if (!Boolean.TRUE.equals(frameTimes.get(FrameTimeTelemetry.ENABLED))) return null;
+
+            Map<String, Object> campaign = frameDistribution(
+                    frameTimes.get(FrameTimeTelemetry.CAMPAIGN_ACTIVE));
+            Map<String, Object> initialCampaign = frameDistribution(
+                    frameTimes.get(FrameTimeTelemetry.CAMPAIGN_FIRST_30_SECONDS_ACTIVE));
+            Map<String, Object> settledCampaign = frameDistribution(
+                    frameTimes.get(FrameTimeTelemetry.CAMPAIGN_AFTER_30_SECONDS_ACTIVE));
+            Map<String, Object> pausedCampaign = frameDistribution(
+                    frameTimes.get(FrameTimeTelemetry.CAMPAIGN_PAUSED_ACTIVE));
+            Map<String, Object> settledPausedCampaign = frameDistribution(
+                    frameTimes.get(FrameTimeTelemetry.CAMPAIGN_PAUSED_AFTER_30_SECONDS_ACTIVE));
+            Map<String, Object> unpausedCampaign = frameDistribution(
+                    frameTimes.get(FrameTimeTelemetry.CAMPAIGN_UNPAUSED_ACTIVE));
+            Map<String, Object> settledUnpausedCampaign = frameDistribution(
+                    frameTimes.get(FrameTimeTelemetry.CAMPAIGN_UNPAUSED_AFTER_30_SECONDS_ACTIVE));
+            Map<String, Object> combat = frameDistribution(
+                    frameTimes.get(FrameTimeTelemetry.COMBAT_AFTER_CAMPAIGN_ACTIVE));
+            if (campaign == null && initialCampaign == null && settledCampaign == null && combat == null) return null;
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("format", "starsector-preflight-frame-pacing-summary-v1");
+            result.put("campaign", campaign);
+            result.put("initialCampaign", initialCampaign);
+            result.put("settledCampaign", settledCampaign);
+            result.put("pausedCampaign", pausedCampaign);
+            result.put("settledPausedCampaign", settledPausedCampaign);
+            result.put("unpausedCampaign", unpausedCampaign);
+            result.put("settledUnpausedCampaign", settledUnpausedCampaign);
+            result.put("combat", combat);
+            if (frameTimes.get(FrameTimeTelemetry.MEASUREMENT_OVERHEAD) instanceof Map<?, ?> rawOverhead) {
+                Map<String, Object> overhead = stringMap(rawOverhead);
+                result.put("measurementAverageMicros",
+                        finiteNonNegative(overhead.get(FrameTimeTelemetry.AVERAGE_MICROS)));
+            } else {
+                result.put("measurementAverageMicros", null);
+            }
+            return result;
+        } catch (IOException | RuntimeException unreadable) {
+            return null;
+        }
+    }
+
+    private static Map<String, Object> frameDistribution(Object value) {
+        if (!(value instanceof Map<?, ?> raw)) return null;
+        Map<String, Object> distribution = stringMap(raw);
+        Long frames = positiveLong(distribution.get("frames"));
+        Long totalActiveNanos = positiveLong(
+                distribution.get(FrameTimeTelemetry.TOTAL_ACTIVE_NANOS));
+        Double averageFps = finitePositive(distribution.get("averageFps"));
+        Double onePercentLowFps = finitePositive(distribution.get("onePercentLowFps"));
+        Double p95Micros = finiteNonNegative(distribution.get("p95Micros"));
+        Double p99Micros = finiteNonNegative(distribution.get("p99Micros"));
+        if (frames == null || averageFps == null || onePercentLowFps == null
+                || p95Micros == null || p99Micros == null) {
+            return null;
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("frames", frames);
+        result.put("activeMillis", totalActiveNanos == null ? null
+                : totalActiveNanos / 1_000_000L + (totalActiveNanos % 1_000_000L == 0L ? 0L : 1L));
+        result.put("averageFps", averageFps);
+        result.put("onePercentLowFps", onePercentLowFps);
+        result.put("pointOnePercentLowFps",
+                finitePositive(distribution.get("pointOnePercentLowFps")));
+        result.put("p95Micros", p95Micros);
+        result.put("p99Micros", p99Micros);
+        result.put("over33_33Millis", nonNegativeLong(distribution.get("over33_33Millis")));
+        result.put("over50Millis", nonNegativeLong(distribution.get("over50Millis")));
+        result.put("over100Millis", nonNegativeLong(distribution.get("over100Millis")));
+        Map<String, Object> stutter = distribution.get("stutterProfile") instanceof Map<?, ?> rawStutter
+                ? stringMap(rawStutter)
+                : null;
+        result.put("slowFramesPerMinute", finiteNonNegative(
+                stutter == null ? null : stutter.get("slowFramesPerMinute")));
+        result.put("stutterBurdenMillisPerSecond", finiteNonNegative(
+                stutter == null ? null : stutter.get("stutterBurdenMillisPerSecond")));
+        result.put("repeatedSlowFrameClusters", nonNegativeLong(
+                stutter == null ? null : stutter.get("repeatedSlowFrameClusters")));
+        result.put("repeatedSlowFramesPercent", finiteNonNegative(
+                stutter == null ? null : stutter.get("repeatedSlowFramesPercent")));
+        result.put("longestSlowFrameClusterMillis", finiteNonNegative(
+                stutter == null ? null : stutter.get("longestSlowFrameClusterMillis")));
+        return result;
+    }
+
+    private static Long nonNegativeLong(Object value) {
+        if (!(value instanceof Number number)
+                || number.doubleValue() != number.longValue()
+                || number.longValue() < 0L) {
+            return null;
+        }
+        return number.longValue();
+    }
+
+    private static Map<String, Object> stringMap(Map<?, ?> source) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        source.forEach((key, value) -> {
+            if (key instanceof String text) result.put(text, value);
+        });
+        return result;
+    }
+
+    private static Double finitePositive(Object value) {
+        Double number = finiteNonNegative(value);
+        return number != null && number > 0d ? number : null;
+    }
+
+    private static Double finiteNonNegative(Object value) {
+        if (!(value instanceof Number number)) return null;
+        double exact = number.doubleValue();
+        return Double.isFinite(exact) && exact >= 0d ? exact : null;
     }
 
     private static Map<String, Object> runSummary(Path runFile) {

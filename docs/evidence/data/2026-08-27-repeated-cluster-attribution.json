@@ -1,0 +1,149 @@
+{
+  "format": "starsector-preflight-repeated-cluster-attribution-v1",
+  "date": "2026-08-27",
+  "implementation": {
+    "clusterRecorderCommit": "cf761d2c9089e7ef46f11d741166f0b3bc1d413c",
+    "directBackedFingerprintCommit": "0e7c00e45f6f3deb6a17573098b68da34d47a6c2",
+    "slowFrameThresholdMillis": 33.333333,
+    "retainedClustersPerDistribution": 32,
+    "analyzerSelection": "N longest repeated clusters by total duration; samples selected once across the union of windows"
+  },
+  "attributionRun": {
+    "scenario": "campaign-sample-paused-unpaused",
+    "status": "passed",
+    "scenarioSteps": 10,
+    "ownedProcesses": 1,
+    "inactiveIntervalsDropped": 0,
+    "invalidIntervalsDropped": 0,
+    "pausedSettled": {
+      "frames": 3228,
+      "averageFps": 55.79,
+      "onePercentLowFps": 37.45,
+      "pointOnePercentLowFps": 22.22,
+      "p99FrameMillis": 26.7,
+      "stutterBurdenMillisPerSecond": 1.77,
+      "repeatedSlowFramesPercent": 0.06,
+      "repeatedClusters": 1,
+      "framesInRepeatedClusters": 2
+    },
+    "unpausedSettled": {
+      "frames": 1888,
+      "averageFps": 51.08,
+      "onePercentLowFps": 14.12,
+      "pointOnePercentLowFps": 9.85,
+      "p99FrameMillis": 70.8,
+      "stutterBurdenMillisPerSecond": 53.84,
+      "repeatedSlowFramesPercent": 3.34,
+      "repeatedClusters": 22,
+      "framesInRepeatedClusters": 63,
+      "longestClusterFrames": 8,
+      "longestClusterMillis": 484.36
+    },
+    "topTenClusters": {
+      "wallSeconds": 2.176,
+      "executionSamples": 54,
+      "campaignExecutionSamples": 51,
+      "otherExecutionSamples": 2,
+      "inclusiveCampaignSamples": {
+        "CampaignEngine.advance": 47,
+        "BaseLocation.advance": 25,
+        "StarSystem.advance": 25,
+        "CampaignFleet.advance": 18,
+        "Economy.advance": 8,
+        "ModularFleetAI.advance": 8
+      },
+      "campaignAllocationSamples": 39,
+      "campaignAllocationWeightMiB": 55.3,
+      "mutableStatGetFlatModsWeightMiB": 8.0,
+      "mutableStatGetFlatModsSamplesAllBelowCommodityWrapper": true
+    },
+    "rawArtifactHashes": {
+      "startupJfrSha256": "acd3d5fa4545c5cdf89e111a34789763782902f1f1a4d07810dc61a2887637cb",
+      "runtimeFrameReportSha256": "9a5eea22968ea97f63c27bf090c10148beefc760869430727b1ede341ab096a1",
+      "smokeEvidenceSha256": "83abde69544af1304d3e30613777fdd6f2c4e900f898b4097c5fe8864eb14f95"
+    }
+  },
+  "directBackedFollowupRun": {
+    "scenario": "campaign-sample-paused-unpaused",
+    "status": "passed",
+    "scenarioSteps": 10,
+    "ownedProcesses": 1,
+    "initialPauseObservationMillis": 3000,
+    "initialPauseState": "already-paused",
+    "explicitUnpauseActions": 1,
+    "inactiveIntervalsDropped": 0,
+    "invalidIntervalsDropped": 0,
+    "measurementAverageMicros": 10.6955,
+    "pausedSettled": {
+      "frames": 3376,
+      "averageFps": 55.85,
+      "onePercentLowFps": 41.32,
+      "pointOnePercentLowFps": 23.75,
+      "p99FrameMillis": 24.2,
+      "stutterBurdenMillisPerSecond": 1.36,
+      "repeatedSlowFramesPercent": 0.0,
+      "repeatedClusters": 0
+    },
+    "unpausedSettled": {
+      "frames": 1739,
+      "averageFps": 50.5,
+      "onePercentLowFps": 14.64,
+      "pointOnePercentLowFps": 6.04,
+      "p99FrameMillis": 68.3,
+      "stutterBurdenMillisPerSecond": 59.44,
+      "repeatedSlowFramesPercent": 3.28,
+      "repeatedClusters": 22,
+      "framesInRepeatedClusters": 57,
+      "longestClusterFrames": 8,
+      "longestClusterMillis": 490.41
+    },
+    "topTenClusters": {
+      "wallSeconds": 2.127,
+      "executionSamples": 46,
+      "campaignExecutionSamples": 43,
+      "otherExecutionSamples": 0,
+      "inclusiveCampaignSamples": {
+        "CampaignEngine.advance": 39,
+        "BaseLocation.advance": 21,
+        "StarSystem.advance": 21,
+        "CampaignFleet.advance": 12,
+        "Economy.advance": 6,
+        "Market.advance": 6,
+        "ModularFleetAI.advance": 6
+      },
+      "allocationSamples": 50,
+      "campaignAllocationSamples": 28,
+      "otherAllocationSamples": 2,
+      "campaignAllocationWeightMiB": 45.3,
+      "mutableStatGetFlatModsCampaignSamples": 0,
+      "commodityWrapperCampaignAllocationSamples": 0
+    },
+    "rawArtifactHashes": {
+      "preflightJarSha256": "ffb9261f162d0cabcc234e8cd644cf7cc1f41082f7ccb1f3584dd11004606fd3",
+      "startupJfrSha256": "3696a61e48706f06aaa065941e77bb56327bd0ac7a2b3a0bcfd1ad511ab2b1ec",
+      "runtimeFrameReportSha256": "19247622409b55a6d3743bbe4cff86055e23a0af8ae1fd471d18391fd1fdb0aa",
+      "smokeEvidenceSha256": "784ed205ec9959d0436dd701bf5d45823adaddf5c0e1ac531fabb47bdc9d4686"
+    }
+  },
+  "verification": {
+    "pythonAnalyzerTests": 13,
+    "focusedCommodityTests": 8,
+    "java17Verify": {
+      "status": "passed",
+      "tests": 2225,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 9,
+      "coreTests": 365,
+      "agentTests": 653,
+      "agentSkipped": 1,
+      "cliUnitTests": 1130,
+      "cliUnitSkipped": 3,
+      "cliIntegrationTests": 55,
+      "cliIntegrationSkipped": 4,
+      "syntheticTests": 22,
+      "syntheticSkipped": 1
+    }
+  },
+  "claimBoundary": "The harness now attributes repeated slow-frame clusters. The direct-backed commodity fingerprint removed the previously sampled whole-map-copy stack, but the runs were not lockstep and do not establish an FPS or stutter improvement. Broad active-campaign and combat optimization remain open."
+}

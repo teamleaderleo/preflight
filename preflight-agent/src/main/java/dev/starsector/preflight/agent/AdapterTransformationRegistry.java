@@ -260,8 +260,14 @@ final class AdapterTransformationRegistry {
                     : null;
             return pathIndexed == null ? repaired : pathIndexed;
         }
-        if (AiTweaksEngagementRangeRuntime.PLAN_ID.equals(target.planId())) {
-            return AiTweaksEngagementRangePlan.transform(signature, originalBytes);
+        if (AiTweaksSplitArcsPlan.PLAN_ID.equals(target.planId())) {
+            return AiTweaksSplitArcsPlan.transform(signature, originalBytes);
+        }
+        if (AiTweaksAffineVectorPlan.PLAN_ID.equals(target.planId())) {
+            return AiTweaksAffineVectorPlan.transform(signature, originalBytes);
+        }
+        if (CombatListenerRangeSnapshotPlan.PLAN_ID.equals(target.planId())) {
+            return CombatListenerRangeSnapshotPlan.transform(signature, originalBytes);
         }
         if (AshLibVariantLookupRuntime.PLAN_ID.equals(target.planId())) {
             byte[] optimized = AshLibVariantLookupPlan.transform(signature, originalBytes);
@@ -293,6 +299,24 @@ final class AdapterTransformationRegistry {
         if (GraphicsLibHotSettingsRuntime.PLAN_ID.equals(target.planId())) {
             return GraphicsLibHotSettingsPlan.transform(signature, originalBytes);
         }
+        if (RatAbyssFactionFlagPlan.PLAN_ID.equals(target.planId())) {
+            return RatAbyssFactionFlagPlan.transform(signature, originalBytes);
+        }
+        if (MnemonicSensorsEntityFilterPlan.PLAN_ID.equals(target.planId())) {
+            return MnemonicSensorsEntityFilterPlan.transform(signature, originalBytes);
+        }
+        if (MutableStatTempAdvancePlan.PLAN_ID.equals(target.planId())) {
+            return MutableStatTempAdvancePlan.transform(signature, originalBytes);
+        }
+        if (ContrailRenderScratchRuntime.PLAN_ID.equals(target.planId())) {
+            return ContrailRenderScratchPlan.transform(signature, originalBytes);
+        }
+        if (FontWrapAllocationRuntime.PLAN_ID.equals(target.planId())) {
+            return FontWrapAllocationPlan.transform(signature, originalBytes);
+        }
+        if (LunaCampaignRendererSnapshotRuntime.PLAN_ID.equals(target.planId())) {
+            return LunaCampaignRendererSnapshotPlan.transform(signature, originalBytes);
+        }
         if (VersionCheckResponseDedupRuntime.PLAN_ID.equals(target.planId())) {
             return VersionCheckResponseDedupPlan.transform(signature, originalBytes);
         }
@@ -303,10 +327,14 @@ final class AdapterTransformationRegistry {
             byte[] notification =
                     MagicLibPaintjobNotificationPlan.transform(signature, originalBytes);
             byte[] current = notification == null ? originalBytes : notification;
+            byte[] frameSnapshot = AdapterPlanControl.allows(MagicLibPaintjobSnapshotRuntime.PLAN_ID)
+                    ? MagicLibPaintjobSnapshotPlan.transform(signature, current)
+                    : null;
+            current = frameSnapshot == null ? current : frameSnapshot;
             byte[] optionalJson = AdapterPlanControl.allows(MagicLibPaintjobLoadRuntime.PLAN_ID)
                     ? MagicLibPaintjobLoadPlan.transform(signature, current)
                     : null;
-            boolean changed = notification != null || optionalJson != null;
+            boolean changed = notification != null || frameSnapshot != null || optionalJson != null;
             current = optionalJson == null ? current : optionalJson;
             byte[] catalog = MagicLibPaintjobCacheRuntime.ready()
                             && AdapterPlanControl.allows(MagicLibPaintjobCacheRuntime.PLAN_ID)
@@ -332,6 +360,12 @@ final class AdapterTransformationRegistry {
         }
         if (FrameTimeRuntime.PLAN_ID.equals(target.planId())) {
             return FrameTimePlan.transform(signature, originalBytes);
+        }
+        if (GlCommandCountRuntime.PLAN_ID.equals(target.planId())) {
+            return GlCommandCountPlan.transform(signature, originalBytes);
+        }
+        if (FrameLimiterTimePlan.PLAN_ID.equals(target.planId())) {
+            return FrameLimiterTimePlan.transform(signature, originalBytes);
         }
         if (CampaignCallTimeRuntime.PLAN_ID.equals(target.planId())) {
             return CampaignCallTimePlan.transform(signature, originalBytes);
@@ -361,7 +395,42 @@ final class AdapterTransformationRegistry {
             return timed == null ? maintained : timed;
         }
         if (FleetAiProfilerRuntime.PLAN_ID.equals(target.planId())) {
-            return FleetAiProfilerPlan.transform(signature, originalBytes);
+            byte[] profiler = FleetAiProfilerPlan.transform(signature, originalBytes);
+            byte[] current = profiler == null ? originalBytes : profiler;
+            byte[] timed = AdapterPlanControl.allows(FleetAiModuleTimeRuntime.PLAN_ID)
+                    ? FleetAiModuleTimePlan.transform(signature, current)
+                    : null;
+            return timed == null ? profiler : timed;
+        }
+        if (TacticalFleetAiTimeRuntime.PLAN_ID.equals(target.planId())) {
+            return TacticalFleetAiTimePlan.transform(signature, originalBytes);
+        }
+        if (FleetInflationTimeRuntime.PLAN_ID.equals(target.planId())) {
+            return FleetInflationTimePlan.transform(signature, originalBytes);
+        }
+        if (CoreAutofitTimeRuntime.PLAN_ID.equals(target.planId())) {
+            return CoreAutofitTimePlan.transform(signature, originalBytes);
+        }
+        if (NexEconomyInfoTimeRuntime.PLAN_ID.equals(target.planId())) {
+            byte[] timed = NexEconomyInfoTimePlan.transform(signature, originalBytes);
+            byte[] current = timed == null ? originalBytes : timed;
+            byte[] scoped = AdapterPlanControl.allows(NexMarketListScopeRuntime.PLAN_ID)
+                    && NexMarketListScopeRuntime.configured()
+                    ? NexMarketListScopePlan.transform(signature, current)
+                    : null;
+            return scoped == null ? timed : scoped;
+        }
+        if (NexMarketListScopeRuntime.PLAN_ID.equals(target.planId())) {
+            byte[] current = originalBytes;
+            byte[] timed = null;
+            if (NexMarketListScopePlan.NEX_CLASS.equals(signature.internalName())
+                    && AdapterPlanControl.allows(NexEconomyInfoTimeRuntime.PLAN_ID)
+                    && NexEconomyInfoTimeRuntime.enabled()) {
+                timed = NexEconomyInfoTimePlan.transform(signature, originalBytes);
+                if (timed != null) current = timed;
+            }
+            byte[] scoped = NexMarketListScopePlan.transform(signature, current);
+            return scoped == null ? timed : scoped;
         }
         if (FrameTimeStatePlan.PLAN_ID.equals(target.planId())) {
             return FrameTimeStatePlan.transform(signature, originalBytes);
@@ -374,6 +443,9 @@ final class AdapterTransformationRegistry {
         }
         if (CombatRuntimeIntegrityRuntime.PLAN_ID.equals(target.planId())) {
             return CombatRuntimeIntegrityPlan.transform(signature, originalBytes);
+        }
+        if (CollisionQuerySetPlan.PLAN_ID.equals(target.planId())) {
+            return CollisionQuerySetPlan.transform(signature, originalBytes);
         }
         // The token target normally wins selection for this shared class. Compose the command-name
         // shortcut here too; otherwise --fast can configure both caches while silently installing
@@ -843,7 +915,13 @@ final class AdapterTransformationRegistry {
         if (AudioResourceFallbackRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
-        if (AiTweaksEngagementRangeRuntime.PLAN_ID.equals(planId)) {
+        if (AiTweaksSplitArcsPlan.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (AiTweaksAffineVectorPlan.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (CombatListenerRangeSnapshotPlan.PLAN_ID.equals(planId)) {
             return true;
         }
         if (AshLibVariantLookupRuntime.PLAN_ID.equals(planId)) {
@@ -870,6 +948,21 @@ final class AdapterTransformationRegistry {
         if (GraphicsLibHotSettingsRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
+        if (RatAbyssFactionFlagPlan.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (MnemonicSensorsEntityFilterPlan.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (MutableStatTempAdvancePlan.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (ContrailRenderScratchRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (FontWrapAllocationRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
         if (VersionCheckResponseDedupRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
@@ -877,6 +970,9 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (MagicLibPaintjobNotificationRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (LunaCampaignRendererSnapshotRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
         if (StelnetMarketUpdaterRuntime.PLAN_ID.equals(planId)) {
@@ -890,6 +986,12 @@ final class AdapterTransformationRegistry {
         }
         if (FrameTimeRuntime.PLAN_ID.equals(planId)) {
             return true;
+        }
+        if (GlCommandCountRuntime.PLAN_ID.equals(planId)) {
+            return GlCommandCountRuntime.planEnabled();
+        }
+        if (FrameLimiterTimePlan.PLAN_ID.equals(planId)) {
+            return FrameTimeRuntime.enabled();
         }
         if (CampaignCallTimeRuntime.PLAN_ID.equals(planId)) {
             return true;
@@ -909,6 +1011,21 @@ final class AdapterTransformationRegistry {
         if (FleetAiProfilerRuntime.PLAN_ID.equals(planId)) {
             return FleetAiProfilerRuntime.enabled();
         }
+        if (TacticalFleetAiTimeRuntime.PLAN_ID.equals(planId)) {
+            return TacticalFleetAiTimeRuntime.enabled();
+        }
+        if (FleetInflationTimeRuntime.PLAN_ID.equals(planId)) {
+            return FleetInflationTimeRuntime.enabled();
+        }
+        if (CoreAutofitTimeRuntime.PLAN_ID.equals(planId)) {
+            return CoreAutofitTimeRuntime.enabled();
+        }
+        if (NexEconomyInfoTimeRuntime.PLAN_ID.equals(planId)) {
+            return NexEconomyInfoTimeRuntime.enabled();
+        }
+        if (NexMarketListScopeRuntime.PLAN_ID.equals(planId)) {
+            return NexMarketListScopeRuntime.configured();
+        }
         if (FrameTimeStatePlan.PLAN_ID.equals(planId)) {
             return true;
         }
@@ -919,6 +1036,9 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (CombatRuntimeIntegrityRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (CollisionQuerySetPlan.PLAN_ID.equals(planId)) {
             return true;
         }
         if (DeploymentIconCacheRuntime.PLAN_ID.equals(planId)) {

@@ -20,7 +20,7 @@ final class RuntimeSemanticStateIdentity {
             "format", "pid", "processStartedAt", "state", "sequence", "observedAt");
     private static final Set<String> STATES = Set.of(
             "starting", "main-menu-ready", "main-menu-interactive",
-            "campaign-ready", "combat-ready", "stopped");
+            "campaign-ready", "simulation-ready", "combat-ready", "stopped");
 
     private final long pid;
     private final Instant processStartedAt;
@@ -122,7 +122,6 @@ final class RuntimeSemanticStateIdentity {
         if (is(expected)) return true;
         return switch (expected) {
             case "main-menu-ready" -> mainMenuReadyAt != null;
-            case "main-menu-interactive" -> mainMenuInteractiveAt != null;
             default -> false;
         };
     }

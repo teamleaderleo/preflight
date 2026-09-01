@@ -17,6 +17,17 @@ final class RuntimeSemanticStateTest {
     @AfterEach
     void reset() {
         RuntimeSemanticState.reset();
+        FrameTimeRuntime.reset();
+    }
+
+    @Test
+    void interactiveTransitionAlsoMarksTheFrameTelemetryBoundary() throws Exception {
+        FrameTimeRuntime.beginSession(true);
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+
+        RuntimeSemanticState.mainMenuInteractive();
+
+        assertEquals(true, FrameTimeRuntime.telemetry().get("mainMenuInteractive"));
     }
 
     @Test
@@ -42,14 +53,21 @@ final class RuntimeSemanticStateTest {
         assertEquals(firstInteractiveTime,
                 String.valueOf(RuntimeSemanticState.telemetry().get("mainMenuInteractiveAt")));
 
+        RuntimeSemanticState.combatReady();
+        assertState(destination, "main-menu-interactive", 2L);
+
         RuntimeSemanticState.campaignReady();
         assertState(destination, "campaign-ready", 3L);
+        RuntimeSemanticState.simulationReady();
+        assertState(destination, "simulation-ready", 4L);
         RuntimeSemanticState.combatReady();
-        assertState(destination, "combat-ready", 4L);
+        assertState(destination, "simulation-ready", 4L);
         RuntimeSemanticState.campaignReady();
         assertState(destination, "campaign-ready", 5L);
+        RuntimeSemanticState.combatReady();
+        assertState(destination, "combat-ready", 6L);
         RuntimeSemanticState.stopped();
-        assertState(destination, "stopped", 6L);
+        assertState(destination, "stopped", 7L);
         assertTrue(Files.readString(destination).contains("\"mainMenuReadyAt\":"));
         assertTrue(Files.readString(destination).contains("\"mainMenuInteractiveAt\":"));
         assertTrue(RuntimeSemanticState.telemetry().get("writeProblem") == null);

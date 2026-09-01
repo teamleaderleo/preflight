@@ -114,7 +114,7 @@ test("light focus indicator clears non-text contrast against every palette paper
 
 test("light contrast is derived from each active palette instead of hard-coded to Hangar", () => {
   expect(semanticStyles).toContain("--ink-soft: color-mix(in srgb, var(--ink) 71%, var(--paper-solid));");
-  expect(semanticStyles).toContain("--ink-faint: color-mix(in srgb, var(--ink) 60%, var(--paper-solid));");
+  expect(semanticStyles).toContain("--ink-faint: color-mix(in srgb, var(--ink) 66%, var(--paper-solid));");
   expect(semanticStyles).toContain("--console-soft: color-mix(in srgb, var(--console-ink) 69%, var(--paper-solid));");
   expect(semanticStyles).toContain("--line-strong: color-mix(in srgb, var(--ink) 35%, transparent);");
 });

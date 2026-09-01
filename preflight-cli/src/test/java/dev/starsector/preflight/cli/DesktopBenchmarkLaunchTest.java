@@ -172,6 +172,88 @@ final class DesktopBenchmarkLaunchTest {
     }
 
     @Test
+    void comparisonRanksRecurringStutterAheadOfSupportingFpsMetrics() {
+        Map<String, Object> baseline = Map.of(
+                "stutterBurdenMillisPerSecond", 80.0,
+                "repeatedSlowFramesPercent", 5.0,
+                "slowFramesPerMinute", 180.0,
+                "longestSlowFrameClusterMillis", 600.0,
+                "onePercentLowFps", 14.0,
+                "averageFps", 52.0);
+        Map<String, Object> optimized = Map.of(
+                "stutterBurdenMillisPerSecond", 40.0,
+                "repeatedSlowFramesPercent", 2.5,
+                "slowFramesPerMinute", 90.0,
+                "longestSlowFrameClusterMillis", 300.0,
+                "onePercentLowFps", 16.0,
+                "averageFps", 53.0);
+
+        Map<String, Object> comparison = DesktopBenchmarkLaunch.comparison(List.of(
+                Map.of("summary", baseline), Map.of("summary", optimized)));
+        @SuppressWarnings("unchecked")
+        List<String> priority = (List<String>) comparison.get("smoothnessPriority");
+        assertEquals("stutterBurdenMillisPerSecond", priority.get(0));
+        assertTrue(priority.indexOf("repeatedSlowFramesPercent")
+                < priority.indexOf("onePercentLowFps"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> metrics = (Map<String, Object>) comparison.get("metrics");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> burden =
+                (Map<String, Object>) metrics.get("stutterBurdenMillisPerSecond");
+        assertEquals(50.0, burden.get("improvementPercent"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void comparisonKeepsPausedAndUnpausedDistributionsIndependent() {
+        Map<String, Object> baseline = Map.of("campaignStateWindows", Map.of(
+                "paused", Map.of(
+                        "stutterBurdenMillisPerSecond", 30.0,
+                        "onePercentLowFps", 30.0),
+                "unpaused", Map.of(
+                        "stutterBurdenMillisPerSecond", 90.0,
+                        "onePercentLowFps", 15.0)));
+        Map<String, Object> optimized = Map.of("campaignStateWindows", Map.of(
+                "paused", Map.of(
+                        "stutterBurdenMillisPerSecond", 15.0,
+                        "onePercentLowFps", 40.0),
+                "unpaused", Map.of(
+                        "stutterBurdenMillisPerSecond", 60.0,
+                        "onePercentLowFps", 18.0)));
+
+        Map<String, Object> comparison = DesktopBenchmarkLaunch.comparison(List.of(
+                Map.of("summary", baseline), Map.of("summary", optimized)));
+        Map<String, Object> states =
+                (Map<String, Object>) comparison.get("campaignStateWindows");
+        Map<String, Object> paused = (Map<String, Object>) states.get("paused");
+        Map<String, Object> pausedMetrics = (Map<String, Object>) paused.get("metrics");
+        Map<String, Object> pausedBurden =
+                (Map<String, Object>) pausedMetrics.get("stutterBurdenMillisPerSecond");
+        Map<String, Object> unpaused = (Map<String, Object>) states.get("unpaused");
+        Map<String, Object> unpausedMetrics = (Map<String, Object>) unpaused.get("metrics");
+        Map<String, Object> unpausedLow =
+                (Map<String, Object>) unpausedMetrics.get("onePercentLowFps");
+
+        assertEquals(true, comparison.get("available"));
+        assertEquals(50.0, pausedBurden.get("improvementPercent"));
+        assertEquals(20.0, unpausedLow.get("improvementPercent"));
+    }
+
+    @Test
+    void eachStateWindowMustMeetTheFullCoverageGate() {
+        IOException missing = assertThrows(IOException.class, () ->
+                DesktopBenchmarkLaunch.campaignFrameSummary(null, "paused campaign"));
+        IOException shortWindow = assertThrows(IOException.class, () ->
+                DesktopBenchmarkLaunch.campaignFrameSummary(Map.of(
+                        "frames", 99,
+                        "totalActiveNanos", 29_999_999_999L), "unpaused campaign"));
+
+        assertTrue(missing.getMessage().contains("lacks settled paused campaign frames"));
+        assertTrue(shortWindow.getMessage().contains(
+                "settled unpaused campaign coverage requires at least 100 frames and 30 active seconds"));
+    }
+
+    @Test
     void sealsMeasurementOnlyIdentityAfterTimingWithoutProfileMetadata(@TempDir Path temporary)
             throws Exception {
         Path install = temporary.resolve("game");
@@ -253,15 +335,60 @@ final class DesktopBenchmarkLaunchTest {
         Files.writeString(frames, Json.object(Map.of(
                 "format", "starsector-preflight-runtime-frame-report-v1",
                 "frameTimes", Map.of(
-                        "campaignActive", Map.of(
-                                "frames", 180,
-                                "averageFps", 60.0,
-                                "medianFps", 62.0,
-                                "onePercentLowFps", 35.0,
-                                "pointOnePercentLowFps", 22.0,
-                                "p95Micros", 20_000,
-                                "p99Micros", 28_571,
-                                "framesMeeting60FpsPercent", 88.0),
+                        "campaignAfter30SecondsActive", Map.ofEntries(
+                                Map.entry("frames", 1_800),
+                                Map.entry("totalActiveNanos", 31_000_000_000L),
+                                Map.entry("averageFps", 60.0),
+                                Map.entry("medianFps", 62.0),
+                                Map.entry("onePercentLowFps", 35.0),
+                                Map.entry("pointOnePercentLowFps", 22.0),
+                                Map.entry("p95Micros", 20_000),
+                                Map.entry("p99Micros", 28_571),
+                                Map.entry("framesMeeting60FpsPercent", 88.0),
+                                Map.entry("over33_33Millis", 12),
+                                Map.entry("over50Millis", 5),
+                                Map.entry("over100Millis", 1),
+                                Map.entry("stutterProfile", Map.of(
+                                        "slowFramesPerMinute", 12.0,
+                                        "stutterBurdenMillisPerSecond", 3.5,
+                                        "repeatedSlowFramesPercent", 0.4,
+                                        "longestSlowFrameClusterMillis", 80.0))),
+                        "campaignPausedAfter30SecondsActive", Map.ofEntries(
+                                Map.entry("frames", 900),
+                                Map.entry("totalActiveNanos", 31_000_000_000L),
+                                Map.entry("averageFps", 58.0),
+                                Map.entry("medianFps", 60.0),
+                                Map.entry("onePercentLowFps", 32.0),
+                                Map.entry("pointOnePercentLowFps", 20.0),
+                                Map.entry("p95Micros", 21_000),
+                                Map.entry("p99Micros", 31_250),
+                                Map.entry("framesMeeting60FpsPercent", 78.0),
+                                Map.entry("over33_33Millis", 8),
+                                Map.entry("over50Millis", 3),
+                                Map.entry("over100Millis", 1),
+                                Map.entry("stutterProfile", Map.of(
+                                        "slowFramesPerMinute", 9.0,
+                                        "stutterBurdenMillisPerSecond", 2.5,
+                                        "repeatedSlowFramesPercent", 0.3,
+                                        "longestSlowFrameClusterMillis", 70.0))),
+                        "campaignUnpausedAfter30SecondsActive", Map.ofEntries(
+                                Map.entry("frames", 850),
+                                Map.entry("totalActiveNanos", 31_500_000_000L),
+                                Map.entry("averageFps", 52.0),
+                                Map.entry("medianFps", 55.0),
+                                Map.entry("onePercentLowFps", 24.0),
+                                Map.entry("pointOnePercentLowFps", 14.0),
+                                Map.entry("p95Micros", 25_000),
+                                Map.entry("p99Micros", 41_667),
+                                Map.entry("framesMeeting60FpsPercent", 62.0),
+                                Map.entry("over33_33Millis", 18),
+                                Map.entry("over50Millis", 7),
+                                Map.entry("over100Millis", 2),
+                                Map.entry("stutterProfile", Map.of(
+                                        "slowFramesPerMinute", 22.0,
+                                        "stutterBurdenMillisPerSecond", 6.5,
+                                        "repeatedSlowFramesPercent", 0.8,
+                                        "longestSlowFrameClusterMillis", 130.0))),
                         "measurementOverhead", Map.of(
                                 "samples", 1_200,
                                 "totalNanos", 12_000_000,
@@ -287,7 +414,9 @@ final class DesktopBenchmarkLaunchTest {
         evidence.put("completedAt", processStart.plusSeconds(25));
         evidence.put("steps", List.of(
                 Map.of("id", "menu", "completedAt", processStart.plusSeconds(10)),
-                Map.of("id", "campaign", "completedAt", processStart.plusSeconds(20))));
+                Map.of("id", "campaign", "completedAt", processStart.plusSeconds(20)),
+                Map.of("id", "paused-settled", "completedAt", processStart.plusSeconds(21)),
+                Map.of("id", "unpaused-settled", "completedAt", processStart.plusSeconds(22))));
         evidence.put("artifacts", List.of(
                 Map.of("kind", "frame-report", "path", frames),
                 Map.of("kind", "log-tail", "path", log),
@@ -304,6 +433,20 @@ final class DesktopBenchmarkLaunchTest {
         assertEquals(20_000L, summary.get("processToCampaignReadyMs"));
         assertEquals(60.0, summary.get("averageFps"));
         assertEquals(28_571L, summary.get("p99FrameMicros"));
+        assertEquals(12L, summary.get("over33_33Millis"));
+        assertEquals(5L, summary.get("over50Millis"));
+        assertEquals(1L, summary.get("over100Millis"));
+        assertEquals(12.0, summary.get("slowFramesPerMinute"));
+        assertEquals(3.5, summary.get("stutterBurdenMillisPerSecond"));
+        assertEquals(0.4, summary.get("repeatedSlowFramesPercent"));
+        assertEquals(80.0, summary.get("longestSlowFrameClusterMillis"));
+        assertEquals("after-first-30-seconds", summary.get("campaignWindow"));
+        assertEquals(1_800L, summary.get("campaignFrames"));
+        assertEquals(31_000_000_000L, summary.get("campaignActiveNanos"));
+        Map<String, Object> coverage = (Map<String, Object>) summary.get("campaignCoverage");
+        assertEquals(100L, coverage.get("minimumFrames"));
+        assertEquals(30_000_000_000L, coverage.get("minimumActiveNanos"));
+        assertEquals(true, coverage.get("accepted"));
         Map<String, Object> overhead = (Map<String, Object>) summary.get("measurementOverhead");
         assertEquals(1_200L, overhead.get("samples"));
         assertEquals(0.05, overhead.get("routeSharePercent"));
@@ -316,6 +459,77 @@ final class DesktopBenchmarkLaunchTest {
         assertEquals(8L, context.get("cacheMisses"));
         assertEquals(3L, context.get("fallbacks"));
         assertEquals(61L, context.get("memoryAvailablePercent"));
+        Map<String, Object> states =
+                (Map<String, Object>) summary.get("campaignStateWindows");
+        Map<String, Object> paused = (Map<String, Object>) states.get("paused");
+        Map<String, Object> unpaused = (Map<String, Object>) states.get("unpaused");
+        assertEquals(900L, paused.get("frames"));
+        assertEquals(32.0, paused.get("onePercentLowFps"));
+        assertEquals(850L, unpaused.get("frames"));
+        assertEquals(6.5, unpaused.get("stutterBurdenMillisPerSecond"));
+    }
+
+    @Test
+    void refusesCampaignMetricsWithoutRepresentativeSettledCoverage(@TempDir Path temporary)
+            throws Exception {
+        Instant processStart = Instant.parse("2026-08-09T00:00:00Z");
+        Path game = temporary.resolve("game");
+        Path save = game.resolve("saves/save_Test_123");
+        Files.createDirectories(save);
+        Path descriptor = save.resolve("descriptor.xml");
+        Files.writeString(descriptor, "<save/>");
+        Path run = temporary.resolve("run");
+        Files.createDirectories(run);
+        Files.writeString(run.resolve("run.json"), Json.object(Map.of(
+                "installRoot", game.toString())));
+        Path runtime = run.resolve("runtime-process.json");
+        Map<String, Object> runtimeIdentity = new LinkedHashMap<>();
+        runtimeIdentity.put("format", "starsector-preflight-runtime-process-v1");
+        runtimeIdentity.put("pid", ProcessHandle.current().pid());
+        runtimeIdentity.put("parentPid", null);
+        runtimeIdentity.put("startedAt", processStart);
+        runtimeIdentity.put("observedAt", processStart.plusSeconds(30));
+        runtimeIdentity.put("state", "stopped");
+        runtimeIdentity.put("stoppedAt", processStart.plusSeconds(30));
+        Files.writeString(runtime, Json.object(runtimeIdentity));
+        Path frames = run.resolve("desktop-smoke-frame-report.json");
+        Files.writeString(frames, Json.object(Map.of(
+                "format", "starsector-preflight-runtime-frame-report-v1",
+                "frameTimes", Map.of(
+                        "campaignAfter30SecondsActive", Map.of(
+                                "frames", 99,
+                                "totalActiveNanos", 29_999_999_999L),
+                        "measurementOverhead", Map.of(
+                                "samples", 1_200,
+                                "totalNanos", 12_000_000,
+                                "averageMicros", 10.0,
+                                "maximumMicros", 80.0)))));
+        Path log = run.resolve("desktop-smoke-log-tail.txt");
+        Files.writeString(log, "Reading save data from [" + descriptor + "]\n");
+        Path health = run.resolve("desktop-smoke-adapter-health.json");
+        Files.writeString(health, Json.object(Map.of(
+                "format", "starsector-preflight-runtime-adapter-health-v1",
+                "adapterMode", "enabled")));
+        Map<String, Object> evidence = Map.of(
+                "startedAt", processStart.plusSeconds(1),
+                "completedAt", processStart.plusSeconds(25),
+                "steps", List.of(
+                        Map.of("id", "menu", "completedAt", processStart.plusSeconds(10)),
+                        Map.of("id", "campaign", "completedAt", processStart.plusSeconds(20))),
+                "artifacts", List.of(
+                        Map.of("kind", "frame-report", "path", frames),
+                        Map.of("kind", "log-tail", "path", log),
+                        Map.of("kind", "adapter-health", "path", health)));
+
+        Map<String, Object> phase = DesktopBenchmarkLaunch.phase("optimized", Map.of(
+                "status", "passed",
+                "runtimeProcess", runtime,
+                "runDirectory", run,
+                "evidence", evidence));
+
+        assertEquals("failed", phase.get("status"));
+        assertTrue(phase.get("summaryError").toString().contains(
+                "at least 100 frames and 30 active seconds"), phase.toString());
     }
 
     @Test

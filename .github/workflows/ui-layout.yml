@@ -30,7 +30,8 @@ jobs:
 
       - name: Install Chromium
         run: |
-          python3 -m pip install --disable-pip-version-check 'playwright==1.55.0'
+          python3 -m pip install --disable-pip-version-check \
+            -r preflight-desktop/scripts/ui-layout-requirements.txt
           python3 -m playwright install --with-deps chromium
 
       - name: Exercise rendered layouts and transitions

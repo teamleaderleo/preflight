@@ -1,0 +1,92 @@
+{
+  "format": "starsector-preflight-issue-1153-tess-array-evidence-v1",
+  "date": "2026-08-28",
+  "issue": 1153,
+  "branch": "codex/1153-tess-array-physical",
+  "sourceCommit": "ffb1c2dfbe046fd32a012b2180e356f55e1817b5",
+  "classification": "thin-measurement-candidate-path-not-exercised",
+  "decision": "reject-for-current-profile-and-routes",
+  "identity": {
+    "gameVersion": "Starsector 0.98a-RC8",
+    "gameRuntime": "Zulu 17.0.10 x86_64 under Rosetta",
+    "host": "macOS 26.6.2 on Apple M5",
+    "resolvedModCount": 83,
+    "resolution": "1440x932",
+    "fullscreen": false,
+    "optimizationPreset": "recommended",
+    "graphicsArchiveSha256": "832064013fe853731941e547842884ba121fb8b20eff08d24137f7a2c916903a",
+    "targetClassSha256": "0e25f52eb84a184bd426afaa69372a49d57befe672bda88a71691e09facfeacf",
+    "target": "org/dark/graphics/util/Tessellate.render(BoundsAPI,float,float,float,ShipAPI)"
+  },
+  "ordinary": {
+    "workloadId": "tess-ordinary-correctness-r1",
+    "visualSanity": "passed-by-captured-frame",
+    "baseline": {
+      "frames": 2226,
+      "p50Millis": 17.3,
+      "p95Millis": 34.3,
+      "p99Millis": 78.9,
+      "onePercentLowFps": 12.67,
+      "maximumMillis": 322.952,
+      "over50Millis": 54,
+      "over100Millis": 10
+    },
+    "candidate": {
+      "frames": 2242,
+      "p50Millis": 17.2,
+      "p95Millis": 33.7,
+      "p99Millis": 70.7,
+      "onePercentLowFps": 14.14,
+      "maximumMillis": 327.394,
+      "over50Millis": 48,
+      "over100Millis": 11,
+      "installed": true,
+      "batches": 0,
+      "vertices": 0,
+      "bufferGrows": 0,
+      "estimatedImmediateVertexCallsAvoided": 0
+    }
+  },
+  "symmetric1040Materiality": {
+    "workloadId": "tess-1040-materiality-r1",
+    "recipeId": "symmetric-fast-high-tech-1040dp-v1",
+    "requestedBattleDp": 1040,
+    "perSidePrimaryShips": 24,
+    "perSideBattleDp": 520,
+    "combatSecondsElapsed": 56.174664,
+    "sideZeroNonFighterLosses": 0,
+    "sideOneNonFighterLosses": 0,
+    "endMissiles": 65,
+    "endProjectiles": 84,
+    "frames": 1166,
+    "p50Millis": 25.5,
+    "p95Millis": 42.4,
+    "p99Millis": 78.9,
+    "onePercentLowFps": 12.67,
+    "maximumMillis": 188.915,
+    "over50Millis": 37,
+    "over100Millis": 8,
+    "installed": true,
+    "batches": 0,
+    "vertices": 0,
+    "bufferGrows": 0,
+    "estimatedImmediateVertexCallsAvoided": 0
+  },
+  "adapterHealth": {
+    "status": "ACTIVE",
+    "transformationsApplied": 70,
+    "transformationsDeclined": 0,
+    "containedFailures": 0,
+    "sourceBindingRejected": 0,
+    "unavailablePlans": 0,
+    "runtimeIntegrityFailures": 0,
+    "killSwitchActive": false,
+    "fallback": "ORIGINAL_BYTECODE"
+  },
+  "probeOverheadAverageMicros": {
+    "ordinaryBaseline": 29.789873,
+    "ordinaryCandidate": 36.475323,
+    "stressCandidate": 30.153291
+  },
+  "stressBaselineSkippedReason": "candidate causal counters were zero in ordinary and exact stress workloads"
+}

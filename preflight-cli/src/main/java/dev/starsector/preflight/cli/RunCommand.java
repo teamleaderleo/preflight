@@ -164,6 +164,8 @@ final class RunCommand {
                 .adapterPlanScope(options.adapterPlanScope())
                 .build()
                 .appendTo(System.getenv("JAVA_TOOL_OPTIONS"));
+        javaToolOptions = RecommendedCombatPlanPolicy.appendOptions(
+                javaToolOptions, options.optimizationPreset());
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }
@@ -182,10 +184,25 @@ final class RunCommand {
                     javaToolOptions,
                     List.of("-Dpreflight.texture.trustValidatedIndex=true"));
         }
+        if (options.frameTimes() || options.campaignTimes() || options.desktopSmoke()) {
+            javaToolOptions = appendJavaOptions(
+                    javaToolOptions,
+                    List.of("-Dpreflight.frameTimes=true"));
+        }
+        if (options.campaignTimes()) {
+            javaToolOptions = appendJavaOptions(
+                    javaToolOptions,
+                    List.of("-Dpreflight.campaignTimes=true"));
+        }
+        if (options.smoothFramePacing()) {
+            javaToolOptions = appendJavaOptions(
+                    javaToolOptions,
+                    List.of("-Dpreflight.framePacing.forceVsyncOff=true"));
+        }
         if (options.desktopSmoke()) {
             javaToolOptions = appendJavaOptions(
                     javaToolOptions,
-                    List.of("-Dpreflight.desktopSmoke=true", "-Dpreflight.frameTimes=true"));
+                    List.of("-Dpreflight.desktopSmoke=true"));
         }
         String javaOptions = MacRosettaGcPolicy.appendOptions(
                 System.getenv("_JAVA_OPTIONS"), macRosettaGcPolicy);
@@ -267,7 +284,10 @@ final class RunCommand {
                 childOutput = ChildProcessOutput.run(builder, console);
             }
             launcherExitCode = childOutput.exitCode();
-            lifecycleEvidence = StarsectorRunLogEvidence.inspect(logSnapshot, childOutput);
+            boolean controllerStopRequested =
+                    StarsectorRunLogEvidence.exactControllerStopRequested(runDirectory);
+            lifecycleEvidence = StarsectorRunLogEvidence.inspect(
+                    logSnapshot, childOutput, controllerStopRequested);
             exitCode = StarsectorRunLogEvidence.effectiveExitCode(launcherExitCode, lifecycleEvidence);
             outcome = lifecycleEvidence.fatalDetected()
                     ? "FATAL_LOG_EVIDENCE"
@@ -449,9 +469,9 @@ final class RunCommand {
      * Whether the next launch would be accelerated, and what is missing when it would not.
      *
      * <p>Doctor is the command someone runs after installing to find out whether this thing is
-     * working. Discovery alone does not answer that: a found launcher with no prepared data
-     * launches at vanilla speed, and nothing in the discovery block says so. Each line is a fact
-     * with a fix beside it when it is not the wanted one.
+     * working. Discovery alone does not answer that: a found launcher says nothing about whether
+     * the requested preset has matching prepared data. Each line is a fact with a fix beside it
+     * when it is not the wanted one.
      */
     private static void printLaunchReadiness(CommandLine options) {
         PreflightHome home = PreflightHome.current();
@@ -462,8 +482,6 @@ final class RunCommand {
                 profile.diagnostic(),
                 profile.audioBuild(),
                 profile.audioDecoder());
-        boolean prepared = "ready".equals(health.status());
-
         System.out.println();
         System.out.println("Launch readiness:");
         if (profile.fingerprint() == null) {
@@ -484,12 +502,35 @@ final class RunCommand {
                     + integration.path());
         }
         System.out.println();
-        System.out.println(prepared
-                ? "Next launch is accelerated. `preflight run` uses the prepared artifacts above."
-                : "Next launch runs at ordinary speed until preparation completes.");
+        System.out.println(launchReadinessSummary(options.optimizationPreset(), health));
         if (options.scan()) {
             System.out.println("Texture working-set scan follows; `--no-scan` skips it.");
         }
+    }
+
+    static String launchReadinessSummary(
+            OptimizationPreset preset, CacheHealth.Report health) {
+        if (preset == OptimizationPreset.OFF) {
+            return "Off / troubleshooting is selected. The next launch does not use prepared data.";
+        }
+        if (preset == OptimizationPreset.CUSTOM) {
+            return "No product optimization preset is selected. Use `--optimization-preset recommended` "
+                    + "to check an optimized launch or `off` for the troubleshooting baseline.";
+        }
+        String launch = preset == OptimizationPreset.CONSERVATIVE
+                ? "Conservative launch"
+                : "Recommended launch";
+        return switch (health.status()) {
+            case "ready" -> "The next " + launch + " can use this profile's prepared data.";
+            case "cold" -> "Prepare this profile before a " + launch
+                    + ". `--optimization-preset off` remains available and does not use prepared data.";
+            case "repair-needed" -> "Rebuild prepared data before a " + launch
+                    + ". `--optimization-preset off` remains available and does not use prepared data.";
+            case "unsafe", "unknown" -> "Resolve the prepared-data issue before a " + launch
+                    + ". `--optimization-preset off` remains available and does not use prepared data.";
+            default -> "Prepared-data readiness is " + health.status() + ". Review it before a "
+                    + launch + ".";
+        };
     }
 
     private static String firstIssue(CacheHealth.Report health) {
@@ -601,6 +642,8 @@ final class RunCommand {
                 + (options.singleChunkRecording() ? " (single timestamp-coherent chunk)" : ""));
         System.out.println("  campaign entity index: " + options.campaignEntityIndex());
         System.out.println("  startup phase probe: " + options.startupPhaseProbe());
+        System.out.println("  smooth frame pacing: " + options.smoothFramePacing());
+        System.out.println("  detailed campaign timing: " + options.campaignTimes());
         System.out.println("  rule token cache: " + options.ruleTokenCache());
         System.out.println("  resource probe cache: " + options.resourceProbeCache());
         System.out.println("  loadJSON memo: " + options.loadJsonMemo());
@@ -819,6 +862,10 @@ final class RunCommand {
         values.put("assetProgressLogsSuppressed", options.suppressAssetProgressLogs());
         values.put("trustedValidatedTextureIndex",
                 trustsLauncherValidatedTextureIndex(options, textureContext));
+        values.put("frameTimes",
+                options.frameTimes() || options.campaignTimes() || options.desktopSmoke());
+        values.put("campaignTimes", options.campaignTimes());
+        values.put("smoothFramePacing", options.smoothFramePacing());
         values.put("desktopSmoke", options.desktopSmoke());
         values.put("quietLogConfiguration", options.fileOnlyLogs()
                 ? QuietLogConfiguration.path(path.getParent(), options.quietLogs())

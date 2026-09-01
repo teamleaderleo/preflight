@@ -13,4 +13,8 @@ public interface SettingsAPI {
     default FleetMemberAPI createFleetMember(FleetMemberType type, ShipVariantAPI variant) {
         return null;
     }
+
+    default boolean doesVariantExist(String id) {
+        return false;
+    }
 }

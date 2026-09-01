@@ -47,6 +47,19 @@ class AdapterSourceIdentityTest {
     }
 
     @Test
+    void recognizesTheReviewedCommonArchiveByExactFileName() throws Exception {
+        Path archive = temporaryDirectory.resolve("isolated/contents/resources/java/fs.common_obf.jar");
+        Files.createDirectories(archive.getParent());
+        Files.write(archive, new byte[] {1});
+
+        AdapterSourceIdentity identity = AdapterSourceIdentity.capture(
+                getClass().getClassLoader(), domain(archive), false);
+
+        assertEquals("STARSECTOR_CORE", identity.sourceKind());
+        assertTrue(identity.sourceEndsWith("contents/resources/java/fs.common_obf.jar"));
+    }
+
+    @Test
     void distinguishesFastRenderingModsAndUnknownSources() throws Exception {
         Path fastRendering = temporaryDirectory.resolve("game/mods/Fast-Rendering/fast-rendering.jar");
         Path ordinaryMod = temporaryDirectory.resolve("game/mods/Example/example.jar");

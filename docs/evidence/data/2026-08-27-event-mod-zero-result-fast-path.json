@@ -1,0 +1,104 @@
+{
+  "format": "starsector-preflight-event-mod-zero-result-fast-path-v1",
+  "date": "2026-08-27",
+  "target": {
+    "class": "com.fs.starfarer.campaign.econ.CommodityOnMarket",
+    "method": "reapplyEventMod()V",
+    "classSha256": "0d4157d29532ef969b0d61a52783a4fc3846c758d73409141915c2807e3c83e4",
+    "planId": "commodity-event-mod-memo-v1",
+    "strategy": "split-exact-zero-fast-path-with-complete-slow-fingerprint"
+  },
+  "recentReference": {
+    "runId": "event-mod-noop-elision-20260827-0803",
+    "unpausedCampaignSamples": 618,
+    "wrapperLeafSamples": 42,
+    "wrapperLeafSharePercent": 6.8,
+    "stutterBurdenMillisPerSecond": 77.93,
+    "repeatedSlowFramesPercent": 3.88,
+    "comparisonLimit": "same semantic route but not lockstep"
+  },
+  "opportunityProbe": {
+    "runId": "event-mod-zero-counts-20260827-1025",
+    "completedMeasurementWindows": true,
+    "cleanupPauseRefusedAfterMeasurement": true,
+    "unchangedHits": 29562310,
+    "zeroQuantityHits": 29562310,
+    "delegations": 193824,
+    "zeroShareOfHitsPercent": 100.0,
+    "zeroShareOfCallsPercent": 99.3486,
+    "fastValidationUnavailable": 0
+  },
+  "discardedShapes": [
+    {
+      "shape": "full-cancellation-arithmetic-in-one-wrapper",
+      "runs": [
+        {"runId": "event-mod-zero-fast-20260827-1021", "leafSamples": 55, "campaignSamples": 578, "sharePercent": 9.52},
+        {"runId": "event-mod-zero-fast-2-20260827-1029", "leafSamples": 50, "campaignSamples": 529, "sharePercent": 9.45}
+      ]
+    },
+    {
+      "shape": "three-exact-zero-checks-with-full-fingerprint-in-one-wrapper",
+      "runs": [
+        {"runId": "event-mod-exact-zero-fast-20260827-1034", "leafSamples": 60, "campaignSamples": 717, "sharePercent": 8.37}
+      ]
+    }
+  ],
+  "retainedLive": {
+    "runId": "event-mod-zero-split-20260827-1042",
+    "scenario": "campaign-sample-paused-unpaused",
+    "scenarioStatus": "passed",
+    "launcherExitCode": 6,
+    "launcherExitDiagnostic": "controller-stop OpenAL cleanup after completed measurement",
+    "transformationsApplied": 59,
+    "exactMatches": 59,
+    "containedFailures": 0,
+    "inactiveIntervalsDropped": 0,
+    "unpausedProfile": {
+      "campaignSamples": 441,
+      "wrapperLeafSamples": 18,
+      "wrapperLeafSharePercent": 4.08
+    },
+    "pausedFrameContext": {
+      "frames": 2620,
+      "averageFps": 58.25,
+      "onePercentLowFps": 29.76,
+      "stutterBurdenMillisPerSecond": 1.3,
+      "repeatedSlowFramesPercent": 0.0
+    },
+    "unpausedFrameContext": {
+      "frames": 824,
+      "averageFps": 38.38,
+      "onePercentLowFps": 8.95,
+      "p99FrameMillis": 111.7,
+      "stutterBurdenMillisPerSecond": 159.4,
+      "repeatedSlowFramesPercent": 12.38
+    }
+  },
+  "safety": {
+    "exactClassAndArchiveGates": true,
+    "java17BytecodeGate": true,
+    "originalMethodRetained": true,
+    "completeSlowFingerprintRetained": true,
+    "linkageFailureDisablesMemoAndRunsOriginal": true,
+    "newInstanceFields": 0,
+    "existingMemoFieldsRemainPrivateTransient": 14,
+    "opensOrWritesSaves": false,
+    "killSwitch": "PREFLIGHT_DISABLE_ADAPTER_PLANS=commodity-event-mod-memo-v1"
+  },
+  "verification": {
+    "focusedInstalledAndStructuralTests": {"tests": 8, "status": "passed"},
+    "java17Verify": {
+      "status": "passed",
+      "coreTests": 365,
+      "agentTests": 618,
+      "agentSkipped": 1,
+      "cliUnitTests": 1116,
+      "cliUnitSkipped": 3,
+      "cliIntegrationTests": 55,
+      "cliIntegrationSkipped": 4,
+      "syntheticTests": 22,
+      "syntheticSkipped": 1
+    }
+  },
+  "claimBoundary": "Accepted for exact common-case validation bypass, live compatibility, and targeted sampled-share reduction; no overall FPS or stutter-uplift claim."
+}

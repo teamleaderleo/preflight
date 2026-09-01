@@ -1,0 +1,201 @@
+{
+  "format": "starsector-preflight-hitch-packet-evidence-v1",
+  "date": "2026-08-28",
+  "disposition": "retained-diagnostic-infrastructure",
+  "performanceClaim": false,
+  "parentIssue": "https://github.com/teamleaderleo/preflight/issues/449",
+  "childIssue": "https://github.com/teamleaderleo/preflight/issues/1150",
+  "implementationCommit": "2f0ea0b3",
+  "implementation": {
+    "packetFormat": "starsector-preflight-hitch-packets-v1",
+    "triggerMillis": 50,
+    "severeMillis": 100,
+    "preTriggerMillis": 2000,
+    "postTriggerMillis": 1000,
+    "recentFrameCapacity": 256,
+    "packetLimit": 8,
+    "packetFrameCapacity": 384,
+    "campaignCallSpanCapacity": 32768,
+    "ordinaryFramePathAllocation": "none; primitive array writes only",
+    "campaignProducerClassification": "discovery-only exact call-site timing",
+    "liveSnapshotConsistency": "best effort while running; sealed shutdown report authoritative",
+    "adapterReportReadLimitBytes": 4194304,
+    "diagnosticBundleFileReadLimitBytes": 4194304
+  },
+  "discovery": {
+    "scenario": "campaign-profile-paused-unpaused",
+    "status": "passed",
+    "stepsPassed": 10,
+    "packetsRetained": 8,
+    "packetTriggersDropped": 19,
+    "initialCallSpanCapacity": 8192,
+    "callSpansWritten": 727963,
+    "callSpansOverwritten": 719771,
+    "corrections": [
+      "exclude title-screen demo combat before campaign observation",
+      "increase exact campaign call-span capacity from 8192 to 32768",
+      "raise bounded adapter and diagnostic source-file readers from 512 KiB to 4 MiB"
+    ],
+    "files": {
+      "adapter.json": {
+        "bytes": 1570804,
+        "sha256": "b41007f6a8395d9eb7860aff948b8ca691e6ef2bc968ea64b4e4d9d5423aa750"
+      },
+      "runtime-frame-report.json": {
+        "bytes": 1279913,
+        "sha256": "8c76c840425f50ab7c0f8e54ec6b2bf429fa13052f215465d9065e1af7412afd"
+      },
+      "adapter-health.json": {
+        "bytes": 1050,
+        "sha256": "001adb5db7608cfa37b13ded399afbf566a3df9b7221c886b53b40c55b4e93ef"
+      },
+      "smoke-evidence.json": {
+        "bytes": 2488,
+        "sha256": "45041909e51e5541f25d19e5d18f86109c839fc76ca2c7345f2fd464215ed00d"
+      }
+    }
+  },
+  "confirmation": {
+    "scenario": "campaign-profile-current-state",
+    "scenarioSha256": "db46684bf7753937ae1fd931d98631abd672116e5441667534db698186e198b6",
+    "status": "passed",
+    "stepsPassed": 5,
+    "startedAt": "2026-08-27T17:12:46.911914Z",
+    "completedAt": "2026-08-27T17:14:54.415556Z",
+    "processExitCode": 0,
+    "fatalDetected": false,
+    "preflightOnly": true,
+    "recordingMode": "OFF",
+    "frameTimes": true,
+    "campaignTimes": true,
+    "smoothFramePacing": false,
+    "resolution": "1440x932",
+    "fullscreen": false,
+    "sound": true,
+    "identity": {
+      "gameBuild": "Starsector 0.98a-RC8",
+      "gameJarSha256": "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+      "gameJavaSha256": "3c3119b298602ae84e1fa3175a21279b5827cca4fc7c17f27f6ac0abc642a9ff",
+      "wrapperJava": "Oracle Java 17.0.12 arm64",
+      "gameJava": "Zulu Java 17.0.10 x86_64 under Rosetta",
+      "profileFingerprint": "2995668308ac3d31d645ccac30fb1a7e644e64fce5609050a1488df4cadc5af6",
+      "textureProfileFingerprint": "59b01dc050f39a9f07053bd168cc8c1ecd55086b429b2d732456f87ca217a702",
+      "preflightJarSha256": "dff710736a6547ce3393140166a7431349127458fa7e66cd5cb8754d0297d0d8"
+    },
+    "adapterHealth": {
+      "status": "ACTIVE",
+      "mode": "ENABLED",
+      "registryTargets": 87,
+      "exactMatches": 69,
+      "transformationsApplied": 69,
+      "sourceBindingRejected": 0,
+      "unavailablePlans": 0,
+      "transformationsDeclined": 0,
+      "containedFailures": 0,
+      "runtimeIntegrityFailures": 0,
+      "failOpenPolicy": true,
+      "killSwitchActive": false,
+      "originalCodeRetained": false,
+      "originalCodeRetainedMeaning": "no fallback or decline was needed in this run"
+    },
+    "frameRecorder": {
+      "displayBoundaries": 6359,
+      "inactiveIntervalsDropped": 0,
+      "invalidIntervalsDropped": 0,
+      "stateTransitionIntervalsDropped": 5,
+      "campaignPauseTransitionIntervalsExcluded": 0,
+      "measurementOverheadAverageMicros": 15.784013995911307,
+      "measurementOverheadMaximumMicros": 9865.125,
+      "campaignCallSpansWritten": 514404,
+      "campaignCallSpansOverwrittenSessionTotal": 481636,
+      "packetTriggersDropped": 0
+    },
+    "packet": {
+      "state": "campaign",
+      "pause": "paused",
+      "frames": 175,
+      "triggerSequence": 1292,
+      "triggers": 1,
+      "severeTriggers": 0,
+      "postWindowComplete": true,
+      "truncatedFrames": 0,
+      "campaignPhaseCoverageComplete": true,
+      "joinedCampaignCallSpans": 16284,
+      "triggerFrame": {
+        "durationMicros": 50003,
+        "preSwapMicros": 49210,
+        "nativeSwapMicros": 538,
+        "messageMicros": 248,
+        "otherAfterSwapMicros": 6,
+        "campaignPhaseOverlapMicros": {
+          "uiData": 1,
+          "factions": 5,
+          "locations": 162,
+          "campaignHelp": 3
+        },
+        "campaignPhaseCalls": {
+          "uiData": 1,
+          "factions": 89,
+          "locations": 6,
+          "campaignHelp": 1
+        },
+        "locationsMaximumOverlapMicros": 85
+      }
+    },
+    "files": {
+      "adapter.json": {
+        "bytes": 757980,
+        "sha256": "33f50253f4e4d269e20424ec267bf7bd94b33270db9b847596b71345ef0fcc29"
+      },
+      "runtime-frame-report.json": {
+        "bytes": 467126,
+        "sha256": "7fe3bb4ab064305fec1ea05b13047ae03a811f33534ff78c95e70995794600d7"
+      },
+      "adapter-health.json": {
+        "bytes": 1056,
+        "sha256": "a0eda6ac3ce66a18964381cf5623479ecd646f52508e560fa0537b2380082fdf"
+      },
+      "smoke-evidence.json": {
+        "bytes": 1462,
+        "sha256": "ce0a24919c6db700f3b5bdbdf52c3477a663c437aac43447254d5718e6145ceb"
+      }
+    }
+  },
+  "calibration": {
+    "classification": "isolated hot steady-state direct-call calibration; not an FPS claim",
+    "runtime": "installed x86_64 Zulu Java 17 game runtime",
+    "warmups": 4,
+    "samplesPerCondition": 12,
+    "callsPerSample": 4000000,
+    "enabledMedianNanosPerCall": 2.317276,
+    "enabledSamplesNanosPerCall": [
+      2.25527075,
+      2.263677,
+      2.28022925,
+      2.2815,
+      2.29173975,
+      2.316,
+      2.318552,
+      2.3237915,
+      2.345448,
+      2.38890625,
+      2.53784375,
+      2.6521355
+    ],
+    "limitation": "the disabled comparator optimized away; interpret enabled timing as absolute"
+  },
+  "verification": {
+    "command": "JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home ./mvnw verify",
+    "result": "BUILD SUCCESS",
+    "durationSeconds": 41.971,
+    "tests": 2237,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 9
+  },
+  "conclusion": {
+    "observed": "the first complete trigger was pre-swap and not explained by native swap or the nine broad CampaignEngine phases",
+    "nextExperiment": "split pre-swap game CPU work from limiter/cap wait, then arm exact packet-triggered CPU escalation only if needed",
+    "saveImpact": "none; static bounded telemetry only and no save action in the route"
+  }
+}

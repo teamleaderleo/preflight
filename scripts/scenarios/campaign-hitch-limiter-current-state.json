@@ -1,0 +1,41 @@
+{
+  "format": "starsector-preflight-smoke-v1",
+  "name": "campaign-hitch-limiter-current-state",
+  "timeoutSeconds": 300,
+  "launch": {
+    "preset": "fast",
+    "textureStorage": "balanced",
+    "profile": null,
+    "campaignTimes": false,
+    "smoothFramePacing": false
+  },
+  "steps": [
+    {
+      "id": "menu",
+      "kind": "wait-state",
+      "state": "main-menu-interactive",
+      "timeoutSeconds": 180
+    },
+    {
+      "id": "continue",
+      "kind": "click",
+      "target": "main-menu.continue"
+    },
+    {
+      "id": "campaign",
+      "kind": "wait-state",
+      "state": "campaign-ready",
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "warmup",
+      "kind": "wait-duration",
+      "durationMillis": 30000
+    },
+    {
+      "id": "settled-measurement",
+      "kind": "wait-duration",
+      "durationMillis": 60000
+    }
+  ]
+}

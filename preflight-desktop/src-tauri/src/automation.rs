@@ -177,7 +177,8 @@ pub(crate) fn start_desktop_smoke(
             pid,
             success: None,
             detail: Some(
-                "Starting a normal launch; the Preflight launch follows after cleanup.".to_string(),
+                "Starting through Preflight with optimizations off; the optimized launch follows after cleanup."
+                    .to_string(),
             ),
             run_directory: run_directory.to_string_lossy().into_owned(),
             comparison: None,

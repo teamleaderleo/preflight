@@ -248,6 +248,8 @@ final class AdapterTransformationCache {
     private static boolean cacheable(AdapterTarget target) {
         String plan = target.planId();
         return !FrameTimeRuntime.PLAN_ID.equals(plan)
+                && !GlCommandCountRuntime.PLAN_ID.equals(plan)
+                && !FrameLimiterTimePlan.PLAN_ID.equals(plan)
                 && !CampaignCallTimeRuntime.PLAN_ID.equals(plan)
                 && !CampaignEngineTimeRuntime.PLAN_ID.equals(plan)
                 && !CampaignLocationEconomyTimeRuntime.PLAN_ID.equals(plan)

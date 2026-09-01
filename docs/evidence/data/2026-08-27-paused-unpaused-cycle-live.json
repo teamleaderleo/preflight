@@ -1,0 +1,118 @@
+{
+  "format": "starsector-preflight-paused-unpaused-cycle-live-v1",
+  "date": "2026-08-27",
+  "runId": "campaign-pause-cycle-20260827-0107",
+  "scenario": "campaign-profile-paused-unpaused",
+  "launch": {
+    "path": "preflight-only",
+    "outcome": "passed",
+    "singleControlledProcess": true,
+    "processStartedAt": "2026-08-26T17:07:48.605Z",
+    "menuReadyAt": "2026-08-26T17:08:06.956132Z",
+    "menuInteractiveAt": "2026-08-26T17:08:19.978815Z",
+    "campaignReadyAt": "2026-08-26T17:08:28.748109Z",
+    "completedAt": "2026-08-26T17:10:33.939938Z"
+  },
+  "exactTransforms": {
+    "frameTimes": "lwjgl-display-frame-time-and-presentation-v2",
+    "campaignStateAndControl": "vanilla-game-state-frame-time-segments-v3",
+    "transformationsApplied": 64,
+    "transformationsDeclined": 0,
+    "unavailablePlans": 0,
+    "containedFailures": 0
+  },
+  "actions": [
+    {
+      "sequence": 1,
+      "action": "main-menu.continue",
+      "status": "executed",
+      "detail": "title callback accepted Continue"
+    },
+    {
+      "sequence": 2,
+      "action": "campaign.pause",
+      "status": "executed",
+      "beforePaused": true,
+      "afterPaused": true,
+      "detail": "campaign pause state already matched request"
+    },
+    {
+      "sequence": 3,
+      "action": "campaign.unpause",
+      "status": "executed",
+      "beforePaused": true,
+      "afterPaused": false,
+      "detail": "mapped pause control reached requested state"
+    },
+    {
+      "sequence": 4,
+      "action": "campaign.pause",
+      "status": "executed",
+      "beforePaused": false,
+      "afterPaused": true,
+      "detail": "mapped pause control reached requested state"
+    }
+  ],
+  "measurementIntegrity": {
+    "boundaries": 8161,
+    "inactiveIntervalsDropped": 0,
+    "invalidIntervalsDropped": 0,
+    "campaignPauseUnknownIntervalsExcluded": 0,
+    "campaignPauseTransitionIntervalsExcluded": 2,
+    "measurementAverageMicros": 11.14357811542703,
+    "measurementMaximumMicros": 13575.875
+  },
+  "frameTimes": {
+    "pausedAfter30Seconds": {
+      "frames": 2625,
+      "averageFps": 58.49,
+      "medianFps": 58.48,
+      "onePercentLowFps": 35.09,
+      "pointOnePercentLowFps": 31.45,
+      "p95Micros": 20200,
+      "p99Micros": 28500,
+      "maximumMicros": 40818,
+      "over33_33Millis": 2
+    },
+    "unpausedFullStateWindow": {
+      "frames": 2672,
+      "averageFps": 53.6,
+      "medianFps": 59.52,
+      "onePercentLowFps": 16.75,
+      "pointOnePercentLowFps": 7.16,
+      "p95Micros": 30900,
+      "p99Micros": 59700,
+      "maximumMicros": 155078,
+      "over33_33Millis": 113,
+      "scope": "includes the scenario's five-second post-unpause transition and 45-second hold"
+    }
+  },
+  "campaignAttribution": {
+    "economy": {
+      "calls": 2674,
+      "totalMillis": 6890.81931,
+      "maximumMillis": 64.254166,
+      "marketAdvanceMillis": 6268.19658,
+      "marketAdvanceCalls": 497364,
+      "marketCommodityStatCalls": 224410368,
+      "marketEventModCalls": 56102592
+    },
+    "locations": {
+      "calls": 57250,
+      "totalMillis": 10341.043781,
+      "maximumMillis": 84.050167,
+      "activeCampaignFleetMillis": 3033.352704,
+      "battleScriptMillis": 390.618364,
+      "gestaltSeededFleetManagerMillis": 103.801083
+    },
+    "existingCommodityMemo": {
+      "installed": true,
+      "enabled": true,
+      "hits": 55933399,
+      "delegated": 217884,
+      "fastValidationUnavailable": 0
+    },
+    "timingCaveat": "High-frequency sampled market subphase totals are probe-inflated leads. Unsampled enclosing economy, market, location, entity, and script timings are the reliable inclusive totals."
+  },
+  "claimBoundary": "One clean same-process observation under the current heavily modded save. It validates deterministic state control and identifies the unpaused tail and economy/location categories; it is not yet a controlled optimization A/B."
+}

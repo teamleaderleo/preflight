@@ -1,0 +1,97 @@
+{
+  "format": "starsector-preflight-event-mod-empty-map-fast-path-v1",
+  "date": "2026-08-27",
+  "target": {
+    "class": "com.fs.starfarer.campaign.econ.CommodityOnMarket",
+    "method": "reapplyEventMod()V",
+    "classSha256": "0d4157d29532ef969b0d61a52783a4fc3846c758d73409141915c2807e3c83e4",
+    "planId": "commodity-event-mod-memo-v1",
+    "strategy": "split-exact-zero-empty-map-fast-path-with-complete-slow-fingerprint"
+  },
+  "live": {
+    "runId": "event-mod-empty-map-profile-20260827-1217",
+    "scenario": "campaign-profile-paused-unpaused",
+    "status": "passed",
+    "scenarioSteps": 10,
+    "transformationsApplied": 69,
+    "exactMatches": 69,
+    "containedFailures": 0,
+    "inactiveIntervalsDropped": 0,
+    "invalidIntervalsDropped": 0,
+    "eventModRuntime": {
+      "installed": true,
+      "enabled": true,
+      "telemetryEnabled": true,
+      "calls": 38546278,
+      "fastHits": 38352454,
+      "fastHitSharePercent": 99.4972,
+      "zeroQuantityHits": 38352454,
+      "emptyMapHits": 33350500,
+      "emptyMapShareOfFastHitsPercent": 86.9579,
+      "emptyMapShareOfCallsPercent": 86.5207,
+      "nonemptyZeroQuantityHits": 5001954,
+      "delegated": 193824,
+      "delegatedSharePercent": 0.5028,
+      "fastValidationUnavailable": 0
+    },
+    "pausedFrameContext": {
+      "frames": 4913,
+      "averageFps": 55.65,
+      "onePercentLowFps": 35.71,
+      "pointOnePercentLowFps": 19.72,
+      "p99FrameMillis": 28.0,
+      "stutterBurdenMillisPerSecond": 2.92,
+      "repeatedSlowFramesPercent": 0.04
+    },
+    "unpausedFrameContext": {
+      "frames": 1833,
+      "averageFps": 50.18,
+      "onePercentLowFps": 12.35,
+      "pointOnePercentLowFps": 7.06,
+      "p99FrameMillis": 81.0,
+      "stutterBurdenMillisPerSecond": 72.53,
+      "repeatedSlowFramesPercent": 3.49
+    },
+    "frameContextLimit": "Campaign timing probes were enabled for branch counts; these distributions are not an A/B result or an FPS-uplift claim.",
+    "rawArtifactHashes": {
+      "runtimeFrameReportSha256": "1f8869dcf784e42acc95dc61552449de64190c24e3ac819f6252477b67e247b0",
+      "runtimeAdapterHealthSha256": "f5b2ff4b04dab24bc152d18549ae67ea8d1b0ec3fe7053b8ec3ff5151652d02f",
+      "smokeEvidenceSha256": "0d38dbb45cb0b7969d30e63eecb937290bf680ecd864741cb5b7dd62d7b356be"
+    }
+  },
+  "safety": {
+    "exactClassAndArchiveGates": true,
+    "java17BytecodeGate": true,
+    "originalMethodRetained": true,
+    "completeSlowFingerprintRetained": true,
+    "linkageFailureDisablesMemoAndRunsOriginal": true,
+    "memoFieldsRemainPrivateTransient": true,
+    "addsSaveState": false,
+    "opensOrWritesSaves": false,
+    "killSwitch": "PREFLIGHT_DISABLE_ADAPTER_PLANS=commodity-event-mod-memo-v1"
+  },
+  "verification": {
+    "focusedStructuralTests": "passed",
+    "installedClassTests": {
+      "passed": 2,
+      "skipped": 0
+    },
+    "java17Verify": {
+      "status": "passed",
+      "tests": 2224,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 9,
+      "coreTests": 365,
+      "agentTests": 652,
+      "agentSkipped": 1,
+      "cliUnitTests": 1130,
+      "cliUnitSkipped": 3,
+      "cliIntegrationTests": 55,
+      "cliIntegrationSkipped": 4,
+      "syntheticTests": 22,
+      "syntheticSkipped": 1
+    }
+  },
+  "claimBoundary": "Accepted for exact empty-map branch coverage and live compatibility. No overall FPS, percentile, stutter, or JIT-cost improvement is claimed from this instrumented run."
+}

@@ -16,6 +16,14 @@ const repositoryRoot = resolve(import.meta.dirname, "..", "..");
 const engineJar = join(repositoryRoot, "preflight-cli", "target", "preflight.jar");
 const nativeSource = readFileSync(join(repositoryRoot, "preflight-desktop", "src-tauri", "src", "lib.rs"), "utf8");
 const bridgeSource = readFileSync(join(repositoryRoot, "preflight-desktop", "src", "bridge.ts"), "utf8");
+const setupSummaryNativeSource = readFileSync(
+  join(repositoryRoot, "preflight-desktop", "src-tauri", "src", "setup_summary.rs"),
+  "utf8",
+);
+const setupSummaryRendererSource = readFileSync(
+  join(repositoryRoot, "preflight-desktop", "src", "copySetup.ts"),
+  "utf8",
+);
 const sourceLock = JSON.parse(readFileSync(
   join(repositoryRoot, "preflight-desktop", "capabilities", "release-receipt-source-lock.json"),
   "utf8",
@@ -47,6 +55,7 @@ test("release capability receipt binds the renderer, filesystem, process, and ne
   assert.match(receipt.boundarySourceSha256, /^[a-f0-9]{64}$/);
   assert.match(receipt.engineJarSha256, /^[a-f0-9]{64}$/);
   assert.ok(receipt.rendererBoundary.nativeCommands.includes("start_game"));
+  assert.ok(receipt.rendererBoundary.nativeCommands.includes("save_setup_summary"));
   assert.deepEqual(receipt.rendererBoundary.tauriPermissions, [
     "core:default",
     "dialog:allow-open",
@@ -59,6 +68,18 @@ test("release capability receipt binds the renderer, filesystem, process, and ne
   assert.equal(receipt.rendererBoundary.nativeCommands.includes("export_automatic_diagnostics"), false);
   assert.equal(receipt.arbitraryShellCommandsAccepted, false);
   assert.ok(receipt.filesystem.excluded.includes("save files"));
+  assert.deepEqual(receipt.filesystem.userSelectedWrites, [{
+    target: "a new .txt setup-summary file chosen through the operating-system save dialog",
+    when: "the user selects Save setup summary",
+    safety: "only the versioned, 128 KiB-bounded public setup projection is accepted; existing files and non-text destinations are refused",
+  }]);
+});
+
+test("native setup-summary admission shares the renderer's byte ceiling", () => {
+  const nativeLimit = sourceInteger(setupSummaryNativeSource, "SETUP_SUMMARY_MAX_BYTES");
+  const rendererLimit = sourceInteger(setupSummaryRendererSource, "COPY_SETUP_MAX_BYTES");
+  assert.equal(nativeLimit, 128 * 1024);
+  assert.equal(nativeLimit, rendererLimit);
 });
 
 test("compiled report intake is exact and rejects broader URLs", () => {
@@ -162,4 +183,10 @@ function extractPreviewProjectLinks(source) {
   }
   if (Object.keys(links).length === 0) throw new Error("The preview project-link table parsed empty");
   return links;
+}
+
+function sourceInteger(source, name) {
+  const encoded = source.match(new RegExp(`(?:const|export const)\\s+${name}(?:[^=]*)=\\s*([0-9_]+)`))?.[1];
+  if (!encoded) throw new Error(`Could not find integer source constant ${name}`);
+  return Number(encoded.replaceAll("_", ""));
 }

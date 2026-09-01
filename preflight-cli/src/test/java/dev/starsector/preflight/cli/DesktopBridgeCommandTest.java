@@ -1,5 +1,6 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.agent.FrameTimeTelemetry;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -150,6 +151,208 @@ class DesktopBridgeCommandTest {
         assertEquals(0L, lastRun.get("exitCode"));
         assertEquals(game.toAbsolutePath().normalize(), lastRun.get("installRoot"));
         assertEquals("b".repeat(64), lastRun.get("profileFingerprint"));
+    }
+
+    @Test
+    void snapshotCarriesOnlyBoundedFramePacingSummariesFromTheLatestRun() throws Exception {
+        Path home = Files.createDirectories(temporaryDirectory.resolve("frame-home"));
+        Path game = Files.createDirectories(temporaryDirectory.resolve("frame-game"));
+        Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
+        Path run = Files.createDirectories(home.resolve(".starsector-preflight/runs/run-1"));
+        Files.writeString(run.resolve("run.json"), Json.object(Map.of(
+                "installRoot", game,
+                "textureProfileFingerprint", "9".repeat(64))));
+        Map<String, Object> initialCampaign = Map.of(
+                "frames", 1383,
+                FrameTimeTelemetry.TOTAL_ACTIVE_NANOS, 29_950_000_000L,
+                "averageFps", 46.10,
+                "onePercentLowFps", 9.15,
+                "p95Micros", 44500,
+                "p99Micros", 109300);
+        Map<String, Object> allCampaign = Map.of(
+                "frames", 5474,
+                FrameTimeTelemetry.TOTAL_ACTIVE_NANOS, 103_800_000_000L,
+                "averageFps", 52.76,
+                "onePercentLowFps", 15.06,
+                "p95Micros", 31200,
+                "p99Micros", 66400,
+                "worstFrames", List.of(Map.of("timestamp", "private-detail")));
+        Map<String, Object> settledCampaign = Map.of(
+                "frames", 4091,
+                FrameTimeTelemetry.TOTAL_ACTIVE_NANOS, 73_850_000_001L,
+                "averageFps", 55.47,
+                "onePercentLowFps", 20.45,
+                "p95Micros", 27100,
+                "p99Micros", 48900);
+        Map<String, Object> settledPausedCampaign = Map.ofEntries(
+                Map.entry("frames", 2000),
+                Map.entry(FrameTimeTelemetry.TOTAL_ACTIVE_NANOS, 34_000_000_000L),
+                Map.entry("averageFps", 58.82),
+                Map.entry("onePercentLowFps", 29.90),
+                Map.entry("pointOnePercentLowFps", 18.75),
+                Map.entry("p95Micros", 22_100),
+                Map.entry("p99Micros", 33_400),
+                Map.entry("over33_33Millis", 14),
+                Map.entry("over50Millis", 3),
+                Map.entry("over100Millis", 1),
+                Map.entry("stutterProfile", Map.of(
+                        "slowFramesPerMinute", 24.71,
+                        "stutterBurdenMillisPerSecond", 4.25,
+                        "repeatedSlowFrameClusters", 2,
+                        "repeatedSlowFramesPercent", 0.35,
+                        "longestSlowFrameClusterMillis", 92.4)));
+        Map<String, Object> settledUnpausedCampaign = Map.of(
+                "frames", 2090,
+                FrameTimeTelemetry.TOTAL_ACTIVE_NANOS, 39_800_000_000L,
+                "averageFps", 52.51,
+                "onePercentLowFps", 18.42,
+                "p95Micros", 31_500,
+                "p99Micros", 54_300);
+        Files.writeString(run.resolve("adapter.json"), Json.object(Map.of(
+                FrameTimeTelemetry.REPORT, Map.of(
+                        FrameTimeTelemetry.ENABLED, true,
+                        FrameTimeTelemetry.CAMPAIGN_ACTIVE, allCampaign,
+                        FrameTimeTelemetry.CAMPAIGN_FIRST_30_SECONDS_ACTIVE, initialCampaign,
+                        FrameTimeTelemetry.CAMPAIGN_AFTER_30_SECONDS_ACTIVE, settledCampaign,
+                        FrameTimeTelemetry.CAMPAIGN_PAUSED_AFTER_30_SECONDS_ACTIVE,
+                        settledPausedCampaign,
+                        FrameTimeTelemetry.CAMPAIGN_UNPAUSED_AFTER_30_SECONDS_ACTIVE,
+                        settledUnpausedCampaign,
+                        FrameTimeTelemetry.COMBAT_AFTER_CAMPAIGN_ACTIVE, Map.of("frames", 0),
+                        FrameTimeTelemetry.MEASUREMENT_OVERHEAD,
+                        Map.of(FrameTimeTelemetry.AVERAGE_MICROS, 1.78)))));
+
+        Map<String, Object> snapshot = DesktopBridgeCommand.snapshot(
+                Platform.MAC, home, temporaryDirectory, Map.of(), game, null);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> lastRun = (Map<String, Object>) snapshot.get("lastRun");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> framePacing = (Map<String, Object>) lastRun.get("framePacing");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> summary = (Map<String, Object>) framePacing.get("campaign");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> initial = (Map<String, Object>) framePacing.get("initialCampaign");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> settled = (Map<String, Object>) framePacing.get("settledCampaign");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> settledPaused =
+                (Map<String, Object>) framePacing.get("settledPausedCampaign");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> settledUnpaused =
+                (Map<String, Object>) framePacing.get("settledUnpausedCampaign");
+        assertEquals("starsector-preflight-frame-pacing-summary-v1", framePacing.get("format"));
+        assertEquals(5474L, summary.get("frames"));
+        assertEquals(103_800L, summary.get("activeMillis"));
+        assertEquals(52.76, summary.get("averageFps"));
+        assertEquals(15.06, summary.get("onePercentLowFps"));
+        assertEquals(1383L, initial.get("frames"));
+        assertEquals(29_950L, initial.get("activeMillis"));
+        assertEquals(9.15, initial.get("onePercentLowFps"));
+        assertEquals(4091L, settled.get("frames"));
+        assertEquals(73_851L, settled.get("activeMillis"));
+        assertEquals(20.45, settled.get("onePercentLowFps"));
+        assertEquals(2000L, settledPaused.get("frames"));
+        assertEquals(29.90, settledPaused.get("onePercentLowFps"));
+        assertEquals(18.75, settledPaused.get("pointOnePercentLowFps"));
+        assertEquals(4.25, settledPaused.get("stutterBurdenMillisPerSecond"));
+        assertEquals(0.35, settledPaused.get("repeatedSlowFramesPercent"));
+        assertEquals(24.71, settledPaused.get("slowFramesPerMinute"));
+        assertEquals(2L, settledPaused.get("repeatedSlowFrameClusters"));
+        assertEquals(92.4, settledPaused.get("longestSlowFrameClusterMillis"));
+        assertEquals(3L, settledPaused.get("over50Millis"));
+        assertEquals(2090L, settledUnpaused.get("frames"));
+        assertEquals(18.42, settledUnpaused.get("onePercentLowFps"));
+        assertEquals(1.78, framePacing.get("measurementAverageMicros"));
+        assertFalse(summary.containsKey("worstFrames"), summary.toString());
+        assertNull(framePacing.get("combat"));
+    }
+
+    @Test
+    void snapshotUsesOnlyPostCampaignCombatForPlayerFramePacing() throws Exception {
+        Path home = Files.createDirectories(temporaryDirectory.resolve("combat-frame-home"));
+        Path game = Files.createDirectories(temporaryDirectory.resolve("combat-frame-game"));
+        Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
+        Path run = Files.createDirectories(home.resolve(".starsector-preflight/runs/run-1"));
+        Files.writeString(run.resolve("run.json"), Json.object(Map.of("installRoot", game)));
+        Map<String, Object> titleAndCampaignCombat = Map.of(
+                "frames", 2402,
+                FrameTimeTelemetry.TOTAL_ACTIVE_NANOS, 190_000_000_000L,
+                "averageFps", 56.1,
+                "onePercentLowFps", 42.3,
+                "p95Micros", 20100,
+                "p99Micros", 28600);
+        Map<String, Object> postCampaignCombat = Map.of(
+                "frames", 1802,
+                FrameTimeTelemetry.TOTAL_ACTIVE_NANOS, 180_000_000_000L,
+                "averageFps", 54.2,
+                "onePercentLowFps", 40.1,
+                "p95Micros", 21300,
+                "p99Micros", 30200);
+        Files.writeString(run.resolve("adapter.json"), Json.object(Map.of(
+                FrameTimeTelemetry.REPORT, Map.of(
+                        FrameTimeTelemetry.ENABLED, true,
+                        "combatActive", titleAndCampaignCombat,
+                        FrameTimeTelemetry.COMBAT_AFTER_CAMPAIGN_ACTIVE, postCampaignCombat))));
+
+        Map<String, Object> snapshot = DesktopBridgeCommand.snapshot(
+                Platform.MAC, home, temporaryDirectory, Map.of(), game, null);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> lastRun = (Map<String, Object>) snapshot.get("lastRun");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> framePacing = (Map<String, Object>) lastRun.get("framePacing");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> combat = (Map<String, Object>) framePacing.get("combat");
+
+        assertEquals(1802L, combat.get("frames"));
+        assertEquals(180_000L, combat.get("activeMillis"));
+        assertEquals(54.2, combat.get("averageFps"));
+        assertEquals(40.1, combat.get("onePercentLowFps"));
+    }
+
+    @Test
+    void snapshotRejectsAnOversizedFramePacingReport() throws Exception {
+        Path home = Files.createDirectories(temporaryDirectory.resolve("oversized-frame-home"));
+        Path game = Files.createDirectories(temporaryDirectory.resolve("oversized-frame-game"));
+        Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
+        Path run = Files.createDirectories(home.resolve(".starsector-preflight/runs/run-1"));
+        Files.writeString(run.resolve("run.json"), Json.object(Map.of("installRoot", game)));
+        Files.write(run.resolve("adapter.json"), new byte[4 * 1024 * 1024 + 1]);
+
+        Map<String, Object> snapshot = DesktopBridgeCommand.snapshot(
+                Platform.MAC, home, temporaryDirectory, Map.of(), game, null);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> lastRun = (Map<String, Object>) snapshot.get("lastRun");
+
+        assertNull(lastRun.get("framePacing"));
+    }
+
+    @Test
+    void snapshotReadsBoundedRichFrameReportAboveTheLegacyCeiling() throws Exception {
+        Path home = Files.createDirectories(temporaryDirectory.resolve("rich-frame-home"));
+        Path game = Files.createDirectories(temporaryDirectory.resolve("rich-frame-game"));
+        Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
+        Path run = Files.createDirectories(home.resolve(".starsector-preflight/runs/run-1"));
+        Files.writeString(run.resolve("run.json"), Json.object(Map.of("installRoot", game)));
+        Map<String, Object> campaign = Map.of(
+                "frames", 1802,
+                FrameTimeTelemetry.TOTAL_ACTIVE_NANOS, 180_000_000_000L,
+                "averageFps", 54.2,
+                "onePercentLowFps", 40.1,
+                "p95Micros", 21300,
+                "p99Micros", 30200);
+        Files.writeString(run.resolve("adapter.json"), Json.object(Map.of(
+                "boundedRichEvidence", "x".repeat(600 * 1024),
+                FrameTimeTelemetry.REPORT, Map.of(
+                        FrameTimeTelemetry.ENABLED, true,
+                        FrameTimeTelemetry.CAMPAIGN_ACTIVE, campaign))));
+
+        Map<String, Object> snapshot = DesktopBridgeCommand.snapshot(
+                Platform.MAC, home, temporaryDirectory, Map.of(), game, null);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> lastRun = (Map<String, Object>) snapshot.get("lastRun");
+
+        assertNotNull(lastRun.get("framePacing"));
+        assertTrue(Files.size(run.resolve("adapter.json")) > 512 * 1024);
     }
 
     @Test

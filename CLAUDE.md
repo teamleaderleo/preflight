@@ -33,6 +33,7 @@ Use [LLM_HANDOFF.md](LLM_HANDOFF.md) to resolve live project and task state. Thi
 ## Verification
 
 - Java correctness uses `mvn verify`; focused packaged child-JVM tests use `-Dit.test=Class#method verify`. [scripts/README.md](scripts/README.md) owns focused commands and repository-wide verification.
+- Compile every helper, probe, or agent loaded by Starsector as Java 17 bytecode (`javac --release 17` for standalone sources); a newer compiler's default bytecode is not backward compatible.
 - Use three-platform CI when a change can affect platform behavior. Match checks to risk; launch, bytecode, child-JVM, and compatibility changes need the strongest checks. Docs and test-only changes need no invented runtime evidence.
 
 ## Starsector and source boundaries
@@ -52,4 +53,7 @@ Use [LLM_HANDOFF.md](LLM_HANDOFF.md) to resolve live project and task state. Thi
 
 - Stage files explicitly; never use `git add -A` or `git reset --hard`.
 - Preserve uncommitted work from other agents. Check `git patch-id` before treating a rewritten commit as missing.
+- Every completed coherent slice must be committed, pushed, and reconciled into `main`. Branches and worktrees are temporary transport, not a completion state.
+- Open or update a pull request directly against `main`; do not strand work behind another unmerged base branch. Do not call work complete or handed off while it exists only on a non-`main` branch.
+- A dirty canonical checkout is not an excuse to defer integration. Preserve its work and use a clean worktree under the canonical project directory to resolve `main`, verify, and publish.
 - Rebase instead of force-pushing.

@@ -31,11 +31,12 @@ final class ClasspathIndexCommand {
     }
 
     private static int build(BuildOptions options) throws Exception {
+        Path cache = CacheRootBoundary.canonical(
+                options.cacheDirectory() == null ? defaultCacheDirectory() : options.cacheDirectory());
         LaunchTarget target = discover(options.game(), options.launcher());
         if (target == null) {
             return 3;
         }
-        Path cache = options.cacheDirectory() == null ? defaultCacheDirectory() : options.cacheDirectory();
         ClasspathIndexBuilder.Result result = ClasspathIndexBuilder.build(target.installRoot(), cache);
         Map<String, Object> values = summary(result.profile(), result.profilePath(), cache);
         values.put("profileHit", result.profileHit());

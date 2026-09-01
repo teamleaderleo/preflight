@@ -62,8 +62,11 @@ The first scenario deliberately covers only the repeatable core:
 6. capture screenshot, log tail, adapter health, and frame report;
 7. request an orderly quit, with the existing process-tree shutdown as the bounded fallback.
 
-Simulation/refit/combat targets are reserved in the validator, but should be added to checked-in
-scenarios only after their state markers and recovery path are equally deterministic.
+The checked-in simulation routes now extend that core through a verified in-memory fleet fixture,
+Fleet → Refit → Simulation navigation, exact stock deployment callbacks, autopilot, tactical-map
+closure, state-setting combat resume, verified viewport zoom-out, a clean post-setup measurement
+window, and bounded 1× or explicit 2× sampling. They fail at the first unmet invariant and never save
+the generated fleet.
 
 ## Evidence result
 
@@ -149,28 +152,37 @@ cover pass, skip, and mid-scenario failure without opening the game.
 The packaged desktop app owns a short-lived native automation bridge. It binds only an ephemeral
 loopback port, generates a per-process 256-bit capability, and gives both values directly to its
 bundled engine child. The protocol accepts a closed list of reviewed operations: permission probe,
-exact-PID activation and observation, the relative Continue target, seven keys, release, quit, and
+exact-PID activation and observation, the relative Continue target, reviewed campaign/simulation keys,
+bounded wheel input, release, quit, and
 a window-bounded capture into the run directory. It accepts no AppleScript source, arbitrary
 coordinate, arbitrary key, host, or output path. The bridge ends with the engine child and never
 writes its capability into evidence.
 
-The native host runs the reviewed System Events scripts through `/usr/bin/osascript`. Every window,
-click, key, observation, and quit script resolves `application process whose unix id is <pid>` from
-the injected JVM's runtime record. No script contains the game's application name or asks Launch
-Services to open an application. The 2026-08-06 direct-launch probe showed why this matters: the
-live game window belongs to Azul's generic `com.azul.zulu.java` process while Launch Services also
-registers the dormant `Starsector.app` bundle. Display-name attachment launched that dormant bundle
-and briefly created a second instance. A standalone CLI invocation retains the earlier direct-Java
-driver for development, while the supported packaged path attributes the permission request to
-Preflight.
+The native host runs a closed set of reviewed operations. System Events resolves only
+`application process whose unix id is <pid>`; standalone development keys use CoreGraphics
+`CGEventPostToPid`; and a compatibility foreground call uses the same numeric PID through
+ApplicationServices before System Events verifies `frontmost=true`. Preflight first uses the
+already-bundled Java Native Access library. On the reviewed Rosetta/LWJGL path, where the long-lived
+controller can receive `procNotFound` or a no-op success from Carbon, the standalone development
+harness may use the system Python runtime to issue the identical two bounded C calls. This path is
+not part of the game process or release launch path. No path contains the game's
+application name, selects a Dock item, or asks Launch Services to open an application. The direct
+launch probes showed why this matters: the live game window belongs to Azul's generic
+`com.azul.zulu.java` process while Launch Services also registers the dormant `Starsector.app`
+bundle. Display-name activation and one stale Dock item each launched a second instance during
+learning; both approaches were removed. A standalone CLI invocation retains the direct-Java driver
+for development, while the supported packaged path attributes the permission request to Preflight.
 
 The driver checks the live process start instant in Java before every action and again resolves the
-same numeric PID inside System Events. Its current reviewed coordinate asset covers only
-`main-menu.continue`; the point is relative to freshly queried game-window bounds. Unknown targets
-and keys fail closed. A held key has a `finally` key-up path, child commands have hard timeouts and
-bounded output, screenshots cover only fresh game-window bounds, and orderly Command-Q has a
-bounded fallback that can terminate only the same PID/start-instant lifetime. The runner now calls
-that shutdown path after every attached terminal outcome, including adapter failure and timeout.
+same numeric PID while acting. Its only reviewed coordinate asset is the legacy
+`main-menu.continue` fallback; ordinary Continue and simulation controls use closed semantic
+game-side actions. Combat zoom now adds a fixed event sequence at the exact reviewed
+`CombatState` input-generation boundary and verifies the public viewport grew before measurement.
+Unknown targets and keys fail closed. A held key has a `finally` key-up path, child commands have
+hard timeouts and bounded output, screenshots cover only fresh game-window bounds, and orderly
+Command-Q has a bounded fallback that can terminate only the same PID/start-instant lifetime. The
+runner calls that shutdown path after every attached terminal outcome, including adapter failure
+and timeout.
 
 `--desktop-smoke` is an internal launch switch. It enables frame-time instrumentation and a
 one-second, smoke-only publisher for `runtime-frame-report.json` and
@@ -199,7 +211,10 @@ scenario uses `run --fast --direct --desktop-smoke`. The paired benchmark's meas
 scenario uses `run --optimization-preset off --direct --desktop-smoke`: the exact semantic and
 runtime markers remain, while the optimization adapter and prepared caches stay off. It waits for the
 process record, runs the scenario, and waits for bounded postprocessing. Its
-`finally` path rereads the identity and can terminate only the same PID/start-instant lifetime.
+runner publishes a strict PID/start-instant stop receipt immediately before its terminal shutdown;
+the outer `finally` path rereads the identity and can terminate only that same lifetime. This lets
+the lifecycle scanner distinguish the reviewed OpenAL native-library cleanup race caused by a
+controller stop from the same error during ordinary gameplay, which remains fatal.
 The launch result and bounded launcher output remain in the run directory even when startup fails.
 `passed`, `skipped`, and `failed` map to exit codes `0`, `3`, and `1`, respectively. A cooperative
 stop creates a run-owned `cancel.requested` marker. The launch owner watches that marker, closes only
@@ -220,16 +235,34 @@ leaves the game running. App exit also cancels an owned cache-preparation child 
 
 The product comparison contains process-to-main-menu time, its delta and percentage change, exact
 run identities, and post-run prepared-data disk usage. The separate `campaign-roam` scenarios remain
-available for development measurements of campaign readiness, FPS, frame-time tails, runtime cache
-health, and save identity. Those interactive scenarios use a platform driver and may require the
-operating system's automation permissions; they aren't part of the benchmark users run.
+available for development measurements of campaign readiness, a paired movement route, FPS,
+frame-time tails, runtime cache health, a screenshot, and a bounded log tail. Both phases launch
+through Preflight: measurement-only retains the state/frame hooks while optimized enables the
+reviewed fixes. The route allows 30 seconds for warm-up, a 5-second transition cushion, and 30
+seconds for settled collection. The coordinator compares only the settled distribution and refuses
+fewer than 100 frames or 30 active seconds in either phase. These scenarios do not save, reload, or
+prove save compatibility. They use a platform driver and may require the operating system's
+automation permissions; they aren't part of the benchmark users run.
+Save/reload remains a human-operated check with a disposable save copy in
+`scripts/run-gameplay-pilot.sh`. Its create-once attestation binds the human result to the exact
+before/after save-boundary report, tested engine, run and exact mod-profile reports, adapter and
+adapter-health evidence, source state, probe configuration, and process outcome instead of leaving
+a transferable yes/no note beside the run. When the adapter is enabled, a complete receipt uses
+post-campaign combat rather than the title-screen combat aggregate and requires at least 100 frames
+in each phase plus 20 seconds of active campaign warm-up, 30 seconds of settled campaign, and three
+minutes of combat. The final typed confirmation covers that route and the save lifecycle; it cannot
+stand in for telemetry. Dirty source, a non-completed run report, or contained adapter failures also
+leave the receipt incomplete.
 
 The macOS command probes current Accessibility permission before attachment. Screen Recording is
 proved by the first bounded capture; a denial becomes `skipped`. Preflight's Info.plist explains the
-System Events use, and the native package verifier requires that exact disclosure. The generated
-scripts, authorization protocol, PID-only boundary, coordinate math, key release, bounded
-screenshot, live evidence, and failure cleanup have isolated tests that don't open the game. One
-live isolated action test is still required before calling the macOS driver production-ready.
+System Events use, and the native package verifier requires that exact disclosure. Generated
+scripts, the authorization protocol, PID-only boundary, coordinate math, key release, bounded
+screenshot, live evidence, and failure cleanup have isolated tests that don't open the game. A
+live Preflight-only route has now foregrounded one exact PID, driven Continue through simulation,
+verified internal zoom, measured 30 active seconds of 1,040-DP combat, and shut down cleanly. That
+validates the current reference macOS development route; signed packaged-host behavior remains a
+separate release gate.
 
 Windows has an exact-PID `MainWindowHandle` adapter backed by PowerShell and User32. Linux has an
 exact-PID X11 adapter backed by `xdotool` and ImageMagick `import`; Wayland and missing helper tools

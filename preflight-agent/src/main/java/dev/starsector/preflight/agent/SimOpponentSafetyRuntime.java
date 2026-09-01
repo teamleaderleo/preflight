@@ -227,6 +227,11 @@ public final class SimOpponentSafetyRuntime {
 
     /** Records the stock dialog's source collection and both grids after a rebuild. */
     public static void recordDialog(Object dialog, int phase) {
+        if (phase == 2 && InternalGameControlRuntime.enabled()
+                && !InternalGameControlRuntime.simulationEngaged()) {
+            RuntimeSemanticState.simulationReady();
+            InternalGameControlRuntime.simulationDialog(dialog);
+        }
         if (phase == 2 && !claimDialogPostAdvance(dialog)) {
             return;
         }

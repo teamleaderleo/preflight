@@ -10,7 +10,7 @@ import org.objectweb.asm.tree.MethodNode;
 
 /** Publishes the point where Starsector removes its title-screen "Preloading..." label. */
 final class MainMenuInteractivePlan {
-    static final String PLAN_ID = "vanilla-main-menu-interactive-state-v1";
+    static final String PLAN_ID = "vanilla-main-menu-interactive-state-and-control-v2";
     static final String TARGET_CLASS = "com/fs/starfarer/title/B";
     static final String ORIGINAL_SHA256 =
             "a07eb94f8229ac0bb42139cebc6450518e8fe036023bd7687fb1a76347079f22";
@@ -19,6 +19,8 @@ final class MainMenuInteractivePlan {
 
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/RuntimeSemanticState";
+    private static final String CONTROL_RUNTIME =
+            "dev/starsector/preflight/agent/InternalGameControlRuntime";
     private static final String REMOVE_DESCRIPTOR = "(Lcom/fs/starfarer/ui/c;)V";
 
     private MainMenuInteractivePlan() {
@@ -37,10 +39,17 @@ final class MainMenuInteractivePlan {
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         MethodNode advance = unique(owner, ADVANCE_METHOD, ADVANCE_DESCRIPTOR);
         MethodInsnNode removal = uniqueRemoval(advance);
-        if (removal == null || callsMarker(advance) != 0) return null;
+        if (removal == null || callsMarker(advance) != 0 || callsControl(advance) != 0) return null;
 
         advance.instructions.insert(removal, new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "mainMenuInteractive", "()V", false));
+        AbstractInsnNode onlyReturn = uniqueReturn(advance);
+        if (onlyReturn == null) return null;
+        org.objectweb.asm.tree.InsnList control = new org.objectweb.asm.tree.InsnList();
+        control.add(new org.objectweb.asm.tree.VarInsnNode(Opcodes.ALOAD, 0));
+        control.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, CONTROL_RUNTIME, "titleAdvance", "(Ljava/lang/Object;)V", false));
+        advance.instructions.insertBefore(onlyReturn, control);
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         return writer.toByteArray();
@@ -82,6 +91,31 @@ final class MainMenuInteractivePlan {
                     && "mainMenuInteractive".equals(call.name)
                     && "()V".equals(call.desc)) {
                 result++;
+            }
+        }
+        return result;
+    }
+
+    private static int callsControl(MethodNode method) {
+        if (method == null) return 0;
+        int result = 0;
+        for (AbstractInsnNode instruction = method.instructions.getFirst();
+                instruction != null; instruction = instruction.getNext()) {
+            if (instruction instanceof MethodInsnNode call
+                    && CONTROL_RUNTIME.equals(call.owner)
+                    && "titleAdvance".equals(call.name)
+                    && "(Ljava/lang/Object;)V".equals(call.desc)) result++;
+        }
+        return result;
+    }
+
+    private static AbstractInsnNode uniqueReturn(MethodNode method) {
+        AbstractInsnNode result = null;
+        for (AbstractInsnNode instruction = method.instructions.getFirst();
+                instruction != null; instruction = instruction.getNext()) {
+            if (instruction.getOpcode() == Opcodes.RETURN) {
+                if (result != null) return null;
+                result = instruction;
             }
         }
         return result;

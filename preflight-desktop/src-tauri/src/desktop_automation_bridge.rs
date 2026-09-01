@@ -180,6 +180,19 @@ mod platform {
                 .ok_or_else(|| "Window capture isn't authorized for this probe.".to_string())?;
             return capture(run_directory, script);
         }
+        if request.operation == "scroll-wheel" {
+            let pid = request
+                .pid
+                .ok_or_else(|| "The macOS scroll request needs a positive PID.".to_string())?;
+            let (direction, clicks) = reviewed_scroll(request.argument.as_deref())?;
+            let bounds = run_bounded("/usr/bin/osascript", &["-e", &script])?;
+            let values = parse_bounds(&bounds)?;
+            let source = scroll_wheel_script(pid, &values, direction, clicks);
+            run_bounded("/usr/bin/osascript", &["-l", "JavaScript", "-e", &source])?;
+            return Ok(format!(
+                "scrolled {direction} {clicks} clicks in exact PID {pid}"
+            ));
+        }
         run_bounded("/usr/bin/osascript", &["-e", &script])
     }
 
@@ -205,11 +218,17 @@ mod platform {
                 "{header}\nset frontmost of targetProcess to true\nreturn \"activated PID {pid}\"\nend tell"
             )),
             "observe" if request.argument.is_none() => Ok(format!(
-                "{header}\nset win to window 1 of targetProcess\nset winPosition to position of win\nset winSize to size of win\nset focused to frontmost of targetProcess\nreturn \"PID {pid} window \" & (item 1 of winPosition as text) & \",\" & (item 2 of winPosition as text) & \",\" & (item 1 of winSize as text) & \",\" & (item 2 of winSize as text) & \" frontmost=\" & (focused as text)\nend tell"
+                "{header}\nset win to window 1 of targetProcess\nset winPosition to position of win\nset winSize to size of win\nset isFrontmost to frontmost of targetProcess\nreturn \"PID {pid} window \" & (item 1 of winPosition as text) & \",\" & (item 2 of winPosition as text) & \",\" & (item 1 of winSize as text) & \",\" & (item 2 of winSize as text) & \" frontmost=\" & (isFrontmost as text)\nend tell"
             )),
             "click" if request.argument.as_deref() == Some("main-menu.continue") => Ok(format!(
                 "{header}\nset frontmost of targetProcess to true\nset win to window 1 of targetProcess\nset winPosition to position of win\nset winSize to size of win\nset clickX to (item 1 of winPosition) + (round ((item 1 of winSize) * {CONTINUE_X}))\nset clickY to (item 2 of winPosition) + (round ((item 2 of winSize) * {CONTINUE_Y}))\nclick at {{clickX, clickY}}\nreturn \"clicked main-menu.continue at \" & clickX & \",\" & clickY\nend tell"
             )),
+            "scroll-wheel" => {
+                reviewed_scroll(request.argument.as_deref())?;
+                Ok(format!(
+                    "{header}\nset frontmost of targetProcess to true\nset win to window 1 of targetProcess\nset winPosition to position of win\nset winSize to size of win\nreturn (item 1 of winPosition as text) & \",\" & (item 2 of winPosition as text) & \",\" & (item 1 of winSize as text) & \",\" & (item 2 of winSize as text)\nend tell"
+                ))
+            }
             "press-key" => {
                 let key = reviewed_key(request.argument.as_deref())?;
                 Ok(format!(
@@ -250,19 +269,39 @@ mod platform {
             Some("a") => Ok(("a", 0)),
             Some("s") => Ok(("s", 1)),
             Some("d") => Ok(("d", 2)),
+            Some("f") => Ok(("f", 3)),
             Some("w") => Ok(("w", 13)),
+            Some("r") => Ok(("r", 15)),
+            Some("u") => Ok(("u", 32)),
             Some("return") => Ok(("return", 36)),
+            Some("n") => Ok(("n", 45)),
+            Some("tab") => Ok(("tab", 48)),
             Some("space") => Ok(("space", 49)),
             Some("escape") => Ok(("escape", 53)),
+            Some("capslock") => Ok(("capslock", 57)),
             _ => Err("The macOS automation key isn't reviewed.".to_string()),
         }
     }
 
-    fn capture(run_directory: &Path, bounds_script: String) -> Result<String, String> {
-        let real_run = run_directory
-            .canonicalize()
-            .map_err(|error| format!("Could not resolve the desktop-test directory: {error}"))?;
-        let bounds = run_bounded("/usr/bin/osascript", &["-e", &bounds_script])?;
+    fn reviewed_scroll(value: Option<&str>) -> Result<(&'static str, u8), String> {
+        let value = value.ok_or_else(|| "The macOS scroll request is incomplete.".to_string())?;
+        let (direction, clicks) = value
+            .split_once(':')
+            .ok_or_else(|| "The macOS scroll request is invalid.".to_string())?;
+        let direction = match direction {
+            "in" => "in",
+            "out" => "out",
+            _ => return Err("The macOS scroll direction isn't reviewed.".to_string()),
+        };
+        let clicks = clicks
+            .parse::<u8>()
+            .ok()
+            .filter(|clicks| (1..=24).contains(clicks))
+            .ok_or_else(|| "The macOS scroll click count isn't reviewed.".to_string())?;
+        Ok((direction, clicks))
+    }
+
+    fn parse_bounds(bounds: &str) -> Result<Vec<i32>, String> {
         let values = bounds
             .split(',')
             .map(str::trim)
@@ -272,6 +311,24 @@ mod platform {
         if values.len() != 4 || values[2] <= 0 || values[3] <= 0 {
             return Err(format!("macOS returned empty game-window bounds: {bounds}"));
         }
+        Ok(values)
+    }
+
+    fn scroll_wheel_script(pid: u32, bounds: &[i32], direction: &str, clicks: u8) -> String {
+        let x = bounds[0] + bounds[2] / 2;
+        let y = bounds[1] + bounds[3] / 2;
+        let delta = if direction == "out" { 1 } else { -1 };
+        format!(
+            "ObjC.import('CoreGraphics');var se=Application('System Events');var m=se.applicationProcesses.whose({{unixId:{pid}}})();if(m.length!==1||!m[0].frontmost())throw new Error('exact PID is not frontmost');var p=$.CGPointMake({x},{y});var move=$.CGEventCreateMouseEvent(null,$.kCGEventMouseMoved,p,$.kCGMouseButtonLeft);$.CGEventPost($.kCGHIDEventTap,move);for(var i=0;i<{clicks};i++){{var e=$.CGEventCreateScrollWheelEvent(null,$.kCGScrollEventUnitLine,1,{delta});$.CGEventPost($.kCGHIDEventTap,e);delay(0.025);}}"
+        )
+    }
+
+    fn capture(run_directory: &Path, bounds_script: String) -> Result<String, String> {
+        let real_run = run_directory
+            .canonicalize()
+            .map_err(|error| format!("Could not resolve the desktop-test directory: {error}"))?;
+        let bounds = run_bounded("/usr/bin/osascript", &["-e", &bounds_script])?;
+        let values = parse_bounds(&bounds)?;
         let destination = real_run.join("desktop-smoke.png");
         if destination.exists() {
             fs::remove_file(&destination).map_err(|error| {
@@ -375,7 +432,9 @@ mod platform {
 
     #[cfg(test)]
     mod tests {
-        use super::{DesktopAutomationBridge, Request, reviewed_script};
+        use super::{
+            DesktopAutomationBridge, Request, reviewed_script, reviewed_scroll, scroll_wheel_script,
+        };
         use serde_json::Value;
         use std::io::{Read, Write};
         use std::net::TcpStream;
@@ -396,7 +455,13 @@ mod platform {
                 let script = reviewed_script(&request(operation, Some(4242), None)).unwrap();
                 assert!(script.contains("application process whose unix id is 4242"));
                 assert!(!script.to_ascii_lowercase().contains("starsector"));
+                assert!(!script.contains("set focused to "));
             }
+            assert!(
+                reviewed_script(&request("observe", Some(4242), None))
+                    .unwrap()
+                    .contains("set isFrontmost to frontmost of targetProcess")
+            );
         }
 
         #[test]
@@ -405,6 +470,38 @@ mod platform {
             assert!(reviewed_script(&request("press-key", Some(4242), Some("command-q"))).is_err());
             assert!(reviewed_script(&request("probe", Some(4242), None)).is_err());
             assert!(reviewed_script(&request("arbitrary-script", Some(4242), None)).is_err());
+        }
+
+        #[test]
+        fn native_bridge_accepts_the_reviewed_simulation_navigation_keys() {
+            for (key, code) in [
+                ("f", 3),
+                ("r", 15),
+                ("u", 32),
+                ("n", 45),
+                ("tab", 48),
+                ("capslock", 57),
+            ] {
+                let script = reviewed_script(&request("press-key", Some(4242), Some(key))).unwrap();
+                assert!(script.contains(&format!("key code {code}")), "{script}");
+                assert!(script.contains("application process whose unix id is 4242"));
+            }
+        }
+
+        #[test]
+        fn native_bridge_bounds_scroll_and_rechecks_the_exact_pid() {
+            let request = request("scroll-wheel", Some(4242), Some("out:12"));
+            let bounds = reviewed_script(&request).unwrap();
+            assert!(bounds.contains("application process whose unix id is 4242"));
+            assert_eq!(("out", 12), reviewed_scroll(Some("out:12")).unwrap());
+            assert!(reviewed_scroll(Some("sideways:12")).is_err());
+            assert!(reviewed_scroll(Some("out:25")).is_err());
+
+            let script = scroll_wheel_script(4242, &[10, 20, 1974, 1240], "out", 12);
+            assert!(script.contains("unixId:4242"));
+            assert!(script.contains("kCGEventMouseMoved"));
+            assert!(script.contains("CGEventCreateScrollWheelEvent"));
+            assert!(script.contains(",1,1)"));
         }
 
         #[test]

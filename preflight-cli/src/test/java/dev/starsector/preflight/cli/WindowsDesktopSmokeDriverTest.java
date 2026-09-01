@@ -67,6 +67,43 @@ final class WindowsDesktopSmokeDriverTest {
                 !script.toLowerCase(Locale.ROOT).contains("starsector")));
     }
 
+    @Test
+    void simulationNavigationUsesReviewedVirtualKeys() throws Exception {
+        FakeCommands commands = new FakeCommands();
+        WindowsDesktopSmokeDriver driver = new WindowsDesktopSmokeDriver(commands, "powershell.exe");
+        ProcessHandle current = ProcessHandle.current();
+        driver.attach(new DesktopSmokeDriver.ProcessTarget(
+                current.pid(), current.info().startInstant().orElseThrow()));
+
+        for (String key : List.of("f", "r", "u", "n", "tab", "capslock")) {
+            driver.execute(Map.of("kind", "press-key", "key", key), temporaryDirectory);
+        }
+
+        String scripts = String.join("\n", commands.scripts());
+        for (int code : List.of(0x46, 0x52, 0x55, 0x4E, 0x09, 0x14)) {
+            assertTrue(scripts.contains("keybd_event(" + code + ",0,0"), scripts);
+        }
+    }
+
+    @Test
+    void wheelInputRemainsInsideTheExactPidScript() throws Exception {
+        FakeCommands commands = new FakeCommands();
+        WindowsDesktopSmokeDriver driver = new WindowsDesktopSmokeDriver(commands, "powershell.exe");
+        ProcessHandle current = ProcessHandle.current();
+        driver.attach(new DesktopSmokeDriver.ProcessTarget(
+                current.pid(), current.info().startInstant().orElseThrow()));
+
+        driver.execute(Map.of(
+                "kind", "scroll-wheel", "direction", "out", "clicks", 12),
+                temporaryDirectory);
+
+        String scripts = String.join("\n", commands.scripts());
+        assertTrue(scripts.contains("Get-Process -Id " + current.pid()), scripts);
+        assertTrue(scripts.contains("SetCursorPos"), scripts);
+        assertTrue(scripts.contains("mouse_event(0x0800"), scripts);
+        assertTrue(scripts.contains("-120"), scripts);
+    }
+
     private static final class FakeCommands implements DesktopCommandExecutor {
         private final List<List<String>> commands = new ArrayList<>();
 

@@ -5,9 +5,10 @@ and benchmarking don't send their contents to the project maintainer. Packaged d
 make the update-check request described below, and run reports are sent only through the separate
 explicit-consent path described later in this document.
 
-Local maintenance keeps the 10 newest launch reports and 5 newest benchmarks and removes older
-Preflight evidence while the desktop is idle. This is local deletion only; it makes no network
-request and doesn't touch Starsector, mods, saves, screenshots, or game settings.
+Local maintenance keeps 10 launch reports—including the latest completed paired comparison and
+save/reload check for its recorded setup when available—and the 5 newest benchmark campaigns. It
+removes older Preflight evidence while the desktop is idle. This is local deletion only; it makes
+no network request and doesn't touch Starsector, mods, saves, screenshots, or game settings.
 
 ## Update checks
 

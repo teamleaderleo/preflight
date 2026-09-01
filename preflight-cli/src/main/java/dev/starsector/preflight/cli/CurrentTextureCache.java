@@ -8,6 +8,7 @@ import dev.starsector.preflight.core.TextureManifest;
 import dev.starsector.preflight.core.TextureManifestIO;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -17,10 +18,9 @@ final class CurrentTextureCache {
     }
 
     static Resolution resolve(Path installRoot, Path requestedCache) throws IOException {
-        Path cache = (requestedCache == null ? PrepareCommand.defaultCacheDirectory() : requestedCache)
-                .toAbsolutePath()
-                .normalize();
-        if (!Files.isDirectory(cache)) {
+        Path cache = CacheRootBoundary.canonical(
+                requestedCache == null ? PrepareCommand.defaultCacheDirectory() : requestedCache);
+        if (!Files.isDirectory(cache, LinkOption.NOFOLLOW_LINKS)) {
             throw new IOException("Texture cache directory does not exist: " + cache
                     + ". Run `preflight prepare` first.");
         }

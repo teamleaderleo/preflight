@@ -7,10 +7,10 @@ export function createBenchmarkShareText(metric: DesktopBenchmarkMetric): string
   const comparison = startupComparisonPresentation(metric.measurementOnly, metric.optimized);
   const lines = [
     "Preflight startup benchmark",
-    `Normal launch: ${formatSeconds(metric.measurementOnly)}`,
-    `Preflight launch: ${formatSeconds(metric.optimized)}`,
+    `Optimizations off: ${formatSeconds(metric.measurementOnly)}`,
+    `Optimizations on: ${formatSeconds(metric.optimized)}`,
     `Change: ${comparison.detail}`,
-    "Measured by Preflight on this installation. Results depend on hardware, mods, storage, and system load.",
+    "Both launches used Preflight, the same installation, and the same profile; only Preflight’s optimizations changed. Results depend on hardware, mods, storage, and system load.",
   ];
   const text = `${lines.join("\n")}\n`;
   if (text.length > MAX_SHARE_TEXT_CHARACTERS) {

@@ -1,0 +1,55 @@
+{
+  "format": "starsector-preflight-smoke-v1",
+  "name": "campaign-prepare-combat-fixture",
+  "timeoutSeconds": 300,
+  "launch": {
+    "preset": "fast",
+    "textureStorage": "balanced",
+    "profile": null,
+    "recording": "sample"
+  },
+  "steps": [
+    {
+      "id": "menu",
+      "kind": "wait-state",
+      "state": "main-menu-interactive",
+      "timeoutSeconds": 180
+    },
+    {
+      "id": "continue",
+      "kind": "click",
+      "target": "main-menu.continue"
+    },
+    {
+      "id": "campaign",
+      "kind": "wait-state",
+      "state": "campaign-ready",
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "ensure-paused",
+      "kind": "click",
+      "target": "campaign.pause"
+    },
+    {
+      "id": "prepare-combat-fixture",
+      "kind": "click",
+      "target": "campaign.prepare-combat-fixture"
+    },
+    {
+      "id": "fixture-settle",
+      "kind": "wait-duration",
+      "durationMillis": 1500
+    },
+    {
+      "id": "verify-combat-fixture",
+      "kind": "click",
+      "target": "campaign.verify-combat-fixture"
+    },
+    {
+      "id": "paused-fixture-observation",
+      "kind": "wait-duration",
+      "durationMillis": 2000
+    }
+  ]
+}

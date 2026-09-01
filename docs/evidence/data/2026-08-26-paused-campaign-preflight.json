@@ -1,0 +1,53 @@
+{
+  "format": "starsector-preflight-retained-campaign-frame-snapshot-v1",
+  "capturedAt": "2026-08-26T15:09:06.314068Z",
+  "condition": {
+    "game": "Starsector 0.98a-RC8",
+    "profile": "current 83-mod development profile",
+    "launch": "Preflight Recommended (--fast)",
+    "desktopInputUsed": false,
+    "smoothFramePacing": false,
+    "campaignState": "paused",
+    "classificationBasis": "paused maintenance counters dominated while active-location counters remained at transition-only values"
+  },
+  "continueProof": {
+    "action": "main-menu.continue",
+    "status": "executed",
+    "boundary": "title.advanceImpl",
+    "sameProcessCampaignReady": true,
+    "visibleDwellActiveAtCapture": true
+  },
+  "settledCampaign": {
+    "warmupExcludedMillis": 30000,
+    "frames": 7784,
+    "activeMillis": 133075.407,
+    "averageFps": 58.49,
+    "medianFps": 58.82,
+    "onePercentLowFps": 34.84,
+    "pointOnePercentLowFps": 27.47,
+    "p95FrameMillis": 20.0,
+    "p99FrameMillis": 28.7,
+    "p999FrameMillis": 36.4,
+    "over33_33Millis": 16,
+    "over50Millis": 3,
+    "over100Millis": 0
+  },
+  "measurementOverhead": {
+    "samples": 14840,
+    "averageMicros": 5.13,
+    "scope": "display-boundary hook; four phase timestamp hooks excluded"
+  },
+  "maintenanceClassification": {
+    "emptyScriptLists": 14805325,
+    "nonEmptyScriptLists": 288160,
+    "nonEmptyPausedMarketConditions": 2551920,
+    "nonEmptyPausedLocationEntities": 82327,
+    "nonEmptyPausedLocationScripts": 13722,
+    "nonEmptyActiveLocationEntities": 6,
+    "nonEmptyActiveLocationTokens": 2
+  },
+  "saveHashes": {
+    "campaignSha256": "f716de34cf38b717134bee0d6233824ce76c0374624b0f644c82d61beaad07d1",
+    "descriptorSha256": "45388feaf1a3fc279b3a4e3b56fa88ad51a06e8b6e5a2b0f04d29e6db760a2cc"
+  }
+}

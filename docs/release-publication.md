@@ -29,6 +29,8 @@ The manual workflow checks all of the following before it can make the release p
 - the preserved `preflight-complete-release-<run id>` workflow artifact is still available;
 - every current draft asset name, size, and SHA-256 digest matches the preserved verified artifact byte-for-byte;
 - `scripts/verify_complete_release.py` still accepts the downloaded draft asset set;
+- every platform capability receipt names the updater feed's exact product version and the standalone
+  distribution's exact `preflight.jar` bytes;
 - the draft release metadata/asset identities do not change during verification; and
 - the remote tag does not move during verification.
 

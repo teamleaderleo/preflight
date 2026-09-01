@@ -153,6 +153,8 @@ public final class CampaignMarketFleetTimeRuntime {
             List<Map<String, Object>> values = new ArrayList<>();
             for (ClassStats stats : ordered) values.add(stats.report(stats.className));
             result.put(CLASS_GROUP_NAMES[group], values);
+            result.put(CLASS_GROUP_NAMES[group] + "OwnerTax",
+                    RuntimeOwnerTax.report(values, "estimatedTotalMillis", "sampledMaximumMillis"));
         }
         return result;
     }
@@ -171,9 +173,11 @@ public final class CampaignMarketFleetTimeRuntime {
             if (duration <= 0L) return;
             stats.samples++;
             stats.totalNanos += duration;
+            long retainedEndEpochMillis = stats.slowestCalls.record(duration);
             if (duration > stats.maximumNanos) {
                 stats.maximumNanos = duration;
-                stats.maximumEndEpochMillis = System.currentTimeMillis();
+                stats.maximumEndEpochMillis = retainedEndEpochMillis == 0L
+                        ? System.currentTimeMillis() : retainedEndEpochMillis;
             }
             if (duration > 1_000_000L) stats.overOneMillis++;
             if (duration > 5_000_000L) stats.overFiveMillis++;
@@ -195,7 +199,7 @@ public final class CampaignMarketFleetTimeRuntime {
             replacements[group] = new ClassValue<>() {
                 @Override
                 protected ClassStats computeValue(Class<?> type) {
-                    ClassStats value = new ClassStats(type.getName(), CLASS_SAMPLE_RATES[groupId]);
+                    ClassStats value = new ClassStats(type, CLASS_SAMPLE_RATES[groupId]);
                     synchronized (CampaignMarketFleetTimeRuntime.class) {
                         classGroups[groupId].add(value);
                     }
@@ -218,6 +222,7 @@ public final class CampaignMarketFleetTimeRuntime {
         long overSixteenMillis;
         long overThirtyThreeMillis;
         long overOneHundredMillis;
+        final SlowCallWindows slowestCalls = new SlowCallWindows();
 
         Stats(int sampleRate) {
             this.sampleRate = sampleRate;
@@ -227,6 +232,7 @@ public final class CampaignMarketFleetTimeRuntime {
             attempts = samples = totalNanos = maximumNanos = maximumEndEpochMillis = 0L;
             overOneMillis = overFiveMillis = overSixteenMillis = 0L;
             overThirtyThreeMillis = overOneHundredMillis = 0L;
+            slowestCalls.reset();
         }
 
         double estimatedTotalMillis() {
@@ -250,16 +256,26 @@ public final class CampaignMarketFleetTimeRuntime {
             result.put("sampledOver16Millis", overSixteenMillis);
             result.put("sampledOver33Millis", overThirtyThreeMillis);
             result.put("sampledOver100Millis", overOneHundredMillis);
+            result.put("slowestCalls", slowestCalls.report());
             return result;
         }
     }
 
     private static final class ClassStats extends Stats {
+        final Class<?> type;
         final String className;
 
-        ClassStats(String className, int sampleRate) {
+        ClassStats(Class<?> type, int sampleRate) {
             super(sampleRate);
-            this.className = className;
+            this.type = type;
+            this.className = type.getName();
+        }
+
+        @Override
+        Map<String, Object> report(String name) {
+            Map<String, Object> result = super.report(name);
+            result.put("ownership", RuntimeClassOwnership.resolve(type).report());
+            return result;
         }
     }
 }

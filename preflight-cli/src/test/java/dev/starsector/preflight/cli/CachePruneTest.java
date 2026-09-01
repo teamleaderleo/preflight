@@ -5,6 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.starsector.preflight.core.ClasspathCacheDirectories;
+import dev.starsector.preflight.core.ClasspathProfileIndex;
+import dev.starsector.preflight.core.ClasspathProfileIndexIO;
 import dev.starsector.preflight.core.GeneratedBytecodeBundle;
 import dev.starsector.preflight.core.GeneratedBytecodeCache;
 import dev.starsector.preflight.core.GeneratedBytecodePack;
@@ -337,6 +340,55 @@ class CachePruneTest {
         assertFalse(Files.exists(oldBlob));
     }
 
+    @Test
+    void classpathArchiveIndexesArePrunedBySurvivingProfileReachability() throws Exception {
+        PreflightHome preflight = home();
+        String profile = "b".repeat(64);
+        String liveArchive = "1".repeat(64);
+        String staleArchive = "2".repeat(64);
+        Path live = writeClasspathArchive(preflight, liveArchive, "live");
+        Path stale = writeClasspathArchive(preflight, staleArchive, "stale");
+        Path unfamiliar = ClasspathCacheDirectories.archives(preflight.cache())
+                .resolve("operator-files")
+                .resolve("4".repeat(64) + ".spfj");
+        Files.createDirectories(unfamiliar.getParent());
+        Files.writeString(unfamiliar, "not an app-owned shard path");
+        writeClasspathProfile(preflight, profile, liveArchive);
+
+        CachePrune.Plan plan = CachePrune.plan(preflight, Set.of(profile), Set.of());
+
+        assertTrue(plan.safe(), plan.refusals().toString());
+        assertEquals(1, plan.reachableClasspathArchives());
+        assertFalse(plan.removals().stream().anyMatch(removal -> removal.path().equals(live)));
+        assertTrue(plan.removals().stream().anyMatch(removal -> removal.path().equals(stale)
+                && "unreferenced classpath archive index".equals(removal.reason())));
+        assertFalse(plan.removals().stream().anyMatch(removal -> removal.path().equals(unfamiliar)));
+
+        CachePrune.apply(plan);
+        assertTrue(Files.isRegularFile(live));
+        assertFalse(Files.exists(stale));
+        assertTrue(Files.isRegularFile(unfamiliar));
+    }
+
+    @Test
+    void unreadableSurvivingClasspathProfileRefusesArchiveIndexPruning() throws Exception {
+        PreflightHome preflight = home();
+        String profile = "c".repeat(64);
+        Path archive = writeClasspathArchive(preflight, "3".repeat(64), "keep");
+        Path profiles = ClasspathCacheDirectories.profiles(preflight.cache());
+        Files.createDirectories(profiles);
+        Files.writeString(profiles.resolve(profile + ".spfc"), "corrupt");
+
+        CachePrune.Plan plan = CachePrune.plan(preflight, Set.of(profile), Set.of());
+
+        assertFalse(plan.safe());
+        assertTrue(plan.refusals().stream().anyMatch(refusal -> refusal.contains("classpath index")));
+        assertFalse(plan.removals().stream().anyMatch(
+                removal -> "unreferenced classpath archive index".equals(removal.reason())));
+        assertThrows(IOException.class, () -> CachePrune.apply(plan));
+        assertTrue(Files.isRegularFile(archive));
+    }
+
     private PreflightHome home() {
         return PreflightHome.resolve(Platform.MAC, home, Map.of());
     }
@@ -423,6 +475,35 @@ class CachePruneTest {
         PreparedAudioManifestIO.write(
                 manifests.resolve(fingerprint + ".spam"),
                 new PreparedAudioManifest(fingerprint, "b".repeat(64), "d".repeat(64), entries));
+    }
+
+    private static Path writeClasspathArchive(
+            PreflightHome preflight, String sourceHash, String content) throws IOException {
+        Path archive = ClasspathCacheDirectories.archives(preflight.cache())
+                .resolve(sourceHash.substring(0, 2))
+                .resolve(sourceHash + ".spfj");
+        Files.createDirectories(archive.getParent());
+        return Files.writeString(archive, content);
+    }
+
+    private static void writeClasspathProfile(
+            PreflightHome preflight, String profile, String sourceHash) throws IOException {
+        Path profilePath = ClasspathCacheDirectories.profiles(preflight.cache())
+                .resolve(profile + ".spfc");
+        ClasspathProfileIndex.Archive archive = new ClasspathProfileIndex.Archive(
+                "core",
+                "starsector-core/starsector.api.jar",
+                preflight.root().resolve("fixture-sources/starsector.api.jar"),
+                sourceHash,
+                4,
+                1,
+                preflight.cache().relativize(ClasspathCacheDirectories.archives(preflight.cache())
+                        .resolve(sourceHash.substring(0, 2))
+                        .resolve(sourceHash + ".spfj")).toString().replace('\\', '/'),
+                true);
+        ClasspathProfileIndexIO.write(
+                profilePath,
+                new ClasspathProfileIndex(profile, List.of(archive), Map.of()));
     }
 
     private static byte[] classBytes(Class<?> type) throws IOException {

@@ -21,7 +21,7 @@ class GraphicsLibRefreshCadencePlanTest {
     void exactReplacementGetsBoundedRefreshCadences() throws Exception {
         byte[] transformed = GraphicsLibRefreshCadencePlan.transform(optimizedReplacement());
         assertNotNull(transformed);
-        assertEquals(GraphicsLibCompactReplayPlan.REPLACEMENT_SHA256,
+        assertEquals(GraphicsLibTextureKeyPlan.INPUT_SHA256,
                 ClassSignature.parse(transformed).sha256());
 
         ClassNode owner = new ClassNode(Opcodes.ASM9);

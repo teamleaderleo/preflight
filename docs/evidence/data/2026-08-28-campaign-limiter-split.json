@@ -1,0 +1,154 @@
+{
+  "format": "starsector-preflight-campaign-limiter-split-evidence-v1",
+  "date": "2026-08-28",
+  "disposition": "diagnostic infrastructure retained; no FPS optimization claim",
+  "parentIssue": 449,
+  "childIssue": 1150,
+  "implementationCommit": "354d9006b1ad22d8a09e0141a924be6c25e60213",
+  "verification": {
+    "command": "JAVA_HOME=$(/usr/libexec/java_home -v 17) ./mvnw verify",
+    "tests": 2240,
+    "failures": 0,
+    "errors": 0,
+    "skips": 9
+  },
+  "identity": {
+    "game": "Starsector 0.98a-RC8",
+    "coreJarSha256": "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+    "targetClass": "com/fs/starfarer/BaseGameState",
+    "targetClassSha256": "cc5ef1d187dae1ca1017f6d40dae8576b88603a28a8d1c008e2d2aa2516c7c4d",
+    "targetMethod": "traverse()Ljava/lang/String;",
+    "classMajor": 61,
+    "profileFingerprint": "2995668308ac3d31d645ccac30fb1a7e644e64fce5609050a1488df4cadc5af6",
+    "textureProfileFingerprint": "59b01dc050f39a9f07053bd168cc8c1ecd55086b429b2d732456f87ca217a702",
+    "enabledMods": 83,
+    "resolution": "1440x932",
+    "fullscreen": false,
+    "sound": true,
+    "wrapperJava": "Oracle Java 17.0.12 arm64",
+    "adapterPlanScope": "full",
+    "optimizationPreset": "recommended",
+    "textureAdapterMode": "PREPARED_PIXELS",
+    "campaignTimes": false,
+    "frameTimes": true,
+    "jfrRecording": false,
+    "smoothFramePacing": false,
+    "preflightJarSha256": "bd96c52b09322a336297085d0b36f3f00303b1dcd41b72889de2f594852a1a65"
+  },
+  "scenario": {
+    "name": "campaign-hitch-limiter-current-state",
+    "status": "passed",
+    "startedAt": "2026-08-27T17:40:24.943813Z",
+    "completedAt": "2026-08-27T17:42:32.311949Z",
+    "semanticSteps": 5,
+    "warmupMillis": 30000,
+    "measurementMillis": 60000,
+    "campaignPause": "paused",
+    "saveActionIssued": false,
+    "workloadComparability": "single thin diagnostic confirmation; stable paused state, not a paired optimization cohort"
+  },
+  "adapterHealth": {
+    "status": "ACTIVE",
+    "registryTargets": 77,
+    "exactMatches": 64,
+    "transformationsApplied": 64,
+    "sourceBindingRejected": 0,
+    "unavailablePlans": 0,
+    "transformationsDeclined": 0,
+    "containedFailures": 0,
+    "cacheRejectionSignals": 0,
+    "wrapperFailureSignals": 0,
+    "runtimeIntegrityFailures": 0,
+    "failOpenPolicy": true,
+    "killSwitchActive": false
+  },
+  "limiter": {
+    "planId": "campaign-frame-limiter-time-v1",
+    "installed": true,
+    "sleepCalls": 5808,
+    "sleepCompletions": 5808,
+    "requestedMillisTotalWholeProcess": 48701,
+    "eligibleFrames": 5238,
+    "completeFrameSplits": 5238,
+    "unavailableFrameSplits": 0,
+    "elapsedAverageMicros": 9508.685,
+    "elapsedP99Micros": 12100,
+    "elapsedMaximumMicros": 22867.292
+  },
+  "pausedCampaign": {
+    "frames": 5238,
+    "activeMillis": 89851.595,
+    "averageFps": 58.3,
+    "onePercentLowFps": 30.3,
+    "p99FrameMicros": 33000,
+    "maximumFrameMicros": 56003,
+    "framesOver33_33Millis": 31,
+    "framesOver50Millis": 2,
+    "slowFrameDominance": {
+      "nativeSwap": 23,
+      "preSwapExcludingLimiter": 7,
+      "limiterSleep": 1
+    },
+    "preSwapExcludingLimiter": {
+      "averageMicros": 5602.866,
+      "p99Micros": 13100,
+      "maximumMicros": 52753.5
+    },
+    "nativeSwap": {
+      "averageMicros": 1768.446,
+      "p99Micros": 17600,
+      "maximumMicros": 18065.333
+    },
+    "messageProcessing": {
+      "averageMicros": 272.632,
+      "p99Micros": 500,
+      "maximumMicros": 7608.792
+    }
+  },
+  "hitchPackets": [
+    {
+      "sequence": 1124,
+      "durationMicros": 53521,
+      "limiterRequestedMillis": 0,
+      "limiterElapsedMicros": 16,
+      "limiterOvershootMicros": 16,
+      "preSwapExcludingLimiterMicros": 52753,
+      "nativeSwapMicros": 511,
+      "messageMicros": 239,
+      "postWindowComplete": true
+    },
+    {
+      "sequence": 2991,
+      "durationMicros": 56003,
+      "limiterRequestedMillis": 8,
+      "limiterElapsedMicros": 9069,
+      "limiterOvershootMicros": 1069,
+      "preSwapExcludingLimiterMicros": 45981,
+      "nativeSwapMicros": 458,
+      "messageMicros": 438,
+      "postWindowComplete": true
+    }
+  ],
+  "measurementOverhead": {
+    "scope": "inclusive display-boundary hook; presentation and limiter timestamp hooks excluded",
+    "samples": 6361,
+    "averageMicros": 16.409,
+    "maximumMicros": 7274.959
+  },
+  "lifecycle": {
+    "outcome": "COMPLETED",
+    "exitCode": 0,
+    "fatalDetected": false,
+    "controllerStopRequested": true,
+    "postprocessingFailures": 0
+  },
+  "rawEvidenceSha256": {
+    "runtime-frame-report.json": "17c2e77903f5c9acfa9bcc3fa38b78cd47e22385b96b56f18eaa3f93ebf69600",
+    "adapter.json": "fe5df3dfc9c68bf41bcab7599b57c3a2dc82e8b575ef09f661f44ef969f27bdb",
+    "adapter-health.json": "13e32e192be7bd4eac37329d4ee751bc908dd830405ec6a75543efbb73a71637",
+    "run.json": "391e64f22e5b359533fdd21759eccc2c7df7c09f503ef99813d8beb2a4cb7224",
+    "profile.json": "46dc8c05f69b849e11137c12e5d6cd0cf2c2657081d57dfa82d13d6bc76a0b71",
+    "driver-result.json": "e290cdd2d5bcfc4950bec80a7dc7e9a6166a08545548642941c24a532c3df61b",
+    "runtime-state.json": "27461910471aa917560e437b5ce244e26cbe57c63fd27adce859486fbf073f01"
+  }
+}

@@ -19,6 +19,8 @@ import org.objectweb.asm.tree.MethodNode;
 
 final class MainMenuInteractivePlanTest {
     private static final String RUNTIME = RuntimeSemanticState.class.getName().replace('.', '/');
+    private static final String CONTROL_RUNTIME =
+            InternalGameControlRuntime.class.getName().replace('.', '/');
 
     @TempDir
     Path temporaryDirectory;
@@ -26,6 +28,7 @@ final class MainMenuInteractivePlanTest {
     @AfterEach
     void reset() {
         RuntimeSemanticState.reset();
+        InternalGameControlRuntime.reset();
     }
 
     @Test
@@ -38,6 +41,7 @@ final class MainMenuInteractivePlanTest {
 
         assertNotNull(transformed);
         assertEquals(1, calls(method(transformed), RUNTIME, "mainMenuInteractive"));
+        assertEquals(1, calls(method(transformed), CONTROL_RUNTIME, "titleAdvance"));
     }
 
     @Test

@@ -50,7 +50,7 @@ final class CacheHealth {
         }
         Path cache;
         try {
-            cache = canonicalCacheRoot(home.cache());
+            cache = CacheRootBoundary.canonical(home.cache());
         } catch (IOException error) {
             return unsafe(profile, home.cache(), "The cache boundary couldn't be verified: " + message(error));
         }
@@ -293,7 +293,7 @@ final class CacheHealth {
         }
         long removedBytes = 0;
         int removedFiles = 0;
-        Path cache = canonicalCacheRoot(home.cache());
+        Path cache = CacheRootBoundary.canonical(home.cache());
         for (Target target : report.targets()) {
             requireSafeArtifactPaths(cache, target.path());
             if (exists(target.path())
@@ -384,11 +384,6 @@ final class CacheHealth {
 
     private static boolean exists(Path path) {
         return Files.exists(path, LinkOption.NOFOLLOW_LINKS);
-    }
-
-    private static Path canonicalCacheRoot(Path path) throws IOException {
-        Path absolute = path.toAbsolutePath().normalize();
-        return exists(absolute) ? absolute.toRealPath() : absolute;
     }
 
     private static void requireSafeArtifactPaths(Path root, Path... paths) throws IOException {

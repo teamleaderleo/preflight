@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import type { PreparationStoragePlan } from "../types";
+import type { StorageCleanupPlan } from "../useCacheCleanup";
 import type { usePreparation } from "../usePreparation";
 import type { SpeedStanding } from "../useSpeedRecord";
 import { PreparationPage } from "./PreparationPage";
@@ -73,6 +74,7 @@ function preparation(
 function renderPage(
   preparationPlan: PreparationStoragePlan,
   overrides: Partial<ReturnType<typeof usePreparation>> = {},
+  cleanupPlan: StorageCleanupPlan | null = null,
 ) {
   render(
     <PreparationPage
@@ -82,7 +84,7 @@ function renderPage(
       optimizationPreset="recommended"
       disabledOptimizationDomains={[]}
       preparation={preparation(preparationPlan, overrides)}
-      cleanupPlan={null}
+      cleanupPlan={cleanupPlan}
       cleanupBusy={false}
       operationBlocked={false}
       speedStanding={{} as SpeedStanding}
@@ -154,4 +156,39 @@ test("changed storage and resource choices stay visible without preset-name narr
   expect(screen.getByText("Keeps textures uncompressed and uses more disk · Uses more preparation resources.")).toBeInTheDocument();
   expect(screen.queryByText(/Fastest raw storage selected/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/high resource use/i)).not.toBeInTheDocument();
+});
+
+test("cleanup explains that completed comparison and save/reload evidence occupy bounded report slots", () => {
+  renderPage(plan(), {}, {
+    cache: {
+      format: "starsector-preflight-cache-prune-v1",
+      safe: true,
+      applied: false,
+      currentProfileFingerprint: "a".repeat(64),
+      survivingProfileFingerprints: ["a".repeat(64)],
+      bytes: 0,
+      files: 0,
+      reachableTextureBlobs: 0,
+      reachablePreparedAudioBlobs: 0,
+      reachableClasspathArchiveIndexes: 0,
+      refusals: [],
+      groups: [],
+      removals: [],
+      removalsTruncated: false,
+    },
+    evidence: {
+      format: "starsector-preflight-evidence-prune-v1",
+      applied: false,
+      keepRuns: 10,
+      keepBenchmarks: 5,
+      bytes: 1024,
+      files: 1,
+      removedBytes: 0,
+      sessions: [],
+    },
+    bytes: 1024,
+    files: 1,
+  });
+
+  expect(screen.getByText(/10 launch reports—including the latest completed comparison and save\/reload check when available—and 5 benchmark campaigns/)).toBeInTheDocument();
 });

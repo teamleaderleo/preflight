@@ -1,0 +1,79 @@
+{
+  "format": "starsector-preflight-optimization-observation-v1",
+  "candidate": "aitweaks-split-arcs-capacity-v1",
+  "status": "accepted-with-limit",
+  "game": "Starsector 0.98a-RC8",
+  "scenario": "campaign-simulation-combat-1000dp",
+  "condition": {
+    "launcher": "Preflight fast preset only",
+    "battle": "24 mirrored ships per side, 520 DP per side",
+    "speed": "2x",
+    "viewportWidth": 6120.0,
+    "measurementWindowSeconds": 30.006,
+    "observations": 1,
+    "macosThermalWarning": false,
+    "macosPerformanceWarning": false
+  },
+  "target": {
+    "class": "com/genir/aitweaks/core/shipai/WeaponGroup",
+    "classSha256": "788cbde04b454753673e4500ebdecc06735b56e175b05ff75de4f7847c076476",
+    "sourceArchiveSha256": "9f6179bcd2df2e3ce8cea2da79051c9f1be3c9b71712c6c28d7568b777ecf5b2",
+    "majorVersion": 61,
+    "method": "splitArcs(Ljava/util/List;)Ljava/util/List;"
+  },
+  "safety": {
+    "fallback": "ORIGINAL_BYTECODE",
+    "addsGameObjectFields": false,
+    "addsMutableGameState": false,
+    "touchesSaveState": false,
+    "preservedSemantics": [
+      "element construction",
+      "comparison and sort order",
+      "iteration order",
+      "floating-point operations",
+      "returned objects"
+    ]
+  },
+  "run": {
+    "jfrSha256": "db72ade5270416a1bba8b0b842da389682aed49833a8f60f4759689402e745e7",
+    "scenarioSha256": "62c027df5fe5e34ad1a1f48b949e3d6af5cf60c5cc76b22256715c98e3ccb677",
+    "scenarioEvidenceSha256": "b562ef0c2666096b1baafaa00cd8020dff93fc573c181bd1731dc61dd79b6614",
+    "adapterReportSha256": "bd7821f21ca1ed64e308b6de86109454a3d061983622423d935a850f4edae012",
+    "frameReportSha256": "419a8e8323d1135f17c221df7ef88b7307c74d25e27c4a845b3aff4013bfcd17",
+    "adapterHealthSha256": "bae5046ce685a866375c621ae5b9fe0d5f22610a9d0df196e7bce2a35de58ea2",
+    "exactTransformApplied": true,
+    "selectionSnapshots": 73917,
+    "splitArcsAllocationSamples": 42,
+    "splitArcsWeightedAllocationMiB": 93.9,
+    "initialBackingArraySamples": 10,
+    "initialBackingArrayWeightedMiB": 42.0,
+    "arrayListGrowSamples": 0,
+    "measurementWindow": {
+      "frames": 649,
+      "averageFps": 21.87,
+      "medianFps": 24.39,
+      "onePercentLowFps": 7.67,
+      "pointOnePercentLowFps": 5.97,
+      "p95FrameMillis": 78.4,
+      "p99FrameMillis": 130.4,
+      "maximumFrameMillis": 167.45,
+      "framesOver50Millis": 116,
+      "framesOver100Millis": 23,
+      "stutterBurdenMillisPerSecond": 275.11,
+      "repeatedSlowFramesPercent": 91.22,
+      "repeatedSlowFrameClusters": 25,
+      "longestSlowFrameClusterFrames": 370,
+      "longestSlowFrameClusterMillis": 17225.25
+    },
+    "frameHookAverageMicros": 18.614
+  },
+  "verification": {
+    "javaRelease": 17,
+    "focusedTests": 5,
+    "focusedFailures": 0,
+    "focusedErrors": 0,
+    "exactInstalledArchiveTest": "passed",
+    "liveScenario": "passed"
+  },
+  "claimLimit": "The live run proves exact application, clean execution, and absence of sampled ArrayList growth in the transformed method; it does not establish a universal FPS or percentile uplift."
+}

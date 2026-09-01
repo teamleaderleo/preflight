@@ -1,0 +1,99 @@
+{
+  "format": "starsector-preflight-production-hot-counter-gating-v1",
+  "date": "2026-08-27",
+  "baselineRunId": "campaign-sample-cycle-20260827-0121",
+  "followupRunId": "campaign-sample-no-hot-counters-20260827-0133",
+  "scenario": "campaign-sample-paused-unpaused",
+  "recording": {
+    "chunks": 1,
+    "durationSeconds": 163,
+    "bytes": 5742336,
+    "executionSamples": 2384,
+    "campaignMainThreadSamples": 1097,
+    "combatMainThreadSamples": 133,
+    "otherMainThreadSamples": 802
+  },
+  "measurementOutcome": {
+    "scenarioStatus": "passed",
+    "launcherExitCode": 6,
+    "launcherShutdownDiagnostic": "OpenAL UnsatisfiedLinkError in shutdown thread",
+    "inactiveIntervalsDropped": 0,
+    "semanticReceiptsExecuted": 3,
+    "ownedProcessStopped": true,
+    "recordingFlushed": true
+  },
+  "runtimeTelemetry": {
+    "commodityEventModMemo": {
+      "installed": true,
+      "enabled": true,
+      "telemetryEnabled": false,
+      "hits": 0,
+      "delegated": 0,
+      "fastValidationUnavailable": 0
+    },
+    "campaignEntityMaintenance": {
+      "enabled": true,
+      "telemetryEnabled": false,
+      "stableSnapshotOwners": 450,
+      "hotCounters": 0
+    }
+  },
+  "frameTimes": {
+    "baselinePausedAfter30Seconds": {
+      "frames": 3420,
+      "averageFps": 58.46,
+      "onePercentLowFps": 30.21,
+      "pointOnePercentLowFps": 20.83,
+      "p99Micros": 33100
+    },
+    "followupPausedAfter30Seconds": {
+      "frames": 3408,
+      "averageFps": 58.25,
+      "onePercentLowFps": 30.03,
+      "pointOnePercentLowFps": 20.58,
+      "p99Micros": 33300
+    },
+    "baselineUnpaused": {
+      "frames": 1901,
+      "averageFps": 52.27,
+      "onePercentLowFps": 14.18,
+      "pointOnePercentLowFps": 8.38,
+      "p99Micros": 70500
+    },
+    "followupUnpaused": {
+      "frames": 1764,
+      "averageFps": 48.65,
+      "onePercentLowFps": 13.53,
+      "pointOnePercentLowFps": 4.58,
+      "p99Micros": 73900
+    }
+  },
+  "campaignExecutionProfile": {
+    "commodityWrapperLeaf": {
+      "baselineSamples": 85,
+      "baselineSharePercent": 9.07,
+      "followupSamples": 63,
+      "followupSharePercent": 5.74
+    },
+    "commodityWrapperInclusive": {
+      "baselineSamples": 95,
+      "baselineSharePercent": 10.14,
+      "followupSamples": 66,
+      "followupSharePercent": 6.02
+    },
+    "unmodifiedControlCategory": {
+      "method": "com.fs.starfarer.api.combat.MutableStatWithTempMods.advance",
+      "baselineSamples": 43,
+      "baselineSharePercent": 4.59,
+      "followupSamples": 7,
+      "followupSharePercent": 0.64
+    },
+    "followupWorkloadDifference": {
+      "method": "com.fs.starfarer.campaign.BaseLocation.advanceEvenIfPaused",
+      "inclusiveSamples": 113,
+      "battleAdvanceSamples": 23,
+      "autoresolveRoundSamples": 16
+    }
+  },
+  "interpretation": "Hot diagnostic counters are now opt-in profiling work. The timer-free wrapper share moved in the expected direction, but workload variation and worse unpaused frame tails prevent an FPS-uplift claim from this single follow-up."
+}

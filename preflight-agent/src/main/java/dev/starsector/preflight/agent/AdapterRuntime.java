@@ -26,6 +26,8 @@ final class AdapterRuntime {
         Objects.requireNonNull(instrumentation, "instrumentation");
         Set<String> disabledPlans = disabledPlans(System.getenv(), System.getProperties());
         AdapterPlanControl.configure(options.adapterPlanScope(), disabledPlans);
+        boolean campaignTimes = Boolean.getBoolean("preflight.campaignTimes");
+        boolean frameTimes = Boolean.getBoolean("preflight.frameTimes");
         SourceArchiveHashes.beginSession();
         AdapterTransformationCache.beginSession();
         TextureCompatibilityRuntime.beginSession();
@@ -52,30 +54,45 @@ final class AdapterRuntime {
         AudioStreamSourceErrorRuntime.beginSession();
         AudioResourceFallbackRuntime.beginSession();
         AudioMusicTransitionRuntime.beginSession();
-        AiTweaksEngagementRangeRuntime.beginSession();
         AshLibVariantLookupRuntime.beginSession();
         GraphicsLibCompactReplayPlan.beginSession();
         JaninoBytecodeCacheRuntime.beginSession();
         GraphicsLibInsigniaManagerCacheRuntime.beginSession();
         GraphicsLibHotSettingsRuntime.reset();
+        RatAbyssFactionFlagPlan.reset();
+        MnemonicSensorsEntityFilterPlan.reset();
+        MutableStatTempAdvancePlan.reset();
+        LunaCampaignRendererSnapshotRuntime.reset();
         MagicLibPaintjobLoadRuntime.reset();
         MagicLibPaintjobCacheRuntime.beginSession();
+        MagicLibPaintjobSnapshotRuntime.beginSession();
         EntityLookupRuntime.beginSession();
         RadarRenderRuntime.beginSession();
+        ContrailRenderScratchRuntime.beginSession();
+        FontWrapAllocationRuntime.beginSession();
         DeploymentIconCacheRuntime.beginSession();
-        CommodityEventModMemoRuntime.beginSession();
-        CampaignEntityMaintenanceRuntime.beginSession();
+        CommodityEventModMemoRuntime.beginSession(campaignTimes);
+        CampaignEntityMaintenanceRuntime.beginSession(campaignTimes);
         FleetAiProfilerRuntime.beginSession();
         SimOpponentSafetyRuntime.beginSession();
         LogisticsNotificationsFuelRuntime.reset();
         MacMemoryWarningRuntime.beginSession();
         CombatRuntimeIntegrityRuntime.beginSession();
-        FrameTimeRuntime.beginSession(Boolean.getBoolean("preflight.frameTimes"));
-        boolean campaignTimes = Boolean.getBoolean("preflight.campaignTimes");
+        CollisionQuerySet.beginSession();
+        CombatListenerRangeSnapshotRuntime.beginSession(frameTimes);
+        FrameTimeRuntime.beginSession(
+                frameTimes,
+                Boolean.getBoolean(FrameTimeRuntime.FORCE_VSYNC_OFF_PROPERTY));
         CampaignCallTimeRuntime.beginSession(campaignTimes);
         CampaignEngineTimeRuntime.beginSession(campaignTimes);
         CampaignLocationEconomyTimeRuntime.beginSession(campaignTimes);
         CampaignMarketFleetTimeRuntime.beginSession(campaignTimes);
+        FleetAiModuleTimeRuntime.beginSession(campaignTimes);
+        TacticalFleetAiTimeRuntime.beginSession(campaignTimes);
+        FleetInflationTimeRuntime.beginSession(campaignTimes);
+        CoreAutofitTimeRuntime.beginSession(campaignTimes);
+        NexEconomyInfoTimeRuntime.beginSession(campaignTimes);
+        NexMarketListScopeRuntime.beginSession();
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         StartupPhaseRuntime.enableMergedReadProbe(options.startupPhaseProbe());
@@ -97,6 +114,7 @@ final class AdapterRuntime {
         } catch (IOException error) {
             report.contained("Could not publish runtime semantic state", error);
         }
+        InternalGameControlRuntime.beginSession(options.adapterReport());
         DesktopSmokeLiveReport desktopSmoke;
         try {
             desktopSmoke = DesktopSmokeLiveReport.start(options.adapterReport(), options.adapterMode());
@@ -181,6 +199,11 @@ final class AdapterRuntime {
             registry = loadRegistry(options.adapterTargets(), report);
             if (options.adapterMode() == AdapterMode.ENABLED) {
                 registry = registry.withTextureTarget(options.textureAdapterMode());
+                if (NexMarketListScopeRuntime.configured()) {
+                    registry = registry.withNexMarketListScopeTargets();
+                    report.diagnostic(
+                            "Loaded the exact opt-in Nexerelin scoped market-list targets");
+                }
                 report.diagnostic("Loaded the exact refit simulator opponent-safety target");
                 report.diagnostic("Loaded the exact startup resource-priority index target");
                 report.diagnostic("Loaded the exact save-descriptor compatibility memo target");
@@ -190,6 +213,7 @@ final class AdapterRuntime {
                 report.diagnostic("Loaded the exact campaign entity-maintenance targets");
                 report.diagnostic("Loaded the exact resource source-hint isolation target");
                 report.diagnostic("Loaded the exact MagicLib unlocked-paintjob set target");
+                report.diagnostic("Loaded the exact MagicLib per-frame paintjob snapshot target");
                 report.diagnostic("Loaded the exact MagicLib optional-paintjob JSON shortcut");
                 if (MagicLibPaintjobCacheRuntime.ready()) {
                     report.diagnostic("Loaded the exact MagicLib paintjob catalog target ("
@@ -202,11 +226,22 @@ final class AdapterRuntime {
                     report.diagnostic("Loaded the exact streaming-audio OpenAL error-order target");
                 }
                 report.diagnostic("Loaded the exact sound classpath-root resource fallback target");
-                report.diagnostic("Loaded the exact AI Tweaks per-selection range target");
                 report.diagnostic("Loaded the exact AshLib callback-scoped variant index targets");
                 if (FrameTimeRuntime.enabled()) {
                     registry = registry.withFrameTimeTarget();
                     report.diagnostic("Loaded the exact lightweight frame-time and campaign-state targets");
+                }
+                if (DynamicParticleGroupRenderProbeRuntime.enabled()) {
+                    registry = registry.withDynamicParticleGroupProbeTarget();
+                    report.diagnostic("Loaded the exact opt-in vanilla particle render probe target");
+                }
+                if (GraphicsLibTessellateArrayRuntime.enabled()) {
+                    registry = registry.withGraphicsLibTessellateArrayTarget();
+                    report.diagnostic("Loaded the exact opt-in GraphicsLib tessellation-array target");
+                }
+                if (GlCommandCountRuntime.planEnabled()) {
+                    registry = registry.withGlCommandCountTargets();
+                    report.diagnostic("Loaded the exact opt-in LWJGL OpenGL command-count targets");
                 }
                 if (CampaignCallTimeRuntime.enabled()) {
                     registry = registry.withCampaignCallTimeTargets();
@@ -219,6 +254,18 @@ final class AdapterRuntime {
                 }
                 if (CampaignMarketFleetTimeRuntime.enabled()) {
                     registry = registry.withCampaignMarketFleetTimeTargets();
+                }
+                if (TacticalFleetAiTimeRuntime.enabled()) {
+                    registry = registry.withTacticalFleetAiTimeTarget();
+                }
+                if (FleetInflationTimeRuntime.enabled()) {
+                    registry = registry.withFleetInflationTimeTarget();
+                }
+                if (CoreAutofitTimeRuntime.enabled()) {
+                    registry = registry.withCoreAutofitTimeTarget();
+                }
+                if (NexEconomyInfoTimeRuntime.enabled()) {
+                    registry = registry.withNexEconomyInfoTimeTarget();
                 }
                 if (campaignTimes) {
                     report.diagnostic("Loaded the exact opt-in detailed campaign timing targets");
@@ -445,6 +492,18 @@ final class AdapterRuntime {
         }
         if (disabledPlans.contains(CampaignMarketFleetTimeRuntime.PLAN_ID)) {
             CampaignMarketFleetTimeRuntime.beginSession(false);
+        }
+        if (disabledPlans.contains(FleetAiModuleTimeRuntime.PLAN_ID)) {
+            FleetAiModuleTimeRuntime.beginSession(false);
+        }
+        if (disabledPlans.contains(TacticalFleetAiTimeRuntime.PLAN_ID)) {
+            TacticalFleetAiTimeRuntime.beginSession(false);
+        }
+        if (disabledPlans.contains(FleetInflationTimeRuntime.PLAN_ID)) {
+            FleetInflationTimeRuntime.beginSession(false);
+        }
+        if (disabledPlans.contains(CoreAutofitTimeRuntime.PLAN_ID)) {
+            CoreAutofitTimeRuntime.beginSession(false);
         }
     }
 

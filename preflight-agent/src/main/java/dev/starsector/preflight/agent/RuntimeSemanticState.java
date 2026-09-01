@@ -19,8 +19,9 @@ public final class RuntimeSemanticState {
     private static final int MAIN_MENU = 1;
     private static final int MAIN_MENU_INTERACTIVE = 2;
     private static final int CAMPAIGN = 3;
-    private static final int COMBAT = 4;
-    private static final int STOPPED = 5;
+    private static final int SIMULATION = 4;
+    private static final int COMBAT = 5;
+    private static final int STOPPED = 6;
 
     private static volatile boolean enabled;
     private static volatile int state = STARTING;
@@ -30,6 +31,7 @@ public final class RuntimeSemanticState {
     private static Instant processStartedAt;
     private static Instant mainMenuReadyAt;
     private static Instant mainMenuInteractiveAt;
+    private static boolean interactiveTitleOwnsState;
 
     private RuntimeSemanticState() {
     }
@@ -42,6 +44,7 @@ public final class RuntimeSemanticState {
         processStartedAt = ProcessHandle.current().info().startInstant().orElse(null);
         mainMenuReadyAt = null;
         mainMenuInteractiveAt = null;
+        interactiveTitleOwnsState = false;
         enabled = true;
         try {
             write();
@@ -56,21 +59,54 @@ public final class RuntimeSemanticState {
         return enabled;
     }
 
+    static synchronized boolean is(String expected) {
+        return expected != null && expected.equals(name(state));
+    }
+
+    static synchronized String currentState() {
+        return name(state);
+    }
+
+    /** Lock-free phase gate for high-volume opt-in diagnostic counters. */
+    static boolean combatActive() {
+        return enabled && state == COMBAT;
+    }
+
+    static synchronized Instant processStartedAt() {
+        return processStartedAt;
+    }
+
     public static void mainMenuReady() {
         transition(MAIN_MENU);
     }
 
-    public static synchronized void mainMenuInteractive() {
-        if (!enabled || mainMenuInteractiveAt != null) return;
-        mainMenuInteractiveAt = Instant.now();
-        transition(MAIN_MENU_INTERACTIVE);
+    public static void mainMenuInteractive() {
+        synchronized (RuntimeSemanticState.class) {
+            if (!enabled || mainMenuInteractiveAt != null) return;
+            mainMenuInteractiveAt = Instant.now();
+            interactiveTitleOwnsState = true;
+            transition(MAIN_MENU_INTERACTIVE);
+        }
+        FrameTimeRuntime.markMainMenuInteractive();
     }
 
-    public static void campaignReady() {
+    public static synchronized void campaignReady() {
+        interactiveTitleOwnsState = false;
         transition(CAMPAIGN);
     }
 
-    public static void combatReady() {
+    public static synchronized void simulationReady() {
+        interactiveTitleOwnsState = false;
+        transition(SIMULATION);
+    }
+
+    public static synchronized void combatReady() {
+        // Starsector advances decorative combat behind its title screen. It is frame telemetry,
+        // not a semantic transition away from the interactive menu.
+        if (interactiveTitleOwnsState) return;
+        // The simulator creates its CombatEngine before the stock deployment dialog is dismissed.
+        // Keep the actionable dialog state authoritative until the reviewed engage action closes it.
+        if (state == SIMULATION && !InternalGameControlRuntime.simulationEngaged()) return;
         transition(COMBAT);
     }
 
@@ -122,6 +158,7 @@ public final class RuntimeSemanticState {
         processStartedAt = null;
         mainMenuReadyAt = null;
         mainMenuInteractiveAt = null;
+        interactiveTitleOwnsState = false;
     }
 
     private static void write() throws IOException {
@@ -143,6 +180,7 @@ public final class RuntimeSemanticState {
             case MAIN_MENU -> "main-menu-ready";
             case MAIN_MENU_INTERACTIVE -> "main-menu-interactive";
             case CAMPAIGN -> "campaign-ready";
+            case SIMULATION -> "simulation-ready";
             case COMBAT -> "combat-ready";
             case STOPPED -> "stopped";
             default -> "starting";

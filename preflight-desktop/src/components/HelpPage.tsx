@@ -31,6 +31,7 @@ export function HelpPage({
   onNavigate,
 }: HelpPageProps) {
   const setupCopy = useCopySetup(optimizationPreset);
+  const setupSummaryBusy = setupCopy.copyState === "copying" || setupCopy.saveState === "saving";
   const {
     diagnosticsBusy,
     diagnosticsExport,
@@ -82,6 +83,19 @@ export function HelpPage({
         </ul>
       </section>
 
+      <section className="card help-boundary-card" aria-labelledby="help-boundary-title">
+        <div className="card__heading">
+          <div><p className="eyebrow">Your files</p><h2 id="help-boundary-title">What Preflight changes</h2></div>
+          <ShieldIcon className="settings-check" />
+        </div>
+        <p>Prepared data stays in Preflight’s own storage. Optimized launches don’t rewrite Starsector or mod files, and prepared data never goes into campaign saves.</p>
+        <ul className="help-boundary-facts">
+          <li><strong>Repair and Free space</strong> remove only Preflight-owned data, not game files, mods, or saves.</li>
+          <li><strong>Saving after launch</strong> remains Starsector’s job; the game and mods can still write to the save normally.</li>
+          <li><strong>Profiles and launch settings</strong> write Starsector preferences only when you apply a named profile or save launch settings. Preflight makes a backup first.</li>
+        </ul>
+      </section>
+
       <section className="card support-card">
         <div className="support-card__main">
           <div>
@@ -90,11 +104,14 @@ export function HelpPage({
             </div>
             <p>{diagnosticsExport
               ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}`
-              : "Copy your setup into an issue. Make a support file if needed."}</p>
+              : "Copy or save a public setup summary. Make a support file only when more detail is needed."}</p>
           </div>
           <div className="report-actions">
-            <button className={`button ${setupCopy.state === "copied" ? "button--quiet" : "button--primary"} button--support`} type="button" onClick={() => void setupCopy.copySetup()} disabled={operationBlocked || setupCopy.state === "copying"}>
-              {setupCopy.state === "copying" ? "Copying…" : setupCopy.state === "copied" ? "Setup copied" : "Copy setup"}
+            <button className={`button ${setupCopy.copyState === "copied" ? "button--quiet" : "button--primary"} button--support`} type="button" onClick={() => void setupCopy.copySetup()} disabled={operationBlocked || setupSummaryBusy}>
+              {setupCopy.copyState === "copying" ? "Copying…" : setupCopy.copyState === "copied" ? "Setup copied" : "Copy setup"}
+            </button>
+            <button className="button button--quiet button--support" type="button" onClick={() => void setupCopy.saveSetupSummary()} disabled={operationBlocked || setupSummaryBusy}>
+              <FolderIcon />{setupCopy.saveState === "saving" ? "Saving…" : setupCopy.saveState === "saved" ? "Summary saved" : "Save setup summary…"}
             </button>
             <button className="button button--quiet button--support" type="button" onClick={() => void openProjectLink("report-issue")}>Open issue<ArrowIcon /></button>
             <button className="button button--quiet button--support" type="button" onClick={() => void saveDiagnostics()} disabled={operationBlocked || diagnosticsBusy || reportUploading}>
@@ -103,14 +120,31 @@ export function HelpPage({
             {diagnosticsExport ? <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>{reportReceipt ? "Sent" : "Review and send"}</button> : null}
           </div>
         </div>
-        {setupCopy.state === "error" && setupCopy.text ? (
+        {setupCopy.savedOutput && setupCopy.saveState === "saved" ? <p className="support-summary-saved"><CheckIcon /> Saved to {shortPath(setupCopy.savedOutput)}</p> : null}
+        {setupCopy.saveState === "error" && setupCopy.text ? (
+          <div className="report-recovery" role="alert">
+            <strong>Setup summary wasn’t saved</strong>
+            <p>{setupCopy.saveError} The summary is still available below; choose another filename or copy it.</p>
+            <textarea aria-label="Save setup summary" readOnly rows={10} value={setupCopy.text} />
+            {setupCopy.copyState === "copied" ? <p className="support-summary-copy-status" role="status"><CheckIcon /> Copied the summary.</p> : null}
+            {setupCopy.copyState === "error" ? <p className="support-summary-copy-error" role="alert">Clipboard access failed. Select and copy the text above, or try again.</p> : null}
+            <div className="report-actions">
+              <button className="button button--quiet button--compact" type="button" onClick={() => void setupCopy.retrySaveSetup()} disabled={setupSummaryBusy}>Choose another file…</button>
+              <button className="button button--quiet button--compact" type="button" onClick={() => void setupCopy.retryCopySetup()} disabled={setupSummaryBusy}>
+                {setupCopy.copyState === "copying" ? "Copying…" : setupCopy.copyState === "copied" ? "Summary copied" : setupCopy.copyState === "error" ? "Try clipboard again" : "Copy same summary"}
+              </button>
+            </div>
+          </div>
+        ) : setupCopy.saveState === "error" ? (
+          <p className="report-unavailable" role="alert"><ShieldIcon /> {setupCopy.saveError || "Preflight couldn’t build the setup summary."} Try Save setup summary again or use the separate support file action.</p>
+        ) : setupCopy.copyState === "error" && setupCopy.text ? (
           <div className="report-recovery" role="alert">
             <strong>Clipboard access failed</strong>
             <p>The setup summary is still available below. Select and copy it manually, or retry the same summary without rescanning your setup.</p>
             <textarea aria-label="Copy setup summary" readOnly rows={10} value={setupCopy.text} />
             <button className="button button--quiet button--compact" type="button" onClick={() => void setupCopy.retryCopySetup()}>Try clipboard again</button>
           </div>
-        ) : setupCopy.state === "error" ? (
+        ) : setupCopy.copyState === "error" ? (
           <p className="report-unavailable" role="alert"><ShieldIcon /> Preflight couldn’t build the setup summary. Try Copy setup again or use the separate support file action.</p>
         ) : null}
 
@@ -120,8 +154,8 @@ export function HelpPage({
             <section className="diagnostics-card">
               <div className="card__heading"><div><p className="eyebrow">Included</p><h2>Run details</h2></div><CheckIcon className="settings-check" /></div>
               <ul>
-                <li>Run outcome, runtime, adapter health and timing summaries</li>
-                <li>Enabled-mod and resource names, counts, sizes and content hashes</li>
+                <li>Whether the launch finished, which Java version ran, which optimizations were active, and timing summaries</li>
+                <li>Enabled-mod and resource names, counts, sizes and file fingerprints</li>
                 <li>Benchmark settings and results</li>
                 <li>A list of every file included or skipped</li>
               </ul>
@@ -129,10 +163,10 @@ export function HelpPage({
             <section className="diagnostics-card diagnostics-card--excluded">
               <div className="card__heading"><div><p className="eyebrow">Left out</p><h2>Your game and data</h2></div><ShieldIcon className="settings-check" /></div>
               <ul>
-                <li>Game, mod, save, texture, audio or bytecode contents</li>
-                <li>Acceleration caches, console logs and crash dumps</li>
-                <li>JFR recordings, screenshots, audio or unknown files</li>
-                <li>Symlinks or any source file larger than 512 KiB</li>
+                <li>Game, mod, save, texture, audio or compiled-code contents</li>
+                <li>Prepared data, console logs and crash dumps</li>
+                <li>Performance recordings, screenshots, audio or files Preflight doesn’t recognize</li>
+                <li>Links to other locations or any individual report file larger than 512 KiB</li>
               </ul>
             </section>
           </div>

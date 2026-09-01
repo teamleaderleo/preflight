@@ -12,6 +12,7 @@ export interface LastRun {
   installRoot?: string | null;
   profileFingerprint?: string | null;
   adapterHealth: AdapterHealthSummary | null;
+  framePacing?: FramePacingSummary | null;
   started?: string | null;
   ended?: string | null;
   wrapperPid?: number | null;
@@ -19,6 +20,35 @@ export interface LastRun {
   startupMillis?: number | null;
   outcome?: string | null;
   exitCode?: number | null;
+}
+
+export interface FramePacingDistribution {
+  frames: number;
+  activeMillis?: number | null;
+  averageFps: number;
+  onePercentLowFps: number;
+  pointOnePercentLowFps?: number | null;
+  p95Micros: number;
+  p99Micros: number;
+  over33_33Millis?: number | null;
+  over50Millis?: number | null;
+  over100Millis?: number | null;
+  slowFramesPerMinute?: number | null;
+  stutterBurdenMillisPerSecond?: number | null;
+  repeatedSlowFrameClusters?: number | null;
+  repeatedSlowFramesPercent?: number | null;
+  longestSlowFrameClusterMillis?: number | null;
+}
+
+export interface FramePacingSummary {
+  format: "starsector-preflight-frame-pacing-summary-v1";
+  campaign: FramePacingDistribution | null;
+  initialCampaign?: FramePacingDistribution | null;
+  settledCampaign: FramePacingDistribution | null;
+  settledPausedCampaign?: FramePacingDistribution | null;
+  settledUnpausedCampaign?: FramePacingDistribution | null;
+  combat: FramePacingDistribution | null;
+  measurementAverageMicros: number | null;
 }
 
 export interface AdapterHealthSummary {
@@ -224,6 +254,7 @@ export interface DesktopBenchmarkMetric {
 
 export interface DesktopBenchmarkComparison {
   available: boolean;
+  smoothnessPriority?: string[];
   metrics: Record<string, DesktopBenchmarkMetric>;
   identity?: {
     profileFingerprint: string;
@@ -315,6 +346,12 @@ export interface DiagnosticsExport {
   benchmarks: number;
   included: Array<{ entry: string; bytes: number; sha256: string }>;
   skipped: Array<{ entry: string; reason: string }>;
+}
+
+export interface SetupSummaryExport {
+  format: "starsector-preflight-setup-summary-export-v1";
+  output: string;
+  bytes: number;
 }
 
 export interface ReportIntakeStatus {
@@ -510,6 +547,7 @@ export interface CacheCleanupPlan {
   files: number;
   reachableTextureBlobs: number;
   reachablePreparedAudioBlobs: number;
+  reachableClasspathArchiveIndexes: number;
   refusals: string[];
   groups: Array<{ reason: string; bytes: number; files: number }>;
   removals: Array<{ path: string; bytes: number; reason: string }>;

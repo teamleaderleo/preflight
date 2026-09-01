@@ -190,11 +190,16 @@ public final class PreflightCli {
         usage.put("run", List.of(
                 "preflight run [--game <path>] [--launcher <path>] [--direct]"
                         + " [--optimization-preset recommended|conservative|off | --fast]"
-                        + " [--no-record | --profile] [--dry-run] [-- <launcher args>]",
+                        + " [--no-record | --profile] [--frame-times] [--smooth-frame-pacing]"
+                        + " [--campaign-times]"
+                        + " [--dry-run] [-- <launcher args>]",
                 "  Launches Starsector. Installed Preflight launchers use the recommended preset.",
                 "  --direct skips the game's launcher and uses its saved display and sound settings.",
                 "  --dry-run prints the resolved command and optimization plan without launching.",
-                "  --profile records a diagnostic profile. --no-record is the normal fast path."));
+                "  --profile records a diagnostic profile. --no-record is the normal fast path.",
+                "  --frame-times records a bounded local FPS/frame-pacing summary in the run report.",
+                "  --campaign-times adds exact-gated campaign attribution to that local report.",
+                "  --smooth-frame-pacing keeps Starsector's FPS cap but disables vsync; it may tear."));
         usage.put("prepare", List.of(
                 "preflight prepare [--game <path>] [--launcher <path>] [--cache-dir <path>] [--report <path>] [--workers <count>] [--memory-mb <MiB>] [--texture-storage fastest|balanced] [--texture-scope full|learned] [--parallel-stages|--serial-stages] [--deep] [--verify-lookups] [--lookup-queries <count>] [--seed <long>] [--no-resource-index] [--no-classpath] [--no-textures]",
                 "preflight prepare --plan [--json] [--game <path>] [--cache-dir <path>] [--workers <count>] [--texture-storage fastest|balanced] [--texture-scope full|learned]",
@@ -267,6 +272,7 @@ public final class PreflightCli {
                 "  Removes every profile except the current one; --keep-named also preserves every",
                 "  readable named profile. This includes profile texture packs,",
                 "  texture and prepared-audio blobs no survivor references, stale Janino contexts,",
+                "  unreferenced content-addressed classpath archive indexes,",
                 "  and per-request bytecode bundles represented by the retained deduplicated pack.",
                 "  Prints the plan and exits unless --yes; --json emits the stable plan contract."));
         usage.put("evidence", List.of(

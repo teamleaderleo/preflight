@@ -77,6 +77,12 @@ cooldown between launches.
 | Current fast condition | 16.25, 16.61, 15.97, 15.90, 15.76 | 15.97s | 15.76s |
 | Reviewed G1 and deferred heap-commit condition | 15.10, 14.04, 14.20, 13.80, 13.69 | **14.04s** | **13.69s** |
 
+The public **7.4×** shorthand spans the retained development chronology: the roughly 101-second
+observed worst case in the [accumulated startup scorecard](2026-08-02-accumulated-startup-scorecard.md)
+divided by this 13.69-second best is 7.38, rounded to one decimal place. It is a before/after
+development-story endpoint, not a controlled same-state A/B; the interleaved vanilla/current
+comparison is reported separately.
+
 The summary identifies candidate JAR
 `f0c5245160bbb9f7aa9d9ba9c07229414200b7afccb294ab66954ce1ab9f1f45` and repository snapshot
 `829c52c571376e568004768726600b01ec2282ed`. Its checked summary is retained locally at

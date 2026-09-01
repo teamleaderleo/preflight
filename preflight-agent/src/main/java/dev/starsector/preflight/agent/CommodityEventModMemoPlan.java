@@ -35,6 +35,7 @@ final class CommodityEventModMemoPlan {
     static final String COMMODITY_DESCRIPTOR = "()Lcom/fs/starfarer/loading/return;";
 
     private static final String ORIGINAL = "preflight$original$reapplyEventMod";
+    private static final String SLOW = "preflight$eventModValidateOrDelegate";
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/CommodityEventModMemoRuntime";
     private static final String MUTABLE = "com/fs/starfarer/api/combat/MutableStat";
@@ -79,7 +80,8 @@ final class CommodityEventModMemoPlan {
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         MethodNode original = unique(owner, METHOD, DESCRIPTOR);
-        if (original == null || hasMethod(owner, ORIGINAL, DESCRIPTOR) || hasMemoFields(owner)
+        if (original == null || hasMethod(owner, ORIGINAL, DESCRIPTOR)
+                || hasMethod(owner, SLOW, DESCRIPTOR) || hasMemoFields(owner)
                 || !reviewOriginal(original)) {
             return null;
         }
@@ -87,7 +89,9 @@ final class CommodityEventModMemoPlan {
         int access = original.access;
         original.name = ORIGINAL;
         addMemoFields(owner);
-        owner.methods.add(wrapper(access));
+        boolean telemetryEnabled = CommodityEventModMemoRuntime.telemetryEnabled();
+        owner.methods.add(slowPath(telemetryEnabled));
+        owner.methods.add(wrapper(access, telemetryEnabled));
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
@@ -95,10 +99,10 @@ final class CommodityEventModMemoPlan {
         return writer.toByteArray();
     }
 
-    private static MethodNode wrapper(int access) {
+    private static MethodNode wrapper(int access, boolean telemetryEnabled) {
         MethodNode method = new MethodNode(Opcodes.ASM9, access, METHOD, DESCRIPTOR, null, null);
         LabelNode enabled = new LabelNode();
-        LabelNode delegated = new LabelNode();
+        LabelNode slow = new LabelNode();
         LabelNode fastStart = new LabelNode();
         LabelNode fastEnd = new LabelNode();
         LabelNode linkageFailure = new LabelNode();
@@ -112,13 +116,91 @@ final class CommodityEventModMemoPlan {
         method.instructions.add(enabled);
         method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
         method.instructions.add(new FieldInsnNode(Opcodes.GETFIELD, TARGET_CLASS, VALID, "Z"));
+        method.instructions.add(new JumpInsnNode(Opcodes.IFEQ, slow));
+
+        // A clean MutableStat's public modified value is authoritative. Read the three trade
+        // inputs directly, avoiding four getModifiedValue calls and the combined quantity
+        // arithmetic on the overwhelmingly common unchanged path. The accessor is added only to
+        // the exact reviewed MutableStat; any missing linkage disables this memo and delegates
+        // forever.
+        method.instructions.add(fastStart);
+        loadStat(method, TRADE_FIELD, 8);
+        loadStat(method, TRADE_PLUS_FIELD, 9);
+        loadStat(method, TRADE_MINUS_FIELD, 10);
+        loadStat(method, AVAILABLE_FIELD, 2);
+        compareClean(method, 8, slow);
+        compareClean(method, 9, slow);
+        compareClean(method, 10, slow);
+
+        // The overwhelmingly common state has three exact zero trade inputs and no eMod entry. In
+        // that state vanilla's complete observable action is an unsuccessful map removal. A clean
+        // stat's public modified value is authoritative, so these three comparisons are a narrow
+        // sufficient proof; cancellation and every other nontrivial quantity continue through the
+        // complete mutation-aware slow path. Changes to available value, commodity
+        // metadata, or backing-stat identities cannot affect this proven-zero result.
+        compareStatZero(method, 8, slow);
+        compareStatZero(method, 9, slow);
+        compareStatZero(method, 10, slow);
+        loadFlatModsReference(method, 2);
+        method.instructions.add(new VarInsnNode(Opcodes.ASTORE, 11));
+        LabelNode nonEmptyMap = new LabelNode();
+        LabelNode emptyMap = new LabelNode();
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 11));
+        method.instructions.add(new JumpInsnNode(Opcodes.IFNULL, emptyMap));
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 11));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKEVIRTUAL, "java/util/LinkedHashMap", "isEmpty", "()Z", false));
+        method.instructions.add(new JumpInsnNode(Opcodes.IFEQ, nonEmptyMap));
+        method.instructions.add(emptyMap);
+        emitHitAndReturn(method, telemetryEnabled, "zeroQuantityEmptyMapHit");
+
+        method.instructions.add(nonEmptyMap);
+        captureCurrentEventMod(method, 11);
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 4));
+        method.instructions.add(new JumpInsnNode(Opcodes.IFNONNULL, slow));
+        method.instructions.add(fastEnd);
+        emitHitAndReturn(method, telemetryEnabled, "zeroQuantityHit");
+
+        method.instructions.add(linkageFailure);
+        method.instructions.add(new InsnNode(Opcodes.POP));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "fastValidationUnavailable", "()V", false));
+        emitDelegated(method, telemetryEnabled);
+        invokeOriginal(method);
+        method.instructions.add(new InsnNode(Opcodes.RETURN));
+        method.tryCatchBlocks.add(new TryCatchBlockNode(
+                fastStart, fastEnd, linkageFailure, "java/lang/LinkageError"));
+
+        method.instructions.add(slow);
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKESPECIAL, TARGET_CLASS, SLOW, DESCRIPTOR, false));
+        method.instructions.add(new InsnNode(Opcodes.RETURN));
+
+        return method;
+    }
+
+    /** Keeps the complete mutation fingerprint off the overwhelmingly common zero-result method. */
+    private static MethodNode slowPath(boolean telemetryEnabled) {
+        MethodNode method = new MethodNode(
+                Opcodes.ASM9,
+                Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL | Opcodes.ACC_SYNTHETIC,
+                SLOW,
+                DESCRIPTOR,
+                null,
+                null);
+        LabelNode delegated = new LabelNode();
+        LabelNode fastStart = new LabelNode();
+        LabelNode fastEnd = new LabelNode();
+        LabelNode linkageFailure = new LabelNode();
+        LabelNode captureStart = new LabelNode();
+        LabelNode captureEnd = new LabelNode();
+        LabelNode captureLinkageFailure = new LabelNode();
+
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        method.instructions.add(new FieldInsnNode(Opcodes.GETFIELD, TARGET_CLASS, VALID, "Z"));
         method.instructions.add(new JumpInsnNode(Opcodes.IFEQ, delegated));
 
-        // A clean MutableStat's public modified value is authoritative. Compare those values and
-        // their owning objects directly, avoiding four getModifiedValue calls and the combined
-        // quantity arithmetic on the overwhelmingly common unchanged path. The accessor is added
-        // only to the exact reviewed MutableStat; any missing linkage disables this memo and
-        // delegates forever.
         method.instructions.add(fastStart);
         loadStat(method, TRADE_FIELD, 8);
         loadStat(method, TRADE_PLUS_FIELD, 9);
@@ -147,24 +229,26 @@ final class CommodityEventModMemoPlan {
         compareReference(method, EVENT_MOD_DESC, 7, delegated);
         compareEconUnitIfRelevant(method, delegated);
         method.instructions.add(fastEnd);
-        method.instructions.add(new MethodInsnNode(
-                Opcodes.INVOKESTATIC, RUNTIME, "hit", "()V", false));
-        method.instructions.add(new InsnNode(Opcodes.RETURN));
+        emitHitAndReturn(method, telemetryEnabled, "hit");
 
         method.instructions.add(linkageFailure);
         method.instructions.add(new InsnNode(Opcodes.POP));
         method.instructions.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "fastValidationUnavailable", "()V", false));
-        method.instructions.add(new JumpInsnNode(Opcodes.GOTO, delegated));
+        emitDelegated(method, telemetryEnabled);
+        invokeOriginal(method);
+        method.instructions.add(new InsnNode(Opcodes.RETURN));
         method.tryCatchBlocks.add(new TryCatchBlockNode(
                 fastStart, fastEnd, linkageFailure, "java/lang/LinkageError"));
 
         method.instructions.add(delegated);
-        method.instructions.add(new MethodInsnNode(
-                Opcodes.INVOKESTATIC, RUNTIME, "delegated", "()V", false));
+        emitDelegated(method, telemetryEnabled);
         invokeOriginal(method);
         // Store the state after vanilla has authored eMod. This also resolves MutableStat's dirty
         // bit once, so the next unchanged frame can compare the actual stable output directly.
+        // The exact backing-map accessor avoids getFlatStatMod's defensive whole-map copy. If its
+        // companion transform is unavailable, vanilla has already run; disable the memo and return.
+        method.instructions.add(captureStart);
         captureFingerprint(method);
         store(method, QUANTITY, 1);
         store(method, AVAILABLE, 3);
@@ -182,9 +266,46 @@ final class CommodityEventModMemoPlan {
         method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
         method.instructions.add(new InsnNode(Opcodes.ICONST_1));
         method.instructions.add(new FieldInsnNode(Opcodes.PUTFIELD, TARGET_CLASS, VALID, "Z"));
+        method.instructions.add(captureEnd);
         method.instructions.add(new InsnNode(Opcodes.RETURN));
 
+        method.instructions.add(captureLinkageFailure);
+        method.instructions.add(new InsnNode(Opcodes.POP));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "fastValidationUnavailable", "()V", false));
+        method.instructions.add(new InsnNode(Opcodes.RETURN));
+        method.tryCatchBlocks.add(new TryCatchBlockNode(
+                captureStart, captureEnd, captureLinkageFailure, "java/lang/LinkageError"));
+
         return method;
+    }
+
+    private static void emitDelegated(MethodNode method, boolean telemetryEnabled) {
+        if (telemetryEnabled) {
+            method.instructions.add(new MethodInsnNode(
+                    Opcodes.INVOKESTATIC, RUNTIME, "delegated", "()V", false));
+        }
+    }
+
+    private static void compareStatZero(MethodNode method, int local, LabelNode nonZero) {
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, local));
+        method.instructions.add(new FieldInsnNode(Opcodes.GETFIELD, MUTABLE, "modified", "F"));
+        method.instructions.add(new InsnNode(Opcodes.FCONST_0));
+        method.instructions.add(new InsnNode(Opcodes.FCMPL));
+        method.instructions.add(new JumpInsnNode(Opcodes.IFNE, nonZero));
+    }
+
+    private static void emitHitAndReturn(
+            MethodNode method, boolean telemetryEnabled, String telemetryMethod) {
+        if (telemetryEnabled) {
+            method.instructions.add(new MethodInsnNode(
+                    Opcodes.INVOKESTATIC,
+                    RUNTIME,
+                    telemetryMethod,
+                    "()V",
+                    false));
+        }
+        method.instructions.add(new InsnNode(Opcodes.RETURN));
     }
 
     /** Captures quantity, current available value, eMod value, and the relevant econ unit. */
@@ -201,7 +322,7 @@ final class CommodityEventModMemoPlan {
         method.instructions.add(new MethodInsnNode(
                 Opcodes.INVOKEVIRTUAL, MUTABLE_TEMP, "getModifiedValue", "()F", false));
         method.instructions.add(new VarInsnNode(Opcodes.FSTORE, 3));
-        captureEventMod(method);
+        captureCurrentEventMod(method);
 
         method.instructions.add(new InsnNode(Opcodes.FCONST_0));
         method.instructions.add(new VarInsnNode(Opcodes.FSTORE, 6));
@@ -219,35 +340,25 @@ final class CommodityEventModMemoPlan {
         method.instructions.add(noQuantity);
     }
 
-    /** Captures the current eMod object, value, and description into locals 4, 5, and 7. */
-    private static void captureEventMod(MethodNode method) {
-        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 2));
-        method.instructions.add(new LdcInsnNode("eMod"));
-        method.instructions.add(new MethodInsnNode(
-                Opcodes.INVOKEVIRTUAL, MUTABLE, "getFlatStatMod",
-                "(Ljava/lang/String;)L" + STAT_MOD + ";", false));
+    /** Reads the current exact-key mapping and its mutable public fields. */
+    private static void captureCurrentEventMod(MethodNode method) {
+        loadFlatModsReference(method, 2);
+        method.instructions.add(new VarInsnNode(Opcodes.ASTORE, 11));
+        captureCurrentEventMod(method, 11);
+    }
+
+    /** Reads the current exact-key mapping from an already loaded backing map. */
+    private static void captureCurrentEventMod(MethodNode method, int mapLocal) {
+        LabelNode noEventMod = new LabelNode();
+        method.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
         method.instructions.add(new VarInsnNode(Opcodes.ASTORE, 4));
         method.instructions.add(new InsnNode(Opcodes.FCONST_0));
         method.instructions.add(new VarInsnNode(Opcodes.FSTORE, 5));
         method.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
         method.instructions.add(new VarInsnNode(Opcodes.ASTORE, 7));
-        LabelNode noEventMod = new LabelNode();
-        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 4));
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, mapLocal));
         method.instructions.add(new JumpInsnNode(Opcodes.IFNULL, noEventMod));
-        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 4));
-        method.instructions.add(new MethodInsnNode(
-                Opcodes.INVOKEVIRTUAL, STAT_MOD, "getValue", "()F", false));
-        method.instructions.add(new VarInsnNode(Opcodes.FSTORE, 5));
-        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 4));
-        method.instructions.add(new MethodInsnNode(
-                Opcodes.INVOKEVIRTUAL, STAT_MOD, "getDesc", "()Ljava/lang/String;", false));
-        method.instructions.add(new VarInsnNode(Opcodes.ASTORE, 7));
-        method.instructions.add(noEventMod);
-    }
-
-    /** Reads the current exact-key mapping and its mutable public fields. */
-    private static void captureCurrentEventMod(MethodNode method) {
-        loadFlatModsReference(method, 2);
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, mapLocal));
         method.instructions.add(new LdcInsnNode("eMod"));
         method.instructions.add(new MethodInsnNode(
                 Opcodes.INVOKEVIRTUAL,
@@ -257,11 +368,6 @@ final class CommodityEventModMemoPlan {
                 false));
         method.instructions.add(new TypeInsnNode(Opcodes.CHECKCAST, STAT_MOD));
         method.instructions.add(new VarInsnNode(Opcodes.ASTORE, 4));
-        method.instructions.add(new InsnNode(Opcodes.FCONST_0));
-        method.instructions.add(new VarInsnNode(Opcodes.FSTORE, 5));
-        method.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
-        method.instructions.add(new VarInsnNode(Opcodes.ASTORE, 7));
-        LabelNode noEventMod = new LabelNode();
         method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 4));
         method.instructions.add(new JumpInsnNode(Opcodes.IFNULL, noEventMod));
         method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 4));

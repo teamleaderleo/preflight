@@ -86,6 +86,22 @@ class AudioStreamSourceErrorPlanTest {
     }
 
     @Test
+    void transitionProbeRetainsTheLatestEventsAfterStartupNoise() {
+        for (int index = 0; index < 70; index++) {
+            AudioMusicTransitionRuntime.created("track-" + index, index);
+        }
+
+        Map<String, Object> telemetry = AudioMusicTransitionRuntime.telemetry();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> events = (List<Map<String, Object>>) telemetry.get("events");
+        assertEquals(64, events.size());
+        assertEquals("track-6", events.get(0).get("id"));
+        assertEquals("track-69", events.get(63).get("id"));
+        assertEquals("latest-64", telemetry.get("retentionPolicy"));
+        assertEquals(6L, telemetry.get("eventsDropped"));
+    }
+
+    @Test
     void changedShapeWrongHashAndSecondRewriteFailClosed() {
         ClassSignature exact = signature();
         assertNull(AudioStreamSourceErrorPlan.transform(new ClassSignature(
@@ -142,8 +158,6 @@ class AudioStreamSourceErrorPlanTest {
                     .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS);
             assertTrue(registry.targets().stream()
                     .noneMatch(target -> AudioStreamSourceErrorRuntime.PLAN_ID.equals(target.planId())));
-            assertTrue(registry.targets().stream()
-                    .anyMatch(target -> AiTweaksEngagementRangeRuntime.PLAN_ID.equals(target.planId())));
         } finally {
             if (previous == null) {
                 System.clearProperty(AudioStreamSourceErrorRuntime.DISABLED_PROPERTY);

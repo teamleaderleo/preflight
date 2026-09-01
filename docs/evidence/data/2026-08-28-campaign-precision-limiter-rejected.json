@@ -1,0 +1,200 @@
+{
+  "format": "starsector-preflight-campaign-precision-limiter-rejection-v1",
+  "date": "2026-08-28",
+  "decision": "rejected-at-60hz",
+  "branch": "codex/1157-installed-pacing",
+  "candidateCommits": [
+    "f60e363a",
+    "554329d7",
+    "c94d6ee0",
+    "61b786be",
+    "1a5bd654",
+    "b93647cf",
+    "90f3219e"
+  ],
+  "planId": "campaign-frame-limiter-precision-v1",
+  "reason": "Two exact installed-host candidate runs were healthy, but their historical-context arm medians changed p99 by only -1.5% and 1% low by +1.6% while average FPS was 2.6% lower than the retained VSync-off observations.",
+  "identity": {
+    "gameVersion": "0.98a-RC8",
+    "profileFingerprint": "2995668308ac3d31d645ccac30fb1a7e644e64fce5609050a1488df4cadc5af6",
+    "textureProfileFingerprint": "59b01dc050f39a9f07053bd168cc8c1ecd55086b429b2d732456f87ca217a702",
+    "preflightJarSha256": "1c0ba20ec904da669f945ecbb2dde96753015a5a5a8bfbfef2eb963969602196",
+    "profileMods": 83,
+    "resolution": "1440x932 windowed",
+    "swapInterval": 0,
+    "frameRateCap": 60,
+    "preset": "fast with recommended runtime optimizations",
+    "adapterScope": "full",
+    "gameRuntime": "Java 17 x86_64 under Rosetta",
+    "wrapperRuntime": "Java 21.0.10 aarch64",
+    "scenario": "campaign-precision-limiter-vsync-off",
+    "campaignState": "paused before and throughout the measurement window",
+    "saveMutation": "none"
+  },
+  "configuration": {
+    "targetFps": 60,
+    "targetFrameMicros": 16666.666,
+    "spinMarginMicros": 250,
+    "forceVsyncOff": true,
+    "jfr": false,
+    "gpuTimer": false,
+    "campaignTimers": false,
+    "glCommandProbe": false
+  },
+  "candidateRuns": [
+    {
+      "id": "B1",
+      "frames": 3436,
+      "activeSeconds": 59.734194208,
+      "averageFps": 57.52,
+      "medianFps": 57.8,
+      "p50Millis": 17.3,
+      "p95Millis": 19.7,
+      "p99Millis": 22.3,
+      "p999Millis": 24.6,
+      "onePercentLowFps": 44.84,
+      "pointOnePercentLowFps": 40.65,
+      "maximumMillis": 38.487,
+      "framesOver33_33Millis": 2,
+      "framesOver50Millis": 0,
+      "framesOver100Millis": 0,
+      "slowFramesPerMinute": 2.01,
+      "stutterBurdenMillisPerSecond": 0.14,
+      "presentation": {
+        "preSwapAverageMillis": 15.314,
+        "preSwapP99Millis": 18.2,
+        "preSwapExcludingLimiterAverageMillis": 5.404,
+        "preSwapExcludingLimiterP99Millis": 8.1,
+        "nativeSwapAverageMillis": 1.779,
+        "nativeSwapP99Millis": 6.3,
+        "nativeSwapOffCpuAverageMillis": 1.497,
+        "nativeSwapOffCpuP99Millis": 6.0,
+        "slowFramesPreSwapDominated": 2,
+        "slowFramesSwapDominated": 0
+      },
+      "pacing": {
+        "calls": 5719,
+        "waits": 5718,
+        "lateCadenceCalls": 114,
+        "interruptedWaits": 0,
+        "parkCalls": 5598,
+        "averageRequestedMillis": 8.320685,
+        "averageDeadlineExtensionMicros": 626.487,
+        "averageWaitMicros": 9623.858,
+        "maximumWaitMicros": 38960.792,
+        "averageSpinMicros": 2.600,
+        "maximumSpinMicros": 236.0,
+        "averageOvershootMicros": 676.978,
+        "maximumOvershootMicros": 28296.667
+      },
+      "adapterHealth": {
+        "status": "ACTIVE",
+        "exactMatches": 65,
+        "transformationsApplied": 65,
+        "sourceBindingRejected": 0,
+        "transformationsDeclined": 0,
+        "containedFailures": 0,
+        "cacheRejectionSignals": 0,
+        "wrapperFailureSignals": 0,
+        "runtimeIntegrityFailures": 0
+      },
+      "measurementOverheadAverageMicros": 24.663,
+      "hashes": {
+        "frameReport": "c332c52fc0246d8904896e4a353faddfd69698b60656e4a774e89fde50b06cab",
+        "adapterHealth": "64a4e52b5ee1a21c02fd2cba5537b84c09c179f36aa234f457f5992da5277a3c",
+        "smokeEvidence": "db4aac4dddd5bd729857d35ea9b17d358b0e3f0c5a41bb4d3ff42632bf001461",
+        "run": "1ea69325b1c1782b9d779abe9076b484fb1b877f87199abcc591d58ed3c51f66",
+        "profile": "23b041323613d60cc3252546c0792cf28a3799045126021d4fa3d5ad4d30bd45"
+      }
+    },
+    {
+      "id": "B2",
+      "frames": 3393,
+      "activeSeconds": 59.024586,
+      "averageFps": 57.48,
+      "medianFps": 57.8,
+      "p50Millis": 17.3,
+      "p95Millis": 20.1,
+      "p99Millis": 22.7,
+      "p999Millis": 29.4,
+      "onePercentLowFps": 44.05,
+      "pointOnePercentLowFps": 34.01,
+      "maximumMillis": 48.490,
+      "framesOver33_33Millis": 2,
+      "framesOver50Millis": 0,
+      "framesOver100Millis": 0,
+      "slowFramesPerMinute": 2.03,
+      "stutterBurdenMillisPerSecond": 0.40,
+      "presentation": {
+        "preSwapAverageMillis": 15.369,
+        "preSwapP99Millis": 18.2,
+        "preSwapExcludingLimiterAverageMillis": 5.410,
+        "preSwapExcludingLimiterP99Millis": 8.1,
+        "nativeSwapAverageMillis": 1.743,
+        "nativeSwapP99Millis": 6.3,
+        "nativeSwapOffCpuAverageMillis": 1.458,
+        "nativeSwapOffCpuP99Millis": 6.0,
+        "slowFramesPreSwapDominated": 2,
+        "slowFramesSwapDominated": 0
+      },
+      "pacing": {
+        "calls": 5681,
+        "waits": 5681,
+        "lateCadenceCalls": 102,
+        "interruptedWaits": 0,
+        "parkCalls": 5574,
+        "averageRequestedMillis": 8.440943,
+        "averageDeadlineExtensionMicros": 639.113,
+        "averageWaitMicros": 9766.597,
+        "maximumWaitMicros": 39074.125,
+        "averageSpinMicros": 2.278,
+        "maximumSpinMicros": 231.375,
+        "averageOvershootMicros": 686.540,
+        "maximumOvershootMicros": 29074.125
+      },
+      "adapterHealth": {
+        "status": "ACTIVE",
+        "exactMatches": 64,
+        "transformationsApplied": 64,
+        "sourceBindingRejected": 0,
+        "transformationsDeclined": 0,
+        "containedFailures": 0,
+        "cacheRejectionSignals": 0,
+        "wrapperFailureSignals": 0,
+        "runtimeIntegrityFailures": 0
+      },
+      "measurementOverheadAverageMicros": 24.761,
+      "hashes": {
+        "frameReport": "7659ca17cb1fa6c3f7aa91be93d2d7aac078d77e117e427d395ed72df66bf76c",
+        "adapterHealth": "6cc26324a77b36651e75d519e43338f3c85afa313ed141c3b94f9f60a3b5ee84",
+        "smokeEvidence": "05ea3ad45ba69b6b1fe03c0814b858bb902756b7584caaf13ff81bc9d56ca97f",
+        "run": "56123a71158b026a6be28ac87c4bcf6d5b7c911bc707cc03c4ec49e587ea4a8c",
+        "profile": "5a3b7b604ce9d78b999828d78378264642710fc0e47c5cd6b944a56217c75e14"
+      }
+    }
+  ],
+  "candidateArmMedian": {
+    "averageFps": 57.50,
+    "p99Millis": 22.5,
+    "onePercentLowFps": 44.445,
+    "framesOver33_33Millis": 2
+  },
+  "historicalVsyncOffContext": {
+    "classification": "decision context only; earlier build/probe, not an exact current interleaved cohort",
+    "runs": [
+      {"averageFps": 58.95, "p99Millis": 22.9, "onePercentLowFps": 43.67, "framesOver33_33Millis": 4},
+      {"averageFps": 59.09, "p99Millis": 22.8, "onePercentLowFps": 43.86, "framesOver33_33Millis": 1}
+    ],
+    "armMedian": {"averageFps": 59.02, "p99Millis": 22.85, "onePercentLowFps": 43.765},
+    "candidatePercentChange": {"averageFps": -2.6, "p99Millis": -1.5, "onePercentLowFps": 1.6}
+  },
+  "verification": {
+    "mavenCoverageVerify": "BUILD SUCCESS",
+    "aggregateAgentLineCoveragePercent": 76.42,
+    "aggregateAgentLineCoverageGatePercent": 78.0,
+    "candidateCoveredLines": 126,
+    "candidateMissedLines": 21,
+    "desktopVerifiedPreparation": "blocked by inherited stale RunCommand.java capability lock"
+  },
+  "nextReconsiderationGate": "Require a materially different deadline policy or a different 120/144 Hz display contract before another same-host cohort."
+}

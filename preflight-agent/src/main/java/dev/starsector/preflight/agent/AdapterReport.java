@@ -355,8 +355,6 @@ final class AdapterReport {
                 .append(Json.value(AudioResourceFallbackRuntime.telemetry())).append(',');
         key(output, "audioMusicTransitions")
                 .append(Json.value(AudioMusicTransitionRuntime.telemetry())).append(',');
-        key(output, "aiTweaksEngagementRange")
-                .append(Json.value(AiTweaksEngagementRangeRuntime.telemetry())).append(',');
         key(output, "ashLibVariantLookup")
                 .append(Json.value(AshLibVariantLookupRuntime.telemetry())).append(',');
         key(output, "graphicsLibCompactReplay")
@@ -367,16 +365,30 @@ final class AdapterReport {
                 .append(Json.value(GraphicsLibInsigniaManagerCacheRuntime.telemetry())).append(',');
         key(output, "graphicsLibHotSettings")
                 .append(Json.value(GraphicsLibHotSettingsRuntime.telemetry())).append(',');
+        key(output, "ratAbyssFactionFlag")
+                .append(Json.value(RatAbyssFactionFlagPlan.telemetry())).append(',');
+        key(output, "mnemonicSensorsEntityFilter")
+                .append(Json.value(MnemonicSensorsEntityFilterPlan.telemetry())).append(',');
+        key(output, "mutableStatTempAdvance")
+                .append(Json.value(MutableStatTempAdvancePlan.telemetry())).append(',');
         key(output, "versionCheckResponseDedup")
                 .append(Json.value(VersionCheckResponseDedupRuntime.telemetry())).append(',');
         key(output, "magicLibPaintjob")
                 .append(Json.value(MagicLibPaintjobRuntime.telemetry())).append(',');
         key(output, "magicLibPaintjobNotification")
                 .append(Json.value(MagicLibPaintjobNotificationRuntime.telemetry())).append(',');
+        key(output, "magicLibPaintjobFrameSnapshot")
+                .append(Json.value(MagicLibPaintjobSnapshotRuntime.telemetry())).append(',');
         key(output, "magicLibPaintjobLoad")
                 .append(Json.value(MagicLibPaintjobLoadRuntime.telemetry())).append(',');
         key(output, "magicLibPaintjobCache")
                 .append(Json.value(MagicLibPaintjobCacheRuntime.telemetry())).append(',');
+        key(output, "lunaCampaignRendererSnapshot")
+                .append(Json.value(LunaCampaignRendererSnapshotRuntime.telemetry())).append(',');
+        key(output, "contrailRenderScratch")
+                .append(Json.value(ContrailRenderScratchRuntime.telemetry())).append(',');
+        key(output, "fontWrapAllocation")
+                .append(Json.value(FontWrapAllocationRuntime.telemetry())).append(',');
         key(output, "stelnetMarketUpdater")
                 .append(Json.value(StelnetMarketUpdaterRuntime.telemetry())).append(',');
         key(output, "logisticsNotificationsFuel")
@@ -385,10 +397,18 @@ final class AdapterReport {
                 .append(Json.value(MacMemoryWarningRuntime.telemetry())).append(',');
         key(output, "combatRuntimeIntegrity")
                 .append(Json.value(CombatRuntimeIntegrityRuntime.telemetry())).append(',');
-        key(output, "frameTimes")
+        key(output, "collisionQuerySet")
+                .append(Json.value(CollisionQuerySet.telemetry())).append(',');
+        key(output, "combatListenerRangeSnapshot")
+                .append(Json.value(CombatListenerRangeSnapshotRuntime.telemetry())).append(',');
+        key(output, FrameTimeTelemetry.REPORT)
                 .append(Json.value(FrameTimeRuntime.telemetry())).append(',');
         key(output, "runtimeSemanticState")
                 .append(Json.value(RuntimeSemanticState.telemetry())).append(',');
+        key(output, "consoleCombatFixture")
+                .append(Json.value(ConsoleCombatFixtureRuntime.telemetry())).append(',');
+        key(output, "combatStressFixture")
+                .append(Json.value(CombatStressFixtureRuntime.telemetry())).append(',');
         key(output, "campaignCallTimes")
                 .append(Json.value(CampaignCallTimeRuntime.telemetry())).append(',');
         key(output, "campaignEngineTimes")
@@ -397,6 +417,18 @@ final class AdapterReport {
                 .append(Json.value(CampaignLocationEconomyTimeRuntime.telemetry())).append(',');
         key(output, "campaignMarketFleetTimes")
                 .append(Json.value(CampaignMarketFleetTimeRuntime.telemetry())).append(',');
+        key(output, "fleetAiModuleTimes")
+                .append(Json.value(FleetAiModuleTimeRuntime.telemetry())).append(',');
+        key(output, "tacticalFleetAiTimes")
+                .append(Json.value(TacticalFleetAiTimeRuntime.telemetry())).append(',');
+        key(output, "fleetInflationTimes")
+                .append(Json.value(FleetInflationTimeRuntime.telemetry())).append(',');
+        key(output, "coreAutofitTimes")
+                .append(Json.value(CoreAutofitTimeRuntime.telemetry())).append(',');
+        key(output, "nexEconomyInfoTimes")
+                .append(Json.value(NexEconomyInfoTimeRuntime.telemetry())).append(',');
+        key(output, "nexMarketListScope")
+                .append(Json.value(NexMarketListScopeRuntime.telemetry())).append(',');
         key(output, "campaignEntityMaintenance")
                 .append(Json.value(CampaignEntityMaintenanceRuntime.telemetry())).append(',');
 

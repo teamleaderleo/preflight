@@ -10,9 +10,18 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /** Preview-first retention for top-level run and benchmark evidence sessions. */
 final class EvidenceRetention {
+    private static final long MAX_BENCHMARK_RESULT_BYTES = 1024 * 1024;
+    private static final long MAX_PILOT_ATTESTATION_BYTES = 1024 * 1024;
+    private static final String PILOT_ATTESTATION_FILE = "operator-attestation.json";
+    private static final Set<String> PILOT_ATTESTATION_FORMATS = Set.of(
+            "preflight-gameplay-pilot-operator-attestation-v4",
+            "preflight-gameplay-pilot-operator-attestation-v5");
+
     private EvidenceRetention() {
     }
 
@@ -29,7 +38,7 @@ final class EvidenceRetention {
         }
         List<Session> removals = new ArrayList<>();
         if (keepRuns != null) {
-            removals.addAll(after(inventory.runs(), keepRuns));
+            removals.addAll(afterRuns(inventory.runs(), keepRuns));
         }
         if (keepBenchmarks != null) {
             removals.addAll(after(inventory.benchmarks(), keepBenchmarks));
@@ -76,6 +85,34 @@ final class EvidenceRetention {
         return keep >= sessions.size() ? List.of() : sessions.subList(keep, sessions.size());
     }
 
+    private static List<Session> afterRuns(List<Session> sessions, int keep) {
+        if (keep == 0 || keep >= sessions.size()) {
+            return after(sessions, keep);
+        }
+        List<Session> retained = new ArrayList<>();
+        Session newestCompletedPair = sessions.stream()
+                .filter(Session::completedPairedBenchmark)
+                .findFirst()
+                .orElse(null);
+        if (newestCompletedPair != null) {
+            retained.add(newestCompletedPair);
+        }
+        Session newestCompletedPilot = sessions.stream()
+                .filter(Session::completedSaveLifecycle)
+                .findFirst()
+                .orElse(null);
+        if (newestCompletedPilot != null
+                && retained.size() < keep
+                && !retained.contains(newestCompletedPilot)) {
+            retained.add(newestCompletedPilot);
+        }
+        for (Session session : sessions) {
+            if (retained.size() == keep) break;
+            if (!retained.contains(session)) retained.add(session);
+        }
+        return sessions.stream().filter(session -> !retained.contains(session)).toList();
+    }
+
     private static Session measure(String kind, Path root) throws IOException {
         Path absolute = root.toAbsolutePath().normalize();
         if (!Files.isDirectory(absolute, LinkOption.NOFOLLOW_LINKS)
@@ -100,7 +137,43 @@ final class EvidenceRetention {
                 return FileVisitResult.CONTINUE;
             }
         });
-        return new Session(kind, absolute, totals[0], totals[1], totals[2]);
+        return new Session(
+                kind,
+                absolute,
+                totals[0],
+                totals[1],
+                totals[2],
+                completedPairedBenchmark(absolute),
+                completedSaveLifecycle(absolute));
+    }
+
+    private static boolean completedPairedBenchmark(Path session) {
+        Path resultPath = session.resolve(DesktopBenchmarkLaunch.RESULT_FILE);
+        try {
+            Map<String, Object> result = BoundedEvidenceJson.readObject(
+                    resultPath, MAX_BENCHMARK_RESULT_BYTES, "Desktop benchmark result");
+            Object comparison = result.get("comparison");
+            return DesktopBenchmarkLaunch.FORMAT.equals(result.get("format"))
+                    && "passed".equals(result.get("status"))
+                    && Boolean.TRUE.equals(result.get("complete"))
+                    && comparison instanceof Map<?, ?> comparisonMap
+                    && Boolean.TRUE.equals(comparisonMap.get("available"));
+        } catch (IOException | IllegalArgumentException unreadable) {
+            return false;
+        }
+    }
+
+    private static boolean completedSaveLifecycle(Path session) {
+        Path attestationPath = session.resolve(PILOT_ATTESTATION_FILE);
+        try {
+            Map<String, Object> attestation = BoundedEvidenceJson.readObject(
+                    attestationPath, MAX_PILOT_ATTESTATION_BYTES, "Gameplay pilot attestation");
+            return PILOT_ATTESTATION_FORMATS.contains(attestation.get("format"))
+                    && Boolean.TRUE.equals(attestation.get("complete"))
+                    && Boolean.TRUE.equals(attestation.get("attested"));
+        } catch (IOException | IllegalArgumentException unreadable) {
+            return false;
+        }
     }
 
     private static void deleteTree(Path root) throws IOException {
@@ -124,13 +197,22 @@ final class EvidenceRetention {
         });
     }
 
-    record Session(String kind, Path path, long bytes, long files, long modifiedMillis) {
+    record Session(
+            String kind,
+            Path path,
+            long bytes,
+            long files,
+            long modifiedMillis,
+            boolean completedPairedBenchmark,
+            boolean completedSaveLifecycle) {
         boolean sameSnapshot(Session other) {
             return kind.equals(other.kind)
                     && path.equals(other.path)
                     && bytes == other.bytes
                     && files == other.files
-                    && modifiedMillis == other.modifiedMillis;
+                    && modifiedMillis == other.modifiedMillis
+                    && completedPairedBenchmark == other.completedPairedBenchmark
+                    && completedSaveLifecycle == other.completedSaveLifecycle;
         }
     }
 

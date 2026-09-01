@@ -1,0 +1,129 @@
+{
+  "format": "starsector-preflight-optimization-observation-v1",
+  "date": "2026-08-27",
+  "status": "accepted-with-limit",
+  "game": "Starsector 0.98a-RC8",
+  "condition": {
+    "launcher": "Preflight fast preset only",
+    "platform": "macOS on Apple M5 under Rosetta",
+    "javaRelease": 17,
+    "scenario": "campaign-simulation-combat-1000dp",
+    "battle": "24 mirrored ships per side, 520 DP per side",
+    "speed": "2x",
+    "measurementWindowSeconds": 30.236,
+    "observationsWithCandidate": 1,
+    "thermalCondition": "machine already hot; FPS distribution is observational"
+  },
+  "target": {
+    "class": "org/dark/shaders/util/TextureData",
+    "installedClassSha256": "6a4302bcacd2dd90f6637c815d1443ddfdb3d28ff59095d48c875358de4e8594",
+    "sourceArchiveSha256": "832064013fe853731941e547842884ba121fb8b20eff08d24137f7a2c916903a",
+    "preCacheClassSha256": "f2f4c45d9d19f1dbc51821779ee2efca1817c96ac680d67e442cdb5180ef15ff",
+    "finalClassSha256": "4a461c2f1cb75c82da55d8f99e636a955575f6babb94237032295566198fe02c",
+    "method": "getTextureDataKey(Ljava/lang/String;Lorg/dark/shaders/util/TextureData$ObjectType;I)Ljava/lang/String;"
+  },
+  "candidate": {
+    "id": "graphicslib-texture-data-key-session-cache-v1",
+    "maximumBaseKeys": 65536,
+    "maximumAnimationFramesPerType": 1024,
+    "maximumCachedValues": 262144,
+    "persistent": false,
+    "addsGameObjectFields": false,
+    "touchesSaveState": false,
+    "fallback": "original private method on every miss or rejected shape"
+  },
+  "liveTelemetry": {
+    "installed": true,
+    "calls": 579711,
+    "hits": 567477,
+    "misses": 12234,
+    "records": 12234,
+    "bypasses": 0,
+    "baseKeys": 6235,
+    "cachedValues": 12234,
+    "hitRatePercent": 97.8896
+  },
+  "allocationEvidence": {
+    "interpretation": "JFR ObjectAllocationSample weights are statistical estimates, not an exact allocation census",
+    "priorCombatProfiles": [
+      {
+        "jfrSha256": "a6f26553a0e36daac3e3003a2b291e5ba68bcca4a807eaa3b4bb7ee010176a06",
+        "matchingSamples": 46,
+        "weightedAllocationMiB": 60.0
+      },
+      {
+        "jfrSha256": "88d117725e740a81c0f90b95d6857291404167439abf238ea14e41862a162bc5",
+        "matchingSamples": 13,
+        "weightedAllocationMiB": 22.1
+      }
+    ],
+    "candidateCombatProfile": {
+      "jfrSha256": "8bfacab1431357254afeb86630dab456719ebd1c621a0dbaff8cbe2fe77905f5",
+      "matchingSamples": 0,
+      "weightedAllocationMiB": 0.0
+    }
+  },
+  "startup": {
+    "timeToInteractiveSeconds": 31.228,
+    "worstPreInteractivePresentationGapMillis": 6027.638,
+    "excludedFromGameplayDistributions": true,
+    "interpretation": "corroborates the separately retained startup-hitch audit; not a candidate startup improvement"
+  },
+  "combatMeasurementWindow": {
+    "frames": 687,
+    "activeSeconds": 30.236,
+    "inactiveIntervalsDropped": 0,
+    "invalidIntervalsDropped": 0,
+    "averageFps": 22.72,
+    "medianFps": 25.0,
+    "onePercentLowFps": 8.26,
+    "pointOnePercentLowFps": 5.5,
+    "p50FrameMillis": 40.0,
+    "p95FrameMillis": 78.0,
+    "p99FrameMillis": 121.1,
+    "maximumFrameMillis": 181.831,
+    "framesMeeting30FpsPercent": 13.83,
+    "framesOver50Millis": 111,
+    "framesOver100Millis": 12,
+    "framesOver250Millis": 0,
+    "stutterBurdenMillisPerSecond": 249.36,
+    "slowFrameTimePercent": 90.2,
+    "repeatedSlowFrameClusters": 39,
+    "framesInRepeatedSlowFrameClusters": 579,
+    "repeatedSlowFramesPercent": 84.28,
+    "longestSlowFrameClusterFrames": 182,
+    "longestSlowFrameClusterMillis": 8071.94
+  },
+  "automation": {
+    "singleTrackedPid": 5599,
+    "startupActivationFrontmost": true,
+    "gameActivationFrontmost": true,
+    "focusImplementation": "bounded system-Python ApplicationServices compatibility call in the standalone development harness; exact PID verified afterward",
+    "zoomBoundary": "CombatState input generation",
+    "zoomEvents": 12,
+    "zoomEventSign": "negative",
+    "viewMultiplierBefore": 1.25,
+    "viewMultiplierAfter": 3.989,
+    "visibleWidthBefore": 1800.0,
+    "visibleWidthAfter": 5744.0,
+    "scenarioStatus": "passed",
+    "outerLaunchStatus": "passed",
+    "launcherExitCode": 0
+  },
+  "retainedArtifactHashes": {
+    "frameReportSha256": "eeb69fb9885aebf97d6a2e84182df0dccee126916f9dfb0edbdbcc35acd2f002",
+    "smokeEvidenceSha256": "322189fe756f6fc8e5fa780085d570efc30adfd3bc8201b48da1046849c45025",
+    "adapterReportSha256": "ee2fb13a303cfb263a9884b0d5b39607e1098516c257992710772c774c45a7ab"
+  },
+  "verification": {
+    "javaRelease": 17,
+    "tests": 2135,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 5,
+    "installedAdapterIntegration": "passed against installed RC8 bytecode",
+    "sourceBoundary": "passed",
+    "claimProvenance": "passed"
+  },
+  "claimLimit": "The exact live telemetry and allocation samples support eliminating repeated GraphicsLib key construction on this profile. One hot-machine combat observation does not establish a universal FPS, percentile, or startup-time percentage."
+}

@@ -29,6 +29,10 @@ Run the probe
 With no argument the usual install locations are tried. A report is written next to the
 script. macOS and Linux; the Windows equivalent does not exist yet.
 
+That timestamped report is local working output. Move any result that must remain reviewable
+into docs/evidence before running scripts/prune_local_build_outputs.py; the cleaner bounds old
+probe reports along with their compiled probe binaries.
+
 Requirements: a JDK 17 or newer for javac, and preflight-core built:
 
     mvn -q -pl preflight-core -am install -DskipTests

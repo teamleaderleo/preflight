@@ -73,7 +73,7 @@ test("every quiet support link has one fixed destination", async () => {
   opened.mockRestore();
 });
 
-test("setup, low-disk, and cache-repair previews expose safe failure states", async () => {
+test("setup, low-disk, and cache recovery previews expose safe failure states", async () => {
   useScenario("setup");
   expect(await getSnapshot()).toMatchObject({ ready: false, selected: null });
 
@@ -88,6 +88,12 @@ test("setup, low-disk, and cache-repair previews expose safe failure states", as
   expect(await getCacheHealth("preview")).toMatchObject({
     status: "repair-needed",
     repairFiles: 3,
+  });
+
+  useScenario("cache-unsafe");
+  expect(await getCacheHealth("preview")).toMatchObject({
+    status: "unsafe",
+    repairFiles: 0,
   });
 });
 

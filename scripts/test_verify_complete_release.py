@@ -42,7 +42,7 @@ def populate(directory: Path) -> None:
         "sourceRevision": "a" * 40,
         "sourceDirty": False,
         "boundarySourceSha256": "b" * 64,
-        "engineJarSha256": "c" * 64,
+        "engineJarSha256": digest(directory / "preflight.jar"),
         "rendererBoundary": {"nativeCommands": ["start_game"], "tauriPermissions": ["core:default"]},
         "filesystem": {"preflightOwned": [], "gameOwnedWrites": [], "excluded": ["save files"]},
         "processes": [{"family": "bundled Java engine", "purpose": "fixed commands"}],
@@ -103,6 +103,23 @@ def rewrite_manifest(directory: Path, manifest: dict) -> None:
     )
 
 
+def rewrite_capabilities(directory: Path, **updates) -> None:
+    for receipt_name in module.CAPABILITY_RECEIPTS:
+        path = directory / receipt_name
+        receipt = json.loads(path.read_text(encoding="utf-8"))
+        receipt["capabilityReceipt"].update(updates)
+        encoded = (
+            json.dumps(
+                receipt["capabilityReceipt"],
+                indent=2,
+                ensure_ascii=False,
+                sort_keys=True,
+            ) + "\n"
+        ).encode("utf-8")
+        receipt["capabilityReceiptSha256"] = hashlib.sha256(encoded).hexdigest()
+        path.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+
+
 class CompleteReleaseTest(unittest.TestCase):
     def test_accepts_exact_complete_release(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -114,6 +131,36 @@ class CompleteReleaseTest(unittest.TestCase):
             self.assertEqual(3, report["capabilityReceipts"])
             self.assertEqual("a" * 40, report["capabilitySourceRevision"])
             self.assertEqual("private-candidate", report["updaterUrlMode"])
+            self.assertEqual("0.1.0", report["productVersion"])
+            self.assertEqual(digest(directory / "preflight.jar"), report["engineJarSha256"])
+
+    def test_rejects_a_capability_product_version_that_differs_from_the_updater(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            populate(directory)
+            rewrite_capabilities(directory, productVersion="0.2.0")
+            with self.assertRaisesRegex(
+                module.CompleteReleaseError, "product version differs"
+            ):
+                module.validate_complete_release(directory)
+
+    def test_rejects_a_capability_engine_that_differs_from_the_core_release(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            populate(directory)
+            rewrite_capabilities(directory, engineJarSha256="0" * 64)
+            with self.assertRaisesRegex(
+                module.CompleteReleaseError, "engine JAR differs"
+            ):
+                module.validate_complete_release(directory)
+
+    def test_rejects_a_non_version_capability_product_identity(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            populate(directory)
+            rewrite_capabilities(directory, productVersion="preview")
+            with self.assertRaisesRegex(module.CompleteReleaseError, "unsafe"):
+                module.validate_complete_release(directory)
 
     def test_rejects_an_extra_file_at_the_final_publish_boundary(self):
         with tempfile.TemporaryDirectory() as temp:

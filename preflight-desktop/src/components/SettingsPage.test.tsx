@@ -36,8 +36,13 @@ function props(overrides: Partial<ComponentProps<typeof SettingsPage>> = {}): Co
     removalPlan: null,
     removalBusy: false,
     afterLaunchBehavior: "minimize",
+    recordFramePacing: false,
+    smoothFramePacing: false,
+    framePacingPaused: false,
     installation: "/Applications/Starsector",
     onAfterLaunchBehaviorChange: vi.fn(),
+    onRecordFramePacingChange: vi.fn(),
+    onSmoothFramePacingChange: vi.fn(),
     onChooseInstall: vi.fn(),
     onReviewRemoval: vi.fn(),
     onDismissRemoval: vi.fn(),
@@ -67,6 +72,36 @@ test("Settings offers first selection when no installation is active", () => {
 
   expect(screen.getByText("No Starsector installation selected.")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Choose game folder" })).toBeEnabled();
+});
+
+test("frame pacing is an explicit local opt-in and explains the Off boundary", async () => {
+  const user = userEvent.setup();
+  const onRecordFramePacingChange = vi.fn();
+  const { rerender } = render(<SettingsPage {...props({ onRecordFramePacingChange })} />);
+
+  const toggle = screen.getByRole("checkbox", { name: "Record frame pacing" });
+  expect(toggle).not.toBeChecked();
+  expect(screen.getByText(/recorder doesn’t open or change save files/)).toBeInTheDocument();
+  await user.click(toggle);
+  expect(onRecordFramePacingChange).toHaveBeenCalledWith(true);
+
+  rerender(<SettingsPage {...props({ recordFramePacing: true, framePacingPaused: true })} />);
+  expect(screen.getByRole("checkbox", { name: "Record frame pacing" }).closest("label"))
+    .toHaveTextContent("Paused while optimizations are Off.");
+});
+
+test("smooth frame pacing explains the limiter and tearing tradeoff", async () => {
+  const user = userEvent.setup();
+  const onSmoothFramePacingChange = vi.fn();
+  render(<SettingsPage {...props({ onSmoothFramePacingChange })} />);
+
+  const toggle = screen.getByRole("checkbox", { name: "Smooth frame pacing" });
+  expect(toggle).not.toBeChecked();
+  expect(screen.getByText(/Keeps Starsector’s FPS cap but disables vsync/)).toBeInTheDocument();
+  expect(screen.getByText(/May show tearing/)).toBeInTheDocument();
+  expect(screen.getByText(/doesn’t open or alter saves/)).toBeInTheDocument();
+  await user.click(toggle);
+  expect(onSmoothFramePacingChange).toHaveBeenCalledWith(true);
 });
 
 test("installation changes follow the app-wide workflow lock", () => {

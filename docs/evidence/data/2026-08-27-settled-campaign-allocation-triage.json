@@ -1,0 +1,64 @@
+{
+  "format": "starsector-preflight-settled-campaign-allocation-triage-v1",
+  "date": "2026-08-27",
+  "runId": "campaign-sample-reused-cursors-2-20260827-0154",
+  "recordingClockWallSecondsPerRecordedSecond": 2.493,
+  "allocationInterpretation": "JFR ObjectAllocationSample weight is a statistical allocation estimate, not an exact byte counter.",
+  "steps": [
+    {
+      "id": "paused-settled",
+      "wallDurationSeconds": 45.001,
+      "recordedDurationSeconds": 18.052,
+      "allocationSamples": 605,
+      "campaignAllocationSamples": 107,
+      "combatAllocationSamples": 0,
+      "campaignAllocationWeightMiB": 171.6,
+      "largestReviewedModCategory": {
+        "owner": "kotlin.collections.CollectionsKt___CollectionsKt.filterNotNullTo",
+        "weightMiB": 23.9,
+        "caller": "com.dp.mnemonicutils.sensors.MnemonicSensorsEveryFrameScript.markKnownEntities",
+        "disposition": "triage-only; direct-iterator rewrite still requires exact review"
+      }
+    },
+    {
+      "id": "unpaused-settled",
+      "wallDurationSeconds": 45.005,
+      "recordedDurationSeconds": 18.054,
+      "allocationSamples": 938,
+      "campaignAllocationSamples": 647,
+      "combatAllocationSamples": 0,
+      "campaignAllocationWeightMiB": 971.5,
+      "largestLeaf": {
+        "owner": "com.fs.starfarer.combat.entities.ship.E.<init>",
+        "weightMiB": 129.6,
+        "disposition": "triage-only; mutable ship stats have no reviewed cache boundary"
+      },
+      "ratMissingFlag": {
+        "samples": 12,
+        "totalWeightMiB": 14.0,
+        "fillInStackTraceWeightMiB": 12.0,
+        "lookupWeightMiB": 2.0
+      }
+    }
+  ],
+  "rejectedCombatAttribution": {
+    "wholeRecordingCombatAllocationSamples": 174,
+    "aiGridConstructionWeightMiB": 125.4,
+    "settledScenarioCombatAllocationSamples": 0,
+    "reason": "The samples occurred during initial setup/transitions; no settled interval exercised a played battle."
+  },
+  "candidate": {
+    "planId": "rat-3.3.1-abyss-faction-optional-flag-v1",
+    "targetClass": "assortment_of_things/abyss/scripts/ForceNegAbyssalRep",
+    "targetClassSha256": "0c84737fb3c365d195e10df213f08d8184b645e03d2d75a7447a2b6286aaee5f",
+    "archiveSha256": "d34c805f84c259d9edcec197183a49cef4f3e488b2bf37768bb55f39f6d694e7",
+    "classMajorVersion": 61,
+    "originalCall": "org/json/JSONObject.getBoolean(Ljava/lang/String;)Z",
+    "replacementCall": "org/json/JSONObject.optBoolean(Ljava/lang/String;)Z",
+    "missingKeyResultBefore": false,
+    "missingKeyResultAfter": false,
+    "addsPersistentState": false,
+    "saveStateChanged": false,
+    "runtimeFollowUpRequired": true
+  }
+}

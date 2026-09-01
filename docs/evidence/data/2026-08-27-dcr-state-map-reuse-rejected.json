@@ -1,0 +1,115 @@
+{
+  "format": "starsector-preflight-dcr-state-map-reuse-rejection-v1",
+  "date": "2026-08-27",
+  "candidateCommit": "734555bc",
+  "revertCommit": "418be653",
+  "planId": "detailed-combat-results-state-map-reuse-v1",
+  "decision": "rejected",
+  "reason": "The exact-gated transform installed and completed safely, but both live observations were directionally worse and the 1040-DP stress window showed a large sustained regression.",
+  "runtime": {
+    "gameVersion": "0.98a-RC8",
+    "java": "Azul Zulu 17.0.10 x86_64 under Rosetta",
+    "preflightJarSha256": "72cb494183ccb3d3784c6545c7bd5c1340aba4bf752cfbb71c463ceb0a9882d5",
+    "dcrArchiveSha256": "e8dedffb3a34ab1f8eb7d5479258999b42cf1064bffad825055ed81fbdb9c79c",
+    "targetClassSha256": "4df669b6bacfecffb5bd96da9def7e1cd6a8d975d18b2f375fe8eb57bcf0eebf"
+  },
+  "ordinary": {
+    "runDirectory": "/private/tmp/preflight-dcr-ordinary-b.lY8LV0",
+    "scenario": "campaign-simulation-combat",
+    "semanticStatus": "passed",
+    "exitCode": 0,
+    "fatalDetected": false,
+    "candidateTelemetry": {
+      "installed": true,
+      "historyFrames": 3014,
+      "historyEntriesBefore": 426721,
+      "historyEntriesAfter": 426848,
+      "currentProjectiles": 402871,
+      "shipFrames": 3014,
+      "shipsLastFrame": 281262
+    },
+    "measurementWindow": {
+      "frames": 2910,
+      "averageFps": 48.06,
+      "medianFps": 51.55,
+      "onePercentLowFps": 16.18,
+      "pointOnePercentLowFps": 9.93,
+      "p99Millis": 61.8,
+      "maximumMillis": 117.403,
+      "stutterBurdenMillisPerSecond": 33.32,
+      "repeatedSlowFramesPercent": 2.61
+    },
+    "hashes": {
+      "startupJfr": "3985d81d24f96fb85489ccb9c76175f1025b4273796958588d4d542f26e8a500",
+      "runtimeFrameReport": "880b4248c1dbe663760e5188970740dc2e32ccf663171c55de3c2839ff565db3",
+      "smokeEvidence": "8ad7c52afdc8a6d3cd1d6fda39606bcca7aaf4146f4cc51d3dc6ec19f87e573b",
+      "adapterReport": "2328bb4b88e3cd824fd2d1c979b8e2723edb7265cc67c84c612cf33767b06b0f",
+      "adapterHealth": "fa2096dc9dd82d5c0dac383f84669d5de875827b39ea468d6909cfca68d56ab3"
+    }
+  },
+  "stress1040Dp": {
+    "runDirectory": "/private/tmp/preflight-dcr-stress-b.A9zlbv",
+    "scenario": "campaign-simulation-combat-1000dp",
+    "fixture": "symmetric-fast-high-tech-1040dp-v1",
+    "semanticStatus": "passed",
+    "exitCode": 0,
+    "fatalDetected": false,
+    "candidateTelemetry": {
+      "installed": true,
+      "historyFrames": 613,
+      "historyEntriesBefore": 143742,
+      "historyEntriesAfter": 144044,
+      "currentProjectiles": 134395,
+      "shipFrames": 613,
+      "shipsLastFrame": 82515
+    },
+    "measurementWindow": {
+      "durationSeconds": 30.242452208,
+      "frames": 579,
+      "averageFps": 19.15,
+      "medianFps": 20.62,
+      "onePercentLowFps": 7.32,
+      "pointOnePercentLowFps": 5.29,
+      "p95Millis": 82.6,
+      "p99Millis": 136.7,
+      "maximumMillis": 188.868,
+      "framesMeeting30FpsPercent": 3.28,
+      "stutterBurdenMillisPerSecond": 362.93,
+      "repeatedSlowFramesPercent": 96.2,
+      "longestRepeatedClusterMillis": 22461.03
+    },
+    "relativeToAcceptedB": {
+      "averageFpsPercent": -28.09,
+      "onePercentLowFpsPercent": -13.98,
+      "stutterBurdenPercent": 116.62,
+      "repeatedSlowFramesPercentagePoints": 40.05,
+      "longestRepeatedClusterPercent": 608.77
+    },
+    "exactWindowSampling": {
+      "recordingClockWallFactor": 2.494,
+      "executionSamples": 667,
+      "combatExecutionSamples": 654,
+      "allocationSamples": 3244,
+      "combatAllocationSamples": 2731,
+      "dcrStateAllocationWeight": {
+        "DoubleValueOfBytesApprox": 6291456,
+        "helpersConcatObjectArrayBytesApprox": 6291456,
+        "interpretation": "JFR ObjectAllocationSample weights, not an exact allocation census"
+      }
+    },
+    "hashes": {
+      "startupJfr": "8bcccec548029db1b875585e39d19b0a5784358faa5b66c4e701f8ceed96f79f",
+      "runtimeFrameReport": "bb23c4f5bf3cd2ea59f63d2e91b12c1175cc4478752916c9845ab4690f89457c",
+      "smokeEvidence": "71cb3c3930d75c1d6b4844c8cf4f130d013b9f62e2dadf942ff25529b5ef936c",
+      "adapterReport": "a6500507df23dcf38e34ed41dc0fbd6007000a91f26888622c31df89b4acb0f5",
+      "adapterHealth": "9160366973e434fa25146ce85e2bbb0c19ad47ab67726fa3cc846497a8bd2422"
+    }
+  },
+  "safety": {
+    "saveLoadOrSerializationClassesTransformed": false,
+    "ordinaryDcrLogErrors": 0,
+    "stressDcrLogErrors": 0,
+    "containedFailures": 0
+  },
+  "rawArtifactsPolicy": "Raw JFRs, logs, transformed classes, and run directories are disposable; this bounded record and its hashes are retained."
+}

@@ -10,7 +10,7 @@ import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
-/** Observes LWJGL's existing focus result and one boundary per display update. */
+/** Observes LWJGL frame boundaries and carries guarded #1153 render experiments. */
 final class FrameTimePlan {
     static final String TARGET_CLASS = "org/lwjgl/opengl/Display";
     static final String ORIGINAL_SHA256 =
@@ -19,6 +19,13 @@ final class FrameTimePlan {
     static final String UPDATE_DESCRIPTOR = "(Z)V";
     static final String ACTIVE_METHOD = "isActive";
     static final String ACTIVE_DESCRIPTOR = "()Z";
+    static final String VSYNC_METHOD = "setVSyncEnabled";
+    static final String VSYNC_DESCRIPTOR = "(Z)V";
+    static final String SWAP_INTERVAL_METHOD = "setSwapInterval";
+    static final String SWAP_INTERVAL_DESCRIPTOR = "(I)V";
+    static final String DESTROY_METHOD = "destroy";
+    static final String DESTROY_DESCRIPTOR = "()V";
+    private static final String DRAWABLE = "org/lwjgl/opengl/DrawableLWJGL";
 
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/FrameTimeRuntime";
@@ -27,12 +34,26 @@ final class FrameTimePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        if (!FrameTimeRuntime.enabled()
+        // #1153 experiments temporarily reuse the compiled frame-time plan ID as an exact-target
+        // carrier. AdapterTarget still supplies exact class/source identity; each experiment keeps
+        // its own runtime switch and semantic bytecode gate.
+        if (DynamicParticleGroupRenderProbePlan.TARGET_CLASS.equals(signature.internalName())) {
+            return DynamicParticleGroupRenderProbePlan.transform(signature, originalBytes);
+        }
+        if (GraphicsLibTessellateArrayPlan.TARGET_CLASS.equals(signature.internalName())) {
+            byte[] transformed = GraphicsLibTessellateArrayPlan.transform(signature, originalBytes);
+            return transformed == null
+                    ? null
+                    : GraphicsLibTessellateArrayVboStatePlan.transform(transformed);
+        }
+        if (!FrameTimeRuntime.planEnabled()
                 || !TARGET_CLASS.equals(signature.internalName())
                 || !ORIGINAL_SHA256.equals(signature.sha256())
                 || signature.majorVersion() != 49
                 || !signature.hasMethod(UPDATE_METHOD, UPDATE_DESCRIPTOR)
-                || !signature.hasMethod(ACTIVE_METHOD, ACTIVE_DESCRIPTOR)) {
+                || !signature.hasMethod(ACTIVE_METHOD, ACTIVE_DESCRIPTOR)
+                || !signature.hasMethod(VSYNC_METHOD, VSYNC_DESCRIPTOR)
+                || !signature.hasMethod(SWAP_INTERVAL_METHOD, SWAP_INTERVAL_DESCRIPTOR)) {
             return null;
         }
 
@@ -40,21 +61,43 @@ final class FrameTimePlan {
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         MethodNode update = unique(owner, UPDATE_METHOD, UPDATE_DESCRIPTOR);
         MethodNode active = unique(owner, ACTIVE_METHOD, ACTIVE_DESCRIPTOR);
-        if (update == null || active == null
+        MethodNode vsync = unique(owner, VSYNC_METHOD, VSYNC_DESCRIPTOR);
+        MethodNode swapInterval = unique(owner, SWAP_INTERVAL_METHOD, SWAP_INTERVAL_DESCRIPTOR);
+        MethodNode destroy = unique(owner, DESTROY_METHOD, DESTROY_DESCRIPTOR);
+        if (update == null || active == null || vsync == null || swapInterval == null
+                || destroy == null
                 || returns(update, Opcodes.RETURN) != 1
                 || returns(active, Opcodes.IRETURN) != 1
                 || calls(update, TARGET_CLASS, "swapBuffers") != 1
                 || calls(update, TARGET_CLASS, "processMessages") != 1
                 || calls(update, RUNTIME, "boundary") != 0
-                || calls(active, RUNTIME, "observeActive") != 0) {
+                || calls(update, RUNTIME, "beforeSwap") != 0
+                || calls(update, RUNTIME, "afterSwap") != 0
+                || calls(update, RUNTIME, "beforeMessages") != 0
+                || calls(update, RUNTIME, "afterMessages") != 0
+                || calls(active, RUNTIME, "observeActive") != 0
+                || calls(vsync, RUNTIME, "requestedVsync") != 0
+                || calls(vsync, TARGET_CLASS, SWAP_INTERVAL_METHOD) != 1
+                || calls(swapInterval, RUNTIME, "observeSwapInterval") != 0
+                || calls(destroy, DRAWABLE, DESTROY_METHOD) != 1
+                || calls(destroy, RUNTIME, "releaseGpuTiming") != 0) {
             return null;
         }
 
         AbstractInsnNode updateReturn = uniqueReturn(update, Opcodes.RETURN);
         AbstractInsnNode activeReturn = uniqueReturn(active, Opcodes.IRETURN);
+        MethodInsnNode swap = uniqueCall(update, TARGET_CLASS, "swapBuffers");
+        MethodInsnNode messages = uniqueCall(update, TARGET_CLASS, "processMessages");
+        MethodInsnNode destroyDrawable = uniqueCall(destroy, DRAWABLE, DESTROY_METHOD);
+        if (swap == null || messages == null || destroyDrawable == null) return null;
+
+        update.instructions.insertBefore(swap, runtimeCall("beforeSwap"));
+        update.instructions.insert(swap, runtimeCall("afterSwap"));
+        update.instructions.insertBefore(messages, runtimeCall("beforeMessages"));
+        update.instructions.insert(messages, runtimeCall("afterMessages"));
+        destroy.instructions.insertBefore(destroyDrawable, runtimeCall("releaseGpuTiming"));
         InsnList boundary = new InsnList();
-        boundary.add(new MethodInsnNode(
-                Opcodes.INVOKESTATIC, RUNTIME, "boundary", "()V", false));
+        boundary.add(runtimeCall("boundary"));
         update.instructions.insertBefore(updateReturn, boundary);
 
         InsnList focus = new InsnList();
@@ -62,6 +105,19 @@ final class FrameTimePlan {
         focus.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "observeActive", "(Z)V", false));
         active.instructions.insertBefore(activeReturn, focus);
+
+        InsnList vsyncPolicy = new InsnList();
+        vsyncPolicy.add(new org.objectweb.asm.tree.VarInsnNode(Opcodes.ILOAD, 0));
+        vsyncPolicy.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "requestedVsync", "(Z)Z", false));
+        vsyncPolicy.add(new org.objectweb.asm.tree.VarInsnNode(Opcodes.ISTORE, 0));
+        vsync.instructions.insert(vsyncPolicy);
+
+        InsnList swapIntervalObservation = new InsnList();
+        swapIntervalObservation.add(new org.objectweb.asm.tree.VarInsnNode(Opcodes.ILOAD, 0));
+        swapIntervalObservation.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "observeSwapInterval", "(I)V", false));
+        swapInterval.instructions.insert(swapIntervalObservation);
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
@@ -89,6 +145,22 @@ final class FrameTimePlan {
             }
         }
         return result;
+    }
+
+    private static MethodInsnNode uniqueCall(MethodNode method, String owner, String name) {
+        MethodInsnNode result = null;
+        for (AbstractInsnNode instruction : method.instructions) {
+            if (instruction instanceof MethodInsnNode call
+                    && owner.equals(call.owner) && name.equals(call.name)) {
+                if (result != null) return null;
+                result = call;
+            }
+        }
+        return result;
+    }
+
+    private static MethodInsnNode runtimeCall(String name) {
+        return new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME, name, "()V", false);
     }
 
     private static int returns(MethodNode method, int opcode) {

@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Map;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -40,6 +41,24 @@ class BoundedEvidenceJsonTest {
                 () -> BoundedEvidenceJson.readObject(file, bytes.length - 1L, "Evidence JSON"));
 
         assertTrue(error.getMessage().contains("exceeds"), error.getMessage());
+    }
+
+    @Test
+    void pathReaderRefusesASymbolicLink() throws Exception {
+        Path target = temporaryDirectory.resolve("target.json");
+        Files.writeString(target, "{\"value\":1}");
+        Path link = temporaryDirectory.resolve("linked.json");
+        try {
+            Files.createSymbolicLink(link, target.getFileName());
+        } catch (IOException | UnsupportedOperationException error) {
+            Assumptions.assumeTrue(false, "symbolic links are unavailable: " + error.getMessage());
+        }
+
+        IOException error = assertThrows(
+                IOException.class,
+                () -> BoundedEvidenceJson.readObject(link, 1024, "Evidence JSON"));
+
+        assertTrue(error.getMessage().contains("not a regular file"), error.getMessage());
     }
 
     @Test

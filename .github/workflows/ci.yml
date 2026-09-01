@@ -70,8 +70,12 @@ jobs:
       - name: Validate operator runners
         run: |
           bash -n scripts/verify-in-container.sh
+          bash -n scripts/run-gameplay-pilot.sh
+          python3 -m py_compile scripts/save_state_guard.py scripts/test_save_state_guard.py
+          python3 scripts/test_save_state_guard.py
           bash -n scripts/run-prepared-pixel-coherent-direct-gameplay-smoke.sh
           bash -n scripts/run-prepared-pixel-main-menu-comparison-pilot.sh
+          bash -n scripts/run-combat-scaling-pilot.sh
           python3 -m py_compile scripts/starsector_log_ready_detector.py
           python3 scripts/test_starsector_log_ready_detector.py
           python3 -m py_compile scripts/starsector_profile_guard.py
@@ -86,7 +90,28 @@ jobs:
           python3 scripts/test_prepared_comparison_pilot.py
           python3 -m py_compile scripts/starsector_critical_path.py
           python3 scripts/test_starsector_critical_path.py
+          python3 -m py_compile scripts/starsector_gameplay_hotspots.py scripts/starsector_campaign_cluster_calls.py
           python3 scripts/test_starsector_gameplay_hotspots.py
+          python3 scripts/test_starsector_campaign_cluster_calls.py
+          python3 -m py_compile scripts/summarize_combat_cohort.py scripts/test_summarize_combat_cohort.py
+          python3 scripts/test_summarize_combat_cohort.py
+          bash -n scripts/run-1158-owner-tax-discovery.sh
+          python3 -m py_compile scripts/capture_loaded_save_identity.py scripts/test_capture_loaded_save_identity.py
+          python3 scripts/test_capture_loaded_save_identity.py
+          python3 -m py_compile scripts/summarize_nex_market_list_cohort.py scripts/test_summarize_nex_market_list_cohort.py
+          python3 scripts/test_summarize_nex_market_list_cohort.py
+          python3 -m py_compile scripts/starsector_jvm_hitch_correlation.py scripts/test_starsector_jvm_hitch_correlation.py
+          python3 scripts/test_starsector_jvm_hitch_correlation.py
+          python3 -m py_compile scripts/starsector_slow_span_frames.py scripts/test_starsector_slow_span_frames.py
+          python3 scripts/test_starsector_slow_span_frames.py
+          python3 -m py_compile scripts/starsector_mod_tax_triage.py scripts/test_starsector_mod_tax_triage.py
+          python3 scripts/test_starsector_mod_tax_triage.py
+          python3 -m py_compile scripts/starsector_balance_analysis.py
+          python3 scripts/test_starsector_balance_analysis.py
+          python3 -m py_compile scripts/fit_combat_scaling.py scripts/test_fit_combat_scaling.py
+          python3 scripts/test_fit_combat_scaling.py
+          python3 -m py_compile scripts/starsector_combat_scaling_hotspots.py scripts/test_starsector_combat_scaling_hotspots.py
+          python3 scripts/test_starsector_combat_scaling_hotspots.py
           python3 -m py_compile scripts/desktop_ci_scope.py scripts/test_desktop_ci_scope.py
           python3 scripts/test_desktop_ci_scope.py
           python3 -m py_compile scripts/repository_ci_scope.py scripts/test_repository_ci_scope.py
@@ -95,6 +120,8 @@ jobs:
           python3 scripts/test_java_dev.py
           python3 -m py_compile scripts/test_cache_retirement_workflow.py
           python3 scripts/test_cache_retirement_workflow.py
+          python3 -m py_compile scripts/prune_local_build_outputs.py scripts/test_prune_local_build_outputs.py
+          python3 scripts/test_prune_local_build_outputs.py
           bash -n scripts/run-startup-benchmark.sh
           python3 scripts/test_startup_benchmark.py
           python3 -m py_compile scripts/starsector_log_load_times.py

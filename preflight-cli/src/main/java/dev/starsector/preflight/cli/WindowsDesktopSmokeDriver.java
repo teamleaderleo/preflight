@@ -23,14 +23,20 @@ final class WindowsDesktopSmokeDriver implements DesktopSmokeDriver {
     private static final Duration QUIT_GRACE = Duration.ofSeconds(8);
     private static final int LOG_TAIL_BYTES = 1024 * 1024;
     private static final Map<String, TargetPoint> TARGETS = targets();
-    private static final Map<String, Integer> KEY_CODES = Map.of(
-            "a", 0x41,
-            "s", 0x53,
-            "d", 0x44,
-            "w", 0x57,
-            "return", 0x0D,
-            "space", 0x20,
-            "escape", 0x1B);
+    private static final Map<String, Integer> KEY_CODES = Map.ofEntries(
+            Map.entry("a", 0x41),
+            Map.entry("s", 0x53),
+            Map.entry("d", 0x44),
+            Map.entry("f", 0x46),
+            Map.entry("w", 0x57),
+            Map.entry("r", 0x52),
+            Map.entry("u", 0x55),
+            Map.entry("n", 0x4E),
+            Map.entry("return", 0x0D),
+            Map.entry("tab", 0x09),
+            Map.entry("space", 0x20),
+            Map.entry("escape", 0x1B),
+            Map.entry("capslock", 0x14));
 
     private final DesktopCommandExecutor commands;
     private final String powerShell;
@@ -85,6 +91,9 @@ final class WindowsDesktopSmokeDriver implements DesktopSmokeDriver {
             case "press-key" -> pressKey(attached, step.get("key").toString());
             case "hold-key" -> holdKey(attached, step.get("key").toString(),
                     ((Number) step.get("durationMillis")).intValue());
+            case "scroll-wheel" -> scrollWheel(
+                    attached, step.get("direction").toString(),
+                    ((Number) step.get("clicks")).intValue());
             case "capture" -> capture(attached, step, runDirectory);
             case "quit" -> quit(attached);
             default -> throw new IllegalArgumentException(
@@ -175,6 +184,30 @@ final class WindowsDesktopSmokeDriver implements DesktopSmokeDriver {
         }
         return ActionResult.completed("held " + normalizedKey(key) + " for "
                 + durationMillis + " ms");
+    }
+
+    private ActionResult scrollWheel(ProcessTarget attached, String direction, int clicks)
+            throws Exception {
+        if (clicks < 1 || clicks > 24) {
+            throw new IllegalArgumentException("Windows scroll clicks must be in 1..24");
+        }
+        int delta = switch (direction.toLowerCase(Locale.ROOT)) {
+            case "in" -> 120;
+            case "out" -> -120;
+            default -> throw new IllegalArgumentException(
+                    "Unsupported Windows scroll direction: " + direction);
+        };
+        String body = """
+                if (-not [PreflightNative]::SetForegroundWindow($hwnd)) { throw 'focus refused' }
+                $x = $rect.Left + [Math]::Round(($rect.Right-$rect.Left) / 2)
+                $y = $rect.Top + [Math]::Round(($rect.Bottom-$rect.Top) / 2)
+                if (-not [PreflightNative]::SetCursorPos($x, $y)) { throw 'cursor move failed' }
+                1..%d | ForEach-Object {
+                    [PreflightNative]::mouse_event(0x0800,0,0,[uint32][int32]%d,[UIntPtr]::Zero)
+                }
+                [Console]::Out.Write('scrolled %s %d clicks')
+                """.formatted(clicks, delta, direction, clicks);
+        return ActionResult.completed(command(windowScript(attached.pid(), body)).output().trim());
     }
 
     private ActionResult capture(

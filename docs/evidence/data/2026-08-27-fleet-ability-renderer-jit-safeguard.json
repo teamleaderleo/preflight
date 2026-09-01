@@ -1,0 +1,52 @@
+{
+  "format": "starsector-preflight-fleet-render-jit-safeguard-evidence-v1",
+  "date": "2026-08-27",
+  "sourceHead": "03dc5083fe1ae6902ef8ebade41a1e73f1895b39",
+  "installedClass": {
+    "name": "com/fs/starfarer/campaign/fleet/FleetAbilityRenderer.class",
+    "sha256": "cc48a9afc218b0e08e7b1731f47b570e55331d3999823aea4c4e27fa049db38c"
+  },
+  "failure": {
+    "run": "market-stability-memo-b-20260827-0833",
+    "elapsedMillis": 99667,
+    "exception": "java.lang.NullPointerException: Cannot invoke java.util.Iterator.hasNext() because <local4> is null",
+    "topFrame": "com.fs.starfarer.campaign.fleet.FleetAbilityRenderer.render",
+    "scenarioStatus": "cancelled-after-runtime-death",
+    "smokeEvidenceSha256": "ad41b51e6f938f8cac0f1bcdf5913f2b1e538bdf5330e46c253524d17529f7c5",
+    "runReportSha256": "615423147a5164860d0ad7057a4df696a6bfa21a08232b302391ea09f49bed92"
+  },
+  "focusedGuardedRoute": {
+    "run": "market-stability-memo-jit-guard-b-20260827-0847",
+    "scenarioStatus": "passed",
+    "stepsPassed": 10,
+    "pausedSettledMillis": 45000,
+    "unpausedSettledMillis": 45000,
+    "iteratorFailureObserved": false,
+    "smokeEvidenceSha256": "8f68c22a9e3213e1bd0ab49c97f7ebcd9299e2bb10155d3e44a54fbab127fe87",
+    "runReportSha256": "8daabf74590cbdab40e41ee7b22fc0ebea0b92dfaff19eabb0ca57ede7a64ed9"
+  },
+  "packagedValidation": {
+    "run": "fleet-render-jit-guard-validation-20260827-0901",
+    "scenarioStatus": "passed",
+    "stepsPassed": 10,
+    "launcherExitCode": 0,
+    "runExitCode": 0,
+    "runOutcome": "COMPLETED",
+    "adapterHealth": "ACTIVE",
+    "transformationsApplied": 59,
+    "containedFailures": 0,
+    "runtimeIntegrityFailures": 0,
+    "fatalMatches": 0,
+    "ignoredControllerStopOpenAlMatches": 2,
+    "inactiveIntervalsDropped": 4701,
+    "performanceEvidenceComplete": false,
+    "smokeEvidenceSha256": "cdaa43ae4a0266f2bd9ee4e9fc5dbe6fc07b1d95a4efafcf39302f2e272d8044",
+    "runReportSha256": "709662db2df9a6c358aa95907ca5991b5b8efd9d7e7cd62b3dde6ecdcafc42eb",
+    "frameReportSha256": "8cf486abc381c48ca732a8685c066fbb5e2e9d8b3e5b287dd3eaa9e3565efb12"
+  },
+  "compileExclusions": [
+    "com/fs/starfarer/combat/entities/Ship.advance",
+    "com/fs/starfarer/combat/entities/Ship.render",
+    "com/fs/starfarer/campaign/fleet/FleetAbilityRenderer.render"
+  ]
+}

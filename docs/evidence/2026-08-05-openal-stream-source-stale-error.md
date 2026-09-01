@@ -105,3 +105,25 @@ player creation, the four requested fade variants and durations, and cleanup wit
 fade scalar, fade-out duration, source ID, and monotonic ordering. It makes no OpenAL query or
 mutation. Its executable fixture and exact installed-archive test pass. A live follow-up is pending;
 no timing workaround or native-library replacement is enabled before that evidence.
+
+## Latest-event retention follow-up
+
+A later operator report described an unexpected sound around automated Continue. The live probe was
+installed, but its original first-64 retention filled during startup's rapid music-source
+create/cleanup scan and discarded 341 later transitions. It could not answer the report.
+
+The passive probe now retains the latest 64 events and reports `retentionPolicy: latest-64`. It still
+does not query or mutate OpenAL. Executable coverage proves that 70 events retain ordered events
+6–69 and report six unretained events; full Java 17 verification passed.
+
+The next single-process Preflight campaign run retained the relevant boundary. Continue requested a
+1ms fade-stop and cleanup of `miscallenous_main_menu.ogg`, then created and faded in
+`miscallenous_corvus_campaign_music.ogg`. No prepared-audio failure or OpenAL generation error was
+recorded. Later mapped unpause paused that campaign track and created
+`campaign_neutral_encounter_01.ogg`, consistent with the campaign encounter that occurred in the
+measured route. This follow-up reproduced ordinary game-selected transitions, not an automation
+request to play an arbitrary file. It cannot retroactively name the exact sound from the preceding
+run, whose later events were already discarded.
+
+The bounded record is
+[`data/2026-08-27-recent-audio-transition-retention.json`](data/2026-08-27-recent-audio-transition-retention.json).

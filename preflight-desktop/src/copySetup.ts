@@ -2,6 +2,7 @@ import type { CacheHealth, DesktopSnapshot, OptimizationPreset } from "./types";
 
 export const COPY_SETUP_VERSION = 1 as const;
 export const COPY_SETUP_MAX_MODS = 96;
+export const COPY_SETUP_MAX_BYTES = 131_072;
 
 const MAX_VERSION_CHARS = 64;
 const MAX_FINGERPRINT_CHARS = 96;
@@ -131,7 +132,11 @@ export function createCopySetupSummary(observations: CopySetupObservations): Cop
 }
 
 export function createCopySetupText(observations: CopySetupObservations): string {
-  return formatCopySetupSummary(createCopySetupSummary(observations));
+  const text = formatCopySetupSummary(createCopySetupSummary(observations));
+  if (new TextEncoder().encode(text).byteLength > COPY_SETUP_MAX_BYTES) {
+    throw new Error("The bounded setup summary exceeded its public-text limit.");
+  }
+  return text;
 }
 
 function formatCopySetupSummary(summary: CopySetupPublicSummary): string {

@@ -50,10 +50,16 @@ class CombatJvmSafeguardTest {
         assertTrue(result.shipClassSha256() != null && !result.shipClassSha256().isBlank());
 
         var active = new CombatJvmSafeguard.Resolution(
-                true, "test", result.gameJar(), CombatJvmSafeguard.REVIEWED_SHIP_SHA256);
+                true,
+                "test",
+                result.gameJar(),
+                CombatJvmSafeguard.REVIEWED_SHIP_SHA256,
+                CombatJvmSafeguard.REVIEWED_FLEET_ABILITY_RENDERER_SHA256);
         String options = CombatJvmSafeguard.appendOptions("-Dexisting=true", active);
         assertTrue(options.contains(CombatJvmSafeguard.COMPILE_EXCLUSION));
         assertTrue(options.contains(CombatJvmSafeguard.RENDER_COMPILE_EXCLUSION));
+        assertTrue(options.contains(
+                CombatJvmSafeguard.FLEET_ABILITY_RENDER_COMPILE_EXCLUSION));
         assertTrue(options.contains(CombatJvmSafeguard.MODE_PROPERTY));
         assertEquals(options, CombatJvmSafeguard.appendOptions(options, active));
 
@@ -63,23 +69,26 @@ class CombatJvmSafeguardTest {
 
     @Test
     void oversizedCombatClassFailsClosedWithoutReadingItUnbounded() throws Exception {
-        Path app = fixture(true, new byte[CombatJvmSafeguard.MAX_SHIP_CLASS_BYTES + 1]);
+        Path app = fixture(
+                true, new byte[CombatJvmSafeguard.MAX_REVIEWED_CLASS_BYTES + 1]);
 
         CombatJvmSafeguard.Resolution result = CombatJvmSafeguard.resolve(
                 Platform.MAC, target(app), Map.of());
 
         assertFalse(result.active());
-        assertTrue(result.reason().contains("refusing oversized combat class"), result.reason());
+        assertTrue(result.reason().contains("refusing oversized reviewed class"), result.reason());
     }
 
     @Test
     void existingDiagnosticModeIsPreserved() {
-        var active = new CombatJvmSafeguard.Resolution(true, "test", null, null);
+        var active = new CombatJvmSafeguard.Resolution(true, "test", null, null, null);
         String existing = CombatJvmSafeguard.COMPILE_EXCLUSION
                 + " -Dpreflight.combatIntegrity.jvmMode=manual-test";
         String options = CombatJvmSafeguard.appendOptions(existing, active);
         assertTrue(options.contains(CombatJvmSafeguard.COMPILE_EXCLUSION));
         assertTrue(options.contains(CombatJvmSafeguard.RENDER_COMPILE_EXCLUSION));
+        assertTrue(options.contains(
+                CombatJvmSafeguard.FLEET_ABILITY_RENDER_COMPILE_EXCLUSION));
         assertTrue(options.contains("-Dpreflight.combatIntegrity.jvmMode=manual-test"));
         assertFalse(options.contains(CombatJvmSafeguard.MODE_PROPERTY));
     }
@@ -115,6 +124,9 @@ class CombatJvmSafeguardTest {
                 Files.newOutputStream(java.resolve("starfarer_obf.jar")))) {
             zip.putNextEntry(new ZipEntry(CombatJvmSafeguard.SHIP_CLASS));
             zip.write(shipClass);
+            zip.closeEntry();
+            zip.putNextEntry(new ZipEntry(CombatJvmSafeguard.FLEET_ABILITY_RENDERER_CLASS));
+            zip.write(new byte[] {0x45, 0x67, 0x01});
             zip.closeEntry();
         }
         return app;

@@ -1,0 +1,72 @@
+{
+  "format": "starsector-preflight-bounded-evidence-v1",
+  "date": "2026-08-27",
+  "commit": "86d6377a1988c56d985ae970e2deb5b876826a03",
+  "scenario": "campaign-sample-paused-unpaused",
+  "status": "passed",
+  "focus": {
+    "inactiveIntervalsDropped": 0,
+    "invalidIntervalsDropped": 0
+  },
+  "pausedActualStateAfterWarmup": {
+    "frames": 3441,
+    "averageFps": 55.75,
+    "onePercentLowFps": 40.16,
+    "pointOnePercentLowFps": 22.17,
+    "p99Micros": 24900,
+    "slowFramesPerMinute": 14.58,
+    "repeatedSlowFramesPercent": 0.0,
+    "stutterBurdenMillisPerSecond": 2.22
+  },
+  "unpausedActualStateAfterWarmup": {
+    "frames": 1642,
+    "averageFps": 49.75,
+    "onePercentLowFps": 14.29,
+    "pointOnePercentLowFps": 5.18,
+    "p99Micros": 70000,
+    "slowFramesPerMinute": 169.05,
+    "repeatedSlowFramesPercent": 3.71,
+    "stutterBurdenMillisPerSecond": 68.32,
+    "worstFrameMicros": 272524
+  },
+  "stepWindowSamples": {
+    "pausedSettled": {
+      "wallSeconds": 45.002,
+      "executionSamples": 136,
+      "campaignMainThreadSamples": 81
+    },
+    "unpausedSettled": {
+      "wallSeconds": 45.008,
+      "executionSamples": 540,
+      "campaignMainThreadSamples": 471,
+      "commodityEventModLeafSamples": 86,
+      "commodityEventModLeafPercent": 18.26,
+      "warning": "The wall step included a second sector pause; use actual-state frame buckets for FPS claims."
+    }
+  },
+  "stelnet": {
+    "pauseIntervals": 2,
+    "marketsQueued": 372,
+    "marketsServed": 372,
+    "exhaustedFrames": 4745,
+    "invalidations": 1,
+    "delegated": 0,
+    "failures": 0,
+    "fleetStatAllocationSampleWeightMiB": 119.0,
+    "stelnetAllocationSampleWeightMiB": 99.1,
+    "allocationWeightIsEstimate": true
+  },
+  "campaignEntityMaintenance": {
+    "stableSnapshotOwners": 448,
+    "stableSnapshotCursors": 960,
+    "stableSnapshotAllocationSampleWeightMiB": 34.0,
+    "snapshotIteratorAllocationSampleWeightMiB": 5.8,
+    "allocationWeightIsEstimate": true
+  },
+  "artifacts": {
+    "startupJfrSha256": "93a778d006f489cc150576fe66015de26435d8754c234ac0ae878fcd8a183140",
+    "runtimeFrameReportSha256": "e4ee99ed0f9c5c81d1206857e4b385921280260157ce0fd6404d0a03c79310e0",
+    "adapterReportSha256": "99479109e649be74765a65d370afc5f0cbd57e8856ab07ab32e2c7640d3b2b84",
+    "rawArtifactsCommitted": false
+  }
+}

@@ -28,7 +28,7 @@ class AdapterPlanCatalogTest {
                 .map(AdapterPlanCatalog.Descriptor::planId)
                 .collect(Collectors.toSet());
 
-        assertEquals(59, catalogPlans.size(), "adapter plan inventory changed");
+        assertEquals(77, catalogPlans.size(), "adapter plan inventory changed");
         assertTrue(catalogPlans.containsAll(registeredPlans),
                 () -> "uncatalogued registered plans: " + difference(registeredPlans, catalogPlans));
         for (AdapterPlanCatalog.Descriptor descriptor : descriptors) {
@@ -47,6 +47,10 @@ class AdapterPlanCatalogTest {
 
         assertEquals("DISABLED", field(inventory, AudioMusicTransitionRuntime.PLAN_ID, "state"));
         assertEquals("COMPOSED", field(inventory, TexturePaddingRuntime.PLAN_ID, "state"));
+        assertEquals("INACTIVE", field(inventory, GlStateReissueRuntime.PLAN_ID, "state"));
+        assertEquals("COMPOSED", field(inventory, GlStateReissueRuntime.PLAN_ID, "integration"));
+        assertEquals("INACTIVE", field(inventory, GlMatrixOperationRuntime.PLAN_ID, "state"));
+        assertEquals("COMPOSED", field(inventory, GlMatrixOperationRuntime.PLAN_ID, "integration"));
         assertEquals("REGISTERED", field(inventory, TexturePreparedPixelRuntime.PLAN_ID, "state"));
         assertEquals("INACTIVE", field(inventory, SimOpponentSafetyRuntime.PLAN_ID, "state"));
         assertEquals("DIRECT", field(inventory, SimOpponentSafetyRuntime.PLAN_ID, "integration"));
@@ -85,12 +89,19 @@ class AdapterPlanCatalogTest {
                 .withCampaignEngineTimeTarget()
                 .withCampaignLocationEconomyTimeTargets()
                 .withCampaignMarketFleetTimeTargets()
+                .withTacticalFleetAiTimeTarget()
+                .withFleetInflationTimeTarget()
+                .withCoreAutofitTimeTarget()
+                .withNexEconomyInfoTimeTarget()
+                .withNexMarketListScopeTargets()
                 .withFrameTimeStartupCompletionTarget()
                 .withMainMenuInteractiveTarget();
         List<AdapterTarget> targets = new java.util.ArrayList<>(prepared.targets());
+        targets.add(AdapterTargetRegistry.combatListenerRangeSnapshotTarget());
         targets.addAll(AdapterTargetRegistry.empty()
                 .withTextureTarget(TextureAdapterMode.COMPATIBILITY).targets());
         targets.addAll(AdapterTargetRegistry.empty().withFrameTimeTarget().targets());
+        targets.addAll(AdapterTargetRegistry.empty().withGlCommandCountTargets().targets());
         return List.copyOf(targets);
     }
 

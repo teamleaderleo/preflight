@@ -2,6 +2,7 @@ import { RefreshIcon, ShieldIcon, SparklesIcon } from "../icons";
 import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
 import { SpeedScoreboard } from "./SpeedScoreboard";
+import { FramePacingCard } from "./FramePacingCard";
 import { resourcePresets, storagePlanApplies, type usePreparation } from "../usePreparation";
 import type { StorageCleanupPlan } from "../useCacheCleanup";
 import type { SpeedStanding } from "../useSpeedRecord";
@@ -123,7 +124,7 @@ export function PreparationPage({
             <button className="text-button" type="button" onClick={onDismissCleanup} disabled={cleanupBusy}>Close</button>
           </div>
           {!cleanupPlan.cache.safe ? <p className="activation-warning">{cleanupPlan.cache.refusals.join(" ")}</p> : null}
-          <p className="cleanup-summary">Keeps the current profile, saved profiles, {cleanupPlan.evidence.keepRuns} recent launch reports, and {cleanupPlan.evidence.keepBenchmarks} benchmarks. Game files, mods, saves, and settings aren’t touched.</p>
+          <p className="cleanup-summary">Keeps the current profile, saved profiles, {cleanupPlan.evidence.keepRuns} launch reports—including the latest completed comparison and save/reload check when available—and {cleanupPlan.evidence.keepBenchmarks} benchmark campaigns. Game files, mods, saves, and settings aren’t touched.</p>
           <div className="cleanup-groups">
             {cleanupPlan.cache.bytes > 0 ? <div><span>Unused or replaced prepared data</span><strong>{formatBytes(cleanupPlan.cache.bytes)} · {cleanupPlan.cache.files.toLocaleString()} files</strong></div> : null}
             {cleanupPlan.evidence.bytes > 0 ? <div><span>Old reports and benchmarks</span><strong>{formatBytes(cleanupPlan.evidence.bytes)} · {cleanupPlan.evidence.files.toLocaleString()} files</strong></div> : null}
@@ -141,6 +142,7 @@ export function PreparationPage({
         * it is the one thing this page is named after and used to be missing entirely.
         */}
       <SpeedScoreboard standing={speedStanding} isReady={isReady} playtime={playtime} lastRun={lastRun} onOpenBenchmark={onOpenBenchmark} />
+      <FramePacingCard framePacing={lastRun?.framePacing} />
 
       {cacheHealth?.status === "repair-needed" || cacheHealth?.status === "unsafe" || cacheHealth?.status === "unknown" ? (
         <section className="card run-recovery cache-recovery" aria-label="Prepared data needs attention">
@@ -165,7 +167,7 @@ export function PreparationPage({
         <div>
           <div className="heading-with-info">
             <h2>Optimizations</h2>
-            <InfoTip label="About Preflight optimizations">Preflight checks each optimization against the installed code before using it. Anything unfamiliar is left alone.</InfoTip>
+            <InfoTip label="About Preflight optimizations">Preflight checks that a runtime shortcut recognizes the installed code before applying it. If it does not, Starsector runs the original path.</InfoTip>
           </div>
           {/*
             * The switch stated its own position and nothing else, so the page named Speed opened
@@ -176,12 +178,12 @@ export function PreparationPage({
           <p>{optimizationPreset === "off"
             ? "Preflight won’t apply optimizations. Prepared data stays here for when you turn them back on."
             : optimizationPreset === "conservative"
-              ? "Compatibility mode uses startup caches with the game’s original code. Try it if the default mode causes trouble."
+              ? "Conservative mode uses startup caches with the game’s original code. Try it if the default mode causes trouble."
               : "Preflight creates reusable startup data for your current mod setup, then reuses it on later launches."}</p>
         </div>
         <label className="simple-switch">
           <input type="checkbox" aria-label="Use Preflight optimizations" checked={optimizationPreset !== "off"} onChange={(event) => onOptimizationPresetChange(event.target.checked ? "recommended" : "off")} disabled={operationBlocked} />
-          <span>{optimizationPreset === "off" ? "Off" : optimizationPreset === "conservative" ? "Compatibility" : "On"}</span>
+          <span>{optimizationPreset === "off" ? "Off" : optimizationPreset === "conservative" ? "Conservative" : "On"}</span>
         </label>
       </section>
 

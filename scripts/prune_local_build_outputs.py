@@ -1,0 +1,366 @@
+#!/usr/bin/env python3
+"""Bound generated binaries and duplicate dependencies across local Git worktrees."""
+
+from __future__ import annotations
+
+import argparse
+import os
+import shutil
+import subprocess
+import sys
+import time
+from dataclasses import dataclass
+from pathlib import Path
+
+
+GENERATED_PATHS = (
+    ".wrangler",
+    "preflight-cache",
+    "target",
+    "preflight-agent/target",
+    "preflight-cli/target",
+    "preflight-core/target",
+    "preflight-synthetic-startup/target",
+    "preflight-desktop/dist",
+    "preflight-desktop/.ui-matrix",
+    "preflight-desktop/desktop-dist",
+    "preflight-desktop/node_modules/.preflight-ui-layout",
+    "preflight-desktop/scripts/__pycache__",
+    "preflight-desktop/.wrangler",
+    "preflight-desktop/src-tauri/icons/64x64.png",
+    "preflight-desktop/src-tauri/icons/StoreLogo.png",
+    "preflight-desktop/src-tauri/icons/android",
+    "preflight-desktop/src-tauri/icons/ios",
+    "preflight-desktop/src-tauri/gen",
+    "preflight-desktop/src-tauri/target",
+    "docs/design/hangar-light/__pycache__",
+    "probe-kits/gpu-capability/.probe-build",
+    "probe-kits/gpu-capability/block-conformance-probe",
+    "probe-kits/gpu-capability/block-conformance-vector.bin",
+    "probe-kits/gpu-capability/gl-capability-probe",
+    "probe-kits/gpu-capability/__pycache__",
+    "probe-kits/texture-pipeline/.probe-build",
+    "report-intake/dist",
+    "report-intake/.wrangler",
+    "scripts/__pycache__",
+)
+
+GENERATED_GLOBS = (
+    "**/*.jfr",
+    "preflight-desktop/src-tauri/icons/Square*Logo.png",
+    "probe-kits/gpu-capability/gpu-capability-report-*.txt",
+    "probe-kits/texture-pipeline/texture-pipeline-report-*.txt",
+)
+
+# These paths are ignored but contain retained measurement evidence rather than rebuildable binary
+# output. Operators decide when that evidence has been promoted or can be discarded; this script
+# must not infer that from file age, even when a broad generated-output glob also matches a child.
+RETAINED_IGNORED_PATHS = (
+    "benchmark-results",
+)
+
+# Dependency installs are large but useful in the worktree doing the current verification. Retire
+# them from old sibling worktrees under the same age policy without making every completed slice
+# reinstall its own dependencies.
+NON_CURRENT_DEPENDENCY_PATHS = (
+    "node_modules",
+    "preflight-desktop/node_modules",
+    "report-intake/node_modules",
+)
+
+
+@dataclass(frozen=True)
+class BuildSet:
+    root: Path
+    outputs: tuple[Path, ...]
+    newest_mtime: float
+    current: bool = False
+    dirty: bool = False
+    total_bytes: int = 0
+
+
+@dataclass(frozen=True)
+class Decision:
+    build: BuildSet
+    action: str
+    reason: str
+
+
+def git(*args: str, cwd: Path | None = None) -> str:
+    completed = subprocess.run(
+        ("git", *args),
+        cwd=cwd,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    return completed.stdout
+
+
+def repository_root() -> Path:
+    return Path(git("rev-parse", "--show-toplevel").strip()).resolve()
+
+
+def registered_worktrees() -> list[Path]:
+    roots = []
+    for line in git("worktree", "list", "--porcelain").splitlines():
+        if line.startswith("worktree "):
+            root = Path(line.removeprefix("worktree "))
+            if root.is_dir():
+                roots.append(root.resolve())
+    return roots
+
+
+def has_source_changes(root: Path) -> bool:
+    return bool(git("status", "--porcelain", "--untracked-files=normal", cwd=root).strip())
+
+
+def output_metrics(path: Path) -> tuple[int, float]:
+    if not path.is_dir():
+        stat = path.lstat()
+        return stat.st_size, stat.st_mtime
+    total = 0
+    newest_mtime = path.lstat().st_mtime
+    for directory, child_directories, filenames in os.walk(path, followlinks=False):
+        directory_path = Path(directory)
+        for name in (*child_directories, *filenames):
+            stat = (directory_path / name).lstat()
+            total += stat.st_size
+            newest_mtime = max(newest_mtime, stat.st_mtime)
+    return total, newest_mtime
+
+
+def rebuildable_outputs(root: Path, current_root: Path) -> tuple[Path, ...]:
+    relative_paths = GENERATED_PATHS
+    if root != current_root:
+        relative_paths += NON_CURRENT_DEPENDENCY_PATHS
+    candidates = {
+        root / relative
+        for relative in relative_paths
+        if (root / relative).exists() or (root / relative).is_symlink()
+    }
+    for pattern in GENERATED_GLOBS:
+        candidates.update(root.glob(pattern))
+    retained = tuple(root / relative for relative in RETAINED_IGNORED_PATHS)
+    candidates = {
+        candidate
+        for candidate in candidates
+        if not any(boundary == candidate or boundary in candidate.parents for boundary in retained)
+    }
+    candidates = sorted(
+        candidates,
+        key=lambda candidate: (len(candidate.parts), str(candidate)),
+    )
+    outputs: list[Path] = []
+    for candidate in candidates:
+        if any(parent == candidate or parent in candidate.parents for parent in outputs):
+            continue
+        outputs.append(candidate)
+    return tuple(outputs)
+
+
+def format_bytes(total: int) -> str:
+    value = float(total)
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if value < 1024 or unit == "TiB":
+            return f"{value:.1f} {unit}"
+        value /= 1024
+    raise AssertionError("unreachable")
+
+
+def discover_build_sets(current_root: Path) -> list[BuildSet]:
+    builds = []
+    for root in registered_worktrees():
+        outputs = rebuildable_outputs(root, current_root)
+        if not outputs:
+            continue
+        symlinks = [path for path in outputs if path.is_symlink()]
+        if symlinks:
+            joined = ", ".join(str(path) for path in symlinks)
+            raise RuntimeError(f"refusing symlinked build output: {joined}")
+        dirty = has_source_changes(root)
+        # Age each top-level output independently. A freshly touched small cache must not extend
+        # the retention of an unrelated old compiler or package tree in the same worktree.
+        for output in outputs:
+            total_bytes, newest_mtime = output_metrics(output)
+            builds.append(BuildSet(
+                root=root,
+                outputs=(output,),
+                newest_mtime=newest_mtime,
+                current=root == current_root,
+                dirty=dirty,
+                total_bytes=total_bytes,
+            ))
+    return builds
+
+
+def choose_build_sets(
+    builds: list[BuildSet],
+    *,
+    now: float,
+    keep_completed: int,
+    minimum_age_hours: float,
+    maximum_age_hours: float = 48,
+    retire_current: bool = False,
+) -> list[Decision]:
+    if keep_completed < 0:
+        raise ValueError("keep_completed must not be negative")
+    if minimum_age_hours < 0:
+        raise ValueError("minimum_age_hours must not be negative")
+    if maximum_age_hours < minimum_age_hours:
+        raise ValueError("maximum_age_hours must be at least minimum_age_hours")
+
+    completed_by_root: dict[Path, float] = {}
+    for build in builds:
+        if not build.current and not build.dirty:
+            completed_by_root[build.root] = max(
+                completed_by_root.get(build.root, float("-inf")),
+                build.newest_mtime,
+            )
+    completed_roots = sorted(
+        completed_by_root,
+        key=lambda root: (completed_by_root[root], str(root)),
+        reverse=True,
+    )
+    retained = set(completed_roots[:keep_completed])
+    minimum_age_seconds = minimum_age_hours * 60 * 60
+    decisions = []
+    for build in sorted(
+        builds,
+        key=lambda candidate: (str(candidate.root), tuple(map(str, candidate.outputs))),
+    ):
+        age_hours = max(0.0, now - build.newest_mtime) / 3600
+        if build.current:
+            if retire_current and build.dirty:
+                decisions.append(Decision(build, "keep", "current worktree has source changes"))
+            elif retire_current:
+                decisions.append(Decision(build, "remove", "explicitly retiring clean current worktree"))
+            else:
+                decisions.append(Decision(build, "keep", "current worktree"))
+        elif now - build.newest_mtime >= maximum_age_hours * 60 * 60:
+            detail = f"{age_hours:.1f} hours old; beyond {maximum_age_hours:g}-hour retention limit"
+            if build.dirty:
+                detail += "; source changes remain untouched"
+            decisions.append(Decision(build, "remove", detail))
+        elif build.root in retained:
+            decisions.append(Decision(
+                build,
+                "keep",
+                (
+                    f"retained clean worktree; output is {age_hours:.1f} hours old and "
+                    f"expires at {maximum_age_hours:g} hours"
+                ),
+            ))
+        elif now - build.newest_mtime < minimum_age_seconds:
+            decisions.append(Decision(build, "keep", f"only {age_hours:.1f} hours old"))
+        else:
+            detail = f"{age_hours:.1f} hours old"
+            if build.dirty:
+                detail += "; source changes remain untouched"
+            decisions.append(Decision(build, "remove", detail))
+    return decisions
+
+
+def remove_outputs(build: BuildSet) -> None:
+    root = build.root.resolve()
+    for output in build.outputs:
+        resolved_parent = output.parent.resolve()
+        if root != resolved_parent and root not in resolved_parent.parents:
+            raise RuntimeError(f"refusing build output outside its worktree: {output}")
+        if output.is_symlink():
+            raise RuntimeError(f"refusing symlinked build output: {output}")
+    for output in build.outputs:
+        if output.is_dir():
+            shutil.rmtree(output)
+        else:
+            output.unlink()
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Remove rebuildable compiler, frontend, package, tooling, and duplicate dependency outputs "
+            "from old registered worktrees. Dependencies in the current worktree are always "
+            "retained; its other outputs are retained unless explicitly retired after its source "
+            "is clean. Source changes are never removed."
+        )
+    )
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="apply the displayed plan; without this flag the command is read-only",
+    )
+    parser.add_argument(
+        "--keep-completed",
+        type=int,
+        default=0,
+        help="number of newest clean, non-current worktrees to retain after 8 hours (default: 0)",
+    )
+    parser.add_argument(
+        "--minimum-age-hours",
+        type=float,
+        default=8,
+        help="never remove build sets younger than this (default: 8)",
+    )
+    parser.add_argument(
+        "--maximum-age-hours",
+        type=float,
+        default=48,
+        help="remove non-current build sets at or beyond this age, even the newest (default: 48)",
+    )
+    parser.add_argument(
+        "--retire-current",
+        action="store_true",
+        help=(
+            "include generated output from the current worktree once its source tree is clean; "
+            "this explicit retirement is not subject to the age or completed-set retention floor"
+        ),
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    try:
+        current_root = repository_root()
+        decisions = choose_build_sets(
+            discover_build_sets(current_root),
+            now=time.time(),
+            keep_completed=args.keep_completed,
+            minimum_age_hours=args.minimum_age_hours,
+            maximum_age_hours=args.maximum_age_hours,
+            retire_current=args.retire_current,
+        )
+        removed_outputs = 0
+        removed_bytes = 0
+        for decision in decisions:
+            paths = ", ".join(str(path.relative_to(decision.build.root)) for path in decision.build.outputs)
+            if decision.action == "remove" and args.apply:
+                remove_outputs(decision.build)
+                verb = "REMOVED"
+                removed_outputs += len(decision.build.outputs)
+                removed_bytes += decision.build.total_bytes
+            elif decision.action == "remove":
+                verb = "WOULD REMOVE"
+            else:
+                verb = "KEEP"
+            print(
+                f"{verb}: {decision.build.root} ({decision.reason}; "
+                f"{format_bytes(decision.build.total_bytes)}) [{paths}]"
+            )
+        if not args.apply and any(decision.action == "remove" for decision in decisions):
+            print("Dry run only. Pass --apply to remove the listed rebuildable outputs.")
+        elif args.apply:
+            print(
+                f"Removed {removed_outputs} generated output paths "
+                f"({format_bytes(removed_bytes)} logical bytes)."
+            )
+        return 0
+    except (OSError, RuntimeError, subprocess.CalledProcessError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

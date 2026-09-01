@@ -303,7 +303,7 @@ export function HomePage({
     <section className="card run-recovery cache-recovery" aria-label="Prepared data needs attention">
       <div>
         <strong>{cacheIdentityUnknown ? "Prepared data couldn't be checked" : cacheBoundaryUnsafe ? "Prepared data location needs attention" : "Prepared data needs repair"}</strong>
-        <p>{cacheHealth.issues[0]?.summary ?? "Some prepared data for this mod setup couldn't be validated."} Preflight left it in place. Starsector and your mods are unchanged.</p>
+        <p>{cacheHealth.issues[0]?.summary ?? "Some prepared data for this mod setup couldn't be validated."} Preflight left it in place. Starsector, your mods, and your saves are unchanged.</p>
         {cacheHealth.issues.length > 1 ? <small>{cacheHealth.issues.length - 1} more issue{cacheHealth.issues.length === 2 ? "" : "s"} found.</small> : null}
       </div>
       <div className="run-recovery__actions">
@@ -415,7 +415,7 @@ export function HomePage({
             </div>
           ) : null}
           {isReady && playtime && hasPlaytime && playtimeTotal ? (
-            <div className="home-playtime home-hud-layer" aria-label={`${formatPlaytime(playtime.totalMillis)} played across ${playtime.launches.toLocaleString()} recorded sessions`}>
+            <div className="home-playtime home-hud-layer" role="group" aria-label={`${formatPlaytime(playtime.totalMillis)} played across ${playtime.launches.toLocaleString()} recorded sessions`}>
               <strong>{playtimeTotal.value}<i>{playtimeTotal.unit}</i></strong>
               <span>{playtime.launches.toLocaleString()} sessions</span>
             </div>
@@ -456,6 +456,7 @@ export function HomePage({
                       ? `Preparation needs ${formatBytes(preparationPlan.requiredFreeBytes)} free; ${formatBytes(preparationPlan.usableBytes)} is available.`
                       : "Storage must be calculated before preparation."
                 : "Optimizations are off for this launch."}</span>
+              {firstSetup ? <span>Prepared data stays in Preflight’s own folder. It isn’t written into game files, mods, or saves.</span> : null}
               {cacheInspectionBlocked ? <span>You can still launch at normal speed while Preflight leaves this prepared data alone.</span> : null}
             </div>
           ) : null}
@@ -516,12 +517,15 @@ export function HomePage({
                 {cacheNeedsRepair && !preparing && !cacheRepairing ? (
                   <button className="button button--quiet launch-console__stop" type="button" onClick={() => onNavigate("speed")}>Repair details</button>
                 ) : null}
-                {(storageBlocked || cacheInspectionBlocked) && !preparing && !cacheRepairing ? (
+                {(storageBlocked || cacheInspectionBlocked)
+                  && !activeLayout
+                  && !preparing
+                  && !cacheRepairing ? (
                   <button
                     className="button button--quiet launch-console__stop"
                     type="button"
                     onClick={onLaunchWithoutPreparing}
-                    disabled={operationBlocked || status === "launching" || status === "running"}
+                    disabled={operationBlocked}
                   >
                     Launch normally
                   </button>
@@ -532,7 +536,7 @@ export function HomePage({
             )}
           </div>
           {isReady && homeLayoutState === "settled" ? (
-            <div className="home-ship-picker home-hud-layer" aria-label="Display ship">
+            <div className="home-ship-picker home-hud-layer" role="group" aria-label="Display ship">
               <button type="button" aria-label="Previous display ship" title="Previous ship" onClick={() => cycleHull(-1)} disabled={instrumentHull.hulls.length < 2}><ArrowIcon /></button>
               <button className="home-ship-name" type="button" title="Choose a display ship" onClick={() => onNavigate("hangar")}>{instrumentHull.selected.name}</button>
               <button type="button" aria-label="Next display ship" title="Next ship" onClick={() => cycleHull(1)} disabled={instrumentHull.hulls.length < 2}><ArrowIcon /></button>

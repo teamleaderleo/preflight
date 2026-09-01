@@ -182,21 +182,61 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
-    /** AI Tweaks 2.2.10 recomputes and repeatedly boxes fixed ranges during target selection. */
-    static AdapterTarget aiTweaksEngagementRangeTarget() {
+    /** AI Tweaks 2.2.10 grows two bounded temporary arc lists on every facing pass. */
+    static AdapterTarget aiTweaksSplitArcsTarget() {
         return new AdapterTarget(
-                "aitweaks-2.2.10-select-target-range-snapshot",
-                AiTweaksEngagementRangePlan.TARGET_CLASS,
-                AiTweaksEngagementRangePlan.ORIGINAL_SHA256,
-                AiTweaksEngagementRangeRuntime.PLAN_ID,
+                "aitweaks-2.2.10-split-arcs-capacity",
+                AiTweaksSplitArcsPlan.TARGET_CLASS,
+                AiTweaksSplitArcsPlan.ORIGINAL_SHA256,
+                AiTweaksSplitArcsPlan.PLAN_ID,
                 List.of(new AdapterTarget.RequiredMethod(
-                        AiTweaksEngagementRangePlan.CONSTRUCTOR,
-                        AiTweaksEngagementRangePlan.CONSTRUCTOR_DESCRIPTOR)),
+                        AiTweaksSplitArcsPlan.METHOD, AiTweaksSplitArcsPlan.DESCRIPTOR)),
                 "MOD",
                 "aitweaks-core.jar",
                 "9f6179bcd2df2e3ce8cea2da79051c9f1be3c9b71712c6c28d7568b777ecf5b2",
                 "com/genir/aitweaks/launcher/loading/CoreLoader",
                 "");
+    }
+
+    /** AI Tweaks 2.2.10 creates throwaway scaled vectors in seven affine expressions. */
+    static List<AdapterTarget> aiTweaksAffineVectorTargets() {
+        List<AdapterTarget> targets = new ArrayList<>();
+        for (AiTweaksAffineVectorPlan.Target target : AiTweaksAffineVectorPlan.TARGETS) {
+            targets.add(new AdapterTarget(
+                    "aitweaks-2.2.10-affine-vector-" + target.method()
+                            + "-" + targets.size(),
+                    target.internalName(),
+                    target.sha256(),
+                    AiTweaksAffineVectorPlan.PLAN_ID,
+                    AiTweaksAffineVectorPlan.methods(target).stream()
+                            .map(method -> new AdapterTarget.RequiredMethod(
+                                    method.name(), method.descriptor()))
+                            .toList(),
+                    "MOD",
+                    AiTweaksAffineVectorPlan.SOURCE_FILE,
+                    AiTweaksAffineVectorPlan.SOURCE_SHA256,
+                    AiTweaksAffineVectorPlan.LOADER,
+                    ""));
+        }
+        return List.copyOf(targets);
+    }
+
+    /** Vanilla range modifiers copy a live listener list into an ArrayList before every query. */
+    static AdapterTarget combatListenerRangeSnapshotTarget() {
+        return new AdapterTarget(
+                "vanilla-combat-listener-range-snapshot-0.98a-rc8",
+                CombatListenerRangeSnapshotPlan.TARGET_CLASS,
+                CombatListenerRangeSnapshotPlan.ORIGINAL_SHA256,
+                CombatListenerRangeSnapshotPlan.PLAN_ID,
+                CombatListenerRangeSnapshotPlan.METHODS.stream()
+                        .map(method -> new AdapterTarget.RequiredMethod(
+                                method.name(), CombatListenerRangeSnapshotPlan.DESCRIPTOR))
+                        .toList(),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer.api.jar",
+                "6ac6c78c6116946d487376426340d019938f986ceae1391ae1fa599e890e3185",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
     }
 
     /** GraphicsLib 1.12.1's exact normal-map traversal implementation and owning mod archive. */
@@ -469,6 +509,40 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    /** RAT 3.3.1's periodic abyss-faction scan with a false fallback for absent JSON flags. */
+    static AdapterTarget ratAbyssFactionFlagTarget() {
+        return new AdapterTarget(
+                "rat-3.3.1-abyss-faction-optional-flag",
+                RatAbyssFactionFlagPlan.TARGET_CLASS,
+                RatAbyssFactionFlagPlan.ORIGINAL_SHA256,
+                RatAbyssFactionFlagPlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        RatAbyssFactionFlagPlan.ADVANCE_METHOD,
+                        RatAbyssFactionFlagPlan.ADVANCE_DESCRIPTOR)),
+                "MOD",
+                "randomassortmentofthings.jar",
+                "d34c805f84c259d9edcec197183a49cef4f3e488b2bf37768bb55f39f6d694e7",
+                "java/net/URLClassLoader",
+                "");
+    }
+
+    /** MnemonicUtils 0.5.1's every-frame sensor entity discovery. */
+    static AdapterTarget mnemonicSensorsEntityFilterTarget() {
+        return new AdapterTarget(
+                "mnemonicutils-0.5.1-sensors-entity-filter",
+                MnemonicSensorsEntityFilterPlan.TARGET_CLASS,
+                MnemonicSensorsEntityFilterPlan.ORIGINAL_SHA256,
+                MnemonicSensorsEntityFilterPlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        MnemonicSensorsEntityFilterPlan.METHOD,
+                        MnemonicSensorsEntityFilterPlan.DESCRIPTOR)),
+                "MOD",
+                "mnemonicutils.jar",
+                "d85c2f52df2477b19cd31f0ab9273e758b50067b7151c4f99fb60cf96d10756e",
+                "java/net/URLClassLoader",
+                "");
+    }
+
     /** LunaLib 2.0.5's version checker, which duplicates Nexerelin's remote reads. */
     static AdapterTarget lunaVersionCheckResponseDedupTarget() {
         return new AdapterTarget(
@@ -482,6 +556,87 @@ final class AdapterTargetRegistry {
                 "d20304b9404f03392482703a55e655cadb0a1735d78c9b2da6b209e1217bbbfd",
                 "java/net/URLClassLoader",
                 "");
+    }
+
+    /** LunaLib 2.0.5's allocation-heavy campaign renderer snapshots. */
+    static AdapterTarget lunaCampaignRendererSnapshotScriptTarget() {
+        return new AdapterTarget(
+                "lunalib-2.0.5-campaign-renderer-dead-snapshot",
+                LunaCampaignRendererSnapshotPlan.SCRIPT_CLASS,
+                LunaCampaignRendererSnapshotPlan.SCRIPT_SHA256,
+                LunaCampaignRendererSnapshotRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                LunaCampaignRendererSnapshotPlan.ADVANCE,
+                                LunaCampaignRendererSnapshotPlan.ADVANCE_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                LunaCampaignRendererSnapshotPlan.GET_RENDERERS,
+                                LunaCampaignRendererSnapshotPlan.GET_RENDERERS_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                LunaCampaignRendererSnapshotPlan.GET_TRANSIENT,
+                                LunaCampaignRendererSnapshotPlan.GET_RENDERERS_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                LunaCampaignRendererSnapshotPlan.GET_PERSISTENT,
+                                LunaCampaignRendererSnapshotPlan.GET_RENDERERS_DESCRIPTOR)),
+                "MOD",
+                "lunalib.jar",
+                "d20304b9404f03392482703a55e655cadb0a1735d78c9b2da6b209e1217bbbfd",
+                "java/net/URLClassLoader",
+                "");
+    }
+
+    /** LunaLib 2.0.5's render/advance call sites that consume private combined snapshots. */
+    static AdapterTarget lunaCampaignRendererSnapshotEntityTarget() {
+        return new AdapterTarget(
+                "lunalib-2.0.5-campaign-renderer-entity-snapshot",
+                LunaCampaignRendererSnapshotPlan.ENTITY_CLASS,
+                LunaCampaignRendererSnapshotPlan.ENTITY_SHA256,
+                LunaCampaignRendererSnapshotRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                LunaCampaignRendererSnapshotPlan.ADVANCE,
+                                LunaCampaignRendererSnapshotPlan.ADVANCE_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                LunaCampaignRendererSnapshotPlan.RENDER,
+                                LunaCampaignRendererSnapshotPlan.RENDER_DESCRIPTOR)),
+                "MOD",
+                "lunalib.jar",
+                "d20304b9404f03392482703a55e655cadb0a1735d78c9b2da6b209e1217bbbfd",
+                "java/net/URLClassLoader",
+                "");
+    }
+
+    /** Starsector 0.98a-RC8's up to eight temporary vectors per rendered contrail point. */
+    static AdapterTarget contrailRenderScratchTarget() {
+        return new AdapterTarget(
+                "vanilla-contrail-render-transient-vector-scratch-0.98a-rc8",
+                ContrailRenderScratchPlan.TARGET_CLASS,
+                ContrailRenderScratchPlan.ORIGINAL_SHA256,
+                ContrailRenderScratchRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        ContrailRenderScratchPlan.RENDER_METHOD,
+                        ContrailRenderScratchPlan.RENDER_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
+    /** Starsector's exact font wrapper builds fixed tables and one-character strings per call. */
+    static AdapterTarget fontWrapAllocationTarget() {
+        return new AdapterTarget(
+                "vanilla-font-wrap-character-allocation-0.98a-rc8",
+                FontWrapAllocationPlan.TARGET_CLASS,
+                FontWrapAllocationPlan.ORIGINAL_SHA256,
+                FontWrapAllocationRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        FontWrapAllocationPlan.METHOD, FontWrapAllocationPlan.DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/fs.common_obf.jar",
+                "10d89e113f6d1627cc7bc90b692e8a7f450fdd820c5a4ac5edaecd6710afe708",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
     }
 
     /** Nexerelin 0.12.2b's older version-checker fork over the same mod URL set. */
@@ -600,7 +755,7 @@ final class AdapterTargetRegistry {
     /** LWJGL 2's display boundary, enabled only for explicit frame-time pilots. */
     static AdapterTarget frameTimeTarget() {
         return new AdapterTarget(
-                "lwjgl-2-display-frame-time-probe",
+                "lwjgl-2-display-frame-time-and-presentation",
                 FrameTimePlan.TARGET_CLASS,
                 FrameTimePlan.ORIGINAL_SHA256,
                 FrameTimeRuntime.PLAN_ID,
@@ -608,10 +763,34 @@ final class AdapterTargetRegistry {
                         new AdapterTarget.RequiredMethod(
                                 FrameTimePlan.UPDATE_METHOD, FrameTimePlan.UPDATE_DESCRIPTOR),
                         new AdapterTarget.RequiredMethod(
-                                FrameTimePlan.ACTIVE_METHOD, FrameTimePlan.ACTIVE_DESCRIPTOR)),
+                                FrameTimePlan.ACTIVE_METHOD, FrameTimePlan.ACTIVE_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                FrameTimePlan.VSYNC_METHOD, FrameTimePlan.VSYNC_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                FrameTimePlan.SWAP_INTERVAL_METHOD,
+                                FrameTimePlan.SWAP_INTERVAL_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                FrameTimePlan.DESTROY_METHOD,
+                                FrameTimePlan.DESTROY_DESCRIPTOR)),
                 "STARSECTOR_CORE",
                 "contents/resources/java/lwjgl.jar",
                 "527d509f60132e5b2653c7fc0f8cf299d6f698f4a8013342bef47705dc57ed3f",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
+    /** Exact campaign main-loop limiter sleep, enabled only with frame-time telemetry. */
+    static AdapterTarget frameLimiterTimeTarget() {
+        return new AdapterTarget(
+                "vanilla-campaign-frame-limiter-time-0.98a-rc8",
+                FrameLimiterTimePlan.TARGET_CLASS,
+                FrameLimiterTimePlan.ORIGINAL_SHA256,
+                FrameLimiterTimePlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        FrameLimiterTimePlan.METHOD, FrameLimiterTimePlan.DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
                 "app");
     }
@@ -635,7 +814,7 @@ final class AdapterTargetRegistry {
 
     static AdapterTarget mainMenuInteractiveTarget() {
         return new AdapterTarget(
-                "vanilla-title-0.98a-rc8-main-menu-interactive",
+                "vanilla-title-0.98a-rc8-main-menu-interactive-and-control",
                 MainMenuInteractivePlan.TARGET_CLASS,
                 MainMenuInteractivePlan.ORIGINAL_SHA256,
                 MainMenuInteractivePlan.PLAN_ID,
@@ -796,6 +975,44 @@ final class AdapterTargetRegistry {
                 List.of(new AdapterTarget.RequiredMethod(
                         CombatRuntimeIntegrityPlan.ADVANCE_METHOD,
                         CombatRuntimeIntegrityPlan.ADVANCE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
+    /** Exact combat input loop used only for closed desktop-smoke input actions. */
+    static AdapterTarget combatStateInputTarget() {
+        return new AdapterTarget(
+                "vanilla-combat-state-input-0.98a-rc8",
+                CombatRuntimeIntegrityPlan.COMBAT_STATE_CLASS,
+                CombatRuntimeIntegrityPlan.COMBAT_STATE_SHA256,
+                CombatRuntimeIntegrityRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        CombatRuntimeIntegrityPlan.TRAVERSE_METHOD,
+                        CombatRuntimeIntegrityPlan.TRAVERSE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
+    /** Exact vanilla collision-grid query that builds a temporary insertion-ordered candidate set. */
+    static AdapterTarget collisionQuerySetTarget() {
+        return new AdapterTarget(
+                "vanilla-collision-query-open-set-0.98a-rc8",
+                CollisionQuerySetPlan.TARGET_CLASS,
+                CollisionQuerySetPlan.ORIGINAL_SHA256,
+                CollisionQuerySetPlan.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                CollisionQuerySetPlan.CONSTRUCTOR,
+                                CollisionQuerySetPlan.CONSTRUCTOR_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                CollisionQuerySetPlan.COPY_METHOD,
+                                CollisionQuerySetPlan.COPY_DESCRIPTOR)),
                 "STARSECTOR_CORE",
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
@@ -984,6 +1201,23 @@ final class AdapterTargetRegistry {
                 List.of(new AdapterTarget.RequiredMethod(
                         MutableStatDirtyAccessorPlan.VALUE_METHOD,
                         MutableStatDirtyAccessorPlan.VALUE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer.api.jar",
+                "6ac6c78c6116946d487376426340d019938f986ceae1391ae1fa599e890e3185",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
+    /** Starsector 0.98a-RC8 temporary-stat advancement in starfarer.api.jar. */
+    static AdapterTarget mutableStatTempAdvanceTarget() {
+        return new AdapterTarget(
+                "vanilla-mutable-stat-temp-advance-0.98a-rc8",
+                MutableStatTempAdvancePlan.TARGET_CLASS,
+                MutableStatTempAdvancePlan.ORIGINAL_SHA256,
+                MutableStatTempAdvancePlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        MutableStatTempAdvancePlan.METHOD,
+                        MutableStatTempAdvancePlan.DESCRIPTOR)),
                 "STARSECTOR_CORE",
                 "contents/resources/java/starfarer.api.jar",
                 "6ac6c78c6116946d487376426340d019938f986ceae1391ae1fa599e890e3185",
@@ -1723,7 +1957,59 @@ final class AdapterTargetRegistry {
 
     AdapterTargetRegistry withFrameTimeTarget() {
         return withTarget(frameTimeTarget())
+                .withTarget(frameLimiterTimeTarget())
                 .withTarget(campaignFrameTimeStateTarget());
+    }
+
+    AdapterTargetRegistry withDynamicParticleGroupProbeTarget() {
+        return withTarget(new AdapterTarget(
+                "vanilla-dynamic-particle-group-render-probe-0.98a-rc8",
+                DynamicParticleGroupRenderProbePlan.TARGET_CLASS,
+                DynamicParticleGroupRenderProbePlan.ORIGINAL_SHA256,
+                FrameTimeRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        DynamicParticleGroupRenderProbePlan.RENDER_METHOD,
+                        DynamicParticleGroupRenderProbePlan.RENDER_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/fs.common_obf.jar",
+                "10d89e113f6d1627cc7bc90b692e8a7f450fdd820c5a4ac5edaecd6710afe708",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app"));
+    }
+
+    AdapterTargetRegistry withGraphicsLibTessellateArrayTarget() {
+        return withTarget(new AdapterTarget(
+                "graphicslib-1.12.1-tessellate-array-replay",
+                GraphicsLibTessellateArrayPlan.TARGET_CLASS,
+                GraphicsLibTessellateArrayPlan.ORIGINAL_SHA256,
+                FrameTimeRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        GraphicsLibTessellateArrayPlan.RENDER_METHOD,
+                        GraphicsLibTessellateArrayPlan.RENDER_DESCRIPTOR)),
+                "MOD",
+                "graphics.jar",
+                GraphicsLibTessellateArrayPlan.SOURCE_SHA256,
+                "java/net/URLClassLoader",
+                ""));
+    }
+
+    AdapterTargetRegistry withGlCommandCountTargets() {
+        AdapterTargetRegistry registry = this;
+        for (GlCommandCountPlan.Target target : GlCommandCountPlan.targets()) {
+            registry = registry.withTarget(new AdapterTarget(
+                    "lwjgl-2-opengl-command-count-" + target.idSuffix(),
+                    target.internalName(),
+                    target.sha256(),
+                    GlCommandCountRuntime.PLAN_ID,
+                    List.of(new AdapterTarget.RequiredMethod(
+                            target.requiredMethod(), target.requiredDescriptor())),
+                    "STARSECTOR_CORE",
+                    GlCommandCountPlan.SOURCE_FILE,
+                    GlCommandCountPlan.SOURCE_SHA256,
+                    GlCommandCountPlan.LOADER,
+                    GlCommandCountPlan.LOADER_NAME));
+        }
+        return registry;
     }
 
     AdapterTargetRegistry withCampaignCallTimeTargets() {
@@ -1826,6 +2112,100 @@ final class AdapterTargetRegistry {
                 "app"));
     }
 
+    AdapterTargetRegistry withTacticalFleetAiTimeTarget() {
+        return withTarget(new AdapterTarget(
+                "vanilla-tactical-fleet-ai-time-0.98a-rc8",
+                TacticalFleetAiTimePlan.TARGET_CLASS,
+                TacticalFleetAiTimePlan.ORIGINAL_SHA256,
+                TacticalFleetAiTimeRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        TacticalFleetAiTimePlan.METHOD,
+                        TacticalFleetAiTimePlan.DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app"));
+    }
+
+    AdapterTargetRegistry withFleetInflationTimeTarget() {
+        return withTarget(new AdapterTarget(
+                "vanilla-default-fleet-inflater-time-0.98a-rc8",
+                FleetInflationTimePlan.TARGET_CLASS,
+                FleetInflationTimePlan.ORIGINAL_SHA256,
+                FleetInflationTimeRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        FleetInflationTimePlan.METHOD,
+                        FleetInflationTimePlan.DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer.api.jar",
+                "6ac6c78c6116946d487376426340d019938f986ceae1391ae1fa599e890e3185",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app"));
+    }
+
+    AdapterTargetRegistry withCoreAutofitTimeTarget() {
+        return withTarget(new AdapterTarget(
+                "vanilla-core-autofit-time-0.98a-rc8",
+                CoreAutofitTimePlan.TARGET_CLASS,
+                CoreAutofitTimePlan.ORIGINAL_SHA256,
+                CoreAutofitTimeRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        CoreAutofitTimePlan.METHOD,
+                        CoreAutofitTimePlan.DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer.api.jar",
+                "6ac6c78c6116946d487376426340d019938f986ceae1391ae1fa599e890e3185",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app"));
+    }
+
+    AdapterTargetRegistry withNexEconomyInfoTimeTarget() {
+        return withTarget(new AdapterTarget(
+                "nexerelin-0.12.2b-economy-info-time",
+                NexEconomyInfoTimePlan.TARGET_CLASS,
+                NexEconomyInfoTimePlan.ORIGINAL_SHA256,
+                NexEconomyInfoTimeRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        NexEconomyInfoTimePlan.METHOD,
+                        NexEconomyInfoTimePlan.DESCRIPTOR)),
+                "MOD",
+                "ExerelinCore.jar",
+                NexEconomyInfoTimePlan.SOURCE_SHA256,
+                "java/net/URLClassLoader",
+                ""));
+    }
+
+    AdapterTargetRegistry withNexMarketListScopeTargets() {
+        AdapterTarget nex = new AdapterTarget(
+                "nexerelin-0.12.2b-economy-market-list-scope",
+                NexMarketListScopePlan.NEX_CLASS,
+                NexMarketListScopePlan.NEX_SHA256,
+                NexMarketListScopeRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        NexMarketListScopePlan.NEX_METHOD,
+                        NexMarketListScopePlan.NEX_DESCRIPTOR)),
+                "MOD",
+                "ExerelinCore.jar",
+                NexMarketListScopePlan.NEX_SOURCE_SHA256,
+                "java/net/URLClassLoader",
+                "");
+        AdapterTarget core = new AdapterTarget(
+                "vanilla-commodity-market-data-nexerelin-scope-0.98a-rc8",
+                NexMarketListScopePlan.CORE_CLASS,
+                NexMarketListScopePlan.CORE_SHA256,
+                NexMarketListScopeRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        NexMarketListScopePlan.CORE_METHOD,
+                        NexMarketListScopePlan.CORE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                NexMarketListScopePlan.CORE_SOURCE_SHA256,
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+        return withTarget(nex).withTarget(core);
+    }
+
     AdapterTargetRegistry withFrameTimeStartupCompletionTarget() {
         return withTarget(frameTimeStartupCompletionTarget());
     }
@@ -1868,21 +2248,40 @@ final class AdapterTargetRegistry {
                 .withTarget(indEvoWonderSyntheticMarketTarget())
                 .withTarget(sourceHintIsolationTarget())
                 .withTarget(audioResourceFallbackTarget())
-                .withTarget(aiTweaksEngagementRangeTarget())
                 .withTarget(ashLibVariantRepositoryTarget())
                 .withTarget(ashLibVariantLookupTarget())
                 .withTarget(ashLibShipJsonTarget())
                 .withTarget(magicLibPaintjobTarget())
                 .withTarget(magicLibPaintjobNotificationTarget())
                 .withTarget(graphicsLibHotSettingsTarget())
+                .withTarget(ratAbyssFactionFlagTarget())
+                .withTarget(mnemonicSensorsEntityFilterTarget())
+                .withTarget(mutableStatTempAdvanceTarget())
+                .withTarget(contrailRenderScratchTarget())
+                .withTarget(fontWrapAllocationTarget())
+                .withTarget(lunaCampaignRendererSnapshotScriptTarget())
+                .withTarget(lunaCampaignRendererSnapshotEntityTarget())
                 .withTarget(lunaVersionCheckResponseDedupTarget())
                 .withTarget(nexVersionCheckResponseDedupTarget())
                 .withTarget(stelnetMarketUpdaterTarget())
                 .withTarget(logisticsNotificationsFuelTarget())
                 .withTarget(macMemoryWarningTarget())
-                .withTarget(combatRuntimeIntegrityTarget());
+                .withTarget(combatRuntimeIntegrityTarget())
+                .withTarget(combatStateInputTarget())
+                .withTarget(collisionQuerySetTarget());
         if (!AudioStreamSourceErrorRuntime.disabled()) {
             registry = registry.withTarget(audioStreamSourceErrorTarget());
+        }
+        if (AiTweaksSplitArcsPlan.enabled()) {
+            registry = registry.withTarget(aiTweaksSplitArcsTarget());
+        }
+        if (AiTweaksAffineVectorPlan.enabled()) {
+            for (AdapterTarget target : aiTweaksAffineVectorTargets()) {
+                registry = registry.withTarget(target);
+            }
+        }
+        if (CombatListenerRangeSnapshotPlan.enabled()) {
+            registry = registry.withTarget(combatListenerRangeSnapshotTarget());
         }
         return registry;
     }

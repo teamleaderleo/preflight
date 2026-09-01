@@ -1,0 +1,119 @@
+{
+  "format": "starsector-preflight-sampled-paused-unpaused-profile-v1",
+  "date": "2026-08-27",
+  "runId": "campaign-sample-cycle-20260827-0121",
+  "scenario": "campaign-sample-paused-unpaused",
+  "recording": {
+    "chunks": 1,
+    "durationSeconds": 163,
+    "bytes": 5169671,
+    "executionSamples": 2212,
+    "campaignMainThreadSamples": 937,
+    "combatMainThreadSamples": 161,
+    "otherMainThreadSamples": 826
+  },
+  "measurementOutcome": {
+    "pausedWindowCompleted": true,
+    "unpausedWindowCompleted": true,
+    "inactiveIntervalsDropped": 0,
+    "finalRestorePause": "failed-closed: campaign-interaction-active",
+    "ownedProcessStopped": true,
+    "recordingFlushed": true,
+    "overallScenarioStatus": "failed-after-measurement"
+  },
+  "actions": [
+    {
+      "sequence": 1,
+      "action": "main-menu.continue",
+      "status": "executed"
+    },
+    {
+      "sequence": 2,
+      "action": "campaign.pause",
+      "status": "executed",
+      "beforePaused": true,
+      "afterPaused": true
+    },
+    {
+      "sequence": 3,
+      "action": "campaign.unpause",
+      "status": "executed",
+      "beforePaused": true,
+      "afterPaused": false
+    },
+    {
+      "sequence": 4,
+      "action": "campaign.pause",
+      "status": "failed",
+      "detail": "IllegalStateException: campaign-interaction-active"
+    }
+  ],
+  "frameTimes": {
+    "pausedAfter30Seconds": {
+      "frames": 3420,
+      "averageFps": 58.46,
+      "medianFps": 58.82,
+      "onePercentLowFps": 30.21,
+      "pointOnePercentLowFps": 20.83,
+      "p95Micros": 19300,
+      "p99Micros": 33100,
+      "maximumMicros": 58577
+    },
+    "unpausedFullStateWindow": {
+      "frames": 1901,
+      "averageFps": 52.27,
+      "medianFps": 59.17,
+      "onePercentLowFps": 14.18,
+      "pointOnePercentLowFps": 8.38,
+      "p95Micros": 33700,
+      "p99Micros": 70500,
+      "maximumMicros": 123824
+    }
+  },
+  "campaignExecutionProfile": {
+    "largestLeaves": [
+      {
+        "method": "com.fs.starfarer.campaign.econ.CommodityOnMarket.reapplyEventMod",
+        "samples": 85,
+        "sharePercent": 9.07
+      },
+      {
+        "method": "com.fs.starfarer.api.combat.MutableStatWithTempMods.advance",
+        "samples": 43,
+        "sharePercent": 4.59
+      },
+      {
+        "method": "com.fs.starfarer.campaign.econ.Market.advance",
+        "samples": 33,
+        "sharePercent": 3.52
+      },
+      {
+        "method": "com.fs.starfarer.campaign.BaseLocation.advanceEvenIfPaused",
+        "samples": 31,
+        "sharePercent": 3.31
+      },
+      {
+        "method": "com.fs.starfarer.campaign.BaseLocation.advance",
+        "samples": 22,
+        "sharePercent": 2.35
+      },
+      {
+        "method": "com.fs.starfarer.campaign.econ.Economy.advanceMarketConditionsWhenPaused",
+        "samples": 19,
+        "sharePercent": 2.03
+      }
+    ],
+    "commodityMemoStacks": {
+      "samples": 95,
+      "sharePercent": 10.14,
+      "wrapperLeafSamples": 85,
+      "legitimateMutableStatRecomputeSamples": 10
+    },
+    "temporaryStatAdvanceStacks": {
+      "samples": 43,
+      "sharePercent": 4.59,
+      "immediateCaller": "com.fs.starfarer.campaign.econ.Market.advance"
+    }
+  },
+  "interpretation": "The timer-free sample confirms that residual per-commodity validation and temporary-stat advancement are the largest coherent campaign leaf category. Whole-market skipping is not yet safe because mod-visible stat maps and public aggregate values remain mutable outside the reviewed methods."
+}

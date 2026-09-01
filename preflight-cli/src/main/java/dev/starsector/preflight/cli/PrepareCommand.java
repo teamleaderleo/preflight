@@ -39,6 +39,8 @@ final class PrepareCommand {
 
     static int execute(String[] args, int offset) throws Exception {
         Options options = parse(args, offset);
+        Path cache = CacheRootBoundary.canonical(
+                options.cacheDirectory() == null ? defaultCacheDirectory() : options.cacheDirectory());
         DiscoveryResult discovery = StarsectorDiscovery.discover(
                 Platform.current(),
                 Path.of(System.getProperty("user.home")),
@@ -52,8 +54,6 @@ final class PrepareCommand {
             return 3;
         }
 
-        Path cache = (options.cacheDirectory() == null ? defaultCacheDirectory() : options.cacheDirectory())
-                .toAbsolutePath().normalize();
         ResourceIndexBuilder.BuildResult plannedResourceBuild = null;
         PreparationStoragePlanner.Plan storagePlan = null;
         if (options.textures() && options.resourceIndex()) {

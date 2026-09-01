@@ -362,8 +362,9 @@ final class CacheCommand {
                 System.err.println("  " + refusal);
             }
             System.err.println();
-            System.err.println("Blobs are shared between profiles, so a manifest that cannot be read");
-            System.err.println("leaves the set of blobs still in use unknown. Nothing was removed.");
+            System.err.println("Shared cache artifacts are removed only from a complete survivor set.");
+            System.err.println("An unreadable manifest or classpath index leaves reachability unknown.");
+            System.err.println("Nothing was removed.");
             return 3;
         }
 
@@ -394,6 +395,9 @@ final class CacheCommand {
         long audioBlobRemovals = plan.removals().stream()
                 .filter(removal -> "unreferenced prepared-audio blob".equals(removal.reason()))
                 .count();
+        long classpathArchiveRemovals = plan.removals().stream()
+                .filter(removal -> "unreferenced classpath archive index".equals(removal.reason()))
+                .count();
         long redundantBytecode = plan.removals().stream()
                 .filter(removal -> "redundant generated-bytecode bundle".equals(removal.reason()))
                 .count();
@@ -415,6 +419,12 @@ final class CacheCommand {
                     audioBlobRemovals,
                     plan.reachableAudioBlobs());
         }
+        if (classpathArchiveRemovals > 0 || plan.reachableClasspathArchives() > 0) {
+            out.printf(Locale.ROOT,
+                    "  %,d unreferenced classpath archive indexes (%,d stay, still referenced)%n",
+                    classpathArchiveRemovals,
+                    plan.reachableClasspathArchives());
+        }
         if (redundantBytecode > 0 || staleBytecode > 0) {
             out.printf(Locale.ROOT,
                     "  %,d redundant and %,d stale-context generated-bytecode files%n",
@@ -424,6 +434,7 @@ final class CacheCommand {
             if (!"unreferenced blob".equals(removal.reason())
                     && !"redundant generated-bytecode bundle".equals(removal.reason())
                     && !"unreferenced prepared-audio blob".equals(removal.reason())
+                    && !"unreferenced classpath archive index".equals(removal.reason())
                     && !removal.reason().startsWith("stale generated-bytecode context ")) {
                 out.printf(Locale.ROOT, "  %-28s %9s  %s%n",
                         removal.reason(),
@@ -463,6 +474,8 @@ final class CacheCommand {
         report.put("files", plan == null ? 0 : plan.removals().size());
         report.put("reachableTextureBlobs", plan == null ? 0 : plan.reachableBlobs());
         report.put("reachablePreparedAudioBlobs", plan == null ? 0 : plan.reachableAudioBlobs());
+        report.put("reachableClasspathArchiveIndexes",
+                plan == null ? 0 : plan.reachableClasspathArchives());
         report.put("refusals", refusals);
         Map<String, long[]> reasonTotals = new LinkedHashMap<>();
         if (plan != null) {

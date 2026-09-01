@@ -52,6 +52,51 @@ final class DesktopSmokeLaunchTest {
     }
 
     @Test
+    void passesExplicitCampaignAndFramePacingDiagnosticsToTheSingleGameLaunch() {
+        DesktopSmokeScenario profiled = DesktopSmokeScenario.parse("""
+                {
+                  "format":"starsector-preflight-smoke-v1",
+                  "name":"profiled",
+                  "timeoutSeconds":60,
+                  "launch":{"preset":"fast","textureStorage":"balanced","profile":null,
+                    "campaignTimes":true,"smoothFramePacing":true},
+                  "steps":[{"id":"menu","kind":"wait-state","state":"main-menu-ready",
+                    "timeoutSeconds":30}]
+                }
+                """);
+
+        List<String> command = DesktopSmokeLaunch.command(
+                Path.of("java"), Path.of("preflight.jar"), profiled,
+                Path.of("run"), null, null);
+
+        assertTrue(command.contains("--campaign-times"));
+        assertTrue(command.contains("--smooth-frame-pacing"));
+    }
+
+    @Test
+    void passesSingleChunkSamplingToTheSameControlledGameLaunch() {
+        DesktopSmokeScenario sampled = DesktopSmokeScenario.parse("""
+                {
+                  "format":"starsector-preflight-smoke-v1",
+                  "name":"sampled",
+                  "timeoutSeconds":60,
+                  "launch":{"preset":"fast","textureStorage":"balanced","profile":null,
+                    "recording":"sample"},
+                  "steps":[{"id":"menu","kind":"wait-state","state":"main-menu-ready",
+                    "timeoutSeconds":30}]
+                }
+                """);
+
+        List<String> command = DesktopSmokeLaunch.command(
+                Path.of("java"), Path.of("preflight.jar"), sampled,
+                Path.of("run"), null, null);
+
+        assertTrue(command.contains("--profile"));
+        assertTrue(command.contains("--single-chunk-recording"));
+        assertEquals(1, command.stream().filter("--profile"::equals).count());
+    }
+
+    @Test
     void minimalDiskBenchmarkUsesThePreparedProfileContract() {
         List<String> command = DesktopSmokeLaunch.command(
                 Path.of("java"), Path.of("preflight.jar"), scenario("fast", "minimal", null),

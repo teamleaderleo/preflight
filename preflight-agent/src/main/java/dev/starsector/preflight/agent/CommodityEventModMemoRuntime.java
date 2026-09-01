@@ -11,9 +11,12 @@ public final class CommodityEventModMemoRuntime {
 
     private static volatile boolean installed;
     private static volatile boolean enabled;
+    private static volatile boolean telemetryEnabled;
     // Starsector advances campaign markets on one thread. These intentionally approximate counters
     // avoid putting an atomic read-modify-write on every commodity's frame-time fast path.
     private static long hits;
+    private static long zeroQuantityHits;
+    private static long zeroQuantityEmptyMapHits;
     private static long delegated;
     private static long fastValidationUnavailable;
 
@@ -34,12 +37,31 @@ public final class CommodityEventModMemoRuntime {
         return installed && enabled;
     }
 
+    static boolean telemetryEnabled() {
+        return telemetryEnabled;
+    }
+
     public static void hit() {
-        hits++;
+        if (telemetryEnabled) hits++;
+    }
+
+    public static void zeroQuantityHit() {
+        if (telemetryEnabled) {
+            hits++;
+            zeroQuantityHits++;
+        }
+    }
+
+    public static void zeroQuantityEmptyMapHit() {
+        if (telemetryEnabled) {
+            hits++;
+            zeroQuantityHits++;
+            zeroQuantityEmptyMapHits++;
+        }
     }
 
     public static void delegated() {
-        delegated++;
+        if (telemetryEnabled) delegated++;
     }
 
     /** Permanently fails open if the exact MutableStat accessor was not installed. */
@@ -53,18 +75,28 @@ public final class CommodityEventModMemoRuntime {
         values.put("planId", PLAN_ID);
         values.put("installed", installed);
         values.put("enabled", enabled());
+        values.put("telemetryEnabled", telemetryEnabled);
         values.put("validationStrategy",
-                "clean-stat-and-direct-exact-key-fast-path-with-exact-post-state-fingerprint");
+                "split-exact-zero-empty-map-fast-path-with-direct-backed-slow-fingerprint");
         values.put("hits", hits);
+        values.put("zeroQuantityHits", zeroQuantityHits);
+        values.put("zeroQuantityEmptyMapHits", zeroQuantityEmptyMapHits);
         values.put("delegated", delegated);
         values.put("fastValidationUnavailable", fastValidationUnavailable);
         return values;
     }
 
     static void beginSession() {
+        beginSession(true);
+    }
+
+    static void beginSession(boolean telemetryRequested) {
         installed = false;
         enabled = false;
+        telemetryEnabled = telemetryRequested;
         hits = 0L;
+        zeroQuantityHits = 0L;
+        zeroQuantityEmptyMapHits = 0L;
         delegated = 0L;
         fastValidationUnavailable = 0L;
     }

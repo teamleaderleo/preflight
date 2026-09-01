@@ -24,9 +24,6 @@ final class AdapterInstallationEffects {
             throw new IllegalArgumentException("Cached transformation class identity differs");
         }
 
-        if (AiTweaksEngagementRangeRuntime.PLAN_ID.equals(target.planId())) {
-            AiTweaksEngagementRangeRuntime.installed();
-        }
         if (AudioResourceFallbackRuntime.PLAN_ID.equals(target.planId())) {
             AudioResourceFallbackRuntime.installed();
         }
@@ -39,6 +36,12 @@ final class AdapterInstallationEffects {
         if (CombatRuntimeIntegrityRuntime.PLAN_ID.equals(target.planId())) {
             CombatRuntimeIntegrityRuntime.installed();
         }
+        if (has(referenced, CombatListenerRangeSnapshotRuntime.class)) {
+            CombatListenerRangeSnapshotRuntime.installed();
+        }
+        if (ContrailRenderScratchRuntime.PLAN_ID.equals(target.planId())) {
+            ContrailRenderScratchRuntime.installed();
+        }
         if (CommodityEventModMemoRuntime.PLAN_ID.equals(target.planId())
                 && CommodityEventModMemoPlan.TARGET_CLASS.equals(className)) {
             CommodityEventModMemoRuntime.installed();
@@ -46,14 +49,37 @@ final class AdapterInstallationEffects {
         if (DeploymentIconCacheRuntime.PLAN_ID.equals(target.planId())) {
             DeploymentIconCacheRuntime.installed();
         }
+        if (FontWrapAllocationRuntime.PLAN_ID.equals(target.planId())) {
+            FontWrapAllocationRuntime.installed();
+        }
         if (GraphicsLibHotSettingsRuntime.PLAN_ID.equals(target.planId())) {
             GraphicsLibHotSettingsRuntime.installed();
         }
         if (LogisticsNotificationsFuelRuntime.PLAN_ID.equals(target.planId())) {
             LogisticsNotificationsFuelRuntime.installed();
         }
+        if (LunaCampaignRendererSnapshotRuntime.PLAN_ID.equals(target.planId())) {
+            if (LunaCampaignRendererSnapshotPlan.SCRIPT_CLASS.equals(className)) {
+                LunaCampaignRendererSnapshotRuntime.scriptInstalled();
+            } else if (LunaCampaignRendererSnapshotPlan.ENTITY_CLASS.equals(className)) {
+                LunaCampaignRendererSnapshotRuntime.entityInstalled();
+            }
+        }
         if (MacMemoryWarningRuntime.PLAN_ID.equals(target.planId())) {
             MacMemoryWarningRuntime.installed();
+        }
+        if (MnemonicSensorsEntityFilterPlan.PLAN_ID.equals(target.planId())) {
+            MnemonicSensorsEntityFilterPlan.installed();
+        }
+        if (NexMarketListScopeRuntime.PLAN_ID.equals(target.planId())) {
+            if (NexMarketListScopePlan.NEX_CLASS.equals(className)) {
+                NexMarketListScopeRuntime.installedNex();
+            } else if (NexMarketListScopePlan.CORE_CLASS.equals(className)) {
+                NexMarketListScopeRuntime.installedCore();
+            }
+        }
+        if (MutableStatTempAdvancePlan.PLAN_ID.equals(target.planId())) {
+            MutableStatTempAdvancePlan.installed();
         }
         if (MagicLibPaintjobRuntime.PLAN_ID.equals(target.planId())) {
             MagicLibPaintjobRuntime.installed();
@@ -61,11 +87,17 @@ final class AdapterInstallationEffects {
         if (MagicLibPaintjobNotificationRuntime.PLAN_ID.equals(target.planId())) {
             MagicLibPaintjobNotificationRuntime.installed();
         }
+        if (has(referenced, MagicLibPaintjobSnapshotRuntime.class)) {
+            MagicLibPaintjobSnapshotRuntime.installed();
+        }
         if (has(referenced, MagicLibPaintjobLoadRuntime.class)) {
             MagicLibPaintjobLoadRuntime.installed();
         }
         if (RadarRenderRuntime.PLAN_ID.equals(target.planId())) {
             RadarRenderRuntime.installed();
+        }
+        if (RatAbyssFactionFlagPlan.PLAN_ID.equals(target.planId())) {
+            RatAbyssFactionFlagPlan.installed();
         }
         if (SaveDescriptorCompatibilityRuntime.PLAN_ID.equals(target.planId())) {
             SaveDescriptorCompatibilityRuntime.installed();

@@ -1,0 +1,67 @@
+{
+  "format": "starsector-preflight-installed-fleet-ai-module-tax-v1",
+  "issue": 1158,
+  "classification": "intrusive-discovery-no-fps-claim",
+  "sourceCommit": "4626fcff0b025b29fb0f3d8e529d44edfab87092",
+  "profileFingerprint": "2995668308ac3d31d645ccac30fb1a7e644e64fce5609050a1488df4cadc5af6",
+  "route": "campaign-owner-tax-paused-unpaused",
+  "adapterHealth": {
+    "mode": "ENABLED",
+    "transformationsApplied": 73,
+    "transformationDeclined": 0,
+    "sourceBindingRejected": 0,
+    "malformedClasses": 0,
+    "containedFailures": 0,
+    "killSwitchActive": false,
+    "fleetAiModulePlan": "COMPOSED",
+    "fleetAiModuleInstalled": true,
+    "combatRuntimeSameLoaderAssignable": true
+  },
+  "measurementWindow": {
+    "frames": 1650,
+    "activeSeconds": 31.5962555,
+    "p50Millis": 17.3,
+    "p95Millis": 32.7,
+    "p99Millis": 62.5,
+    "onePercentLowFps": 16.0,
+    "maximumMillis": 222.886,
+    "over33Millis": 73,
+    "over50Millis": 34,
+    "over100Millis": 3,
+    "repeatedSlowFrameClusters": 15,
+    "stutterBurdenMillisPerSecond": 48.87
+  },
+  "modulePhases": [
+    {"name":"assignment","calls":18463,"totalMillis":37.115002,"averageMicros":2.010237,"maximumMillis":1.207417,"over16Millis":0,"over33Millis":0,"over50Millis":0},
+    {"name":"strategic","calls":18463,"totalMillis":113.52631,"averageMicros":6.148855,"maximumMillis":6.964167,"over16Millis":0,"over33Millis":0,"over50Millis":0},
+    {"name":"tactical","calls":18463,"totalMillis":745.422254,"averageMicros":40.373842,"maximumMillis":76.945458,"over16Millis":3,"over33Millis":3,"over50Millis":1},
+    {"name":"navigation","calls":18463,"totalMillis":56.594946,"averageMicros":3.065317,"maximumMillis":2.383833,"over16Millis":0,"over33Millis":0,"over50Millis":0},
+    {"name":"ability","calls":90365,"totalMillis":305.464203,"averageMicros":3.380338,"maximumMillis":41.699792,"over16Millis":2,"over33Millis":1,"over50Millis":0}
+  ],
+  "abilityClasses": [
+    {"name":"com.fs.starfarer.api.impl.campaign.abilities.ai.SensorBurstAbilityAI","calls":14869,"totalMillis":112.015156,"averageMicros":7.533469,"maximumMillis":41.699792,"over16Millis":2,"over33Millis":1},
+    {"name":"com.fs.starfarer.api.impl.campaign.abilities.ai.EmergencyBurnAbilityAI","calls":15216,"totalMillis":56.873987,"averageMicros":3.737775,"maximumMillis":8.594917},
+    {"name":"exerelin.campaign.abilities.ai.Nex_SustainedBurnAbilityAI","calls":14915,"totalMillis":54.876888,"averageMicros":3.679309,"maximumMillis":6.8145}
+  ],
+  "measurementWindowJoins": [
+    {"phase":"tactical","fleetAiIdentity":"1791955711","spanMillis":34.491792,"frameMillis":51.713,"spanSharePercent":66.7,"endEpochDistanceMillis":1},
+    {"phase":"tactical","fleetAiIdentity":"1130119070","spanMillis":33.660708,"frameMillis":64.423,"spanSharePercent":52.2,"endEpochDistanceMillis":5},
+    {"phase":"ability","moduleClass":"com.fs.starfarer.api.impl.campaign.abilities.ai.SensorBurstAbilityAI","fleetAiIdentity":"1372194830","spanMillis":22.919292,"frameMillis":42.501,"spanSharePercent":53.9,"endEpochDistanceMillis":2},
+    {"phase":"ability","moduleClass":"com.fs.starfarer.api.impl.campaign.abilities.ai.SensorBurstAbilityAI","fleetAiIdentity":"160454919","spanMillis":10.039083,"frameMillis":31.708,"spanSharePercent":31.7,"endEpochDistanceMillis":5}
+  ],
+  "excludedTransitionJoins": [
+    {"phase":"tactical","spanMillis":76.945458,"frameMillis":115.397,"spanSharePercent":66.7},
+    {"phase":"ability","moduleClass":"com.fs.starfarer.api.impl.campaign.abilities.ai.SensorBurstAbilityAI","spanMillis":41.699792,"frameMillis":71.35,"spanSharePercent":58.4}
+  ],
+  "observer": {
+    "displayBoundaryAverageMicros": 26.004387,
+    "displayBoundaryMaximumMicros": 13502.417,
+    "moduleTimerOverheadSubtracted": false,
+    "jfrAndOwnerTaxAlsoEnabled": true
+  },
+  "nextTarget": {
+    "className": "com.fs.starfarer.campaign.ai.TacticalModule",
+    "classSha256": "53d6b876055d44a1dd97c9bf66561d974e102116c818aac654baf5ba1d70531c",
+    "semanticRegions": ["every-frame","avoid-list-update","fleet-list-acquisition","other-fleet-scan","encounter-option","post-scan"]
+  }
+}

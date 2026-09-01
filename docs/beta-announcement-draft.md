@@ -18,7 +18,8 @@ On my 83-mod M5 MacBook Air development setup, startup moved from **112.17 secon
 13.69 seconds**, about an **8.19× speedup**. That is Starsector's x86-64 Java runtime running
 through Rosetta.
 
-The desktop has its own normal-versus-Preflight benchmark. **You can measure yours yourself.**
+Separately, the desktop runs your setup twice through Preflight: once with reviewed optimizations
+off and once with them on. **You can measure yours yourself.**
 
 **Download:** [RELEASE URL]
 
@@ -55,11 +56,14 @@ There is also a minimal-disk path when the normal prepared-texture route does no
 
 ## Compatibility
 
-Preflight leaves Starsector and mod JARs, executables, assets, and saves unchanged. Prepared data
-lives in Preflight's own area. Runtime optimizations live inside the launched game process.
+Preflight leaves Starsector and mod JARs, executables, and assets unchanged. It does not directly
+edit campaign saves or put prepared data into them; Starsector still owns normal save writes.
+Prepared data lives in Preflight's own area. Runtime optimizations live inside the launched game
+process.
 
-If a runtime shortcut does not recognize the code it expects, it steps aside and the normal game
-path runs.
+Prepared data is disposable acceleration, not game state. If it is missing or fails a check,
+Starsector does that work through its normal path. If a runtime shortcut does not recognize the code
+it expects, it steps aside too.
 
 Profile switching and launch settings are explicit game-owned preference changes. The app shows the
 change and keeps a backup.
@@ -90,6 +94,12 @@ There is campaign/runtime work too. Mutation-tracked indexes removed the sector-
 measured as **79.1M entity-reference checks → 0**, and a separate memoized path served **117.9M**
 unchanged commodity calls.
 
+The retained optimized campaign session also measured the rough period after loading instead of
+guessing from a log. Its first 30 seconds averaged **46.10 FPS** with a **9.15 FPS one-percent low**;
+the next 4,091 campaign frames averaged **55.47 FPS** with a **20.45 FPS one-percent low**. That is a
+**2.2×** increase in the one-percent low after initial catch-up. The two rows are early and later
+slices of the same Preflight run, not an implementation A/B.
+
 The deeper technical record is in [Engineering overview](engineering-overview.md),
 [Optimization history](optimization-history.md), and the [Experiment ledger](experiment-ledger.md).
 
@@ -105,8 +115,9 @@ Those records remain in the repository.
 
 ## Support and updates
 
-**Copy setup** produces a compact support summary. A separate support ZIP shows what it contains
-before sending, and the first beta sends one only when you press Send.
+**Copy setup** and **Save setup summary** produce the same compact public support text. Saving creates
+a new `.txt` file and never replaces one. A separate support ZIP shows what it contains before
+sending, and the first beta sends one only when you press Send.
 
 Supported in-app updates use the project's updater signing key. The release process exercises
 installation, update, rollback, and removal against the package set.

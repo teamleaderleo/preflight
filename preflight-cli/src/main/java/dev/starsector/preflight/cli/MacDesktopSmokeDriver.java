@@ -1,5 +1,8 @@
 package dev.starsector.preflight.cli;
 
+import com.sun.jna.Library;
+import com.sun.jna.Native;
+import com.sun.jna.Structure;
 import dev.starsector.preflight.core.Json;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -24,36 +27,55 @@ import java.util.Set;
 /** macOS desktop smoke adapter that resolves the game window only through its recorded PID. */
 final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     private static final Duration COMMAND_TIMEOUT = Duration.ofSeconds(10);
+    // A large installed profile can spend well over eight seconds loading settings before LWJGL
+    // publishes its first macOS window. The runner supplies the tighter per-step/scenario bound;
+    // this inner retry window only prevents a premature "no window" result during healthy startup.
+    private static final Duration WINDOW_READINESS_TIMEOUT = Duration.ofSeconds(120);
+    private static final Duration WINDOW_READINESS_POLL = Duration.ofMillis(100);
     private static final Duration QUIT_GRACE = Duration.ofSeconds(8);
     private static final int LOG_TAIL_BYTES = 1024 * 1024;
     private static final int BRIDGE_RESPONSE_BYTES = 8 * 1024;
     private static final String BRIDGE_ENDPOINT_ENV = "PREFLIGHT_MAC_AUTOMATION_ENDPOINT";
     private static final String BRIDGE_TOKEN_ENV = "PREFLIGHT_MAC_AUTOMATION_TOKEN";
+    private static final String APPLICATION_SERVICES =
+            "/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices";
+    private static final Path IOREG = Path.of("/usr/sbin/ioreg");
+    private static final Path PYTHON3 = Path.of("/usr/bin/python3");
     private static final Map<String, TargetPoint> TARGETS = targets();
-    private static final Map<String, Integer> KEY_CODES = Map.of(
-            "a", 0,
-            "s", 1,
-            "d", 2,
-            "w", 13,
-            "return", 36,
-            "space", 49,
-            "escape", 53);
+    private static final Map<String, Integer> KEY_CODES = Map.ofEntries(
+            Map.entry("a", 0),
+            Map.entry("s", 1),
+            Map.entry("d", 2),
+            Map.entry("f", 3),
+            Map.entry("w", 13),
+            Map.entry("r", 15),
+            Map.entry("u", 32),
+            Map.entry("n", 45),
+            Map.entry("return", 36),
+            Map.entry("tab", 48),
+            Map.entry("space", 49),
+            Map.entry("escape", 53),
+            Map.entry("capslock", 57));
 
     private final DesktopCommandExecutor commands;
     private final Path osascript;
     private final Path screenCapture;
     private final String bridgeEndpoint;
     private final String bridgeToken;
+    private final ExactPidActivator exactPidActivator;
+    private final boolean allowCompatibilityFocus;
     private ProcessTarget target;
 
     MacDesktopSmokeDriver() {
         this(new SystemDesktopCommandExecutor(), Path.of("/usr/bin/osascript"),
                 Path.of("/usr/sbin/screencapture"),
-                System.getenv(BRIDGE_ENDPOINT_ENV), System.getenv(BRIDGE_TOKEN_ENV));
+                System.getenv(BRIDGE_ENDPOINT_ENV), System.getenv(BRIDGE_TOKEN_ENV),
+                MacDesktopSmokeDriver::activateExactPid);
     }
 
     MacDesktopSmokeDriver(DesktopCommandExecutor commands, Path osascript, Path screenCapture) {
-        this(commands, osascript, screenCapture, null, null);
+        this(commands, osascript, screenCapture, null, null,
+                MacDesktopSmokeDriver::activateExactPid);
     }
 
     MacDesktopSmokeDriver(
@@ -62,11 +84,36 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
             Path screenCapture,
             String bridgeEndpoint,
             String bridgeToken) {
+        this(commands, osascript, screenCapture, bridgeEndpoint, bridgeToken,
+                MacDesktopSmokeDriver::activateExactPid);
+    }
+
+    MacDesktopSmokeDriver(
+            DesktopCommandExecutor commands,
+            Path osascript,
+            Path screenCapture,
+            String bridgeEndpoint,
+            String bridgeToken,
+            ExactPidActivator exactPidActivator) {
+        this(commands, osascript, screenCapture, bridgeEndpoint, bridgeToken, exactPidActivator,
+                commands instanceof SystemDesktopCommandExecutor);
+    }
+
+    MacDesktopSmokeDriver(
+            DesktopCommandExecutor commands,
+            Path osascript,
+            Path screenCapture,
+            String bridgeEndpoint,
+            String bridgeToken,
+            ExactPidActivator exactPidActivator,
+            boolean allowCompatibilityFocus) {
         this.commands = commands;
         this.osascript = osascript;
         this.screenCapture = screenCapture;
         this.bridgeEndpoint = validatedBridgeEndpoint(bridgeEndpoint);
         this.bridgeToken = validatedBridgeToken(bridgeToken);
+        this.exactPidActivator = java.util.Objects.requireNonNull(exactPidActivator);
+        this.allowCompatibilityFocus = allowCompatibilityFocus;
         if ((this.bridgeEndpoint == null) != (this.bridgeToken == null)) {
             throw new IllegalArgumentException(
                     "The macOS native automation bridge needs both endpoint and token");
@@ -81,6 +128,7 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
         if (!Files.isExecutable(osascript)) {
             throw new UnavailableException("osascript is unavailable at " + osascript);
         }
+        requireConsoleUnlocked();
         String accessibility = automation(
                 "probe", 0, null,
                 "tell application \"System Events\" to return UI elements enabled");
@@ -127,6 +175,9 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
             case "press-key" -> pressKey(attached, step.get("key").toString());
             case "hold-key" -> holdKey(attached, step.get("key").toString(),
                     ((Number) step.get("durationMillis")).intValue());
+            case "scroll-wheel" -> scrollWheel(
+                    attached, step.get("direction").toString(),
+                    ((Number) step.get("clicks")).intValue());
             case "capture" -> capture(attached, step, runDirectory);
             case "quit" -> quit(attached);
             default -> throw new IllegalArgumentException("Unsupported macOS smoke action: " + kind);
@@ -150,9 +201,97 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     }
 
     private ActionResult activate(ProcessTarget attached) throws Exception {
-        String output = automation(
-                "activate", attached.pid(), null, activateScript(attached.pid())).trim();
-        return ActionResult.completed(output);
+        long deadline = System.nanoTime() + WINDOW_READINESS_TIMEOUT.toNanos();
+        UnavailableException lastUnavailable = null;
+        boolean compatibilityAttempted = false;
+        do {
+            requireSameLifetime(attached);
+            requireConsoleUnlocked();
+            try {
+                String output = automation(
+                        "activate", attached.pid(), null, activateScript(attached.pid())).trim();
+                if (!nativeBridge()) {
+                    command(javascript(appKitActivateScript(attached.pid())));
+                }
+                String nativeFocus;
+                try {
+                    nativeFocus = exactPidActivator.activate(attached.pid());
+                } catch (UnavailableException unavailable) {
+                    if (!compatibilityAttempted && compatibilityFocusAvailable()) {
+                        command(legacyPidActivationCommand(attached.pid()));
+                        compatibilityAttempted = true;
+                        nativeFocus = "foregrounded exact PID " + attached.pid()
+                                + " through the ApplicationServices compatibility helper";
+                    } else {
+                        // The native desktop bridge or an injected test driver can still succeed
+                        // without Carbon, but only when the exact Accessibility process confirms
+                        // its frontmost state below.
+                        nativeFocus = "ApplicationServices fallback unavailable: "
+                                + bounded(unavailable.getMessage());
+                    }
+                }
+                requireSameLifetime(attached);
+                String observed = automation(
+                        "observe", attached.pid(), null, observationScript(attached.pid())).trim();
+                if (!observed.contains("frontmost=true")
+                        && !compatibilityAttempted && compatibilityFocusAvailable()) {
+                    command(legacyPidActivationCommand(attached.pid()));
+                    compatibilityAttempted = true;
+                    nativeFocus = "foregrounded exact PID " + attached.pid()
+                            + " through the ApplicationServices compatibility helper after "
+                            + "frontmost verification rejected the direct call";
+                    observed = automation(
+                            "observe", attached.pid(), null,
+                            observationScript(attached.pid())).trim();
+                }
+                if (!observed.contains("frontmost=true")) {
+                    throw new UnavailableException("exact PID remains non-frontmost after activation");
+                }
+                return ActionResult.completed(output + "; " + nativeFocus + "; " + observed);
+            } catch (UnavailableException unavailable) {
+                if (!windowReadinessUnavailable(unavailable)) throw unavailable;
+                lastUnavailable = unavailable;
+            }
+            try {
+                Thread.sleep(WINDOW_READINESS_POLL.toMillis());
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw interrupted;
+            }
+        } while (System.nanoTime() < deadline);
+        throw new UnavailableException(
+                "The exact game process did not publish a macOS window within "
+                        + WINDOW_READINESS_TIMEOUT.toSeconds() + " seconds: "
+                        + lastUnavailable.getMessage());
+    }
+
+    private boolean compatibilityFocusAvailable() {
+        return allowCompatibilityFocus && !nativeBridge() && Files.isExecutable(PYTHON3);
+    }
+
+    private void requireConsoleUnlocked() throws Exception {
+        if (!Files.isExecutable(IOREG)) return;
+        String state = command(List.of(
+                IOREG.toString(), "-n", "Root", "-d", "1")).output();
+        if (consoleLocked(state)) {
+            throw new UnavailableException(
+                    "The macOS console is locked; unlock it before running a foreground FPS scenario");
+        }
+    }
+
+    static boolean consoleLocked(String ioregOutput) {
+        if (ioregOutput == null || ioregOutput.isBlank()) return false;
+        return ioregOutput.contains("\"IOConsoleLocked\" = Yes")
+                || ioregOutput.contains("\"CGSSessionScreenIsLocked\"=Yes")
+                || ioregOutput.contains("\"CGSSessionScreenIsLocked\" = Yes");
+    }
+
+    private static boolean windowReadinessUnavailable(UnavailableException unavailable) {
+        String message = unavailable.getMessage();
+        return message != null && (message.contains("exact PID unavailable")
+                || message.contains("exact PID activation failed")
+                || message.contains("exact PID remains non-frontmost")
+                || message.contains("Invalid index. (-1719)"));
     }
 
     private ActionResult click(ProcessTarget attached, String name) throws Exception {
@@ -166,9 +305,11 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     private ActionResult pressKey(ProcessTarget attached, String key) throws Exception {
         int code = keyCode(key);
         String normalized = normalizedKey(key);
-        String output = automation(
-                "press-key", attached.pid(), normalized,
-                keyCodeScript(attached.pid(), code)).trim();
+        String output = nativeBridge()
+                ? automation("press-key", attached.pid(), normalized,
+                        keyCodeScript(attached.pid(), code)).trim()
+                : command(javascript(coreGraphicsKeyCodeScript(attached.pid(), code)))
+                        .output().trim();
         return ActionResult.completed(output);
     }
 
@@ -192,6 +333,25 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
             }
         }
         return ActionResult.completed("held " + normalized + " for " + durationMillis + " ms");
+    }
+
+    private ActionResult scrollWheel(ProcessTarget attached, String direction, int clicks)
+            throws Exception {
+        String normalized = scrollDirection(direction);
+        if (clicks < 1 || clicks > 24) {
+            throw new IllegalArgumentException("macOS scroll clicks must be in 1..24");
+        }
+        automation("activate", attached.pid(), null, activateScript(attached.pid()));
+        requireSameLifetime(attached);
+        String source = scrollWheelScript(attached.pid(), normalized, clicks);
+        if (nativeBridge()) {
+            automation("scroll-wheel", attached.pid(), normalized + ":" + clicks, source);
+        } else {
+            command(List.of(osascript.toString(), "-l", "JavaScript", "-e", source));
+        }
+        requireSameLifetime(attached);
+        return ActionResult.completed(
+                "scrolled " + normalized + " " + clicks + " clicks in exact PID " + attached.pid());
     }
 
     private void releaseKey(long pid, String key) throws Exception {
@@ -314,7 +474,13 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     }
 
     private WindowBounds windowBounds(long pid) throws Exception {
-        String output = automation("window-bounds", pid, null, windowBoundsScript(pid)).trim();
+        String output;
+        try {
+            output = automation("window-bounds", pid, null, windowBoundsScript(pid)).trim();
+        } catch (UnavailableException unavailable) {
+            if (nativeBridge() || !windowReadinessUnavailable(unavailable)) throw unavailable;
+            output = command(javascript(coreGraphicsWindowBoundsScript(pid))).output().trim();
+        }
         String[] parts = output.split("\\s*,\\s*");
         if (parts.length != 4) throw new IOException("Unexpected macOS window bounds: " + output);
         try {
@@ -381,6 +547,32 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
 
     private List<String> script(String source) {
         return List.of(osascript.toString(), "-e", source);
+    }
+
+    private List<String> javascript(String source) {
+        return List.of(osascript.toString(), "-l", "JavaScript", "-e", source);
+    }
+
+    static String scrollWheelScript(long pid, String direction, int clicks) {
+        if (pid <= 0) throw new IllegalArgumentException("PID must be positive");
+        // CoreGraphics synthetic wheel events follow the configured macOS scroll direction;
+        // Starsector's LWJGL input sees positive as the player-equivalent zoom-out gesture here.
+        int delta = "out".equals(scrollDirection(direction)) ? 1 : -1;
+        if (clicks < 1 || clicks > 24) {
+            throw new IllegalArgumentException("macOS scroll clicks must be in 1..24");
+        }
+        return "ObjC.import('CoreGraphics');"
+                + "for(var i=0;i<" + clicks + ";i++){"
+                + "var e=$.CGEventCreateScrollWheelEvent(null,$.kCGScrollEventUnitLine,1,"
+                + delta + ");$.CGEventPostToPid(" + pid + ",e);delay(0.025);}";
+    }
+
+    private static String scrollDirection(String direction) {
+        String normalized = direction == null ? "" : direction.toLowerCase(Locale.ROOT);
+        if (!Set.of("in", "out").contains(normalized)) {
+            throw new IllegalArgumentException("Unsupported macOS scroll direction: " + direction);
+        }
+        return normalized;
     }
 
     private boolean nativeBridge() {
@@ -496,14 +688,109 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
 
     static String observationScript(long pid) {
         return processHeader(pid) + "\n"
-                + "set win to window 1 of targetProcess\n"
-                + "set winPosition to position of win\n"
-                + "set winSize to size of win\n"
-                + "set focused to frontmost of targetProcess\n"
-                + "return \"PID " + pid + " window \" & (item 1 of winPosition as text) & \",\""
-                + " & (item 2 of winPosition as text) & \",\" & (item 1 of winSize as text)"
-                + " & \",\" & (item 2 of winSize as text) & \" frontmost=\" & (focused as text)\n"
+                + "set isFrontmost to frontmost of targetProcess\n"
+                + "return \"PID " + pid + " frontmost=\" & (isFrontmost as text)\n"
                 + "end tell";
+    }
+
+    static String appKitActivateScript(long pid) {
+        if (pid <= 0) throw new IllegalArgumentException("PID must be positive");
+        return "ObjC.import('AppKit');"
+                + "var a=$.NSRunningApplication.runningApplicationWithProcessIdentifier(" + pid + ");"
+                + "if(!a)throw new Error('exact PID unavailable');"
+                + "if(!a.activateWithOptions($.NSApplicationActivateIgnoringOtherApps))"
+                + "throw new Error('exact PID activation failed');"
+                + "'activated exact PID " + pid + "';";
+    }
+
+    static String activateExactPid(long pid) throws UnavailableException {
+        if (pid <= 0) throw new IllegalArgumentException("PID must be positive");
+        if (pid > Integer.MAX_VALUE) throw new IllegalArgumentException("PID is outside macOS range");
+        try {
+            ProcessSerialNumber process = new ProcessSerialNumber();
+            int lookup = MacApplicationServices.INSTANCE.GetProcessForPID((int) pid, process);
+            if (lookup != 0) {
+                throw new UnavailableException(
+                        "exact PID unavailable to ApplicationServices (status " + lookup + ")");
+            }
+            int activation = MacApplicationServices.INSTANCE.SetFrontProcessWithOptions(process, 3);
+            if (activation != 0) {
+                throw new UnavailableException(
+                        "exact PID activation failed (status " + activation + ")");
+            }
+            return "foregrounded exact PID " + pid + " through ApplicationServices";
+        } catch (UnavailableException unavailable) {
+            throw unavailable;
+        } catch (LinkageError | RuntimeException unavailable) {
+            throw new UnavailableException("exact-PID ApplicationServices focus is unavailable",
+                    unavailable);
+        }
+    }
+
+    static List<String> legacyPidActivationCommand(long pid) {
+        if (pid <= 0) throw new IllegalArgumentException("PID must be positive");
+        if (pid > Integer.MAX_VALUE) throw new IllegalArgumentException("PID is outside macOS range");
+        String source = "import ctypes,sys\n"
+                + "from ctypes import c_int32,c_uint32,Structure,byref\n"
+                + "class PSN(Structure): _fields_=[('hi',c_uint32),('lo',c_uint32)]\n"
+                + "pid=int(sys.argv[1]); framework=ctypes.CDLL("
+                + "'/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices')\n"
+                + "framework.GetProcessForPID.argtypes=[c_int32,ctypes.POINTER(PSN)]\n"
+                + "framework.GetProcessForPID.restype=c_int32\n"
+                + "framework.SetFrontProcessWithOptions.argtypes=[ctypes.POINTER(PSN),c_uint32]\n"
+                + "framework.SetFrontProcessWithOptions.restype=c_int32\n"
+                + "process=PSN(); first=framework.GetProcessForPID(pid,byref(process))\n"
+                + "second=framework.SetFrontProcessWithOptions(byref(process),3) if first==0 else first\n"
+                + "sys.exit(0 if first==0 and second==0 else 1)\n";
+        return List.of(PYTHON3.toString(), "-c", source, Long.toString(pid));
+    }
+
+    static String coreGraphicsKeyCodeScript(long pid, int code) {
+        if (pid <= 0) throw new IllegalArgumentException("PID must be positive");
+        if (code < 0 || code > 127) throw new IllegalArgumentException("Key code is outside 0..127");
+        return "ObjC.import('CoreGraphics');"
+                + "var d=$.CGEventCreateKeyboardEvent(null," + code + ",true);"
+                + "var u=$.CGEventCreateKeyboardEvent(null," + code + ",false);"
+                + "$.CGEventPostToPid(" + pid + ",d);delay(0.025);"
+                + "$.CGEventPostToPid(" + pid + ",u);"
+                + "'pressed key code " + code + " for exact PID " + pid + "';";
+    }
+
+    static String coreGraphicsWindowBoundsScript(long pid) {
+        if (pid <= 0) throw new IllegalArgumentException("PID must be positive");
+        return "ObjC.import('CoreGraphics');"
+                + "var ws=ObjC.deepUnwrap($.CGWindowListCopyWindowInfo("
+                + "$.kCGWindowListOptionOnScreenOnly,$.kCGNullWindowID));"
+                + "var best=null;var area=-1;"
+                + "for(var i=0;i<ws.length;i++){var w=ws[i];"
+                + "if(Number(w.kCGWindowOwnerPID)!==" + pid + ")continue;"
+                + "if(Number(w.kCGWindowLayer)!==0)continue;"
+                + "var b=w.kCGWindowBounds;if(!b)continue;"
+                + "var a=Number(b.Width)*Number(b.Height);"
+                + "if(a>area){best=b;area=a;}}"
+                + "if(!best||area<=0)throw new Error('exact PID has no on-screen CoreGraphics window');"
+                + "[Math.round(Number(best.X)),Math.round(Number(best.Y)),"
+                + "Math.round(Number(best.Width)),Math.round(Number(best.Height))].join(',');";
+    }
+
+    @Structure.FieldOrder({"highLongOfPSN", "lowLongOfPSN"})
+    public static final class ProcessSerialNumber extends Structure {
+        public int highLongOfPSN;
+        public int lowLongOfPSN;
+    }
+
+    private interface MacApplicationServices extends Library {
+        MacApplicationServices INSTANCE = Native.load(
+                APPLICATION_SERVICES, MacApplicationServices.class);
+
+        int GetProcessForPID(int pid, ProcessSerialNumber process);
+
+        int SetFrontProcessWithOptions(ProcessSerialNumber process, int options);
+    }
+
+    @FunctionalInterface
+    interface ExactPidActivator {
+        String activate(long pid) throws UnavailableException;
     }
 
     static String clickScript(long pid, TargetPoint point) {
@@ -591,7 +878,7 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     record TargetPoint(String name, double x, double y) {
     }
 
-    private record WindowBounds(int x, int y, int width, int height) {
+    static record WindowBounds(int x, int y, int width, int height) {
         private String region() {
             return x + "," + y + "," + width + "," + height;
         }

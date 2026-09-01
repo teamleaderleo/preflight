@@ -31,6 +31,9 @@ final class IndexCommand {
     }
 
     private static int build(BuildOptions options) throws Exception {
+        Path defaultCache = options.output() == null
+                ? CacheRootBoundary.canonical(PreflightHome.current().cache())
+                : null;
         DiscoveryResult discovery = StarsectorDiscovery.discover(
                 Platform.current(),
                 Path.of(System.getProperty("user.home")),
@@ -48,7 +51,7 @@ final class IndexCommand {
         ResourceIndexBuilder.BuildResult result = ResourceIndexBuilder.build(target.installRoot());
         ResourceIndex index = result.index();
         Path output = options.output() == null
-                ? defaultOutput(PreflightHome.current(), index)
+                ? outputInCache(defaultCache, index)
                 : options.output().toAbsolutePath().normalize();
         ResourceIndexIO.write(output, index);
 
@@ -59,8 +62,12 @@ final class IndexCommand {
         return 0;
     }
 
-    static Path defaultOutput(PreflightHome home, ResourceIndex index) {
-        return ResourceIndexIO.directory(home.cache())
+    static Path defaultOutput(PreflightHome home, ResourceIndex index) throws IOException {
+        return outputInCache(CacheRootBoundary.canonical(home.cache()), index);
+    }
+
+    private static Path outputInCache(Path cache, ResourceIndex index) {
+        return ResourceIndexIO.directory(cache)
                 .resolve(index.profileFingerprint() + ".spfi")
                 .toAbsolutePath()
                 .normalize();

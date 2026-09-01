@@ -1,0 +1,45 @@
+{
+  "format": "starsector-preflight-retained-runtime-action-proof-v1",
+  "condition": {
+    "game": "Starsector 0.98a-RC8",
+    "profile": "current 83-mod development profile",
+    "launch": "Preflight Recommended (--fast)",
+    "platform": "macOS, x86-64 game runtime under Rosetta",
+    "nativeInputUsed": false
+  },
+  "request": {
+    "format": "starsector-preflight-runtime-action-request-v1",
+    "sequence": 1,
+    "action": "main-menu.continue",
+    "expectedState": "main-menu-interactive"
+  },
+  "receipt": {
+    "format": "starsector-preflight-runtime-action-receipt-v1",
+    "sequence": 1,
+    "action": "main-menu.continue",
+    "boundary": "title.advanceImpl",
+    "beforeState": "main-menu-interactive",
+    "status": "executed",
+    "detail": "title callback accepted Continue"
+  },
+  "scenario": {
+    "status": "passed",
+    "steps": [
+      "observed main-menu-interactive",
+      "receipt executed; campaign observed campaign-ready",
+      "observed campaign-ready"
+    ],
+    "sameProcessLifetime": true,
+    "exactRuntimeStopped": true
+  },
+  "adapterHealth": {
+    "status": "ACTIVE",
+    "transformationsApplied": 51,
+    "transformationsDeclined": 0,
+    "containedFailures": 0
+  },
+  "saveHashes": {
+    "campaignSha256": "f716de34cf38b717134bee0d6233824ce76c0374624b0f644c82d61beaad07d1",
+    "descriptorSha256": "45388feaf1a3fc279b3a4e3b56fa88ad51a06e8b6e5a2b0f04d29e6db760a2cc"
+  }
+}

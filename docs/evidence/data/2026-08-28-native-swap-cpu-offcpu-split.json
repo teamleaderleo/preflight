@@ -1,0 +1,180 @@
+{
+  "format": "starsector-preflight-native-swap-cpu-offcpu-evidence-v1",
+  "date": "2026-08-28",
+  "disposition": "diagnostic infrastructure retained; no FPS optimization claim",
+  "parentIssue": 449,
+  "childIssue": 1150,
+  "implementationCommit": "5702a9ae2f4def59a7cba263fb1cd739066d5bb7",
+  "verification": {
+    "command": "JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home ./mvnw verify",
+    "tests": 2242,
+    "failures": 0,
+    "errors": 0,
+    "skips": 9,
+    "installedLwjglTransformTest": "passed"
+  },
+  "identity": {
+    "game": "Starsector 0.98a-RC8",
+    "lwjglJarSha256": "527d509f60132e5b2653c7fc0f8cf299d6f698f4a8013342bef47705dc57ed3f",
+    "displayClass": "org/lwjgl/opengl/Display",
+    "displayClassSha256": "054d89b13a904edd041df8ceba72c068070d7c9cc2dbfdd20d5acb3cdf109526",
+    "displayClassMajor": 49,
+    "settingsSha256": "9a14ab7efe1dd6c4d6197ad485713c203afa9e7ee9a5bdf50904fb46ad6c17ed",
+    "configuredVsync": true,
+    "configuredFpsCap": 60,
+    "profileFingerprint": "2995668308ac3d31d645ccac30fb1a7e644e64fce5609050a1488df4cadc5af6",
+    "textureProfileFingerprint": "59b01dc050f39a9f07053bd168cc8c1ecd55086b429b2d732456f87ca217a702",
+    "enabledMods": 83,
+    "resolution": "1440x932",
+    "fullscreen": false,
+    "sound": true,
+    "wrapperJava": "Oracle Java 17.0.12 arm64",
+    "gameJava": "Zulu Java 17.0.10 x86_64 under Rosetta",
+    "adapterPlanScope": "full",
+    "optimizationPreset": "recommended",
+    "textureAdapterMode": "PREPARED_PIXELS",
+    "campaignTimes": false,
+    "frameTimes": true,
+    "jfrRecording": false,
+    "smoothFramePacing": false,
+    "preflightJarSha256": "2b1d14960b5956941ce5234edfbe314d5671e312d4097e3f0e80989aee52a033"
+  },
+  "scenario": {
+    "name": "campaign-hitch-limiter-current-state",
+    "status": "passed",
+    "startedAt": "2026-08-27T18:04:17.763157Z",
+    "completedAt": "2026-08-27T18:06:25.792682Z",
+    "semanticSteps": 5,
+    "warmupMillis": 30000,
+    "measurementMillis": 60000,
+    "campaignPause": "paused",
+    "saveActionIssued": false,
+    "workloadComparability": "same semantic route, profile, settings, pause state, and prepared content as the immediately preceding limiter diagnostic; the scenario does not bind an exact save hash, so this is a within-run attribution result, not a paired FPS claim"
+  },
+  "presentationPolicy": {
+    "vsyncRequests": 5,
+    "vsyncEnabledRequests": 3,
+    "requestsForcedOff": 0,
+    "swapIntervalRequests": 6,
+    "swapIntervalZeroRequests": 2,
+    "swapIntervalOneRequests": 4,
+    "swapIntervalOtherRequests": 0,
+    "lastSwapInterval": 1,
+    "interpretation": "the configured policy is 60 FPS with VSync on and the final observed native interval is one; request timing was not retained per frame"
+  },
+  "threadCpuClock": {
+    "supported": true,
+    "enabled": true,
+    "availableAtShutdown": true,
+    "calibrationSamples": 10000,
+    "calibrationAverageNanosPerRead": 587.6127,
+    "calibrationMaximumNanosPerRead": 109917,
+    "hotPathReads": 12552,
+    "readFailures": 0,
+    "readsPerPresentedFrame": 2,
+    "classification": "thin measurement instrumentation"
+  },
+  "settledPausedCampaign": {
+    "frames": 3409,
+    "activeMillis": 59978.249,
+    "averageFps": 56.84,
+    "onePercentLowFps": 35.71,
+    "pointOnePercentLowFps": 29.76,
+    "p99FrameMicros": 28000,
+    "maximumFrameMicros": 50774,
+    "framesOver33_33Millis": 12,
+    "framesOver50Millis": 1,
+    "slowFrameDominance": {
+      "nativeSwap": 10,
+      "preSwap": 2,
+      "afterSwap": 0
+    },
+    "nativeSwap": {
+      "completeCpuSplits": 3409,
+      "unavailableCpuSplits": 0,
+      "averageMicros": 1972.423,
+      "p99Micros": 17400,
+      "maximumMicros": 18178.666
+    },
+    "nativeSwapThreadCpu": {
+      "averageMicros": 285.824,
+      "p99Micros": 500,
+      "maximumMicros": 742.0
+    },
+    "nativeSwapInferredOffCpu": {
+      "averageMicros": 1686.599,
+      "p99Micros": 17100,
+      "maximumMicros": 17806.666
+    },
+    "swapDominatedSlowFrames": {
+      "frames": 10,
+      "minimumThreadCpuMicros": 305,
+      "maximumThreadCpuMicros": 372,
+      "minimumInferredOffCpuMicros": 16430,
+      "maximumInferredOffCpuMicros": 17806,
+      "averageOffCpuPercentOfSwap": 98.104,
+      "minimumOffCpuPercentOfSwap": 97.948,
+      "maximumOffCpuPercentOfSwap": 98.296
+    }
+  },
+  "hitchPackets": [
+    {
+      "sequence": 1123,
+      "durationMicros": 53726,
+      "preSwapExcludingLimiterMicros": 53120,
+      "nativeSwapMicros": 366,
+      "swapThreadCpuMicros": 283,
+      "swapInferredOffCpuMicros": 83,
+      "messageMicros": 236,
+      "postWindowComplete": true
+    },
+    {
+      "sequence": 3682,
+      "durationMicros": 50774,
+      "preSwapExcludingLimiterMicros": 39050,
+      "nativeSwapMicros": 889,
+      "swapThreadCpuMicros": 742,
+      "swapInferredOffCpuMicros": 147,
+      "messageMicros": 772,
+      "postWindowComplete": true
+    }
+  ],
+  "measurementOverhead": {
+    "boundaryHookSamples": 6276,
+    "boundaryHookAverageMicros": 13.949,
+    "boundaryHookMaximumMicros": 9455.042,
+    "boundaryHookScope": "presentation, limiter, and thread-CPU clock hooks excluded",
+    "threadCpuClockScope": "calibrated separately above"
+  },
+  "adapterHealth": {
+    "status": "ACTIVE",
+    "registryTargets": 77,
+    "exactMatches": 65,
+    "transformationsApplied": 65,
+    "sourceBindingRejected": 0,
+    "unavailablePlans": 0,
+    "transformationsDeclined": 0,
+    "containedFailures": 0,
+    "cacheRejectionSignals": 0,
+    "wrapperFailureSignals": 0,
+    "runtimeIntegrityFailures": 0,
+    "failOpenPolicy": true,
+    "killSwitchActive": false
+  },
+  "lifecycle": {
+    "outcome": "COMPLETED",
+    "exitCode": 0,
+    "fatalDetected": false,
+    "controllerStopRequested": true,
+    "postprocessingFailures": 0
+  },
+  "rawEvidenceSha256": {
+    "runtime-frame-report.json": "0d6e1fa54350945a8c3a2df78270d64bd7879dbbc39d8c5a883e52a48cf0abfc",
+    "adapter.json": "5be3b7e75b8116d5b16acb0ddecb75a92527c08ae7919e13dfff25af1a2b127d",
+    "adapter-health.json": "f2068bb78ada700f297a55ad37d6aca2a0f2a012440a6100357bcb1daf5c8e56",
+    "run.json": "836920301a0e2e0326592faefedb267bcc2ead5a5aa45e81014534f610af9570",
+    "profile.json": "0961dfc3252f7a87519084a30da73b9692b587cb5e4897302b0b1b025a63f97b",
+    "smoke-evidence.json": "df269de98aee57f971bac1d94a72fa3bce96aa8b4f8e8e0f11aeefe39e884e8a",
+    "driver-result.json": "de9f0d10bf76de42d1efeaed130db67fa8f3d518f887dee95476fc74e728c6d1"
+  }
+}

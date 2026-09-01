@@ -72,8 +72,9 @@ this final platform claim.
 
 ## 5. Bind performance and hosted evidence to the package
 
-Run the normal-versus-Preflight startup pair with the engine extracted from the accepted package
-bytes. The harness verifies packaged identity metadata and refuses checkout fallback in candidate
+Run the paired startup benchmark through Preflight, first with reviewed optimizations off and then
+on, using the engine extracted from the accepted package bytes. The harness verifies packaged
+identity metadata and refuses checkout fallback in candidate
 mode. Retain the hosted package lifecycle, singleton/reacquisition/update receipts and the exact-tag
 production report-canary receipt against the same generation.
 
@@ -116,6 +117,13 @@ regressions, simulation and combat coverage, save/reload, frame-time reporting, 
 platform/display paths. Each claim should carry the evidence scope that supports it. Research,
 routine dependency updates, and post-RC hardening stay outside the frozen candidate unless #652
 records a concrete candidate failure or explicit maintainer decision that changes release priority.
+
+Starsector already renders its own instantaneous FPS counter. Rather than injecting a second
+overlay, Preflight now offers the complementary opt-in **Frame pacing** session result: recurring
+stutter burden and slow-frame frequency, with average FPS, one-percent low, and p95/p99 frame time
+as context. Complete settled reports separate paused and unpaused active windows. The product
+boundary and implementation are recorded in
+[the FPS counter audit](evidence/2026-08-26-fps-counter-product-audit.md).
 
 ## Historical roadmap
 
