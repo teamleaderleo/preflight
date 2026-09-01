@@ -145,10 +145,8 @@ function Measure-OneRun(
                     Where-Object { $_ }) -join ' ').Trim()
             }
             if ($WindowsUnpaddedMaxDimension -gt 0) {
-                $unpaddedOptions = @(
-                    '-Dpreflight.padding.unpadded=true',
+                $unpaddedOptions = '-Dpreflight.padding.unpadded=true ' +
                     "-Dpreflight.padding.maxUnpaddedDimension=$WindowsUnpaddedMaxDimension"
-                )
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS, $unpaddedOptions |
                     Where-Object { $_ }) -join ' ').Trim()
             }
