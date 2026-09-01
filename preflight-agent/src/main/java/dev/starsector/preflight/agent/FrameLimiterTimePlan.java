@@ -20,6 +20,8 @@ final class FrameLimiterTimePlan {
     static final String TARGET_CLASS = "com/fs/starfarer/BaseGameState";
     static final String ORIGINAL_SHA256 =
             "cc5ef1d187dae1ca1017f6d40dae8576b88603a28a8d1c008e2d2aa2516c7c4d";
+    static final String WINDOWS_ORIGINAL_SHA256 =
+            "9d27ab6cd709831ee0ccab96117eb89ecfc58208a1c09f1a0a11701e27673847";
     static final String METHOD = "traverse";
     static final String DESCRIPTOR = "()Ljava/lang/String;";
 
@@ -35,7 +37,8 @@ final class FrameLimiterTimePlan {
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
         if (!FrameTimeRuntime.enabled()
                 || !TARGET_CLASS.equals(signature.internalName())
-                || !ORIGINAL_SHA256.equals(signature.sha256())
+                || (!ORIGINAL_SHA256.equals(signature.sha256())
+                        && !WINDOWS_ORIGINAL_SHA256.equals(signature.sha256()))
                 || signature.majorVersion() != Opcodes.V17
                 || !signature.hasMethod(METHOD, DESCRIPTOR)) {
             return null;

@@ -17,15 +17,22 @@ final class CombatRuntimeIntegrityPlan {
     static final String TARGET_CLASS = "com/fs/starfarer/combat/CombatEngine";
     static final String ORIGINAL_SHA256 =
             "17c1d7f1347d177d6fc36f560e903d50d9df5f1f945e5da9590f83e4fbac17f4";
+    static final String WINDOWS_ORIGINAL_SHA256 =
+            "99d41de911cd74c975791ce171e372d1b6ac642582699191cef4b22cb6d7275e";
     static final String ADVANCE_METHOD = "advance";
     static final String ADVANCE_DESCRIPTOR = "(FLcom/fs/starfarer/util/super/B;)V";
+    static final String WINDOWS_ADVANCE_DESCRIPTOR = "(FLcom/fs/starfarer/util/A/new;)V";
     static final String COMBAT_STATE_CLASS = "com/fs/starfarer/combat/CombatState";
     static final String COMBAT_STATE_SHA256 =
             "f1f815e07dd8acacc97455d8584eb1b89c1564ab469f48420fca0b5aeecbe372";
+    static final String WINDOWS_COMBAT_STATE_SHA256 =
+            "0c4db2f19c3ae61a0df0fdbdaa8b2018a6e88fd84f2ceb7b6d409f8a0f3f00a3";
     static final String TRAVERSE_METHOD = "traverse";
     static final String TRAVERSE_DESCRIPTOR = "()Ljava/lang/String;";
     private static final String INPUT_FACTORY = "com/fs/starfarer/util/super/A";
     private static final String INPUT_BATCH = "com/fs/starfarer/util/super/B";
+    private static final String WINDOWS_INPUT_FACTORY = "com/fs/starfarer/util/A/A";
+    private static final String WINDOWS_INPUT_BATCH = "com/fs/starfarer/util/A/new";
 
     private static final String INTEGRITY_RUNTIME =
             "dev/starsector/preflight/agent/CombatRuntimeIntegrityRuntime";
@@ -43,16 +50,17 @@ final class CombatRuntimeIntegrityPlan {
         if (COMBAT_STATE_CLASS.equals(signature.internalName())) {
             return transformCombatState(signature, originalBytes);
         }
+        String advanceDescriptor = advanceDescriptor(signature.sha256());
         if (!TARGET_CLASS.equals(signature.internalName())
-                || !ORIGINAL_SHA256.equals(signature.sha256())
+                || advanceDescriptor == null
                 || signature.majorVersion() != 61
-                || !signature.hasMethod(ADVANCE_METHOD, ADVANCE_DESCRIPTOR)) {
+                || !signature.hasMethod(ADVANCE_METHOD, advanceDescriptor)) {
             return null;
         }
 
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
-        MethodNode advance = unique(owner, ADVANCE_METHOD, ADVANCE_DESCRIPTOR);
+        MethodNode advance = unique(owner, ADVANCE_METHOD, advanceDescriptor);
         if (advance == null
                 || (advance.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0
                 || advance.instructions.getFirst() == null
@@ -127,8 +135,11 @@ final class CombatRuntimeIntegrityPlan {
     }
 
     private static byte[] transformCombatState(ClassSignature signature, byte[] originalBytes) {
+        boolean windows = WINDOWS_COMBAT_STATE_SHA256.equals(signature.sha256());
+        String inputFactory = windows ? WINDOWS_INPUT_FACTORY : INPUT_FACTORY;
+        String inputBatch = windows ? WINDOWS_INPUT_BATCH : INPUT_BATCH;
         if (!InternalGameControlRuntime.enabled()
-                || !COMBAT_STATE_SHA256.equals(signature.sha256())
+                || (!COMBAT_STATE_SHA256.equals(signature.sha256()) && !windows)
                 || signature.majorVersion() != 61
                 || !signature.hasMethod(TRAVERSE_METHOD, TRAVERSE_DESCRIPTOR)) {
             return null;
@@ -147,9 +158,9 @@ final class CombatRuntimeIntegrityPlan {
         for (AbstractInsnNode instruction : traverse.instructions.toArray()) {
             if (!(instruction instanceof MethodInsnNode call)
                     || call.getOpcode() != Opcodes.INVOKESTATIC
-                    || !INPUT_FACTORY.equals(call.owner)
+                    || !inputFactory.equals(call.owner)
                     || !"Object".equals(call.name)
-                    || !("()L" + INPUT_BATCH + ";").equals(call.desc)) continue;
+                    || !("()L" + inputBatch + ";").equals(call.desc)) continue;
             AbstractInsnNode next = nextReal(instruction);
             if (next != null && next.getOpcode() == Opcodes.ASTORE) {
                 insertion = next;
@@ -170,6 +181,12 @@ final class CombatRuntimeIntegrityPlan {
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         return writer.toByteArray();
+    }
+
+    static String advanceDescriptor(String classSha256) {
+        if (WINDOWS_ORIGINAL_SHA256.equals(classSha256)) return WINDOWS_ADVANCE_DESCRIPTOR;
+        if (ORIGINAL_SHA256.equals(classSha256)) return ADVANCE_DESCRIPTOR;
+        return null;
     }
 
     private static AbstractInsnNode nextReal(AbstractInsnNode instruction) {

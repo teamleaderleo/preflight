@@ -906,7 +906,18 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-campaign-frame-limiter-time-0.98a-rc8");
+    }
+
+    static AdapterTarget windowsFrameLimiterTimeTarget() {
+        return windowsCoreTarget(
+                "vanilla-campaign-frame-limiter-time-windows-0.98a-rc8",
+                FrameLimiterTimePlan.TARGET_CLASS,
+                FrameLimiterTimePlan.WINDOWS_ORIGINAL_SHA256,
+                FrameLimiterTimePlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        FrameLimiterTimePlan.METHOD, FrameLimiterTimePlan.DESCRIPTOR)),
+                "vanilla-campaign-frame-limiter-time-0.98a-rc8");
     }
 
     /** Minimal end-of-startup marker for frame-time pilots that deliberately avoid JFR. */
@@ -1153,6 +1164,18 @@ final class AdapterTargetRegistry {
                 "app").withAlternativeGroup("vanilla-campaign-frame-time-segment-0.98a-rc8");
     }
 
+    static AdapterTarget windowsCampaignFrameTimeStateTarget() {
+        return windowsCoreTarget(
+                "vanilla-campaign-frame-time-windows-segment-0.98a-rc8",
+                FrameTimeStatePlan.CAMPAIGN_CLASS,
+                FrameTimeStatePlan.WINDOWS_CAMPAIGN_SHA256,
+                FrameTimeStatePlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        FrameTimeStatePlan.ADVANCE_METHOD,
+                        FrameTimeStatePlan.WINDOWS_ADVANCE_DESCRIPTOR)),
+                "vanilla-campaign-frame-time-segment-0.98a-rc8");
+    }
+
     /** Exact vanilla combat loop used for one-shot runtime integrity and opt-in frame segments. */
     static AdapterTarget combatRuntimeIntegrityTarget() {
         return new AdapterTarget(
@@ -1167,7 +1190,7 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-combat-runtime-integrity-0.98a-rc8");
     }
 
     /** Exact combat input loop used only for closed desktop-smoke input actions. */
@@ -1184,7 +1207,31 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-combat-state-input-0.98a-rc8");
+    }
+
+    static AdapterTarget windowsCombatRuntimeIntegrityTarget() {
+        return windowsCoreTarget(
+                "vanilla-combat-runtime-integrity-windows-0.98a-rc8",
+                CombatRuntimeIntegrityPlan.TARGET_CLASS,
+                CombatRuntimeIntegrityPlan.WINDOWS_ORIGINAL_SHA256,
+                CombatRuntimeIntegrityRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        CombatRuntimeIntegrityPlan.ADVANCE_METHOD,
+                        CombatRuntimeIntegrityPlan.WINDOWS_ADVANCE_DESCRIPTOR)),
+                "vanilla-combat-runtime-integrity-0.98a-rc8");
+    }
+
+    static AdapterTarget windowsCombatStateInputTarget() {
+        return windowsCoreTarget(
+                "vanilla-combat-state-input-windows-0.98a-rc8",
+                CombatRuntimeIntegrityPlan.COMBAT_STATE_CLASS,
+                CombatRuntimeIntegrityPlan.WINDOWS_COMBAT_STATE_SHA256,
+                CombatRuntimeIntegrityRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        CombatRuntimeIntegrityPlan.TRAVERSE_METHOD,
+                        CombatRuntimeIntegrityPlan.TRAVERSE_DESCRIPTOR)),
+                "vanilla-combat-state-input-0.98a-rc8");
     }
 
     /** Exact vanilla collision-grid query that builds a temporary insertion-ordered candidate set. */
@@ -2523,8 +2570,10 @@ final class AdapterTargetRegistry {
         return withTarget(frameTimeTarget())
                 .withTarget(linuxFrameTimeTarget())
                 .withTarget(frameLimiterTimeTarget())
+                .withTarget(windowsFrameLimiterTimeTarget())
                 .withTarget(campaignFrameTimeStateTarget())
-                .withTarget(linuxCampaignFrameTimeStateTarget());
+                .withTarget(linuxCampaignFrameTimeStateTarget())
+                .withTarget(windowsCampaignFrameTimeStateTarget());
     }
 
     AdapterTargetRegistry withDynamicParticleGroupProbeTarget() {
@@ -2848,6 +2897,8 @@ final class AdapterTargetRegistry {
                 .withTarget(macMemoryWarningTarget())
                 .withTarget(combatRuntimeIntegrityTarget())
                 .withTarget(combatStateInputTarget())
+                .withTarget(windowsCombatRuntimeIntegrityTarget())
+                .withTarget(windowsCombatStateInputTarget())
                 .withTarget(collisionQuerySetTarget());
         if (!AudioStreamSourceErrorRuntime.disabled()) {
             registry = registry.withTarget(audioStreamSourceErrorTarget());
