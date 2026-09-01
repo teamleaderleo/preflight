@@ -1,13 +1,16 @@
 package dev.starsector.preflight.cli;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -39,6 +42,16 @@ final class WindowsDesktopSmokeDriverTest {
     }
 
     @Test
+    void resolvesTheInstalledWindowsCoreLog() throws Exception {
+        Path install = temporaryDirectory.resolve("game");
+        Path log = install.resolve("starsector-core/starsector.log");
+        Files.createDirectories(log.getParent());
+        Files.writeString(log, "current");
+
+        assertEquals(log, WindowsDesktopSmokeDriver.resolveGameLog(install));
+    }
+
+    @Test
     void clickAndHeldInputStayInsideTheExactPidScriptAndReleaseTheKey() throws Exception {
         FakeCommands commands = new FakeCommands();
         WindowsDesktopSmokeDriver driver = new WindowsDesktopSmokeDriver(
@@ -47,6 +60,7 @@ final class WindowsDesktopSmokeDriverTest {
         Instant startedAt = current.info().startInstant().orElseThrow();
         driver.attach(new DesktopSmokeDriver.ProcessTarget(current.pid(), startedAt));
 
+        driver.observe();
         driver.execute(Map.of(
                 "kind", "click",
                 "target", "main-menu.continue"), temporaryDirectory);
@@ -65,6 +79,12 @@ final class WindowsDesktopSmokeDriverTest {
                 script.contains("keybd_event(87,0,2")));
         assertTrue(commands.scripts().stream().allMatch(script ->
                 !script.toLowerCase(Locale.ROOT).contains("starsector")));
+        assertTrue(commands.commands().stream().allMatch(command ->
+                command.contains("-EncodedCommand") && !command.contains("-Command")));
+        assertTrue(commands.scripts().stream().allMatch(script ->
+                script.contains("[DllImport(\"user32.dll\")]")));
+        assertTrue(commands.scripts().stream().anyMatch(script ->
+                script.contains("[Console]::Out.Write((\"PID " + current.pid())));
     }
 
     @Test
@@ -114,7 +134,15 @@ final class WindowsDesktopSmokeDriverTest {
         }
 
         private List<String> scripts() {
-            return commands.stream().map(command -> command.get(command.size() - 1)).toList();
+            return commands.stream()
+                    .map(command -> new String(
+                            Base64.getDecoder().decode(command.get(command.size() - 1)),
+                            java.nio.charset.StandardCharsets.UTF_16LE))
+                    .toList();
+        }
+
+        private List<List<String>> commands() {
+            return List.copyOf(commands);
         }
     }
 }

@@ -23,10 +23,14 @@ final class FrameTimeStatePlan {
             "bdd3e9801c6bd8ae216fc40510d7f9f33fa16a540426cd137ca85dc640163372";
     static final String LINUX_CAMPAIGN_SHA256 =
             "fed3c68c8fed0d948d1c4464b7bfa549cda6b3f7e0cfb3df74967037656403d5";
+    static final String WINDOWS_CAMPAIGN_SHA256 =
+            "3823d61bdc91484248c5aecf58fff7726d38e498bccf9884eca1a53b668be431";
     static final String ADVANCE_METHOD = "advance";
     static final String ADVANCE_DESCRIPTOR = "(FLcom/fs/starfarer/util/super/B;)V";
+    static final String WINDOWS_ADVANCE_DESCRIPTOR = "(FLcom/fs/starfarer/util/A/new;)V";
     static final String PROCESS_INPUT_METHOD = "processInput";
     static final String PROCESS_INPUT_DESCRIPTOR = "(Lcom/fs/starfarer/util/super/B;F)V";
+    static final String WINDOWS_PROCESS_INPUT_DESCRIPTOR = "(Lcom/fs/starfarer/util/A/new;F)V";
     static final String ENGINE_FIELD = "engine";
     static final String ENGINE_DESCRIPTOR = "Lcom/fs/starfarer/campaign/CampaignEngine;";
 
@@ -44,19 +48,21 @@ final class FrameTimeStatePlan {
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
         String observer = "observeCampaign";
+        String advanceDescriptor = advanceDescriptor(signature.sha256());
+        String processInputDescriptor = processInputDescriptor(signature.sha256());
         if ((!FrameTimeRuntime.enabled() && !RuntimeSemanticState.enabled())
                 || !CAMPAIGN_CLASS.equals(signature.internalName())
-                || (!CAMPAIGN_SHA256.equals(signature.sha256())
-                        && !LINUX_CAMPAIGN_SHA256.equals(signature.sha256()))
+                || advanceDescriptor == null
+                || processInputDescriptor == null
                 || signature.majorVersion() != 61
-                || !signature.hasMethod(ADVANCE_METHOD, ADVANCE_DESCRIPTOR)) {
+                || !signature.hasMethod(ADVANCE_METHOD, advanceDescriptor)) {
             return null;
         }
 
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
-        MethodNode advance = unique(owner, ADVANCE_METHOD, ADVANCE_DESCRIPTOR);
-        MethodNode processInput = unique(owner, PROCESS_INPUT_METHOD, PROCESS_INPUT_DESCRIPTOR);
+        MethodNode advance = unique(owner, ADVANCE_METHOD, advanceDescriptor);
+        MethodNode processInput = unique(owner, PROCESS_INPUT_METHOD, processInputDescriptor);
         if (advance == null
                 || processInput == null
                 || (advance.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0
@@ -111,6 +117,22 @@ final class FrameTimeStatePlan {
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         return writer.toByteArray();
+    }
+
+    static String advanceDescriptor(String classSha256) {
+        if (WINDOWS_CAMPAIGN_SHA256.equals(classSha256)) return WINDOWS_ADVANCE_DESCRIPTOR;
+        if (CAMPAIGN_SHA256.equals(classSha256) || LINUX_CAMPAIGN_SHA256.equals(classSha256)) {
+            return ADVANCE_DESCRIPTOR;
+        }
+        return null;
+    }
+
+    static String processInputDescriptor(String classSha256) {
+        if (WINDOWS_CAMPAIGN_SHA256.equals(classSha256)) return WINDOWS_PROCESS_INPUT_DESCRIPTOR;
+        if (CAMPAIGN_SHA256.equals(classSha256) || LINUX_CAMPAIGN_SHA256.equals(classSha256)) {
+            return PROCESS_INPUT_DESCRIPTOR;
+        }
+        return null;
     }
 
     private static MethodNode unique(ClassNode owner, String name, String descriptor) {

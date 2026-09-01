@@ -11,6 +11,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -107,8 +108,8 @@ final class WindowsDesktopSmokeDriver implements DesktopSmokeDriver {
         requireSameLifetime(attached);
         return new Observation(command(windowScript(attached.pid(), """
                 $foreground = [PreflightNative]::GetForegroundWindow()
-                [Console]::Out.Write("PID %d window {0},{1},{2},{3} frontmost={4}" -f `
-                    $rect.Left,$rect.Top,($rect.Right-$rect.Left),($rect.Bottom-$rect.Top),($foreground -eq $hwnd))
+                [Console]::Out.Write(("PID %d window {0},{1},{2},{3} frontmost={4}" -f `
+                    $rect.Left,$rect.Top,($rect.Right-$rect.Left),($rect.Bottom-$rect.Top),($foreground -eq $hwnd)))
                 """.formatted(attached.pid()))).output().trim());
     }
 
@@ -294,13 +295,22 @@ final class WindowsDesktopSmokeDriver implements DesktopSmokeDriver {
         if (!(install instanceof String value) || value.isBlank()) {
             throw new UnavailableException("run.json doesn't identify the Starsector installation");
         }
-        Path source = Path.of(value).toAbsolutePath().normalize().resolve("logs/starsector.log");
-        if (!Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) {
+        Path source = resolveGameLog(Path.of(value).toAbsolutePath().normalize());
+        if (source == null) {
             throw new UnavailableException("The current Starsector log is unavailable");
         }
         Path destination = runDirectory.resolve("desktop-smoke-log-tail.txt");
         copyTail(source, destination, LOG_TAIL_BYTES);
         return new Artifact("log-tail", destination);
+    }
+
+    static Path resolveGameLog(Path installRoot) {
+        for (String relative : List.of(
+                "starsector-core/starsector.log", "starsector.log", "logs/starsector.log")) {
+            Path candidate = installRoot.resolve(relative).normalize();
+            if (Files.isRegularFile(candidate, LinkOption.NOFOLLOW_LINKS)) return candidate;
+        }
+        return null;
     }
 
     private static Artifact snapshotArtifact(
@@ -362,7 +372,9 @@ final class WindowsDesktopSmokeDriver implements DesktopSmokeDriver {
         try {
             result = commands.run(List.of(
                     powerShell, "-NoLogo", "-NoProfile", "-NonInteractive",
-                    "-ExecutionPolicy", "Bypass", "-Command", script), COMMAND_TIMEOUT);
+                    "-ExecutionPolicy", "Bypass", "-EncodedCommand",
+                    Base64.getEncoder().encodeToString(script.getBytes(StandardCharsets.UTF_16LE))),
+                    COMMAND_TIMEOUT);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             throw interrupted;

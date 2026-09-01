@@ -3,6 +3,7 @@ package dev.starsector.preflight.agent;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -55,7 +56,14 @@ class CombatRuntimeIntegrityInstalledAdapterIT {
             }
         }
         ClassSignature signature = ClassSignature.parse(original);
-        assertEquals(CombatRuntimeIntegrityPlan.COMBAT_STATE_SHA256, signature.sha256());
+        assertTrue(CombatRuntimeIntegrityPlan.COMBAT_STATE_SHA256.equals(signature.sha256())
+                        || CombatRuntimeIntegrityPlan.WINDOWS_COMBAT_STATE_SHA256.equals(
+                                signature.sha256()),
+                signature.sha256());
+        if (CombatRuntimeIntegrityPlan.WINDOWS_COMBAT_STATE_SHA256.equals(signature.sha256())) {
+            assertTrue(AdapterTargetRegistry.windowsCombatStateInputTarget()
+                    .match(signature, windowsSource(archive)).exact());
+        }
         System.setProperty("preflight.desktopSmoke", "true");
         RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
         InternalGameControlRuntime.beginSession(temporaryDirectory.resolve("adapter.json"));
@@ -90,13 +98,21 @@ class CombatRuntimeIntegrityInstalledAdapterIT {
             }
         }
         ClassSignature signature = ClassSignature.parse(original);
-        assertEquals(CombatRuntimeIntegrityPlan.ORIGINAL_SHA256, signature.sha256());
+        assertTrue(CombatRuntimeIntegrityPlan.ORIGINAL_SHA256.equals(signature.sha256())
+                        || CombatRuntimeIntegrityPlan.WINDOWS_ORIGINAL_SHA256.equals(
+                                signature.sha256()),
+                signature.sha256());
+        if (CombatRuntimeIntegrityPlan.WINDOWS_ORIGINAL_SHA256.equals(signature.sha256())) {
+            assertTrue(AdapterTargetRegistry.windowsCombatRuntimeIntegrityTarget()
+                    .match(signature, windowsSource(archive)).exact());
+        }
+        String advanceDescriptor = CombatRuntimeIntegrityPlan.advanceDescriptor(signature.sha256());
         byte[] transformed = CombatRuntimeIntegrityPlan.transform(signature, original);
         assertNotNull(transformed);
         assertNull(CombatRuntimeIntegrityPlan.transform(
                 ClassSignature.parse(transformed), transformed));
 
-        MethodNode method = method(read(transformed));
+        MethodNode method = method(read(transformed), advanceDescriptor);
         assertEquals(1, calls(method,
                 CombatRuntimeIntegrityRuntime.class.getName().replace('.', '/'), "observe"));
         assertEquals(1, calls(method,
@@ -109,10 +125,10 @@ class CombatRuntimeIntegrityInstalledAdapterIT {
         return owner;
     }
 
-    private static MethodNode method(ClassNode owner) {
+    private static MethodNode method(ClassNode owner, String descriptor) {
         return owner.methods.stream()
                 .filter(candidate -> CombatRuntimeIntegrityPlan.ADVANCE_METHOD.equals(candidate.name)
-                        && CombatRuntimeIntegrityPlan.ADVANCE_DESCRIPTOR.equals(candidate.desc))
+                        && descriptor.equals(candidate.desc))
                 .findFirst().orElseThrow();
     }
 
@@ -123,5 +139,16 @@ class CombatRuntimeIntegrityInstalledAdapterIT {
                     && owner.equals(call.owner) && name.equals(call.name)) result++;
         }
         return result;
+    }
+
+    private static AdapterSourceIdentity windowsSource(Path archive) {
+        return new AdapterSourceIdentity(
+                archive.toUri().toString(),
+                "C:/Games/Starsector/starsector-core/starfarer_obf.jar",
+                "STARSECTOR_CORE",
+                "5dd222b9e266d2ac2d63b3dad4983eb05caaf5a247d7dfb82aaeba47ea774cc8",
+                "",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
     }
 }
