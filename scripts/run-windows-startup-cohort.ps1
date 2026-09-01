@@ -9,6 +9,7 @@ param(
     [ValidateRange(0, 600)]
     [int]$CooldownSeconds = 20,
     [int]$Seed = 449,
+    [string]$Resolution,
     [ValidateSet('starsector', 'preflight', 'fast-rendering', 'preflight-fast-rendering')]
     [string[]]$Conditions = @('starsector', 'preflight', 'fast-rendering', 'preflight-fast-rendering')
 )
@@ -79,7 +80,8 @@ function Measure-OneRun(
     [string]$Java,
     [string]$VanillaLauncher,
     [string]$FastRenderingLauncher,
-    [string]$GameLog
+    [string]$GameLog,
+    [string]$DirectResolution
 ) {
     New-Item -ItemType Directory -Path $RunDirectory -Force | Out-Null
     if (Test-Path -LiteralPath $GameLog) {
@@ -93,7 +95,7 @@ function Measure-OneRun(
     $usesFastRendering = $Condition -in @('fast-rendering', 'preflight-fast-rendering')
     $launcher = if ($usesFastRendering) { $FastRenderingLauncher } else { $VanillaLauncher }
     $startedAt = Get-Date
-    $directLaunchOptions = '-DlaunchDirect=true -DstartRes=1920x1080 -DstartFS=false -DstartSound=true'
+    $directLaunchOptions = "-DlaunchDirect=true -DstartRes=$DirectResolution -DstartFS=false -DstartSound=true"
     $savedPrivateJavaOptions = $env:_JAVA_OPTIONS
     $env:_JAVA_OPTIONS = (($savedPrivateJavaOptions, $directLaunchOptions | Where-Object { $_ }) -join ' ').Trim()
     try {
@@ -128,7 +130,7 @@ function Measure-OneRun(
     }
 
     $deadline = (Get-Date).AddMinutes(15)
-    $ready = $false
+    $graphicsPreloadObserved = $false
     $log = ''
     $fastRenderingObserved = $false
     $gameJvmObserved = $false
@@ -136,7 +138,7 @@ function Measure-OneRun(
     do {
         Start-Sleep -Seconds 2
         $log = Read-GameLog $GameLog
-        $ready = $log -match 'VRAM after unload/preload:'
+        $graphicsPreloadObserved = $log -match 'VRAM after unload/preload:'
         $running = Get-GameProcesses $Game
         $gameJvmObserved = $gameJvmObserved -or (@($running | Where-Object {
             $_.Name -in @('java.exe', 'javaw.exe', 'starsector.exe')
@@ -149,7 +151,7 @@ function Measure-OneRun(
         $process.Refresh()
         $launcherFailed = $process.HasExited -and -not $gameJvmObserved -and
             ((Get-Date) - $startedAt).TotalSeconds -ge 30
-    } while (-not $ready -and -not $launcherFailed -and (Get-Date) -lt $deadline)
+    } while (-not $graphicsPreloadObserved -and -not $launcherFailed -and (Get-Date) -lt $deadline)
 
     $startMatch = [regex]::Match(
         $log,
@@ -160,6 +162,14 @@ function Measure-OneRun(
         [long]$readyMatch.Groups[1].Value - [long]$startMatch.Groups[1].Value
     } else { $null }
 
+    if ($usesPreflight -and $graphicsPreloadObserved) {
+        $adapterDeadline = (Get-Date).AddSeconds(20)
+        $adapterPath = Join-Path $RunDirectory 'adapter.json'
+        while (-not (Test-Path -LiteralPath $adapterPath -PathType Leaf) -and
+                (Get-Date) -lt $adapterDeadline -and (Get-GameProcesses $Game).Count -gt 0) {
+            Start-Sleep -Seconds 2
+        }
+    }
     $gracefulShutdown = Stop-GameProcesses $Game
     $adapterPath = Join-Path $RunDirectory 'adapter.json'
     $adapter = if (Test-Path -LiteralPath $adapterPath) {
@@ -182,7 +192,7 @@ function Measure-OneRun(
         $adapter.transformerInstalled -and
         $runtimeOwner -eq $expectedOwner
     }
-    $accepted = $ready -and $elapsedMs -ne $null -and $gracefulShutdown
+    $accepted = $graphicsPreloadObserved -and $elapsedMs -ne $null -and $gracefulShutdown
     if ($usesPreflight) { $accepted = $accepted -and $adapterHealthy }
     if ($usesFastRendering) { $accepted = $accepted -and $fastRenderingObserved }
 
@@ -195,8 +205,8 @@ function Measure-OneRun(
         accepted = [bool]$accepted
         startedAt = $startedAt.ToString('o')
         finishedAt = (Get-Date).ToString('o')
-        gameLogStartToMainMenuMs = $elapsedMs
-        ready = [bool]$ready
+        gameLogStartToGraphicsPreloadMs = $elapsedMs
+        graphicsPreloadObserved = [bool]$graphicsPreloadObserved
         gameJvmObserved = [bool]$gameJvmObserved
         launcherFailed = [bool]$launcherFailed
         launcherExitCode = if ($process.HasExited) { $process.ExitCode } else { $null }
@@ -226,6 +236,18 @@ function Get-Median([double[]]$Values) {
 $explorer = Get-Process explorer -ErrorAction SilentlyContinue | Where-Object { $_.SessionId -gt 0 }
 if (-not $explorer) {
     throw 'interactive-session-required: sign in to the Windows VM before running a GUI benchmark'
+}
+Add-Type -AssemblyName System.Windows.Forms
+$primaryScreen = [System.Windows.Forms.Screen]::PrimaryScreen
+if (-not $primaryScreen) { throw 'primary-display-required: Windows reported no primary screen' }
+$displayBounds = $primaryScreen.Bounds
+$workingArea = $primaryScreen.WorkingArea
+if ([string]::IsNullOrWhiteSpace($Resolution)) {
+    $Resolution = '{0}x{1}' -f $workingArea.Width, $workingArea.Height
+}
+if ($Resolution -notmatch '^(?<width>[1-9]\d*)x(?<height>[1-9]\d*)$' -or
+        [int]$Matches.width -lt 800 -or [int]$Matches.height -lt 600) {
+    throw "Resolution must be WIDTHxHEIGHT and at least 800x600: $Resolution"
 }
 if (-not (Test-Path -LiteralPath $Game -PathType Container)) { throw "Game directory is missing: $Game" }
 if (-not (Test-Path -LiteralPath $PreflightJar -PathType Leaf)) { throw "Preflight JAR is missing: $PreflightJar" }
@@ -278,7 +300,7 @@ if (@($Conditions | Where-Object { $_ -match 'preflight' }).Count -gt 0) {
 
 $enabledMods = Join-Path $Game 'mods\enabled_mods.json'
 $identity = [ordered]@{
-    version = 1
+    version = 2
     startedAt = (Get-Date).ToString('o')
     os = [System.Environment]::OSVersion.VersionString
     machine = $env:COMPUTERNAME
@@ -304,7 +326,16 @@ $identity = [ordered]@{
     cooldownSeconds = $CooldownSeconds
     seed = $Seed
     conditions = $Conditions
-    directLaunchOptions = '-DlaunchDirect=true -DstartRes=1920x1080 -DstartFS=false -DstartSound=true'
+    displayBounds = [ordered]@{
+        width = $displayBounds.Width
+        height = $displayBounds.Height
+    }
+    displayWorkingArea = [ordered]@{
+        width = $workingArea.Width
+        height = $workingArea.Height
+    }
+    resolutionSource = if ($PSBoundParameters.ContainsKey('Resolution')) { 'explicit' } else { 'primary-display-working-area' }
+    directLaunchOptions = "-DlaunchDirect=true -DstartRes=$Resolution -DstartFS=false -DstartSound=true"
     preparationPerformed = $preparationPerformed
     preparationExitCode = $prepareExitCode
 }
@@ -326,10 +357,10 @@ foreach ($entry in $schedule) {
     $runNumber++
     $runDirectory = Join-Path $sessionDirectory ('{0:D2}-{1}-r{2}' -f $runNumber, $entry.condition, $entry.iteration)
     Write-Host ("[{0}/{1}] {2} iteration {3}" -f $runNumber, $schedule.Count, $entry.condition, $entry.iteration)
-    $result = Measure-OneRun $entry.condition $entry.iteration $runDirectory $java $vanillaLauncher $fastRenderingLauncher $gameLog
+    $result = Measure-OneRun $entry.condition $entry.iteration $runDirectory $java $vanillaLauncher $fastRenderingLauncher $gameLog $Resolution
     $results.Add($result)
     $result | ConvertTo-Json -Compress | Add-Content -LiteralPath (Join-Path $sessionDirectory 'results.jsonl') -Encoding UTF8
-    $result | Format-List condition, iteration, accepted, gameLogStartToMainMenuMs, gracefulShutdown, fastRenderingObserved, adapterHealthy, runtimeOwner
+    $result | Format-List condition, iteration, accepted, gameLogStartToGraphicsPreloadMs, gracefulShutdown, fastRenderingObserved, adapterHealthy, runtimeOwner
     if ($CooldownSeconds -gt 0 -and $runNumber -lt $schedule.Count) { Start-Sleep -Seconds $CooldownSeconds }
 }
 
@@ -337,7 +368,7 @@ $conditionSummaries = [ordered]@{}
 foreach ($condition in $Conditions) {
     $matching = @($results | Where-Object { $_.condition -eq $condition })
     $accepted = @($matching | Where-Object accepted)
-    $seconds = @($accepted | ForEach-Object { [double]$_.gameLogStartToMainMenuMs / 1000.0 })
+    $seconds = @($accepted | ForEach-Object { [double]$_.gameLogStartToGraphicsPreloadMs / 1000.0 })
     $conditionSummaries[$condition] = [ordered]@{
         acceptedRuns = $accepted.Count
         totalRuns = $matching.Count

@@ -24,8 +24,12 @@ It launches once, reads the game's exact main-menu marker, prints the time, and 
 On an interactive Windows test host, `run-windows-startup-cohort.ps1` runs a shuffled repeated
 2x2 startup cohort: Starsector, Starsector plus Preflight, Fast Rendering, and Fast Rendering plus
 Preflight. It requires Fast Rendering to be installed when either renderer condition is selected,
-refuses a locked/non-interactive VM, keeps the exact start-marker-to-graphics-preload clock, and
-retains launcher/content hashes, adapter ownership/health, renderer process proof, and per-run logs.
+refuses a locked/non-interactive VM, sizes the game to the primary display's working area by default,
+keeps the exact start-marker-to-graphics-preload clock, and retains display geometry,
+launcher/content hashes, adapter ownership/health, renderer process proof, and per-run logs. Pass
+`-Resolution WIDTHxHEIGHT` only when a fixture needs an explicit override. The graphics-preload
+clock is not labelled time-to-play; renderer conditions still need their own comparable interactive
+readiness evidence.
 
 ## Launch the game and find out where the time went
 
