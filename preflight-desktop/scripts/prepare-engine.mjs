@@ -17,6 +17,7 @@ import { spawnSync } from "node:child_process";
 import { runtimeInventory, verifyEngineBoundary } from "./engine-boundary.mjs";
 import { engineInputIdentity } from "./engine-input-identity.mjs";
 import { writeCapabilityReceipt } from "./capability-receipt.mjs";
+import { mavenInvocation } from "./maven-command.mjs";
 
 const desktopDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = resolve(desktopDirectory, "..");
@@ -163,12 +164,8 @@ function runQuiet(command, args, cwd) {
 }
 
 function runMaven(args) {
-  if (process.platform === "win32") {
-    const commandInterpreter = process.env.ComSpec ?? "cmd.exe";
-    run(commandInterpreter, ["/d", "/s", "/c", "mvn.cmd", ...args], repositoryRoot);
-  } else {
-    run("mvn", args, repositoryRoot);
-  }
+  const invocation = mavenInvocation({ repositoryRoot });
+  run(invocation.command, [...invocation.argsPrefix, ...args], repositoryRoot);
 }
 
 function detectModules(jdeps) {
