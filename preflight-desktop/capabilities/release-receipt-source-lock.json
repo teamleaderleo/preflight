@@ -13,7 +13,7 @@
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/PreflightHome.java": "32bd3cb14080f145ba2eec5d0570718d7c93f9e50c9e07f7cc58ae740b5f1c1a",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/ProfileCommand.java": "25c04ef8a33904f2e859de0d9f983a383d096b4ba4b46c5dcac1a608946787f5",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/RunCommand.java": "c1ee4c10c3793dc384355347b8e723b0289a3f5dd476f48e089759fcdd243957",
-    "preflight-cli/src/main/java/dev/starsector/preflight/cli/RuntimeProcessIdentity.java": "5043135473179ce1964d6ec597cf9996c2cf553376c46a7acb170921951fe069",
+    "preflight-cli/src/main/java/dev/starsector/preflight/cli/RuntimeProcessIdentity.java": "801f9f9b535be307a8d04fe0547f629ec67a7745b41a7ac86786942f06cf74e8",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/StopCommand.java": "40b7e4696ebe0968066dfa7812da0de2e5998e48464593b3be1e15ca9f7887e5",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/UninstallCommand.java": "5ea2d7f7f448d12cf6f2700429c4b9d6619f163f05f58ec845ce64e57a57c560",
     "preflight-desktop/src-tauri/capabilities/default.json": "672c31fd87a1d3b116c4becdb059048605caa57978c5060a5cc2d5c28f352d13",
