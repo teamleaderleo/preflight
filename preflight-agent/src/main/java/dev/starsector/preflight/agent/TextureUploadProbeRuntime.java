@@ -1,0 +1,150 @@
+package dev.starsector.preflight.agent;
+
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/** Bounded discovery telemetry for the exact stock texture-upload calls. */
+public final class TextureUploadProbeRuntime {
+    public static final String ENABLED_PROPERTY = "preflight.texture.uploadProbe";
+
+    private static final int MAX_SLOW_UPLOADS = 32;
+    private static final long FIFTY_MILLIS = 50_000_000L;
+    private static final long HUNDRED_MILLIS = 100_000_000L;
+    private static final List<Upload> SLOW_UPLOADS = new ArrayList<>(MAX_SLOW_UPLOADS);
+
+    private static int installedCallSites;
+    private static long calls;
+    private static long imageCalls;
+    private static long subImageCalls;
+    private static long totalBytes;
+    private static long totalNanos;
+    private static long maximumNanos;
+    private static long over50Millis;
+    private static long over100Millis;
+
+    private TextureUploadProbeRuntime() {
+    }
+
+    static boolean enabled() {
+        return Boolean.getBoolean(ENABLED_PROPERTY);
+    }
+
+    static synchronized void installed(int callSites) {
+        installedCallSites = callSites;
+    }
+
+    /** Called immediately before the native GL invocation. */
+    public static long begin() {
+        return System.nanoTime();
+    }
+
+    /** Called immediately after the native GL invocation. */
+    public static synchronized void finish(
+            long startedNanos,
+            int width,
+            int height,
+            int format,
+            int type,
+            ByteBuffer pixels,
+            String logicalPath,
+            boolean subImage) {
+        long elapsed = Math.max(0L, System.nanoTime() - startedNanos);
+        int bytes = pixels == null ? 0 : Math.max(0, pixels.remaining());
+        calls++;
+        if (subImage) {
+            subImageCalls++;
+        } else {
+            imageCalls++;
+        }
+        totalBytes += bytes;
+        totalNanos += elapsed;
+        maximumNanos = Math.max(maximumNanos, elapsed);
+        if (elapsed >= FIFTY_MILLIS) over50Millis++;
+        if (elapsed >= HUNDRED_MILLIS) over100Millis++;
+        retain(new Upload(
+                elapsed,
+                Math.max(0, width),
+                Math.max(0, height),
+                format,
+                type,
+                bytes,
+                logicalPath == null || logicalPath.isBlank() ? "<unknown>" : logicalPath,
+                subImage));
+    }
+
+    static synchronized Map<String, Object> telemetry() {
+        List<Upload> ordered = new ArrayList<>(SLOW_UPLOADS);
+        ordered.sort(Comparator.comparingLong(Upload::durationNanos).reversed());
+        List<Map<String, Object>> slowest = new ArrayList<>(ordered.size());
+        for (Upload upload : ordered) {
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("logicalPath", upload.logicalPath());
+            value.put("operation", upload.subImage() ? "glTexSubImage2D" : "glTexImage2D");
+            value.put("durationMillis", upload.durationNanos() / 1_000_000.0);
+            value.put("width", upload.width());
+            value.put("height", upload.height());
+            value.put("format", upload.format());
+            value.put("type", upload.type());
+            value.put("bytes", upload.bytes());
+            slowest.add(Map.copyOf(value));
+        }
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("enabled", enabled());
+        values.put("installedCallSites", installedCallSites);
+        values.put("calls", calls);
+        values.put("imageCalls", imageCalls);
+        values.put("subImageCalls", subImageCalls);
+        values.put("totalBytes", totalBytes);
+        values.put("totalMillis", totalNanos / 1_000_000.0);
+        values.put("maximumMillis", maximumNanos / 1_000_000.0);
+        values.put("over50Millis", over50Millis);
+        values.put("over100Millis", over100Millis);
+        values.put("slowest", List.copyOf(slowest));
+        return Map.copyOf(values);
+    }
+
+    static synchronized void resetForTests() {
+        installedCallSites = 0;
+        calls = 0L;
+        imageCalls = 0L;
+        subImageCalls = 0L;
+        totalBytes = 0L;
+        totalNanos = 0L;
+        maximumNanos = 0L;
+        over50Millis = 0L;
+        over100Millis = 0L;
+        SLOW_UPLOADS.clear();
+    }
+
+    private static void retain(Upload upload) {
+        if (SLOW_UPLOADS.size() < MAX_SLOW_UPLOADS) {
+            SLOW_UPLOADS.add(upload);
+            return;
+        }
+        int shortest = 0;
+        for (int index = 1; index < SLOW_UPLOADS.size(); index++) {
+            if (SLOW_UPLOADS.get(index).durationNanos()
+                    < SLOW_UPLOADS.get(shortest).durationNanos()) {
+                shortest = index;
+            }
+        }
+        if (upload.durationNanos() > SLOW_UPLOADS.get(shortest).durationNanos()) {
+            SLOW_UPLOADS.set(shortest, upload);
+        }
+    }
+
+    private record Upload(
+            long durationNanos,
+            int width,
+            int height,
+            int format,
+            int type,
+            int bytes,
+            String logicalPath,
+            boolean subImage) {
+    }
+}

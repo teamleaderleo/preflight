@@ -31,6 +31,8 @@ public final class PreparedPixelContractCheck {
 
     private static final AdapterTarget MAC_TARGET = AdapterTargetRegistry.texturePreparedPixelTarget();
     private static final AdapterTarget LINUX_TARGET = AdapterTargetRegistry.linuxTexturePreparedPixelTarget();
+    private static final AdapterTarget WINDOWS_TARGET =
+            AdapterTargetRegistry.windowsTexturePreparedPixelTarget();
     private static final long MAX_CLASS_BYTES = 32L * 1024 * 1024;
     private static final int MAX_PROBLEMS = 8;
     private static final int MAX_REASON_CHARS = 240;
@@ -183,7 +185,10 @@ public final class PreparedPixelContractCheck {
     }
 
     private static AdapterTarget targetFor(byte[] classBytes) {
-        return LINUX_TARGET.sha256().equals(Hashes.sha256(classBytes)) ? LINUX_TARGET : MAC_TARGET;
+        String sha256 = Hashes.sha256(classBytes);
+        if (LINUX_TARGET.sha256().equals(sha256)) return LINUX_TARGET;
+        if (WINDOWS_TARGET.sha256().equals(sha256)) return WINDOWS_TARGET;
+        return MAC_TARGET;
     }
 
     private static Map<String, Object> method(

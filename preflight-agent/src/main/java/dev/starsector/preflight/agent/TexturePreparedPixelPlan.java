@@ -103,6 +103,7 @@ final class TexturePreparedPixelPlan {
         owner.methods.add(convertWrapper(owner.name, convertMetadata, convertName, colors, dimensions));
         owner.methods.add(cleanupWrapper(owner.name, cleanupMetadata, cleanupName));
         uploadCallers.forEach(TexturePreparedPixelPlan::addExceptionalRelease);
+        TextureUploadProbePlan.instrument(uploadCallers);
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);

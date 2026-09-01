@@ -389,6 +389,7 @@ public final class TexturePreparedPixelRuntime {
                 ready()));
         values.putAll(LOAD_CLOCK.snapshot("load"));
         values.putAll(PREPARE_CLOCK.snapshot("prepare"));
+        values.put("uploadProbe", TextureUploadProbeRuntime.telemetry());
         return Map.copyOf(values);
     }
 

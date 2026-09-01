@@ -34,7 +34,9 @@ graphics marker while worker texture loads are still active. The identity record
 power-scheme GUID and whether Defender excludes the exact game/cache roots; non-Preflight renderer
 conditions still need their own comparable interactive-readiness evidence. Use
 `-OptimizationPreset conservative` to isolate the padded prepared-pixel path; the default remains
-the shipped `recommended` preset.
+the shipped `recommended` preset. Pass `-TextureUploadProbe` only for intrusive discovery runs: it
+times the exact reviewed stock `glTexImage2D`/`glTexSubImage2D` calls and retains bounded top
+offenders in adapter telemetry. Do not use its startup numbers as a performance claim.
 
 `run-windows-gameplay-scenario.ps1` is the reviewable interactive-session entry point for the same
 checked-in gameplay scenarios used on macOS and Linux. It defaults to the optimized Lindsey

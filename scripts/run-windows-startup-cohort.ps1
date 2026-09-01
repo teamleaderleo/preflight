@@ -12,6 +12,7 @@ param(
     [string]$Resolution,
     [ValidateSet('recommended', 'conservative')]
     [string]$OptimizationPreset = 'recommended',
+    [switch]$TextureUploadProbe,
     [ValidateSet('starsector', 'preflight', 'fast-rendering', 'preflight-fast-rendering')]
     [string[]]$Conditions = @('starsector', 'preflight', 'fast-rendering', 'preflight-fast-rendering')
 )
@@ -121,9 +122,14 @@ function Measure-OneRun(
     $startedAt = Get-Date
     $directLaunchOptions = "-DlaunchDirect=true -DstartRes=$DirectResolution -DstartFS=false -DstartSound=true"
     $savedPrivateJavaOptions = $env:_JAVA_OPTIONS
+    $savedJavaToolOptions = $env:JAVA_TOOL_OPTIONS
     $env:_JAVA_OPTIONS = (($savedPrivateJavaOptions, $directLaunchOptions | Where-Object { $_ }) -join ' ').Trim()
     try {
         if ($usesPreflight) {
+            if ($TextureUploadProbe) {
+                $env:JAVA_TOOL_OPTIONS = (($savedJavaToolOptions,
+                    '-Dpreflight.texture.uploadProbe=true' | Where-Object { $_ }) -join ' ').Trim()
+            }
             $arguments = @(
                 '-jar', $PreflightJar,
                 'run', '--game', $Game,
@@ -137,20 +143,16 @@ function Measure-OneRun(
                 -RedirectStandardOutput (Join-Path $RunDirectory 'stdout.log') `
                 -RedirectStandardError (Join-Path $RunDirectory 'stderr.log')
         } else {
-            $savedJavaToolOptions = $env:JAVA_TOOL_OPTIONS
             $env:JAVA_TOOL_OPTIONS = $null
             $commandLine = "/d /s /c call `"$launcher`""
-            try {
-                $process = Start-Process -FilePath 'cmd.exe' -ArgumentList $commandLine `
-                    -WorkingDirectory (Split-Path -Parent $launcher) -PassThru `
-                    -RedirectStandardOutput (Join-Path $RunDirectory 'stdout.log') `
-                    -RedirectStandardError (Join-Path $RunDirectory 'stderr.log')
-            } finally {
-                $env:JAVA_TOOL_OPTIONS = $savedJavaToolOptions
-            }
+            $process = Start-Process -FilePath 'cmd.exe' -ArgumentList $commandLine `
+                -WorkingDirectory (Split-Path -Parent $launcher) -PassThru `
+                -RedirectStandardOutput (Join-Path $RunDirectory 'stdout.log') `
+                -RedirectStandardError (Join-Path $RunDirectory 'stderr.log')
         }
     } finally {
         $env:_JAVA_OPTIONS = $savedPrivateJavaOptions
+        $env:JAVA_TOOL_OPTIONS = $savedJavaToolOptions
     }
 
     $deadline = (Get-Date).AddMinutes(15)
@@ -371,6 +373,7 @@ $identity = [ordered]@{
     gameDefenderExcluded = $gameDefenderExcluded
     cacheDefenderExcluded = $cacheDefenderExcluded
     galliumDriver = $env:GALLIUM_DRIVER
+    textureUploadProbe = [bool]$TextureUploadProbe
     game = $Game
     preflightJar = $PreflightJar
     preflightJarSha256 = Get-Sha256 $PreflightJar
