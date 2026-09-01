@@ -25,7 +25,7 @@ class PrepareValidationGateTest {
     Path temporaryDirectory;
 
     @Test
-    void resourceProviderChangeAfterPlanningIsRebuiltUnderThePreparationLease() throws Exception {
+    void resourceProviderChangeAfterLeaseAcquisitionIsIncludedInTheOwnedPlan() throws Exception {
         Path install = fixture("planning-race");
         Path cache = temporaryDirectory.resolve("planning-race-cache");
         Path report = temporaryDirectory.resolve("planning-race-report.json");

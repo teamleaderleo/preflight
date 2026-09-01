@@ -58,42 +58,14 @@ final class PrepareCommand {
         ResourceIndexBuilder.BuildResult plannedResourceBuild = null;
         PreparationStoragePlanner.Plan storagePlan = null;
         if (options.textures() && options.resourceIndex()) {
-            emitProgress("storage-plan", "started", null, null, Map.of());
-            System.err.println("prepare: storage-plan started");
-            plannedResourceBuild = ResourceIndexBuilder.build(target.installRoot());
-            List<String> selectedTextures = options.textureScope().selectedLogicalPaths(
-                    cache, plannedResourceBuild.index().profileFingerprint());
-            storagePlan = PreparationStoragePlanner.plan(
-                    plannedResourceBuild.index(), cache, options.textureStorage(), options.workers(),
-                    selectedTextures);
-            System.err.printf(
-                    Locale.ROOT,
-                    "prepare: storage-plan completed safe=%s required=%d retained=%d usable=%d durationMs=%.3f%n",
-                    storagePlan.safeToPrepare(),
-                    storagePlan.requiredFreeBytes(),
-                    storagePlan.predictedRetainedTextureBytes(),
-                    storagePlan.usableBytes(),
-                    storagePlan.durationNanos() / 1_000_000.0);
-            emitProgress(
-                    "storage-plan",
-                    "completed",
-                    storagePlan.safeToPrepare() ? "SUCCESS" : "FAILED",
-                    storagePlan.durationNanos(),
-                    Map.of(
-                            "requiredFreeBytes", storagePlan.requiredFreeBytes(),
-                            "predictedRetainedTextureBytes", storagePlan.predictedRetainedTextureBytes(),
-                            "usableBytes", storagePlan.usableBytes()));
             if (options.plan()) {
+                PlannedResources planned = planResources(options, target, cache);
                 if (options.json()) {
-                    System.out.println(Json.object(storagePlan.toMap()));
+                    System.out.println(Json.object(planned.storagePlan().toMap()));
                 } else {
-                    printStoragePlan(storagePlan);
+                    printStoragePlan(planned.storagePlan());
                 }
                 return 0;
-            }
-            if (!storagePlan.safeToPrepare()) {
-                System.err.println("Preflight refused preparation: " + storagePlan.refusalReason());
-                return 6;
             }
         } else if (options.plan()) {
             throw new IllegalArgumentException("--plan requires resource-index and texture preparation");
@@ -107,29 +79,49 @@ final class PrepareCommand {
         }
         try (OperationLease ignored = ownership.lease()) {
             PreparationFaultInjection.afterLeaseAcquired();
-            if (plannedResourceBuild != null) {
-                plannedResourceBuild = ResourceIndexBuilder.build(target.installRoot());
-                List<String> selectedTextures = options.textureScope().selectedLogicalPaths(
-                        cache, plannedResourceBuild.index().profileFingerprint());
-                storagePlan = PreparationStoragePlanner.plan(
-                        plannedResourceBuild.index(), cache, options.textureStorage(), options.workers(),
-                        selectedTextures);
-                System.err.printf(
-                        Locale.ROOT,
-                        "prepare: storage-plan revalidated under ownership safe=%s required=%d retained=%d usable=%d durationMs=%.3f%n",
-                        storagePlan.safeToPrepare(),
-                        storagePlan.requiredFreeBytes(),
-                        storagePlan.predictedRetainedTextureBytes(),
-                        storagePlan.usableBytes(),
-                        storagePlan.durationNanos() / 1_000_000.0);
+            if (options.textures() && options.resourceIndex()) {
+                PlannedResources planned = planResources(options, target, cache);
+                plannedResourceBuild = planned.resourceBuild();
+                storagePlan = planned.storagePlan();
                 if (!storagePlan.safeToPrepare()) {
-                    System.err.println("Preflight refused preparation after ownership recheck: "
+                    System.err.println("Preflight refused preparation: "
                             + storagePlan.refusalReason());
                     return 6;
                 }
             }
             return prepareOwned(options, target, cache, plannedResourceBuild, storagePlan);
         }
+    }
+
+    private static PlannedResources planResources(
+            Options options,
+            LaunchTarget target,
+            Path cache) throws Exception {
+        emitProgress("storage-plan", "started", null, null, Map.of());
+        System.err.println("prepare: storage-plan started");
+        ResourceIndexBuilder.BuildResult resourceBuild = ResourceIndexBuilder.build(target.installRoot());
+        List<String> selectedTextures = options.textureScope().selectedLogicalPaths(
+                cache, resourceBuild.index().profileFingerprint());
+        PreparationStoragePlanner.Plan storagePlan = PreparationStoragePlanner.plan(
+                resourceBuild.index(), cache, options.textureStorage(), options.workers(), selectedTextures);
+        System.err.printf(
+                Locale.ROOT,
+                "prepare: storage-plan completed safe=%s required=%d retained=%d usable=%d durationMs=%.3f%n",
+                storagePlan.safeToPrepare(),
+                storagePlan.requiredFreeBytes(),
+                storagePlan.predictedRetainedTextureBytes(),
+                storagePlan.usableBytes(),
+                storagePlan.durationNanos() / 1_000_000.0);
+        emitProgress(
+                "storage-plan",
+                "completed",
+                storagePlan.safeToPrepare() ? "SUCCESS" : "FAILED",
+                storagePlan.durationNanos(),
+                Map.of(
+                        "requiredFreeBytes", storagePlan.requiredFreeBytes(),
+                        "predictedRetainedTextureBytes", storagePlan.predictedRetainedTextureBytes(),
+                        "usableBytes", storagePlan.usableBytes()));
+        return new PlannedResources(resourceBuild, storagePlan);
     }
 
     private static int prepareOwned(
@@ -841,6 +833,11 @@ final class PrepareCommand {
     @FunctionalInterface
     private interface StageOperation {
         Stage run() throws Exception;
+    }
+
+    private record PlannedResources(
+            ResourceIndexBuilder.BuildResult resourceBuild,
+            PreparationStoragePlanner.Plan storagePlan) {
     }
 
     private record ClasspathStageResult(
