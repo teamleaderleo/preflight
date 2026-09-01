@@ -1,7 +1,7 @@
-# Windows VM startup tuning — scheduling fixed, serialized texture loading remains
+# Windows VM startup tuning — worker preparation closes much of the standalone gap
 
 Date: 2026-09-01 (host) / 2026-09-02 (Windows guest)  
-Status: accepted exploratory A-B-A plus same-semantics native confirmation; not a repeated release claim
+Status: accepted exploratory attribution and successor experiments; not a repeated release claim
 
 ## Answer first
 
@@ -33,6 +33,15 @@ both Preflight-backed conditions wait for the exact interactive title boundary. 
 112.455 seconds to graphics preload and 125.255 seconds to the interactive menu. Preflight plus Fast
 Rendering took 37.002 and 49.551 seconds respectively. On the same time-to-play boundary, the
 combined route was 60.4% faster, or 2.53 times quicker.
+
+The first large standalone successor is now retained on `main`. Instead of removing Starsector's
+Windows prefetch queue, `d4799fc1` keeps that exact queue and decoder fallback but lets its worker
+resolve prepared pixels before the main thread needs them. Two healthy runs reached the interactive
+menu in 69.640 and 66.741 seconds: a 68.191-second median, 45.6% faster than the 125.255-second
+standalone reference. All 15,003 worker requests were prepared hits in both runs; zero used the
+original decoder, zero fell back, and zero buffers remained live at shutdown. This is exploratory
+rather than an interleaved release claim, and it still trails Preflight plus Fast Rendering's 49.551
+seconds by 18.640 seconds.
 
 ## Exact A-B-A
 
@@ -127,9 +136,8 @@ the probe is intrusive.
 
 This is a meaningful cumulative tax, not one giant-texture explanation. Even assigning the entire
 27.768 seconds to removable upload work would not explain the full gap between standalone Preflight
-and the 49.551-second Preflight-plus-Fast-Rendering result. The next comparison must measure the
-same counters with the diagnostic Windows bypass enabled: that distinguishes native upload time
-from prepared-buffer construction, lost prefetch overlap, and other serialized loader work.
+and the 49.551-second Preflight-plus-Fast-Rendering result. The successor comparisons below measure
+the prepared path without presenting this intrusive run's startup duration as a performance claim.
 
 The first such bypass-plus-probe attempt improved the historical graphics marker to 85.984 seconds,
 but still failed the actual product boundary: no exact ready or interactive signal appeared before
@@ -165,6 +173,68 @@ bypassing exact prepared immutable resources. It has an explicit telemetry count
 behind the Windows diagnostic gate until a same-probe run reaches the semantic menu and restores a
 comparable texture workload.
 
+## Comparable padded bypass and worker successor
+
+The apparent bypass workload explosion was partly a preset confound: the safe attribution used
+Recommended while the rejected bypass used Conservative. Recommended keeps several additional
+startup transforms active. The corrected Recommended-plus-padded bypass restored a comparable
+texture workload:
+
+- 15,493 uploads versus the stock probe's 15,483 (0.06% difference);
+- 3,066,849,264 upload bytes versus 3,064,515,568 (0.08% difference);
+- 19.085 seconds in native GL versus 27.768 seconds in the intrusive stock run;
+- 15,489 prepared hits, three exact `entry-missing` fallbacks, zero contained failures, and no live
+  buffers at shutdown.
+
+That intrusive candidate reached the interactive menu in 70.986 seconds, but its timing remains
+excluded. Two thin repetitions took 97.335 and 87.677 seconds, a 92.506-second median. The corrected
+bypass was therefore a real improvement over the 125.255-second standalone reference, but moving
+prepared work onto the main thread still left substantial serialization and variance.
+
+The worker successor in `d4799fc1` keeps Starsector's exact `com/fs/graphics/L` image queue. It
+deduplicates prepared enqueues, resolves prepared carriers on that worker, and falls directly
+through to the original decoder on every miss. The exact class/source/method identities are pinned;
+the probe is opt-in and the original path remains the default.
+
+| Run | Graphics preload | Interactive menu | Prepared hits | Worker prepared hits | Original decodes | Fallbacks/errors |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| worker 1 | 55.517 s | 69.640 s | 15,470 | 15,003 | 0 | 0 / 0 |
+| worker 2 | 51.834 s | 66.741 s | 15,485 | 15,003 | 0 | 0 / 0 |
+
+Both runs recorded 35,877 duplicate enqueue declines, no original enqueues, no pending or active
+buffers at shutdown, and graceful exact-menu completion. Their prepared-store work was also stable:
+15.130 and 14.000 seconds inside load calls, and 1.546 and 1.499 seconds inside buffer preparation.
+The 15-hit difference is about 0.1% and does not indicate materially different startup evolution.
+
+This is the retained standalone direction. It removes a large portion of the Windows gap without
+borrowing Fast Rendering, but it is not enabled as an ordinary preset until visual/menu sanity and
+an interleaved cohort settle the exact seam.
+
+## Rejected bounded true-size NPOT follow-up
+
+The worker runs still supplied about 3.066 billion bytes to GL, including about 950 million bytes of
+power-of-two padding. An earlier all-size true-dimension run appeared to stall on a 1735x1014 texture, so
+`4c686cd6` added an opt-in dimension ceiling: true-size NPOT uploads at or below the ceiling, original
+padded uploads above it. This is a diagnostic property, not a preset.
+
+The 1024-pixel ceiling completed correctly but was a decisive performance rejection:
+
+| Metric | Padded worker reference | 1024px true-size candidate |
+| --- | ---: | ---: |
+| interactive menu | 68.191 s median | 248.119 s |
+| upload bytes supplied | about 3.066 billion | 2,222,874,685 bytes |
+| padding avoided | 0 | 842,971,059 bytes |
+| time inside prepared loads | 14.000-15.130 s | 94.653 s |
+| worker prepared hits | 15,003 | 15,003 |
+| original decodes / fallbacks / errors | 0 / 0 / 0 | 0 / 0 / 0 |
+
+The candidate served 11,453 textures unpadded and retained padding for 24 larger textures. It
+reached the exact menu, shut down gracefully, applied 27 transformations from 28 exact matches with
+one bounded decline, and left no buffers live. In other words, the regression is not a workload or
+correctness failure: llvmpipe's true-size NPOT path consumes enough CPU to starve the preparation
+worker even though it uploads 843 MiB fewer bytes. Renderer capability is not a performance signal.
+Keep llvmpipe on padded uploads.
+
 ## Tuned VM identity
 
 - Big Red: Intel Core Ultra 7 255H, 30 GiB RAM, NVMe storage.
@@ -193,6 +263,7 @@ map of observed behavior, not one controlled leaderboard.
 | Linux Preflight, current-main confirmation | 23.206 s | game log -> main menu |
 | Tuned Windows Preflight + Fast Rendering | 37.002 s | game log -> graphics preload |
 | Tuned Windows Preflight + Fast Rendering | 49.551 s | process start -> interactive menu |
+| Tuned Windows Preflight worker successor | 68.191 s median | process start -> interactive menu |
 | Tuned Windows Preflight | 112.455 s | game log -> graphics preload |
 | Tuned Windows Preflight | 125.255 s | process start -> interactive menu |
 | Earlier Windows Preflight | about 181.313 s | accepted startup route |
@@ -229,14 +300,13 @@ was enabled and the host display was not disturbed.
 
 ## Open questions / next experiment
 
-1. Separate the renderer gate from the operating-system gate. Re-test the exact Windows bypass on a
-   native GPU before enabling it for Windows generally; keep llvmpipe on the original queue.
-2. Inspect the exact installed Fast Rendering texture-loader bytecode outside the repository and
-   determine whether a fail-closed prepared-byte bridge can feed its worker loader without changing
-   ordering, GL ownership, fallback, or shutdown semantics.
-3. If that seam is unsafe, treat Fast Rendering as the supported parallel texture owner and focus
-   stock work on the 100+ seconds between prepared-pixel calls rather than further optimizing the
-   sub-two-second Preflight bridge.
+1. Inspect Fast Rendering's exact installed concurrency and GL-ownership seam. The remaining
+   worker-successor gap is 18.640 seconds; do not assume it is pixel decoding or padding.
+2. Run the exact worker successor on a native-GPU Windows machine before promoting any
+   renderer-specific behavior. Keep llvmpipe padded; the bounded NPOT result rejects capability-only
+   gating.
+3. If Fast Rendering's additional concurrency cannot be reproduced safely, retain it as the
+   supported parallel texture owner rather than deferring unsettled GL work behind an early menu.
 4. Investigate Intel SR-IOV only after obtaining the exact supported Windows guest driver and a
    recovery plan; do not turn an exposed sysfs capability into a product-performance claim.
 
@@ -273,4 +343,12 @@ The incomplete bypass-plus-probe attempt and live thread dump are retained under
 
 ```text
 /home/leo/Windows-Share/Diagnostics/20260902-windows-prefetch-bypass-upload-attribution
+```
+
+The comparable padded bypass, worker successor, and bounded-NPOT rejection are retained at:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260902-windows-recommended-padded-bypass-candidate
+/home/leo/Windows-Share/Diagnostics/20260902-windows-prepared-prefetch-worker
+/home/leo/Windows-Share/Diagnostics/20260902-windows-bounded-unpadded
 ```
