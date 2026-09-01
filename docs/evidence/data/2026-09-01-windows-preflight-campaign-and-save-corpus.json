@@ -1,0 +1,89 @@
+{
+  "format": "starsector-preflight-windows-campaign-save-corpus-v1",
+  "capturedAt": "2026-09-01",
+  "windowsCampaignSmoke": {
+    "runDirectory": "C:\\Users\\Leo\\Documents\\Starsector Preflight Runs\\20260901-232300-preflight-live-scaled",
+    "runtime": {
+      "pid": 4032,
+      "startedAt": "2026-09-01T15:23:30.450Z",
+      "owner": "STARSECTOR"
+    },
+    "display": {
+      "desktop": "1024x768",
+      "workingArea": "1024x720",
+      "game": "1024x720",
+      "fullscreen": false
+    },
+    "adapter": {
+      "mode": "ENABLED",
+      "killSwitchActive": false,
+      "transformerInstalled": true,
+      "transformationsApplied": 22
+    },
+    "result": {
+      "gameplayObserved": "campaign loaded and autosaved",
+      "semanticState": "main-menu-ready",
+      "mainMenuInteractiveObserved": false,
+      "campaignFramesClassified": 0,
+      "closure": "window closed, exact game and launcher PIDs required bounded force-stop",
+      "automationAccepted": false
+    },
+    "mixedLlvmpipeFrames": {
+      "claimEligible": false,
+      "reason": "startup, menu, and campaign remained in one unclassified llvmpipe population",
+      "frames": 12181,
+      "medianFrameMs": 52.4,
+      "p95FrameMs": 96.6,
+      "p99FrameMs": 208.8,
+      "onePercentLowFps": 4.79
+    },
+    "screenshot": {
+      "bigRedPath": "/home/leo/Windows-Share/Diagnostics/20260901-windows-preflight-campaign/campaign.png",
+      "sha256": "afca1675a78cfdf8986e59ed2fb227320b0c723e5fff5445c2a7cbe66ff058da"
+    },
+    "lindseyLoad": {
+      "runDirectory": "C:\\Users\\Leo\\Documents\\Starsector Preflight Runs\\20260901-155000-preflight-lindsey",
+      "pid": 1052,
+      "startedAt": "2026-09-01T15:51:31.710Z",
+      "save": "save_LindseyEulalia_1276093397646055078",
+      "result": "loaded into the paused campaign",
+      "semanticState": "main-menu-ready",
+      "campaignFramesClassified": 0,
+      "exactDecline": "Windows starfarer_obf.jar code-source suffix did not match the macOS-pinned contents/resources/java/starfarer_obf.jar suffix",
+      "screenshot": {
+        "bigRedPath": "/home/leo/Windows-Share/Diagnostics/20260901-windows-preflight-campaign/lindsey-campaign.png",
+        "sha256": "f5677d25f3f44e1820dd7364ca5e165e221b29a77e17e0e973ba0ecc1328c849"
+      }
+    }
+  },
+  "saveCorpus": {
+    "platformNeutralization": "replace the exact platform mod-root prefix with <MODROOT>/ before SHA-256",
+    "modRootOccurrencesPerActiveFile": 83,
+    "windowsRelocation": {
+      "filesChanged": 6,
+      "pathsChanged": 498,
+      "backup": "C:\\Users\\leo\\.starsector-preflight\\save-relocation-backups\\20260901-154505-140-75db20ff",
+      "continueSave": "./saves/save_LindseyEulalia_1276093397646055078",
+      "continuePreferenceBackup": "C:\\Users\\leo\\.starsector-preflight\\save-relocation-backups\\20260901-154602-593-4b4c4470"
+    },
+    "linuxRelocation": {
+      "status": "unchanged",
+      "continueStatus": "current",
+      "continueSave": "./saves/save_LindseyEulalia_1276093397646055078"
+    },
+    "saves": [
+      {
+        "name": "save_LindseyEulalia_1276093397646055078",
+        "purpose": "current campaign, paused/unpaused, and generated combat-fixture anchor",
+        "descriptorNormalizedSha256": "9a1fc9311ae878605aeb68f1309b0127f4501298228909bd9fa1d5784e5a9938",
+        "campaignNormalizedSha256": "4fe97624d2e507bbe87ec514929dbc4ff70591868f0125a7d7095d7b19845837"
+      },
+      {
+        "name": "save_LindseyEulalia_7487418333814238931",
+        "purpose": "historical 42.7 MB save-load and lookup evidence anchor",
+        "descriptorNormalizedSha256": "dbb456f5ed473f0ed83ea34ac976e078a77ac575a1ddba2667ff24c2e8b9c505",
+        "campaignNormalizedSha256": "f0bba2edb026dfb227cd12655e6ecd8bd2611f8d7690688021028d531247a218"
+      }
+    ]
+  }
+}
