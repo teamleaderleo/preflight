@@ -392,7 +392,10 @@ final class DesktopSmokeLaunch {
             ProcessHandle process, DesktopSmokeDriver.ProcessTarget target) {
         return process.isAlive()
                 && process.pid() == target.pid()
-                && process.info().startInstant().map(target.startedAt()::equals).orElse(false);
+                && process.info().startInstant()
+                        .map(startedAt -> RuntimeProcessIdentity.sameStartInstant(
+                                Platform.current(), target.startedAt(), startedAt))
+                        .orElse(false);
     }
 
     private static void waitForExit(

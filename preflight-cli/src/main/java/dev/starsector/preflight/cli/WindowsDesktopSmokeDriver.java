@@ -390,7 +390,8 @@ final class WindowsDesktopSmokeDriver implements DesktopSmokeDriver {
         return ProcessHandle.of(expected.pid())
                 .filter(ProcessHandle::isAlive)
                 .flatMap(process -> process.info().startInstant())
-                .map(expected.startedAt()::equals)
+                .map(startedAt -> RuntimeProcessIdentity.sameStartInstant(
+                        Platform.WINDOWS, expected.startedAt(), startedAt))
                 .orElse(false);
     }
 
