@@ -84,6 +84,13 @@ final class RunCommand {
         LinuxStartupGcPolicy.Resolution linuxStartupGcPolicy =
                 LinuxStartupGcPolicy.resolve(
                         platform, target, options.optimizationPreset(), System.getenv());
+        PreparedTextureUploadPolicy.Resolution textureUploadPolicy =
+                PreparedTextureUploadPolicy.resolve(
+                        platform,
+                        options.optimizationPreset(),
+                        options.npotDirect(),
+                        options.unpadded(),
+                        System.getenv());
         LaunchOwnership ownership = LaunchOwnership.detect(target);
         // The complete-map replay remains a reviewed macOS-only seam. Linux shares the Janino
         // class bytes but not the source-loader/resource-discovery semantics, so even selecting
@@ -148,9 +155,9 @@ final class RunCommand {
                         : TextureAdapterMode.COMPATIBILITY)
                 .exhaustiveFileReads(options.exhaustiveFileReads())
                 .recordingMode(options.recordingMode())
-                .npotDirect(options.npotDirect()
+                .npotDirect(textureUploadPolicy.npotDirect()
                         && (textureContext == null || textureContext.preparedTextures()))
-                .unpadded(options.unpadded()
+                .unpadded(textureUploadPolicy.unpadded()
                         && (textureContext == null || textureContext.preparedTextures()))
                 .singleChunkRecording(options.singleChunkRecording())
                 .campaignEntityIndex(options.campaignEntityIndex())
@@ -244,6 +251,7 @@ final class RunCommand {
                     combatJvmSafeguard,
                     macRosettaGcPolicy,
                     linuxStartupGcPolicy,
+                    textureUploadPolicy,
                     javaOptions);
             return new Execution(0, textureContext);
         }
@@ -285,7 +293,7 @@ final class RunCommand {
                     metadata, target, command, runIdentity, launchId, started, null, null, null, null, outcome, null,
                     null, options, directSettings, textureContext, adapterReport, adapterAnalysis, console, null,
                     postprocessingFailures, null, combatJvmSafeguard, macRosettaGcPolicy,
-                    linuxStartupGcPolicy);
+                    linuxStartupGcPolicy, textureUploadPolicy);
 
             ProcessBuilder builder = new ProcessBuilder(command);
             builder.directory(target.workingDirectory().toFile());
@@ -419,7 +427,8 @@ final class RunCommand {
                         lifecycleEvidence, collectCensus(census, postprocessingFailures),
                         options, directSettings, textureContext, adapterReport, adapterAnalysis,
                         console, childOutput, postprocessingFailures, executionFailure,
-                    combatJvmSafeguard, macRosettaGcPolicy, linuxStartupGcPolicy);
+                    combatJvmSafeguard, macRosettaGcPolicy, linuxStartupGcPolicy,
+                    textureUploadPolicy);
             } catch (IOException error) {
                 System.err.println("Preflight could not finalize run metadata: " + message(error));
             }
@@ -646,6 +655,7 @@ final class RunCommand {
             CombatJvmSafeguard.Resolution combatJvmSafeguard,
             MacRosettaGcPolicy.Resolution macRosettaGcPolicy,
             LinuxStartupGcPolicy.Resolution linuxStartupGcPolicy,
+            PreparedTextureUploadPolicy.Resolution textureUploadPolicy,
             String javaOptions) {
         System.out.println("Preflight selected:");
         System.out.println("  install:  " + target.installRoot());
@@ -688,6 +698,10 @@ final class RunCommand {
         System.out.println("  Linux startup collector: "
                 + (linuxStartupGcPolicy.active() ? "G1 active: " : "launcher default: ")
                 + linuxStartupGcPolicy.reason());
+        System.out.println("  prepared texture upload layout: npotDirect="
+                + textureUploadPolicy.npotDirect()
+                + " unpadded=" + textureUploadPolicy.unpadded()
+                + " — " + textureUploadPolicy.reason());
         System.out.println("  quiet logs: " + (options.quietLogs()
                 ? QuietLogConfiguration.path(runDirectory)
                 : "off"));
@@ -839,7 +853,8 @@ final class RunCommand {
             String executionFailure,
             CombatJvmSafeguard.Resolution combatJvmSafeguard,
             MacRosettaGcPolicy.Resolution macRosettaGcPolicy,
-            LinuxStartupGcPolicy.Resolution linuxStartupGcPolicy) throws IOException {
+            LinuxStartupGcPolicy.Resolution linuxStartupGcPolicy,
+            PreparedTextureUploadPolicy.Resolution textureUploadPolicy) throws IOException {
         Map<String, Object> values = new LinkedHashMap<>();
         ProcessHandle wrapper = ProcessHandle.current();
         values.put("launchId", launchId);
@@ -887,6 +902,7 @@ final class RunCommand {
         values.put("combatJvmSafeguard", combatJvmSafeguard.toReportValues());
         values.put("macRosettaGcPolicy", macRosettaGcPolicy.toReportValues());
         values.put("linuxStartupGcPolicy", linuxStartupGcPolicy.toReportValues());
+        values.put("preparedTextureUploadPolicy", textureUploadPolicy.toReportValues());
         values.put("quietLogs", options.quietLogs());
         values.put("fileOnlyLogs", options.fileOnlyLogs());
         values.put("assetProgressLogsSuppressed", options.suppressAssetProgressLogs());
