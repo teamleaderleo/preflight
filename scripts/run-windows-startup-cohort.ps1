@@ -10,6 +10,8 @@ param(
     [int]$CooldownSeconds = 20,
     [int]$Seed = 449,
     [string]$Resolution,
+    [ValidateSet('recommended', 'conservative')]
+    [string]$OptimizationPreset = 'recommended',
     [ValidateSet('starsector', 'preflight', 'fast-rendering', 'preflight-fast-rendering')]
     [string[]]$Conditions = @('starsector', 'preflight', 'fast-rendering', 'preflight-fast-rendering')
 )
@@ -128,7 +130,7 @@ function Measure-OneRun(
                 '--launcher', $launcher,
                 '--trace-dir', $RunDirectory,
                 '--texture-cache-dir', $Cache,
-                '--no-scan', '--fast', '--no-record'
+                '--no-scan', '--optimization-preset', $OptimizationPreset, '--no-record'
             )
             $process = Start-Process -FilePath $Java -ArgumentList (Quote-Arguments $arguments) `
                 -WorkingDirectory $Game -PassThru `
@@ -323,7 +325,8 @@ if (@($Conditions | Where-Object { $_ -match 'preflight' }).Count -gt 0) {
     $cacheCheckArguments = @(
         '-jar', $PreflightJar, 'run', '--game', $Game,
         '--launcher', $vanillaLauncher,
-        '--texture-cache-dir', $Cache, '--no-scan', '--fast', '--dry-run'
+        '--texture-cache-dir', $Cache, '--no-scan',
+        '--optimization-preset', $OptimizationPreset, '--dry-run'
     )
     & $java @cacheCheckArguments *> (Join-Path $sessionDirectory 'preflight-cache-check.log')
     $cacheIsCurrent = $LASTEXITCODE -eq 0
@@ -387,6 +390,7 @@ $identity = [ordered]@{
     cooldownSeconds = $CooldownSeconds
     seed = $Seed
     conditions = $Conditions
+    optimizationPreset = $OptimizationPreset
     displayBounds = [ordered]@{
         width = $displayBounds.Width
         height = $displayBounds.Height
