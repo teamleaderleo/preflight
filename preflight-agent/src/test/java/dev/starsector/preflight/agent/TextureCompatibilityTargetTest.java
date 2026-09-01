@@ -144,13 +144,18 @@ class TextureCompatibilityTargetTest {
     }
 
     @Test
-    void preparedWorkerProbeIsExplicitAndSupersedesTheRejectedBypassProbe() {
+    void preparedWorkerIsDefaultAndExplicitProbeSupersedesTheRejectedBypassProbe() {
         AdapterTarget worker = AdapterTargetRegistry.windowsTexturePreparedPrefetchTarget();
         AdapterTarget bypass = AdapterTargetRegistry.windowsTexturePrefetchBypassTarget();
+        List<AdapterTarget> defaults = AdapterTargetRegistry.empty()
+                .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS, false, false)
+                .targets();
         List<AdapterTarget> selected = AdapterTargetRegistry.empty()
                 .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS, true, true)
                 .targets();
 
+        assertTrue(defaults.stream().anyMatch(target -> worker.id().equals(target.id())));
+        assertFalse(defaults.stream().anyMatch(target -> bypass.id().equals(target.id())));
         assertTrue(selected.stream().anyMatch(target -> worker.id().equals(target.id())));
         assertFalse(selected.stream().anyMatch(target -> bypass.id().equals(target.id())));
     }

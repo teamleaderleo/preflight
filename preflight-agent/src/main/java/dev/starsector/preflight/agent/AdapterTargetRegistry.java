@@ -2892,13 +2892,14 @@ final class AdapterTargetRegistry {
         registry = registry
                 .withTarget(texturePrefetchBypassTarget())
                 .withTarget(linuxTexturePrefetchBypassTarget());
-        // The exact Windows shape is reviewed, tested, and diagnosed. It remains absent by default;
-        // this explicit discovery gate exists only to compare upload attribution against the safe
-        // stock queue without turning a rejected llvmpipe experiment into product behavior.
-        if (includeWindowsPreparedPrefetchProbe) {
-            registry = registry.withTarget(windowsTexturePreparedPrefetchTarget());
-        } else if (includeWindowsPrefetchBypassProbe) {
+        // Prepared Pixels keeps the exact Windows queue and its original fallback, but lets that
+        // queue's worker resolve exact prepared carriers. Two full-profile llvmpipe runs served all
+        // 15,003 prepared requests, settled every buffer, and cut time-to-menu by 45.6%; make that
+        // reviewed path the default. The old full bypass remains an explicit diagnostic override.
+        if (includeWindowsPrefetchBypassProbe && !includeWindowsPreparedPrefetchProbe) {
             registry = registry.withTarget(windowsTexturePrefetchBypassTarget());
+        } else if (mode == TextureAdapterMode.PREPARED_PIXELS) {
+            registry = registry.withTarget(windowsTexturePreparedPrefetchTarget());
         }
         registry = registry
                 .withTarget(campaignEntityIndexTarget())

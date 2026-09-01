@@ -43,6 +43,31 @@ original decoder, zero fell back, and zero buffers remained live at shutdown. Th
 rather than an interleaved release claim, and it still trails Preflight plus Fast Rendering's 49.551
 seconds by 18.640 seconds.
 
+That one-worker path is now the Prepared Pixels default on the exact pinned Windows class. The
+rejected full bypass and the multi-worker rewrite remain opt-in diagnostics, and
+`preflight.adapter.disablePlans=texture-prepared-prefetch-v1` remains the immediate kill switch.
+Mac and Linux do not match the Windows class identity and are unchanged.
+
+Adding workers to the stock queue did not close the remaining gap. The first live attempt correctly
+declined because the real class has a public byte-result consumer and a private byte decoder with
+the same descriptor; its 151.936-second menu time is therefore not a candidate measurement. After
+the matcher and its synthetic fixture were corrected, three workers completed the same 15,003
+prepared image jobs plus 4,454 byte jobs, reached a peak of three active workers, settled to zero,
+and reported no failure, fallback, or original decode. It nevertheless reached the menu in 71.644
+seconds, versus the one-worker 68.191-second median. The three-worker candidate is retained as a
+healthy rejection rather than promoted.
+
+Log alignment explains why this is not the same parallelism as Fast Rendering. In the 49.551-second
+Fast Rendering run, its `FR-Resource-Loader` worker began common per-mod CSV loads at about 3.5
+seconds while the main thread serviced render/upload work. With standalone Preflight, those same
+loads remained on `main` around 41.9-48.4 seconds. Common later landmarks were consequently about
+19.7 seconds behind: main-menu music at 54.425 versus 34.784 seconds, save-descriptor access at
+55.441 versus 35.723 seconds, and GraphicsLib preload at 57.063 versus 37.302 seconds. Preflight's
+workers already parallelize offline preparation, and the accepted Windows worker parallelizes
+prepared image resolution; neither overlaps the live spec-store/CSV phase with main-thread GL
+commit work. That live producer/consumer overlap—not another blind worker-count increase—is the
+next architectural target.
+
 ## Exact A-B-A
 
 All three runs used the same Windows 11 installation, 89-mod profile, 1024x720 windowed display,
