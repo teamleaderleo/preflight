@@ -17,6 +17,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -57,42 +58,14 @@ final class PrepareCommand {
         ResourceIndexBuilder.BuildResult plannedResourceBuild = null;
         PreparationStoragePlanner.Plan storagePlan = null;
         if (options.textures() && options.resourceIndex()) {
-            emitProgress("storage-plan", "started", null, null, Map.of());
-            System.err.println("prepare: storage-plan started");
-            plannedResourceBuild = ResourceIndexBuilder.build(target.installRoot());
-            List<String> selectedTextures = options.textureScope().selectedLogicalPaths(
-                    cache, plannedResourceBuild.index().profileFingerprint());
-            storagePlan = PreparationStoragePlanner.plan(
-                    plannedResourceBuild.index(), cache, options.textureStorage(), options.workers(),
-                    selectedTextures);
-            System.err.printf(
-                    Locale.ROOT,
-                    "prepare: storage-plan completed safe=%s required=%d retained=%d usable=%d durationMs=%.3f%n",
-                    storagePlan.safeToPrepare(),
-                    storagePlan.requiredFreeBytes(),
-                    storagePlan.predictedRetainedTextureBytes(),
-                    storagePlan.usableBytes(),
-                    storagePlan.durationNanos() / 1_000_000.0);
-            emitProgress(
-                    "storage-plan",
-                    "completed",
-                    storagePlan.safeToPrepare() ? "SUCCESS" : "FAILED",
-                    storagePlan.durationNanos(),
-                    Map.of(
-                            "requiredFreeBytes", storagePlan.requiredFreeBytes(),
-                            "predictedRetainedTextureBytes", storagePlan.predictedRetainedTextureBytes(),
-                            "usableBytes", storagePlan.usableBytes()));
             if (options.plan()) {
+                PlannedResources planned = planResources(options, target, cache);
                 if (options.json()) {
-                    System.out.println(Json.object(storagePlan.toMap()));
+                    System.out.println(Json.object(planned.storagePlan().toMap()));
                 } else {
-                    printStoragePlan(storagePlan);
+                    printStoragePlan(planned.storagePlan());
                 }
                 return 0;
-            }
-            if (!storagePlan.safeToPrepare()) {
-                System.err.println("Preflight refused preparation: " + storagePlan.refusalReason());
-                return 6;
             }
         } else if (options.plan()) {
             throw new IllegalArgumentException("--plan requires resource-index and texture preparation");
@@ -106,29 +79,49 @@ final class PrepareCommand {
         }
         try (OperationLease ignored = ownership.lease()) {
             PreparationFaultInjection.afterLeaseAcquired();
-            if (plannedResourceBuild != null) {
-                plannedResourceBuild = ResourceIndexBuilder.build(target.installRoot());
-                List<String> selectedTextures = options.textureScope().selectedLogicalPaths(
-                        cache, plannedResourceBuild.index().profileFingerprint());
-                storagePlan = PreparationStoragePlanner.plan(
-                        plannedResourceBuild.index(), cache, options.textureStorage(), options.workers(),
-                        selectedTextures);
-                System.err.printf(
-                        Locale.ROOT,
-                        "prepare: storage-plan revalidated under ownership safe=%s required=%d retained=%d usable=%d durationMs=%.3f%n",
-                        storagePlan.safeToPrepare(),
-                        storagePlan.requiredFreeBytes(),
-                        storagePlan.predictedRetainedTextureBytes(),
-                        storagePlan.usableBytes(),
-                        storagePlan.durationNanos() / 1_000_000.0);
+            if (options.textures() && options.resourceIndex()) {
+                PlannedResources planned = planResources(options, target, cache);
+                plannedResourceBuild = planned.resourceBuild();
+                storagePlan = planned.storagePlan();
                 if (!storagePlan.safeToPrepare()) {
-                    System.err.println("Preflight refused preparation after ownership recheck: "
+                    System.err.println("Preflight refused preparation: "
                             + storagePlan.refusalReason());
                     return 6;
                 }
             }
             return prepareOwned(options, target, cache, plannedResourceBuild, storagePlan);
         }
+    }
+
+    private static PlannedResources planResources(
+            Options options,
+            LaunchTarget target,
+            Path cache) throws Exception {
+        emitProgress("storage-plan", "started", null, null, Map.of());
+        System.err.println("prepare: storage-plan started");
+        ResourceIndexBuilder.BuildResult resourceBuild = ResourceIndexBuilder.build(target.installRoot());
+        List<String> selectedTextures = options.textureScope().selectedLogicalPaths(
+                cache, resourceBuild.index().profileFingerprint());
+        PreparationStoragePlanner.Plan storagePlan = PreparationStoragePlanner.plan(
+                resourceBuild.index(), cache, options.textureStorage(), options.workers(), selectedTextures);
+        System.err.printf(
+                Locale.ROOT,
+                "prepare: storage-plan completed safe=%s required=%d retained=%d usable=%d durationMs=%.3f%n",
+                storagePlan.safeToPrepare(),
+                storagePlan.requiredFreeBytes(),
+                storagePlan.predictedRetainedTextureBytes(),
+                storagePlan.usableBytes(),
+                storagePlan.durationNanos() / 1_000_000.0);
+        emitProgress(
+                "storage-plan",
+                "completed",
+                storagePlan.safeToPrepare() ? "SUCCESS" : "FAILED",
+                storagePlan.durationNanos(),
+                Map.of(
+                        "requiredFreeBytes", storagePlan.requiredFreeBytes(),
+                        "predictedRetainedTextureBytes", storagePlan.predictedRetainedTextureBytes(),
+                        "usableBytes", storagePlan.usableBytes()));
+        return new PlannedResources(resourceBuild, storagePlan);
     }
 
     private static int prepareOwned(
@@ -188,9 +181,13 @@ final class PrepareCommand {
                 if (Files.isRegularFile(output)) {
                     try {
                         ResourceIndex existing = ResourceIndexIO.read(output);
-                        ResourceIndexValidator.Result existingValidation = ResourceIndexValidator.validate(existing);
-                        if (existing.profileFingerprint().equals(selected.profileFingerprint())
-                                && existingValidation.valid()) {
+                        // The builder just walked the installed profile. Compare the checksum-backed
+                        // artifact with that fresh answer in memory, then run the one exact
+                        // on-disk validation below. Validating both copies separately doubled more
+                        // than sixty thousand containment/attribute checks on Windows.
+                        if (Arrays.equals(
+                                ResourceIndexIO.toBytes(existing),
+                                ResourceIndexIO.toBytes(selected))) {
                             selected = existing;
                             artifactHit = true;
                         }
@@ -264,8 +261,13 @@ final class PrepareCommand {
         } else {
             try {
                 long stageStarted = System.nanoTime();
-                SpecStoreProfileIdentityBuilder.Result built = SpecStoreProfileIdentityBuilder.build(
-                        target.installRoot(), resourceIndex, classpathIndex);
+                SpecStoreProfileIdentityBuilder.Result built;
+                int contentHashWorkers;
+                try (ProfileIdentityContext profile =
+                        ProfileIdentityContext.of(target.installRoot(), resourceIndex)) {
+                    contentHashWorkers = profile.contentHashWorkers();
+                    built = SpecStoreProfileIdentityBuilder.build(profile, classpathIndex);
+                }
                 SpecStoreProfileIdentity identity = built.identity();
                 Path output = SpecStoreCacheDirectories.profiles(cache)
                         .resolve(identity.identitySha256() + ".json")
@@ -288,6 +290,7 @@ final class PrepareCommand {
                 if (!artifactHit) {
                     writeAtomic(output, content);
                 }
+                artifact.put("contentHashWorkers", contentHashWorkers);
                 artifact.put("file", output);
                 artifact.put("artifactHit", artifactHit);
                 specStoreStage = Stage.success(artifact, System.nanoTime() - stageStarted);
@@ -830,6 +833,11 @@ final class PrepareCommand {
     @FunctionalInterface
     private interface StageOperation {
         Stage run() throws Exception;
+    }
+
+    private record PlannedResources(
+            ResourceIndexBuilder.BuildResult resourceBuild,
+            PreparationStoragePlanner.Plan storagePlan) {
     }
 
     private record ClasspathStageResult(

@@ -21,6 +21,12 @@ scripts/benchmark-startup.sh
 It launches once, reads the game's exact main-menu marker, prints the time, and stops the game.
 `preflight run` only launches the game. It never stops it.
 
+On an interactive Windows test host, `run-windows-startup-cohort.ps1` runs a shuffled repeated
+2x2 startup cohort: Starsector, Starsector plus Preflight, Fast Rendering, and Fast Rendering plus
+Preflight. It requires Fast Rendering to be installed when either renderer condition is selected,
+refuses a locked/non-interactive VM, keeps the exact start-marker-to-graphics-preload clock, and
+retains launcher/content hashes, adapter ownership/health, renderer process proof, and per-run logs.
+
 ## Launch the game and find out where the time went
 
 | | |

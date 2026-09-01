@@ -144,6 +144,10 @@ final class ProfileIdentityContext implements Closeable {
         return resources;
     }
 
+    int contentHashWorkers() {
+        return workers;
+    }
+
     /**
      * Resolves providers to real files, rejecting anything that escapes its root.
      *

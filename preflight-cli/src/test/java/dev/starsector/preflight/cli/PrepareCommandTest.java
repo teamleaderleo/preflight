@@ -50,6 +50,7 @@ class PrepareCommandTest {
         assertTrue(first.contains("\"resourceIndex\":{\"status\":\"SUCCESS\""), first);
         assertTrue(first.contains("\"classpathIndex\":{\"status\":\"SUCCESS\""), first);
         assertTrue(first.contains("\"specStoreIdentity\":{\"status\":\"SUCCESS\""), first);
+        assertTrue(first.contains("\"contentHashWorkers\":"), first);
         assertTrue(first.contains("\"textures\":{\"status\":\"SUCCESS\""), first);
         assertTrue(first.contains("\"lookupVerification\":{\"status\":\"SUCCESS\""), first);
         assertTrue(first.contains("\"totalMismatches\":0"), first);
