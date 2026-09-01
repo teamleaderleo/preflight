@@ -561,6 +561,11 @@ public final class FrameTimeRuntime {
             mainMenuInteractive = true;
             interactiveTransitionPending = true;
         }
+        // Some alternate launchers, including Fast Rendering, reach the reviewed interactive
+        // title boundary without returning through the stock resource-completion seam. Publish
+        // the same bounded live evidence here so a harness does not have to depend on shutdown
+        // hooks to prove that the adapter initialized and transformed the expected classes.
+        AdapterRuntime.publishSnapshot();
     }
 
     static synchronized void recordBoundary(long now) {
