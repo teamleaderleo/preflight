@@ -117,6 +117,7 @@ public final class TexturePreparedPixelRuntime {
             TELEMETRY.prefetchOriginalEnqueue();
             return true;
         }
+        TextureAccessLearningRuntime.observePrefetch(key);
         boolean first;
         synchronized (LOCK) {
             first = PREFETCH_QUEUED.add(key);

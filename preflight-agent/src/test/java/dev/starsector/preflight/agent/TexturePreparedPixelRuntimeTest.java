@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.PreparedTexture;
-import dev.starsector.preflight.core.PreparedTextureAccessOrderIO;
+import dev.starsector.preflight.core.PreparedTexturePrefetchOrderIO;
 import dev.starsector.preflight.core.PreparedTextureIO;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
@@ -47,8 +47,8 @@ class TexturePreparedPixelRuntimeTest {
         Fixture fixture = fixture();
         configure(fixture);
         String profile = TextureManifestIO.read(fixture.manifest()).profileFingerprint();
-        PreparedTextureAccessOrderIO.write(
-                PreparedTextureAccessOrderIO.path(fixture.cache(), profile),
+        PreparedTexturePrefetchOrderIO.write(
+                PreparedTexturePrefetchOrderIO.path(fixture.cache(), profile),
                 profile,
                 List.of("graphics/test.png"));
         assertTrue(TextureAccessLearningRuntime.configure(fixture.cache(), profile));

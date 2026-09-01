@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.core.PreparedTextureAccessOrderIO;
+import dev.starsector.preflight.core.PreparedTexturePrefetchOrderIO;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -76,5 +77,24 @@ class TextureAccessLearningRuntimeTest {
         assertEquals(
                 List.of("graphics/recovered.png"),
                 PreparedTextureAccessOrderIO.read(access, profile));
+    }
+
+    @Test
+    void learnsPrefetchOrderSeparatelyFromGeneralTextureAccess() throws Exception {
+        String profile = "12".repeat(32);
+        assertTrue(TextureAccessLearningRuntime.configure(temporaryDirectory, profile));
+
+        TextureAccessLearningRuntime.observe("graphics/ordinary.png");
+        TextureAccessLearningRuntime.observePrefetch("graphics/prefetch.png");
+        TextureAccessLearningRuntime.complete();
+
+        assertEquals(
+                List.of("graphics/ordinary.png"),
+                PreparedTextureAccessOrderIO.read(
+                        PreparedTextureAccessOrderIO.path(temporaryDirectory, profile), profile));
+        assertEquals(
+                List.of("graphics/prefetch.png"),
+                PreparedTexturePrefetchOrderIO.read(
+                        PreparedTexturePrefetchOrderIO.path(temporaryDirectory, profile), profile));
     }
 }
