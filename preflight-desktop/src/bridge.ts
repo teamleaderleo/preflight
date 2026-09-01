@@ -34,6 +34,18 @@ import type {
   UpdateStatus,
   WireframeHull,
   WireframeHullCatalog,
+  Checkpoint,
+  CheckpointList,
+  CheckpointListEntry,
+  CheckpointDiff,
+  CheckpointRestorePlan,
+  CheckpointMutationPlan,
+  ModDriftReport,
+  ResourceCostReport,
+  BisectSessionSnapshot,
+  BisectOffendingMod,
+  BisectStepHistoryEntry,
+  BisectState,
 } from "./types";
 
 declare global {
@@ -127,6 +139,44 @@ const previewProfiles: NamedProfile[] = [
     canActivate: true,
     missingMods: [],
     file: "~/.starsector-preflight/profiles/utilities-only.json",
+  },
+];
+
+const previewCheckpoints: CheckpointListEntry[] = [
+  {
+    name: "Cycle 214 Heavy Fleet",
+    description: "Stable capital fleet campaign with 83 mods",
+    installRoot: "/Applications/Starsector",
+    createdAt: "2026-08-10T14:30:00Z",
+    checkpointFingerprint: "cp-fingerprint-1",
+    profileFingerprint: "preview-profile",
+    modCount: 83,
+    sameInstall: true,
+    status: "MATCHED",
+    active: true,
+    canRestore: true,
+    missingMods: [],
+    hasLaunchSettings: true,
+    hasLastRunSummary: true,
+    lastRunOutcome: "SUCCESS",
+    file: "~/.starsector-preflight/checkpoints/cp1.json",
+  },
+  {
+    name: "Exploration Core",
+    description: "Light exploration fleet setup",
+    installRoot: "/Applications/Starsector",
+    createdAt: "2026-08-01T09:15:00Z",
+    checkpointFingerprint: "cp-fingerprint-2",
+    profileFingerprint: "preview-vanilla-plus",
+    modCount: 1,
+    sameInstall: true,
+    status: "DIVERGED",
+    active: false,
+    canRestore: true,
+    missingMods: [],
+    hasLaunchSettings: true,
+    hasLastRunSummary: false,
+    file: "~/.starsector-preflight/checkpoints/cp2.json",
   },
 ];
 
@@ -717,6 +767,204 @@ export async function deleteProfile(
   });
 }
 
+export async function getCheckpoints(game: string): Promise<CheckpointList> {
+  if (!isDesktopHost()) {
+    return {
+      format: "starsector-preflight-checkpoint-list-v1",
+      installRoot: game,
+      currentEnabledMods: ["nexerelin", "graphicslib", "uaf"],
+      checkpoints: previewCheckpoints,
+      diagnostics: [],
+    };
+  }
+  return invoke<CheckpointList>("get_checkpoints", { game });
+}
+
+export async function createCheckpoint(
+  game: string,
+  name: string,
+  description?: string | null,
+  fromLastRun: boolean = false,
+): Promise<Checkpoint> {
+  if (!isDesktopHost()) {
+    return {
+      format: "starsector-preflight-checkpoint-v1",
+      name,
+      description: description ?? null,
+      installRoot: game,
+      createdAt: new Date().toISOString(),
+      checkpointFingerprint: "cp-mock-" + Date.now(),
+      profileFingerprint: "preview-profile",
+      enabledMods: ["nexerelin", "graphicslib", "uaf"],
+      modSignatures: [
+        {
+          modId: "nexerelin",
+          name: "Nexerelin",
+          version: "0.11.1b",
+          contentSha256: "0".repeat(64),
+          fileCount: 420,
+          totalBytes: 18450200,
+        },
+      ],
+      launchSettings: {
+        resolution: "2560x1440",
+        fullscreen: false,
+        sound: true,
+        antialiasingSamples: 4,
+        uiScale: 1.25,
+        battleSize: 500,
+        memoryMiB: 6144,
+      },
+      lastRunSummary: {
+        outcome: "SUCCESS",
+        startupMillis: 14250,
+        durationMillis: 1820400,
+        exitCode: 0,
+        adapterStatus: "ACTIVE",
+      },
+    };
+  }
+  return invoke<Checkpoint>("create_checkpoint", {
+    game,
+    name,
+    description: description ?? null,
+    fromLastRun,
+  });
+}
+
+export async function compareCheckpoint(
+  game: string,
+  name: string,
+  targetName?: string | null,
+): Promise<CheckpointDiff> {
+  if (!isDesktopHost()) {
+    return {
+      format: "starsector-preflight-checkpoint-diff-v1",
+      checkpointName: name,
+      targetName: targetName ?? "live",
+      matched: name === "Cycle 214 Heavy Fleet",
+      status: name === "Cycle 214 Heavy Fleet" ? "MATCHED" : "DIVERGED",
+      enabledModsDiff: {
+        added: name === "Cycle 214 Heavy Fleet" ? [] : ["nexerelin", "uaf"],
+        removed: [],
+        reordered: false,
+        identical: name === "Cycle 214 Heavy Fleet",
+      },
+      modDrift: [],
+      launchSettingsDiff: null,
+      cacheStatus: {
+        checkpointProfileFingerprint: "preview-profile",
+        currentProfileFingerprint: "preview-profile",
+        hasMatchingPreparedData: true,
+        preparedDataAvailable: true,
+        rebuildRequired: false,
+      },
+      diagnostics: [],
+    };
+  }
+  return invoke<CheckpointDiff>("compare_checkpoint", {
+    game,
+    name,
+    targetName: targetName ?? null,
+  });
+}
+
+export async function restoreCheckpoint(
+  game: string,
+  name: string,
+  restoreSettings: boolean,
+  expectedCheckpoint: string | null,
+  confirmed: boolean,
+): Promise<CheckpointRestorePlan> {
+  if (!isDesktopHost()) {
+    const cp = previewCheckpoints.find((candidate) => candidate.name === name) ?? previewCheckpoints[0];
+    return {
+      format: "starsector-preflight-checkpoint-restore-v1",
+      name: cp.name,
+      installRoot: game,
+      savedInstallRoot: cp.installRoot,
+      sameInstall: true,
+      active: cp.active,
+      canRestore: true,
+      applied: confirmed,
+      enable: cp.name === "Exploration Core" ? [] : ["nexerelin", "uaf"],
+      disable: cp.name === "Exploration Core" ? ["nexerelin", "uaf"] : [],
+      missingMods: [],
+      restoreSettings,
+      restoredSettings: confirmed && restoreSettings,
+      restoredModsCount: cp.modCount,
+      sourceStateSha256: "preview-source-sha",
+      ...(confirmed
+        ? {
+            backup: "~/.starsector-preflight/profile-backups/enabled_mods.json",
+            settingsBackup: restoreSettings ? "~/.starsector-preflight/backups/settings.json" : undefined,
+          }
+        : {}),
+    };
+  }
+  return invoke<CheckpointRestorePlan>("restore_checkpoint", {
+    game,
+    name,
+    restoreSettings,
+    expectedCheckpoint,
+    confirmed,
+  });
+}
+
+export async function renameCheckpoint(
+  game: string,
+  name: string,
+  newName: string,
+  expectedCheckpoint: string | null,
+  confirmed: boolean,
+): Promise<CheckpointMutationPlan> {
+  if (!isDesktopHost()) {
+    const cp = previewCheckpoints.find((candidate) => candidate.name === name) ?? previewCheckpoints[0];
+    return {
+      format: "starsector-preflight-checkpoint-mutation-v1",
+      operation: "rename",
+      name: cp.name,
+      targetName: newName,
+      checkpointFingerprint: cp.checkpointFingerprint,
+      applied: confirmed,
+      ...(confirmed ? { backup: `~/.starsector-preflight/checkpoint-backups/renamed-${cp.name}.json` } : {}),
+    };
+  }
+  return invoke<CheckpointMutationPlan>("rename_checkpoint", {
+    game,
+    name,
+    newName,
+    expectedCheckpoint,
+    confirmed,
+  });
+}
+
+export async function deleteCheckpoint(
+  game: string,
+  name: string,
+  expectedCheckpoint: string | null,
+  confirmed: boolean,
+): Promise<CheckpointMutationPlan> {
+  if (!isDesktopHost()) {
+    const cp = previewCheckpoints.find((candidate) => candidate.name === name) ?? previewCheckpoints[0];
+    return {
+      format: "starsector-preflight-checkpoint-mutation-v1",
+      operation: "delete",
+      name: cp.name,
+      targetName: null,
+      checkpointFingerprint: cp.checkpointFingerprint,
+      applied: confirmed,
+      ...(confirmed ? { backup: `~/.starsector-preflight/checkpoint-backups/deleted-${cp.name}.json` } : {}),
+    };
+  }
+  return invoke<CheckpointMutationPlan>("delete_checkpoint", {
+    game,
+    name,
+    expectedCheckpoint,
+    confirmed,
+  });
+}
+
 export async function startPreparation(
   game: string,
   textureStorage: TextureStorage,
@@ -930,3 +1178,534 @@ export async function installUpdate(version: string): Promise<void> {
   if (!isDesktopHost()) return;
   return invoke<void>("install_update", { requestedVersion: version });
 }
+
+const previewModDriftReport: ModDriftReport = {
+  format: "starsector-preflight-mod-drift-v1",
+  installRoot: "/Applications/Starsector",
+  generatedAt: new Date().toISOString(),
+  totalActiveMods: 4,
+  cleanModsCount: 1,
+  driftedModsCount: 3,
+  diagnostics: [],
+  mods: [
+    {
+      modId: "graphicslib",
+      modName: "GraphicsLib",
+      declaredVersion: "1.9.1",
+      directoryName: "GraphicsLib",
+      severity: "PRISTINE",
+      statusSummary: "Content and JAR bytecode match reference signature",
+      currentSignature: {
+        contentSha256: "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+        modInfoSha256: "1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff",
+        totalFiles: 420,
+        totalBytes: 45_812_000,
+        bytecodeSha256: "bbbb222233334444555566667777888899990000aaaabbbbccccddddeeeeffff",
+      },
+      expectedSignature: {
+        contentSha256: "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+        modInfoSha256: "1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff",
+        totalFiles: 420,
+        totalBytes: 45_812_000,
+        bytecodeSha256: "bbbb222233334444555566667777888899990000aaaabbbbccccddddeeeeffff",
+      },
+      modifiedFiles: [],
+      recommendation: null,
+    },
+    {
+      modId: "nexerelin",
+      modName: "Nexerelin",
+      declaredVersion: "0.11.1b",
+      directoryName: "Nexerelin",
+      severity: "SAME_VERSION_DRIFT",
+      statusSummary: "2 CSV stat tables and 1 config file modified locally",
+      currentSignature: {
+        contentSha256: "c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2",
+        modInfoSha256: "222233334444555566667777888899990000aaaabbbbccccddddeeeeffff1111",
+        totalFiles: 890,
+        totalBytes: 82_400_000,
+        bytecodeSha256: "cccc33334444555566667777888899990000aaaabbbbccccddddeeeeffff2222",
+      },
+      expectedSignature: {
+        contentSha256: "d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3",
+        modInfoSha256: "222233334444555566667777888899990000aaaabbbbccccddddeeeeffff1111",
+        totalFiles: 890,
+        totalBytes: 82_394_000,
+        bytecodeSha256: "cccc33334444555566667777888899990000aaaabbbbccccddddeeeeffff2222",
+      },
+      modifiedFiles: [
+        {
+          path: "data/config/exerelin/factionConfig.json",
+          changeType: "MODIFIED",
+          category: "CONFIG",
+          currentSha256: "5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b",
+          expectedSha256: "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b",
+          currentSizeBytes: 14_200,
+          expectedSizeBytes: 13_800,
+          detail: "Local faction settings edited",
+        },
+        {
+          path: "data/weapons/weapons.csv",
+          changeType: "MODIFIED",
+          category: "CSV",
+          currentSha256: "7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d",
+          expectedSha256: "2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c",
+          currentSizeBytes: 84_100,
+          expectedSizeBytes: 84_000,
+          detail: "Weapon stat adjustments",
+        },
+      ],
+      recommendation: "Re-run preparation to update cached texture and stat indexes.",
+    },
+    {
+      modId: "custom_faction",
+      modName: "Custom Faction Mod",
+      declaredVersion: "2.4.0",
+      directoryName: "custom_faction",
+      severity: "BYTECODE_DRIFT",
+      statusSummary: "JAR bytecode modified without version increment",
+      currentSignature: {
+        contentSha256: "e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4",
+        modInfoSha256: "33334444555566667777888899990000aaaabbbbccccddddeeeeffff11112222",
+        totalFiles: 140,
+        totalBytes: 12_800_000,
+        bytecodeSha256: "9999888877776666555544443333222211110000aaaabbbbccccddddeeeeffff",
+      },
+      expectedSignature: {
+        contentSha256: "f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5",
+        modInfoSha256: "33334444555566667777888899990000aaaabbbbccccddddeeeeffff11112222",
+        totalFiles: 140,
+        totalBytes: 12_750_000,
+        bytecodeSha256: "0000111122223333444455556666777788889999aaaabbbbccccddddeeeeffff",
+      },
+      modifiedFiles: [
+        {
+          path: "jars/CustomFaction.jar",
+          changeType: "MODIFIED",
+          category: "BYTECODE",
+          currentSha256: "9999888877776666555544443333222211110000aaaabbbbccccddddeeeeffff",
+          expectedSha256: "0000111122223333444455556666777788889999aaaabbbbccccddddeeeeffff",
+          currentSizeBytes: 4_200_000,
+          expectedSizeBytes: 4_150_000,
+          detail: "Compiled JAR contains updated bytecode classes",
+        },
+      ],
+      recommendation: "Bytecode changed. Clear prepared cache before launching.",
+    },
+    {
+      modId: "broken_mod",
+      modName: "Corrupted Utility",
+      declaredVersion: "unknown",
+      directoryName: "corrupt_mod",
+      severity: "CORRUPT_METADATA",
+      statusSummary: "mod_info.json is missing or unparseable",
+      currentSignature: {
+        contentSha256: "0000000000000000000000000000000000000000000000000000000000000000",
+        modInfoSha256: null,
+        totalFiles: 12,
+        totalBytes: 450_000,
+        bytecodeSha256: null,
+      },
+      expectedSignature: null,
+      modifiedFiles: [
+        {
+          path: "mod_info.json",
+          changeType: "REMOVED",
+          category: "METADATA",
+          currentSha256: null,
+          expectedSha256: "4444555566667777888899990000aaaabbbbccccddddeeeeffff111122223333",
+          currentSizeBytes: null,
+          expectedSizeBytes: 512,
+          detail: "Required metadata descriptor is missing",
+        },
+      ],
+      recommendation: "Reinstall this mod or restore mod_info.json.",
+    },
+  ],
+};
+
+export async function getModDriftReport(game: string): Promise<ModDriftReport> {
+  if (!isDesktopHost()) {
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
+    return previewModDriftReport;
+  }
+  return invoke<ModDriftReport>("get_mod_drift_report", { game });
+}
+
+const previewResourceCostReport: ResourceCostReport = {
+  format: "starsector-preflight-resource-cost-v1",
+  generatedAt: new Date().toISOString(),
+  installRoot: "/Applications/Starsector",
+  profileFingerprint: "83-mod-flagship-profile-hash",
+  scanDurationMs: 145.2,
+  summary: {
+    enabledModCount: 4,
+    totalDiskBytes: 1_845_000_000,
+    totalEstimatedMemoryBytes: 874_512_000,
+    textureVram: {
+      textureCount: 1420,
+      diskBytes: 1_420_000_000,
+      decodedBaseBytes: 520_000_000,
+      residentGpuBytes: 712_000_000,
+      paddingWasteBytes: 192_000_000,
+      mipChainUpperBoundBytes: 949_333_333,
+    },
+    audioPcm: {
+      soundCount: 380,
+      diskBytes: 180_000_000,
+      effectPcmBytes: 115_000_000,
+      effectCount: 290,
+      musicDiskBytes: 65_000_000,
+      musicCount: 35,
+      unreferencedCount: 55,
+      unreferencedDiskBytes: 22_000_000,
+    },
+    bytecode: {
+      jarCount: 12,
+      diskBytes: 45_000_000,
+      uncompressedBytecodeBytes: 47_512_000,
+      classCount: 3200,
+      duplicateClasses: 4,
+    },
+    preparedData: {
+      preparedTextureBytes: 412_000_000,
+      preparedAudioBytes: 98_000_000,
+      janinoBytecodeBytes: 12_500_000,
+      specCacheBytes: 24_000_000,
+    },
+  },
+  mods: [
+    {
+      id: "core",
+      name: "Starsector Core",
+      version: "0.97a",
+      order: 0,
+      enabled: true,
+      totalDiskBytes: 820_000_000,
+      estimatedMemoryBytes: 310_000_000,
+      texture: {
+        count: 650,
+        diskBytes: 610_000_000,
+        decodedBytes: 220_000_000,
+        residentBytes: 270_000_000,
+        paddingWasteBytes: 50_000_000,
+        unmeasuredCount: 0,
+      },
+      audio: {
+        count: 140,
+        diskBytes: 80_000_000,
+        effectPcmBytes: 25_000_000,
+        musicBytes: 45_000_000,
+        unreferencedBytes: 0,
+      },
+      bytecode: {
+        jarCount: 4,
+        diskBytes: 20_000_000,
+        uncompressedBytecodeBytes: 15_000_000,
+        classCount: 1200,
+        duplicateClassCount: 0,
+      },
+      preparedData: {
+        textureCacheBytes: 0,
+        audioCacheBytes: 0,
+        specCacheBytes: 0,
+      },
+      shadowedByOverrides: {
+        texturesOverridden: 12,
+        vramShadowedBytes: 8_388_608,
+      },
+    },
+    {
+      id: "graphicslib",
+      name: "GraphicsLib",
+      version: "1.9.1",
+      order: 1,
+      enabled: true,
+      totalDiskBytes: 410_000_000,
+      estimatedMemoryBytes: 245_000_000,
+      texture: {
+        count: 320,
+        diskBytes: 380_000_000,
+        decodedBytes: 150_000_000,
+        residentBytes: 230_000_000,
+        paddingWasteBytes: 80_000_000,
+        unmeasuredCount: 0,
+      },
+      audio: {
+        count: 20,
+        diskBytes: 10_000_000,
+        effectPcmBytes: 5_000_000,
+        musicBytes: 0,
+        unreferencedBytes: 2_000_000,
+      },
+      bytecode: {
+        jarCount: 2,
+        diskBytes: 8_000_000,
+        uncompressedBytecodeBytes: 10_000_000,
+        classCount: 650,
+        duplicateClassCount: 0,
+      },
+      preparedData: {
+        textureCacheBytes: 160_000_000,
+        audioCacheBytes: 0,
+        specCacheBytes: 4_000_000,
+      },
+      shadowedByOverrides: {
+        texturesOverridden: 0,
+        vramShadowedBytes: 0,
+      },
+    },
+    {
+      id: "nexerelin",
+      name: "Nexerelin",
+      version: "0.11.1b",
+      order: 2,
+      enabled: true,
+      totalDiskBytes: 285_000_000,
+      estimatedMemoryBytes: 145_000_000,
+      texture: {
+        count: 180,
+        diskBytes: 210_000_000,
+        decodedBytes: 70_000_000,
+        residentBytes: 105_000_000,
+        paddingWasteBytes: 35_000_000,
+        unmeasuredCount: 0,
+      },
+      audio: {
+        count: 90,
+        diskBytes: 45_000_000,
+        effectPcmBytes: 28_000_000,
+        musicBytes: 12_000_000,
+        unreferencedBytes: 5_000_000,
+      },
+      bytecode: {
+        jarCount: 3,
+        diskBytes: 11_000_000,
+        uncompressedBytecodeBytes: 12_000_000,
+        classCount: 820,
+        duplicateClassCount: 2,
+      },
+      preparedData: {
+        textureCacheBytes: 75_000_000,
+        audioCacheBytes: 22_000_000,
+        specCacheBytes: 8_000_000,
+      },
+      shadowedByOverrides: {
+        texturesOverridden: 2,
+        vramShadowedBytes: 2_097_152,
+      },
+    },
+    {
+      id: "uaf",
+      name: "United Aurora Federation",
+      version: "0.8.2a",
+      order: 3,
+      enabled: true,
+      totalDiskBytes: 330_000_000,
+      estimatedMemoryBytes: 174_512_000,
+      texture: {
+        count: 270,
+        diskBytes: 220_000_000,
+        decodedBytes: 80_000_000,
+        residentBytes: 107_000_000,
+        paddingWasteBytes: 27_000_000,
+        unmeasuredCount: 0,
+      },
+      audio: {
+        count: 130,
+        diskBytes: 45_000_000,
+        effectPcmBytes: 57_000_000,
+        musicBytes: 8_000_000,
+        unreferencedBytes: 15_000_000,
+      },
+      bytecode: {
+        jarCount: 3,
+        diskBytes: 6_000_000,
+        uncompressedBytecodeBytes: 10_512_000,
+        classCount: 530,
+        duplicateClassCount: 2,
+      },
+      preparedData: {
+        textureCacheBytes: 82_000_000,
+        audioCacheBytes: 45_000_000,
+        specCacheBytes: 6_000_000,
+      },
+      shadowedByOverrides: {
+        texturesOverridden: 0,
+        vramShadowedBytes: 0,
+      },
+    },
+  ],
+  largestAllocations: {
+    textures: [
+      {
+        logicalPath: "graphics/ships/uaf_supercarrier.png",
+        modId: "uaf",
+        width: 1536,
+        height: 2048,
+        channels: 4,
+        diskBytes: 18_200_000,
+        residentBytes: 16_777_216,
+        paddingWasteBytes: 4_194_304,
+        winnerModId: "uaf",
+      },
+      {
+        logicalPath: "graphics/fx/gl_lensflare_hdr.png",
+        modId: "graphicslib",
+        width: 1024,
+        height: 1024,
+        channels: 4,
+        diskBytes: 12_400_000,
+        residentBytes: 4_194_304,
+        paddingWasteBytes: 0,
+        winnerModId: "graphicslib",
+      },
+      {
+        logicalPath: "graphics/ships/onslaught.png",
+        modId: "core",
+        width: 288,
+        height: 384,
+        channels: 4,
+        diskBytes: 1_200_000,
+        residentBytes: 1_048_576,
+        paddingWasteBytes: 606_208,
+        winnerModId: "core",
+      },
+    ],
+    audio: [
+      {
+        logicalPath: "sounds/weapons/uaf_semibreve_blast.ogg",
+        modId: "uaf",
+        kind: "EFFECT",
+        channels: 2,
+        sampleRate: 48000,
+        diskBytes: 4_800_000,
+        pcmBytes: 12_288_000,
+        durationSeconds: 32.0,
+      },
+      {
+        logicalPath: "sounds/ambient/station_hum.ogg",
+        modId: "core",
+        kind: "EFFECT",
+        channels: 2,
+        sampleRate: 44100,
+        diskBytes: 2_400_000,
+        pcmBytes: 7_056_000,
+        durationSeconds: 20.0,
+      },
+    ],
+    jars: [
+      {
+        logicalPath: "jars/Nexerelin.jar",
+        modId: "nexerelin",
+        diskBytes: 7_800_000,
+        uncompressedBytecodeBytes: 9_200_000,
+        classCount: 610,
+      },
+      {
+        logicalPath: "jars/GraphicsLib.jar",
+        modId: "graphicslib",
+        diskBytes: 6_200_000,
+        uncompressedBytecodeBytes: 7_800_000,
+        classCount: 520,
+      },
+    ],
+  },
+  diagnostics: [],
+};
+
+export async function getResourceCostInspection(
+  game: string,
+  modId?: string,
+): Promise<ResourceCostReport> {
+  if (!isDesktopHost()) {
+    await new Promise((resolve) => window.setTimeout(resolve, 200));
+    if (modId) {
+      const filtered = previewResourceCostReport.mods.filter((m) => m.id === modId);
+      return {
+        ...previewResourceCostReport,
+        mods: filtered,
+      };
+    }
+    return previewResourceCostReport;
+  }
+  return invoke<ResourceCostReport>("get_resource_cost_inspection", {
+    game,
+    modId: modId ?? null,
+  });
+}
+
+const previewBisectSession: BisectSessionSnapshot = {
+  format: "starsector-preflight-bisect-session-v1",
+  sessionId: "bisect-preview-1",
+  installRoot: "/Applications/Starsector",
+  startedAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  state: "TESTING",
+  initialEnabledMods: ["armaa", "nexerelin", "uaf", "ind-evolution", "magiclib", "lw_lazylib", "graphicslib"],
+  fixedBaseMods: ["magiclib", "lw_lazylib", "graphicslib"],
+  suspectMods: ["armaa", "nexerelin", "uaf", "ind-evolution"],
+  eliminatedGoodMods: ["magiclib", "lw_lazylib", "graphicslib"],
+  currentTestSubset: ["armaa", "nexerelin", "magiclib", "lw_lazylib", "graphicslib"],
+  stepNumber: 1,
+  totalEstimatedSteps: 3,
+  history: [],
+  candidateCulprit: null,
+  backupFile: "~/.starsector-preflight/profile-backups/bisect-initial-backup.json",
+  active: true,
+};
+
+export async function startModBisect(
+  game: string,
+  badMods?: string[],
+): Promise<BisectSessionSnapshot> {
+  if (!isDesktopHost()) {
+    await new Promise((resolve) => window.setTimeout(resolve, 200));
+    return previewBisectSession;
+  }
+  return invoke<BisectSessionSnapshot>("start_mod_bisect", {
+    game,
+    badMods: badMods ?? null,
+  });
+}
+
+export async function getBisectStatus(
+  game: string,
+): Promise<BisectSessionSnapshot> {
+  if (!isDesktopHost()) {
+    await new Promise((resolve) => window.setTimeout(resolve, 150));
+    return previewBisectSession;
+  }
+  return invoke<BisectSessionSnapshot>("get_bisect_status", {
+    game,
+  });
+}
+
+export async function recordBisectVerdict(
+  game: string,
+  verdict: "PASS" | "FAIL" | "SKIP" | "good" | "bad" | "skip",
+): Promise<BisectSessionSnapshot> {
+  if (!isDesktopHost()) {
+    await new Promise((resolve) => window.setTimeout(resolve, 200));
+    return previewBisectSession;
+  }
+  return invoke<BisectSessionSnapshot>("record_bisect_verdict", {
+    game,
+    verdict,
+  });
+}
+
+export async function resetModBisect(
+  game: string,
+): Promise<{ format: string; reset: boolean }> {
+  if (!isDesktopHost()) {
+    await new Promise((resolve) => window.setTimeout(resolve, 150));
+    return { format: "starsector-preflight-bisect-reset-v1", reset: true };
+  }
+  return invoke<{ format: string; reset: boolean }>("reset_mod_bisect", {
+    game,
+  });
+}
+
+
+

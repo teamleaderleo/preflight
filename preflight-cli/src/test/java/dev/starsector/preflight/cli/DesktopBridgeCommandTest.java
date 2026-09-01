@@ -286,4 +286,29 @@ class DesktopBridgeCommandTest {
 
         assertTrue(failure.getMessage().contains("runtime marker didn't appear"));
     }
+
+    @Test
+    void desktopDriftCommandEmitsModDriftReportJson() throws Exception {
+        Path game = Files.createDirectories(temporaryDirectory.resolve("drift-game"));
+        Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
+        Path mod1 = Files.createDirectories(game.resolve("mods/mod1"));
+        Files.writeString(mod1.resolve("mod_info.json"), "{\"id\":\"mod1\",\"name\":\"Mod 1\",\"version\":\"1.0\"}");
+        Files.writeString(mod1.resolve("data.csv"), "a,b\n1,2\n");
+
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        java.io.PrintStream originalOut = System.out;
+        try {
+            System.setOut(new java.io.PrintStream(out));
+            int exitCode = DesktopBridgeCommand.execute(new String[]{"desktop", "drift", "--game", game.toString()}, 1);
+            assertEquals(0, exitCode);
+        } finally {
+            System.setOut(originalOut);
+        }
+
+        String output = out.toString(java.nio.charset.StandardCharsets.UTF_8);
+        assertTrue(output.contains("\"format\":\"starsector-preflight-mod-drift-v1\""));
+        assertTrue(output.contains("\"modId\":\"mod1\""));
+        assertTrue(output.contains("\"totalMods\":1"));
+        assertTrue(output.contains("\"newCount\":1"));
+    }
 }

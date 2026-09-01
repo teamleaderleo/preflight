@@ -325,4 +325,12 @@ record PreflightHome(Path root, List<Integration> integrations) {
     Path launcherFileBackups() {
         return root.resolve("launcher-file-backups");
     }
+
+    Path checkpoints() {
+        return root.resolve("checkpoints");
+    }
+
+    Path checkpointBackups() {
+        return root.resolve("checkpoint-backups");
+    }
 }

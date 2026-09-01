@@ -61,6 +61,41 @@ final class DesktopBridgeCommand {
         if (offset < args.length && "benchmark".equals(args[offset])) {
             return benchmark(args, offset + 1);
         }
+        if (offset < args.length && ("checkpoints".equals(args[offset]) || args[offset].startsWith("checkpoint"))) {
+            try {
+                return CheckpointCommand.execute(args, offset);
+            } catch (Exception failure) {
+                throw new IOException("Could not manage checkpoints", failure);
+            }
+        }
+        if (offset < args.length && "diagnose".equals(args[offset])) {
+            try {
+                return DiagnoseCommand.executeDesktop(args, offset + 1);
+            } catch (Exception failure) {
+                throw new IOException("Could not diagnose crash", failure);
+            }
+        }
+        if (offset < args.length && "recover".equals(args[offset])) {
+            try {
+                return DiagnoseCommand.executeRecoverDesktop(args, offset + 1);
+            } catch (Exception failure) {
+                throw new IOException("Could not execute recovery action", failure);
+            }
+        }
+        if (offset < args.length && "drift".equals(args[offset])) {
+            try {
+                return drift(args, offset);
+            } catch (Exception failure) {
+                throw new IOException("Could not inspect mod drift", failure);
+            }
+        }
+        if (offset < args.length && "bisect".equals(args[offset])) {
+            try {
+                return BisectCommand.executeDesktop(args, offset + 1);
+            } catch (Exception failure) {
+                throw new IOException("Could not execute bisect operation", failure);
+            }
+        }
         Options options = Options.parse(args, offset, "snapshot");
         Map<String, Object> snapshot = snapshot(
                 Platform.current(),
@@ -131,6 +166,26 @@ final class DesktopBridgeCommand {
             }
         }
         return result;
+    }
+
+    private static int drift(String[] args, int offset) throws IOException {
+        Options options = Options.parse(args, offset, "drift");
+        DiscoveryResult discovery = StarsectorDiscovery.discover(
+                Platform.current(),
+                Path.of(System.getProperty("user.home")),
+                Path.of(System.getProperty("user.dir")),
+                System.getenv(),
+                options.game(),
+                options.launcher());
+        LaunchTarget target = discovery.selected();
+        if (target == null || target.installRoot() == null) {
+            throw new IOException("Could not locate Starsector install root for drift inspection");
+        }
+        dev.starsector.preflight.core.drift.DriftReport report =
+                dev.starsector.preflight.core.drift.ModDriftDetector.detectDrift(
+                        target.installRoot(), null, "CACHE_PROFILE", null);
+        System.out.println(report.toJson());
+        return 0;
     }
 
     private static int scenario(String[] args, int offset) throws IOException {

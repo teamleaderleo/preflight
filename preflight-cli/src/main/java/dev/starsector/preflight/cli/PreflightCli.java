@@ -83,6 +83,7 @@ public final class PreflightCli {
             case "uninstall" -> UninstallCommand.execute(args, 1);
             case "cache" -> CacheCommand.execute(args, 1);
             case "evidence" -> EvidenceCommand.execute(args, 1);
+            case "checkpoint" -> CheckpointCommand.execute(args, 1);
             case "profile" -> ProfileCommand.execute(args, 1);
             case "scan" -> ScanCommand.execute(ScanOptions.parse(args, 1));
             case "index" -> IndexCommand.execute(args, 1);
@@ -94,11 +95,23 @@ public final class PreflightCli {
             case "classpath" -> ClasspathCommand.execute(args, 1);
             case "benchmark" -> BenchmarkCommand.execute(args, 1);
             case "analyze" -> AnalysisCommand.execute(args, 1);
+            case "diagnose" -> DiagnoseCommand.execute(args, 1);
+            case "recover" -> DiagnoseCommand.recover(args, 1);
+            case "cost" -> ResourceCostCommand.execute(args, 1);
+            case "bisect" -> BisectCommand.execute(args, 1);
+            case "inspect" -> inspectCommand(args);
             case "fingerprint" -> requirePathCommand(args, "fingerprint", PreflightCli::fingerprint);
             case "summarize" -> summarizeCommand(args);
             case "desktop" -> DesktopBridgeCommand.execute(args, 1);
             default -> unknownCommand(args[0]);
         };
+    }
+
+    private static int inspectCommand(String[] args) throws Exception {
+        if (args.length > 1 && "resources".equals(args[1])) {
+            return ResourceCostCommand.execute(args, 2);
+        }
+        throw new IllegalArgumentException("Expected: inspect <resources> ...");
     }
 
     private static int textureCommand(String[] args) throws Exception {
@@ -429,6 +442,21 @@ public final class PreflightCli {
                 "preflight benchmark compare-runs <collected-run.json> <collected-run.json>... [--output <campaign.json>]"));
         usage.put("analyze", List.of(
                 "preflight analyze probe <adapter.json> <summary.json> [--json <adapter-analysis.json>]"));
+        usage.put("diagnose", List.of(
+                "preflight diagnose [--game <path>] [--run <run-directory>] [--json]",
+                "  Inspects failed run logs to classify the crash root cause and identify offending mods."));
+        usage.put("recover", List.of(
+                "preflight recover --action <action-id> [--game <path>] [--mod-id <id>] [--memory-mb <MiB>] [--yes] [--json]",
+                "  Executes a safe 1-click recovery action (e.g. disable-mod, increase-heap, clear-shader-cache)."));
+        usage.put("cost", List.of(
+                "preflight cost [--game <path>] [--launcher <path>] [--mod <id>] [--sort vram|pcm|bytecode|disk|memory] [--json] [--output <report.json>]",
+                "  Inspects exact per-mod resource and memory footprint (GPU VRAM, audio PCM, bytecode)."));
+        usage.put("bisect", List.of(
+                "preflight bisect <start|status|test|good|bad|skip|apply|reset> [--game <path>] [--mod <id> ...] [--json] [--yes]",
+                "  Guides players through binary search isolation of broken mods while preserving dependencies."));
+        usage.put("inspect", List.of(
+                "preflight inspect resources [--game <path>] [--launcher <path>] [--mod <id>] [--sort vram|pcm|bytecode|disk|memory] [--json] [--output <report.json>]",
+                "  Inspects exact per-mod resource and prepared-data memory costs."));
         usage.put("fingerprint", List.of("preflight fingerprint <file-or-directory>"));
         usage.put("summarize", List.of("preflight summarize <recording.jfr> [--json <report.json>]"));
         return usage;
@@ -480,6 +508,7 @@ public final class PreflightCli {
             case "uninstall" -> "Remove the launcher integration, and with --purge the cache too.";
             case "cache" -> "Report what Preflight is storing and which profiles it holds.";
             case "evidence" -> "Report, export, and prune bounded diagnostic evidence.";
+            case "checkpoint" -> "Pin, list, compare, and restore named known-good launch checkpoints.";
             case "profile" -> "Save, inspect, rename, delete, and safely activate named enabled-mod profiles.";
             case "scan" -> "Inspect the enabled profile and estimate decoded texture memory.";
             case "index" -> "Build, inspect, query, or validate a resource-provider index.";
@@ -491,6 +520,11 @@ public final class PreflightCli {
             case "classpath" -> "Audit and index enabled mod JARs and classes.";
             case "benchmark" -> "Record, collect, and compare controlled startup runs.";
             case "analyze" -> "Join adapter probes with trace evidence.";
+            case "diagnose" -> "Diagnose the root cause of a failed launch run.";
+            case "recover" -> "Apply safe 1-click recovery actions for diagnosed launch failures.";
+            case "cost" -> "Inspect exact per-mod resource and prepared-data memory costs.";
+            case "bisect" -> "Isolate crashing or broken mods via dependency-safe binary search.";
+            case "inspect" -> "Inspect mod resources, cache artifacts, and indexes.";
             case "fingerprint" -> "Hash a file or directory deterministically.";
             case "summarize" -> "Convert a startup JFR recording into bounded JSON.";
             default -> "";

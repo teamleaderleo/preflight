@@ -668,6 +668,197 @@ fn profile_json(
 }
 
 #[tauri::command]
+pub(crate) fn get_checkpoints(app: AppHandle, game: String) -> Result<Value, String> {
+    checkpoint_json(&app, &game, &["checkpoint", "list"], false, READ_BUDGET)
+}
+
+#[tauri::command]
+pub(crate) fn create_checkpoint(
+    app: AppHandle,
+    game: String,
+    name: String,
+    description: Option<String>,
+    from_last_run: bool,
+) -> Result<Value, String> {
+    let mut args = vec!["checkpoint", "create", name.as_str()];
+    let description_val;
+    if let Some(ref desc) = description {
+        description_val = desc.clone();
+        args.push("--description");
+        args.push(&description_val);
+    }
+    if from_last_run {
+        args.push("--from-last-run");
+    }
+    checkpoint_json(&app, &game, &args, false, MUTATION_BUDGET)
+}
+
+#[tauri::command]
+pub(crate) fn compare_checkpoint(
+    app: AppHandle,
+    game: String,
+    name: String,
+    target_name: Option<String>,
+) -> Result<Value, String> {
+    let mut args = vec!["checkpoint", "compare", name.as_str()];
+    let target_val;
+    if let Some(ref target) = target_name {
+        target_val = target.clone();
+        args.push("--with");
+        args.push(&target_val);
+    }
+    checkpoint_json(&app, &game, &args, false, MUTATION_BUDGET)
+}
+
+#[tauri::command]
+pub(crate) fn restore_checkpoint(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+    game: String,
+    name: String,
+    restore_settings: bool,
+    expected_checkpoint: Option<String>,
+    confirmed: bool,
+) -> Result<Value, String> {
+    let mut args = vec!["checkpoint", "restore", name.as_str()];
+    if restore_settings {
+        args.push("--restore-settings");
+    }
+    if !confirmed {
+        return checkpoint_json(&app, &game, &args, true, MUTATION_BUDGET);
+    }
+    let expected_checkpoint = expected_checkpoint.ok_or_else(|| {
+        "Review this checkpoint restoration again before applying it.".to_string()
+    })?;
+    args.extend(["--expected-checkpoint", &expected_checkpoint, "--yes"]);
+    let running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The process tracker is unavailable.".to_string())?;
+    validate_checkpoint_mutation_state(&running)?;
+    let result = checkpoint_json(&app, &game, &args, true, MUTATION_BUDGET);
+    drop(running);
+    result
+}
+
+#[tauri::command]
+pub(crate) fn rename_checkpoint(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+    game: String,
+    name: String,
+    new_name: String,
+    expected_checkpoint: Option<String>,
+    confirmed: bool,
+) -> Result<Value, String> {
+    mutate_checkpoint_json(
+        &app,
+        &tracker,
+        &game,
+        "rename",
+        &name,
+        Some(&new_name),
+        expected_checkpoint.as_deref(),
+        confirmed,
+    )
+}
+
+#[tauri::command]
+pub(crate) fn delete_checkpoint(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+    game: String,
+    name: String,
+    expected_checkpoint: Option<String>,
+    confirmed: bool,
+) -> Result<Value, String> {
+    mutate_checkpoint_json(
+        &app,
+        &tracker,
+        &game,
+        "delete",
+        &name,
+        None,
+        expected_checkpoint.as_deref(),
+        confirmed,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn mutate_checkpoint_json(
+    app: &AppHandle,
+    tracker: &OperationCoordinator,
+    game: &str,
+    operation: &str,
+    name: &str,
+    target_name: Option<&str>,
+    expected_checkpoint: Option<&str>,
+    confirmed: bool,
+) -> Result<Value, String> {
+    let mut arguments = vec!["checkpoint", operation, name];
+    if let Some(target_name) = target_name {
+        arguments.push(target_name);
+    }
+    if confirmed {
+        let expected_checkpoint = expected_checkpoint
+            .ok_or_else(|| "Review this checkpoint change again before applying it.".to_string())?;
+        arguments.extend(["--expected-checkpoint", expected_checkpoint, "--yes"]);
+        let running = tracker
+            .0
+            .lock()
+            .map_err(|_| "The process tracker is unavailable.".to_string())?;
+        validate_checkpoint_mutation_state(&running)?;
+        let result = checkpoint_json(app, game, &arguments, false, MUTATION_BUDGET);
+        drop(running);
+        return result;
+    }
+    checkpoint_json(app, game, &arguments, false, MUTATION_BUDGET)
+}
+
+pub(crate) fn validate_checkpoint_mutation_state(state: &OperationState) -> Result<(), String> {
+    refuse_update_install(state)?;
+    if state.game.is_some() {
+        return Err(
+            "Close Starsector before modifying checkpoints or restoring state.".to_string(),
+        );
+    }
+    if state.preparation.is_some() {
+        return Err(
+            "Wait for profile preparation to finish before restoring a checkpoint.".to_string(),
+        );
+    }
+    Ok(())
+}
+
+fn checkpoint_json(
+    app: &AppHandle,
+    game: &str,
+    arguments: &[&str],
+    accepts_refusal: bool,
+    budget: Duration,
+) -> Result<Value, String> {
+    let directory = canonical_game_directory(game)?;
+    let paths = EnginePaths::resolve(app)?;
+    let mut command = paths.command();
+    command
+        .args(arguments)
+        .arg("--game")
+        .arg(directory)
+        .arg("--json");
+    let output = command
+        .output_within(budget)
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    if !output.status.success() && !(accepts_refusal && output.status.code() == Some(2)) {
+        return Err(child_error(
+            "Preflight could not manage checkpoints",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned unreadable checkpoint data: {error}"))
+}
+
+#[tauri::command]
 pub(crate) fn get_snapshot(app: AppHandle, game: Option<String>) -> Result<Value, String> {
     let paths = EnginePaths::resolve(&app)?;
     let mut command = paths.command();
@@ -734,6 +925,33 @@ pub(crate) fn get_home_state(app: AppHandle, game: String) -> Result<Value, Stri
     }
     serde_json::from_slice(&output.stdout)
         .map_err(|error| format!("Preflight returned unreadable home-screen data: {error}"))
+}
+
+#[tauri::command]
+pub(crate) fn get_mod_drift_report(app: AppHandle, game: String) -> Result<Value, String> {
+    let directory = canonical_game_directory(&game)?;
+    let paths = EnginePaths::resolve(&app)?;
+    let mut command = paths.command();
+    configure_mod_drift_command(&mut command, &directory);
+    let output = command
+        .output_within(READ_BUDGET)
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    if !output.status.success() {
+        return Err(child_error(
+            "Preflight could not inspect mod content drift",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned an unreadable mod drift report: {error}"))
+}
+
+pub(crate) fn configure_mod_drift_command(command: &mut EngineCommand, directory: &Path) {
+    command
+        .arg("desktop")
+        .arg("drift")
+        .arg("--game")
+        .arg(directory);
 }
 
 #[tauri::command]
@@ -1153,6 +1371,218 @@ fn diagnostic_export_arguments(destination: &Path, run_id: Option<&str>) -> Vec<
     arguments
 }
 
+#[tauri::command]
+pub(crate) fn get_resource_cost_inspection(
+    app: AppHandle,
+    game: String,
+    mod_id: Option<String>,
+) -> Result<Value, String> {
+    let directory = canonical_game_directory(&game)?;
+    let paths = EnginePaths::resolve(&app)?;
+    let mut command = paths.command();
+    configure_resource_cost_command(&mut command, &directory, mod_id.as_deref());
+
+    let output = command
+        .output_within(READ_BUDGET)
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    if !output.status.success() {
+        return Err(child_error(
+            "Preflight could not inspect resource costs",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned unreadable resource cost data: {error}"))
+}
+
+pub(crate) fn configure_resource_cost_command(
+    command: &mut EngineCommand,
+    directory: &Path,
+    mod_id: Option<&str>,
+) {
+    command
+        .arg("inspect")
+        .arg("resources")
+        .arg("--json")
+        .arg("--game")
+        .arg(directory);
+    if let Some(id) = mod_id {
+        command.arg("--mod").arg(id);
+    }
+}
+
+pub(crate) fn validate_bisect_mutation_state(state: &OperationState) -> Result<(), String> {
+    refuse_update_install(state)?;
+    if state.game.is_some() {
+        return Err("Close Starsector before modifying bisect test state.".to_string());
+    }
+    if state.preparation.is_some() {
+        return Err(
+            "Wait for profile preparation to finish before running bisect actions.".to_string(),
+        );
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn start_mod_bisect(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+    game: String,
+    bad_mods: Option<Vec<String>>,
+) -> Result<Value, String> {
+    let directory = canonical_game_directory(&game)?;
+    let running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The process tracker is unavailable.".to_string())?;
+    validate_bisect_mutation_state(&running)?;
+    let paths = EnginePaths::resolve(&app)?;
+    let mut command = paths.command();
+    configure_bisect_start_command(&mut command, &directory, bad_mods.as_deref());
+    let output = command
+        .output_within(MUTATION_BUDGET)
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    drop(running);
+    if !output.status.success() {
+        return Err(child_error(
+            "Preflight could not start the mod bisect session",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned unreadable bisect session data: {error}"))
+}
+
+#[tauri::command]
+pub(crate) fn get_bisect_status(app: AppHandle, game: String) -> Result<Value, String> {
+    let directory = canonical_game_directory(&game)?;
+    let paths = EnginePaths::resolve(&app)?;
+    let mut command = paths.command();
+    configure_bisect_status_command(&mut command, &directory);
+    let output = command
+        .output_within(READ_BUDGET)
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    if !output.status.success() {
+        return Err(child_error(
+            "Preflight could not read bisect status",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned unreadable bisect status: {error}"))
+}
+
+#[tauri::command]
+pub(crate) fn record_bisect_verdict(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+    game: String,
+    verdict: String,
+) -> Result<Value, String> {
+    let directory = canonical_game_directory(&game)?;
+    let running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The process tracker is unavailable.".to_string())?;
+    validate_bisect_mutation_state(&running)?;
+    let paths = EnginePaths::resolve(&app)?;
+    let mut command = paths.command();
+    configure_bisect_verdict_command(&mut command, &directory, &verdict);
+    let output = command
+        .output_within(MUTATION_BUDGET)
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    drop(running);
+    if !output.status.success() {
+        return Err(child_error(
+            "Preflight could not record the bisect verdict",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned unreadable bisect verdict data: {error}"))
+}
+
+#[tauri::command]
+pub(crate) fn reset_mod_bisect(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+    game: String,
+) -> Result<Value, String> {
+    let directory = canonical_game_directory(&game)?;
+    let running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The process tracker is unavailable.".to_string())?;
+    validate_bisect_mutation_state(&running)?;
+    let paths = EnginePaths::resolve(&app)?;
+    let mut command = paths.command();
+    configure_bisect_reset_command(&mut command, &directory);
+    let output = command
+        .output_within(MUTATION_BUDGET)
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    drop(running);
+    if !output.status.success() {
+        return Err(child_error(
+            "Preflight could not reset the mod bisect session",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned unreadable bisect reset response: {error}"))
+}
+
+pub(crate) fn configure_bisect_start_command(
+    command: &mut EngineCommand,
+    directory: &Path,
+    bad_mods: Option<&[String]>,
+) {
+    command
+        .arg("desktop")
+        .arg("bisect")
+        .arg("start")
+        .arg("--game")
+        .arg(directory);
+    if let Some(mods) = bad_mods {
+        for m in mods {
+            command.arg("--mod").arg(m);
+        }
+    }
+}
+
+pub(crate) fn configure_bisect_status_command(command: &mut EngineCommand, directory: &Path) {
+    command
+        .arg("desktop")
+        .arg("bisect")
+        .arg("status")
+        .arg("--game")
+        .arg(directory);
+}
+
+pub(crate) fn configure_bisect_verdict_command(
+    command: &mut EngineCommand,
+    directory: &Path,
+    verdict: &str,
+) {
+    command
+        .arg("desktop")
+        .arg("bisect")
+        .arg("verdict")
+        .arg("--verdict")
+        .arg(verdict)
+        .arg("--game")
+        .arg(directory);
+}
+
+pub(crate) fn configure_bisect_reset_command(command: &mut EngineCommand, directory: &Path) {
+    command
+        .arg("desktop")
+        .arg("bisect")
+        .arg("reset")
+        .arg("--game")
+        .arg(directory);
+}
+
 fn automatic_report_output_path(app: &AppHandle, run_id: &str) -> Result<PathBuf, String> {
     let home = app
         .path()
@@ -1396,10 +1826,16 @@ mod bounded_request_tests {
 #[cfg(test)]
 mod tests {
     use super::{
-        UTF8_ARGV_SENTINEL, ascii_locale_rescue, automatic_report_output_path_in, base64_url,
-        diagnostic_export_arguments, encode_argv, retain_automatic_reports_in,
+        EngineCommand, UTF8_ARGV_SENTINEL, ascii_locale_rescue, automatic_report_output_path_in,
+        base64_url, configure_bisect_reset_command, configure_bisect_start_command,
+        configure_bisect_status_command, configure_bisect_verdict_command,
+        configure_mod_drift_command, configure_resource_cost_command, diagnostic_export_arguments,
+        encode_argv, retain_automatic_reports_in, validate_bisect_mutation_state,
+        validate_checkpoint_mutation_state,
     };
+    use crate::operations::OperationState;
     use std::ffi::OsString;
+    use std::path::{Path, PathBuf};
     use std::time::{Duration, UNIX_EPOCH};
 
     fn vector(args: &[&str]) -> Vec<OsString> {
@@ -1645,5 +2081,155 @@ mod tests {
             b"outside stays"
         );
         std::fs::remove_dir_all(&base).ok();
+    }
+
+    #[test]
+    fn validate_checkpoint_mutation_state_refuses_when_game_running() {
+        let state = OperationState {
+            game: Some(1234),
+            ..Default::default()
+        };
+        assert!(validate_checkpoint_mutation_state(&state).is_err());
+    }
+
+    #[test]
+    fn validate_checkpoint_mutation_state_refuses_when_preparation_running() {
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let state = OperationState {
+            preparation: Some(crate::operations::PreparationProcess {
+                pid: 5678,
+                cancel: tx,
+            }),
+            ..Default::default()
+        };
+        assert!(validate_checkpoint_mutation_state(&state).is_err());
+    }
+
+    #[test]
+    fn validate_checkpoint_mutation_state_allows_when_idle() {
+        let state = OperationState::default();
+        assert!(validate_checkpoint_mutation_state(&state).is_ok());
+    }
+
+    #[test]
+    fn configure_resource_cost_command_builds_expected_arguments() {
+        let mut command = EngineCommand::for_test("preflight-engine");
+        configure_resource_cost_command(&mut command, Path::new("/mock/game"), None);
+        assert_eq!(
+            vec!["inspect", "resources", "--json", "--game", "/mock/game",],
+            command.arguments()
+        );
+
+        let mut mod_command = EngineCommand::for_test("preflight-engine");
+        configure_resource_cost_command(
+            &mut mod_command,
+            Path::new("/mock/game"),
+            Some("graphicslib"),
+        );
+        assert_eq!(
+            vec![
+                "inspect",
+                "resources",
+                "--json",
+                "--game",
+                "/mock/game",
+                "--mod",
+                "graphicslib",
+            ],
+            mod_command.arguments()
+        );
+    }
+
+    #[test]
+    fn mod_drift_command_configures_read_only_desktop_drift_invocation() {
+        let game = PathBuf::from("/tmp/Starsector test");
+        let mut command = EngineCommand::for_test("preflight-engine");
+        configure_mod_drift_command(&mut command, &game);
+        assert_eq!(
+            vec!["desktop", "drift", "--game", "/tmp/Starsector test"],
+            command.arguments()
+        );
+    }
+
+    #[test]
+    fn validate_bisect_mutation_state_refuses_when_game_running() {
+        let state = OperationState {
+            game: Some(1234),
+            ..Default::default()
+        };
+        assert!(validate_bisect_mutation_state(&state).is_err());
+    }
+
+    #[test]
+    fn validate_bisect_mutation_state_refuses_when_preparation_running() {
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let state = OperationState {
+            preparation: Some(crate::operations::PreparationProcess {
+                pid: 5678,
+                cancel: tx,
+            }),
+            ..Default::default()
+        };
+        assert!(validate_bisect_mutation_state(&state).is_err());
+    }
+
+    #[test]
+    fn validate_bisect_mutation_state_allows_when_idle() {
+        let state = OperationState::default();
+        assert!(validate_bisect_mutation_state(&state).is_ok());
+    }
+
+    #[test]
+    fn configure_bisect_commands_build_expected_arguments() {
+        let game = PathBuf::from("/tmp/game");
+        let mut start_cmd = EngineCommand::for_test("preflight-engine");
+        configure_bisect_start_command(
+            &mut start_cmd,
+            &game,
+            Some(&["mod_a".to_string(), "mod_b".to_string()]),
+        );
+        assert_eq!(
+            vec![
+                "desktop",
+                "bisect",
+                "start",
+                "--game",
+                "/tmp/game",
+                "--mod",
+                "mod_a",
+                "--mod",
+                "mod_b",
+            ],
+            start_cmd.arguments()
+        );
+
+        let mut status_cmd = EngineCommand::for_test("preflight-engine");
+        configure_bisect_status_command(&mut status_cmd, &game);
+        assert_eq!(
+            vec!["desktop", "bisect", "status", "--game", "/tmp/game"],
+            status_cmd.arguments()
+        );
+
+        let mut verdict_cmd = EngineCommand::for_test("preflight-engine");
+        configure_bisect_verdict_command(&mut verdict_cmd, &game, "good");
+        assert_eq!(
+            vec![
+                "desktop",
+                "bisect",
+                "verdict",
+                "--verdict",
+                "good",
+                "--game",
+                "/tmp/game",
+            ],
+            verdict_cmd.arguments()
+        );
+
+        let mut reset_cmd = EngineCommand::for_test("preflight-engine");
+        configure_bisect_reset_command(&mut reset_cmd, &game);
+        assert_eq!(
+            vec!["desktop", "bisect", "reset", "--game", "/tmp/game"],
+            reset_cmd.arguments()
+        );
     }
 }

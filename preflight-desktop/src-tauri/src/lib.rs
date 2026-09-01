@@ -24,10 +24,13 @@ use automation::{
 };
 use engine::{
     EnginePaths, activate_profile, apply_cache_cleanup, apply_evidence_cleanup, apply_removal,
-    canonical_game_directory, delete_profile, export_automatic_diagnostics, export_diagnostics,
+    canonical_game_directory, compare_checkpoint, create_checkpoint, delete_checkpoint,
+    delete_profile, export_automatic_diagnostics, export_diagnostics, get_bisect_status,
     get_bootstrap, get_cache, get_cache_cleanup, get_cache_health, get_cache_inspection,
-    get_evidence_cleanup, get_home_state, get_launch_settings, get_profiles, get_removal_plan,
-    get_snapshot, rename_profile, repair_cache, save_profile, update_launch_settings,
+    get_checkpoints, get_evidence_cleanup, get_home_state, get_launch_settings,
+    get_mod_drift_report, get_profiles, get_removal_plan, get_resource_cost_inspection,
+    get_snapshot, record_bisect_verdict, rename_checkpoint, rename_profile, repair_cache,
+    reset_mod_bisect, restore_checkpoint, save_profile, start_mod_bisect, update_launch_settings,
 };
 use hulls::get_wireframe_hulls;
 use operations::{OperationCoordinator, OperationSnapshot, OperationState, refuse_update_install};
@@ -653,6 +656,7 @@ pub fn run() {
             get_bootstrap,
             get_snapshot,
             get_home_state,
+            get_mod_drift_report,
             get_wireframe_hulls,
             get_desktop_smoke_probe,
             start_desktop_smoke,
@@ -682,13 +686,24 @@ pub fn run() {
             activate_profile,
             rename_profile,
             delete_profile,
+            get_checkpoints,
+            create_checkpoint,
+            compare_checkpoint,
+            restore_checkpoint,
+            rename_checkpoint,
+            delete_checkpoint,
             start_game,
             stop_game,
             get_operation_state,
             open_project_link,
             get_preparation_plan,
             start_preparation,
-            cancel_preparation
+            cancel_preparation,
+            get_resource_cost_inspection,
+            start_mod_bisect,
+            get_bisect_status,
+            record_bisect_verdict,
+            reset_mod_bisect
         ])
         .build(tauri::generate_context!())
         .expect("error while running Preflight");

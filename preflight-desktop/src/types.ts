@@ -582,3 +582,430 @@ export interface ProfileMutationPlan {
 export type AppStatus = "loading" | "ready" | "setup" | "launching" | "running" | "error";
 export type NoticeTone = "info" | "success" | "warning" | "error";
 export type Announce = (message: string, tone?: NoticeTone) => void;
+
+// Checkpoint System Types (Issue #575)
+export type CheckpointStatus = "MATCHED" | "DRIFTED" | "DIVERGED" | "INCOMPLETE";
+
+export interface CheckpointModSignature {
+  modId: string;
+  name: string;
+  version: string;
+  contentSha256: string;
+  fileCount: number;
+  totalBytes: number;
+}
+
+export interface CheckpointLaunchSettings {
+  resolution: string;
+  fullscreen: boolean;
+  sound: boolean;
+  antialiasingSamples: number;
+  uiScale: number;
+  battleSize: number;
+  memoryMiB: number | null;
+}
+
+export interface CheckpointLastRunSummary {
+  outcome: "SUCCESS" | "CRASH" | "INTERRUPTED" | string;
+  startupMillis: number | null;
+  durationMillis: number | null;
+  exitCode: number | null;
+  adapterStatus?: string | null;
+}
+
+export interface Checkpoint {
+  format: "starsector-preflight-checkpoint-v1";
+  name: string;
+  description: string | null;
+  installRoot: string;
+  createdAt: string;
+  checkpointFingerprint: string;
+  profileFingerprint: string;
+  enabledMods: string[];
+  modSignatures: CheckpointModSignature[];
+  launchSettings: CheckpointLaunchSettings | null;
+  lastRunSummary: CheckpointLastRunSummary | null;
+}
+
+export interface CheckpointListEntry {
+  name: string;
+  description: string | null;
+  installRoot: string;
+  createdAt: string;
+  checkpointFingerprint: string;
+  profileFingerprint: string;
+  modCount: number;
+  sameInstall: boolean;
+  status: CheckpointStatus;
+  active: boolean;
+  canRestore: boolean;
+  missingMods: string[];
+  driftDetails?: {
+    modListChanged?: boolean;
+    modifiedMods: string[];
+    settingsChanged: string[];
+  } | null;
+  hasLaunchSettings: boolean;
+  hasLastRunSummary: boolean;
+  lastRunOutcome?: string | null;
+  file: string;
+}
+
+export interface CheckpointList {
+  format: "starsector-preflight-checkpoint-list-v1";
+  installRoot: string;
+  currentEnabledMods: string[];
+  checkpoints: CheckpointListEntry[];
+  diagnostics: string[];
+}
+
+export interface CheckpointModDrift {
+  modId: string;
+  name?: string;
+  status: "PRISTINE" | "CONTENT_MODIFIED" | "BYTECODE_DRIFT" | "VERSION_CHANGED" | "MISSING_ON_DISK" | "REMOVED" | "CORRUPT_METADATA";
+  checkpointVersion: string;
+  currentVersion: string | null;
+  checkpointSha256: string;
+  currentSha256: string | null;
+  checkpointTotalBytes?: number;
+  currentTotalBytes?: number;
+  checkpointFileCount?: number;
+  currentFileCount?: number;
+  modifiedFiles?: string[];
+}
+
+export interface CheckpointSettingsDelta<T = string | number | boolean | null> {
+  checkpoint: T;
+  current: T;
+}
+
+export interface CheckpointSettingsDiff {
+  resolution?: CheckpointSettingsDelta<string>;
+  fullscreen?: CheckpointSettingsDelta<boolean>;
+  sound?: CheckpointSettingsDelta<boolean>;
+  antialiasingSamples?: CheckpointSettingsDelta<number>;
+  uiScale?: CheckpointSettingsDelta<number>;
+  battleSize?: CheckpointSettingsDelta<number>;
+  memoryMiB?: CheckpointSettingsDelta<number | null>;
+  [key: string]: CheckpointSettingsDelta<unknown> | undefined;
+}
+
+export interface CheckpointDiff {
+  format: "starsector-preflight-checkpoint-diff-v1";
+  checkpointName: string;
+  targetName: string;
+  matched: boolean;
+  status: CheckpointStatus;
+  enabledModsDiff: {
+    added: string[];
+    removed: string[];
+    reordered: boolean;
+    identical?: boolean;
+  };
+  modDrift: CheckpointModDrift[];
+  launchSettingsDiff: CheckpointSettingsDiff | null;
+  cacheStatus: {
+    checkpointProfileFingerprint?: string;
+    currentProfileFingerprint?: string;
+    hasMatchingPreparedData?: boolean;
+    preparedDataAvailable?: boolean;
+    rebuildRequired: boolean;
+  };
+  diagnostics?: string[];
+}
+
+export interface CheckpointRestorePlan {
+  format: "starsector-preflight-checkpoint-restore-v1";
+  name: string;
+  installRoot: string;
+  savedInstallRoot?: string;
+  sameInstall?: boolean;
+  active?: boolean;
+  canRestore: boolean;
+  applied: boolean;
+  refusalReason?: string | null;
+  enable?: string[];
+  disable?: string[];
+  missingMods: string[];
+  restoreSettings?: boolean;
+  restoredSettings?: boolean;
+  restoredModsCount?: number;
+  settingsDelta?: CheckpointSettingsDiff | null;
+  sourceStateSha256?: string;
+  sourceChanged?: boolean;
+  checkpointChanged?: boolean;
+  reviewChanged?: boolean;
+  backup?: string;
+  settingsBackup?: string;
+}
+
+export interface CheckpointMutationPlan {
+  format: "starsector-preflight-checkpoint-mutation-v1";
+  operation: "rename" | "delete";
+  name: string;
+  targetName: string | null;
+  checkpointFingerprint: string;
+  applied: boolean;
+  backup?: string;
+}
+
+export type DriftSeverity =
+  | "PRISTINE"
+  | "SAME_VERSION_DRIFT"
+  | "BYTECODE_DRIFT"
+  | "CORRUPT_METADATA"
+  | "VERSION_CHANGED"
+  | "MISSING_MOD"
+  | "NEW_MOD";
+
+export type ModDriftChangeType = "MODIFIED" | "ADDED" | "REMOVED";
+
+export type ModDriftFileCategory =
+  | "METADATA"
+  | "CSV"
+  | "SCRIPT"
+  | "BYTECODE"
+  | "CONFIG"
+  | "GRAPHIC"
+  | "AUDIO"
+  | "OTHER";
+
+export interface ModDriftFileDiff {
+  path: string;
+  changeType: ModDriftChangeType;
+  category: ModDriftFileCategory;
+  currentSha256: string | null;
+  expectedSha256: string | null;
+  currentSizeBytes: number | null;
+  expectedSizeBytes: number | null;
+  detail?: string | null;
+}
+
+export interface ModContentSignatureSummary {
+  contentSha256: string;
+  modInfoSha256?: string | null;
+  totalFiles: number;
+  totalBytes: number;
+  bytecodeSha256?: string | null;
+}
+
+export interface ModDriftItem {
+  modId: string;
+  modName: string;
+  declaredVersion: string;
+  directoryName: string;
+  severity: DriftSeverity;
+  statusSummary: string;
+  currentSignature: ModContentSignatureSummary;
+  expectedSignature: ModContentSignatureSummary | null;
+  modifiedFiles: ModDriftFileDiff[];
+  recommendation: string | null;
+  timestamp?: string | null;
+}
+
+export interface ModDriftReport {
+  format: "starsector-preflight-mod-drift-v1";
+  installRoot: string;
+  generatedAt: string;
+  totalActiveMods: number;
+  cleanModsCount: number;
+  driftedModsCount: number;
+  mods: ModDriftItem[];
+  diagnostics: string[];
+}
+
+
+export interface TextureCostSummary {
+  textureCount: number;
+  diskBytes: number;
+  decodedBaseBytes: number;
+  residentGpuBytes: number;
+  paddingWasteBytes: number;
+  mipChainUpperBoundBytes: number;
+}
+
+export interface AudioCostSummary {
+  soundCount: number;
+  diskBytes: number;
+  effectPcmBytes: number;
+  effectCount: number;
+  musicDiskBytes: number;
+  musicCount: number;
+  unreferencedCount: number;
+  unreferencedDiskBytes: number;
+}
+
+export interface BytecodeCostSummary {
+  jarCount: number;
+  diskBytes: number;
+  uncompressedBytecodeBytes: number;
+  classCount: number;
+  duplicateClasses: number;
+}
+
+export interface PreparedDataCostSummary {
+  preparedTextureBytes: number;
+  preparedAudioBytes: number;
+  janinoBytecodeBytes: number;
+  specCacheBytes: number;
+}
+
+export interface ResourceCostSummary {
+  enabledModCount: number;
+  totalDiskBytes: number;
+  totalEstimatedMemoryBytes: number;
+  textureVram: TextureCostSummary;
+  audioPcm: AudioCostSummary;
+  bytecode: BytecodeCostSummary;
+  preparedData: PreparedDataCostSummary;
+}
+
+export interface ModTextureCost {
+  count: number;
+  diskBytes: number;
+  decodedBytes: number;
+  residentBytes: number;
+  paddingWasteBytes: number;
+  unmeasuredCount: number;
+}
+
+export interface ModAudioCost {
+  count: number;
+  diskBytes: number;
+  effectPcmBytes: number;
+  musicBytes: number;
+  unreferencedBytes: number;
+}
+
+export interface ModBytecodeCost {
+  jarCount: number;
+  diskBytes: number;
+  uncompressedBytecodeBytes: number;
+  classCount: number;
+  duplicateClassCount: number;
+}
+
+export interface ModPreparedCost {
+  textureCacheBytes: number;
+  audioCacheBytes: number;
+  specCacheBytes: number;
+}
+
+export interface ModShadowedCost {
+  texturesOverridden: number;
+  vramShadowedBytes: number;
+}
+
+export interface ModResourceCost {
+  id: string;
+  name: string;
+  version: string;
+  order: number;
+  enabled: boolean;
+  totalDiskBytes: number;
+  estimatedMemoryBytes: number;
+  texture: ModTextureCost;
+  audio: ModAudioCost;
+  bytecode: ModBytecodeCost;
+  preparedData: ModPreparedCost;
+  shadowedByOverrides: ModShadowedCost;
+}
+
+export interface LargestTextureAllocation {
+  logicalPath: string;
+  modId: string;
+  width: number;
+  height: number;
+  channels: number;
+  diskBytes: number;
+  residentBytes: number;
+  paddingWasteBytes: number;
+  winnerModId: string;
+}
+
+export interface LargestAudioAllocation {
+  logicalPath: string;
+  modId: string;
+  kind: string;
+  channels: number;
+  sampleRate: number;
+  diskBytes: number;
+  pcmBytes: number;
+  durationSeconds: number;
+}
+
+export interface LargestJarAllocation {
+  logicalPath: string;
+  modId: string;
+  diskBytes: number;
+  uncompressedBytecodeBytes: number;
+  classCount: number;
+}
+
+export interface LargestAllocations {
+  textures: LargestTextureAllocation[];
+  audio: LargestAudioAllocation[];
+  jars: LargestJarAllocation[];
+}
+
+export interface ResourceCostReport {
+  format: "starsector-preflight-resource-cost-v1";
+  generatedAt: string;
+  installRoot: string;
+  profileFingerprint: string;
+  scanDurationMs: number;
+  summary: ResourceCostSummary;
+  mods: ModResourceCost[];
+  largestAllocations: LargestAllocations;
+  diagnostics: string[];
+}
+
+export type BisectState =
+  | "INITIALIZING"
+  | "TESTING"
+  | "VERIFYING"
+  | "CULPRIT_FOUND"
+  | "COMPLETED"
+  | "ABORTED";
+
+export interface BisectOffendingMod {
+  id: string;
+  name: string;
+  version: string;
+  directory: string;
+  crashingClass?: string;
+  crashingTrace?: string;
+  downstreamDependents: string[];
+}
+
+export type BisectVerdict = "PASS" | "FAIL" | "SKIP";
+
+export interface BisectStepHistoryEntry {
+  step: number;
+  timestamp: string;
+  testedSubset: string[];
+  verdict: BisectVerdict;
+  notes?: string;
+}
+
+export interface BisectSessionSnapshot {
+  format: "starsector-preflight-bisect-session-v1";
+  sessionId: string;
+  installRoot: string;
+  startedAt: string;
+  updatedAt: string;
+  state: BisectState;
+  initialEnabledMods: string[];
+  fixedBaseMods: string[];
+  suspectMods: string[];
+  eliminatedGoodMods: string[];
+  currentTestSubset: string[];
+  stepNumber: number;
+  totalEstimatedSteps: number;
+  history: BisectStepHistoryEntry[];
+  candidateCulprit: BisectOffendingMod | null;
+  backupFile: string;
+  active: boolean;
+}
+
+
