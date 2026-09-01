@@ -57,6 +57,8 @@ class StartupPhaseRuntimeTest {
         assertTrue(json.contains("\"progressCalls\":2"));
         assertTrue(json.contains("\"name\":\"progress-100\""));
         assertTrue(json.contains("\"name\":\"resource-init-complete\""));
+        assertTrue(json.contains("\"threadName\":\"" + Thread.currentThread().getName() + "\""));
+        assertTrue(json.contains("\"threadId\":" + Thread.currentThread().getId()));
         assertTrue(json.contains("\"label\":\"1:SpecStore.new\""));
         assertTrue(json.contains("\"label\":\"variant-object-construction\""));
         assertTrue(json.contains("\"calls\":2"));

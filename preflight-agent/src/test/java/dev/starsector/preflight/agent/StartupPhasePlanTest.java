@@ -72,6 +72,24 @@ class StartupPhasePlanTest {
         assertNull(StartupPhasePlan.transform(ClassSignature.parse(once), once));
     }
 
+    @Test
+    void registersExactLinuxAndWindowsPlatformAlternatives() {
+        AdapterTarget mac = AdapterTargetRegistry.startupPhaseTarget();
+        AdapterTarget linux = AdapterTargetRegistry.linuxStartupPhaseTarget();
+        AdapterTarget windows = AdapterTargetRegistry.windowsStartupPhaseTarget();
+
+        assertEquals(FrameTimeStartupCompletionPlan.LINUX_ORIGINAL_SHA256, linux.sha256());
+        assertEquals("starfarer_obf.jar", linux.sourceSuffix());
+        assertEquals("3d41d31d4840158491426f0570f42d71c176d9bc9cc84605a284e4c76c8b91b0",
+                linux.sourceSha256());
+        assertEquals(FrameTimeStartupCompletionPlan.WINDOWS_ORIGINAL_SHA256, windows.sha256());
+        assertEquals("starfarer_obf.jar", windows.sourceSuffix());
+        assertEquals("5dd222b9e266d2ac2d63b3dad4983eb05caaf5a247d7dfb82aaeba47ea774cc8",
+                windows.sourceSha256());
+        assertEquals(mac.alternativeGroup(), linux.alternativeGroup());
+        assertEquals(mac.alternativeGroup(), windows.alternativeGroup());
+    }
+
     private static byte[] fixture(boolean includePluginCallback) {
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, StartupPhasePlan.TARGET_CLASS,

@@ -457,6 +457,8 @@ public final class StartupPhaseRuntime {
         phase.put("name", name);
         phase.put("elapsedMillis", millis(now - startedNanos));
         phase.put("sincePreviousMillis", millis(now - lastPhaseNanos));
+        phase.put("threadName", Thread.currentThread().getName());
+        phase.put("threadId", Thread.currentThread().getId());
         if (progressPermille != null) {
             phase.put("progressPermille", progressPermille);
         }

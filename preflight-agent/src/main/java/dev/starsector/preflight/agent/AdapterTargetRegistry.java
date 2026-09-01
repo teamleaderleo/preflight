@@ -1671,7 +1671,27 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-resource-loader-0.98a-rc8-startup-phases");
+    }
+
+    static AdapterTarget linuxStartupPhaseTarget() {
+        return linuxCoreTarget(
+                "vanilla-resource-loader-linux-0.98a-rc8-startup-phases",
+                StartupPhasePlan.TARGET_CLASS,
+                FrameTimeStartupCompletionPlan.LINUX_ORIGINAL_SHA256,
+                StartupPhaseRuntime.PLAN_ID,
+                startupPhaseTarget().requiredMethods(),
+                "vanilla-resource-loader-0.98a-rc8-startup-phases");
+    }
+
+    static AdapterTarget windowsStartupPhaseTarget() {
+        return windowsCoreTarget(
+                "vanilla-resource-loader-windows-0.98a-rc8-startup-phases",
+                StartupPhasePlan.TARGET_CLASS,
+                FrameTimeStartupCompletionPlan.WINDOWS_ORIGINAL_SHA256,
+                StartupPhaseRuntime.PLAN_ID,
+                startupPhaseTarget().requiredMethods(),
+                "vanilla-resource-loader-0.98a-rc8-startup-phases");
     }
 
     /** The exact coordinator for the data loaders hidden before the first progress update. */
@@ -2362,6 +2382,8 @@ final class AdapterTargetRegistry {
 
     AdapterTargetRegistry withStartupPhaseTarget() {
         AdapterTargetRegistry registry = withTarget(startupPhaseTarget())
+                .withTarget(linuxStartupPhaseTarget())
+                .withTarget(windowsStartupPhaseTarget())
                 .withTarget(specStorePhaseTarget())
                 .withTarget(weaponLoaderPhaseTarget())
                 .withTarget(shipHullLoaderPhaseTarget())

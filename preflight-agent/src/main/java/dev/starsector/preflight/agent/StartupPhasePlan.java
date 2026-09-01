@@ -46,32 +46,39 @@ final class StartupPhasePlan {
         MethodInsnNode renderBackground = uniqueCall(init,
                 TARGET_CLASS, "renderBg", "()V");
         MethodInsnNode resourceManifest = uniqueCall(init,
-                "com/fs/starfarer/settings/StarfarerSettings", "o00000",
+                "com/fs/starfarer/settings/StarfarerSettings",
                 "(Lcom/fs/starfarer/loading/ResourceLoaderState;)V");
-        MethodInsnNode scriptDiscovery = uniqueCall(init,
-                "com/fs/starfarer/loading/scripts/ScriptStore", "ô00000", "()V");
-        MethodInsnNode scriptCompile = uniqueCall(init,
-                "com/fs/starfarer/loading/scripts/ScriptStore", "int", "()V");
-        MethodInsnNode scriptPrime = uniqueCall(init,
-                "com/fs/starfarer/loading/scripts/ScriptStore", "ö00000", "()V");
-        MethodInsnNode titleData = uniqueCall(init,
-                "com/fs/starfarer/title/C/A/Object", "o00000",
-                "()Lcom/fs/starfarer/title/C/A/A;");
+        List<MethodInsnNode> scriptStages = calls(init,
+                "com/fs/starfarer/loading/scripts/ScriptStore", "()V");
+        MethodInsnNode scriptDiscovery = stage(scriptStages, 0);
+        MethodInsnNode scriptCompile = stage(scriptStages, 1);
+        MethodInsnNode scriptPrime = stage(scriptStages, 2);
+        MethodInsnNode scripts = stage(scriptStages, 3);
         MethodInsnNode specStore = uniqueCall(init,
-                "com/fs/starfarer/loading/SpecStore", "ÓO0000",
+                "com/fs/starfarer/loading/SpecStore",
                 "(Lcom/fs/starfarer/loading/ResourceLoaderState;)V");
         MethodInsnNode shutdown = uniqueCall(init, "java/util/concurrent/ExecutorService",
                 "shutdown", "()V");
         MethodInsnNode await = uniqueCall(init, "java/util/concurrent/ExecutorService",
                 "awaitTermination", "(JLjava/util/concurrent/TimeUnit;)Z");
-        MethodInsnNode graphicsFinalize = uniqueCall(init, "com/fs/graphics/L", "new", "()V");
-        MethodInsnNode scripts = uniqueCall(init,
-                "com/fs/starfarer/loading/scripts/ScriptStore", "Ô00000", "()V");
+        MethodInsnNode graphicsFinalize = previousOpcode(scripts) instanceof MethodInsnNode call
+                        && call.getOpcode() == Opcodes.INVOKESTATIC
+                        && "com/fs/graphics/L".equals(call.owner)
+                        && "()V".equals(call.desc)
+                ? call : null;
         MethodInsnNode enabledPlugins = uniqueCall(init,
                 "com/fs/starfarer/launcher/ModManager", "getEnabledModPlugins", "()Ljava/util/List;");
         MethodInsnNode pluginCallback = uniqueCall(init,
                 "com/fs/starfarer/api/ModPlugin", "onApplicationLoad", "()V");
         AbstractInsnNode onlyReturn = uniqueOpcode(init, Opcodes.RETURN);
+        MethodInsnNode firstProgress = calls(init, TARGET_CLASS, "renderProgress", "(F)V")
+                .stream().findFirst().orElse(null);
+        MethodInsnNode titleData = previousCall(firstProgress == null ? specStore : firstProgress);
+        if (titleData != null && (titleData.getOpcode() != Opcodes.INVOKESTATIC
+                || !titleData.owner.startsWith("com/fs/starfarer/title/")
+                || !titleData.desc.startsWith("()L"))) {
+            titleData = null;
+        }
         JumpInsnNode awaitRetry = nextOpcode(await) instanceof JumpInsnNode jump
                 && jump.getOpcode() == Opcodes.IFEQ ? jump : null;
         JumpInsnNode pluginLoop = pluginCallback == null ? null : pluginLoopJump(pluginCallback);
@@ -171,12 +178,44 @@ final class StartupPhasePlan {
         return matches.size() == 1 ? matches.get(0) : null;
     }
 
+    private static MethodInsnNode uniqueCall(MethodNode method, String owner, String descriptor) {
+        List<MethodInsnNode> matches = calls(method, owner, descriptor);
+        return matches.size() == 1 ? matches.get(0) : null;
+    }
+
+    private static MethodInsnNode stage(List<MethodInsnNode> stages, int index) {
+        return stages.size() == 4 ? stages.get(index) : null;
+    }
+
+    private static MethodInsnNode previousCall(AbstractInsnNode instruction) {
+        for (AbstractInsnNode cursor = instruction == null ? null : instruction.getPrevious();
+                cursor != null; cursor = cursor.getPrevious()) {
+            if (cursor instanceof MethodInsnNode call) {
+                return call;
+            }
+        }
+        return null;
+    }
+
     private static List<MethodInsnNode> calls(MethodNode method, String owner, String name, String descriptor) {
         List<MethodInsnNode> matches = new ArrayList<>();
         for (AbstractInsnNode instruction = method.instructions.getFirst();
                 instruction != null; instruction = instruction.getNext()) {
             if (instruction instanceof MethodInsnNode call
                     && owner.equals(call.owner) && name.equals(call.name) && descriptor.equals(call.desc)) {
+                matches.add(call);
+            }
+        }
+        return matches;
+    }
+
+    private static List<MethodInsnNode> calls(MethodNode method, String owner, String descriptor) {
+        List<MethodInsnNode> matches = new ArrayList<>();
+        for (AbstractInsnNode instruction = method.instructions.getFirst();
+                instruction != null; instruction = instruction.getNext()) {
+            if (instruction instanceof MethodInsnNode call
+                    && owner.equals(call.owner)
+                    && descriptor.equals(call.desc)) {
                 matches.add(call);
             }
         }
