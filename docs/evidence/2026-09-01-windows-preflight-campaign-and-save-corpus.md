@@ -91,6 +91,31 @@ The run captured the frame report, adapter health, and bounded log tail before s
 8628. Evidence is mirrored under
 `/home/leo/Windows-Share/Diagnostics/20260902-windows-lindsey-paused-unpaused-final`.
 
+## Windows packaged desktop and Fast Rendering acceptance
+
+The native Windows checkout built and verified both Tauri bundles. The package verifier accepted
+`Preflight_0.1.0_x64-setup.exe`, inspected 215 entries, verified 164 bundled runtime files totaling
+50,192,187 bytes with no runtime changes, and passed the bundled-engine smoke check. The native
+installer exercise also completed and removed its synthetic installed fixture. The package remains
+unsigned/untrusted, which is expected for this local acceptance pass rather than a release-signing
+claim.
+
+The current Fast Rendering compatibility pass used the same installed game, 1024x720 windowed
+settings, enabled-mod fingerprint, Fast Rendering JAR/agent, and llvmpipe VM. Fast Rendering alone
+reached the logged graphics-preload boundary in 323,423 ms. That run proved the launcher and
+renderer path, but its first harness result was rejected because Java launched as `@fr.vmparams`,
+which the process detector did not yet recognize; the script then force-stopped it instead of
+recording a graceful close. The detector now admits that exact Fast Rendering command shape.
+
+Preflight plus Fast Rendering reached the same graphics-preload boundary in 100,963 ms. Fast
+Rendering was observed, the Preflight live adapter report was written and healthy, and 20 of 20
+exact matches transformed with zero declines. The first combined attempt exposed a real evidence
+gap: Fast Rendering bypassed the stock resource-completion seam that normally publishes the live
+adapter snapshot. Publishing the same bounded snapshot at the independently reviewed interactive
+title boundary fixed the acceptance check without depending on shutdown behavior. The accepted
+combined run is `20260902-022734-windows-startup-2x2`; its Preflight JAR SHA-256 is
+`9b3fedf64716b3a051dfd74d9efa8fc0dcf0efb3e0498a8fea9f4df6654e3e55`.
+
 ## Curated save corpus
 
 The cross-platform automation corpus now uses two Lindsey slots rather than an indiscriminate save

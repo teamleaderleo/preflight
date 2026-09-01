@@ -133,6 +133,48 @@
           "quit": "stopped exact PID 8628",
           "bigRedEvidence": "/home/leo/Windows-Share/Diagnostics/20260902-windows-lindsey-paused-unpaused-final"
         }
+      },
+      "packagedDesktop": {
+        "platform": "windows-x86_64",
+        "package": "Preflight_0.1.0_x64-setup.exe",
+        "platformSignature": "unsigned-or-untrusted",
+        "extractedEntries": 215,
+        "engineRuntimeFiles": 164,
+        "engineRuntimeBytes": 50192187,
+        "engineRuntimeChanges": 0,
+        "engineSmoke": "passed",
+        "nativeInstallExercise": "passed and removed synthetic fixture"
+      },
+      "fastRenderingCompatibility": {
+        "identity": {
+          "os": "Microsoft Windows NT 10.0.26200.0",
+          "resolution": "1024x720 windowed",
+          "renderer": "llvmpipe",
+          "enabledModsSha256": "76227ce91333c202271e541774f3e86fd8711c2542d63a81cfd18a4dc0a6997f",
+          "fastRenderingJarSha256": "dea3ea3d0fd7437d4a7945fee65f741d9b72d3fec565b9c4807aea479ce56144",
+          "fastRenderingAgentSha256": "9ca3f032e7549028b1256ab048ac092a60aa220f261c1804e27c76fcbf36a417"
+        },
+        "fastRenderingOnly": {
+          "runDirectory": "C:\\Users\\Leo\\Documents\\Starsector Preflight Cohorts\\20260902-023108-windows-startup-2x2",
+          "graphicsPreloadObserved": true,
+          "gameLogStartToGraphicsPreloadMs": 323423,
+          "harnessAccepted": false,
+          "rejection": "initial process detector did not recognize the @fr.vmparams Java command and used forced cleanup",
+          "compatibilityConclusion": "Fast Rendering launcher and graphics preload path worked"
+        },
+        "preflightFastRendering": {
+          "runDirectory": "C:\\Users\\Leo\\Documents\\Starsector Preflight Cohorts\\20260902-022734-windows-startup-2x2",
+          "preflightJarSha256": "9b3fedf64716b3a051dfd74d9efa8fc0dcf0efb3e0498a8fea9f4df6654e3e55",
+          "graphicsPreloadObserved": true,
+          "gameLogStartToGraphicsPreloadMs": 100963,
+          "fastRenderingObserved": true,
+          "adapterReportWritten": true,
+          "adapterHealthy": true,
+          "exactMatches": 20,
+          "transformationsApplied": 20,
+          "transformationDeclined": 0,
+          "harnessAccepted": true
+        }
       }
     }
   },
