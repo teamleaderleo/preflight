@@ -55,12 +55,15 @@ public final class InternalGameControlRuntime {
     private static final String COMBAT_ENGINE = "com.fs.starfarer.combat.CombatEngine";
     private static final String INPUT_EVENTS = "com.fs.starfarer.util.super.B";
     private static final String INPUT_EVENT = "com.fs.starfarer.util.super.Object";
+    private static final String WINDOWS_INPUT_EVENTS = "com.fs.starfarer.util.A.new";
+    private static final String WINDOWS_INPUT_EVENT = "com.fs.starfarer.util.A.C";
     private static final String INPUT_EVENT_CLASS = "com.fs.starfarer.api.input.InputEventClass";
     private static final String INPUT_EVENT_TYPE = "com.fs.starfarer.api.input.InputEventType";
     private static final String CONTROL = "com.fs.starfarer.title.B.B";
-    private static final String CONTROL_PHASE = "com.fs.starfarer.title.B.B$o";
-    private static final String CONTROL_ACTION = "com.fs.starfarer.title.B.B$oo";
-    private static final String CONTROL_BINDING = "com.fs.starfarer.title.B.B$Oo";
+    private static final String WINDOWS_CONTROL_TOKEN = MainMenuInteractivePlan.WINDOWS_TARGET_CLASS
+            .substring(MainMenuInteractivePlan.WINDOWS_TARGET_CLASS.lastIndexOf('/') + 1);
+    private static final String WINDOWS_CONTROL = "com.fs.starfarer.title."
+            + WINDOWS_CONTROL_TOKEN + "." + WINDOWS_CONTROL_TOKEN;
     private static final int MAX_REQUEST_BYTES = 4 * 1024;
     private static final long POLL_INTERVAL_NANOS = 20_000_000L;
     private static final Pattern REQUEST = Pattern.compile(
@@ -206,7 +209,8 @@ public final class InternalGameControlRuntime {
                         before, before);
                 return;
             }
-            List<Object> pauseEvents = mappedPauseEvents(campaign.getClass().getClassLoader());
+            List<Object> pauseEvents = mappedPauseEvents(
+                    campaign.getClass().getClassLoader(), events.getClass().getName());
             @SuppressWarnings("unchecked")
             List<Object> input = (List<Object>) events;
             input.addAll(pauseEvents);
@@ -811,9 +815,7 @@ public final class InternalGameControlRuntime {
         if (!CAMPAIGN_CLASS.equals(campaign.getClass().getName())) {
             throw new IllegalStateException("campaign-class-mismatch");
         }
-        if (!INPUT_EVENTS.equals(events.getClass().getName())) {
-            throw new IllegalStateException("campaign-input-shape-mismatch");
-        }
+        pauseInputShape(events.getClass().getName());
         if (booleanMethod(campaign, "isShowingDialog") || booleanMethod(campaign, "isShowingMenu")) {
             throw new IllegalStateException("campaign-interaction-active");
         }
@@ -839,15 +841,16 @@ public final class InternalGameControlRuntime {
         return (Boolean) invoke(method, receiver);
     }
 
-    private static List<Object> mappedPauseEvents(ClassLoader loader)
+    private static List<Object> mappedPauseEvents(ClassLoader loader, String eventBatchClassName)
             throws ReflectiveOperationException {
-        Class<?> eventClass = Class.forName(INPUT_EVENT, true, loader);
+        PauseInputShape shape = pauseInputShape(eventBatchClassName);
+        Class<?> eventClass = Class.forName(shape.eventClass(), true, loader);
         Class<?> eventCategory = Class.forName(INPUT_EVENT_CLASS, true, loader);
         Class<?> eventType = Class.forName(INPUT_EVENT_TYPE, true, loader);
-        Class<?> control = Class.forName(CONTROL, true, loader);
-        Class<?> phase = Class.forName(CONTROL_PHASE, true, loader);
-        Class<?> action = Class.forName(CONTROL_ACTION, true, loader);
-        Class<?> binding = Class.forName(CONTROL_BINDING, true, loader);
+        Class<?> control = Class.forName(shape.controlClass(), true, loader);
+        Class<?> phase = Class.forName(shape.controlClass() + "$o", true, loader);
+        Class<?> action = Class.forName(shape.controlClass() + "$oo", true, loader);
+        Class<?> binding = Class.forName(shape.controlClass() + "$Oo", true, loader);
 
         Object pause = enumValue(action, "GENERAL_PAUSE");
         Object buttonDown = enumValue(phase, "BUTTON_DOWN");
@@ -894,6 +897,21 @@ public final class InternalGameControlRuntime {
             }
         }
         throw new IllegalStateException("no-keyboard-pause-binding");
+    }
+
+    static boolean supportedCampaignInputClassName(String className) {
+        return INPUT_EVENTS.equals(className) || WINDOWS_INPUT_EVENTS.equals(className);
+    }
+
+    private static PauseInputShape pauseInputShape(String className) {
+        if (INPUT_EVENTS.equals(className)) return new PauseInputShape(INPUT_EVENT, CONTROL);
+        if (WINDOWS_INPUT_EVENTS.equals(className)) {
+            return new PauseInputShape(WINDOWS_INPUT_EVENT, WINDOWS_CONTROL);
+        }
+        throw new IllegalStateException("campaign-input-shape-mismatch");
+    }
+
+    private record PauseInputShape(String eventClass, String controlClass) {
     }
 
     private static void setModifiers(Class<?> eventClass, Object event, int modifiers)

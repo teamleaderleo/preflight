@@ -90,6 +90,16 @@ final class InternalGameControlRuntimeTest {
     }
 
     @Test
+    void acceptsOnlyReviewedMacAndWindowsCampaignInputBatches() {
+        assertTrue(InternalGameControlRuntime.supportedCampaignInputClassName(
+                "com.fs.starfarer.util.super.B"));
+        assertTrue(InternalGameControlRuntime.supportedCampaignInputClassName(
+                "com.fs.starfarer.util.A.new"));
+        assertFalse(InternalGameControlRuntime.supportedCampaignInputClassName(
+                "java.util.ArrayList"));
+    }
+
+    @Test
     void campaignActionsFailClosedBeforeAddingInputToAnUnknownShape() throws Exception {
         System.setProperty("preflight.desktopSmoke", "true");
         RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
