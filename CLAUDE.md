@@ -56,4 +56,5 @@ Use [LLM_HANDOFF.md](LLM_HANDOFF.md) to resolve live project and task state. Thi
 - Every completed coherent slice must be committed, pushed, and reconciled into `main`. Branches and worktrees are temporary transport, not a completion state.
 - Open or update a pull request directly against `main`; do not strand work behind another unmerged base branch. Do not call work complete or handed off while it exists only on a non-`main` branch.
 - A dirty canonical checkout is not an excuse to defer integration. Preserve its work and use a clean worktree under the canonical project directory to resolve `main`, verify, and publish.
+- Retire rebuildable Maven/Rust output with `python3 scripts/prune_local_build_outputs.py`; it keeps the current worktree and output from the last 8 hours by default, while protected newest-completed slots still expire after 48 hours. After a verified clean wave, use `--retire-current` rather than abandoning binaries in another worktree.
 - Rebase instead of force-pushing.

@@ -68,7 +68,12 @@ class SourceBoundaryTest(unittest.TestCase):
             with self.subTest(name=name):
                 data = (repository / name).read_bytes()
                 module.validate_blob(name, data)
-                with self.assertRaisesRegex(module.SourceBoundaryError, "unexpected binary"):
+                expected = (
+                    "exceeds"
+                    if len(data) > module.MAX_REVIEWED_BLOB_BYTES
+                    else "unexpected binary"
+                )
+                with self.assertRaisesRegex(module.SourceBoundaryError, expected):
                     module.validate_blob(name, data[:-1] + bytes([data[-1] ^ 1]))
 
     def test_rejects_oversized_blob_before_content_inspection(self):

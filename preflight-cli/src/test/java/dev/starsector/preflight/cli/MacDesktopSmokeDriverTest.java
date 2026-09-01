@@ -81,7 +81,7 @@ final class MacDesktopSmokeDriverTest {
         assertTrue(MacDesktopSmokeDriver.appKitActivateScript(pid)
                 .contains("runningApplicationWithProcessIdentifier(" + pid));
         List<String> compatibility = MacDesktopSmokeDriver.legacyPidActivationCommand(pid);
-        assertEquals("/usr/bin/python3", compatibility.get(0));
+        assertEquals(Path.of("/usr/bin/python3").toString(), compatibility.get(0));
         assertEquals(Long.toString(pid), compatibility.get(3));
         assertTrue(compatibility.get(2).contains("GetProcessForPID"));
         assertTrue(compatibility.get(2).contains("SetFrontProcessWithOptions"));
