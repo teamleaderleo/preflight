@@ -120,7 +120,7 @@ final class TexturePreparedPrefetchPlan {
         String byteQueue = otherField(owner, LIST_DESCRIPTOR, imageQueue);
         String byteResults = otherField(owner, MAP_DESCRIPTOR, imageResults);
         String byteMarker = uniqueField(owner, BYTE_ARRAY_DESCRIPTOR);
-        String byteDecoder = uniqueMethodName(owner, "(Ljava/lang/String;)[B");
+        String byteDecoder = uniquePrivateStaticMethodName(owner, "(Ljava/lang/String;)[B");
         if (consumer == null || start == null || stop == null
                 || imageResults == null || imageMarker == null
                 || byteQueue == null || byteResults == null || byteMarker == null
@@ -214,11 +214,12 @@ final class TexturePreparedPrefetchPlan {
         return otherField(owner, descriptor, "");
     }
 
-    private static String uniqueMethodName(ClassNode owner, String descriptor) {
+    private static String uniquePrivateStaticMethodName(ClassNode owner, String descriptor) {
         String found = null;
         for (MethodNode method : owner.methods) {
             if (!descriptor.equals(method.desc)
                     || (method.access & Opcodes.ACC_STATIC) == 0
+                    || (method.access & Opcodes.ACC_PRIVATE) == 0
                     || (method.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0) {
                 continue;
             }

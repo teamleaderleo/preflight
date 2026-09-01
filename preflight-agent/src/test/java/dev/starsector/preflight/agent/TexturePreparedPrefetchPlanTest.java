@@ -276,6 +276,21 @@ class TexturePreparedPrefetchPlanTest {
         byteDecode.visitMaxs(0, 0);
         byteDecode.visitEnd();
 
+        // The real Windows class also has a public blocking byte-result consumer with the
+        // same descriptor. The pool must select the private decoder rather than declining
+        // because both methods return byte[].
+        MethodVisitor byteConsumer = writer.visitMethod(
+                Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                "consumeBytes",
+                "(Ljava/lang/String;)[B",
+                null,
+                null);
+        byteConsumer.visitCode();
+        byteConsumer.visitInsn(Opcodes.ACONST_NULL);
+        byteConsumer.visitInsn(Opcodes.ARETURN);
+        byteConsumer.visitMaxs(0, 0);
+        byteConsumer.visitEnd();
+
         MethodVisitor start = writer.visitMethod(
                 Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
                 TexturePreparedPrefetchPlan.START_METHOD,
