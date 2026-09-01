@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.PreparedTexture;
+import dev.starsector.preflight.core.PreparedTextureAccessOrderIO;
 import dev.starsector.preflight.core.PreparedTextureIO;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
@@ -34,8 +35,42 @@ class TexturePreparedPixelRuntimeTest {
         System.clearProperty(TexturePaddingRuntime.UNPADDED_PROPERTY);
         System.clearProperty(TexturePaddingRuntime.MAX_UNPADDED_DIMENSION_PROPERTY);
         TexturePaddingRuntime.reset();
+        System.clearProperty(TexturePreparedStagingRuntime.ENABLED_PROPERTY);
+        TexturePreparedStagingRuntime.beginSession();
+        TextureAccessLearningRuntime.beginSession();
         TexturePreparedPixelRuntime.beginSession();
         TextureCompatibilityRuntime.beginSession();
+    }
+
+    @Test
+    void stagedCarrierIsConsumedWithoutWaitingOrChangingPreparedFallbacks() throws Exception {
+        Fixture fixture = fixture();
+        configure(fixture);
+        String profile = TextureManifestIO.read(fixture.manifest()).profileFingerprint();
+        PreparedTextureAccessOrderIO.write(
+                PreparedTextureAccessOrderIO.path(fixture.cache(), profile),
+                profile,
+                List.of("graphics/test.png"));
+        assertTrue(TextureAccessLearningRuntime.configure(fixture.cache(), profile));
+        System.setProperty(TexturePreparedStagingRuntime.ENABLED_PROPERTY, "true");
+        TexturePreparedStagingRuntime.beginSession();
+
+        TexturePreparedStagingRuntime.start();
+        long deadline = System.nanoTime() + 2_000_000_000L;
+        while ((int) TexturePreparedStagingRuntime.telemetry().get("queuedEntries") == 0
+                && System.nanoTime() < deadline) {
+            Thread.sleep(10L);
+        }
+
+        BufferedImage image = TexturePreparedPixelRuntime.prefetchLoad("graphics/test.png");
+        assertNotNull(image);
+        Map<String, Object> staging = TexturePreparedStagingRuntime.telemetry();
+        assertEquals(1L, staging.get("stagedHits"));
+        assertEquals(0L, staging.get("ordinaryMisses"));
+        assertEquals(0, staging.get("queuedEntries"));
+        assertEquals(0L, staging.get("queuedBytes"));
+        assertEquals(1L, TexturePreparedPixelRuntime.telemetry().get("prefetchPreparedHits"));
+        assertEquals(0L, TexturePreparedPixelRuntime.telemetry().get("prefetchOriginalDecodes"));
     }
 
     @Test

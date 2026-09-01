@@ -135,13 +135,20 @@ public final class TexturePreparedPixelRuntime {
             TELEMETRY.prefetchOriginalDecode();
             return null;
         }
-        BufferedImage image = load(logicalPath);
+        BufferedImage image = TexturePreparedStagingRuntime.take(logicalPath);
+        if (image == null) {
+            image = load(logicalPath);
+        }
         if (image == null) {
             TELEMETRY.prefetchOriginalDecode();
         } else {
             TELEMETRY.prefetchPreparedHit();
         }
         return image;
+    }
+
+    static long preparedBytes(BufferedImage image) {
+        return image instanceof CarrierImage carrier ? carrier.texture.pixelBytes() : 0L;
     }
 
     private static BufferedImage carrierFor(String logicalPath) {
@@ -429,6 +436,7 @@ public final class TexturePreparedPixelRuntime {
         values.putAll(LOAD_CLOCK.snapshot("load"));
         values.putAll(PREPARE_CLOCK.snapshot("prepare"));
         values.put("prefetchPool", TexturePreparedPrefetchPoolRuntime.report());
+        values.put("prefetchStaging", TexturePreparedStagingRuntime.telemetry());
         values.put("uploadProbe", TextureUploadProbeRuntime.telemetry());
         return Map.copyOf(values);
     }

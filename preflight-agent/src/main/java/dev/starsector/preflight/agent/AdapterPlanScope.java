@@ -24,6 +24,7 @@ public enum AdapterPlanScope {
             TexturePreparedPixelRuntime.PLAN_ID,
             TexturePrefetchBypassPlan.PLAN_ID,
             TexturePreparedPrefetchPlan.PLAN_ID,
+            TexturePreparedStagingRuntime.PLAN_ID,
             TexturePaddingRuntime.PLAN_ID,
             StartupPhaseRuntime.PLAN_ID,
             ResourcePriorityRuntime.PLAN_ID,

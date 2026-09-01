@@ -187,6 +187,18 @@ final class AdapterTargetRegistry {
                 "app").withAlternativeGroup("vanilla-image-prefetcher-0.98a-rc8");
     }
 
+    static AdapterTarget windowsTexturePreparedStagingTarget() {
+        return windowsCoreTarget(
+                "vanilla-resource-loader-windows-0.98a-rc8-prepared-staging",
+                TexturePreparedStagingPlan.TARGET_CLASS,
+                FrameTimeStartupCompletionPlan.WINDOWS_ORIGINAL_SHA256,
+                TexturePreparedStagingRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        TexturePreparedStagingPlan.INIT_METHOD,
+                        TexturePreparedStagingPlan.INIT_DESCRIPTOR)),
+                "vanilla-resource-prepared-staging-0.98a-rc8");
+    }
+
     /**
      * The resource resolver every load in the game goes through, game code and mod code alike.
      *
@@ -2922,6 +2934,10 @@ final class AdapterTargetRegistry {
             registry = registry.withTarget(windowsTexturePrefetchBypassTarget());
         } else if (mode == TextureAdapterMode.PREPARED_PIXELS) {
             registry = registry.withTarget(windowsTexturePreparedPrefetchTarget());
+        }
+        if (mode == TextureAdapterMode.PREPARED_PIXELS
+                && Boolean.getBoolean(TexturePreparedStagingRuntime.ENABLED_PROPERTY)) {
+            registry = registry.withTarget(windowsTexturePreparedStagingTarget());
         }
         registry = registry
                 .withTarget(campaignEntityIndexTarget())

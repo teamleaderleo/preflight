@@ -49,6 +49,9 @@ enqueues, lets that worker build prepared carriers, and retains the original dec
 `-WindowsPreparedPrefetchWorkers N` is an opt-in successor to that successor: it uses race-free
 consumers for the same two exact queues and records claims, completions, failures, and worker health.
 The default remains one live worker.
+`-WindowsPreparedStagingProbe` enables the #1206 diagnostic: one bounded producer stages learned
+prepared carriers during the serial pre-progress window, while Starsector's exact worker consumes
+them without waiting and retains the current prepared/original fallback on every miss.
 Pair it with `-WindowsUnpaddedMaxDimension N` only for the bounded llvmpipe diagnostic: textures at
 or below `N` use true-size NPOT uploads, while larger textures retain the original padded path. The
 cohort identity and adapter report retain the ceiling, declines, and padding avoided.

@@ -35,6 +35,7 @@ final class AdapterRuntime {
         TextureAccessLearningRuntime.beginSession();
         TexturePreparedPixelRuntime.beginSession();
         TexturePreparedPrefetchPoolRuntime.beginSession();
+        TexturePreparedStagingRuntime.beginSession();
         TextureUploadProbeRuntime.beginSession(
                 sibling(options.adapterReport(), "texture-upload-probe.json"));
         TexturePaddingRuntime.beginSession();
@@ -629,6 +630,7 @@ final class AdapterRuntime {
                         + error.getMessage());
             }
             RuntimeSemanticState.stopped();
+            TexturePreparedStagingRuntime.stop();
             desktopSmoke.close();
             if (activeReport == report) activeReport = null;
             if (!writeReport) return;

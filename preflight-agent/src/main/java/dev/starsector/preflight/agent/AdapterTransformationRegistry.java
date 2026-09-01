@@ -29,6 +29,11 @@ final class AdapterTransformationRegistry {
                     ? TexturePreparedPrefetchPlan.transform(signature, originalBytes)
                     : null;
         }
+        if (TexturePreparedStagingRuntime.PLAN_ID.equals(target.planId())) {
+            return TexturePreparedPixelRuntime.ready()
+                    ? resourceLoaderPlans(signature, originalBytes)
+                    : null;
+        }
         // Gated on the compatibility runtime because the predicate it installs reads that manifest.
         // Without a ready cache the bypass would drop prefetches it cannot replace.
         if (TexturePrefetchBypassPlan.PLAN_ID.equals(target.planId())) {
@@ -1117,9 +1122,11 @@ final class AdapterTransformationRegistry {
             if (!marked && AdapterPlanControl.allows(FrameTimeStartupCompletionPlan.PLAN_ID)) {
                 marked = FrameTimeStartupCompletionPlan.apply(signature, owner);
             }
+            boolean staged = AdapterPlanControl.allows(TexturePreparedStagingRuntime.PLAN_ID)
+                    && TexturePreparedStagingPlan.apply(signature, owner);
             boolean indexed = ResourcePriorityPlan.apply(signature, owner);
             boolean rateLimited = ResourceProgressRateLimitPlan.apply(signature, owner);
-            if (!marked && !indexed && !rateLimited) return null;
+            if (!marked && !staged && !indexed && !rateLimited) return null;
             byte[] transformed = ResourcePriorityPlan.write(owner);
             if (phaseMarked) {
                 StartupPhaseRuntime.installed();
@@ -1150,6 +1157,14 @@ final class AdapterTransformationRegistry {
             if (marked != null) {
                 current = marked;
                 changed = true;
+            }
+            if (AdapterPlanControl.allows(TexturePreparedStagingRuntime.PLAN_ID)) {
+                byte[] staged = TexturePreparedStagingPlan.transform(
+                        ClassSignature.parse(current), current);
+                if (staged != null) {
+                    current = staged;
+                    changed = true;
+                }
             }
             byte[] indexed = ResourcePriorityPlan.transform(ClassSignature.parse(current), current);
             if (indexed != null) {

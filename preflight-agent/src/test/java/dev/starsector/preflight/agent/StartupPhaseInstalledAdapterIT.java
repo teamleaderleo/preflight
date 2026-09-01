@@ -38,4 +38,32 @@ class StartupPhaseInstalledAdapterIT {
                 "installed class is not a reviewed platform identity: " + signature.sha256());
         assertNotNull(StartupPhasePlan.transform(signature, bytes));
     }
+
+    @Test
+    void exactWindowsCoreAcceptsPreparedCarrierStagingRewrite() throws Exception {
+        String configured = System.getProperty("preflight.starsector.core.jar", "").trim();
+        Assumptions.assumeTrue(!configured.isEmpty(),
+                "set -Dpreflight.starsector.core.jar=<starfarer_obf.jar>");
+        Path archive = Path.of(configured).toAbsolutePath().normalize();
+        Assumptions.assumeTrue(Files.isRegularFile(archive));
+
+        byte[] bytes;
+        try (JarFile jar = new JarFile(archive.toFile())) {
+            var entry = jar.getJarEntry(TexturePreparedStagingPlan.TARGET_CLASS + ".class");
+            assertNotNull(entry, TexturePreparedStagingPlan.TARGET_CLASS);
+            try (var input = jar.getInputStream(entry)) {
+                bytes = input.readAllBytes();
+            }
+        }
+        ClassSignature signature = ClassSignature.parse(bytes);
+        Assumptions.assumeTrue(
+                FrameTimeStartupCompletionPlan.WINDOWS_ORIGINAL_SHA256.equals(signature.sha256()),
+                "installed class is not the reviewed Windows identity: " + signature.sha256());
+        System.setProperty(TexturePreparedStagingRuntime.ENABLED_PROPERTY, "true");
+        try {
+            assertNotNull(TexturePreparedStagingPlan.transform(signature, bytes));
+        } finally {
+            System.clearProperty(TexturePreparedStagingRuntime.ENABLED_PROPERTY);
+        }
+    }
 }

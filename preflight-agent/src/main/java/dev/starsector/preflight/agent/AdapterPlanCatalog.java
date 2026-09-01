@@ -78,6 +78,7 @@ final class AdapterPlanCatalog {
             TextureCompatibilityRuntime.PLAN_ID,
             TexturePrefetchBypassPlan.PLAN_ID,
             TexturePreparedPrefetchPlan.PLAN_ID,
+            TexturePreparedStagingRuntime.PLAN_ID,
             TexturePreparedPixelRuntime.PLAN_ID,
             VariantJsonCacheRuntime.PLAN_ID,
             VersionCheckResponseDedupRuntime.PLAN_ID,
