@@ -263,6 +263,69 @@ correctness failure: llvmpipe's true-size NPOT path consumes enough CPU to starv
 worker even though it uploads 843 MiB fewer bytes. Renderer capability is not a performance signal.
 Keep llvmpipe on padded uploads.
 
+## Cross-platform semantic phase port and Fast Rendering-only check
+
+Commit `28e4532f` added exact Linux and Windows alternatives for the existing semantic
+`ResourceLoaderState` phase probe. The three distributions obfuscate several method and class names
+differently, so the rewrite now recognizes the reviewed ordered call shape inside three separately
+pinned class/archive identities rather than pretending their symbols match. Every phase also retains
+its executing thread. Direct transformer tests passed against the installed macOS and Linux JARs and
+the exact copied Windows JAR. Commit `ae0c7468` exposed that opt-in probe through the Windows cohort
+runner.
+
+One live Windows discovery launch from product JAR
+`8f745626b90d30706246295be5cdfb882c7b23e96acc2aa8ccee385382529796` reached the interactive menu
+in 75.831 seconds. The probe writes at semantic boundaries, so that duration is intrusive discovery
+evidence, not a performance claim. It did prove a complete, all-main-thread timeline:
+
+| Boundary | Elapsed | Previous interval |
+| --- | ---: | ---: |
+| resource init enter | 3.068 s | 3.068 s |
+| SpecStore start | 3.400 s | 0.010 s |
+| SpecStore complete | 11.009 s | **7.609 s** |
+| first 1% progress | 18.729 s | **7.720 s** |
+| 25% progress | 25.688 s | 5.869 s from 10% |
+| 75% progress | 30.924 s | 5.202 s from 50% |
+| 95% progress | 38.463 s | 3.478 s from 90% |
+| progress 100 | 39.461 s | 0.051 s from 99% |
+| audio workers complete | 39.504 s | 0.034 s |
+| graphics finalize complete | 39.541 s | 0.036 s |
+| script store complete | 39.590 s | 0.039 s |
+| mod callbacks complete | 58.097 s | **18.224 s** |
+| resource init complete | 58.190 s | 0.092 s |
+
+Every retained row named thread `main` with thread id 1. Adapter health was clean: 30 transformations
+from 31 exact matches, the one already-known combat-runtime-integrity decline, zero contained or
+source-binding failures, 15,003 prepared prefetch hits, zero original decodes/fallbacks/errors, and
+zero pending or active buffers. The packet is retained on Big Red under
+`20260902-windows-startup-phase-probe`.
+
+This splits the architectural target into at least three material serial islands, not just
+SpecStore: 7.609 seconds in SpecStore, 7.720 seconds between SpecStore and first ordinary progress,
+and 18.224 seconds in mod callbacks. The producer/main-thread-commit design must say which of these
+it overlaps and preserve their required ordering; moving one named method alone cannot claim the
+whole remaining opportunity.
+
+The first Fast Rendering-only attempt also exposed a harness confound: without Preflight's quiet
+Log4j setup, Fast Rendering synchronously copied per-resource logging into captured stdout. That
+excluded attempt had already produced 20,494,761 stdout bytes when it was stopped. Commit
+`8a4c377a` now gives every Windows cohort arm the same unbuffered file-only Log4j configuration.
+With that correction, one Fast Rendering-only run reached the common graphics-preload marker in
+67.017 seconds and shut down cleanly. It has no transformed semantic interactive-menu boundary, so
+only the graphics clock is comparable:
+
+| Condition | Graphics preload | Interpretation |
+| --- | ---: | --- |
+| standalone Preflight, default-equivalent observations | 51.834 / 55.517 / 59.537 s | 55.517 s median |
+| Fast Rendering only | 67.017 s | one corrected exploratory observation |
+| Preflight + Fast Rendering | 37.002 s | one exploratory observation |
+
+These are not an interleaved release cohort. They do establish that the 37.002-second combined
+result is not simply Fast Rendering's standalone floor: on this fixture Preflight removes useful
+work even under Fast Rendering, while standalone Preflight is already faster than Fast Rendering
+alone on the shared graphics clock. The combination remains fastest because the two systems attack
+different serial work.
+
 ## Tuned VM identity
 
 - Big Red: Intel Core Ultra 7 255H, 30 GiB RAM, NVMe storage.
@@ -291,6 +354,8 @@ map of observed behavior, not one controlled leaderboard.
 | Linux Preflight, current-main confirmation | 23.206 s | game log -> main menu |
 | Tuned Windows Preflight + Fast Rendering | 37.002 s | game log -> graphics preload |
 | Tuned Windows Preflight + Fast Rendering | 49.551 s | process start -> interactive menu |
+| Tuned Windows standalone Preflight worker | 55.517 s median | game log -> graphics preload |
+| Tuned Windows Fast Rendering only | 67.017 s | game log -> graphics preload |
 | Tuned Windows Preflight worker successor | 68.191 s median | process start -> interactive menu |
 | Tuned Windows Preflight | 112.455 s | game log -> graphics preload |
 | Tuned Windows Preflight | 125.255 s | process start -> interactive menu |
@@ -311,12 +376,12 @@ seconds. Stock did not collapse toward 38 seconds after the combined run warmed 
 
 ### Is Preflight already a full startup superset of Fast Rendering?
 
-It is a healthy additive wrapper: 19 exact Preflight transforms applied under Fast Rendering with no
-declines, and the combined route was far faster than the earlier 323.423-second Fast Rendering-only
-observation. It is not yet a full texture-path superset. Fast Rendering replaces the stock loader,
-so this combined run recorded zero Preflight prepared-pixel attempts or hits. A dedicated exact
-Fast Rendering texture seam could potentially combine its parallel scheduling with Preflight's
-prepared bytes.
+No, but it is already independently useful. The corrected Fast Rendering-only observation took
+67.017 seconds to the graphics marker, standalone Preflight's three default-equivalent observations
+had a 55.517-second median, and the combined route took 37.002 seconds. Fast Rendering replaces the
+stock loader, so the combined run recorded zero Preflight prepared-pixel attempts or hits; it still
+benefited from Preflight's other startup caches and rewrites. The exact values remain exploratory
+until an interleaved cohort, and Fast Rendering alone still lacks the semantic interactive boundary.
 
 ### Can the Windows VM receive Big Red's real GPU?
 
@@ -328,14 +393,17 @@ was enabled and the host display was not disturbed.
 
 ## Open questions / next experiment
 
-1. Inspect Fast Rendering's exact installed concurrency and GL-ownership seam. The remaining
-   worker-successor gap is 18.640 seconds; do not assume it is pixel decoding or padding.
-2. Run the exact worker successor on a native-GPU Windows machine before promoting any
-   renderer-specific behavior. Keep llvmpipe padded; the bounded NPOT result rejects capability-only
-   gating.
-3. If Fast Rendering's additional concurrency cannot be reproduced safely, retain it as the
-   supported parallel texture owner rather than deferring unsettled GL work behind an early menu.
-4. Investigate Intel SR-IOV only after obtaining the exact supported Windows guest driver and a
+1. Use the new exact phase timeline to prototype the smallest bounded live producer/main-thread GL
+   commit seam under #1205. Preserve original ordering, exception propagation, queue settlement,
+   fallback, source gates, and a kill switch.
+2. Count which of the 7.609-second SpecStore block, 7.720-second pre-progress block, and 18.224-second
+   callback block the candidate can actually overlap. Do not call concurrency itself a win.
+3. After exploratory correctness, run an interleaved standalone default/candidate cohort on the
+   semantic interactive boundary. Keep llvmpipe padded; the bounded NPOT result rejects
+   capability-only gating.
+4. Run the exact worker successor on a native-GPU Windows machine before promoting any
+   renderer-specific behavior.
+5. Investigate Intel SR-IOV only after obtaining the exact supported Windows guest driver and a
    recovery plan; do not turn an exposed sysfs capability into a product-performance claim.
 
 ## Preserved evidence
