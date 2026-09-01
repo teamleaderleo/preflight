@@ -1,6 +1,12 @@
 package dev.starsector.preflight.agent;
 
+import dev.starsector.preflight.core.Json;
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -25,6 +31,8 @@ public final class TextureUploadProbeRuntime {
     private static long maximumNanos;
     private static long over50Millis;
     private static long over100Millis;
+    private static Path reportPath;
+    private static boolean shutdownHookInstalled;
 
     private TextureUploadProbeRuntime() {
     }
@@ -35,6 +43,17 @@ public final class TextureUploadProbeRuntime {
 
     static synchronized void installed(int callSites) {
         installedCallSites = callSites;
+    }
+
+    static synchronized void beginSession(Path report) {
+        resetCounters();
+        reportPath = enabled() ? report : null;
+        if (reportPath != null && !shutdownHookInstalled) {
+            shutdownHookInstalled = true;
+            Runtime.getRuntime().addShutdownHook(new Thread(
+                    TextureUploadProbeRuntime::writeReport,
+                    "Preflight-Texture-Upload-Probe-Report"));
+        }
     }
 
     /** Called immediately before the native GL invocation. */
@@ -74,6 +93,9 @@ public final class TextureUploadProbeRuntime {
                 bytes,
                 logicalPath == null || logicalPath.isBlank() ? "<unknown>" : logicalPath,
                 subImage));
+        if ((calls & 2047L) == 0L) {
+            writeReport();
+        }
     }
 
     static synchronized Map<String, Object> telemetry() {
@@ -103,11 +125,17 @@ public final class TextureUploadProbeRuntime {
         values.put("maximumMillis", maximumNanos / 1_000_000.0);
         values.put("over50Millis", over50Millis);
         values.put("over100Millis", over100Millis);
+        values.put("reportPath", reportPath == null ? "" : reportPath.toString());
         values.put("slowest", List.copyOf(slowest));
         return Map.copyOf(values);
     }
 
     static synchronized void resetForTests() {
+        reportPath = null;
+        resetCounters();
+    }
+
+    private static void resetCounters() {
         installedCallSites = 0;
         calls = 0L;
         imageCalls = 0L;
@@ -118,6 +146,24 @@ public final class TextureUploadProbeRuntime {
         over50Millis = 0L;
         over100Millis = 0L;
         SLOW_UPLOADS.clear();
+    }
+
+    private static synchronized void writeReport() {
+        Path destination = reportPath;
+        if (destination == null) return;
+        try {
+            Path parent = destination.getParent();
+            if (parent != null) Files.createDirectories(parent);
+            Files.writeString(
+                    destination,
+                    Json.object(telemetry()) + System.lineSeparator(),
+                    StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING,
+                    StandardOpenOption.WRITE);
+        } catch (IOException | RuntimeException ignored) {
+            // Discovery output is optional; texture loading must survive report failures.
+        }
     }
 
     private static void retain(Upload upload) {

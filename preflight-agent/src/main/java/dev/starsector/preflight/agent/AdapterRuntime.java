@@ -34,6 +34,8 @@ final class AdapterRuntime {
         TextureCompatibilityRuntime.beginSession();
         TextureAccessLearningRuntime.beginSession();
         TexturePreparedPixelRuntime.beginSession();
+        TextureUploadProbeRuntime.beginSession(
+                sibling(options.adapterReport(), "texture-upload-probe.json"));
         TexturePaddingRuntime.beginSession();
         VariantJsonCacheRuntime.beginSession();
         WeaponJsonCacheRuntime.beginSession();

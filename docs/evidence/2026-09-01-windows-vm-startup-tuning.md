@@ -131,6 +131,15 @@ and the 49.551-second Preflight-plus-Fast-Rendering result. The next comparison 
 same counters with the diagnostic Windows bypass enabled: that distinguishes native upload time
 from prepared-buffer construction, lost prefetch overlap, and other serialized loader work.
 
+The first such bypass-plus-probe attempt improved the historical graphics marker to 85.984 seconds,
+but still failed the actual product boundary: no exact ready or interactive signal appeared before
+the harness ended the run cleanly after about 219 seconds. A live thread dump at 195.55 seconds
+found the main thread in `GL11.nglPopMatrix` below `TitleScreenState.render`, not blocked in texture
+upload. Log silence after 109.539 seconds was therefore not an upload stall. The run ended before
+the normal adapter report boundary and exposed a diagnostics gap: the upload probe needed its own
+bounded periodic/shutdown sidecar. That sidecar is now part of the opt-in probe; this incomplete run
+is retained rather than interpreted as an upload total.
+
 ## Tuned VM identity
 
 - Big Red: Intel Core Ultra 7 255H, 30 GiB RAM, NVMe storage.
@@ -233,4 +242,10 @@ The intrusive stock-upload attribution cohort is retained at:
 
 ```text
 /home/leo/Windows-Share/Diagnostics/20260902-windows-texture-upload-attribution/20260902-043303-windows-startup-2x2
+```
+
+The incomplete bypass-plus-probe attempt and live thread dump are retained under:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260902-windows-prefetch-bypass-upload-attribution
 ```
