@@ -130,11 +130,28 @@ function Measure-OneRun(
     $directLaunchOptions = "-DlaunchDirect=true -DstartRes=$DirectResolution -DstartFS=false -DstartSound=true"
     $savedPrivateJavaOptions = $env:_JAVA_OPTIONS
     $savedJavaToolOptions = $env:JAVA_TOOL_OPTIONS
+    $logConfiguration = Join-Path $RunDirectory 'log4j-file-only.properties'
+    @'
+log4j.rootLogger=INFO, file
+log4j.appender.file=org.apache.log4j.RollingFileAppender
+log4j.appender.file.File=${com.fs.starfarer.settings.paths.logs}/starsector.log
+log4j.appender.file.layout=org.apache.log4j.PatternLayout
+log4j.appender.file.layout.ConversionPattern=%-4r [%t] %-5p %c %x - %m%n
+log4j.appender.file.MaxFileSize=50000KB
+log4j.appender.file.MaxBackupIndex=3
+'@ | Set-Content -LiteralPath $logConfiguration -Encoding ASCII
+    $logConfigurationUri = 'file:///' + ($logConfiguration -replace '\\', '/')
+    $quietLogOptions = "-Dlog4j.configuration=$logConfigurationUri -Dpreflight.assetProgressLogs=off"
     $env:_JAVA_OPTIONS = (($savedPrivateJavaOptions, $directLaunchOptions | Where-Object { $_ }) -join ' ').Trim()
+    $env:JAVA_TOOL_OPTIONS = $savedJavaToolOptions
+    if (-not $usesPreflight) {
+        $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS, $quietLogOptions |
+            Where-Object { $_ }) -join ' ').Trim()
+    }
     try {
         if ($usesPreflight) {
             if ($TextureUploadProbe) {
-                $env:JAVA_TOOL_OPTIONS = (($savedJavaToolOptions,
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.texture.uploadProbe=true' | Where-Object { $_ }) -join ' ').Trim()
             }
             if ($WindowsPrefetchBypassProbe) {
@@ -170,7 +187,6 @@ function Measure-OneRun(
                 -RedirectStandardOutput (Join-Path $RunDirectory 'stdout.log') `
                 -RedirectStandardError (Join-Path $RunDirectory 'stderr.log')
         } else {
-            $env:JAVA_TOOL_OPTIONS = $null
             $commandLine = "/d /s /c call `"$launcher`""
             $process = Start-Process -FilePath 'cmd.exe' -ArgumentList $commandLine `
                 -WorkingDirectory (Split-Path -Parent $launcher) -PassThru `
@@ -401,6 +417,7 @@ $identity = [ordered]@{
     cacheDefenderExcluded = $cacheDefenderExcluded
     galliumDriver = $env:GALLIUM_DRIVER
     startupPhaseProbe = [bool]$StartupPhaseProbe
+    fileOnlyLogging = $true
     textureUploadProbe = [bool]$TextureUploadProbe
     windowsPrefetchBypassProbe = [bool]$WindowsPrefetchBypassProbe
     windowsPreparedPrefetchProbe = [bool]$WindowsPreparedPrefetchProbe

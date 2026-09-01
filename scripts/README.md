@@ -35,6 +35,8 @@ power-scheme GUID and whether Defender excludes the exact game/cache roots; non-
 conditions still need their own comparable interactive-readiness evidence. Add
 `-StartupPhaseProbe` for the exact-gated semantic startup timeline; it now supports the pinned macOS,
 Linux, and Windows `ResourceLoaderState` variants and records the executing thread for each boundary.
+Every arm receives the same file-only Log4j configuration before launch, so Fast Rendering's
+per-resource console logging cannot turn captured stdout into a hidden condition-specific tax.
 Use
 `-OptimizationPreset conservative` to isolate the padded prepared-pixel path; the default remains
 the shipped `recommended` preset. Pass `-TextureUploadProbe` only for intrusive discovery runs: it
