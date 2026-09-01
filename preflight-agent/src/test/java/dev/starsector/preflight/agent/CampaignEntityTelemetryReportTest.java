@@ -50,11 +50,11 @@ class CampaignEntityTelemetryReportTest {
         String report = Files.readString(output);
         assertTrue(report.contains("\"jvmMaxHeapBytes\":" + Runtime.getRuntime().maxMemory()), report);
         assertTrue(report.contains("\"registeredPlanTargets\":{"
-                + "\"vanilla-hull-merged-json-cache-v1\":1}"), report);
+                + "\"vanilla-hull-merged-json-cache-v1\":3}"), report);
         assertTrue(report.contains("\"planInventory\":{"), report);
         assertTrue(report.contains("\"vanilla-hull-merged-json-cache-v1\":{"
                 + "\"scopeAllowed\":true,\"explicitlyDisabled\":false,"
-                + "\"registeredTargets\":1,"), report);
+                + "\"registeredTargets\":3,"), report);
         assertTrue(report.contains("\"audio-music-transition-probe-v1\":{"), report);
         assertTrue(report.contains("\"fallback\":\"ORIGINAL_BYTECODE\""), report);
         assertTrue(report.contains("\"campaignEntityIndex\":{"

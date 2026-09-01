@@ -59,7 +59,7 @@ Each provider contains:
 - File size
 - Modification timestamp
 
-Each logical lookup key is slash-normalized and case-folded with `Locale.ROOT`. Relative provider paths reject parent traversal. Physical resolution verifies that the result remains inside its declared root.
+Each logical lookup key is slash-normalized and case-folded with `Locale.ROOT`. Relative provider paths reject parent traversal. Physical resolution verifies that the result remains inside its declared root. An exact-case provider is answered from memory. For the rare folded-only hit, the index asks the provider's filesystem whether the requested spelling names that same file, preserving case-sensitive Linux behavior without imposing filesystem probes on ordinary exact lookups.
 
 The writer creates a sibling temporary file, flushes it, then performs an atomic replacement when the filesystem supports it. Readers validate magic, version, bounds, checksum, path rules, ordered root indexes, duplicate keys, and trailing data. Collection allocations are capped during parsing so extreme count fields fail through bounded growth instead of immediate giant allocations.
 

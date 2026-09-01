@@ -33,15 +33,16 @@ final class HullJsonCachePlan {
     }
 
     static boolean apply(ClassSignature signature, ClassNode owner) {
+        String loadOneName = ShipHullLoaderPhasePlan.loadOneMethod(signature);
         if (!TARGET.equals(signature.internalName())
                 || !signature.hasMethod(ShipHullLoaderPhasePlan.LOAD_ALL_METHOD, ShipHullLoaderPhasePlan.LOAD_ALL_DESCRIPTOR)
-                || !signature.hasMethod(ShipHullLoaderPhasePlan.LOAD_ONE_METHOD, ShipHullLoaderPhasePlan.LOAD_ONE_DESCRIPTOR)) {
+                || loadOneName == null) {
             return false;
         }
         MethodNode loadAll = uniqueMethod(
                 owner, ShipHullLoaderPhasePlan.LOAD_ALL_METHOD, ShipHullLoaderPhasePlan.LOAD_ALL_DESCRIPTOR);
         MethodNode loadOne = uniqueMethod(
-                owner, ShipHullLoaderPhasePlan.LOAD_ONE_METHOD, ShipHullLoaderPhasePlan.LOAD_ONE_DESCRIPTOR);
+                owner, loadOneName, ShipHullLoaderPhasePlan.LOAD_ONE_DESCRIPTOR);
         MethodInsnNode originalCall = uniqueJsonCall(loadOne);
         AbstractInsnNode loadAllReturn = uniqueReturn(loadAll);
         if (loadAll == null || loadOne == null || originalCall == null || loadAllReturn == null

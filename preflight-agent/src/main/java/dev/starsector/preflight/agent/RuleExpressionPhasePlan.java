@@ -35,6 +35,8 @@ import org.objectweb.asm.tree.MethodNode;
  */
 final class RuleExpressionPhasePlan {
     static final String TARGET_CLASS = "com/fs/starfarer/campaign/rules/super";
+    static final String LINUX_TARGET_CLASS = "com/fs/starfarer/campaign/rules/A";
+    static final String WINDOWS_TARGET_CLASS = "com/fs/starfarer/campaign/rules/oOOO";
     static final String LOAD_METHOD = "<init>";
     static final String LOAD_DESCRIPTOR = "(Ljava/lang/String;)V";
     static final String RESIDUAL_LABEL = "rules-expression-residual";
@@ -51,7 +53,7 @@ final class RuleExpressionPhasePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        if (!TARGET_CLASS.equals(signature.internalName())
+        if (!isTarget(signature.internalName())
                 || !signature.hasMethod(LOAD_METHOD, LOAD_DESCRIPTOR)) {
             return null;
         }
@@ -65,7 +67,7 @@ final class RuleExpressionPhasePlan {
         List<MethodInsnNode> tokenize = calls(constructor, Opcodes.INVOKESTATIC,
                 TOKENIZE_OWNER, TOKENIZE_NAME, TOKENIZE_DESCRIPTOR);
         List<MethodInsnNode> commandClass = calls(constructor, Opcodes.INVOKESTATIC,
-                TARGET_CLASS, COMMAND_CLASS_NAME, COMMAND_CLASS_DESCRIPTOR);
+                signature.internalName(), COMMAND_CLASS_NAME, COMMAND_CLASS_DESCRIPTOR);
         List<AbstractInsnNode> returns = returns(constructor);
         // The reviewed constructor tokenizes once and resolves a command class on each of its two
         // command-invocation branches. Any other shape is a different method than the one reviewed.
@@ -87,6 +89,12 @@ final class RuleExpressionPhasePlan {
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         return writer.toByteArray();
+    }
+
+    static boolean isTarget(String internalName) {
+        return TARGET_CLASS.equals(internalName)
+                || LINUX_TARGET_CLASS.equals(internalName)
+                || WINDOWS_TARGET_CLASS.equals(internalName);
     }
 
     /**

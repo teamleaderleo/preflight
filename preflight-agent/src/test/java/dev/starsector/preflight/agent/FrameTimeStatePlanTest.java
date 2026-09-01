@@ -54,6 +54,12 @@ class FrameTimeStatePlanTest {
     }
 
     @Test
+    void marksLinuxCampaignAtItsReviewedAdvanceSeam() throws Exception {
+        assertObserver(FrameTimeStatePlan.CAMPAIGN_CLASS,
+                FrameTimeStatePlan.LINUX_CAMPAIGN_SHA256, "observeCampaign");
+    }
+
+    @Test
     void declinesDisabledWrongIdentityAndSecondTransform() throws Exception {
         byte[] original = fixture(FrameTimeStatePlan.CAMPAIGN_CLASS);
         FrameTimeRuntime.beginSession(false);

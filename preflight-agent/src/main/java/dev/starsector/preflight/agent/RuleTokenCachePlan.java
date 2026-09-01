@@ -53,7 +53,7 @@ final class RuleTokenCachePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        if (!TARGET_CLASS.equals(signature.internalName())
+        if (!RuleExpressionPhasePlan.isTarget(signature.internalName())
                 || !signature.hasMethod(LOAD_METHOD, LOAD_DESCRIPTOR)) {
             return null;
         }

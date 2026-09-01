@@ -31,13 +31,13 @@ final class RulesRegexCachePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        if (!TARGET_CLASS.equals(signature.internalName())
-                || !signature.hasMethod(LOAD_METHOD, LOAD_DESCRIPTOR)) {
+        String loadMethod = RulesLoaderPhasePlan.loadMethod(signature);
+        if (!TARGET_CLASS.equals(signature.internalName()) || loadMethod == null) {
             return null;
         }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
-        MethodNode load = uniqueMethod(owner, LOAD_METHOD, LOAD_DESCRIPTOR);
+        MethodNode load = uniqueMethod(owner, loadMethod, LOAD_DESCRIPTOR);
         if (load == null || hasRuntimeCalls(load)) {
             return null;
         }

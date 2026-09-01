@@ -552,6 +552,7 @@ public final class FrameTimeRuntime {
         LoadJsonMemoRuntime.markStartupComplete();
         MergedReadCacheRuntime.complete();
         RuleTokenCacheRuntime.complete();
+        AdapterRuntime.publishSnapshot();
     }
 
     /** Called when the title screen removes its final preloading label and accepts input. */

@@ -29,7 +29,8 @@ public final class PreparedPixelContractCheck {
     public static final int VERSION = 1;
     public static final String DEFAULT_ARCHIVE_ENTRY = TexturePreparedPixelPlan.TARGET_CLASS + ".class";
 
-    private static final AdapterTarget TARGET = AdapterTargetRegistry.texturePreparedPixelTarget();
+    private static final AdapterTarget MAC_TARGET = AdapterTargetRegistry.texturePreparedPixelTarget();
+    private static final AdapterTarget LINUX_TARGET = AdapterTargetRegistry.linuxTexturePreparedPixelTarget();
     private static final long MAX_CLASS_BYTES = 32L * 1024 * 1024;
     private static final int MAX_PROBLEMS = 8;
     private static final int MAX_REASON_CHARS = 240;
@@ -63,6 +64,7 @@ public final class PreparedPixelContractCheck {
 
     public static Result inspect(Path input, String archiveEntry) throws IOException {
         Snapshot snapshot = readSnapshot(input, archiveEntry);
+        AdapterTarget target = targetFor(snapshot.classBytes());
         List<String> problems = new ArrayList<>();
         ClassSignature signature;
         ClassNode owner = new ClassNode(Opcodes.ASM9);
@@ -71,25 +73,26 @@ public final class PreparedPixelContractCheck {
             new ClassReader(snapshot.classBytes()).accept(owner, ClassReader.EXPAND_FRAMES);
         } catch (IOException | RuntimeException parseError) {
             problems.add("class parsing failed: " + message(parseError));
-            return result(snapshot, null, false, requiredMethods(null), null, null, problems);
+            return result(snapshot, null, false, requiredMethods(null, target), null, null, problems);
         }
 
-        boolean classMatches = TARGET.internalClassName().equals(signature.internalName());
+        boolean classMatches = target.internalClassName().equals(signature.internalName());
         if (!classMatches) {
             problems.add("class name is " + signature.internalName()
-                    + ", expected " + TARGET.internalClassName());
+                    + ", expected " + target.internalClassName());
         }
 
-        List<Map<String, Object>> requiredMethods = requiredMethods(signature);
+        List<Map<String, Object>> requiredMethods = requiredMethods(signature, target);
         boolean requiredMethodsPresent = requiredMethods.stream()
                 .allMatch(method -> Boolean.TRUE.equals(method.get("present")));
         if (!requiredMethodsPresent) {
             problems.add("one or more exact prepared-pixel target methods are absent");
         }
 
-        MethodNode convert = uniqueMethod(
+        MethodNode convert = uniqueSupportedMethod(
                 owner,
                 TexturePreparedPixelPlan.CONVERT_METHOD,
+                TexturePreparedPixelPlan.LINUX_CONVERT_METHOD,
                 TexturePreparedPixelPlan.CONVERT_DESCRIPTOR);
         TexturePreparedPixelColorSink.Review sinkReview = convert == null
                 ? null
@@ -172,10 +175,15 @@ public final class PreparedPixelContractCheck {
                 boundedProblems);
     }
 
-    private static List<Map<String, Object>> requiredMethods(ClassSignature signature) {
-        return TARGET.requiredMethods().stream()
+    private static List<Map<String, Object>> requiredMethods(
+            ClassSignature signature, AdapterTarget target) {
+        return target.requiredMethods().stream()
                 .map(required -> method(signature, required.name(), required.descriptor()))
                 .toList();
+    }
+
+    private static AdapterTarget targetFor(byte[] classBytes) {
+        return LINUX_TARGET.sha256().equals(Hashes.sha256(classBytes)) ? LINUX_TARGET : MAC_TARGET;
     }
 
     private static Map<String, Object> method(
@@ -200,6 +208,13 @@ public final class PreparedPixelContractCheck {
             }
         }
         return found;
+    }
+
+    private static MethodNode uniqueSupportedMethod(
+            ClassNode owner, String firstName, String secondName, String descriptor) {
+        MethodNode first = uniqueMethod(owner, firstName, descriptor);
+        MethodNode second = uniqueMethod(owner, secondName, descriptor);
+        return first == null ? second : second == null ? first : null;
     }
 
     private static Snapshot readSnapshot(Path input, String archiveEntry) throws IOException {

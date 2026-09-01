@@ -16,6 +16,7 @@ final class SpecStoreQuoteNormalizationPlan {
     static final String PLAN_ID = "vanilla-spec-store-quote-normalization-v1";
     static final String TARGET_CLASS = SpecStorePhasePlan.TARGET_CLASS;
     static final String METHOD = "\u00d300000";
+    static final String LINUX_METHOD = "Object";
     static final String DESCRIPTOR = "(Ljava/lang/String;)Ljava/lang/String;";
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/RulesRegexCacheRuntime";
@@ -43,11 +44,11 @@ final class SpecStoreQuoteNormalizationPlan {
     }
 
     static boolean apply(ClassSignature signature, ClassNode owner) {
-        if (!TARGET_CLASS.equals(signature.internalName())
-                || !signature.hasMethod(METHOD, DESCRIPTOR)) {
+        String methodName = method(signature);
+        if (!TARGET_CLASS.equals(signature.internalName()) || methodName == null) {
             return false;
         }
-        MethodNode method = uniqueMethod(owner);
+        MethodNode method = uniqueMethod(owner, methodName);
         if (method == null || hasRuntimeCall(method)) {
             return false;
         }
@@ -96,10 +97,16 @@ final class SpecStoreQuoteNormalizationPlan {
         return false;
     }
 
-    private static MethodNode uniqueMethod(ClassNode owner) {
+    private static String method(ClassSignature signature) {
+        if (signature.hasMethod(METHOD, DESCRIPTOR)) return METHOD;
+        if (signature.hasMethod(LINUX_METHOD, DESCRIPTOR)) return LINUX_METHOD;
+        return null;
+    }
+
+    private static MethodNode uniqueMethod(ClassNode owner, String methodName) {
         MethodNode found = null;
         for (MethodNode method : owner.methods) {
-            if (METHOD.equals(method.name) && DESCRIPTOR.equals(method.desc)) {
+            if (methodName.equals(method.name) && DESCRIPTOR.equals(method.desc)) {
                 if (found != null) {
                     return null;
                 }

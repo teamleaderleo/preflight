@@ -16,8 +16,10 @@ import org.objectweb.asm.tree.MethodNode;
 final class WeaponLoaderPhasePlan {
     static final String TARGET_CLASS = "com/fs/starfarer/loading/WeaponSpecLoader";
     static final String LOAD_ALL_METHOD = "new";
+    static final String LINUX_LOAD_ALL_METHOD = "Ò00000";
     static final String LOAD_ALL_DESCRIPTOR = "()V";
     static final String LOAD_ONE_METHOD = "new";
+    static final String LINUX_LOAD_ONE_METHOD = "Ò00000";
     static final String LOAD_ONE_DESCRIPTOR = "(Ljava/lang/String;)V";
     private static final String RUNTIME = "dev/starsector/preflight/agent/StartupPhaseRuntime";
     private static final String LOADING_UTILS = "com/fs/starfarer/loading/LoadingUtils";
@@ -37,20 +39,21 @@ final class WeaponLoaderPhasePlan {
     }
 
     static boolean apply(ClassSignature signature, ClassNode owner) {
+        String loadAllName = loadAllMethod(signature);
+        String loadOneName = loadOneMethod(signature);
         if (!TARGET_CLASS.equals(signature.internalName())
-                || !signature.hasMethod(LOAD_ALL_METHOD, LOAD_ALL_DESCRIPTOR)
-                || !signature.hasMethod(LOAD_ONE_METHOD, LOAD_ONE_DESCRIPTOR)) {
+                || loadAllName == null || loadOneName == null) {
             return false;
         }
-        MethodNode loadAll = uniqueMethod(owner, LOAD_ALL_METHOD, LOAD_ALL_DESCRIPTOR);
-        MethodNode loadOne = uniqueMethod(owner, LOAD_ONE_METHOD, LOAD_ONE_DESCRIPTOR);
+        MethodNode loadAll = uniqueMethod(owner, loadAllName, LOAD_ALL_DESCRIPTOR);
+        MethodNode loadOne = uniqueMethod(owner, loadOneName, LOAD_ONE_DESCRIPTOR);
         if (loadAll == null || loadOne == null || hasRuntimeCalls(loadAll) || hasRuntimeCalls(loadOne)) {
             return false;
         }
 
         List<MethodInsnNode> listings = calls(loadAll, LOADING_UTILS, "super",
                 "(Ljava/lang/String;Ljava/lang/String;)Ljava/util/List;");
-        List<MethodInsnNode> itemLoads = calls(loadAll, TARGET_CLASS, LOAD_ONE_METHOD, LOAD_ONE_DESCRIPTOR);
+        List<MethodInsnNode> itemLoads = calls(loadAll, TARGET_CLASS, loadOneName, LOAD_ONE_DESCRIPTOR);
         List<MethodInsnNode> json = calls(loadOne, LOADING_UTILS, "Ó00000",
                 "(Ljava/lang/String;)Lorg/json/JSONObject;");
         List<MethodInsnNode> scripts = calls(loadOne, SCRIPT_STORE, "Object", "(Ljava/lang/String;)V");
@@ -67,6 +70,21 @@ final class WeaponLoaderPhasePlan {
         registrations.forEach(call -> wrapCall(loadOne, call, "weapon-registry-insert"));
 
         return true;
+    }
+
+    static String loadAllMethod(ClassSignature signature) {
+        return method(signature, LOAD_ALL_METHOD, LINUX_LOAD_ALL_METHOD, LOAD_ALL_DESCRIPTOR);
+    }
+
+    static String loadOneMethod(ClassSignature signature) {
+        return method(signature, LOAD_ONE_METHOD, LINUX_LOAD_ONE_METHOD, LOAD_ONE_DESCRIPTOR);
+    }
+
+    private static String method(
+            ClassSignature signature, String mac, String linux, String descriptor) {
+        if (signature.hasMethod(mac, descriptor)) return mac;
+        if (signature.hasMethod(linux, descriptor)) return linux;
+        return null;
     }
 
     private static void wrapCall(MethodNode method, MethodInsnNode call, String label) {

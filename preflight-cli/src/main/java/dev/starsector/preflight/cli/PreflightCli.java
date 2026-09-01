@@ -79,6 +79,7 @@ public final class PreflightCli {
             case "prepare" -> PrepareCommand.execute(args, 1);
             case "doctor" -> RunCommand.doctor(CommandLine.parse(args, 1));
             case "launch-settings" -> LaunchSettingsCommand.execute(args, 1);
+            case "save" -> SaveCommand.execute(args, 1);
             case "install" -> InstallCommand.execute(args, 1);
             case "uninstall" -> UninstallCommand.execute(args, 1);
             case "cache" -> CacheCommand.execute(args, 1);
@@ -245,6 +246,14 @@ public final class PreflightCli {
                 "  The direct-launch availability fields are required by the startup benchmark: Starsector"
                         + " itself supports launchDirect/startRes/startFS/startSound, and Preflight"
                         + " refuses that unattended path when the game's saved inputs are incomplete."));
+        usage.put("save", List.of(
+                "preflight save relocate [--game <path>] [--json]"
+                        + " [--apply --confirm-game-closed]",
+                "  Inspects platform-specific mod roots embedded in Starsector saves and maps each"
+                        + " one only when the corresponding directory exists in the selected install.",
+                "  The default is read-only. Apply requires Starsector to be closed, captures every"
+                        + " changed XML file under Preflight's save-relocation backups, and replaces"
+                        + " active and .bak save XML atomically."));
         usage.put("install", List.of(
                 "preflight install [--game <path>] [--launcher <path>] [--prepare] [--texture-storage fastest|balanced] [--workers <count>] [--memory-mb <MiB>]",
                 "  --prepare builds the exact current profile after installing the launcher.",
@@ -423,6 +432,7 @@ public final class PreflightCli {
             case "stop" -> "Stop a Starsector process that Preflight started.";
             case "doctor" -> "Check installation discovery and launch readiness.";
             case "launch-settings" -> "Read or update the game settings used by ordinary and Preflight launches.";
+            case "save" -> "Inspect or safely relocate platform-specific paths embedded in saves.";
             case "install" -> "Write the local Preflight launcher integration.";
             case "uninstall" -> "Remove the launcher integration, and with --purge the cache too.";
             case "cache" -> "Report what Preflight is storing and which profiles it holds.";

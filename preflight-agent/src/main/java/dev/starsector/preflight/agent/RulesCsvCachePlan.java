@@ -27,14 +27,14 @@ final class RulesCsvCachePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        if (!TARGET.equals(signature.internalName())
-                || !signature.hasMethod(RulesLoaderPhasePlan.LOAD_METHOD, RulesLoaderPhasePlan.LOAD_DESCRIPTOR)) {
+        String loadMethod = RulesLoaderPhasePlan.loadMethod(signature);
+        if (!TARGET.equals(signature.internalName()) || loadMethod == null) {
             return null;
         }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         MethodNode load = uniqueMethod(
-                owner, RulesLoaderPhasePlan.LOAD_METHOD, RulesLoaderPhasePlan.LOAD_DESCRIPTOR);
+                owner, loadMethod, RulesLoaderPhasePlan.LOAD_DESCRIPTOR);
         MethodInsnNode originalCall = uniqueJsonCall(load);
         AbstractInsnNode onlyReturn = uniqueReturn(load);
         if (load == null || originalCall == null || onlyReturn == null || hasRuntimeCalls(load)) {

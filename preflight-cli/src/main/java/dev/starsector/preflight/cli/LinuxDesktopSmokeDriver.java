@@ -18,7 +18,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-/** Linux X11 smoke adapter that discovers windows only from the recorded process ID. */
+/** Linux smoke adapter that discovers X11/XWayland windows only from the recorded process ID. */
 final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
     private static final Duration COMMAND_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration QUIT_GRACE = Duration.ofSeconds(8);
@@ -32,21 +32,208 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
             Map.entry("r", "r"),
             Map.entry("u", "u"),
             Map.entry("n", "n"),
+            Map.entry("1", "1"),
+            Map.entry("3", "3"),
+            Map.entry("4", "4"),
             Map.entry("return", "Return"),
             Map.entry("tab", "Tab"),
             Map.entry("space", "space"),
             Map.entry("escape", "Escape"),
             Map.entry("capslock", "Caps_Lock"));
+    private static final Map<String, Integer> WAYLAND_KEYS = Map.ofEntries(
+            Map.entry("a", 30),
+            Map.entry("s", 31),
+            Map.entry("d", 32),
+            Map.entry("f", 33),
+            Map.entry("w", 17),
+            Map.entry("r", 19),
+            Map.entry("u", 22),
+            Map.entry("n", 49),
+            Map.entry("1", 2),
+            Map.entry("3", 4),
+            Map.entry("4", 5),
+            Map.entry("tab", 15),
+            Map.entry("return", 28),
+            Map.entry("space", 57),
+            Map.entry("escape", 1),
+            Map.entry("capslock", 58));
+    private static final String WAYLAND_WINDOW_PROBE = """
+            import sys, gi
+            gi.require_version('Gdk', '3.0')
+            gi.require_version('GdkX11', '3.0')
+            gi.require_version('Wnck', '3.0')
+            from gi.repository import Gdk, GdkX11, Wnck
+            pid = int(sys.argv[1])
+            screen = Wnck.Screen.get_default()
+            screen.force_update()
+            display = Gdk.Display.get_default()
+            for window in screen.get_windows():
+                if window.get_pid() != pid:
+                    continue
+                foreign = GdkX11.X11Window.foreign_new_for_display(display, window.get_xid())
+                if foreign is not None:
+                    print(f'{window.get_xid()} {foreign.get_scale_factor()}')
+            """;
+    private static final String WAYLAND_CAPTURE = """
+            import sys, gi
+            gi.require_version('Gdk', '3.0')
+            gi.require_version('GdkX11', '3.0')
+            gi.require_version('GdkPixbuf', '2.0')
+            gi.require_version('Wnck', '3.0')
+            from gi.repository import Gdk, GdkX11, GdkPixbuf, Wnck
+            pid = int(sys.argv[1])
+            output = sys.argv[2]
+            screen = Wnck.Screen.get_default()
+            screen.force_update()
+            display = Gdk.Display.get_default()
+            candidates = []
+            for window in screen.get_windows():
+                if window.get_pid() != pid:
+                    continue
+                foreign = GdkX11.X11Window.foreign_new_for_display(display, window.get_xid())
+                if foreign is None:
+                    continue
+                _, _, width, height = foreign.get_geometry()
+                candidates.append((width * height, window, foreign, width, height))
+            if not candidates:
+                raise SystemExit('exact PID has no capturable XWayland window')
+            _, window, foreign, width, height = max(candidates, key=lambda value: value[0])
+            pixels = Gdk.pixbuf_get_from_window(foreign, 0, 0, width, height)
+            if pixels is None:
+                raise SystemExit('XWayland window capture failed')
+            pixels.savev(output, 'png', [], [])
+            print(f'{window.get_xid()} {width}x{height}')
+            """;
+    private static final String WAYLAND_CLICK = """
+            import ctypes, ctypes.util, math, subprocess, sys, time, gi
+            gi.require_version('Gdk', '3.0')
+            gi.require_version('GdkX11', '3.0')
+            gi.require_version('Gio', '2.0')
+            gi.require_version('Wnck', '3.0')
+            from gi.repository import Gdk, GdkX11, Gio, GLib, Wnck
+            pid = int(sys.argv[1])
+            target_x = int(sys.argv[2])
+            target_y = int(sys.argv[3])
+            ydotool = sys.argv[4]
+            screen = Wnck.Screen.get_default()
+            screen.force_update()
+            display = Gdk.Display.get_default()
+            candidates = []
+            for window in screen.get_windows():
+                if window.get_pid() != pid:
+                    continue
+                foreign = GdkX11.X11Window.foreign_new_for_display(display, window.get_xid())
+                if foreign is None:
+                    continue
+                _, _, logical_width, logical_height = foreign.get_geometry()
+                _, _, physical_width, physical_height = window.get_geometry()
+                candidates.append((physical_width * physical_height, window,
+                    physical_width / logical_width,
+                    physical_height / logical_height))
+            if not candidates:
+                raise SystemExit('exact PID has no clickable XWayland window')
+            _, window, scale_x, scale_y = max(
+                candidates, key=lambda value: value[0])
+
+            lib = ctypes.CDLL(ctypes.util.find_library('X11'))
+            lib.XOpenDisplay.argtypes = [ctypes.c_char_p]
+            lib.XOpenDisplay.restype = ctypes.c_void_p
+            lib.XDefaultScreen.argtypes = [ctypes.c_void_p]
+            lib.XRootWindow.argtypes = [ctypes.c_void_p, ctypes.c_int]
+            lib.XRootWindow.restype = ctypes.c_ulong
+            lib.XCloseDisplay.argtypes = [ctypes.c_void_p]
+            lib.XQueryPointer.argtypes = [ctypes.c_void_p, ctypes.c_ulong,
+                ctypes.POINTER(ctypes.c_ulong), ctypes.POINTER(ctypes.c_ulong),
+                ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int),
+                ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int),
+                ctypes.POINTER(ctypes.c_uint)]
+            def pointer_position():
+                connection = lib.XOpenDisplay(None)
+                if not connection:
+                    raise SystemExit('could not connect to X display')
+                root = lib.XRootWindow(connection, lib.XDefaultScreen(connection))
+                root_return = ctypes.c_ulong()
+                child_return = ctypes.c_ulong()
+                root_px = ctypes.c_int()
+                root_py = ctypes.c_int()
+                window_px = ctypes.c_int()
+                window_py = ctypes.c_int()
+                mask = ctypes.c_uint()
+                lib.XQueryPointer(connection, root, ctypes.byref(root_return),
+                    ctypes.byref(child_return), ctypes.byref(root_px), ctypes.byref(root_py),
+                    ctypes.byref(window_px), ctypes.byref(window_py), ctypes.byref(mask))
+                lib.XCloseDisplay(connection)
+                return root_px.value, root_py.value
+
+            bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+            root_path = '/org/gnome/Mutter/RemoteDesktop'
+            root_iface = 'org.gnome.Mutter.RemoteDesktop'
+            session_iface = 'org.gnome.Mutter.RemoteDesktop.Session'
+            try:
+                session = bus.call_sync(root_iface, root_path, root_iface, 'CreateSession', None,
+                    GLib.VariantType.new('(o)'), Gio.DBusCallFlags.NONE, -1, None).unpack()[0]
+            except GLib.Error:
+                for _ in range(500):
+                    actual_x, actual_y = pointer_position()
+                    physical_dx = target_x - actual_x
+                    physical_dy = target_y - actual_y
+                    if max(abs(physical_dx), abs(physical_dy)) <= max(4, scale_x * 4):
+                        break
+                    logical_dx = max(-8, min(8, round(physical_dx / scale_x)))
+                    logical_dy = max(-8, min(8, round(physical_dy / scale_y)))
+                    subprocess.run([ydotool, 'mousemove', '-x', str(logical_dx), '-y',
+                        str(logical_dy)], check=True, stdout=subprocess.DEVNULL)
+                    time.sleep(0.008)
+                actual_x, actual_y = pointer_position()
+                if abs(actual_x - target_x) > max(4, scale_x * 4) or \
+                        abs(actual_y - target_y) > max(4, scale_y * 4):
+                    raise SystemExit(f'fallback pointer verification failed: {actual_x},{actual_y}')
+                subprocess.run([ydotool, 'click', '--next-delay', '120', '0xC0'], check=True,
+                    stdout=subprocess.DEVNULL)
+                print(f'{window.get_xid()} {round(target_x)} {round(target_y)} ydotool')
+                raise SystemExit(0)
+            def remote(method, parameters=None):
+                return bus.call_sync(root_iface, session, session_iface, method, parameters, None,
+                    Gio.DBusCallFlags.NONE, -1, None)
+            try:
+                remote('Start')
+                for _ in range(8):
+                    current_x, current_y = pointer_position()
+                    logical_dx = (target_x - current_x) / scale_x
+                    logical_dy = (target_y - current_y) / scale_y
+                    if max(abs(logical_dx), abs(logical_dy)) <= 4:
+                        break
+                    steps = max(1, math.ceil(max(abs(logical_dx), abs(logical_dy)) / 8))
+                    for _ in range(steps):
+                        remote('NotifyPointerMotionRelative', GLib.Variant('(dd)',
+                            (logical_dx / steps, logical_dy / steps)))
+                        time.sleep(0.008)
+                    time.sleep(0.05)
+                actual_x, actual_y = pointer_position()
+                if abs(actual_x - target_x) > max(4, scale_x * 4) or \
+                        abs(actual_y - target_y) > max(4, scale_y * 4):
+                    raise SystemExit(f'pointer verification failed: {actual_x},{actual_y}')
+                remote('NotifyPointerButton', GLib.Variant('(ib)', (0x110, True)))
+                time.sleep(0.06)
+                remote('NotifyPointerButton', GLib.Variant('(ib)', (0x110, False)))
+            finally:
+                remote('Stop')
+            print(f'{window.get_xid()} {round(target_x)} {round(target_y)}')
+            """;
     private static final Map<String, TargetPoint> TARGETS = targets();
 
     private final DesktopCommandExecutor commands;
     private final String xdotool;
     private final String imageMagickImport;
+    private final String ydotool;
+    private final String wmctrl;
+    private final String python3;
     private final Map<String, String> environment;
     private ProcessTarget target;
 
     LinuxDesktopSmokeDriver() {
-        this(new SystemDesktopCommandExecutor(), "xdotool", "import", System.getenv());
+        this(new SystemDesktopCommandExecutor(), "xdotool", "import", "ydotool", "wmctrl",
+                "python3", System.getenv());
     }
 
     LinuxDesktopSmokeDriver(
@@ -54,9 +241,23 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
             String xdotool,
             String imageMagickImport,
             Map<String, String> environment) {
+        this(commands, xdotool, imageMagickImport, "ydotool", "wmctrl", "python3", environment);
+    }
+
+    LinuxDesktopSmokeDriver(
+            DesktopCommandExecutor commands,
+            String xdotool,
+            String imageMagickImport,
+            String ydotool,
+            String wmctrl,
+            String python3,
+            Map<String, String> environment) {
         this.commands = commands;
         this.xdotool = xdotool;
         this.imageMagickImport = imageMagickImport;
+        this.ydotool = ydotool;
+        this.wmctrl = wmctrl;
+        this.python3 = python3;
         this.environment = Map.copyOf(environment);
     }
 
@@ -68,26 +269,31 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
         }
         String session = environment.getOrDefault("XDG_SESSION_TYPE", "")
                 .toLowerCase(Locale.ROOT);
-        if ("wayland".equals(session)) {
-            throw new UnavailableException(
-                    "Linux desktop automation currently requires an X11 session; Wayland is skipped");
-        }
         if (environment.getOrDefault("DISPLAY", "").isBlank()) {
-            throw new UnavailableException("Linux desktop automation requires an X11 DISPLAY");
+            throw new UnavailableException("Linux desktop automation requires an X11/XWayland DISPLAY");
         }
         try {
             command(List.of(xdotool, "version"), "xdotool");
-            command(List.of(imageMagickImport, "-version"), "ImageMagick import");
+            if ("wayland".equals(session)) {
+                command(List.of(python3, "-c", WAYLAND_WINDOW_PROBE, "0"), "GNOME XWayland bridge");
+                command(List.of(ydotool, "--help"), "ydotool");
+                command(List.of(wmctrl, "-m"), "wmctrl");
+            } else {
+                command(List.of(imageMagickImport, "-version"), "ImageMagick import");
+            }
         } catch (IOException unavailable) {
             throw new UnavailableException(
-                    "Linux desktop automation requires xdotool and ImageMagick import", unavailable);
+                    "Linux desktop automation dependencies are unavailable", unavailable);
         }
+        boolean wayland = "wayland".equals(session);
         return new Descriptor(
-                "linux-xdotool-pid",
-                "1",
+                wayland ? "linux-gnome-wayland-pid" : "linux-xdotool-pid",
+                wayland ? "1" : "2",
                 "linux",
                 Set.of("process-control", "window-control", "screen-capture", "evidence-read"),
-                List.of("X11 window ownership and capture are verified on first use"));
+                List.of(wayland
+                        ? "GNOME resolves the exact PID through XRes/Wnck; Mutter RemoteDesktop sends verified logical pointer input"
+                        : "X11 window ownership and capture are verified on first use"));
     }
 
     @Override
@@ -97,6 +303,8 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
         }
         requireSameLifetime(target);
         this.target = target;
+        Window window = waitForWindow(target, Duration.ofSeconds(8));
+        focusForStartup(target, window);
     }
 
     @Override
@@ -141,10 +349,9 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
 
     private ActionResult activate(ProcessTarget attached) throws Exception {
         Window window = window(attached.pid());
-        command(List.of(xdotool, "windowactivate", "--sync", Long.toString(window.id())),
-                "xdotool");
+        activate(window);
         verifyWindowOwner(window.id(), attached.pid());
-        return ActionResult.completed("activated X11 window " + window.id()
+        return ActionResult.completed("activated Linux window " + window.id()
                 + " for PID " + attached.pid());
     }
 
@@ -154,25 +361,56 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
             throw new IllegalArgumentException("Unsupported Linux smoke target: " + name);
         }
         Window window = window(attached.pid());
-        int x = (int) Math.round(window.width() * point.x());
-        int y = (int) Math.round(window.height() * point.y());
-        command(List.of(
-                xdotool,
-                "windowactivate", "--sync", Long.toString(window.id()),
-                "mousemove", "--window", Long.toString(window.id()),
-                Integer.toString(x), Integer.toString(y),
-                "click", "1"), "xdotool");
+        int x;
+        int y;
+        if (wayland()) {
+            activate(window);
+            int physicalX = (int) Math.round(window.x() + window.width() * point.x());
+            int physicalY = (int) Math.round(window.y() + window.height() * point.y());
+            x = (int) Math.round((double) physicalX / window.scale());
+            y = (int) Math.round((double) physicalY / window.scale());
+            command(List.of(python3, "-c", WAYLAND_CLICK, Long.toString(attached.pid()),
+                    Integer.toString(physicalX), Integer.toString(physicalY), ydotool),
+                    "GNOME RemoteDesktop click");
+            // GNOME may focus the window for the click but immediately return focus to the
+            // controller. Starsector throttles an inactive loading screen to 1 FPS, so assert the
+            // game again after the transition-triggering click.
+            activate(window);
+            waitUntilFrontmost(window.id(), Duration.ofSeconds(2));
+            if (clickReturnActivation(name)) {
+                command(List.of(ydotool, "key", "28:1"), "ydotool Return keydown");
+                Thread.sleep(120L);
+                command(List.of(ydotool, "key", "28:0"), "ydotool Return keyup");
+            }
+        } else {
+            x = (int) Math.round(window.width() * point.x());
+            y = (int) Math.round(window.height() * point.y());
+            command(List.of(
+                    xdotool,
+                    "windowactivate", "--sync", Long.toString(window.id()),
+                    "mousemove", "--window", Long.toString(window.id()),
+                    Integer.toString(x), Integer.toString(y),
+                    "click", "1"), "xdotool");
+        }
         verifyWindowOwner(window.id(), attached.pid());
         return ActionResult.completed("clicked " + point.name() + " at " + x + "," + y
-                + " in X11 window " + window.id());
+                + " in Linux window " + window.id()
+                + (wayland() && clickReturnActivation(name)
+                        ? " with post-focus Return activation" : ""));
     }
 
     private ActionResult pressKey(ProcessTarget attached, String key) throws Exception {
         String normalized = keySymbol(key);
         Window window = window(attached.pid());
-        command(List.of(
-                xdotool, "windowactivate", "--sync", Long.toString(window.id()),
-                "key", normalized), "xdotool");
+        if (wayland()) {
+            activate(window);
+            int code = waylandKey(key);
+            command(List.of(ydotool, "key", code + ":1", code + ":0"), "ydotool");
+        } else {
+            command(List.of(
+                    xdotool, "windowactivate", "--sync", Long.toString(window.id()),
+                    "key", normalized), "xdotool");
+        }
         verifyWindowOwner(window.id(), attached.pid());
         return ActionResult.completed("pressed " + normalized + " in X11 window " + window.id());
     }
@@ -181,9 +419,14 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
             throws Exception {
         String normalized = keySymbol(key);
         Window window = window(attached.pid());
-        command(List.of(
-                xdotool, "windowactivate", "--sync", Long.toString(window.id()),
-                "keydown", normalized), "xdotool");
+        if (wayland()) {
+            activate(window);
+            command(List.of(ydotool, "key", waylandKey(key) + ":1"), "ydotool");
+        } else {
+            command(List.of(
+                    xdotool, "windowactivate", "--sync", Long.toString(window.id()),
+                    "keydown", normalized), "xdotool");
+        }
         boolean interrupted = false;
         try {
             Thread.sleep(durationMillis);
@@ -193,7 +436,11 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
         } finally {
             if (interrupted) Thread.interrupted();
             try {
-                command(List.of(xdotool, "keyup", normalized), "xdotool");
+                if (wayland()) {
+                    command(List.of(ydotool, "key", waylandKey(key) + ":0"), "ydotool");
+                } else {
+                    command(List.of(xdotool, "keyup", normalized), "xdotool");
+                }
             } finally {
                 if (interrupted) Thread.currentThread().interrupt();
             }
@@ -254,9 +501,14 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
     private Artifact screenshot(ProcessTarget attached, Path runDirectory) throws Exception {
         Window window = window(attached.pid());
         Path destination = runDirectory.resolve("desktop-smoke.png");
-        command(List.of(
-                imageMagickImport, "-window", Long.toString(window.id()),
-                "png:" + destination), "ImageMagick import");
+        if (wayland()) {
+            command(List.of(python3, "-c", WAYLAND_CAPTURE, Long.toString(attached.pid()),
+                    destination.toString()), "GNOME XWayland capture");
+        } else {
+            command(List.of(
+                    imageMagickImport, "-window", Long.toString(window.id()),
+                    "png:" + destination), "ImageMagick import");
+        }
         verifyWindowOwner(window.id(), attached.pid());
         if (!Files.isRegularFile(destination, LinkOption.NOFOLLOW_LINKS)
                 || Files.size(destination) == 0) {
@@ -269,7 +521,11 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
         if (!sameLifetime(attached)) return ActionResult.completed("process already stopped");
         try {
             Window window = window(attached.pid());
-            command(List.of(xdotool, "windowclose", Long.toString(window.id())), "xdotool");
+            if (wayland()) {
+                command(List.of(wmctrl, "-ic", "0x" + Long.toHexString(window.id())), "wmctrl");
+            } else {
+                command(List.of(xdotool, "windowclose", Long.toString(window.id())), "xdotool");
+            }
         } catch (UnavailableException unavailable) {
             // A vanished window is expected during crash cleanup.
         }
@@ -290,6 +546,7 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
     }
 
     private Window window(long pid) throws Exception {
+        if (wayland()) return waylandWindow(pid);
         DesktopCommandExecutor.Result found = command(List.of(
                 xdotool, "search", "--onlyvisible", "--pid", Long.toString(pid)), "xdotool");
         List<Window> candidates = new ArrayList<>();
@@ -302,7 +559,7 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
                 throw new UnavailableException("xdotool returned an invalid window ID: " + line);
             }
             verifyWindowOwner(id, pid);
-            candidates.add(geometry(id));
+            candidates.add(geometry(id, 1));
         }
         return candidates.stream()
                 .filter(candidate -> candidate.width() >= 100 && candidate.height() >= 100)
@@ -312,7 +569,51 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
                         "The exact PID has no usable visible X11 window"));
     }
 
-    private Window geometry(long id) throws Exception {
+    private Window waitForWindow(ProcessTarget expected, Duration timeout) throws Exception {
+        long deadline = System.nanoTime() + timeout.toNanos();
+        UnavailableException last = null;
+        do {
+            requireSameLifetime(expected);
+            try {
+                return window(expected.pid());
+            } catch (UnavailableException unavailable) {
+                last = unavailable;
+            }
+            Thread.sleep(50L);
+        } while (System.nanoTime() < deadline);
+        throw new UnavailableException("The exact PID did not expose a usable Linux window in "
+                + timeout.toSeconds() + " seconds", last);
+    }
+
+    private Window waylandWindow(long pid) throws Exception {
+        DesktopCommandExecutor.Result found = command(List.of(
+                python3, "-c", WAYLAND_WINDOW_PROBE, Long.toString(pid)),
+                "GNOME XWayland bridge");
+        List<Window> candidates = new ArrayList<>();
+        for (String line : found.output().lines().toList()) {
+            if (line.isBlank()) continue;
+            String[] fields = line.trim().split("\\s+");
+            if (fields.length != 2) {
+                throw new UnavailableException("GNOME bridge returned an invalid window: " + line);
+            }
+            try {
+                long id = Long.parseLong(fields[0]);
+                int scale = Integer.parseInt(fields[1]);
+                if (scale < 1 || scale > 8) throw new NumberFormatException("invalid scale");
+                candidates.add(geometry(id, scale));
+            } catch (NumberFormatException invalid) {
+                throw new UnavailableException("GNOME bridge returned an invalid window: " + line);
+            }
+        }
+        return candidates.stream()
+                .filter(candidate -> candidate.width() >= 100 && candidate.height() >= 100)
+                .max(Comparator.comparingLong(
+                        candidate -> (long) candidate.width() * candidate.height()))
+                .orElseThrow(() -> new UnavailableException(
+                        "The exact PID has no usable visible XWayland window"));
+    }
+
+    private Window geometry(long id, int scale) throws Exception {
         String output = command(List.of(
                 xdotool, "getwindowgeometry", "--shell", Long.toString(id)), "xdotool")
                 .output();
@@ -328,13 +629,20 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
         }
         try {
             return new Window(id, values.get("X"), values.get("Y"),
-                    values.get("WIDTH"), values.get("HEIGHT"));
+                    values.get("WIDTH"), values.get("HEIGHT"), scale);
         } catch (NullPointerException missing) {
             throw new UnavailableException("xdotool returned incomplete window geometry: " + output);
         }
     }
 
     private void verifyWindowOwner(long window, long pid) throws Exception {
+        if (wayland()) {
+            if (waylandWindow(pid).id() != window) {
+                throw new UnavailableException(
+                        "XWayland window ownership changed before the desktop action");
+            }
+            return;
+        }
         String owner = command(List.of(
                 xdotool, "getwindowpid", Long.toString(window)), "xdotool").output().trim();
         if (!Long.toString(pid).equals(owner)) {
@@ -353,7 +661,11 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
         if (!(install instanceof String value) || value.isBlank()) {
             throw new UnavailableException("run.json doesn't identify the Starsector installation");
         }
-        Path source = Path.of(value).toAbsolutePath().normalize().resolve("logs/starsector.log");
+        Path installRoot = Path.of(value).toAbsolutePath().normalize();
+        Path source = installRoot.resolve("starsector.log");
+        if (!Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) {
+            source = installRoot.resolve("logs/starsector.log");
+        }
         if (!Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) {
             throw new UnavailableException("The current Starsector log is unavailable");
         }
@@ -429,9 +741,66 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
         return symbol;
     }
 
+    private int waylandKey(String key) {
+        Integer code = WAYLAND_KEYS.get(key.toLowerCase(Locale.ROOT));
+        if (code == null) {
+            throw new IllegalArgumentException("Unsupported GNOME smoke key: " + key);
+        }
+        return code;
+    }
+
+    private boolean wayland() {
+        return "wayland".equals(environment.getOrDefault("XDG_SESSION_TYPE", "")
+                .toLowerCase(Locale.ROOT));
+    }
+
+    private static boolean clickReturnActivation(String target) {
+        return "main-menu.continue".equals(target) || "main-menu.new-game".equals(target);
+    }
+
+    private void activate(Window window) throws Exception {
+        if (wayland()) {
+            command(List.of(wmctrl, "-ia", "0x" + Long.toHexString(window.id())), "wmctrl");
+        } else {
+            command(List.of(xdotool, "windowactivate", "--sync", Long.toString(window.id())),
+                    "xdotool");
+        }
+    }
+
+    private void waitUntilFrontmost(long windowId, Duration timeout) throws Exception {
+        long deadline = System.nanoTime() + timeout.toNanos();
+        do {
+            String focused = command(List.of(xdotool, "getwindowfocus"), "xdotool")
+                    .output().trim();
+            if (Long.toString(windowId).equals(focused)) return;
+            Thread.sleep(25L);
+        } while (System.nanoTime() < deadline);
+        throw new IOException("Linux game window did not become frontmost before input: "
+                + windowId);
+    }
+
+    private void focusForStartup(ProcessTarget attached, Window window) throws Exception {
+        activate(window);
+        if (wayland()) {
+            int physicalX = window.x() + window.width() / 2;
+            int physicalY = window.y() + window.height() / 2;
+            command(List.of(python3, "-c", WAYLAND_CLICK, Long.toString(attached.pid()),
+                    Integer.toString(physicalX), Integer.toString(physicalY), ydotool),
+                    "GNOME RemoteDesktop startup focus");
+        }
+        waitUntilFrontmost(window.id(), Duration.ofSeconds(2));
+    }
+
     private static Map<String, TargetPoint> targets() {
         Map<String, TargetPoint> values = new LinkedHashMap<>();
-        values.put("main-menu.continue", new TargetPoint("main-menu.continue", 0.775, 0.300));
+        // Starsector's decorated XWayland geometry is vertically offset from its captured client
+        // pixels on GNOME HiDPI. These fractions are calibrated against verified physical pointer
+        // receipts for the 2048x1280 direct-launch window.
+        values.put("main-menu.continue", new TargetPoint("main-menu.continue", 0.782, 0.201));
+        values.put("main-menu.new-game", new TargetPoint("main-menu.new-game", 0.782, 0.337));
+        values.put("main-menu.load-game", new TargetPoint("main-menu.load-game", 0.782, 0.377));
+        values.put("new-game.fleet.carrier-small",
+                new TargetPoint("new-game.fleet.carrier-small", 0.603, 0.488));
         return Map.copyOf(values);
     }
 
@@ -458,6 +827,6 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
     record TargetPoint(String name, double x, double y) {
     }
 
-    private record Window(long id, int x, int y, int width, int height) {
+    private record Window(long id, int x, int y, int width, int height, int scale) {
     }
 }

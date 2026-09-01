@@ -177,25 +177,31 @@ public final class LoadJsonMemoRuntime {
         if (restrictionProbeReady) {
             return true;
         }
-        try {
-            Class<?> resolver = Class.forName("com.fs.util.C", false,
-                    LoadJsonMemoRuntime.class.getClassLoader());
-            java.lang.reflect.Method singleton = resolver.getMethod("Object");
-            java.lang.reflect.Field pendingDirectory = resolver.getDeclaredField("String");
-            java.lang.reflect.Field pendingFlag = resolver.getDeclaredField("super");
-            singleton.setAccessible(true);
-            pendingDirectory.setAccessible(true);
-            pendingFlag.setAccessible(true);
-            MethodHandles.Lookup lookup = MethodHandles.lookup();
-            resolverSingleton = lookup.unreflect(singleton);
-            pendingDirectoryGetter = lookup.unreflectGetter(pendingDirectory);
-            pendingFlagGetter = lookup.unreflectGetter(pendingFlag);
-            restrictionProbeReady = true;
-            return true;
-        } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailable) {
-            failures.incrementAndGet();
-            return false;
+        for (ResolverShape shape : ResolverShape.reviewed()) {
+            try {
+                Class<?> resolver = Class.forName(shape.className(), false,
+                        LoadJsonMemoRuntime.class.getClassLoader());
+                java.lang.reflect.Method singleton = resolver.getMethod(shape.singletonMethod());
+                java.lang.reflect.Field pendingDirectory =
+                        resolver.getDeclaredField(shape.pendingDirectoryField());
+                java.lang.reflect.Field pendingFlag =
+                        resolver.getDeclaredField(shape.pendingFlagField());
+                singleton.setAccessible(true);
+                pendingDirectory.setAccessible(true);
+                pendingFlag.setAccessible(true);
+                MethodHandles.Lookup lookup = MethodHandles.lookup();
+                resolverSingleton = lookup.unreflect(singleton);
+                pendingDirectoryGetter = lookup.unreflectGetter(pendingDirectory);
+                pendingFlagGetter = lookup.unreflectGetter(pendingFlag);
+                restrictionProbeReady = true;
+                return true;
+            } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailable) {
+                // Try the next exact reviewed platform shape. The target class itself is still
+                // hash/source gated, so this does not turn the guard into a heuristic probe.
+            }
         }
+        failures.incrementAndGet();
+        return false;
     }
 
     /**
@@ -243,5 +249,20 @@ public final class LoadJsonMemoRuntime {
         resolverSingleton = null;
         pendingDirectoryGetter = null;
         pendingFlagGetter = null;
+    }
+
+    private record ResolverShape(
+            String className,
+            String singletonMethod,
+            String pendingDirectoryField,
+            String pendingFlagField) {
+        private static java.util.List<ResolverShape> reviewed() {
+            return java.util.List.of(
+                    new ResolverShape("com.fs.util.C", "Object", "String", "super"),
+                    new ResolverShape("com.fs.util.C", "Ó00000", "String", "super"),
+                    new ResolverShape(
+                            "com.fs.util.oo" + "O".repeat(254),
+                            "Ó00000", "Ô00000", "o00000"));
+        }
     }
 }

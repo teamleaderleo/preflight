@@ -1100,18 +1100,20 @@ final class AdapterTransformationRegistry {
         try {
             ClassNode owner = new ClassNode(Opcodes.ASM9);
             new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
-            boolean marked = false;
+            boolean phaseMarked = false;
             if (AdapterPlanControl.allows(StartupPhaseRuntime.PLAN_ID)
                     && StartupPhaseRuntime.phaseProbeEnabled()) {
-                marked = StartupPhasePlan.apply(signature, owner);
-            } else if (AdapterPlanControl.allows(FrameTimeStartupCompletionPlan.PLAN_ID)) {
+                phaseMarked = StartupPhasePlan.apply(signature, owner);
+            }
+            boolean marked = phaseMarked;
+            if (!marked && AdapterPlanControl.allows(FrameTimeStartupCompletionPlan.PLAN_ID)) {
                 marked = FrameTimeStartupCompletionPlan.apply(signature, owner);
             }
             boolean indexed = ResourcePriorityPlan.apply(signature, owner);
             boolean rateLimited = ResourceProgressRateLimitPlan.apply(signature, owner);
             if (!marked && !indexed && !rateLimited) return null;
             byte[] transformed = ResourcePriorityPlan.write(owner);
-            if (marked && StartupPhaseRuntime.phaseProbeEnabled()) {
+            if (phaseMarked) {
                 StartupPhaseRuntime.installed();
             }
             return transformed;
@@ -1132,7 +1134,9 @@ final class AdapterTransformationRegistry {
             if (AdapterPlanControl.allows(StartupPhaseRuntime.PLAN_ID)
                     && StartupPhaseRuntime.phaseProbeEnabled()) {
                 marked = StartupPhasePlan.transform(signature, current);
-            } else if (AdapterPlanControl.allows(FrameTimeStartupCompletionPlan.PLAN_ID)) {
+            }
+            if (marked == null
+                    && AdapterPlanControl.allows(FrameTimeStartupCompletionPlan.PLAN_ID)) {
                 marked = FrameTimeStartupCompletionPlan.transform(signature, current);
             }
             if (marked != null) {

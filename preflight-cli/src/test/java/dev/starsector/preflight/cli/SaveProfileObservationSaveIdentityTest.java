@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
@@ -21,7 +22,13 @@ final class SaveProfileObservationSaveIdentityTest {
     void whitespaceDistinctSaveDirectoriesKeepDistinctIdentityKeys() throws Exception {
         Fixture fixture = fixture();
         Path plain = fixture.saves().resolve("Campaign");
-        Path spaced = fixture.saves().resolve("Campaign ");
+        Path spaced;
+        try {
+            spaced = fixture.saves().resolve("Campaign ");
+        } catch (InvalidPathException unsupported) {
+            assumeTrue(false, "test filesystem rejects a trailing-space directory name");
+            return;
+        }
         requireDistinctDirectories(plain, spaced);
         Files.writeString(plain.resolve("save.dat"), "plain-before");
         Files.writeString(spaced.resolve("save.dat"), "spaced-before");
@@ -47,7 +54,13 @@ final class SaveProfileObservationSaveIdentityTest {
     @Test
     void whitespaceOnlySaveDirectorySurvivesLedgerRoundTripWhenFilesystemSupportsIt() throws Exception {
         Fixture fixture = fixture();
-        Path whitespace = fixture.saves().resolve(" ");
+        Path whitespace;
+        try {
+            whitespace = fixture.saves().resolve(" ");
+        } catch (InvalidPathException unsupported) {
+            assumeTrue(false, "test filesystem rejects a whitespace-only directory name");
+            return;
+        }
         try {
             Files.createDirectories(whitespace);
         } catch (IOException unsupported) {

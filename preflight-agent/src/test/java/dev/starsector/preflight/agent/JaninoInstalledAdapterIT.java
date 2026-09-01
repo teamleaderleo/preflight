@@ -1,6 +1,7 @@
 package dev.starsector.preflight.agent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -95,7 +96,7 @@ class JaninoInstalledAdapterIT {
 
         Path bundle = GeneratedBytecodeCache.bundlePath(
                 cache, context.keySha256(), "scripts.Example");
-        assertTrue(Files.isRegularFile(bundle));
+        assertFalse(Files.exists(bundle), "the published pack replaces exact individual bundles");
     }
 
     private static Class<?> compile(InstalledLoader classes, Path sources) throws Exception {

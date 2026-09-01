@@ -133,7 +133,11 @@ final class AdapterInstallationEffects {
         if (StelnetMarketUpdaterRuntime.PLAN_ID.equals(target.planId())) {
             StelnetMarketUpdaterRuntime.installed();
         }
-        if (has(referenced, TexturePaddingRuntime.class)) {
+        if (referencesMethod(
+                reader,
+                TexturePaddingRuntime.class,
+                "unpadded",
+                "()Z")) {
             TexturePaddingRuntime.foldBypassInstalled();
         }
         if (VersionCheckResponseDedupRuntime.PLAN_ID.equals(target.planId())) {
@@ -252,5 +256,34 @@ final class AdapterInstallationEffects {
 
     private static boolean has(Set<String> owners, Class<?> runtime) {
         return owners.contains(runtime.getName().replace('.', '/'));
+    }
+
+    /** True only for the fold wrapper's gate call, not another reference to the padding runtime. */
+    private static boolean referencesMethod(
+            ClassReader reader, Class<?> ownerType, String methodName, String descriptor) {
+        String expectedOwner = ownerType.getName().replace('.', '/');
+        boolean[] found = {false};
+        reader.accept(new ClassVisitor(Opcodes.ASM9) {
+            @Override
+            public MethodVisitor visitMethod(
+                    int access, String name, String methodDescriptor, String signature, String[] exceptions) {
+                return new MethodVisitor(Opcodes.ASM9) {
+                    @Override
+                    public void visitMethodInsn(
+                            int opcode,
+                            String owner,
+                            String name,
+                            String invokedDescriptor,
+                            boolean isInterface) {
+                        if (expectedOwner.equals(owner)
+                                && methodName.equals(name)
+                                && descriptor.equals(invokedDescriptor)) {
+                            found[0] = true;
+                        }
+                    }
+                };
+            }
+        }, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+        return found[0];
     }
 }

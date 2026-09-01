@@ -25,11 +25,14 @@ final class TexturePreparedPixelPlan {
     static final String TARGET_CLASS = "com/fs/graphics/TextureLoader";
     static final String TEXTURE_OBJECT = "com/fs/graphics/Object";
     static final String DECODE_METHOD = "Ô00000";
+    static final String LINUX_DECODE_METHOD = "String";
     static final String DECODE_DESCRIPTOR = "(Ljava/lang/String;)Ljava/awt/image/BufferedImage;";
     static final String CONVERT_METHOD = "o00000";
+    static final String LINUX_CONVERT_METHOD = "super";
     static final String CONVERT_DESCRIPTOR =
             "(Ljava/awt/image/BufferedImage;Lcom/fs/graphics/Object;)Ljava/nio/ByteBuffer;";
     static final String CLEANUP_METHOD = "o00000";
+    static final String LINUX_CLEANUP_METHOD = "super";
     static final String CLEANUP_DESCRIPTOR = "(Ljava/nio/ByteBuffer;Ljava/lang/String;)V";
 
     private static final String ORIGINAL_DECODE = "preflight$original$decodeImage";
@@ -38,6 +41,7 @@ final class TexturePreparedPixelPlan {
     private static final String RUNTIME = "dev/starsector/preflight/agent/TexturePreparedPixelRuntime";
     private static final String PRELOADER = "com/fs/graphics/L";
     private static final String PRELOADER_METHOD = "class";
+    private static final String WINDOWS_PRELOADER_METHOD = "Õ00000";
     private static final String PREPARED_PIXEL = RUNTIME + "$PreparedPixel";
     private static final String DIMENSION_SETTER_DESCRIPTOR = "(I)V";
 
@@ -46,9 +50,9 @@ final class TexturePreparedPixelPlan {
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
         if (!TARGET_CLASS.equals(signature.internalName())
-                || !signature.hasMethod(DECODE_METHOD, DECODE_DESCRIPTOR)
-                || !signature.hasMethod(CONVERT_METHOD, CONVERT_DESCRIPTOR)
-                || !signature.hasMethod(CLEANUP_METHOD, CLEANUP_DESCRIPTOR)) {
+                || !hasSupportedMethod(signature, DECODE_METHOD, LINUX_DECODE_METHOD, DECODE_DESCRIPTOR)
+                || !hasSupportedMethod(signature, CONVERT_METHOD, LINUX_CONVERT_METHOD, CONVERT_DESCRIPTOR)
+                || !hasSupportedMethod(signature, CLEANUP_METHOD, LINUX_CLEANUP_METHOD, CLEANUP_DESCRIPTOR)) {
             return null;
         }
 
@@ -58,9 +62,9 @@ final class TexturePreparedPixelPlan {
             return null;
         }
 
-        MethodNode decode = uniqueMethod(owner, DECODE_METHOD, DECODE_DESCRIPTOR);
-        MethodNode convert = uniqueMethod(owner, CONVERT_METHOD, CONVERT_DESCRIPTOR);
-        MethodNode cleanup = uniqueMethod(owner, CLEANUP_METHOD, CLEANUP_DESCRIPTOR);
+        MethodNode decode = uniqueSupportedMethod(owner, DECODE_METHOD, LINUX_DECODE_METHOD, DECODE_DESCRIPTOR);
+        MethodNode convert = uniqueSupportedMethod(owner, CONVERT_METHOD, LINUX_CONVERT_METHOD, CONVERT_DESCRIPTOR);
+        MethodNode cleanup = uniqueSupportedMethod(owner, CLEANUP_METHOD, LINUX_CLEANUP_METHOD, CLEANUP_DESCRIPTOR);
         if (!eligibleInstance(decode) || !eligibleInstance(convert) || !eligibleStatic(cleanup)
                 || hasMethod(owner, ORIGINAL_DECODE, DECODE_DESCRIPTOR)
                 || hasMethod(owner, ORIGINAL_CONVERT, CONVERT_DESCRIPTOR)
@@ -79,7 +83,9 @@ final class TexturePreparedPixelPlan {
         if (colors.size() != 3 || dimensions == null) {
             return null;
         }
-        List<MethodNode> uploadCallers = directConvertCallers(owner, convert);
+        String convertName = convert.name;
+        String cleanupName = cleanup.name;
+        List<MethodNode> uploadCallers = directConvertCallers(owner, convert, convertName);
         if (uploadCallers.isEmpty()) {
             return null;
         }
@@ -89,11 +95,13 @@ final class TexturePreparedPixelPlan {
             return null;
         }
         injectPreparedLookup(decode, handoff.directDecode());
-        MethodMetadata convertMetadata = rename(owner.name, convert, ORIGINAL_CONVERT, CONVERT_METHOD, CONVERT_DESCRIPTOR);
-        MethodMetadata cleanupMetadata = rename(owner.name, cleanup, ORIGINAL_CLEANUP, CLEANUP_METHOD, CLEANUP_DESCRIPTOR);
+        MethodMetadata convertMetadata = rename(
+                owner.name, convert, ORIGINAL_CONVERT, convertName, CONVERT_DESCRIPTOR);
+        MethodMetadata cleanupMetadata = rename(
+                owner.name, cleanup, ORIGINAL_CLEANUP, cleanupName, CLEANUP_DESCRIPTOR);
         owner.methods.add(originalDecode);
-        owner.methods.add(convertWrapper(owner.name, convertMetadata, colors, dimensions));
-        owner.methods.add(cleanupWrapper(owner.name, cleanupMetadata));
+        owner.methods.add(convertWrapper(owner.name, convertMetadata, convertName, colors, dimensions));
+        owner.methods.add(cleanupWrapper(owner.name, cleanupMetadata, cleanupName));
         uploadCallers.forEach(TexturePreparedPixelPlan::addExceptionalRelease);
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
@@ -104,9 +112,10 @@ final class TexturePreparedPixelPlan {
     private static MethodNode convertWrapper(
             String owner,
             MethodMetadata metadata,
+            String methodName,
             List<TexturePreparedPixelColorSink.SinkField> colors,
             DimensionSetters dimensions) {
-        MethodNode wrapper = method(metadata, CONVERT_METHOD, CONVERT_DESCRIPTOR);
+        MethodNode wrapper = method(metadata, methodName, CONVERT_DESCRIPTOR);
         LabelNode ordinary = new LabelNode();
         LabelNode preparedFallback = new LabelNode();
         LabelNode decodeOriginal = new LabelNode();
@@ -257,8 +266,9 @@ final class TexturePreparedPixelPlan {
                 false));
     }
 
-    private static MethodNode cleanupWrapper(String owner, MethodMetadata metadata) {
-        MethodNode wrapper = method(metadata, CLEANUP_METHOD, CLEANUP_DESCRIPTOR);
+    private static MethodNode cleanupWrapper(
+            String owner, MethodMetadata metadata, String methodName) {
+        MethodNode wrapper = method(metadata, methodName, CLEANUP_DESCRIPTOR);
         LabelNode start = new LabelNode();
         LabelNode end = new LabelNode();
         LabelNode handler = new LabelNode();
@@ -307,7 +317,8 @@ final class TexturePreparedPixelPlan {
         return new DimensionSetters(setters.get(1), setters.get(0));
     }
 
-    private static List<MethodNode> directConvertCallers(ClassNode owner, MethodNode convert) {
+    private static List<MethodNode> directConvertCallers(
+            ClassNode owner, MethodNode convert, String convertName) {
         List<MethodNode> callers = new ArrayList<>();
         for (MethodNode method : owner.methods) {
             if (method == convert) {
@@ -318,7 +329,7 @@ final class TexturePreparedPixelPlan {
                     instruction = instruction.getNext()) {
                 if (instruction instanceof MethodInsnNode call
                         && owner.name.equals(call.owner)
-                        && CONVERT_METHOD.equals(call.name)
+                        && convertName.equals(call.name)
                         && CONVERT_DESCRIPTOR.equals(call.desc)) {
                     callers.add(method);
                     break;
@@ -421,7 +432,8 @@ final class TexturePreparedPixelPlan {
             if (!(instruction instanceof MethodInsnNode call)
                     || call.getOpcode() != Opcodes.INVOKESTATIC
                     || !PRELOADER.equals(call.owner)
-                    || !PRELOADER_METHOD.equals(call.name)
+                    || (!PRELOADER_METHOD.equals(call.name)
+                            && !WINDOWS_PRELOADER_METHOD.equals(call.name))
                     || !DECODE_DESCRIPTOR.equals(call.desc)) {
                 continue;
             }
@@ -494,6 +506,18 @@ final class TexturePreparedPixelPlan {
             }
         }
         return found;
+    }
+
+    private static MethodNode uniqueSupportedMethod(
+            ClassNode owner, String firstName, String secondName, String descriptor) {
+        MethodNode first = uniqueMethod(owner, firstName, descriptor);
+        MethodNode second = uniqueMethod(owner, secondName, descriptor);
+        return first == null ? second : second == null ? first : null;
+    }
+
+    private static boolean hasSupportedMethod(
+            ClassSignature signature, String firstName, String secondName, String descriptor) {
+        return signature.hasMethod(firstName, descriptor) || signature.hasMethod(secondName, descriptor);
     }
 
     private static boolean hasMethod(ClassNode owner, String name, String descriptor) {

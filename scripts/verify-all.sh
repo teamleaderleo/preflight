@@ -15,13 +15,19 @@ phase() {
   printf '\n==> %s\n' "$1"
 }
 
-require_command mvn
 require_command npm
 require_command cargo
 require_command git
 
+if [[ -x "$repository_root/mvnw" ]]; then
+  maven=("$repository_root/mvnw")
+else
+  require_command mvn
+  maven=(mvn)
+fi
+
 phase "Java reactor"
-mvn --batch-mode --no-transfer-progress verify
+"${maven[@]}" --batch-mode --no-transfer-progress verify
 
 phase "Desktop dependencies"
 (

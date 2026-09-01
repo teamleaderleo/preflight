@@ -74,6 +74,11 @@ public final class ClasspathProfileIndexIO {
         if (maximumBytes < minimumFileBytes() || maximumBytes > MAX_FILE_BYTES) {
             throw new IllegalArgumentException("Invalid classpath profile index read limit: " + maximumBytes);
         }
+        long fileBytes = Files.size(source);
+        if (fileBytes > maximumBytes) {
+            throw new IOException(
+                    "Classpath profile index exceeds the " + maximumBytes + " byte safety limit: " + source);
+        }
         byte[] bytes;
         try (InputStream input = Files.newInputStream(source, StandardOpenOption.READ)) {
             bytes = input.readNBytes(Math.addExact(maximumBytes, 1));

@@ -45,6 +45,11 @@ CHECKOUT_JAR="$PWD/preflight-cli/target/preflight.jar"
 JAR="$CHECKOUT_JAR"
 DETECTOR="$PWD/scripts/starsector_log_ready_detector.py"
 REPORTER="$PWD/scripts/starsector_benchmark_report.py"
+if [[ -x "$PWD/mvnw" ]]; then
+    MAVEN="$PWD/mvnw"
+else
+    MAVEN="mvn"
+fi
 
 LAUNCHER_TIMEOUT_SECONDS=120
 LAUNCHER_QUIET_SECONDS=6
@@ -184,9 +189,13 @@ if [[ "$ENGINE_WAS_SET" == true ]]; then
     ENGINE_SOURCE=candidate
 fi
 
-for command in git java mvn jq python3 shasum; do
+for command in git grep java jq python3 shasum; do
     command -v "$command" >/dev/null 2>&1 || { bad "Missing required command: $command"; exit 1; }
 done
+if [[ "$MAVEN" == mvn ]] && ! command -v mvn >/dev/null 2>&1; then
+    bad "Missing required command: mvn (and the repository Maven wrapper is unavailable)"
+    exit 1
+fi
 
 GAME="$(physical_path "$GAME")"
 CACHE="$(physical_path "$CACHE")"
@@ -296,7 +305,15 @@ for condition in "${CONDITION_LIST[@]}"; do
 done
 
 LOG_DIR="$GAME/logs"
+if [[ -f "$GAME/starsector.sh" ]] \
+        && grep -Fq -- '-Dcom.fs.starfarer.settings.paths.logs=.' "$GAME/starsector.sh"; then
+    LOG_DIR="$GAME"
+fi
 [[ -d "$LOG_DIR" ]] || { bad "Starsector log directory not found: $LOG_DIR"; exit 1; }
+MAIN_MENU_SAVE_ARGS=()
+if ! compgen -G "$GAME/saves/*/descriptor.xml" >/dev/null; then
+    MAIN_MENU_SAVE_ARGS+=(--allow-missing-save-descriptor)
+fi
 
 # Starsector's launcher starts its JVM from inside the installation with a relative executable
 # path, so matching the process command line misses the real game. Ask every Java process for its
@@ -392,7 +409,7 @@ else
     fi
     if [[ "$checkout_is_current" != true ]]; then
         banner "== Building the checkout =="
-        mvn -q -DskipTests package
+        "$MAVEN" -q -DskipTests package
     fi
     JAR="$CHECKOUT_JAR"
     [[ -f "$JAR" ]] || { bad "Runnable JAR was not produced: $JAR"; exit 1; }
@@ -925,12 +942,17 @@ launch_once() {
     local profile_after="$run_dir/profile-after.json"
     local wrapper_output="$run_dir/wrapper-output.txt"
     local fatal_flag="$run_dir/fatal-jvm-error.txt"
+    local launch_directory="$PWD"
     rm -rf "$run_dir"
     mkdir -p "$run_dir"
 
     local -a command
     case "$condition" in
         vanilla)
+            # Linux's stock launcher resolves ./jre_linux and every classpath entry from the
+            # installation directory. Preflight's Java launcher already supplies that cwd, but
+            # the unwrapped baseline has to preserve it explicitly.
+            launch_directory="$GAME"
             command=(env -u JAVA_TOOL_OPTIONS "$LAUNCHER") ;;
         agent)
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
@@ -977,7 +999,11 @@ launch_once() {
     if [[ "$condition" != vanilla ]]; then
         command+=(--no-scan)
     fi
-    if [[ "$ONE_SHOT_DIRECT" == true ]]; then
+    # Every direct-protocol Preflight launch must opt out of the launcher UI.  ONE_SHOT_DIRECT
+    # only controls whether we need a separate launch-settings JVM before the campaign; using it
+    # here left multi-run --unattended campaigns claiming to be direct while opening the launcher
+    # and waiting forever for a main-menu marker.
+    if [[ "$PROTOCOL" == direct ]]; then
         command+=(--direct)
     fi
 
@@ -995,7 +1021,7 @@ launch_once() {
 
     local start_ns
     start_ns="$(python3 -c 'import time; print(time.monotonic_ns())')"
-    "${command[@]}" >"$wrapper_output" 2>&1 &
+    (cd "$launch_directory" && exec "${command[@]}") >"$wrapper_output" 2>&1 &
     local pid=$!
     watch_for_fatal_jvm_error "$wrapper_output" "$pid" "$fatal_flag" &
     local watchdog=$!
@@ -1036,7 +1062,8 @@ launch_once() {
 
     if ! python3 "$DETECTOR" watch-main-menu --log-dir "$LOG_DIR" --snapshot "$menu_snapshot" \
             --output "$menu_detection" --pid "$pid" \
-            --timeout-seconds "$MAIN_MENU_TIMEOUT_SECONDS" --quiet-seconds "$MAIN_MENU_QUIET_SECONDS"; then
+            --timeout-seconds "$MAIN_MENU_TIMEOUT_SECONDS" --quiet-seconds "$MAIN_MENU_QUIET_SECONDS" \
+            "${MAIN_MENU_SAVE_ARGS[@]}"; then
         kill "$watchdog" >/dev/null 2>&1 || true
         wait "$watchdog" >/dev/null 2>&1 || true
         terminate "$pid"
@@ -1314,4 +1341,11 @@ else
     echo
     good "Session directory: $ROOT"
     note "Resume or add rounds with: scripts/benchmark-startup.sh --campaign --resume '$ROOT' --rounds N"
+fi
+
+# A campaign may retain a few excluded samples beside valid ones, but zero accepted launches is
+# never success.  In particular, the public one-shot command must not return 0 after reporting a
+# crash or missing main-menu marker.
+if ! jq -s -e 'any(.[]; .status == "accepted")' "$RESULTS" >/dev/null; then
+    exit 1
 fi

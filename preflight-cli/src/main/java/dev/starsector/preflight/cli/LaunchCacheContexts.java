@@ -148,13 +148,25 @@ final class LaunchCacheContexts {
             Path cacheRoot = textureProfiles
                     ? textures.cacheDirectory()
                     : defaultCache;
+
+            Profiles remembered = rememberedProfileContexts(
+                    options, textures, resources, cacheRoot, janinoCacheOwned);
+            if (remembered != null) {
+                System.out.printf(Locale.ROOT,
+                        "Preflight reused validated launch cache identities in %.1fms "
+                                + "(%d providers; no dependency files reopened).%n",
+                        (System.nanoTime() - opened) / 1_000_000.0,
+                        resources.providerCount());
+                return remembered;
+            }
+
             try (ProfileIdentityContext context =
                     ProfileIdentityContext.of(target.installRoot(), resources)) {
                 System.out.printf(Locale.ROOT,
                         "Preflight read the launch profile in %.1fms (%d providers).%n",
                         (System.nanoTime() - opened) / 1_000_000.0,
                         context.resources().providerCount());
-                return selectProfileContexts(
+                Profiles selected = selectProfileContexts(
                         options,
                         target,
                         textures,
@@ -163,12 +175,118 @@ final class LaunchCacheContexts {
                         defaultCache,
                         textureProfiles,
                         janinoCacheOwned);
+                rememberProfileContexts(options, textures, resources, cacheRoot, selected);
+                return selected;
             }
         } catch (Exception error) {
             System.err.println("Preflight launch profile identity failed: " + message(error)
                     + "; vanilla loading remains active.");
             return Profiles.none();
         }
+    }
+
+    private static Profiles rememberedProfileContexts(
+            CommandLine options,
+            Texture textures,
+            ResourceIndex resources,
+            Path cacheRoot,
+            boolean janinoCacheOwned) {
+        if (textures == null || !textures.automatic() || janinoCacheOwned || options.preparedAudio()) {
+            return null;
+        }
+        String profile = resources.profileFingerprint();
+        Path receipt = LaunchProfileSelectionReceipt.path(cacheRoot, profile);
+        if (!Files.isRegularFile(receipt)) {
+            return null;
+        }
+        try {
+            LaunchProfileSelectionReceipt.Selection selected =
+                    LaunchProfileSelectionReceipt.read(receipt, profile);
+            if (options.ruleCommandClassCache() && selected.ruleCommand() == null) {
+                return null;
+            }
+            VariantJson variant = new VariantJson(artifact(
+                    SpecStoreCacheDirectories.variantJson(cacheRoot), selected.variantJson(), ".spvj"));
+            WeaponJson weapon = new WeaponJson(artifact(
+                    SpecStoreCacheDirectories.weaponJson(cacheRoot), selected.weaponJson(), ".spwj"));
+            ProjectileJson projectile = new ProjectileJson(artifact(
+                    SpecStoreCacheDirectories.projectileJson(cacheRoot), selected.projectileJson(), ".sppj"));
+            HullJson hull = new HullJson(artifact(
+                    SpecStoreCacheDirectories.hullJson(cacheRoot), selected.hullJson(), ".sphj"));
+            RulesCsv rules = new RulesCsv(artifact(
+                    SpecStoreCacheDirectories.rulesCsv(cacheRoot), selected.rulesCsv(), ".sprc"));
+            RuleCommand commands = options.ruleCommandClassCache()
+                    ? new RuleCommand(artifact(
+                            SpecStoreCacheDirectories.ruleCommandClasses(cacheRoot),
+                            selected.ruleCommand(),
+                            ".sprk"))
+                    : null;
+            MergedRead merged = new MergedRead(artifact(
+                    SpecStoreCacheDirectories.mergedReads(cacheRoot), selected.mergedRead(), ".spmr"),
+                    selected.mergedRead());
+            return new Profiles(
+                    variant,
+                    weapon,
+                    projectile,
+                    hull,
+                    rules,
+                    commands,
+                    merged,
+                    magicPaintjobCacheContext(merged, textures),
+                    null,
+                    null);
+        } catch (IOException invalid) {
+            System.err.println("Preflight ignored the saved launch cache identities: "
+                    + message(invalid) + "; dependency identities will be rebuilt once.");
+            return null;
+        }
+    }
+
+    private static void rememberProfileContexts(
+            CommandLine options,
+            Texture textures,
+            ResourceIndex resources,
+            Path cacheRoot,
+            Profiles selected) {
+        if (textures == null
+                || !textures.automatic()
+                || selected.variantJson() == null
+                || selected.weaponJson() == null
+                || selected.projectileJson() == null
+                || selected.hullJson() == null
+                || selected.rulesCsv() == null
+                || selected.mergedRead() == null
+                || (options.ruleCommandClassCache() && selected.ruleCommand() == null)) {
+            return;
+        }
+        try {
+            LaunchProfileSelectionReceipt.write(
+                    cacheRoot,
+                    resources.profileFingerprint(),
+                    new LaunchProfileSelectionReceipt.Selection(
+                            identity(selected.variantJson().artifact()),
+                            identity(selected.weaponJson().artifact()),
+                            identity(selected.projectileJson().artifact()),
+                            identity(selected.hullJson().artifact()),
+                            identity(selected.rulesCsv().artifact()),
+                            selected.ruleCommand() == null
+                                    ? null
+                                    : identity(selected.ruleCommand().artifact()),
+                            selected.mergedRead().identitySha256()));
+        } catch (IOException | IllegalArgumentException failed) {
+            System.err.println("Preflight could not save the launch cache identities: "
+                    + message(failed) + "; the current launch remains valid.");
+        }
+    }
+
+    private static String identity(Path artifact) {
+        String name = artifact.getFileName().toString();
+        int dot = name.indexOf('.');
+        String identity = dot < 0 ? name : name.substring(0, dot);
+        if (!identity.matches("[0-9a-f]{64}")) {
+            throw new IllegalArgumentException("cache artifact name does not begin with an identity: " + name);
+        }
+        return identity;
     }
 
     private static Profiles selectProfileContexts(

@@ -28,6 +28,7 @@ final class DesktopSmokeScenario {
             "refit-ready", "simulation-ready", "combat-ready");
     private static final Set<String> TARGETS = Set.of(
             "main-menu.continue",
+            "main-menu.new-game",
             "campaign.pause",
             "campaign.unpause",
             "campaign.begin-frame-window",
@@ -43,6 +44,7 @@ final class DesktopSmokeScenario {
             "campaign.prepare-combat-fixture",
             "campaign.verify-combat-fixture",
             "main-menu.load-game",
+            "new-game.fleet.carrier-small",
             "load-game.first-save",
             "load-game.load",
             "campaign.refit",
@@ -262,6 +264,11 @@ final class DesktopSmokeScenario {
             case "activate-window", "quit" -> {
                 exactFields(value, COMMON_STEP_FIELDS, context);
                 yield new Step(id, kind, Map.of());
+            }
+            case "pause" -> {
+                exactFields(value, with("durationMillis"), context);
+                int duration = integer(value, "durationMillis", 50, 30_000);
+                yield new Step(id, kind, Map.of("durationMillis", duration));
             }
             case "click" -> {
                 exactFields(value, with("target"), context);

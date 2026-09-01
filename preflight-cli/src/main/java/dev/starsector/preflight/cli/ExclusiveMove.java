@@ -65,7 +65,10 @@ final class ExclusiveMove {
     }
 
     private static void moveWindows(Path source, Path target) throws IOException {
-        int result = Kernel32.INSTANCE.MoveFileExW(new WString(source.toString()), new WString(target.toString()), 0);
+        int result = Kernel32.INSTANCE.MoveFileExW(
+                new WString(windowsExtendedPath(source)),
+                new WString(windowsExtendedPath(target)),
+                0);
         if (result != 0) return;
         int error = Native.getLastError();
         if (error == ERROR_FILE_EXISTS || error == ERROR_ALREADY_EXISTS) {
@@ -73,6 +76,17 @@ final class ExclusiveMove {
         }
         throw new IOException("Native exclusive launcher move failed (MoveFileExW, error " + error + "): "
                 + source + " -> " + target);
+    }
+
+    private static String windowsExtendedPath(Path path) {
+        String value = path.toString();
+        if (value.startsWith("\\\\?\\")) {
+            return value;
+        }
+        if (value.startsWith("\\\\")) {
+            return "\\\\?\\UNC\\" + value.substring(2);
+        }
+        return "\\\\?\\" + value;
     }
 
     private static IOException posixFailure(

@@ -61,6 +61,23 @@ class ExclusiveMoveTest {
     }
 
     @Test
+    void longPathsRemainMovable(@TempDir Path tempDir) throws Exception {
+        Path parent = tempDir;
+        for (int depth = 0; parent.toAbsolutePath().toString().length() <= 280; depth++) {
+            parent = parent.resolve("exclusive-move-long-path-segment-" + depth);
+        }
+        Files.createDirectories(parent);
+        Path source = parent.resolve("source");
+        Path target = parent.resolve("target");
+        Files.writeString(source, "preflight generation\n");
+
+        ExclusiveMove.move(source, target);
+
+        assertFalse(Files.exists(source));
+        assertEquals("preflight generation\n", Files.readString(target));
+    }
+
+    @Test
     void exactlyOneConcurrentWriterCanClaimAbsentTarget(@TempDir Path tempDir) throws Exception {
         int writers = 8;
         List<Path> sources = new ArrayList<>();

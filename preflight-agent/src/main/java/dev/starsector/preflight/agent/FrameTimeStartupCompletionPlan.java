@@ -14,6 +14,10 @@ final class FrameTimeStartupCompletionPlan {
     static final String TARGET_CLASS = StartupPhasePlan.TARGET_CLASS;
     static final String ORIGINAL_SHA256 =
             "a64927cec70db4e15d54b8611073b4008ba62878e0208f30ca338d66377214ab";
+    static final String LINUX_ORIGINAL_SHA256 =
+            "133e67fc16877b7f7550aa15540b1d8a998373c59ca70f05b99e269be308053f";
+    static final String WINDOWS_ORIGINAL_SHA256 =
+            "91234c03bb3938180f5a4a0c552eaf2af46df57774530890441355c18e86b6de";
     static final String INIT_METHOD = StartupPhasePlan.INIT_METHOD;
     static final String INIT_DESCRIPTOR = StartupPhasePlan.INIT_DESCRIPTOR;
     private static final String RUNTIME =
@@ -36,7 +40,9 @@ final class FrameTimeStartupCompletionPlan {
                         && !LoadJsonMemoRuntime.ready()
                         && !RuntimeSemanticState.enabled())
                 || !TARGET_CLASS.equals(signature.internalName())
-                || !ORIGINAL_SHA256.equals(signature.sha256())
+                || (!ORIGINAL_SHA256.equals(signature.sha256())
+                        && !LINUX_ORIGINAL_SHA256.equals(signature.sha256())
+                        && !WINDOWS_ORIGINAL_SHA256.equals(signature.sha256()))
                 || !signature.hasMethod(INIT_METHOD, INIT_DESCRIPTOR)) {
             return false;
         }

@@ -253,6 +253,7 @@ final class JaninoProfileIdentityBuilder {
         Path root = installRoot.toAbsolutePath().normalize();
         List<Path> candidates = List.of(
                 root.resolve("Contents/Home/lib/modules"),
+                root.resolve("jre_linux/lib/modules"),
                 root.resolve("jre/lib/modules"),
                 root.resolve("starsector-core/jre/lib/modules"),
                 root.resolve("Contents/Resources/Java/jre/lib/modules"),

@@ -45,6 +45,21 @@ final class MainMenuInteractivePlanTest {
     }
 
     @Test
+    void marksCompletionOfTheExactLinuxTitleScreenShowMethod() throws Exception {
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+        byte[] original = fixture(
+                MainMenuInteractivePlan.LINUX_TARGET_CLASS,
+                "(Lcom/fs/starfarer/ui/OO0o;)V",
+                1);
+
+        byte[] transformed = MainMenuInteractivePlan.transform(
+                exactSignature(original, MainMenuInteractivePlan.LINUX_ORIGINAL_SHA256), original);
+
+        assertNotNull(transformed);
+        assertEquals(1, calls(showMethod(transformed), RUNTIME, "mainMenuInteractive"));
+    }
+
+    @Test
     void declinesDisabledWrongAmbiguousAndAlreadyTransformedInputs() throws Exception {
         byte[] original = fixture();
         assertNull(MainMenuInteractivePlan.transform(
@@ -72,11 +87,15 @@ final class MainMenuInteractivePlanTest {
     }
 
     private static byte[] fixture(int removalCalls) {
+        return fixture(MainMenuInteractivePlan.TARGET_CLASS, "(Lcom/fs/starfarer/ui/c;)V", removalCalls);
+    }
+
+    private static byte[] fixture(String targetClass, String removeDescriptor, int removalCalls) {
         ClassWriter writer = new ClassWriter(0);
-        writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, MainMenuInteractivePlan.TARGET_CLASS,
+        writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, targetClass,
                 null, "java/lang/Object", null);
         MethodVisitor remove = writer.visitMethod(Opcodes.ACC_PUBLIC, "remove",
-                "(Lcom/fs/starfarer/ui/c;)V", null, null);
+                removeDescriptor, null, null);
         remove.visitCode();
         remove.visitInsn(Opcodes.RETURN);
         remove.visitMaxs(0, 2);
@@ -89,12 +108,20 @@ final class MainMenuInteractivePlanTest {
             advance.visitVarInsn(Opcodes.ALOAD, 0);
             advance.visitInsn(Opcodes.ACONST_NULL);
             advance.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
-                    MainMenuInteractivePlan.TARGET_CLASS, "remove",
-                    "(Lcom/fs/starfarer/ui/c;)V", false);
+                    targetClass, "remove", removeDescriptor, false);
         }
         advance.visitInsn(Opcodes.RETURN);
         advance.visitMaxs(2, 2);
         advance.visitEnd();
+        MethodVisitor show = writer.visitMethod(Opcodes.ACC_PUBLIC,
+                MainMenuInteractivePlan.SHOW_METHOD,
+                MainMenuInteractivePlan.SHOW_DESCRIPTOR, null, null);
+        show.visitCode();
+        for (int index = 0; index < removalCalls; index++) {
+            show.visitInsn(Opcodes.RETURN);
+        }
+        show.visitMaxs(0, 1);
+        show.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
     }
@@ -103,6 +130,15 @@ final class MainMenuInteractivePlanTest {
         ClassSignature parsed = ClassSignature.parse(bytes);
         return new ClassSignature(parsed.internalName(), hash, parsed.majorVersion(),
                 parsed.access(), parsed.methods());
+    }
+
+    private static MethodNode showMethod(byte[] bytes) {
+        ClassNode owner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(bytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        return owner.methods.stream()
+                .filter(candidate -> MainMenuInteractivePlan.SHOW_METHOD.equals(candidate.name)
+                        && MainMenuInteractivePlan.SHOW_DESCRIPTOR.equals(candidate.desc))
+                .findFirst().orElseThrow();
     }
 
     private static MethodNode method(byte[] bytes) {

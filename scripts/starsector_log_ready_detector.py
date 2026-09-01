@@ -18,6 +18,11 @@ TIMESTAMP = re.compile(r"^\s*(\d+)\s+\[")
 LAUNCHER_MARKER = "graphics/fonts/orbitron12_0.png"
 SAVE_DESCRIPTOR_PARTS = ("CampaignGameManager", "Reading save data from [")
 PRELOAD_PARTS = ("TextureData", "VRAM after unload/preload:")
+FATAL_MARKERS = (
+    "ERROR com.fs.starfarer.combat.CombatMain  -",
+    "Number of remaining buffer elements is",
+    "Fatal:",
+)
 
 # The first thing Starsector's game-start method logs, and therefore the exact boundary between
 # "the launcher is up" and "the game is loading". Both spellings come from the same method: the
@@ -228,6 +233,7 @@ def watch_main_menu(
     timeout_seconds: float,
     quiet_seconds: float,
     sleep_seconds: float = 0.05,
+    allow_missing_save_descriptor: bool = False,
 ) -> bool:
     state = TailState(load_offsets(snapshot_file))
     clock = WallClock()
@@ -250,6 +256,7 @@ def watch_main_menu(
     start: LogLine | None = None
     descriptor: LogLine | None = None
     preload: LogLine | None = None
+    fatal: LogLine | None = None
 
     while time.monotonic() < deadline:
         for line in _read_new_lines(log_dir, state):
@@ -268,8 +275,26 @@ def watch_main_menu(
             # construction and turn the cross-check into noise.
             if preload is None and _contains_all(line.text, PRELOAD_PARTS):
                 preload = line
+            if fatal is None and any(marker in line.text for marker in FATAL_MARKERS):
+                fatal = line
 
-        if start is not None and descriptor is not None and preload is not None:
+        if start is not None and fatal is not None:
+            _write_result(output, {
+                "phase": "main-menu",
+                "detected": False,
+                "failure": "fatal-after-game-start",
+                "fatalLine": fatal.text[:1000],
+                "fatalLogMillis": fatal.log_ms,
+                "gameStartMarkerSeen": True,
+                "saveDescriptorSeen": descriptor is not None,
+                "graphicsPreloadSeen": preload is not None,
+                "observedLines": state.observed_lines,
+                "processAlive": _pid_alive(pid),
+            })
+            return False
+
+        descriptor_satisfied = descriptor is not None or allow_missing_save_descriptor
+        if start is not None and descriptor_satisfied and preload is not None:
             candidate_inode = start.inode
             # Complete on the marker, not on silence.
             #
@@ -286,7 +311,14 @@ def watch_main_menu(
             # measurement it already held. That is also what "trailing activity ranged 0.0-9.3s
             # across identical runs" was measuring: when the trickle happened to pause, not
             # anything about the game.
-            if True:
+            # Keep observing for a bounded post-marker guard. GraphicsLib's marker precedes
+            # application-load callbacks; on Linux a malformed prepared NPOT buffer reached
+            # glTexImage2D 30ms later and opened a fatal dialog. Completing immediately on the
+            # marker certified that crashed run. Ordinary main-menu log traffic is irrelevant:
+            # this guard waits for fatal evidence or process death, not for silence.
+            fatal_guard_seconds = min(2.0, max(0.0, quiet_seconds))
+            guard_elapsed = (time.monotonic_ns() - preload.observed_ns) / 1_000_000_000
+            if guard_elapsed >= fatal_guard_seconds and _pid_alive(pid):
                 observed_delta_ms = round((preload.observed_ns - start.observed_ns) / 1_000_000, 3)
                 end_log_ms = preload.log_ms
                 last_activity_ns = preload.observed_ns
@@ -329,11 +361,15 @@ def watch_main_menu(
                     # game -- only of when the post-menu texture-cleanup trickle happened to pause.
                     "trailingLogActivityMs": None,
                     "gameLogMillisDelta": log_delta_ms,
-                    "saveDescriptorSeen": True,
-                    "saveDescriptorLine": descriptor.text[:1000],
+                    "saveDescriptorSeen": descriptor is not None,
+                    "saveDescriptorLine": descriptor.text[:1000] if descriptor is not None else None,
+                    "saveDescriptorRequirement": (
+                        "observed" if descriptor is not None else "waived-no-campaign-save"
+                    ),
                     "graphicsPreloadSeen": True,
                     "graphicsPreloadLine": preload.text[:1000],
                     "completedOn": "graphics-preload-marker",
+                    "postMarkerFatalGuardSeconds": fatal_guard_seconds,
                     "observedLines": state.observed_lines,
                 })
                 return True
@@ -427,6 +463,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         watch.add_argument("--quiet-seconds", type=float, required=True)
         if name == "watch-launcher":
             watch.add_argument("--process-start-ns", type=int, required=True)
+        else:
+            watch.add_argument("--allow-missing-save-descriptor", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -450,6 +488,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if watch_main_menu(
             args.log_dir, args.snapshot, args.output, args.pid,
             args.timeout_seconds, args.quiet_seconds,
+            allow_missing_save_descriptor=args.allow_missing_save_descriptor,
         ) else 1
     raise AssertionError(args.command)
 

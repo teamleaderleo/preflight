@@ -1,0 +1,29 @@
+{
+  "format": "starsector-preflight-smoke-v1",
+  "name": "linux-new-game-to-play",
+  "timeoutSeconds": 300,
+  "launch": {
+    "preset": "fast",
+    "textureStorage": "balanced",
+    "profile": null
+  },
+  "steps": [
+    {"id": "menu", "kind": "wait-state", "state": "main-menu-interactive", "timeoutSeconds": 90},
+    {"id": "new-game", "kind": "click", "target": "main-menu.new-game"},
+    {"id": "character-settle", "kind": "pause", "durationMillis": 1500},
+    {"id": "leave-name", "kind": "press-key", "key": "tab"},
+    {"id": "character-continue", "kind": "press-key", "key": "1"},
+    {"id": "skills-settle", "kind": "pause", "durationMillis": 1000},
+    {"id": "skills-proceed", "kind": "press-key", "key": "return"},
+    {"id": "factions-settle", "kind": "pause", "durationMillis": 1000},
+    {"id": "faction-group", "kind": "press-key", "key": "4"},
+    {"id": "faction-group-settle", "kind": "pause", "durationMillis": 500},
+    {"id": "mvs", "kind": "press-key", "key": "3"},
+    {"id": "fleet-settle", "kind": "pause", "durationMillis": 1200},
+    {"id": "carrier-small", "kind": "click", "target": "new-game.fleet.carrier-small"},
+    {"id": "campaign", "kind": "wait-state", "state": "campaign-ready", "timeoutSeconds": 180},
+    {"id": "roam", "kind": "hold-key", "key": "w", "durationMillis": 3000},
+    {"id": "capture", "kind": "capture", "artifacts": ["screenshot", "log-tail", "adapter-health", "frame-report"]},
+    {"id": "quit", "kind": "quit"}
+  ]
+}

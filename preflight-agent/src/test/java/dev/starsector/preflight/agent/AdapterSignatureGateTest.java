@@ -103,6 +103,63 @@ class AdapterSignatureGateTest {
     }
 
     @Test
+    void exactPlatformAlternativeSuppressesExpectedSiblingMismatch() throws Exception {
+        byte[] bytes = classBytes();
+        ClassSignature signature = ClassSignature.parse(bytes);
+        Path archive = temporaryDirectory.resolve("Starsector/starfarer_obf.jar");
+        Files.createDirectories(archive.getParent());
+        Files.write(archive, "linux archive".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        ProtectionDomain domain = domain(archive);
+        ClassLoader loader = getClass().getClassLoader();
+        String loaderClass = loader.getClass().getName().replace('.', '/');
+        Path registryFile = temporaryDirectory.resolve("platform-alternatives.txt");
+        Files.writeString(registryFile, """
+                target mac
+                class %s
+                sha256 %s
+                plan synthetic-plan
+                source-kind STARSECTOR_CORE
+                source-suffix contents/resources/java/starfarer_obf.jar
+                source-sha256 %s
+                loader-class %s
+                loader-name app
+                alternative-group synthetic-platform
+                method exactPlatformAlternativeSuppressesExpectedSiblingMismatch ()V
+                end
+                target linux
+                class %s
+                sha256 %s
+                plan synthetic-plan
+                source-kind STARSECTOR_CORE
+                source-suffix starfarer_obf.jar
+                source-sha256 %s
+                loader-class %s
+                loader-name app
+                alternative-group synthetic-platform
+                method exactPlatformAlternativeSuppressesExpectedSiblingMismatch ()V
+                end
+                """.formatted(
+                        signature.internalName(), signature.sha256(), "f".repeat(64), loaderClass,
+                        signature.internalName(), signature.sha256(),
+                        sha256(Files.readAllBytes(archive)), loaderClass));
+        AdapterTargetRegistry registry = AdapterTargetRegistry.load(registryFile);
+        Path reportPath = temporaryDirectory.resolve("platform-alternative.json");
+        AdapterReport report = new AdapterReport(
+                AdapterMode.ENABLED, reportPath, null, List.of("dev/starsector/"));
+        AdapterProbeTransformer transformer = new AdapterProbeTransformer(
+                AdapterMode.ENABLED, registry, List.of("dev/starsector/"), report);
+
+        assertNull(transformer.transform(loader, signature.internalName(), null, domain, bytes));
+        report.write();
+        String json = Files.readString(reportPath);
+        assertTrue(json.contains("\"exactMatches\":1"), json);
+        assertTrue(json.contains("\"targetId\":\"linux\""), json);
+        assertTrue(json.contains("\"alternativeGroup\":\"synthetic-platform\""), json);
+        assertFalse(json.contains("\"targetId\":\"mac\""), json);
+        assertTrue(json.contains("\"shadowedTargets\":0"), json);
+    }
+
+    @Test
     void probeAndEnabledModesRetainOriginalBytesForBoundTargetWithoutRegisteredPlan() throws Exception {
         byte[] bytes = classBytes();
         ClassSignature signature = ClassSignature.parse(bytes);
