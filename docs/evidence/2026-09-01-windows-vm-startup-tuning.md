@@ -1364,7 +1364,7 @@ copy from the official 0.98a-RC8 Windows installer was used for text-only `javap
 exact title class is `MainMenuInteractivePlan.WINDOWS_TARGET_CLASS`, 4,313 bytes, SHA-256
 `7a034024de849f2829ad5e41dbb0e58f5979a6e7a81e55527f6839055db3d4c6`.
 
-The title constructor creates the `Preoading...` label and calls `blink(3.0f, 10.0f)` at bytecode
+The title constructor creates the `Preloading...` label and calls `blink(3.0f, 10.0f)` at bytecode
 offsets 268-276. Its `advanceImpl(float)` calls `interfacenew.advanceImpl(amount)`, tests
 `Preloading....isBlinking()`, and executes the unique `remove(Lcom/fs/starfarer/ui/c;)V` at offsets
 15-20 once blinking ends. Preflight's reviewed Windows hook publishes
@@ -1381,7 +1381,11 @@ child with the same float before the title override performs its `isBlinking()` 
 crosses the threshold before the same-pass remove/publication.
 
 The exact lifecycle also locates the countdown after the ready seam. `ResourceLoaderState.init(Map)`
-has one final `RETURN`; {Th `seam reproduction text already preserved in the repo's evidence update.} The loading state's `traverse()` then
+has one final `RETURN`; with `-StartupPhaseProbe`, `StartupPhasePlan` inserts
+`resource-init-complete` immediately before it and `StartupPhaseRuntime` routes that marker to
+`FrameTimeRuntime.markStartupComplete()`, which publishes `RuntimeSemanticState.mainMenuReady()`.
+Without the phase probe, `FrameTimeStartupCompletionPlan` inserts the same
+`markStartupComplete()` immediately before the same return. The loading state's `traverse()` then
 returns `Title Screen State`. `TitleScreenState`'s constructor and `init(Map)` do not construct the
 title widget; `TitleScreenState.prepare()` calls `createUI()` at offset 97, and `createUI()` constructs
 the exact reviewed title class at offsets 78-86. The `blink(3.0f, 10.0f)` countdown therefore starts
