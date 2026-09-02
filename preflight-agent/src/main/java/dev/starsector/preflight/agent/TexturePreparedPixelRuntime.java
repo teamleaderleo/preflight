@@ -43,6 +43,7 @@ public final class TexturePreparedPixelRuntime {
     static final long MAX_ACTIVE_DIRECT_BYTES = 64L * 1024 * 1024;
     static final int MAX_ACTIVE_BUFFERS = 1_024;
     private static final int MAX_COLD_PROBE_SAMPLES = 16;
+    private static final String COLD_PROBE_TARGET_PATH = "graphics/cursors/cursor_blue.png";
     private static final int MAX_LAYOUT_OBSERVATIONS = 16;
     private static final int ZERO_CHUNK_BYTES = 8 * 1024;
     private static final String KALEIDOSCOPE_PREFIX = "graphics/kaleidoscope/";
@@ -59,6 +60,7 @@ public final class TexturePreparedPixelRuntime {
     private static final SeamTimer LOAD_CLOCK = new SeamTimer();
     private static final SeamTimer PREPARE_CLOCK = new SeamTimer();
     private static final AtomicInteger COLD_PROBE_CLAIMS = new AtomicInteger();
+    private static final AtomicBoolean COLD_PROBE_TARGET_CLAIMED = new AtomicBoolean();
     private static final ThreadLocal<ColdProbeSample> ACTIVE_COLD_PROBE = new ThreadLocal<>();
     private static final List<Map<String, Object>> COLD_PROBE_SAMPLES = new ArrayList<>();
     private static volatile boolean coldProbeEnabled;
@@ -91,6 +93,7 @@ public final class TexturePreparedPixelRuntime {
         LOAD_CLOCK.reset();
         PREPARE_CLOCK.reset();
         COLD_PROBE_CLAIMS.set(0);
+        COLD_PROBE_TARGET_CLAIMED.set(false);
         ACTIVE_COLD_PROBE.remove();
     }
 
@@ -474,7 +477,9 @@ public final class TexturePreparedPixelRuntime {
             return null;
         }
         int ordinal = COLD_PROBE_CLAIMS.incrementAndGet();
-        if (ordinal > MAX_COLD_PROBE_SAMPLES) {
+        boolean target = COLD_PROBE_TARGET_PATH.equals(logicalPath)
+                && COLD_PROBE_TARGET_CLAIMED.compareAndSet(false, true);
+        if (ordinal > MAX_COLD_PROBE_SAMPLES && !target) {
             return null;
         }
         ColdProbeSample sample = new ColdProbeSample(ordinal, logicalPath, System.nanoTime());
@@ -536,7 +541,7 @@ public final class TexturePreparedPixelRuntime {
         }
         ACTIVE_COLD_PROBE.remove();
         synchronized (LOCK) {
-            if (COLD_PROBE_SAMPLES.size() < MAX_COLD_PROBE_SAMPLES) {
+            if (COLD_PROBE_SAMPLES.size() < MAX_COLD_PROBE_SAMPLES + 1) {
                 COLD_PROBE_SAMPLES.add(sample.telemetry());
             }
         }
@@ -800,6 +805,8 @@ public final class TexturePreparedPixelRuntime {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("enabled", coldProbeEnabled);
         values.put("sampleLimit", MAX_COLD_PROBE_SAMPLES);
+        values.put("targetPath", COLD_PROBE_TARGET_PATH);
+        values.put("targetClaimed", COLD_PROBE_TARGET_CLAIMED.get());
         values.put("claimed", COLD_PROBE_CLAIMS.get());
         values.put("retained", samples.size());
         values.put("samples", samples);
