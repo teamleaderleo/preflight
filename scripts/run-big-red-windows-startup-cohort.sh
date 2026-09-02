@@ -65,6 +65,7 @@ mkdir -p "$share"
 
 qga_ps() {
     local source="$1" encoded payload started pid status exited code out err deadline
+    source="\$ProgressPreference = 'SilentlyContinue'; \$ErrorActionPreference = 'Stop'; $source"
     encoded="$(printf %s "$source" | iconv -f UTF-8 -t UTF-16LE | base64 -w0)"
     payload="$(jq -nc --arg encoded "$encoded" '{execute:"guest-exec",arguments:{path:"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",arg:["-NoProfile","-NonInteractive","-EncodedCommand",$encoded],"capture-output":true}}')"
     started="$(sudo -n virsh qemu-agent-command "$vm" "$payload")"
