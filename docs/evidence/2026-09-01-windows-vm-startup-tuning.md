@@ -867,3 +867,63 @@ The archives are respectively 811,333, 61,613, and 54,376 bytes, with SHA-256 va
 `8f86d4bc80bc28af9786f0110d2d410c2f8764fc762859b1d5fca45bfe3492d1`,
 `629575828c8562196f411d6f8279fe2f20297a5cf1cde03b144ec363d4d8bb80`, and
 `d6ae56029c49b0582cf41e3d0116ebc193c5a3cebf973eb19581b241d7e9fe7e`.
+
+### Does feeding prepared texture bytes into Fast Rendering remove its startup decode tax?
+
+No. The exact Fast Rendering 0.8.4 bridge moved a very large amount of image work, but a physical
+Windows A/B/A/B cohort rejected it as a startup optimization.
+
+The candidate transformed only the reviewed `TextureLoader` class from the installed `fr.jar`
+(class SHA-256 `a426f8a33473713b4e43293483dfe4596a517527b92be7e92dcc1701a64b6feb`;
+archive SHA-256 `dea3ea3d0fd7437d4a7945fee65f741d9b72d3fec565b9c4807aea479ce56144`).
+After Fast Rendering's DDS miss and immediately before its ImageIO path, the bridge offered an exact
+prepared RGBA carrier. Unsupported resource layouts and alpha-adder requests declined to the
+original implementation. Errors also failed open, and a bounded circuit breaker protected repeated
+failures. The independent `preflight.texture.fastRenderingPrepared` switch remained off by default.
+
+All four runs used main at `3246e37d9fc05a3cfbb7b4a92c54a877fd313a10`, preflight JAR SHA-256
+`b2d4b0db23d74d522da71abecd4fe038213bf9d14179abef71233fff0319fc36`, enabled-mods SHA-256
+`76227ce91333c202271e541774f3e86fd8711c2542d63a81cfd18a4dc0a6997f`, the same game/profile,
+1024x720 display state, 14-vCPU/12-GiB Windows VM, and llvmpipe adapter. Each accepted run reached
+the independently observed interactive main-menu boundary and then shut down automatically.
+
+| order | condition | graphics marker | interactive menu | prepared hits / attempts | hit bytes |
+| ---: | --- | ---: | ---: | ---: | ---: |
+| A1 | prepared bridge | 56.893 s | 93.409 s | 15,524 / 15,547 | 2,158,836,331 |
+| B1 | bridge forced off | 55.735 s | 69.642 s | 0 / 0 | 0 |
+| A2 | prepared bridge | 60.476 s | 73.842 s | 15,524 / 15,569 | 2,158,836,331 |
+| B2 | bridge forced off | 56.736 s | 70.449 s | 0 / 0 | 0 |
+
+The baseline medians were 56.236 seconds to the graphics marker and 70.046 seconds to the
+interactive menu. Candidate medians were 58.685 and 83.626 seconds: respectively 2.449 seconds
+(4.35%) and 13.580 seconds (19.39%) slower. Both candidate graphics measurements were slower than
+their baseline partners, and neither candidate improved actual readiness.
+
+The bridge itself was healthy: both candidate runs installed exactly once and reported no lookup,
+layout, internal, or contained failures. The first run declined 22 resources and one texture type;
+the second declined 44 resources and one texture type. Work was observed on the main thread and
+three Fast Rendering workers. The summed bridge clock was 28.503 and 30.862 seconds, but that is
+cross-thread seam time and is not a wall-clock performance claim.
+
+This is a useful rejection. Displacing 15,524 decodes and about 2.159 GB of source texture reads per
+run did not produce a player-visible startup win. The exact cause is not yet assigned. A plausible
+lead is that Fast Rendering's original ImageIO work already overlaps on its loader workers, whereas
+prepared-pack lookup/decompression and the required BufferPool snapshot add memory traffic or alter
+worker readiness. The large first-candidate interactive outlier may include cold-cache, JIT, or
+memory-pressure effects; the tight baseline pair makes heat alone an insufficient explanation.
+Those are hypotheses, not findings.
+
+The graphics marker also hid much of the first candidate's readiness delay, reinforcing the
+interactive boundary as the deciding startup metric. Do not revive this bridge merely because its
+causal counter is large. A successor would first need to show, with thin per-phase evidence, that it
+can remove the duplicate decompression/copy or other worker-readiness tax. Until then the exact
+bridge remains off-by-default diagnostic prior art, not a recommended optimization.
+
+Preserved evidence:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260903-windows-fast-rendering-prepared-abab.zip
+```
+
+The archive is 6,665,810 bytes with SHA-256
+`57e3edb841f56fbf8546eb85545d39205b97b36b86b2b550b1197a01e5b44f97`.
