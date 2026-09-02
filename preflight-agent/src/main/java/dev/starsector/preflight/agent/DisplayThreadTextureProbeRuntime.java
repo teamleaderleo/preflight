@@ -313,16 +313,20 @@ public final class DisplayThreadTextureProbeRuntime {
 
     private static void transition(String next) {
         stage = next;
+        double elapsedMicros = probeStartedNanos == 0L
+                ? 0.0 : (System.nanoTime() - probeStartedNanos) / 1_000.0;
         Map<String, Object> event = new LinkedHashMap<>();
         event.put("stage", next);
         event.put("thread", threadIdentity(Thread.currentThread()));
-        event.put("elapsedMicros", probeStartedNanos == 0L
-                ? 0.0 : (System.nanoTime() - probeStartedNanos) / 1_000.0);
+        event.put("elapsedMicros", elapsedMicros);
         synchronized (STAGE_LOCK) {
             if (STAGE_EVENTS.size() < MAX_STAGE_EVENTS) {
                 STAGE_EVENTS.add(Collections.unmodifiableMap(event));
             }
         }
+        System.err.println("[Preflight] display-thread-texture-probe stage=" + next
+                + " elapsedMicros=" + elapsedMicros
+                + " thread=" + threadIdentity(Thread.currentThread()));
     }
 
     private static List<Map<String, Object>> stageEventsSnapshot() {
@@ -405,10 +409,13 @@ public final class DisplayThreadTextureProbeRuntime {
                 started = System.nanoTime();
                 transition("uploading-tiny");
                 textureIds[0] = upload(gl, 4);
+                transition("tiny-uploaded");
                 transition("uploading-representative");
                 textureIds[1] = upload(gl, LARGE_EDGE);
+                transition("representative-uploaded");
                 transition("finishing");
                 gl.finish();
+                transition("finished");
                 workerUploadNanos = System.nanoTime() - started;
                 workerGlError = gl.getError();
                 texturesUploaded = 2;
