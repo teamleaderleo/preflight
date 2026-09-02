@@ -60,7 +60,6 @@ class MergedReadCacheRuntimeTest {
     @Test
     void windowsCandidateLearnsAndServesOnlyDistinctBackslashKeys() throws Throwable {
         System.setProperty("os.name", "Windows 11");
-        System.setProperty(MergedReadCacheRuntime.WINDOWS_BACKSLASH_KEYS_PROPERTY, "true");
         Set<String> mergeKeys = Set.of("protected");
         Path artifact = artifact('9');
         MergedReadCacheRuntime.configure(artifact);
@@ -86,6 +85,15 @@ class MergedReadCacheRuntimeTest {
                 "data\\config\\settings.json", mergeKeys, JSON_VANILLA);
         assertEquals(2, VANILLA_CALLS.get());
         assertEquals(1L, telemetry("windowsPathKeyDeclines"));
+
+        System.setProperty(MergedReadCacheRuntime.WINDOWS_BACKSLASH_KEYS_PROPERTY, "false");
+        MergedReadCacheRuntime.beginSession();
+        MergedReadCacheRuntime.configure(artifact);
+        MergedReadCacheRuntime.mergedJsonRead(
+                "data\\shipsystems\\example.system", mergeKeys, JSON_VANILLA);
+        assertEquals(3, VANILLA_CALLS.get(), "explicit false must retain vanilla behavior");
+        assertEquals(0L, telemetry("windowsPathKeyAttempts"));
+        assertEquals(1L, telemetry("unkeyedReads"));
     }
 
     @Test

@@ -170,8 +170,9 @@ public final class MergedReadCacheRuntime {
     }
 
     private static boolean windowsBackslashKeysEnabled() {
-        return Boolean.getBoolean(WINDOWS_BACKSLASH_KEYS_PROPERTY)
-                && System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows");
+        return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows")
+                && Boolean.parseBoolean(
+                        System.getProperty(WINDOWS_BACKSLASH_KEYS_PROPERTY, "true"));
     }
 
     /** What the original call cost, reported only when the probe asked for it. */
@@ -356,8 +357,8 @@ public final class MergedReadCacheRuntime {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("status", current.diagnostic);
         values.put("windowsBackslashKeysProperty", WINDOWS_BACKSLASH_KEYS_PROPERTY);
-        values.put("windowsBackslashKeysRequested",
-                Boolean.getBoolean(WINDOWS_BACKSLASH_KEYS_PROPERTY));
+        values.put("windowsBackslashKeysConfigured",
+                System.getProperty(WINDOWS_BACKSLASH_KEYS_PROPERTY));
         values.put("windowsBackslashKeysEnabled", windowsBackslashKeysEnabled());
         values.put("profileIdentity", current.profileIdentity);
         values.put("artifact", current.artifact);

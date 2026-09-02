@@ -117,13 +117,14 @@ until correctness and repeated startup evidence settle the candidate.
 For an unattended shuffled comparison, use conditions
 `preflight,preflight-spec-store-texture-overlap`; the second arm enables the candidate while the
 first explicitly disables it, and each run records its effective state.
-`-WindowsBackslashMergedReadKeys` enables the refined #1219 learning candidate. It retains every
+The refined #1219 Windows backslash-key path is enabled by default on Windows. It retains every
 existing merged-read eligibility rule but gives pure-backslash Windows JSON paths separate
 `win-rel:` and `win-abs:` key namespaces. It does not fold them into forward-slash keys. The first
 run learns and publishes those entries; a later run can serve them. Mixed separators, traversal,
 dynamic relative settings, invalid items, property disable, misses, and damaged entries all retain
 original behavior. Telemetry separates Windows-path attempts, accepted keys, hits, misses, captures,
-and declines.
+and declines. `-WindowsDisableBackslashMergedReadKeys` forces the exact disabled comparison, while
+`-WindowsBackslashMergedReadKeys` remains an explicit affirmative switch.
 
 `run-windows-gameplay-scenario.ps1` is the reviewable interactive-session entry point for the same
 checked-in gameplay scenarios used on macOS and Linux. It defaults to the optimized Lindsey
