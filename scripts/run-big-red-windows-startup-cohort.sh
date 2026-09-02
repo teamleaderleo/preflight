@@ -188,25 +188,42 @@ while :; do
     qemu_pid="$(pgrep -f "qemu-system.*guest=$vm" | head -n 1 || true)"
     qemu_cpu=null
     if [[ -n "$qemu_pid" ]] && command -v pidstat >/dev/null; then
-        measured="$(pidstat -p "$qemu_pid" 1 1 | awk '/Average:/ {print $8; exit}')"
+        # pidstat's process-wide %CPU column is field nine on the retained Linux fixture. Field
+        # eight is %wait, which is useful diagnostically but is not QEMU's consumed CPU.
+        measured="$(pidstat -p "$qemu_pid" 1 1 | awk '/Average:/ {print $9; exit}')"
         [[ "$measured" =~ ^[0-9]+([.][0-9]+)?$ ]] && qemu_cpu="$measured"
     else
         sleep 1
     fi
     package_temp="$(sensors 2>/dev/null | awk '/Package id 0:/ {gsub(/[+°C]/, "", $4); print $4; exit}')"
     [[ "$package_temp" =~ ^[0-9]+([.][0-9]+)?$ ]] || package_temp=null
+    # Host sensors are best-effort evidence. A missing or locale-shaped numeric reading must not
+    # abort an already-running Windows cohort; retain null plus the raw value instead.
     jq -nc \
         --arg observedAt "$(date --iso-8601=ns)" \
         --arg taskState "$task_state" \
-        --argjson qemuCpuPercent "$qemu_cpu" \
-        --argjson packageTempC "$package_temp" \
-        --argjson pCoreFrequencyKHz "$(average_frequency_for_capacity 1024)" \
-        --argjson eCoreFrequencyKHz "$(average_frequency_for_capacity 774)" \
-        --argjson lowPowerCoreFrequencyKHz "$(average_frequency_for_capacity 312)" \
+        --arg qemuCpuPercent "$qemu_cpu" \
+        --arg packageTempC "$package_temp" \
+        --arg pCoreFrequencyKHz "$(average_frequency_for_capacity 1024)" \
+        --arg eCoreFrequencyKHz "$(average_frequency_for_capacity 774)" \
+        --arg lowPowerCoreFrequencyKHz "$(average_frequency_for_capacity 312)" \
         --arg loadAverage "$(cut -d' ' -f1-3 /proc/loadavg)" \
-        --argjson memoryAvailableKiB "$(awk '/MemAvailable/ {print $2}' /proc/meminfo)" \
-        --argjson swapFreeKiB "$(awk '/SwapFree/ {print $2}' /proc/meminfo)" \
-        '{observedAt:$observedAt,taskState:$taskState,qemuCpuPercent:$qemuCpuPercent,packageTempC:$packageTempC,pCoreFrequencyKHz:$pCoreFrequencyKHz,eCoreFrequencyKHz:$eCoreFrequencyKHz,lowPowerCoreFrequencyKHz:$lowPowerCoreFrequencyKHz,loadAverage:$loadAverage,memoryAvailableKiB:$memoryAvailableKiB,swapFreeKiB:$swapFreeKiB}' >>"$samples"
+        --arg memoryAvailableKiB "$(awk '/MemAvailable/ {print $2}' /proc/meminfo)" \
+        --arg swapFreeKiB "$(awk '/SwapFree/ {print $2}' /proc/meminfo)" \
+        'def numberOrNull: tonumber? // null;
+        {observedAt:$observedAt,taskState:$taskState,
+         qemuCpuPercent:($qemuCpuPercent|numberOrNull),
+         packageTempC:($packageTempC|numberOrNull),
+         pCoreFrequencyKHz:($pCoreFrequencyKHz|numberOrNull),
+         eCoreFrequencyKHz:($eCoreFrequencyKHz|numberOrNull),
+         lowPowerCoreFrequencyKHz:($lowPowerCoreFrequencyKHz|numberOrNull),
+         loadAverage:$loadAverage,
+         memoryAvailableKiB:($memoryAvailableKiB|numberOrNull),
+         swapFreeKiB:($swapFreeKiB|numberOrNull),
+         rawNumericReadings:{qemuCpuPercent:$qemuCpuPercent,packageTempC:$packageTempC,
+           pCoreFrequencyKHz:$pCoreFrequencyKHz,eCoreFrequencyKHz:$eCoreFrequencyKHz,
+           lowPowerCoreFrequencyKHz:$lowPowerCoreFrequencyKHz,
+           memoryAvailableKiB:$memoryAvailableKiB,swapFreeKiB:$swapFreeKiB}}' >>"$samples"
     [[ "$task_state" == Ready ]] && break
     sleep 9
 done
