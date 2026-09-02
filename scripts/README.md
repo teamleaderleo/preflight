@@ -114,6 +114,9 @@ original main-thread order. It is off by default, exact-build gated, stops on th
 load, restores Display before startup proceeds, and records attempts, completions, later cache hits,
 unconsumed entries, and bounded failure samples. Use it only in the disposable Windows fixture
 until correctness and repeated startup evidence settle the candidate.
+For an unattended shuffled comparison, use conditions
+`preflight,preflight-spec-store-texture-overlap`; the second arm enables the candidate while the
+first explicitly disables it, and each run records its effective state.
 
 `run-windows-gameplay-scenario.ps1` is the reviewable interactive-session entry point for the same
 checked-in gameplay scenarios used on macOS and Linux. It defaults to the optimized Lindsey

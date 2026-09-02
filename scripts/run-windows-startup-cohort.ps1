@@ -30,7 +30,7 @@ param(
     [int]$WindowsPreparedPrefetchWorkers = 1,
     [ValidateRange(0, 8192)]
     [int]$WindowsUnpaddedMaxDimension = 0,
-    [ValidateSet('starsector', 'preflight', 'preflight-faction-priority', 'preflight-kaleidoscope', 'fast-rendering', 'preflight-fast-rendering', 'preflight-fast-rendering-prepared')]
+    [ValidateSet('starsector', 'preflight', 'preflight-faction-priority', 'preflight-kaleidoscope', 'preflight-spec-store-texture-overlap', 'fast-rendering', 'preflight-fast-rendering', 'preflight-fast-rendering-prepared')]
     [string[]]$Conditions = @('starsector', 'preflight', 'fast-rendering', 'preflight-fast-rendering')
 )
 
@@ -143,6 +143,7 @@ function Measure-OneRun(
         'preflight',
         'preflight-faction-priority',
         'preflight-kaleidoscope',
+        'preflight-spec-store-texture-overlap',
         'preflight-fast-rendering',
         'preflight-fast-rendering-prepared'
     )
@@ -155,6 +156,8 @@ function Measure-OneRun(
         $Condition -eq 'preflight-kaleidoscope'
     $usesFactionPriorityCache = $WindowsFactionPriorityCacheProbe -or
         $Condition -eq 'preflight-faction-priority'
+    $usesSpecStoreTextureOverlap = $WindowsSpecStoreTextureOverlap -or
+        $Condition -eq 'preflight-spec-store-texture-overlap'
     $launcher = if ($usesFastRendering) { $FastRenderingLauncher } else { $VanillaLauncher }
     $startedAt = Get-Date
     $directLaunchOptions = "-DlaunchDirect=true -DstartRes=$DirectResolution -DstartFS=false -DstartSound=true"
@@ -225,9 +228,14 @@ log4j.appender.file.MaxBackupIndex=3
                     '-Dpreflight.startup.displayThreadSpecStoreProbe=on' |
                     Where-Object { $_ }) -join ' ').Trim()
             }
-            if ($WindowsSpecStoreTextureOverlap) {
+            if ($usesSpecStoreTextureOverlap) {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.startup.windowsSpecStoreTextureOverlap=true' |
+                    Where-Object { $_ }) -join ' ').Trim()
+            } elseif ($Conditions -contains 'preflight-spec-store-texture-overlap') {
+                # Preserve a real baseline arm if the candidate later becomes a preset default.
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.startup.windowsSpecStoreTextureOverlap=false' |
                     Where-Object { $_ }) -join ' ').Trim()
             }
             if ($usesFactionPriorityCache) {
@@ -415,6 +423,7 @@ log4j.appender.file.MaxBackupIndex=3
         usesFastRendering = [bool]$usesFastRendering
         windowsKaleidoscopePrefetchEnabled = [bool]$usesKaleidoscopePrefetch
         windowsFactionPriorityCacheEnabled = [bool]$usesFactionPriorityCache
+        windowsSpecStoreTextureOverlapEnabled = [bool]$usesSpecStoreTextureOverlap
         fastRenderingObserved = [bool]$fastRenderingObserved
         adapterReportWritten = [bool]$adapter
         adapterHealthy = $adapterHealthy
@@ -548,6 +557,8 @@ $identity = [ordered]@{
     windowsDisplayThreadTextureProbe = [bool]$WindowsDisplayThreadTextureProbe
     windowsDisplayThreadSpecStoreProbe = [bool]$WindowsDisplayThreadSpecStoreProbe
     windowsSpecStoreTextureOverlap = [bool]$WindowsSpecStoreTextureOverlap
+    windowsSpecStoreTextureOverlapCondition = [bool](
+        $Conditions -contains 'preflight-spec-store-texture-overlap')
     windowsFactionPriorityCacheProbe = [bool]$WindowsFactionPriorityCacheProbe
     windowsUnpaddedMaxDimension = $WindowsUnpaddedMaxDimension
     game = $Game

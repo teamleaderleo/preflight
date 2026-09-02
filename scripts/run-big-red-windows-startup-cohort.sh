@@ -63,7 +63,7 @@ while (($#)); do
 done
 
 case "$condition" in
-    starsector|preflight|preflight-faction-priority|preflight-kaleidoscope|fast-rendering|preflight-fast-rendering|preflight-fast-rendering-prepared) ;;
+    starsector|preflight|preflight-faction-priority|preflight-kaleidoscope|preflight-spec-store-texture-overlap|fast-rendering|preflight-fast-rendering|preflight-fast-rendering-prepared) ;;
     *) echo "Unsupported condition: $condition" >&2; exit 2 ;;
 esac
 [[ "$iterations" =~ ^([1-9]|1[0-9]|20)$ ]] || { echo "Iterations must be 1-20" >&2; exit 2; }
