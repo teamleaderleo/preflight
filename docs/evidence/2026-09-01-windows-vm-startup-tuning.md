@@ -1269,3 +1269,83 @@ Their SHA-256 values in the same order are
 `4018b0cdff52888421d9f242283f94a5bbd46c1ef72c131629969796fa17866f`,
 `5b52cb4a1ff6c120a81d967e410e7568ebc9cc4556733426c1f80b35c5624869`, and
 `ca7562abb43b2ad9f3e61ebfae5a346f5dfea0f39c12ef58ff43005a7b66d2cf`.
+
+### Why were 1,096 merged JSON reads still unkeyed only on Windows?
+
+The fresh intrusive phase run re-ranked the current, much faster standalone startup. It observed
+13.713 seconds in all mod callbacks and 5.388 seconds in SpecStore. The general merged-read cache
+served 7,731 entries in 349 milliseconds, but 1,096 calls still ran original merged reads. Their
+largest groups were 666 relative ship-system merges (931 ms), 60 absolute core ship-system merges
+(58 ms), 302 relative hull-skin merges (475 ms), and about 88 ms of absolute/subdirectory hull-skin
+merges.
+
+The first hypothesis was wrong: the canonical merge-key sequence was not exceeding the 8,192-char
+representation bound. An off-by-default digest prototype received all 1,096 calls but accepted and
+captured zero. Bounded reason telemetry on the next run found the actual split:
+
+- 1,094 calls used pure Windows backslash paths such as
+  `data\hulls\skins\A_S-F_exegetes_lg.skin`;
+- two were the deliberately uncacheable relative `data/config/settings.json` overlay;
+- merge-key collections were otherwise readable and ordinary.
+
+The dead digest prototype was removed rather than accumulated. The accepted successor gives
+pure-backslash relative and absolute requests separate `win-rel:` and `win-abs:` key namespaces. It
+does not claim that slash spellings are equivalent. Mixed separators, traversal, dynamic relative
+settings, invalid items, misses, decode failures, damaged artifacts, and explicit property false
+all retain vanilla behavior. The existing full-data profile identity and collision guard still own
+correctness.
+
+The first refined run learned exactly 1,094 entries, published one artifact update, declined exactly
+two requests, and reported zero collision or unstorable value. The warm B/A/B sequence then used
+the same Preflight JAR SHA-256
+`9a1a29f5dda0b122e7dc82c79b3bc401bcdfaeb3895d968fa9c162a15268023b` and the already-warm
+9,012-entry artifact:
+
+| order | Windows backslash keys | graphics ready | interactive | path hits | unkeyed |
+|---:|---|---:|---:|---:|---:|
+| B1 | enabled | 36.639 s | 49.877 s | 1,094 | 2 |
+| A | disabled | 40.754 s | 53.863 s | 0 | 1,096 |
+| B2 | enabled | 39.494 s | 52.084 s | 1,094 | 2 |
+
+Both enabled legs beat the centered disabled leg. Their median was 38.067 seconds to graphics and
+50.981 seconds to interactive, improvements of 2.687 seconds (6.6%) and 2.882 seconds (5.4%) over
+the disabled observation. Every leg was accepted, adapter-healthy, and graceful, with the same
+merged artifact, 26 or fewer unrelated lazily-loaded adapter transformations, zero merged-read
+capture/write/collision/unstorable event, and the same 69 ordinary misses. This is a strong
+exploratory B/A/B result, not a broad hardware claim.
+
+The Windows-only path is therefore enabled by default. Property
+`preflight.mergedReads.windowsBackslashKeys=false` is the immediate kill switch. Mac and Linux do
+not pass the Windows runtime gate and are unchanged.
+
+An ordinary no-flag Recommended run on promoted `main@4cff4259` and JAR SHA-256
+`2959d516c98c7db809d37d9f82152bb061bd682254dea294d16173982e14a54a` confirmed the default:
+1,094 warm hits, two declines, zero miss/capture/write/collision/unstorable event, healthy/graceful
+completion, 37.646 seconds to graphics, and 50.514 seconds to interactive.
+
+Preserved archives:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260903-050449-windows-startup-2x2.zip
+/home/leo/Windows-Share/Diagnostics/20260903-051515-windows-startup-2x2.zip
+/home/leo/Windows-Share/Diagnostics/20260903-051931-windows-startup-2x2.zip
+/home/leo/Windows-Share/Diagnostics/20260903-052653-windows-startup-2x2.zip
+/home/leo/Windows-Share/Diagnostics/20260903-052848-windows-startup-2x2.zip
+/home/leo/Windows-Share/Diagnostics/20260903-053040-windows-startup-2x2.zip
+/home/leo/Windows-Share/Diagnostics/20260903-053214-windows-startup-2x2.zip
+/home/leo/Windows-Share/Diagnostics/20260903-053648-windows-startup-2x2.zip
+```
+
+Their sizes are respectively 1,592,482; 1,571,672; 1,572,075; 1,573,966; 1,560,579; 1,561,183;
+1,562,108; and 1,549,810 bytes. Their SHA-256 values in the same order are:
+
+```text
+2ad6a9f1f95a6c56d725add0397e239ee22c092efcba36577cb33ffc5f11e683
+198c3a187e0672e3d483c53fb365a19df606bb53b55d796e291e885230bbd661
+84562fdae0886495532c0d634089de6931c942327bd87d08e0017d57874423de
+30b705c0b34381f11794ea5e3aa479f60f963abfc27444505a4a61acb8cfbdfa
+4b41129e3fee783f735d8e8f305383bd50ee90bc7d754074998d71ac1eacb11b
+12d91a657422d9080ffea0564478178ae6bb361dd21de27a9dee0934d7480903
+0b5167bd2df407f0629e95322bef36a20b03f11ea5fd7087eb428961e549127c
+3cc84fa4b9020623ce2316462dadcb02edeea5b7ecc4aedd1edbdf11a0ea9650
+```
