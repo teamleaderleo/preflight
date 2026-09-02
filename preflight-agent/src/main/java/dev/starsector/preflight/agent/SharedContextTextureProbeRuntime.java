@@ -447,12 +447,14 @@ public final class SharedContextTextureProbeRuntime {
         @Override
         public void run() {
             workerIdentity = threadIdentity(Thread.currentThread());
+            workerThread = workerIdentity;
             boolean current = false;
             try {
                 transition("worker-acquiring");
                 long acquireStarted = System.nanoTime();
                 gl.drawableMakeCurrent(drawable);
                 acquireNanos = System.nanoTime() - acquireStarted;
+                workerAcquireNanos = acquireNanos;
                 current = true;
                 workerCurrentAfterAcquire = gl.drawableIsCurrent(drawable);
                 transition("worker-current");
@@ -471,6 +473,10 @@ public final class SharedContextTextureProbeRuntime {
                 glError = gl.getError();
                 uploaded = 2;
                 bytes = 4L * 4L * 4L + (long) LARGE_EDGE * LARGE_EDGE * 4L;
+                workerUploadNanos = uploadNanos;
+                workerGlError = glError;
+                texturesUploaded = uploaded;
+                bytesUploaded = bytes;
             } catch (Throwable caught) {
                 failure = unwrap(caught);
             } finally {
@@ -480,12 +486,15 @@ public final class SharedContextTextureProbeRuntime {
                         long releaseStarted = System.nanoTime();
                         gl.drawableRelease(drawable);
                         releaseNanos = System.nanoTime() - releaseStarted;
+                        workerReleaseNanos = releaseNanos;
                         workerCurrentAfterRelease = gl.drawableIsCurrent(drawable);
                         transition("worker-released");
                     } catch (Throwable releaseFailure) {
                         if (failure == null) failure = unwrap(releaseFailure);
                     }
                 }
+                workerTerminated = true;
+                totalNanos = System.nanoTime() - probeStartedNanos;
             }
         }
 

@@ -17,6 +17,7 @@ final class FrameTimePlan {
             "054d89b13a904edd041df8ceba72c068070d7c9cc2dbfdd20d5acb3cdf109526";
     static final String UPDATE_METHOD = "update";
     static final String UPDATE_DESCRIPTOR = "(Z)V";
+    static final String UPDATE_NOARG_DESCRIPTOR = "()V";
     static final String ACTIVE_METHOD = "isActive";
     static final String ACTIVE_DESCRIPTOR = "()Z";
     static final String VSYNC_METHOD = "setVSyncEnabled";
@@ -60,12 +61,14 @@ final class FrameTimePlan {
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         MethodNode update = unique(owner, UPDATE_METHOD, UPDATE_DESCRIPTOR);
+        MethodNode updateNoArgs = unique(owner, UPDATE_METHOD, UPDATE_NOARG_DESCRIPTOR);
         MethodNode active = unique(owner, ACTIVE_METHOD, ACTIVE_DESCRIPTOR);
         MethodNode vsync = unique(owner, VSYNC_METHOD, VSYNC_DESCRIPTOR);
         MethodNode swapInterval = unique(owner, SWAP_INTERVAL_METHOD, SWAP_INTERVAL_DESCRIPTOR);
         MethodNode destroy = unique(owner, DESTROY_METHOD, DESTROY_DESCRIPTOR);
         if (update == null || active == null || vsync == null || swapInterval == null
                 || destroy == null
+                || (SharedContextTextureProbeRuntime.requested() && updateNoArgs == null)
                 || returns(update, Opcodes.RETURN) != 1
                 || returns(active, Opcodes.IRETURN) != 1
                 || calls(update, TARGET_CLASS, "swapBuffers") != 1
@@ -75,6 +78,10 @@ final class FrameTimePlan {
                 || calls(update, RUNTIME, "afterSwap") != 0
                 || calls(update, RUNTIME, "beforeMessages") != 0
                 || calls(update, RUNTIME, "afterMessages") != 0
+                || (SharedContextTextureProbeRuntime.requested()
+                        && (returns(updateNoArgs, Opcodes.RETURN) != 1
+                        || calls(updateNoArgs, TARGET_CLASS, UPDATE_METHOD) != 1
+                        || calls(updateNoArgs, RUNTIME, "postUpdate") != 0))
                 || calls(active, RUNTIME, "observeActive") != 0
                 || calls(vsync, RUNTIME, "requestedVsync") != 0
                 || calls(vsync, TARGET_CLASS, SWAP_INTERVAL_METHOD) != 1
@@ -99,6 +106,10 @@ final class FrameTimePlan {
         InsnList boundary = new InsnList();
         boundary.add(runtimeCall("boundary"));
         update.instructions.insertBefore(updateReturn, boundary);
+        if (SharedContextTextureProbeRuntime.requested()) {
+            updateNoArgs.instructions.insertBefore(uniqueReturn(updateNoArgs, Opcodes.RETURN),
+                    runtimeCall("postUpdate"));
+        }
 
         InsnList focus = new InsnList();
         focus.add(new InsnNode(Opcodes.DUP));

@@ -483,7 +483,6 @@ public final class FrameTimeRuntime {
 
     /** Marks one completed game-loop/display-update boundary. */
     public static void boundary() {
-        SharedContextTextureProbeRuntime.onDisplayBoundary();
         if (!enabled) return;
         long started = System.nanoTime();
         try {
@@ -495,6 +494,11 @@ public final class FrameTimeRuntime {
         } finally {
             recordMeasurementOverhead(System.nanoTime() - started);
         }
+    }
+
+    /** Runs the opt-in GL ownership proof after LWJGL's locked update method has returned. */
+    public static void postUpdate() {
+        SharedContextTextureProbeRuntime.onDisplayBoundary();
     }
 
     static synchronized void recordMeasurementOverhead(long elapsedNanos) {

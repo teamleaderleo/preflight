@@ -3,6 +3,7 @@ package dev.starsector.preflight.agent;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -95,6 +96,12 @@ class FrameTimePlanTest {
         assertNotNull(transformed);
         assertEquals(1, calls(method(read(transformed), FrameTimePlan.UPDATE_METHOD,
                 FrameTimePlan.UPDATE_DESCRIPTOR), RUNTIME, "boundary"));
+        assertEquals(1, calls(method(read(transformed), FrameTimePlan.UPDATE_METHOD,
+                FrameTimePlan.UPDATE_NOARG_DESCRIPTOR), RUNTIME, "postUpdate"));
+        MethodNode outerUpdate = method(read(transformed), FrameTimePlan.UPDATE_METHOD,
+                FrameTimePlan.UPDATE_NOARG_DESCRIPTOR);
+        assertTrue(callIndex(outerUpdate, FrameTimePlan.TARGET_CLASS, FrameTimePlan.UPDATE_METHOD)
+                < callIndex(outerUpdate, RUNTIME, "postUpdate"));
         assertNull(FrameTimePlan.transform(ClassSignature.parse(transformed), transformed));
     }
 
@@ -127,6 +134,16 @@ class FrameTimePlanTest {
         update.visitInsn(Opcodes.RETURN);
         update.visitMaxs(0, 1);
         update.visitEnd();
+
+        MethodVisitor updateNoArgs = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                FrameTimePlan.UPDATE_METHOD, FrameTimePlan.UPDATE_NOARG_DESCRIPTOR, null, null);
+        updateNoArgs.visitCode();
+        updateNoArgs.visitInsn(Opcodes.ICONST_1);
+        updateNoArgs.visitMethodInsn(Opcodes.INVOKESTATIC, FrameTimePlan.TARGET_CLASS,
+                FrameTimePlan.UPDATE_METHOD, FrameTimePlan.UPDATE_DESCRIPTOR, false);
+        updateNoArgs.visitInsn(Opcodes.RETURN);
+        updateNoArgs.visitMaxs(1, 0);
+        updateNoArgs.visitEnd();
 
         MethodVisitor vsync = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
                 FrameTimePlan.VSYNC_METHOD, FrameTimePlan.VSYNC_DESCRIPTOR, null, null);
@@ -196,5 +213,15 @@ class FrameTimePlanTest {
                     && owner.equals(call.owner) && name.equals(call.name)) result++;
         }
         return result;
+    }
+
+    private static int callIndex(MethodNode method, String owner, String name) {
+        int index = 0;
+        for (AbstractInsnNode instruction : method.instructions) {
+            if (instruction instanceof MethodInsnNode call
+                    && owner.equals(call.owner) && name.equals(call.name)) return index;
+            index++;
+        }
+        return Integer.MAX_VALUE;
     }
 }
