@@ -24,6 +24,7 @@ public final class SharedContextTextureProbeRuntime {
     private static final int GL_RGBA = 0x1908;
     private static final int GL_UNSIGNED_BYTE = 0x1401;
     private static final int GL_NO_ERROR = 0;
+    private static final int PBUFFER_SUPPORTED = 1;
     private static final int LARGE_EDGE = 1024;
     private static final long WORKER_TIMEOUT_MILLIS = 15_000L;
     private static final long INTERRUPT_GRACE_MILLIS = 2_000L;
@@ -46,6 +47,7 @@ public final class SharedContextTextureProbeRuntime {
     private static volatile long bytesUploaded;
     private static volatile int workerGlError;
     private static volatile int mainGlError;
+    private static volatile int pbufferCapabilities;
 
     private SharedContextTextureProbeRuntime() {
     }
@@ -67,7 +69,7 @@ public final class SharedContextTextureProbeRuntime {
             return;
         }
 
-        Object sharedDrawable = null;
+        Object workerDrawable = null;
         GlApi gl = null;
         int priorBinding = 0;
         int[] textureIds = new int[2];
@@ -78,15 +80,24 @@ public final class SharedContextTextureProbeRuntime {
 
             long contextStarted = System.nanoTime();
             Object displayDrawable = gl.displayGetDrawable.invoke(null);
-            sharedDrawable = gl.sharedDrawableConstructor.newInstance(displayDrawable);
+            pbufferCapabilities = (Integer) gl.pbufferGetCapabilities.invoke(null);
+            if ((pbufferCapabilities & PBUFFER_SUPPORTED) == 0) {
+                status = "declined-pbuffer-unsupported";
+                problem = "LWJGL reports no Pbuffer support";
+                return;
+            }
+            Object pixelFormat = gl.pixelFormatConstructor.newInstance();
+            workerDrawable = gl.pbufferConstructor.newInstance(1, 1, pixelFormat,
+                    displayDrawable);
             contextCreateNanos = System.nanoTime() - contextStarted;
             supported = true;
 
-            WorkerResult result = new WorkerResult(gl, sharedDrawable, textureIds);
+            WorkerResult result = new WorkerResult(gl, workerDrawable, textureIds);
             Thread worker = new Thread(result, "Preflight-Shared-Texture-Probe");
             worker.setDaemon(true);
             worker.start();
             worker.join(WORKER_TIMEOUT_MILLIS);
+            workerThread = result.workerIdentity;
             if (worker.isAlive()) {
                 status = "worker-timeout";
                 problem = "shared-context worker exceeded " + WORKER_TIMEOUT_MILLIS + " ms";
@@ -95,7 +106,6 @@ public final class SharedContextTextureProbeRuntime {
             }
             workerTerminated = !worker.isAlive();
             if (!workerTerminated) return;
-            workerThread = result.workerIdentity;
             workerUploadNanos = result.uploadNanos;
             workerGlError = result.glError;
             texturesUploaded = result.uploaded;
@@ -127,7 +137,7 @@ public final class SharedContextTextureProbeRuntime {
                         if (textureId != 0) gl.deleteTexture(textureId);
                     }
                     gl.bindTexture(GL_TEXTURE_2D, priorBinding);
-                    if (sharedDrawable != null) gl.drawableDestroy.invoke(sharedDrawable);
+                    if (workerDrawable != null) gl.drawableDestroy.invoke(workerDrawable);
                     cleanupComplete = true;
                 } catch (Throwable cleanupFailure) {
                     cleanupComplete = false;
@@ -188,6 +198,8 @@ public final class SharedContextTextureProbeRuntime {
         result.put("bytesUploaded", bytesUploaded);
         result.put("workerGlError", workerGlError);
         result.put("mainGlError", mainGlError);
+        result.put("workerDrawable", "1x1-pbuffer-shared-with-display");
+        result.put("pbufferCapabilities", pbufferCapabilities);
         result.put("classification", "intrusive synthetic capability/correctness probe");
         result.put("semanticEffect", "no normal game texture interception or replacement");
         return Collections.unmodifiableMap(result);
@@ -212,6 +224,7 @@ public final class SharedContextTextureProbeRuntime {
         bytesUploaded = 0L;
         workerGlError = 0;
         mainGlError = 0;
+        pbufferCapabilities = 0;
     }
 
     private static Double micros(long nanos) {
@@ -290,7 +303,9 @@ public final class SharedContextTextureProbeRuntime {
     }
 
     private static final class GlApi {
-        private final Constructor<?> sharedDrawableConstructor;
+        private final Constructor<?> pixelFormatConstructor;
+        private final Constructor<?> pbufferConstructor;
+        private final Method pbufferGetCapabilities;
         private final Method displayGetDrawable;
         private final Method drawableMakeCurrent;
         private final Method drawableRelease;
@@ -304,9 +319,13 @@ public final class SharedContextTextureProbeRuntime {
         private final Method glGetError;
         private final Method glFinish;
 
-        private GlApi(Class<?> display, Class<?> drawable, Class<?> sharedDrawable, Class<?> gl11)
+        private GlApi(Class<?> display, Class<?> drawable, Class<?> pixelFormat,
+                Class<?> pbuffer, Class<?> gl11)
                 throws ReflectiveOperationException {
-            sharedDrawableConstructor = sharedDrawable.getConstructor(drawable);
+            pixelFormatConstructor = pixelFormat.getConstructor();
+            pbufferConstructor = pbuffer.getConstructor(
+                    int.class, int.class, pixelFormat, drawable);
+            pbufferGetCapabilities = pbuffer.getMethod("getCapabilities");
             displayGetDrawable = display.getMethod("getDrawable");
             drawableMakeCurrent = drawable.getMethod("makeCurrent");
             drawableRelease = drawable.getMethod("releaseContext");
@@ -326,9 +345,10 @@ public final class SharedContextTextureProbeRuntime {
         static GlApi load(ClassLoader loader) throws ReflectiveOperationException {
             Class<?> display = Class.forName("org.lwjgl.opengl.Display", true, loader);
             Class<?> drawable = Class.forName("org.lwjgl.opengl.Drawable", true, loader);
-            Class<?> shared = Class.forName("org.lwjgl.opengl.SharedDrawable", true, loader);
+            Class<?> pixelFormat = Class.forName("org.lwjgl.opengl.PixelFormat", true, loader);
+            Class<?> pbuffer = Class.forName("org.lwjgl.opengl.Pbuffer", true, loader);
             Class<?> gl11 = Class.forName("org.lwjgl.opengl.GL11", true, loader);
-            return new GlApi(display, drawable, shared, gl11);
+            return new GlApi(display, drawable, pixelFormat, pbuffer, gl11);
         }
 
         int genTexture() throws Exception {
