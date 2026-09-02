@@ -79,6 +79,11 @@ clears leftovers at the semantic menu snapshot. It is bounded to 512 paths / 192
 by the recommended preset on Windows; an explicit false system property remains the kill switch.
 For an unattended shuffled A/B cohort, use conditions `preflight,preflight-kaleidoscope`; the
 second condition enables the same candidate only for its own legs and records the per-run state.
+Use `preflight-faction-priority` beside `preflight` for the separate Windows-only faction
+priority-table experiment. Its first exact-profile launch observes the original game's eight table
+walks; later launches replay the learned callback IDs. `-WindowsFactionPriorityCacheProbe` enables
+the same candidate for every Preflight arm. The artifact is checksummed and profile-bound, and any
+missing, damaged, inaccessible, or shape-drifted state runs the original method instead.
 Pair it with `-WindowsUnpaddedMaxDimension N` only for the bounded llvmpipe diagnostic: textures at
 or below `N` use true-size NPOT uploads, while larger textures retain the original padded path. The
 cohort identity and adapter report retain the ceiling, declines, and padding avoided.

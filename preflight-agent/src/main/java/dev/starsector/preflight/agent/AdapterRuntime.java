@@ -34,6 +34,7 @@ final class AdapterRuntime {
         TextureCompatibilityRuntime.beginSession();
         FastRenderingPreparedTextureRuntime.beginSession();
         TextureAccessLearningRuntime.beginSession();
+        FactionPriorityCacheRuntime.beginSession();
         TexturePreparedPixelRuntime.beginSession();
         TexturePreparedPrefetchPoolRuntime.beginSession();
         TexturePreparedStagingRuntime.beginSession();
@@ -171,6 +172,8 @@ final class AdapterRuntime {
                     options.textureManifest(),
                     options.textureIndex());
             TextureAccessLearningRuntime.configure(
+                    options.textureCacheDirectory(), options.textureProfile());
+            FactionPriorityCacheRuntime.configure(
                     options.textureCacheDirectory(), options.textureProfile());
             VariantJsonCacheRuntime.configure(options.variantJsonCache());
             WeaponJsonCacheRuntime.configure(options.weaponJsonCache());
@@ -441,6 +444,7 @@ final class AdapterRuntime {
                     // launcher exits without giving shutdown hooks a useful scheduling window.
                     TexturePreparedPixelRuntime.completeLearnedKaleidoscopePrefetches();
                     TextureAccessLearningRuntime.complete();
+                    FactionPriorityCacheRuntime.complete();
                     report.write();
                 } catch (IOException error) {
                     System.err.println("[Preflight] Failed to write live adapter report: "
@@ -659,6 +663,14 @@ final class AdapterRuntime {
                 throw fatal;
             } catch (Throwable error) {
                 System.err.println("[Preflight] Failed to publish texture access order: "
+                        + error.getMessage());
+            }
+            try {
+                FactionPriorityCacheRuntime.complete();
+            } catch (ThreadDeath | VirtualMachineError fatal) {
+                throw fatal;
+            } catch (Throwable error) {
+                System.err.println("[Preflight] Failed to publish faction priority cache: "
                         + error.getMessage());
             }
             try {

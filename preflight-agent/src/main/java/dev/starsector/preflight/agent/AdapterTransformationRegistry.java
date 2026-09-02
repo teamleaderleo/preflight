@@ -228,6 +228,7 @@ final class AdapterTransformationRegistry {
             return IndEvoSyntheticMarketPlan.transform(signature, originalBytes);
         }
         if (VariantJsonCacheRuntime.PLAN_ID.equals(target.planId())
+                || FactionPriorityCacheRuntime.PLAN_ID.equals(target.planId())
                 || SpecStoreQuoteNormalizationPlan.PLAN_ID.equals(target.planId())) {
             return specStoreOptimizations(signature, originalBytes);
         }
@@ -565,6 +566,10 @@ final class AdapterTransformationRegistry {
             if (AdapterPlanControl.allows(SpecStoreQuoteNormalizationPlan.PLAN_ID)) {
                 SpecStoreQuoteNormalizationPlan.apply(signature, owner);
             }
+            if (AdapterPlanControl.allows(FactionPriorityCacheRuntime.PLAN_ID)
+                    && FactionPriorityCacheRuntime.ready()) {
+                FactionPriorityCachePlan.apply(signature, owner);
+            }
             if (AssetProgressLogRuntime.suppress()) {
                 AssetProgressLogPlan.apply(signature, owner);
             }
@@ -668,6 +673,19 @@ final class AdapterTransformationRegistry {
                 current = cached;
                 changed = true;
             }
+        }
+        try {
+            ClassSignature currentSignature = changed ? ClassSignature.parse(current) : signature;
+            byte[] priority = AdapterPlanControl.allows(FactionPriorityCacheRuntime.PLAN_ID)
+                    && FactionPriorityCacheRuntime.ready()
+                    ? FactionPriorityCachePlan.transform(currentSignature, current)
+                    : null;
+            if (priority != null) {
+                current = priority;
+                changed = true;
+            }
+        } catch (java.io.IOException ignored) {
+            // Any existing disjoint rewrite remains valid; the priority walk stays original.
         }
         try {
             ClassSignature currentSignature = changed ? ClassSignature.parse(current) : signature;
@@ -896,6 +914,9 @@ final class AdapterTransformationRegistry {
         }
         if (SpecStoreQuoteNormalizationPlan.PLAN_ID.equals(planId)) {
             return true;
+        }
+        if (FactionPriorityCacheRuntime.PLAN_ID.equals(planId)) {
+            return FactionPriorityCacheRuntime.ready();
         }
         if (ResourcePriorityRuntime.PLAN_ID.equals(planId)) {
             return true;

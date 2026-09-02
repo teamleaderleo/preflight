@@ -109,6 +109,9 @@ final class AdapterPlanCatalog {
                         VariantJsonCacheRuntime.PLAN_ID,
                         WeaponJsonCacheRuntime.PLAN_ID)));
         values.add(new Descriptor(
+                FactionPriorityCacheRuntime.PLAN_ID,
+                Set.of(StartupPhaseRuntime.PLAN_ID)));
+        values.add(new Descriptor(
                 AudioMusicTransitionRuntime.PLAN_ID,
                 Set.of(AudioStreamSourceErrorRuntime.PLAN_ID)));
         values.add(new Descriptor(

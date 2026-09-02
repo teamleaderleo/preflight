@@ -310,6 +310,8 @@ final class AdapterReport {
         key(output, "adapterTransformationCache")
                 .append(Json.value(AdapterTransformationCache.telemetry())).append(',');
         key(output, "startupPhases").append(Json.value(StartupPhaseRuntime.telemetry())).append(',');
+        key(output, "factionPriorityCache")
+                .append(Json.value(FactionPriorityCacheRuntime.telemetry())).append(',');
         key(output, "variantJsonCache").append(Json.value(VariantJsonCacheRuntime.telemetry())).append(',');
         key(output, "weaponJsonCache").append(Json.value(WeaponJsonCacheRuntime.telemetry())).append(',');
         key(output, "projectileJsonCache").append(Json.value(ProjectileJsonCacheRuntime.telemetry())).append(',');

@@ -1,0 +1,261 @@
+package dev.starsector.preflight.agent;
+
+import dev.starsector.preflight.core.Hashes;
+import dev.starsector.preflight.core.PathContainment;
+import dev.starsector.preflight.core.PreparedFactionPriorityCache;
+import dev.starsector.preflight.core.PreparedFactionPriorityCacheIO;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+
+/** Learns the exact IDs emitted by faction priority-table walks and replays them next launch. */
+public final class FactionPriorityCacheRuntime {
+    public static final String PLAN_ID = "windows-faction-priority-cache-v1";
+    public static final String ENABLE_PROPERTY = "preflight.startup.windowsFactionPriorityCache";
+    private static final int MAX_IDS_PER_CALL = 250_000;
+    private static final AtomicBoolean SHUTDOWN_HOOK_INSTALLED = new AtomicBoolean();
+    private static final ThreadLocal<Capture> CAPTURE = new ThreadLocal<>();
+    private static volatile State state = State.disabled("not-configured");
+
+    private FactionPriorityCacheRuntime() {
+    }
+
+    static synchronized void beginSession() {
+        complete();
+        CAPTURE.remove();
+        state = State.disabled("not-configured");
+    }
+
+    static boolean configure(Path cacheDirectory, String profileFingerprint) {
+        boolean windows = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT)
+                .contains("windows");
+        return configure(cacheDirectory, profileFingerprint,
+                windows && Boolean.getBoolean(ENABLE_PROPERTY));
+    }
+
+    static synchronized boolean configure(
+            Path cacheDirectory, String profileFingerprint, boolean enabled) {
+        CAPTURE.remove();
+        if (!enabled) {
+            state = State.disabled("disabled");
+            return false;
+        }
+        if (cacheDirectory == null || profileFingerprint == null) {
+            state = State.disabled("missing-profile-cache");
+            return false;
+        }
+        try {
+            Hashes.decodeSha256(profileFingerprint);
+            Path cacheRoot = PathContainment.realDirectory(cacheDirectory);
+            Path artifact = PreparedFactionPriorityCacheIO.path(cacheRoot, profileFingerprint);
+            Map<String, List<String>> entries = Map.of();
+            String status = "learning";
+            if (Files.isRegularFile(artifact)) {
+                try {
+                    PreparedFactionPriorityCache stored =
+                            PreparedFactionPriorityCacheIO.read(artifact);
+                    if (profileFingerprint.equalsIgnoreCase(stored.profileIdentitySha256())) {
+                        entries = stored.entries();
+                        status = "loaded:" + entries.size();
+                    } else {
+                        status = "profile-mismatch";
+                    }
+                } catch (Exception error) {
+                    status = "rejected:" + message(error);
+                }
+            }
+            state = new State(artifact, profileFingerprint, entries, status);
+            ensureShutdownHook();
+            return true;
+        } catch (Exception error) {
+            state = State.disabled("configuration-failed:" + message(error));
+            return false;
+        }
+    }
+
+    static boolean ready() {
+        return state.artifact != null;
+    }
+
+    /** Returns true only after every learned callback has been replayed successfully. */
+    public static boolean replayOrBegin(
+            Object callback, String section, String explicitIds, boolean fallbackToBase) {
+        State current = state;
+        if (current.artifact == null || callback == null || section == null || explicitIds == null) {
+            return false;
+        }
+        current.attempts.incrementAndGet();
+        String key = key(callback.getClass(), section, explicitIds, fallbackToBase);
+        List<String> ids = current.entries.get(key);
+        if (ids == null || current.declined.contains(key)) {
+            current.misses.incrementAndGet();
+            CAPTURE.set(new Capture(key));
+            return false;
+        }
+        try {
+            Method add = callback.getClass().getMethod("o00000", String.class);
+            if (!add.trySetAccessible() && !add.canAccess(callback)) {
+                throw new IllegalAccessException("callback add method is inaccessible");
+            }
+            for (String id : ids) add.invoke(callback, id);
+            current.hits.incrementAndGet();
+            current.replayedIds.addAndGet(ids.size());
+            CAPTURE.remove();
+            return true;
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable error) {
+            current.replayFailures.incrementAndGet();
+            current.declined.add(key);
+            current.diagnose("replay declined for " + key + ": " + message(unwrap(error)));
+            // These exact callbacks add to Sets. If reflection failed after a partial replay, the
+            // original method may safely add the same IDs again while preserving fail-open behavior.
+            CAPTURE.set(new Capture(key));
+            return false;
+        }
+    }
+
+    /** Woven immediately before each original callback add; the game still performs the add. */
+    public static void record(String id) {
+        Capture capture = CAPTURE.get();
+        if (capture == null || id == null || capture.ids.size() >= MAX_IDS_PER_CALL) {
+            if (capture != null) capture.overflow = true;
+            return;
+        }
+        capture.ids.add(id);
+    }
+
+    /** Woven only on the original method's normal return. */
+    public static void completeCall() {
+        Capture capture = CAPTURE.get();
+        CAPTURE.remove();
+        State current = state;
+        if (capture == null || capture.overflow || current.artifact == null) {
+            if (capture != null && capture.overflow) current.captureDeclines.incrementAndGet();
+            return;
+        }
+        synchronized (FactionPriorityCacheRuntime.class) {
+            current.entries.put(capture.key, List.copyOf(capture.ids));
+            current.capturedCalls.incrementAndGet();
+            current.capturedIds.addAndGet(capture.ids.size());
+            current.dirty = true;
+        }
+    }
+
+    static synchronized void complete() {
+        State current = state;
+        if (current.artifact == null || !current.dirty) return;
+        try {
+            PreparedFactionPriorityCacheIO.write(
+                    current.artifact,
+                    new PreparedFactionPriorityCache(current.profile, current.entries));
+            current.writes.incrementAndGet();
+            current.dirty = false;
+            current.status = "written:" + current.entries.size();
+        } catch (Exception error) {
+            current.writeFailures.incrementAndGet();
+            current.diagnose("artifact write failed: " + message(error));
+        }
+    }
+
+    static Map<String, Object> telemetry() {
+        State current = state;
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("ready", current.artifact != null);
+        values.put("status", current.status);
+        values.put("artifactEntries", current.entries.size());
+        values.put("attempts", current.attempts.get());
+        values.put("hits", current.hits.get());
+        values.put("misses", current.misses.get());
+        values.put("capturedCalls", current.capturedCalls.get());
+        values.put("capturedIds", current.capturedIds.get());
+        values.put("replayedIds", current.replayedIds.get());
+        values.put("replayFailures", current.replayFailures.get());
+        values.put("captureDeclines", current.captureDeclines.get());
+        values.put("writes", current.writes.get());
+        values.put("writeFailures", current.writeFailures.get());
+        values.put("declinedKeys", current.declined.size());
+        values.put("diagnostic", current.diagnostic);
+        return Map.copyOf(values);
+    }
+
+    private static String key(
+            Class<?> callbackClass, String section, String explicitIds, boolean fallbackToBase) {
+        return callbackClass.getName() + '\u001f' + section + '\u001f' + explicitIds + '\u001f'
+                + (fallbackToBase ? '1' : '0');
+    }
+
+    private static void ensureShutdownHook() {
+        if (!SHUTDOWN_HOOK_INSTALLED.compareAndSet(false, true)) return;
+        Runtime.getRuntime().addShutdownHook(
+                new Thread(FactionPriorityCacheRuntime::complete, "preflight-faction-priority-cache"));
+    }
+
+    private static Throwable unwrap(Throwable error) {
+        return error instanceof InvocationTargetException invocation && invocation.getCause() != null
+                ? invocation.getCause() : error;
+    }
+
+    private static String message(Throwable error) {
+        String value = error == null ? null : error.getMessage();
+        return value == null || value.isBlank()
+                ? (error == null ? "unknown" : error.getClass().getSimpleName()) : value;
+    }
+
+    private static final class Capture {
+        private final String key;
+        private final List<String> ids = new ArrayList<>();
+        private boolean overflow;
+
+        private Capture(String key) {
+            this.key = key;
+        }
+    }
+
+    private static final class State {
+        private final Path artifact;
+        private final String profile;
+        private final Map<String, List<String>> entries;
+        private final Set<String> declined = java.util.concurrent.ConcurrentHashMap.newKeySet();
+        private final AtomicLong attempts = new AtomicLong();
+        private final AtomicLong hits = new AtomicLong();
+        private final AtomicLong misses = new AtomicLong();
+        private final AtomicLong capturedCalls = new AtomicLong();
+        private final AtomicLong capturedIds = new AtomicLong();
+        private final AtomicLong replayedIds = new AtomicLong();
+        private final AtomicLong replayFailures = new AtomicLong();
+        private final AtomicLong captureDeclines = new AtomicLong();
+        private final AtomicLong writes = new AtomicLong();
+        private final AtomicLong writeFailures = new AtomicLong();
+        private volatile String status;
+        private volatile String diagnostic = "";
+        private volatile boolean dirty;
+
+        private State(
+                Path artifact,
+                String profile,
+                Map<String, List<String>> entries,
+                String status) {
+            this.artifact = artifact;
+            this.profile = profile;
+            this.entries = new LinkedHashMap<>(entries);
+            this.status = status;
+        }
+
+        private static State disabled(String status) {
+            return new State(null, null, Map.of(), status);
+        }
+
+        private void diagnose(String value) {
+            diagnostic = value == null ? "" : value;
+        }
+    }
+}

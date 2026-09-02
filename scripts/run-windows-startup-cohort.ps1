@@ -22,11 +22,12 @@ param(
     [switch]$WindowsPreparedColdProbe,
     [switch]$WindowsPreparedSplitQueueProbe,
     [switch]$WindowsSharedContextTextureProbe,
+    [switch]$WindowsFactionPriorityCacheProbe,
     [ValidateRange(1, 8)]
     [int]$WindowsPreparedPrefetchWorkers = 1,
     [ValidateRange(0, 8192)]
     [int]$WindowsUnpaddedMaxDimension = 0,
-    [ValidateSet('starsector', 'preflight', 'preflight-kaleidoscope', 'fast-rendering', 'preflight-fast-rendering', 'preflight-fast-rendering-prepared')]
+    [ValidateSet('starsector', 'preflight', 'preflight-faction-priority', 'preflight-kaleidoscope', 'fast-rendering', 'preflight-fast-rendering', 'preflight-fast-rendering-prepared')]
     [string[]]$Conditions = @('starsector', 'preflight', 'fast-rendering', 'preflight-fast-rendering')
 )
 
@@ -137,6 +138,7 @@ function Measure-OneRun(
 
     $usesPreflight = $Condition -in @(
         'preflight',
+        'preflight-faction-priority',
         'preflight-kaleidoscope',
         'preflight-fast-rendering',
         'preflight-fast-rendering-prepared'
@@ -148,6 +150,8 @@ function Measure-OneRun(
     )
     $usesKaleidoscopePrefetch = $WindowsKaleidoscopePrefetchProbe -or
         $Condition -eq 'preflight-kaleidoscope'
+    $usesFactionPriorityCache = $WindowsFactionPriorityCacheProbe -or
+        $Condition -eq 'preflight-faction-priority'
     $launcher = if ($usesFastRendering) { $FastRenderingLauncher } else { $VanillaLauncher }
     $startedAt = Get-Date
     $directLaunchOptions = "-DlaunchDirect=true -DstartRes=$DirectResolution -DstartFS=false -DstartSound=true"
@@ -206,6 +210,16 @@ log4j.appender.file.MaxBackupIndex=3
             if ($WindowsSharedContextTextureProbe) {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.startup.sharedContextTextureProbe=on' |
+                    Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($usesFactionPriorityCache) {
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.startup.windowsFactionPriorityCache=true' |
+                    Where-Object { $_ }) -join ' ').Trim()
+            } elseif ($Conditions -contains 'preflight-faction-priority') {
+                # Preserve a true baseline if this candidate later graduates into Recommended.
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.startup.windowsFactionPriorityCache=false' |
                     Where-Object { $_ }) -join ' ').Trim()
             }
             if ($WindowsPreparedStagingProbe) {
@@ -382,6 +396,7 @@ log4j.appender.file.MaxBackupIndex=3
         usesPreflight = [bool]$usesPreflight
         usesFastRendering = [bool]$usesFastRendering
         windowsKaleidoscopePrefetchEnabled = [bool]$usesKaleidoscopePrefetch
+        windowsFactionPriorityCacheEnabled = [bool]$usesFactionPriorityCache
         fastRenderingObserved = [bool]$fastRenderingObserved
         adapterReportWritten = [bool]$adapter
         adapterHealthy = $adapterHealthy
@@ -512,6 +527,7 @@ $identity = [ordered]@{
     windowsPreparedPrefetchWorkers = $effectivePreparedPrefetchWorkers
     windowsPreparedSplitQueueProbe = [bool]$WindowsPreparedSplitQueueProbe
     windowsSharedContextTextureProbe = [bool]$WindowsSharedContextTextureProbe
+    windowsFactionPriorityCacheProbe = [bool]$WindowsFactionPriorityCacheProbe
     windowsUnpaddedMaxDimension = $WindowsUnpaddedMaxDimension
     game = $Game
     preflightJar = $PreflightJar

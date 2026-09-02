@@ -24,6 +24,7 @@ final class AdapterHealthReport {
     private static final List<String> CACHE_SECTIONS = List.of(
             "adapterTransformationCache",
             "textureCompatibility",
+            "factionPriorityCache",
             "variantJsonCache",
             "weaponJsonCache",
             "projectileJsonCache",

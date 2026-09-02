@@ -28,6 +28,7 @@ public enum AdapterPlanScope {
             TexturePreparedStagingRuntime.PLAN_ID,
             TexturePaddingRuntime.PLAN_ID,
             StartupPhaseRuntime.PLAN_ID,
+            FactionPriorityCacheRuntime.PLAN_ID,
             ResourcePriorityRuntime.PLAN_ID,
             VariantJsonCacheRuntime.PLAN_ID,
             SpecStoreQuoteNormalizationPlan.PLAN_ID,

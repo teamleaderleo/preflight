@@ -17,6 +17,7 @@ guest_jar='C:\Projects\starsector-preflight\preflight-cli\target\preflight.jar'
 guest_runs='C:\Users\Leo\Documents\Starsector Preflight Cohorts'
 guest_share='Z:\Diagnostics'
 check_only=false
+faction_priority_cache=false
 
 usage() {
     cat <<'EOF'
@@ -28,6 +29,7 @@ Usage: run-big-red-windows-startup-cohort.sh [options]
   --vm NAME              libvirt domain (default: win11-starsector)
   --task NAME            Windows scheduled task name
   --share PATH           Big Red diagnostics share
+  --faction-priority-cache  Enable the Windows faction priority-table cache candidate
   --check                Verify host, VM, guest agent, and scheduled task without launching
 EOF
 }
@@ -41,6 +43,7 @@ while (($#)); do
         --vm) vm="$2"; shift 2 ;;
         --task) task="$2"; shift 2 ;;
         --share) share="$2"; shift 2 ;;
+        --faction-priority-cache) faction_priority_cache=true; shift ;;
         --check) check_only=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -48,7 +51,7 @@ while (($#)); do
 done
 
 case "$condition" in
-    starsector|preflight|preflight-kaleidoscope|fast-rendering|preflight-fast-rendering|preflight-fast-rendering-prepared) ;;
+    starsector|preflight|preflight-faction-priority|preflight-kaleidoscope|fast-rendering|preflight-fast-rendering|preflight-fast-rendering-prepared) ;;
     *) echo "Unsupported condition: $condition" >&2; exit 2 ;;
 esac
 [[ "$iterations" =~ ^([1-9]|1[0-9]|20)$ ]] || { echo "Iterations must be 1-20" >&2; exit 2; }
@@ -186,9 +189,11 @@ average_frequency_for_capacity() {
     ((count > 0)) && awk -v sum="$sum" -v count="$count" 'BEGIN {printf "%.0f", sum / count}' || printf null
 }
 
+faction_priority_arg=""
+[[ "$faction_priority_cache" == true ]] && faction_priority_arg=" -WindowsFactionPriorityCacheProbe"
 run_ps=$(cat <<EOF
 \$script = "$guest_repo\\scripts\\run-windows-startup-cohort.ps1"
-\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset'
+\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset$faction_priority_arg'
 Set-ScheduledTask -TaskName "$task" -Action (New-ScheduledTaskAction -Execute 'powershell.exe' -Argument \$args) | Out-Null
 Start-ScheduledTask -TaskName "$task"
 Start-Sleep -Seconds 2
