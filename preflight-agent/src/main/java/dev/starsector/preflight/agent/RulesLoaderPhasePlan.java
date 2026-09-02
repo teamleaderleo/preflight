@@ -56,8 +56,13 @@ final class RulesLoaderPhasePlan {
                 RuleExpressionPhasePlan.WINDOWS_TARGET_CLASS, "<init>", "(Ljava/lang/String;)V"));
         List<MethodInsnNode> options = calls(load, Opcodes.INVOKESPECIAL,
                 "com/fs/starfarer/api/campaign/rules/Option", "<init>", "()V");
-        List<MethodInsnNode> scripts = calls(load, Opcodes.INVOKESTATIC,
-                "com/fs/starfarer/loading/scripts/ScriptStore", "Object", "(Ljava/lang/String;)V");
+        List<MethodInsnNode> scripts = platformCalls(
+                load,
+                Opcodes.INVOKESTATIC,
+                "com/fs/starfarer/loading/scripts/ScriptStore",
+                "(Ljava/lang/String;)V",
+                "Object",
+                "Ó00000");
         List<MethodInsnNode> triggerMap = calls(load, Opcodes.INVOKESTATIC,
                 TARGET_CLASS, triggerLookupMethod, TRIGGER_LOOKUP_DESCRIPTOR);
         List<MethodInsnNode> replacements = calls(load, Opcodes.INVOKEVIRTUAL,
@@ -148,6 +153,21 @@ final class RulesLoaderPhasePlan {
             }
         }
         return result;
+    }
+
+    private static List<MethodInsnNode> platformCalls(
+            MethodNode method, int opcode, String owner, String descriptor, String... names) {
+        List<MethodInsnNode> found = List.of();
+        for (String name : names) {
+            List<MethodInsnNode> candidates = calls(method, opcode, owner, name, descriptor);
+            if (!candidates.isEmpty()) {
+                if (!found.isEmpty()) {
+                    return List.of();
+                }
+                found = candidates;
+            }
+        }
+        return found;
     }
 
     private static boolean hasRuntimeCalls(MethodNode method) {

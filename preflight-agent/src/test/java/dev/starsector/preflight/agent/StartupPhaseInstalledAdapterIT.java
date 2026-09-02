@@ -66,4 +66,54 @@ class StartupPhaseInstalledAdapterIT {
             System.clearProperty(TexturePreparedStagingRuntime.ENABLED_PROPERTY);
         }
     }
+
+    @Test
+    void exactWindowsCoreAcceptsDetailedSpecDecompositionRewrites() throws Exception {
+        String configured = System.getProperty("preflight.starsector.core.jar", "").trim();
+        Assumptions.assumeTrue(!configured.isEmpty(),
+                "set -Dpreflight.starsector.core.jar=<Windows starfarer_obf.jar>");
+        Path archive = Path.of(configured).toAbsolutePath().normalize();
+        Assumptions.assumeTrue(Files.isRegularFile(archive));
+
+        byte[] coordinator = exact(archive, StartupPhasePlan.TARGET_CLASS);
+        Assumptions.assumeTrue(FrameTimeStartupCompletionPlan.WINDOWS_ORIGINAL_SHA256.equals(
+                        ClassSignature.parse(coordinator).sha256()),
+                "installed class is not the reviewed Windows identity");
+
+        byte[] specStore = exact(archive, SpecStorePhasePlan.TARGET_CLASS);
+        assertEquals(AdapterTargetRegistry.windowsSpecStorePhaseTarget().sha256(),
+                ClassSignature.parse(specStore).sha256());
+        assertNotNull(SpecStorePhasePlan.transform(ClassSignature.parse(specStore), specStore));
+
+        byte[] weapon = exact(archive, WeaponLoaderPhasePlan.TARGET_CLASS);
+        assertEquals(AdapterTargetRegistry.windowsWeaponLoaderPhaseTarget().sha256(),
+                ClassSignature.parse(weapon).sha256());
+        assertNotNull(WeaponLoaderPhasePlan.transform(ClassSignature.parse(weapon), weapon));
+
+        byte[] hull = exact(archive, ShipHullLoaderPhasePlan.TARGET_CLASS);
+        assertEquals(AdapterTargetRegistry.windowsShipHullLoaderPhaseTarget().sha256(),
+                ClassSignature.parse(hull).sha256());
+        assertNotNull(ShipHullLoaderPhasePlan.transform(ClassSignature.parse(hull), hull));
+
+        byte[] rules = exact(archive, RulesLoaderPhasePlan.TARGET_CLASS);
+        assertEquals(AdapterTargetRegistry.windowsRulesLoaderPhaseTarget().sha256(),
+                ClassSignature.parse(rules).sha256());
+        assertNotNull(RulesLoaderPhasePlan.transform(ClassSignature.parse(rules), rules));
+
+        byte[] expression = exact(archive, RuleExpressionPhasePlan.WINDOWS_TARGET_CLASS);
+        assertEquals(AdapterTargetRegistry.windowsRuleExpressionPhaseTarget().sha256(),
+                ClassSignature.parse(expression).sha256());
+        assertNotNull(RuleExpressionPhasePlan.transform(
+                ClassSignature.parse(expression), expression));
+    }
+
+    private static byte[] exact(Path archive, String className) throws Exception {
+        try (JarFile jar = new JarFile(archive.toFile())) {
+            var entry = jar.getJarEntry(className + ".class");
+            assertNotNull(entry, className);
+            try (var input = jar.getInputStream(entry)) {
+                return input.readAllBytes();
+            }
+        }
+    }
 }

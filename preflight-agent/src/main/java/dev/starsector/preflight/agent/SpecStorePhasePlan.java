@@ -17,7 +17,12 @@ import org.objectweb.asm.tree.MethodNode;
 final class SpecStorePhasePlan {
     static final String TARGET_CLASS = "com/fs/starfarer/loading/SpecStore";
     static final String INIT_METHOD = "ÓO0000";
+    static final String LINUX_INIT_METHOD = "public";
     static final String INIT_DESCRIPTOR = "(Lcom/fs/starfarer/loading/ResourceLoaderState;)V";
+    static final String FIRST_LOADER_METHOD = "new";
+    static final String LINUX_FIRST_LOADER_METHOD = "Ò00000";
+    static final String LAST_LOADER_METHOD = "super";
+    static final String WINDOWS_LAST_LOADER_METHOD = "o00000";
     private static final String RUNTIME = "dev/starsector/preflight/agent/StartupPhaseRuntime";
     private static final int EXPECTED_TOP_LEVEL_LOADERS = 41;
 
@@ -37,18 +42,21 @@ final class SpecStorePhasePlan {
     }
 
     static boolean apply(ClassSignature signature, ClassNode owner) {
+        String initName = initMethod(signature);
         if (!TARGET_CLASS.equals(signature.internalName())
-                || !signature.hasMethod(INIT_METHOD, INIT_DESCRIPTOR)) {
+                || initName == null) {
             return false;
         }
-        MethodNode init = uniqueMethod(owner, INIT_METHOD, INIT_DESCRIPTOR);
+        MethodNode init = uniqueMethod(owner, initName, INIT_DESCRIPTOR);
         if (init == null || hasRuntimeCalls(init)) {
             return false;
         }
 
-        MethodInsnNode first = uniqueCall(init, TARGET_CLASS, "new", INIT_DESCRIPTOR);
-        MethodInsnNode last = uniqueCall(init, "com/fs/starfarer/campaign/rules/Rules",
-                "super", INIT_DESCRIPTOR);
+        String firstLoaderName = LINUX_INIT_METHOD.equals(initName)
+                ? LINUX_FIRST_LOADER_METHOD : FIRST_LOADER_METHOD;
+        MethodInsnNode first = uniqueCall(init, TARGET_CLASS, firstLoaderName, INIT_DESCRIPTOR);
+        MethodInsnNode last = uniquePlatformCall(init, "com/fs/starfarer/campaign/rules/Rules",
+                INIT_DESCRIPTOR, LAST_LOADER_METHOD, WINDOWS_LAST_LOADER_METHOD);
         if (first == null || last == null || !comesBefore(first, last)) {
             return false;
         }
@@ -67,6 +75,12 @@ final class SpecStorePhasePlan {
         }
 
         return true;
+    }
+
+    static String initMethod(ClassSignature signature) {
+        if (signature.hasMethod(INIT_METHOD, INIT_DESCRIPTOR)) return INIT_METHOD;
+        if (signature.hasMethod(LINUX_INIT_METHOD, INIT_DESCRIPTOR)) return LINUX_INIT_METHOD;
+        return null;
     }
 
     private static InsnList start(String label) {
@@ -133,6 +147,21 @@ final class SpecStorePhasePlan {
                     return null;
                 }
                 found = call;
+            }
+        }
+        return found;
+    }
+
+    private static MethodInsnNode uniquePlatformCall(
+            MethodNode method, String owner, String descriptor, String... names) {
+        MethodInsnNode found = null;
+        for (String name : names) {
+            MethodInsnNode candidate = uniqueCall(method, owner, name, descriptor);
+            if (candidate != null) {
+                if (found != null) {
+                    return null;
+                }
+                found = candidate;
             }
         }
         return found;

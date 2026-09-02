@@ -25,6 +25,8 @@ final class WeaponLoaderPhasePlan {
     private static final String LOADING_UTILS = "com/fs/starfarer/loading/LoadingUtils";
     private static final String SCRIPT_STORE = "com/fs/starfarer/loading/scripts/ScriptStore";
     private static final String REGISTRY = "com/fs/starfarer/loading/interface";
+    private static final String LINUX_REGISTRY = "com/fs/starfarer/loading/o00O";
+    private static final String WINDOWS_REGISTRY = "com/fs/starfarer/loading/Q";
 
     private WeaponLoaderPhasePlan() {
     }
@@ -56,9 +58,17 @@ final class WeaponLoaderPhasePlan {
         List<MethodInsnNode> itemLoads = calls(loadAll, TARGET_CLASS, loadOneName, LOAD_ONE_DESCRIPTOR);
         List<MethodInsnNode> json = calls(loadOne, LOADING_UTILS, "Ó00000",
                 "(Ljava/lang/String;)Lorg/json/JSONObject;");
-        List<MethodInsnNode> scripts = calls(loadOne, SCRIPT_STORE, "Object", "(Ljava/lang/String;)V");
-        List<MethodInsnNode> registrations = calls(loadOne, REGISTRY, "o00000",
-                "(Ljava/lang/String;Lcom/fs/starfarer/loading/specs/BaseWeaponSpec;)V");
+        List<MethodInsnNode> scripts = platformCalls(
+                loadOne,
+                "(Ljava/lang/String;)V",
+                new CallFamily(SCRIPT_STORE, "Object"),
+                new CallFamily(SCRIPT_STORE, "Ó00000"));
+        List<MethodInsnNode> registrations = platformCalls(
+                loadOne,
+                "(Ljava/lang/String;Lcom/fs/starfarer/loading/specs/BaseWeaponSpec;)V",
+                new CallFamily(REGISTRY, "o00000"),
+                new CallFamily(LINUX_REGISTRY, "super"),
+                new CallFamily(WINDOWS_REGISTRY, "super"));
         if (listings.size() != 2 || itemLoads.size() != 2 || json.size() != 1
                 || scripts.size() != 3 || registrations.size() != 2) {
             return false;
@@ -112,6 +122,25 @@ final class WeaponLoaderPhasePlan {
             }
         }
         return result;
+    }
+
+    private static List<MethodInsnNode> platformCalls(
+            MethodNode method, String descriptor, CallFamily... families) {
+        List<MethodInsnNode> found = List.of();
+        for (CallFamily family : families) {
+            List<MethodInsnNode> candidates = calls(
+                    method, family.owner(), family.name(), descriptor);
+            if (!candidates.isEmpty()) {
+                if (!found.isEmpty()) {
+                    return List.of();
+                }
+                found = candidates;
+            }
+        }
+        return found;
+    }
+
+    private record CallFamily(String owner, String name) {
     }
 
     private static boolean hasRuntimeCalls(MethodNode method) {

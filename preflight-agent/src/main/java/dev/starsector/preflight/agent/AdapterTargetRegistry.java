@@ -1723,7 +1723,33 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-spec-store-0.98a-rc8-startup-phases");
+    }
+
+    static AdapterTarget linuxSpecStorePhaseTarget() {
+        return linuxCoreTarget(
+                "vanilla-spec-store-linux-0.98a-rc8-startup-phases",
+                SpecStorePhasePlan.TARGET_CLASS,
+                "c24e0891883158c29767bd1d94cb41f4ce281418669d80b39472745626e23172",
+                StartupPhaseRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                SpecStorePhasePlan.LINUX_INIT_METHOD,
+                                SpecStorePhasePlan.INIT_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                FactionLoaderPhasePlan.LOAD_METHOD,
+                                FactionLoaderPhasePlan.LOAD_DESCRIPTOR)),
+                "vanilla-spec-store-0.98a-rc8-startup-phases");
+    }
+
+    static AdapterTarget windowsSpecStorePhaseTarget() {
+        return windowsCoreTarget(
+                "vanilla-spec-store-windows-0.98a-rc8-startup-phases",
+                SpecStorePhasePlan.TARGET_CLASS,
+                "011125fae8e21c0c1618d50258e9cf4b2292f0179093b3659ddc4f9a2555a5d8",
+                StartupPhaseRuntime.PLAN_ID,
+                specStorePhaseTarget().requiredMethods(),
+                "vanilla-spec-store-0.98a-rc8-startup-phases");
     }
 
     /** Exact weapon-definition loader called during the initial zero-percent plateau. */
@@ -1750,7 +1776,39 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-weapon-loader-0.98a-rc8-startup-phases");
+    }
+
+    static AdapterTarget linuxWeaponLoaderPhaseTarget() {
+        return linuxCoreTarget(
+                "vanilla-weapon-loader-linux-0.98a-rc8-startup-phases",
+                WeaponLoaderPhasePlan.TARGET_CLASS,
+                "d551ae2441d94c338cc4000bff809a5bd0f8d0783dfe2d9147831d289f91644e",
+                StartupPhaseRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                WeaponLoaderPhasePlan.LINUX_LOAD_ALL_METHOD,
+                                WeaponLoaderPhasePlan.LOAD_ALL_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                WeaponLoaderPhasePlan.LINUX_LOAD_ONE_METHOD,
+                                WeaponLoaderPhasePlan.LOAD_ONE_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                ProjectileLoaderPhasePlan.LOAD_ALL_METHOD,
+                                ProjectileLoaderPhasePlan.LOAD_ALL_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                ProjectileLoaderPhasePlan.LOAD_ONE_METHOD,
+                                ProjectileLoaderPhasePlan.LOAD_ONE_DESCRIPTOR)),
+                "vanilla-weapon-loader-0.98a-rc8-startup-phases");
+    }
+
+    static AdapterTarget windowsWeaponLoaderPhaseTarget() {
+        return windowsCoreTarget(
+                "vanilla-weapon-loader-windows-0.98a-rc8-startup-phases",
+                WeaponLoaderPhasePlan.TARGET_CLASS,
+                "fb7a0efe7ecd7e9b56b31832d89288ac8909da68fc49bbea7b721a4bca2e05bd",
+                StartupPhaseRuntime.PLAN_ID,
+                linuxWeaponLoaderPhaseTarget().requiredMethods(),
+                "vanilla-weapon-loader-0.98a-rc8-startup-phases");
     }
 
     /** Exact ship-hull definition loader called during the initial zero-percent plateau. */
@@ -1771,7 +1829,33 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-ship-hull-loader-0.98a-rc8-startup-phases");
+    }
+
+    static AdapterTarget linuxShipHullLoaderPhaseTarget() {
+        return linuxCoreTarget(
+                "vanilla-ship-hull-loader-linux-0.98a-rc8-startup-phases",
+                ShipHullLoaderPhasePlan.TARGET_CLASS,
+                "1132ea9ddf52b2d6293f9ac8379fbb7dee3181ca5652a87bcf6f64a655fc5c00",
+                StartupPhaseRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                ShipHullLoaderPhasePlan.LOAD_ALL_METHOD,
+                                ShipHullLoaderPhasePlan.LOAD_ALL_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                ShipHullLoaderPhasePlan.LINUX_LOAD_ONE_METHOD,
+                                ShipHullLoaderPhasePlan.LOAD_ONE_DESCRIPTOR)),
+                "vanilla-ship-hull-loader-0.98a-rc8-startup-phases");
+    }
+
+    static AdapterTarget windowsShipHullLoaderPhaseTarget() {
+        return windowsCoreTarget(
+                "vanilla-ship-hull-loader-windows-0.98a-rc8-startup-phases",
+                ShipHullLoaderPhasePlan.TARGET_CLASS,
+                "93a78a8b95c8f9abf0cbcc5523efb706efe0c5f02cf6f3956a3a7dae78f91f43",
+                StartupPhaseRuntime.PLAN_ID,
+                shipHullLoaderPhaseTarget().requiredMethods(),
+                "vanilla-ship-hull-loader-0.98a-rc8-startup-phases");
     }
 
     /** Exact campaign-rules loader called near the end of the initial zero-percent plateau. */
@@ -1788,7 +1872,29 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-rules-loader-0.98a-rc8-startup-phases");
+    }
+
+    static AdapterTarget linuxRulesLoaderPhaseTarget() {
+        return linuxCoreTarget(
+                "vanilla-rules-loader-linux-0.98a-rc8-startup-phases",
+                RulesLoaderPhasePlan.TARGET_CLASS,
+                "7865fa80d98032c50346f800daecdd2d0dd6935a67e0ab58159410aa7c7c2842",
+                StartupPhaseRuntime.PLAN_ID,
+                rulesLoaderPhaseTarget().requiredMethods(),
+                "vanilla-rules-loader-0.98a-rc8-startup-phases");
+    }
+
+    static AdapterTarget windowsRulesLoaderPhaseTarget() {
+        return windowsCoreTarget(
+                "vanilla-rules-loader-windows-0.98a-rc8-startup-phases",
+                RulesLoaderPhasePlan.TARGET_CLASS,
+                "72f0925d83ff48bfa2c4b8d2f691b10935d4567dc6ab1e12392a2ee388539df9",
+                StartupPhaseRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        RulesLoaderPhasePlan.WINDOWS_LOAD_METHOD,
+                        RulesLoaderPhasePlan.LOAD_DESCRIPTOR)),
+                "vanilla-rules-loader-0.98a-rc8-startup-phases");
     }
 
     /** Exact rule-expression constructor, the 62,340-call interior of the rules loader. */
@@ -1805,7 +1911,27 @@ final class AdapterTargetRegistry {
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "app").withAlternativeGroup("vanilla-rule-expression-0.98a-rc8-startup-phases");
+    }
+
+    static AdapterTarget linuxRuleExpressionPhaseTarget() {
+        return linuxCoreTarget(
+                "vanilla-rule-expression-linux-0.98a-rc8-startup-phases",
+                RuleExpressionPhasePlan.LINUX_TARGET_CLASS,
+                "894b652ad366387a6fb15dd066fca922c70411b502496a079cec2fd065a57760",
+                StartupPhaseRuntime.PLAN_ID,
+                ruleExpressionPhaseTarget().requiredMethods(),
+                "vanilla-rule-expression-0.98a-rc8-startup-phases");
+    }
+
+    static AdapterTarget windowsRuleExpressionPhaseTarget() {
+        return windowsCoreTarget(
+                "vanilla-rule-expression-windows-0.98a-rc8-startup-phases",
+                RuleExpressionPhasePlan.WINDOWS_TARGET_CLASS,
+                "2161e729532ae56c5e3eb6738584f28742d95d272f7d87172fc4fffe5cbeeb13",
+                StartupPhaseRuntime.PLAN_ID,
+                ruleExpressionPhaseTarget().requiredMethods(),
+                "vanilla-rule-expression-0.98a-rc8-startup-phases");
     }
 
     /** Same expression constructor, used by the in-process tokenizer memo. */
@@ -2397,10 +2523,20 @@ final class AdapterTargetRegistry {
                 .withTarget(linuxStartupPhaseTarget())
                 .withTarget(windowsStartupPhaseTarget())
                 .withTarget(specStorePhaseTarget())
+                .withTarget(linuxSpecStorePhaseTarget())
+                .withTarget(windowsSpecStorePhaseTarget())
                 .withTarget(weaponLoaderPhaseTarget())
+                .withTarget(linuxWeaponLoaderPhaseTarget())
+                .withTarget(windowsWeaponLoaderPhaseTarget())
                 .withTarget(shipHullLoaderPhaseTarget())
+                .withTarget(linuxShipHullLoaderPhaseTarget())
+                .withTarget(windowsShipHullLoaderPhaseTarget())
                 .withTarget(rulesLoaderPhaseTarget())
-                .withTarget(ruleExpressionPhaseTarget());
+                .withTarget(linuxRulesLoaderPhaseTarget())
+                .withTarget(windowsRulesLoaderPhaseTarget())
+                .withTarget(ruleExpressionPhaseTarget())
+                .withTarget(linuxRuleExpressionPhaseTarget())
+                .withTarget(windowsRuleExpressionPhaseTarget());
         // The production AshLib target composes this diagnostic rewrite itself. Registering a
         // second exact target for the same class would leave one apparently unavailable because a
         // transformer returns after the first successful rewrite.

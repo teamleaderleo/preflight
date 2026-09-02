@@ -24,6 +24,7 @@ final class ShipHullLoaderPhasePlan {
     private static final String LOADING_UTILS = "com/fs/starfarer/loading/LoadingUtils";
     private static final String SPEC_STORE = "com/fs/starfarer/loading/SpecStore";
     private static final String REGISTRY = "com/fs/starfarer/loading/M";
+    private static final String WINDOWS_REGISTRY = "com/fs/starfarer/loading/oO0O";
 
     private ShipHullLoaderPhasePlan() {
     }
@@ -55,8 +56,11 @@ final class ShipHullLoaderPhasePlan {
                 "(Ljava/lang/String;)Lorg/json/JSONObject;");
         List<MethodInsnNode> lookups = calls(loadOne, SPEC_STORE, "o00000",
                 "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/Object;");
-        List<MethodInsnNode> registrations = calls(loadOne, REGISTRY, "o00000",
-                "(Ljava/lang/String;Lcom/fs/starfarer/loading/specs/g;)V");
+        List<MethodInsnNode> registrations = platformCalls(
+                loadOne,
+                "(Ljava/lang/String;Lcom/fs/starfarer/loading/specs/g;)V",
+                new CallFamily(REGISTRY, "o00000"),
+                new CallFamily(WINDOWS_REGISTRY, "super"));
         if (listings.size() != 1 || itemLoads.size() != 1 || json.size() != 1
                 || lookups.size() != 3 || registrations.size() != 1) {
             return false;
@@ -109,6 +113,25 @@ final class ShipHullLoaderPhasePlan {
             }
         }
         return result;
+    }
+
+    private static List<MethodInsnNode> platformCalls(
+            MethodNode method, String descriptor, CallFamily... families) {
+        List<MethodInsnNode> found = List.of();
+        for (CallFamily family : families) {
+            List<MethodInsnNode> candidates = calls(
+                    method, family.owner(), family.name(), descriptor);
+            if (!candidates.isEmpty()) {
+                if (!found.isEmpty()) {
+                    return List.of();
+                }
+                found = candidates;
+            }
+        }
+        return found;
+    }
+
+    private record CallFamily(String owner, String name) {
     }
 
     private static boolean hasRuntimeCalls(MethodNode method) {

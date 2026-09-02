@@ -90,6 +90,70 @@ class StartupPhasePlanTest {
         assertEquals(mac.alternativeGroup(), windows.alternativeGroup());
     }
 
+    @Test
+    void registersExactPlatformAlternativesForDetailedSpecDecomposition() {
+        assertPlatformAlternatives(
+                AdapterTargetRegistry.specStorePhaseTarget(),
+                AdapterTargetRegistry.linuxSpecStorePhaseTarget(),
+                AdapterTargetRegistry.windowsSpecStorePhaseTarget(),
+                "c24e0891883158c29767bd1d94cb41f4ce281418669d80b39472745626e23172",
+                "011125fae8e21c0c1618d50258e9cf4b2292f0179093b3659ddc4f9a2555a5d8");
+        assertPlatformAlternatives(
+                AdapterTargetRegistry.weaponLoaderPhaseTarget(),
+                AdapterTargetRegistry.linuxWeaponLoaderPhaseTarget(),
+                AdapterTargetRegistry.windowsWeaponLoaderPhaseTarget(),
+                "d551ae2441d94c338cc4000bff809a5bd0f8d0783dfe2d9147831d289f91644e",
+                "fb7a0efe7ecd7e9b56b31832d89288ac8909da68fc49bbea7b721a4bca2e05bd");
+        assertPlatformAlternatives(
+                AdapterTargetRegistry.shipHullLoaderPhaseTarget(),
+                AdapterTargetRegistry.linuxShipHullLoaderPhaseTarget(),
+                AdapterTargetRegistry.windowsShipHullLoaderPhaseTarget(),
+                "1132ea9ddf52b2d6293f9ac8379fbb7dee3181ca5652a87bcf6f64a655fc5c00",
+                "93a78a8b95c8f9abf0cbcc5523efb706efe0c5f02cf6f3956a3a7dae78f91f43");
+        assertPlatformAlternatives(
+                AdapterTargetRegistry.rulesLoaderPhaseTarget(),
+                AdapterTargetRegistry.linuxRulesLoaderPhaseTarget(),
+                AdapterTargetRegistry.windowsRulesLoaderPhaseTarget(),
+                "7865fa80d98032c50346f800daecdd2d0dd6935a67e0ab58159410aa7c7c2842",
+                "72f0925d83ff48bfa2c4b8d2f691b10935d4567dc6ab1e12392a2ee388539df9");
+        assertPlatformAlternatives(
+                AdapterTargetRegistry.ruleExpressionPhaseTarget(),
+                AdapterTargetRegistry.linuxRuleExpressionPhaseTarget(),
+                AdapterTargetRegistry.windowsRuleExpressionPhaseTarget(),
+                "894b652ad366387a6fb15dd066fca922c70411b502496a079cec2fd065a57760",
+                "2161e729532ae56c5e3eb6738584f28742d95d272f7d87172fc4fffe5cbeeb13");
+
+        assertEquals(WeaponLoaderPhasePlan.LINUX_LOAD_ALL_METHOD,
+                AdapterTargetRegistry.windowsWeaponLoaderPhaseTarget()
+                        .requiredMethods().get(0).name());
+        assertEquals(ShipHullLoaderPhasePlan.LINUX_LOAD_ONE_METHOD,
+                AdapterTargetRegistry.linuxShipHullLoaderPhaseTarget()
+                        .requiredMethods().get(1).name());
+        assertEquals(RulesLoaderPhasePlan.WINDOWS_LOAD_METHOD,
+                AdapterTargetRegistry.windowsRulesLoaderPhaseTarget()
+                        .requiredMethods().get(0).name());
+        assertEquals(RuleExpressionPhasePlan.WINDOWS_TARGET_CLASS,
+                AdapterTargetRegistry.windowsRuleExpressionPhaseTarget().internalClassName());
+    }
+
+    private static void assertPlatformAlternatives(
+            AdapterTarget mac,
+            AdapterTarget linux,
+            AdapterTarget windows,
+            String linuxClassSha256,
+            String windowsClassSha256) {
+        assertEquals(linuxClassSha256, linux.sha256());
+        assertEquals(windowsClassSha256, windows.sha256());
+        assertEquals("starfarer_obf.jar", linux.sourceSuffix());
+        assertEquals("starfarer_obf.jar", windows.sourceSuffix());
+        assertEquals("3d41d31d4840158491426f0570f42d71c176d9bc9cc84605a284e4c76c8b91b0",
+                linux.sourceSha256());
+        assertEquals("5dd222b9e266d2ac2d63b3dad4983eb05caaf5a247d7dfb82aaeba47ea774cc8",
+                windows.sourceSha256());
+        assertEquals(mac.alternativeGroup(), linux.alternativeGroup());
+        assertEquals(mac.alternativeGroup(), windows.alternativeGroup());
+    }
+
     private static byte[] fixture(boolean includePluginCallback) {
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, StartupPhasePlan.TARGET_CLASS,
