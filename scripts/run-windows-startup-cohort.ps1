@@ -481,6 +481,7 @@ $gameDefenderExcluded = @($defenderExclusions | Where-Object {
 $cacheDefenderExcluded = @($defenderExclusions | Where-Object {
     [string]::Equals($_, $Cache, [StringComparison]::OrdinalIgnoreCase)
 }).Count -gt 0
+$sysMainStatus = try { [string](Get-Service -Name 'SysMain' -ErrorAction Stop).Status } catch { $null }
 $identity = [ordered]@{
     version = 2
     startedAt = (Get-Date).ToString('o')
@@ -489,6 +490,7 @@ $identity = [ordered]@{
     processorCount = [System.Environment]::ProcessorCount
     physicalMemoryBytes = (Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory
     activePowerSchemeGuid = $powerSchemeGuid
+    sysMainStatus = $sysMainStatus
     defenderRealtimeMonitoringDisabled = if ($defenderPreference) {
         [bool]$defenderPreference.DisableRealtimeMonitoring
     } else { $null }

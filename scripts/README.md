@@ -31,7 +31,8 @@ launcher/content hashes, adapter ownership/health, renderer process proof, and p
 clock is not labelled time-to-play. Preflight-backed conditions also wait for, require, and report
 the exact `main-menu-interactive` title boundary, because Fast Rendering can emit the earlier
 graphics marker while worker texture loads are still active. The identity records the active Windows
-power-scheme GUID and whether Defender excludes the exact game/cache roots; non-Preflight renderer
+power-scheme GUID, SysMain service state, and whether Defender excludes the exact game/cache roots;
+non-Preflight renderer
 conditions still need their own comparable interactive-readiness evidence. Add
 `preflight-fast-rendering-prepared` beside `preflight-fast-rendering` to compare the exact Fast
 Rendering 0.8.4 prepared-texture bridge against a forced-off combined baseline. Add

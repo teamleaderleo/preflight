@@ -927,3 +927,55 @@ Preserved evidence:
 
 The archive is 6,665,810 bytes with SHA-256
 `57e3edb841f56fbf8546eb85545d39205b97b36b86b2b550b1197a01e5b44f97`.
+
+### Why did the same Fast Rendering condition move from 49.551 seconds to about 70 seconds?
+
+The cause is not assigned yet, but three tempting explanations are now rejected and the old result
+is correctly bounded as a best observed run rather than a stable expectation.
+
+The earlier 14-vCPU combined run reached the graphics marker in 37.002 seconds and the interactive
+menu in 49.551 seconds. The current forced-off baselines around the prepared-texture experiment
+were 55.735/69.642 and 56.736/70.449 seconds. Exact identity comparison retained the same game,
+enabled mods, Fast Rendering archive and agent, Java runtime, prepared manifest and index, display,
+llvmpipe renderer, VM memory, and 14-vCPU count. The current and earlier adapter reports also both
+applied the same 19 exact transformations. The one newly registered Fast Rendering bridge target
+was not installed while its property was false.
+
+The game log shows a real broad phase shift rather than one slow marker. In the earlier run the last
+Fast Rendering CSV group, Core framebuffer, and GraphicsLib preload landmarks appeared at about
+9.85, 22.50, and 37.30 seconds. In two current quiesced baselines they appeared around
+15.70-16.12, 35.29-37.29, and 53.72-56.22 seconds. Interactive readiness also has independent tail
+variance: one immediate repeat reached graphics in 53.328 seconds but did not become interactive
+until 86.657 seconds, with late texture work continuing after the preload landmark.
+
+Windows SysMain was active during the first audit and briefly consumed measurable guest CPU. It was
+stopped, the guest was allowed to settle, no other guest process registered measurable CPU, and the
+host was cool at about 48-50 C. The next accepted run was still 55.881/69.144 seconds. An immediate
+same-condition repeat was 53.328/86.657 seconds. Heat and active SysMain therefore do not explain
+the broad regression, and source-page-cache warmth did not recover the earlier boundary.
+
+The host is a heterogeneous Intel Core Ultra 7 255H. The normal VM's 14 vCPUs map onto six
+performance cores and eight efficiency cores; Windows sees a homogeneous virtual topology. A
+correctness-preserving infrastructure experiment reduced the guest to the six P-cores only. That
+was decisively worse at 83.477 seconds to graphics and 99.380 seconds to interactive. Fast
+Rendering's worker pipeline and the broader game need the additional parallel capacity more than
+this fixture benefits from restricting main-thread placement. The VM was restored to 14 vCPUs.
+
+Do not use the 49.551-second result as the sole baseline for a product claim, and do not blame newer
+adapter wrappers without a causal run: installed transformation identity stayed the same. Future
+cohorts now record SysMain state directly. A successor should capture host scheduling/frequency and
+late outstanding Fast Rendering work in a bounded workload fingerprint, then reproduce or explain
+the broad phase multiplier before spending more launches on small startup candidates.
+
+Preserved evidence:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260903-windows-fast-rendering-quiesced-baseline.zip
+/home/leo/Windows-Share/Diagnostics/20260903-windows-fast-rendering-immediate-repeat.zip
+/home/leo/Windows-Share/Diagnostics/20260903-windows-fast-rendering-six-pcore-rejection.zip
+```
+
+The archives are respectively 1,887,268, 1,892,371, and 1,875,215 bytes, with SHA-256 values
+`b6a9864c16ac2b72af5f8cfd43e713d445bd817e5a35da6a1171930a371d8d15`,
+`5a3e2f7c8972ce3f6f5920d3fef5ebf9b2d13f5fa4286ae8ac26f66587cd28e0`, and
+`afde0bc8fc19e48c6a8c5470ed06ef4160c20053bb4d3070bc5b2580521f647d`.
