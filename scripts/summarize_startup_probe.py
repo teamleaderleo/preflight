@@ -12,11 +12,105 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 
 def bar(fraction: float, width: int = 24) -> str:
     filled = int(round(fraction * width))
     return "#" * filled + "." * (width - filled)
+
+
+def phase_elapsed_millis(phases: list[dict[str, Any]], name: str) -> int | None:
+    for phase in phases:
+        if phase.get("name") == name:
+            elapsed = phase.get("elapsedMillis")
+            return elapsed if isinstance(elapsed, int) else None
+    return None
+
+
+def resource_reconciliation(data: dict[str, Any]) -> dict[str, Any] | None:
+    resources = data.get("resourceLoads")
+    if not isinstance(resources, dict):
+        return None
+    by_type = resources.get("byType")
+    if not isinstance(by_type, list):
+        by_type = []
+    timed_millis = sum(
+        row.get("durationMillis", 0)
+        for row in by_type
+        if isinstance(row, dict) and isinstance(row.get("durationMillis", 0), (int, float))
+    )
+    phases = data.get("phases")
+    if not isinstance(phases, list):
+        phases = []
+    start_millis = phase_elapsed_millis(phases, "resource-batches-start")
+    end_millis = phase_elapsed_millis(phases, "progress-100")
+    span_millis = None
+    residual_millis = None
+    coverage_percent = None
+    if start_millis is not None and end_millis is not None and end_millis >= start_millis:
+        span_millis = end_millis - start_millis
+        residual_millis = span_millis - timed_millis
+        if span_millis > 0:
+            coverage_percent = timed_millis * 100.0 / span_millis
+    return {
+        "calls": resources.get("calls", 0),
+        "spanMillis": span_millis,
+        "timedMillis": timed_millis,
+        "residualMillis": residual_millis,
+        "coveragePercent": coverage_percent,
+        "byType": by_type,
+        "first": resources.get("first") if isinstance(resources.get("first"), list) else [],
+        "slowest": resources.get("slowest") if isinstance(resources.get("slowest"), list) else [],
+    }
+
+
+def print_resource_loads(data: dict[str, Any], limit: int = 10) -> None:
+    summary = resource_reconciliation(data)
+    if summary is None:
+        return
+    print("\n== resource loop reconciliation ==")
+    span = summary["spanMillis"]
+    if span is None:
+        print("  resource-batches-start -> progress-100: unavailable (missing phase boundary)")
+    else:
+        print(f"  resource-batches-start -> progress-100: {span / 1000:.3f} s")
+    print(f"  timed resource calls:                    {summary['timedMillis'] / 1000:.3f} s"
+          f"  ({summary['calls']} calls)")
+    residual = summary["residualMillis"]
+    coverage = summary["coveragePercent"]
+    if residual is not None and coverage is not None:
+        print(f"  outside timed resource calls:            {residual / 1000:.3f} s")
+        print(f"  named-call coverage:                      {coverage:.2f}%")
+        if residual < 0:
+            print("  WARNING: timed resource totals exceed the retained loop span; inspect anchors/report identity")
+        elif coverage < 90.0:
+            print("  WARNING: named resource calls account for under 90% of the retained loop span")
+
+    by_type = [row for row in summary["byType"] if isinstance(row, dict)]
+    if by_type:
+        print("\n== resource types, most wall time first ==")
+        for row in sorted(by_type, key=lambda item: -item.get("durationMillis", 0)):
+            print(f"  {row.get('durationMillis', 0) / 1000:>8.3f}s  "
+                  f"{row.get('calls', 0):>7} calls  "
+                  f"{row.get('maxCallMillis', 0) / 1000:>7.3f}s max  "
+                  f"{row.get('type', '<unknown>')}")
+
+    def print_calls(title: str, calls: list[Any]) -> None:
+        retained = [call for call in calls if isinstance(call, dict)]
+        if not retained:
+            return
+        print(f"\n== {title} (showing {min(limit, len(retained))} of {len(retained)} retained) ==")
+        for call in retained[:limit]:
+            print(f"  #{call.get('ordinal', 0):>5}  "
+                  f"{call.get('durationMillis', 0) / 1000:>7.3f}s  "
+                  f"{call.get('startedAtMillis', 0) / 1000:>8.3f}s -> "
+                  f"{call.get('completedAtMillis', 0) / 1000:>8.3f}s  "
+                  f"w={call.get('weight', 0):>3}  {call.get('type', '<unknown>')}  "
+                  f"{call.get('path', '<unknown>')}")
+
+    print_calls("first resource calls", summary["first"])
+    print_calls("slowest resource calls", summary["slowest"])
 
 
 def main() -> int:
@@ -50,6 +144,8 @@ def main() -> int:
         print(f"  {cost / 1000:>7.2f}s  {bar(cost / span)}  {phase['name']}")
     remainder = sum(p.get("sincePreviousMillis", 0) for p in phases) - shown
     print(f"  {remainder / 1000:>7.2f}s  {'':24}  everything under 100 ms, combined")
+
+    print_resource_loads(data)
 
     plugins = data.get("plugins", [])
     if plugins:
