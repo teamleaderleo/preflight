@@ -341,9 +341,10 @@ public final class StartupPhaseRuntime {
 
     /** Records one accepted startup resource without writing in the hot loading loop. */
     public static synchronized void resourceLoadEnd(
-            Object type, String path, int weight, long startedNanos) {
+            Object type, String path, int weight, long resourceStartedNanos) {
         try {
-            long duration = System.nanoTime() - startedNanos;
+            long endedNanos = System.nanoTime();
+            long duration = endedNanos - resourceStartedNanos;
             if (duration < 0L) {
                 return;
             }
@@ -364,7 +365,13 @@ public final class StartupPhaseRuntime {
             aggregate.record(weight, duration);
 
             ResourceLoad load = new ResourceLoad(
-                    ++resourceLoadCalls, typeName, path, weight, duration);
+                    ++resourceLoadCalls,
+                    typeName,
+                    path,
+                    weight,
+                    duration,
+                    millis(resourceStartedNanos - startedNanos),
+                    millis(endedNanos - startedNanos));
             if (resourceLoadFirst.size() < MAX_RESOURCE_LOAD_FIRST) {
                 resourceLoadFirst.add(load);
             }
@@ -757,7 +764,13 @@ public final class StartupPhaseRuntime {
     }
 
     private record ResourceLoad(
-            long ordinal, String type, String path, int weight, long durationNanos) {
+            long ordinal,
+            String type,
+            String path,
+            int weight,
+            long durationNanos,
+            long startedAtMillis,
+            long completedAtMillis) {
         private Map<String, Object> toMap() {
             Map<String, Object> load = new LinkedHashMap<>();
             load.put("ordinal", ordinal);
@@ -766,6 +779,8 @@ public final class StartupPhaseRuntime {
             load.put("weight", weight);
             load.put("durationNanos", durationNanos);
             load.put("durationMillis", millis(durationNanos));
+            load.put("startedAtMillis", startedAtMillis);
+            load.put("completedAtMillis", completedAtMillis);
             return load;
         }
     }

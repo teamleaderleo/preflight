@@ -482,7 +482,10 @@ public final class TexturePreparedPixelRuntime {
         if (ordinal > MAX_COLD_PROBE_SAMPLES && !target) {
             return null;
         }
-        ColdProbeSample sample = new ColdProbeSample(ordinal, logicalPath, System.nanoTime());
+        if (target) {
+            StartupPhaseRuntime.mark("prepared-cursor-carrier-start");
+        }
+        ColdProbeSample sample = new ColdProbeSample(ordinal, logicalPath, target, System.nanoTime());
         ACTIVE_COLD_PROBE.set(sample);
         return sample;
     }
@@ -540,6 +543,9 @@ public final class TexturePreparedPixelRuntime {
             sample.result = "unknown";
         }
         ACTIVE_COLD_PROBE.remove();
+        if (sample.target) {
+            StartupPhaseRuntime.mark("prepared-cursor-carrier-complete");
+        }
         synchronized (LOCK) {
             if (COLD_PROBE_SAMPLES.size() < MAX_COLD_PROBE_SAMPLES + 1) {
                 COLD_PROBE_SAMPLES.add(sample.telemetry());
@@ -1009,6 +1015,7 @@ public final class TexturePreparedPixelRuntime {
         private final String path;
         private final String threadName;
         private final long threadId;
+        private final boolean target;
         private final long startedNanos;
         private long totalNanos;
         private long lookupNanos;
@@ -1017,11 +1024,12 @@ public final class TexturePreparedPixelRuntime {
         private long carrierNanos;
         private String result;
 
-        private ColdProbeSample(int ordinal, String path, long startedNanos) {
+        private ColdProbeSample(int ordinal, String path, boolean target, long startedNanos) {
             this.ordinal = ordinal;
             this.path = path == null ? "" : path;
             this.threadName = Thread.currentThread().getName();
             this.threadId = Thread.currentThread().getId();
+            this.target = target;
             this.startedNanos = startedNanos;
         }
 
@@ -1032,6 +1040,7 @@ public final class TexturePreparedPixelRuntime {
             values.put("result", result);
             values.put("threadName", threadName);
             values.put("threadId", threadId);
+            values.put("target", target);
             values.put("totalNanos", totalNanos);
             values.put("totalMillis", totalNanos / 1_000_000L);
             values.put("lookupNanos", lookupNanos);
