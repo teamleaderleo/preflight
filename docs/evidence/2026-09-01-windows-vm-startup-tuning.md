@@ -930,8 +930,12 @@ The archive is 6,665,810 bytes with SHA-256
 
 ### Why did the same Fast Rendering condition move from 49.551 seconds to about 70 seconds?
 
-The cause is not assigned yet, but three tempting explanations are now rejected and the old result
-is correctly bounded as a best observed run rather than a stable expectation.
+The broad multiplier was the Big Red host power profile. The earlier tuned evidence explicitly used
+the host performance profile, but the host had later returned to `balanced`; the Windows guest
+remained on its high-performance scheme throughout. Restoring the host performance profile for one
+otherwise identical combined run reduced graphics preload from 54.076 to 35.650 seconds and the
+interactive boundary from 67.819 to 48.355 seconds. That is 34.1% and 28.7% faster respectively,
+and reproduces the earlier 37.002/49.551 result rather than merely approaching it.
 
 The earlier 14-vCPU combined run reached the graphics marker in 37.002 seconds and the interactive
 menu in 49.551 seconds. The current forced-off baselines around the prepared-texture experiment
@@ -948,6 +952,28 @@ Fast Rendering CSV group, Core framebuffer, and GraphicsLib preload landmarks ap
 variance: one immediate repeat reached graphics in 53.328 seconds but did not become interactive
 until 86.657 seconds, with late texture work continuing after the preload landmark.
 
+The controlled host-profile pass retained the same normalized Windows cohort identity: game and
+content, enabled-mod hash, Fast Rendering JAR and agent, Preflight JAR, Java runtime, prepared
+cache, 1024x720 display, llvmpipe renderer, 14-vCPU/12-GiB guest, guest power scheme, SysMain state,
+and Defender exclusions. The normalized `identity.json` SHA-256 was
+`3f903c0f2c29f7bc53ced0c7d36f77e8877a4e813038f02899a1f4dc7f479e6b` in both arms. The
+workload landmarks moved back with the host profile:
+
+| Landmark | balanced host | performance host | earlier performance evidence |
+| --- | ---: | ---: | ---: |
+| Fast Rendering resource-loader span | 4.445-16.491 s | 3.160-9.531 s | 3.465-9.852 s |
+| Resource-loader `LoadingUtils` records | 8,168 | 8,168 | 8,168 |
+| Core framebuffer | 35.429 s | 22.044 s | 22.504 s |
+| save descriptor | 53.706 s | 35.254 s | 36.342 s |
+| GraphicsLib preload | 54.374 s | 35.901 s | 37.302 s |
+
+Both new arms reached the exact interactive menu and shut down cleanly, with no adapter decline,
+contained failure, or source-binding rejection. The balanced run loaded two AI Tweaks gameplay
+classes that the performance run did not, producing 19 versus 17 applied transformations; those
+two unrelated startup-menu class-load observations do not account for the restored resource-loader
+and common phase slopes. This is a causal infrastructure A-to-B plus an independent reproduction,
+not a shuffled product-speed claim.
+
 Windows SysMain was active during the first audit and briefly consumed measurable guest CPU. It was
 stopped, the guest was allowed to settle, no other guest process registered measurable CPU, and the
 host was cool at about 48-50 C. The next accepted run was still 55.881/69.144 seconds. An immediate
@@ -961,11 +987,18 @@ was decisively worse at 83.477 seconds to graphics and 99.380 seconds to interac
 Rendering's worker pipeline and the broader game need the additional parallel capacity more than
 this fixture benefits from restricting main-thread placement. The VM was restored to 14 vCPUs.
 
-Do not use the 49.551-second result as the sole baseline for a product claim, and do not blame newer
-adapter wrappers without a causal run: installed transformation identity stayed the same. Future
-cohorts now record SysMain state directly. A successor should capture host scheduling/frequency and
-late outstanding Fast Rendering work in a bounded workload fingerprint, then reproduce or explain
-the broad phase multiplier before spending more launches on small startup candidates.
+The unattended host wrapper now applies `performance` only during a cohort, records the prior and
+active host profiles plus bounded QEMU/frequency/temperature samples, and restores the prior profile
+on success or failure. This prevents benchmark drift without leaving Big Red permanently hot. The
+performance run observed 48.355 seconds interactive while QEMU used up to 1,393% host CPU; P-core
+samples reached about 4.68 GHz and package temperature peaked at 88 C without a thermal warning.
+The host was restored to `balanced` immediately afterward.
+
+Do not use 48.355 or 49.551 seconds as a universal Windows claim: this is still a single physical
+llvmpipe fixture, and the independent late interactive-tail variance remains real. It is no longer
+necessary to instrument Fast Rendering's outstanding queues merely to explain the broad 49-to-70
+split. Future accepted Windows cohorts must retain the host profile as performance-relevant
+identity.
 
 Preserved evidence:
 
@@ -973,9 +1006,19 @@ Preserved evidence:
 /home/leo/Windows-Share/Diagnostics/20260903-windows-fast-rendering-quiesced-baseline.zip
 /home/leo/Windows-Share/Diagnostics/20260903-windows-fast-rendering-immediate-repeat.zip
 /home/leo/Windows-Share/Diagnostics/20260903-windows-fast-rendering-six-pcore-rejection.zip
+/home/leo/Windows-Share/Diagnostics/20260903-012243-windows-startup-2x2.zip
+/home/leo/Windows-Share/Diagnostics/20260903-012243-windows-startup-2x2-host.json
+/home/leo/Windows-Share/Diagnostics/20260903-012904-windows-startup-2x2.zip
+/home/leo/Windows-Share/Diagnostics/20260903-012904-windows-startup-2x2-host.json
 ```
 
 The archives are respectively 1,887,268, 1,892,371, and 1,875,215 bytes, with SHA-256 values
 `b6a9864c16ac2b72af5f8cfd43e713d445bd817e5a35da6a1171930a371d8d15`,
 `5a3e2f7c8972ce3f6f5920d3fef5ebf9b2d13f5fa4286ae8ac26f66587cd28e0`, and
 `afde0bc8fc19e48c6a8c5470ed06ef4160c20053bb4d3070bc5b2580521f647d`.
+The balanced cohort/archive and host packet are 1,889,731 and 12,144 bytes with SHA-256 values
+`3c42ebd82d7c90e4750baeb574628a2c08cbc0164df18da754e2527b680be8f8` and
+`bf42232ca766d4a7f55be651d1b9fa8af5ebf58b8eb2ce5e6cd432ca66522a97`. The performance
+cohort/archive and host packet are 1,856,679 and 11,351 bytes with SHA-256 values
+`9adeba4aef6b7274624f23bf5b298e308b864ec657fc73d664ff4150d831400a` and
+`bdce87064fbee54b9df70aad25a9f893d28e502721436ca4123fdbb1787f2b0e`.
