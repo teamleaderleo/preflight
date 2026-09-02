@@ -85,6 +85,27 @@ Preparation is **not** a condition. `preflight prepare` runs offline, builds the
 exits before any launch; the harness times it once (about 50 seconds on the reviewed
 installation) and records it as `preparationMillis` setup cost.
 
+## Renderer and machine evidence tiers
+
+A slow compatibility fixture is a stress microscope, not a model of an ordinary player's machine.
+Keep two facts separate whenever a run uses software rendering or virtualization:
+
+- **portable work identity:** calls, bytes, allocations, paths, transforms, queue depth, and semantic
+  phases. Large volume is a legitimate lead on every renderer.
+- **platform tax:** the time that particular CPU, renderer, driver, VM, scheduler, and power profile
+  charged for that work. Its duration does not transfer without a matching-machine result.
+
+Use the Windows llvmpipe VM to expose serialization, fallback, and compatibility defects and to
+prove that an implementation is bounded. Do not rank or promote an optimization for ordinary users
+from its VM timing alone. A product-speed claim needs a real-GPU machine representative of the
+target platform; native macOS and Linux results may establish cross-platform direction, but they do
+not substitute for native-GPU Windows when the candidate changes Windows rendering behavior.
+
+Conversely, do not discard a VM lead merely because its wall-clock cost is amplified. First ask
+whether the candidate removes portable work. If it does, measure the same causal counter and
+semantic boundary on normal hardware. If the work disappears but normal-hardware time does not move,
+retain the result as efficiency or compatibility evidence rather than manufacturing a speed claim.
+
 ## What is measured
 
 `gameLogStartToGraphicsPreloadMs` — from the first line Starsector's game-start method logs,
