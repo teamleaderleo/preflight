@@ -811,3 +811,59 @@ Preserved evidence:
 
 The archive is 5,633,128 bytes with SHA-256
 `50ccbe31b53355d42363cbfb13e3dfeb0028edbec94640e833c3573de44963ef`.
+
+### Can explicit Display ownership handoff make the shared context usable?
+
+No, not at a reviewed `Display.update()` boundary on the exact Windows llvmpipe fixture. The #1215
+successor released the live Display context before starting one shared-Pbuffer worker, performed no
+main-thread GL work while ownership was released, and was prepared to restore Display, validate
+every uploaded byte, delete the synthetic objects, and destroy the Pbuffer. Three physical-machine
+runs rejected that sequence before any startup prototype was attempted.
+
+The state machine and exact installed LWJGL 2.9.3 bytecode separated two possible causes. The first
+run started inside the nested `Display.update(boolean)` boundary and could still have been blocked
+by LWJGL's `GlobalLock`. The successor instead ran after the no-argument `Display.update()` returned
+from `Display.update(boolean)`, whose installed bytecode had already exited the global monitor. A
+cold transformation-cache run still behaved the same way. Finally, the worker bound was doubled to
+test whether this was merely slow first-context construction:
+
+| reviewed boundary | worker bound | worker `makeCurrent` | result |
+| --- | ---: | ---: | --- |
+| nested update | 15 s | worker became current at about 17.35 s elapsed | timeout; Display not restored |
+| after no-arg update | 15 s | 17.011 s inside acquisition | timeout; Display not restored |
+| after no-arg update | 30 s | 32.011 s inside acquisition | timeout; Display not restored |
+
+The doubled bound moved acquisition completion by the same 15 seconds. That rules out a fixed
+roughly-17-second context startup cost: on this stack, the worker does not acquire the shared
+context during the bounded ownership window. The exact native synchronization cause remains
+unassigned, but it is not necessary to decide this candidate. Waiting longer only moves the same
+failure.
+
+Late telemetry is still useful. In the two post-update runs, after the main probe abandoned its
+bounded wait, the worker eventually became current, uploaded the deterministic tiny and 1024-square
+textures (two objects / 4,194,368 bytes), called `glFinish`, reported GL error zero, released its
+context, and terminated. The main thread correctly refused to race that late native call by
+reacquiring or destroying either drawable. Consequently it could not restore Display, validate the
+bytes, or clean up safely, and ordinary rendering later failed with `No OpenGL context found in the
+current thread`. The external fixture dismissed the native alert, retained shutdown telemetry, and
+stopped only the exact owned process tree.
+
+This fails the correctness contract before an ordinary-startup sanity check, much less a timing
+comparison. The probe remains exact-gated, off by default, and bounded as rejected diagnostic prior
+art. No standalone texture-upload pipeline should be built on this handoff model. Explicit Preflight
+plus Fast Rendering remains the demonstrated route closest to startup in the thirties; any attempt
+to absorb that architecture should start from its renderer-thread ownership model rather than try
+to transfer ownership after Starsector has begun driving Display.
+
+Preserved evidence:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260902-windows-gl-ownership-handoff-timeout.zip
+/home/leo/Windows-Share/Diagnostics/20260902-windows-gl-ownership-handoff-post-update-timeout.zip
+/home/leo/Windows-Share/Diagnostics/20260902-windows-gl-ownership-handoff-30s-coupled-timeout.zip
+```
+
+The archives are respectively 811,333, 61,613, and 54,376 bytes, with SHA-256 values
+`8f86d4bc80bc28af9786f0110d2d410c2f8764fc762859b1d5fca45bfe3492d1`,
+`629575828c8562196f411d6f8279fe2f20297a5cf1cde03b144ec363d4d8bb80`, and
+`d6ae56029c49b0582cf41e3d0116ebc193c5a3cebf973eb19581b241d7e9fe7e`.

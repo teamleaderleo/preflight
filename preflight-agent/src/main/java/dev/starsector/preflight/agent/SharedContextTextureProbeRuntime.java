@@ -27,10 +27,10 @@ public final class SharedContextTextureProbeRuntime {
     private static final int GL_NO_ERROR = 0;
     private static final int PBUFFER_SUPPORTED = 1;
     private static final int LARGE_EDGE = 1024;
-    // The exact Windows llvmpipe fixture twice needed about 17 seconds to complete the first worker
-    // makeCurrent call. Keep the proof bounded, but leave enough room to distinguish that observed
-    // context bring-up from an ownership deadlock.
-    private static final long WORKER_TIMEOUT_MILLIS = 30_000L;
+    // #1215 showed that extending this bound merely moved the worker's makeCurrent completion from
+    // about timeout+2 seconds to the new timeout+2 seconds. Keep the rejected diagnostic bounded;
+    // the external disposable fixture remains responsible for a native call that outlives it.
+    private static final long WORKER_TIMEOUT_MILLIS = 15_000L;
     private static final long INTERRUPT_GRACE_MILLIS = 2_000L;
     private static final int MAX_STAGE_EVENTS = 32;
 

@@ -62,6 +62,12 @@ second condition enables the same candidate only for its own legs and records th
 Pair it with `-WindowsUnpaddedMaxDimension N` only for the bounded llvmpipe diagnostic: textures at
 or below `N` use true-size NPOT uploads, while larger textures retain the original padded path. The
 cohort identity and adapter report retain the ceiling, declines, and padding avoided.
+`-WindowsSharedContextTextureProbe` retains the rejected #1215 ownership-handoff proof for
+diagnostics only. It releases the live Display context and asks one shared Pbuffer worker to upload
+deterministic textures. On the pinned Windows llvmpipe fixture, native worker acquisition completed
+only after the bounded wait and grace expired, leaving the game without a current Display context.
+It is off by default, is not a performance condition, and must run only in a disposable fixture with
+an external terminator and evidence capture prepared.
 
 `run-windows-gameplay-scenario.ps1` is the reviewable interactive-session entry point for the same
 checked-in gameplay scenarios used on macOS and Linux. It defaults to the optimized Lindsey
