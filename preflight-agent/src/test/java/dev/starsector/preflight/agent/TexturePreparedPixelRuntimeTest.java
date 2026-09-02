@@ -116,11 +116,14 @@ class TexturePreparedPixelRuntimeTest {
 
         Map<String, Object> coldProbe =
                 (Map<String, Object>) TexturePreparedPixelRuntime.telemetry().get("coldProbe");
-        assertEquals(1L, coldProbe.get("originalDecodeCalls"));
+        assertEquals(1L, coldProbe.get("originalDecodeStarts"));
+        assertEquals(1L, coldProbe.get("originalDecodeReturns"));
+        assertEquals(0L, coldProbe.get("originalDecodeAlternateExits"));
         List<Map<String, Object>> samples =
                 (List<Map<String, Object>>) coldProbe.get("originalDecodeSlowest");
         assertEquals(1, samples.size());
         assertEquals("graphics/missing.png", samples.get(0).get("path"));
+        assertEquals("return", samples.get(0).get("result"));
         assertTrue((long) samples.get(0).get("durationNanos") >= 0L);
     }
 

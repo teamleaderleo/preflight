@@ -66,7 +66,9 @@ public final class TexturePreparedPixelRuntime {
     private static final List<Map<String, Object>> COLD_PROBE_SAMPLES = new ArrayList<>();
     private static final List<OriginalDecodeSample> ORIGINAL_DECODE_TOP = new ArrayList<>();
     private static volatile boolean coldProbeEnabled;
+    private static long originalDecodeStarts;
     private static long originalDecodeCalls;
+    private static long originalDecodeAlternateExits;
     private static volatile boolean selected;
     private static long activeBytes;
     private static long peakBytes;
@@ -89,7 +91,9 @@ public final class TexturePreparedPixelRuntime {
             preferredPreparedPrefetchOrder = List.of();
             COLD_PROBE_SAMPLES.clear();
             ORIGINAL_DECODE_TOP.clear();
+            originalDecodeStarts = 0L;
             originalDecodeCalls = 0L;
+            originalDecodeAlternateExits = 0L;
             activeBytes = 0;
             peakBytes = 0;
             pendingBuffers = 0;
@@ -482,10 +486,25 @@ public final class TexturePreparedPixelRuntime {
         if (!coldProbeEnabled) {
             return;
         }
-        ACTIVE_ORIGINAL_DECODE.set(new OriginalDecodeSample(
+        long now = System.nanoTime();
+        OriginalDecodeSample previous = ACTIVE_ORIGINAL_DECODE.get();
+        if (previous != null) {
+            previous.complete(now, "alternate-exit");
+            synchronized (LOCK) {
+                originalDecodeAlternateExits++;
+            }
+        }
+        OriginalDecodeSample sample = new OriginalDecodeSample(
                 logicalPath == null ? "" : logicalPath,
                 Thread.currentThread().getName(),
-                System.nanoTime()));
+                now);
+        ACTIVE_ORIGINAL_DECODE.set(sample);
+        synchronized (LOCK) {
+            originalDecodeStarts++;
+            if (ORIGINAL_DECODE_TOP.size() < MAX_COLD_PROBE_SAMPLES) {
+                ORIGINAL_DECODE_TOP.add(sample);
+            }
+        }
     }
 
     public static void originalPrefetchDecodeEnd() {
@@ -494,23 +513,9 @@ public final class TexturePreparedPixelRuntime {
             return;
         }
         ACTIVE_ORIGINAL_DECODE.remove();
-        sample.durationNanos = Math.max(0L, System.nanoTime() - sample.startedNanos);
+        sample.complete(System.nanoTime(), "return");
         synchronized (LOCK) {
             originalDecodeCalls++;
-            if (ORIGINAL_DECODE_TOP.size() < MAX_COLD_PROBE_SAMPLES) {
-                ORIGINAL_DECODE_TOP.add(sample);
-                return;
-            }
-            int fastest = 0;
-            for (int index = 1; index < ORIGINAL_DECODE_TOP.size(); index++) {
-                if (ORIGINAL_DECODE_TOP.get(index).durationNanos
-                        < ORIGINAL_DECODE_TOP.get(fastest).durationNanos) {
-                    fastest = index;
-                }
-            }
-            if (sample.durationNanos > ORIGINAL_DECODE_TOP.get(fastest).durationNanos) {
-                ORIGINAL_DECODE_TOP.set(fastest, sample);
-            }
         }
     }
 
@@ -848,13 +853,20 @@ public final class TexturePreparedPixelRuntime {
     private static Map<String, Object> coldProbeTelemetry() {
         List<Map<String, Object>> samples;
         List<Map<String, Object>> originalDecodes;
+        long originalStarts;
         long originalCalls;
+        long alternateExits;
         synchronized (LOCK) {
             samples = List.copyOf(COLD_PROBE_SAMPLES);
             List<OriginalDecodeSample> sorted = new ArrayList<>(ORIGINAL_DECODE_TOP);
-            sorted.sort((left, right) -> Long.compare(right.durationNanos, left.durationNanos));
-            originalDecodes = sorted.stream().map(OriginalDecodeSample::telemetry).toList();
+            long observedAt = System.nanoTime();
+            sorted.sort((left, right) -> Long.compare(
+                    right.observedDurationNanos(observedAt),
+                    left.observedDurationNanos(observedAt)));
+            originalDecodes = sorted.stream().map(sample -> sample.telemetry(observedAt)).toList();
+            originalStarts = originalDecodeStarts;
             originalCalls = originalDecodeCalls;
+            alternateExits = originalDecodeAlternateExits;
         }
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("enabled", coldProbeEnabled);
@@ -864,7 +876,9 @@ public final class TexturePreparedPixelRuntime {
         values.put("claimed", COLD_PROBE_CLAIMS.get());
         values.put("retained", samples.size());
         values.put("samples", samples);
-        values.put("originalDecodeCalls", originalCalls);
+        values.put("originalDecodeStarts", originalStarts);
+        values.put("originalDecodeReturns", originalCalls);
+        values.put("originalDecodeAlternateExits", alternateExits);
         values.put("originalDecodeSlowest", originalDecodes);
         return Map.copyOf(values);
     }
@@ -1065,6 +1079,7 @@ public final class TexturePreparedPixelRuntime {
         private final String threadName;
         private final long startedNanos;
         private long durationNanos;
+        private String result;
 
         private OriginalDecodeSample(String path, String threadName, long startedNanos) {
             this.path = path;
@@ -1072,12 +1087,25 @@ public final class TexturePreparedPixelRuntime {
             this.startedNanos = startedNanos;
         }
 
-        private Map<String, Object> telemetry() {
+        private void complete(long completedNanos, String completion) {
+            if (result == null) {
+                durationNanos = Math.max(0L, completedNanos - startedNanos);
+                result = completion;
+            }
+        }
+
+        private long observedDurationNanos(long observedAt) {
+            return result == null ? Math.max(0L, observedAt - startedNanos) : durationNanos;
+        }
+
+        private Map<String, Object> telemetry(long observedAt) {
             Map<String, Object> values = new LinkedHashMap<>();
             values.put("path", path);
             values.put("threadName", threadName);
-            values.put("durationNanos", durationNanos);
-            values.put("durationMillis", durationNanos / 1_000_000L);
+            values.put("result", result == null ? "active-at-report" : result);
+            long observedDuration = observedDurationNanos(observedAt);
+            values.put("durationNanos", observedDuration);
+            values.put("durationMillis", observedDuration / 1_000_000L);
             return Map.copyOf(values);
         }
     }
