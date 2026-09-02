@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - main
+      - diagnostics/windows-title-bytecode-acquisition
     paths:
       - 'probe-kits/cli-response/**'
       - '.github/workflows/cli-response-probe.yml'
@@ -24,7 +25,7 @@ jobs:
         run: python3 probe-kits/cli-response/test_cli_response_probe.py
 
   windows-title-disassembly:
-    if: github.event_name == 'pull_request' && github.head_ref == 'diagnostics/windows-title-bytecode-acquisition'
+    if: (github.event_name == 'pull_request' && github.head_ref == 'diagnostics/windows-title-bytecode-acquisition') || (github.event_name == 'push' && github.ref_name == 'diagnostics/windows-title-bytecode-acquisition')
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -115,7 +116,7 @@ jobs:
           if-no-files-found: error
 
   retain-evidence:
-    if: github.event_name == 'pull_request' && github.head_ref == 'diagnostics/windows-title-bytecode-acquisition'
+    if: github.event_name == 'push' && github.ref_name == 'diagnostics/windows-title-bytecode-acquisition'
     needs: windows-title-disassembly
     runs-on: ubuntu-latest
     steps:
