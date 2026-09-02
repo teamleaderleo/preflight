@@ -58,7 +58,7 @@ esac
 [[ "$preset" == recommended || "$preset" == conservative ]] || {
     echo "Preset must be recommended or conservative" >&2; exit 2;
 }
-for command in virsh jq iconv base64 sensors; do
+for command in virsh jq iconv base64 sensors powerprofilesctl; do
     command -v "$command" >/dev/null || { echo "Missing command: $command" >&2; exit 1; }
 done
 mkdir -p "$share"
@@ -107,12 +107,25 @@ fi
 wait_for_agent
 
 if [[ "$check_only" == true ]]; then
+    printf 'hostPowerProfile=%s\n' "$(powerprofilesctl get)"
     qga_ps "
 \$scheduled = Get-ScheduledTask -TaskName '$task'
 [ordered]@{vm='$vm';processorCount=[Environment]::ProcessorCount;sysMainStatus=[string](Get-Service SysMain).Status;taskState=[string]\$scheduled.State;taskArguments=\$scheduled.Actions[0].Arguments;gameProcesses=@(Get-Process java,javaw,starsector -ErrorAction SilentlyContinue).Count} | ConvertTo-Json
 "
     exit 0
 fi
+
+host_power_before="$(powerprofilesctl get | tr -d '[:space:]')"
+case "$host_power_before" in
+    performance|balanced|power-saver) ;;
+    *) echo "Unsupported host power profile: $host_power_before" >&2; exit 1 ;;
+esac
+powerprofilesctl set performance
+host_power_during="$(powerprofilesctl get | tr -d '[:space:]')"
+[[ "$host_power_during" == performance ]] || {
+    echo "Could not apply the host performance profile: $host_power_during" >&2
+    exit 1
+}
 
 restore_task() {
     local ps
@@ -127,6 +140,7 @@ EOF
 
 cleanup() {
     restore_task
+    powerprofilesctl set "$host_power_before" >/dev/null 2>&1 || true
     if [[ -n "${temp_dir:-}" && "$temp_dir" == /tmp/preflight-windows-host.* ]]; then
         rm -rf -- "$temp_dir"
     fi
@@ -157,12 +171,14 @@ temp_dir="$(mktemp -d /tmp/preflight-windows-host.XXXXXX)"
 samples="$temp_dir/host-samples.jsonl"
 
 average_frequency_for_capacity() {
-    local wanted="$1" path capacity frequency sum=0 count=0
+    local wanted="$1" path capacity frequency frequency_path sum=0 count=0
     for path in /sys/devices/system/cpu/cpu*/cpu_capacity; do
         [[ -r "$path" ]] || continue
         capacity="$(<"$path")"
         [[ "$capacity" == "$wanted" ]] || continue
-        frequency="$(<"$(dirname "$path")/cpufreq/scaling_cur_freq" 2>/dev/null || true)"
+        frequency_path="$(dirname "$path")/cpufreq/scaling_cur_freq"
+        [[ -r "$frequency_path" ]] || continue
+        frequency="$(<"$frequency_path")"
         [[ "$frequency" =~ ^[0-9]+$ ]] || continue
         sum=$((sum + frequency))
         count=$((count + 1))
@@ -192,9 +208,9 @@ while :; do
     qemu_pid="$(pgrep -f "qemu-system.*guest=$vm" | head -n 1 || true)"
     qemu_cpu=null
     if [[ -n "$qemu_pid" ]] && command -v pidstat >/dev/null; then
-        # pidstat's process-wide %CPU column is field nine on the retained Linux fixture. Field
-        # eight is %wait, which is useful diagnostically but is not QEMU's consumed CPU.
-        measured="$(pidstat -p "$qemu_pid" 1 1 | awk '/Average:/ {print $9; exit}')"
+        # The Average row omits the clock column, so locate process-wide %CPU relative to the
+        # stable trailing CPU/Command columns instead of assuming the live-row field number.
+        measured="$(pidstat -p "$qemu_pid" 1 1 | awk '/Average:/ {print $(NF - 2); exit}')"
         [[ "$measured" =~ ^[0-9]+([.][0-9]+)?$ ]] && qemu_cpu="$measured"
     else
         sleep 1
@@ -254,14 +270,21 @@ jq -n \
     --arg host "$(hostname)" \
     --arg cpuModel "$cpu_model" \
     --arg vm "$vm" \
+    --arg hostPowerProfileBefore "$host_power_before" \
+    --arg hostPowerProfileDuring "$host_power_during" \
     --argjson vcpuCount "$vcpu_count" \
     --arg vcpuPin "$vcpu_pin" \
     --argjson cpuCapacities "$capacities" \
     --argjson guestBefore "$guest_before" \
     --argjson completion "$completion" \
     --slurpfile samples "$samples" \
-    '{format:$format,observedFrom:$observedFrom,observedTo:$observedTo,host:$host,cpuModel:$cpuModel,vm:$vm,vcpuCount:$vcpuCount,vcpuPin:$vcpuPin,cpuCapacities:$cpuCapacities,guestBefore:$guestBefore,completion:$completion,hostSamples:$samples}' >"$host_output"
+    '{format:$format,observedFrom:$observedFrom,observedTo:$observedTo,host:$host,
+      cpuModel:$cpuModel,vm:$vm,hostPowerProfileBefore:$hostPowerProfileBefore,
+      hostPowerProfileDuring:$hostPowerProfileDuring,vcpuCount:$vcpuCount,vcpuPin:$vcpuPin,
+      cpuCapacities:$cpuCapacities,guestBefore:$guestBefore,completion:$completion,
+      hostSamples:$samples}' >"$host_output"
 restore_task
+powerprofilesctl set "$host_power_before"
 trap - EXIT
 rm -rf -- "$temp_dir"
 printf 'Cohort: %s\nHost fingerprint: %s\n' "$(jq -c '.summary.conditions' <<<"$completion")" "$host_output"

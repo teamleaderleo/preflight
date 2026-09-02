@@ -53,7 +53,9 @@ scripts/run-big-red-windows-startup-cohort.sh \
 
 The fingerprint retains hybrid-core capacities, vCPU topology/pinning, bounded QEMU/temperature/
 memory samples, guest SysMain and memory state, and only competing processes above a CPU threshold.
-It does not modify those services or treat its observational data as a performance claim.
+It temporarily applies Big Red's performance power profile for the cohort, records the prior and
+active profiles, restores the prior profile afterward, and does not modify the observed Windows
+services. Its observational data is not itself a performance claim.
 
 Use
 `-OptimizationPreset conservative` to isolate the padded prepared-pixel path; the default remains
