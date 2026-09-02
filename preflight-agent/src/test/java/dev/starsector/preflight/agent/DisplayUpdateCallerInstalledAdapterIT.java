@@ -29,7 +29,8 @@ class DisplayUpdateCallerInstalledAdapterIT {
             byte[] original = bytes(jar, DisplayUpdateCallerPlan.TARGET_CLASS);
             ClassSignature signature = ClassSignature.parse(original);
             assertEquals(DisplayUpdateCallerPlan.ORIGINAL_SHA256, signature.sha256());
-            byte[] transformed = DisplayUpdateCallerPlan.transform(signature, original);
+            byte[] transformed = AdapterTransformationRegistry.transform(
+                    AdapterTargetRegistry.windowsResourcePriorityTarget(), signature, original);
             assertNotNull(transformed);
             MethodNode method = method(transformed);
             int update = callIndex(method, "org/lwjgl/opengl/Display", "update");

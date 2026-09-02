@@ -1162,6 +1162,11 @@ final class AdapterTransformationRegistry {
             boolean rateLimited = ResourceProgressRateLimitPlan.apply(signature, owner);
             if (!marked && !staged && !preparedOrdered && !indexed && !rateLimited) return null;
             byte[] transformed = ResourcePriorityPlan.write(owner);
+            if (AdapterPlanControl.allows(FrameTimeRuntime.PLAN_ID)
+                    && DisplayThreadTextureProbeRuntime.requested()) {
+                byte[] ownershipProof = DisplayUpdateCallerPlan.transform(signature, transformed);
+                if (ownershipProof != null) transformed = ownershipProof;
+            }
             if (phaseMarked) {
                 StartupPhaseRuntime.installed();
             }
@@ -1216,6 +1221,14 @@ final class AdapterTransformationRegistry {
             if (rateLimited != null) {
                 current = rateLimited;
                 changed = true;
+            }
+            if (AdapterPlanControl.allows(FrameTimeRuntime.PLAN_ID)
+                    && DisplayThreadTextureProbeRuntime.requested()) {
+                byte[] ownershipProof = DisplayUpdateCallerPlan.transform(signature, current);
+                if (ownershipProof != null) {
+                    current = ownershipProof;
+                    changed = true;
+                }
             }
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
