@@ -1122,7 +1122,51 @@ This leaves the previously measured Windows renderer island as the materially la
 `glTexImage2D`. The next rendering capability slice should test same-Display persistent thread
 ownership; the rejected shared-Pbuffer experiments did not test that architecture.
 
+### Can the live Display context move to a renderer thread on Windows?
+
+Yes. The earlier negative result was caused by the probe boundary, not by an llvmpipe or LWJGL2
+ownership restriction. Although the first hook looked like it ran after `Display.update()`, it was
+inserted before the return of LWJGL's synchronized no-argument wrapper. The worker's acquisition
+therefore tracked the main thread's bounded wait and grace period exactly.
+
+The corrected probe runs immediately after the sole `Display.update()` invocation in the exact
+Windows `ResourceLoaderState.renderBg()` method. It is composed with the earlier always-on resource
+priority rewrite so adapter target ordering cannot silently shadow it. On the physical Windows VM:
+
+- main released the current Display in 56.7 microseconds;
+- the worker acquired that same Display in 56.9 microseconds;
+- it uploaded deterministic 4 x 4 and 1024 x 1024 RGBA textures (4,194,368 bytes total), called
+  `glFinish`, and reported GL error zero;
+- worker upload plus finish took 11.071 milliseconds and release took 28.4 microseconds;
+- main restored Display in 54.4 microseconds, read every uploaded byte back correctly, reported GL
+  error zero, deleted both textures, and restored the prior binding;
+- the worker terminated, cleanup completed, and the ordinary 89-mod launch reached the interactive
+  menu with healthy adapter state and graceful shutdown.
+
+The complete synthetic round trip took 24.779 milliseconds, including 7.865 milliseconds of
+deliberately expensive byte-for-byte readback validation. This is a capability and correctness
+result, not a startup-time claim. The intrusive run's 39.115-second graphics marker and
+52.060-second interactive boundary are excluded from performance comparisons.
+
+This reopens one architectural route to the 27.768-second upload island: one persistent Display
+owner plus bounded producer/commit queues. It does **not** prove that merely moving synchronous
+uploads to another thread will help. A successor must let useful CPU/spec work proceed while the GL
+owner drains commits, preserve texture identity/order/readiness and original failures, and show a
+thin time-to-interactive improvement. Blocking the producer on every upload would only relocate the
+same serial work.
+
 Preserved evidence:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260903-041902-windows-startup-2x2.zip
+```
+
+The archive is 1,576,341 bytes with SHA-256
+`892c7ef8b454c8909ad0e021b3338f4227fb4fc3f35eb60299be1ea71bbf7e67`. Its Preflight JAR SHA-256
+is `777f537fce426e4d0f9ff47cc1096c0b196b50adffe0dab921f8e3fdd5ca2f80`; enabled-mod and Java
+identities match the preceding Windows work.
+
+Ship-system evidence:
 
 ```text
 /home/leo/Windows-Share/Diagnostics/20260903-031941-windows-startup-2x2.zip
