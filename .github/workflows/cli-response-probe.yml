@@ -22,3 +22,71 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Run response probe self-test
         run: python3 probe-kits/cli-response/test_cli_response_probe.py
+
+  windows-title-disassembly:
+    if: github.event_name == 'pull_request' && github.head_ref == 'diagnostics/windows-title-bytecode-acquisition'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-build-jdk
+      - name: Fetch exact Windows core and disassemble reviewed title class
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = Join-Path $env:RUNNER_TEMP 'starsector_install-0.98a-RC8.exe'
+          $extractRoot = Join-Path $env:RUNNER_TEMP 'starsector-extracted'
+          $outputRoot = Join-Path $env:RUNNER_TEMP 'windows-title-disassembly'
+          New-Item -ItemType Directory -Path $extractRoot, $outputRoot -Force | Out-Null
+          Invoke-WebRequest -UseBasicParsing `
+            -Uri 'https://f005.backblazeb2.com/file/fractalsoftworks/release/starsector_install-0.98a-RC8.exe' `
+            -OutFile $installer
+          & 7z x $installer "-o$extractRoot" -y | Out-Host
+          if ($LASTEXITCODE -ne 0) { throw "7z extraction failed: $LASTEXITCODE" }
+
+          $jars = @(Get-ChildItem -LiteralPath $extractRoot -Filter 'starfarer_obf.jar' -File -Recurse)
+          if ($jars.Count -ne 1) { throw "Expected one starfarer_obf.jar, found $($jars.Count)" }
+          $jar = $jars[0]
+          $jarSha = (Get-FileHash -LiteralPath $jar.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expectedJarSha = '5dd222b9e266d2ac2d63b3dad4983eb05caaf5a247d7dfb82aaeba47ea774cc8'
+          if ($jarSha -ne $expectedJarSha) { throw "Core JAR SHA mismatch: $jarSha" }
+
+          $targetToken = 'Oo' + ((('O' * 254) -join ''))
+          $entryName = "com/fs/starfarer/title/$targetToken.class"
+          $classPath = Join-Path $outputRoot 'windows-title.class'
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead($jar.FullName)
+          try {
+            $entry = $zip.GetEntry($entryName)
+            if ($null -eq $entry) { throw "Missing exact title entry: $entryName" }
+            $source = $entry.Open()
+            try {
+              $destination = [System.IO.File]::Create($classPath)
+              try { $source.CopyTo($destination) } finally { $destination.Dispose() }
+            } finally { $source.Dispose() }
+          } finally { $zip.Dispose() }
+
+          $classSha = (Get-FileHash -LiteralPath $classPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expectedClassSha = '7a034024de849f2829ad5e41dbb0e58f5979a6e7a81e55527f6839055db3d4c6'
+          if ($classSha -ne $expectedClassSha) { throw "Title class SHA mismatch: $classSha" }
+
+          $className = "com.fs.starfarer.title.$targetToken"
+          $disassembly = Join-Path $outputRoot 'windows-title-javap.txt'
+          & javap -classpath $jar.FullName -c -p -s $className | Out-File -LiteralPath $disassembly -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw "javap failed: $LASTEXITCODE" }
+
+          @(
+            'sourceUrl=https://f005.backblazeb2.com/file/fractalsoftworks/release/starsector_install-0.98a-RC8.exe'
+            "coreJarBytes=$($jar.Length)"
+            "coreJarSha256=$jarSha"
+            "targetClass=$entryName"
+            "targetClassBytes=$((Get-Item -LiteralPath $classPath).Length)"
+            "targetClassSha256=$classSha"
+          ) | Set-Content -LiteralPath (Join-Path $outputRoot 'metadata.txt') -Encoding utf8
+      - name: Upload disassembly text only
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-title-disassembly
+          path: |
+            ${{ runner.temp }}/windows-title-disassembly/windows-title-javap.txt
+            ${{ runner.temp }}/windows-title-disassembly/metadata.txt
+          if-no-files-found: error
