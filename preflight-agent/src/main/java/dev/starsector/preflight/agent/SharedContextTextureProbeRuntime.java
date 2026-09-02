@@ -27,7 +27,10 @@ public final class SharedContextTextureProbeRuntime {
     private static final int GL_NO_ERROR = 0;
     private static final int PBUFFER_SUPPORTED = 1;
     private static final int LARGE_EDGE = 1024;
-    private static final long WORKER_TIMEOUT_MILLIS = 15_000L;
+    // The exact Windows llvmpipe fixture twice needed about 17 seconds to complete the first worker
+    // makeCurrent call. Keep the proof bounded, but leave enough room to distinguish that observed
+    // context bring-up from an ownership deadlock.
+    private static final long WORKER_TIMEOUT_MILLIS = 30_000L;
     private static final long INTERRUPT_GRACE_MILLIS = 2_000L;
     private static final int MAX_STAGE_EVENTS = 32;
 
@@ -297,6 +300,8 @@ public final class SharedContextTextureProbeRuntime {
         result.put("displayDrawableIdentity", displayDrawableIdentity);
         result.put("workerDrawableIdentity", workerDrawableIdentity);
         result.put("contextCreateMicros", micros(contextCreateNanos));
+        result.put("workerTimeoutMillis", WORKER_TIMEOUT_MILLIS);
+        result.put("interruptGraceMillis", INTERRUPT_GRACE_MILLIS);
         result.put("displayReleaseMicros", micros(displayReleaseNanos));
         result.put("workerAcquireMicros", micros(workerAcquireNanos));
         result.put("workerUploadMicros", micros(workerUploadNanos));
