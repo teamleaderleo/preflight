@@ -485,21 +485,24 @@ subphase tables:
 
 The smaller loader families are no longer plausible explanations for the whole plateau: weapon
 file/JSON work was 29 ms, hull file/JSON work was 34 ms, and rules expression command lookup was
-285 ms. The next diagnostic should therefore split the exact post-SpecStore path around the
-immediate progress render, `queueShipAndWeaponSprites`, resource ordering, executor setup, and the
-first resource batches. At 8.649 seconds it has higher expected information value than another
-Kaleidoscope cohort or optimizing one sub-second rules family.
+285 ms. Commit `4869fffd` then split the exact post-SpecStore path. A second clean intrusive run
+showed that the progress render took 5 ms, `queueShipAndWeaponSprites` 31 ms, resource ordering 42
+ms, and executor creation/setup 6 ms. The interval from `resource-batches-start` to the first 1%
+milestone was **8.902 seconds**. The large target is therefore the first high-priority resource
+loads themselves, not queue construction, UI rendering, or executor setup. The next probe should
+retain bounded first/top resource identity and duration by resource type before any optimization is
+chosen.
 
 ## Open questions / next experiment
 
 1. Do not promote or retest prepared-carrier staging merely because it achieved 2,170 hits. Reopen
    only if a new design can avoid producer/consumer CPU contention or target a materially larger
    serial block.
-2. Split the exact 8.649-second SpecStore-complete-to-first-1%-milestone window before optimizing
-   it. Retain boundaries around the immediate progress render, `queueShipAndWeaponSprites`, resource
-   ordering, executor setup, and the first resource batches. The next concrete SpecStore candidate
-   is faction priority-table construction at 1.643 seconds; GraphicsLib remains a separate
-   3.489-second callback target.
+2. Attribute the **8.902-second first resource-batch window** with bounded first/top resource
+   identity, duration, and resource-type totals. The prior split rules out progress rendering,
+   `queueShipAndWeaponSprites`, ordering, and executor setup. The next separate SpecStore candidate
+   is faction priority-table construction at 1.643 seconds; GraphicsLib remains a 3.489-second
+   callback target.
 3. Require an exploratory causal signal before paying for an interleaved standalone cohort. Keep
    llvmpipe padded; the bounded NPOT result rejects capability-only gating.
 4. Run the exact worker successor on a native-GPU Windows machine before promoting any
@@ -573,4 +576,5 @@ The exact Windows detailed SpecStore/early-progress discovery packet is retained
 
 ```text
 /home/leo/Windows-Share/Diagnostics/20260902-windows-detailed-startup-phase-probe
+/home/leo/Windows-Share/Diagnostics/20260902-windows-post-spec-phase-probe
 ```
