@@ -42,6 +42,17 @@ class StartupPhasePlanTest {
                         "pre-progress-data-complete",
                         "spec-store-start",
                         "spec-store-complete",
+                        "post-spec-progress-start",
+                        "post-spec-progress-complete",
+                        "ship-weapon-sprite-queue-start",
+                        "ship-weapon-sprite-queue-complete",
+                        "post-queue-progress-start",
+                        "post-queue-progress-complete",
+                        "resource-ordering-start",
+                        "resource-ordering-complete",
+                        "resource-executor-start",
+                        "resource-executor-complete",
+                        "resource-batches-start",
                         "progress-100",
                         "audio-workers-complete",
                         "graphics-finalize-complete",
@@ -180,9 +191,32 @@ class StartupPhasePlanTest {
                 "()Lcom/fs/starfarer/title/C/A/A;", false);
         method.visitInsn(Opcodes.POP);
         method.visitVarInsn(Opcodes.ALOAD, 0);
+        method.visitInsn(Opcodes.FCONST_0);
+        method.visitMethodInsn(Opcodes.INVOKEVIRTUAL, StartupPhasePlan.TARGET_CLASS,
+                "renderProgress", "(F)V", false);
+        method.visitVarInsn(Opcodes.ALOAD, 0);
         method.visitMethodInsn(Opcodes.INVOKESTATIC,
                 "com/fs/starfarer/loading/SpecStore", "ÓO0000",
                 "(Lcom/fs/starfarer/loading/ResourceLoaderState;)V", false);
+        method.visitVarInsn(Opcodes.ALOAD, 0);
+        method.visitInsn(Opcodes.FCONST_1);
+        method.visitMethodInsn(Opcodes.INVOKEVIRTUAL, StartupPhasePlan.TARGET_CLASS,
+                "renderProgress", "(F)V", false);
+        method.visitVarInsn(Opcodes.ALOAD, 0);
+        method.visitMethodInsn(Opcodes.INVOKEVIRTUAL, StartupPhasePlan.TARGET_CLASS,
+                "queueShipAndWeaponSprites", "()V", false);
+        method.visitVarInsn(Opcodes.ALOAD, 0);
+        method.visitInsn(Opcodes.FCONST_1);
+        method.visitMethodInsn(Opcodes.INVOKEVIRTUAL, StartupPhasePlan.TARGET_CLASS,
+                "renderProgress", "(F)V", false);
+        method.visitInsn(Opcodes.ICONST_2);
+        method.visitMethodInsn(Opcodes.INVOKESTATIC, "java/util/concurrent/Executors",
+                "newFixedThreadPool", "(I)Ljava/util/concurrent/ExecutorService;", false);
+        method.visitInsn(Opcodes.POP);
+        method.visitInsn(Opcodes.ACONST_NULL);
+        method.visitMethodInsn(Opcodes.INVOKEINTERFACE, "java/util/List",
+                "iterator", "()Ljava/util/Iterator;", true);
+        method.visitInsn(Opcodes.POP);
 
         method.visitInsn(Opcodes.ACONST_NULL);
         method.visitMethodInsn(Opcodes.INVOKEINTERFACE, "java/util/concurrent/ExecutorService",

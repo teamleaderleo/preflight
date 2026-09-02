@@ -73,6 +73,17 @@ final class StartupPhasePlan {
         AbstractInsnNode onlyReturn = uniqueOpcode(init, Opcodes.RETURN);
         MethodInsnNode firstProgress = calls(init, TARGET_CLASS, "renderProgress", "(F)V")
                 .stream().findFirst().orElse(null);
+        MethodInsnNode postSpecProgress = firstCallAfter(
+                specStore, TARGET_CLASS, "renderProgress", "(F)V");
+        MethodInsnNode shipWeaponSpriteQueue = uniqueCall(
+                init, TARGET_CLASS, "queueShipAndWeaponSprites", "()V");
+        MethodInsnNode postQueueProgress = firstCallAfter(
+                shipWeaponSpriteQueue, TARGET_CLASS, "renderProgress", "(F)V");
+        MethodInsnNode resourceExecutor = uniqueCall(
+                init, "java/util/concurrent/Executors", "newFixedThreadPool",
+                "(I)Ljava/util/concurrent/ExecutorService;");
+        MethodInsnNode resourceBatches = firstCallAfter(
+                resourceExecutor, "java/util/List", "iterator", "()Ljava/util/Iterator;");
         MethodInsnNode titleData = previousCall(firstProgress == null ? specStore : firstProgress);
         if (titleData != null && (titleData.getOpcode() != Opcodes.INVOKESTATIC
                 || !titleData.owner.startsWith("com/fs/starfarer/title/")
@@ -90,6 +101,13 @@ final class StartupPhasePlan {
                 || renderProgress == null || renderBackground == null || resourceManifest == null
                 || scriptDiscovery == null || scriptCompile == null || scriptPrime == null
                 || titleData == null || specStore == null
+                || postSpecProgress == null || shipWeaponSpriteQueue == null
+                || postQueueProgress == null || resourceExecutor == null || resourceBatches == null
+                || !comesBefore(specStore, postSpecProgress)
+                || !comesBefore(postSpecProgress, shipWeaponSpriteQueue)
+                || !comesBefore(shipWeaponSpriteQueue, postQueueProgress)
+                || !comesBefore(postQueueProgress, resourceExecutor)
+                || !comesBefore(resourceExecutor, resourceBatches)
                 || shutdown == null || awaitRetry == null
                 || graphicsFinalize == null || scripts == null
                 || pluginCallback == null || pluginLoop == null || onlyReturn == null) {
@@ -108,6 +126,17 @@ final class StartupPhasePlan {
         init.instructions.insert(titleData, mark("pre-progress-data-complete"));
         init.instructions.insertBefore(specStore, mark("spec-store-start"));
         init.instructions.insert(specStore, mark("spec-store-complete"));
+        init.instructions.insertBefore(postSpecProgress, mark("post-spec-progress-start"));
+        init.instructions.insert(postSpecProgress, mark("post-spec-progress-complete"));
+        init.instructions.insertBefore(shipWeaponSpriteQueue, mark("ship-weapon-sprite-queue-start"));
+        init.instructions.insert(shipWeaponSpriteQueue, mark("ship-weapon-sprite-queue-complete"));
+        init.instructions.insertBefore(postQueueProgress, mark("post-queue-progress-start"));
+        init.instructions.insert(postQueueProgress, marks(
+                "post-queue-progress-complete", "resource-ordering-start"));
+        init.instructions.insertBefore(resourceExecutor, marks(
+                "resource-ordering-complete", "resource-executor-start"));
+        init.instructions.insert(resourceExecutor, mark("resource-executor-complete"));
+        init.instructions.insertBefore(resourceBatches, mark("resource-batches-start"));
         init.instructions.insertBefore(shutdown, mark("progress-100"));
         init.instructions.insert(awaitRetry, mark("audio-workers-complete"));
         init.instructions.insert(graphicsFinalize, mark("graphics-finalize-complete"));
@@ -148,6 +177,14 @@ final class StartupPhasePlan {
         return instructions;
     }
 
+    private static InsnList marks(String... names) {
+        InsnList instructions = new InsnList();
+        for (String name : names) {
+            instructions.add(mark(name));
+        }
+        return instructions;
+    }
+
     private static JumpInsnNode pluginLoopJump(MethodInsnNode pluginCallback) {
         for (AbstractInsnNode cursor = pluginCallback.getNext(); cursor != null; cursor = cursor.getNext()) {
             if (cursor instanceof MethodInsnNode call
@@ -181,6 +218,26 @@ final class StartupPhasePlan {
     private static MethodInsnNode uniqueCall(MethodNode method, String owner, String descriptor) {
         List<MethodInsnNode> matches = calls(method, owner, descriptor);
         return matches.size() == 1 ? matches.get(0) : null;
+    }
+
+    private static MethodInsnNode firstCallAfter(
+            AbstractInsnNode start, String owner, String name, String descriptor) {
+        for (AbstractInsnNode cursor = start == null ? null : start.getNext();
+                cursor != null; cursor = cursor.getNext()) {
+            if (cursor instanceof MethodInsnNode call
+                    && owner.equals(call.owner) && name.equals(call.name)
+                    && descriptor.equals(call.desc)) {
+                return call;
+            }
+        }
+        return null;
+    }
+
+    private static boolean comesBefore(AbstractInsnNode first, AbstractInsnNode second) {
+        for (AbstractInsnNode cursor = first; cursor != null; cursor = cursor.getNext()) {
+            if (cursor == second) return true;
+        }
+        return false;
     }
 
     private static MethodInsnNode stage(List<MethodInsnNode> stages, int index) {
