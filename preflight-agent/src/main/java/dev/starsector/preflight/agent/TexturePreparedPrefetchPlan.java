@@ -37,6 +37,8 @@ final class TexturePreparedPrefetchPlan {
             "dev/starsector/preflight/agent/TexturePreparedPixelRuntime";
     private static final String QUEUE_METHOD = "shouldQueuePreparedPrefetch";
     private static final String LOAD_METHOD = "prefetchLoad";
+    private static final String ORIGINAL_DECODE_START_METHOD = "originalPrefetchDecodeStart";
+    private static final String ORIGINAL_DECODE_END_METHOD = "originalPrefetchDecodeEnd";
     private static final String POOL_RUNTIME =
             "dev/starsector/preflight/agent/TexturePreparedPrefetchPoolRuntime";
     private static final String POOL_START_DESCRIPTOR =
@@ -65,6 +67,12 @@ final class TexturePreparedPrefetchPlan {
         if (decode == null || enqueue == null
                 || containsRuntimeCall(decode) || containsRuntimeCall(enqueue)) {
             return null;
+        }
+        java.util.List<AbstractInsnNode> originalReturns = new java.util.ArrayList<>();
+        for (AbstractInsnNode instruction : decode.instructions) {
+            if (instruction.getOpcode() == Opcodes.ARETURN) {
+                originalReturns.add(instruction);
+            }
         }
 
         LabelNode enqueueOriginal = new LabelNode();
@@ -95,7 +103,22 @@ final class TexturePreparedPrefetchPlan {
                 1,
                 new Object[] {"java/awt/image/BufferedImage"}));
         loadGuard.add(new InsnNode(Opcodes.POP));
+        loadGuard.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        loadGuard.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC,
+                RUNTIME,
+                ORIGINAL_DECODE_START_METHOD,
+                "(Ljava/lang/String;)V",
+                false));
         decode.instructions.insert(loadGuard);
+        for (AbstractInsnNode originalReturn : originalReturns) {
+            decode.instructions.insertBefore(originalReturn, new MethodInsnNode(
+                    Opcodes.INVOKESTATIC,
+                    RUNTIME,
+                    ORIGINAL_DECODE_END_METHOD,
+                    "()V",
+                    false));
+        }
         decode.maxStack = Math.max(decode.maxStack, 2);
 
         int workers = Integer.getInteger(WINDOWS_WORKERS_PROPERTY, 1);

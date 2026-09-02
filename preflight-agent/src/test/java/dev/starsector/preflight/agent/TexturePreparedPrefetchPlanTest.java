@@ -44,7 +44,10 @@ class TexturePreparedPrefetchPlanTest {
                 calls(method(parsed, ENQUEUE, TexturePrefetchBypassPlan.ENQUEUE_DESCRIPTOR))
                         .stream().map(call -> call.name).toList());
         assertEquals(
-                List.of("prefetchLoad"),
+                List.of(
+                        "prefetchLoad",
+                        "originalPrefetchDecodeStart",
+                        "originalPrefetchDecodeEnd"),
                 calls(method(parsed, TexturePreparedPrefetchPlan.DECODE_METHOD,
                         TexturePreparedPrefetchPlan.DECODE_DESCRIPTOR))
                         .stream()
@@ -190,6 +193,12 @@ class TexturePreparedPrefetchPlanTest {
 
         public static BufferedImage prefetchLoad(String ignored) {
             return prepared;
+        }
+
+        public static void originalPrefetchDecodeStart(String ignored) {
+        }
+
+        public static void originalPrefetchDecodeEnd() {
         }
     }
 

@@ -62,8 +62,11 @@ public final class TexturePreparedPixelRuntime {
     private static final AtomicInteger COLD_PROBE_CLAIMS = new AtomicInteger();
     private static final AtomicBoolean COLD_PROBE_TARGET_CLAIMED = new AtomicBoolean();
     private static final ThreadLocal<ColdProbeSample> ACTIVE_COLD_PROBE = new ThreadLocal<>();
+    private static final ThreadLocal<OriginalDecodeSample> ACTIVE_ORIGINAL_DECODE = new ThreadLocal<>();
     private static final List<Map<String, Object>> COLD_PROBE_SAMPLES = new ArrayList<>();
+    private static final List<OriginalDecodeSample> ORIGINAL_DECODE_TOP = new ArrayList<>();
     private static volatile boolean coldProbeEnabled;
+    private static long originalDecodeCalls;
     private static volatile boolean selected;
     private static long activeBytes;
     private static long peakBytes;
@@ -85,6 +88,8 @@ public final class TexturePreparedPixelRuntime {
             retainedLearnedKaleidoscopeResults = null;
             preferredPreparedPrefetchOrder = List.of();
             COLD_PROBE_SAMPLES.clear();
+            ORIGINAL_DECODE_TOP.clear();
+            originalDecodeCalls = 0L;
             activeBytes = 0;
             peakBytes = 0;
             pendingBuffers = 0;
@@ -95,6 +100,7 @@ public final class TexturePreparedPixelRuntime {
         COLD_PROBE_CLAIMS.set(0);
         COLD_PROBE_TARGET_CLAIMED.set(false);
         ACTIVE_COLD_PROBE.remove();
+        ACTIVE_ORIGINAL_DECODE.remove();
     }
 
     static void select(TextureAdapterMode mode) {
@@ -472,6 +478,42 @@ public final class TexturePreparedPixelRuntime {
         }
     }
 
+    public static void originalPrefetchDecodeStart(String logicalPath) {
+        if (!coldProbeEnabled) {
+            return;
+        }
+        ACTIVE_ORIGINAL_DECODE.set(new OriginalDecodeSample(
+                logicalPath == null ? "" : logicalPath,
+                Thread.currentThread().getName(),
+                System.nanoTime()));
+    }
+
+    public static void originalPrefetchDecodeEnd() {
+        OriginalDecodeSample sample = ACTIVE_ORIGINAL_DECODE.get();
+        if (sample == null) {
+            return;
+        }
+        ACTIVE_ORIGINAL_DECODE.remove();
+        sample.durationNanos = Math.max(0L, System.nanoTime() - sample.startedNanos);
+        synchronized (LOCK) {
+            originalDecodeCalls++;
+            if (ORIGINAL_DECODE_TOP.size() < MAX_COLD_PROBE_SAMPLES) {
+                ORIGINAL_DECODE_TOP.add(sample);
+                return;
+            }
+            int fastest = 0;
+            for (int index = 1; index < ORIGINAL_DECODE_TOP.size(); index++) {
+                if (ORIGINAL_DECODE_TOP.get(index).durationNanos
+                        < ORIGINAL_DECODE_TOP.get(fastest).durationNanos) {
+                    fastest = index;
+                }
+            }
+            if (sample.durationNanos > ORIGINAL_DECODE_TOP.get(fastest).durationNanos) {
+                ORIGINAL_DECODE_TOP.set(fastest, sample);
+            }
+        }
+    }
+
     private static ColdProbeSample beginColdProbe(String logicalPath) {
         if (!coldProbeEnabled) {
             return null;
@@ -805,8 +847,14 @@ public final class TexturePreparedPixelRuntime {
 
     private static Map<String, Object> coldProbeTelemetry() {
         List<Map<String, Object>> samples;
+        List<Map<String, Object>> originalDecodes;
+        long originalCalls;
         synchronized (LOCK) {
             samples = List.copyOf(COLD_PROBE_SAMPLES);
+            List<OriginalDecodeSample> sorted = new ArrayList<>(ORIGINAL_DECODE_TOP);
+            sorted.sort((left, right) -> Long.compare(right.durationNanos, left.durationNanos));
+            originalDecodes = sorted.stream().map(OriginalDecodeSample::telemetry).toList();
+            originalCalls = originalDecodeCalls;
         }
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("enabled", coldProbeEnabled);
@@ -816,6 +864,8 @@ public final class TexturePreparedPixelRuntime {
         values.put("claimed", COLD_PROBE_CLAIMS.get());
         values.put("retained", samples.size());
         values.put("samples", samples);
+        values.put("originalDecodeCalls", originalCalls);
+        values.put("originalDecodeSlowest", originalDecodes);
         return Map.copyOf(values);
     }
 
@@ -1010,6 +1060,28 @@ public final class TexturePreparedPixelRuntime {
     }
 
     /** Typed bridge object consumed only by the exact transformed TextureLoader class. */
+    private static final class OriginalDecodeSample {
+        private final String path;
+        private final String threadName;
+        private final long startedNanos;
+        private long durationNanos;
+
+        private OriginalDecodeSample(String path, String threadName, long startedNanos) {
+            this.path = path;
+            this.threadName = threadName;
+            this.startedNanos = startedNanos;
+        }
+
+        private Map<String, Object> telemetry() {
+            Map<String, Object> values = new LinkedHashMap<>();
+            values.put("path", path);
+            values.put("threadName", threadName);
+            values.put("durationNanos", durationNanos);
+            values.put("durationMillis", durationNanos / 1_000_000L);
+            return Map.copyOf(values);
+        }
+    }
+
     private static final class ColdProbeSample {
         private final int ordinal;
         private final String path;

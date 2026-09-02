@@ -106,6 +106,25 @@ class TexturePreparedPixelRuntimeTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void coldProbeRetainsOriginalDecodePathsAndDurations() {
+        System.setProperty(TexturePreparedPixelRuntime.WINDOWS_COLD_PROBE_PROPERTY, "true");
+        TexturePreparedPixelRuntime.beginSession();
+
+        TexturePreparedPixelRuntime.originalPrefetchDecodeStart("graphics/missing.png");
+        TexturePreparedPixelRuntime.originalPrefetchDecodeEnd();
+
+        Map<String, Object> coldProbe =
+                (Map<String, Object>) TexturePreparedPixelRuntime.telemetry().get("coldProbe");
+        assertEquals(1L, coldProbe.get("originalDecodeCalls"));
+        List<Map<String, Object>> samples =
+                (List<Map<String, Object>>) coldProbe.get("originalDecodeSlowest");
+        assertEquals(1, samples.size());
+        assertEquals("graphics/missing.png", samples.get(0).get("path"));
+        assertTrue((long) samples.get(0).get("durationNanos") >= 0L);
+    }
+
+    @Test
     void seedsRetainsAndSettlesLearnedKaleidoscopeTextures() throws Exception {
         String path = "graphics/kaleidoscope/planets/test.png";
         Fixture fixture = fixture(path, 2, 2, 3, new byte[] {
