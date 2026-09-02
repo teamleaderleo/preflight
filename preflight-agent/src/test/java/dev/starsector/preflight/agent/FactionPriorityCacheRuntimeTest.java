@@ -32,14 +32,18 @@ class FactionPriorityCacheRuntimeTest {
     void learnsOnlyOriginalAddsThenReplaysThemOnTheNextSession() throws Exception {
         String profile = "ab".repeat(32);
         Callback learning = new Callback();
+        Object faction = new JsonIdentity("faction-a");
         assertTrue(FactionPriorityCacheRuntime.configure(temporaryDirectory, profile, true));
         assertFalse(FactionPriorityCacheRuntime.replayOrBegin(
-                learning, "knownShips", "hulls", true));
+                faction, learning, "knownShips", "hulls", true));
         FactionPriorityCacheRuntime.record("wolf");
         learning.o00000("wolf");
         FactionPriorityCacheRuntime.record("lasher");
         learning.o00000("lasher");
         FactionPriorityCacheRuntime.completeCall();
+        assertFalse(FactionPriorityCacheRuntime.replayOrBegin(
+                faction, new Callback(), "knownShips", "hulls", true),
+                "a learning launch must never consume its own unvalidated results");
         FactionPriorityCacheRuntime.complete();
 
         PreparedFactionPriorityCache stored = PreparedFactionPriorityCacheIO.read(
@@ -50,7 +54,7 @@ class FactionPriorityCacheRuntimeTest {
         assertTrue(FactionPriorityCacheRuntime.configure(temporaryDirectory, profile, true));
         Callback replay = new Callback();
         assertTrue(FactionPriorityCacheRuntime.replayOrBegin(
-                replay, "knownShips", "hulls", true));
+                new JsonIdentity("faction-a"), replay, "knownShips", "hulls", true));
         assertEquals(List.of("wolf", "lasher"), replay.ids);
         assertEquals(1L, FactionPriorityCacheRuntime.telemetry().get("hits"));
         assertEquals(2L, FactionPriorityCacheRuntime.telemetry().get("replayedIds"));
@@ -65,7 +69,8 @@ class FactionPriorityCacheRuntimeTest {
 
         assertTrue(FactionPriorityCacheRuntime.configure(temporaryDirectory, profile, true));
         assertFalse(FactionPriorityCacheRuntime.replayOrBegin(
-                new Callback(), "knownWeapons", "weapons", false));
+                new JsonIdentity("faction-b"), new Callback(),
+                "knownWeapons", "weapons", false));
         assertTrue(String.valueOf(FactionPriorityCacheRuntime.telemetry().get("status"))
                 .startsWith("rejected:"));
     }
@@ -75,6 +80,13 @@ class FactionPriorityCacheRuntimeTest {
 
         public void o00000(String id) {
             ids.add(id);
+        }
+    }
+
+    private record JsonIdentity(String value) {
+        @Override
+        public String toString() {
+            return value;
         }
     }
 }

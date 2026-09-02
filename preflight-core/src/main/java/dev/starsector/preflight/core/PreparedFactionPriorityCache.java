@@ -10,8 +10,8 @@ import java.util.TreeSet;
 public record PreparedFactionPriorityCache(
         String profileIdentitySha256,
         Map<String, List<String>> entries) {
-    public static final int FORMAT_VERSION = 1;
-    public static final int MAX_ENTRIES = 64;
+    public static final int FORMAT_VERSION = 2;
+    public static final int MAX_ENTRIES = 4_096;
     public static final int MAX_TOTAL_IDS = 1_000_000;
     public static final int MAX_STRING_BYTES = 16 * 1024;
 

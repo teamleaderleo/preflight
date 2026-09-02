@@ -9,6 +9,7 @@ import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,14 +88,25 @@ public final class FactionPriorityCacheRuntime {
 
     /** Returns true only after every learned callback has been replayed successfully. */
     public static boolean replayOrBegin(
-            Object callback, String section, String explicitIds, boolean fallbackToBase) {
+            Object json, Object callback, String section, String explicitIds, boolean fallbackToBase) {
         State current = state;
-        if (current.artifact == null || callback == null || section == null || explicitIds == null) {
+        if (current.artifact == null || json == null || callback == null
+                || section == null || explicitIds == null) {
             return false;
         }
         current.attempts.incrementAndGet();
-        String key = key(callback.getClass(), section, explicitIds, fallbackToBase);
-        List<String> ids = current.entries.get(key);
+        String jsonIdentity;
+        try {
+            jsonIdentity = current.jsonIdentity(json);
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable error) {
+            current.fingerprintFailures.incrementAndGet();
+            current.diagnose("faction JSON identity failed: " + message(error));
+            return false;
+        }
+        String key = key(jsonIdentity, callback.getClass(), section, explicitIds, fallbackToBase);
+        List<String> ids = current.loadedEntries.get(key);
         if (ids == null || current.declined.contains(key)) {
             current.misses.incrementAndGet();
             CAPTURE.set(new Capture(key));
@@ -143,7 +155,7 @@ public final class FactionPriorityCacheRuntime {
             return;
         }
         synchronized (FactionPriorityCacheRuntime.class) {
-            current.entries.put(capture.key, List.copyOf(capture.ids));
+            current.learnedEntries.put(capture.key, List.copyOf(capture.ids));
             current.capturedCalls.incrementAndGet();
             current.capturedIds.addAndGet(capture.ids.size());
             current.dirty = true;
@@ -156,10 +168,10 @@ public final class FactionPriorityCacheRuntime {
         try {
             PreparedFactionPriorityCacheIO.write(
                     current.artifact,
-                    new PreparedFactionPriorityCache(current.profile, current.entries));
+                    new PreparedFactionPriorityCache(current.profile, current.combinedEntries()));
             current.writes.incrementAndGet();
             current.dirty = false;
-            current.status = "written:" + current.entries.size();
+            current.status = "written:" + current.combinedEntries().size();
         } catch (Exception error) {
             current.writeFailures.incrementAndGet();
             current.diagnose("artifact write failed: " + message(error));
@@ -171,7 +183,9 @@ public final class FactionPriorityCacheRuntime {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("ready", current.artifact != null);
         values.put("status", current.status);
-        values.put("artifactEntries", current.entries.size());
+        values.put("loadedEntries", current.loadedEntries.size());
+        values.put("learnedEntries", current.learnedEntries.size());
+        values.put("artifactEntries", current.combinedEntries().size());
         values.put("attempts", current.attempts.get());
         values.put("hits", current.hits.get());
         values.put("misses", current.misses.get());
@@ -180,6 +194,7 @@ public final class FactionPriorityCacheRuntime {
         values.put("replayedIds", current.replayedIds.get());
         values.put("replayFailures", current.replayFailures.get());
         values.put("captureDeclines", current.captureDeclines.get());
+        values.put("fingerprintFailures", current.fingerprintFailures.get());
         values.put("writes", current.writes.get());
         values.put("writeFailures", current.writeFailures.get());
         values.put("declinedKeys", current.declined.size());
@@ -187,9 +202,10 @@ public final class FactionPriorityCacheRuntime {
         return Map.copyOf(values);
     }
 
-    private static String key(
+    private static String key(String jsonIdentity,
             Class<?> callbackClass, String section, String explicitIds, boolean fallbackToBase) {
-        return callbackClass.getName() + '\u001f' + section + '\u001f' + explicitIds + '\u001f'
+        return jsonIdentity + '\u001f' + callbackClass.getName() + '\u001f'
+                + section + '\u001f' + explicitIds + '\u001f'
                 + (fallbackToBase ? '1' : '0');
     }
 
@@ -223,7 +239,9 @@ public final class FactionPriorityCacheRuntime {
     private static final class State {
         private final Path artifact;
         private final String profile;
-        private final Map<String, List<String>> entries;
+        private final Map<String, List<String>> loadedEntries;
+        private final Map<String, List<String>> learnedEntries = new LinkedHashMap<>();
+        private final Map<Object, String> jsonIdentities = new IdentityHashMap<>();
         private final Set<String> declined = java.util.concurrent.ConcurrentHashMap.newKeySet();
         private final AtomicLong attempts = new AtomicLong();
         private final AtomicLong hits = new AtomicLong();
@@ -233,6 +251,7 @@ public final class FactionPriorityCacheRuntime {
         private final AtomicLong replayedIds = new AtomicLong();
         private final AtomicLong replayFailures = new AtomicLong();
         private final AtomicLong captureDeclines = new AtomicLong();
+        private final AtomicLong fingerprintFailures = new AtomicLong();
         private final AtomicLong writes = new AtomicLong();
         private final AtomicLong writeFailures = new AtomicLong();
         private volatile String status;
@@ -246,7 +265,7 @@ public final class FactionPriorityCacheRuntime {
                 String status) {
             this.artifact = artifact;
             this.profile = profile;
-            this.entries = new LinkedHashMap<>(entries);
+            this.loadedEntries = Map.copyOf(entries);
             this.status = status;
         }
 
@@ -256,6 +275,17 @@ public final class FactionPriorityCacheRuntime {
 
         private void diagnose(String value) {
             diagnostic = value == null ? "" : value;
+        }
+
+        private synchronized String jsonIdentity(Object json) {
+            return jsonIdentities.computeIfAbsent(json, value -> Hashes.sha256(
+                    value.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        }
+
+        private synchronized Map<String, List<String>> combinedEntries() {
+            Map<String, List<String>> combined = new LinkedHashMap<>(loadedEntries);
+            combined.putAll(learnedEntries);
+            return combined;
         }
     }
 }

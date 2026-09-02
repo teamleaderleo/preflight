@@ -58,12 +58,13 @@ final class FactionPriorityCachePlan {
 
         LabelNode original = new LabelNode();
         InsnList entry = new InsnList();
+        entry.add(new VarInsnNode(Opcodes.ALOAD, 0));
         entry.add(new VarInsnNode(Opcodes.ALOAD, 4));
         entry.add(new VarInsnNode(Opcodes.ALOAD, 1));
         entry.add(new VarInsnNode(Opcodes.ALOAD, 2));
         entry.add(new VarInsnNode(Opcodes.ILOAD, 3));
         entry.add(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME, "replayOrBegin",
-                "(Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Z)Z", false));
+                "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Z)Z", false));
         entry.add(new JumpInsnNode(Opcodes.IFEQ, original));
         entry.add(new InsnNode(Opcodes.RETURN));
         entry.add(original);
