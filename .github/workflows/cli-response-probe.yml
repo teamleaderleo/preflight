@@ -1,4 +1,4 @@
-name: Windows title tail evidence helper
+name: Windows title lifecycle verification
 
 on:
   push:
@@ -8,10 +8,10 @@ on:
       - '.github/workflows/cli-response-probe.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  verify-exact-windows-core:
+  verify:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -22,6 +22,8 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $installer = Join-Path $env:RUNNER_TEMP 'starsector_install-0.98a-RC8.exe'
           $extractRoot = Join-Path $env:RUNNER_TEMP 'starsector-extracted'
+          $outputRoot = Join-Path $env:RUNNER_TEMP 'windows-title-lifecycle'
+          New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
           Invoke-WebRequest -UseBasicParsing -Uri 'https://f005.backblazeb2.com/file/fractalsoftworks/release/starsector_install-0.98a-RC8.exe' -OutFile $installer
           & 7z x $installer "-o$extractRoot" -y | Out-Host
           if ($LASTEXITCODE -ne 0) { throw "7z extraction failed: $LASTEXITCODE" }
@@ -30,6 +32,29 @@ jobs:
           $jar = $jars[0]
           $jarSha = (Get-FileHash -LiteralPath $jar.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($jarSha -ne '5dd222b9e266d2ac2d63b3dad4983eb05caaf5a247d7dfb82aaeba47ea774cc8') { throw "Core JAR SHA mismatch: $jarSha" }
+          $targetToken = 'Oo' + ((('O' * 254) -join ''))
+          $targetEntry = "com/fs/starfarer/title/$targetToken.class"
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead($jar.FullName)
+          try {
+            $entry = $zip.GetEntry($targetEntry)
+            if ($null -eq $entry) { throw "Missing title class: $targetEntry" }
+            $classPath = Join-Path $outputRoot 'windows-title.class'
+            $src = $entry.Open()
+            try {
+              $dst = [System.IO.File]::Create($classPath)
+              try { $src.CopyTo($dst) } finally { $dst.Dispose() }
+            } finally { $src.Dispose() }
+          } finally { $zip.Dispose() }
+          $classSha = (Get-FileHash -LiteralPath $classPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($classSha -ne '7a034024de849f2829ad5e41dbb0e58f5979a6e7a81e55527f6839055db3d4c6') { throw "Title class SHA mismatch: $classSha" }
+          $className = "com.fs.starfarer.title.$targetToken"
+          & javap -classpath $jar.FullName -c -p -s $className | Out-File -LiteralPath (Join-Path $outputRoot 'windows-title-javap.txt') -Encoding utf8
+          & javap -classpath $jar.FullName -c -p -s 'com.fs.starfarer.ui.d' | Out-File -LiteralPath (Join-Path $outputRoot 'windows-title-blink-javap.txt') -Encoding utf8
+          & javap -classpath $jar.FullName -c -p -s 'com.fs.starfarer.ui.interfacenew' | Out-File -LiteralPath (Join-Path $outputRoot 'windows-title-parent-javap.txt') -Encoding utf8
+          & javap -classpath $jar.FullName -c -p -s 'com.fs.starfarer.title.TitleScreenState' | Out-File -LiteralPath (Join-Path $outputRoot 'title-screen-state-javap.txt') -Encoding utf8
+          & javap -classpath $jar.FullName -c -p -s 'com.fs.starfarer.loading.ResourceLoaderState' | Out-File -LiteralPath (Join-Path $outputRoot 'resource-loader-state-javap.txt') -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw "javap failed: $LASTEXITCODE" }
           "PREFLIGHT_CORE_JAR=$($jar.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Run focused semantic and exact-installed tests
         shell: pwsh
@@ -38,31 +63,16 @@ jobs:
           .\mvnw.cmd --batch-mode --no-transfer-progress -pl preflight-agent -am `
             "-Dpreflight.starsector.core.jar=$env:PREFLIGHT_CORE_JAR" `
             "-Dtest=MainMenuInteractivePlanTest,MainMenuInteractiveInstalledAdapterIT,RuntimeSemanticStateTest,FrameTimeRuntimeTest,StartupPhasePlanTest,FrameTimeStartupCompletionPlanTest" `
-            -Dsurefire.failIfNoSpecifiedTests=false test
+            "-Dsurefire.failIfNoSpecifiedTests=false" test
           if ($LASTEXITCODE -ne 0) { throw "focused Maven tests failed: $LASTEXITCODE" }
-
-  retain-evidence:
-    needs: verify-exact-windows-core
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Upload text-only lifecycle disassembly
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          ref: diagnostics/windows-main-menu-tail
-          fetch-depth: 0
-      - name: Append deterministic title-tail evidence
-        shell: bash
-        run: |
-          set -euo pipefail
-          target='docs/evidence/2026-09-01-windows-vm-startup-tuning.md'
-          marker='### What owns the current main-menu-ready to main-menu-interactive tail?'
-          if grep -Fq "$marker" "$target"; then
-            echo 'Evidence already retained.'
-            exit 0
-          fi
-          printf '%s' 'CiMjIyBXaGF0IG93bnMgdGhlIGN1cnJlbnQgbWFpbi1tZW51LXJlYWR5IHRvIG1haW4tbWVudS1pbnRlcmFjdGl2ZSB0YWlsPwoKVGhlIGN1cnJlbnQgb3JkaW5hcnkgUmVjb21tZW5kZWQgcmVmZXJlbmNlIHJlYWNoZXMgYG1haW4tbWVudS1yZWFkeWAgYXQgMzUuODA2IHNlY29uZHMgYW5kCmBtYWluLW1lbnUtaW50ZXJhY3RpdmVgIGF0IDUwLjUxNCBzZWNvbmRzLCBsZWF2aW5nIGEgMTQuNzA4LXNlY29uZCB0YWlsLiBFeGFjdCBpbnN0YWxsZWQgYnl0ZWNvZGUKcHV0cyBhIGRldGVybWluaXN0aWMgdGl0bGUgdGltZXIgZGlyZWN0bHkgb24gdGhhdCBpbnRlcnZhbCwgc28gdGhlIGRpYWdub3N0aWMgc3RvcCBjb25kaXRpb24gZmlyZXMKYmVmb3JlIGFub3RoZXIgcnVudGltZSBwcm9iZSBpcyBqdXN0aWZpZWQuCgpUaGUgcmV2aWV3ZWQgV2luZG93cyBjb3JlIGlkZW50aXR5IGlzIHRoZSBpbnN0YWxsZWQKYEM6XFxHYW1lc1xcU3RhcnNlY3Rvclxcc3RhcnNlY3Rvci1jb3JlXFxzdGFyZmFyZXJfb2JmLmphcmAsIDYsMDI5LDE4NCBieXRlcywgU0hBLTI1NgpgNWRkMjIyYjllMjY2ZDJhYzJkNjNiM2RhZDQ5ODNlYjA1Y2FhZjVhMjQ3ZDdkZmI4MmFhZWJhNDdlYTc3NGNjOGAuIEEgaGFzaC1pZGVudGljYWwgY29weSBmcm9tCnRoZSBvZmZpY2lhbCAwLjk4YS1SQzggV2luZG93cyBpbnN0YWxsZXIgd2FzIHVzZWQgZm9yIHRleHQtb25seSBkaXNhc3NlbWJseS4gVGhlIGV4YWN0IHRpdGxlIGNsYXNzCmlzIGBNYWluTWVudUludGVyYWN0aXZlUGxhbi5XSU5ET1dTX1RBUkdFVF9DTEFTU2AsIDQsMzEzIGJ5dGVzLCBTSEEtMjU2CmA3YTAzNDAyNGRlODQ5ZjI4MjlhZDVlNDFkYmIwZTU4ZjU5NzlhNmU3YTgxZTU1NTI3ZjY4MzkwNTVkYjNkNGM2YC4gSXRzIGNvbnN0cnVjdG9yIGNyZWF0ZXMKdGhlIGBQcmVsb2FkaW5nLi4uYCBsYWJlbCBhbmQgY2FsbHMgYGJsaW5rKDMuMGYsIDEwLjBmKWAuIEl0cyBgYWR2YW5jZUltcGwoZmxvYXQpYCB0aGVuIGhhcyBvbmx5CnRocmVlIHJlbGV2YW50IG9wZXJhdGlvbnMgYWZ0ZXIgZW50cnk6IGNhbGwgYGludGVyZmFjZW5ldy5hZHZhbmNlSW1wbChhbW91bnQpYCwgdGVzdApgUHJlbG9hZGluZy4uLi5pc0JsaW5raW5nKClgLCBhbmQsIG9uY2UgdGhhdCB0ZXN0IGJlY29tZXMgZmFsc2UsIGV4ZWN1dGUgdGhlIHVuaXF1ZQpgcmVtb3ZlKExjb20vZnMvc3RhcmZhcmVyL3VpL2M7KVZgLiBQcmVmbGlnaHQncyBleGlzdGluZyBgbWFpbk1lbnVJbnRlcmFjdGl2ZSgpYCBwdWJsaWNhdGlvbiBpcwppbnNlcnRlZCBpbW1lZGlhdGVseSBhZnRlciB0aGF0IHJldmlld2VkIHJlbW92ZSBjYWxsLgoKVGhlIGRlcGVuZGVudCBsYWJlbCBpbXBsZW1lbnRhdGlvbiBtYWtlcyB0aGUgY29uc3RhbnRzIHVuYW1iaWd1b3VzLiBFeGFjdApgY29tL2ZzL3N0YXJmYXJlci91aS9kLmNsYXNzYCBpcyAyMSwxOTkgYnl0ZXMgd2l0aCBTSEEtMjU2CmA2ZTc5OTAyZWNlM2EwMGE4YmU0ZTM4NzI1NmUxMjEzZmFhZDM0NDNjNzEwYTEwNGNkYmQwMWMyNjU5ZTg4NmJmYC4gYGJsaW5rKGZsb2F0LGZsb2F0KWAgYnVpbGRzCmEgYm91bmNpbmcgYEZhZGVyYCB3aG9zZSBoYWxmLWN5Y2xlIGR1cmF0aW9uIGlzIGAxIC8gZmlyc3RBcmd1bWVudGAsIHplcm9zIGFuIGVsYXBzZWQgZmllbGQsIGFuZApzdG9yZXMgdGhlIHNlY29uZCBhcmd1bWVudCBhcyB0aGUgdG90YWwgYmxpbmsgZHVyYXRpb24uIGBkLmFkdmFuY2UoYW1vdW50KWAgYWR2YW5jZXMgdGhlIGZhZGVyLAphZGRzIHRoYXQgc2FtZSBgYW1vdW50YCB0byBlbGFwc2VkLCBhbmQgY2FsbHMgYHN0b3BCbGlua2luZygpYCB3aGVuIGBlbGFwc2VkID4gZHVyYXRpb25gLgpgc3RvcEJsaW5raW5nKClgIGNsZWFycyB0aGUgYmxpbmsgZmFkZXI7IGBpc0JsaW5raW5nKClgIHRoZW4gcmV0dXJucyBmYWxzZS4gRXhhY3QKYGludGVyZmFjZW5ldy5hZHZhbmNlSW1wbChmbG9hdClgIGl0ZXJhdGVzIHRoZSB0aXRsZSdzIGNoaWxkIGNvbXBvbmVudHMgYW5kIGNhbGxzIGVhY2gKYGMuYWR2YW5jZShhbW91bnQpYCB3aXRoIHRoZSBzYW1lIGZsb2F0IGJlZm9yZSB0aGUgdGl0bGUgb3ZlcnJpZGUgcGVyZm9ybXMgaXRzIGBpc0JsaW5raW5nKClgIHRlc3QuClRoZSBgUHJlbG9hZGluZy4uLmAgY2hpbGQgdGhlcmVmb3JlIHJlY2VpdmVzIHRoZSB0aW1lciBpbmNyZW1lbnQgZmlyc3QgYW5kIGlzIHJlbW92ZWQgb24gdGhlIHNhbWUKYWR2YW5jZSBwYXNzIHRoYXQgY3Jvc3NlcyAxMC4wIGN1bXVsYXRpdmUgYWR2YW5jZSB1bml0cy4KClJlcHJvZHVjdGlvbiBjb21tYW5kcyBhZ2FpbnN0IHRoZSBpbnN0YWxsZWQgYXJjaGl2ZSBhcmU6CgpgYGB0ZXh0CmphdmFwIC1jbGFzc3BhdGggIkM6XFxHYW1lc1xcU3RhcnNlY3Rvclxcc3RhcnNlY3Rvci1jb3JlXFxzdGFyZmFyZXJfb2JmLmphciIgLWMgLXAgLXMgPE1haW5NZW51SW50ZXJhY3RpdmVQbGFuLldJTkRPV1NfVEFSR0VUX0NMQVNTIHdpdGggZG90cz4KamF2YXAgLWNsYXNzcGF0aCAiQzpcXEdhbWVzXFxTdGFyc2VjdG9yXFxzdGFyc2VjdG9yLWNvcmVcXHN0YXJmYXJlcl9vYmYuamFyIiAtYyAtcCAtcyBjb20uZnMuc3RhcmZhcmVyLnVpLmQKamF2YXAgLWNsYXNzcGF0aCAiQzpcXEdhbWVzXFxTdGFyc2VjdG9yXFxzdGFyc2VjdG9yLWNvcmVcXHN0YXJmYXJlcl9vYmYuamFyIiAtYyAtcCAtcyBjb20uZnMuc3RhcmZhcmVyLnVpLmludGVyZmFjZW5ldwpgYGAKClVzZWZ1bCBieXRlY29kZSBhbmNob3JzIGFyZSB0aGUgdGl0bGUgY29uc3RydWN0b3IncyBgYmxpbmsoMy4wZiwxMC4wZilgIGNhbGwgYXQgb2Zmc2V0cyAyNjgtMjc2Owp0aXRsZSBgYWR2YW5jZUltcGxgJ3MgYGlzQmxpbmtpbmdgIGJyYW5jaCBhbmQgdW5pcXVlIHJlbW92ZSBhdCBvZmZzZXRzIDUtMjA7IGBkLmJsaW5rKEZGKWAgc3RvcmluZwp6ZXJvIGVsYXBzZWQgYW5kIHRoZSBzZWNvbmQgYXJndW1lbnQgYXQgb2Zmc2V0cyAzOC00NTsgYGQuYWR2YW5jZShGKWAgYWRkaW5nIGBhbW91bnRgIHRvIGVsYXBzZWQgYW5kCmNvbXBhcmluZyBpdCB3aXRoIGR1cmF0aW9uIGF0IG9mZnNldHMgMTkyLTIzMDsgYW5kIGBpbnRlcmZhY2VuZXcuYWR2YW5jZUltcGwoRilgIGludm9raW5nIGVhY2gKY2hpbGQncyBgYWR2YW5jZShhbW91bnQpYCBhdCBvZmZzZXRzIDE3LTQwLgoKYG1haW4tbWVudS1yZWFkeWAgaXMgZXF1YWxseSBwcmVjaXNlLiBXaXRoIGAtU3RhcnR1cFBoYXNlUHJvYmVgLCBgU3RhcnR1cFBoYXNlUGxhbmAgaW5zZXJ0cwpgcmVzb3VyY2UtaW5pdC1jb21wbGV0ZWAgaW1tZWRpYXRlbHkgYmVmb3JlIHRoZSBzb2xlIGZpbmFsIGBSRVRVUk5gIG9mIHRoZSByZXZpZXdlZCBXaW5kb3dzCmBSZXNvdXJjZUxvYWRlclN0YXRlLmluaXQoTWFwKWAuIGBTdGFydHVwUGhhc2VSdW50aW1lYCByb3V0ZXMgdGhhdCBtYXJrZXIgdG8KYEZyYW1lVGltZVJ1bnRpbWUubWFya1N0YXJ0dXBDb21wbGV0ZSgpYCwgd2hpY2ggcHVibGlzaGVzIGBSdW50aW1lU2VtYW50aWNTdGF0ZS5tYWluTWVudVJlYWR5KClgLgpXaXRob3V0IHRoZSBwaGFzZSBwcm9iZSwgYEZyYW1lVGltZVN0YXJ0dXBDb21wbGV0aW9uUGxhbmAgaW5zZXJ0cyB0aGUgc2FtZQpgbWFya1N0YXJ0dXBDb21wbGV0ZSgpYCBjYWxsIGltbWVkaWF0ZWx5IGJlZm9yZSB0aGF0IHNhbWUgcmV0dXJuLiBUaGUgc2VtYW50aWMgcmVhZHkgdGltZXN0YW1wIGlzCnRoZXJlZm9yZSBwdWJsaXNoZWQgYmVmb3JlIHRoZSBmaW5hbCBgUmVzb3VyY2VMb2FkZXJTdGF0ZS5pbml0YCByZXR1cm4gaW4gYm90aCBwYXRocy4KCkNsYXNzaWZpY2F0aW9uOiAqKmRldGVybWluaXN0aWMgdGl0bGUgdGltaW5nKiouIFRoZSB0aXRsZSByZXF1aXJlcyAxMC4wIGN1bXVsYXRpdmUgYWR2YW5jZSB1bml0cwpiZWZvcmUgdGhlIHJlbW92YWwgdGhhdCBtYWtlcyB0aGUgbWVudSBpbnRlcmFjdGl2ZS4gQWdhaW5zdCB0aGUgY3VycmVudCAxNC43MDgtc2Vjb25kIHdhbGwgdGFpbCwKNC43MDggc2Vjb25kcyBpcyB0aGUgd2FsbCBleGNlc3MgYWJvdmUgdGhhdCBleHBsaWNpdCBjb3VudGRvd24uIFRoZSBpbnN0YWxsZWQgYnl0ZWNvZGUgZG9lcyBub3QKc3BsaXQgdGhhdCBleGNlc3MgYW1vbmcgZnJhbWUvcHJlc2VudGF0aW9uIHRpbWUsIGRlbHRhIGNsYW1waW5nLCBzY2hlZHVsaW5nLCBvciBvdGhlciB3b3JrLCBhbmQgdGhlCnRhc2sncyBkZXRlcm1pbmlzdGljLXRpbWVyIHN0b3AgY29uZGl0aW9uIGVuZHMgZGlzY292ZXJ5IGhlcmUuIFRoZSB0aXRsZSBvdmVycmlkZSBpdHNlbGYgY29udGFpbnMKbm8gc3luY2hyb25vdXMgcHJlcGFyYXRpb24gYmV5b25kIGl0cyBzdXBlcmNsYXNzIGFkdmFuY2UsIG9uZSBib29sZWFuIHF1ZXJ5LCBhbmQgdGhlIGNvbmRpdGlvbmFsCnJlbW92ZS4KCk5vIHRhaWwgY2xhc3NpZmllciB3YXMgYWRkZWQsIHNvIGRpc2FibGVkLW1vZGUgYnl0ZWNvZGUsIHRpdGxlIHRpbWluZywgcmVuZGVyaW5nLCB3b3JrZXIgc2NoZWR1bGluZywKR0wgb3duZXJzaGlwLCBxdWV1ZSBiZWhhdmlvciwgb3B0aW1pemF0aW9uIHBvbGljeSwgYW5kIHRoZSBleGlzdGluZyBzZW1hbnRpYyB0aW1lc3RhbXBzIHJlbWFpbgp1bmNoYW5nZWQuIE5vIG5ldyB0ZXh0dXJlLXVwbG9hZCBydW4gd2FzIHRha2VuOiB0aGUgZXhpc3RpbmcgMjcuNzY4LXNlY29uZCBuYXRpdmUgdXBsb2FkIGlzbGFuZCBpcwphbiBlYXJsaWVyIHN0YXJ0dXAgcmVnaW9uLCB3aGlsZSB0aGlzIGV4YWN0IHRpdGxlIGNvdW50ZG93biBhbHJlYWR5IG93bnMgYSBtYXRlcmlhbCBzaGFyZSBvZiB0aGUKcG9zdC1yZWFkeSBpbnRlcnZhbC4gVGhlIG9yZGluYXJ5IHByb21vdGVkIHJlZmVyZW5jZSByZW1haW5zIHByZXNlcnZlZCBpbgpgL2hvbWUvbGVvL1dpbmRvd3MtU2hhcmUvRGlhZ25vc3RpY3MvMjAyNjA5MDMtMDUzNjQ4LXdpbmRvd3Mtc3RhcnR1cC0yeDIuemlwYCwgMSw1NDksODEwIGJ5dGVzLApTSEEtMjU2IGAzY2M4NGZhNGI5MDIwNjIzY2UyMzE2NDYyZGFkY2IwMmVkZWVhNWI3ZWNjNGFlZGQxZWRiZGYxMWEwZWE5NjUwYCwgdXNpbmcgcHJvZHVjdCBKQVIgU0hBLTI1NgpgMjk1OWQ1MTZjOThjN2RiODA5ZDM3ZDlmODIxNTJiYjA2MWJkNjgyMjU0ZGVhMjk0ZDE2MTczOTgyZTE0YTU0YWAsIHRoZSBSZWNvbW1lbmRlZCBwcmVzZXQsCnRoZSBhY2NlcHRlZCBXaW5kb3dzIGJhY2tzbGFzaCBtZXJnZWQtcmVhZCBwYXRoLCB0aGUgcGlubmVkIDg5LW1vZC9wcm9maWxlL3J1bnRpbWUvZGlzcGxheS9sbHZtcGlwZQppZGVudGl0eSwgMTQtdkNQVS8xMi1HaUIgZ3Vlc3QsIGFuZCB0aGUgaG9zdCBwZXJmb3JtYW5jZSBwcm9maWxlIGFscmVhZHkgcmVjb3JkZWQgYWJvdmUuIEl0cyByYXcKcnVudGltZS9hZGFwdGVyIHBhY2tldCByZW1haW5zIHRoZSByZWZlcmVuY2Ugb3V0cHV0OyBubyBuZXcgaW50cnVzaXZlIHJlcG9ydCB3YXMgZ2VuZXJhdGVkIGFmdGVyIHRoZQpieXRlY29kZSBzdG9wIGNvbmRpdGlvbiBmaXJlZC4KCkZvY3VzZWQgY3VycmVudC1zb3VyY2UgQ0kgYW5kIGV4YWN0LWluc3RhbGxlZCBpbnRlZ3JhdGlvbiBjb3ZlcmFnZSB3ZXJlIHJlcnVuIHdoaWxlIGFjcXVpcmluZyB0aGUKYnl0ZWNvZGUuIE5vIGNvZGUgd2FzIHJldGFpbmVkIGZyb20gdGhhdCBhY3F1aXNpdGlvbiBsZWcuIFRoZXJlIGlzICoqbm8gc3VjY2Vzc29yIGZyb20gdGhpcyBzZWFtKio6CnNob3J0ZW5pbmcgb3IgYnlwYXNzaW5nIHRoZSAxMC1zZWNvbmQgdGl0bGUgaW50ZXJ2YWwgd291bGQgY2hhbmdlIHRpdGxlIHRpbWluZyBhbmQgYmVsb25ncyBvdXRzaWRlCnRoaXMgZGlhZ25vc3RpY3Mtb25seSB0YXNrLgo=' | base64 -d >> "$target"
-          git diff --check
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add "$target"
-          git commit -m 'Document Windows main-menu tail timer'
-          git push origin HEAD:diagnostics/windows-main-menu-tail
+          name: windows-title-lifecycle
+          path: |
+            ${{ runner.temp }}/windows-title-lifecycle/windows-title-javap.txt
+            ${{ runner.temp }}/windows-title-lifecycle/windows-title-blink-javap.txt
+            ${{ runner.temp }}/windows-title-lifecycle/windows-title-parent-javap.txt
+            ${{ runner.temp }}/windows-title-lifecycle/title-screen-state-javap.txt
+            ${{ runner.temp }}/windows-title-lifecycle/resource-loader-state-javap.txt
+          if-no-files-found: error
