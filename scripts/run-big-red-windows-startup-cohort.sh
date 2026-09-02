@@ -147,7 +147,11 @@ capacities="$(for path in /sys/devices/system/cpu/cpu*/cpu_capacity; do
     [[ -r "$path" ]] || continue
     jq -nc --arg cpu "$(basename "$(dirname "$path")")" --argjson capacity "$(<"$path")" '{cpu:$cpu,capacity:$capacity}'
 done | jq -s '.')"
-vcpu_count="$(sudo -n virsh vcpucount "$vm" --live | awk '/current/ {print $3; exit}')"
+vcpu_count="$(sudo -n virsh vcpucount "$vm" --live | tr -d '[:space:]')"
+[[ "$vcpu_count" =~ ^[0-9]+$ ]] || {
+    echo "Could not read the live vCPU count for $vm: $vcpu_count" >&2
+    exit 1
+}
 vcpu_pin="$(sudo -n virsh vcpupin "$vm")"
 temp_dir="$(mktemp -d /tmp/preflight-windows-host.XXXXXX)"
 samples="$temp_dir/host-samples.jsonl"
