@@ -461,14 +461,45 @@ launches on precision that will not close the remaining gap to 30 seconds. Recom
 launches enable it by default; conservative/custom launches and an explicit false property remain
 unchanged.
 
+### What actually occupies the remaining SpecStore and early-progress plateaus?
+
+Commit `4aa1ddb6` activated the already-written detailed SpecStore, weapon, hull, rules, and
+rule-expression probes on the exact Linux and Windows distributions. Source binding was only half
+the missing work: the exact installed JAR tests found different platform obfuscation for the
+SpecStore coordinator, script-registration calls, weapon/hull registries, and rules loader. Each
+rewrite now recognizes its reviewed platform shape under a separate exact class/archive identity;
+all five rewrites pass against both installed Linux and Windows JARs.
+
+One Windows intrusive discovery launch on product JAR
+`a8aa7c34e74a7356ebf1d3be89409da092580ced9ec300743ee3f2d4df08c359` reached the graphics marker
+in 52.999 seconds and the semantic menu in 67.436 seconds. Those clocks are probe-bearing and are
+not performance claims. The run completed normally and populated the previously empty loader and
+subphase tables:
+
+| Serial region | Time | Strongest interior attribution |
+| --- | ---: | --- |
+| SpecStore | 8.342 s | faction loader 2.541 s; variant-related loader 2.181 s; hull post-load 0.960 s; rules 0.728 s |
+| faction loader | 2.541 s | priority-table construction 1.643 s; 683,270 spec lookups 0.265 s |
+| SpecStore complete to first 1% milestone | **8.649 s** | still not split by the current probe |
+| mod callbacks | 10.884 s | GraphicsLib 3.489 s; Nexerelin 1.228 s; AshLib 1.188 s; MagicLib 0.822 s |
+
+The smaller loader families are no longer plausible explanations for the whole plateau: weapon
+file/JSON work was 29 ms, hull file/JSON work was 34 ms, and rules expression command lookup was
+285 ms. The next diagnostic should therefore split the exact post-SpecStore path around the
+immediate progress render, `queueShipAndWeaponSprites`, resource ordering, executor setup, and the
+first resource batches. At 8.649 seconds it has higher expected information value than another
+Kaleidoscope cohort or optimizing one sub-second rules family.
+
 ## Open questions / next experiment
 
 1. Do not promote or retest prepared-carrier staging merely because it achieved 2,170 hits. Reopen
    only if a new design can avoid producer/consumer CPU contention or target a materially larger
    serial block.
-2. Use the exact phase timeline to attack the next multi-second serial island rather than polishing
-   the accepted Kaleidoscope result. Current large anchors are the roughly 8.6-second SpecStore
-   block, 10.1-second post-SpecStore/pre-progress block, and 4.5-second GraphicsLib callback.
+2. Split the exact 8.649-second SpecStore-complete-to-first-1%-milestone window before optimizing
+   it. Retain boundaries around the immediate progress render, `queueShipAndWeaponSprites`, resource
+   ordering, executor setup, and the first resource batches. The next concrete SpecStore candidate
+   is faction priority-table construction at 1.643 seconds; GraphicsLib remains a separate
+   3.489-second callback target.
 3. Require an exploratory causal signal before paying for an interleaved standalone cohort. Keep
    llvmpipe padded; the bounded NPOT result rejects capability-only gating.
 4. Run the exact worker successor on a native-GPU Windows machine before promoting any
@@ -536,4 +567,10 @@ retained at:
 /home/leo/Windows-Share/Diagnostics/20260902-windows-kaleidoscope-prefetch-correctness
 /home/leo/Windows-Share/Diagnostics/20260902-windows-kaleidoscope-prefetch-thin
 /home/leo/Windows-Share/Diagnostics/20260902-windows-kaleidoscope-prefetch-baseline
+```
+
+The exact Windows detailed SpecStore/early-progress discovery packet is retained at:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260902-windows-detailed-startup-phase-probe
 ```
