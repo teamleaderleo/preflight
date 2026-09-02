@@ -655,3 +655,43 @@ Preserved evidence:
 
 The archive is 1,589,978 bytes with SHA-256
 `f0496c3de0a24fbef89d51e8b5447eb4f0ba92b92a06d33a7aef84c1c4373c90`.
+
+### Where does the eight-second cursor wait actually live?
+
+The bounded cold-path split exonerates the prepared pack, LZ4 read, lookup,
+layout, and carrier construction. With the exact prioritized-order diagnostic
+making the cursor the first reviewed worker-queue entry, the main resource
+consumer began waiting for `graphics/cursors/cursor_blue.png` at 11.955
+seconds and completed at 20.494 seconds: an 8.539-second call.
+
+The worker did not enter the cursor's prepared lookup until 20.482 seconds.
+That lookup and carrier construction completed at 20.485 seconds, and the
+main consumer returned nine milliseconds later. The retained cursor sample
+itself took only 729 microseconds total:
+
+- packed-store read: 585 microseconds;
+- complete compatibility lookup: 631 microseconds;
+- carrier construction: 77 microseconds.
+
+Thus at least 8.527 of the 8.539 seconds is before the prepared lookup. The
+2.1 GiB prepared pack and its decompression are not the big startup seam. The
+worker thread is either scheduled late or blocked before its first queue
+removal. Exact bytecode confirms that `com/fs/graphics/L.o00000()` constructs
+`L$1`, creates a plain `Thread`, and calls `Thread.start()`, while `L$1.run()`
+begins by acquiring the shared image-queue monitor before removing index zero.
+That scheduler-versus-monitor distinction is the next narrow question.
+
+The intrusive run preserved exact workload and adapter health: the cursor
+remained the first prioritized path, all 15,003 prepared entries matched,
+zero entries needed a reorder, and there were zero ordering errors, original
+decodes, prepared fallbacks, or leaked buffers. Its 51.921-second graphics and
+66.366-second interactive clocks are discovery clocks, not performance claims.
+
+Preserved evidence:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260902-windows-cursor-worker-delay-attribution.zip
+```
+
+The archive is 1,593,956 bytes with SHA-256
+`80a5aa112d935a99d9152263afffc997b8fd2f03d51761699d0093d359af26bb`.
