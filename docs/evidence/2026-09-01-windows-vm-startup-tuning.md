@@ -1175,6 +1175,62 @@ separate context-migration effects from VM variance, but it is enough to reject 
 handoff as a product candidate. The successor must perform real learned texture uploads during the
 proven overlap and show that later upload work falls; otherwise it only adds risk.
 
+### Does filling the vanilla texture cache during SpecStore improve Windows startup?
+
+No on the pinned Windows llvmpipe fixture. The successor used the exact original
+`TextureLoader.o00000(String)` method on the Display-owning worker, so it created ordinary game
+texture objects and populated the game's own path cache rather than introducing proxy IDs or a
+second repository. Main still ran original SpecStore, the worker stopped at the overlap boundary,
+and Display returned to main before startup continued.
+
+The mechanism worked exactly as intended:
+
+- 2,653 learned paths were attempted and completed during 6.308 seconds of SpecStore overlap;
+- 2,389 of those paths were later requested by vanilla and observed as cache hits;
+- 264 preloaded paths remained unconsumed at the measurement boundary;
+- there were zero candidate failures and zero worker or main GL errors;
+- Display restoration, worker termination, cleanup, adapter health, and graceful shutdown all
+  passed.
+
+But the adjacent exact baseline was materially faster:
+
+| Run | Graphics ready | Interactive | Prepared load inside | Prepared hits |
+|---|---:|---:|---:|---:|
+| overlap candidate | 55.227 s | 68.249 s | 19.032 s | 15,048 |
+| candidate disabled | 38.661 s | 52.396 s | 12.768 s | 15,105 |
+
+Both runs used Preflight JAR SHA-256
+`dfa65dec4291b2d58a0d0b78efb979fdb31eb43043b381c1b5bd2236deb07bdd`, texture profile
+`cfe95f25f14ce426766539225fd1fdab520d728b117a317413f47d3c40fbae3a`, texture index
+`b326c99d66910ec526d8f564dcdb8d249ec44214e64ff3041f932e6158292e87`, the same Recommended
+preset, 26 applied transformations, 27 exact matches, one expected decline, 14 pinned vCPUs, no
+competing guest process, and the host performance power profile. The prepared workload differed by
+57 hits, or 0.38%, and both runs were accepted, adapter-healthy, and graceful.
+
+Most decisively, candidate `loadInsideMillis` was almost exactly baseline prepared-load time plus
+the 6.308-second worker overlap. The moved calls did not retire an equivalent later measured seam,
+and the headline clocks regressed by roughly 16 seconds. This is sufficient to reject the candidate
+without spending four more expensive launches trying to rescue it. The exact gates, counters, and
+off-by-default switch remain useful diagnostic machinery; the overlap must not become a preset.
+
+Candidate evidence:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260903-045348-windows-startup-2x2.zip
+```
+
+It is 1,585,951 bytes with SHA-256
+`b3cf70ead270ece367aefe498d4e9b27eade9222fb660c92b06e7c3fecf12412`.
+
+Adjacent disabled baseline:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260903-045844-windows-startup-2x2.zip
+```
+
+It is 1,584,192 bytes with SHA-256
+`821eb60b44aa5fb683e2fec54c995000ea20d8edc5a2df912e45f53b0e58f428`.
+
 The overlap archive is:
 
 ```text
