@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /** Runtime bridge for upload-ready SPFT pixels with bounded direct-buffer ownership. */
 public final class TexturePreparedPixelRuntime {
@@ -36,9 +37,12 @@ public final class TexturePreparedPixelRuntime {
             "preflight.preparedPixels.coherentOriginalConvert";
     public static final String COHERENT_DIRECT_PROPERTY =
             "preflight.preparedPixels.coherentDirect";
+    public static final String WINDOWS_COLD_PROBE_PROPERTY =
+            "preflight.texture.windowsPreparedColdProbe";
     static final int MAX_TEXTURE_BYTES = 32 * 1024 * 1024;
     static final long MAX_ACTIVE_DIRECT_BYTES = 64L * 1024 * 1024;
     static final int MAX_ACTIVE_BUFFERS = 1_024;
+    private static final int MAX_COLD_PROBE_SAMPLES = 16;
     private static final int MAX_LAYOUT_OBSERVATIONS = 16;
     private static final int ZERO_CHUNK_BYTES = 8 * 1024;
     private static final String KALEIDOSCOPE_PREFIX = "graphics/kaleidoscope/";
@@ -54,6 +58,10 @@ public final class TexturePreparedPixelRuntime {
     private static final Telemetry TELEMETRY = new Telemetry();
     private static final SeamTimer LOAD_CLOCK = new SeamTimer();
     private static final SeamTimer PREPARE_CLOCK = new SeamTimer();
+    private static final AtomicInteger COLD_PROBE_CLAIMS = new AtomicInteger();
+    private static final ThreadLocal<ColdProbeSample> ACTIVE_COLD_PROBE = new ThreadLocal<>();
+    private static final List<Map<String, Object>> COLD_PROBE_SAMPLES = new ArrayList<>();
+    private static volatile boolean coldProbeEnabled;
     private static volatile boolean selected;
     private static long activeBytes;
     private static long peakBytes;
@@ -66,6 +74,7 @@ public final class TexturePreparedPixelRuntime {
 
     static void beginSession() {
         selected = false;
+        coldProbeEnabled = Boolean.getBoolean(WINDOWS_COLD_PROBE_PROPERTY);
         synchronized (LOCK) {
             ACTIVE.clear();
             IN_FLIGHT.clear();
@@ -73,6 +82,7 @@ public final class TexturePreparedPixelRuntime {
             LEARNED_KALEIDOSCOPE_QUEUED.clear();
             retainedLearnedKaleidoscopeResults = null;
             preferredPreparedPrefetchOrder = List.of();
+            COLD_PROBE_SAMPLES.clear();
             activeBytes = 0;
             peakBytes = 0;
             pendingBuffers = 0;
@@ -80,6 +90,8 @@ public final class TexturePreparedPixelRuntime {
         TELEMETRY.reset();
         LOAD_CLOCK.reset();
         PREPARE_CLOCK.reset();
+        COLD_PROBE_CLAIMS.set(0);
+        ACTIVE_COLD_PROBE.remove();
     }
 
     static void select(TextureAdapterMode mode) {
@@ -398,43 +410,135 @@ public final class TexturePreparedPixelRuntime {
     }
 
     private static BufferedImage carrierFor(String logicalPath) {
-        if (!ready()) {
-            return null;
-        }
-        PreparedTexture texture = TextureCompatibilityRuntime.lookup(logicalPath);
-        if (texture == null) {
-            return null;
-        }
-        UploadLayout layout = uploadLayout(texture);
-        if (layout == null || layout.uploadBytes() > MAX_TEXTURE_BYTES) {
-            TELEMETRY.dimensionFallback();
-            TELEMETRY.fallback();
-            TextureCompatibilityRuntime.declined(TextureCompatibilityRuntime.FallbackReason.UNSUPPORTED_TEXTURE);
-            return null;
-        }
-
-        boolean npot = layout.paddingBytes() > 0;
-        boolean coherentDirect = npot && Boolean.getBoolean(COHERENT_DIRECT_PROPERTY);
-        boolean coherentOriginalConvert = npot
-                && !coherentDirect
-                && Boolean.getBoolean(COHERENT_ORIGINAL_CONVERT_PROPERTY);
+        ColdProbeSample coldProbe = beginColdProbe(logicalPath);
         try {
-            CarrierImage carrier = new CarrierImage(
-                    logicalPath,
-                    texture,
-                    layout,
-                    coherentOriginalConvert,
-                    coherentDirect);
-            TELEMETRY.carrier(carrier.rasterBytes, carrier.coherent(), carrier.coherentDirect);
-            return carrier;
-        } catch (ThreadDeath | VirtualMachineError fatal) {
-            throw fatal;
-        } catch (Throwable error) {
-            TELEMETRY.internalError();
-            TELEMETRY.fallback();
-            TextureCompatibilityRuntime.internalFailure();
-            TextureCompatibilityRuntime.declined(TextureCompatibilityRuntime.FallbackReason.PREPARED_PIXEL_BRIDGE);
+            if (!ready()) {
+                coldResult(coldProbe, "not-ready");
+                return null;
+            }
+            long lookupStarted = coldNow(coldProbe);
+            PreparedTexture texture = TextureCompatibilityRuntime.lookup(logicalPath);
+            coldLookupFinished(coldProbe, lookupStarted);
+            if (texture == null) {
+                coldResult(coldProbe, "lookup-miss");
+                return null;
+            }
+            long layoutStarted = coldNow(coldProbe);
+            UploadLayout layout = uploadLayout(texture);
+            coldLayoutFinished(coldProbe, layoutStarted);
+            if (layout == null || layout.uploadBytes() > MAX_TEXTURE_BYTES) {
+                coldResult(coldProbe, "layout-decline");
+                TELEMETRY.dimensionFallback();
+                TELEMETRY.fallback();
+                TextureCompatibilityRuntime.declined(TextureCompatibilityRuntime.FallbackReason.UNSUPPORTED_TEXTURE);
+                return null;
+            }
+
+            boolean npot = layout.paddingBytes() > 0;
+            boolean coherentDirect = npot && Boolean.getBoolean(COHERENT_DIRECT_PROPERTY);
+            boolean coherentOriginalConvert = npot
+                    && !coherentDirect
+                    && Boolean.getBoolean(COHERENT_ORIGINAL_CONVERT_PROPERTY);
+            long carrierStarted = coldNow(coldProbe);
+            try {
+                CarrierImage carrier = new CarrierImage(
+                        logicalPath,
+                        texture,
+                        layout,
+                        coherentOriginalConvert,
+                        coherentDirect);
+                coldCarrierFinished(coldProbe, carrierStarted);
+                coldResult(coldProbe, "carrier");
+                TELEMETRY.carrier(carrier.rasterBytes, carrier.coherent(), carrier.coherentDirect);
+                return carrier;
+            } catch (ThreadDeath | VirtualMachineError fatal) {
+                coldCarrierFinished(coldProbe, carrierStarted);
+                coldResult(coldProbe, "fatal");
+                throw fatal;
+            } catch (Throwable error) {
+                coldCarrierFinished(coldProbe, carrierStarted);
+                coldResult(coldProbe, "bridge-fallback");
+                TELEMETRY.internalError();
+                TELEMETRY.fallback();
+                TextureCompatibilityRuntime.internalFailure();
+                TextureCompatibilityRuntime.declined(TextureCompatibilityRuntime.FallbackReason.PREPARED_PIXEL_BRIDGE);
+                return null;
+            }
+        } finally {
+            finishColdProbe(coldProbe);
+        }
+    }
+
+    private static ColdProbeSample beginColdProbe(String logicalPath) {
+        if (!coldProbeEnabled) {
             return null;
+        }
+        int ordinal = COLD_PROBE_CLAIMS.incrementAndGet();
+        if (ordinal > MAX_COLD_PROBE_SAMPLES) {
+            return null;
+        }
+        ColdProbeSample sample = new ColdProbeSample(ordinal, logicalPath, System.nanoTime());
+        ACTIVE_COLD_PROBE.set(sample);
+        return sample;
+    }
+
+    private static long coldNow(ColdProbeSample sample) {
+        return sample == null ? 0L : System.nanoTime();
+    }
+
+    private static void coldLookupFinished(ColdProbeSample sample, long started) {
+        if (sample != null) {
+            sample.lookupNanos = Math.max(0L, System.nanoTime() - started);
+        }
+    }
+
+    private static void coldLayoutFinished(ColdProbeSample sample, long started) {
+        if (sample != null) {
+            sample.layoutNanos = Math.max(0L, System.nanoTime() - started);
+        }
+    }
+
+    private static void coldCarrierFinished(ColdProbeSample sample, long started) {
+        if (sample != null && sample.carrierNanos == 0L) {
+            sample.carrierNanos = Math.max(0L, System.nanoTime() - started);
+        }
+    }
+
+    private static void coldResult(ColdProbeSample sample, String result) {
+        if (sample != null) {
+            sample.result = result;
+        }
+    }
+
+    static long beginColdPackRead() {
+        return coldProbeEnabled && ACTIVE_COLD_PROBE.get() != null ? System.nanoTime() : 0L;
+    }
+
+    static void finishColdPackRead(long started) {
+        if (started == 0L) {
+            return;
+        }
+        ColdProbeSample sample = ACTIVE_COLD_PROBE.get();
+        if (sample != null) {
+            sample.packReadNanos = saturatedAdd(
+                    sample.packReadNanos,
+                    Math.max(0L, System.nanoTime() - started));
+        }
+    }
+
+    private static void finishColdProbe(ColdProbeSample sample) {
+        if (sample == null) {
+            return;
+        }
+        sample.totalNanos = Math.max(0L, System.nanoTime() - sample.startedNanos);
+        if (sample.result == null) {
+            sample.result = "unknown";
+        }
+        ACTIVE_COLD_PROBE.remove();
+        synchronized (LOCK) {
+            if (COLD_PROBE_SAMPLES.size() < MAX_COLD_PROBE_SAMPLES) {
+                COLD_PROBE_SAMPLES.add(sample.telemetry());
+            }
         }
     }
 
@@ -684,6 +788,21 @@ public final class TexturePreparedPixelRuntime {
         values.put("prefetchPool", TexturePreparedPrefetchPoolRuntime.report());
         values.put("prefetchStaging", TexturePreparedStagingRuntime.telemetry());
         values.put("uploadProbe", TextureUploadProbeRuntime.telemetry());
+        values.put("coldProbe", coldProbeTelemetry());
+        return Map.copyOf(values);
+    }
+
+    private static Map<String, Object> coldProbeTelemetry() {
+        List<Map<String, Object>> samples;
+        synchronized (LOCK) {
+            samples = List.copyOf(COLD_PROBE_SAMPLES);
+        }
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("enabled", coldProbeEnabled);
+        values.put("sampleLimit", MAX_COLD_PROBE_SAMPLES);
+        values.put("claimed", COLD_PROBE_CLAIMS.get());
+        values.put("retained", samples.size());
+        values.put("samples", samples);
         return Map.copyOf(values);
     }
 
@@ -878,6 +997,48 @@ public final class TexturePreparedPixelRuntime {
     }
 
     /** Typed bridge object consumed only by the exact transformed TextureLoader class. */
+    private static final class ColdProbeSample {
+        private final int ordinal;
+        private final String path;
+        private final String threadName;
+        private final long threadId;
+        private final long startedNanos;
+        private long totalNanos;
+        private long lookupNanos;
+        private long packReadNanos;
+        private long layoutNanos;
+        private long carrierNanos;
+        private String result;
+
+        private ColdProbeSample(int ordinal, String path, long startedNanos) {
+            this.ordinal = ordinal;
+            this.path = path == null ? "" : path;
+            this.threadName = Thread.currentThread().getName();
+            this.threadId = Thread.currentThread().getId();
+            this.startedNanos = startedNanos;
+        }
+
+        private Map<String, Object> telemetry() {
+            Map<String, Object> values = new LinkedHashMap<>();
+            values.put("ordinal", ordinal);
+            values.put("path", path);
+            values.put("result", result);
+            values.put("threadName", threadName);
+            values.put("threadId", threadId);
+            values.put("totalNanos", totalNanos);
+            values.put("totalMillis", totalNanos / 1_000_000L);
+            values.put("lookupNanos", lookupNanos);
+            values.put("lookupMillis", lookupNanos / 1_000_000L);
+            values.put("packReadNanos", packReadNanos);
+            values.put("packReadMillis", packReadNanos / 1_000_000L);
+            values.put("layoutNanos", layoutNanos);
+            values.put("layoutMillis", layoutNanos / 1_000_000L);
+            values.put("carrierNanos", carrierNanos);
+            values.put("carrierMillis", carrierNanos / 1_000_000L);
+            return Map.copyOf(values);
+        }
+    }
+
     public record PreparedPixel(
             ByteBuffer buffer,
             Color color0,

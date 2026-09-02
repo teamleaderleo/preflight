@@ -42,6 +42,7 @@ class TexturePreparedPixelRuntimeTest {
         System.clearProperty(TexturePreparedStagingRuntime.ENABLED_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_KALEIDOSCOPE_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_RESOURCE_ORDER_PROPERTY);
+        System.clearProperty(TexturePreparedPixelRuntime.WINDOWS_COLD_PROBE_PROPERTY);
         TexturePreparedStagingRuntime.beginSession();
         TextureAccessLearningRuntime.beginSession();
         TexturePreparedPixelRuntime.beginSession();
@@ -77,6 +78,31 @@ class TexturePreparedPixelRuntimeTest {
         assertEquals(0L, staging.get("queuedBytes"));
         assertEquals(1L, TexturePreparedPixelRuntime.telemetry().get("prefetchPreparedHits"));
         assertEquals(0L, TexturePreparedPixelRuntime.telemetry().get("prefetchOriginalDecodes"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void coldProbeRetainsOnlyBoundedPreparedCarrierStageTimings() throws Exception {
+        System.setProperty(TexturePreparedPixelRuntime.WINDOWS_COLD_PROBE_PROPERTY, "true");
+        Fixture fixture = fixture();
+        configure(fixture);
+
+        BufferedImage image = TexturePreparedPixelRuntime.load("graphics/test.png");
+        assertNotNull(image);
+
+        Map<String, Object> coldProbe =
+                (Map<String, Object>) TexturePreparedPixelRuntime.telemetry().get("coldProbe");
+        assertEquals(Boolean.TRUE, coldProbe.get("enabled"));
+        assertEquals(1, coldProbe.get("claimed"));
+        assertEquals(1, coldProbe.get("retained"));
+        List<Map<String, Object>> samples =
+                (List<Map<String, Object>>) coldProbe.get("samples");
+        assertEquals(1, samples.size());
+        Map<String, Object> sample = samples.get(0);
+        assertEquals("graphics/test.png", sample.get("path"));
+        assertEquals("carrier", sample.get("result"));
+        assertTrue((long) sample.get("totalNanos") >= (long) sample.get("lookupNanos"));
+        assertTrue((long) sample.get("lookupNanos") >= (long) sample.get("packReadNanos"));
     }
 
     @Test

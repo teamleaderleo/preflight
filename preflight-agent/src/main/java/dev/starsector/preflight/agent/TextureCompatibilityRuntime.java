@@ -323,7 +323,13 @@ public final class TextureCompatibilityRuntime {
 
             if (current.pack != null && !current.packDisabled.get()) {
                 try {
-                    PreparedTexture packed = current.pack.readTrusted(entry.blobRelativePath());
+                    long coldPackStarted = TexturePreparedPixelRuntime.beginColdPackRead();
+                    PreparedTexture packed;
+                    try {
+                        packed = current.pack.readTrusted(entry.blobRelativePath());
+                    } finally {
+                        TexturePreparedPixelRuntime.finishColdPackRead(coldPackStarted);
+                    }
                     if (matches(entry, packed)) {
                         current.recordPackAccess(entry.blobRelativePath());
                         TELEMETRY.packHit(packed.pixelBytes());

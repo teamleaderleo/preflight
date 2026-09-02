@@ -19,6 +19,7 @@ param(
     [switch]$WindowsPreparedStagingProbe,
     [switch]$WindowsKaleidoscopePrefetchProbe,
     [switch]$WindowsPreparedPriorityOrderProbe,
+    [switch]$WindowsPreparedColdProbe,
     [ValidateRange(1, 8)]
     [int]$WindowsPreparedPrefetchWorkers = 1,
     [ValidateRange(0, 8192)]
@@ -178,6 +179,11 @@ log4j.appender.file.MaxBackupIndex=3
             if ($WindowsPreparedPriorityOrderProbe) {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.texture.windowsPreparedPriorityOrder=true' |
+                    Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($WindowsPreparedColdProbe) {
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.texture.windowsPreparedColdProbe=true' |
                     Where-Object { $_ }) -join ' ').Trim()
             }
             if ($usesKaleidoscopePrefetch) {
@@ -450,6 +456,7 @@ $identity = [ordered]@{
     windowsPreparedStagingProbe = [bool]$WindowsPreparedStagingProbe
     windowsKaleidoscopePrefetchProbe = [bool]$WindowsKaleidoscopePrefetchProbe
     windowsPreparedPriorityOrderProbe = [bool]$WindowsPreparedPriorityOrderProbe
+    windowsPreparedColdProbe = [bool]$WindowsPreparedColdProbe
     windowsKaleidoscopePrefetchCondition = [bool]($Conditions -contains 'preflight-kaleidoscope')
     windowsPreparedPrefetchWorkers = $WindowsPreparedPrefetchWorkers
     windowsUnpaddedMaxDimension = $WindowsUnpaddedMaxDimension
