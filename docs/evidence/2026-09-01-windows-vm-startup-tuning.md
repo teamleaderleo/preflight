@@ -1155,6 +1155,35 @@ owner drains commits, preserve texture identity/order/readiness and original fai
 thin time-to-interactive improvement. Blocking the producer on every upload would only relocate the
 same serial work.
 
+The next exact Windows proof then held Display on that worker across the original `SpecStore` call
+instead of making main wait immediately. It also passed:
+
+- main executed original SpecStore for 5.030 seconds while the worker owned Display;
+- Display release, worker acquisition, worker release, and main restore took 58.7, 94.9, 182.2,
+  and 54.3 microseconds respectively;
+- the worker uploaded/finished a deterministic texture before the overlap, and main validated it
+  after restore with both GL error reads at zero;
+- the throwable path was bytecode-bracketed to restore ownership, and the ordinary path completed
+  with worker termination, byte validation, prior-binding restoration, cleanup, healthy adapter
+  state, the exact prepared workload, and graceful interactive shutdown.
+
+This proves SpecStore itself does not require the main thread's GL context on the pinned profile. It
+still is not an optimization. The intrusive run took 67.991 seconds to the graphics marker and
+81.347 seconds to the interactive boundary, while prepared-pixel `loadInsideMillis` rose from
+11.921-13.021 seconds in the two preceding capability runs to 28.660 seconds. One observation cannot
+separate context-migration effects from VM variance, but it is enough to reject an idle ownership
+handoff as a product candidate. The successor must perform real learned texture uploads during the
+proven overlap and show that later upload work falls; otherwise it only adds risk.
+
+The overlap archive is:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260903-043648-windows-startup-2x2.zip
+```
+
+It is 1,574,191 bytes with SHA-256
+`f12d5e85bf2a0e92d299c21f573c3c2222876b3f68dfc3817351974aa520b6ec`.
+
 Preserved evidence:
 
 ```text
