@@ -22,6 +22,7 @@ param(
     [switch]$WindowsPreparedColdProbe,
     [switch]$WindowsPreparedSplitQueueProbe,
     [switch]$WindowsSharedContextTextureProbe,
+    [switch]$WindowsDisplayThreadTextureProbe,
     [switch]$WindowsFactionPriorityCacheProbe,
     [ValidateRange(1, 8)]
     [int]$WindowsPreparedPrefetchWorkers = 1,
@@ -210,6 +211,11 @@ log4j.appender.file.MaxBackupIndex=3
             if ($WindowsSharedContextTextureProbe) {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.startup.sharedContextTextureProbe=on' |
+                    Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($WindowsDisplayThreadTextureProbe) {
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.startup.displayThreadTextureProbe=on' |
                     Where-Object { $_ }) -join ' ').Trim()
             }
             if ($usesFactionPriorityCache) {
@@ -527,6 +533,7 @@ $identity = [ordered]@{
     windowsPreparedPrefetchWorkers = $effectivePreparedPrefetchWorkers
     windowsPreparedSplitQueueProbe = [bool]$WindowsPreparedSplitQueueProbe
     windowsSharedContextTextureProbe = [bool]$WindowsSharedContextTextureProbe
+    windowsDisplayThreadTextureProbe = [bool]$WindowsDisplayThreadTextureProbe
     windowsFactionPriorityCacheProbe = [bool]$WindowsFactionPriorityCacheProbe
     windowsUnpaddedMaxDimension = $WindowsUnpaddedMaxDimension
     game = $Game

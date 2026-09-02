@@ -93,6 +93,13 @@ deterministic textures. On the pinned Windows llvmpipe fixture, native worker ac
 only after the bounded wait and grace expired, leaving the game without a current Display context.
 It is off by default, is not a performance condition, and must run only in a disposable fixture with
 an external terminator and evidence capture prepared.
+`-WindowsDisplayThreadTextureProbe` is the narrower successor capability proof. It releases the
+same live Display context after the reviewed no-argument `Display.update()` boundary, moves that
+context to one worker, uploads and finishes deterministic textures, releases it, restores Display
+on the original thread, verifies every byte, and deletes the synthetic objects. It does not create
+a shared Pbuffer or touch a normal game texture. It is intrusive, off by default, and must also run
+only in the disposable externally bounded fixture until physical Windows evidence proves that the
+same-Display ownership round trip is safe.
 
 `run-windows-gameplay-scenario.ps1` is the reviewable interactive-session entry point for the same
 checked-in gameplay scenarios used on macOS and Linux. It defaults to the optimized Lindsey

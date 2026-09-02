@@ -68,7 +68,7 @@ final class FrameTimePlan {
         MethodNode destroy = unique(owner, DESTROY_METHOD, DESTROY_DESCRIPTOR);
         if (update == null || active == null || vsync == null || swapInterval == null
                 || destroy == null
-                || (SharedContextTextureProbeRuntime.requested() && updateNoArgs == null)
+                || (ownershipProbeRequested() && updateNoArgs == null)
                 || returns(update, Opcodes.RETURN) != 1
                 || returns(active, Opcodes.IRETURN) != 1
                 || calls(update, TARGET_CLASS, "swapBuffers") != 1
@@ -78,7 +78,7 @@ final class FrameTimePlan {
                 || calls(update, RUNTIME, "afterSwap") != 0
                 || calls(update, RUNTIME, "beforeMessages") != 0
                 || calls(update, RUNTIME, "afterMessages") != 0
-                || (SharedContextTextureProbeRuntime.requested()
+                || (ownershipProbeRequested()
                         && (returns(updateNoArgs, Opcodes.RETURN) != 1
                         || calls(updateNoArgs, TARGET_CLASS, UPDATE_METHOD) != 1
                         || calls(updateNoArgs, RUNTIME, "postUpdate") != 0))
@@ -106,7 +106,7 @@ final class FrameTimePlan {
         InsnList boundary = new InsnList();
         boundary.add(runtimeCall("boundary"));
         update.instructions.insertBefore(updateReturn, boundary);
-        if (SharedContextTextureProbeRuntime.requested()) {
+        if (ownershipProbeRequested()) {
             updateNoArgs.instructions.insertBefore(uniqueReturn(updateNoArgs, Opcodes.RETURN),
                     runtimeCall("postUpdate"));
         }
@@ -134,6 +134,11 @@ final class FrameTimePlan {
         owner.accept(writer);
         FrameTimeRuntime.installed();
         return writer.toByteArray();
+    }
+
+    private static boolean ownershipProbeRequested() {
+        return SharedContextTextureProbeRuntime.requested()
+                || DisplayThreadTextureProbeRuntime.requested();
     }
 
     private static MethodNode unique(ClassNode owner, String name, String descriptor) {

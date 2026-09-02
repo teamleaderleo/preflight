@@ -28,7 +28,9 @@ class FrameTimePlanTest {
     @AfterEach
     void reset() {
         System.clearProperty(SharedContextTextureProbeRuntime.ENABLED_PROPERTY);
+        System.clearProperty(DisplayThreadTextureProbeRuntime.ENABLED_PROPERTY);
         SharedContextTextureProbeRuntime.beginSession();
+        DisplayThreadTextureProbeRuntime.beginSession();
         FrameTimeRuntime.reset();
     }
 
@@ -100,6 +102,21 @@ class FrameTimePlanTest {
                 FrameTimePlan.UPDATE_NOARG_DESCRIPTOR), RUNTIME, "postUpdate"));
         MethodNode outerUpdate = method(read(transformed), FrameTimePlan.UPDATE_METHOD,
                 FrameTimePlan.UPDATE_NOARG_DESCRIPTOR);
+        assertTrue(callIndex(outerUpdate, FrameTimePlan.TARGET_CLASS, FrameTimePlan.UPDATE_METHOD)
+                < callIndex(outerUpdate, RUNTIME, "postUpdate"));
+        assertNull(FrameTimePlan.transform(ClassSignature.parse(transformed), transformed));
+    }
+
+    @Test
+    void displayThreadProbeAloneInstallsOnlyTheExactDisplayBoundary() throws Exception {
+        FrameTimeRuntime.beginSession(false, false);
+        System.setProperty(DisplayThreadTextureProbeRuntime.ENABLED_PROPERTY, "on");
+        byte[] original = fixture(false);
+        byte[] transformed = FrameTimePlan.transform(exactSignature(original), original);
+        assertNotNull(transformed);
+        MethodNode outerUpdate = method(read(transformed), FrameTimePlan.UPDATE_METHOD,
+                FrameTimePlan.UPDATE_NOARG_DESCRIPTOR);
+        assertEquals(1, calls(outerUpdate, RUNTIME, "postUpdate"));
         assertTrue(callIndex(outerUpdate, FrameTimePlan.TARGET_CLASS, FrameTimePlan.UPDATE_METHOD)
                 < callIndex(outerUpdate, RUNTIME, "postUpdate"));
         assertNull(FrameTimePlan.transform(ClassSignature.parse(transformed), transformed));

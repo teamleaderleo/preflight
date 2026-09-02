@@ -1093,6 +1093,44 @@ All direct-dispatch thin and phase runs used Preflight JAR SHA-256
 /home/leo/Windows-Share/Diagnostics/20260903-030312-windows-startup-2x2.zip
 ```
 
+### Is the ship-system loader's repeated hull resolution a large Windows startup seam?
+
+No. It is a high-volume pattern, but the exact repeated resolver is cheap enough that replacing it
+would be another small cleanup rather than the standalone Windows startup win.
+
+An intrusive, 1-in-16 sampled probe was exact-gated to the reviewed Windows `SpecStore` class and
+the single `oO0O.super(String)` callsite inside
+`SpecStore.new.super(ResourceLoaderState)`. The installed-archive integration test confirmed that
+one and only one callsite before the physical-machine run. The run then observed:
+
+- 193,344 resolver calls and 12,085 samples;
+- 204 ns recurring sampled mean and 13,699 ns sampled maximum;
+- approximately 39 ms estimated resolver time;
+- 1.284 seconds for the complete ship-system loader;
+- 39.772 seconds to graphics preload and 52.913 seconds to the interactive menu;
+- the same exact game/profile/runtime/display/adapter identity, a healthy installed adapter,
+  30 applied transformations, zero contained failures, and the ordinary original path.
+
+The launch carried the intrusive phase probe, so its whole-launch clocks are discovery evidence,
+not a performance comparison. More importantly, the direct counter already answers the narrow
+question: even eliminating every measured resolver invocation could only attack roughly three
+percent of this phase and about one tenth of one percent of the observed interactive launch. No
+indexed successor or thin A/B cohort is justified.
+
+This leaves the previously measured Windows renderer island as the materially larger target:
+15,483 native texture uploads, 3,064,515,568 submitted bytes, and 27.768 seconds inside
+`glTexImage2D`. The next rendering capability slice should test same-Display persistent thread
+ownership; the rejected shared-Pbuffer experiments did not test that architecture.
+
+Preserved evidence:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260903-031941-windows-startup-2x2.zip
+```
+
+The archive is 1,595,216 bytes with SHA-256
+`a805bcd8f3d97632b33e136e4d8ba9c7aa7351e0f19d5fb31be582d77a71f86d`.
+
 Their SHA-256 values in the same order are
 `1c4fce434ba0141288ab2f3eb7b174d0f584a220c5914f6b414f43d575e13ee2`,
 `0d9f45045dab61e3b52335cdc0da9b6c9876dbcf36234ac6c68cfd4e7968a4e5`,

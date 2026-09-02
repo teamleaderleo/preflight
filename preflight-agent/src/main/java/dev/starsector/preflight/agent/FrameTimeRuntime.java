@@ -131,6 +131,7 @@ public final class FrameTimeRuntime {
 
     static synchronized void beginSession(boolean telemetryRequested, boolean smoothRequested) {
         SharedContextTextureProbeRuntime.beginSession();
+        DisplayThreadTextureProbeRuntime.beginSession();
         enabled = telemetryRequested;
         smoothFramePacing = smoothRequested;
         installed = false;
@@ -229,7 +230,8 @@ public final class FrameTimeRuntime {
     }
 
     static boolean planEnabled() {
-        return enabled || smoothFramePacing || SharedContextTextureProbeRuntime.requested();
+        return enabled || smoothFramePacing || SharedContextTextureProbeRuntime.requested()
+                || DisplayThreadTextureProbeRuntime.requested();
     }
 
     private static synchronized void initializeThreadCpuClock(boolean requested) {
@@ -499,6 +501,7 @@ public final class FrameTimeRuntime {
     /** Runs the opt-in GL ownership proof after LWJGL's locked update method has returned. */
     public static void postUpdate() {
         SharedContextTextureProbeRuntime.onDisplayBoundary();
+        DisplayThreadTextureProbeRuntime.onDisplayBoundary();
     }
 
     static synchronized void recordMeasurementOverhead(long elapsedNanos) {
@@ -803,6 +806,7 @@ public final class FrameTimeRuntime {
         glContext.put("semanticEffect", "none; no query, fence, or rendering state created");
         result.put("openGlContext", glContext);
         result.put("sharedContextTextureProbe", SharedContextTextureProbeRuntime.telemetry());
+        result.put("displayThreadTextureProbe", DisplayThreadTextureProbeRuntime.telemetry());
         result.put("gpuFrameTime", GpuFrameTimeRuntime.telemetry());
         result.put("openGlCommands", GlCommandCountRuntime.telemetry());
         result.put("openGlMatrixOperations", GlMatrixOperationRuntime.telemetry());
