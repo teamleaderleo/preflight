@@ -1,4 +1,4 @@
-name: Correct Windows title-tail evidence
+name: Correct Windows title-tail evidence v2
 
 on:
   push:
@@ -22,31 +22,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('docs/evidence/2026-09-01-windows-vm-startup-tuning.md')
-          text = path.read_text(encoding='utf-8')
-          old_typo = 'The title constructor creates the `Preoading...` label'
-          if old_typo not in text:
-              raise SystemExit('expected Preloading typo missing')
-          text = text.replace(old_typo, 'The title constructor creates the `Preloading...` label', 1)
-          old = """The exact lifecycle also locates the countdown after the ready seam. `ResourceLoaderState.init(Map)`
-has one final `RETURN`; {Th `seam reproduction text already preserved in the repo's evidence update.} The loading state's `traverse()` then
-returns `Title Screen State`."""
-          new = """The exact lifecycle also locates the countdown after the ready seam. `ResourceLoaderState.init(Map)`
-has one final `RETURN`; with `-StartupPhaseProbe`, `StartupPhasePlan` inserts
-`resource-init-complete` immediately before it and `StartupPhaseRuntime` routes that marker to
-`FrameTimeRuntime.markStartupComplete()`, which publishes `RuntimeSemanticState.mainMenuReady()`.
-Without the phase probe, `FrameTimeStartupCompletionPlan` inserts the same
-`markStartupComplete()` immediately before the same return. The loading state's `traverse()` then
-returns `Title Screen State`."""
-          if old not in text:
-              raise SystemExit('expected ready-seam corruption missing')
-          path.write_text(text.replace(old, new, 1), encoding='utf-8')
-          PY
+          target='docs/evidence/2026-09-01-windows-vm-startup-tuning.md'
+          sed -i 's/`Preoading\.\.\.`/`Preloading...`/' "$target"
+          export OLD='VGhlIGV4YWN0IGxpZmVjeWNsZSBhbHNvIGxvY2F0ZXMgdGhlIGNvdW50ZG93biBhZnRlciB0aGUgcmVhZHkgc2VhbS4gYFJlc291cmNlTG9hZGVyU3RhdGUuaW5pdChNYXApYApoYXMgb25lIGZpbmFsIGBSRVRVUk5gOyB7VGggYHNlYW0gcmVwcm9kdWN0aW9uIHRleHQgYWxyZWFkeSBwcmVzZXJ2ZWQgaW4gdGhlIHJlcG8ncyBldmlkZW5jZSB1cGRhdGUufSBUaGUgbG9hZGluZyBzdGF0ZSdzIGB0cmF2ZXJzZSgpYCB0aGVuCnJldHVybnMgYFRpdGxlIFNjcmVlbiBTdGF0ZWAu'
+          export NEW='VGhlIGV4YWN0IGxpZmVjeWNsZSBhbHNvIGxvY2F0ZXMgdGhlIGNvdW50ZG93biBhZnRlciB0aGUgcmVhZHkgc2VhbS4gYFJlc291cmNlTG9hZGVyU3RhdGUuaW5pdChNYXApYApoYXMgb25lIGZpbmFsIGBSRVRVUk5gOyB3aXRoIGAtU3RhcnR1cFBoYXNlUHJvYmVgLCBgU3RhcnR1cFBoYXNlUGxhbmAgaW5zZXJ0cwpgcmVzb3VyY2UtaW5pdC1jb21wbGV0ZWAgaW1tZWRpYXRlbHkgYmVmb3JlIGl0IGFuZCBgU3RhcnR1cFBoYXNlUnVudGltZWAgcm91dGVzIHRoYXQgbWFya2VyIHRvCmBGcmFtZVRpbWVSdW50aW1lLm1hcmtTdGFydHVwQ29tcGxldGUoKWAsIHdoaWNoIHB1Ymxpc2hlcyBgUnVudGltZVNlbWFudGljU3RhdGUubWFpbk1lbnVSZWFkeSgpYC4KV2l0aG91dCB0aGUgcGhhc2UgcHJvYmUsIGBGcmFtZVRpbWVTdGFydHVwQ29tcGxldGlvblBsYW5gIGluc2VydHMgdGhlIHNhbWUKYG1hcmtTdGFydHVwQ29tcGxldGUoKWAgaW1tZWRpYXRlbHkgYmVmb3JlIHRoZSBzYW1lIHJldHVybi4gVGhlIGxvYWRpbmcgc3RhdGUncyBgdHJhdmVyc2UoKWAgdGhlbgpyZXR1cm5zIGBUaXRsZSBTY3JlZW4gU3RhdGVgLg=='
+          python3 -c "import base64,os,pathlib; p=pathlib.Path('$target'); t=p.read_text(); old=base64.b64decode(os.environ['OLD']).decode(); new=base64.b64decode(os.environ['NEW']).decode(); assert old in t; p.write_text(t.replace(old,new,1))"
           git diff --check
+          git diff --exit-code --quiet && { echo 'No correction made'; exit 1; }
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add docs/evidence/2026-09-01-windows-vm-startup-tuning.md
+          git add "$target"
           git commit -m 'Fix Windows title-tail evidence anchors'
           git push origin HEAD:diagnostics/windows-main-menu-tail
