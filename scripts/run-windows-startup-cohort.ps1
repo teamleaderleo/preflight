@@ -198,7 +198,14 @@ log4j.appender.file.MaxBackupIndex=3
                     '-Dpreflight.texture.windowsPreparedColdProbe=true' |
                     Where-Object { $_ }) -join ' ').Trim()
             }
-            if ($usesKaleidoscopePrefetch) {
+            if ($WindowsPreparedSplitQueueProbe) {
+                # The split-queue transform and the learned late-image rewrite are intentionally
+                # non-composable. Preserve a real split-queue candidate instead of letting the
+                # Recommended Windows policy re-enable the neighboring default.
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.texture.windowsKaleidoscopePrefetch=false' |
+                    Where-Object { $_ }) -join ' ').Trim()
+            } elseif ($usesKaleidoscopePrefetch) {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.texture.windowsKaleidoscopePrefetch=true' |
                     Where-Object { $_ }) -join ' ').Trim()
