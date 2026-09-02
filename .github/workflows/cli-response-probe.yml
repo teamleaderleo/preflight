@@ -13,7 +13,7 @@ on:
       - '.github/workflows/cli-response-probe.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   self-test:
@@ -93,6 +93,16 @@ jobs:
             "blinkClassBytes=$((Get-Item -LiteralPath $blinkClassPath).Length)"
             "blinkClassSha256=$blinkClassSha"
           ) | Set-Content -LiteralPath (Join-Path $outputRoot 'metadata.txt') -Encoding utf8
+          "PREFLIGHT_CORE_JAR=$($jar.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Run focused semantic and exact-installed tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          .\mvnw.cmd --batch-mode --no-transfer-progress -pl preflight-agent -am `
+            "-Dpreflight.starsector.core.jar=$env:PREFLIGHT_CORE_JAR" `
+            "-Dtest=MainMenuInteractivePlanTest,MainMenuInteractiveInstalledAdapterIT,RuntimeSemanticStateTest,FrameTimeRuntimeTest,StartupPhasePlanTest,FrameTimeStartupCompletionPlanTest" `
+            -Dsurefire.failIfNoSpecifiedTests=false test
+          if ($LASTEXITCODE -ne 0) { throw "focused Maven tests failed: $LASTEXITCODE" }
       - name: Upload disassembly text only
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -103,3 +113,110 @@ jobs:
             ${{ runner.temp }}/windows-title-disassembly/windows-title-parent-javap.txt
             ${{ runner.temp }}/windows-title-disassembly/metadata.txt
           if-no-files-found: error
+
+  retain-evidence:
+    if: github.event_name == 'pull_request' && github.head_ref == 'diagnostics/windows-title-bytecode-acquisition'
+    needs: windows-title-disassembly
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: diagnostics/windows-main-menu-tail
+          fetch-depth: 0
+      - name: Append deterministic title-tail evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          target='docs/evidence/2026-09-01-windows-vm-startup-tuning.md'
+          marker='### What owns the current main-menu-ready to main-menu-interactive tail?'
+          if grep -Fq "$marker" "$target"; then
+            echo 'Evidence already retained.'
+            exit 0
+          fi
+          cat >> "$target" <<'EOF'
+
+### What owns the current main-menu-ready to main-menu-interactive tail?
+
+The current ordinary Recommended reference reaches `main-menu-ready` at 35.806 seconds and
+`main-menu-interactive` at 50.514 seconds, leaving a 14.708-second tail. Exact installed bytecode
+puts a deterministic title timer directly on that interval, so the diagnostic stop condition fires
+before another runtime probe is justified.
+
+The reviewed Windows core identity is the installed
+`C:\Games\Starsector\starsector-core\starfarer_obf.jar`, 6,029,184 bytes, SHA-256
+`5dd222b9e266d2ac2d63b3dad4983eb05caaf5a247d7dfb82aaeba47ea774cc8`. A hash-identical copy from
+the official 0.98a-RC8 Windows installer was used for text-only disassembly. The exact title class
+is `MainMenuInteractivePlan.WINDOWS_TARGET_CLASS`, 4,313 bytes, SHA-256
+`7a034024de849f2829ad5e41dbb0e58f5979a6e7a81e55527f6839055db3d4c6`. Its constructor creates
+the `Preloading...` label and calls `blink(3.0f, 10.0f)`. Its `advanceImpl(float)` then has only
+three relevant operations after entry: call `interfacenew.advanceImpl(amount)`, test
+`Preloading....isBlinking()`, and, once that test becomes false, execute the unique
+`remove(Lcom/fs/starfarer/ui/c;)V`. Preflight's existing `mainMenuInteractive()` publication is
+inserted immediately after that reviewed remove call.
+
+The dependent label implementation makes the constants unambiguous. Exact
+`com/fs/starfarer/ui/d.class` is 21,199 bytes with SHA-256
+`6e79902ece3a00a8be4e387256e1213faad3443c710a104cdbd01c2659e886bf`. `blink(float,float)` builds
+a bouncing `Fader` whose half-cycle duration is `1 / firstArgument`, zeros an elapsed field, and
+stores the second argument as the total blink duration. `d.advance(amount)` advances the fader,
+adds that same `amount` to elapsed, and calls `stopBlinking()` when `elapsed > duration`.
+`stopBlinking()` clears the blink fader; `isBlinking()` then returns false. Exact
+`interfacenew.advanceImpl(float)` iterates the title's child components and calls each
+`c.advance(amount)` with the same float before the title override performs its `isBlinking()` test.
+The `Preloading...` child therefore receives the timer increment first and is removed on the same
+advance pass that crosses 10.0 cumulative advance units.
+
+Reproduction commands against the installed archive are:
+
+```text
+javap -classpath "C:\Games\Starsector\starsector-core\starfarer_obf.jar" -c -p -s <MainMenuInteractivePlan.WINDOWS_TARGET_CLASS with dots>
+javap -classpath "C:\Games\Starsector\starsector-core\starfarer_obf.jar" -c -p -s com.fs.starfarer.ui.d
+javap -classpath "C:\Games\Starsector\starsector-core\starfarer_obf.jar" -c -p -s com.fs.starfarer.ui.interfacenew
+```
+
+Useful bytecode anchors are the title constructor's `blink(3.0f,10.0f)` call at offsets 268-276;
+title `advanceImpl`'s `isBlinking` branch and unique remove at offsets 5-20; `d.blink(FF)` storing
+zero elapsed and the second argument at offsets 38-45; `d.advance(F)` adding `amount` to elapsed and
+comparing it with duration at offsets 192-230; and `interfacenew.advanceImpl(F)` invoking each
+child's `advance(amount)` at offsets 17-40.
+
+`main-menu-ready` is equally precise. With `-StartupPhaseProbe`, `StartupPhasePlan` inserts
+`resource-init-complete` immediately before the sole final `RETURN` of the reviewed Windows
+`ResourceLoaderState.init(Map)`. `StartupPhaseRuntime` routes that marker to
+`FrameTimeRuntime.markStartupComplete()`, which publishes `RuntimeSemanticState.mainMenuReady()`.
+Without the phase probe, `FrameTimeStartupCompletionPlan` inserts the same
+`markStartupComplete()` call immediately before that same return. The semantic ready timestamp is
+therefore published before the final `ResourceLoaderState.init` return in both paths.
+
+Classification: **deterministic title timing**. The title requires 10.0 cumulative advance units
+before the removal that makes the menu interactive. Against the current 14.708-second wall tail,
+4.708 seconds is the wall excess above that explicit countdown. The installed bytecode does not
+split that excess among frame/presentation time, delta clamping, scheduling, or other work, and the
+task's deterministic-timer stop condition ends discovery here. The title override itself contains
+no synchronous preparation beyond its superclass advance, one boolean query, and the conditional
+remove.
+
+No tail classifier was added, so disabled-mode bytecode, title timing, rendering, worker scheduling,
+GL ownership, queue behavior, optimization policy, and the existing semantic timestamps remain
+unchanged. No new texture-upload run was taken: the existing 27.768-second native upload island is
+an earlier startup region, while this exact title countdown already owns a material share of the
+post-ready interval. The ordinary promoted reference remains preserved in
+`/home/leo/Windows-Share/Diagnostics/20260903-053648-windows-startup-2x2.zip`, 1,549,810 bytes,
+SHA-256 `3cc84fa4b9020623ce2316462dadcb02edeea5b7ecc4aedd1edbdf11a0ea9650`, using product JAR SHA-256
+`2959d516c98c7db809d37d9f82152bb061bd682254dea294d16173982e14a54a`, the Recommended preset,
+the accepted Windows backslash merged-read path, the pinned 89-mod/profile/runtime/display/llvmpipe
+identity, 14-vCPU/12-GiB guest, and the host performance profile already recorded above. Its raw
+runtime/adapter packet remains the reference output; no new intrusive report was generated after the
+bytecode stop condition fired.
+
+Focused current-source CI and exact-installed integration coverage were rerun while acquiring the
+bytecode. No code was retained from that acquisition leg. There is **no successor from this seam**:
+shortening or bypassing the 10-second title interval would change title timing and belongs outside
+this diagnostics-only task.
+EOF
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$target"
+          git commit -m 'Document Windows main-menu tail timer'
+          git push origin HEAD:diagnostics/windows-main-menu-tail
