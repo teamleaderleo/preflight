@@ -32,6 +32,7 @@ final class AdapterRuntime {
         SourceArchiveHashes.beginSession();
         AdapterTransformationCache.beginSession();
         TextureCompatibilityRuntime.beginSession();
+        FastRenderingPreparedTextureRuntime.beginSession();
         TextureAccessLearningRuntime.beginSession();
         TexturePreparedPixelRuntime.beginSession();
         TexturePreparedPrefetchPoolRuntime.beginSession();
@@ -205,6 +206,11 @@ final class AdapterRuntime {
             registry = loadRegistry(options.adapterTargets(), report);
             if (options.adapterMode() == AdapterMode.ENABLED) {
                 registry = registry.withTextureTarget(options.textureAdapterMode());
+                if (FastRenderingPreparedTextureRuntime.ready()) {
+                    registry = registry.withFastRenderingPreparedTextureTarget();
+                    report.diagnostic(
+                            "Loaded the exact Fast Rendering 0.8.4 prepared-texture target");
+                }
                 if (NexMarketListScopeRuntime.configured()) {
                     registry = registry.withNexMarketListScopeTargets();
                     report.diagnostic(

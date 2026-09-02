@@ -28,7 +28,7 @@ class AdapterPlanCatalogTest {
                 .map(AdapterPlanCatalog.Descriptor::planId)
                 .collect(Collectors.toSet());
 
-        assertEquals(79, catalogPlans.size(), "adapter plan inventory changed");
+        assertEquals(80, catalogPlans.size(), "adapter plan inventory changed");
         assertTrue(catalogPlans.containsAll(registeredPlans),
                 () -> "uncatalogued registered plans: " + difference(registeredPlans, catalogPlans));
         for (AdapterPlanCatalog.Descriptor descriptor : descriptors) {
@@ -67,6 +67,7 @@ class AdapterPlanCatalogTest {
     private static List<AdapterTarget> exhaustiveTargets() {
         AdapterTargetRegistry prepared = AdapterTargetRegistry.empty()
                 .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS)
+                .withFastRenderingPreparedTextureTarget()
                 .withStartupPhaseTarget()
                 .withVariantJsonCacheTarget()
                 .withSpecStoreQuoteNormalizationTarget()

@@ -26,7 +26,7 @@ param(
     [int]$WindowsPreparedPrefetchWorkers = 1,
     [ValidateRange(0, 8192)]
     [int]$WindowsUnpaddedMaxDimension = 0,
-    [ValidateSet('starsector', 'preflight', 'preflight-kaleidoscope', 'fast-rendering', 'preflight-fast-rendering')]
+    [ValidateSet('starsector', 'preflight', 'preflight-kaleidoscope', 'fast-rendering', 'preflight-fast-rendering', 'preflight-fast-rendering-prepared')]
     [string[]]$Conditions = @('starsector', 'preflight', 'fast-rendering', 'preflight-fast-rendering')
 )
 
@@ -135,8 +135,17 @@ function Measure-OneRun(
         throw "A Starsector process is already running under $Game"
     }
 
-    $usesPreflight = $Condition -in @('preflight', 'preflight-kaleidoscope', 'preflight-fast-rendering')
-    $usesFastRendering = $Condition -in @('fast-rendering', 'preflight-fast-rendering')
+    $usesPreflight = $Condition -in @(
+        'preflight',
+        'preflight-kaleidoscope',
+        'preflight-fast-rendering',
+        'preflight-fast-rendering-prepared'
+    )
+    $usesFastRendering = $Condition -in @(
+        'fast-rendering',
+        'preflight-fast-rendering',
+        'preflight-fast-rendering-prepared'
+    )
     $usesKaleidoscopePrefetch = $WindowsKaleidoscopePrefetchProbe -or
         $Condition -eq 'preflight-kaleidoscope'
     $launcher = if ($usesFastRendering) { $FastRenderingLauncher } else { $VanillaLauncher }
@@ -164,6 +173,16 @@ log4j.appender.file.MaxBackupIndex=3
     }
     try {
         if ($usesPreflight) {
+            if ($Condition -eq 'preflight-fast-rendering-prepared') {
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.texture.fastRenderingPrepared=true' |
+                    Where-Object { $_ }) -join ' ').Trim()
+            } elseif ($Conditions -contains 'preflight-fast-rendering-prepared') {
+                # Preserve a true baseline if this candidate later graduates into a preset.
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.texture.fastRenderingPrepared=false' |
+                    Where-Object { $_ }) -join ' ').Trim()
+            }
             if ($TextureUploadProbe) {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.texture.uploadProbe=true' | Where-Object { $_ }) -join ' ').Trim()
@@ -485,6 +504,8 @@ $identity = [ordered]@{
     windowsKaleidoscopePrefetchProbe = [bool]$WindowsKaleidoscopePrefetchProbe
     windowsPreparedPriorityOrderProbe = [bool]$WindowsPreparedPriorityOrderProbe
     windowsPreparedColdProbe = [bool]$WindowsPreparedColdProbe
+    fastRenderingPreparedTextureCondition = [bool](
+        $Conditions -contains 'preflight-fast-rendering-prepared')
     windowsKaleidoscopePrefetchCondition = [bool]($Conditions -contains 'preflight-kaleidoscope')
     windowsPreparedPrefetchWorkers = $effectivePreparedPrefetchWorkers
     windowsPreparedSplitQueueProbe = [bool]$WindowsPreparedSplitQueueProbe

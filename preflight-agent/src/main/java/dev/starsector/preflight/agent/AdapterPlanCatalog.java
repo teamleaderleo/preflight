@@ -30,6 +30,7 @@ final class AdapterPlanCatalog {
             CommodityEventModMemoRuntime.PLAN_ID,
             DeploymentIconCacheRuntime.PLAN_ID,
             EntityLookupRuntime.PLAN_ID,
+            FastRenderingPreparedTextureRuntime.PLAN_ID,
             FleetAiProfilerRuntime.PLAN_ID,
             FontWrapAllocationRuntime.PLAN_ID,
             FrameLimiterTimePlan.PLAN_ID,

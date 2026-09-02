@@ -33,6 +33,8 @@ the exact `main-menu-interactive` title boundary, because Fast Rendering can emi
 graphics marker while worker texture loads are still active. The identity records the active Windows
 power-scheme GUID and whether Defender excludes the exact game/cache roots; non-Preflight renderer
 conditions still need their own comparable interactive-readiness evidence. Add
+`preflight-fast-rendering-prepared` beside `preflight-fast-rendering` to compare the exact Fast
+Rendering 0.8.4 prepared-texture bridge against a forced-off combined baseline. Add
 `-StartupPhaseProbe` for the exact-gated semantic startup timeline; it now supports the pinned macOS,
 Linux, and Windows `ResourceLoaderState` variants and records the executing thread for each boundary.
 Every arm receives the same file-only Log4j configuration before launch, so Fast Rendering's

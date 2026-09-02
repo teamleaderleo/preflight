@@ -199,6 +199,22 @@ final class AdapterTargetRegistry {
                 "vanilla-resource-prepared-staging-0.98a-rc8");
     }
 
+    static AdapterTarget fastRenderingPreparedTextureTarget() {
+        return new AdapterTarget(
+                "fast-rendering-0.8.4-prepared-textures",
+                FastRenderingPreparedTexturePlan.TARGET_CLASS,
+                FastRenderingPreparedTexturePlan.TARGET_SHA256,
+                FastRenderingPreparedTextureRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        FastRenderingPreparedTexturePlan.TARGET_METHOD,
+                        FastRenderingPreparedTexturePlan.TARGET_DESCRIPTOR)),
+                "FAST_RENDERING",
+                "fr.jar",
+                FastRenderingPreparedTexturePlan.SOURCE_SHA256,
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /**
      * The resource resolver every load in the game goes through, game code and mod code alike.
      *
@@ -3032,6 +3048,10 @@ final class AdapterTargetRegistry {
         return withTarget(mainMenuInteractiveTarget())
                 .withTarget(linuxMainMenuInteractiveTarget())
                 .withTarget(windowsMainMenuInteractiveTarget());
+    }
+
+    AdapterTargetRegistry withFastRenderingPreparedTextureTarget() {
+        return withTarget(fastRenderingPreparedTextureTarget());
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {

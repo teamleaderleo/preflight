@@ -302,6 +302,8 @@ final class AdapterReport {
         booleanField(output, "evaluationsTruncated", evaluationsTruncated);
         key(output, "planControl").append(Json.value(AdapterPlanControl.telemetry())).append(',');
         key(output, "textureCompatibility").append(Json.value(TextureCompatibilityRuntime.telemetry())).append(',');
+        key(output, "fastRenderingPreparedTextures")
+                .append(Json.value(FastRenderingPreparedTextureRuntime.telemetry())).append(',');
         key(output, "texturePreparedPixels")
                 .append(Json.value(TexturePreparedPixelRuntime.telemetry())).append(',');
         key(output, "texturePadding").append(Json.value(TexturePaddingRuntime.report())).append(',');

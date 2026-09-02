@@ -13,6 +13,11 @@ final class AdapterTransformationRegistry {
         if (!AdapterPlanControl.allows(target.planId())) {
             return null;
         }
+        if (FastRenderingPreparedTextureRuntime.PLAN_ID.equals(target.planId())) {
+            return FastRenderingPreparedTextureRuntime.ready()
+                    ? FastRenderingPreparedTexturePlan.transform(signature, originalBytes)
+                    : null;
+        }
         if (TextureCompatibilityRuntime.PLAN_ID.equals(target.planId())) {
             return TextureCompatibilityRuntime.ready()
                     ? TextureCompatibilityPlan.transform(signature, originalBytes)
@@ -843,6 +848,9 @@ final class AdapterTransformationRegistry {
     static boolean hasPlan(String planId) {
         if (!AdapterPlanControl.allows(planId)) {
             return false;
+        }
+        if (FastRenderingPreparedTextureRuntime.PLAN_ID.equals(planId)) {
+            return FastRenderingPreparedTextureRuntime.ready();
         }
         if (TextureCompatibilityRuntime.PLAN_ID.equals(planId)) {
             return TextureCompatibilityRuntime.ready();
