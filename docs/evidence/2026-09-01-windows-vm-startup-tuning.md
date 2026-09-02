@@ -489,20 +489,50 @@ file/JSON work was 29 ms, hull file/JSON work was 34 ms, and rules expression co
 showed that the progress render took 5 ms, `queueShipAndWeaponSprites` 31 ms, resource ordering 42
 ms, and executor creation/setup 6 ms. The interval from `resource-batches-start` to the first 1%
 milestone was **8.902 seconds**. The large target is therefore the first high-priority resource
-loads themselves, not queue construction, UI rendering, or executor setup. The next probe should
-retain bounded first/top resource identity and duration by resource type before any optimization is
-chosen.
+loads themselves, not queue construction, UI rendering, or executor setup.
+
+Commit `a935562a` added the bounded first/top resource attribution and passed direct transforms of
+the exact installed macOS, Linux, and Windows JARs plus the full reactor. One normal-completion
+Windows discovery launch retained only the first 64 and slowest 64 resources, aggregate type
+totals, and no report writes in the resource loop. It identified the apparent first-resource block
+precisely:
+
+| Resource family/path | Calls | Measured time |
+| --- | ---: | ---: |
+| all textures | 15,003 | 27.006 s |
+| first texture: `graphics/cursors/cursor_blue.png` | 1 | **8.897 s** |
+| remaining 15,002 textures | 15,002 | about 18.109 s |
+| fonts | 21 | 0.175 s |
+| sounds | 2,099 | 0.026 s |
+| alpha-adder texture | 1 | 0.017 s |
+
+No other individual resource exceeded 34 ms. The cursor file is therefore not an 8.9-second asset;
+it is the first consumer that waits for one-time prepared-prefetch/texture initialization. The
+stock Windows coordinator starts the image-prefetch worker at bytecode offset 1857 and only then
+moves 4,479 high-priority resources to the front at offsets 1944-1968. The worker consequently
+produces the original enqueue order while the main thread consumes a different prioritized order.
+That exact producer/consumer order mismatch is the next narrow candidate. It is materially
+different from adding workers (already rejected) or staging an arbitrary prefix (also rejected):
+the candidate should align existing prepared production with the exact consumption order while
+leaving GL upload and original fallbacks unchanged.
+
+This intrusive run reached graphics in 61.657 seconds and the semantic menu in 76.727 seconds;
+neither clock is a performance claim. Adapter health was clean: 130 registry targets, 49 observed
+and parsed classes, 29 exact matches, 28 applied transformations, one known decline, 23 shadowed
+alternatives, and zero contained failures or source-binding rejections. The exact prepared workload
+remained 15,003 worker enqueues, 15,492 prepared hits, zero original decodes/fallbacks/errors, and
+zero live buffers at shutdown.
 
 ## Open questions / next experiment
 
 1. Do not promote or retest prepared-carrier staging merely because it achieved 2,170 hits. Reopen
    only if a new design can avoid producer/consumer CPU contention or target a materially larger
    serial block.
-2. Attribute the **8.902-second first resource-batch window** with bounded first/top resource
-   identity, duration, and resource-type totals. The prior split rules out progress rendering,
-   `queueShipAndWeaponSprites`, ordering, and executor setup. The next separate SpecStore candidate
-   is faction priority-table construction at 1.643 seconds; GraphicsLib remains a 3.489-second
-   callback target.
+2. Test exact prepared-prefetch/consumption order alignment against the **8.897-second first-texture
+   wait**. Require the same prepared workload and full settlement; reject it if the wait merely
+   moves elsewhere or the semantic menu does not improve. The next separate SpecStore candidate is
+   faction priority-table construction at 1.643 seconds. GraphicsLib remains a 3.5-5.8-second
+   callback target across the intrusive packets.
 3. Require an exploratory causal signal before paying for an interleaved standalone cohort. Keep
    llvmpipe padded; the bounded NPOT result rejects capability-only gating.
 4. Run the exact worker successor on a native-GPU Windows machine before promoting any
@@ -577,4 +607,8 @@ The exact Windows detailed SpecStore/early-progress discovery packet is retained
 ```text
 /home/leo/Windows-Share/Diagnostics/20260902-windows-detailed-startup-phase-probe
 /home/leo/Windows-Share/Diagnostics/20260902-windows-post-spec-phase-probe
+/home/leo/Windows-Share/Diagnostics/20260902-windows-resource-load-attribution.zip
 ```
+
+The final archive is 1,588,722 bytes with SHA-256
+`23f6f7653da2f385d41551f7d6ae580bb1508637918753e3ed4eff3c225c485c`.
