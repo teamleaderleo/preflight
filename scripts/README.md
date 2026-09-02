@@ -55,8 +55,8 @@ them without waiting and retains the current prepared/original fallback on every
 `-WindowsKaleidoscopePrefetchProbe` enables the narrower successor: it promotes only the exact
 learned `graphics/kaleidoscope/` paths that were absent from Starsector's native queue into the
 accepted Windows prepared worker, retains only those results through native prefetch shutdown, and
-clears leftovers at the semantic menu snapshot. It is bounded to 512 paths / 192 MiB and remains
-opt-in until callback timing and the interactive boundary show a useful improvement.
+clears leftovers at the semantic menu snapshot. It is bounded to 512 paths / 192 MiB and is enabled
+by the recommended preset on Windows; an explicit false system property remains the kill switch.
 For an unattended shuffled A/B cohort, use conditions `preflight,preflight-kaleidoscope`; the
 second condition enables the same candidate only for its own legs and records the per-run state.
 Pair it with `-WindowsUnpaddedMaxDimension N` only for the bounded llvmpipe diagnostic: textures at

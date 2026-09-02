@@ -191,6 +191,8 @@ final class RunCommand {
                 .appendTo(System.getenv("JAVA_TOOL_OPTIONS"));
         javaToolOptions = RecommendedCombatPlanPolicy.appendOptions(
                 javaToolOptions, options.optimizationPreset());
+        javaToolOptions = RecommendedWindowsStartupPolicy.appendOptions(
+                javaToolOptions, platform, options.optimizationPreset());
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }

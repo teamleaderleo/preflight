@@ -178,6 +178,11 @@ log4j.appender.file.MaxBackupIndex=3
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.texture.windowsKaleidoscopePrefetch=true' |
                     Where-Object { $_ }) -join ' ').Trim()
+            } elseif ($Conditions -contains 'preflight-kaleidoscope') {
+                # Preserve a real A leg after the candidate graduates into Recommended.
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.texture.windowsKaleidoscopePrefetch=false' |
+                    Where-Object { $_ }) -join ' ').Trim()
             }
             if ($WindowsUnpaddedMaxDimension -gt 0) {
                 $unpaddedOptions = '-Dpreflight.padding.unpadded=true ' +

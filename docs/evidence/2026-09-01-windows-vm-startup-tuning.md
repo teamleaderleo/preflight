@@ -421,13 +421,54 @@ seconds**. The candidate is therefore a useful rejected experiment: it proved sa
 removed some consumer work, but produced no defensible player-visible improvement. It remains
 opt-in and is not promoted; no interleaved cohort is justified without a stronger causal design.
 
+### Can the accepted worker cover textures first requested by late mod callbacks?
+
+Yes, for one exact and materially expensive family. The native queue contains 15,003 paths, while
+the learned general access order contains 15,647. The 644-path difference is outside both the
+native worker and the rejected `.sptq` staging order; this is not a dormant copy of either earlier
+experiment. Kaleidoscope accounts for 102 of those late paths and 146,669,568 prepared pixel bytes.
+Its reviewed `onApplicationLoad` callback reads configuration and calls `loadTexture` only after the
+native worker's ordinary stop/clear boundary.
+
+The accepted candidate promotes only learned `graphics/kaleidoscope/` paths into that exact worker,
+retains only their completed results across the stop boundary, removes unfinished candidates before
+the interrupted worker can strand a consumer, and restores the original empty-map invariant at the
+semantic menu snapshot. It is bounded to 512 paths / 192 MiB, requires the exact reviewed one-worker
+rewrite shape, retains original decode fallback, and has both the ordinary plan kill switch and the
+explicit `preflight.texture.windowsKaleidoscopePrefetch=false` disable path.
+
+An intrusive correctness/phase run served **102 / 102** candidate textures from prepared pixels with
+zero fallback, decline, or internal error. All 102 completed results were retained at worker stop and
+consumed before the menu snapshot; leftovers, active buffers, pending buffers, and active direct
+bytes were all zero. Kaleidoscope's callback fell from **3.062 seconds to 0.685 seconds**, removing
+about **2.377 seconds** from the directly targeted serial work. The probe run's 58.439-second graphics
+and 73.636-second interactive clocks are not used as performance claims.
+
+Thin consecutive three-run cohorts on the same current build, profile, cache, Java, display, VM,
+and recommended preset produced:
+
+| Condition | Graphics samples / median | Interactive samples / median |
+| --- | --- | --- |
+| candidate | 50.254, 52.366, 57.234 / **52.366 s** | 66.494, 67.125, 72.068 / **67.125 s** |
+| explicit-off baseline | 56.289, 58.878, 49.573 / **56.289 s** | 71.155, 74.700, 64.342 / **71.155 s** |
+
+The median deltas are **-3.923 seconds (-7.0%)** to the graphics marker and **-4.030 seconds
+(-5.7%)** to the semantic interactive boundary. The ranges overlap and the cohorts were adjacent,
+not interleaved, so those percentages are retained as bounded evidence rather than a universal
+claim. The direct 2.377-second callback reduction, repeated clean lifecycle counters, and
+multi-second thin signal are sufficient to accept the narrow candidate without spending more
+launches on precision that will not close the remaining gap to 30 seconds. Recommended Windows
+launches enable it by default; conservative/custom launches and an explicit false property remain
+unchanged.
+
 ## Open questions / next experiment
 
 1. Do not promote or retest prepared-carrier staging merely because it achieved 2,170 hits. Reopen
    only if a new design can avoid producer/consumer CPU contention or target a materially larger
    serial block.
-2. Use the exact phase timeline to attribute the 7.609-second SpecStore block, 7.720-second
-   pre-progress block, and 18.224-second callback block before choosing another overlap seam.
+2. Use the exact phase timeline to attack the next multi-second serial island rather than polishing
+   the accepted Kaleidoscope result. Current large anchors are the roughly 8.6-second SpecStore
+   block, 10.1-second post-SpecStore/pre-progress block, and 4.5-second GraphicsLib callback.
 3. Require an exploratory causal signal before paying for an interleaved standalone cohort. Keep
    llvmpipe padded; the bounded NPOT result rejects capability-only gating.
 4. Run the exact worker successor on a native-GPU Windows machine before promoting any
@@ -486,4 +527,13 @@ The prepared-carrier staging correctness, thin learning, and valid causal reject
 /home/leo/Windows-Share/Diagnostics/20260902-windows-prefetch-order-learning2
 /home/leo/Windows-Share/Diagnostics/20260902-windows-prefetch-order-learning3
 /home/leo/Windows-Share/Diagnostics/20260902-windows-prepared-staging-valid
+```
+
+The accepted late-Kaleidoscope correctness, thin candidate, and matching current-main baseline are
+retained at:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260902-windows-kaleidoscope-prefetch-correctness
+/home/leo/Windows-Share/Diagnostics/20260902-windows-kaleidoscope-prefetch-thin
+/home/leo/Windows-Share/Diagnostics/20260902-windows-kaleidoscope-prefetch-baseline
 ```
