@@ -20,6 +20,7 @@ param(
     [switch]$WindowsKaleidoscopePrefetchProbe,
     [switch]$WindowsPreparedPriorityOrderProbe,
     [switch]$WindowsPreparedColdProbe,
+    [switch]$WindowsPreparedSplitQueueProbe,
     [ValidateRange(1, 8)]
     [int]$WindowsPreparedPrefetchWorkers = 1,
     [ValidateRange(0, 8192)]
@@ -31,6 +32,12 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $env:GALLIUM_DRIVER = 'llvmpipe'
+$effectivePreparedPrefetchProbe = $WindowsPreparedPrefetchProbe -or $WindowsPreparedSplitQueueProbe
+$effectivePreparedPrefetchWorkers = if ($WindowsPreparedSplitQueueProbe) {
+    2
+} else {
+    $WindowsPreparedPrefetchWorkers
+}
 
 function Get-Sha256([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
@@ -165,10 +172,15 @@ log4j.appender.file.MaxBackupIndex=3
                     '-Dpreflight.texture.windowsPrefetchBypassProbe=true' |
                     Where-Object { $_ }) -join ' ').Trim()
             }
-            if ($WindowsPreparedPrefetchProbe) {
+            if ($effectivePreparedPrefetchProbe) {
                 $preparedPrefetchOptions = '-Dpreflight.texture.windowsPreparedPrefetchProbe=true ' +
-                    "-Dpreflight.texture.windowsPreparedPrefetchWorkers=$WindowsPreparedPrefetchWorkers"
+                    "-Dpreflight.texture.windowsPreparedPrefetchWorkers=$effectivePreparedPrefetchWorkers"
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS, $preparedPrefetchOptions |
+                    Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($WindowsPreparedSplitQueueProbe) {
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.texture.windowsPreparedSplitQueues=true' |
                     Where-Object { $_ }) -join ' ').Trim()
             }
             if ($WindowsPreparedStagingProbe) {
@@ -452,13 +464,14 @@ $identity = [ordered]@{
     fileOnlyLogging = $true
     textureUploadProbe = [bool]$TextureUploadProbe
     windowsPrefetchBypassProbe = [bool]$WindowsPrefetchBypassProbe
-    windowsPreparedPrefetchProbe = [bool]$WindowsPreparedPrefetchProbe
+    windowsPreparedPrefetchProbe = [bool]$effectivePreparedPrefetchProbe
     windowsPreparedStagingProbe = [bool]$WindowsPreparedStagingProbe
     windowsKaleidoscopePrefetchProbe = [bool]$WindowsKaleidoscopePrefetchProbe
     windowsPreparedPriorityOrderProbe = [bool]$WindowsPreparedPriorityOrderProbe
     windowsPreparedColdProbe = [bool]$WindowsPreparedColdProbe
     windowsKaleidoscopePrefetchCondition = [bool]($Conditions -contains 'preflight-kaleidoscope')
-    windowsPreparedPrefetchWorkers = $WindowsPreparedPrefetchWorkers
+    windowsPreparedPrefetchWorkers = $effectivePreparedPrefetchWorkers
+    windowsPreparedSplitQueueProbe = [bool]$WindowsPreparedSplitQueueProbe
     windowsUnpaddedMaxDimension = $WindowsUnpaddedMaxDimension
     game = $Game
     preflightJar = $PreflightJar

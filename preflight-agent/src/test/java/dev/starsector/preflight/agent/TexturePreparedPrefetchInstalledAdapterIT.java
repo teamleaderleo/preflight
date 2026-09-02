@@ -17,21 +17,36 @@ import org.objectweb.asm.tree.MethodInsnNode;
 /** Opt-in structural gate for the exact installed Windows prepared-prefetch worker. */
 class TexturePreparedPrefetchInstalledAdapterIT {
     @Test
-    void exactWindowsWorkerAcceptsLearnedKaleidoscopeRetention() throws Exception {
-        String configured = System.getProperty("preflight.starsector.common.jar", "").trim();
-        Assumptions.assumeTrue(!configured.isEmpty(),
-                "set -Dpreflight.starsector.common.jar=<Windows fs.common_obf.jar>");
-        Path archive = Path.of(configured).toAbsolutePath().normalize();
-        Assumptions.assumeTrue(Files.isRegularFile(archive));
-
-        byte[] original;
-        try (JarFile jar = new JarFile(archive.toFile())) {
-            var entry = jar.getJarEntry(TexturePreparedPrefetchPlan.TARGET_CLASS + ".class");
-            assertNotNull(entry);
-            try (var input = jar.getInputStream(entry)) {
-                original = input.readAllBytes();
-            }
+    void exactWindowsWorkerAcceptsIndependentByteAndImageLanes() throws Exception {
+        byte[] original = exactInstalledWorker();
+        ClassSignature signature = ClassSignature.parse(original);
+        System.setProperty(TexturePreparedPrefetchPlan.WINDOWS_WORKERS_PROPERTY, "2");
+        System.setProperty(TexturePreparedPrefetchPlan.WINDOWS_SPLIT_QUEUES_PROPERTY, "true");
+        byte[] transformed;
+        try {
+            transformed = TexturePreparedPrefetchPlan.transform(signature, original);
+        } finally {
+            System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_WORKERS_PROPERTY);
+            System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_SPLIT_QUEUES_PROPERTY);
         }
+        assertNotNull(transformed);
+
+        ClassNode owner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(transformed).accept(owner, 0);
+        String runtime = TexturePreparedPrefetchPoolRuntime.class.getName().replace('.', '/');
+        long starts = owner.methods.stream()
+                .flatMap(method -> java.util.stream.StreamSupport.stream(
+                        method.instructions.spliterator(), false))
+                .filter(instruction -> instruction instanceof MethodInsnNode)
+                .map(instruction -> (MethodInsnNode) instruction)
+                .filter(call -> runtime.equals(call.owner) && "startSplitQueues".equals(call.name))
+                .count();
+        assertEquals(1L, starts);
+    }
+
+    @Test
+    void exactWindowsWorkerAcceptsLearnedKaleidoscopeRetention() throws Exception {
+        byte[] original = exactInstalledWorker();
         ClassSignature signature = ClassSignature.parse(original);
         assertEquals("9e339c5a0edadebdd81b088e0882f5a00b4696b9f5e862a9beec3ff03c439f3e",
                 signature.sha256());
@@ -62,5 +77,20 @@ class TexturePreparedPrefetchInstalledAdapterIT {
             }
         }
         assertEquals(3, calls);
+    }
+
+    private static byte[] exactInstalledWorker() throws Exception {
+        String configured = System.getProperty("preflight.starsector.common.jar", "").trim();
+        Assumptions.assumeTrue(!configured.isEmpty(),
+                "set -Dpreflight.starsector.common.jar=<Windows fs.common_obf.jar>");
+        Path archive = Path.of(configured).toAbsolutePath().normalize();
+        Assumptions.assumeTrue(Files.isRegularFile(archive));
+        try (JarFile jar = new JarFile(archive.toFile())) {
+            var entry = jar.getJarEntry(TexturePreparedPrefetchPlan.TARGET_CLASS + ".class");
+            assertNotNull(entry);
+            try (var input = jar.getInputStream(entry)) {
+                return input.readAllBytes();
+            }
+        }
     }
 }

@@ -19,6 +19,8 @@ import org.junit.jupiter.api.Test;
 class TexturePreparedPrefetchPoolRuntimeTest {
     private static volatile CountDownLatch entered;
     private static volatile CountDownLatch release;
+    private static volatile CountDownLatch byteEntered;
+    private static volatile CountDownLatch byteRelease;
 
     @AfterEach
     void reset() {
@@ -61,6 +63,40 @@ class TexturePreparedPrefetchPoolRuntimeTest {
         assertEquals(0L, TexturePreparedPrefetchPoolRuntime.report().get("failures"));
     }
 
+    @Test
+    void splitQueuesDoNotHoldImagesBehindAStalledByteDecoder() throws Exception {
+        List<String> images = Collections.synchronizedList(new ArrayList<>(List.of("cursor")));
+        List<String> bytes = Collections.synchronizedList(new ArrayList<>(List.of("sound")));
+        Map<String, Object> imageResults = new ConcurrentHashMap<>();
+        Map<String, Object> byteResults = new ConcurrentHashMap<>();
+        byteEntered = new CountDownLatch(1);
+        byteRelease = new CountDownLatch(1);
+
+        TexturePreparedPrefetchPoolRuntime.startSplitQueues(
+                TexturePreparedPrefetchPoolRuntimeTest.class,
+                images,
+                imageResults,
+                new BufferedImage(1, 1, BufferedImage.TYPE_BYTE_GRAY),
+                bytes,
+                byteResults,
+                new byte[0],
+                "decodeImmediateImage",
+                "decodeBlockedBytes",
+                2);
+
+        assertTrue(byteEntered.await(2, TimeUnit.SECONDS));
+        waitFor(() -> ((Number) TexturePreparedPrefetchPoolRuntime.report()
+                .get("imageCompletions")).longValue() == 1L);
+        assertEquals(0L, TexturePreparedPrefetchPoolRuntime.report().get("byteCompletions"));
+        assertEquals("split-queues", TexturePreparedPrefetchPoolRuntime.report().get("queueMode"));
+
+        byteRelease.countDown();
+        waitFor(() -> ((Number) TexturePreparedPrefetchPoolRuntime.report()
+                .get("byteCompletions")).longValue() == 1L);
+        assertEquals(1, imageResults.size());
+        assertEquals(1, byteResults.size());
+    }
+
     private static BufferedImage decodeImage(String ignored) throws InterruptedException {
         entered.countDown();
         release.await();
@@ -68,6 +104,16 @@ class TexturePreparedPrefetchPoolRuntimeTest {
     }
 
     private static byte[] decodeBytes(String path) {
+        return path.getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static BufferedImage decodeImmediateImage(String ignored) {
+        return new BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB);
+    }
+
+    private static byte[] decodeBlockedBytes(String path) throws InterruptedException {
+        byteEntered.countDown();
+        byteRelease.await();
         return path.getBytes(StandardCharsets.UTF_8);
     }
 

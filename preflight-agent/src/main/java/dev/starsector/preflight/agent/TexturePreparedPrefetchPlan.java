@@ -25,6 +25,8 @@ final class TexturePreparedPrefetchPlan {
             "preflight.texture.windowsPreparedPrefetchProbe";
     static final String WINDOWS_WORKERS_PROPERTY =
             "preflight.texture.windowsPreparedPrefetchWorkers";
+    static final String WINDOWS_SPLIT_QUEUES_PROPERTY =
+            "preflight.texture.windowsPreparedSplitQueues";
     static final String WINDOWS_KALEIDOSCOPE_PROPERTY =
             "preflight.texture.windowsKaleidoscopePrefetch";
     static final String WINDOWS_RESOURCE_ORDER_PROPERTY =
@@ -122,6 +124,10 @@ final class TexturePreparedPrefetchPlan {
         decode.maxStack = Math.max(decode.maxStack, 2);
 
         int workers = Integer.getInteger(WINDOWS_WORKERS_PROPERTY, 1);
+        boolean splitQueues = Boolean.getBoolean(WINDOWS_SPLIT_QUEUES_PROPERTY);
+        if (splitQueues && workers != 2) {
+            return null;
+        }
         if (Boolean.getBoolean(WINDOWS_KALEIDOSCOPE_PROPERTY)
                 && (workers != 1 || !rewriteLearnedLatePrefetch(owner))) {
             return null;
@@ -131,7 +137,11 @@ final class TexturePreparedPrefetchPlan {
             return null;
         }
         if (workers > 1
-                && !rewriteWorkerPool(owner, TexturePrefetchBypassPlan.imageQueueField(owner), workers)) {
+                && !rewriteWorkerPool(
+                        owner,
+                        TexturePrefetchBypassPlan.imageQueueField(owner),
+                        workers,
+                        splitQueues)) {
             return null;
         }
 
@@ -236,7 +246,8 @@ final class TexturePreparedPrefetchPlan {
         return true;
     }
 
-    private static boolean rewriteWorkerPool(ClassNode owner, String imageQueue, int workers) {
+    private static boolean rewriteWorkerPool(
+            ClassNode owner, String imageQueue, int workers, boolean splitQueues) {
         if (workers > 8 || imageQueue == null) {
             return false;
         }
@@ -271,7 +282,11 @@ final class TexturePreparedPrefetchPlan {
         start.instructions.add(new LdcInsnNode(byteDecoder));
         start.instructions.add(new LdcInsnNode(workers));
         start.instructions.add(new MethodInsnNode(
-                Opcodes.INVOKESTATIC, POOL_RUNTIME, "start", POOL_START_DESCRIPTOR, false));
+                Opcodes.INVOKESTATIC,
+                POOL_RUNTIME,
+                splitQueues ? "startSplitQueues" : "start",
+                POOL_START_DESCRIPTOR,
+                false));
         start.instructions.add(new InsnNode(Opcodes.RETURN));
         start.maxStack = 10;
         start.maxLocals = 0;

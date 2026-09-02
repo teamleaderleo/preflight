@@ -27,6 +27,7 @@ class TexturePreparedPrefetchPlanTest {
     @AfterEach
     void clearWorkerProperty() {
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_WORKERS_PROPERTY);
+        System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_SPLIT_QUEUES_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_KALEIDOSCOPE_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_RESOURCE_ORDER_PROPERTY);
     }
@@ -107,6 +108,24 @@ class TexturePreparedPrefetchPlanTest {
         assertEquals(
                 List.of("stop"),
                 calls(method(parsed, TexturePreparedPrefetchPlan.STOP_METHOD, "()V"))
+                        .stream()
+                        .filter(call -> call.owner.contains("PrefetchPoolRuntime"))
+                        .map(call -> call.name)
+                        .toList());
+    }
+
+    @Test
+    void rewritesTwoWorkersIntoIndependentByteAndImageLanesWhenRequested() throws Exception {
+        System.setProperty(TexturePreparedPrefetchPlan.WINDOWS_WORKERS_PROPERTY, "2");
+        System.setProperty(TexturePreparedPrefetchPlan.WINDOWS_SPLIT_QUEUES_PROPERTY, "true");
+
+        byte[] transformed = TexturePreparedPrefetchPlan.transform(
+                ClassSignature.parse(syntheticPrefetcher()), syntheticPrefetcher());
+
+        assertNotNull(transformed);
+        assertEquals(
+                List.of("startSplitQueues"),
+                calls(method(parse(transformed), TexturePreparedPrefetchPlan.START_METHOD, "()V"))
                         .stream()
                         .filter(call -> call.owner.contains("PrefetchPoolRuntime"))
                         .map(call -> call.name)

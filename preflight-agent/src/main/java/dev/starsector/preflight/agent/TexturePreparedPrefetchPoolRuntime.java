@@ -28,6 +28,7 @@ public final class TexturePreparedPrefetchPoolRuntime {
 
     private static volatile Session session;
     private static volatile int configuredWorkers;
+    private static volatile String queueMode = "stock-order";
 
     private TexturePreparedPrefetchPoolRuntime() {
     }
@@ -44,6 +45,61 @@ public final class TexturePreparedPrefetchPoolRuntime {
             String imageDecoderName,
             String byteDecoderName,
             int workers) {
+        startSession(
+                owner,
+                imageQueue,
+                imageResults,
+                imageLoadingMarker,
+                byteQueue,
+                byteResults,
+                byteLoadingMarker,
+                imageDecoderName,
+                byteDecoderName,
+                workers,
+                false);
+    }
+
+    /** Starts one exact decoder per independent stock queue so images do not wait behind bytes. */
+    public static void startSplitQueues(
+            Class<?> owner,
+            List<String> imageQueue,
+            Map<String, Object> imageResults,
+            Object imageLoadingMarker,
+            List<String> byteQueue,
+            Map<String, Object> byteResults,
+            Object byteLoadingMarker,
+            String imageDecoderName,
+            String byteDecoderName,
+            int workers) {
+        if (workers != 2) {
+            throw new IllegalArgumentException("Split prepared prefetch requires exactly two workers");
+        }
+        startSession(
+                owner,
+                imageQueue,
+                imageResults,
+                imageLoadingMarker,
+                byteQueue,
+                byteResults,
+                byteLoadingMarker,
+                imageDecoderName,
+                byteDecoderName,
+                workers,
+                true);
+    }
+
+    private static void startSession(
+            Class<?> owner,
+            List<String> imageQueue,
+            Map<String, Object> imageResults,
+            Object imageLoadingMarker,
+            List<String> byteQueue,
+            Map<String, Object> byteResults,
+            Object byteLoadingMarker,
+            String imageDecoderName,
+            String byteDecoderName,
+            int workers,
+            boolean splitQueues) {
         if (workers < 2 || workers > MAX_WORKERS) {
             throw new IllegalArgumentException("Prepared prefetch workers must be between 2 and " + MAX_WORKERS);
         }
@@ -62,15 +118,23 @@ public final class TexturePreparedPrefetchPoolRuntime {
             stopLocked();
             session = replacement;
             configuredWorkers = workers;
+            queueMode = splitQueues ? "split-queues" : "stock-order";
             STARTS.incrementAndGet();
-            for (int index = 0; index < workers; index++) {
-                Thread thread = new Thread(
-                        () -> runWorker(replacement),
-                        "Preflight-Windows-Prefetch-" + (index + 1));
-                replacement.threads.add(thread);
-                thread.start();
+            if (splitQueues) {
+                startWorker(replacement, () -> runQueueWorker(replacement, true), "Image");
+                startWorker(replacement, () -> runQueueWorker(replacement, false), "Bytes");
+            } else {
+                for (int index = 0; index < workers; index++) {
+                    startWorker(replacement, () -> runWorker(replacement), String.valueOf(index + 1));
+                }
             }
         }
+    }
+
+    private static void startWorker(Session replacement, Runnable task, String suffix) {
+        Thread thread = new Thread(task, "Preflight-Windows-Prefetch-" + suffix);
+        replacement.threads.add(thread);
+        thread.start();
     }
 
     /** Interrupts every worker started for the exact prefetch session. */
@@ -92,6 +156,7 @@ public final class TexturePreparedPrefetchPoolRuntime {
         ACTIVE_WORKERS.set(0);
         PEAK_WORKERS.set(0);
         configuredWorkers = 0;
+        queueMode = "stock-order";
         synchronized (FAILURE_SAMPLES) {
             FAILURE_SAMPLES.clear();
         }
@@ -100,6 +165,7 @@ public final class TexturePreparedPrefetchPoolRuntime {
     static Map<String, Object> report() {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("configuredWorkers", configuredWorkers);
+        values.put("queueMode", queueMode);
         values.put("starts", STARTS.get());
         values.put("stops", STOPS.get());
         values.put("activeWorkers", ACTIVE_WORKERS.get());
@@ -143,6 +209,30 @@ public final class TexturePreparedPrefetchPoolRuntime {
                     continue;
                 }
                 return;
+            }
+        } finally {
+            ACTIVE_WORKERS.decrementAndGet();
+        }
+    }
+
+    private static void runQueueWorker(Session current, boolean images) {
+        int active = ACTIVE_WORKERS.incrementAndGet();
+        PEAK_WORKERS.accumulateAndGet(active, Math::max);
+        try {
+            while (!current.cancelled && !Thread.currentThread().isInterrupted()) {
+                Claim claim = images
+                        ? claim(current.imageQueue, current.imageResults, current.imageLoadingMarker)
+                        : claim(current.byteQueue, current.byteResults, current.byteLoadingMarker);
+                if (claim == null) {
+                    return;
+                }
+                if (images) {
+                    IMAGE_CLAIMS.incrementAndGet();
+                    complete(current, claim, current.imageDecoder, current.imageResults, IMAGE_COMPLETIONS);
+                } else {
+                    BYTE_CLAIMS.incrementAndGet();
+                    complete(current, claim, current.byteDecoder, current.byteResults, BYTE_COMPLETIONS);
+                }
             }
         } finally {
             ACTIVE_WORKERS.decrementAndGet();
