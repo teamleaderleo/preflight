@@ -75,12 +75,12 @@ jobs:
           $blinkClassSha = (Get-FileHash -LiteralPath $blinkClassPath -Algorithm SHA256).Hash.ToLowerInvariant()
 
           $className = "com.fs.starfarer.title.$targetToken"
-          $disassembly = Join-Path $outputRoot 'windows-title-javap.txt'
-          & javap -classpath $jar.FullName -c -p -s $className | Out-File -LiteralPath $disassembly -Encoding utf8
+          & javap -classpath $jar.FullName -c -p -s $className | Out-File -LiteralPath (Join-Path $outputRoot 'windows-title-javap.txt') -Encoding utf8
           if ($LASTEXITCODE -ne 0) { throw "title javap failed: $LASTEXITCODE" }
-          $blinkDisassembly = Join-Path $outputRoot 'windows-title-blink-javap.txt'
-          & javap -classpath $jar.FullName -c -p -s 'com.fs.starfarer.ui.d' | Out-File -LiteralPath $blinkDisassembly -Encoding utf8
+          & javap -classpath $jar.FullName -c -p -s 'com.fs.starfarer.ui.d' | Out-File -LiteralPath (Join-Path $outputRoot 'windows-title-blink-javap.txt') -Encoding utf8
           if ($LASTEXITCODE -ne 0) { throw "blink javap failed: $LASTEXITCODE" }
+          & javap -classpath $jar.FullName -c -p -s 'com.fs.starfarer.ui.interfacenew' | Out-File -LiteralPath (Join-Path $outputRoot 'windows-title-parent-javap.txt') -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw "parent javap failed: $LASTEXITCODE" }
 
           @(
             'sourceUrl=https://f005.backblazeb2.com/file/fractalsoftworks/release/starsector_install-0.98a-RC8.exe'
@@ -100,5 +100,6 @@ jobs:
           path: |
             ${{ runner.temp }}/windows-title-disassembly/windows-title-javap.txt
             ${{ runner.temp }}/windows-title-disassembly/windows-title-blink-javap.txt
+            ${{ runner.temp }}/windows-title-disassembly/windows-title-parent-javap.txt
             ${{ runner.temp }}/windows-title-disassembly/metadata.txt
           if-no-files-found: error
