@@ -11,10 +11,13 @@ import java.awt.image.ImageProducer;
 import java.awt.image.Raster;
 import java.awt.image.SampleModel;
 import java.awt.image.WritableRaster;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
@@ -56,6 +59,7 @@ public final class TexturePreparedPixelRuntime {
     private static long peakBytes;
     private static int pendingBuffers;
     private static Map<?, ?> retainedLearnedKaleidoscopeResults;
+    private static List<String> preferredPreparedPrefetchOrder = List.of();
 
     private TexturePreparedPixelRuntime() {
     }
@@ -68,6 +72,7 @@ public final class TexturePreparedPixelRuntime {
             PREFETCH_QUEUED.clear();
             LEARNED_KALEIDOSCOPE_QUEUED.clear();
             retainedLearnedKaleidoscopeResults = null;
+            preferredPreparedPrefetchOrder = List.of();
             activeBytes = 0;
             peakBytes = 0;
             pendingBuffers = 0;
@@ -163,6 +168,115 @@ public final class TexturePreparedPixelRuntime {
             TELEMETRY.learnedKaleidoscopeWorkerResult(image != null);
         }
         return image;
+    }
+
+    /** Captures the exact stock-prioritized resource path order before the worker starts. */
+    public static void rememberPreparedPrefetchOrder(List<?> resources) {
+        if (!Boolean.getBoolean(TexturePreparedPrefetchPlan.WINDOWS_RESOURCE_ORDER_PROPERTY)
+                || resources == null) {
+            return;
+        }
+        try {
+            Field pathField = resourcePathField(resources);
+            if (pathField == null) {
+                TELEMETRY.preparedPriorityError();
+                return;
+            }
+            LinkedHashSet<String> ordered = new LinkedHashSet<>();
+            for (Object resource : resources) {
+                if (resource == null) continue;
+                Object value = pathField.get(resource);
+                if (value instanceof String path && !path.isEmpty()) {
+                    ordered.add(path);
+                }
+            }
+            synchronized (LOCK) {
+                preferredPreparedPrefetchOrder = List.copyOf(ordered);
+            }
+            TELEMETRY.preparedPriorityCaptured(resources.size(), ordered.size(),
+                    ordered.isEmpty() ? null : ordered.iterator().next());
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            synchronized (LOCK) {
+                preferredPreparedPrefetchOrder = List.of();
+            }
+            TELEMETRY.preparedPriorityError();
+        }
+    }
+
+    /** Stably aligns known prepared paths and leaves every unknown path in relative order. */
+    public static void reorderPreparedPrefetches(List<String> imageQueue) {
+        if (!Boolean.getBoolean(TexturePreparedPrefetchPlan.WINDOWS_RESOURCE_ORDER_PROPERTY)
+                || imageQueue == null) {
+            return;
+        }
+        try {
+            List<String> preferred;
+            synchronized (LOCK) {
+                preferred = preferredPreparedPrefetchOrder;
+                preferredPreparedPrefetchOrder = List.of();
+            }
+            if (preferred.isEmpty()) {
+                TELEMETRY.preparedPriorityError();
+                return;
+            }
+            Map<String, Integer> ranks = new HashMap<>(preferred.size() * 4 / 3 + 1);
+            for (int index = 0; index < preferred.size(); index++) {
+                ranks.putIfAbsent(preferred.get(index), index);
+            }
+            synchronized (imageQueue) {
+                List<String> before = List.copyOf(imageQueue);
+                Set<String> queued = new HashSet<>(imageQueue);
+                String firstDesired = null;
+                for (String path : preferred) {
+                    if (queued.contains(path)) {
+                        firstDesired = path;
+                        break;
+                    }
+                }
+                imageQueue.sort((left, right) -> Integer.compare(
+                        ranks.getOrDefault(left, Integer.MAX_VALUE),
+                        ranks.getOrDefault(right, Integer.MAX_VALUE)));
+                int matched = 0;
+                int moved = 0;
+                for (int index = 0; index < imageQueue.size(); index++) {
+                    String path = imageQueue.get(index);
+                    if (ranks.containsKey(path)) matched++;
+                    if (!Objects.equals(before.get(index), path)) moved++;
+                }
+                TELEMETRY.preparedPriorityReordered(
+                        imageQueue.size(), matched, moved,
+                        firstDesired,
+                        before.isEmpty() ? null : before.get(0),
+                        imageQueue.isEmpty() ? null : imageQueue.get(0));
+            }
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            TELEMETRY.preparedPriorityError();
+        }
+    }
+
+    private static Field resourcePathField(List<?> resources) {
+        Class<?> resourceClass = null;
+        for (Object resource : resources) {
+            if (resource != null) {
+                resourceClass = resource.getClass();
+                break;
+            }
+        }
+        if (resourceClass == null) return null;
+        Field found = null;
+        for (Field field : resourceClass.getDeclaredFields()) {
+            if (field.getType() != String.class || Modifier.isStatic(field.getModifiers())) {
+                continue;
+            }
+            if (found != null) return null;
+            found = field;
+        }
+        if (found != null && !found.trySetAccessible()) return null;
+        return found;
     }
 
     /** Adds bounded callback-only Kaleidoscope textures before the reviewed Windows worker starts. */
@@ -1079,6 +1193,17 @@ public final class TexturePreparedPixelRuntime {
         private long learnedKaleidoscopeConsumedAfterStop;
         private long learnedKaleidoscopeLeftoversCleared;
         private long learnedKaleidoscopeErrors;
+        private long preparedPriorityCaptures;
+        private long preparedPriorityResources;
+        private long preparedPriorityPaths;
+        private long preparedPriorityReorders;
+        private long preparedPriorityQueueEntries;
+        private long preparedPriorityMatched;
+        private long preparedPriorityMoved;
+        private long preparedPriorityErrors;
+        private String preparedPriorityFirstDesired;
+        private String preparedPriorityFirstBefore;
+        private String preparedPriorityFirstAfter;
         private final List<Map<String, Object>> originalLayoutObservations = new ArrayList<>();
 
         synchronized void reset() {
@@ -1122,6 +1247,17 @@ public final class TexturePreparedPixelRuntime {
             learnedKaleidoscopeConsumedAfterStop = 0;
             learnedKaleidoscopeLeftoversCleared = 0;
             learnedKaleidoscopeErrors = 0;
+            preparedPriorityCaptures = 0;
+            preparedPriorityResources = 0;
+            preparedPriorityPaths = 0;
+            preparedPriorityReorders = 0;
+            preparedPriorityQueueEntries = 0;
+            preparedPriorityMatched = 0;
+            preparedPriorityMoved = 0;
+            preparedPriorityErrors = 0;
+            preparedPriorityFirstDesired = null;
+            preparedPriorityFirstBefore = null;
+            preparedPriorityFirstAfter = null;
             originalLayoutObservations.clear();
         }
 
@@ -1275,6 +1411,34 @@ public final class TexturePreparedPixelRuntime {
             learnedKaleidoscopeErrors++;
         }
 
+        synchronized void preparedPriorityCaptured(
+                int resources, int paths, String firstDesired) {
+            preparedPriorityCaptures++;
+            preparedPriorityResources = Math.max(0, resources);
+            preparedPriorityPaths = Math.max(0, paths);
+            preparedPriorityFirstDesired = firstDesired;
+        }
+
+        synchronized void preparedPriorityReordered(
+                int queueEntries,
+                int matched,
+                int moved,
+                String firstDesired,
+                String firstBefore,
+                String firstAfter) {
+            preparedPriorityReorders++;
+            preparedPriorityQueueEntries = Math.max(0, queueEntries);
+            preparedPriorityMatched = Math.max(0, matched);
+            preparedPriorityMoved = Math.max(0, moved);
+            preparedPriorityFirstDesired = firstDesired;
+            preparedPriorityFirstBefore = firstBefore;
+            preparedPriorityFirstAfter = firstAfter;
+        }
+
+        synchronized void preparedPriorityError() {
+            preparedPriorityErrors++;
+        }
+
         synchronized Map<String, Object> snapshot(
                 long activeDirectBytes,
                 long peakDirectBytes,
@@ -1340,6 +1504,24 @@ public final class TexturePreparedPixelRuntime {
             values.put("learnedKaleidoscopeConsumedAfterStop", learnedKaleidoscopeConsumedAfterStop);
             values.put("learnedKaleidoscopeLeftoversCleared", learnedKaleidoscopeLeftoversCleared);
             values.put("learnedKaleidoscopeErrors", learnedKaleidoscopeErrors);
+            values.put("preparedPriorityProperty",
+                    TexturePreparedPrefetchPlan.WINDOWS_RESOURCE_ORDER_PROPERTY);
+            values.put("preparedPriorityEnabled", Boolean.getBoolean(
+                    TexturePreparedPrefetchPlan.WINDOWS_RESOURCE_ORDER_PROPERTY));
+            values.put("preparedPriorityCaptures", preparedPriorityCaptures);
+            values.put("preparedPriorityResources", preparedPriorityResources);
+            values.put("preparedPriorityPaths", preparedPriorityPaths);
+            values.put("preparedPriorityReorders", preparedPriorityReorders);
+            values.put("preparedPriorityQueueEntries", preparedPriorityQueueEntries);
+            values.put("preparedPriorityMatched", preparedPriorityMatched);
+            values.put("preparedPriorityMoved", preparedPriorityMoved);
+            values.put("preparedPriorityErrors", preparedPriorityErrors);
+            values.put("preparedPriorityFirstDesired",
+                    preparedPriorityFirstDesired == null ? "" : preparedPriorityFirstDesired);
+            values.put("preparedPriorityFirstBefore",
+                    preparedPriorityFirstBefore == null ? "" : preparedPriorityFirstBefore);
+            values.put("preparedPriorityFirstAfter",
+                    preparedPriorityFirstAfter == null ? "" : preparedPriorityFirstAfter);
             values.put("activeDirectBytes", activeDirectBytes);
             values.put("peakDirectBytes", peakDirectBytes);
             values.put("activeBuffers", activeBuffers);

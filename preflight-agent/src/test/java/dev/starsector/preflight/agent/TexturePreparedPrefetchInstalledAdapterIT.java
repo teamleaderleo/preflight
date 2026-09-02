@@ -36,11 +36,13 @@ class TexturePreparedPrefetchInstalledAdapterIT {
         assertEquals("9e339c5a0edadebdd81b088e0882f5a00b4696b9f5e862a9beec3ff03c439f3e",
                 signature.sha256());
         System.setProperty(TexturePreparedPrefetchPlan.WINDOWS_KALEIDOSCOPE_PROPERTY, "true");
+        System.setProperty(TexturePreparedPrefetchPlan.WINDOWS_RESOURCE_ORDER_PROPERTY, "true");
         byte[] transformed;
         try {
             transformed = TexturePreparedPrefetchPlan.transform(signature, original);
         } finally {
             System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_KALEIDOSCOPE_PROPERTY);
+            System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_RESOURCE_ORDER_PROPERTY);
         }
         assertNotNull(transformed);
 
@@ -53,11 +55,12 @@ class TexturePreparedPrefetchInstalledAdapterIT {
                 if (instruction instanceof MethodInsnNode call
                         && runtime.equals(call.owner)
                         && ("seedLearnedKaleidoscopePrefetches".equals(call.name)
-                                || "retainLearnedKaleidoscopePrefetchResults".equals(call.name))) {
+                                || "retainLearnedKaleidoscopePrefetchResults".equals(call.name)
+                                || "reorderPreparedPrefetches".equals(call.name))) {
                     calls++;
                 }
             }
         }
-        assertEquals(2, calls);
+        assertEquals(3, calls);
     }
 }

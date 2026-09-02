@@ -79,6 +79,13 @@ class StartupPhaseInstalledAdapterIT {
         Assumptions.assumeTrue(FrameTimeStartupCompletionPlan.WINDOWS_ORIGINAL_SHA256.equals(
                         ClassSignature.parse(coordinator).sha256()),
                 "installed class is not the reviewed Windows identity");
+        System.setProperty(TexturePreparedPrefetchPlan.WINDOWS_RESOURCE_ORDER_PROPERTY, "true");
+        try {
+            assertNotNull(TexturePreparedPriorityPlan.transform(
+                    ClassSignature.parse(coordinator), coordinator));
+        } finally {
+            System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_RESOURCE_ORDER_PROPERTY);
+        }
 
         byte[] specStore = exact(archive, SpecStorePhasePlan.TARGET_CLASS);
         assertEquals(AdapterTargetRegistry.windowsSpecStorePhaseTarget().sha256(),

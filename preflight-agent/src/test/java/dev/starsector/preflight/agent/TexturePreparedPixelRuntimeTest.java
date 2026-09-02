@@ -41,6 +41,7 @@ class TexturePreparedPixelRuntimeTest {
         TexturePaddingRuntime.reset();
         System.clearProperty(TexturePreparedStagingRuntime.ENABLED_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_KALEIDOSCOPE_PROPERTY);
+        System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_RESOURCE_ORDER_PROPERTY);
         TexturePreparedStagingRuntime.beginSession();
         TextureAccessLearningRuntime.beginSession();
         TexturePreparedPixelRuntime.beginSession();
@@ -123,6 +124,38 @@ class TexturePreparedPixelRuntimeTest {
         TexturePreparedPixelRuntime.completeLearnedKaleidoscopePrefetches();
         assertEquals(1L, TexturePreparedPixelRuntime.telemetry()
                 .get("learnedKaleidoscopeConsumedAfterStop"));
+    }
+
+    @Test
+    void stablyAlignsPreparedQueueWithPrioritizedResourceConsumption() {
+        System.setProperty(TexturePreparedPrefetchPlan.WINDOWS_RESOURCE_ORDER_PROPERTY, "true");
+        List<ExampleResource> resources = List.of(
+                new ExampleResource("graphics/b.png"),
+                new ExampleResource("graphics/a.png"));
+        List<String> queue = new ArrayList<>(List.of(
+                "graphics/unknown-1.png",
+                "graphics/a.png",
+                "graphics/b.png",
+                "graphics/unknown-2.png"));
+
+        TexturePreparedPixelRuntime.rememberPreparedPrefetchOrder(resources);
+        TexturePreparedPixelRuntime.reorderPreparedPrefetches(queue);
+
+        assertEquals(List.of(
+                "graphics/b.png",
+                "graphics/a.png",
+                "graphics/unknown-1.png",
+                "graphics/unknown-2.png"), queue);
+        Map<String, Object> telemetry = TexturePreparedPixelRuntime.telemetry();
+        assertEquals(1L, telemetry.get("preparedPriorityCaptures"));
+        assertEquals(1L, telemetry.get("preparedPriorityReorders"));
+        assertEquals(4L, telemetry.get("preparedPriorityQueueEntries"));
+        assertEquals(2L, telemetry.get("preparedPriorityMatched"));
+        assertEquals(2L, telemetry.get("preparedPriorityMoved"));
+        assertEquals(0L, telemetry.get("preparedPriorityErrors"));
+        assertEquals("graphics/b.png", telemetry.get("preparedPriorityFirstDesired"));
+        assertEquals("graphics/unknown-1.png", telemetry.get("preparedPriorityFirstBefore"));
+        assertEquals("graphics/b.png", telemetry.get("preparedPriorityFirstAfter"));
     }
 
     @Test
@@ -545,6 +578,14 @@ class TexturePreparedPixelRuntimeTest {
         byte[] bytes = new byte[copy.remaining()];
         copy.get(bytes);
         return bytes;
+    }
+
+    private static final class ExampleResource {
+        private final String path;
+
+        private ExampleResource(String path) {
+            this.path = path;
+        }
     }
 
     private record Fixture(Path cache, Path index, Path manifest, byte[] pixels) {

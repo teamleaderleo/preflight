@@ -33,6 +33,7 @@ class ResourcePriorityPlanTest {
         LoadJsonMemoRuntime.reset();
         FrameTimeRuntime.reset();
         RuntimeSemanticState.reset();
+        System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_RESOURCE_ORDER_PROPERTY);
     }
 
     @Test
@@ -80,6 +81,36 @@ class ResourcePriorityPlanTest {
     }
 
     @Test
+    void delaysTheExactWindowsPreparedWorkerUntilAfterStockPriorityOrder() throws Exception {
+        System.setProperty(TexturePreparedPrefetchPlan.WINDOWS_RESOURCE_ORDER_PROPERTY, "true");
+        byte[] original = fixture(true);
+        ClassSignature parsed = ClassSignature.parse(original);
+        ClassSignature windows = new ClassSignature(
+                parsed.internalName(),
+                FrameTimeStartupCompletionPlan.WINDOWS_ORIGINAL_SHA256,
+                parsed.majorVersion(),
+                parsed.access(),
+                parsed.methods());
+
+        byte[] rewritten = TexturePreparedPriorityPlan.transform(windows, original);
+
+        assertNotNull(rewritten);
+        ClassNode owner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(rewritten).accept(owner, ClassReader.EXPAND_FRAMES);
+        MethodNode init = owner.methods.stream()
+                .filter(method -> ResourcePriorityPlan.INIT_METHOD.equals(method.name)
+                        && ResourcePriorityPlan.INIT_DESCRIPTOR.equals(method.desc))
+                .findFirst().orElseThrow();
+        MethodInsnNode addAll = call(init, "java/util/List", "addAll");
+        MethodInsnNode remember = call(init,
+                "dev/starsector/preflight/agent/TexturePreparedPixelRuntime",
+                "rememberPreparedPrefetchOrder");
+        MethodInsnNode worker = call(init, TexturePreparedPrefetchPlan.TARGET_CLASS, "o00000");
+        assertAfter(addAll, remember);
+        assertAfter(remember, worker);
+    }
+
+    @Test
     void lightweightCompletionMarkerBacksUpAnUnavailableDetailedPhaseShape() throws Exception {
         LoadJsonMemoRuntime.enable(true);
         StartupPhaseRuntime.beginSession(temporaryDirectory.resolve("phases.json"));
@@ -111,6 +142,8 @@ class ResourcePriorityPlanTest {
         MethodVisitor init = writer.visitMethod(Opcodes.ACC_PUBLIC, ResourcePriorityPlan.INIT_METHOD,
                 ResourcePriorityPlan.INIT_DESCRIPTOR, null, null);
         init.visitCode();
+        init.visitMethodInsn(Opcodes.INVOKESTATIC, TexturePreparedPrefetchPlan.TARGET_CLASS,
+                "o00000", "()V", false);
         init.visitTypeInsn(Opcodes.NEW, "java/util/ArrayList");
         init.visitInsn(Opcodes.DUP);
         init.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/util/ArrayList", "<init>", "()V", false);
@@ -170,5 +203,22 @@ class ResourcePriorityPlanTest {
             }
         }
         return calls;
+    }
+
+    private static MethodInsnNode call(MethodNode method, String owner, String name) {
+        for (AbstractInsnNode instruction : method.instructions) {
+            if (instruction instanceof MethodInsnNode candidate
+                    && owner.equals(candidate.owner) && name.equals(candidate.name)) {
+                return candidate;
+            }
+        }
+        throw new AssertionError("missing call " + owner + "." + name);
+    }
+
+    private static void assertAfter(AbstractInsnNode first, AbstractInsnNode second) {
+        for (AbstractInsnNode cursor = first; cursor != null; cursor = cursor.getNext()) {
+            if (cursor == second) return;
+        }
+        throw new AssertionError("expected second instruction after first");
     }
 }

@@ -28,6 +28,7 @@ class TexturePreparedPrefetchPlanTest {
     void clearWorkerProperty() {
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_WORKERS_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_KALEIDOSCOPE_PROPERTY);
+        System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_RESOURCE_ORDER_PROPERTY);
     }
 
     @Test
@@ -128,6 +129,24 @@ class TexturePreparedPrefetchPlanTest {
         assertEquals(
                 List.of("retainLearnedKaleidoscopePrefetchResults"),
                 calls(method(parsed, TexturePreparedPrefetchPlan.STOP_METHOD, "()V"))
+                        .stream()
+                        .filter(call -> call.owner.contains("TexturePreparedPixelRuntime"))
+                        .map(call -> call.name)
+                        .toList());
+    }
+
+    @Test
+    void alignsTheImageQueueBeforeTheReviewedWorkerStarts() throws Exception {
+        System.setProperty(TexturePreparedPrefetchPlan.WINDOWS_RESOURCE_ORDER_PROPERTY, "true");
+
+        byte[] transformed = TexturePreparedPrefetchPlan.transform(
+                ClassSignature.parse(syntheticPrefetcher()), syntheticPrefetcher());
+
+        assertNotNull(transformed);
+        ClassNode parsed = parse(transformed);
+        assertEquals(
+                List.of("reorderPreparedPrefetches"),
+                calls(method(parsed, TexturePreparedPrefetchPlan.START_METHOD, "()V"))
                         .stream()
                         .filter(call -> call.owner.contains("TexturePreparedPixelRuntime"))
                         .map(call -> call.name)

@@ -1124,9 +1124,11 @@ final class AdapterTransformationRegistry {
             }
             boolean staged = AdapterPlanControl.allows(TexturePreparedStagingRuntime.PLAN_ID)
                     && TexturePreparedStagingPlan.apply(signature, owner);
+            boolean preparedOrdered = AdapterPlanControl.allows(TexturePreparedPrefetchPlan.PLAN_ID)
+                    && TexturePreparedPriorityPlan.apply(signature, owner);
             boolean indexed = ResourcePriorityPlan.apply(signature, owner);
             boolean rateLimited = ResourceProgressRateLimitPlan.apply(signature, owner);
-            if (!marked && !staged && !indexed && !rateLimited) return null;
+            if (!marked && !staged && !preparedOrdered && !indexed && !rateLimited) return null;
             byte[] transformed = ResourcePriorityPlan.write(owner);
             if (phaseMarked) {
                 StartupPhaseRuntime.installed();
@@ -1163,6 +1165,13 @@ final class AdapterTransformationRegistry {
                         ClassSignature.parse(current), current);
                 if (staged != null) {
                     current = staged;
+                    changed = true;
+                }
+            }
+            if (AdapterPlanControl.allows(TexturePreparedPrefetchPlan.PLAN_ID)) {
+                byte[] ordered = TexturePreparedPriorityPlan.transform(signature, current);
+                if (ordered != null) {
+                    current = ordered;
                     changed = true;
                 }
             }

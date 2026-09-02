@@ -27,6 +27,8 @@ final class TexturePreparedPrefetchPlan {
             "preflight.texture.windowsPreparedPrefetchWorkers";
     static final String WINDOWS_KALEIDOSCOPE_PROPERTY =
             "preflight.texture.windowsKaleidoscopePrefetch";
+    static final String WINDOWS_RESOURCE_ORDER_PROPERTY =
+            "preflight.texture.windowsPreparedPriorityOrder";
     static final String TARGET_CLASS = TexturePrefetchBypassPlan.TARGET_CLASS;
     static final String DECODE_METHOD = "o00000";
     static final String DECODE_DESCRIPTOR =
@@ -101,6 +103,10 @@ final class TexturePreparedPrefetchPlan {
                 && (workers != 1 || !rewriteLearnedLatePrefetch(owner))) {
             return null;
         }
+        if (Boolean.getBoolean(WINDOWS_RESOURCE_ORDER_PROPERTY)
+                && (workers != 1 || !rewritePrioritizedPrefetchOrder(owner))) {
+            return null;
+        }
         if (workers > 1
                 && !rewriteWorkerPool(owner, TexturePrefetchBypassPlan.imageQueueField(owner), workers)) {
             return null;
@@ -109,6 +115,37 @@ final class TexturePreparedPrefetchPlan {
         ClassWriter writer = new ClassWriter(0);
         owner.accept(writer);
         return writer.toByteArray();
+    }
+
+    /** Reorders only the prepared image queue before the unchanged reviewed worker starts. */
+    private static boolean rewritePrioritizedPrefetchOrder(ClassNode owner) {
+        String imageQueue = TexturePrefetchBypassPlan.imageQueueField(owner);
+        MethodNode start = uniqueMethod(owner, START_METHOD, "()V");
+        if (imageQueue == null || start == null
+                || callsRuntime(start, "reorderPreparedPrefetches")) {
+            return false;
+        }
+        InsnList reorder = new InsnList();
+        addField(reorder, owner.name, imageQueue, LIST_DESCRIPTOR);
+        reorder.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC,
+                RUNTIME,
+                "reorderPreparedPrefetches",
+                "(Ljava/util/List;)V",
+                false));
+        start.instructions.insertBefore(start.instructions.getFirst(), reorder);
+        start.maxStack = Math.max(start.maxStack, 1);
+        return true;
+    }
+
+    private static boolean callsRuntime(MethodNode method, String name) {
+        for (AbstractInsnNode instruction : method.instructions) {
+            if (instruction instanceof MethodInsnNode call
+                    && RUNTIME.equals(call.owner) && name.equals(call.name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Seeds only reviewed late paths and preserves their completed worker results until callbacks. */
