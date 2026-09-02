@@ -32,14 +32,29 @@ clock is not labelled time-to-play. Preflight-backed conditions also wait for, r
 the exact `main-menu-interactive` title boundary, because Fast Rendering can emit the earlier
 graphics marker while worker texture loads are still active. The identity records the active Windows
 power-scheme GUID, SysMain service state, and whether Defender excludes the exact game/cache roots;
-non-Preflight renderer
-conditions still need their own comparable interactive-readiness evidence. Add
+non-Preflight renderer conditions still need their own comparable interactive-readiness evidence. Add
 `preflight-fast-rendering-prepared` beside `preflight-fast-rendering` to compare the exact Fast
 Rendering 0.8.4 prepared-texture bridge against a forced-off combined baseline. Add
 `-StartupPhaseProbe` for the exact-gated semantic startup timeline; it now supports the pinned macOS,
 Linux, and Windows `ResourceLoaderState` variants and records the executing thread for each boundary.
 Every arm receives the same file-only Log4j configuration before launch, so Fast Rendering's
 per-resource console logging cannot turn captured stdout into a hidden condition-specific tax.
+
+On Big Red, `run-big-red-windows-startup-cohort.sh` is the unattended host wrapper. It starts the
+existing VM if needed, configures and runs the exact interactive Windows scheduled task, waits for
+semantic completion, archives the cohort to the shared diagnostics directory, restores the normal
+one-run Preflight task, and writes a compact host/guest fingerprint alongside the archive. For
+example:
+
+```bash
+scripts/run-big-red-windows-startup-cohort.sh \
+  --condition preflight-fast-rendering --iterations 1
+```
+
+The fingerprint retains hybrid-core capacities, vCPU topology/pinning, bounded QEMU/temperature/
+memory samples, guest SysMain and memory state, and only competing processes above a CPU threshold.
+It does not modify those services or treat its observational data as a performance claim.
+
 Use
 `-OptimizationPreset conservative` to isolate the padded prepared-pixel path; the default remains
 the shipped `recommended` preset. Pass `-TextureUploadProbe` only for intrusive discovery runs: it
