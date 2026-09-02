@@ -106,6 +106,14 @@ lets main execute the original CPU-bound SpecStore call, then releases/restores 
 every byte, and cleans up before the next progress render. It never intercepts a game texture. Run
 it only through the externally bounded disposable Windows fixture until physical evidence proves
 that no SpecStore path requires the main thread's GL context.
+`-WindowsSpecStoreTextureOverlap` is the gated successor candidate. It uses the learned prepared
+texture order and invokes the exact original Windows `TextureLoader` path method on the Display
+worker while main executes original `SpecStore`. Successful loads populate the game's own path
+cache, so later vanilla requests remain ordinary cache hits and repository registration retains its
+original main-thread order. It is off by default, exact-build gated, stops on the first unexpected
+load, restores Display before startup proceeds, and records attempts, completions, later cache hits,
+unconsumed entries, and bounded failure samples. Use it only in the disposable Windows fixture
+until correctness and repeated startup evidence settle the candidate.
 
 `run-windows-gameplay-scenario.ps1` is the reviewable interactive-session entry point for the same
 checked-in gameplay scenarios used on macOS and Linux. It defaults to the optimized Lindsey

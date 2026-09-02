@@ -27,7 +27,13 @@ final class AdapterTransformationRegistry {
             if (!TexturePreparedPixelRuntime.ready()) {
                 return null;
             }
-            return withFoldBypass(TexturePreparedPixelPlan.transform(signature, originalBytes));
+            byte[] prepared = withFoldBypass(
+                    TexturePreparedPixelPlan.transform(signature, originalBytes));
+            if (prepared == null || !DisplayThreadSpecStoreProbeRuntime.candidateRequested()) {
+                return prepared;
+            }
+            byte[] overlap = TextureSpecStoreOverlapPlan.transform(signature, prepared);
+            return overlap == null ? prepared : overlap;
         }
         if (TexturePreparedPrefetchPlan.PLAN_ID.equals(target.planId())) {
             return TexturePreparedPixelRuntime.ready()

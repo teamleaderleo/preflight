@@ -1,16 +1,25 @@
 package dev.starsector.preflight.agent;
 
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 /** Intrusive proof that main can execute SpecStore while one worker owns the live Display. */
 public final class DisplayThreadSpecStoreProbeRuntime {
     static final String ENABLED_PROPERTY = "preflight.startup.displayThreadSpecStoreProbe";
+    static final String CANDIDATE_PROPERTY =
+            "preflight.startup.windowsSpecStoreTextureOverlap";
+    private static final int MAX_CANDIDATE_PATHS = 8_192;
     private static final int GL_TEXTURE_2D = 0x0DE1;
     private static final int GL_TEXTURE_BINDING_2D = 0x8069;
     private static final int GL_RGBA = 0x1908;
@@ -20,8 +29,19 @@ public final class DisplayThreadSpecStoreProbeRuntime {
     private static final long RELEASE_TIMEOUT_MILLIS = 120_000L;
     private static final long JOIN_TIMEOUT_MILLIS = 10_000L;
     private static final AtomicBoolean ATTEMPTED = new AtomicBoolean();
+    private static final AtomicLong CANDIDATE_ATTEMPTS = new AtomicLong();
+    private static final AtomicLong CANDIDATE_COMPLETIONS = new AtomicLong();
+    private static final AtomicLong CANDIDATE_HITS = new AtomicLong();
+    private static final AtomicLong CANDIDATE_FAILURES = new AtomicLong();
+    private static final Set<String> CANDIDATE_STAGED = ConcurrentHashMap.newKeySet();
+    private static final List<String> CANDIDATE_FAILURE_SAMPLES = new ArrayList<>();
+    private static final ThreadLocal<Boolean> CANDIDATE_WORKER =
+            ThreadLocal.withInitial(() -> false);
 
     private static volatile Session session;
+    private static volatile Object textureLoader;
+    private static volatile Method texturePathLoader;
+    private static volatile int candidatePlanned;
     private static volatile boolean installed;
     private static volatile boolean validated;
     private static volatile boolean cleanupComplete;
@@ -45,7 +65,37 @@ public final class DisplayThreadSpecStoreProbeRuntime {
     }
 
     static boolean requested() {
+        return syntheticRequested() || candidateRequested();
+    }
+
+    private static boolean syntheticRequested() {
         return "on".equalsIgnoreCase(System.getProperty(ENABLED_PROPERTY, "off"));
+    }
+
+    static boolean candidateRequested() {
+        return Boolean.getBoolean(CANDIDATE_PROPERTY);
+    }
+
+    /** Captures the exact Windows TextureLoader singleton without changing ordinary launches. */
+    public static void captureTextureLoader(Object loader) {
+        if (!candidateRequested() || loader == null) return;
+        try {
+            Method method = loader.getClass().getDeclaredMethod("o00000", String.class);
+            if (!"com.fs.graphics.Object".equals(method.getReturnType().getName())) return;
+            method.setAccessible(true);
+            textureLoader = loader;
+            texturePathLoader = method;
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            // The exact bytecode plan will decline drift; runtime capture remains fail-open.
+        }
+    }
+
+    /** Counts later vanilla requests satisfied by the game's own worker-populated path cache. */
+    public static void observeTextureRequest(String path) {
+        if (!candidateRequested() || Boolean.TRUE.equals(CANDIDATE_WORKER.get()) || path == null) {
+            return;
+        }
+        if (CANDIDATE_STAGED.remove(path)) CANDIDATE_HITS.incrementAndGet();
     }
 
     public static void beforeSpecStore() {
@@ -85,6 +135,26 @@ public final class DisplayThreadSpecStoreProbeRuntime {
 
     private static void start(
             DisplayThreadTextureProbeRuntime.ProbeGlApi gl, long started) throws Throwable {
+        List<String> candidatePaths = List.of();
+        if (candidateRequested()) {
+            if (textureLoader == null || texturePathLoader == null) {
+                status = "declined-texture-loader-unavailable";
+                problem = "Exact Windows TextureLoader singleton was not captured";
+                totalNanos = System.nanoTime() - started;
+                return;
+            }
+            candidatePaths = TextureAccessLearningRuntime.snapshot();
+            if (candidatePaths.isEmpty()) {
+                status = "declined-learned-order-unavailable";
+                problem = "No learned prepared-prefetch order was available";
+                totalNanos = System.nanoTime() - started;
+                return;
+            }
+            if (candidatePaths.size() > MAX_CANDIDATE_PATHS) {
+                candidatePaths = List.copyOf(candidatePaths.subList(0, MAX_CANDIDATE_PATHS));
+            }
+            candidatePlanned = candidatePaths.size();
+        }
         if (!gl.displayIsCurrent()) {
             throw new IllegalStateException("Display was not current before SpecStore");
         }
@@ -93,7 +163,8 @@ public final class DisplayThreadSpecStoreProbeRuntime {
         long releaseStarted = System.nanoTime();
         gl.displayReleaseContext();
         displayReleaseNanos = System.nanoTime() - releaseStarted;
-        Session replacement = new Session(gl, priorBinding, started);
+        Session replacement = new Session(
+                gl, priorBinding, started, candidatePaths, textureLoader, texturePathLoader);
         session = replacement;
         replacement.worker.start();
         if (!replacement.current.await(ACQUIRE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
@@ -120,15 +191,18 @@ public final class DisplayThreadSpecStoreProbeRuntime {
             if (current.failure != null) throw current.failure;
             restore(current);
             long validationStarted = System.nanoTime();
-            verify(current.gl, current.textureId);
+            if (!current.candidate) verify(current.gl, current.textureId);
             mainGlError = current.gl.getError();
             if (mainGlError != GL_NO_ERROR) {
                 throw new IllegalStateException("main GL error 0x"
                         + Integer.toHexString(mainGlError));
             }
-            validationNanos = System.nanoTime() - validationStarted;
+            validationNanos = current.candidate ? 0L : System.nanoTime() - validationStarted;
             validated = true;
-            status = "validated";
+            status = current.candidate
+                    ? (CANDIDATE_FAILURES.get() == 0
+                            ? "candidate-completed" : "candidate-completed-with-fallback")
+                    : "validated";
         } catch (Throwable failure) {
             failAndRestore(failure);
             throw new IllegalStateException("SpecStore Display ownership proof failed",
@@ -166,7 +240,9 @@ public final class DisplayThreadSpecStoreProbeRuntime {
     private static void cleanup(Session current) {
         if (current == null || !displayRestored) return;
         try {
-            if (current.textureId != 0) current.gl.deleteTexture(current.textureId);
+            if (!current.candidate && current.textureId != 0) {
+                current.gl.deleteTexture(current.textureId);
+            }
             current.gl.bindTexture(GL_TEXTURE_2D, current.priorBinding);
             cleanupComplete = true;
         } catch (Throwable failure) {
@@ -203,6 +279,17 @@ public final class DisplayThreadSpecStoreProbeRuntime {
     static void beginSession() {
         ATTEMPTED.set(false);
         session = null;
+        textureLoader = null;
+        texturePathLoader = null;
+        candidatePlanned = 0;
+        CANDIDATE_ATTEMPTS.set(0L);
+        CANDIDATE_COMPLETIONS.set(0L);
+        CANDIDATE_HITS.set(0L);
+        CANDIDATE_FAILURES.set(0L);
+        CANDIDATE_STAGED.clear();
+        synchronized (CANDIDATE_FAILURE_SAMPLES) {
+            CANDIDATE_FAILURE_SAMPLES.clear();
+        }
         installed = false;
         validated = false;
         cleanupComplete = false;
@@ -226,7 +313,9 @@ public final class DisplayThreadSpecStoreProbeRuntime {
     static synchronized Map<String, Object> telemetry() {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("property", ENABLED_PROPERTY);
+        result.put("candidateProperty", CANDIDATE_PROPERTY);
         result.put("requested", requested());
+        result.put("mode", candidateRequested() ? "learned-texture-overlap" : "synthetic-proof");
         result.put("installed", installed);
         result.put("attempted", ATTEMPTED.get());
         result.put("validated", validated);
@@ -246,8 +335,21 @@ public final class DisplayThreadSpecStoreProbeRuntime {
         result.put("totalMicros", micros(totalNanos));
         result.put("workerGlError", workerGlError);
         result.put("mainGlError", mainGlError);
-        result.put("classification", "intrusive synthetic ownership-overlap probe");
-        result.put("semanticEffect", "holds Display on a worker while original SpecStore runs");
+        result.put("candidatePlanned", candidatePlanned);
+        result.put("candidateAttempts", CANDIDATE_ATTEMPTS.get());
+        result.put("candidateCompletions", CANDIDATE_COMPLETIONS.get());
+        result.put("candidateLaterCacheHits", CANDIDATE_HITS.get());
+        result.put("candidateUnconsumed", CANDIDATE_STAGED.size());
+        result.put("candidateFailures", CANDIDATE_FAILURES.get());
+        synchronized (CANDIDATE_FAILURE_SAMPLES) {
+            result.put("candidateFailureSamples", List.copyOf(CANDIDATE_FAILURE_SAMPLES));
+        }
+        result.put("classification", candidateRequested()
+                ? "intrusive learned-texture overlap candidate"
+                : "intrusive synthetic ownership-overlap probe");
+        result.put("semanticEffect", candidateRequested()
+                ? "preloads learned textures into vanilla TextureLoader during original SpecStore"
+                : "holds Display on a worker while original SpecStore runs");
         return result;
     }
 
@@ -288,6 +390,10 @@ public final class DisplayThreadSpecStoreProbeRuntime {
         private final CountDownLatch current = new CountDownLatch(1);
         private final CountDownLatch release = new CountDownLatch(1);
         private final Thread worker;
+        private final boolean candidate;
+        private final List<String> candidatePaths;
+        private final Object candidateLoader;
+        private final Method candidateMethod;
         private volatile long specStoreStartedNanos;
         private volatile int textureId;
         private volatile Throwable failure;
@@ -295,10 +401,17 @@ public final class DisplayThreadSpecStoreProbeRuntime {
         private Session(
                 DisplayThreadTextureProbeRuntime.ProbeGlApi gl,
                 int priorBinding,
-                long startedNanos) {
+                long startedNanos,
+                List<String> candidatePaths,
+                Object candidateLoader,
+                Method candidateMethod) {
             this.gl = gl;
             this.priorBinding = priorBinding;
             this.startedNanos = startedNanos;
+            this.candidatePaths = candidatePaths;
+            this.candidateLoader = candidateLoader;
+            this.candidateMethod = candidateMethod;
+            candidate = !candidatePaths.isEmpty();
             worker = new Thread(this::run, "Preflight-SpecStore-Display-Probe");
             worker.setDaemon(true);
         }
@@ -315,11 +428,17 @@ public final class DisplayThreadSpecStoreProbeRuntime {
                     throw new IllegalStateException("Display did not become current on worker");
                 }
                 gl.drainErrors();
-                textureId = gl.genTexture();
-                gl.bindTexture(GL_TEXTURE_2D, textureId);
-                gl.texImage2d(GL_TEXTURE_2D, 0, GL_RGBA, 4, 4, 0,
-                        GL_RGBA, GL_UNSIGNED_BYTE, pixels());
-                gl.finish();
+                if (candidate) {
+                    current.countDown();
+                    CANDIDATE_WORKER.set(true);
+                    preloadCandidatePaths();
+                } else {
+                    textureId = gl.genTexture();
+                    gl.bindTexture(GL_TEXTURE_2D, textureId);
+                    gl.texImage2d(GL_TEXTURE_2D, 0, GL_RGBA, 4, 4, 0,
+                            GL_RGBA, GL_UNSIGNED_BYTE, pixels());
+                    gl.finish();
+                }
                 workerGlError = gl.getError();
                 if (workerGlError != GL_NO_ERROR) {
                     throw new IllegalStateException("worker GL error 0x"
@@ -328,6 +447,7 @@ public final class DisplayThreadSpecStoreProbeRuntime {
             } catch (Throwable caught) {
                 failure = unwrap(caught);
             } finally {
+                CANDIDATE_WORKER.remove();
                 current.countDown();
             }
             try {
@@ -350,6 +470,29 @@ public final class DisplayThreadSpecStoreProbeRuntime {
                     }
                 }
             }
+        }
+
+        private void preloadCandidatePaths() throws Exception {
+            for (String path : candidatePaths) {
+                if (release.getCount() == 0L) break;
+                CANDIDATE_ATTEMPTS.incrementAndGet();
+                try {
+                    Object texture = candidateMethod.invoke(candidateLoader, path);
+                    if (texture == null) throw new IllegalStateException("loader returned null");
+                    CANDIDATE_STAGED.add(path);
+                    CANDIDATE_COMPLETIONS.incrementAndGet();
+                } catch (Throwable failure) {
+                    Throwable cause = unwrap(failure);
+                    CANDIDATE_FAILURES.incrementAndGet();
+                    synchronized (CANDIDATE_FAILURE_SAMPLES) {
+                        if (CANDIDATE_FAILURE_SAMPLES.size() < 8) {
+                            CANDIDATE_FAILURE_SAMPLES.add(path + ": " + describe(cause));
+                        }
+                    }
+                    break;
+                }
+            }
+            gl.finish();
         }
     }
 }

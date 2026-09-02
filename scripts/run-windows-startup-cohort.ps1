@@ -24,6 +24,7 @@ param(
     [switch]$WindowsSharedContextTextureProbe,
     [switch]$WindowsDisplayThreadTextureProbe,
     [switch]$WindowsDisplayThreadSpecStoreProbe,
+    [switch]$WindowsSpecStoreTextureOverlap,
     [switch]$WindowsFactionPriorityCacheProbe,
     [ValidateRange(1, 8)]
     [int]$WindowsPreparedPrefetchWorkers = 1,
@@ -222,6 +223,11 @@ log4j.appender.file.MaxBackupIndex=3
             if ($WindowsDisplayThreadSpecStoreProbe) {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.startup.displayThreadSpecStoreProbe=on' |
+                    Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($WindowsSpecStoreTextureOverlap) {
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.startup.windowsSpecStoreTextureOverlap=true' |
                     Where-Object { $_ }) -join ' ').Trim()
             }
             if ($usesFactionPriorityCache) {
@@ -541,6 +547,7 @@ $identity = [ordered]@{
     windowsSharedContextTextureProbe = [bool]$WindowsSharedContextTextureProbe
     windowsDisplayThreadTextureProbe = [bool]$WindowsDisplayThreadTextureProbe
     windowsDisplayThreadSpecStoreProbe = [bool]$WindowsDisplayThreadSpecStoreProbe
+    windowsSpecStoreTextureOverlap = [bool]$WindowsSpecStoreTextureOverlap
     windowsFactionPriorityCacheProbe = [bool]$WindowsFactionPriorityCacheProbe
     windowsUnpaddedMaxDimension = $WindowsUnpaddedMaxDimension
     game = $Game
