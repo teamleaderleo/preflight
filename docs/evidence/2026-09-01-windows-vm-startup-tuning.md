@@ -751,3 +751,63 @@ The fallback/correctness archive is 3,229,039 bytes with SHA-256
 `164a5e5754008a1c4e16e6795ae2ca2dfb12a27aac1d2a09d1f1232e99077ca3`. The thin interleaved
 archive is 6,402,330 bytes with SHA-256
 `5bbb734cafb1c9342b9ab295d1b1a725451d867192e52e9c7b460cb0a7824cb2`.
+
+### Can a second shared GL context remove the 27.8-second upload island?
+
+Not by keeping Starsector's Display context current on the main thread while a
+second context uploads concurrently on the exact Windows llvmpipe stack. This
+is a useful capability rejection, not evidence against GL ownership handoff or
+Fast Rendering's broader thread inversion.
+
+The reason to test this seam was direct rather than speculative. The stock
+upload probe observed 15,483 `glTexImage2D` calls, 3,064,515,568 submitted
+bytes, and 27.768 seconds inside native GL calls. That one cumulative owner is
+approximately the gap between the standalone result and a launch in the
+thirties.
+
+The opt-in #1214 probe was exact-gated to the installed LWJGL 2.9.3 artifact
+(jar SHA-256
+`527d509f60132e5b2653c7fc0f8cf299d6f698f4a8013342bef47705dc57ed3f`).
+It created deterministic 4x4 and 1024x1024 RGBA inputs and was prepared to
+validate every byte from the live Display context. It never intercepted or
+replaced a normal game texture.
+
+Four interactive-machine runs corrected two instrumentation confounders and
+then repeated the capability result:
+
+- `SharedDrawable` construction succeeded in 183 milliseconds, but the worker
+  could not make its context current within the bounded 15-second window;
+- a separate 1x1 Pbuffer shared with Display was reported supported
+  (`Pbuffer.getCapabilities() == 3`) and constructed in 220--241 milliseconds,
+  but its worker also could not progress to the first texture upload while the
+  Display context remained current;
+- moving the probe from the nested `Display.create(...)` implementation to a
+  post-create `Display.update` boundary removed LWJGL's outer global-lock
+  confounder and reproduced the same bounded result twice;
+- every retained run reported zero uploaded bytes, no attributable GL error,
+  no normal texture replacement, and a responsive main game JVM that continued
+  to the ordinary graphics-preload/cleanup phase.
+
+The candidate therefore fails its acceptance contract: object sharing was
+advertised and the auxiliary drawable could be created, but concurrent context
+ownership did not become usable and the timed-out daemon could not be cleanly
+destroyed before process shutdown. It must remain opt-in diagnostic code and
+must not graduate into the startup path.
+
+The next architectural question is narrower and different: explicitly release
+the Display context, hand GL ownership to one renderer/upload thread while the
+main thread performs CPU/spec production, then return ownership and verify the
+shared objects. That is consistent with the exact Fast Rendering prior art. It
+is not equivalent to adding another loader worker, and it needs its own
+correctness-first contract because a failed ownership handoff cannot safely
+fall back mid-call. Until that passes, explicit Preflight + Fast Rendering
+integration remains the demonstrated route closest to the thirties.
+
+Preserved evidence:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260902-windows-shared-context-upload-capability.zip
+```
+
+The archive is 5,633,128 bytes with SHA-256
+`50ccbe31b53355d42363cbfb13e3dfeb0028edbec94640e833c3573de44963ef`.
