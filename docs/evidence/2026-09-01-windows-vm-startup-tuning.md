@@ -1349,3 +1349,91 @@ Their sizes are respectively 1,592,482; 1,571,672; 1,572,075; 1,573,966; 1,560,5
 0b5167bd2df407f0629e95322bef36a20b03f11ea5fd7087eb428961e549127c
 3cc84fa4b9020623ce2316462dadcb02edeea5b7ecc4aedd1edbdf11a0ea9650
 ```
+
+### What owns the current main-menu-ready to main-menu-interactive tail?
+
+The current ordinary Recommended reference reaches `main-menu-ready` at 35.806 seconds and
+`main-menu-interactive` at 50.514 seconds, leaving a 14.708-second wall tail. Exact installed
+Windows bytecode puts a deterministic title countdown on the branch that gates the interactive
+publication, so the timer stop condition ends runtime-probe discovery here.
+
+The reviewed Windows core is
+`C:\Games\Starsector\starsector-core\starfarer_obf.jar`, 6,029,184 bytes, SHA-256
+`5dd222b9e266d2ac2d63b3dad4983eb05caaf5a247d7dfb82aaeba47ea774cc8`. A byte-for-byte identical
+copy from the official 0.98a-RC8 Windows installer was used for text-only `javap` disassembly. The
+exact title class is `MainMenuInteractivePlan.WINDOWS_TARGET_CLASS`, 4,313 bytes, SHA-256
+`7a034024de849f2829ad5e41dbb0e58f5979a6e7a81e55527f6839055db3d4c6`.
+
+The title constructor creates the `Preoading...` label and calls `blink(3.0f, 10.0f)` at bytecode
+offsets 268-276. Its `advanceImpl(float)` calls `interfacenew.advanceImpl(amount)`, tests
+`Preloading....isBlinking()`, and executes the unique `remove(Lcom/fs/starfarer/ui/c;)V` at offsets
+15-20 once blinking ends. Preflight's reviewed Windows hook publishes
+`RuntimeSemanticState.mainMenuInteractive()` immediately after that remove call.
+
+The dependent label implementation makes the countdown exact. In the same reviewed core,
+`com/fs/starfarer/ui/d.class` is 21,199 bytes, SHA-256
+`6e79902ece3a00a8be4e387256e1213faad3443c710a104cdbd01c2659e886bf`. `blink(float,float)`
+constructs the blink `Fader` with `(0, 1 / firstArgument)`, zeroes an elapsed field, and stores the
+second argument as the duration. `d.advance(amount)` advances the fader, adds that same `amount` to
+elapsed, and calls `stopBlinking()` once `elapsed > duration`; `stopBlinking()` clears the blink
+state, after which `isBlinking()` returns false. `interfacenew.advanceImpl(float)` advances each
+child with the same float before the title override performs its `isBlinking()` test, so the label
+crosses the threshold before the same-pass remove/publication.
+
+The exact lifecycle also locates the countdown after the ready seam. `ResourceLoaderState.init(Map)`
+has one final `RETURN`; {Th `seam reproduction text already preserved in the repo's evidence update.} The loading state's `traverse()` then
+returns `Title Screen State`. `TitleScreenState`'s constructor and `init(Map)` do not construct the
+title widget; `TitleScreenState.prepare()` calls `createUI()` at offset 97, and `createUI()` constructs
+the exact reviewed title class at offsets 78-86. The `blink(3.0f, 10.0f)` countdown therefore starts
+in the title-state preparation leg downstream of `main-menu-ready`.
+
+There is one more deterministic amplifier in the exact title state. `TitleScreenState.advance()`
+clamps its incoming delta to `0.033333335f` at offsets 0-11 before calling
+`screenPanel.advance(amount)` at offsets 81-86. The title label therefore accumulates at most about
+1/30 second per title-state advance. When wall frames are slower than 30 Hz, the 10.0-unit countdown
+runs slower than wall time. At the cap, 300 float advances cross the `> 10.0f` threshold; spread over
+the observed 14.708-second tail, that corresponds to about 49.03 ms of wall time per capped advance
+(about 20.40 advances/s), a plausible llvmpipe cadence. This calculation explains why the visible
+wall tail can materially exceed the nominal 10.0 timer value without changing the timer itself.
+
+Reproduction commands against the installed archive are:
+
+```text
+javap -classpath "C:\Games\Starsector\starsector-core\starfarer_obf.jar" -c -p -s <MainMenuInteractivePlan.WINDOWS_TARGET_CLASS with dots>
+javap -classpath "C:\Games\Starsector\starsector-core\starfarer_obf.jar" -c -p -s com.fs.starfarer.ui.d
+javap -classpath "C:\Games\Starsector\starsector-core\starfarer_obf.jar" -c -p -s com.fs.starfarer.ui.interfacenew
+javap -classpath "C:\Games\Starsector\starsector-core\starfarer_obf.jar" -c -p -s com.fs.starfarer.title.TitleScreenState
+javap -classpath "C:\Games\Starsector\starsector-core\starfarer_obf.jar" -c -p -s com.fs.starfarer.loading.ResourceLoaderState
+```
+
+Classification: **deterministic title timing**. The exact post-ready lifecycle creates a 10.0-unit
+blink countdown whose completion is the condition for the remove call that publishes
+`main-menu-interactive`, and the title state caps the timer input at 1/30 per advance. The current
+14.708-second wall tail therefore has an explicit deterministic owner for its material portion. The
+remaining 4.708 seconds above the nominal 10.0 timer value is not split further in this task: exact
+bytecode shows both synchronous `TitleScreenState.prepare()` work before the first advance and
+frame-cadence dilation from the 1/30 clamp, but no retained clock separates those two contributors.
+Those are overlapping/serial wall mechanisms around the same countdown and are not added to any
+prepared-texture, native-GL, CPU, or other duration.
+
+The deterministic-timer stop condition means no tail classifier was added, no new title/frame/texture
+runtime code was retained, and no new `-TextureUploadProbe` leg was run. The earlier 27.768-second
+native upload island belongs to the pre-ready startup region and is not summed with this tail. Game
+behavior, title timing, rendering, worker scheduling, GL ownership, queue behavior, optimization
+policy, and all existing semantic timestamps remain unchanged.
+
+The ordinary promoted reference remains
+`/home/leo/Windows-Share/Diagnostics/20260903-053648-windows-startup-2x2.zip`, 1,549,810 bytes,
+SHA-256 `3cc84fa4b9020623ce2316462dadcb02edeea5b7ecc4aedd1edbdf11a0ea9650`, using product JAR SHA-256
+`2959d516c98c7db809d37d9f82152bb061bd682254dea294d16173982e14a54a`, the Recommended preset,
+the accepted Windows backslash merged-read path, the pinned 89-mod/profile/runtime/display/llvmpipe
+identity, the 14-vCPU/12-GiB guest, and the recorded host performance profile. Its raw bounded
+runtime/adapter packet remains the reference report; bytecode proof fired before a new intrusive
+discovery run was justified.
+
+Verification used the exact reviewed Windows core on `windows-latest`. The focused semantic suite,
+including `MainMenuInteractiveInstalledAdapterIT`, `MainMenuInteractivePlanTest`,
+`RuntimeSemanticStateTest`, `FrameTimeRuntimeTest`, `StartupPhasePlanTest`, and
+`FrameTimeStartupCompletionPlanTest`, passed; the repository full CI and source-boundary gates also
+passed on the same source tree. There is **no successor from this seam**: changing the countdown or
+its delta policy would change title timing/behavior and belongs outside this diagnostics-only task.
