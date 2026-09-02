@@ -22,7 +22,7 @@ param(
     [int]$WindowsPreparedPrefetchWorkers = 1,
     [ValidateRange(0, 8192)]
     [int]$WindowsUnpaddedMaxDimension = 0,
-    [ValidateSet('starsector', 'preflight', 'fast-rendering', 'preflight-fast-rendering')]
+    [ValidateSet('starsector', 'preflight', 'preflight-kaleidoscope', 'fast-rendering', 'preflight-fast-rendering')]
     [string[]]$Conditions = @('starsector', 'preflight', 'fast-rendering', 'preflight-fast-rendering')
 )
 
@@ -125,8 +125,10 @@ function Measure-OneRun(
         throw "A Starsector process is already running under $Game"
     }
 
-    $usesPreflight = $Condition -in @('preflight', 'preflight-fast-rendering')
+    $usesPreflight = $Condition -in @('preflight', 'preflight-kaleidoscope', 'preflight-fast-rendering')
     $usesFastRendering = $Condition -in @('fast-rendering', 'preflight-fast-rendering')
+    $usesKaleidoscopePrefetch = $WindowsKaleidoscopePrefetchProbe -or
+        $Condition -eq 'preflight-kaleidoscope'
     $launcher = if ($usesFastRendering) { $FastRenderingLauncher } else { $VanillaLauncher }
     $startedAt = Get-Date
     $directLaunchOptions = "-DlaunchDirect=true -DstartRes=$DirectResolution -DstartFS=false -DstartSound=true"
@@ -172,7 +174,7 @@ log4j.appender.file.MaxBackupIndex=3
                     '-Dpreflight.texture.preparedStaging=true' |
                     Where-Object { $_ }) -join ' ').Trim()
             }
-            if ($WindowsKaleidoscopePrefetchProbe) {
+            if ($usesKaleidoscopePrefetch) {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.texture.windowsKaleidoscopePrefetch=true' |
                     Where-Object { $_ }) -join ' ').Trim()
@@ -315,6 +317,7 @@ log4j.appender.file.MaxBackupIndex=3
         processStartToMainMenuInteractiveMs = $mainMenuInteractiveElapsedMs
         usesPreflight = [bool]$usesPreflight
         usesFastRendering = [bool]$usesFastRendering
+        windowsKaleidoscopePrefetchEnabled = [bool]$usesKaleidoscopePrefetch
         fastRenderingObserved = [bool]$fastRenderingObserved
         adapterReportWritten = [bool]$adapter
         adapterHealthy = $adapterHealthy
@@ -435,6 +438,7 @@ $identity = [ordered]@{
     windowsPreparedPrefetchProbe = [bool]$WindowsPreparedPrefetchProbe
     windowsPreparedStagingProbe = [bool]$WindowsPreparedStagingProbe
     windowsKaleidoscopePrefetchProbe = [bool]$WindowsKaleidoscopePrefetchProbe
+    windowsKaleidoscopePrefetchCondition = [bool]($Conditions -contains 'preflight-kaleidoscope')
     windowsPreparedPrefetchWorkers = $WindowsPreparedPrefetchWorkers
     windowsUnpaddedMaxDimension = $WindowsUnpaddedMaxDimension
     game = $Game

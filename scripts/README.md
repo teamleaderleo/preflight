@@ -57,6 +57,8 @@ learned `graphics/kaleidoscope/` paths that were absent from Starsector's native
 accepted Windows prepared worker, retains only those results through native prefetch shutdown, and
 clears leftovers at the semantic menu snapshot. It is bounded to 512 paths / 192 MiB and remains
 opt-in until callback timing and the interactive boundary show a useful improvement.
+For an unattended shuffled A/B cohort, use conditions `preflight,preflight-kaleidoscope`; the
+second condition enables the same candidate only for its own legs and records the per-run state.
 Pair it with `-WindowsUnpaddedMaxDimension N` only for the bounded llvmpipe diagnostic: textures at
 or below `N` use true-size NPOT uploads, while larger textures retain the original padded path. The
 cohort identity and adapter report retain the ceiling, declines, and padding avoided.
