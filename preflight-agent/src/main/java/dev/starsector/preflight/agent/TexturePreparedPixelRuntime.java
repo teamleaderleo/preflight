@@ -17,7 +17,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -36,12 +38,16 @@ public final class TexturePreparedPixelRuntime {
     static final int MAX_ACTIVE_BUFFERS = 1_024;
     private static final int MAX_LAYOUT_OBSERVATIONS = 16;
     private static final int ZERO_CHUNK_BYTES = 8 * 1024;
+    private static final String KALEIDOSCOPE_PREFIX = "graphics/kaleidoscope/";
+    private static final int MAX_LEARNED_KALEIDOSCOPE_PATHS = 512;
+    private static final long MAX_LEARNED_KALEIDOSCOPE_BYTES = 192L * 1024 * 1024;
     private static final byte[] ZERO_CHUNK = new byte[ZERO_CHUNK_BYTES];
 
     private static final Object LOCK = new Object();
     private static final IdentityHashMap<ByteBuffer, ActiveBuffer> ACTIVE = new IdentityHashMap<>();
     private static final IdentityHashMap<Thread, ArrayDeque<ByteBuffer>> IN_FLIGHT = new IdentityHashMap<>();
     private static final Set<String> PREFETCH_QUEUED = new HashSet<>();
+    private static final Set<String> LEARNED_KALEIDOSCOPE_QUEUED = new LinkedHashSet<>();
     private static final Telemetry TELEMETRY = new Telemetry();
     private static final SeamTimer LOAD_CLOCK = new SeamTimer();
     private static final SeamTimer PREPARE_CLOCK = new SeamTimer();
@@ -49,6 +55,7 @@ public final class TexturePreparedPixelRuntime {
     private static long activeBytes;
     private static long peakBytes;
     private static int pendingBuffers;
+    private static Map<?, ?> retainedLearnedKaleidoscopeResults;
 
     private TexturePreparedPixelRuntime() {
     }
@@ -59,6 +66,8 @@ public final class TexturePreparedPixelRuntime {
             ACTIVE.clear();
             IN_FLIGHT.clear();
             PREFETCH_QUEUED.clear();
+            LEARNED_KALEIDOSCOPE_QUEUED.clear();
+            retainedLearnedKaleidoscopeResults = null;
             activeBytes = 0;
             peakBytes = 0;
             pendingBuffers = 0;
@@ -132,9 +141,14 @@ public final class TexturePreparedPixelRuntime {
 
     /** Supplies a worker-owned carrier, or null so the exact original image decoder runs. */
     public static BufferedImage prefetchLoad(String logicalPath) {
-        if (TextureCompatibilityRuntime.preparedPrefetchKey(logicalPath) == null) {
+        String key = TextureCompatibilityRuntime.preparedPrefetchKey(logicalPath);
+        if (key == null) {
             TELEMETRY.prefetchOriginalDecode();
             return null;
+        }
+        boolean learnedKaleidoscope;
+        synchronized (LOCK) {
+            learnedKaleidoscope = LEARNED_KALEIDOSCOPE_QUEUED.contains(key);
         }
         BufferedImage image = TexturePreparedStagingRuntime.take(logicalPath);
         if (image == null) {
@@ -145,7 +159,121 @@ public final class TexturePreparedPixelRuntime {
         } else {
             TELEMETRY.prefetchPreparedHit();
         }
+        if (learnedKaleidoscope) {
+            TELEMETRY.learnedKaleidoscopeWorkerResult(image != null);
+        }
         return image;
+    }
+
+    /** Adds bounded callback-only Kaleidoscope textures before the reviewed Windows worker starts. */
+    public static void seedLearnedKaleidoscopePrefetches(List<String> imageQueue) {
+        if (!Boolean.getBoolean(TexturePreparedPrefetchPlan.WINDOWS_KALEIDOSCOPE_PROPERTY)
+                || imageQueue == null) {
+            return;
+        }
+        long acceptedBytes = 0L;
+        int accepted = 0;
+        try {
+            for (String observed : TextureAccessLearningRuntime.accessSnapshot()) {
+                if (observed == null || !observed.startsWith(KALEIDOSCOPE_PREFIX)) {
+                    continue;
+                }
+                TELEMETRY.learnedKaleidoscopeCandidate();
+                String key = TextureCompatibilityRuntime.preparedPrefetchKey(observed);
+                int bytes = TextureCompatibilityRuntime.preparedPrefetchBytes(observed);
+                if (key == null || bytes <= 0) {
+                    TELEMETRY.learnedKaleidoscopeIneligible();
+                    continue;
+                }
+                if (accepted >= MAX_LEARNED_KALEIDOSCOPE_PATHS
+                        || acceptedBytes > MAX_LEARNED_KALEIDOSCOPE_BYTES - bytes) {
+                    TELEMETRY.learnedKaleidoscopeBoundDecline();
+                    continue;
+                }
+                synchronized (LOCK) {
+                    if (!PREFETCH_QUEUED.add(key)) {
+                        TELEMETRY.learnedKaleidoscopeDuplicate();
+                        continue;
+                    }
+                    LEARNED_KALEIDOSCOPE_QUEUED.add(key);
+                }
+                try {
+                    imageQueue.add(key);
+                } catch (ThreadDeath | VirtualMachineError fatal) {
+                    throw fatal;
+                } catch (Throwable error) {
+                    synchronized (LOCK) {
+                        PREFETCH_QUEUED.remove(key);
+                        LEARNED_KALEIDOSCOPE_QUEUED.remove(key);
+                    }
+                    TELEMETRY.learnedKaleidoscopeError();
+                    continue;
+                }
+                accepted++;
+                acceptedBytes += bytes;
+                TELEMETRY.learnedKaleidoscopeSeed(bytes);
+            }
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable error) {
+            TELEMETRY.learnedKaleidoscopeError();
+        }
+    }
+
+    /** Replaces the stock clear with retention of only the learned callback results. */
+    public static void retainLearnedKaleidoscopePrefetchResults(
+            List<?> imageQueue, Map<?, ?> imageResults) {
+        if (!Boolean.getBoolean(TexturePreparedPrefetchPlan.WINDOWS_KALEIDOSCOPE_PROPERTY)) {
+            imageResults.clear();
+            return;
+        }
+        try {
+            Set<String> retainedKeys;
+            synchronized (LOCK) {
+                retainedKeys = Set.copyOf(LEARNED_KALEIDOSCOPE_QUEUED);
+            }
+            int queueBefore = imageQueue.size();
+            imageQueue.removeAll(retainedKeys);
+            TELEMETRY.learnedKaleidoscopePendingRemoved(queueBefore - imageQueue.size());
+            Iterator<?> iterator = imageResults.keySet().iterator();
+            while (iterator.hasNext()) {
+                Object key = iterator.next();
+                if (!(key instanceof String path) || !retainedKeys.contains(path)) {
+                    iterator.remove();
+                }
+            }
+            synchronized (LOCK) {
+                retainedLearnedKaleidoscopeResults = imageResults;
+            }
+            TELEMETRY.learnedKaleidoscopeRetained(imageResults.size());
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable error) {
+            imageResults.clear();
+            synchronized (LOCK) {
+                retainedLearnedKaleidoscopeResults = null;
+            }
+            TELEMETRY.learnedKaleidoscopeError();
+        }
+    }
+
+    /** Restores the stock empty-map invariant once application callbacks and the menu are ready. */
+    static void completeLearnedKaleidoscopePrefetches() {
+        Map<?, ?> results;
+        int seeded;
+        synchronized (LOCK) {
+            results = retainedLearnedKaleidoscopeResults;
+            retainedLearnedKaleidoscopeResults = null;
+            seeded = LEARNED_KALEIDOSCOPE_QUEUED.size();
+        }
+        int leftovers = results == null ? 0 : results.size();
+        if (results != null) {
+            results.clear();
+        }
+        synchronized (LOCK) {
+            LEARNED_KALEIDOSCOPE_QUEUED.clear();
+        }
+        TELEMETRY.learnedKaleidoscopeComplete(seeded, leftovers);
     }
 
     static long preparedBytes(BufferedImage image) {
@@ -935,6 +1063,19 @@ public final class TexturePreparedPixelRuntime {
         private long prefetchDuplicateDeclines;
         private long prefetchPreparedHits;
         private long prefetchOriginalDecodes;
+        private long learnedKaleidoscopeCandidates;
+        private long learnedKaleidoscopeSeeded;
+        private long learnedKaleidoscopeSeededBytes;
+        private long learnedKaleidoscopeIneligible;
+        private long learnedKaleidoscopeBoundDeclines;
+        private long learnedKaleidoscopeDuplicates;
+        private long learnedKaleidoscopeWorkerHits;
+        private long learnedKaleidoscopeWorkerFallbacks;
+        private long learnedKaleidoscopeRetainedAtStop;
+        private long learnedKaleidoscopePendingRemovedAtStop;
+        private long learnedKaleidoscopeConsumedAfterStop;
+        private long learnedKaleidoscopeLeftoversCleared;
+        private long learnedKaleidoscopeErrors;
         private final List<Map<String, Object>> originalLayoutObservations = new ArrayList<>();
 
         synchronized void reset() {
@@ -965,6 +1106,19 @@ public final class TexturePreparedPixelRuntime {
             prefetchDuplicateDeclines = 0;
             prefetchPreparedHits = 0;
             prefetchOriginalDecodes = 0;
+            learnedKaleidoscopeCandidates = 0;
+            learnedKaleidoscopeSeeded = 0;
+            learnedKaleidoscopeSeededBytes = 0;
+            learnedKaleidoscopeIneligible = 0;
+            learnedKaleidoscopeBoundDeclines = 0;
+            learnedKaleidoscopeDuplicates = 0;
+            learnedKaleidoscopeWorkerHits = 0;
+            learnedKaleidoscopeWorkerFallbacks = 0;
+            learnedKaleidoscopeRetainedAtStop = 0;
+            learnedKaleidoscopePendingRemovedAtStop = 0;
+            learnedKaleidoscopeConsumedAfterStop = 0;
+            learnedKaleidoscopeLeftoversCleared = 0;
+            learnedKaleidoscopeErrors = 0;
             originalLayoutObservations.clear();
         }
 
@@ -1071,6 +1225,53 @@ public final class TexturePreparedPixelRuntime {
             prefetchOriginalDecodes++;
         }
 
+        synchronized void learnedKaleidoscopeCandidate() {
+            learnedKaleidoscopeCandidates++;
+        }
+
+        synchronized void learnedKaleidoscopeSeed(long bytes) {
+            learnedKaleidoscopeSeeded++;
+            learnedKaleidoscopeSeededBytes = saturatedAdd(learnedKaleidoscopeSeededBytes, bytes);
+        }
+
+        synchronized void learnedKaleidoscopeIneligible() {
+            learnedKaleidoscopeIneligible++;
+        }
+
+        synchronized void learnedKaleidoscopeBoundDecline() {
+            learnedKaleidoscopeBoundDeclines++;
+        }
+
+        synchronized void learnedKaleidoscopeDuplicate() {
+            learnedKaleidoscopeDuplicates++;
+        }
+
+        synchronized void learnedKaleidoscopeWorkerResult(boolean hit) {
+            if (hit) {
+                learnedKaleidoscopeWorkerHits++;
+            } else {
+                learnedKaleidoscopeWorkerFallbacks++;
+            }
+        }
+
+        synchronized void learnedKaleidoscopeRetained(int retained) {
+            learnedKaleidoscopeRetainedAtStop = Math.max(0, retained);
+        }
+
+        synchronized void learnedKaleidoscopePendingRemoved(int pending) {
+            learnedKaleidoscopePendingRemovedAtStop = Math.max(0, pending);
+        }
+
+        synchronized void learnedKaleidoscopeComplete(int seeded, int leftovers) {
+            learnedKaleidoscopeLeftoversCleared = Math.max(0, leftovers);
+            learnedKaleidoscopeConsumedAfterStop = Math.max(
+                    0L, Math.min((long) seeded, learnedKaleidoscopeRetainedAtStop) - leftovers);
+        }
+
+        synchronized void learnedKaleidoscopeError() {
+            learnedKaleidoscopeErrors++;
+        }
+
         synchronized Map<String, Object> snapshot(
                 long activeDirectBytes,
                 long peakDirectBytes,
@@ -1116,6 +1317,26 @@ public final class TexturePreparedPixelRuntime {
             values.put("prefetchDuplicateDeclines", prefetchDuplicateDeclines);
             values.put("prefetchPreparedHits", prefetchPreparedHits);
             values.put("prefetchOriginalDecodes", prefetchOriginalDecodes);
+            values.put("learnedKaleidoscopeProperty",
+                    TexturePreparedPrefetchPlan.WINDOWS_KALEIDOSCOPE_PROPERTY);
+            values.put("learnedKaleidoscopeEnabled",
+                    Boolean.getBoolean(TexturePreparedPrefetchPlan.WINDOWS_KALEIDOSCOPE_PROPERTY));
+            values.put("learnedKaleidoscopeMaxPaths", MAX_LEARNED_KALEIDOSCOPE_PATHS);
+            values.put("learnedKaleidoscopeMaxBytes", MAX_LEARNED_KALEIDOSCOPE_BYTES);
+            values.put("learnedKaleidoscopeCandidates", learnedKaleidoscopeCandidates);
+            values.put("learnedKaleidoscopeSeeded", learnedKaleidoscopeSeeded);
+            values.put("learnedKaleidoscopeSeededBytes", learnedKaleidoscopeSeededBytes);
+            values.put("learnedKaleidoscopeIneligible", learnedKaleidoscopeIneligible);
+            values.put("learnedKaleidoscopeBoundDeclines", learnedKaleidoscopeBoundDeclines);
+            values.put("learnedKaleidoscopeDuplicates", learnedKaleidoscopeDuplicates);
+            values.put("learnedKaleidoscopeWorkerHits", learnedKaleidoscopeWorkerHits);
+            values.put("learnedKaleidoscopeWorkerFallbacks", learnedKaleidoscopeWorkerFallbacks);
+            values.put("learnedKaleidoscopeRetainedAtStop", learnedKaleidoscopeRetainedAtStop);
+            values.put("learnedKaleidoscopePendingRemovedAtStop",
+                    learnedKaleidoscopePendingRemovedAtStop);
+            values.put("learnedKaleidoscopeConsumedAfterStop", learnedKaleidoscopeConsumedAfterStop);
+            values.put("learnedKaleidoscopeLeftoversCleared", learnedKaleidoscopeLeftoversCleared);
+            values.put("learnedKaleidoscopeErrors", learnedKaleidoscopeErrors);
             values.put("activeDirectBytes", activeDirectBytes);
             values.put("peakDirectBytes", peakDirectBytes);
             values.put("activeBuffers", activeBuffers);

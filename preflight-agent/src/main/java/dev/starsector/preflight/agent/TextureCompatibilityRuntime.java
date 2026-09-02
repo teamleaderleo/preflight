@@ -253,6 +253,16 @@ public final class TextureCompatibilityRuntime {
                 : null;
     }
 
+    /** Returns the exact prepared payload size without reading its blob, or {@code -1}. */
+    static int preparedPrefetchBytes(String logicalPath) {
+        String normalized = preparedPrefetchKey(logicalPath);
+        if (normalized == null) {
+            return -1;
+        }
+        TextureManifest.Entry entry = state.manifest.entry(normalized).orElse(null);
+        return entry == null ? -1 : entry.pixelBytes();
+    }
+
     static boolean generatedCachePath(String normalizedLogicalPath) {
         return normalizedLogicalPath != null && normalizedLogicalPath.startsWith("cache/");
     }

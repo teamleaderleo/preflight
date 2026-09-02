@@ -433,6 +433,7 @@ final class AdapterRuntime {
                     // The Windows harness closes shortly after the semantic menu boundary. Publish
                     // learned launch order before the live report so tuning survives even when a
                     // launcher exits without giving shutdown hooks a useful scheduling window.
+                    TexturePreparedPixelRuntime.completeLearnedKaleidoscopePrefetches();
                     TextureAccessLearningRuntime.complete();
                     report.write();
                 } catch (IOException error) {

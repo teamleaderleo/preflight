@@ -27,6 +27,7 @@ class TexturePreparedPrefetchPlanTest {
     @AfterEach
     void clearWorkerProperty() {
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_WORKERS_PROPERTY);
+        System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_KALEIDOSCOPE_PROPERTY);
     }
 
     @Test
@@ -104,6 +105,31 @@ class TexturePreparedPrefetchPlanTest {
                 calls(method(parsed, TexturePreparedPrefetchPlan.STOP_METHOD, "()V"))
                         .stream()
                         .filter(call -> call.owner.contains("PrefetchPoolRuntime"))
+                        .map(call -> call.name)
+                        .toList());
+    }
+
+    @Test
+    void seedsAndRetainsLearnedKaleidoscopeResultsOnlyWhenRequested() throws Exception {
+        System.setProperty(TexturePreparedPrefetchPlan.WINDOWS_KALEIDOSCOPE_PROPERTY, "true");
+
+        byte[] transformed = TexturePreparedPrefetchPlan.transform(
+                ClassSignature.parse(syntheticPrefetcher()), syntheticPrefetcher());
+
+        assertNotNull(transformed);
+        ClassNode parsed = parse(transformed);
+        assertEquals(
+                List.of("seedLearnedKaleidoscopePrefetches"),
+                calls(method(parsed, TexturePreparedPrefetchPlan.START_METHOD, "()V"))
+                        .stream()
+                        .filter(call -> call.owner.contains("TexturePreparedPixelRuntime"))
+                        .map(call -> call.name)
+                        .toList());
+        assertEquals(
+                List.of("retainLearnedKaleidoscopePrefetchResults"),
+                calls(method(parsed, TexturePreparedPrefetchPlan.STOP_METHOD, "()V"))
+                        .stream()
+                        .filter(call -> call.owner.contains("TexturePreparedPixelRuntime"))
                         .map(call -> call.name)
                         .toList());
     }
@@ -309,6 +335,10 @@ class TexturePreparedPrefetchPlanTest {
                 null,
                 null);
         stop.visitCode();
+        stop.visitFieldInsn(Opcodes.GETSTATIC, owner, "imageResults", "Ljava/util/Map;");
+        stop.visitMethodInsn(Opcodes.INVOKEINTERFACE, "java/util/Map", "clear", "()V", true);
+        stop.visitFieldInsn(Opcodes.GETSTATIC, owner, "byteResults", "Ljava/util/Map;");
+        stop.visitMethodInsn(Opcodes.INVOKEINTERFACE, "java/util/Map", "clear", "()V", true);
         stop.visitInsn(Opcodes.RETURN);
         stop.visitMaxs(0, 0);
         stop.visitEnd();

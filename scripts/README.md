@@ -52,6 +52,11 @@ The default remains one live worker.
 `-WindowsPreparedStagingProbe` enables the #1206 diagnostic: one bounded producer stages learned
 prepared carriers during the serial pre-progress window, while Starsector's exact worker consumes
 them without waiting and retains the current prepared/original fallback on every miss.
+`-WindowsKaleidoscopePrefetchProbe` enables the narrower successor: it promotes only the exact
+learned `graphics/kaleidoscope/` paths that were absent from Starsector's native queue into the
+accepted Windows prepared worker, retains only those results through native prefetch shutdown, and
+clears leftovers at the semantic menu snapshot. It is bounded to 512 paths / 192 MiB and remains
+opt-in until callback timing and the interactive boundary show a useful improvement.
 Pair it with `-WindowsUnpaddedMaxDimension N` only for the bounded llvmpipe diagnostic: textures at
 or below `N` use true-size NPOT uploads, while larger textures retain the original padded path. The
 cohort identity and adapter report retain the ceiling, declines, and padding avoided.

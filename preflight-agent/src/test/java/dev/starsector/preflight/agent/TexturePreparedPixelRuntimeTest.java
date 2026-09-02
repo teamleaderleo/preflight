@@ -6,10 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.PreparedTexture;
+import dev.starsector.preflight.core.PreparedTextureAccessOrderIO;
 import dev.starsector.preflight.core.PreparedTexturePrefetchOrderIO;
 import dev.starsector.preflight.core.PreparedTextureIO;
 import dev.starsector.preflight.core.ResourceIndex;
@@ -20,8 +22,10 @@ import java.awt.image.BufferedImage;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -36,6 +40,7 @@ class TexturePreparedPixelRuntimeTest {
         System.clearProperty(TexturePaddingRuntime.MAX_UNPADDED_DIMENSION_PROPERTY);
         TexturePaddingRuntime.reset();
         System.clearProperty(TexturePreparedStagingRuntime.ENABLED_PROPERTY);
+        System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_KALEIDOSCOPE_PROPERTY);
         TexturePreparedStagingRuntime.beginSession();
         TextureAccessLearningRuntime.beginSession();
         TexturePreparedPixelRuntime.beginSession();
@@ -71,6 +76,49 @@ class TexturePreparedPixelRuntimeTest {
         assertEquals(0L, staging.get("queuedBytes"));
         assertEquals(1L, TexturePreparedPixelRuntime.telemetry().get("prefetchPreparedHits"));
         assertEquals(0L, TexturePreparedPixelRuntime.telemetry().get("prefetchOriginalDecodes"));
+    }
+
+    @Test
+    void seedsRetainsAndSettlesLearnedKaleidoscopeTextures() throws Exception {
+        String path = "graphics/kaleidoscope/planets/test.png";
+        Fixture fixture = fixture(path, 2, 2, 3, new byte[] {
+                0, 0, (byte) 255,
+                (byte) 255, (byte) 255, (byte) 255,
+                (byte) 255, 0, 0,
+                0, (byte) 255, 0
+        });
+        configure(fixture);
+        String profile = TextureManifestIO.read(fixture.manifest()).profileFingerprint();
+        PreparedTextureAccessOrderIO.write(
+                PreparedTextureAccessOrderIO.path(fixture.cache(), profile), profile, List.of(path));
+        assertTrue(TextureAccessLearningRuntime.configure(fixture.cache(), profile));
+        System.setProperty(TexturePreparedPrefetchPlan.WINDOWS_KALEIDOSCOPE_PROPERTY, "true");
+
+        List<String> queue = new ArrayList<>();
+        TexturePreparedPixelRuntime.seedLearnedKaleidoscopePrefetches(queue);
+        assertEquals(List.of(path), queue);
+
+        BufferedImage prepared = TexturePreparedPixelRuntime.prefetchLoad(path);
+        assertNotNull(prepared);
+        Map<String, BufferedImage> results = new ConcurrentHashMap<>();
+        results.put(path, prepared);
+        results.put("graphics/unrelated.png", new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB));
+        TexturePreparedPixelRuntime.retainLearnedKaleidoscopePrefetchResults(queue, results);
+        assertEquals(List.of(), queue);
+        assertEquals(1, results.size());
+        assertSame(prepared, results.remove(path));
+        TexturePreparedPixelRuntime.completeLearnedKaleidoscopePrefetches();
+
+        Map<String, Object> telemetry = TexturePreparedPixelRuntime.telemetry();
+        assertEquals(1L, telemetry.get("learnedKaleidoscopeCandidates"));
+        assertEquals(1L, telemetry.get("learnedKaleidoscopeSeeded"));
+        assertEquals(12L, telemetry.get("learnedKaleidoscopeSeededBytes"));
+        assertEquals(1L, telemetry.get("learnedKaleidoscopeWorkerHits"));
+        assertEquals(1L, telemetry.get("learnedKaleidoscopeRetainedAtStop"));
+        assertEquals(1L, telemetry.get("learnedKaleidoscopePendingRemovedAtStop"));
+        assertEquals(1L, telemetry.get("learnedKaleidoscopeConsumedAfterStop"));
+        assertEquals(0L, telemetry.get("learnedKaleidoscopeLeftoversCleared"));
+        assertEquals(0L, telemetry.get("learnedKaleidoscopeErrors"));
     }
 
     @Test
@@ -398,7 +446,12 @@ class TexturePreparedPixelRuntimeTest {
     }
 
     private Fixture fixture(int width, int height, int channels, byte[] pixels) throws Exception {
-        return fixture(width, height, channels, width, height, pixels);
+        return fixture("graphics/test.png", width, height, channels, width, height, pixels);
+    }
+
+    private Fixture fixture(
+            String logicalPath, int width, int height, int channels, byte[] pixels) throws Exception {
+        return fixture(logicalPath, width, height, channels, width, height, pixels);
     }
 
     private Fixture fixture(
@@ -408,9 +461,27 @@ class TexturePreparedPixelRuntimeTest {
             int uploadWidth,
             int uploadHeight,
             byte[] pixels) throws Exception {
+        return fixture(
+                "graphics/test.png",
+                originalWidth,
+                originalHeight,
+                channels,
+                uploadWidth,
+                uploadHeight,
+                pixels);
+    }
+
+    private Fixture fixture(
+            String logicalPath,
+            int originalWidth,
+            int originalHeight,
+            int channels,
+            int uploadWidth,
+            int uploadHeight,
+            byte[] pixels) throws Exception {
         Path cache = temporaryDirectory.resolve("cache-" + System.nanoTime());
         Path sourceRoot = temporaryDirectory.resolve("game-" + System.nanoTime());
-        Path source = sourceRoot.resolve("graphics/test.png");
+        Path source = sourceRoot.resolve(logicalPath);
         Files.createDirectories(source.getParent());
         byte[] encoded = {1, 2, 3, 4};
         Files.write(source, encoded);
@@ -419,9 +490,9 @@ class TexturePreparedPixelRuntimeTest {
         ResourceIndex index = new ResourceIndex(
                 profile,
                 List.of(new ResourceIndex.Root("core", sourceRoot, true)),
-                Map.of("graphics/test.png", List.of(new ResourceIndex.Provider(
+                Map.of(logicalPath, List.of(new ResourceIndex.Provider(
                         0,
-                        "graphics/test.png",
+                        logicalPath,
                         Files.size(source),
                         Files.getLastModifiedTime(source).toMillis()))));
         Path indexPath = cache.resolve("indexes").resolve(profile + ".spfi");
@@ -443,7 +514,7 @@ class TexturePreparedPixelRuntimeTest {
         Path blob = cache.resolve(blobRelative);
         PreparedTextureIO.write(blob, texture);
         TextureManifest manifest = new TextureManifest(profile, Map.of(
-                "graphics/test.png",
+                logicalPath,
                 new TextureManifest.Entry(
                         sourceHash,
                         PreparedTexture.Transformation.IDENTITY,

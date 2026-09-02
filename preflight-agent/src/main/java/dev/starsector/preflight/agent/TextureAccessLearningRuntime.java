@@ -127,6 +127,11 @@ public final class TextureAccessLearningRuntime {
         return List.copyOf(state.prefetchPaths);
     }
 
+    /** Returns the broader observed load order, including textures requested after prefetch ends. */
+    static synchronized List<String> accessSnapshot() {
+        return List.copyOf(state.paths);
+    }
+
     private static final class State {
         private final String profileFingerprint;
         private final Path target;

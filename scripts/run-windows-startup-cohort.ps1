@@ -17,6 +17,7 @@ param(
     [switch]$WindowsPrefetchBypassProbe,
     [switch]$WindowsPreparedPrefetchProbe,
     [switch]$WindowsPreparedStagingProbe,
+    [switch]$WindowsKaleidoscopePrefetchProbe,
     [ValidateRange(1, 8)]
     [int]$WindowsPreparedPrefetchWorkers = 1,
     [ValidateRange(0, 8192)]
@@ -169,6 +170,11 @@ log4j.appender.file.MaxBackupIndex=3
             if ($WindowsPreparedStagingProbe) {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.texture.preparedStaging=true' |
+                    Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($WindowsKaleidoscopePrefetchProbe) {
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.texture.windowsKaleidoscopePrefetch=true' |
                     Where-Object { $_ }) -join ' ').Trim()
             }
             if ($WindowsUnpaddedMaxDimension -gt 0) {
@@ -428,6 +434,7 @@ $identity = [ordered]@{
     windowsPrefetchBypassProbe = [bool]$WindowsPrefetchBypassProbe
     windowsPreparedPrefetchProbe = [bool]$WindowsPreparedPrefetchProbe
     windowsPreparedStagingProbe = [bool]$WindowsPreparedStagingProbe
+    windowsKaleidoscopePrefetchProbe = [bool]$WindowsKaleidoscopePrefetchProbe
     windowsPreparedPrefetchWorkers = $WindowsPreparedPrefetchWorkers
     windowsUnpaddedMaxDimension = $WindowsUnpaddedMaxDimension
     game = $Game

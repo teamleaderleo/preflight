@@ -25,6 +25,8 @@ final class TexturePreparedPrefetchPlan {
             "preflight.texture.windowsPreparedPrefetchProbe";
     static final String WINDOWS_WORKERS_PROPERTY =
             "preflight.texture.windowsPreparedPrefetchWorkers";
+    static final String WINDOWS_KALEIDOSCOPE_PROPERTY =
+            "preflight.texture.windowsKaleidoscopePrefetch";
     static final String TARGET_CLASS = TexturePrefetchBypassPlan.TARGET_CLASS;
     static final String DECODE_METHOD = "o00000";
     static final String DECODE_DESCRIPTOR =
@@ -95,6 +97,10 @@ final class TexturePreparedPrefetchPlan {
         decode.maxStack = Math.max(decode.maxStack, 2);
 
         int workers = Integer.getInteger(WINDOWS_WORKERS_PROPERTY, 1);
+        if (Boolean.getBoolean(WINDOWS_KALEIDOSCOPE_PROPERTY)
+                && (workers != 1 || !rewriteLearnedLatePrefetch(owner))) {
+            return null;
+        }
         if (workers > 1
                 && !rewriteWorkerPool(owner, TexturePrefetchBypassPlan.imageQueueField(owner), workers)) {
             return null;
@@ -103,6 +109,71 @@ final class TexturePreparedPrefetchPlan {
         ClassWriter writer = new ClassWriter(0);
         owner.accept(writer);
         return writer.toByteArray();
+    }
+
+    /** Seeds only reviewed late paths and preserves their completed worker results until callbacks. */
+    private static boolean rewriteLearnedLatePrefetch(ClassNode owner) {
+        String imageQueue = TexturePrefetchBypassPlan.imageQueueField(owner);
+        MethodNode consumer = uniqueMethod(
+                owner,
+                TexturePrefetchBypassPlan.WINDOWS_CONSUMER_METHOD,
+                TexturePrefetchBypassPlan.CONSUMER_DESCRIPTOR);
+        MethodNode start = uniqueMethod(owner, START_METHOD, "()V");
+        MethodNode stop = uniqueMethod(owner, STOP_METHOD, "()V");
+        String imageResults = uniqueStaticRead(consumer, MAP_DESCRIPTOR);
+        if (imageQueue == null || imageResults == null || start == null || stop == null
+                || containsRuntimeCall(start) || containsRuntimeCall(stop)) {
+            return false;
+        }
+
+        MethodInsnNode imageClear = null;
+        for (AbstractInsnNode instruction = stop.instructions.getFirst();
+                instruction != null;
+                instruction = instruction.getNext()) {
+            if (!(instruction instanceof MethodInsnNode call)
+                    || call.getOpcode() != Opcodes.INVOKEINTERFACE
+                    || !"java/util/Map".equals(call.owner)
+                    || !"clear".equals(call.name)
+                    || !"()V".equals(call.desc)) {
+                continue;
+            }
+            AbstractInsnNode previous = previousOpcode(call);
+            if (previous instanceof FieldInsnNode field
+                    && field.getOpcode() == Opcodes.GETSTATIC
+                    && owner.name.equals(field.owner)
+                    && imageResults.equals(field.name)
+                    && MAP_DESCRIPTOR.equals(field.desc)) {
+                if (imageClear != null) {
+                    return false;
+                }
+                imageClear = call;
+            }
+        }
+        if (imageClear == null) {
+            return false;
+        }
+
+        InsnList seed = new InsnList();
+        addField(seed, owner.name, imageQueue, LIST_DESCRIPTOR);
+        seed.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC,
+                RUNTIME,
+                "seedLearnedKaleidoscopePrefetches",
+                "(Ljava/util/List;)V",
+                false));
+        start.instructions.insertBefore(start.instructions.getFirst(), seed);
+        start.maxStack = Math.max(start.maxStack, 1);
+
+        AbstractInsnNode imageResultsLoad = previousOpcode(imageClear);
+        InsnList queueForRetention = new InsnList();
+        addField(queueForRetention, owner.name, imageQueue, LIST_DESCRIPTOR);
+        stop.instructions.insertBefore(imageResultsLoad, queueForRetention);
+        imageClear.setOpcode(Opcodes.INVOKESTATIC);
+        imageClear.owner = RUNTIME;
+        imageClear.name = "retainLearnedKaleidoscopePrefetchResults";
+        imageClear.desc = "(Ljava/util/List;Ljava/util/Map;)V";
+        imageClear.itf = false;
+        return true;
     }
 
     private static boolean rewriteWorkerPool(ClassNode owner, String imageQueue, int workers) {
@@ -262,5 +333,13 @@ final class TexturePreparedPrefetchPlan {
             }
         }
         return false;
+    }
+
+    private static AbstractInsnNode previousOpcode(AbstractInsnNode instruction) {
+        AbstractInsnNode previous = instruction.getPrevious();
+        while (previous != null && previous.getOpcode() < 0) {
+            previous = previous.getPrevious();
+        }
+        return previous;
     }
 }
