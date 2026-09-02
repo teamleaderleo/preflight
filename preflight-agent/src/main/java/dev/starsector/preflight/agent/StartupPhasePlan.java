@@ -7,11 +7,14 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TypeInsnNode;
+import org.objectweb.asm.tree.VarInsnNode;
 
 /** Marks exact loading-screen, progress, audio, and mod-callback boundaries. */
 final class StartupPhasePlan {
@@ -84,6 +87,19 @@ final class StartupPhasePlan {
                 "(I)Ljava/util/concurrent/ExecutorService;");
         MethodInsnNode resourceBatches = firstCallAfter(
                 resourceExecutor, "java/util/List", "iterator", "()Ljava/util/Iterator;");
+        MethodInsnNode resourceNext = firstCallAfter(
+                resourceBatches, "java/util/Iterator", "next", "()Ljava/lang/Object;");
+        VarInsnNode resourceStore = resourceStoreAfter(resourceNext);
+        String resourceClass = TARGET_CLASS + "$Oo";
+        FieldInsnNode resourceType = firstFieldAfter(
+                resourceStore, resourceClass, "L" + TARGET_CLASS + "$o;");
+        FieldInsnNode resourcePath = firstFieldAfter(
+                resourceStore, resourceClass, "Ljava/lang/String;");
+        MethodInsnNode resourceDedupAdd = firstCallAfter(
+                resourceNext, "java/util/Set", "add", "(Ljava/lang/Object;)Z");
+        AbstractInsnNode resourceStartAnchor = nextOpcode(resourceDedupAdd);
+        FieldInsnNode resourceWeight = firstFieldAfter(
+                resourceDedupAdd, resourceClass, "I");
         MethodInsnNode titleData = previousCall(firstProgress == null ? specStore : firstProgress);
         if (titleData != null && (titleData.getOpcode() != Opcodes.INVOKESTATIC
                 || !titleData.owner.startsWith("com/fs/starfarer/title/")
@@ -103,6 +119,10 @@ final class StartupPhasePlan {
                 || titleData == null || specStore == null
                 || postSpecProgress == null || shipWeaponSpriteQueue == null
                 || postQueueProgress == null || resourceExecutor == null || resourceBatches == null
+                || resourceNext == null || resourceStore == null || resourceType == null
+                || resourcePath == null || resourceDedupAdd == null
+                || resourceStartAnchor == null || resourceStartAnchor.getOpcode() != Opcodes.POP
+                || resourceWeight == null
                 || !comesBefore(specStore, postSpecProgress)
                 || !comesBefore(postSpecProgress, shipWeaponSpriteQueue)
                 || !comesBefore(shipWeaponSpriteQueue, postQueueProgress)
@@ -137,6 +157,28 @@ final class StartupPhasePlan {
                 "resource-ordering-complete", "resource-executor-start"));
         init.instructions.insert(resourceExecutor, mark("resource-executor-complete"));
         init.instructions.insertBefore(resourceBatches, mark("resource-batches-start"));
+        int resourceStartedLocal = init.maxLocals;
+        init.maxLocals += 2;
+        InsnList resourceStart = new InsnList();
+        resourceStart.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "hotCallStart", "()J", false));
+        resourceStart.add(new VarInsnNode(Opcodes.LSTORE, resourceStartedLocal));
+        init.instructions.insert(resourceStartAnchor, resourceStart);
+        InsnList resourceEnd = new InsnList();
+        resourceEnd.add(new VarInsnNode(Opcodes.ALOAD, resourceStore.var));
+        resourceEnd.add(new FieldInsnNode(
+                Opcodes.GETFIELD, resourceType.owner, resourceType.name, resourceType.desc));
+        resourceEnd.add(new VarInsnNode(Opcodes.ALOAD, resourceStore.var));
+        resourceEnd.add(new FieldInsnNode(
+                Opcodes.GETFIELD, resourcePath.owner, resourcePath.name, resourcePath.desc));
+        resourceEnd.add(new VarInsnNode(Opcodes.ALOAD, resourceStore.var));
+        resourceEnd.add(new FieldInsnNode(
+                Opcodes.GETFIELD, resourceWeight.owner, resourceWeight.name, resourceWeight.desc));
+        resourceEnd.add(new VarInsnNode(Opcodes.LLOAD, resourceStartedLocal));
+        resourceEnd.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "resourceLoadEnd",
+                "(Ljava/lang/Object;Ljava/lang/String;IJ)V", false));
+        init.instructions.insertBefore(resourceWeight, resourceEnd);
         init.instructions.insertBefore(shutdown, mark("progress-100"));
         init.instructions.insert(awaitRetry, mark("audio-workers-complete"));
         init.instructions.insert(graphicsFinalize, mark("graphics-finalize-complete"));
@@ -238,6 +280,29 @@ final class StartupPhasePlan {
             if (cursor == second) return true;
         }
         return false;
+    }
+
+    private static VarInsnNode resourceStoreAfter(MethodInsnNode resourceNext) {
+        AbstractInsnNode cast = nextOpcode(resourceNext);
+        AbstractInsnNode store = nextOpcode(cast);
+        if (!(cast instanceof TypeInsnNode type) || type.getOpcode() != Opcodes.CHECKCAST
+                || !(store instanceof VarInsnNode variable) || variable.getOpcode() != Opcodes.ASTORE
+                || !(TARGET_CLASS + "$Oo").equals(type.desc)) {
+            return null;
+        }
+        return variable;
+    }
+
+    private static FieldInsnNode firstFieldAfter(
+            AbstractInsnNode start, String owner, String descriptor) {
+        for (AbstractInsnNode cursor = start == null ? null : start.getNext();
+                cursor != null; cursor = cursor.getNext()) {
+            if (cursor instanceof FieldInsnNode field && field.getOpcode() == Opcodes.GETFIELD
+                    && owner.equals(field.owner) && descriptor.equals(field.desc)) {
+                return field;
+            }
+        }
+        return null;
     }
 
     private static MethodInsnNode stage(List<MethodInsnNode> stages, int index) {

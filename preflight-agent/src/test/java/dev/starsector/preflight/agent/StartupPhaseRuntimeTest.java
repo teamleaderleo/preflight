@@ -45,6 +45,9 @@ class StartupPhaseRuntimeTest {
         StartupPhaseRuntime.hotPath("gfx.normal.cachePath", "cache/a.png");
         StartupPhaseRuntime.hotPath("gfx.normal.cachePath", "cache/a.png");
         StartupPhaseRuntime.hotPath("gfx.normal.cachePath", "cache/b.png");
+        long resource = StartupPhaseRuntime.hotCallStart();
+        StartupPhaseRuntime.resourceLoadEnd(
+                ExampleResourceType.SPRITE, "graphics/ships/example.png", 3, resource);
         StartupPhaseRuntime.pluginStart(new ExamplePlugin());
         StartupPhaseRuntime.pluginEnd();
         StartupPhaseRuntime.mark("resource-init-complete");
@@ -65,6 +68,11 @@ class StartupPhaseRuntimeTest {
         assertTrue(json.contains("\"label\":\"gfx.autoGenMissingNormals\""));
         assertTrue(json.contains("\"label\":\"gfx.normal.cachePath\""));
         assertTrue(json.contains("\"distinctPaths\":2"));
+        assertTrue(json.contains("\"resourceLoads\":{"));
+        assertTrue(json.contains("\"type\":\"SPRITE\""));
+        assertTrue(json.contains("\"path\":\"graphics/ships/example.png\""));
+        assertTrue(json.contains("\"totalWeight\":3"));
+        assertTrue(json.contains("\"slowest\":["));
         assertTrue(json.contains("StartupPhaseRuntimeTest$ExamplePlugin"));
         assertTrue(json.contains("\"completed\":true"));
     }
@@ -108,5 +116,9 @@ class StartupPhaseRuntimeTest {
     }
 
     private static final class ExamplePlugin {
+    }
+
+    private enum ExampleResourceType {
+        SPRITE
     }
 }

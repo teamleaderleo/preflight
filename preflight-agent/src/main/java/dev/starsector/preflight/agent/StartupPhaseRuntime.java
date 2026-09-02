@@ -12,6 +12,7 @@ import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,6 +30,9 @@ public final class StartupPhaseRuntime {
     private static final int MAX_HOT_PATH_GROUPS = 16;
     private static final int MAX_DISTINCT_HOT_PATHS = 65_536;
     private static final int MAX_MERGED_READ_GROUPS = 512;
+    private static final int MAX_RESOURCE_LOAD_FIRST = 64;
+    private static final int MAX_RESOURCE_LOAD_TOP = 64;
+    private static final int MAX_RESOURCE_LOAD_TYPES = 16;
     private static final int SAMPLED_HOT_CALL_RATE = 16;
     private static final String[] SAMPLED_HOT_CALL_LABELS = {
         "weapon-json-numeric-conversion",
@@ -54,6 +58,10 @@ public final class StartupPhaseRuntime {
     private static final Map<String, HotCall> hotCalls = new LinkedHashMap<>();
     private static final Map<String, HotPath> hotPaths = new LinkedHashMap<>();
     private static final Map<String, MergedRead> mergedReads = new LinkedHashMap<>();
+    private static final Map<String, ResourceLoadAggregate> resourceLoadTypes =
+            new LinkedHashMap<>();
+    private static final List<ResourceLoad> resourceLoadFirst = new ArrayList<>();
+    private static final List<ResourceLoad> resourceLoadTop = new ArrayList<>();
     private static final long[] sampledHotCallCalls =
             new long[SAMPLED_HOT_CALL_LABELS.length];
     private static final long[] sampledHotCallSamples =
@@ -72,6 +80,7 @@ public final class StartupPhaseRuntime {
     private static String activeSpecSubphase;
     private static long activeSpecSubphaseNanos;
     private static long progressCalls;
+    private static long resourceLoadCalls;
     private static int lastProgressPermille;
     private static int nextProgressMilestone;
 
@@ -92,6 +101,9 @@ public final class StartupPhaseRuntime {
         hotCalls.clear();
         hotPaths.clear();
         mergedReads.clear();
+        resourceLoadTypes.clear();
+        resourceLoadFirst.clear();
+        resourceLoadTop.clear();
         Arrays.fill(sampledHotCallCalls, 0L);
         Arrays.fill(sampledHotCallSamples, 0L);
         Arrays.fill(sampledHotCallNanos, 0L);
@@ -104,6 +116,7 @@ public final class StartupPhaseRuntime {
         activeSpecSubphase = null;
         activeSpecSubphaseNanos = 0L;
         progressCalls = 0L;
+        resourceLoadCalls = 0L;
         lastProgressPermille = -1;
         nextProgressMilestone = 0;
     }
@@ -326,6 +339,43 @@ public final class StartupPhaseRuntime {
         return System.nanoTime();
     }
 
+    /** Records one accepted startup resource without writing in the hot loading loop. */
+    public static synchronized void resourceLoadEnd(
+            Object type, String path, int weight, long startedNanos) {
+        try {
+            long duration = System.nanoTime() - startedNanos;
+            if (duration < 0L) {
+                return;
+            }
+            String typeName = type instanceof Enum<?> value
+                    ? value.name()
+                    : type == null ? "<null>" : type.getClass().getName();
+            ResourceLoadAggregate aggregate = resourceLoadTypes.get(typeName);
+            if (aggregate == null) {
+                if (resourceLoadTypes.size() >= MAX_RESOURCE_LOAD_TYPES) {
+                    typeName = "<overflow>";
+                    aggregate = resourceLoadTypes.get(typeName);
+                }
+                if (aggregate == null) {
+                    aggregate = new ResourceLoadAggregate(typeName);
+                    resourceLoadTypes.put(typeName, aggregate);
+                }
+            }
+            aggregate.record(weight, duration);
+
+            ResourceLoad load = new ResourceLoad(
+                    ++resourceLoadCalls, typeName, path, weight, duration);
+            if (resourceLoadFirst.size() < MAX_RESOURCE_LOAD_FIRST) {
+                resourceLoadFirst.add(load);
+            }
+            retainSlowest(load);
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // Woven diagnostics are never allowed to affect startup.
+        }
+    }
+
     /** Aggregates a reviewed startup call without writing in the hot path. */
     public static void hotCallEnd(String label, long startedNanos) {
         try {
@@ -408,6 +458,7 @@ public final class StartupPhaseRuntime {
         output.put("sampledHotCalls", sampledHotCalls());
         output.put("hotPaths", hotPaths.values().stream().map(HotPath::toMap).toList());
         output.put("mergedReads", mergedReads.values().stream().map(MergedRead::toMap).toList());
+        output.put("resourceLoads", resourceLoads());
         output.put("activePlugin", activePlugin);
         output.put("activeSpecLoader", activeSpecLoader);
         output.put("activeSpecSubphase", activeSpecSubphase);
@@ -415,6 +466,37 @@ public final class StartupPhaseRuntime {
         output.put("lastProgressPermille", lastProgressPermille);
         output.put("writeProblem", writeProblem);
         return output;
+    }
+
+    private static Map<String, Object> resourceLoads() {
+        List<ResourceLoad> slowest = new ArrayList<>(resourceLoadTop);
+        slowest.sort(Comparator.comparingLong(ResourceLoad::durationNanos).reversed());
+        Map<String, Object> output = new LinkedHashMap<>();
+        output.put("calls", resourceLoadCalls);
+        output.put("byType", resourceLoadTypes.values().stream()
+                .map(ResourceLoadAggregate::toMap).toList());
+        output.put("first", resourceLoadFirst.stream().map(ResourceLoad::toMap).toList());
+        output.put("slowest", slowest.stream().map(ResourceLoad::toMap).toList());
+        return output;
+    }
+
+    private static void retainSlowest(ResourceLoad candidate) {
+        if (resourceLoadTop.size() < MAX_RESOURCE_LOAD_TOP) {
+            resourceLoadTop.add(candidate);
+            return;
+        }
+        int fastestIndex = 0;
+        long fastestNanos = resourceLoadTop.get(0).durationNanos();
+        for (int index = 1; index < resourceLoadTop.size(); index++) {
+            long durationNanos = resourceLoadTop.get(index).durationNanos();
+            if (durationNanos < fastestNanos) {
+                fastestNanos = durationNanos;
+                fastestIndex = index;
+            }
+        }
+        if (candidate.durationNanos() > fastestNanos) {
+            resourceLoadTop.set(fastestIndex, candidate);
+        }
     }
 
     private static List<Map<String, Object>> sampledHotCalls() {
@@ -668,6 +750,49 @@ public final class StartupPhaseRuntime {
             Map<String, Object> timing = new LinkedHashMap<>();
             timing.put("label", label);
             timing.put("calls", calls);
+            timing.put("durationMillis", millis(totalNanos));
+            timing.put("maxCallMillis", millis(maxNanos));
+            return timing;
+        }
+    }
+
+    private record ResourceLoad(
+            long ordinal, String type, String path, int weight, long durationNanos) {
+        private Map<String, Object> toMap() {
+            Map<String, Object> load = new LinkedHashMap<>();
+            load.put("ordinal", ordinal);
+            load.put("type", type);
+            load.put("path", path);
+            load.put("weight", weight);
+            load.put("durationNanos", durationNanos);
+            load.put("durationMillis", millis(durationNanos));
+            return load;
+        }
+    }
+
+    private static final class ResourceLoadAggregate {
+        private final String type;
+        private long calls;
+        private long totalWeight;
+        private long totalNanos;
+        private long maxNanos;
+
+        private ResourceLoadAggregate(String type) {
+            this.type = type;
+        }
+
+        private void record(int weight, long durationNanos) {
+            calls++;
+            totalWeight = Math.addExact(totalWeight, weight);
+            totalNanos = Math.addExact(totalNanos, durationNanos);
+            maxNanos = Math.max(maxNanos, durationNanos);
+        }
+
+        private Map<String, Object> toMap() {
+            Map<String, Object> timing = new LinkedHashMap<>();
+            timing.put("type", type);
+            timing.put("calls", calls);
+            timing.put("totalWeight", totalWeight);
             timing.put("durationMillis", millis(totalNanos));
             timing.put("maxCallMillis", millis(maxNanos));
             return timing;

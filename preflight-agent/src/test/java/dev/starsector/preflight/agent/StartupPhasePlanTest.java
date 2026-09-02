@@ -65,6 +65,7 @@ class StartupPhasePlanTest {
         assertEquals(1, runtimeCalls(progressMethod(rewritten), "progress"));
         assertEquals(1, runtimeCalls(init, "pluginStart"));
         assertEquals(1, runtimeCalls(init, "pluginEnd"));
+        assertEquals(1, runtimeCalls(init, "resourceLoadEnd"));
         assertTrue(hasDupImmediatelyBeforePluginStart(init),
                 "the callback receiver must remain on the operand stack for the shipped invocation");
     }
@@ -216,6 +217,28 @@ class StartupPhasePlanTest {
         method.visitInsn(Opcodes.ACONST_NULL);
         method.visitMethodInsn(Opcodes.INVOKEINTERFACE, "java/util/List",
                 "iterator", "()Ljava/util/Iterator;", true);
+        method.visitInsn(Opcodes.POP);
+        method.visitInsn(Opcodes.ACONST_NULL);
+        method.visitMethodInsn(Opcodes.INVOKEINTERFACE, "java/util/Iterator",
+                "next", "()Ljava/lang/Object;", true);
+        method.visitTypeInsn(Opcodes.CHECKCAST, StartupPhasePlan.TARGET_CLASS + "$Oo");
+        method.visitVarInsn(Opcodes.ASTORE, 1);
+        method.visitVarInsn(Opcodes.ALOAD, 1);
+        method.visitFieldInsn(Opcodes.GETFIELD, StartupPhasePlan.TARGET_CLASS + "$Oo",
+                "typeName", "L" + StartupPhasePlan.TARGET_CLASS + "$o;");
+        method.visitInsn(Opcodes.POP);
+        method.visitVarInsn(Opcodes.ALOAD, 1);
+        method.visitFieldInsn(Opcodes.GETFIELD, StartupPhasePlan.TARGET_CLASS + "$Oo",
+                "pathName", "Ljava/lang/String;");
+        method.visitInsn(Opcodes.POP);
+        method.visitInsn(Opcodes.ACONST_NULL);
+        method.visitVarInsn(Opcodes.ALOAD, 1);
+        method.visitMethodInsn(Opcodes.INVOKEINTERFACE, "java/util/Set",
+                "add", "(Ljava/lang/Object;)Z", true);
+        method.visitInsn(Opcodes.POP);
+        method.visitVarInsn(Opcodes.ALOAD, 1);
+        method.visitFieldInsn(Opcodes.GETFIELD, StartupPhasePlan.TARGET_CLASS + "$Oo",
+                "weightName", "I");
         method.visitInsn(Opcodes.POP);
 
         method.visitInsn(Opcodes.ACONST_NULL);
