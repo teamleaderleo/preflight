@@ -132,6 +132,7 @@ public final class FrameTimeRuntime {
     static synchronized void beginSession(boolean telemetryRequested, boolean smoothRequested) {
         SharedContextTextureProbeRuntime.beginSession();
         DisplayThreadTextureProbeRuntime.beginSession();
+        DisplayThreadSpecStoreProbeRuntime.beginSession();
         enabled = telemetryRequested;
         smoothFramePacing = smoothRequested;
         installed = false;
@@ -807,6 +808,7 @@ public final class FrameTimeRuntime {
         result.put("openGlContext", glContext);
         result.put("sharedContextTextureProbe", SharedContextTextureProbeRuntime.telemetry());
         result.put("displayThreadTextureProbe", DisplayThreadTextureProbeRuntime.telemetry());
+        result.put("displayThreadSpecStoreProbe", DisplayThreadSpecStoreProbeRuntime.telemetry());
         result.put("gpuFrameTime", GpuFrameTimeRuntime.telemetry());
         result.put("openGlCommands", GlCommandCountRuntime.telemetry());
         result.put("openGlMatrixOperations", GlMatrixOperationRuntime.telemetry());

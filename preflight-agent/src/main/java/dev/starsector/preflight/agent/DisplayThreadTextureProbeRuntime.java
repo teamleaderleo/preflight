@@ -440,7 +440,7 @@ public final class DisplayThreadTextureProbeRuntime {
         }
     }
 
-    private static final class ReflectionGlApi implements ProbeGlApi {
+    static final class ReflectionGlApi implements ProbeGlApi {
         private final Method displayGetDrawable;
         private final Method displayIsCurrent;
         private final Method displayRelease;

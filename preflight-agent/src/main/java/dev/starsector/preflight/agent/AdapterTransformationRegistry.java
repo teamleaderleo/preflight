@@ -1167,6 +1167,11 @@ final class AdapterTransformationRegistry {
                 byte[] ownershipProof = DisplayUpdateCallerPlan.transform(signature, transformed);
                 if (ownershipProof != null) transformed = ownershipProof;
             }
+            if (DisplayThreadSpecStoreProbeRuntime.requested()) {
+                byte[] ownershipOverlap = DisplayThreadSpecStoreProbePlan.transform(
+                        signature, transformed);
+                if (ownershipOverlap != null) transformed = ownershipOverlap;
+            }
             if (phaseMarked) {
                 StartupPhaseRuntime.installed();
             }
@@ -1227,6 +1232,14 @@ final class AdapterTransformationRegistry {
                 byte[] ownershipProof = DisplayUpdateCallerPlan.transform(signature, current);
                 if (ownershipProof != null) {
                     current = ownershipProof;
+                    changed = true;
+                }
+            }
+            if (DisplayThreadSpecStoreProbeRuntime.requested()) {
+                byte[] ownershipOverlap = DisplayThreadSpecStoreProbePlan.transform(
+                        signature, current);
+                if (ownershipOverlap != null) {
+                    current = ownershipOverlap;
                     changed = true;
                 }
             }

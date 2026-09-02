@@ -100,6 +100,12 @@ on the original thread, verifies every byte, and deletes the synthetic objects. 
 a shared Pbuffer or touch a normal game texture. It is intrusive, off by default, and must also run
 only in the disposable externally bounded fixture until physical Windows evidence proves that the
 same-Display ownership round trip is safe.
+`-WindowsDisplayThreadSpecStoreProbe` is the next intrusive overlap proof. At the exact Windows
+`SpecStore` call boundary it moves the live Display to one worker, uploads one synthetic texture,
+lets main execute the original CPU-bound SpecStore call, then releases/restores Display, validates
+every byte, and cleans up before the next progress render. It never intercepts a game texture. Run
+it only through the externally bounded disposable Windows fixture until physical evidence proves
+that no SpecStore path requires the main thread's GL context.
 
 `run-windows-gameplay-scenario.ps1` is the reviewable interactive-session entry point for the same
 checked-in gameplay scenarios used on macOS and Linux. It defaults to the optimized Lindsey
