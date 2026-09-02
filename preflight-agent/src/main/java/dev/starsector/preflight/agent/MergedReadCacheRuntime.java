@@ -154,6 +154,7 @@ public final class MergedReadCacheRuntime {
                 current.oversizedAccepted.incrementAndGet();
             } else {
                 current.oversizedDeclines.incrementAndGet();
+                recordOversizedDecline(current, path, mergeKeys, canonicalItems);
             }
         }
         Object hit = cached(current, key);
@@ -172,6 +173,47 @@ public final class MergedReadCacheRuntime {
     private static boolean oversizedKeysEnabled() {
         return Boolean.getBoolean(WINDOWS_OVERSIZED_KEYS_PROPERTY)
                 && System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows");
+    }
+
+    private static void recordOversizedDecline(
+            State current, String path, Object mergeKeys, List<String> canonicalItems) {
+        String reason;
+        if (MergedReadKey.path(path) == null) {
+            current.oversizedPathDeclines.incrementAndGet();
+            reason = "path:" + bounded(path);
+        } else if (canonicalItems == null) {
+            current.oversizedItemDeclines.incrementAndGet();
+            reason = "items:" + describeItems(mergeKeys);
+        } else {
+            current.oversizedBoundDeclines.incrementAndGet();
+            reason = "valid-nonoversized-or-over-limit:path=" + bounded(path)
+                    + ",items=" + canonicalItems.size();
+        }
+        synchronized (current.oversizedDeclineSamples) {
+            if (current.oversizedDeclineSamples.size() < 8) {
+                current.oversizedDeclineSamples.add(reason);
+            }
+        }
+    }
+
+    private static String describeItems(Object value) {
+        if (value == null) return "null";
+        if (!(value instanceof Collection<?> items)) {
+            return "not-collection:" + value.getClass().getName();
+        }
+        for (Object item : items) {
+            if (!(item instanceof String)) {
+                return "collection:" + value.getClass().getName() + ",size=" + items.size()
+                        + ",non-string=" + (item == null ? "null" : item.getClass().getName())
+                        + ",value=" + bounded(String.valueOf(item));
+            }
+        }
+        return "collection:" + value.getClass().getName() + ",size=" + items.size();
+    }
+
+    private static String bounded(String value) {
+        if (value == null) return "null";
+        return value.length() <= 160 ? value : value.substring(0, 160) + "...";
     }
 
     /** What the original call cost, reported only when the probe asked for it. */
@@ -380,6 +422,12 @@ public final class MergedReadCacheRuntime {
         values.put("oversizedKeyMisses", current.oversizedMisses.get());
         values.put("oversizedKeyCaptures", current.oversizedCaptures.get());
         values.put("oversizedKeyDeclines", current.oversizedDeclines.get());
+        values.put("oversizedKeyPathDeclines", current.oversizedPathDeclines.get());
+        values.put("oversizedKeyItemDeclines", current.oversizedItemDeclines.get());
+        values.put("oversizedKeyBoundDeclines", current.oversizedBoundDeclines.get());
+        synchronized (current.oversizedDeclineSamples) {
+            values.put("oversizedKeyDeclineSamples", List.copyOf(current.oversizedDeclineSamples));
+        }
         values.putAll(REHYDRATE_CLOCK.snapshot("rehydrate"));
         return values;
     }
@@ -424,6 +472,10 @@ public final class MergedReadCacheRuntime {
         private final AtomicLong oversizedMisses = new AtomicLong();
         private final AtomicLong oversizedCaptures = new AtomicLong();
         private final AtomicLong oversizedDeclines = new AtomicLong();
+        private final AtomicLong oversizedPathDeclines = new AtomicLong();
+        private final AtomicLong oversizedItemDeclines = new AtomicLong();
+        private final AtomicLong oversizedBoundDeclines = new AtomicLong();
+        private final List<String> oversizedDeclineSamples = new ArrayList<>();
         private final AtomicLong revision = new AtomicLong();
         private long publishedRevision = Long.MIN_VALUE;
         private boolean pruningPublished;
