@@ -923,6 +923,21 @@ final class AdapterTargetRegistry {
                 "app").withAlternativeGroup("lwjgl-display-frame-time-probe");
     }
 
+    static AdapterTarget windowsDisplayUpdateCallerTarget() {
+        return new AdapterTarget(
+                "vanilla-windows-display-update-caller-0.98a-rc8",
+                DisplayUpdateCallerPlan.TARGET_CLASS,
+                DisplayUpdateCallerPlan.ORIGINAL_SHA256,
+                FrameTimeRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        DisplayUpdateCallerPlan.METHOD, DisplayUpdateCallerPlan.DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "fs.common_obf.jar",
+                "5a26d047baefc6dcd763121a17d170e3b864bfb19a83d11f645ba8be49f1641b",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     static AdapterTarget linuxFrameTimeTarget() {
         return new AdapterTarget(
                 "lwjgl-2-display-linux-frame-time-probe",
@@ -2787,6 +2802,7 @@ final class AdapterTargetRegistry {
     AdapterTargetRegistry withFrameTimeTarget() {
         return withTarget(frameTimeTarget())
                 .withTarget(linuxFrameTimeTarget())
+                .withTarget(windowsDisplayUpdateCallerTarget())
                 .withTarget(frameLimiterTimeTarget())
                 .withTarget(windowsFrameLimiterTimeTarget())
                 .withTarget(campaignFrameTimeStateTarget())

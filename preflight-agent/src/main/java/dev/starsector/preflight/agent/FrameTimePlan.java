@@ -35,6 +35,9 @@ final class FrameTimePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
+        if (DisplayUpdateCallerPlan.TARGET_CLASS.equals(signature.internalName())) {
+            return DisplayUpdateCallerPlan.transform(signature, originalBytes);
+        }
         // #1153 experiments temporarily reuse the compiled frame-time plan ID as an exact-target
         // carrier. AdapterTarget still supplies exact class/source identity; each experiment keeps
         // its own runtime switch and semantic bytecode gate.
@@ -137,8 +140,7 @@ final class FrameTimePlan {
     }
 
     private static boolean ownershipProbeRequested() {
-        return SharedContextTextureProbeRuntime.requested()
-                || DisplayThreadTextureProbeRuntime.requested();
+        return SharedContextTextureProbeRuntime.requested();
     }
 
     private static MethodNode unique(ClassNode owner, String name, String descriptor) {

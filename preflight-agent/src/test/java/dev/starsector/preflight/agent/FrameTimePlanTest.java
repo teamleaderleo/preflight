@@ -108,7 +108,7 @@ class FrameTimePlanTest {
     }
 
     @Test
-    void displayThreadProbeAloneInstallsOnlyTheExactDisplayBoundary() throws Exception {
+    void displayThreadProbeDoesNotRunInsideTheSynchronizedDisplayMethod() throws Exception {
         FrameTimeRuntime.beginSession(false, false);
         System.setProperty(DisplayThreadTextureProbeRuntime.ENABLED_PROPERTY, "on");
         byte[] original = fixture(false);
@@ -116,9 +116,7 @@ class FrameTimePlanTest {
         assertNotNull(transformed);
         MethodNode outerUpdate = method(read(transformed), FrameTimePlan.UPDATE_METHOD,
                 FrameTimePlan.UPDATE_NOARG_DESCRIPTOR);
-        assertEquals(1, calls(outerUpdate, RUNTIME, "postUpdate"));
-        assertTrue(callIndex(outerUpdate, FrameTimePlan.TARGET_CLASS, FrameTimePlan.UPDATE_METHOD)
-                < callIndex(outerUpdate, RUNTIME, "postUpdate"));
+        assertEquals(0, calls(outerUpdate, RUNTIME, "postUpdate"));
         assertNull(FrameTimePlan.transform(ClassSignature.parse(transformed), transformed));
     }
 
