@@ -1,99 +1,35 @@
-name: CLI response probe
+name: Windows title tail evidence helper
 
 on:
-  pull_request:
-    paths:
-      - 'probe-kits/cli-response/**'
-      - '.github/workflows/cli-response-probe.yml'
   push:
     branches:
-      - main
       - diagnostics/windows-title-bytecode-acquisition
     paths:
-      - 'probe-kits/cli-response/**'
       - '.github/workflows/cli-response-probe.yml'
 
 permissions:
   contents: write
 
 jobs:
-  self-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Run response probe self-test
-        run: python3 probe-kits/cli-response/test_cli_response_probe.py
-
-  windows-title-disassembly:
-    if: (github.event_name == 'pull_request' && github.head_ref == 'diagnostics/windows-title-bytecode-acquisition') || (github.event_name == 'push' && github.ref_name == 'diagnostics/windows-title-bytecode-acquisition')
+  verify-exact-windows-core:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-build-jdk
-      - name: Fetch exact Windows core and disassemble reviewed title class
+      - name: Acquire exact reviewed Windows core
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $installer = Join-Path $env:RUNNER_TEMP 'starsector_install-0.98a-RC8.exe'
           $extractRoot = Join-Path $env:RUNNER_TEMP 'starsector-extracted'
-          $outputRoot = Join-Path $env:RUNNER_TEMP 'windows-title-disassembly'
-          New-Item -ItemType Directory -Path $extractRoot, $outputRoot -Force | Out-Null
-          Invoke-WebRequest -UseBasicParsing `
-            -Uri 'https://f005.backblazeb2.com/file/fractalsoftworks/release/starsector_install-0.98a-RC8.exe' `
-            -OutFile $installer
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://f005.backblazeb2.com/file/fractalsoftworks/release/starsector_install-0.98a-RC8.exe' -OutFile $installer
           & 7z x $installer "-o$extractRoot" -y | Out-Host
           if ($LASTEXITCODE -ne 0) { throw "7z extraction failed: $LASTEXITCODE" }
-
           $jars = @(Get-ChildItem -LiteralPath $extractRoot -Filter 'starfarer_obf.jar' -File -Recurse)
           if ($jars.Count -ne 1) { throw "Expected one starfarer_obf.jar, found $($jars.Count)" }
           $jar = $jars[0]
           $jarSha = (Get-FileHash -LiteralPath $jar.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-          $expectedJarSha = '5dd222b9e266d2ac2d63b3dad4983eb05caaf5a247d7dfb82aaeba47ea774cc8'
-          if ($jarSha -ne $expectedJarSha) { throw "Core JAR SHA mismatch: $jarSha" }
-
-          $targetToken = 'Oo' + ((('O' * 254) -join ''))
-          $entryName = "com/fs/starfarer/title/$targetToken.class"
-          $classPath = Join-Path $outputRoot 'windows-title.class'
-          $blinkEntryName = 'com/fs/starfarer/ui/d.class'
-          $blinkClassPath = Join-Path $outputRoot 'windows-title-blink.class'
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $zip = [System.IO.Compression.ZipFile]::OpenRead($jar.FullName)
-          try {
-            foreach ($copy in @(@($entryName, $classPath), @($blinkEntryName, $blinkClassPath))) {
-              $entry = $zip.GetEntry($copy[0])
-              if ($null -eq $entry) { throw "Missing exact entry: $($copy[0])" }
-              $source = $entry.Open()
-              try {
-                $destination = [System.IO.File]::Create($copy[1])
-                try { $source.CopyTo($destination) } finally { $destination.Dispose() }
-              } finally { $source.Dispose() }
-            }
-          } finally { $zip.Dispose() }
-
-          $classSha = (Get-FileHash -LiteralPath $classPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          $expectedClassSha = '7a034024de849f2829ad5e41dbb0e58f5979a6e7a81e55527f6839055db3d4c6'
-          if ($classSha -ne $expectedClassSha) { throw "Title class SHA mismatch: $classSha" }
-          $blinkClassSha = (Get-FileHash -LiteralPath $blinkClassPath -Algorithm SHA256).Hash.ToLowerInvariant()
-
-          $className = "com.fs.starfarer.title.$targetToken"
-          & javap -classpath $jar.FullName -c -p -s $className | Out-File -LiteralPath (Join-Path $outputRoot 'windows-title-javap.txt') -Encoding utf8
-          if ($LASTEXITCODE -ne 0) { throw "title javap failed: $LASTEXITCODE" }
-          & javap -classpath $jar.FullName -c -p -s 'com.fs.starfarer.ui.d' | Out-File -LiteralPath (Join-Path $outputRoot 'windows-title-blink-javap.txt') -Encoding utf8
-          if ($LASTEXITCODE -ne 0) { throw "blink javap failed: $LASTEXITCODE" }
-          & javap -classpath $jar.FullName -c -p -s 'com.fs.starfarer.ui.interfacenew' | Out-File -LiteralPath (Join-Path $outputRoot 'windows-title-parent-javap.txt') -Encoding utf8
-          if ($LASTEXITCODE -ne 0) { throw "parent javap failed: $LASTEXITCODE" }
-
-          @(
-            'sourceUrl=https://f005.backblazeb2.com/file/fractalsoftworks/release/starsector_install-0.98a-RC8.exe'
-            "coreJarBytes=$($jar.Length)"
-            "coreJarSha256=$jarSha"
-            "targetClass=$entryName"
-            "targetClassBytes=$((Get-Item -LiteralPath $classPath).Length)"
-            "targetClassSha256=$classSha"
-            "blinkClass=$blinkEntryName"
-            "blinkClassBytes=$((Get-Item -LiteralPath $blinkClassPath).Length)"
-            "blinkClassSha256=$blinkClassSha"
-          ) | Set-Content -LiteralPath (Join-Path $outputRoot 'metadata.txt') -Encoding utf8
+          if ($jarSha -ne '5dd222b9e266d2ac2d63b3dad4983eb05caaf5a247d7dfb82aaeba47ea774cc8') { throw "Core JAR SHA mismatch: $jarSha" }
           "PREFLIGHT_CORE_JAR=$($jar.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Run focused semantic and exact-installed tests
         shell: pwsh
@@ -104,20 +40,9 @@ jobs:
             "-Dtest=MainMenuInteractivePlanTest,MainMenuInteractiveInstalledAdapterIT,RuntimeSemanticStateTest,FrameTimeRuntimeTest,StartupPhasePlanTest,FrameTimeStartupCompletionPlanTest" `
             -Dsurefire.failIfNoSpecifiedTests=false test
           if ($LASTEXITCODE -ne 0) { throw "focused Maven tests failed: $LASTEXITCODE" }
-      - name: Upload disassembly text only
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: windows-title-disassembly
-          path: |
-            ${{ runner.temp }}/windows-title-disassembly/windows-title-javap.txt
-            ${{ runner.temp }}/windows-title-disassembly/windows-title-blink-javap.txt
-            ${{ runner.temp }}/windows-title-disassembly/windows-title-parent-javap.txt
-            ${{ runner.temp }}/windows-title-disassembly/metadata.txt
-          if-no-files-found: error
 
   retain-evidence:
-    if: github.event_name == 'push' && github.ref_name == 'diagnostics/windows-title-bytecode-acquisition'
-    needs: windows-title-disassembly
+    needs: verify-exact-windows-core
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -134,87 +59,7 @@ jobs:
             echo 'Evidence already retained.'
             exit 0
           fi
-          cat >> "$target" <<'EOF'
-
-### What owns the current main-menu-ready to main-menu-interactive tail?
-
-The current ordinary Recommended reference reaches `main-menu-ready` at 35.806 seconds and
-`main-menu-interactive` at 50.514 seconds, leaving a 14.708-second tail. Exact installed bytecode
-puts a deterministic title timer directly on that interval, so the diagnostic stop condition fires
-before another runtime probe is justified.
-
-The reviewed Windows core identity is the installed
-`C:\Games\Starsector\starsector-core\starfarer_obf.jar`, 6,029,184 bytes, SHA-256
-`5dd222b9e266d2ac2d63b3dad4983eb05caaf5a247d7dfb82aaeba47ea774cc8`. A hash-identical copy from
-the official 0.98a-RC8 Windows installer was used for text-only disassembly. The exact title class
-is `MainMenuInteractivePlan.WINDOWS_TARGET_CLASS`, 4,313 bytes, SHA-256
-`7a034024de849f2829ad5e41dbb0e58f5979a6e7a81e55527f6839055db3d4c6`. Its constructor creates
-the `Preloading...` label and calls `blink(3.0f, 10.0f)`. Its `advanceImpl(float)` then has only
-three relevant operations after entry: call `interfacenew.advanceImpl(amount)`, test
-`Preloading....isBlinking()`, and, once that test becomes false, execute the unique
-`remove(Lcom/fs/starfarer/ui/c;)V`. Preflight's existing `mainMenuInteractive()` publication is
-inserted immediately after that reviewed remove call.
-
-The dependent label implementation makes the constants unambiguous. Exact
-`com/fs/starfarer/ui/d.class` is 21,199 bytes with SHA-256
-`6e79902ece3a00a8be4e387256e1213faad3443c710a104cdbd01c2659e886bf`. `blink(float,float)` builds
-a bouncing `Fader` whose half-cycle duration is `1 / firstArgument`, zeros an elapsed field, and
-stores the second argument as the total blink duration. `d.advance(amount)` advances the fader,
-adds that same `amount` to elapsed, and calls `stopBlinking()` when `elapsed > duration`.
-`stopBlinking()` clears the blink fader; `isBlinking()` then returns false. Exact
-`interfacenew.advanceImpl(float)` iterates the title's child components and calls each
-`c.advance(amount)` with the same float before the title override performs its `isBlinking()` test.
-The `Preloading...` child therefore receives the timer increment first and is removed on the same
-advance pass that crosses 10.0 cumulative advance units.
-
-Reproduction commands against the installed archive are:
-
-```text
-javap -classpath "C:\Games\Starsector\starsector-core\starfarer_obf.jar" -c -p -s <MainMenuInteractivePlan.WINDOWS_TARGET_CLASS with dots>
-javap -classpath "C:\Games\Starsector\starsector-core\starfarer_obf.jar" -c -p -s com.fs.starfarer.ui.d
-javap -classpath "C:\Games\Starsector\starsector-core\starfarer_obf.jar" -c -p -s com.fs.starfarer.ui.interfacenew
-```
-
-Useful bytecode anchors are the title constructor's `blink(3.0f,10.0f)` call at offsets 268-276;
-title `advanceImpl`'s `isBlinking` branch and unique remove at offsets 5-20; `d.blink(FF)` storing
-zero elapsed and the second argument at offsets 38-45; `d.advance(F)` adding `amount` to elapsed and
-comparing it with duration at offsets 192-230; and `interfacenew.advanceImpl(F)` invoking each
-child's `advance(amount)` at offsets 17-40.
-
-`main-menu-ready` is equally precise. With `-StartupPhaseProbe`, `StartupPhasePlan` inserts
-`resource-init-complete` immediately before the sole final `RETURN` of the reviewed Windows
-`ResourceLoaderState.init(Map)`. `StartupPhaseRuntime` routes that marker to
-`FrameTimeRuntime.markStartupComplete()`, which publishes `RuntimeSemanticState.mainMenuReady()`.
-Without the phase probe, `FrameTimeStartupCompletionPlan` inserts the same
-`markStartupComplete()` call immediately before that same return. The semantic ready timestamp is
-therefore published before the final `ResourceLoaderState.init` return in both paths.
-
-Classification: **deterministic title timing**. The title requires 10.0 cumulative advance units
-before the removal that makes the menu interactive. Against the current 14.708-second wall tail,
-4.708 seconds is the wall excess above that explicit countdown. The installed bytecode does not
-split that excess among frame/presentation time, delta clamping, scheduling, or other work, and the
-task's deterministic-timer stop condition ends discovery here. The title override itself contains
-no synchronous preparation beyond its superclass advance, one boolean query, and the conditional
-remove.
-
-No tail classifier was added, so disabled-mode bytecode, title timing, rendering, worker scheduling,
-GL ownership, queue behavior, optimization policy, and the existing semantic timestamps remain
-unchanged. No new texture-upload run was taken: the existing 27.768-second native upload island is
-an earlier startup region, while this exact title countdown already owns a material share of the
-post-ready interval. The ordinary promoted reference remains preserved in
-`/home/leo/Windows-Share/Diagnostics/20260903-053648-windows-startup-2x2.zip`, 1,549,810 bytes,
-SHA-256 `3cc84fa4b9020623ce2316462dadcb02edeea5b7ecc4aedd1edbdf11a0ea9650`, using product JAR SHA-256
-`2959d516c98c7db809d37d9f82152bb061bd682254dea294d16173982e14a54a`, the Recommended preset,
-the accepted Windows backslash merged-read path, the pinned 89-mod/profile/runtime/display/llvmpipe
-identity, 14-vCPU/12-GiB guest, and the host performance profile already recorded above. Its raw
-runtime/adapter packet remains the reference output; no new intrusive report was generated after the
-bytecode stop condition fired.
-
-Focused current-source CI and exact-installed integration coverage were rerun while acquiring the
-bytecode. No code was retained from that acquisition leg. There is **no successor from this seam**:
-shortening or bypassing the 10-second title interval would change title timing and belongs outside
-this diagnostics-only task.
-EOF
+          printf '%s' 'CiMjIyBXaGF0IG93bnMgdGhlIGN1cnJlbnQgbWFpbi1tZW51LXJlYWR5IHRvIG1haW4tbWVudS1pbnRlcmFjdGl2ZSB0YWlsPwoKVGhlIGN1cnJlbnQgb3JkaW5hcnkgUmVjb21tZW5kZWQgcmVmZXJlbmNlIHJlYWNoZXMgYG1haW4tbWVudS1yZWFkeWAgYXQgMzUuODA2IHNlY29uZHMgYW5kCmBtYWluLW1lbnUtaW50ZXJhY3RpdmVgIGF0IDUwLjUxNCBzZWNvbmRzLCBsZWF2aW5nIGEgMTQuNzA4LXNlY29uZCB0YWlsLiBFeGFjdCBpbnN0YWxsZWQgYnl0ZWNvZGUKcHV0cyBhIGRldGVybWluaXN0aWMgdGl0bGUgdGltZXIgZGlyZWN0bHkgb24gdGhhdCBpbnRlcnZhbCwgc28gdGhlIGRpYWdub3N0aWMgc3RvcCBjb25kaXRpb24gZmlyZXMKYmVmb3JlIGFub3RoZXIgcnVudGltZSBwcm9iZSBpcyBqdXN0aWZpZWQuCgpUaGUgcmV2aWV3ZWQgV2luZG93cyBjb3JlIGlkZW50aXR5IGlzIHRoZSBpbnN0YWxsZWQKYEM6XFxHYW1lc1xcU3RhcnNlY3Rvclxcc3RhcnNlY3Rvci1jb3JlXFxzdGFyZmFyZXJfb2JmLmphcmAsIDYsMDI5LDE4NCBieXRlcywgU0hBLTI1NgpgNWRkMjIyYjllMjY2ZDJhYzJkNjNiM2RhZDQ5ODNlYjA1Y2FhZjVhMjQ3ZDdkZmI4MmFhZWJhNDdlYTc3NGNjOGAuIEEgaGFzaC1pZGVudGljYWwgY29weSBmcm9tCnRoZSBvZmZpY2lhbCAwLjk4YS1SQzggV2luZG93cyBpbnN0YWxsZXIgd2FzIHVzZWQgZm9yIHRleHQtb25seSBkaXNhc3NlbWJseS4gVGhlIGV4YWN0IHRpdGxlIGNsYXNzCmlzIGBNYWluTWVudUludGVyYWN0aXZlUGxhbi5XSU5ET1dTX1RBUkdFVF9DTEFTU2AsIDQsMzEzIGJ5dGVzLCBTSEEtMjU2CmA3YTAzNDAyNGRlODQ5ZjI4MjlhZDVlNDFkYmIwZTU4ZjU5NzlhNmU3YTgxZTU1NTI3ZjY4MzkwNTVkYjNkNGM2YC4gSXRzIGNvbnN0cnVjdG9yIGNyZWF0ZXMKdGhlIGBQcmVsb2FkaW5nLi4uYCBsYWJlbCBhbmQgY2FsbHMgYGJsaW5rKDMuMGYsIDEwLjBmKWAuIEl0cyBgYWR2YW5jZUltcGwoZmxvYXQpYCB0aGVuIGhhcyBvbmx5CnRocmVlIHJlbGV2YW50IG9wZXJhdGlvbnMgYWZ0ZXIgZW50cnk6IGNhbGwgYGludGVyZmFjZW5ldy5hZHZhbmNlSW1wbChhbW91bnQpYCwgdGVzdApgUHJlbG9hZGluZy4uLi5pc0JsaW5raW5nKClgLCBhbmQsIG9uY2UgdGhhdCB0ZXN0IGJlY29tZXMgZmFsc2UsIGV4ZWN1dGUgdGhlIHVuaXF1ZQpgcmVtb3ZlKExjb20vZnMvc3RhcmZhcmVyL3VpL2M7KVZgLiBQcmVmbGlnaHQncyBleGlzdGluZyBgbWFpbk1lbnVJbnRlcmFjdGl2ZSgpYCBwdWJsaWNhdGlvbiBpcwppbnNlcnRlZCBpbW1lZGlhdGVseSBhZnRlciB0aGF0IHJldmlld2VkIHJlbW92ZSBjYWxsLgoKVGhlIGRlcGVuZGVudCBsYWJlbCBpbXBsZW1lbnRhdGlvbiBtYWtlcyB0aGUgY29uc3RhbnRzIHVuYW1iaWd1b3VzLiBFeGFjdApgY29tL2ZzL3N0YXJmYXJlci91aS9kLmNsYXNzYCBpcyAyMSwxOTkgYnl0ZXMgd2l0aCBTSEEtMjU2CmA2ZTc5OTAyZWNlM2EwMGE4YmU0ZTM4NzI1NmUxMjEzZmFhZDM0NDNjNzEwYTEwNGNkYmQwMWMyNjU5ZTg4NmJmYC4gYGJsaW5rKGZsb2F0LGZsb2F0KWAgYnVpbGRzCmEgYm91bmNpbmcgYEZhZGVyYCB3aG9zZSBoYWxmLWN5Y2xlIGR1cmF0aW9uIGlzIGAxIC8gZmlyc3RBcmd1bWVudGAsIHplcm9zIGFuIGVsYXBzZWQgZmllbGQsIGFuZApzdG9yZXMgdGhlIHNlY29uZCBhcmd1bWVudCBhcyB0aGUgdG90YWwgYmxpbmsgZHVyYXRpb24uIGBkLmFkdmFuY2UoYW1vdW50KWAgYWR2YW5jZXMgdGhlIGZhZGVyLAphZGRzIHRoYXQgc2FtZSBgYW1vdW50YCB0byBlbGFwc2VkLCBhbmQgY2FsbHMgYHN0b3BCbGlua2luZygpYCB3aGVuIGBlbGFwc2VkID4gZHVyYXRpb25gLgpgc3RvcEJsaW5raW5nKClgIGNsZWFycyB0aGUgYmxpbmsgZmFkZXI7IGBpc0JsaW5raW5nKClgIHRoZW4gcmV0dXJucyBmYWxzZS4gRXhhY3QKYGludGVyZmFjZW5ldy5hZHZhbmNlSW1wbChmbG9hdClgIGl0ZXJhdGVzIHRoZSB0aXRsZSdzIGNoaWxkIGNvbXBvbmVudHMgYW5kIGNhbGxzIGVhY2gKYGMuYWR2YW5jZShhbW91bnQpYCB3aXRoIHRoZSBzYW1lIGZsb2F0IGJlZm9yZSB0aGUgdGl0bGUgb3ZlcnJpZGUgcGVyZm9ybXMgaXRzIGBpc0JsaW5raW5nKClgIHRlc3QuClRoZSBgUHJlbG9hZGluZy4uLmAgY2hpbGQgdGhlcmVmb3JlIHJlY2VpdmVzIHRoZSB0aW1lciBpbmNyZW1lbnQgZmlyc3QgYW5kIGlzIHJlbW92ZWQgb24gdGhlIHNhbWUKYWR2YW5jZSBwYXNzIHRoYXQgY3Jvc3NlcyAxMC4wIGN1bXVsYXRpdmUgYWR2YW5jZSB1bml0cy4KClJlcHJvZHVjdGlvbiBjb21tYW5kcyBhZ2FpbnN0IHRoZSBpbnN0YWxsZWQgYXJjaGl2ZSBhcmU6CgpgYGB0ZXh0CmphdmFwIC1jbGFzc3BhdGggIkM6XFxHYW1lc1xcU3RhcnNlY3Rvclxcc3RhcnNlY3Rvci1jb3JlXFxzdGFyZmFyZXJfb2JmLmphciIgLWMgLXAgLXMgPE1haW5NZW51SW50ZXJhY3RpdmVQbGFuLldJTkRPV1NfVEFSR0VUX0NMQVNTIHdpdGggZG90cz4KamF2YXAgLWNsYXNzcGF0aCAiQzpcXEdhbWVzXFxTdGFyc2VjdG9yXFxzdGFyc2VjdG9yLWNvcmVcXHN0YXJmYXJlcl9vYmYuamFyIiAtYyAtcCAtcyBjb20uZnMuc3RhcmZhcmVyLnVpLmQKamF2YXAgLWNsYXNzcGF0aCAiQzpcXEdhbWVzXFxTdGFyc2VjdG9yXFxzdGFyc2VjdG9yLWNvcmVcXHN0YXJmYXJlcl9vYmYuamFyIiAtYyAtcCAtcyBjb20uZnMuc3RhcmZhcmVyLnVpLmludGVyZmFjZW5ldwpgYGAKClVzZWZ1bCBieXRlY29kZSBhbmNob3JzIGFyZSB0aGUgdGl0bGUgY29uc3RydWN0b3IncyBgYmxpbmsoMy4wZiwxMC4wZilgIGNhbGwgYXQgb2Zmc2V0cyAyNjgtMjc2Owp0aXRsZSBgYWR2YW5jZUltcGxgJ3MgYGlzQmxpbmtpbmdgIGJyYW5jaCBhbmQgdW5pcXVlIHJlbW92ZSBhdCBvZmZzZXRzIDUtMjA7IGBkLmJsaW5rKEZGKWAgc3RvcmluZwp6ZXJvIGVsYXBzZWQgYW5kIHRoZSBzZWNvbmQgYXJndW1lbnQgYXQgb2Zmc2V0cyAzOC00NTsgYGQuYWR2YW5jZShGKWAgYWRkaW5nIGBhbW91bnRgIHRvIGVsYXBzZWQgYW5kCmNvbXBhcmluZyBpdCB3aXRoIGR1cmF0aW9uIGF0IG9mZnNldHMgMTkyLTIzMDsgYW5kIGBpbnRlcmZhY2VuZXcuYWR2YW5jZUltcGwoRilgIGludm9raW5nIGVhY2gKY2hpbGQncyBgYWR2YW5jZShhbW91bnQpYCBhdCBvZmZzZXRzIDE3LTQwLgoKYG1haW4tbWVudS1yZWFkeWAgaXMgZXF1YWxseSBwcmVjaXNlLiBXaXRoIGAtU3RhcnR1cFBoYXNlUHJvYmVgLCBgU3RhcnR1cFBoYXNlUGxhbmAgaW5zZXJ0cwpgcmVzb3VyY2UtaW5pdC1jb21wbGV0ZWAgaW1tZWRpYXRlbHkgYmVmb3JlIHRoZSBzb2xlIGZpbmFsIGBSRVRVUk5gIG9mIHRoZSByZXZpZXdlZCBXaW5kb3dzCmBSZXNvdXJjZUxvYWRlclN0YXRlLmluaXQoTWFwKWAuIGBTdGFydHVwUGhhc2VSdW50aW1lYCByb3V0ZXMgdGhhdCBtYXJrZXIgdG8KYEZyYW1lVGltZVJ1bnRpbWUubWFya1N0YXJ0dXBDb21wbGV0ZSgpYCwgd2hpY2ggcHVibGlzaGVzIGBSdW50aW1lU2VtYW50aWNTdGF0ZS5tYWluTWVudVJlYWR5KClgLgpXaXRob3V0IHRoZSBwaGFzZSBwcm9iZSwgYEZyYW1lVGltZVN0YXJ0dXBDb21wbGV0aW9uUGxhbmAgaW5zZXJ0cyB0aGUgc2FtZQpgbWFya1N0YXJ0dXBDb21wbGV0ZSgpYCBjYWxsIGltbWVkaWF0ZWx5IGJlZm9yZSB0aGF0IHNhbWUgcmV0dXJuLiBUaGUgc2VtYW50aWMgcmVhZHkgdGltZXN0YW1wIGlzCnRoZXJlZm9yZSBwdWJsaXNoZWQgYmVmb3JlIHRoZSBmaW5hbCBgUmVzb3VyY2VMb2FkZXJTdGF0ZS5pbml0YCByZXR1cm4gaW4gYm90aCBwYXRocy4KCkNsYXNzaWZpY2F0aW9uOiAqKmRldGVybWluaXN0aWMgdGl0bGUgdGltaW5nKiouIFRoZSB0aXRsZSByZXF1aXJlcyAxMC4wIGN1bXVsYXRpdmUgYWR2YW5jZSB1bml0cwpiZWZvcmUgdGhlIHJlbW92YWwgdGhhdCBtYWtlcyB0aGUgbWVudSBpbnRlcmFjdGl2ZS4gQWdhaW5zdCB0aGUgY3VycmVudCAxNC43MDgtc2Vjb25kIHdhbGwgdGFpbCwKNC43MDggc2Vjb25kcyBpcyB0aGUgd2FsbCBleGNlc3MgYWJvdmUgdGhhdCBleHBsaWNpdCBjb3VudGRvd24uIFRoZSBpbnN0YWxsZWQgYnl0ZWNvZGUgZG9lcyBub3QKc3BsaXQgdGhhdCBleGNlc3MgYW1vbmcgZnJhbWUvcHJlc2VudGF0aW9uIHRpbWUsIGRlbHRhIGNsYW1waW5nLCBzY2hlZHVsaW5nLCBvciBvdGhlciB3b3JrLCBhbmQgdGhlCnRhc2sncyBkZXRlcm1pbmlzdGljLXRpbWVyIHN0b3AgY29uZGl0aW9uIGVuZHMgZGlzY292ZXJ5IGhlcmUuIFRoZSB0aXRsZSBvdmVycmlkZSBpdHNlbGYgY29udGFpbnMKbm8gc3luY2hyb25vdXMgcHJlcGFyYXRpb24gYmV5b25kIGl0cyBzdXBlcmNsYXNzIGFkdmFuY2UsIG9uZSBib29sZWFuIHF1ZXJ5LCBhbmQgdGhlIGNvbmRpdGlvbmFsCnJlbW92ZS4KCk5vIHRhaWwgY2xhc3NpZmllciB3YXMgYWRkZWQsIHNvIGRpc2FibGVkLW1vZGUgYnl0ZWNvZGUsIHRpdGxlIHRpbWluZywgcmVuZGVyaW5nLCB3b3JrZXIgc2NoZWR1bGluZywKR0wgb3duZXJzaGlwLCBxdWV1ZSBiZWhhdmlvciwgb3B0aW1pemF0aW9uIHBvbGljeSwgYW5kIHRoZSBleGlzdGluZyBzZW1hbnRpYyB0aW1lc3RhbXBzIHJlbWFpbgp1bmNoYW5nZWQuIE5vIG5ldyB0ZXh0dXJlLXVwbG9hZCBydW4gd2FzIHRha2VuOiB0aGUgZXhpc3RpbmcgMjcuNzY4LXNlY29uZCBuYXRpdmUgdXBsb2FkIGlzbGFuZCBpcwphbiBlYXJsaWVyIHN0YXJ0dXAgcmVnaW9uLCB3aGlsZSB0aGlzIGV4YWN0IHRpdGxlIGNvdW50ZG93biBhbHJlYWR5IG93bnMgYSBtYXRlcmlhbCBzaGFyZSBvZiB0aGUKcG9zdC1yZWFkeSBpbnRlcnZhbC4gVGhlIG9yZGluYXJ5IHByb21vdGVkIHJlZmVyZW5jZSByZW1haW5zIHByZXNlcnZlZCBpbgpgL2hvbWUvbGVvL1dpbmRvd3MtU2hhcmUvRGlhZ25vc3RpY3MvMjAyNjA5MDMtMDUzNjQ4LXdpbmRvd3Mtc3RhcnR1cC0yeDIuemlwYCwgMSw1NDksODEwIGJ5dGVzLApTSEEtMjU2IGAzY2M4NGZhNGI5MDIwNjIzY2UyMzE2NDYyZGFkY2IwMmVkZWVhNWI3ZWNjNGFlZGQxZWRiZGYxMWEwZWE5NjUwYCwgdXNpbmcgcHJvZHVjdCBKQVIgU0hBLTI1NgpgMjk1OWQ1MTZjOThjN2RiODA5ZDM3ZDlmODIxNTJiYjA2MWJkNjgyMjU0ZGVhMjk0ZDE2MTczOTgyZTE0YTU0YWAsIHRoZSBSZWNvbW1lbmRlZCBwcmVzZXQsCnRoZSBhY2NlcHRlZCBXaW5kb3dzIGJhY2tzbGFzaCBtZXJnZWQtcmVhZCBwYXRoLCB0aGUgcGlubmVkIDg5LW1vZC9wcm9maWxlL3J1bnRpbWUvZGlzcGxheS9sbHZtcGlwZQppZGVudGl0eSwgMTQtdkNQVS8xMi1HaUIgZ3Vlc3QsIGFuZCB0aGUgaG9zdCBwZXJmb3JtYW5jZSBwcm9maWxlIGFscmVhZHkgcmVjb3JkZWQgYWJvdmUuIEl0cyByYXcKcnVudGltZS9hZGFwdGVyIHBhY2tldCByZW1haW5zIHRoZSByZWZlcmVuY2Ugb3V0cHV0OyBubyBuZXcgaW50cnVzaXZlIHJlcG9ydCB3YXMgZ2VuZXJhdGVkIGFmdGVyIHRoZQpieXRlY29kZSBzdG9wIGNvbmRpdGlvbiBmaXJlZC4KCkZvY3VzZWQgY3VycmVudC1zb3VyY2UgQ0kgYW5kIGV4YWN0LWluc3RhbGxlZCBpbnRlZ3JhdGlvbiBjb3ZlcmFnZSB3ZXJlIHJlcnVuIHdoaWxlIGFjcXVpcmluZyB0aGUKYnl0ZWNvZGUuIE5vIGNvZGUgd2FzIHJldGFpbmVkIGZyb20gdGhhdCBhY3F1aXNpdGlvbiBsZWcuIFRoZXJlIGlzICoqbm8gc3VjY2Vzc29yIGZyb20gdGhpcyBzZWFtKio6CnNob3J0ZW5pbmcgb3IgYnlwYXNzaW5nIHRoZSAxMC1zZWNvbmQgdGl0bGUgaW50ZXJ2YWwgd291bGQgY2hhbmdlIHRpdGxlIHRpbWluZyBhbmQgYmVsb25ncyBvdXRzaWRlCnRoaXMgZGlhZ25vc3RpY3Mtb25seSB0YXNrLgo=' | base64 -d >> "$target"
           git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
