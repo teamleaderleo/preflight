@@ -40,7 +40,8 @@ public final class StartupPhaseRuntime {
         "projectile-json-other",
         "projectile-schema-decode",
         "projectile-spec-methods",
-        "projectile-game-helpers"
+        "projectile-game-helpers",
+        "ship-system-phase-hull-lookup"
     };
     private static final long NO_SAMPLE = Long.MIN_VALUE;
     private static final int[] PROGRESS_MILESTONES = {1, 5, 10, 25, 50, 75, 90, 95, 99, 100};

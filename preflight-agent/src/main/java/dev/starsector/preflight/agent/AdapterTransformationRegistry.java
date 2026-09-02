@@ -570,6 +570,9 @@ final class AdapterTransformationRegistry {
                     && FactionPriorityCacheRuntime.ready()) {
                 FactionPriorityCachePlan.apply(signature, owner);
             }
+            if (StartupPhaseRuntime.phaseProbeEnabled()) {
+                ShipSystemHydrationBreakdownPlan.apply(signature, owner);
+            }
             if (AssetProgressLogRuntime.suppress()) {
                 AssetProgressLogPlan.apply(signature, owner);
             }
