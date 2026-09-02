@@ -7,6 +7,7 @@ param(
     [int]$Rounds = 1,
     [ValidateRange(0, 600)]
     [int]$CooldownSeconds = 0,
+    [switch]$ReverseOrder,
     [switch]$DiscoveryProbes
 )
 
@@ -14,7 +15,7 @@ $ErrorActionPreference = 'Stop'
 $runner = Join-Path $PSScriptRoot 'run-windows-startup-cohort.ps1'
 
 for ($round = 1; $round -le $Rounds; $round++) {
-    $splitFirst = ($round % 2) -eq 0
+    $splitFirst = (($round % 2) -eq 0) -xor [bool]$ReverseOrder
     foreach ($splitQueues in @($splitFirst, -not $splitFirst)) {
         $label = if ($splitQueues) { 'split-queues' } else { 'current-main' }
         Write-Host "Windows prepared-prefetch comparison: round $round, $label"
