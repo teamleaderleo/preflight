@@ -528,11 +528,10 @@ zero live buffers at shutdown.
 1. Do not promote or retest prepared-carrier staging merely because it achieved 2,170 hits. Reopen
    only if a new design can avoid producer/consumer CPU contention or target a materially larger
    serial block.
-2. Test exact prepared-prefetch/consumption order alignment against the **8.897-second first-texture
-   wait**. Require the same prepared workload and full settlement; reject it if the wait merely
-   moves elsewhere or the semantic menu does not improve. The next separate SpecStore candidate is
-   faction priority-table construction at 1.643 seconds. GraphicsLib remains a 3.5-5.8-second
-   callback target across the intrusive packets.
+2. Prepared-order alignment and independent byte/image lanes are now both retained rejections. The
+   latter removes the first-texture wait but does not improve total thin startup against current
+   main. The next separate SpecStore candidate is faction priority-table construction at 1.643
+   seconds. GraphicsLib remains a 3.5-5.8-second callback target across the intrusive packets.
 3. Require an exploratory causal signal before paying for an interleaved standalone cohort. Keep
    llvmpipe padded; the bounded NPOT result rejects capability-only gating.
 4. Run the exact worker successor on a native-GPU Windows machine before promoting any
@@ -695,3 +694,60 @@ Preserved evidence:
 
 The archive is 1,593,956 bytes with SHA-256
 `80a5aa112d935a99d9152263afffc997b8fd2f03d51761699d0093d359af26bb`.
+
+### Does overlapping the byte and image queues turn the cursor result into a startup win?
+
+No. It proves the causal explanation and removes the local wait, but a thin interleaved comparison
+does not show a useful total-startup improvement. The exact-gated implementation and reusable
+comparison runner remain on `main` as off-by-default diagnostic prior art.
+
+External early thread dumps corrected the preceding scheduler-versus-monitor hypothesis. The
+reviewed `L$1.run()` worker was RUNNABLE in byte-resource reads. Exact installed bytecode shows two
+serial phases: it drains the byte queue and byte-result map first, then begins the prepared-image
+queue. The existing rejected multi-worker implementation did not test overlap because every worker
+also preferred bytes before images.
+
+The focused successor used exactly two lanes: one stock decoder and writer for the byte-result map,
+and one stock decoder and writer for the image-result map. This preserves the original one-writer
+behavior for each independent map while allowing the cursor carrier to start immediately. The
+installed-game correctness run confirmed the mechanism:
+
+- cursor carrier: 793 microseconds on `Preflight-Windows-Prefetch-Image`;
+- images: 15,003 claims and 15,003 completions;
+- bytes: 4,454 claims and 4,454 completions;
+- peak two workers, both stopped;
+- zero pool failures, original decodes, prepared or dimension fallbacks, internal errors, pending
+  buffers, active direct bytes, or failure samples.
+
+That intrusive run reached graphics in 46.374 seconds and the interactive menu in 60.336 seconds,
+but those probe-bearing clocks are discovery evidence only. A thin A-B-B-A comparison then tested
+current Recommended main, including its promoted Kaleidoscope optimization, against the split
+candidate with that intentionally non-composable neighbor disabled:
+
+| condition | graphics preload | semantic ready | semantic interactive |
+| --- | ---: | ---: | ---: |
+| current main A1 | 50.979 s | 48.413 s | 65.969 s |
+| split queues B1 | 56.704 s | 55.789 s | 70.933 s |
+| split queues B2 | 51.886 s | 52.004 s | 66.191 s |
+| current main A2 | 52.753 s | 48.464 s | 67.165 s |
+| current-main median | 51.866 s | 48.439 s | 66.567 s |
+| split-queue median | 54.295 s | 53.897 s | 68.562 s |
+
+The candidate is about 2.0 seconds slower at the interactive boundary and about 5.5 seconds slower
+at semantic ready in these two interleaved observations. Every candidate run completed the same
+15,003 image and 4,454 byte jobs with zero failures or live state. The local cursor stall was real,
+but it was not an isolated critical-path saving: overlap introduces competing CPU/I/O work and also
+forgoes the current Kaleidoscope path. This is therefore a rejected startup optimization, not a
+reason to undo the causal instrumentation or the safe opt-in seam.
+
+Preserved evidence:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260902-windows-split-queue-fallback-and-correctness.zip
+/home/leo/Windows-Share/Diagnostics/20260902-windows-split-queue-thin-interleaved.zip
+```
+
+The fallback/correctness archive is 3,229,039 bytes with SHA-256
+`164a5e5754008a1c4e16e6795ae2ca2dfb12a27aac1d2a09d1f1232e99077ca3`. The thin interleaved
+archive is 6,402,330 bytes with SHA-256
+`5bbb734cafb1c9342b9ab295d1b1a725451d867192e52e9c7b460cb0a7824cb2`.
