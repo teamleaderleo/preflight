@@ -50,6 +50,8 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class MergedReadCacheRuntime {
     public static final String PLAN_ID = "vanilla-merged-read-cache-v1";
+    static final String WINDOWS_OVERSIZED_KEYS_PROPERTY =
+            "preflight.mergedReads.windowsOversizedKeys";
 
     /** Caps what one launch can learn so a pathological mod cannot grow the artifact without end. */
     private static final int MAX_LEARNED = 100_000;
@@ -141,14 +143,35 @@ public final class MergedReadCacheRuntime {
         }
         // Vanilla uses this set only to ask whether it contains a key, so sorting it makes two
         // requests that differ in nothing but iteration order share one entry rather than two.
-        String key = MergedReadKey.json(path, sorted(mergeKeys));
+        List<String> canonicalItems = sorted(mergeKeys);
+        String key = MergedReadKey.json(path, canonicalItems);
+        boolean oversized = false;
+        if (key == null && oversizedKeysEnabled()) {
+            current.oversizedAttempts.incrementAndGet();
+            key = MergedReadKey.jsonWithHashedOversizedItems(path, canonicalItems);
+            oversized = key != null;
+            if (oversized) {
+                current.oversizedAccepted.incrementAndGet();
+            } else {
+                current.oversizedDeclines.incrementAndGet();
+            }
+        }
         Object hit = cached(current, key);
         if (hit != null) {
+            if (oversized) current.oversizedHits.incrementAndGet();
             return hit;
         }
+        if (oversized) current.oversizedMisses.incrementAndGet();
         Object produced = timed("json", path, () -> vanilla.invoke(path, mergeKeys));
-        capture(current, key, produced);
+        if (capture(current, key, produced) && oversized) {
+            current.oversizedCaptures.incrementAndGet();
+        }
         return produced;
+    }
+
+    private static boolean oversizedKeysEnabled() {
+        return Boolean.getBoolean(WINDOWS_OVERSIZED_KEYS_PROPERTY)
+                && System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows");
     }
 
     /** What the original call cost, reported only when the probe asked for it. */
@@ -332,6 +355,10 @@ public final class MergedReadCacheRuntime {
         State current = state;
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("status", current.diagnostic);
+        values.put("windowsOversizedKeysProperty", WINDOWS_OVERSIZED_KEYS_PROPERTY);
+        values.put("windowsOversizedKeysRequested",
+                Boolean.getBoolean(WINDOWS_OVERSIZED_KEYS_PROPERTY));
+        values.put("windowsOversizedKeysEnabled", oversizedKeysEnabled());
         values.put("profileIdentity", current.profileIdentity);
         values.put("artifact", current.artifact);
         values.put("preparedEntries", current.entries.size());
@@ -347,6 +374,12 @@ public final class MergedReadCacheRuntime {
         values.put("singleJsonHits", current.singleJsonHits.get());
         values.put("singleJsonMisses", current.singleJsonMisses.get());
         values.put("singleJsonCaptures", current.singleJsonCaptures.get());
+        values.put("oversizedKeyAttempts", current.oversizedAttempts.get());
+        values.put("oversizedKeyAccepted", current.oversizedAccepted.get());
+        values.put("oversizedKeyHits", current.oversizedHits.get());
+        values.put("oversizedKeyMisses", current.oversizedMisses.get());
+        values.put("oversizedKeyCaptures", current.oversizedCaptures.get());
+        values.put("oversizedKeyDeclines", current.oversizedDeclines.get());
         values.putAll(REHYDRATE_CLOCK.snapshot("rehydrate"));
         return values;
     }
@@ -385,6 +418,12 @@ public final class MergedReadCacheRuntime {
         private final AtomicLong singleJsonHits = new AtomicLong();
         private final AtomicLong singleJsonMisses = new AtomicLong();
         private final AtomicLong singleJsonCaptures = new AtomicLong();
+        private final AtomicLong oversizedAttempts = new AtomicLong();
+        private final AtomicLong oversizedAccepted = new AtomicLong();
+        private final AtomicLong oversizedHits = new AtomicLong();
+        private final AtomicLong oversizedMisses = new AtomicLong();
+        private final AtomicLong oversizedCaptures = new AtomicLong();
+        private final AtomicLong oversizedDeclines = new AtomicLong();
         private final AtomicLong revision = new AtomicLong();
         private long publishedRevision = Long.MIN_VALUE;
         private boolean pruningPublished;

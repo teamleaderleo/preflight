@@ -53,6 +53,8 @@ public final class MergedReadKey {
     private static final char FIELD = (char) 0;
     private static final char ITEM = (char) 1;
     private static final int MAX_KEY_CHARS = 8192;
+    private static final int MAX_OVERSIZED_ITEM_CHARS = 1_000_000;
+    private static final String OVERSIZED_ITEMS_PREFIX = "sha256-utf16-code-units:";
 
     private MergedReadKey() {
     }
@@ -65,6 +67,39 @@ public final class MergedReadKey {
         }
         String items = items(mergeKeys);
         return items == null ? null : bound(JSON + FIELD + path + FIELD + items);
+    }
+
+    /**
+     * Names an otherwise-valid JSON request whose canonical item sequence exceeds the ordinary
+     * representation bound, or returns null for ordinary, invalid, dynamic, or excessively large
+     * input.
+     *
+     * <p>The digest is over Java UTF-16 code units rather than a replacement-tolerant charset
+     * encoding, so distinct malformed strings cannot collapse before hashing. The existing item
+     * validation and separators make the canonical sequence unambiguous. Callers keep this path
+     * behind an explicit experiment switch until a physical warm-cache run proves its value.
+     */
+    public static String jsonWithHashedOversizedItems(
+            String rawPath, List<String> mergeKeys) {
+        String path = path(rawPath);
+        if (path == null || DYNAMIC_SETTINGS.equals(path)) {
+            return null;
+        }
+        String items = items(mergeKeys);
+        if (items == null) {
+            return null;
+        }
+        String ordinary = JSON + FIELD + path + FIELD + items;
+        if (ordinary.length() <= MAX_KEY_CHARS || items.length() > MAX_OVERSIZED_ITEM_CHARS) {
+            return null;
+        }
+        byte[] codeUnits = new byte[items.length() * 2];
+        for (int index = 0; index < items.length(); index++) {
+            char value = items.charAt(index);
+            codeUnits[index * 2] = (byte) (value >>> 8);
+            codeUnits[index * 2 + 1] = (byte) value;
+        }
+        return JSON + FIELD + path + FIELD + OVERSIZED_ITEMS_PREFIX + Hashes.sha256(codeUnits);
     }
 
     /** The key for one unrestricted single-file JSON read after resource initialization. */

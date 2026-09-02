@@ -117,6 +117,13 @@ until correctness and repeated startup evidence settle the candidate.
 For an unattended shuffled comparison, use conditions
 `preflight,preflight-spec-store-texture-overlap`; the second arm enables the candidate while the
 first explicitly disables it, and each run records its effective state.
+`-WindowsOversizedMergedReadKeys` enables the #1219 learning candidate. It retains every existing
+merged-read eligibility rule but gives an otherwise-valid JSON request a versioned SHA-256 key when
+its canonical merge-key sequence exceeds the ordinary 8,192-character representation. The first
+run learns and publishes those entries; a later run can serve them. Invalid paths, dynamic settings,
+invalid items, inputs above the independent one-million-character bound, property disable, misses,
+and damaged entries all retain original behavior. Telemetry separates oversized attempts,
+accepted keys, hits, misses, captures, and declines.
 
 `run-windows-gameplay-scenario.ps1` is the reviewable interactive-session entry point for the same
 checked-in gameplay scenarios used on macOS and Linux. It defaults to the optimized Lindsey

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
 class MergedReadKeyTest {
@@ -81,6 +82,35 @@ class MergedReadKeyTest {
         assertNull(MergedReadKey.csv("data/hulls/ship_data.csv", true, false,
                 java.util.Arrays.asList("id", null)));
         assertNull(MergedReadKey.json("data/config/engine_styles.json", List.of("bad\u0000key")));
+    }
+
+    @Test
+    void hashesOnlyOtherwiseValidOversizedJsonItemSequences() {
+        List<String> oversized = IntStream.range(0, 300)
+                .mapToObj(index -> "protected-field-" + index + "-xxxxxxxxxxxxxxxxxxxxxxxx")
+                .toList();
+        String key = MergedReadKey.jsonWithHashedOversizedItems(
+                "data/shipsystems/example.system", oversized);
+
+        assertNull(MergedReadKey.json("data/shipsystems/example.system", oversized));
+        assertNotNull(key);
+        assertTrue(MergedReadKey.wellFormed(key));
+        assertEquals(key, MergedReadKey.jsonWithHashedOversizedItems(
+                "data/shipsystems/example.system", oversized));
+        assertNotEquals(key, MergedReadKey.jsonWithHashedOversizedItems(
+                "data/shipsystems/example.system",
+                java.util.stream.Stream.concat(
+                        oversized.stream().limit(oversized.size() - 1),
+                        java.util.stream.Stream.of("different-tail")).toList()));
+
+        assertNull(MergedReadKey.jsonWithHashedOversizedItems(
+                "data/shipsystems/example.system", List.of("ordinary")));
+        assertNull(MergedReadKey.jsonWithHashedOversizedItems(
+                "data/config/settings.json", oversized));
+        assertNull(MergedReadKey.jsonWithHashedOversizedItems(
+                "graphics/example.json", oversized));
+        assertNull(MergedReadKey.jsonWithHashedOversizedItems(
+                "data/shipsystems/example.system", null));
     }
 
     @Test

@@ -22,6 +22,7 @@ startup_phase_probe=false
 display_thread_texture_probe=false
 display_thread_spec_store_probe=false
 spec_store_texture_overlap=false
+windows_oversized_merged_read_keys=false
 
 usage() {
     cat <<'EOF'
@@ -38,6 +39,7 @@ Usage: run-big-red-windows-startup-cohort.sh [options]
   --display-thread-texture-probe  Test same-Display ownership on one renderer thread
   --display-thread-spec-store-probe  Hold Display on a worker across Windows SpecStore
   --spec-store-texture-overlap  Preload learned textures while Windows main runs SpecStore
+  --windows-oversized-merged-read-keys  Cache valid oversized Windows merged-JSON requests
   --check                Verify host, VM, guest agent, and scheduled task without launching
 EOF
 }
@@ -56,6 +58,7 @@ while (($#)); do
         --display-thread-texture-probe) display_thread_texture_probe=true; shift ;;
         --display-thread-spec-store-probe) display_thread_spec_store_probe=true; shift ;;
         --spec-store-texture-overlap) spec_store_texture_overlap=true; shift ;;
+        --windows-oversized-merged-read-keys) windows_oversized_merged_read_keys=true; shift ;;
         --check) check_only=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -211,9 +214,11 @@ display_thread_spec_store_arg=""
 [[ "$display_thread_spec_store_probe" == true ]] && display_thread_spec_store_arg=" -WindowsDisplayThreadSpecStoreProbe"
 spec_store_texture_overlap_arg=""
 [[ "$spec_store_texture_overlap" == true ]] && spec_store_texture_overlap_arg=" -WindowsSpecStoreTextureOverlap"
+windows_oversized_merged_read_keys_arg=""
+[[ "$windows_oversized_merged_read_keys" == true ]] && windows_oversized_merged_read_keys_arg=" -WindowsOversizedMergedReadKeys"
 run_ps=$(cat <<EOF
 \$script = "$guest_repo\\scripts\\run-windows-startup-cohort.ps1"
-\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset$faction_priority_arg$startup_phase_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg'
+\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset$faction_priority_arg$startup_phase_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_oversized_merged_read_keys_arg'
 Set-ScheduledTask -TaskName "$task" -Action (New-ScheduledTaskAction -Execute 'powershell.exe' -Argument \$args) | Out-Null
 Start-ScheduledTask -TaskName "$task"
 Start-Sleep -Seconds 2
