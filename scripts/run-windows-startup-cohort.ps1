@@ -21,6 +21,7 @@ param(
     [switch]$WindowsPreparedPriorityOrderProbe,
     [switch]$WindowsPreparedColdProbe,
     [switch]$WindowsPreparedSplitQueueProbe,
+    [switch]$WindowsSharedContextTextureProbe,
     [ValidateRange(1, 8)]
     [int]$WindowsPreparedPrefetchWorkers = 1,
     [ValidateRange(0, 8192)]
@@ -181,6 +182,11 @@ log4j.appender.file.MaxBackupIndex=3
             if ($WindowsPreparedSplitQueueProbe) {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.texture.windowsPreparedSplitQueues=true' |
+                    Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($WindowsSharedContextTextureProbe) {
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.startup.sharedContextTextureProbe=on' |
                     Where-Object { $_ }) -join ' ').Trim()
             }
             if ($WindowsPreparedStagingProbe) {
@@ -479,6 +485,7 @@ $identity = [ordered]@{
     windowsKaleidoscopePrefetchCondition = [bool]($Conditions -contains 'preflight-kaleidoscope')
     windowsPreparedPrefetchWorkers = $effectivePreparedPrefetchWorkers
     windowsPreparedSplitQueueProbe = [bool]$WindowsPreparedSplitQueueProbe
+    windowsSharedContextTextureProbe = [bool]$WindowsSharedContextTextureProbe
     windowsUnpaddedMaxDimension = $WindowsUnpaddedMaxDimension
     game = $Game
     preflightJar = $PreflightJar

@@ -233,9 +233,9 @@ final class AdapterRuntime {
                 }
                 report.diagnostic("Loaded the exact sound classpath-root resource fallback target");
                 report.diagnostic("Loaded the exact AshLib callback-scoped variant index targets");
-                if (FrameTimeRuntime.enabled()) {
+                if (FrameTimeRuntime.planEnabled()) {
                     registry = registry.withFrameTimeTarget();
-                    report.diagnostic("Loaded the exact lightweight frame-time and campaign-state targets");
+                    report.diagnostic("Loaded the exact Display-boundary measurement/experiment targets");
                 }
                 if (DynamicParticleGroupRenderProbeRuntime.enabled()) {
                     registry = registry.withDynamicParticleGroupProbeTarget();

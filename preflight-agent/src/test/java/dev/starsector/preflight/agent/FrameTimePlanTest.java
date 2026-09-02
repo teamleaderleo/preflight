@@ -26,6 +26,8 @@ class FrameTimePlanTest {
 
     @AfterEach
     void reset() {
+        System.clearProperty(SharedContextTextureProbeRuntime.ENABLED_PROPERTY);
+        SharedContextTextureProbeRuntime.beginSession();
         FrameTimeRuntime.reset();
     }
 
@@ -81,6 +83,21 @@ class FrameTimePlanTest {
         assertNotNull(transformed);
         assertEquals(false, FrameTimeRuntime.telemetry().get("enabled"));
         assertEquals(true, FrameTimeRuntime.telemetry().get("installed"));
+    }
+
+    @Test
+    void sharedContextProbeAloneHooksOnlyExactDesktopDisplayCreate() throws Exception {
+        FrameTimeRuntime.beginSession(false, false);
+        System.setProperty(SharedContextTextureProbeRuntime.ENABLED_PROPERTY, "on");
+        byte[] original = fixture(false);
+        byte[] transformed = FrameTimePlan.transform(exactSignature(original), original);
+        assertNotNull(transformed);
+
+        MethodNode create = method(read(transformed), FrameTimePlan.CREATE_METHOD,
+                FrameTimePlan.CREATE_DESCRIPTOR);
+        assertEquals(1, calls(create, SharedContextTextureProbeRuntime.INTERNAL_NAME,
+                "afterDisplayCreated"));
+        assertNull(FrameTimePlan.transform(ClassSignature.parse(transformed), transformed));
     }
 
     private static byte[] fixture(boolean omitMessages) {
@@ -141,6 +158,13 @@ class FrameTimePlanTest {
         destroy.visitInsn(Opcodes.RETURN);
         destroy.visitMaxs(1, 0);
         destroy.visitEnd();
+
+        MethodVisitor create = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                FrameTimePlan.CREATE_METHOD, FrameTimePlan.CREATE_DESCRIPTOR, null, null);
+        create.visitCode();
+        create.visitInsn(Opcodes.RETURN);
+        create.visitMaxs(0, 3);
+        create.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
     }

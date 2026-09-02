@@ -130,6 +130,7 @@ public final class FrameTimeRuntime {
     }
 
     static synchronized void beginSession(boolean telemetryRequested, boolean smoothRequested) {
+        SharedContextTextureProbeRuntime.beginSession();
         enabled = telemetryRequested;
         smoothFramePacing = smoothRequested;
         installed = false;
@@ -228,7 +229,7 @@ public final class FrameTimeRuntime {
     }
 
     static boolean planEnabled() {
-        return enabled || smoothFramePacing;
+        return enabled || smoothFramePacing || SharedContextTextureProbeRuntime.requested();
     }
 
     private static synchronized void initializeThreadCpuClock(boolean requested) {
@@ -796,6 +797,7 @@ public final class FrameTimeRuntime {
         glContext.put("classification", "one-time read-only capability inventory");
         glContext.put("semanticEffect", "none; no query, fence, or rendering state created");
         result.put("openGlContext", glContext);
+        result.put("sharedContextTextureProbe", SharedContextTextureProbeRuntime.telemetry());
         result.put("gpuFrameTime", GpuFrameTimeRuntime.telemetry());
         result.put("openGlCommands", GlCommandCountRuntime.telemetry());
         result.put("openGlMatrixOperations", GlMatrixOperationRuntime.telemetry());

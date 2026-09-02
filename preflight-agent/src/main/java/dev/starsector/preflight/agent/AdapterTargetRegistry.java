@@ -899,7 +899,10 @@ final class AdapterTargetRegistry {
                                 FrameTimePlan.SWAP_INTERVAL_DESCRIPTOR),
                         new AdapterTarget.RequiredMethod(
                                 FrameTimePlan.DESTROY_METHOD,
-                                FrameTimePlan.DESTROY_DESCRIPTOR)),
+                                FrameTimePlan.DESTROY_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                FrameTimePlan.CREATE_METHOD,
+                                FrameTimePlan.CREATE_DESCRIPTOR)),
                 "STARSECTOR_CORE",
                 "contents/resources/java/lwjgl.jar",
                 "527d509f60132e5b2653c7fc0f8cf299d6f698f4a8013342bef47705dc57ed3f",
@@ -917,7 +920,10 @@ final class AdapterTargetRegistry {
                         new AdapterTarget.RequiredMethod(
                                 FrameTimePlan.UPDATE_METHOD, FrameTimePlan.UPDATE_DESCRIPTOR),
                         new AdapterTarget.RequiredMethod(
-                                FrameTimePlan.ACTIVE_METHOD, FrameTimePlan.ACTIVE_DESCRIPTOR)),
+                                FrameTimePlan.ACTIVE_METHOD, FrameTimePlan.ACTIVE_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                FrameTimePlan.CREATE_METHOD,
+                                FrameTimePlan.CREATE_DESCRIPTOR)),
                 "STARSECTOR_CORE",
                 "lwjgl.jar",
                 "527d509f60132e5b2653c7fc0f8cf299d6f698f4a8013342bef47705dc57ed3f",
