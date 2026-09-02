@@ -265,9 +265,10 @@ log4j.appender.file.MaxBackupIndex=3
         $log = Read-GameLog $GameLog
         $graphicsPreloadObserved = $log -match 'VRAM after unload/preload:'
         $running = Get-GameProcesses $Game
-        $gameJvmObserved = $gameJvmObserved -or (@($running | Where-Object {
+        $gameProcesses = @($running | Where-Object {
             $_.Name -in @('java.exe', 'javaw.exe', 'starsector.exe')
-        }).Count -gt 0)
+        })
+        $gameJvmObserved = $gameJvmObserved -or ($gameProcesses.Count -gt 0)
         if ($usesFastRendering -and -not $fastRenderingObserved) {
             $fastRenderingObserved = @($running | Where-Object {
                 $_.CommandLine -match 'fr\.(?:bat|jar|vmparams)'
@@ -276,7 +277,9 @@ log4j.appender.file.MaxBackupIndex=3
         $process.Refresh()
         $launcherFailed = $process.HasExited -and -not $gameJvmObserved -and
             ((Get-Date) - $startedAt).TotalSeconds -ge 30
-    } while (-not $graphicsPreloadObserved -and -not $launcherFailed -and (Get-Date) -lt $deadline)
+        $gameExitedBeforeGraphics = $gameJvmObserved -and $gameProcesses.Count -eq 0
+    } while (-not $graphicsPreloadObserved -and -not $launcherFailed -and
+        -not $gameExitedBeforeGraphics -and (Get-Date) -lt $deadline)
 
     $startMatch = [regex]::Match(
         $log,
