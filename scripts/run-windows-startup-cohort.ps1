@@ -25,7 +25,7 @@ param(
     [switch]$WindowsDisplayThreadTextureProbe,
     [switch]$WindowsDisplayThreadSpecStoreProbe,
     [switch]$WindowsSpecStoreTextureOverlap,
-    [switch]$WindowsOversizedMergedReadKeys,
+    [switch]$WindowsBackslashMergedReadKeys,
     [switch]$WindowsFactionPriorityCacheProbe,
     [ValidateRange(1, 8)]
     [int]$WindowsPreparedPrefetchWorkers = 1,
@@ -239,9 +239,9 @@ log4j.appender.file.MaxBackupIndex=3
                     '-Dpreflight.startup.windowsSpecStoreTextureOverlap=false' |
                     Where-Object { $_ }) -join ' ').Trim()
             }
-            if ($WindowsOversizedMergedReadKeys) {
+            if ($WindowsBackslashMergedReadKeys) {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
-                    '-Dpreflight.mergedReads.windowsOversizedKeys=true' |
+                    '-Dpreflight.mergedReads.windowsBackslashKeys=true' |
                     Where-Object { $_ }) -join ' ').Trim()
             }
             if ($usesFactionPriorityCache) {
@@ -563,7 +563,7 @@ $identity = [ordered]@{
     windowsDisplayThreadTextureProbe = [bool]$WindowsDisplayThreadTextureProbe
     windowsDisplayThreadSpecStoreProbe = [bool]$WindowsDisplayThreadSpecStoreProbe
     windowsSpecStoreTextureOverlap = [bool]$WindowsSpecStoreTextureOverlap
-    windowsOversizedMergedReadKeys = [bool]$WindowsOversizedMergedReadKeys
+    windowsBackslashMergedReadKeys = [bool]$WindowsBackslashMergedReadKeys
     windowsSpecStoreTextureOverlapCondition = [bool](
         $Conditions -contains 'preflight-spec-store-texture-overlap')
     windowsFactionPriorityCacheProbe = [bool]$WindowsFactionPriorityCacheProbe

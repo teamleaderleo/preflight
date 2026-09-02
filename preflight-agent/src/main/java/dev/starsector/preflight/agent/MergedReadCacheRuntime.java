@@ -50,8 +50,8 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class MergedReadCacheRuntime {
     public static final String PLAN_ID = "vanilla-merged-read-cache-v1";
-    static final String WINDOWS_OVERSIZED_KEYS_PROPERTY =
-            "preflight.mergedReads.windowsOversizedKeys";
+    static final String WINDOWS_BACKSLASH_KEYS_PROPERTY =
+            "preflight.mergedReads.windowsBackslashKeys";
 
     /** Caps what one launch can learn so a pathological mod cannot grow the artifact without end. */
     private static final int MAX_LEARNED = 100_000;
@@ -145,75 +145,33 @@ public final class MergedReadCacheRuntime {
         // requests that differ in nothing but iteration order share one entry rather than two.
         List<String> canonicalItems = sorted(mergeKeys);
         String key = MergedReadKey.json(path, canonicalItems);
-        boolean oversized = false;
-        if (key == null && oversizedKeysEnabled()) {
-            current.oversizedAttempts.incrementAndGet();
-            key = MergedReadKey.jsonWithHashedOversizedItems(path, canonicalItems);
-            oversized = key != null;
-            if (oversized) {
-                current.oversizedAccepted.incrementAndGet();
+        boolean windowsPath = false;
+        if (key == null && windowsBackslashKeysEnabled()) {
+            current.windowsPathAttempts.incrementAndGet();
+            key = MergedReadKey.windowsJson(path, canonicalItems);
+            windowsPath = key != null;
+            if (windowsPath) {
+                current.windowsPathAccepted.incrementAndGet();
             } else {
-                current.oversizedDeclines.incrementAndGet();
-                recordOversizedDecline(current, path, mergeKeys, canonicalItems);
+                current.windowsPathDeclines.incrementAndGet();
             }
         }
         Object hit = cached(current, key);
         if (hit != null) {
-            if (oversized) current.oversizedHits.incrementAndGet();
+            if (windowsPath) current.windowsPathHits.incrementAndGet();
             return hit;
         }
-        if (oversized) current.oversizedMisses.incrementAndGet();
+        if (windowsPath) current.windowsPathMisses.incrementAndGet();
         Object produced = timed("json", path, () -> vanilla.invoke(path, mergeKeys));
-        if (capture(current, key, produced) && oversized) {
-            current.oversizedCaptures.incrementAndGet();
+        if (capture(current, key, produced) && windowsPath) {
+            current.windowsPathCaptures.incrementAndGet();
         }
         return produced;
     }
 
-    private static boolean oversizedKeysEnabled() {
-        return Boolean.getBoolean(WINDOWS_OVERSIZED_KEYS_PROPERTY)
+    private static boolean windowsBackslashKeysEnabled() {
+        return Boolean.getBoolean(WINDOWS_BACKSLASH_KEYS_PROPERTY)
                 && System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows");
-    }
-
-    private static void recordOversizedDecline(
-            State current, String path, Object mergeKeys, List<String> canonicalItems) {
-        String reason;
-        if (MergedReadKey.path(path) == null) {
-            current.oversizedPathDeclines.incrementAndGet();
-            reason = "path:" + bounded(path);
-        } else if (canonicalItems == null) {
-            current.oversizedItemDeclines.incrementAndGet();
-            reason = "items:" + describeItems(mergeKeys);
-        } else {
-            current.oversizedBoundDeclines.incrementAndGet();
-            reason = "valid-nonoversized-or-over-limit:path=" + bounded(path)
-                    + ",items=" + canonicalItems.size();
-        }
-        synchronized (current.oversizedDeclineSamples) {
-            if (current.oversizedDeclineSamples.size() < 8) {
-                current.oversizedDeclineSamples.add(reason);
-            }
-        }
-    }
-
-    private static String describeItems(Object value) {
-        if (value == null) return "null";
-        if (!(value instanceof Collection<?> items)) {
-            return "not-collection:" + value.getClass().getName();
-        }
-        for (Object item : items) {
-            if (!(item instanceof String)) {
-                return "collection:" + value.getClass().getName() + ",size=" + items.size()
-                        + ",non-string=" + (item == null ? "null" : item.getClass().getName())
-                        + ",value=" + bounded(String.valueOf(item));
-            }
-        }
-        return "collection:" + value.getClass().getName() + ",size=" + items.size();
-    }
-
-    private static String bounded(String value) {
-        if (value == null) return "null";
-        return value.length() <= 160 ? value : value.substring(0, 160) + "...";
     }
 
     /** What the original call cost, reported only when the probe asked for it. */
@@ -397,10 +355,10 @@ public final class MergedReadCacheRuntime {
         State current = state;
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("status", current.diagnostic);
-        values.put("windowsOversizedKeysProperty", WINDOWS_OVERSIZED_KEYS_PROPERTY);
-        values.put("windowsOversizedKeysRequested",
-                Boolean.getBoolean(WINDOWS_OVERSIZED_KEYS_PROPERTY));
-        values.put("windowsOversizedKeysEnabled", oversizedKeysEnabled());
+        values.put("windowsBackslashKeysProperty", WINDOWS_BACKSLASH_KEYS_PROPERTY);
+        values.put("windowsBackslashKeysRequested",
+                Boolean.getBoolean(WINDOWS_BACKSLASH_KEYS_PROPERTY));
+        values.put("windowsBackslashKeysEnabled", windowsBackslashKeysEnabled());
         values.put("profileIdentity", current.profileIdentity);
         values.put("artifact", current.artifact);
         values.put("preparedEntries", current.entries.size());
@@ -416,18 +374,12 @@ public final class MergedReadCacheRuntime {
         values.put("singleJsonHits", current.singleJsonHits.get());
         values.put("singleJsonMisses", current.singleJsonMisses.get());
         values.put("singleJsonCaptures", current.singleJsonCaptures.get());
-        values.put("oversizedKeyAttempts", current.oversizedAttempts.get());
-        values.put("oversizedKeyAccepted", current.oversizedAccepted.get());
-        values.put("oversizedKeyHits", current.oversizedHits.get());
-        values.put("oversizedKeyMisses", current.oversizedMisses.get());
-        values.put("oversizedKeyCaptures", current.oversizedCaptures.get());
-        values.put("oversizedKeyDeclines", current.oversizedDeclines.get());
-        values.put("oversizedKeyPathDeclines", current.oversizedPathDeclines.get());
-        values.put("oversizedKeyItemDeclines", current.oversizedItemDeclines.get());
-        values.put("oversizedKeyBoundDeclines", current.oversizedBoundDeclines.get());
-        synchronized (current.oversizedDeclineSamples) {
-            values.put("oversizedKeyDeclineSamples", List.copyOf(current.oversizedDeclineSamples));
-        }
+        values.put("windowsPathKeyAttempts", current.windowsPathAttempts.get());
+        values.put("windowsPathKeyAccepted", current.windowsPathAccepted.get());
+        values.put("windowsPathKeyHits", current.windowsPathHits.get());
+        values.put("windowsPathKeyMisses", current.windowsPathMisses.get());
+        values.put("windowsPathKeyCaptures", current.windowsPathCaptures.get());
+        values.put("windowsPathKeyDeclines", current.windowsPathDeclines.get());
         values.putAll(REHYDRATE_CLOCK.snapshot("rehydrate"));
         return values;
     }
@@ -466,16 +418,12 @@ public final class MergedReadCacheRuntime {
         private final AtomicLong singleJsonHits = new AtomicLong();
         private final AtomicLong singleJsonMisses = new AtomicLong();
         private final AtomicLong singleJsonCaptures = new AtomicLong();
-        private final AtomicLong oversizedAttempts = new AtomicLong();
-        private final AtomicLong oversizedAccepted = new AtomicLong();
-        private final AtomicLong oversizedHits = new AtomicLong();
-        private final AtomicLong oversizedMisses = new AtomicLong();
-        private final AtomicLong oversizedCaptures = new AtomicLong();
-        private final AtomicLong oversizedDeclines = new AtomicLong();
-        private final AtomicLong oversizedPathDeclines = new AtomicLong();
-        private final AtomicLong oversizedItemDeclines = new AtomicLong();
-        private final AtomicLong oversizedBoundDeclines = new AtomicLong();
-        private final List<String> oversizedDeclineSamples = new ArrayList<>();
+        private final AtomicLong windowsPathAttempts = new AtomicLong();
+        private final AtomicLong windowsPathAccepted = new AtomicLong();
+        private final AtomicLong windowsPathHits = new AtomicLong();
+        private final AtomicLong windowsPathMisses = new AtomicLong();
+        private final AtomicLong windowsPathCaptures = new AtomicLong();
+        private final AtomicLong windowsPathDeclines = new AtomicLong();
         private final AtomicLong revision = new AtomicLong();
         private long publishedRevision = Long.MIN_VALUE;
         private boolean pruningPublished;

@@ -47,7 +47,7 @@ class MergedReadCacheRuntimeTest {
 
     @AfterEach
     void disableMemo() {
-        System.clearProperty(MergedReadCacheRuntime.WINDOWS_OVERSIZED_KEYS_PROPERTY);
+        System.clearProperty(MergedReadCacheRuntime.WINDOWS_BACKSLASH_KEYS_PROPERTY);
         if (originalOsName == null) {
             System.clearProperty("os.name");
         } else {
@@ -58,36 +58,34 @@ class MergedReadCacheRuntimeTest {
     }
 
     @Test
-    void windowsCandidateLearnsAndServesOnlyValidOversizedKeys() throws Throwable {
+    void windowsCandidateLearnsAndServesOnlyDistinctBackslashKeys() throws Throwable {
         System.setProperty("os.name", "Windows 11");
-        System.setProperty(MergedReadCacheRuntime.WINDOWS_OVERSIZED_KEYS_PROPERTY, "true");
-        Set<String> oversized = java.util.stream.IntStream.range(0, 300)
-                .mapToObj(index -> "protected-field-" + index + "-xxxxxxxxxxxxxxxxxxxxxxxx")
-                .collect(java.util.stream.Collectors.toSet());
+        System.setProperty(MergedReadCacheRuntime.WINDOWS_BACKSLASH_KEYS_PROPERTY, "true");
+        Set<String> mergeKeys = Set.of("protected");
         Path artifact = artifact('9');
         MergedReadCacheRuntime.configure(artifact);
 
         MergedReadCacheRuntime.mergedJsonRead(
-                "data/shipsystems/example.system", oversized, JSON_VANILLA);
+                "data\\shipsystems\\example.system", mergeKeys, JSON_VANILLA);
         assertEquals(1, VANILLA_CALLS.get());
-        assertEquals(1L, telemetry("oversizedKeyAttempts"));
-        assertEquals(1L, telemetry("oversizedKeyAccepted"));
-        assertEquals(1L, telemetry("oversizedKeyMisses"));
-        assertEquals(1L, telemetry("oversizedKeyCaptures"));
+        assertEquals(1L, telemetry("windowsPathKeyAttempts"));
+        assertEquals(1L, telemetry("windowsPathKeyAccepted"));
+        assertEquals(1L, telemetry("windowsPathKeyMisses"));
+        assertEquals(1L, telemetry("windowsPathKeyCaptures"));
         MergedReadCacheRuntime.complete();
 
         MergedReadCacheRuntime.beginSession();
         MergedReadCacheRuntime.configure(artifact);
         JSONObject restored = (JSONObject) MergedReadCacheRuntime.mergedJsonRead(
-                "data/shipsystems/example.system", oversized, JSON_VANILLA);
-        assertEquals(1, VANILLA_CALLS.get(), "a warm oversized hit must not enter vanilla");
-        assertEquals("data/shipsystems/example.system", restored.get("path"));
-        assertEquals(1L, telemetry("oversizedKeyHits"));
+                "data\\shipsystems\\example.system", mergeKeys, JSON_VANILLA);
+        assertEquals(1, VANILLA_CALLS.get(), "a warm Windows-path hit must not enter vanilla");
+        assertEquals("data\\shipsystems\\example.system", restored.get("path"));
+        assertEquals(1L, telemetry("windowsPathKeyHits"));
 
         MergedReadCacheRuntime.mergedJsonRead(
-                "data/config/settings.json", oversized, JSON_VANILLA);
+                "data\\config\\settings.json", mergeKeys, JSON_VANILLA);
         assertEquals(2, VANILLA_CALLS.get());
-        assertEquals(1L, telemetry("oversizedKeyDeclines"));
+        assertEquals(1L, telemetry("windowsPathKeyDeclines"));
     }
 
     @Test

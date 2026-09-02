@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
-import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
 class MergedReadKeyTest {
@@ -85,32 +84,35 @@ class MergedReadKeyTest {
     }
 
     @Test
-    void hashesOnlyOtherwiseValidOversizedJsonItemSequences() {
-        List<String> oversized = IntStream.range(0, 300)
-                .mapToObj(index -> "protected-field-" + index + "-xxxxxxxxxxxxxxxxxxxxxxxx")
-                .toList();
-        String key = MergedReadKey.jsonWithHashedOversizedItems(
-                "data/shipsystems/example.system", oversized);
+    void namesPureWindowsPathsWithoutFoldingTheirSpellingOrScope() {
+        String relative = MergedReadKey.windowsJson(
+                "data\\shipsystems\\example.system", List.of("protected"));
+        String absolute = MergedReadKey.windowsJson(
+                "C:\\Games\\Starsector\\data\\shipsystems\\example.system",
+                List.of("protected"));
 
-        assertNull(MergedReadKey.json("data/shipsystems/example.system", oversized));
-        assertNotNull(key);
-        assertTrue(MergedReadKey.wellFormed(key));
-        assertEquals(key, MergedReadKey.jsonWithHashedOversizedItems(
-                "data/shipsystems/example.system", oversized));
-        assertNotEquals(key, MergedReadKey.jsonWithHashedOversizedItems(
-                "data/shipsystems/example.system",
-                java.util.stream.Stream.concat(
-                        oversized.stream().limit(oversized.size() - 1),
-                        java.util.stream.Stream.of("different-tail")).toList()));
+        assertNotNull(relative);
+        assertNotNull(absolute);
+        assertTrue(MergedReadKey.wellFormed(relative));
+        assertTrue(MergedReadKey.wellFormed(absolute));
+        assertNotEquals(relative, absolute);
+        assertNotEquals(relative, MergedReadKey.json(
+                "data/shipsystems/example.system", List.of("protected")));
+        assertEquals("win-rel:data/shipsystems/example.system",
+                MergedReadKey.windowsPath("data\\shipsystems\\example.system"));
+        assertEquals("win-abs:data/shipsystems/example.system", MergedReadKey.windowsPath(
+                "C:\\Games\\Starsector\\data\\shipsystems\\example.system"));
 
-        assertNull(MergedReadKey.jsonWithHashedOversizedItems(
-                "data/shipsystems/example.system", List.of("ordinary")));
-        assertNull(MergedReadKey.jsonWithHashedOversizedItems(
-                "data/config/settings.json", oversized));
-        assertNull(MergedReadKey.jsonWithHashedOversizedItems(
-                "graphics/example.json", oversized));
-        assertNull(MergedReadKey.jsonWithHashedOversizedItems(
-                "data/shipsystems/example.system", null));
+        assertNull(MergedReadKey.windowsJson(
+                "data\\config\\settings.json", List.of("protected")));
+        assertNull(MergedReadKey.windowsJson(
+                "data/shipsystems/example.system", List.of("protected")));
+        assertNull(MergedReadKey.windowsJson(
+                "data\\shipsystems\\..\\config\\settings.json", List.of("protected")));
+        assertNull(MergedReadKey.windowsJson(
+                "graphics\\example.json", List.of("protected")));
+        assertNull(MergedReadKey.windowsJson(
+                "data\\shipsystems\\example.system", null));
     }
 
     @Test

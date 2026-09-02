@@ -53,8 +53,8 @@ public final class MergedReadKey {
     private static final char FIELD = (char) 0;
     private static final char ITEM = (char) 1;
     private static final int MAX_KEY_CHARS = 8192;
-    private static final int MAX_OVERSIZED_ITEM_CHARS = 1_000_000;
-    private static final String OVERSIZED_ITEMS_PREFIX = "sha256-utf16-code-units:";
+    private static final String WINDOWS_RELATIVE_PREFIX = "win-rel:";
+    private static final String WINDOWS_ABSOLUTE_PREFIX = "win-abs:";
 
     private MergedReadKey() {
     }
@@ -70,36 +70,18 @@ public final class MergedReadKey {
     }
 
     /**
-     * Names an otherwise-valid JSON request whose canonical item sequence exceeds the ordinary
-     * representation bound, or returns null for ordinary, invalid, dynamic, or excessively large
-     * input.
-     *
-     * <p>The digest is over Java UTF-16 code units rather than a replacement-tolerant charset
-     * encoding, so distinct malformed strings cannot collapse before hashing. The existing item
-     * validation and separators make the canonical sequence unambiguous. Callers keep this path
-     * behind an explicit experiment switch until a physical warm-cache run proves its value.
+     * Names a pure-backslash Windows JSON request without folding it into the forward-slash key
+     * namespace. Relative and absolute spellings also remain distinct. Mixed separators, traversal,
+     * dynamic relative settings, and invalid items still decline.
      */
-    public static String jsonWithHashedOversizedItems(
+    public static String windowsJson(
             String rawPath, List<String> mergeKeys) {
-        String path = path(rawPath);
-        if (path == null || DYNAMIC_SETTINGS.equals(path)) {
+        String path = windowsPath(rawPath);
+        if (path == null || (WINDOWS_RELATIVE_PREFIX + DYNAMIC_SETTINGS).equals(path)) {
             return null;
         }
         String items = items(mergeKeys);
-        if (items == null) {
-            return null;
-        }
-        String ordinary = JSON + FIELD + path + FIELD + items;
-        if (ordinary.length() <= MAX_KEY_CHARS || items.length() > MAX_OVERSIZED_ITEM_CHARS) {
-            return null;
-        }
-        byte[] codeUnits = new byte[items.length() * 2];
-        for (int index = 0; index < items.length(); index++) {
-            char value = items.charAt(index);
-            codeUnits[index * 2] = (byte) (value >>> 8);
-            codeUnits[index * 2 + 1] = (byte) value;
-        }
-        return JSON + FIELD + path + FIELD + OVERSIZED_ITEMS_PREFIX + Hashes.sha256(codeUnits);
+        return items == null ? null : bound(JSON + FIELD + path + FIELD + items);
     }
 
     /** The key for one unrestricted single-file JSON read after resource initialization. */
@@ -160,6 +142,27 @@ public final class MergedReadKey {
         return path.contains("/../") || path.contains("/./") || path.endsWith("/..") ? null : path;
     }
 
+    /** The separate stored form for a pure-backslash Windows path, or null if it is unsafe. */
+    public static String windowsPath(String rawPath) {
+        if (rawPath == null || rawPath.isEmpty() || rawPath.indexOf('/') >= 0
+                || rawPath.indexOf(FIELD) >= 0 || rawPath.indexOf(ITEM) >= 0) {
+            return null;
+        }
+        String path;
+        if (absolute(rawPath)) {
+            int served = rawPath.lastIndexOf('\\' + SERVED_PREFIX.replace('/', '\\'));
+            if (served < 0) return null;
+            path = WINDOWS_ABSOLUTE_PREFIX + rawPath.substring(served + 1).replace('\\', '/');
+        } else if (rawPath.startsWith(SERVED_PREFIX.replace('/', '\\'))) {
+            path = WINDOWS_RELATIVE_PREFIX + rawPath.replace('\\', '/');
+        } else {
+            return null;
+        }
+        String logical = logicalPath(path);
+        return logical.contains("/../") || logical.contains("/./") || logical.endsWith("/..")
+                ? null : path;
+    }
+
     /** Whether a stored key could have been produced by this class. */
     public static boolean wellFormed(String key) {
         if (key == null || key.isEmpty() || key.length() > MAX_KEY_CHARS) {
@@ -181,8 +184,7 @@ public final class MergedReadKey {
             return false;
         }
         String path = key.substring(first + 1, second);
-        String logical = path.startsWith(ABSOLUTE_PREFIX)
-                ? path.substring(ABSOLUTE_PREFIX.length()) : path;
+        String logical = logicalPath(path);
         return logical.startsWith(SERVED_PREFIX) && logical.indexOf('\\') < 0
                 && !logical.contains("/../") && !logical.contains("/./") && !logical.endsWith("/..");
     }
@@ -198,8 +200,7 @@ public final class MergedReadKey {
             return false;
         }
         String path = key.substring(first + 1, second);
-        String logical = path.startsWith(ABSOLUTE_PREFIX)
-                ? path.substring(ABSOLUTE_PREFIX.length()) : path;
+        String logical = logicalPath(path);
         return logical.startsWith("data/variants/") && logical.endsWith(".variant")
                 || logical.startsWith("data/hulls/") && logical.endsWith(".ship")
                 || (logical.startsWith("data/weapons/")
@@ -216,6 +217,19 @@ public final class MergedReadKey {
         }
         return path.length() > 2 && path.charAt(1) == ':'
                 && Character.isLetter(path.charAt(0));
+    }
+
+    private static String logicalPath(String path) {
+        if (path.startsWith(ABSOLUTE_PREFIX)) {
+            return path.substring(ABSOLUTE_PREFIX.length());
+        }
+        if (path.startsWith(WINDOWS_RELATIVE_PREFIX)) {
+            return path.substring(WINDOWS_RELATIVE_PREFIX.length());
+        }
+        if (path.startsWith(WINDOWS_ABSOLUTE_PREFIX)) {
+            return path.substring(WINDOWS_ABSOLUTE_PREFIX.length());
+        }
+        return path;
     }
 
     /**
