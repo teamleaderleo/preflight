@@ -1022,3 +1022,83 @@ The balanced cohort/archive and host packet are 1,889,731 and 12,144 bytes with 
 cohort/archive and host packet are 1,856,679 and 11,351 bytes with SHA-256 values
 `9adeba4aef6b7274624f23bf5b298e308b864ec657fc73d664ff4150d831400a` and
 `bdce87064fbee54b9df70aad25a9f893d28e502721436ca4123fdbb1787f2b0e`.
+
+### Can the faction priority-table walk be reused on an exact Windows profile?
+
+Yes at the measured seam, with a smaller and noisier end-to-end effect. The accepted candidate
+learns only IDs emitted by Starsector's original callback, binds each result to the exact profile,
+faction JSON hash, callback class, table names, and fallback flag, and replays those IDs through the
+same callback interface on a later launch. The artifact is bounded, checksummed, transactional, and
+format-versioned. A miss, damaged artifact, profile mismatch, JSON fingerprint failure, class-shape
+drift, or disabled plan executes the original method. The candidate remains opt-in under
+`preflight.startup.windowsFactionPriorityCache` while the thin whole-launch magnitude is noisy.
+
+The first implementation at `efa76741` was rejected before a second launch. Its key omitted faction
+identity, so the first live report exposed 944 attempts but only eight misses followed by 936
+same-launch hits and an eight-entry artifact. That meant results from the first faction could be
+reused for later factions. No timing claim was made. `75634679` added the faction JSON identity,
+raised the bounded artifact cardinality, prohibited same-launch replay, and bumped the format so the
+bad artifact was rejected automatically. Its next learning launch executed all 944 original calls,
+captured 35,765 callback IDs into 944 entries, reported zero hits/declines/failures, reached the
+interactive menu, and wrote the corrected artifact.
+
+`b6089f25` then removed reflective callback dispatch. The woven exact Windows method receives the
+profile-validated ID array and calls its own reviewed interface directly. Three candidate and three
+explicit-off thin runs were executed in B/A/B/A/B/A order with the Big Red host pinned to
+`performance` for each run:
+
+| order | condition | graphics marker | interactive menu |
+| ---: | --- | ---: | ---: |
+| B1 | faction priority replay | 36.853 s | 50.351 s |
+| A1 | explicit off | 41.715 s | 55.079 s |
+| B2 | faction priority replay | 37.374 s | 50.301 s |
+| A2 | explicit off | 36.347 s | 49.166 s |
+| B3 | faction priority replay | 41.297 s | 54.488 s |
+| A3 | explicit off | 46.995 s | 60.763 s |
+
+Candidate medians were 37.374 and 50.351 seconds; control medians were 41.715 and 55.079 seconds.
+Those differences are directionally favorable, but the 10.648-second control range is larger than
+the target and prevents a defensible 10% whole-launch claim. Two paired comparisons favored the
+candidate and one favored control. Every candidate run retained 944 hits / 35,765 replayed IDs with
+zero misses, fingerprint failures, capture declines, replay failures, or writes.
+
+The same-build intrusive phase pair supplies the causal magnitude without using its whole-launch
+numbers as a product claim:
+
+| phase-probe condition | calls | faction priority-table wall | neighboring spec lookups |
+| --- | ---: | ---: | ---: |
+| explicit off | 944 | 723 ms | 683,270 calls / 103 ms |
+| replay | 944 | 26 ms | 683,270 calls / 105 ms |
+
+The exact seam therefore fell by 697 ms, or 96.4%, while the independent lookup workload stayed
+stable. The replay run again served all 35,765 IDs without fallback. This is a real serial CPU-work
+removal and a useful accepted candidate, but it is not the large standalone Windows renderer win.
+Keep the end-to-end claim to “sub-second-class seam removal” until a less variable thin cohort or a
+native Windows fixture resolves the whole-launch effect.
+
+All direct-dispatch thin and phase runs used Preflight JAR SHA-256
+`50eeb44f923a38cbd480b5c4819532b97663654acaf5f255053d9a965282a452`, enabled-mods SHA-256
+`76227ce91333c202271e541774f3e86fd8711c2542d63a81cfd18a4dc0a6997f`, Java SHA-256
+`82051fdab26319d77d20cc0065045d05ec00b3e3d05f44935d7c06b96b621d55`, 1024x720 windowed state,
+14 vCPUs, 12 GiB guest memory, llvmpipe, and the Recommended preset. Preserved archives:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260903-024949-windows-startup-2x2.zip
+/home/leo/Windows-Share/Diagnostics/20260903-025118-windows-startup-2x2.zip
+/home/leo/Windows-Share/Diagnostics/20260903-025259-windows-startup-2x2.zip
+/home/leo/Windows-Share/Diagnostics/20260903-025427-windows-startup-2x2.zip
+/home/leo/Windows-Share/Diagnostics/20260903-025600-windows-startup-2x2.zip
+/home/leo/Windows-Share/Diagnostics/20260903-025729-windows-startup-2x2.zip
+/home/leo/Windows-Share/Diagnostics/20260903-030109-windows-startup-2x2.zip
+/home/leo/Windows-Share/Diagnostics/20260903-030312-windows-startup-2x2.zip
+```
+
+Their SHA-256 values in the same order are
+`1c4fce434ba0141288ab2f3eb7b174d0f584a220c5914f6b414f43d575e13ee2`,
+`0d9f45045dab61e3b52335cdc0da9b6c9876dbcf36234ac6c68cfd4e7968a4e5`,
+`2291a01b353bac4c5f847307490b1e4469b4b3d8966858609859c27f6a28f4c2`,
+`7d8e64584cad8c1bcba75ac3343a06c952197a1f7370b93bfaf1994c1738dfb2`,
+`6a8b9a9a621736d90522189fc912933e1a75916f66ff7cab30ee8b89b3aeba61`,
+`4018b0cdff52888421d9f242283f94a5bbd46c1ef72c131629969796fa17866f`,
+`5b52cb4a1ff6c120a81d967e410e7568ebc9cc4556733426c1f80b35c5624869`, and
+`ca7562abb43b2ad9f3e61ebfae5a346f5dfea0f39c12ef58ff43005a7b66d2cf`.
