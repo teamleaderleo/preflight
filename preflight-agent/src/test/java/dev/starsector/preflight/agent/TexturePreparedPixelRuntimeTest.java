@@ -119,6 +119,10 @@ class TexturePreparedPixelRuntimeTest {
         assertEquals(1L, telemetry.get("learnedKaleidoscopeConsumedAfterStop"));
         assertEquals(0L, telemetry.get("learnedKaleidoscopeLeftoversCleared"));
         assertEquals(0L, telemetry.get("learnedKaleidoscopeErrors"));
+
+        TexturePreparedPixelRuntime.completeLearnedKaleidoscopePrefetches();
+        assertEquals(1L, TexturePreparedPixelRuntime.telemetry()
+                .get("learnedKaleidoscopeConsumedAfterStop"));
     }
 
     @Test

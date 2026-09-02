@@ -266,6 +266,9 @@ public final class TexturePreparedPixelRuntime {
             retainedLearnedKaleidoscopeResults = null;
             seeded = LEARNED_KALEIDOSCOPE_QUEUED.size();
         }
+        if (results == null && seeded == 0) {
+            return;
+        }
         int leftovers = results == null ? 0 : results.size();
         if (results != null) {
             results.clear();
