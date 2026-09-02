@@ -16,8 +16,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * game textures are never intercepted or replaced by this probe.
  */
 public final class SharedContextTextureProbeRuntime {
-    static final String INTERNAL_NAME =
-            "dev/starsector/preflight/agent/SharedContextTextureProbeRuntime";
     static final String ENABLED_PROPERTY = "preflight.startup.sharedContextTextureProbe";
     private static final int GL_TEXTURE_2D = 0x0DE1;
     private static final int GL_TEXTURE_BINDING_2D = 0x8069;
@@ -56,8 +54,8 @@ public final class SharedContextTextureProbeRuntime {
         return "on".equalsIgnoreCase(System.getProperty(ENABLED_PROPERTY, "off"));
     }
 
-    /** Called once after the exact reviewed desktop Display.create implementation returns. */
-    public static void afterDisplayCreated() {
+    /** Called once from the first reviewed Display.update boundary, after Display.create returns. */
+    public static void onDisplayBoundary() {
         installed = true;
         if (!requested() || !ATTEMPTED.compareAndSet(false, true)) return;
         long started = System.nanoTime();

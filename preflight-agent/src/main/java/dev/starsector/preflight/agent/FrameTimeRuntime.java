@@ -483,6 +483,7 @@ public final class FrameTimeRuntime {
 
     /** Marks one completed game-loop/display-update boundary. */
     public static void boundary() {
+        SharedContextTextureProbeRuntime.onDisplayBoundary();
         if (!enabled) return;
         long started = System.nanoTime();
         try {

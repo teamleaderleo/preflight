@@ -86,18 +86,15 @@ class FrameTimePlanTest {
     }
 
     @Test
-    void sharedContextProbeAloneHooksOnlyExactDesktopDisplayCreate() throws Exception {
+    void sharedContextProbeAloneInstallsOnlyTheExactDisplayBoundary() throws Exception {
         FrameTimeRuntime.beginSession(false, false);
         System.setProperty(SharedContextTextureProbeRuntime.ENABLED_PROPERTY, "on");
         assertEquals(true, AdapterPlanScope.PORTABLE_STARTUP.allows(FrameTimeRuntime.PLAN_ID));
         byte[] original = fixture(false);
         byte[] transformed = FrameTimePlan.transform(exactSignature(original), original);
         assertNotNull(transformed);
-
-        MethodNode create = method(read(transformed), FrameTimePlan.CREATE_METHOD,
-                FrameTimePlan.CREATE_DESCRIPTOR);
-        assertEquals(1, calls(create, SharedContextTextureProbeRuntime.INTERNAL_NAME,
-                "afterDisplayCreated"));
+        assertEquals(1, calls(method(read(transformed), FrameTimePlan.UPDATE_METHOD,
+                FrameTimePlan.UPDATE_DESCRIPTOR), RUNTIME, "boundary"));
         assertNull(FrameTimePlan.transform(ClassSignature.parse(transformed), transformed));
     }
 
@@ -160,12 +157,6 @@ class FrameTimePlanTest {
         destroy.visitMaxs(1, 0);
         destroy.visitEnd();
 
-        MethodVisitor create = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
-                FrameTimePlan.CREATE_METHOD, FrameTimePlan.CREATE_DESCRIPTOR, null, null);
-        create.visitCode();
-        create.visitInsn(Opcodes.RETURN);
-        create.visitMaxs(0, 3);
-        create.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
     }

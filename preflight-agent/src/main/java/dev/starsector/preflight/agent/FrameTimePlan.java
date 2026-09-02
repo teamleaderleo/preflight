@@ -25,10 +25,6 @@ final class FrameTimePlan {
     static final String SWAP_INTERVAL_DESCRIPTOR = "(I)V";
     static final String DESTROY_METHOD = "destroy";
     static final String DESTROY_DESCRIPTOR = "()V";
-    static final String CREATE_METHOD = "create";
-    static final String CREATE_DESCRIPTOR =
-            "(Lorg/lwjgl/opengl/PixelFormat;Lorg/lwjgl/opengl/Drawable;"
-                    + "Lorg/lwjgl/opengl/ContextAttribs;)V";
     private static final String DRAWABLE = "org/lwjgl/opengl/DrawableLWJGL";
 
     private static final String RUNTIME =
@@ -68,10 +64,8 @@ final class FrameTimePlan {
         MethodNode vsync = unique(owner, VSYNC_METHOD, VSYNC_DESCRIPTOR);
         MethodNode swapInterval = unique(owner, SWAP_INTERVAL_METHOD, SWAP_INTERVAL_DESCRIPTOR);
         MethodNode destroy = unique(owner, DESTROY_METHOD, DESTROY_DESCRIPTOR);
-        MethodNode create = unique(owner, CREATE_METHOD, CREATE_DESCRIPTOR);
         if (update == null || active == null || vsync == null || swapInterval == null
                 || destroy == null
-                || (SharedContextTextureProbeRuntime.requested() && create == null)
                 || returns(update, Opcodes.RETURN) != 1
                 || returns(active, Opcodes.IRETURN) != 1
                 || calls(update, TARGET_CLASS, "swapBuffers") != 1
@@ -102,17 +96,6 @@ final class FrameTimePlan {
         update.instructions.insertBefore(messages, runtimeCall("beforeMessages"));
         update.instructions.insert(messages, runtimeCall("afterMessages"));
         destroy.instructions.insertBefore(destroyDrawable, runtimeCall("releaseGpuTiming"));
-        if (SharedContextTextureProbeRuntime.requested()) {
-            if (returns(create, Opcodes.RETURN) != 1
-                    || calls(create, SharedContextTextureProbeRuntime.INTERNAL_NAME,
-                            "afterDisplayCreated") != 0) {
-                return null;
-            }
-            create.instructions.insertBefore(uniqueReturn(create, Opcodes.RETURN),
-                    new MethodInsnNode(Opcodes.INVOKESTATIC,
-                            SharedContextTextureProbeRuntime.INTERNAL_NAME,
-                            "afterDisplayCreated", "()V", false));
-        }
         InsnList boundary = new InsnList();
         boundary.add(runtimeCall("boundary"));
         update.instructions.insertBefore(updateReturn, boundary);
