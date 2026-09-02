@@ -20,6 +20,7 @@ public enum AdapterPlanScope {
             MainMenuInteractivePlan.PLAN_ID);
 
     private static final Set<String> PORTABLE_STARTUP_PLANS = Set.of(
+            FrameTimeRuntime.PLAN_ID,
             TextureCompatibilityRuntime.PLAN_ID,
             TexturePreparedPixelRuntime.PLAN_ID,
             TexturePrefetchBypassPlan.PLAN_ID,

@@ -89,6 +89,7 @@ class FrameTimePlanTest {
     void sharedContextProbeAloneHooksOnlyExactDesktopDisplayCreate() throws Exception {
         FrameTimeRuntime.beginSession(false, false);
         System.setProperty(SharedContextTextureProbeRuntime.ENABLED_PROPERTY, "on");
+        assertEquals(true, AdapterPlanScope.PORTABLE_STARTUP.allows(FrameTimeRuntime.PLAN_ID));
         byte[] original = fixture(false);
         byte[] transformed = FrameTimePlan.transform(exactSignature(original), original);
         assertNotNull(transformed);
