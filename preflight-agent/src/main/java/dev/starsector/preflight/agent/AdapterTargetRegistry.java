@@ -924,18 +924,14 @@ final class AdapterTargetRegistry {
     }
 
     static AdapterTarget windowsDisplayUpdateCallerTarget() {
-        return new AdapterTarget(
+        return windowsCoreTarget(
                 "vanilla-windows-display-update-caller-0.98a-rc8",
                 DisplayUpdateCallerPlan.TARGET_CLASS,
                 DisplayUpdateCallerPlan.ORIGINAL_SHA256,
                 FrameTimeRuntime.PLAN_ID,
                 List.of(new AdapterTarget.RequiredMethod(
                         DisplayUpdateCallerPlan.METHOD, DisplayUpdateCallerPlan.DESCRIPTOR)),
-                "STARSECTOR_CORE",
-                "fs.common_obf.jar",
-                "5a26d047baefc6dcd763121a17d170e3b864bfb19a83d11f645ba8be49f1641b",
-                "jdk/internal/loader/ClassLoaders$AppClassLoader",
-                "app");
+                "windows-display-update-caller");
     }
 
     static AdapterTarget linuxFrameTimeTarget() {

@@ -15,13 +15,13 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
-/** Opt-in proof against the exact Windows fs.common_obf.jar; this never starts Starsector. */
+/** Opt-in proof against the exact Windows starfarer_obf.jar; this never starts Starsector. */
 class DisplayUpdateCallerInstalledAdapterIT {
     @Test
     void installedWindowsCallerRunsTheProbeOnlyAfterDisplayReturns() throws Exception {
-        String configured = System.getProperty("preflight.starsector.common.jar", "").trim();
+        String configured = System.getProperty("preflight.starsector.core.jar", "").trim();
         Assumptions.assumeTrue(!configured.isEmpty(),
-                "set -Dpreflight.starsector.common.jar=<Windows fs.common_obf.jar>");
+                "set -Dpreflight.starsector.core.jar=<Windows starfarer_obf.jar>");
         Path archive = Path.of(configured).toAbsolutePath().normalize();
         Assumptions.assumeTrue(Files.isRegularFile(archive));
         System.setProperty(DisplayThreadTextureProbeRuntime.ENABLED_PROPERTY, "on");

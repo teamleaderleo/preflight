@@ -10,11 +10,11 @@ import org.objectweb.asm.tree.MethodNode;
 
 /** Runs the Display-thread proof after the exact Windows caller has left Display.update(). */
 final class DisplayUpdateCallerPlan {
-    static final String TARGET_CLASS = "com/fs/graphics/F";
+    static final String TARGET_CLASS = FrameTimeStartupCompletionPlan.TARGET_CLASS;
     static final String ORIGINAL_SHA256 =
-            "d1353602d4b34e85701ed9ca2de4f00c37aa0982a7f8d2d2197781b24a19eafb";
-    static final String METHOD = "o00000";
-    static final String DESCRIPTOR = "([Ljava/lang/String;)V";
+            FrameTimeStartupCompletionPlan.WINDOWS_ORIGINAL_SHA256;
+    static final String METHOD = "renderBg";
+    static final String DESCRIPTOR = "()V";
     private static final String DISPLAY = "org/lwjgl/opengl/Display";
     private static final String DISPLAY_UPDATE = "update";
     private static final String RUNTIME =
