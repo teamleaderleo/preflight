@@ -120,7 +120,7 @@ case "$host_power_before" in
     performance|balanced|power-saver) ;;
     *) echo "Unsupported host power profile: $host_power_before" >&2; exit 1 ;;
 esac
-powerprofilesctl set performance
+sudo -n powerprofilesctl set performance
 host_power_during="$(powerprofilesctl get | tr -d '[:space:]')"
 [[ "$host_power_during" == performance ]] || {
     echo "Could not apply the host performance profile: $host_power_during" >&2
@@ -140,7 +140,7 @@ EOF
 
 cleanup() {
     restore_task
-    powerprofilesctl set "$host_power_before" >/dev/null 2>&1 || true
+    sudo -n powerprofilesctl set "$host_power_before" >/dev/null 2>&1 || true
     if [[ -n "${temp_dir:-}" && "$temp_dir" == /tmp/preflight-windows-host.* ]]; then
         rm -rf -- "$temp_dir"
     fi
@@ -284,7 +284,7 @@ jq -n \
       cpuCapacities:$cpuCapacities,guestBefore:$guestBefore,completion:$completion,
       hostSamples:$samples}' >"$host_output"
 restore_task
-powerprofilesctl set "$host_power_before"
+sudo -n powerprofilesctl set "$host_power_before"
 trap - EXIT
 rm -rf -- "$temp_dir"
 printf 'Cohort: %s\nHost fingerprint: %s\n' "$(jq -c '.summary.conditions' <<<"$completion")" "$host_output"
