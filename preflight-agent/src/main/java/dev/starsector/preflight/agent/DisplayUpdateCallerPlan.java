@@ -13,8 +13,8 @@ final class DisplayUpdateCallerPlan {
     static final String TARGET_CLASS = "com/fs/graphics/F";
     static final String ORIGINAL_SHA256 =
             "d1353602d4b34e85701ed9ca2de4f00c37aa0982a7f8d2d2197781b24a19eafb";
-    static final String METHOD = "ÓO0000";
-    static final String DESCRIPTOR = "()V";
+    static final String METHOD = "o00000";
+    static final String DESCRIPTOR = "([Ljava/lang/String;)V";
     private static final String DISPLAY = "org/lwjgl/opengl/Display";
     private static final String DISPLAY_UPDATE = "update";
     private static final String RUNTIME =
