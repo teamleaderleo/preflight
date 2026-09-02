@@ -612,3 +612,46 @@ The exact Windows detailed SpecStore/early-progress discovery packet is retained
 
 The final archive is 1,588,722 bytes with SHA-256
 `23f6f7653da2f385d41551f7d6ae580bb1508637918753e3ed4eff3c225c485c`.
+
+### Does aligning prepared-prefetch order remove the first-texture wait?
+
+No. This is a useful rejected optimization, retained as an exact-gated,
+off-by-default diagnostic seam.
+
+The candidate moved the reviewed Windows `ResourceLoaderState` worker start
+behind stock resource prioritization and captured that same prioritized order
+for the existing prepared-pixel queue. The installed-game correctness run
+confirmed one capture and one reorder pass over all 15,003 queued textures,
+with all 15,003 entries matched, zero ordering errors, zero original decodes,
+zero fallbacks, and zero leaked buffers. The queue's first desired, before, and
+after path was `graphics/cursors/cursor_blue.png`; no entry needed to move
+because delaying the worker start had already made producer and consumer order
+agree.
+
+That did not remove the stall. The cursor remained the first texture load and
+took 8.342 seconds. The gap from `resource-batches-start` to the first one
+percent progress event only fell from 9.128 seconds to 8.573 seconds. Total
+texture consumer time increased from 27.006 seconds to 27.949 seconds. The
+candidate run reached graphics preload at 53.785 seconds, but its mod-callback
+window happened to be 10.510 seconds rather than the baseline probe's 16.630
+seconds; that unrelated single-run variation cannot be credited to texture
+queue ordering.
+
+The direct causal counters therefore reject the proposed mechanism: resource
+calls remained 17,124, all 15,003 textures still ran, no queue entries moved,
+and the target first-texture wait remained. A repeated thin cohort would only
+measure unrelated startup variance, so none was run.
+
+The stronger successor hypothesis is cold first-image work on Windows: decoder
+or Java2D/ImageIO initialization, first prepared-pixel conversion, or another
+one-time dependency reached by the first cursor load. The next slice should
+split that 8.342-second call before attempting another optimization.
+
+Preserved evidence:
+
+```text
+/home/leo/Windows-Share/Diagnostics/20260902-windows-prepared-priority-order-correctness.zip
+```
+
+The archive is 1,589,978 bytes with SHA-256
+`f0496c3de0a24fbef89d51e8b5447eb4f0ba92b92a06d33a7aef84c1c4373c90`.
