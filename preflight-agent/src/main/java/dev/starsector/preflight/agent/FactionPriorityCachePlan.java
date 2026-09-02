@@ -57,6 +57,10 @@ final class FactionPriorityCachePlan {
         if (adds.size() != 3 || returns.size() != 1) return false;
 
         LabelNode original = new LabelNode();
+        LabelNode replayLoop = new LabelNode();
+        LabelNode replayComplete = new LabelNode();
+        int replayIds = method.maxLocals;
+        int replayIndex = replayIds + 1;
         InsnList entry = new InsnList();
         entry.add(new VarInsnNode(Opcodes.ALOAD, 0));
         entry.add(new VarInsnNode(Opcodes.ALOAD, 4));
@@ -64,10 +68,30 @@ final class FactionPriorityCachePlan {
         entry.add(new VarInsnNode(Opcodes.ALOAD, 2));
         entry.add(new VarInsnNode(Opcodes.ILOAD, 3));
         entry.add(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME, "replayOrBegin",
-                "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Z)Z", false));
-        entry.add(new JumpInsnNode(Opcodes.IFEQ, original));
+                "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Z)"
+                        + "[Ljava/lang/String;", false));
+        entry.add(new InsnNode(Opcodes.DUP));
+        entry.add(new JumpInsnNode(Opcodes.IFNULL, original));
+        entry.add(new VarInsnNode(Opcodes.ASTORE, replayIds));
+        entry.add(new InsnNode(Opcodes.ICONST_0));
+        entry.add(new VarInsnNode(Opcodes.ISTORE, replayIndex));
+        entry.add(replayLoop);
+        entry.add(new VarInsnNode(Opcodes.ILOAD, replayIndex));
+        entry.add(new VarInsnNode(Opcodes.ALOAD, replayIds));
+        entry.add(new InsnNode(Opcodes.ARRAYLENGTH));
+        entry.add(new JumpInsnNode(Opcodes.IF_ICMPGE, replayComplete));
+        entry.add(new VarInsnNode(Opcodes.ALOAD, 4));
+        entry.add(new VarInsnNode(Opcodes.ALOAD, replayIds));
+        entry.add(new VarInsnNode(Opcodes.ILOAD, replayIndex));
+        entry.add(new InsnNode(Opcodes.AALOAD));
+        entry.add(new MethodInsnNode(Opcodes.INVOKEINTERFACE, CALLBACK, METHOD,
+                "(Ljava/lang/String;)V", true));
+        entry.add(new org.objectweb.asm.tree.IincInsnNode(replayIndex, 1));
+        entry.add(new JumpInsnNode(Opcodes.GOTO, replayLoop));
+        entry.add(replayComplete);
         entry.add(new InsnNode(Opcodes.RETURN));
         entry.add(original);
+        entry.add(new InsnNode(Opcodes.POP));
         method.instructions.insertBefore(method.instructions.getFirst(), entry);
 
         for (MethodInsnNode add : adds) {

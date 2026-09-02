@@ -34,14 +34,14 @@ class FactionPriorityCacheRuntimeTest {
         Callback learning = new Callback();
         Object faction = new JsonIdentity("faction-a");
         assertTrue(FactionPriorityCacheRuntime.configure(temporaryDirectory, profile, true));
-        assertFalse(FactionPriorityCacheRuntime.replayOrBegin(
+        org.junit.jupiter.api.Assertions.assertNull(FactionPriorityCacheRuntime.replayOrBegin(
                 faction, learning, "knownShips", "hulls", true));
         FactionPriorityCacheRuntime.record("wolf");
         learning.o00000("wolf");
         FactionPriorityCacheRuntime.record("lasher");
         learning.o00000("lasher");
         FactionPriorityCacheRuntime.completeCall();
-        assertFalse(FactionPriorityCacheRuntime.replayOrBegin(
+        org.junit.jupiter.api.Assertions.assertNull(FactionPriorityCacheRuntime.replayOrBegin(
                 faction, new Callback(), "knownShips", "hulls", true),
                 "a learning launch must never consume its own unvalidated results");
         FactionPriorityCacheRuntime.complete();
@@ -53,8 +53,10 @@ class FactionPriorityCacheRuntimeTest {
         FactionPriorityCacheRuntime.beginSession();
         assertTrue(FactionPriorityCacheRuntime.configure(temporaryDirectory, profile, true));
         Callback replay = new Callback();
-        assertTrue(FactionPriorityCacheRuntime.replayOrBegin(
-                new JsonIdentity("faction-a"), replay, "knownShips", "hulls", true));
+        String[] replayIds = FactionPriorityCacheRuntime.replayOrBegin(
+                new JsonIdentity("faction-a"), replay, "knownShips", "hulls", true);
+        org.junit.jupiter.api.Assertions.assertNotNull(replayIds);
+        for (String id : replayIds) replay.o00000(id);
         assertEquals(List.of("wolf", "lasher"), replay.ids);
         assertEquals(1L, FactionPriorityCacheRuntime.telemetry().get("hits"));
         assertEquals(2L, FactionPriorityCacheRuntime.telemetry().get("replayedIds"));
@@ -68,7 +70,7 @@ class FactionPriorityCacheRuntimeTest {
         java.nio.file.Files.writeString(artifact, "broken");
 
         assertTrue(FactionPriorityCacheRuntime.configure(temporaryDirectory, profile, true));
-        assertFalse(FactionPriorityCacheRuntime.replayOrBegin(
+        org.junit.jupiter.api.Assertions.assertNull(FactionPriorityCacheRuntime.replayOrBegin(
                 new JsonIdentity("faction-b"), new Callback(),
                 "knownWeapons", "weapons", false));
         assertTrue(String.valueOf(FactionPriorityCacheRuntime.telemetry().get("status"))

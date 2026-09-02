@@ -4,8 +4,6 @@ import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.PathContainment;
 import dev.starsector.preflight.core.PreparedFactionPriorityCache;
 import dev.starsector.preflight.core.PreparedFactionPriorityCacheIO;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -13,7 +11,6 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -86,13 +83,13 @@ public final class FactionPriorityCacheRuntime {
         return state.artifact != null;
     }
 
-    /** Returns true only after every learned callback has been replayed successfully. */
-    public static boolean replayOrBegin(
+    /** Returns learned IDs for the exact faction/table, or null to execute and observe vanilla. */
+    public static String[] replayOrBegin(
             Object json, Object callback, String section, String explicitIds, boolean fallbackToBase) {
         State current = state;
         if (current.artifact == null || json == null || callback == null
                 || section == null || explicitIds == null) {
-            return false;
+            return null;
         }
         current.attempts.incrementAndGet();
         String jsonIdentity;
@@ -103,36 +100,19 @@ public final class FactionPriorityCacheRuntime {
         } catch (Throwable error) {
             current.fingerprintFailures.incrementAndGet();
             current.diagnose("faction JSON identity failed: " + message(error));
-            return false;
+            return null;
         }
         String key = key(jsonIdentity, callback.getClass(), section, explicitIds, fallbackToBase);
-        List<String> ids = current.loadedEntries.get(key);
-        if (ids == null || current.declined.contains(key)) {
+        String[] ids = current.loadedArrays.get(key);
+        if (ids == null) {
             current.misses.incrementAndGet();
             CAPTURE.set(new Capture(key));
-            return false;
+            return null;
         }
-        try {
-            Method add = callback.getClass().getMethod("o00000", String.class);
-            if (!add.trySetAccessible() && !add.canAccess(callback)) {
-                throw new IllegalAccessException("callback add method is inaccessible");
-            }
-            for (String id : ids) add.invoke(callback, id);
-            current.hits.incrementAndGet();
-            current.replayedIds.addAndGet(ids.size());
-            CAPTURE.remove();
-            return true;
-        } catch (ThreadDeath | VirtualMachineError fatal) {
-            throw fatal;
-        } catch (Throwable error) {
-            current.replayFailures.incrementAndGet();
-            current.declined.add(key);
-            current.diagnose("replay declined for " + key + ": " + message(unwrap(error)));
-            // These exact callbacks add to Sets. If reflection failed after a partial replay, the
-            // original method may safely add the same IDs again while preserving fail-open behavior.
-            CAPTURE.set(new Capture(key));
-            return false;
-        }
+        current.hits.incrementAndGet();
+        current.replayedIds.addAndGet(ids.length);
+        CAPTURE.remove();
+        return ids;
     }
 
     /** Woven immediately before each original callback add; the game still performs the add. */
@@ -197,7 +177,7 @@ public final class FactionPriorityCacheRuntime {
         values.put("fingerprintFailures", current.fingerprintFailures.get());
         values.put("writes", current.writes.get());
         values.put("writeFailures", current.writeFailures.get());
-        values.put("declinedKeys", current.declined.size());
+        values.put("declinedKeys", 0);
         values.put("diagnostic", current.diagnostic);
         return Map.copyOf(values);
     }
@@ -213,11 +193,6 @@ public final class FactionPriorityCacheRuntime {
         if (!SHUTDOWN_HOOK_INSTALLED.compareAndSet(false, true)) return;
         Runtime.getRuntime().addShutdownHook(
                 new Thread(FactionPriorityCacheRuntime::complete, "preflight-faction-priority-cache"));
-    }
-
-    private static Throwable unwrap(Throwable error) {
-        return error instanceof InvocationTargetException invocation && invocation.getCause() != null
-                ? invocation.getCause() : error;
     }
 
     private static String message(Throwable error) {
@@ -240,9 +215,9 @@ public final class FactionPriorityCacheRuntime {
         private final Path artifact;
         private final String profile;
         private final Map<String, List<String>> loadedEntries;
+        private final Map<String, String[]> loadedArrays;
         private final Map<String, List<String>> learnedEntries = new LinkedHashMap<>();
         private final Map<Object, String> jsonIdentities = new IdentityHashMap<>();
-        private final Set<String> declined = java.util.concurrent.ConcurrentHashMap.newKeySet();
         private final AtomicLong attempts = new AtomicLong();
         private final AtomicLong hits = new AtomicLong();
         private final AtomicLong misses = new AtomicLong();
@@ -266,6 +241,9 @@ public final class FactionPriorityCacheRuntime {
             this.artifact = artifact;
             this.profile = profile;
             this.loadedEntries = Map.copyOf(entries);
+            Map<String, String[]> arrays = new LinkedHashMap<>();
+            entries.forEach((key, ids) -> arrays.put(key, ids.toArray(String[]::new)));
+            this.loadedArrays = Map.copyOf(arrays);
             this.status = status;
         }
 

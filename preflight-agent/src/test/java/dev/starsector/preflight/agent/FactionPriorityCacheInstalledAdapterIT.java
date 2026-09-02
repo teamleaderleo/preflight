@@ -36,8 +36,8 @@ class FactionPriorityCacheInstalledAdapterIT {
             assertEquals(3, runtimeCalls(transformed, "record"));
             assertEquals(1, runtimeCalls(transformed, "completeCall"));
 
-            // A partial reflective replay is allowed to fall back because these exact eight
-            // callbacks only add to Sets; replaying an already-added ID is therefore idempotent.
+            // The replay loop invokes the same callback interface directly. These exact eight
+            // callback bodies each retain the reviewed Set-add result shape.
             for (int suffix = 18; suffix <= 25; suffix++) {
                 assertEquals(1, setAdds(bytes(jar,
                         "com/fs/starfarer/loading/SpecStore$" + suffix)));
