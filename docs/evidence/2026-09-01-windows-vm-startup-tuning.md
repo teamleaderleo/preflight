@@ -393,11 +393,13 @@ until an interleaved cohort, and Fast Rendering alone still lacks the semantic i
 
 ### Can the Windows VM receive Big Red's real GPU?
 
-Not by ordinary full passthrough without taking the host desktop: Big Red has one Intel Arc iGPU and
-Linux owns it. The device exposes seven SR-IOV virtual functions, so a future reversible VF lane is
-possible in principle. Intel's Windows-guest procedure requires a platform-matched SR-IOV/zero-copy
-driver package; that package has not been identified or installed for this Arrow Lake fixture. No VF
-was enabled and the host display was not disturbed.
+This question was open when these llvmpipe measurements were made. It has since been resolved by
+deliberately making Big Red headless and assigning the whole Arc 140T to the existing Windows VM.
+The host/guest configuration, native Intel renderer proof, compatibility caveat, and first retained
+native-GPU startup observation are recorded in
+[the 2026-09-03 Arc 140T VFIO evidence](2026-09-03-big-red-arc140t-vfio-passthrough.md).
+The historical measurements in this document remain llvmpipe results and do not acquire native-GPU
+meaning retroactively.
 
 ### Can a bounded producer hide prepared-carrier work under early serial loading?
 
