@@ -11,6 +11,8 @@ condition="preflight"
 iterations=1
 cooldown=0
 preset="recommended"
+resolution=""
+gallium_driver="llvmpipe"
 share="/home/leo/Windows-Share/Diagnostics"
 guest_repo='C:\Projects\starsector-preflight'
 guest_jar='C:\Projects\starsector-preflight\preflight-cli\target\preflight.jar'
@@ -33,6 +35,8 @@ Usage: run-big-red-windows-startup-cohort.sh [options]
   --iterations N         1-20 (default: 1)
   --cooldown-seconds N   0-600 (default: 0)
   --preset NAME          recommended or conservative (default: recommended)
+  --resolution WxH       Explicit Windows game resolution, for example 1024x720
+  --gallium-driver NAME  Mesa driver name, or native to remove the override (default: llvmpipe)
   --vm NAME              libvirt domain (default: win11-starsector)
   --task NAME            Windows scheduled task name
   --share PATH           Big Red diagnostics share
@@ -54,6 +58,8 @@ while (($#)); do
         --iterations) iterations="$2"; shift 2 ;;
         --cooldown-seconds) cooldown="$2"; shift 2 ;;
         --preset) preset="$2"; shift 2 ;;
+        --resolution) resolution="$2"; shift 2 ;;
+        --gallium-driver) gallium_driver="$2"; shift 2 ;;
         --vm) vm="$2"; shift 2 ;;
         --task) task="$2"; shift 2 ;;
         --share) share="$2"; shift 2 ;;
@@ -81,6 +87,12 @@ esac
 }
 [[ "$preset" == recommended || "$preset" == conservative ]] || {
     echo "Preset must be recommended or conservative" >&2; exit 2;
+}
+[[ -z "$resolution" || "$resolution" =~ ^[1-9][0-9]*x[1-9][0-9]*$ ]] || {
+    echo "Resolution must be WIDTHxHEIGHT" >&2; exit 2;
+}
+[[ "$gallium_driver" == native || "$gallium_driver" =~ ^[A-Za-z0-9._-]+$ ]] || {
+    echo "Gallium driver must be a simple driver name or native" >&2; exit 2;
 }
 [[ "$startup_texture_cpu_probe" != true || "$startup_phase_probe" == true ]] || {
     echo "--startup-texture-cpu-probe requires --startup-phase-probe" >&2
@@ -230,9 +242,11 @@ windows_backslash_merged_read_keys_arg=""
 [[ "$windows_backslash_merged_read_keys" == true ]] && windows_backslash_merged_read_keys_arg=" -WindowsBackslashMergedReadKeys"
 windows_disable_backslash_merged_read_keys_arg=""
 [[ "$windows_disable_backslash_merged_read_keys" == true ]] && windows_disable_backslash_merged_read_keys_arg=" -WindowsDisableBackslashMergedReadKeys"
+resolution_arg=""
+[[ -n "$resolution" ]] && resolution_arg=" -Resolution $resolution"
 run_ps=$(cat <<EOF
 \$script = "$guest_repo\\scripts\\run-windows-startup-cohort.ps1"
-\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
+\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset -GalliumDriver $gallium_driver$resolution_arg$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
 Set-ScheduledTask -TaskName "$task" -Action (New-ScheduledTaskAction -Execute 'powershell.exe' -Argument \$args) | Out-Null
 Start-ScheduledTask -TaskName "$task"
 Start-Sleep -Seconds 2

@@ -10,6 +10,8 @@ param(
     [int]$CooldownSeconds = 20,
     [int]$Seed = 449,
     [string]$Resolution,
+    [AllowEmptyString()]
+    [string]$GalliumDriver = 'llvmpipe',
     [ValidateSet('recommended', 'conservative')]
     [string]$OptimizationPreset = 'recommended',
     [switch]$StartupPhaseProbe,
@@ -39,7 +41,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-$env:GALLIUM_DRIVER = 'llvmpipe'
+if ([string]::IsNullOrWhiteSpace($GalliumDriver) -or $GalliumDriver -eq 'native') {
+    Remove-Item Env:GALLIUM_DRIVER -ErrorAction SilentlyContinue
+} else {
+    $env:GALLIUM_DRIVER = $GalliumDriver
+}
 $effectivePreparedPrefetchProbe = $WindowsPreparedPrefetchProbe -or $WindowsPreparedSplitQueueProbe
 $effectivePreparedPrefetchWorkers = if ($WindowsPreparedSplitQueueProbe) {
     2

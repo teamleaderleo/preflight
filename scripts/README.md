@@ -45,6 +45,9 @@ overlay removal, not first menu usability. Do not compare those historical value
 usable-menu clock; see `windows-startup-runtime-state-semantics.md`.
 Every arm receives the same file-only Log4j configuration before launch, so Fast Rendering's
 per-resource console logging cannot turn captured stdout into a hidden condition-specific tax.
+The runner keeps `GALLIUM_DRIVER=llvmpipe` as its compatibility-fixture default. On a Windows host
+with a working physical graphics adapter, pass `-GalliumDriver native` (or an empty string) to remove
+that process-local override. The retained identity then records a null effective Gallium driver.
 
 On Big Red, `run-big-red-windows-startup-cohort.sh` is the unattended host wrapper. It starts the
 existing VM if needed, configures and runs the exact interactive Windows scheduled task, waits for
@@ -56,6 +59,9 @@ example:
 scripts/run-big-red-windows-startup-cohort.sh \
   --condition preflight-fast-rendering --iterations 1
 ```
+
+Use `--gallium-driver native --resolution 1024x720` for a native-GPU Windows run with explicit
+display geometry. Omitting both options preserves the existing llvmpipe/working-area behavior.
 
 The fingerprint retains hybrid-core capacities, vCPU topology/pinning, bounded QEMU/temperature/
 memory samples, guest SysMain and memory state, and only competing processes above a CPU threshold.
