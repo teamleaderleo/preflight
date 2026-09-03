@@ -8,9 +8,9 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
-/** Publishes the point where Starsector finishes showing its interactive title screen. */
+/** Publishes the earliest reviewed usable title boundary and later overlay-removal telemetry. */
 final class MainMenuInteractivePlan {
-    static final String PLAN_ID = "vanilla-main-menu-interactive-state-and-control-v2";
+    static final String PLAN_ID = "vanilla-main-menu-interactive-state-and-control-v3";
     static final String TARGET_CLASS = "com/fs/starfarer/title/B";
     static final String ORIGINAL_SHA256 =
             "a07eb94f8229ac0bb42139cebc6450518e8fe036023bd7687fb1a76347079f22";
@@ -41,31 +41,42 @@ final class MainMenuInteractivePlan {
         if (!RuntimeSemanticState.enabled()
                 || !supportedTarget(signature)
                 || signature.majorVersion() != 61
-                || (linuxTarget
-                        ? !signature.hasMethod(SHOW_METHOD, SHOW_DESCRIPTOR)
-                        : !signature.hasMethod(ADVANCE_METHOD, ADVANCE_DESCRIPTOR))) {
+                || !signature.hasMethod(SHOW_METHOD, SHOW_DESCRIPTOR)
+                || (!linuxTarget && !signature.hasMethod(ADVANCE_METHOD, ADVANCE_DESCRIPTOR))) {
             return null;
         }
 
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
-        if (linuxTarget) {
-            MethodNode show = unique(owner, SHOW_METHOD, SHOW_DESCRIPTOR);
-            AbstractInsnNode completion = uniqueReturn(show);
-            if (completion == null || callsMarker(show) != 0) return null;
-            show.instructions.insertBefore(completion, new MethodInsnNode(
-                    Opcodes.INVOKESTATIC, RUNTIME, "mainMenuInteractive", "()V", false));
-        } else {
-            MethodNode advance = unique(owner, ADVANCE_METHOD, ADVANCE_DESCRIPTOR);
-            MethodInsnNode removal = uniqueRemoval(advance);
-            if (removal == null || callsMarker(advance) != 0 || callsControl(advance) != 0) {
+        MethodNode show = unique(owner, SHOW_METHOD, SHOW_DESCRIPTOR);
+        AbstractInsnNode showCompletion = uniqueReturn(show);
+        if (showCompletion == null
+                || callsMarker(show, "mainMenuInteractive") != 0
+                || callsMarker(show, "mainMenuOverlayRemoved") != 0) {
+            return null;
+        }
+
+        MethodNode advance = null;
+        MethodInsnNode removal = null;
+        AbstractInsnNode advanceCompletion = null;
+        if (!linuxTarget) {
+            advance = unique(owner, ADVANCE_METHOD, ADVANCE_DESCRIPTOR);
+            removal = uniqueRemoval(advance);
+            advanceCompletion = uniqueReturn(advance);
+            if (removal == null
+                    || advanceCompletion == null
+                    || callsMarker(advance, "mainMenuInteractive") != 0
+                    || callsMarker(advance, "mainMenuOverlayRemoved") != 0
+                    || callsControl(advance) != 0) {
                 return null;
             }
+        }
 
+        show.instructions.insertBefore(showCompletion, new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "mainMenuInteractive", "()V", false));
+        if (!linuxTarget) {
             advance.instructions.insert(removal, new MethodInsnNode(
-                    Opcodes.INVOKESTATIC, RUNTIME, "mainMenuInteractive", "()V", false));
-            AbstractInsnNode onlyReturn = uniqueReturn(advance);
-            if (onlyReturn == null) return null;
+                    Opcodes.INVOKESTATIC, RUNTIME, "mainMenuOverlayRemoved", "()V", false));
             org.objectweb.asm.tree.InsnList control = new org.objectweb.asm.tree.InsnList();
             control.add(new org.objectweb.asm.tree.VarInsnNode(Opcodes.ALOAD, 0));
             control.add(new MethodInsnNode(
@@ -74,7 +85,7 @@ final class MainMenuInteractivePlan {
                     "titleAdvance",
                     "(Ljava/lang/Object;)V",
                     false));
-            advance.instructions.insertBefore(onlyReturn, control);
+            advance.instructions.insertBefore(advanceCompletion, control);
         }
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
@@ -129,14 +140,14 @@ final class MainMenuInteractivePlan {
         return result;
     }
 
-    private static int callsMarker(MethodNode method) {
+    private static int callsMarker(MethodNode method, String name) {
         if (method == null) return 0;
         int result = 0;
         for (AbstractInsnNode instruction = method.instructions.getFirst();
                 instruction != null; instruction = instruction.getNext()) {
             if (instruction instanceof MethodInsnNode call
                     && RUNTIME.equals(call.owner)
-                    && "mainMenuInteractive".equals(call.name)
+                    && name.equals(call.name)
                     && "()V".equals(call.desc)) {
                 result++;
             }
@@ -156,5 +167,4 @@ final class MainMenuInteractivePlan {
         }
         return result;
     }
-
 }
