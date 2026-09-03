@@ -32,7 +32,7 @@ final class MainMenuInteractivePlanTest {
     }
 
     @Test
-    void marksTheExactRemovalOfThePreloadingLabel() throws Exception {
+    void macPublishesUsabilityFromShowAndRetainsOverlayRemovalTelemetry() throws Exception {
         RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
         byte[] original = fixture();
 
@@ -40,43 +40,53 @@ final class MainMenuInteractivePlanTest {
                 exactSignature(original, MainMenuInteractivePlan.ORIGINAL_SHA256), original);
 
         assertNotNull(transformed);
-        assertEquals(1, calls(method(transformed), RUNTIME, "mainMenuInteractive"));
-        assertEquals(1, calls(method(transformed), CONTROL_RUNTIME, "titleAdvance"));
+        assertEquals(1, calls(showMethod(transformed), RUNTIME, "mainMenuInteractive"));
+        assertEquals(0, calls(showMethod(transformed), RUNTIME, "mainMenuOverlayRemoved"));
+        assertEquals(0, calls(advanceMethod(transformed), RUNTIME, "mainMenuInteractive"));
+        assertEquals(1, calls(advanceMethod(transformed), RUNTIME, "mainMenuOverlayRemoved"));
+        assertEquals(1, calls(advanceMethod(transformed), CONTROL_RUNTIME, "titleAdvance"));
     }
 
     @Test
-    void marksCompletionOfTheExactLinuxTitleScreenShowMethod() throws Exception {
+    void linuxRetainsItsReviewedShowCompletionUsabilitySeam() throws Exception {
         RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
         byte[] original = fixture(
                 MainMenuInteractivePlan.LINUX_TARGET_CLASS,
                 "(Lcom/fs/starfarer/ui/OO0o;)V",
-                1);
+                1,
+                true);
 
         byte[] transformed = MainMenuInteractivePlan.transform(
                 exactSignature(original, MainMenuInteractivePlan.LINUX_ORIGINAL_SHA256), original);
 
         assertNotNull(transformed);
         assertEquals(1, calls(showMethod(transformed), RUNTIME, "mainMenuInteractive"));
+        assertEquals(0, calls(showMethod(transformed), RUNTIME, "mainMenuOverlayRemoved"));
+        assertEquals(0, calls(advanceMethod(transformed), CONTROL_RUNTIME, "titleAdvance"));
     }
 
     @Test
-    void marksTheExactWindowsTitleOverlayAndInstallsClosedControl() throws Exception {
+    void windowsPublishesUsabilityFromShowAndRetainsClosedControl() throws Exception {
         RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
         byte[] original = fixture(
                 MainMenuInteractivePlan.WINDOWS_TARGET_CLASS,
                 "(Lcom/fs/starfarer/ui/c;)V",
-                1);
+                1,
+                true);
 
         byte[] transformed = MainMenuInteractivePlan.transform(
                 exactSignature(original, MainMenuInteractivePlan.WINDOWS_ORIGINAL_SHA256), original);
 
         assertNotNull(transformed);
-        assertEquals(1, calls(method(transformed), RUNTIME, "mainMenuInteractive"));
-        assertEquals(1, calls(method(transformed), CONTROL_RUNTIME, "titleAdvance"));
+        assertEquals(1, calls(showMethod(transformed), RUNTIME, "mainMenuInteractive"));
+        assertEquals(0, calls(advanceMethod(transformed), RUNTIME, "mainMenuInteractive"));
+        assertEquals(1, calls(advanceMethod(transformed), RUNTIME, "mainMenuOverlayRemoved"));
+        assertEquals(1, calls(advanceMethod(transformed), CONTROL_RUNTIME, "titleAdvance"));
     }
 
     @Test
-    void declinesDisabledWrongAmbiguousAndAlreadyTransformedInputs() throws Exception {
+    void declinesDisabledWrongHashWrongClassMissingMethodAmbiguousAndAlreadyTransformedInputs()
+            throws Exception {
         byte[] original = fixture();
         assertNull(MainMenuInteractivePlan.transform(
                 exactSignature(original, MainMenuInteractivePlan.ORIGINAL_SHA256), original));
@@ -84,8 +94,17 @@ final class MainMenuInteractivePlanTest {
         RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
         assertNull(MainMenuInteractivePlan.transform(ClassSignature.parse(original), original));
         assertNull(MainMenuInteractivePlan.transform(
-                exactSignature(ambiguousFixture(), MainMenuInteractivePlan.ORIGINAL_SHA256),
-                ambiguousFixture()));
+                exactSignature(fixture("example/WrongTitle", "(Lcom/fs/starfarer/ui/c;)V", 1, true),
+                        MainMenuInteractivePlan.ORIGINAL_SHA256),
+                fixture("example/WrongTitle", "(Lcom/fs/starfarer/ui/c;)V", 1, true)));
+        byte[] missingShow = fixture(
+                MainMenuInteractivePlan.TARGET_CLASS, "(Lcom/fs/starfarer/ui/c;)V", 1, false);
+        assertNull(MainMenuInteractivePlan.transform(
+                exactSignature(missingShow, MainMenuInteractivePlan.ORIGINAL_SHA256), missingShow));
+        byte[] ambiguous = fixture(
+                MainMenuInteractivePlan.TARGET_CLASS, "(Lcom/fs/starfarer/ui/c;)V", 2, true);
+        assertNull(MainMenuInteractivePlan.transform(
+                exactSignature(ambiguous, MainMenuInteractivePlan.ORIGINAL_SHA256), ambiguous));
 
         byte[] transformed = MainMenuInteractivePlan.transform(
                 exactSignature(original, MainMenuInteractivePlan.ORIGINAL_SHA256), original);
@@ -95,18 +114,11 @@ final class MainMenuInteractivePlanTest {
     }
 
     private static byte[] fixture() {
-        return fixture(1);
+        return fixture(MainMenuInteractivePlan.TARGET_CLASS, "(Lcom/fs/starfarer/ui/c;)V", 1, true);
     }
 
-    private static byte[] ambiguousFixture() {
-        return fixture(2);
-    }
-
-    private static byte[] fixture(int removalCalls) {
-        return fixture(MainMenuInteractivePlan.TARGET_CLASS, "(Lcom/fs/starfarer/ui/c;)V", removalCalls);
-    }
-
-    private static byte[] fixture(String targetClass, String removeDescriptor, int removalCalls) {
+    private static byte[] fixture(
+            String targetClass, String removeDescriptor, int removalCalls, boolean includeShow) {
         ClassWriter writer = new ClassWriter(0);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, targetClass,
                 null, "java/lang/Object", null);
@@ -129,15 +141,17 @@ final class MainMenuInteractivePlanTest {
         advance.visitInsn(Opcodes.RETURN);
         advance.visitMaxs(2, 2);
         advance.visitEnd();
-        MethodVisitor show = writer.visitMethod(Opcodes.ACC_PUBLIC,
-                MainMenuInteractivePlan.SHOW_METHOD,
-                MainMenuInteractivePlan.SHOW_DESCRIPTOR, null, null);
-        show.visitCode();
-        for (int index = 0; index < removalCalls; index++) {
-            show.visitInsn(Opcodes.RETURN);
+        if (includeShow) {
+            MethodVisitor show = writer.visitMethod(Opcodes.ACC_PUBLIC,
+                    MainMenuInteractivePlan.SHOW_METHOD,
+                    MainMenuInteractivePlan.SHOW_DESCRIPTOR, null, null);
+            show.visitCode();
+            for (int index = 0; index < removalCalls; index++) {
+                show.visitInsn(Opcodes.RETURN);
+            }
+            show.visitMaxs(0, 1);
+            show.visitEnd();
         }
-        show.visitMaxs(0, 1);
-        show.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
     }
@@ -149,20 +163,19 @@ final class MainMenuInteractivePlanTest {
     }
 
     private static MethodNode showMethod(byte[] bytes) {
-        ClassNode owner = new ClassNode(Opcodes.ASM9);
-        new ClassReader(bytes).accept(owner, ClassReader.EXPAND_FRAMES);
-        return owner.methods.stream()
-                .filter(candidate -> MainMenuInteractivePlan.SHOW_METHOD.equals(candidate.name)
-                        && MainMenuInteractivePlan.SHOW_DESCRIPTOR.equals(candidate.desc))
-                .findFirst().orElseThrow();
+        return method(bytes, MainMenuInteractivePlan.SHOW_METHOD, MainMenuInteractivePlan.SHOW_DESCRIPTOR);
     }
 
-    private static MethodNode method(byte[] bytes) {
+    private static MethodNode advanceMethod(byte[] bytes) {
+        return method(bytes, MainMenuInteractivePlan.ADVANCE_METHOD,
+                MainMenuInteractivePlan.ADVANCE_DESCRIPTOR);
+    }
+
+    private static MethodNode method(byte[] bytes, String name, String descriptor) {
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(bytes).accept(owner, ClassReader.EXPAND_FRAMES);
         return owner.methods.stream()
-                .filter(candidate -> MainMenuInteractivePlan.ADVANCE_METHOD.equals(candidate.name)
-                        && MainMenuInteractivePlan.ADVANCE_DESCRIPTOR.equals(candidate.desc))
+                .filter(candidate -> name.equals(candidate.name) && descriptor.equals(candidate.desc))
                 .findFirst().orElseThrow();
     }
 
