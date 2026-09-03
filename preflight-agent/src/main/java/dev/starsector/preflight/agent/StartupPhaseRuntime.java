@@ -704,8 +704,6 @@ public final class StartupPhaseRuntime {
         }
         aggregate.cpuCalls++;
         aggregate.threadCpuNanos = Math.addExact(aggregate.threadCpuNanos, cpuNanos);
-        aggregate.inferredOffCpuNanos = Math.addExact(
-                aggregate.inferredOffCpuNanos, Math.max(0L, wallNanos - cpuNanos));
     }
 
     private static Map<String, Object> textureThreadCpuTelemetry() {
@@ -1084,14 +1082,12 @@ public final class StartupPhaseRuntime {
         private long cpuCalls;
         private long wallNanos;
         private long threadCpuNanos;
-        private long inferredOffCpuNanos;
 
         private void reset() {
             calls = 0L;
             cpuCalls = 0L;
             wallNanos = 0L;
             threadCpuNanos = 0L;
-            inferredOffCpuNanos = 0L;
         }
 
         private Map<String, Object> toMap() {
@@ -1102,7 +1098,7 @@ public final class StartupPhaseRuntime {
                     ? millis(threadCpuNanos)
                     : null);
             timing.put("inferredOffCpuMillis", cpuCalls == calls && calls > 0L
-                    ? millis(inferredOffCpuNanos)
+                    ? millis(Math.max(0L, wallNanos - threadCpuNanos))
                     : null);
             return timing;
         }

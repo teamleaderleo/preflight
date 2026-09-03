@@ -121,6 +121,30 @@ class StartupTextureThreadCpuRuntimeTest {
     }
 
     @Test
+    void infersOffCpuOnceFromAggregateWhenAClockTickExceedsOneShortCall() {
+        StartupPhaseRuntime.configureTextureThreadCpuForTests(true, new FakeClock(true, true));
+        StartupPhaseRuntime.recordTextureThreadCpuForTests(
+                "graphics/ships/crosses-tick.png",
+                1_000_000L,
+                1_000_000L,
+                3_000_000L);
+        StartupPhaseRuntime.recordTextureThreadCpuForTests(
+                "graphics/ships/no-tick.png",
+                9_000_000L,
+                5_000_000L,
+                5_000_000L);
+
+        Map<String, Object> timing = textureThreadCpu();
+        assertEquals(1L, timing.get("negativeOrSkewCount"));
+        assertEquals(Map.of(
+                        "calls", 2L,
+                        "wallMillis", 10L,
+                        "threadCpuMillis", 2L,
+                        "inferredOffCpuMillis", 8L),
+                timing.get("other"));
+    }
+
+    @Test
     void disabledProbeDoesNotReadOrAggregateCpu() {
         FakeClock clock = new FakeClock(true, true);
         StartupPhaseRuntime.configureTextureThreadCpuForTests(false, clock);
