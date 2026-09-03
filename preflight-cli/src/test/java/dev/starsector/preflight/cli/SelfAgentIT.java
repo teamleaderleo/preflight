@@ -61,9 +61,10 @@ class SelfAgentIT {
         Path runtimeState = recording.resolveSibling("runtime-state.json");
         assertTrue(Files.isRegularFile(runtimeState), output);
         String semanticState = Files.readString(runtimeState);
-        assertTrue(semanticState.contains("\"format\":\"starsector-preflight-runtime-state-v1\""),
+        assertTrue(semanticState.contains("\"format\":\"starsector-preflight-runtime-state-v2\""),
                 semanticState);
         assertTrue(semanticState.contains("\"pid\":" + process.pid()), semanticState);
+        assertTrue(semanticState.contains("\"mainMenuOverlayRemovedAt\":"), semanticState);
         assertTrue(semanticState.contains("\"state\":\"stopped\""), semanticState);
         Path frameReport = recording.resolveSibling("runtime-frame-report.json");
         assertTrue(Files.isRegularFile(frameReport), output);
