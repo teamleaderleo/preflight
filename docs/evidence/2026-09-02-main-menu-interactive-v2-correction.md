@@ -116,6 +116,13 @@ semantic comparison.
 This correction makes no new startup-performance claim and does not run or instrument Fast
 Rendering.
 
+The first adjacent v2 startup cohort is retained in
+[the TEXTURE thread-CPU probe validation](2026-09-02-windows-texture-thread-cpu-validation.md).
+Its three Windows runs reached the reviewed v2 usable-menu boundary in 45.938, 40.272, and 46.317
+seconds. None observed `mainMenuOverlayRemovedAt`: the runner accepted and stopped each launch at
+the earlier usable-menu boundary. These are single-run diagnostic-validation observations, not a
+standalone-versus-Fast-Rendering campaign or a replacement startup-performance claim.
+
 ## Validation status
 
 The implementation is covered by focused runtime-state, transformer, reader, control-path, and exact

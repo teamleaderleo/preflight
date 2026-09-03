@@ -5,6 +5,11 @@ Date: 2026-08-27
 Install: Starsector 0.98a-RC8, GraphicsLib 1.12.1, current heavily modded profile, macOS on
 Apple M5, Java 17 under Rosetta, Preflight fast preset
 
+> **Historical semantic note:** this Mac run emitted runtime-state v1. Its “interactive menu” clock
+> was the later `Preloading...` overlay-removal endpoint, not first menu usability. The raw value is
+> preserved for that endpoint and must not support a genuine time-to-interaction claim without v2
+> remeasurement. See [the v2 correction](2026-09-02-main-menu-interactive-v2-correction.md).
+
 ## Finding
 
 GraphicsLib rebuilt the same private texture-data lookup strings throughout combat. Two earlier

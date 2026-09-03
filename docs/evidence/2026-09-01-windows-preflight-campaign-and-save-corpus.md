@@ -1,5 +1,12 @@
 # Windows campaign proof and cross-platform Lindsey save corpus (2026-09-01)
 
+> **Historical semantic note:** the Windows runtime-state used by these retained runs was v1. Its
+> field named `mainMenuInteractiveAt` marked `Preloading...` overlay removal, not first useful menu
+> interaction. The campaign/control outcomes remain historical evidence, but any v1 startup timing
+> must retain that label. Runtime-state v2 uses `mainMenuInteractiveAt` for the reviewed usable-menu
+> boundary and records `mainMenuOverlayRemovedAt` separately as diagnostics. See
+> [the v2 correction](2026-09-02-main-menu-interactive-v2-correction.md).
+
 ## Result
 
 Preflight launched the installed Windows game into a newly created campaign and Starsector

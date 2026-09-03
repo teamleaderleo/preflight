@@ -29,7 +29,7 @@ keeps the exact start-marker-to-graphics-preload clock, and retains display geom
 launcher/content hashes, adapter ownership/health, renderer process proof, and per-run logs. Pass
 `-Resolution WIDTHxHEIGHT` only when a fixture needs an explicit override. The graphics-preload
 clock is not labelled time-to-play. Preflight-backed conditions also wait for, require, and report
-the exact `main-menu-interactive` title boundary, because Fast Rendering can emit the earlier
+the runtime-state v2 `main-menu-interactive` title boundary, because Fast Rendering can emit the earlier
 graphics marker while worker texture loads are still active. The identity records the active Windows
 power-scheme GUID, SysMain service state, and whether Defender excludes the exact game/cache roots;
 non-Preflight renderer conditions still need their own comparable interactive-readiness evidence. Add
@@ -40,6 +40,9 @@ Linux, and Windows `ResourceLoaderState` variants and records the executing thre
 Pair it with `-StartupTextureCpuProbe` only for intrusive discovery: it retains bounded aggregate
 current-thread CPU and inferred off-CPU time for `cursor_blue.png` versus every other TEXTURE call,
 without moving the existing resource wall-clock anchors or retaining per-call CPU data.
+Runtime-state v1 Mac/Windows `mainMenuInteractiveAt` values measured the later `Preloading...`
+overlay removal, not first menu usability. Do not compare those historical values with the v2
+usable-menu clock; see `windows-startup-runtime-state-semantics.md`.
 Every arm receives the same file-only Log4j configuration before launch, so Fast Rendering's
 per-resource console logging cannot turn captured stdout into a hidden condition-specific tax.
 

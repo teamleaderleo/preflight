@@ -5,6 +5,13 @@ Date: 2026-08-27
 Install: Starsector 0.98a-RC8, current heavily modded profile, macOS on Apple M5, bundled x86-64
 Zulu 17 under Rosetta, Preflight fast preset
 
+> **Historical semantic note:** these Mac runs emitted runtime-state v1. Their
+> `mainMenuInteractiveAt` / “interactive menu” endpoint was `Preloading...` overlay removal, not the
+> reviewed first-usable-menu boundary added in v2. The raw startup and hitch values below are
+> unchanged and remain evidence for their recorded endpoints; do not use them as genuine
+> time-to-interaction measurements. See
+> [the v2 correction](2026-09-02-main-menu-interactive-v2-correction.md).
+
 ## Finding
 
 Startup hitching is real, but it is not gameplay frame pacing. Three adjacent 1,040-DP combat

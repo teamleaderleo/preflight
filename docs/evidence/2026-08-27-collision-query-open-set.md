@@ -2,6 +2,12 @@
 
 **Status:** accepted with limit; exact installed-bytecode and two live Preflight-only B runs passed
 
+> **Historical semantic note:** the retained Mac startup clocks in this report used runtime-state
+> v1. Their “interactive main menu” endpoint was `Preloading...` overlay removal, not first menu
+> usability. Raw values remain valid for that endpoint only and require v2 remeasurement before a
+> genuine time-to-interaction claim. See
+> [the v2 correction](2026-09-02-main-menu-interactive-v2-correction.md).
+
 The deterministic 1,040-DP combat profile made vanilla
 `com.fs.starfarer.combat.o0OO.G$o.<init>` both the largest individual leaf CPU method and a
 1.2-GiB weighted allocation family in its clean 30-second window. The existing dormant query cache

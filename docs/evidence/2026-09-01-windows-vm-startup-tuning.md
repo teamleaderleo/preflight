@@ -3,6 +3,14 @@
 Date: 2026-09-01 (host) / 2026-09-02 (Windows guest)  
 Status: accepted exploratory attribution and successor experiments; not a repeated release claim
 
+> **Runtime-state semantic correction:** this journal predates runtime-state v2. Unless a section
+> explicitly says otherwise, its Windows `mainMenuInteractiveAt` / “interactive” values are the v1
+> `Preloading...` overlay-removal endpoint, not first useful menu interaction. Raw values are
+> preserved for that historical endpoint. Genuine time-to-interaction claims—including standalone
+> versus Preflight + Fast Rendering—require v2 remeasurement. In v2, `mainMenuInteractiveAt` is the
+> reviewed usable-menu boundary and `mainMenuOverlayRemovedAt` is diagnostic only. See
+> [the v2 correction](2026-09-02-main-menu-interactive-v2-correction.md).
+
 ## Answer first
 
 The Windows fixture was not merely “a slow VM.” It exposed two separable effects.
