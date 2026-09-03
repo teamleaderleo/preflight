@@ -1,6 +1,7 @@
 package dev.starsector.preflight.agent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
@@ -21,9 +22,26 @@ final class RuntimeSemanticStateTest {
     }
 
     @Test
+    void v2StartsWithoutMenuTimestamps() throws Exception {
+        Path destination = temporaryDirectory.resolve("runtime-state.json");
+        RuntimeSemanticState.beginSession(destination);
+
+        Map<String, Object> telemetry = RuntimeSemanticState.telemetry();
+        assertEquals("starsector-preflight-runtime-state-v2", telemetry.get("format"));
+        assertNull(telemetry.get("mainMenuReadyAt"));
+        assertNull(telemetry.get("mainMenuInteractiveAt"));
+        assertNull(telemetry.get("mainMenuOverlayRemovedAt"));
+        String json = Files.readString(destination);
+        assertTrue(json.contains("\"format\":\"starsector-preflight-runtime-state-v2\""), json);
+        assertTrue(json.contains("\"mainMenuInteractiveAt\":null"), json);
+        assertTrue(json.contains("\"mainMenuOverlayRemovedAt\":null"), json);
+    }
+
+    @Test
     void interactiveTransitionAlsoMarksTheFrameTelemetryBoundary() throws Exception {
         FrameTimeRuntime.beginSession(true);
         RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+        RuntimeSemanticState.mainMenuReady();
 
         RuntimeSemanticState.mainMenuInteractive();
 
@@ -31,7 +49,38 @@ final class RuntimeSemanticStateTest {
     }
 
     @Test
-    void publishesOnlySemanticTransitionsAndStopsOrderly() throws Exception {
+    void usabilityAndOverlayRemovalAreIndependentIdempotentClocks() throws Exception {
+        Path destination = temporaryDirectory.resolve("runtime-state.json");
+        RuntimeSemanticState.beginSession(destination);
+        RuntimeSemanticState.mainMenuReady();
+        RuntimeSemanticState.mainMenuInteractive();
+
+        assertState(destination, "main-menu-interactive", 2L);
+        String firstInteractive =
+                String.valueOf(RuntimeSemanticState.telemetry().get("mainMenuInteractiveAt"));
+        assertNull(RuntimeSemanticState.telemetry().get("mainMenuOverlayRemovedAt"));
+
+        RuntimeSemanticState.mainMenuInteractive();
+        assertState(destination, "main-menu-interactive", 2L);
+        assertEquals(firstInteractive,
+                String.valueOf(RuntimeSemanticState.telemetry().get("mainMenuInteractiveAt")));
+
+        RuntimeSemanticState.mainMenuOverlayRemoved();
+        assertState(destination, "main-menu-interactive", 2L);
+        String firstOverlayRemoved =
+                String.valueOf(RuntimeSemanticState.telemetry().get("mainMenuOverlayRemovedAt"));
+        assertTrue(!"null".equals(firstOverlayRemoved));
+        assertEquals(firstInteractive,
+                String.valueOf(RuntimeSemanticState.telemetry().get("mainMenuInteractiveAt")));
+
+        RuntimeSemanticState.mainMenuOverlayRemoved();
+        assertState(destination, "main-menu-interactive", 2L);
+        assertEquals(firstOverlayRemoved,
+                String.valueOf(RuntimeSemanticState.telemetry().get("mainMenuOverlayRemovedAt")));
+    }
+
+    @Test
+    void laterTelemetryCannotRegressCampaignSimulationOrCombatState() throws Exception {
         Path destination = temporaryDirectory.resolve("runtime-state.json");
         RuntimeSemanticState.beginSession(destination);
         assertState(destination, "starting", 0L);
@@ -46,18 +95,15 @@ final class RuntimeSemanticStateTest {
 
         RuntimeSemanticState.mainMenuInteractive();
         assertState(destination, "main-menu-interactive", 2L);
-        String firstInteractiveTime =
-                String.valueOf(RuntimeSemanticState.telemetry().get("mainMenuInteractiveAt"));
-        RuntimeSemanticState.mainMenuInteractive();
-        assertState(destination, "main-menu-interactive", 2L);
-        assertEquals(firstInteractiveTime,
-                String.valueOf(RuntimeSemanticState.telemetry().get("mainMenuInteractiveAt")));
-
         RuntimeSemanticState.combatReady();
         assertState(destination, "main-menu-interactive", 2L);
 
         RuntimeSemanticState.campaignReady();
         assertState(destination, "campaign-ready", 3L);
+        RuntimeSemanticState.mainMenuInteractive();
+        RuntimeSemanticState.mainMenuOverlayRemoved();
+        assertState(destination, "campaign-ready", 3L);
+
         RuntimeSemanticState.simulationReady();
         assertState(destination, "simulation-ready", 4L);
         RuntimeSemanticState.combatReady();
@@ -70,7 +116,8 @@ final class RuntimeSemanticStateTest {
         assertState(destination, "stopped", 7L);
         assertTrue(Files.readString(destination).contains("\"mainMenuReadyAt\":"));
         assertTrue(Files.readString(destination).contains("\"mainMenuInteractiveAt\":"));
-        assertTrue(RuntimeSemanticState.telemetry().get("writeProblem") == null);
+        assertTrue(Files.readString(destination).contains("\"mainMenuOverlayRemovedAt\":"));
+        assertNull(RuntimeSemanticState.telemetry().get("writeProblem"));
     }
 
     private static void assertState(Path path, String state, long sequence) throws Exception {
