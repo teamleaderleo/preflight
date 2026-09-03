@@ -3,6 +3,8 @@ package dev.starsector.preflight.agent;
 import dev.starsector.preflight.core.Json;
 import java.io.IOException;
 import java.lang.invoke.MethodHandle;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -22,6 +24,8 @@ import java.util.Set;
 /** Direct, low-overhead timing for work hidden before, during, and after loading progress. */
 public final class StartupPhaseRuntime {
     static final String PLAN_ID = "startup-phase-probe-v1";
+    static final String TEXTURE_THREAD_CPU_PROPERTY = "preflight.startup.textureThreadCpu";
+    static final String CURSOR_TEXTURE_PATH = "graphics/cursors/cursor_blue.png";
     private static final int MAX_PHASES = 64;
     private static final int MAX_PLUGINS = 128;
     private static final int MAX_SPEC_LOADERS = 64;
@@ -34,6 +38,8 @@ public final class StartupPhaseRuntime {
     private static final int MAX_RESOURCE_LOAD_TOP = 64;
     private static final int MAX_RESOURCE_LOAD_TYPES = 16;
     private static final int SAMPLED_HOT_CALL_RATE = 16;
+    private static final int THREAD_CPU_CLOCK_WARMUP_READS = 1_024;
+    private static final int THREAD_CPU_CLOCK_CALIBRATION_READS = 10_000;
     private static final String[] SAMPLED_HOT_CALL_LABELS = {
         "weapon-json-numeric-conversion",
         "projectile-json-numeric-conversion",
@@ -44,6 +50,7 @@ public final class StartupPhaseRuntime {
         "ship-system-phase-hull-lookup"
     };
     private static final long NO_SAMPLE = Long.MIN_VALUE;
+    private static final long NO_THREAD_CPU = Long.MIN_VALUE;
     private static final int[] PROGRESS_MILESTONES = {1, 5, 10, 25, 50, 75, 90, 95, 99, 100};
 
     private static Path destination;
@@ -82,6 +89,19 @@ public final class StartupPhaseRuntime {
     private static long activeSpecSubphaseNanos;
     private static long progressCalls;
     private static long resourceLoadCalls;
+    private static volatile boolean textureThreadCpuRequested;
+    private static volatile boolean textureThreadCpuAvailable;
+    private static volatile String textureThreadCpuStatus;
+    private static volatile ThreadCpuClock textureThreadCpuClock;
+    private static volatile long textureThreadCpuReadFailures;
+    private static volatile long textureThreadCpuNegativeOrSkew;
+    private static long textureThreadCpuOverheadSamples;
+    private static long textureThreadCpuOverheadTotalNanos;
+    private static long textureThreadCpuOverheadMaximumNanos;
+    private static final TextureThreadCpuAggregate cursorTextureThreadCpu =
+            new TextureThreadCpuAggregate();
+    private static final TextureThreadCpuAggregate otherTextureThreadCpu =
+            new TextureThreadCpuAggregate();
     private static int lastProgressPermille;
     private static int nextProgressMilestone;
 
@@ -118,6 +138,16 @@ public final class StartupPhaseRuntime {
         activeSpecSubphaseNanos = 0L;
         progressCalls = 0L;
         resourceLoadCalls = 0L;
+        resetTextureThreadCpu();
+        textureThreadCpuRequested = Boolean.getBoolean(TEXTURE_THREAD_CPU_PROPERTY);
+        if (textureThreadCpuRequested) {
+            try {
+                initializeTextureThreadCpu(systemThreadCpuClock());
+            } catch (RuntimeException | LinkageError problem) {
+                textureThreadCpuReadFailures++;
+                textureThreadCpuStatus = "initialization-failed:" + boundedProblem(problem);
+            }
+        }
         lastProgressPermille = -1;
         nextProgressMilestone = 0;
     }
@@ -340,48 +370,105 @@ public final class StartupPhaseRuntime {
         return System.nanoTime();
     }
 
+    /** Reads CPU only for the exact opt-in TEXTURE resource seam. */
+    public static long textureThreadCpuStart(Object type) {
+        if (!textureThreadCpuRequested || !"TEXTURE".equals(resourceTypeName(type))) {
+            return NO_THREAD_CPU;
+        }
+        return readTextureThreadCpu();
+    }
+
     /** Records one accepted startup resource without writing in the hot loading loop. */
     public static synchronized void resourceLoadEnd(
             Object type, String path, int weight, long resourceStartedNanos) {
         try {
             long endedNanos = System.nanoTime();
-            long duration = endedNanos - resourceStartedNanos;
-            if (duration < 0L) {
-                return;
-            }
-            String typeName = type instanceof Enum<?> value
-                    ? value.name()
-                    : type == null ? "<null>" : type.getClass().getName();
-            ResourceLoadAggregate aggregate = resourceLoadTypes.get(typeName);
-            if (aggregate == null) {
-                if (resourceLoadTypes.size() >= MAX_RESOURCE_LOAD_TYPES) {
-                    typeName = "<overflow>";
-                    aggregate = resourceLoadTypes.get(typeName);
-                }
-                if (aggregate == null) {
-                    aggregate = new ResourceLoadAggregate(typeName);
-                    resourceLoadTypes.put(typeName, aggregate);
-                }
-            }
-            aggregate.record(weight, duration);
-
-            ResourceLoad load = new ResourceLoad(
-                    ++resourceLoadCalls,
-                    typeName,
+            recordResourceLoad(
+                    type,
                     path,
                     weight,
-                    duration,
-                    millis(resourceStartedNanos - startedNanos),
-                    millis(endedNanos - startedNanos));
-            if (resourceLoadFirst.size() < MAX_RESOURCE_LOAD_FIRST) {
-                resourceLoadFirst.add(load);
-            }
-            retainSlowest(load);
+                    resourceStartedNanos,
+                    endedNanos,
+                    NO_THREAD_CPU,
+                    NO_THREAD_CPU);
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
         } catch (Throwable ignored) {
             // Woven diagnostics are never allowed to affect startup.
         }
+    }
+
+    /** Records one accepted startup resource without moving the existing wall-clock anchors. */
+    public static synchronized void resourceLoadEnd(
+            Object type,
+            String path,
+            int weight,
+            long resourceStartedNanos,
+            long textureThreadCpuStartedNanos) {
+        try {
+            long endedNanos = System.nanoTime();
+            long textureThreadCpuEndedNanos = textureThreadCpuStartedNanos == NO_THREAD_CPU
+                    ? NO_THREAD_CPU
+                    : readTextureThreadCpu();
+            recordResourceLoad(
+                    type,
+                    path,
+                    weight,
+                    resourceStartedNanos,
+                    endedNanos,
+                    textureThreadCpuStartedNanos,
+                    textureThreadCpuEndedNanos);
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // Woven diagnostics are never allowed to affect startup.
+        }
+    }
+
+    private static void recordResourceLoad(
+            Object type,
+            String path,
+            int weight,
+            long resourceStartedNanos,
+            long endedNanos,
+            long textureThreadCpuStartedNanos,
+            long textureThreadCpuEndedNanos) {
+        long duration = endedNanos - resourceStartedNanos;
+        if (duration < 0L) {
+            return;
+        }
+        String typeName = resourceTypeName(type);
+        ResourceLoadAggregate aggregate = resourceLoadTypes.get(typeName);
+        if (aggregate == null) {
+            if (resourceLoadTypes.size() >= MAX_RESOURCE_LOAD_TYPES) {
+                typeName = "<overflow>";
+                aggregate = resourceLoadTypes.get(typeName);
+            }
+            if (aggregate == null) {
+                aggregate = new ResourceLoadAggregate(typeName);
+                resourceLoadTypes.put(typeName, aggregate);
+            }
+        }
+        aggregate.record(weight, duration);
+        recordTextureThreadCpu(
+                typeName,
+                path,
+                duration,
+                textureThreadCpuStartedNanos,
+                textureThreadCpuEndedNanos);
+
+        ResourceLoad load = new ResourceLoad(
+                ++resourceLoadCalls,
+                typeName,
+                path,
+                weight,
+                duration,
+                millis(resourceStartedNanos - startedNanos),
+                millis(endedNanos - startedNanos));
+        if (resourceLoadFirst.size() < MAX_RESOURCE_LOAD_FIRST) {
+            resourceLoadFirst.add(load);
+        }
+        retainSlowest(load);
     }
 
     /** Aggregates a reviewed startup call without writing in the hot path. */
@@ -485,7 +572,176 @@ public final class StartupPhaseRuntime {
                 .map(ResourceLoadAggregate::toMap).toList());
         output.put("first", resourceLoadFirst.stream().map(ResourceLoad::toMap).toList());
         output.put("slowest", slowest.stream().map(ResourceLoad::toMap).toList());
+        output.put("textureThreadCpu", textureThreadCpuTelemetry());
         return output;
+    }
+
+    private static String resourceTypeName(Object type) {
+        return type instanceof Enum<?> value
+                ? value.name()
+                : type == null ? "<null>" : type.getClass().getName();
+    }
+
+    private static void resetTextureThreadCpu() {
+        textureThreadCpuRequested = false;
+        textureThreadCpuAvailable = false;
+        textureThreadCpuStatus = "disabled";
+        textureThreadCpuClock = null;
+        textureThreadCpuReadFailures = 0L;
+        textureThreadCpuNegativeOrSkew = 0L;
+        textureThreadCpuOverheadSamples = 0L;
+        textureThreadCpuOverheadTotalNanos = 0L;
+        textureThreadCpuOverheadMaximumNanos = 0L;
+        cursorTextureThreadCpu.reset();
+        otherTextureThreadCpu.reset();
+    }
+
+    private static ThreadCpuClock systemThreadCpuClock() {
+        ThreadMXBean bean = ManagementFactory.getThreadMXBean();
+        return new ThreadCpuClock() {
+            @Override
+            public boolean supported() {
+                return bean.isCurrentThreadCpuTimeSupported();
+            }
+
+            @Override
+            public boolean enabled() {
+                return bean.isThreadCpuTimeEnabled();
+            }
+
+            @Override
+            public long read() {
+                return bean.getCurrentThreadCpuTime();
+            }
+        };
+    }
+
+    private static void initializeTextureThreadCpu(ThreadCpuClock candidate) {
+        try {
+            if (!candidate.supported()) {
+                textureThreadCpuStatus = "unsupported";
+                return;
+            }
+            if (!candidate.enabled()) {
+                textureThreadCpuStatus = "disabled-by-runtime";
+                return;
+            }
+            for (int index = 0; index < THREAD_CPU_CLOCK_WARMUP_READS; index++) {
+                if (candidate.read() < 0L) {
+                    textureThreadCpuReadFailures++;
+                    textureThreadCpuStatus = "unavailable-value";
+                    return;
+                }
+            }
+            for (int index = 0; index < THREAD_CPU_CLOCK_CALIBRATION_READS; index++) {
+                long started = System.nanoTime();
+                long value = candidate.read();
+                long elapsed = System.nanoTime() - started;
+                if (value < 0L) {
+                    textureThreadCpuReadFailures++;
+                    textureThreadCpuStatus = "unavailable-value";
+                    return;
+                }
+                textureThreadCpuOverheadSamples++;
+                textureThreadCpuOverheadTotalNanos += elapsed;
+                textureThreadCpuOverheadMaximumNanos =
+                        Math.max(textureThreadCpuOverheadMaximumNanos, elapsed);
+            }
+            textureThreadCpuClock = candidate;
+            textureThreadCpuAvailable = true;
+            textureThreadCpuStatus = "available";
+        } catch (RuntimeException | LinkageError problem) {
+            textureThreadCpuReadFailures++;
+            textureThreadCpuStatus = "initialization-failed:" + boundedProblem(problem);
+        }
+    }
+
+    private static long readTextureThreadCpu() {
+        ThreadCpuClock clock = textureThreadCpuClock;
+        if (clock == null) {
+            return NO_THREAD_CPU;
+        }
+        try {
+            long value = clock.read();
+            if (value >= 0L) {
+                return value;
+            }
+            textureThreadCpuReadFailures++;
+            textureThreadCpuStatus = "unavailable-value";
+        } catch (RuntimeException | LinkageError problem) {
+            textureThreadCpuReadFailures++;
+            textureThreadCpuStatus = "read-failed:" + boundedProblem(problem);
+        }
+        textureThreadCpuAvailable = false;
+        textureThreadCpuClock = null;
+        return NO_THREAD_CPU;
+    }
+
+    private static void recordTextureThreadCpu(
+            String type,
+            String path,
+            long wallNanos,
+            long cpuStartedNanos,
+            long cpuEndedNanos) {
+        if (!textureThreadCpuRequested || !"TEXTURE".equals(type)) {
+            return;
+        }
+        TextureThreadCpuAggregate aggregate = CURSOR_TEXTURE_PATH.equals(path)
+                ? cursorTextureThreadCpu
+                : otherTextureThreadCpu;
+        aggregate.calls++;
+        aggregate.wallNanos = Math.addExact(aggregate.wallNanos, wallNanos);
+        if (cpuStartedNanos == NO_THREAD_CPU || cpuEndedNanos == NO_THREAD_CPU) {
+            return;
+        }
+        long cpuNanos = cpuEndedNanos - cpuStartedNanos;
+        if (cpuNanos < 0L) {
+            textureThreadCpuNegativeOrSkew++;
+            return;
+        }
+        if (cpuNanos > wallNanos) {
+            textureThreadCpuNegativeOrSkew++;
+        }
+        aggregate.cpuCalls++;
+        aggregate.threadCpuNanos = Math.addExact(aggregate.threadCpuNanos, cpuNanos);
+        aggregate.inferredOffCpuNanos = Math.addExact(
+                aggregate.inferredOffCpuNanos, Math.max(0L, wallNanos - cpuNanos));
+    }
+
+    private static Map<String, Object> textureThreadCpuTelemetry() {
+        Map<String, Object> output = new LinkedHashMap<>();
+        output.put("property", TEXTURE_THREAD_CPU_PROPERTY);
+        output.put("available", textureThreadCpuAvailable);
+        output.put("status", textureThreadCpuStatus);
+        output.put("cpuReadFailures", textureThreadCpuReadFailures);
+        output.put("negativeOrSkewCount", textureThreadCpuNegativeOrSkew);
+        Map<String, Object> overhead = new LinkedHashMap<>();
+        overhead.put("samples", textureThreadCpuOverheadSamples);
+        overhead.put("totalNanos", textureThreadCpuOverheadTotalNanos);
+        overhead.put("averageNanos", textureThreadCpuOverheadSamples == 0L
+                ? null
+                : textureThreadCpuOverheadTotalNanos / textureThreadCpuOverheadSamples);
+        overhead.put("maximumNanos", textureThreadCpuOverheadSamples == 0L
+                ? null
+                : textureThreadCpuOverheadMaximumNanos);
+        output.put("clockReadOverhead", overhead);
+        output.put("cursor", cursorTextureThreadCpu.toMap());
+        output.put("other", otherTextureThreadCpu.toMap());
+        return output;
+    }
+
+    static synchronized void configureTextureThreadCpuForTests(
+            boolean requested, ThreadCpuClock clock) {
+        resetTextureThreadCpu();
+        textureThreadCpuRequested = requested;
+        if (requested) {
+            initializeTextureThreadCpu(clock);
+        }
+    }
+
+    static synchronized void recordTextureThreadCpuForTests(
+            String path, long wallNanos, long cpuStartedNanos, long cpuEndedNanos) {
+        recordTextureThreadCpu("TEXTURE", path, wallNanos, cpuStartedNanos, cpuEndedNanos);
     }
 
     private static void retainSlowest(ResourceLoad candidate) {
@@ -813,6 +1069,50 @@ public final class StartupPhaseRuntime {
             timing.put("maxCallMillis", millis(maxNanos));
             return timing;
         }
+    }
+
+    interface ThreadCpuClock {
+        boolean supported();
+
+        boolean enabled();
+
+        long read();
+    }
+
+    private static final class TextureThreadCpuAggregate {
+        private long calls;
+        private long cpuCalls;
+        private long wallNanos;
+        private long threadCpuNanos;
+        private long inferredOffCpuNanos;
+
+        private void reset() {
+            calls = 0L;
+            cpuCalls = 0L;
+            wallNanos = 0L;
+            threadCpuNanos = 0L;
+            inferredOffCpuNanos = 0L;
+        }
+
+        private Map<String, Object> toMap() {
+            Map<String, Object> timing = new LinkedHashMap<>();
+            timing.put("calls", calls);
+            timing.put("wallMillis", millis(wallNanos));
+            timing.put("threadCpuMillis", cpuCalls == calls && calls > 0L
+                    ? millis(threadCpuNanos)
+                    : null);
+            timing.put("inferredOffCpuMillis", cpuCalls == calls && calls > 0L
+                    ? millis(inferredOffCpuNanos)
+                    : null);
+            return timing;
+        }
+    }
+
+    private static String boundedProblem(Throwable problem) {
+        String name = problem == null ? "unknown" : problem.getClass().getSimpleName();
+        String message = problem == null ? null : problem.getMessage();
+        String value = message == null || message.isBlank() ? name : name + ":" + message;
+        return value.length() <= 240 ? value : value.substring(0, 240);
     }
 
     private static final class HotPath {

@@ -157,12 +157,27 @@ final class StartupPhasePlan {
                 "resource-ordering-complete", "resource-executor-start"));
         init.instructions.insert(resourceExecutor, mark("resource-executor-complete"));
         init.instructions.insertBefore(resourceBatches, mark("resource-batches-start"));
+        boolean textureThreadCpu = Boolean.getBoolean(
+                StartupPhaseRuntime.TEXTURE_THREAD_CPU_PROPERTY);
         int resourceStartedLocal = init.maxLocals;
-        init.maxLocals += 2;
+        int resourceThreadCpuStartedLocal = resourceStartedLocal + 2;
+        init.maxLocals += textureThreadCpu ? 4 : 2;
         InsnList resourceStart = new InsnList();
         resourceStart.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "hotCallStart", "()J", false));
         resourceStart.add(new VarInsnNode(Opcodes.LSTORE, resourceStartedLocal));
+        if (textureThreadCpu) {
+            resourceStart.add(new VarInsnNode(Opcodes.ALOAD, resourceStore.var));
+            resourceStart.add(new FieldInsnNode(
+                    Opcodes.GETFIELD, resourceType.owner, resourceType.name, resourceType.desc));
+            resourceStart.add(new MethodInsnNode(
+                    Opcodes.INVOKESTATIC,
+                    RUNTIME,
+                    "textureThreadCpuStart",
+                    "(Ljava/lang/Object;)J",
+                    false));
+            resourceStart.add(new VarInsnNode(Opcodes.LSTORE, resourceThreadCpuStartedLocal));
+        }
         init.instructions.insert(resourceStartAnchor, resourceStart);
         InsnList resourceEnd = new InsnList();
         resourceEnd.add(new VarInsnNode(Opcodes.ALOAD, resourceStore.var));
@@ -175,9 +190,17 @@ final class StartupPhasePlan {
         resourceEnd.add(new FieldInsnNode(
                 Opcodes.GETFIELD, resourceWeight.owner, resourceWeight.name, resourceWeight.desc));
         resourceEnd.add(new VarInsnNode(Opcodes.LLOAD, resourceStartedLocal));
+        if (textureThreadCpu) {
+            resourceEnd.add(new VarInsnNode(Opcodes.LLOAD, resourceThreadCpuStartedLocal));
+        }
         resourceEnd.add(new MethodInsnNode(
-                Opcodes.INVOKESTATIC, RUNTIME, "resourceLoadEnd",
-                "(Ljava/lang/Object;Ljava/lang/String;IJ)V", false));
+                Opcodes.INVOKESTATIC,
+                RUNTIME,
+                "resourceLoadEnd",
+                textureThreadCpu
+                        ? "(Ljava/lang/Object;Ljava/lang/String;IJJ)V"
+                        : "(Ljava/lang/Object;Ljava/lang/String;IJ)V",
+                false));
         init.instructions.insertBefore(resourceWeight, resourceEnd);
         init.instructions.insertBefore(shutdown, mark("progress-100"));
         init.instructions.insert(awaitRetry, mark("audio-workers-complete"));

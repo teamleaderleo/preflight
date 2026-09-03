@@ -37,6 +37,9 @@ non-Preflight renderer conditions still need their own comparable interactive-re
 Rendering 0.8.4 prepared-texture bridge against a forced-off combined baseline. Add
 `-StartupPhaseProbe` for the exact-gated semantic startup timeline; it now supports the pinned macOS,
 Linux, and Windows `ResourceLoaderState` variants and records the executing thread for each boundary.
+Pair it with `-StartupTextureCpuProbe` only for intrusive discovery: it retains bounded aggregate
+current-thread CPU and inferred off-CPU time for `cursor_blue.png` versus every other TEXTURE call,
+without moving the existing resource wall-clock anchors or retaining per-call CPU data.
 Every arm receives the same file-only Log4j configuration before launch, so Fast Rendering's
 per-resource console logging cannot turn captured stdout into a hidden condition-specific tax.
 

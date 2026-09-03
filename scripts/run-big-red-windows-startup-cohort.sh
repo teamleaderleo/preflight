@@ -19,6 +19,7 @@ guest_share='Z:\Diagnostics'
 check_only=false
 faction_priority_cache=false
 startup_phase_probe=false
+startup_texture_cpu_probe=false
 display_thread_texture_probe=false
 display_thread_spec_store_probe=false
 spec_store_texture_overlap=false
@@ -37,6 +38,7 @@ Usage: run-big-red-windows-startup-cohort.sh [options]
   --share PATH           Big Red diagnostics share
   --faction-priority-cache  Enable the Windows faction priority-table cache candidate
   --startup-phase-probe     Enable the intrusive semantic startup phase breakdown
+  --startup-texture-cpu-probe  Measure cursor-vs-other TEXTURE current-thread CPU
   --display-thread-texture-probe  Test same-Display ownership on one renderer thread
   --display-thread-spec-store-probe  Hold Display on a worker across Windows SpecStore
   --spec-store-texture-overlap  Preload learned textures while Windows main runs SpecStore
@@ -57,6 +59,7 @@ while (($#)); do
         --share) share="$2"; shift 2 ;;
         --faction-priority-cache) faction_priority_cache=true; shift ;;
         --startup-phase-probe) startup_phase_probe=true; shift ;;
+        --startup-texture-cpu-probe) startup_texture_cpu_probe=true; shift ;;
         --display-thread-texture-probe) display_thread_texture_probe=true; shift ;;
         --display-thread-spec-store-probe) display_thread_spec_store_probe=true; shift ;;
         --spec-store-texture-overlap) spec_store_texture_overlap=true; shift ;;
@@ -78,6 +81,10 @@ esac
 }
 [[ "$preset" == recommended || "$preset" == conservative ]] || {
     echo "Preset must be recommended or conservative" >&2; exit 2;
+}
+[[ "$startup_texture_cpu_probe" != true || "$startup_phase_probe" == true ]] || {
+    echo "--startup-texture-cpu-probe requires --startup-phase-probe" >&2
+    exit 2
 }
 for command in virsh jq iconv base64 sensors powerprofilesctl; do
     command -v "$command" >/dev/null || { echo "Missing command: $command" >&2; exit 1; }
@@ -211,6 +218,8 @@ faction_priority_arg=""
 [[ "$faction_priority_cache" == true ]] && faction_priority_arg=" -WindowsFactionPriorityCacheProbe"
 startup_phase_arg=""
 [[ "$startup_phase_probe" == true ]] && startup_phase_arg=" -StartupPhaseProbe"
+startup_texture_cpu_arg=""
+[[ "$startup_texture_cpu_probe" == true ]] && startup_texture_cpu_arg=" -StartupTextureCpuProbe"
 display_thread_texture_arg=""
 [[ "$display_thread_texture_probe" == true ]] && display_thread_texture_arg=" -WindowsDisplayThreadTextureProbe"
 display_thread_spec_store_arg=""
@@ -223,7 +232,7 @@ windows_disable_backslash_merged_read_keys_arg=""
 [[ "$windows_disable_backslash_merged_read_keys" == true ]] && windows_disable_backslash_merged_read_keys_arg=" -WindowsDisableBackslashMergedReadKeys"
 run_ps=$(cat <<EOF
 \$script = "$guest_repo\\scripts\\run-windows-startup-cohort.ps1"
-\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset$faction_priority_arg$startup_phase_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
+\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
 Set-ScheduledTask -TaskName "$task" -Action (New-ScheduledTaskAction -Execute 'powershell.exe' -Argument \$args) | Out-Null
 Start-ScheduledTask -TaskName "$task"
 Start-Sleep -Seconds 2

@@ -15,9 +15,11 @@ import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.VarInsnNode;
 
 class StartupPhasePlanTest {
     private static final String RUNTIME = "dev/starsector/preflight/agent/StartupPhaseRuntime";
@@ -65,9 +67,28 @@ class StartupPhasePlanTest {
         assertEquals(1, runtimeCalls(progressMethod(rewritten), "progress"));
         assertEquals(1, runtimeCalls(init, "pluginStart"));
         assertEquals(1, runtimeCalls(init, "pluginEnd"));
+        assertEquals(0, runtimeCalls(init, "textureThreadCpuStart"));
         assertEquals(1, runtimeCalls(init, "resourceLoadEnd"));
+        assertTrue(resourceWallAnchorsRemainAroundTheOriginalCall(init, false));
         assertTrue(hasDupImmediatelyBeforePluginStart(init),
                 "the callback receiver must remain on the operand stack for the shipped invocation");
+    }
+
+    @Test
+    void addsTextureCpuReadsInsideTheUnchangedWallAnchorsOnlyWhenOptedIn() throws Exception {
+        System.setProperty(StartupPhaseRuntime.TEXTURE_THREAD_CPU_PROPERTY, "true");
+        try {
+            byte[] rewritten = StartupPhasePlan.transform(
+                    ClassSignature.parse(fixture(true)), fixture(true));
+            assertNotNull(rewritten);
+            MethodNode init = init(rewritten);
+            assertEquals(1, runtimeCalls(init, "hotCallStart"));
+            assertEquals(1, runtimeCalls(init, "textureThreadCpuStart"));
+            assertEquals(1, runtimeCalls(init, "resourceLoadEnd"));
+            assertTrue(resourceWallAnchorsRemainAroundTheOriginalCall(init, true));
+        } finally {
+            System.clearProperty(StartupPhaseRuntime.TEXTURE_THREAD_CPU_PROPERTY);
+        }
     }
 
     @Test
@@ -347,5 +368,55 @@ class StartupPhasePlanTest {
             }
         }
         return false;
+    }
+
+    private static boolean resourceWallAnchorsRemainAroundTheOriginalCall(
+            MethodNode method, boolean textureThreadCpu) {
+        boolean startPreserved = false;
+        boolean endPreserved = false;
+        for (AbstractInsnNode instruction = method.instructions.getFirst();
+                instruction != null; instruction = instruction.getNext()) {
+            if (!(instruction instanceof MethodInsnNode call) || !RUNTIME.equals(call.owner)) {
+                continue;
+            }
+            if ("hotCallStart".equals(call.name)) {
+                AbstractInsnNode store = nextOpcode(call);
+                AbstractInsnNode cpuCall = store == null ? null : nextRuntimeCall(store);
+                startPreserved = store instanceof VarInsnNode variable
+                        && variable.getOpcode() == Opcodes.LSTORE
+                        && (textureThreadCpu
+                                ? cpuCall instanceof MethodInsnNode cpu
+                                        && "textureThreadCpuStart".equals(cpu.name)
+                                : !(cpuCall instanceof MethodInsnNode cpu)
+                                        || !"textureThreadCpuStart".equals(cpu.name));
+            } else if ("resourceLoadEnd".equals(call.name)) {
+                AbstractInsnNode next = nextOpcode(call);
+                String descriptor = textureThreadCpu
+                        ? "(Ljava/lang/Object;Ljava/lang/String;IJJ)V"
+                        : "(Ljava/lang/Object;Ljava/lang/String;IJ)V";
+                endPreserved = descriptor.equals(call.desc)
+                        && next instanceof FieldInsnNode field
+                        && field.getOpcode() == Opcodes.GETFIELD
+                        && "weightName".equals(field.name);
+            }
+        }
+        return startPreserved && endPreserved;
+    }
+
+    private static AbstractInsnNode nextRuntimeCall(AbstractInsnNode instruction) {
+        for (AbstractInsnNode current = instruction.getNext(); current != null; current = current.getNext()) {
+            if (current instanceof MethodInsnNode call && RUNTIME.equals(call.owner)) {
+                return current;
+            }
+        }
+        return null;
+    }
+
+    private static AbstractInsnNode nextOpcode(AbstractInsnNode instruction) {
+        AbstractInsnNode current = instruction.getNext();
+        while (current != null && current.getOpcode() < 0) {
+            current = current.getNext();
+        }
+        return current;
     }
 }

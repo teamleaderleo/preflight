@@ -13,6 +13,7 @@ param(
     [ValidateSet('recommended', 'conservative')]
     [string]$OptimizationPreset = 'recommended',
     [switch]$StartupPhaseProbe,
+    [switch]$StartupTextureCpuProbe,
     [switch]$TextureUploadProbe,
     [switch]$WindowsPrefetchBypassProbe,
     [switch]$WindowsPreparedPrefetchProbe,
@@ -44,6 +45,9 @@ $effectivePreparedPrefetchWorkers = if ($WindowsPreparedSplitQueueProbe) {
     2
 } else {
     $WindowsPreparedPrefetchWorkers
+}
+if ($StartupTextureCpuProbe -and -not $StartupPhaseProbe) {
+    throw '-StartupTextureCpuProbe requires -StartupPhaseProbe'
 }
 
 function Get-Sha256([string]$Path) {
@@ -198,6 +202,11 @@ log4j.appender.file.MaxBackupIndex=3
             if ($TextureUploadProbe) {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.texture.uploadProbe=true' | Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($StartupTextureCpuProbe) {
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.startup.textureThreadCpu=true' |
+                    Where-Object { $_ }) -join ' ').Trim()
             }
             if ($WindowsPrefetchBypassProbe) {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
@@ -552,6 +561,7 @@ $identity = [ordered]@{
     cacheDefenderExcluded = $cacheDefenderExcluded
     galliumDriver = $env:GALLIUM_DRIVER
     startupPhaseProbe = [bool]$StartupPhaseProbe
+    startupTextureCpuProbe = [bool]$StartupTextureCpuProbe
     fileOnlyLogging = $true
     textureUploadProbe = [bool]$TextureUploadProbe
     windowsPrefetchBypassProbe = [bool]$WindowsPrefetchBypassProbe
