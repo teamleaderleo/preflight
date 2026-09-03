@@ -160,6 +160,11 @@ final class RuntimeSemanticStateIdentity {
         return usesUsableMenuTiming() ? mainMenuInteractiveAt : null;
     }
 
+    /** In v1 this field recorded the former label-removal endpoint, despite its old field name. */
+    Instant legacyV1MainMenuOverlayRemovedAt() {
+        return FORMAT_V1.equals(format) ? mainMenuInteractiveAt : null;
+    }
+
     Instant mainMenuOverlayRemovedAt() {
         return mainMenuOverlayRemovedAt;
     }
