@@ -99,6 +99,7 @@ final class RuntimeSemanticStateIdentityTest {
         RuntimeSemanticStateIdentity state = RuntimeSemanticStateIdentity.read(legacy);
 
         assertEquals(RuntimeSemanticStateIdentity.FORMAT_V1, state.format());
+        assertTrue(state.reached("main-menu-interactive"));
         assertFalse(state.usesUsableMenuTiming());
         assertNull(state.firstUsableMainMenuAt());
         assertEquals(oldInteractiveField, state.legacyV1MainMenuOverlayRemovedAt());
