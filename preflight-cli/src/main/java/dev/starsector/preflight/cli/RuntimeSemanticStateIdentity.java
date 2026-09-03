@@ -5,15 +5,16 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.time.Instant;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.Map;
 import java.util.Set;
 
 /** Bounded reader for the live semantic state published by the injected JVM. */
 final class RuntimeSemanticStateIdentity {
-    private static final String FORMAT = "starsector-preflight-runtime-state-v1";
+    static final String FORMAT_V1 = "starsector-preflight-runtime-state-v1";
+    static final String FORMAT_V2 = "starsector-preflight-runtime-state-v2";
     private static final long MAX_BYTES = 64 * 1024;
     private static final long MAX_STARTUP_MILLIS = Duration.ofHours(24).toMillis();
     private static final Set<String> REQUIRED_FIELDS = Set.of(
@@ -22,26 +23,32 @@ final class RuntimeSemanticStateIdentity {
             "starting", "main-menu-ready", "main-menu-interactive",
             "campaign-ready", "simulation-ready", "combat-ready", "stopped");
 
+    private final String format;
     private final long pid;
     private final Instant processStartedAt;
     private final Instant mainMenuReadyAt;
     private final Instant mainMenuInteractiveAt;
+    private final Instant mainMenuOverlayRemovedAt;
     private final String state;
     private final long sequence;
     private final Instant observedAt;
 
     private RuntimeSemanticStateIdentity(
+            String format,
             long pid,
             Instant processStartedAt,
             Instant mainMenuReadyAt,
             Instant mainMenuInteractiveAt,
+            Instant mainMenuOverlayRemovedAt,
             String state,
             long sequence,
             Instant observedAt) {
+        this.format = format;
         this.pid = pid;
         this.processStartedAt = processStartedAt;
         this.mainMenuReadyAt = mainMenuReadyAt;
         this.mainMenuInteractiveAt = mainMenuInteractiveAt;
+        this.mainMenuOverlayRemovedAt = mainMenuOverlayRemovedAt;
         this.state = state;
         this.sequence = sequence;
         this.observedAt = observedAt;
@@ -72,13 +79,16 @@ final class RuntimeSemanticStateIdentity {
                 throw new IllegalArgumentException("Runtime semantic state is missing field: " + field);
             }
         }
-        if (!FORMAT.equals(string(root, "format"))) {
+        String format = string(root, "format");
+        if (!FORMAT_V1.equals(format) && !FORMAT_V2.equals(format)) {
             throw new IllegalArgumentException("Runtime semantic state format is unsupported");
         }
         long pid = integer(root, "pid", 1L);
         Instant processStartedAt = instant(root, "processStartedAt");
         Instant mainMenuReadyAt = nullableInstant(root, "mainMenuReadyAt");
         Instant mainMenuInteractiveAt = nullableInstant(root, "mainMenuInteractiveAt");
+        Instant mainMenuOverlayRemovedAt = FORMAT_V2.equals(format)
+                ? nullableInstant(root, "mainMenuOverlayRemovedAt") : null;
         String state = string(root, "state");
         if (!STATES.contains(state)) {
             throw new IllegalArgumentException("Runtime semantic state is unsupported: " + state);
@@ -109,9 +119,20 @@ final class RuntimeSemanticStateIdentity {
                         "Runtime interactive main-menu time is after its observation");
             }
         }
+        if (mainMenuOverlayRemovedAt != null) {
+            if (mainMenuInteractiveAt == null
+                    || mainMenuOverlayRemovedAt.isBefore(mainMenuInteractiveAt)) {
+                throw new IllegalArgumentException(
+                        "Runtime main-menu overlay removal precedes menu usability");
+            }
+            if (mainMenuOverlayRemovedAt.isAfter(observedAt)) {
+                throw new IllegalArgumentException(
+                        "Runtime main-menu overlay removal is after its observation");
+            }
+        }
         return new RuntimeSemanticStateIdentity(
-                pid, processStartedAt, mainMenuReadyAt, mainMenuInteractiveAt,
-                state, sequence, observedAt);
+                format, pid, processStartedAt, mainMenuReadyAt, mainMenuInteractiveAt,
+                mainMenuOverlayRemovedAt, state, sequence, observedAt);
     }
 
     boolean is(String expected) {
@@ -122,8 +143,25 @@ final class RuntimeSemanticStateIdentity {
         if (is(expected)) return true;
         return switch (expected) {
             case "main-menu-ready" -> mainMenuReadyAt != null;
+            case "main-menu-interactive" -> usesUsableMenuTiming() && mainMenuInteractiveAt != null;
             default -> false;
         };
+    }
+
+    String format() {
+        return format;
+    }
+
+    boolean usesUsableMenuTiming() {
+        return FORMAT_V2.equals(format);
+    }
+
+    Instant firstUsableMainMenuAt() {
+        return usesUsableMenuTiming() ? mainMenuInteractiveAt : null;
+    }
+
+    Instant mainMenuOverlayRemovedAt() {
+        return mainMenuOverlayRemovedAt;
     }
 
     String state() {
