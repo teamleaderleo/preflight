@@ -14,7 +14,7 @@ import java.util.Map;
 
 /** Low-frequency live game state for semantic desktop smoke waits. */
 public final class RuntimeSemanticState {
-    static final String FORMAT = "starsector-preflight-runtime-state-v1";
+    static final String FORMAT = "starsector-preflight-runtime-state-v2";
     private static final int STARTING = 0;
     private static final int MAIN_MENU = 1;
     private static final int MAIN_MENU_INTERACTIVE = 2;
@@ -31,6 +31,7 @@ public final class RuntimeSemanticState {
     private static Instant processStartedAt;
     private static Instant mainMenuReadyAt;
     private static Instant mainMenuInteractiveAt;
+    private static Instant mainMenuOverlayRemovedAt;
     private static boolean interactiveTitleOwnsState;
 
     private RuntimeSemanticState() {
@@ -44,6 +45,7 @@ public final class RuntimeSemanticState {
         processStartedAt = ProcessHandle.current().info().startInstant().orElse(null);
         mainMenuReadyAt = null;
         mainMenuInteractiveAt = null;
+        mainMenuOverlayRemovedAt = null;
         interactiveTitleOwnsState = false;
         enabled = true;
         try {
@@ -80,6 +82,7 @@ public final class RuntimeSemanticState {
         transition(MAIN_MENU);
     }
 
+    /** Publishes the first reviewed boundary where the normal title menu can accept input. */
     public static void mainMenuInteractive() {
         synchronized (RuntimeSemanticState.class) {
             if (!enabled || mainMenuInteractiveAt != null) return;
@@ -88,6 +91,20 @@ public final class RuntimeSemanticState {
             transition(MAIN_MENU_INTERACTIVE);
         }
         FrameTimeRuntime.markMainMenuInteractive();
+    }
+
+    /** Records the later disappearance of the title's Preloading... overlay without changing state. */
+    public static synchronized void mainMenuOverlayRemoved() {
+        if (!enabled || mainMenuOverlayRemovedAt != null) return;
+        mainMenuOverlayRemovedAt = Instant.now();
+        try {
+            write();
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable error) {
+            enabled = false;
+            writeProblem = error.getClass().getSimpleName() + ": " + error.getMessage();
+        }
     }
 
     public static synchronized void campaignReady() {
@@ -146,6 +163,7 @@ public final class RuntimeSemanticState {
         result.put("processStartedAt", processStartedAt);
         result.put("mainMenuReadyAt", mainMenuReadyAt);
         result.put("mainMenuInteractiveAt", mainMenuInteractiveAt);
+        result.put("mainMenuOverlayRemovedAt", mainMenuOverlayRemovedAt);
         return result;
     }
 
@@ -158,6 +176,7 @@ public final class RuntimeSemanticState {
         processStartedAt = null;
         mainMenuReadyAt = null;
         mainMenuInteractiveAt = null;
+        mainMenuOverlayRemovedAt = null;
         interactiveTitleOwnsState = false;
     }
 
@@ -169,6 +188,7 @@ public final class RuntimeSemanticState {
         values.put("processStartedAt", processStartedAt);
         values.put("mainMenuReadyAt", mainMenuReadyAt);
         values.put("mainMenuInteractiveAt", mainMenuInteractiveAt);
+        values.put("mainMenuOverlayRemovedAt", mainMenuOverlayRemovedAt);
         values.put("state", name(state));
         values.put("sequence", sequence);
         values.put("observedAt", Instant.now());
