@@ -29,6 +29,10 @@ final class AdapterTransformationRegistry {
             }
             byte[] prepared = withFoldBypass(
                     TexturePreparedPixelPlan.transform(signature, originalBytes));
+            if (prepared != null && TexturePreparedResourceRuntime.requested()) {
+                byte[] resources = TexturePreparedResourceLoaderPlan.transform(signature, prepared);
+                if (resources != null) prepared = resources;
+            }
             if (prepared == null || !DisplayThreadSpecStoreProbeRuntime.candidateRequested()) {
                 return prepared;
             }
@@ -1164,10 +1168,13 @@ final class AdapterTransformationRegistry {
                     && TexturePreparedStagingPlan.apply(signature, owner);
             boolean preparedOrdered = AdapterPlanControl.allows(TexturePreparedPrefetchPlan.PLAN_ID)
                     && TexturePreparedPriorityPlan.apply(signature, owner);
+            boolean preparedResources = AdapterPlanControl.allows(TexturePreparedPrefetchPlan.PLAN_ID)
+                    && TexturePreparedResourcePlan.apply(signature, owner);
             boolean indexed = ResourcePriorityPlan.apply(signature, owner);
             boolean rateLimited = ResourceProgressRateLimitPlan.apply(signature, owner);
-            if (!marked && !staged && !preparedOrdered && !indexed && !rateLimited) return null;
-            byte[] transformed = ResourcePriorityPlan.write(owner);
+            if (!marked && !staged && !preparedOrdered && !preparedResources && !indexed && !rateLimited) return null;
+            byte[] transformed = preparedResources ? TexturePreparedResourcePlan.write(owner)
+                    : ResourcePriorityPlan.write(owner);
             if (AdapterPlanControl.allows(FrameTimeRuntime.PLAN_ID)
                     && DisplayThreadTextureProbeRuntime.requested()) {
                 byte[] ownershipProof = DisplayUpdateCallerPlan.transform(signature, transformed);
@@ -1220,6 +1227,11 @@ final class AdapterTransformationRegistry {
                 byte[] ordered = TexturePreparedPriorityPlan.transform(signature, current);
                 if (ordered != null) {
                     current = ordered;
+                    changed = true;
+                }
+                byte[] resources = TexturePreparedResourcePlan.transform(signature, current);
+                if (resources != null) {
+                    current = resources;
                     changed = true;
                 }
             }

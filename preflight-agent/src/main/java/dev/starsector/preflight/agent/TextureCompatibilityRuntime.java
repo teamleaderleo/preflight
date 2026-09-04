@@ -120,6 +120,8 @@ public final class TextureCompatibilityRuntime {
                                 packFile, manifest.profileFingerprint(), blobs);
                     }
                 } catch (IOException | IllegalArgumentException ignored) {
+                    TELEMETRY.packOpenFailure(ignored instanceof IOException
+                            ? PackFailureReason.OPEN_IO : PackFailureReason.OPEN_INVALID);
                     // Loose content-addressed blobs remain the fail-open serving path.
                 }
             }
@@ -339,14 +341,13 @@ public final class TextureCompatibilityRuntime {
                         }
                         return packed;
                     }
-                    current.packDisabled.set(true);
-                    TELEMETRY.packFailure();
+                    current.disablePack(PackFailureReason.READ_IDENTITY_MISMATCH);
                 } catch (IOException error) {
-                    current.packDisabled.set(true);
-                    TELEMETRY.packFailure();
+                    current.disablePack(PackFailureReason.READ_IO);
                 }
             }
 
+            TELEMETRY.packFallback();
             Path blob;
             try {
                 Path candidate = current.cacheRoot.resolve(entry.blobRelativePath()).normalize();
@@ -638,11 +639,18 @@ public final class TextureCompatibilityRuntime {
             this.ready = false;
         }
 
+        private void disablePack(PackFailureReason reason) {
+            boolean transitioned = packDisabled.compareAndSet(false, true);
+            TELEMETRY.packReadFailure(reason, transitioned);
+        }
+
         private void close() {
             if (pack != null) {
+                TELEMETRY.packClose();
                 try {
                     pack.close();
                 } catch (IOException ignored) {
+                    TELEMETRY.packCloseFailure();
                     // Process teardown or reconfiguration owns no correctness requirement here.
                 }
             }
@@ -677,7 +685,14 @@ public final class TextureCompatibilityRuntime {
         }
     }
 
+    // Fixed labels only: never retain paths, exception messages, or exception instances.
+    private enum PackFailureReason {
+        OPEN_IO, OPEN_INVALID, READ_IO, READ_IDENTITY_MISMATCH, CLOSE_IO
+    }
+
     private static final class Telemetry {
+        private final EnumMap<PackFailureReason, Long> packFailureReasons =
+                new EnumMap<>(PackFailureReason.class);
         private final EnumMap<FallbackReason, Long> fallbackReasons = new EnumMap<>(FallbackReason.class);
         private final List<DisableReason> disableReasons = new ArrayList<>();
         private boolean configured;
@@ -696,6 +711,11 @@ public final class TextureCompatibilityRuntime {
         private long packHits;
         private long packBytes;
         private long packFailures;
+        private long packOpenFailures;
+        private long packDisables;
+        private long packCloses;
+        private long packCloseFailures;
+        private long packFallbacks;
         private long packSingleReadLz4Hits;
 
         synchronized void reset() {
@@ -717,6 +737,12 @@ public final class TextureCompatibilityRuntime {
             packHits = 0;
             packBytes = 0;
             packFailures = 0;
+            packOpenFailures = 0;
+            packDisables = 0;
+            packCloses = 0;
+            packCloseFailures = 0;
+            packFallbacks = 0;
+            packFailureReasons.clear();
             packSingleReadLz4Hits = 0;
         }
 
@@ -778,8 +804,35 @@ public final class TextureCompatibilityRuntime {
             packBytes = saturatedAdd(packBytes, bytes);
         }
 
-        synchronized void packFailure() {
-            packFailures++;
+        synchronized void packOpenFailure(PackFailureReason reason) {
+            packOpenFailures = saturatedAdd(packOpenFailures, 1);
+            packFailureReasons.merge(reason, 1L, TextureCompatibilityRuntime::saturatedAdd);
+        }
+
+        synchronized void packReadFailure(PackFailureReason reason, boolean transitioned) {
+            // Preserve the existing packFailures counter: failed reads, including identity drift.
+            packFailures = saturatedAdd(packFailures, 1);
+            if (transitioned) {
+                packDisables = saturatedAdd(packDisables, 1);
+            }
+            packFailureReasons.merge(reason, 1L, TextureCompatibilityRuntime::saturatedAdd);
+        }
+
+        synchronized void packClose() {
+            // Attempts, including an IOException; session reset retires the preceding session.
+            packCloses = saturatedAdd(packCloses, 1);
+        }
+
+        synchronized void packCloseFailure() {
+            packCloseFailures = saturatedAdd(packCloseFailures, 1);
+            packFailureReasons.merge(PackFailureReason.CLOSE_IO, 1L,
+                    TextureCompatibilityRuntime::saturatedAdd);
+        }
+
+        synchronized void packFallback() {
+            // Attempts to serve a loose blob, including absent, opted-out, and disabled packs.
+            // These are independent of fallbacks to the original decoder.
+            packFallbacks = saturatedAdd(packFallbacks, 1);
         }
 
         synchronized void packSingleReadLz4Hit() {
@@ -817,6 +870,15 @@ public final class TextureCompatibilityRuntime {
             values.put("packHits", packHits);
             values.put("packBytes", packBytes);
             values.put("packFailures", packFailures);
+            values.put("packOpenFailures", packOpenFailures);
+            values.put("packReadFailures", packFailures);
+            values.put("packDisables", packDisables);
+            values.put("packCloses", packCloses);
+            values.put("packCloseFailures", packCloseFailures);
+            values.put("packFallbacks", packFallbacks);
+            Map<String, Object> packReasons = new LinkedHashMap<>();
+            packFailureReasons.forEach((reason, count) -> packReasons.put(label(reason), count));
+            values.put("packFailureReasons", Map.copyOf(packReasons));
             values.put("packSingleReadLz4Hits", packSingleReadLz4Hits);
             values.put("circuitBreakerActive", disableReasons.contains(DisableReason.CIRCUIT_BREAKER));
             values.put("disableReasons", disabled);

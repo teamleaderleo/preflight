@@ -1316,5 +1316,121 @@ class UnattendedPromptTest(unittest.TestCase):
             "only confirm() itself may call `read -r -p`; found: " + repr(prompts))
 
 
+class WindowsPreparedResourcesRunnerTest(unittest.TestCase):
+    host = Path(__file__).with_name("run-big-red-windows-startup-cohort.sh").read_text()
+    guest = Path(__file__).with_name("run-windows-startup-cohort.ps1").read_text()
+
+    def host_command(self, *args):
+        # Retain real parsing/validation and scheduled-task argument construction, but
+        # exclude dependency checks, VM access, power changes and task execution.
+        prefix = self.host[:self.host.index("for command in virsh")]
+        construction = self.host[
+            self.host.index('windows_prepared_resources_arg=""'):
+            self.host.index('qga_ps "$run_ps"')]
+        return subprocess.run(
+            ["bash", "-c", prefix + construction + '\nprintf "%s\\n" "$run_ps"\n',
+             "cohort-test", *args], capture_output=True, text=True, timeout=10)
+
+    def test_host_forwards_requests_and_preserves_preset(self):
+        cases = [
+            ([], "preflight", None),
+            (["--windows-prepared-resources"], "preflight", "WindowsPreparedResources"),
+            (["--disable-windows-prepared-resources"], "preflight", "WindowsDisablePreparedResources"),
+            (["--condition", "preflight-prepared-resources"], "preflight-prepared-resources", None),
+        ]
+        for args, condition, switch in cases:
+            with self.subTest(args=args):
+                done = self.host_command(*args)
+                self.assertEqual(0, done.returncode, done.stderr)
+                self.assertIn(f"-Conditions {condition} ", done.stdout)
+                self.assertIn("-OptimizationPreset recommended", done.stdout)
+                for candidate in ("WindowsPreparedResources", "WindowsDisablePreparedResources"):
+                    self.assertEqual(candidate == switch, f" -{candidate}" in done.stdout)
+                self.assertNotIn(" -WindowsPreparedPrefetchWorkers", done.stdout)
+                self.assertNotIn(" -WindowsKaleidoscopePrefetchProbe", done.stdout)
+
+    def test_host_rejects_conflicts_before_host_effects(self):
+        cases = []
+        for candidate in (["--windows-prepared-resources"],
+                          ["--condition", "preflight-prepared-resources"]):
+            for conflict in ("--disable-windows-prepared-resources",
+                             "--display-thread-texture-probe",
+                             "--display-thread-spec-store-probe", "--spec-store-texture-overlap"):
+                cases.append([*candidate, conflict])
+        for condition in ("preflight-spec-store-texture-overlap", "fast-rendering",
+                          "preflight-fast-rendering", "preflight-fast-rendering-prepared"):
+            cases.append(["--windows-prepared-resources", "--condition", condition])
+        for args in cases:
+            with self.subTest(args=args):
+                done = self.host_command(*args)
+                self.assertEqual(2, done.returncode, done.stderr)
+                self.assertIn("Prepared resources", done.stderr)
+                self.assertEqual("", done.stdout)
+
+    def require_powershell(self):
+        import shutil
+        powershell = shutil.which("pwsh") or shutil.which("powershell")
+        if not powershell:
+            self.skipTest("PowerShell is not installed; guest parser/behavior checks need pwsh")
+        return powershell
+
+    def guest_command(self, arguments, body="'validated'"):
+        powershell = self.require_powershell()
+        # The real param block and guards end before the first environment mutation.
+        prefix = self.guest[:self.guest.index("if ([string]::IsNullOrWhiteSpace($GalliumDriver)")]
+        script = "try { & {\n" + prefix + body + "\n} " + arguments + " } catch { Write-Error $_; exit 2 }"
+        return subprocess.run([powershell, "-NoProfile", "-NonInteractive", "-Command", script],
+                              capture_output=True, text=True, timeout=20)
+
+    def test_guest_rejects_incompatible_scheduling_and_renderers(self):
+        self.require_powershell()
+        conflicts = ["-WindowsPreparedPrefetchWorkers 2", "-WindowsPreparedSplitQueueProbe",
+                     "-WindowsPrefetchBypassProbe", "-WindowsSharedContextTextureProbe",
+                     "-WindowsDisplayThreadTextureProbe", "-WindowsDisplayThreadSpecStoreProbe",
+                     "-WindowsSpecStoreTextureOverlap", "-WindowsDisablePreparedResources"]
+        for conflict in conflicts:
+            with self.subTest(conflict=conflict):
+                done = self.guest_command("-Conditions preflight-prepared-resources " + conflict)
+                self.assertEqual(2, done.returncode, done.stderr)
+                self.assertIn("Prepared resources", done.stderr)
+        for condition in ("fast-rendering", "preflight-fast-rendering",
+                          "preflight-fast-rendering-prepared", "preflight-spec-store-texture-overlap"):
+            with self.subTest(condition=condition):
+                done = self.guest_command(
+                    "-Conditions @('preflight-prepared-resources','" + condition + "')")
+                self.assertEqual(2, done.returncode, done.stderr)
+                self.assertIn("Prepared resources", done.stderr)
+        done = self.guest_command("-WindowsPreparedResources")
+        self.assertEqual(2, done.returncode, done.stderr)
+        self.assertIn("Fast Rendering", done.stderr)
+
+    def test_guest_resolves_candidate_baseline_and_default_property(self):
+        self.require_powershell()
+        resolver = self.guest[self.guest.index("    $usesPreflight ="):
+                              self.guest.index("    $usesKaleidoscopePrefetch =")]
+        forwarding = self.guest[self.guest.index("            if ($null -ne $requestedPreparedResources)"):
+                                self.guest.index("            if ($Condition -eq 'preflight-fast-rendering-prepared')")]
+        cases = [
+            ("-Conditions @('preflight-prepared-resources','preflight')", "preflight-prepared-resources", True),
+            ("-Conditions @('preflight-prepared-resources','preflight')", "preflight", False),
+            ("-Conditions preflight -WindowsPreparedResources", "preflight", True),
+            ("-Conditions preflight -WindowsDisablePreparedResources", "preflight", False),
+            ("-Conditions preflight", "preflight", None),
+        ]
+        for arguments, condition, expected in cases:
+            with self.subTest(arguments=arguments, condition=condition):
+                body = (f"$Condition = '{condition}'\n$env:JAVA_TOOL_OPTIONS = ''\n" + resolver +
+                        forwarding + "\n@{requested=$requestedPreparedResources; options=$env:JAVA_TOOL_OPTIONS} | ConvertTo-Json -Compress")
+                done = self.guest_command(arguments, body)
+                self.assertEqual(0, done.returncode, done.stderr)
+                result = json.loads(done.stdout)
+                self.assertEqual(expected, result["requested"])
+                if expected is None:
+                    self.assertFalse(result["options"])
+                else:
+                    self.assertEqual(f"-Dpreflight.texture.windowsPreparedResources={str(expected).lower()}",
+                                     result["options"])
+
+
 if __name__ == "__main__":
     unittest.main()

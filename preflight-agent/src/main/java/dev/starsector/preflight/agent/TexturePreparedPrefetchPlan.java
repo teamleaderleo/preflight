@@ -145,6 +145,7 @@ final class TexturePreparedPrefetchPlan {
             return null;
         }
 
+        TexturePreparedResourcePlan.applyPrefetch(signature, owner);
         ClassWriter writer = new ClassWriter(0);
         owner.accept(writer);
         return writer.toByteArray();

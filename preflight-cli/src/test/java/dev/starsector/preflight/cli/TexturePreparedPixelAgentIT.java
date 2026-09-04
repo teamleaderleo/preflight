@@ -449,6 +449,9 @@ class TexturePreparedPixelAgentIT {
         if (coherentOriginalConvert) {
             command.add("-Dpreflight.preparedPixels.coherentOriginalConvert=true");
         }
+        if (originalUpperLayout || coherentOriginalConvert) {
+            command.add("-Dpreflight.preparedPixels.originalLayoutProbe=true");
+        }
         if (coherentDirect) {
             command.add("-Dpreflight.preparedPixels.coherentDirect=true");
         }

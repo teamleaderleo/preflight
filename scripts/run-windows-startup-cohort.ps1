@@ -18,6 +18,8 @@ param(
     [switch]$StartupTextureCpuProbe,
     [switch]$TextureUploadProbe,
     [switch]$WindowsPrefetchBypassProbe,
+    [switch]$WindowsPreparedResources,
+    [switch]$WindowsDisablePreparedResources,
     [switch]$WindowsPreparedPrefetchProbe,
     [switch]$WindowsPreparedStagingProbe,
     [switch]$WindowsKaleidoscopePrefetchProbe,
@@ -35,12 +37,28 @@ param(
     [int]$WindowsPreparedPrefetchWorkers = 1,
     [ValidateRange(0, 8192)]
     [int]$WindowsUnpaddedMaxDimension = 0,
-    [ValidateSet('starsector', 'preflight', 'preflight-faction-priority', 'preflight-kaleidoscope', 'preflight-spec-store-texture-overlap', 'fast-rendering', 'preflight-fast-rendering', 'preflight-fast-rendering-prepared')]
+    [ValidateSet('starsector', 'preflight', 'preflight-prepared-resources', 'preflight-faction-priority', 'preflight-kaleidoscope', 'preflight-spec-store-texture-overlap', 'fast-rendering', 'preflight-fast-rendering', 'preflight-fast-rendering-prepared')]
     [string[]]$Conditions = @('starsector', 'preflight', 'fast-rendering', 'preflight-fast-rendering')
 )
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+$preparedResourcesRequested = $WindowsPreparedResources -or
+    ($Conditions -contains 'preflight-prepared-resources')
+if ($preparedResourcesRequested -and $WindowsDisablePreparedResources) {
+    throw 'Prepared resources enable and disable requests cannot be combined'
+}
+if ($preparedResourcesRequested -and (@($Conditions | Where-Object { $_ -match 'fast-rendering' }).Count -gt 0)) {
+    throw 'Prepared resources cannot be combined with Fast Rendering conditions; select -Conditions preflight or preflight-prepared-resources'
+}
+if ($preparedResourcesRequested -and (
+    $WindowsPreparedPrefetchWorkers -ne 1 -or $WindowsPreparedSplitQueueProbe -or
+    $WindowsPrefetchBypassProbe -or $WindowsSharedContextTextureProbe -or
+    $WindowsDisplayThreadTextureProbe -or $WindowsDisplayThreadSpecStoreProbe -or
+    $WindowsSpecStoreTextureOverlap -or
+    $Conditions -contains 'preflight-spec-store-texture-overlap')) {
+    throw 'Prepared resources requires workers=1 and no split queue, prefetch bypass, shared context, Display-thread or overlap options'
+}
 if ([string]::IsNullOrWhiteSpace($GalliumDriver) -or $GalliumDriver -eq 'native') {
     Remove-Item Env:GALLIUM_DRIVER -ErrorAction SilentlyContinue
 } else {
@@ -153,6 +171,7 @@ function Measure-OneRun(
 
     $usesPreflight = $Condition -in @(
         'preflight',
+        'preflight-prepared-resources',
         'preflight-faction-priority',
         'preflight-kaleidoscope',
         'preflight-spec-store-texture-overlap',
@@ -164,6 +183,16 @@ function Measure-OneRun(
         'preflight-fast-rendering',
         'preflight-fast-rendering-prepared'
     )
+    # Null means the runner leaves the opt-in property to its default; false is explicit.
+    $requestedPreparedResources = if (-not $usesPreflight) {
+        $null
+    } elseif ($WindowsPreparedResources -or ($Condition -eq 'preflight-prepared-resources')) {
+        $true
+    } elseif ($WindowsDisablePreparedResources -or ($Conditions -contains 'preflight-prepared-resources')) {
+        $false
+    } else {
+        $null
+    }
     $usesKaleidoscopePrefetch = $WindowsKaleidoscopePrefetchProbe -or
         $Condition -eq 'preflight-kaleidoscope'
     $usesFactionPriorityCache = $WindowsFactionPriorityCacheProbe -or
@@ -195,6 +224,12 @@ log4j.appender.file.MaxBackupIndex=3
     }
     try {
         if ($usesPreflight) {
+            if ($null -ne $requestedPreparedResources) {
+                $preparedResourcesValue = ([bool]$requestedPreparedResources).ToString().ToLowerInvariant()
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    "-Dpreflight.texture.windowsPreparedResources=$preparedResourcesValue" |
+                    Where-Object { $_ }) -join ' ').Trim()
+            }
             if ($Condition -eq 'preflight-fast-rendering-prepared') {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.texture.fastRenderingPrepared=true' |
@@ -448,6 +483,7 @@ log4j.appender.file.MaxBackupIndex=3
         processStartToMainMenuInteractiveMs = $mainMenuInteractiveElapsedMs
         usesPreflight = [bool]$usesPreflight
         usesFastRendering = [bool]$usesFastRendering
+        windowsPreparedResourcesRequested = $requestedPreparedResources
         windowsKaleidoscopePrefetchEnabled = [bool]$usesKaleidoscopePrefetch
         windowsFactionPriorityCacheEnabled = [bool]$usesFactionPriorityCache
         windowsSpecStoreTextureOverlapEnabled = [bool]$usesSpecStoreTextureOverlap
@@ -571,6 +607,9 @@ $identity = [ordered]@{
     fileOnlyLogging = $true
     textureUploadProbe = [bool]$TextureUploadProbe
     windowsPrefetchBypassProbe = [bool]$WindowsPrefetchBypassProbe
+    windowsPreparedResources = [bool]$WindowsPreparedResources
+    windowsDisablePreparedResources = [bool]$WindowsDisablePreparedResources
+    windowsPreparedResourcesCondition = [bool]($Conditions -contains 'preflight-prepared-resources')
     windowsPreparedPrefetchProbe = [bool]$effectivePreparedPrefetchProbe
     windowsPreparedStagingProbe = [bool]$WindowsPreparedStagingProbe
     windowsKaleidoscopePrefetchProbe = [bool]$WindowsKaleidoscopePrefetchProbe

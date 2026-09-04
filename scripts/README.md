@@ -91,6 +91,25 @@ clears leftovers at the semantic menu snapshot. It is bounded to 512 paths / 192
 by the recommended preset on Windows; an explicit false system property remains the kill switch.
 For an unattended shuffled A/B cohort, use conditions `preflight,preflight-kaleidoscope`; the
 second condition enables the same candidate only for its own legs and records the per-run state.
+The prepared-resource prototype is opt-in: use `-WindowsPreparedResources` (Big Red:
+`--windows-prepared-resources`) to request `preflight.texture.windowsPreparedResources=true`, or
+`-WindowsDisablePreparedResources` (`--disable-windows-prepared-resources`) for explicit `false`.
+For a shuffled same-build kill-switch B/A, pass
+`-Conditions preflight-prepared-resources,preflight`; the candidate requests true and the baseline
+explicitly requests false. Big Red accepts one condition per invocation: use
+`--condition preflight-prepared-resources` for B and
+`--condition preflight --disable-windows-prepared-resources` for A.
+Keep the existing one-worker scheduling and recommended Kaleidoscope preset. Candidate requests
+reject worker counts other than one, split queues, prefetch bypass, shared-context, Display-thread,
+and SpecStore overlap options, and all Fast Rendering conditions; simultaneous enable/disable
+requests are also rejected. With `-WindowsPreparedResources`, select `-Conditions preflight`
+explicitly because the default cohort includes Fast Rendering.
+Session identity retains the switches and condition; each run records `windowsPreparedResourcesRequested`
+as true, false, or null (no property request), independently of runtime acceptance.
+The [installed contracts](../docs/evidence/2026-09-05-windows-prepared-resource-contracts.md) own
+the exact Windows gates and cache/reload semantics. Exhaustive original-layout classification now
+requires `-Dpreflight.preparedPixels.originalLayoutProbe=true`; ordinary serving does not scan
+fallback buffers for diagnostic layout matches.
 Use `preflight-faction-priority` beside `preflight` for the separate Windows-only faction
 priority-table experiment. Its first exact-profile launch observes the original game's eight table
 walks; later launches replay the learned callback IDs. `-WindowsFactionPriorityCacheProbe` enables
