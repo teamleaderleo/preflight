@@ -138,7 +138,8 @@ final class TexturePreparedResourcePlan {
                     "(Ljava/lang/String;Ljava/awt/image/BufferedImage;)V", false));
             getter.instructions.insertBefore(instruction, retire);
         }
-        stop.instructions.insert(end());
+        stop.instructions.insert(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME,
+                "finishWorker", "()V", false));
         decode.maxStack = Math.max(decode.maxStack, 3);
         getter.maxStack = Math.max(getter.maxStack, 3);
         return true;

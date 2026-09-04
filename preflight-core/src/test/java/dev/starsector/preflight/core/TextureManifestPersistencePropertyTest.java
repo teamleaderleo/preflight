@@ -10,6 +10,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
@@ -201,14 +202,20 @@ class TextureManifestPersistencePropertyTest {
     void diskReaderRejectsOversizedFileBeforeWholeFileRead() throws Exception {
         Path oversized = temporaryDirectory.resolve("oversized.spfm");
         try (FileChannel channel = FileChannel.open(
-                oversized, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+                oversized, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE, StandardOpenOption.SPARSE)) {
             channel.position((long) MAX_FILE_BYTES);
             channel.write(ByteBuffer.wrap(new byte[] {1}));
         }
 
-        assertTimeout(
+        assertEquals((long) MAX_FILE_BYTES + 1, Files.size(oversized));
+        // Exercise the same bounded reader without timing 256 MiB of legitimate disk I/O.
+        // The large fixture still catches a regression to reading the whole file first.
+        int readLimit = 4096;
+        IOException error = assertTimeout(
                 Duration.ofSeconds(2),
-                () -> assertThrows(IOException.class, () -> TextureManifestIO.read(oversized)));
+                () -> assertThrows(IOException.class, () -> TextureManifestIO.read(oversized, readLimit)));
+        assertEquals("Texture manifest exceeds the " + readLimit + " byte safety limit: " + oversized,
+                error.getMessage());
     }
 
     private static TextureManifest randomManifest(Random random, int iteration) {

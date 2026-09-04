@@ -14,6 +14,9 @@ import java.util.Map;
 public final class TexturePreparedResourceRuntime {
     public static final String PROPERTY = "preflight.texture.windowsPreparedResources";
     static final int MAX_OBLIGATIONS = 32_768;
+    static final int MAX_RESOURCE_RECORDS = 262_144;
+    static final int MAX_DIRECT_DIMENSION = 1_024;
+    private static final long MAX_WORKER_DRAIN_NANOS = 5_000_000_000L;
     private static final Object LOCK = new Object();
     private static final Map<String, Obligation> OBLIGATIONS = new HashMap<>();
     private static final Map<String, Completion> COMPLETIONS = new HashMap<>();
@@ -27,6 +30,9 @@ public final class TexturePreparedResourceRuntime {
     private static boolean active;
     private static long admitted, published, committed, originalConsumed, discarded, failures, declines;
     private static long direct, coherent, inFlight;
+    private static long resourceRecords;
+    private static String admissionDecline = "none";
+    private static long ceilingDeclines, drainMillis, drainTimeouts;
 
     private TexturePreparedResourceRuntime() { }
 
@@ -49,6 +55,9 @@ public final class TexturePreparedResourceRuntime {
             COMPLETIONS.clear();
             admitted = published = committed = originalConsumed = discarded = failures = declines = 0;
             direct = coherent = inFlight = 0;
+            resourceRecords = 0;
+            admissionDecline = "none";
+            ceilingDeclines = drainMillis = drainTimeouts = 0;
         }
         SCOPE.remove();
     }
@@ -58,8 +67,13 @@ public final class TexturePreparedResourceRuntime {
         if (!requested() || !TexturePreparedPixelRuntime.ready()) return;
         try {
             ClassLoader loader = owner.getClassLoader();
-            if (!contractsMatch(loader) || resources.size() > MAX_OBLIGATIONS) {
-                synchronized (LOCK) { declines++; }
+            synchronized (LOCK) { resourceRecords = resources.size(); }
+            if (resources.size() > MAX_RESOURCE_RECORDS) {
+                decline("resource-record-limit");
+                return;
+            }
+            if (!contractsMatch(loader)) {
+                decline("contract-mismatch");
                 return;
             }
             Class<?> preloader = Class.forName("com.fs.graphics.L", false, loader);
@@ -82,18 +96,28 @@ public final class TexturePreparedResourceRuntime {
             weight.setAccessible(true);
             Map<String, Obligation> obligations = new HashMap<>();
             for (Object resource : resources) {
-                if (resource == null || resource.getClass() != resourceClass) return;
+                if (resource == null || resource.getClass() != resourceClass) {
+                    decline("resource-class");
+                    return;
+                }
                 Object resourceType = type.get(resource);
-                if (!(resourceType instanceof Enum<?> value)) return;
+                if (!(resourceType instanceof Enum<?> value)) {
+                    decline("resource-type");
+                    return;
+                }
                 String logicalPath = (String) path.get(resource);
                 // Names and spellings remain exact. The prepared key joins identity, not stock aliases.
                 if (!"TEXTURE".equals(value.name()) || logicalPath == null) continue;
                 String identity = TextureCompatibilityRuntime.preparedPrefetchKey(logicalPath);
                 if (identity != null) obligations.putIfAbsent(logicalPath,
                         new Obligation(value.name(), logicalPath, logicalPath, identity, weight.getInt(resource)));
+                if (obligations.size() > MAX_OBLIGATIONS) {
+                    decline("obligation-limit");
+                    return;
+                }
             }
             synchronized (LOCK) {
-                if (active) { declines++; return; }
+                if (active) { decline("active-batch"); return; }
                 OBLIGATIONS.putAll(obligations);
                 admitted += obligations.size();
                 mainThread = Thread.currentThread();
@@ -106,7 +130,14 @@ public final class TexturePreparedResourceRuntime {
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
         } catch (ReflectiveOperationException | RuntimeException error) {
-            synchronized (LOCK) { declines++; }
+            decline("admission-exception");
+        }
+    }
+
+    private static void decline(String reason) {
+        synchronized (LOCK) {
+            declines++;
+            admissionDecline = reason;
         }
     }
 
@@ -227,6 +258,33 @@ public final class TexturePreparedResourceRuntime {
         }
     }
 
+    /** Finish the current worker's bounded late queue before stock interrupt/retention cleanup.
+     * No jobs are reordered and no worker is added. In particular, an in-flight pack read must
+     * finish before interruption can close its shared FileChannel and erase the late-cache benefit.
+     */
+    public static void finishWorker() {
+        long started = System.nanoTime();
+        for (;;) {
+            synchronized (LOCK) {
+                if (!active || Thread.currentThread() != mainThread) return;
+                if (workerThread == null || !workerThread.isAlive()
+                        || (stockQueue.isEmpty() && !stockResults.containsValue(stockSentinel))) break;
+                if (System.nanoTime() - started >= MAX_WORKER_DRAIN_NANOS) {
+                    drainTimeouts++;
+                    break;
+                }
+            }
+            try {
+                Thread.sleep(10L);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        synchronized (LOCK) { drainMillis += (System.nanoTime() - started) / 1_000_000L; }
+        end();
+    }
+
     /** Stop accepts no later worker publications; the stock stop still owns its maps and late retention. */
     public static void end() {
         synchronized (LOCK) {
@@ -254,6 +312,12 @@ public final class TexturePreparedResourceRuntime {
             values.put("requested", requested());
             values.put("active", active);
             values.put("admitted", admitted);
+            values.put("resourceRecords", resourceRecords);
+            values.put("admissionDecline", admissionDecline);
+            values.put("directDimensionCeiling", MAX_DIRECT_DIMENSION);
+            values.put("ceilingDeclines", ceilingDeclines);
+            values.put("workerDrainMillis", drainMillis);
+            values.put("workerDrainTimeouts", drainTimeouts);
             values.put("published", published);
             values.put("committed", committed);
             values.put("originalConsumed", originalConsumed);
@@ -287,9 +351,12 @@ public final class TexturePreparedResourceRuntime {
             requireOwner();
             if (prepareAttempted) throw new IllegalStateException("Repeated texture commit");
             prepareAttempted = true;
-            TexturePreparedPixelRuntime.PreparedPixel pixel = kind == Kind.PREPARED
+            boolean withinCeiling = image.getWidth() <= MAX_DIRECT_DIMENSION
+                    && image.getHeight() <= MAX_DIRECT_DIMENSION;
+            TexturePreparedPixelRuntime.PreparedPixel pixel = kind == Kind.PREPARED && withinCeiling
                     ? TexturePreparedPixelRuntime.prepare(image) : null;
             synchronized (LOCK) {
+                if (kind == Kind.PREPARED && !withinCeiling) ceilingDeclines++;
                 if (pixel == null) coherent++; else direct++;
             }
             return pixel;

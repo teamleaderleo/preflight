@@ -3,11 +3,10 @@
 Date: 2026-09-05. Inspection baseline:
 `6f2b3132f44d3153bd57b9b2de81c9b7b0aacd2d`.
 
-This records inspection of the supplied Windows JARs and local JVM fixture work.
-**No Windows game execution, native GL execution, rendering correctness, startup
-timing, or performance result is claimed.** The prototype source was being edited
-concurrently after the baseline; the baseline SHA identifies the starting checkout,
-not a packaged prototype build.
+This records installed-bytecode inspection, local JVM fixtures, and the Windows
+prototype observations below. No performance improvement or default promotion is
+claimed. The baseline SHA identifies the starting checkout; each operator observation
+binds its own source and packaged bytes.
 
 ## Exact input identities
 
@@ -284,3 +283,41 @@ Implementation owners: [loader plan](../../preflight-agent/src/main/java/dev/sta
 [batch/prefetch plan](../../preflight-agent/src/main/java/dev/starsector/preflight/agent/TexturePreparedResourcePlan.java),
 [resource runtime](../../preflight-agent/src/main/java/dev/starsector/preflight/agent/TexturePreparedResourceRuntime.java),
 [executable/structural tests](../../preflight-agent/src/test/java/dev/starsector/preflight/agent/TexturePreparedResourceLoaderPlanTest.java).
+
+## First operator observation and corrective gates
+
+The first Windows run used source `6f1c3f8c5d15a530d5bfeb57db3b27b0bee67c8d`
+and JAR `faebee0424cf29c87c2c6c8257073f1127415b628dcfe6ee071b80c3d6f7fc47`.
+It reached the interactive title with clean adapter health, but is **rejected**:
+admission was zero with one decline, and shutdown was not graceful. The archive is
+`/home/leo/Windows-Share/Diagnostics/20260905-prepared-resource-first-failed.zip`.
+Archive SHA-256: `94a3a36b5d0f79c69cbc6180839a5f23322dc0dab7c98297514f1618e24ef028`.
+Its timing is not evidence for the prepared-resource path because that path never admitted work.
+
+The native prefetch count included 35,877 duplicate declines alongside 15,003 unique
+prepared enqueues. Admission must bound distinct obligations rather than reject the
+duplicated native list. The corrected bounds are 262,144 scanned native records and
+32,768 distinct prepared obligations; neither list order nor stock deduplication changes.
+Telemetry now distinguishes admission reasons and reports the actual record count.
+
+The same observation recorded one pack read failure/disable, a worker map-put exception,
+and only four completed retained Kaleidoscope results out of 102 seeded paths. Interruption
+during a shared FileChannel read is the suspected cause. Fixed reason labels now distinguish
+interrupted reads, closed channels, and other I/O errors. The prototype waits at most five
+seconds for the unchanged worker queue and its in-flight result to finish before stock
+interrupt/retention cleanup; it adds no worker and changes no queue order. Timeout and
+wait duration are reported. Exceptional batch exit still revokes immediately.
+
+The typed direct branch also enforces its 1024-pixel ceiling independently of the existing
+coherent-direct option. Larger prepared images go through the original converter and
+unchanged GL policy, including recomputed colors and original padded layout. This matters
+on Windows llvmpipe, where Recommended enables padded coherent-direct serving by default.
+
+Cross-platform validation exposed two inherited test issues: action receipts were published
+with a visible partial-file window, and oversized-file tests timed hundreds of MiB of
+legitimate bounded reads. Test fixtures now publish receipts atomically and exercise the
+existing small read-limit overload against the same large sparse files. Production reader
+bounds and timeouts are unchanged. The desktop source lock was also stale at the starting
+SHA: review of `915a4ba5..6f2b3132` found only the already-accepted Windows upload-policy and
+Kaleidoscope selection/diagnostic changes in `RunCommand`; no new destinations, executables,
+network access, or shell capability. Only its reviewed digest was refreshed.

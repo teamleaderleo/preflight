@@ -149,7 +149,13 @@ class TexturePreparedResourcePlanTest {
         MethodNode stop = method(owner, "Ò00000", "()V");
         assertEquals(returns(decode), calls(decode, TexturePreparedResourcePlan.RUNTIME, "publish"));
         assertEquals(returns(getter), calls(getter, TexturePreparedResourcePlan.RUNTIME, "originalConsumed"));
-        assertEquals(1, calls(stop, TexturePreparedResourcePlan.RUNTIME, "end"));
+        assertEquals(1, calls(stop, TexturePreparedResourcePlan.RUNTIME, "finishWorker"));
+        assertEquals(0, calls(stop, TexturePreparedResourcePlan.RUNTIME, "end"));
+        AbstractInsnNode first = stop.instructions.getFirst();
+        while (first.getOpcode() < 0) first = first.getNext();
+        assertTrue(first instanceof MethodInsnNode call
+                && call.owner.equals(TexturePreparedResourcePlan.RUNTIME)
+                && call.name.equals("finishWorker"), "drain must precede the stock interrupt/cleanup");
         MethodNode start = method(owner, "o00000", "()V");
         assertEquals(1, calls(start, TexturePreparedResourcePlan.RUNTIME, "worker"));
         for (AbstractInsnNode n : start.instructions) {

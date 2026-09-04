@@ -3,8 +3,12 @@ package dev.starsector.preflight.cli;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.core.Json;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -48,9 +52,7 @@ final class RuntimeGameActionClientTest {
                 receipt.put("afterPaused", null);
                 receipt.put("status", "executed");
                 receipt.put("detail", "synthetic exact callback");
-                Files.writeString(
-                        temporaryDirectory.resolve(RuntimeGameActionClient.RECEIPT_FILE),
-                        Json.object(receipt));
+                publishReceipt(receipt);
                 writeState(startedAt, "campaign-ready", 3L);
             } catch (Exception failure) {
                 throw new RuntimeException(failure);
@@ -100,9 +102,7 @@ final class RuntimeGameActionClientTest {
                 receipt.put("afterPaused", false);
                 receipt.put("status", "executed");
                 receipt.put("detail", "mapped pause control reached requested state");
-                Files.writeString(
-                        temporaryDirectory.resolve(RuntimeGameActionClient.RECEIPT_FILE),
-                        Json.object(receipt));
+                publishReceipt(receipt);
             } catch (Exception failure) {
                 throw new RuntimeException(failure);
             }
@@ -151,9 +151,7 @@ final class RuntimeGameActionClientTest {
                 receipt.put("afterPaused", true);
                 receipt.put("status", "executed");
                 receipt.put("detail", "prepared console-simulation-fleet-v5");
-                Files.writeString(
-                        temporaryDirectory.resolve(RuntimeGameActionClient.RECEIPT_FILE),
-                        Json.object(receipt));
+                publishReceipt(receipt);
             } catch (Exception failure) {
                 throw new RuntimeException(failure);
             }
@@ -202,9 +200,7 @@ final class RuntimeGameActionClientTest {
                 receipt.put("afterPaused", null);
                 receipt.put("status", "executed");
                 receipt.put("detail", "selected 12 ships for simulation side 1");
-                Files.writeString(
-                        temporaryDirectory.resolve(RuntimeGameActionClient.RECEIPT_FILE),
-                        Json.object(receipt));
+                publishReceipt(receipt);
             } catch (Exception failure) {
                 throw new RuntimeException(failure);
             }
@@ -253,9 +249,7 @@ final class RuntimeGameActionClientTest {
                 receipt.put("afterPaused", false);
                 receipt.put("status", "executed");
                 receipt.put("detail", "combat pause state already matched request");
-                Files.writeString(
-                        temporaryDirectory.resolve(RuntimeGameActionClient.RECEIPT_FILE),
-                        Json.object(receipt));
+                publishReceipt(receipt);
             } catch (Exception failure) {
                 throw new RuntimeException(failure);
             }
@@ -304,9 +298,7 @@ final class RuntimeGameActionClientTest {
                 receipt.put("afterPaused", false);
                 receipt.put("status", "executed");
                 receipt.put("detail", "started a clean steady-state campaign frame window");
-                Files.writeString(
-                        temporaryDirectory.resolve(RuntimeGameActionClient.RECEIPT_FILE),
-                        Json.object(receipt));
+                publishReceipt(receipt);
             } catch (Exception failure) {
                 throw new RuntimeException(failure);
             }
@@ -355,9 +347,7 @@ final class RuntimeGameActionClientTest {
                 receipt.put("afterPaused", null);
                 receipt.put("status", "executed");
                 receipt.put("detail", "ended steady-state combat frame window");
-                Files.writeString(
-                        temporaryDirectory.resolve(RuntimeGameActionClient.RECEIPT_FILE),
-                        Json.object(receipt));
+                publishReceipt(receipt);
             } catch (Exception failure) {
                 throw new RuntimeException(failure);
             }
@@ -369,6 +359,23 @@ final class RuntimeGameActionClientTest {
 
         game.get(10, TimeUnit.SECONDS);
         assertTrue(detail.contains("ended steady-state combat frame window"), detail);
+    }
+
+    private void publishReceipt(Map<String, Object> receipt) throws IOException {
+        Path destination = temporaryDirectory.resolve(RuntimeGameActionClient.RECEIPT_FILE);
+        Path temporary = Files.createTempFile(destination.getParent(), destination.getFileName() + ".tmp-", "");
+        try {
+            // Match InternalGameControlRuntime.createOnce: the polling client must never see
+            // a newly created, empty or partially written receipt at the published path.
+            Files.writeString(temporary, Json.object(receipt), StandardCharsets.UTF_8);
+            try {
+                Files.move(temporary, destination, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException unsupported) {
+                Files.move(temporary, destination);
+            }
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
     }
 
     private Path writeProcess(ProcessHandle process, Instant startedAt) throws Exception {

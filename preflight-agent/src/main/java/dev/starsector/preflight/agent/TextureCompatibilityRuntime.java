@@ -343,7 +343,10 @@ public final class TextureCompatibilityRuntime {
                     }
                     current.disablePack(PackFailureReason.READ_IDENTITY_MISMATCH);
                 } catch (IOException error) {
-                    current.disablePack(PackFailureReason.READ_IO);
+                    current.disablePack(error instanceof java.nio.channels.ClosedByInterruptException
+                            ? PackFailureReason.READ_INTERRUPTED
+                            : error instanceof java.nio.channels.ClosedChannelException
+                                    ? PackFailureReason.READ_CLOSED_CHANNEL : PackFailureReason.READ_IO);
                 }
             }
 
@@ -687,7 +690,8 @@ public final class TextureCompatibilityRuntime {
 
     // Fixed labels only: never retain paths, exception messages, or exception instances.
     private enum PackFailureReason {
-        OPEN_IO, OPEN_INVALID, READ_IO, READ_IDENTITY_MISMATCH, CLOSE_IO
+        OPEN_IO, OPEN_INVALID, READ_IO, READ_INTERRUPTED, READ_CLOSED_CHANNEL,
+        READ_IDENTITY_MISMATCH, CLOSE_IO
     }
 
     private static final class Telemetry {

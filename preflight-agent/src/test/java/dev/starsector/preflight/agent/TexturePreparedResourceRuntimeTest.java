@@ -20,6 +20,7 @@ import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -153,9 +154,11 @@ class TexturePreparedResourceRuntimeTest {
     }
 
     @Test
-    void typedCompletionHonors1024CeilingWithNpotCapabilityAndFoldInstalled() throws Exception {
+    void typedCompletionHonorsHard1024CeilingEvenWithCoherentDirectAndNpotAvailable() throws Exception {
         String unpadded = System.getProperty(TexturePaddingRuntime.UNPADDED_PROPERTY);
         String maximum = System.getProperty(TexturePaddingRuntime.MAX_UNPADDED_DIMENSION_PROPERTY);
+        String coherentDirect = System.getProperty(TexturePreparedPixelRuntime.COHERENT_DIRECT_PROPERTY);
+        System.setProperty(TexturePreparedPixelRuntime.COHERENT_DIRECT_PROPERTY, "true");
         TexturePaddingRuntime.beginSession();
         TexturePaddingRuntime.reset();
         GLContext.setCapabilities(true, false);
@@ -165,8 +168,12 @@ class TexturePreparedResourceRuntimeTest {
         try {
             assertTrue(TexturePaddingRuntime.enabled());
             // Height one also needs the stock minimum-two fold bypass at the inclusive boundary.
-            for (int width : new int[] {1025, 1024}) {
-                BufferedImage carrier = carrier(width, 1);
+            for (int[] dimensions : new int[][] {{1025, 1}, {1, 1025}, {1024, 1}, {1, 1024}}) {
+                int width = dimensions[0], height = dimensions[1];
+                BufferedImage carrier = carrier(width, height);
+                Field directFlag = carrier.getClass().getDeclaredField("coherentDirect");
+                directFlag.setAccessible(true);
+                assertTrue(directFlag.getBoolean(carrier), "exercise the Windows coherent-direct carrier");
                 activate(Thread.currentThread());
                 TexturePreparedResourceRuntime.publish(PATH, carrier);
                 results.put(PATH, carrier);
@@ -176,12 +183,12 @@ class TexturePreparedResourceRuntimeTest {
                 assertEquals(TexturePreparedResourceRuntime.Kind.PREPARED, completion.kind());
                 long hitsBefore = (long) TextureCompatibilityRuntime.telemetry().get("hits");
                 var pixel = completion.prepare();
-                if (width > 1024) {
+                if (width > 1024 || height > 1024) {
                     assertNull(pixel, "capability must not override the safety ceiling");
                     assertSame(carrier, completion.image());
-                    assertEquals(1025, completion.image().getWidth());
-                    assertEquals(1, completion.image().getHeight());
-                    assertEquals(0xff000000, completion.image().getRGB(1024, 0));
+                    assertEquals(width, completion.image().getWidth());
+                    assertEquals(height, completion.image().getHeight());
+                    assertEquals(0xff000000, completion.image().getRGB(width - 1, height - 1));
                     assertFalse(TexturePaddingRuntime.unpadded(), "coherent conversion keeps stock folds");
                     assertEquals(0, TexturePreparedPixelRuntime.telemetry().get("activeBuffers"));
                     assertEquals(hitsBefore, TextureCompatibilityRuntime.telemetry().get("hits"));
@@ -191,8 +198,8 @@ class TexturePreparedResourceRuntimeTest {
                     assertNotNull(pixel);
                     try {
                         assertTrue(pixel.buffer().isDirect());
-                        assertEquals(1024, pixel.width());
-                        assertEquals(1, pixel.height());
+                        assertEquals(width, pixel.width());
+                        assertEquals(height, pixel.height());
                         assertEquals(1024 * 3, pixel.buffer().remaining());
                         assertTrue(TexturePaddingRuntime.unpadded());
                         assertTrue(TexturePaddingRuntime.unpadded());
@@ -205,13 +212,16 @@ class TexturePreparedResourceRuntimeTest {
                 TexturePreparedResourceRuntime.exit(true);
                 TexturePreparedResourceRuntime.end();
             }
-            assertEquals(1L, telemetry().get("coherent"));
-            assertEquals(1L, telemetry().get("direct"));
-            assertEquals(2L, telemetry().get("committed"));
+            assertEquals(2L, telemetry().get("coherent"));
+            assertEquals(2L, telemetry().get("direct"));
+            assertEquals(4L, telemetry().get("committed"));
+            assertEquals(1024, telemetry().get("directDimensionCeiling"));
+            assertEquals(2L, telemetry().get("ceilingDeclines"));
             assertEquals(0L, telemetry().get("inFlight"));
             assertEquals(0, TexturePreparedPixelRuntime.telemetry().get("activeBuffers"));
-            assertEquals(1L, TexturePaddingRuntime.report().get("dimensionCeilingDeclines"));
-            assertEquals(1L, TexturePaddingRuntime.report().get("texturesServedUnpadded"));
+            assertEquals(0L, TexturePaddingRuntime.report().get("dimensionCeilingDeclines"),
+                    "typed hard ceiling rejects before the prepared-pixel path or padding gate");
+            assertEquals(2L, TexturePaddingRuntime.report().get("texturesServedUnpadded"));
             Map<?, ?> cold = (Map<?, ?>) TexturePreparedPixelRuntime.telemetry().get("coldProbe");
             assertEquals(0L, cold.get("originalDecodeStarts"));
             assertEquals(0L, cold.get("originalDecodeReturns"));
@@ -225,6 +235,8 @@ class TexturePreparedResourceRuntimeTest {
             else System.setProperty(TexturePaddingRuntime.UNPADDED_PROPERTY, unpadded);
             if (maximum == null) System.clearProperty(TexturePaddingRuntime.MAX_UNPADDED_DIMENSION_PROPERTY);
             else System.setProperty(TexturePaddingRuntime.MAX_UNPADDED_DIMENSION_PROPERTY, maximum);
+            if (coherentDirect == null) System.clearProperty(TexturePreparedPixelRuntime.COHERENT_DIRECT_PROPERTY);
+            else System.setProperty(TexturePreparedPixelRuntime.COHERENT_DIRECT_PROPERTY, coherentDirect);
         }
     }
 
@@ -332,6 +344,72 @@ class TexturePreparedResourceRuntimeTest {
             publish();
             assertEquals(1L, telemetry().get("published"));
         } finally { retiredMayPublish.countDown(); retired.interrupt(); retired.join(2_000); }
+    }
+
+    @Test
+    void finishWorkerWaitsForStockQueueAndInFlightResultWithoutInterruptingOrConsuming() throws Exception {
+        CountDownLatch queueChecked = new CountDownLatch(1);
+        CountDownLatch inFlightChecked = new CountDownLatch(1);
+        CountDownLatch releaseWorker = new CountDownLatch(1);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        List<String> observedQueue = Collections.synchronizedList(new ArrayList<>() {
+            @Override public boolean isEmpty() {
+                queueChecked.countDown();
+                return super.isEmpty();
+            }
+        });
+        Map<String, BufferedImage> observedResults = new ConcurrentHashMap<>() {
+            @Override public boolean containsValue(Object value) {
+                boolean contains = super.containsValue(value);
+                if (contains) inFlightChecked.countDown();
+                return contains;
+            }
+        };
+        observedQueue.add(PATH);
+        BufferedImage completed = image();
+        activate(Thread.currentThread());
+        field("stockQueue").set(null, observedQueue);
+        field("stockResults").set(null, observedResults);
+        Thread worker = new Thread(() -> {
+            try {
+                TexturePreparedResourceRuntime.finishWorker();
+                assertEquals(true, telemetry().get("active"), "only the main thread may drain/end");
+                assertTrue(queueChecked.await(2, TimeUnit.SECONDS));
+                assertEquals(List.of(PATH), List.copyOf(observedQueue), "drain must not consume the queue");
+                // Match the stock worker: publish the in-flight sentinel before removing its job.
+                observedResults.put(PATH, sentinel);
+                assertEquals(PATH, observedQueue.remove(0));
+                assertTrue(inFlightChecked.await(2, TimeUnit.SECONDS),
+                        "an empty queue must not end while the worker is still reading");
+                assertEquals(true, telemetry().get("active"));
+                assertFalse(Thread.currentThread().isInterrupted());
+                TexturePreparedResourceRuntime.publish(PATH, completed);
+                observedResults.put(PATH, completed);
+                assertTrue(releaseWorker.await(2, TimeUnit.SECONDS));
+            } catch (Throwable error) { failure.set(error); }
+        });
+        TexturePreparedResourceRuntime.worker(worker);
+        worker.start();
+        try {
+            TexturePreparedResourceRuntime.finishWorker();
+            assertNull(failure.get());
+            assertTrue(worker.isAlive(), "drain ends when work finishes, without stopping the stock worker");
+            assertFalse(worker.isInterrupted());
+            assertTrue(observedQueue.isEmpty());
+            assertEquals(Map.of(PATH, completed), observedResults, "stock stop still owns result retention");
+            assertEquals(false, telemetry().get("active"));
+            assertEquals(1L, telemetry().get("published"));
+            assertEquals(1L, telemetry().get("discarded"));
+            assertEquals(0, telemetry().get("pending"));
+            assertEquals(0L, telemetry().get("workerDrainTimeouts"));
+        } finally {
+            releaseWorker.countDown();
+            worker.join(2_000);
+            if (worker.isAlive()) { worker.interrupt(); worker.join(2_000); }
+            TexturePreparedResourceRuntime.end();
+        }
+        assertFalse(worker.isAlive());
+        assertNull(failure.get());
     }
 
     @Test
@@ -454,6 +532,107 @@ class TexturePreparedResourceRuntimeTest {
                 Path.of(common).toUri().toURL(), Path.of(core).toUri().toURL()}, null)) {
             assertTrue(TexturePreparedResourceRuntime.contractsMatch(loader));
         }
+    }
+
+    @Test
+    void installedBeginAdmitsMoreThan32768DuplicateRecordsAsOnePreparedObligation() throws Exception {
+        BufferedImage carrier = carrier(2);
+        System.setProperty(TexturePreparedResourceRuntime.PROPERTY, "true");
+        try (URLClassLoader loader = installedAdmissionLoader()) {
+            assertTrue(TexturePreparedResourceRuntime.contractsMatch(loader));
+            Class<?> recordClass = Class.forName(
+                    "com.fs.starfarer.loading.ResourceLoaderState$Oo", false, loader);
+            Class<?> typeClass = Class.forName(
+                    "com.fs.starfarer.loading.ResourceLoaderState$o", true, loader);
+            Object textureType = java.util.Arrays.stream(typeClass.getEnumConstants())
+                    .filter(value -> ((Enum<?>) value).name().equals("TEXTURE")).findFirst().orElseThrow();
+            var constructor = recordClass.getDeclaredConstructor(typeClass, String.class, int.class);
+            constructor.setAccessible(true);
+            int records = 32_769;
+            List<Object> resources = new ArrayList<>(records);
+            for (int i = 0; i < records; i++) {
+                resources.add(constructor.newInstance(textureType, PATH, 1));
+            }
+            // No reflection seeds runtime admission: begin reads the actual installed fields,
+            // checks all seven raw class hashes, and resolves the configured prepared-cache key.
+            TexturePreparedResourceRuntime.begin(resources, recordClass);
+            assertEquals(true, telemetry().get("active"), telemetry().toString());
+            assertEquals((long) records, telemetry().get("resourceRecords"));
+            assertEquals(1L, telemetry().get("admitted"));
+            assertEquals(0L, telemetry().get("declines"));
+            assertEquals("none", telemetry().get("admissionDecline"));
+            assertEquals(records, resources.size(), "admission must not change the stock records");
+            assertEquals(32_768, TexturePreparedResourceRuntime.MAX_OBLIGATIONS);
+
+            Class<?> preloader = Class.forName("com.fs.graphics.L", false, loader);
+            Field resultsField = preloader.getDeclaredField("void");
+            resultsField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            Map<String, BufferedImage> stock = (Map<String, BufferedImage>) resultsField.get(null);
+            TexturePreparedResourceRuntime.worker(Thread.currentThread());
+            TexturePreparedResourceRuntime.publish(PATH, carrier);
+            TexturePreparedResourceRuntime.publish(PATH, carrier);
+            assertEquals(1L, telemetry().get("published"));
+            stock.put(PATH, carrier);
+            TexturePreparedResourceRuntime.enter(PATH, PATH);
+            var completion = TexturePreparedResourceRuntime.take(PATH, null, null);
+            assertNotNull(completion);
+            assertSame(carrier, completion.image());
+            assertEquals(TexturePreparedResourceRuntime.Kind.PREPARED, completion.kind());
+            assertFalse(stock.containsKey(PATH));
+            TexturePreparedResourceRuntime.exit(false);
+            assertEquals(0L, telemetry().get("inFlight"));
+        } finally { TexturePreparedResourceRuntime.end(); }
+    }
+
+    @Test
+    void rawRecordLimitStillRejectsOversizedAdmissionBeforeInspectingRecords() throws Exception {
+        carrier(2);
+        System.setProperty(TexturePreparedResourceRuntime.PROPERTY, "true");
+        int records = TexturePreparedResourceRuntime.MAX_RESOURCE_RECORDS + 1;
+        TexturePreparedResourceRuntime.begin(Collections.nCopies(records, new Object()), getClass());
+        assertEquals(false, telemetry().get("active"));
+        assertEquals((long) records, telemetry().get("resourceRecords"));
+        assertEquals("resource-record-limit", telemetry().get("admissionDecline"));
+        assertEquals(1L, telemetry().get("declines"));
+        assertEquals(0L, telemetry().get("admitted"));
+        assertEquals(0, telemetry().get("pending"));
+    }
+
+    private URLClassLoader installedAdmissionLoader() throws Exception {
+        List<URL> urls = new ArrayList<>();
+        for (String kind : List.of("common", "core")) {
+            String configured = System.getProperty("preflight.starsector." + kind + ".jar", "");
+            Assumptions.assumeTrue(!configured.isBlank(), "supply exact Windows " + kind + " JAR");
+            urls.add(Path.of(configured).toUri().toURL());
+        }
+        String shared = System.getProperty("preflight.starsector.shared.java.dir", "");
+        if (!shared.isBlank()) {
+            try (var files = Files.list(Path.of(shared))) {
+                for (Path jar : files.filter(Files::isRegularFile)
+                        .filter(path -> path.getFileName().toString().endsWith(".jar"))
+                        .filter(path -> !path.getFileName().toString().equals("starfarer_obf.jar"))
+                        .filter(path -> !path.getFileName().toString().equals("fs.common_obf.jar"))
+                        .filter(path -> !path.getFileName().toString().endsWith("-sources.jar"))
+                        .sorted().toList()) urls.add(jar.toUri().toURL());
+            }
+        }
+        return new URLClassLoader(urls.toArray(URL[]::new), getClass().getClassLoader()) {
+            @Override
+            protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                // Admission must use installed records/preloader, with their own logging classes,
+                // rather than parent test doubles with the same binary names.
+                if (name.startsWith("com.fs.") || name.startsWith("org.apache.log4j.")) {
+                    synchronized (getClassLoadingLock(name)) {
+                        Class<?> loaded = findLoadedClass(name);
+                        if (loaded == null) loaded = findClass(name);
+                        if (resolve) resolveClass(loaded);
+                        return loaded;
+                    }
+                }
+                return super.loadClass(name, resolve);
+            }
+        };
     }
 
     private BufferedImage carrier(int size) throws Exception {
