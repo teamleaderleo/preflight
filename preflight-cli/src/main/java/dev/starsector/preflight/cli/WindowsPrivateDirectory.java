@@ -44,7 +44,9 @@ final class WindowsPrivateDirectory {
         }
 
         String sid = currentUserSid();
-        Pointer securityDescriptor = securityDescriptor("D:P(A;;FA;;;" + sid + ")");
+        // An elevated token can default ownership to Administrators. Keep both ownership
+        // and the protected DACL bound to the current user from the creation operation.
+        Pointer securityDescriptor = securityDescriptor("O:" + sid + "D:P(A;;FA;;;" + sid + ")");
         try {
             SecurityAttributes security = new SecurityAttributes(securityDescriptor);
             for (int attempt = 0; attempt < 32; attempt++) {
