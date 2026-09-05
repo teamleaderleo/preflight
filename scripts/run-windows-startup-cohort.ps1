@@ -17,9 +17,12 @@ param(
     [switch]$StartupPhaseProbe,
     [switch]$StartupTextureCpuProbe,
     [switch]$TextureUploadProbe,
+    [switch]$TextureUploadCheckpoint,
     [switch]$WindowsPrefetchBypassProbe,
     [switch]$WindowsPreparedResources,
     [switch]$WindowsDisablePreparedResources,
+    [switch]$WindowsPreparedByteBarrier,
+    [switch]$WindowsDisablePreparedByteBarrier,
     [switch]$WindowsPreparedResourceClaims,
     [switch]$WindowsDisablePreparedResourceClaims,
     [switch]$WindowsPreparedPrefetchProbe,
@@ -45,8 +48,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-$preparedResourcesRequested = $WindowsPreparedResources -or $WindowsPreparedResourceClaims -or
+$preparedResourcesRequested = $WindowsPreparedResources -or $WindowsPreparedResourceClaims -or $WindowsPreparedByteBarrier -or
     ($Conditions -contains 'preflight-prepared-resources')
+if ($WindowsPreparedByteBarrier -and $WindowsDisablePreparedByteBarrier) {
+    throw 'Prepared byte barrier enable and disable requests cannot be combined'
+}
 if ($WindowsPreparedResourceClaims -and $WindowsDisablePreparedResourceClaims) {
     throw 'Prepared resources claim enable and disable requests cannot be combined'
 }
@@ -255,7 +261,7 @@ function Measure-OneRun(
     # Null means the runner leaves the opt-in property to its default; false is explicit.
     $requestedPreparedResources = if (-not $usesPreflight) {
         $null
-    } elseif ($WindowsPreparedResources -or $WindowsPreparedResourceClaims -or ($Condition -eq 'preflight-prepared-resources')) {
+    } elseif ($WindowsPreparedResources -or $WindowsPreparedResourceClaims -or $WindowsPreparedByteBarrier -or ($Condition -eq 'preflight-prepared-resources')) {
         $true
     } elseif ($WindowsDisablePreparedResources -or ($Conditions -contains 'preflight-prepared-resources')) {
         $false
@@ -267,6 +273,15 @@ function Measure-OneRun(
     } elseif ($WindowsPreparedResourceClaims) {
         $true
     } elseif ($WindowsDisablePreparedResourceClaims) {
+        $false
+    } else {
+        $null
+    }
+    $requestedPreparedByteBarrier = if (-not $usesPreflight) {
+        $null
+    } elseif ($WindowsPreparedByteBarrier) {
+        $true
+    } elseif ($WindowsDisablePreparedByteBarrier) {
         $false
     } else {
         $null
@@ -314,6 +329,12 @@ log4j.appender.file.MaxBackupIndex=3
                     "-Dpreflight.texture.windowsPreparedResourceClaims=$claimValue" |
                     Where-Object { $_ }) -join ' ').Trim()
             }
+            if ($null -ne $requestedPreparedByteBarrier) {
+                $barrierValue = ([bool]$requestedPreparedByteBarrier).ToString().ToLowerInvariant()
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    "-Dpreflight.texture.windowsPreparedByteBarrier=$barrierValue" |
+                    Where-Object { $_ }) -join ' ').Trim()
+            }
             if ($Condition -eq 'preflight-fast-rendering-prepared') {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.texture.fastRenderingPrepared=true' |
@@ -324,7 +345,11 @@ log4j.appender.file.MaxBackupIndex=3
                     '-Dpreflight.texture.fastRenderingPrepared=false' |
                     Where-Object { $_ }) -join ' ').Trim()
             }
-            if ($TextureUploadProbe) {
+            if ($TextureUploadCheckpoint) {
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.texture.uploadCheckpoint=true' | Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($TextureUploadProbe -or $TextureUploadCheckpoint) {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.texture.uploadProbe=true' | Where-Object { $_ }) -join ' ').Trim()
             }
@@ -568,6 +593,7 @@ log4j.appender.file.MaxBackupIndex=3
         usesPreflight = [bool]$usesPreflight
         usesFastRendering = [bool]$usesFastRendering
         windowsPreparedResourcesRequested = $requestedPreparedResources
+        windowsPreparedByteBarrierRequested = $requestedPreparedByteBarrier
         windowsPreparedResourceClaimsRequested = $requestedPreparedResourceClaims
         windowsKaleidoscopePrefetchEnabled = [bool]$usesKaleidoscopePrefetch
         windowsFactionPriorityCacheEnabled = [bool]$usesFactionPriorityCache
@@ -690,10 +716,13 @@ $identity = [ordered]@{
     startupPhaseProbe = [bool]$StartupPhaseProbe
     startupTextureCpuProbe = [bool]$StartupTextureCpuProbe
     fileOnlyLogging = $true
-    textureUploadProbe = [bool]$TextureUploadProbe
+    textureUploadProbe = [bool]($TextureUploadProbe -or $TextureUploadCheckpoint)
+    textureUploadCheckpoint = [bool]$TextureUploadCheckpoint
     windowsPrefetchBypassProbe = [bool]$WindowsPrefetchBypassProbe
     windowsPreparedResources = [bool]$WindowsPreparedResources
     windowsDisablePreparedResources = [bool]$WindowsDisablePreparedResources
+    windowsPreparedByteBarrier = [bool]$WindowsPreparedByteBarrier
+    windowsDisablePreparedByteBarrier = [bool]$WindowsDisablePreparedByteBarrier
     windowsPreparedResourceClaims = [bool]$WindowsPreparedResourceClaims
     windowsDisablePreparedResourceClaims = [bool]$WindowsDisablePreparedResourceClaims
     windowsPreparedResourcesCondition = [bool]($Conditions -contains 'preflight-prepared-resources')

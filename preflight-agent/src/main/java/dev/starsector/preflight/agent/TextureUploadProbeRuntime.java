@@ -16,6 +16,7 @@ import java.util.Map;
 /** Bounded discovery telemetry for the exact stock texture-upload calls. */
 public final class TextureUploadProbeRuntime {
     public static final String ENABLED_PROPERTY = "preflight.texture.uploadProbe";
+    public static final String CHECKPOINT_PROPERTY = "preflight.texture.uploadCheckpoint";
 
     private static final int MAX_SLOW_UPLOADS = 32;
     private static final long FIFTY_MILLIS = 50_000_000L;
@@ -59,6 +60,40 @@ public final class TextureUploadProbeRuntime {
     /** Called immediately before the native GL invocation. */
     public static long begin() {
         return System.nanoTime();
+    }
+
+    /** Intrusive opt-in crash breadcrumb. One overwritten file, written before entering native
+     * code; it records the last attempted call, not proof that the call stalled or completed.
+     * No GL query, buffer read, buffer mutation or additional worker is introduced.
+     */
+    public static synchronized void checkpoint(int target, int level, int internalFormat,
+            int width, int height, int border, int format, int type, ByteBuffer pixels,
+            String path, boolean subImage) {
+        if (!enabled() || !Boolean.getBoolean(CHECKPOINT_PROPERTY) || reportPath == null) return;
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("completedCallsBeforeAttempt", calls);
+        value.put("logicalPath", path);
+        value.put("operation", subImage ? "glTexSubImage2D" : "glTexImage2D");
+        value.put("thread", Thread.currentThread().getName());
+        value.put("target", target);
+        value.put("level", level);
+        value.put(subImage ? "xOffset" : "internalFormat", internalFormat);
+        value.put("width", subImage ? height : width);
+        value.put("height", subImage ? border : height);
+        value.put(subImage ? "yOffset" : "border", subImage ? width : border);
+        value.put("format", format);
+        value.put("type", type);
+        value.put("position", pixels == null ? -1 : pixels.position());
+        value.put("limit", pixels == null ? -1 : pixels.limit());
+        value.put("capacity", pixels == null ? -1 : pixels.capacity());
+        value.put("direct", pixels != null && pixels.isDirect());
+        try {
+            Path destination = reportPath.resolveSibling(reportPath.getFileName() + ".last-attempt.json");
+            if (destination.getParent() != null) Files.createDirectories(destination.getParent());
+            Files.writeString(destination, Json.object(value) + System.lineSeparator(), StandardCharsets.UTF_8);
+        } catch (IOException | RuntimeException ignored) {
+            // Diagnostic I/O must never suppress an upload.
+        }
     }
 
     /** Called immediately after the native GL invocation. */

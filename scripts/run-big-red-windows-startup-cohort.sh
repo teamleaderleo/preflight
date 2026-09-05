@@ -23,9 +23,12 @@ windows_prepared_resources=false
 windows_disable_prepared_resources=false
 windows_prepared_resource_claims=false
 windows_disable_prepared_resource_claims=false
+windows_prepared_byte_barrier=false
+windows_disable_prepared_byte_barrier=false
 faction_priority_cache=false
 startup_phase_probe=false
 startup_texture_cpu_probe=false
+texture_upload_checkpoint=false
 display_thread_texture_probe=false
 display_thread_spec_store_probe=false
 spec_store_texture_overlap=false
@@ -54,6 +57,9 @@ Usage: run-big-red-windows-startup-cohort.sh [options]
   --disable-windows-backslash-merged-read-keys  Force the Windows path-cache baseline
   --windows-prepared-resources  Opt in to Windows prepared resources (workers=1)
   --disable-windows-prepared-resources  Force the same-build prepared-resources baseline
+  --texture-upload-checkpoint  Intrusive per-upload crash breadcrumb (not a timing condition)
+  --windows-prepared-byte-barrier  Bypass prepared image jobs after the original byte phase
+  --disable-windows-prepared-byte-barrier  Force the stock image-worker baseline
   --windows-prepared-resource-claims  Let main claim queued prepared resources (implies prototype)
   --disable-windows-prepared-resource-claims  Force the worker-only prepared-resource baseline
   --check                Verify host, VM, guest agent, and scheduled task without launching
@@ -81,6 +87,9 @@ while (($#)); do
         --disable-windows-backslash-merged-read-keys) windows_disable_backslash_merged_read_keys=true; shift ;;
         --windows-prepared-resources) windows_prepared_resources=true; shift ;;
         --disable-windows-prepared-resources) windows_disable_prepared_resources=true; shift ;;
+        --texture-upload-checkpoint) texture_upload_checkpoint=true; shift ;;
+        --windows-prepared-byte-barrier) windows_prepared_byte_barrier=true; shift ;;
+        --disable-windows-prepared-byte-barrier) windows_disable_prepared_byte_barrier=true; shift ;;
         --windows-prepared-resource-claims) windows_prepared_resource_claims=true; shift ;;
         --disable-windows-prepared-resource-claims) windows_disable_prepared_resource_claims=true; shift ;;
         --check) check_only=true; shift ;;
@@ -110,10 +119,13 @@ esac
     echo "--startup-texture-cpu-probe requires --startup-phase-probe" >&2
     exit 2
 }
+if [[ "$windows_prepared_byte_barrier" == true && "$windows_disable_prepared_byte_barrier" == true ]]; then
+    echo "Prepared byte barrier enable and disable requests cannot be combined" >&2; exit 2;
+fi
 if [[ "$windows_prepared_resource_claims" == true && "$windows_disable_prepared_resource_claims" == true ]]; then
     echo "Prepared resources claim enable and disable requests cannot be combined" >&2; exit 2;
 fi
-if [[ "$windows_prepared_resources" == true || "$windows_prepared_resource_claims" == true || "$condition" == preflight-prepared-resources ]]; then
+if [[ "$windows_prepared_resources" == true || "$windows_prepared_resource_claims" == true || "$windows_prepared_byte_barrier" == true || "$condition" == preflight-prepared-resources ]]; then
     [[ "$condition" != *fast-rendering* ]] || {
         echo "Prepared resources cannot be combined with Fast Rendering conditions" >&2; exit 2;
     }
@@ -257,6 +269,12 @@ windows_prepared_resources_arg=""
 [[ "$windows_prepared_resources" == true ]] && windows_prepared_resources_arg=" -WindowsPreparedResources"
 windows_disable_prepared_resources_arg=""
 [[ "$windows_disable_prepared_resources" == true ]] && windows_disable_prepared_resources_arg=" -WindowsDisablePreparedResources"
+texture_upload_checkpoint_arg=""
+[[ "$texture_upload_checkpoint" == true ]] && texture_upload_checkpoint_arg=" -TextureUploadProbe -TextureUploadCheckpoint"
+windows_prepared_byte_barrier_arg=""
+[[ "$windows_prepared_byte_barrier" == true ]] && windows_prepared_byte_barrier_arg=" -WindowsPreparedByteBarrier"
+windows_disable_prepared_byte_barrier_arg=""
+[[ "$windows_disable_prepared_byte_barrier" == true ]] && windows_disable_prepared_byte_barrier_arg=" -WindowsDisablePreparedByteBarrier"
 windows_prepared_resource_claims_arg=""
 [[ "$windows_prepared_resource_claims" == true ]] && windows_prepared_resource_claims_arg=" -WindowsPreparedResourceClaims"
 windows_disable_prepared_resource_claims_arg=""
@@ -281,7 +299,7 @@ resolution_arg=""
 [[ -n "$resolution" ]] && resolution_arg=" -Resolution $resolution"
 run_ps=$(cat <<EOF
 \$script = "$guest_repo\\scripts\\run-windows-startup-cohort.ps1"
-\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset -GalliumDriver $gallium_driver$resolution_arg$windows_prepared_resources_arg$windows_disable_prepared_resources_arg$windows_prepared_resource_claims_arg$windows_disable_prepared_resource_claims_arg$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
+\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset -GalliumDriver $gallium_driver$resolution_arg$windows_prepared_resources_arg$windows_disable_prepared_resources_arg$windows_prepared_resource_claims_arg$windows_disable_prepared_resource_claims_arg$windows_prepared_byte_barrier_arg$windows_disable_prepared_byte_barrier_arg$texture_upload_checkpoint_arg$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
 Set-ScheduledTask -TaskName "$task" -Action (New-ScheduledTaskAction -Execute 'powershell.exe' -Argument \$args) | Out-Null
 Start-ScheduledTask -TaskName "$task"
 Start-Sleep -Seconds 2

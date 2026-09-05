@@ -3115,7 +3115,8 @@ final class AdapterTargetRegistry {
         } else if (mode == TextureAdapterMode.PREPARED_PIXELS) {
             registry = registry.withTarget(windowsTexturePreparedPrefetchTarget());
             if (TexturePreparedResourceRuntime.requested()
-                    && Boolean.getBoolean(TexturePreparedResourceRuntime.CLAIM_PROPERTY)) {
+                    && (Boolean.getBoolean(TexturePreparedResourceRuntime.CLAIM_PROPERTY)
+                        || Boolean.getBoolean(TexturePreparedResourceRuntime.BARRIER_PROPERTY))) {
                 registry = registry.withTarget(windowsPreparedResourceWorkerTarget());
             }
         }

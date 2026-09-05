@@ -132,6 +132,22 @@ abandoned/error claims, claim-read time, final-entry declines, and polling wait 
 For worker-owned results, the same successor wakes main immediately after the exact worker's
 stock result-map insertion. Result checks and wait registration share the notification lock;
 the stock 10 ms timeout remains the fallback. `resultSignals` counts matching notifications.
+The independent byte-barrier experiment uses `-WindowsPreparedByteBarrier` (Big Red:
+`--windows-prepared-byte-barrier`), implying typed resources. Its kill switch is
+`-WindowsDisablePreparedByteBarrier` (`--disable-windows-prepared-byte-barrier`). The property is
+`preflight.texture.windowsPreparedByteBarrier`. At the exact original worker's byte-loop
+fallthrough, before any image dequeue, it removes only current admitted prepared texture jobs.
+Main consumes those identities through the existing typed completion and main-thread GL path.
+Unknown jobs and the learned Kaleidoscope tail stay ordered on the original worker. An absent
+worker hook leaves every job untouched. Telemetry includes `bytePhaseComplete`, `barrierRemoved`,
+`barrierTaken`, `barrierUnused`, and `barrierPending`; removals count jobs, while the other counters
+count distinct identities. This is a diagnostic candidate, not a default performance claim.
+`--texture-upload-checkpoint` (guest: `-TextureUploadCheckpoint`, implies `-TextureUploadProbe`)
+writes one overwritten `.last-attempt.json` beside the upload report before each native upload.
+It records exact arguments and buffer bounds without reading pixels or querying GL. It records
+an attempted call, not proof of a stall. This synchronous per-upload I/O is intrusive; never use
+its startup duration as performance evidence. Use it only to recover a native-stall breadcrumb.
+
 Use `preflight-faction-priority` beside `preflight` for the separate Windows-only faction
 priority-table experiment. Its first exact-profile launch observes the original game's eight table
 walks; later launches replay the learned callback IDs. `-WindowsFactionPriorityCacheProbe` enables

@@ -14,6 +14,7 @@ import java.util.Map;
 public final class TexturePreparedResourceRuntime {
     public static final String PROPERTY = "preflight.texture.windowsPreparedResources";
     public static final String CLAIM_PROPERTY = "preflight.texture.windowsPreparedResourceClaims";
+    public static final String BARRIER_PROPERTY = "preflight.texture.windowsPreparedByteBarrier";
     static final int MAX_OBLIGATIONS = 32_768;
     static final int MAX_RESOURCE_RECORDS = 262_144;
     static final int MAX_DIRECT_DIMENSION = 1_024;
@@ -39,6 +40,9 @@ public final class TexturePreparedResourceRuntime {
     private static long queuedClaims, claimFallbacks, claimAbandoned, claimErrors, claimReadNanos;
     private static long lastEntryDeclines, imagePhaseDeferrals, waitPolls, waitNanos;
     private static long resultSignals;
+    private static final java.util.Set<String> BYPASSED = new java.util.HashSet<>();
+    private static boolean bytePhaseComplete;
+    private static long barrierRemoved, barrierTaken, barrierUnused;
 
     private TexturePreparedResourceRuntime() { }
 
@@ -69,6 +73,9 @@ public final class TexturePreparedResourceRuntime {
             queuedClaims = claimFallbacks = claimAbandoned = claimErrors = claimReadNanos = 0;
             lastEntryDeclines = imagePhaseDeferrals = waitPolls = waitNanos = 0;
             resultSignals = 0;
+            BYPASSED.clear();
+            bytePhaseComplete = false;
+            barrierRemoved = barrierTaken = barrierUnused = 0;
         }
         SCOPE.remove();
     }
@@ -137,6 +144,7 @@ public final class TexturePreparedResourceRuntime {
                 stockSentinel = sentinel;
                 SCOPE.remove();
                 workerImagePhase = false;
+                bytePhaseComplete = false;
                 active = true;
             }
         } catch (ThreadDeath | VirtualMachineError fatal) {
@@ -202,6 +210,33 @@ public final class TexturePreparedResourceRuntime {
         }
     }
 
+    /** Exact worker boundary: bytes have completed and no image job has been claimed yet.
+     * Removing here avoids the stock loop's outside-monitor isEmpty/remove race entirely.
+     * If this hook is absent, no jobs are removed and the ordinary typed path remains intact.
+     */
+    public static void bytePhaseComplete() {
+        synchronized (LOCK) {
+            if (!requested() || !Boolean.getBoolean(BARRIER_PROPERTY) || !active
+                    || Thread.currentThread() != workerThread || bytePhaseComplete) return;
+            synchronized (stockQueue) {
+                var iterator = stockQueue.iterator();
+                while (iterator.hasNext()) {
+                    Object item = iterator.next();
+                    Obligation obligation = OBLIGATIONS.get(item);
+                    if (obligation != null && !stockResults.containsKey(item)
+                            && obligation.preparedIdentity().equals(
+                                    TextureCompatibilityRuntime.preparedPrefetchKey(obligation.path()))) {
+                        iterator.remove();
+                        BYPASSED.add(obligation.path());
+                        barrierRemoved++;
+                    }
+                }
+            }
+            bytePhaseComplete = true;
+            LOCK.notifyAll();
+        }
+    }
+
     /** Called only after the exact worker's image Map.put, never at decode-return publication. */
     public static void resultReady(String path, BufferedImage image) {
         synchronized (LOCK) {
@@ -228,8 +263,8 @@ public final class TexturePreparedResourceRuntime {
         Scope scope = SCOPE.get();
         if (scope == null || scope.obligation == null || transform != null || existingHandler != null
                 || !scope.obligation.path().equals(path) || scope.completion != null) return null;
-        boolean signaledWait = requested() && Boolean.getBoolean(CLAIM_PROPERTY);
-        boolean considerClaim = signaledWait;
+        boolean considerClaim = requested() && Boolean.getBoolean(CLAIM_PROPERTY);
+        boolean signaledWait = considerClaim || (requested() && Boolean.getBoolean(BARRIER_PROPERTY));
         for (;;) {
             boolean removed = false;
             synchronized (LOCK) {
@@ -250,7 +285,11 @@ public final class TexturePreparedResourceRuntime {
                     }
                     return null;
                 }
-                if (considerClaim) {
+                if (BYPASSED.remove(path)) {
+                    barrierTaken++;
+                    removed = true;
+                }
+                if (!removed && considerClaim) {
                     considerClaim = false;
                     // The exact worker removes index zero AND puts its in-flight sentinel under
                     // this monitor. Its preceding isEmpty test is outside the monitor: leave one
@@ -400,6 +439,8 @@ public final class TexturePreparedResourceRuntime {
             discarded += COMPLETIONS.size();
             COMPLETIONS.clear();
             OBLIGATIONS.clear();
+            barrierUnused += BYPASSED.size();
+            BYPASSED.clear();
             if (claimed != null) {
                 claimed.retired = true;
                 claimed = null;
@@ -420,6 +461,12 @@ public final class TexturePreparedResourceRuntime {
             Map<String, Object> values = new LinkedHashMap<>();
             values.put("requested", requested());
             values.put("active", active);
+            values.put("byteBarrierRequested", requested() && Boolean.getBoolean(BARRIER_PROPERTY));
+            values.put("bytePhaseComplete", bytePhaseComplete);
+            values.put("barrierRemoved", barrierRemoved);
+            values.put("barrierTaken", barrierTaken);
+            values.put("barrierUnused", barrierUnused);
+            values.put("barrierPending", BYPASSED.size());
             values.put("admitted", admitted);
             values.put("resourceRecords", resourceRecords);
             values.put("admissionDecline", admissionDecline);

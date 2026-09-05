@@ -53,6 +53,7 @@ class TexturePreparedResourceRuntimeTest {
         System.clearProperty(TextureCompatibilityRuntime.TRUST_VALIDATED_INDEX_PROPERTY);
         System.clearProperty(TexturePreparedResourceRuntime.PROPERTY);
         System.clearProperty(TexturePreparedResourceRuntime.CLAIM_PROPERTY);
+        System.clearProperty(TexturePreparedResourceRuntime.BARRIER_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_WORKERS_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_SPLIT_QUEUES_PROPERTY);
     }
@@ -67,6 +68,89 @@ class TexturePreparedResourceRuntimeTest {
         System.setProperty(TexturePreparedPrefetchPlan.WINDOWS_WORKERS_PROPERTY, "1");
         System.setProperty(TexturePreparedPrefetchPlan.WINDOWS_SPLIT_QUEUES_PROPERTY, "true");
         assertFalse(TexturePreparedResourceRuntime.requested());
+    }
+
+    @Test
+    void mainWaitsForExactByteBoundaryAndThenLoadsWithoutWorkerImagePublication() throws Exception {
+        carrier(2);
+        System.setProperty(TexturePreparedResourceRuntime.PROPERTY, "true");
+        System.setProperty(TexturePreparedResourceRuntime.BARRIER_PROPERTY, "true");
+        CountDownLatch entered = new CountDownLatch(1), finished = new CountDownLatch(1);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Thread main = new Thread(() -> {
+            try {
+                TexturePreparedResourceRuntime.enter(PATH, PATH);
+                entered.countDown();
+                assertNotNull(TexturePreparedResourceRuntime.take(PATH, null, null));
+                TexturePreparedResourceRuntime.exit(true);
+            } catch (Throwable error) { failure.set(error); }
+            finally { finished.countDown(); }
+        });
+        activate(main);
+        queue.add(PATH);
+        main.start();
+        try {
+            assertTrue(entered.await(2, TimeUnit.SECONDS));
+            assertFalse(finished.await(50, TimeUnit.MILLISECONDS));
+            assertEquals(0L, telemetry().get("published"));
+            TexturePreparedResourceRuntime.bytePhaseComplete();
+            assertTrue(finished.await(2, TimeUnit.SECONDS));
+            assertNull(failure.get());
+            assertEquals(1L, telemetry().get("barrierTaken"));
+            assertTrue(results.isEmpty());
+        } finally { main.interrupt(); main.join(2_000); }
+    }
+
+    @Test
+    void byteBoundaryRemovesOnlyAdmittedJobsIncludingLastAndRetiresOnce() throws Exception {
+        carrier(2);
+        System.setProperty(TexturePreparedResourceRuntime.PROPERTY, "true");
+        System.setProperty(TexturePreparedResourceRuntime.BARRIER_PROPERTY, "true");
+        activate(Thread.currentThread());
+        queue.addAll(List.of("unknown", PATH, "graphics/kaleidoscope/late.png", PATH));
+        Thread outsider = new Thread(TexturePreparedResourceRuntime::bytePhaseComplete);
+        outsider.start();
+        outsider.join(2_000);
+        assertEquals(4, queue.size());
+        TexturePreparedResourceRuntime.bytePhaseComplete();
+        TexturePreparedResourceRuntime.bytePhaseComplete();
+        assertEquals(List.of("unknown", "graphics/kaleidoscope/late.png"), queue);
+        assertEquals(2L, telemetry().get("barrierRemoved"));
+        assertTrue(results.isEmpty());
+        TexturePreparedResourceRuntime.enter(PATH, PATH);
+        assertNull(TexturePreparedResourceRuntime.take(PATH, new Object(), null));
+        assertNull(TexturePreparedResourceRuntime.take(PATH, null, new Object()));
+        var completion = TexturePreparedResourceRuntime.take(PATH, null, null);
+        assertNotNull(completion);
+        assertEquals(TexturePreparedResourceRuntime.Kind.PREPARED, completion.kind());
+        TexturePreparedResourceRuntime.exit(true);
+        TexturePreparedResourceRuntime.end();
+        TexturePreparedResourceRuntime.end();
+        assertEquals(1L, telemetry().get("barrierTaken"));
+        assertEquals(0L, telemetry().get("barrierUnused"));
+        assertEquals(0, telemetry().get("barrierPending"));
+        assertEquals(1L, telemetry().get("committed"));
+    }
+
+    @Test
+    void byteBoundaryKeepsConflictingResultsAndRetiresUnusedAdmissions() throws Exception {
+        carrier(2);
+        System.setProperty(TexturePreparedResourceRuntime.PROPERTY, "true");
+        System.setProperty(TexturePreparedResourceRuntime.BARRIER_PROPERTY, "true");
+        activate(Thread.currentThread());
+        queue.add(PATH);
+        results.put(PATH, sentinel);
+        TexturePreparedResourceRuntime.bytePhaseComplete();
+        assertEquals(List.of(PATH), queue);
+        assertEquals(0L, telemetry().get("barrierRemoved"));
+        TexturePreparedResourceRuntime.end();
+        activate(Thread.currentThread());
+        field("bytePhaseComplete").setBoolean(null, false);
+        results.clear();
+        TexturePreparedResourceRuntime.bytePhaseComplete();
+        assertTrue(queue.isEmpty(), "last entry is safe before the image loop begins");
+        TexturePreparedResourceRuntime.end();
+        assertEquals(1L, telemetry().get("barrierUnused"));
     }
 
     @Test

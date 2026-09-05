@@ -48,8 +48,32 @@ class TexturePreparedResourcePlanTest {
     void reset() {
         System.clearProperty(TexturePreparedResourceRuntime.PROPERTY);
         System.clearProperty(TexturePreparedResourceRuntime.CLAIM_PROPERTY);
+        System.clearProperty(TexturePreparedResourceRuntime.BARRIER_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_WORKERS_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_SPLIT_QUEUES_PROPERTY);
+    }
+
+    @Test
+    void installedByteBarrierIsOnByteLoopFallthroughBeforeAnyImageWork() throws Exception {
+        byte[] original = installed("common", TexturePreparedResourcePlan.WORKER);
+        System.setProperty(TexturePreparedResourceRuntime.BARRIER_PROPERTY, "true");
+        byte[] transformed = TexturePreparedResourcePlan.transformWorker(ClassSignature.parse(original), original);
+        assertNotNull(transformed);
+        ClassNode owner = read(transformed);
+        MethodNode run = method(owner, "run", "()V");
+        int boundaries = 0;
+        for (AbstractInsnNode n : run.instructions) {
+            if (n instanceof MethodInsnNode call && "bytePhaseComplete".equals(call.name)) {
+                boundaries++;
+                AbstractInsnNode jump = previousOpcode(n);
+                assertEquals(Opcodes.IFEQ, jump.getOpcode());
+                assertTrue(previousOpcode(jump) instanceof MethodInsnNode test
+                        && "java/util/List".equals(test.owner) && "isEmpty".equals(test.name));
+            }
+        }
+        assertEquals(1, boundaries);
+        assertEquals(stockCalls(method(read(original), "run", "()V")), stockCalls(run));
+        verifyDataflow(owner);
     }
 
     @Test
