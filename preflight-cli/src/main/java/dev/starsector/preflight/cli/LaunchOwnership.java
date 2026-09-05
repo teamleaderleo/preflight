@@ -30,11 +30,13 @@ record LaunchOwnership(Owner owner, List<String> evidence) {
         }
 
         String launcher = boundedText(target.launcher(), MAX_LAUNCHER_BYTES);
-        Path vmparams = target.launcher().resolveSibling("fr.vmparams");
-        String parameters = boundedText(vmparams, MAX_VMPARAMS_BYTES);
         if (launcher.contains("@fr.vmparams") || launcher.contains("fr.jar")) {
             evidence.add("launcher-references-fast-rendering");
         }
+        // A neighboring optional renderer is not evidence that the selected launcher uses it.
+        // Only inspect its parameters once the launcher itself identifies that runtime.
+        String parameters = evidence.isEmpty() ? ""
+                : boundedText(target.launcher().resolveSibling("fr.vmparams"), MAX_VMPARAMS_BYTES);
         if (parameters.contains("fr.jar")) {
             evidence.add("fr.vmparams-classpath=fr.jar");
         }

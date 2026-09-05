@@ -1,5 +1,12 @@
 # Windows packed-image staging experiment
 
+> Renderer correction (four-way audit, 2026-09-06): these runs selected
+> `Play-Starsector-VM.cmd`, whose SHA256
+> `b93bcff1fb4b15d22167c66e75cc5c792e800c9c43266f67cdf92cdf0ac7919e` matches the
+> inspected shortcut that forces `GALLIUM_DRIVER=llvmpipe`. The host's `native` option did not
+> override that command. Historical timings remain observations, but “native” below must not be
+> read as proof of hardware rendering. See [the corrected four-way audit](2026-09-06-windows-four-way-startup.md).
+
 Objective: reduce remaining main-thread texture work and test repeated native startup toward sub-17.
 Base: main 43d86333, installed executable 1e06d416, JAR
 949558859f05da4ff10b883c8c4a6d5cc6d19566216c24bdecbc5cd28c7bbbcc.

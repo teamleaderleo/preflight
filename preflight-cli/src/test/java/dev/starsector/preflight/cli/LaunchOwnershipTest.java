@@ -49,6 +49,17 @@ class LaunchOwnershipTest {
     }
 
     @Test
+    void installedFastRenderingBesideStockLauncherDoesNotOwnTheStockLaunch() throws Exception {
+        Path launcher = temporaryDirectory.resolve("starsector.bat");
+        Files.writeString(launcher, "java -classpath starfarer_obf.jar com.fs.starfarer.StarfarerLauncher\n");
+        Files.writeString(temporaryDirectory.resolve("fr.vmparams"),
+                "-classpath fr.jar\n-Djava.system.class.loader=com.genir.renderer.loaders.AppClassLoader\n");
+        LaunchOwnership ownership = LaunchOwnership.detect(target(launcher));
+        assertFalse(ownership.fastRendering());
+        assertTrue(ownership.evidence().isEmpty());
+    }
+
+    @Test
     void exactLauncherByteLimitIsAccepted() throws Exception {
         Path launcher = temporaryDirectory.resolve("renamed-launcher.sh");
         Files.write(launcher, paddedBytes(MAX_LAUNCHER_BYTES, "#!/bin/sh\nexec java -classpath fr.jar\n"));
@@ -63,7 +74,7 @@ class LaunchOwnershipTest {
     @Test
     void exactVmparamsByteLimitIsAccepted() throws Exception {
         Path launcher = temporaryDirectory.resolve("renamed-launcher.sh");
-        Files.writeString(launcher, "#!/bin/sh\nexec java\n");
+        Files.writeString(launcher, "#!/bin/sh\nexec java @fr.vmparams\n");
         Path vmparams = temporaryDirectory.resolve("fr.vmparams");
         Files.write(vmparams, paddedBytes(MAX_VMPARAMS_BYTES, "-classpath fr.jar;janino.jar\n"));
 
@@ -83,13 +94,15 @@ class LaunchOwnershipTest {
     }
 
     @Test
-    void initiallyOversizedVmparamsIsRefusedByTheCheapPrefilter() throws Exception {
+    void oversizedVmparamsDoNotContributeOwnershipEvidence() throws Exception {
         Path launcher = temporaryDirectory.resolve("renamed-launcher.sh");
-        Files.writeString(launcher, "#!/bin/sh\nexec java\n");
+        Files.writeString(launcher, "#!/bin/sh\nexec java @fr.vmparams\n");
         Files.write(temporaryDirectory.resolve("fr.vmparams"),
                 paddedBytes(MAX_VMPARAMS_BYTES + 1, "-classpath fr.jar\n"));
 
-        assertFalse(LaunchOwnership.detect(target(launcher)).fastRendering());
+        LaunchOwnership ownership = LaunchOwnership.detect(target(launcher));
+        assertTrue(ownership.fastRendering());
+        assertFalse(ownership.evidence().contains("fr.vmparams-classpath=fr.jar"));
     }
 
     @Test
