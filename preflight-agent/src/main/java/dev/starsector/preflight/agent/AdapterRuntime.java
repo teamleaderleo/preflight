@@ -444,6 +444,7 @@ final class AdapterRuntime {
                     // launcher exits without giving shutdown hooks a useful scheduling window.
                     TexturePreparedPixelRuntime.completeLearnedKaleidoscopePrefetches();
                     TextureAccessLearningRuntime.complete();
+                    TextureCompatibilityRuntime.completePackOrder();
                     FactionPriorityCacheRuntime.complete();
                     report.write();
                 } catch (IOException error) {

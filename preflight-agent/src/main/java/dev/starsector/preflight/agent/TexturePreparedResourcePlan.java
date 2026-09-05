@@ -42,7 +42,8 @@ final class TexturePreparedResourcePlan {
 
     static byte[] transformWorker(ClassSignature signature, byte[] bytes) {
         if (!TexturePreparedResourceRuntime.requested()
-                || !Boolean.getBoolean(TexturePreparedResourceRuntime.CLAIM_PROPERTY)
+                || !(Boolean.getBoolean(TexturePreparedResourceRuntime.CLAIM_PROPERTY)
+                    || Boolean.getBoolean(TexturePreparedResourceRuntime.BARRIER_PROPERTY))
                 || !WORKER.equals(signature.internalName()) || !WORKER_SHA256.equals(signature.sha256()))
             return null;
         ClassNode owner = new ClassNode(Opcodes.ASM9);
@@ -61,6 +62,25 @@ final class TexturePreparedResourcePlan {
             }
         }
         if (decode == null) return null;
+        // The pinned byte loop ends at IFEQ back to its body (BCI 109). Fallthrough is
+        // the sole entry into the image phase, including when the image queue is empty.
+        AbstractInsnNode byteBoundary = null;
+        for (AbstractInsnNode instruction : run.instructions) {
+            if (instruction instanceof FieldInsnNode field
+                    && field.getOpcode() == Opcodes.GETSTATIC
+                    && "com/fs/graphics/L".equals(field.owner) && "õ00000".equals(field.name)
+                    && "Ljava/util/List;".equals(field.desc)) {
+                AbstractInsnNode next = nextOpcode(field);
+                if (next instanceof MethodInsnNode call && "java/util/List".equals(call.owner)
+                        && "isEmpty".equals(call.name) && "()Z".equals(call.desc)
+                        && nextOpcode(call) instanceof JumpInsnNode jump
+                        && jump.getOpcode() == Opcodes.IFEQ) {
+                    if (byteBoundary != null) return null;
+                    byteBoundary = jump;
+                }
+            }
+        }
+        if (byteBoundary == null) return null;
         AbstractInsnNode store = nextOpcode(decode);
         AbstractInsnNode map = nextOpcode(store);
         AbstractInsnNode path = nextOpcode(map);
@@ -83,6 +103,10 @@ final class TexturePreparedResourcePlan {
         signal.add(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME, "resultReady",
                 "(Ljava/lang/String;Ljava/awt/image/BufferedImage;)V", false));
         run.instructions.insert(pop, signal);
+        if (Boolean.getBoolean(TexturePreparedResourceRuntime.BARRIER_PROPERTY)) {
+            run.instructions.insert(byteBoundary, new MethodInsnNode(Opcodes.INVOKESTATIC,
+                    RUNTIME, "bytePhaseComplete", "()V", false));
+        }
         return write(owner);
     }
 

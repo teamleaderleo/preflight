@@ -132,6 +132,46 @@ abandoned/error claims, claim-read time, final-entry declines, and polling wait 
 For worker-owned results, the same successor wakes main immediately after the exact worker's
 stock result-map insertion. Result checks and wait registration share the notification lock;
 the stock 10 ms timeout remains the fallback. `resultSignals` counts matching notifications.
+The independent byte-barrier experiment uses `-WindowsPreparedByteBarrier` (Big Red:
+`--windows-prepared-byte-barrier`), implying typed resources. Its kill switch is
+`-WindowsDisablePreparedByteBarrier` (`--disable-windows-prepared-byte-barrier`). The property is
+`preflight.texture.windowsPreparedByteBarrier`. At the exact original worker's byte-loop
+fallthrough, before any image dequeue, it removes only current admitted prepared texture jobs.
+Main consumes those identities through the existing typed completion and main-thread GL path.
+Unknown jobs and the learned Kaleidoscope tail stay ordered on the original worker. An absent
+worker hook leaves every job untouched. Telemetry includes `bytePhaseComplete`, `barrierRemoved`,
+`barrierTaken`, `barrierUnused`, and `barrierPending`; removals count jobs, while the other counters
+count distinct identities. This is a diagnostic candidate, not a default performance claim.
+`--texture-upload-checkpoint` (guest: `-TextureUploadCheckpoint`, implies `-TextureUploadProbe`)
+writes one overwritten `.last-attempt.json` beside the upload report before each native upload.
+It records exact arguments and buffer bounds without reading pixels or querying GL. It records
+an attempted call, not proof of a stall. This synchronous per-upload I/O is intrusive; never use
+its startup duration as performance evidence. Use it only to recover a native-stall breadcrumb.
+
+`--prepared-load-attribution` (guest: `-PreparedLoadAttribution`) enables bounded aggregate
+stage timing via `preflight.texture.preparedLoadAttribution`. `loadAttribution` reports lookup,
+pack read/decode, layout and carrier-construction milliseconds plus load count. Pack time is a
+subset of lookup time; totals accumulate across caller threads and must not be added to startup
+wall time. This diagnostic is independent of the byte barrier and retains no per-path inventory.
+
+`--prepared-pack-read-ahead` (guest: `-PreparedPackReadAhead`) enables the independent
+`preflight.texture.packReadAhead` experiment. It uses one synchronized heap scratch buffer, capped at 4 MiB, to read the current exact
+packed entry once before its parser requests metadata, pixels and checksum. It never reads
+neighboring entries. Entries larger than 4 MiB keep ordinary positioned reads. Entry parsing and
+CRC verification are unchanged. Cache hits still reject a closed/interrupted source channel.
+Each entry read resets the range; closing the pack drops the scratch, and reload opens a new pack. `--disable-prepared-pack-read-ahead`
+(`-DisablePreparedPackReadAhead`) explicitly requests false. `packReadAhead` reports window size,
+file reads/bytes/time, cache hits, large-read bypasses and CRC time. An earlier 4 MiB speculative window amplified I/O and was rejected. This exact-entry successor
+remains off by default; compare with the explicit kill switch on the same JAR.
+
+`--prepared-pack-order-snapshot` (guest: `-PreparedPackOrderSnapshot`) opts into
+`preflight.texture.packOrderSnapshot`: persist the observed pack-access order at the existing
+semantic menu snapshot, before Windows can exit without running shutdown hooks. A successful
+write is counted only once per configured session, so menu and shutdown cannot satisfy the
+existing two-observation acceptance rule by themselves. This changes a tuning hint only; the
+active pack is untouched. A later explicit `prepare` may apply an accepted physical order.
+`packOrderPersisted` in the adapter report confirms the write.
+
 Use `preflight-faction-priority` beside `preflight` for the separate Windows-only faction
 priority-table experiment. Its first exact-profile launch observes the original game's eight table
 walks; later launches replay the learned callback IDs. `-WindowsFactionPriorityCacheProbe` enables

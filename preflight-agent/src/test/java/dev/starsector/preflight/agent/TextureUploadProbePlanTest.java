@@ -30,7 +30,51 @@ class TextureUploadProbePlanTest {
     @AfterEach
     void reset() {
         System.clearProperty(TextureUploadProbeRuntime.ENABLED_PROPERTY);
+        System.clearProperty(TextureUploadProbeRuntime.CHECKPOINT_PROPERTY);
         TextureUploadProbeRuntime.resetForTests();
+    }
+
+    @Test
+    void windowsPathCheckpointUsesActualPathArgument() throws Exception {
+        System.setProperty(TextureUploadProbeRuntime.CHECKPOINT_PROPERTY, "true");
+        MethodNode method = fixture();
+        method.desc = TexturePreparedResourceLoaderPlan.LOAD_DESCRIPTOR;
+        assertEquals(1, TextureUploadProbePlan.instrument(List.of(method)));
+        int pathLoads = 0;
+        for (AbstractInsnNode n : method.instructions) {
+            if (n instanceof org.objectweb.asm.tree.VarInsnNode load
+                    && load.getOpcode() == Opcodes.ALOAD && load.var == 2) pathLoads++;
+        }
+        assertEquals(2, pathLoads, "checkpoint and completed timing both preserve the Windows path");
+        method.maxStack = 16;
+        new Analyzer<>(new BasicInterpreter()).analyze("example/Owner", method);
+    }
+
+    @Test
+    void checkpointRetainsCallAndValidDataflow() throws Exception {
+        System.setProperty(TextureUploadProbeRuntime.CHECKPOINT_PROPERTY, "true");
+        MethodNode method = fixture();
+        assertEquals(1, TextureUploadProbePlan.instrument(List.of(method)));
+        assertEquals(1, calls(method, RUNTIME, "checkpoint"));
+        assertEquals(1, calls(method, GL11, "glTexImage2D"));
+        method.maxStack = 16;
+        new Analyzer<>(new BasicInterpreter()).analyze("example/Owner", method);
+    }
+
+    @Test
+    void checkpointRecordsSubimageDimensionsWithoutMutatingBuffer(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir)
+            throws Exception {
+        System.setProperty(TextureUploadProbeRuntime.CHECKPOINT_PROPERTY, "true");
+        TextureUploadProbeRuntime.beginSession(dir.resolve("upload.json"));
+        ByteBuffer pixels = ByteBuffer.allocateDirect(64);
+        pixels.position(4).limit(52);
+        TextureUploadProbeRuntime.checkpoint(3553, 0, 7, 9, 3, 4, 6408, 5121, pixels, "test", true);
+        String saved = java.nio.file.Files.readString(dir.resolve("upload.json.last-attempt.json"));
+        org.junit.jupiter.api.Assertions.assertTrue(saved.contains("\"width\":3"));
+        org.junit.jupiter.api.Assertions.assertTrue(saved.contains("\"height\":4"));
+        org.junit.jupiter.api.Assertions.assertTrue(saved.contains("\"yOffset\":9"));
+        assertEquals(4, pixels.position());
+        assertEquals(52, pixels.limit());
     }
 
     @Test

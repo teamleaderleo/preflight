@@ -1376,6 +1376,19 @@ class WindowsPreparedResourcesRunnerTest(unittest.TestCase):
                 self.assertNotIn(" -WindowsPreparedPrefetchWorkers", done.stdout)
                 self.assertNotIn(" -WindowsKaleidoscopePrefetchProbe", done.stdout)
 
+    def test_host_forwards_read_ahead_and_attribution_controls(self):
+        for flag, switch in (("--prepared-pack-order-snapshot", "PreparedPackOrderSnapshot"),
+                             ("--prepared-pack-read-ahead", "PreparedPackReadAhead"),
+                             ("--disable-prepared-pack-read-ahead", "DisablePreparedPackReadAhead"),
+                             ("--prepared-load-attribution", "PreparedLoadAttribution"),
+                             ("--texture-upload-checkpoint", "TextureUploadCheckpoint")):
+            done = self.host_command(flag)
+            self.assertEqual(0, done.returncode, done.stderr)
+            self.assertIn(f" -{switch}", done.stdout)
+        done = self.host_command("--prepared-pack-read-ahead", "--disable-prepared-pack-read-ahead")
+        self.assertEqual(2, done.returncode, done.stderr)
+        self.assertEqual("", done.stdout)
+
     def test_host_forwards_claim_controls_and_rejects_conflicts(self):
         for flag, switch in (
                 ("--windows-prepared-resource-claims", "WindowsPreparedResourceClaims"),
@@ -1412,6 +1425,44 @@ class WindowsPreparedResourcesRunnerTest(unittest.TestCase):
         for conflict in ("-WindowsDisablePreparedResourceClaims", "-WindowsDisablePreparedResources",
                          "-WindowsPreparedSplitQueueProbe", "-WindowsPreparedPrefetchWorkers 2"):
             done = self.guest_command("-Conditions preflight -WindowsPreparedResourceClaims " + conflict)
+            self.assertEqual(2, done.returncode, done.stderr)
+
+    def test_host_forwards_barrier_controls_and_rejects_conflicts(self):
+        for flag, switch in (
+                ("--windows-prepared-byte-barrier", "WindowsPreparedByteBarrier"),
+                ("--disable-windows-prepared-byte-barrier", "WindowsDisablePreparedByteBarrier")):
+            done = self.host_command("--condition", "preflight-prepared-resources", flag)
+            self.assertEqual(0, done.returncode, done.stderr)
+            self.assertIn(f" -{switch}", done.stdout)
+        for conflict in ("--disable-windows-prepared-byte-barrier", "--disable-windows-prepared-resources",
+                         "--display-thread-texture-probe", "--spec-store-texture-overlap"):
+            done = self.host_command("--windows-prepared-byte-barrier", conflict)
+            self.assertEqual(2, done.returncode, done.stderr)
+            self.assertEqual("", done.stdout)
+        done = self.host_command("--windows-prepared-byte-barrier", "--condition", "preflight-fast-rendering")
+        self.assertEqual(2, done.returncode, done.stderr)
+
+    def test_guest_barrier_requests_preserve_explicit_baseline(self):
+        self.require_powershell()
+        resolver = self.guest[self.guest.index("    $usesPreflight ="):
+                              self.guest.index("    $usesKaleidoscopePrefetch =")]
+        forwarding = self.guest[self.guest.index("            if ($null -ne $requestedPreparedResources)"):
+                                self.guest.index("            if ($Condition -eq 'preflight-fast-rendering-prepared')")]
+        for flag, expected in (("-WindowsPreparedByteBarrier", True),
+                               ("-WindowsDisablePreparedByteBarrier", False)):
+            body = ("$Condition = 'preflight-prepared-resources'\n$env:JAVA_TOOL_OPTIONS = ''\n" +
+                    resolver + forwarding + "\n@{requested=$requestedPreparedByteBarrier; "
+                    "options=$env:JAVA_TOOL_OPTIONS} | ConvertTo-Json -Compress")
+            done = self.guest_command("-Conditions preflight-prepared-resources " + flag, body)
+            self.assertEqual(0, done.returncode, done.stderr)
+            result = json.loads(done.stdout)
+            self.assertEqual(expected, result["requested"])
+            self.assertEqual("-Dpreflight.texture.windowsPreparedResources=true "
+                             f"-Dpreflight.texture.windowsPreparedByteBarrier={str(expected).lower()}",
+                             result["options"])
+        for conflict in ("-WindowsDisablePreparedByteBarrier", "-WindowsDisablePreparedResources",
+                         "-WindowsPreparedSplitQueueProbe", "-WindowsPreparedPrefetchWorkers 2"):
+            done = self.guest_command("-Conditions preflight -WindowsPreparedByteBarrier " + conflict)
             self.assertEqual(2, done.returncode, done.stderr)
 
     def test_host_rejects_conflicts_before_host_effects(self):
