@@ -418,6 +418,11 @@ class TexturePreparedPixelCoherentCarrierTest {
             for (int y=0; y<3; y++) for (int x=0; x<2; x++) {
                 assertEquals(carrier.getRGB(x, y), packed.getRGB(x, y));
             }
+            org.junit.jupiter.api.Assertions.assertSame(packed.getRaster(),
+                    TexturePreparedPixelRuntime.originalConverterRaster(packed));
+            org.junit.jupiter.api.Assertions.assertNotSame(packed.getRaster(), packed.getData());
+            org.junit.jupiter.api.Assertions.assertNotSame(ordinary.getRaster(),
+                    TexturePreparedPixelRuntime.originalConverterRaster(ordinary));
             int original = carrier.getRGB(0, 0);
             packed.setRGB(0, 0, 0xffabcdef);
             assertEquals(original, carrier.getRGB(0, 0));
