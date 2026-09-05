@@ -148,6 +148,13 @@ It records exact arguments and buffer bounds without reading pixels or querying 
 an attempted call, not proof of a stall. This synchronous per-upload I/O is intrusive; never use
 its startup duration as performance evidence. Use it only to recover a native-stall breadcrumb.
 
+`--jvm-native-memory-summary` (guest: `-JvmNativeMemorySummary`) enables
+`-XX:NativeMemoryTracking=summary` for Preflight arms only, through the existing per-run
+`JAVA_TOOL_OPTIONS` save/restore. This is a diagnostic with runtime overhead, not a timing
+comparison mode. It permits `jcmd <actual-game-pid> VM.native_memory summary`; query the
+actual game JVM rather than assuming it matches the CLI Java. Session identity records the
+request. It does not change the launcher file or persistent JVM options.
+
 `--prepared-load-attribution` (guest: `-PreparedLoadAttribution`) enables bounded aggregate
 stage timing via `preflight.texture.preparedLoadAttribution`. `loadAttribution` reports lookup,
 pack read/decode, layout and carrier-construction milliseconds plus load count. Pack time is a

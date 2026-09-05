@@ -1381,6 +1381,7 @@ class WindowsPreparedResourcesRunnerTest(unittest.TestCase):
                              ("--prepared-pack-read-ahead", "PreparedPackReadAhead"),
                              ("--disable-prepared-pack-read-ahead", "DisablePreparedPackReadAhead"),
                              ("--prepared-load-attribution", "PreparedLoadAttribution"),
+                             ("--jvm-native-memory-summary", "JvmNativeMemorySummary"),
                              ("--texture-upload-checkpoint", "TextureUploadCheckpoint")):
             done = self.host_command(flag)
             self.assertEqual(0, done.returncode, done.stderr)

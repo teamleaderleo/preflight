@@ -19,6 +19,7 @@ param(
     [switch]$TextureUploadProbe,
     [switch]$TextureUploadCheckpoint,
     [switch]$PreparedLoadAttribution,
+    [switch]$JvmNativeMemorySummary,
     [switch]$PreparedPackReadAhead,
     [switch]$PreparedPackOrderSnapshot,
     [switch]$DisablePreparedPackReadAhead,
@@ -360,6 +361,10 @@ log4j.appender.file.MaxBackupIndex=3
                 $readAheadValue = ([bool]$PreparedPackReadAhead).ToString().ToLowerInvariant()
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     "-Dpreflight.texture.packReadAhead=$readAheadValue" | Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($JvmNativeMemorySummary) {
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-XX:NativeMemoryTracking=summary' | Where-Object { $_ }) -join ' ').Trim()
             }
             if ($PreparedLoadAttribution) {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
@@ -739,6 +744,7 @@ $identity = [ordered]@{
     textureUploadProbe = [bool]($TextureUploadProbe -or $TextureUploadCheckpoint)
     textureUploadCheckpoint = [bool]$TextureUploadCheckpoint
     preparedLoadAttribution = [bool]$PreparedLoadAttribution
+    jvmNativeMemorySummary = [bool]$JvmNativeMemorySummary
     preparedPackReadAhead = [bool]$PreparedPackReadAhead
     preparedPackOrderSnapshot = [bool]$PreparedPackOrderSnapshot
     disablePreparedPackReadAhead = [bool]$DisablePreparedPackReadAhead
