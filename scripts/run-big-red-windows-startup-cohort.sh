@@ -32,6 +32,7 @@ texture_upload_checkpoint=false
 prepared_load_attribution=false
 prepared_pack_read_ahead=false
 disable_prepared_pack_read_ahead=false
+prepared_pack_order_snapshot=false
 display_thread_texture_probe=false
 display_thread_spec_store_probe=false
 spec_store_texture_overlap=false
@@ -60,6 +61,7 @@ Usage: run-big-red-windows-startup-cohort.sh [options]
   --disable-windows-backslash-merged-read-keys  Force the Windows path-cache baseline
   --windows-prepared-resources  Opt in to Windows prepared resources (workers=1)
   --disable-windows-prepared-resources  Force the same-build prepared-resources baseline
+  --prepared-pack-order-snapshot  Persist pack order at the semantic menu boundary
   --prepared-pack-read-ahead  Read prepared pack through a bounded 4 MiB window
   --disable-prepared-pack-read-ahead  Explicitly disable the pack read window
   --prepared-load-attribution  Measure prepared lookup, pack, layout, and carrier stages
@@ -93,6 +95,7 @@ while (($#)); do
         --disable-windows-backslash-merged-read-keys) windows_disable_backslash_merged_read_keys=true; shift ;;
         --windows-prepared-resources) windows_prepared_resources=true; shift ;;
         --disable-windows-prepared-resources) windows_disable_prepared_resources=true; shift ;;
+        --prepared-pack-order-snapshot) prepared_pack_order_snapshot=true; shift ;;
         --prepared-pack-read-ahead) prepared_pack_read_ahead=true; shift ;;
         --disable-prepared-pack-read-ahead) disable_prepared_pack_read_ahead=true; shift ;;
         --prepared-load-attribution) prepared_load_attribution=true; shift ;;
@@ -281,6 +284,8 @@ windows_prepared_resources_arg=""
 [[ "$windows_prepared_resources" == true ]] && windows_prepared_resources_arg=" -WindowsPreparedResources"
 windows_disable_prepared_resources_arg=""
 [[ "$windows_disable_prepared_resources" == true ]] && windows_disable_prepared_resources_arg=" -WindowsDisablePreparedResources"
+prepared_pack_order_snapshot_arg=""
+[[ "$prepared_pack_order_snapshot" == true ]] && prepared_pack_order_snapshot_arg=" -PreparedPackOrderSnapshot"
 prepared_pack_read_ahead_arg=""
 [[ "$prepared_pack_read_ahead" == true ]] && prepared_pack_read_ahead_arg=" -PreparedPackReadAhead"
 [[ "$disable_prepared_pack_read_ahead" == true ]] && prepared_pack_read_ahead_arg=" -DisablePreparedPackReadAhead"
@@ -316,7 +321,7 @@ resolution_arg=""
 [[ -n "$resolution" ]] && resolution_arg=" -Resolution $resolution"
 run_ps=$(cat <<EOF
 \$script = "$guest_repo\\scripts\\run-windows-startup-cohort.ps1"
-\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset -GalliumDriver $gallium_driver$resolution_arg$windows_prepared_resources_arg$windows_disable_prepared_resources_arg$windows_prepared_resource_claims_arg$windows_disable_prepared_resource_claims_arg$windows_prepared_byte_barrier_arg$windows_disable_prepared_byte_barrier_arg$texture_upload_checkpoint_arg$prepared_load_attribution_arg$prepared_pack_read_ahead_arg$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
+\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset -GalliumDriver $gallium_driver$resolution_arg$windows_prepared_resources_arg$windows_disable_prepared_resources_arg$windows_prepared_resource_claims_arg$windows_disable_prepared_resource_claims_arg$windows_prepared_byte_barrier_arg$windows_disable_prepared_byte_barrier_arg$texture_upload_checkpoint_arg$prepared_load_attribution_arg$prepared_pack_read_ahead_arg$prepared_pack_order_snapshot_arg$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
 Set-ScheduledTask -TaskName "$task" -Action (New-ScheduledTaskAction -Execute 'powershell.exe' -Argument \$args) | Out-Null
 Start-ScheduledTask -TaskName "$task"
 Start-Sleep -Seconds 2

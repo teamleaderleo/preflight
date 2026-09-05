@@ -20,6 +20,7 @@ param(
     [switch]$TextureUploadCheckpoint,
     [switch]$PreparedLoadAttribution,
     [switch]$PreparedPackReadAhead,
+    [switch]$PreparedPackOrderSnapshot,
     [switch]$DisablePreparedPackReadAhead,
     [switch]$WindowsPrefetchBypassProbe,
     [switch]$WindowsPreparedResources,
@@ -350,6 +351,10 @@ log4j.appender.file.MaxBackupIndex=3
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.texture.fastRenderingPrepared=false' |
                     Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($PreparedPackOrderSnapshot) {
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.texture.packOrderSnapshot=true' | Where-Object { $_ }) -join ' ').Trim()
             }
             if ($PreparedPackReadAhead -or $DisablePreparedPackReadAhead) {
                 $readAheadValue = ([bool]$PreparedPackReadAhead).ToString().ToLowerInvariant()
@@ -735,6 +740,7 @@ $identity = [ordered]@{
     textureUploadCheckpoint = [bool]$TextureUploadCheckpoint
     preparedLoadAttribution = [bool]$PreparedLoadAttribution
     preparedPackReadAhead = [bool]$PreparedPackReadAhead
+    preparedPackOrderSnapshot = [bool]$PreparedPackOrderSnapshot
     disablePreparedPackReadAhead = [bool]$DisablePreparedPackReadAhead
     windowsPrefetchBypassProbe = [bool]$WindowsPrefetchBypassProbe
     windowsPreparedResources = [bool]$WindowsPreparedResources

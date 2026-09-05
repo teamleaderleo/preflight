@@ -1377,7 +1377,8 @@ class WindowsPreparedResourcesRunnerTest(unittest.TestCase):
                 self.assertNotIn(" -WindowsKaleidoscopePrefetchProbe", done.stdout)
 
     def test_host_forwards_read_ahead_and_attribution_controls(self):
-        for flag, switch in (("--prepared-pack-read-ahead", "PreparedPackReadAhead"),
+        for flag, switch in (("--prepared-pack-order-snapshot", "PreparedPackOrderSnapshot"),
+                             ("--prepared-pack-read-ahead", "PreparedPackReadAhead"),
                              ("--disable-prepared-pack-read-ahead", "DisablePreparedPackReadAhead"),
                              ("--prepared-load-attribution", "PreparedLoadAttribution"),
                              ("--texture-upload-checkpoint", "TextureUploadCheckpoint")):

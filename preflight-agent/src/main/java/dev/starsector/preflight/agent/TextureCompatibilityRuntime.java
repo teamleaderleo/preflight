@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /** Shared fail-open cache lookup plus the decoded-image compatibility consumer. */
 public final class TextureCompatibilityRuntime {
+    public static final String PACK_ORDER_SNAPSHOT_PROPERTY = "preflight.texture.packOrderSnapshot";
     static final String PLAN_ID = "texture-compatibility-v2";
     /** Opt back in to hashing every source file's contents on the loading thread. */
     public static final String VERIFY_SOURCE_HASH_PROPERTY = "preflight.texture.verifySourceHash";
@@ -479,6 +480,8 @@ public final class TextureCompatibilityRuntime {
         values.put("packedStoreAvailable", state.pack != null);
         values.put("packedStoreActive", state.pack != null && !state.packDisabled.get());
         values.put("packReadAhead", state.pack == null ? Map.of("enabled", false) : state.pack.readAheadTelemetry());
+        values.put("packOrderSnapshotRequested", Boolean.getBoolean(PACK_ORDER_SNAPSHOT_PROPERTY));
+        values.put("packOrderPersisted", state.packOrderPersisted);
         // How long the game took over the textures, and how much of that was this seam. The
         // difference is the game's own per-texture work -- the decode this replaces is gone, but the
         // upload, the buffer teardown, and whatever else it does between two textures are not.
@@ -504,6 +507,11 @@ public final class TextureCompatibilityRuntime {
         } catch (IllegalStateException | SecurityException error) {
             PACK_ORDER_HOOK_INSTALLED.set(false);
         }
+    }
+
+    /** The semantic menu publisher runs before Windows can exit without useful shutdown hooks. */
+    static void completePackOrder() {
+        if (Boolean.getBoolean(PACK_ORDER_SNAPSHOT_PROPERTY)) state.persistPackOrder();
     }
 
     private static boolean matches(TextureManifest.Entry entry, PreparedTexture texture) {
@@ -613,6 +621,7 @@ public final class TextureCompatibilityRuntime {
         private final AtomicBoolean circuitBreaker = new AtomicBoolean();
         private final AtomicBoolean packDisabled = new AtomicBoolean();
         private final LinkedHashSet<String> packAccessOrder = new LinkedHashSet<>();
+        private volatile boolean packOrderPersisted;
 
         private State(
                 Path cacheRoot,
@@ -664,21 +673,17 @@ public final class TextureCompatibilityRuntime {
             packAccessOrder.add(blobRelativePath);
         }
 
-        private void persistPackOrder() {
-            if (pack == null) {
+        private synchronized void persistPackOrder() {
+            if (pack == null || packOrderPersisted) {
                 return;
             }
-            List<String> snapshot;
-            synchronized (this) {
-                if (packAccessOrder.isEmpty()) {
-                    return;
-                }
-                snapshot = List.copyOf(packAccessOrder);
-            }
+            if (packAccessOrder.isEmpty()) return;
+            List<String> snapshot = List.copyOf(packAccessOrder);
             try {
                 PreparedTexturePackOrderIO.observe(
                         PreparedTexturePackOrderIO.path(cacheRoot, manifest.profileFingerprint()),
                         manifest.profileFingerprint(), snapshot);
+                packOrderPersisted = true;
             } catch (IOException | IllegalArgumentException ignored) {
                 // A tuning hint must never affect the active pack or the loose fallback.
             }

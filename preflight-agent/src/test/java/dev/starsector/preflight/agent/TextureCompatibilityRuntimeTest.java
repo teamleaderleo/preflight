@@ -61,6 +61,34 @@ class TextureCompatibilityRuntimeTest {
     }
 
     @Test
+    void menuAndSessionEndCannotCountAsTwoIndependentPackOrderObservations() throws Exception {
+        Fixture fixture = fixture();
+        TextureManifest manifest = TextureManifestIO.read(fixture.manifest());
+        String relative = manifest.entries().firstEntry().getValue().blobRelativePath();
+        Path pack = PreparedTexturePackIO.path(fixture.cache(), manifest.profileFingerprint());
+        Path order = PreparedTexturePackOrderIO.path(fixture.cache(), manifest.profileFingerprint());
+        PreparedTexturePackIO.write(pack, manifest.profileFingerprint(), fixture.cache(), List.of(relative));
+        String previous = System.getProperty(TextureCompatibilityRuntime.PACK_ORDER_SNAPSHOT_PROPERTY);
+        System.setProperty(TextureCompatibilityRuntime.PACK_ORDER_SNAPSHOT_PROPERTY, "true");
+        try {
+            assertTrue(TextureCompatibilityRuntime.configure(fixture.cache(), fixture.manifest(), fixture.index()));
+            assertNotNull(TextureCompatibilityRuntime.load("graphics/test.png"));
+            TextureCompatibilityRuntime.completePackOrder();
+            TextureCompatibilityRuntime.completePackOrder();
+            assertEquals(true, TextureCompatibilityRuntime.telemetry().get("packOrderPersisted"));
+            TextureCompatibilityRuntime.beginSession();
+            assertEquals(List.of(), PreparedTexturePackOrderIO.read(order, manifest.profileFingerprint()));
+            assertTrue(TextureCompatibilityRuntime.configure(fixture.cache(), fixture.manifest(), fixture.index()));
+            assertNotNull(TextureCompatibilityRuntime.load("graphics/test.png"));
+            TextureCompatibilityRuntime.completePackOrder();
+            assertEquals(List.of(relative), PreparedTexturePackOrderIO.read(order, manifest.profileFingerprint()));
+        } finally {
+            if (previous == null) System.clearProperty(TextureCompatibilityRuntime.PACK_ORDER_SNAPSHOT_PROPERTY);
+            else System.setProperty(TextureCompatibilityRuntime.PACK_ORDER_SNAPSHOT_PROPERTY, previous);
+        }
+    }
+
+    @Test
     void validProfilePackServesWithoutOpeningTheLooseBlob() throws Exception {
         Fixture fixture = fixture();
         TextureManifest manifest = TextureManifestIO.read(fixture.manifest());

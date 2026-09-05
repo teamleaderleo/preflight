@@ -145,3 +145,42 @@ The read-ahead CI run's Java jobs passed, but macOS operator checks again hit an
 fixture race, this time first-observed-line versus game-start timing (35.153 ms vs >40 ms).
 The two observed flaky detector tests now use scheduled monotonic clock ticks while preserving
 real log-file I/O and original assertions. Production log-detector code is unchanged.
+
+## Exact-entry result and pack-order lifecycle investigation
+
+Executable `8f6a303193df38c6749b0e898e4685286486ddbf`, JAR
+`55c766f70c56871e207dc49c99e416239db976debd6c8f522397662f3b88e740`.
+Diagnostic 104834 (barrier, attribution and corrected upload checkpoint): graphics 65.997 s /
+interactive 68.658 s. Pack time 18.408 s; actual file reads 13.185 s; CRC 229 ms. The exact-entry
+reader made 15,493 file reads totaling 1,092,827,943 bytes, eliminating speculative amplification.
+15,002 commits, all 102 late resources, zero pack failures/active buffers. The corrected last-attempt
+breadcrumb identifies `graphics/fx/rat_seraph_lensflare.png`, with 512x16 RGBA, 32,768 buffer bytes,
+main thread; this is the last attempted call, not a stalled call. No native stall occurred.
+
+Same-JAR uninstrumented comparison, barrier and queued claims explicitly false in both legs:
+B 105347 (entry reader on) graphics 61.654 s / interactive 64.778 s;
+A 105614 (entry reader explicitly off) graphics 57.047 s / interactive 59.838 s.
+One pair, no positive performance case and no promotion. Entry coalescing alone is insufficient.
+Three-platform Java/operator CI 33940038873 passed all jobs. The cancellation-order regression test
+also verifies the underlying channel closes while another thread owns the scratch monitor.
+
+The active Windows pack remained the same 2,259,086,856-byte file throughout these runs. Its
+`.spfo` learning file was only 54,955 bytes and had not changed since before this experiment,
+despite accepted menu snapshots. Code inspection found pack order only persisted at shutdown,
+reconfiguration or session reset. The existing menu publisher already flushes other learned
+orders specifically to survive Windows exits that miss shutdown hooks, but omitted pack order.
+The cohort's cache check reuses a valid cache and does not run optional physical reordering.
+
+The next opt-in `preflight.texture.packOrderSnapshot` saves at the semantic menu snapshot, with
+one successful observation per configured session. A new test proves repeated menu saves plus
+session end cannot promote a candidate; the second independent configured session can. Existing
+acceptance still requires two equal orders. The active pack is never rewritten by the runtime;
+any later physical reorder is performed and validated by the existing preparation owner.
+
+`20260905-103353-windows-startup-2x2.zip` SHA-256 `661478e4af6e4940ceb7f823810f58cee014edad75847025cdad4dac259be194`.
+
+`20260905-104834-windows-startup-2x2.zip` SHA-256 `d03556d027966335388008c22402c89371221c2d4c5d935497d28f7b1f509701`.
+
+`20260905-105347-windows-startup-2x2.zip` SHA-256 `40e66bb695d5cf1cbf942b2cfcf6d1442c1d92ab9d4bf281f31981ff3f9fd7ed`.
+
+`20260905-105614-windows-startup-2x2.zip` SHA-256 `15e3fe06c4e3427db806eb4d5517b01e0b610abc7fe084b4845fda6e0187c616`.

@@ -164,6 +164,14 @@ Each entry read resets the range; closing the pack drops the scratch, and reload
 file reads/bytes/time, cache hits, large-read bypasses and CRC time. An earlier 4 MiB speculative window amplified I/O and was rejected. This exact-entry successor
 remains off by default; compare with the explicit kill switch on the same JAR.
 
+`--prepared-pack-order-snapshot` (guest: `-PreparedPackOrderSnapshot`) opts into
+`preflight.texture.packOrderSnapshot`: persist the observed pack-access order at the existing
+semantic menu snapshot, before Windows can exit without running shutdown hooks. A successful
+write is counted only once per configured session, so menu and shutdown cannot satisfy the
+existing two-observation acceptance rule by themselves. This changes a tuning hint only; the
+active pack is untouched. A later explicit `prepare` may apply an accepted physical order.
+`packOrderPersisted` in the adapter report confirms the write.
+
 Use `preflight-faction-priority` beside `preflight` for the separate Windows-only faction
 priority-table experiment. Its first exact-profile launch observes the original game's eight table
 walks; later launches replay the learned callback IDs. `-WindowsFactionPriorityCacheProbe` enables
