@@ -42,3 +42,24 @@ width, height and components and does not account for this stride. A diagnostic-
 read now captures GL_UNPACK_ALIGNMENT for potentially misaligned RGB rows on main; successful
 observations are counted by alignment as well. No GL state is changed. The watchdog itself still
 performs no GL calls and retains no buffers.
+
+Alignment diagnostic full verification passed in 46.855 s. Source
+`bb05e5ea71292d3e12dbf0047b0255ed4c96b49c`, JAR
+`e9c58e7d3c4b98dc6040324dd7a583cb536b3a9967d5482089d9a52301990dd2`.
+One native checkpoint run will read actual alignment before selecting a repair.
+
+Diagnostic `20260906-044307` completed (18.688 s menu, not an ordinary timing sample). It observed
+168 potentially misaligned RGB rows, all with actual unpack alignment 4; none used 1, 2 or 8.
+The [Khronos pixel-storage contract](https://wikis.khronos.org/opengl/GLAPI/glPixelStore) defines
+four-byte initial row alignment and the legal values 1/2/4/8. This confirms a prepared-buffer
+layout defect. Whether it explains every historical native stall still requires native testing.
+
+Repair: at the exact Windows TextureLoader upload calls, scope alignment 1 around only a tight
+RGB buffer owned by the current prepared converter. Verify buffer identity, dimensions, byte
+count, position, type and thread ownership before querying/changing state. Restore the previous
+alignment on both normal and exceptional returns, ahead of the original release handlers.
+Unknown buffers, formats and non-Windows class identities retain their original behavior.
+Sampler/mipmap policy, dimensions, original converter fallbacks, cleanup and GL ownership do not
+change. `preflight.texture.scopedUnpackAlignment=false` retains the prior behavior for diagnostics.
+Bounded change/restore counters expose scope lifecycle. Installed tests cover success, upload
+failure, original-buffer decline, exact buffer identity, opt-out and restored state.

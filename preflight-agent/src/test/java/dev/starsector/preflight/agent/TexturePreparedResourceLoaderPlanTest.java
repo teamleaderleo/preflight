@@ -227,6 +227,43 @@ public class TexturePreparedResourceLoaderPlanTest {
     }
 
     @Test
+    void ownedRgbUploadRestoresUnpackStateAfterSuccessAndFailure() throws Exception {
+        byte[] pixels = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+        for (boolean fail : new boolean[] {false, true}) {
+            Executable fixture = new Executable(true);
+            PreparedTexture texture = new PreparedTexture("ab".repeat(32), PreparedTexture.Transformation.IDENTITY,
+                    2, 2, 2, 2, 3, 0, 0, 0, pixels);
+            fixture.supply("p", carrier(texture), true);
+            FakeGL.failUpload = fail;
+            if (fail) {
+                InvocationTargetException error = assertThrows(InvocationTargetException.class,
+                        () -> fixture.register("p", "p"));
+                assertTrue(error.getCause() instanceof IllegalStateException);
+                assertTrue(fixture.cache().isEmpty());
+            } else {
+                Object handle = fixture.register("p", "p");
+                assertSame(handle, fixture.cache().get("p"));
+            }
+            assertArrayEquals(pixels, FakeGL.pixels);
+            assertEquals(1, FakeGL.uploadAlignment);
+            assertEquals(4, FakeGL.unpackAlignment);
+            assertEquals(1L, TexturePreparedPixelRuntime.telemetry().get("unpackAlignmentChanges"));
+            assertEquals(1L, TexturePreparedPixelRuntime.telemetry().get("unpackAlignmentRestores"));
+            assertEquals(0L, field(TexturePreparedPixelRuntime.class, "activeBytes").get(null));
+        }
+    }
+
+    @Test
+    void originalConverterBufferRetainsOriginalUnpackState() throws Exception {
+        Executable fixture = new Executable(true);
+        fixture.supply("p", new BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB), true);
+        fixture.register("p", "p");
+        assertEquals(4, FakeGL.uploadAlignment);
+        assertEquals(4, FakeGL.unpackAlignment);
+        assertEquals(0L, TexturePreparedPixelRuntime.telemetry().get("unpackAlignmentChanges"));
+    }
+
+    @Test
     void installedWindowsCompositionPreservesGlAndUsesTypedFallbacks() throws Exception {
         byte[] original = installed();
         ClassSignature signature = ClassSignature.parse(original);
@@ -492,14 +529,18 @@ public class TexturePreparedResourceLoaderPlanTest {
         static byte[] pixels;
         static boolean failUpload;
         static int nextId;
-        static void reset() { calls.clear(); pixels = null; failUpload = false; nextId = 1; }
+        static int unpackAlignment, uploadAlignment;
+        static void reset() { calls.clear(); pixels = null; failUpload = false; nextId = 1; unpackAlignment = 4; uploadAlignment = -1; }
         public static IntBuffer createIntBuffer(int size) { return ByteBuffer.allocateDirect(size * 4).asIntBuffer(); }
         public static ByteBuffer createByteBuffer(int size) { return ByteBuffer.allocateDirect(size); }
         public static void glGenTextures(IntBuffer target) { target.put(0, nextId++); calls.add("gen"); }
         public static void glBindTexture(int target, int id) { calls.add("bind:" + target + ":" + id); }
         public static void glTexParameteri(int target, int name, int value) { calls.add("parameter:" + target + ":" + name + ":" + value); }
+        public static int glGetInteger(int name) { assertEquals(3317, name); return unpackAlignment; }
+        public static void glPixelStorei(int name, int value) { assertEquals(3317, name); unpackAlignment = value; calls.add("unpack:" + value); }
         public static void glTexImage2D(int target, int level, int internal, int width, int height,
                 int border, int format, int type, ByteBuffer bytes) {
+            uploadAlignment = unpackAlignment;
             calls.add("image:" + target + ":" + level + ":" + internal + ":" + width + ":" + height
                     + ":" + border + ":" + format + ":" + type);
             pixels = new byte[bytes.remaining()];

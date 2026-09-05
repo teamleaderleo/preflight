@@ -379,6 +379,33 @@ class TexturePreparedPixelCoherentCarrierTest {
     }
 
     @Test
+    void unpackScopeRequiresExactOwnedBufferAndHonorsOptOut() throws Exception {
+        configure(fixture(2, 2, 3, sequential(12)));
+        var prepared = TexturePreparedPixelRuntime.prepare(TexturePreparedPixelRuntime.load("graphics/test.png"));
+        assertNotNull(prepared);
+        ByteBuffer buffer = prepared.buffer();
+        assertTrue(TexturePreparedPixelRuntime.requiresTightRgbUnpack(buffer, 2, 2, 6407, 5121));
+        assertFalse(TexturePreparedPixelRuntime.requiresTightRgbUnpack(buffer.duplicate(), 2, 2, 6407, 5121));
+        assertFalse(TexturePreparedPixelRuntime.requiresTightRgbUnpack(buffer, 2, 2, 6408, 5121));
+        assertFalse(TexturePreparedPixelRuntime.requiresTightRgbUnpack(buffer, 2, 2, 6407, 5123));
+        buffer.position(1);
+        assertFalse(TexturePreparedPixelRuntime.requiresTightRgbUnpack(buffer, 2, 2, 6407, 5121));
+        buffer.position(0);
+        System.setProperty(TexturePreparedPixelRuntime.SCOPED_UNPACK_PROPERTY, "false");
+        try {
+            assertFalse(TexturePreparedPixelRuntime.requiresTightRgbUnpack(buffer, 2, 2, 6407, 5121));
+        } finally {
+            System.clearProperty(TexturePreparedPixelRuntime.SCOPED_UNPACK_PROPERTY);
+        }
+        assertTrue(TexturePreparedPixelRuntime.rgbAlignmentNeedsOverride(410, 4));
+        assertFalse(TexturePreparedPixelRuntime.rgbAlignmentNeedsOverride(410, 2));
+        assertFalse(TexturePreparedPixelRuntime.rgbAlignmentNeedsOverride(410, 1));
+        assertFalse(TexturePreparedPixelRuntime.rgbAlignmentNeedsOverride(410, 0));
+        TexturePreparedPixelRuntime.release(buffer);
+        assertFalse(TexturePreparedPixelRuntime.requiresTightRgbUnpack(buffer, 2, 2, 6407, 5121));
+    }
+
+    @Test
     void packedConverterImagePreservesPixelsAndDeclinesExposedOrUnknownImages() throws Exception {
         BufferedImage ordinary = new BufferedImage(2, 3, BufferedImage.TYPE_INT_RGB);
         org.junit.jupiter.api.Assertions.assertSame(ordinary,

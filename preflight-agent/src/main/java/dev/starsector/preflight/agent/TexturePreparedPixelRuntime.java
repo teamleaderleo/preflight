@@ -41,6 +41,7 @@ public final class TexturePreparedPixelRuntime {
     public static final String WINDOWS_COLD_PROBE_PROPERTY =
             "preflight.texture.windowsPreparedColdProbe";
     public static final String ATTRIBUTION_PROPERTY = "preflight.texture.preparedLoadAttribution";
+    public static final String SCOPED_UNPACK_PROPERTY = "preflight.texture.scopedUnpackAlignment";
     private static volatile boolean attributionEnabled;
     private static long lookupNanos, layoutNanos, carrierNanos, packNanos, attributedLoads;
     static final int MAX_TEXTURE_BYTES = 32 * 1024 * 1024;
@@ -810,6 +811,27 @@ public final class TexturePreparedPixelRuntime {
         }
     }
 
+    /** Admits only the current thread's exact, tightly packed prepared RGB buffer. */
+    public static boolean requiresTightRgbUnpack(ByteBuffer buffer, int width, int height, int format, int type) {
+        if (format != 6407 || type != 5121 || width <= 0 || height <= 1 || (width & 3) == 0
+                || (long) width * height > MAX_TEXTURE_BYTES / 3 || buffer == null || !buffer.isDirect()
+                || buffer.position() != 0 || buffer.remaining() != width * height * 3
+                || !Boolean.parseBoolean(System.getProperty(SCOPED_UNPACK_PROPERTY, "true"))) return false;
+        synchronized (LOCK) {
+            ArrayDeque<ByteBuffer> buffers = IN_FLIGHT.get(Thread.currentThread());
+            ActiveBuffer active = ACTIVE.get(buffer);
+            return buffers != null && buffers.peekLast() == buffer && active != null
+                    && active.bytes() == buffer.remaining();
+        }
+    }
+
+    public static boolean rgbAlignmentNeedsOverride(int width, int alignment) {
+        return (alignment == 2 || alignment == 4 || alignment == 8) && (long) width * 3 % alignment != 0;
+    }
+
+    public static void unpackAlignmentChanged() { TELEMETRY.unpackChanged(); }
+    public static void unpackAlignmentRestored() { TELEMETRY.unpackRestored(); }
+
     /** Releases the newest prepared buffer owned by the current converter caller. */
     public static void releaseCurrentThreadBuffer() {
         ByteBuffer buffer = null;
@@ -1500,6 +1522,7 @@ public final class TexturePreparedPixelRuntime {
         private long carriers;
         private long carrierRasterBytes;
         private long carrierRasterMaterializations;
+        private long unpackAlignmentChanges, unpackAlignmentRestores;
         private long coherentCarriers;
         private long coherentCarrierBytes;
         private long coherentDirectCarriers;
@@ -1554,6 +1577,7 @@ public final class TexturePreparedPixelRuntime {
             carriers = 0;
             carrierRasterBytes = 0;
             carrierRasterMaterializations = 0;
+            unpackAlignmentChanges = unpackAlignmentRestores = 0;
             coherentCarriers = 0;
             coherentCarrierBytes = 0;
             coherentDirectCarriers = 0;
@@ -1624,6 +1648,9 @@ public final class TexturePreparedPixelRuntime {
                 coherentCarrierBytes = saturatedAdd(coherentCarrierBytes, rasterBytes);
             }
         }
+
+        synchronized void unpackChanged() { unpackAlignmentChanges++; }
+        synchronized void unpackRestored() { unpackAlignmentRestores++; }
 
         synchronized void directAttempt() {
             directAttempts++;
@@ -1802,6 +1829,8 @@ public final class TexturePreparedPixelRuntime {
             values.put("maxLayoutObservations", MAX_LAYOUT_OBSERVATIONS);
             values.put("carriers", carriers);
             values.put("carrierRasterMaterializations", carrierRasterMaterializations);
+            values.put("unpackAlignmentChanges", unpackAlignmentChanges);
+            values.put("unpackAlignmentRestores", unpackAlignmentRestores);
             values.put("carrierRasterBytes", carrierRasterBytes);
             values.put("coherentCarriers", coherentCarriers);
             values.put("coherentCarrierBytes", coherentCarrierBytes);
