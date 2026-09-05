@@ -654,6 +654,27 @@ public final class TexturePreparedPixelRuntime {
         }
     }
 
+    /** Builds only the private CPU surface; the original converter and GL stay on main. */
+    static long stageOriginalConverterImage(BufferedImage image, long maximumBytes) {
+        long bytes = preparedBytes(image);
+        if (!(image instanceof CarrierImage carrier) || !TexturePreparedResourceRuntime.requested()
+                || !Boolean.parseBoolean(System.getProperty(
+                        TexturePreparedResourceRuntime.PACKED_CONVERTER_PROPERTY, "true"))
+                || (image.getWidth() <= TexturePreparedResourceRuntime.MAX_DIRECT_DIMENSION
+                    && image.getHeight() <= TexturePreparedResourceRuntime.MAX_DIRECT_DIMENSION)
+                || !TexturePaddingRuntime.originalConversionForWindowsCeiling(
+                        image.getWidth(), image.getHeight())) return bytes;
+        long packedBytes = (long) image.getWidth() * image.getHeight() * Integer.BYTES;
+        if (bytes > maximumBytes - packedBytes) return bytes;
+        synchronized (carrier) {
+            if (carrier.materialized != null) return bytes;
+            if (carrier.stagedPacked == null) {
+                carrier.stagedPacked = packedOriginalConverterImage(image);
+            }
+            return bytes + packedBytes;
+        }
+    }
+
     /** Supplies the exact stock converter with standard packed pixels from an untouched carrier. */
     static BufferedImage packedOriginalConverterImage(BufferedImage image) {
         if (!(image instanceof CarrierImage carrier)) return image;
@@ -661,6 +682,12 @@ public final class TexturePreparedPixelRuntime {
             // A raster handed to another consumer may already contain mutations. Only immutable,
             // untouched prepared pixels can be represented independently for this exact converter.
             if (carrier.materialized != null) return image;
+            if (carrier.stagedPacked != null) {
+                BufferedImage packed = carrier.stagedPacked;
+                carrier.stagedPacked = null;
+                TELEMETRY.stagedPackedConverterUsed();
+                return packed;
+            }
             PreparedTexture texture = carrier.texture;
             int width = texture.originalWidth(), height = texture.originalHeight();
             int channels = texture.channels();
@@ -1372,6 +1399,7 @@ public final class TexturePreparedPixelRuntime {
         private final int rasterBytes;
         private final AtomicBoolean sharedHitCredited = new AtomicBoolean();
         private volatile BufferedImage materialized;
+        private BufferedImage stagedPacked;
 
         private CarrierImage(
                 String logicalPath,
@@ -1427,6 +1455,7 @@ public final class TexturePreparedPixelRuntime {
                             TexturePreparedPixelCarrierSurface.coherent(texture);
                     existing = new BufferedImage(surface.colorModel(), surface.raster(), false, null);
                     materialized = existing;
+                    stagedPacked = null;
                     TELEMETRY.materialized(surface.rasterBytes(), coherent());
                 }
             }
@@ -1537,6 +1566,7 @@ public final class TexturePreparedPixelRuntime {
         private long carrierRasterMaterializations;
         private long unpackAlignmentChanges, unpackAlignmentRestores;
         private long converterRasterReuses, converterRasterCopyBytesAvoided;
+        private long stagedPackedConverterUses;
         private long coherentCarriers;
         private long coherentCarrierBytes;
         private long coherentDirectCarriers;
@@ -1592,7 +1622,7 @@ public final class TexturePreparedPixelRuntime {
             carrierRasterBytes = 0;
             carrierRasterMaterializations = 0;
             unpackAlignmentChanges = unpackAlignmentRestores = 0;
-            converterRasterReuses = converterRasterCopyBytesAvoided = 0;
+            converterRasterReuses = converterRasterCopyBytesAvoided = stagedPackedConverterUses = 0;
             coherentCarriers = 0;
             coherentCarrierBytes = 0;
             coherentDirectCarriers = 0;
@@ -1663,6 +1693,8 @@ public final class TexturePreparedPixelRuntime {
                 coherentCarrierBytes = saturatedAdd(coherentCarrierBytes, rasterBytes);
             }
         }
+
+        synchronized void stagedPackedConverterUsed() { stagedPackedConverterUses++; }
 
         synchronized void converterRasterReused(long bytes) {
             converterRasterReuses++;
@@ -1849,6 +1881,7 @@ public final class TexturePreparedPixelRuntime {
             values.put("maxLayoutObservations", MAX_LAYOUT_OBSERVATIONS);
             values.put("carriers", carriers);
             values.put("carrierRasterMaterializations", carrierRasterMaterializations);
+            values.put("stagedPackedConverterUses", stagedPackedConverterUses);
             values.put("converterRasterReuses", converterRasterReuses);
             values.put("converterRasterCopyBytesAvoided", converterRasterCopyBytesAvoided);
             values.put("unpackAlignmentChanges", unpackAlignmentChanges);
