@@ -97,6 +97,18 @@ final class TexturePreparedPixelPlan {
         injectPreparedLookup(decode, handoff.directDecode());
         MethodMetadata convertMetadata = rename(
                 owner.name, convert, ORIGINAL_CONVERT, convertName, CONVERT_DESCRIPTOR);
+        if (TexturePreparedResourceLoaderPlan.WINDOWS_SHA256.equals(signature.sha256())) {
+            for (AbstractInsnNode node : convert.instructions) {
+                if (node instanceof MethodInsnNode call && call.getOpcode() == Opcodes.INVOKEVIRTUAL
+                        && call.owner.equals("java/awt/image/BufferedImage") && call.name.equals("getData")
+                        && call.desc.equals("()Ljava/awt/image/Raster;")) {
+                    call.setOpcode(Opcodes.INVOKESTATIC);
+                    call.owner = RUNTIME;
+                    call.name = "originalConverterRaster";
+                    call.desc = "(Ljava/awt/image/BufferedImage;)Ljava/awt/image/Raster;";
+                }
+            }
+        }
         MethodMetadata cleanupMetadata = rename(
                 owner.name, cleanup, ORIGINAL_CLEANUP, cleanupName, CLEANUP_DESCRIPTOR);
         owner.methods.add(originalDecode);

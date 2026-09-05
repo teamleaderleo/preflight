@@ -664,7 +664,7 @@ public final class TexturePreparedPixelRuntime {
             PreparedTexture texture = carrier.texture;
             int width = texture.originalWidth(), height = texture.originalHeight();
             int channels = texture.channels();
-            BufferedImage packed = new BufferedImage(width, height,
+            BufferedImage packed = new PackedConverterImage(width, height,
                     channels == 4 ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
             int[] pixels = ((java.awt.image.DataBufferInt) packed.getRaster().getDataBuffer()).getData();
             ByteBuffer source = texture.pixelsView();
@@ -680,6 +680,19 @@ public final class TexturePreparedPixelRuntime {
             }
             return packed;
         }
+    }
+
+    /** Called only at the exact Windows converter's single read-only raster acquisition. */
+    public static Raster originalConverterRaster(BufferedImage image) {
+        if (!(image instanceof PackedConverterImage)) return image.getData();
+        TELEMETRY.converterRasterReused((long) image.getWidth() * image.getHeight() * Integer.BYTES);
+        return image.getRaster();
+    }
+
+    // A private, independently owned standard packed surface supplied only to the original converter.
+    // Public BufferedImage snapshot behavior remains inherited; only the exact converter borrows it.
+    private static final class PackedConverterImage extends BufferedImage {
+        PackedConverterImage(int width, int height, int type) { super(width, height, type); }
     }
 
     /** Creates one bounded direct upload buffer and returns stored derived colors. */
@@ -1523,6 +1536,7 @@ public final class TexturePreparedPixelRuntime {
         private long carrierRasterBytes;
         private long carrierRasterMaterializations;
         private long unpackAlignmentChanges, unpackAlignmentRestores;
+        private long converterRasterReuses, converterRasterCopyBytesAvoided;
         private long coherentCarriers;
         private long coherentCarrierBytes;
         private long coherentDirectCarriers;
@@ -1578,6 +1592,7 @@ public final class TexturePreparedPixelRuntime {
             carrierRasterBytes = 0;
             carrierRasterMaterializations = 0;
             unpackAlignmentChanges = unpackAlignmentRestores = 0;
+            converterRasterReuses = converterRasterCopyBytesAvoided = 0;
             coherentCarriers = 0;
             coherentCarrierBytes = 0;
             coherentDirectCarriers = 0;
@@ -1647,6 +1662,11 @@ public final class TexturePreparedPixelRuntime {
             if (coherent) {
                 coherentCarrierBytes = saturatedAdd(coherentCarrierBytes, rasterBytes);
             }
+        }
+
+        synchronized void converterRasterReused(long bytes) {
+            converterRasterReuses++;
+            converterRasterCopyBytesAvoided = saturatedAdd(converterRasterCopyBytesAvoided, bytes);
         }
 
         synchronized void unpackChanged() { unpackAlignmentChanges++; }
@@ -1829,6 +1849,8 @@ public final class TexturePreparedPixelRuntime {
             values.put("maxLayoutObservations", MAX_LAYOUT_OBSERVATIONS);
             values.put("carriers", carriers);
             values.put("carrierRasterMaterializations", carrierRasterMaterializations);
+            values.put("converterRasterReuses", converterRasterReuses);
+            values.put("converterRasterCopyBytesAvoided", converterRasterCopyBytesAvoided);
             values.put("unpackAlignmentChanges", unpackAlignmentChanges);
             values.put("unpackAlignmentRestores", unpackAlignmentRestores);
             values.put("carrierRasterBytes", carrierRasterBytes);
