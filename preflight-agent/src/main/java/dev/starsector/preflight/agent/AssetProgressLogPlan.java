@@ -86,6 +86,44 @@ final class AssetProgressLogPlan {
         return true;
     }
 
+    static byte[] windowsRules(ClassSignature signature, byte[] bytes) {
+        if (!"72f0925d83ff48bfa2c4b8d2f691b10935d4567dc6ab1e12392a2ee388539df9".equals(signature.sha256())) {
+            return null;
+        }
+        ClassNode owner = new ClassNode();
+        new ClassReader(bytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        List<AbstractInsnNode> selected = null;
+        MethodNode selectedMethod = null;
+        for (MethodNode method : owner.methods) {
+            for (AbstractInsnNode instruction : method.instructions.toArray()) {
+                if (!(instruction instanceof LdcInsnNode text) || !"Loading rule: ".equals(text.cst)) continue;
+                if (selected != null) return null;
+                AbstractInsnNode first = previousOpcode(previousOpcode(previousOpcode(text)));
+                List<AbstractInsnNode> block = new ArrayList<>();
+                for (int i = 0; i < 9 && first != null; i++, first = nextOpcode(first)) block.add(first);
+                if (block.size() != 9
+                        || !(block.get(0) instanceof FieldInsnNode logger)
+                        || logger.getOpcode() != Opcodes.GETSTATIC
+                        || !logger.owner.equals(RulesLoaderPhasePlan.TARGET_CLASS)
+                        || !logger.desc.equals("L" + LOGGER + ";")
+                        || !(block.get(1) instanceof TypeInsnNode allocation)
+                        || allocation.getOpcode() != Opcodes.NEW || !allocation.desc.equals(STRING_BUILDER)
+                        || block.get(2).getOpcode() != Opcodes.DUP || block.get(3) != text
+                        || !constructor(block.get(4))
+                        || !(block.get(5) instanceof VarInsnNode id) || id.getOpcode() != Opcodes.ALOAD
+                        || id.var != 7 || !append(block.get(6)) || !toStringCall(block.get(7))
+                        || !infoCall(block.get(8))) return null;
+                selected = block;
+                selectedMethod = method;
+            }
+        }
+        if (selected == null) return null;
+        for (AbstractInsnNode instruction : selected) selectedMethod.instructions.remove(instruction);
+        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
+        owner.accept(writer);
+        return writer.toByteArray();
+    }
+
     private static Block exactBlock(MethodNode method, LdcInsnNode prefix, String suffix) {
         List<AbstractInsnNode> sequence = new ArrayList<>();
         AbstractInsnNode cursor = prefix;
@@ -152,6 +190,7 @@ final class AssetProgressLogPlan {
     }
 
     private static AbstractInsnNode previousOpcode(AbstractInsnNode instruction) {
+        if (instruction == null) return null;
         for (AbstractInsnNode cursor = instruction.getPrevious(); cursor != null;
                 cursor = cursor.getPrevious()) {
             if (cursor.getOpcode() >= 0) return cursor;
