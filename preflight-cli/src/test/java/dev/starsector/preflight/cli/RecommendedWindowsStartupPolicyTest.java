@@ -1,10 +1,45 @@
 package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import org.junit.jupiter.api.Test;
 
 class RecommendedWindowsStartupPolicyTest {
+    @Test
+    void validatedAudioEnablesTheAcceptedWindowsCombinationOnly() {
+        String options = RecommendedWindowsStartupPolicy.appendOptions(
+                "", Platform.WINDOWS, OptimizationPreset.RECOMMENDED, true);
+        for (String property : java.util.List.of("preflight.texture.windowsPreparedResources",
+                "preflight.texture.windowsPreparedPrestart", "preflight.startup.windowsFactionPriorityCache")) {
+            assertTrue(options.contains("-D" + property + "=true"));
+        }
+        assertEquals(options, RecommendedWindowsStartupPolicy.appendOptions(
+                options, Platform.WINDOWS, OptimizationPreset.RECOMMENDED, true));
+        assertFalse(RecommendedWindowsStartupPolicy.appendOptions(
+                "", Platform.WINDOWS, OptimizationPreset.RECOMMENDED, false).contains("windowsPreparedPrestart"));
+        for (Platform platform : java.util.List.of(Platform.LINUX, Platform.MAC)) {
+            assertEquals("-Dexisting=true", RecommendedWindowsStartupPolicy.appendOptions(
+                    "-Dexisting=true", platform, OptimizationPreset.RECOMMENDED, true));
+        }
+        assertEquals("", RecommendedWindowsStartupPolicy.appendOptions(
+                "", Platform.WINDOWS, OptimizationPreset.CONSERVATIVE, true));
+    }
+
+    @Test
+    void explicitAdmissionOptOutDoesNotEnableTheDependentTypedPath() {
+        for (String property : java.util.List.of("preflight.texture.windowsPreparedResources",
+                "preflight.texture.windowsPreparedPrestart")) {
+            String options = RecommendedWindowsStartupPolicy.appendOptions(
+                    "-D" + property + "=false -Dpreflight.startup.windowsFactionPriorityCache=false",
+                    Platform.WINDOWS, OptimizationPreset.RECOMMENDED, true);
+            assertFalse(options.contains("windowsPreparedResources=true"));
+            assertFalse(options.contains("windowsPreparedPrestart=true"));
+            assertFalse(options.contains("windowsFactionPriorityCache=true"));
+            assertTrue(options.contains("-D" + property + "=false"));
+        }
+    }
     @Test
     void recommendedWindowsEnablesAcceptedKaleidoscopePrefetch() {
         assertEquals(
