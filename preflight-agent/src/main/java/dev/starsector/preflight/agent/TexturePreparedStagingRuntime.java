@@ -23,6 +23,7 @@ public final class TexturePreparedStagingRuntime {
     private static Thread producer;
     private static boolean cancelled;
     private static long stagedBytes;
+    private static long maximumStagedBytes = MAX_STAGED_BYTES;
     private static long peakStagedBytes;
     private static long loadingBytes;
     private static long peakLoadingBytes;
@@ -49,6 +50,7 @@ public final class TexturePreparedStagingRuntime {
             producer = null;
             cancelled = false;
             stagedBytes = 0L;
+            maximumStagedBytes = MAX_STAGED_BYTES;
             peakStagedBytes = 0L;
             loadingBytes = 0L;
             peakLoadingBytes = 0L;
@@ -80,6 +82,7 @@ public final class TexturePreparedStagingRuntime {
                     return;
                 }
                 starts++;
+                maximumStagedBytes = selectedByteLimit();
                 producer = new Thread(
                         () -> produce(order), "Preflight-Prepared-Staging");
                 producer.setDaemon(true);
@@ -93,6 +96,14 @@ public final class TexturePreparedStagingRuntime {
                 failures++;
             }
         }
+    }
+
+    static long selectedByteLimit() {
+        return TexturePreparedResourceRuntime.requested()
+                && System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).startsWith("windows")
+                && Boolean.parseBoolean(System.getProperty(
+                        TexturePreparedResourceRuntime.PACKED_CONVERTER_PROPERTY, "true"))
+                ? 2 * MAX_STAGED_BYTES : MAX_STAGED_BYTES;
     }
 
     /** Stops the producer and releases every unconsumed carrier without touching game state. */
@@ -146,7 +157,7 @@ public final class TexturePreparedStagingRuntime {
             values.put("planId", PLAN_ID);
             values.put("property", ENABLED_PROPERTY);
             values.put("enabled", Boolean.getBoolean(ENABLED_PROPERTY));
-            values.put("maxStagedBytes", MAX_STAGED_BYTES);
+            values.put("maxStagedBytes", maximumStagedBytes);
             values.put("starts", starts);
             values.put("stops", stops);
             values.put("producerActive", producer != null && producer.isAlive());
@@ -186,7 +197,7 @@ public final class TexturePreparedStagingRuntime {
                 long bytes = 0L;
                 try {
                     image = TexturePreparedPixelRuntime.load(path);
-                    bytes = TexturePreparedPixelRuntime.stageOriginalConverterImage(image, MAX_STAGED_BYTES);
+                    bytes = TexturePreparedPixelRuntime.stageOriginalConverterImage(image, maximumStagedBytes);
                     synchronized (LOCK) {
                         if (producer != Thread.currentThread()) return;
                         loadingBytes = bytes;
@@ -235,13 +246,13 @@ public final class TexturePreparedStagingRuntime {
                 LOCK.notifyAll();
                 return;
             }
-            if (bytes > MAX_STAGED_BYTES) {
+            if (bytes > maximumStagedBytes) {
                 oversizeDeclines++;
                 LOCK.notifyAll();
                 return;
             }
             while (producer == Thread.currentThread() && !cancelled && !CONSUMED.contains(key)
-                    && stagedBytes > MAX_STAGED_BYTES - bytes) {
+                    && stagedBytes > maximumStagedBytes - bytes) {
                 try {
                     LOCK.wait();
                 } catch (InterruptedException interrupted) {

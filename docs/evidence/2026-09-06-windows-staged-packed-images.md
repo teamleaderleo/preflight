@@ -24,3 +24,23 @@ loops and unchanged upload/subimage calls.
 
 Phase: full verification, then native measurement. Retain only if justified by repeated launches;
 record rejected candidates and restore the previously measured artifact if this fails.
+
+
+64 MiB candidate executable 1cc0c242116329997460cbd488b5e7fede19a8b0, JAR
+6abf2f7f7f1be2b5a16d1840c48296a6326e2f1b34f36fe501f467c1938960ea, passed full installed-fixture
+verify in 48.667 s and three-platform CI 33997354767. Ordinary native cohort 20260906-065808
+completed menus in 17.306 / 19.443 / 16.424 s (graphics 16.258 / 17.777 / 14.763 s). The final
+sample beats the prior 16.690 record, but this set is not consistently sub-17. Staged packed
+uses were 42 / 28 / 42; staging misses 210 / 1596 / 109. All runs committed 15,002 resources,
+declined 44 at the 1024 ceiling, consumed 102 retained Kaleidoscope resources, balanced 168
+alignment changes/restores, and left zero pending/active/in-flight buffers and no resource failures.
+
+Repeat 20260906-070138: menus 17.883 / 19.131 / 19.327 s, graphics 16.164 / 17.443 / 17.666 s.
+Staged packed uses 40 / 33 / 32; misses 255 / 1033 / 769. No staging failures. All six samples
+are retained, including the slower repeat set. The 64 MiB queue reached its ceiling in every run.
+
+Next composition gives only requested Windows packed-resource staging 128 MiB of combined
+source-plus-packed queue capacity. Other platforms and packed/resource opt-outs retain 64 MiB.
+This tests whether added packed storage reduced the producer's lead, as slower launches had more
+staging misses. No new configuration knob, threads or resource ordering change. The extra
+64 MiB is bounded and small relative to this VM's 20 GiB; performance remains unproven.

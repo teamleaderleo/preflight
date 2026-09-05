@@ -80,6 +80,35 @@ class TexturePreparedStagingLifecycleTest {
         assertEquals(0L, TexturePreparedStagingRuntime.telemetry().get("stagedEntries"));
     }
 
+    @Test
+    void extraQueueHeadroomIsOnlyForRequestedWindowsPackedResources() {
+        String originalOs = System.getProperty("os.name");
+        String requested = System.getProperty(TexturePreparedResourceRuntime.PROPERTY);
+        String packed = System.getProperty(TexturePreparedResourceRuntime.PACKED_CONVERTER_PROPERTY);
+        try {
+            System.setProperty(TexturePreparedResourceRuntime.PROPERTY, "true");
+            System.setProperty(TexturePreparedResourceRuntime.PACKED_CONVERTER_PROPERTY, "true");
+            System.setProperty("os.name", "Windows 11");
+            assertEquals(128L * 1024 * 1024, TexturePreparedStagingRuntime.selectedByteLimit());
+            System.setProperty(TexturePreparedResourceRuntime.PACKED_CONVERTER_PROPERTY, "false");
+            assertEquals(64L * 1024 * 1024, TexturePreparedStagingRuntime.selectedByteLimit());
+            System.setProperty(TexturePreparedResourceRuntime.PACKED_CONVERTER_PROPERTY, "true");
+            System.setProperty("os.name", "Linux");
+            assertEquals(64L * 1024 * 1024, TexturePreparedStagingRuntime.selectedByteLimit());
+            System.setProperty("os.name", "Windows 11");
+            System.setProperty(TexturePreparedResourceRuntime.PROPERTY, "false");
+            assertEquals(64L * 1024 * 1024, TexturePreparedStagingRuntime.selectedByteLimit());
+        } finally {
+            System.setProperty("os.name", originalOs);
+            restore(TexturePreparedResourceRuntime.PROPERTY, requested);
+            restore(TexturePreparedResourceRuntime.PACKED_CONVERTER_PROPERTY, packed);
+        }
+    }
+
+    private static void restore(String property, String value) {
+        if (value == null) System.clearProperty(property); else System.setProperty(property, value);
+    }
+
     private static Field producer() throws Exception {
         Field field = TexturePreparedStagingRuntime.class.getDeclaredField("producer");
         field.setAccessible(true);
