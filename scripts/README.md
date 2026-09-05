@@ -86,6 +86,16 @@ startup timing. The stale-session guard remains in force.
 Use `--gallium-driver native --resolution 1024x720` for a native-GPU Windows run with explicit
 display geometry. Omitting both options preserves the existing llvmpipe/working-area behavior.
 
+`--windows-prepared-prestart` (`-WindowsPreparedPrestart` on Windows) opts into exact prepared-image
+admission before the original resource worker starts and implies typed prepared resources.
+`--disable-windows-prepared-prestart` explicitly disables that admission. The runtime property is
+`preflight.texture.windowsPreparedPrestart`; it defaults off and requires typed resources and one
+worker. `--windows-pcm-copy` (`-WindowsPcmCopy`) independently opts into the exact Windows decoded
+PCM chunk-copy branch with `preflight.audio.windowsPcmCopy=true` (also off by default).
+Neither option skips Vorbis decoding or enables prepared-audio caching. The
+[native prototype results](../docs/evidence/2026-09-05-windows-prestart-and-pcm-copy.md) did not
+establish a launch-time win, so neither is enabled in ordinary Recommended launches.
+
 The fingerprint retains hybrid-core capacities, vCPU topology/pinning, bounded QEMU/temperature/
 memory samples, guest SysMain and memory state, and only competing processes above a CPU threshold.
 It temporarily applies Big Red's performance power profile for the cohort, records the prior and
