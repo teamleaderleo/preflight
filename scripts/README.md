@@ -55,6 +55,8 @@ per-resource console logging cannot turn captured stdout into a hidden condition
 The runner keeps `GALLIUM_DRIVER=llvmpipe` as its compatibility-fixture default. On a Windows host
 with a working physical graphics adapter, pass `-GalliumDriver native` (or an empty string) to remove
 that process-local override. The retained identity then records a null effective Gallium driver.
+The environment value is not proof of the loaded renderer: on the reviewed Intel fixture it also
+selects Preflight's padded upload policy while the loaded OpenGL driver remains Intel.
 
 On Big Red, `run-big-red-windows-startup-cohort.sh` is the unattended host wrapper. It starts the
 existing VM if needed, configures and runs the exact interactive Windows scheduled task, waits for
@@ -66,6 +68,10 @@ example:
 scripts/run-big-red-windows-startup-cohort.sh \
   --condition preflight-fast-rendering --iterations 1
 ```
+
+If the current guest runner exits without publishing `summary.json`, the host still archives its
+raw session and reports `accepted=false`, `incomplete=true`; it returns failure and invents no
+startup timing. The stale-session guard remains in force.
 
 Use `--gallium-driver native --resolution 1024x720` for a native-GPU Windows run with explicit
 display geometry. Omitting both options preserves the existing llvmpipe/working-area behavior.
@@ -96,6 +102,13 @@ learned `graphics/kaleidoscope/` paths that were absent from Starsector's native
 accepted Windows prepared worker, retains only those results through native prefetch shutdown, and
 clears leftovers at the semantic menu snapshot. It is bounded to 512 paths / 192 MiB and is enabled
 by the recommended preset on Windows; an explicit false system property remains the kill switch.
+Normal single-worker launches also wait up to five seconds for the exact finite worker to finish
+before the original interrupt and result-retention cleanup. This protects active pack reads and
+lets queued late textures finish. A timeout or caller interruption preserves stock cancellation;
+no GL work moves off main. `preflight.texture.windowsPrefetchDrain=false` opts out. For matched
+cohorts use `-DisableWindowsPrefetchDrain` (Big Red: `--disable-windows-prefetch-drain`);
+omitting it exercises the normal default. `prefetchShutdown` telemetry records calls, completions,
+timeouts, caller interruptions, declines, errors and aggregate wait time.
 For an unattended shuffled A/B cohort, use conditions `preflight,preflight-kaleidoscope`; the
 second condition enables the same candidate only for its own legs and records the per-run state.
 The prepared-resource prototype is opt-in: use `-WindowsPreparedResources` (Big Red:

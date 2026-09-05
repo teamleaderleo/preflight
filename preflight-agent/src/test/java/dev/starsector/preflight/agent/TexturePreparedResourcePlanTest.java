@@ -42,6 +42,7 @@ class TexturePreparedResourcePlanTest {
         System.setProperty(TexturePreparedResourceRuntime.PROPERTY, "true");
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_WORKERS_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_SPLIT_QUEUES_PROPERTY);
+        System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_KALEIDOSCOPE_PROPERTY);
     }
 
     @AfterEach
@@ -51,6 +52,39 @@ class TexturePreparedResourcePlanTest {
         System.clearProperty(TexturePreparedResourceRuntime.BARRIER_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_WORKERS_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_SPLIT_QUEUES_PROPERTY);
+        System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_KALEIDOSCOPE_PROPERTY);
+    }
+
+    @Test
+    void ordinaryInstalledWorkerDrainsBeforeOriginalInterruptAndRetainsStockCleanup() throws Exception {
+        System.clearProperty(TexturePreparedResourceRuntime.PROPERTY);
+        System.setProperty(TexturePreparedPrefetchPlan.WINDOWS_KALEIDOSCOPE_PROPERTY, "true");
+        byte[] original = installed("common", PRELOADER);
+        assertEquals("9e339c5a0edadebdd81b088e0882f5a00b4696b9f5e862a9beec3ff03c439f3e",
+                ClassSignature.parse(original).sha256());
+        assertEquals(TexturePreparedResourcePlan.WORKER_SHA256,
+                ClassSignature.parse(installed("common", TexturePreparedResourcePlan.WORKER)).sha256());
+        byte[] transformed = TexturePreparedPrefetchPlan.transform(ClassSignature.parse(original), original);
+        assertNotNull(transformed);
+        ClassNode owner = read(transformed);
+        verifyDataflow(owner);
+        MethodNode stop = method(owner, TexturePreparedPrefetchPlan.STOP_METHOD, "()V");
+        String runtime = "dev/starsector/preflight/agent/TexturePrefetchShutdownRuntime";
+        assertEquals(1, calls(stop, runtime, "finish"));
+        assertEquals(1, calls(stop, "java/lang/Thread", "interrupt"));
+        assertEquals(1, calls(stop, "java/util/Map", "clear"));
+        assertEquals(1, calls(stop, "dev/starsector/preflight/agent/TexturePreparedPixelRuntime",
+                "retainLearnedKaleidoscopePrefetchResults"));
+        for (AbstractInsnNode n : stop.instructions) {
+            if (n instanceof MethodInsnNode c && c.owner.equals("java/lang/Thread") && c.name.equals("interrupt")) {
+                assertTrue(previousOpcode(n) instanceof MethodInsnNode drain
+                        && drain.owner.equals(runtime) && drain.name.equals("finish"));
+                assertEquals(Opcodes.DUP, previousOpcode(previousOpcode(n)).getOpcode());
+            }
+        }
+        assertEquals(1, calls(method(owner, TexturePreparedPrefetchPlan.START_METHOD, "()V"),
+                "java/lang/Thread", "start"));
+        assertNull(TexturePreparedPrefetchPlan.transform(ClassSignature.parse(transformed), transformed));
     }
 
     @Test

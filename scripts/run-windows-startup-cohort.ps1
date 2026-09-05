@@ -22,6 +22,7 @@ param(
     [switch]$JvmNativeMemorySummary,
     [switch]$WindowsInitialHeapProbe,
     [switch]$DisableWindowsInitialHeapProbe,
+    [switch]$DisableWindowsPrefetchDrain,
     [switch]$PreparedPackReadAhead,
     [switch]$PreparedPackOrderSnapshot,
     [switch]$DisablePreparedPackReadAhead,
@@ -367,6 +368,10 @@ log4j.appender.file.MaxBackupIndex=3
                 $readAheadValue = ([bool]$PreparedPackReadAhead).ToString().ToLowerInvariant()
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     "-Dpreflight.texture.packReadAhead=$readAheadValue" | Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($DisableWindowsPrefetchDrain) {
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.texture.windowsPrefetchDrain=false' | Where-Object { $_ }) -join ' ').Trim()
             }
             if ($WindowsInitialHeapProbe -or $DisableWindowsInitialHeapProbe) {
                 $heapProbeValue = ([bool]$WindowsInitialHeapProbe).ToString().ToLowerInvariant()
@@ -759,6 +764,7 @@ $identity = [ordered]@{
     jvmNativeMemorySummary = [bool]$JvmNativeMemorySummary
     windowsInitialHeapProbe = [bool]$WindowsInitialHeapProbe
     disableWindowsInitialHeapProbe = [bool]$DisableWindowsInitialHeapProbe
+    disableWindowsPrefetchDrain = [bool]$DisableWindowsPrefetchDrain
     preparedPackReadAhead = [bool]$PreparedPackReadAhead
     preparedPackOrderSnapshot = [bool]$PreparedPackOrderSnapshot
     disablePreparedPackReadAhead = [bool]$DisablePreparedPackReadAhead
