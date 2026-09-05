@@ -8,8 +8,9 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-/** Opt-in experiment for the reviewed fixed-6-GiB Windows launcher; never edits its files. */
+/** Recommended startup memory policy for the reviewed Windows launcher; never edits its files. */
 final class WindowsInitialHeapPolicy {
+    static final String DISABLE_ENVIRONMENT = "PREFLIGHT_DISABLE_WINDOWS_INITIAL_HEAP_POLICY";
     static final String PROPERTY = "preflight.windows.initialHeapProbe";
     static final String BATCH_SHA = "c92ddf2855cd326cfa241d87c2aa75a034668d5866bdd5f5d8d4b67db3b3414d";
     static final String WRAPPER_SHA = "b93bcff1fb4b15d22167c66e75cc5c792e800c9c43266f67cdf92cdf0ac7919e";
@@ -21,7 +22,15 @@ final class WindowsInitialHeapPolicy {
 
     static Resolution resolve(Platform platform, LaunchTarget target, OptimizationPreset preset,
             Map<String, String> environment) {
-        return resolve(platform, target, preset, environment, Boolean.getBoolean(PROPERTY), Hashes::sha256);
+        return resolve(platform, target, preset, environment, Hashes::sha256);
+    }
+
+    static Resolution resolve(Platform platform, LaunchTarget target, OptimizationPreset preset,
+            Map<String, String> environment, FileHash hash) {
+        String disabled = environment.getOrDefault(DISABLE_ENVIRONMENT, "");
+        boolean requested = Boolean.parseBoolean(System.getProperty(PROPERTY, "true"))
+                && !disabled.equals("1") && !disabled.equalsIgnoreCase("true");
+        return resolve(platform, target, preset, environment, requested, hash);
     }
 
     static Resolution resolve(Platform platform, LaunchTarget target, OptimizationPreset preset,

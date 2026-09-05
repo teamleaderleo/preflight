@@ -29,6 +29,8 @@ reuse it                       normal game code runs
 
 Runtime shortcuts only apply to code they recognize. If a game/mod update changes the thing a shortcut expects, that shortcut steps aside and the original path stays available.
 
+On the reviewed Windows launcher, Recommended also starts the game with a smaller initial Java heap to leave more memory available during texture loading. The maximum heap stays unchanged. This applies during normal launches; it does not require benchmark mode. Unknown launcher/runtime versions keep their existing settings. Set `PREFLIGHT_DISABLE_WINDOWS_INITIAL_HEAP_POLICY=1` to opt out.
+
 That's the main idea. The rest of the project makes it useful on a real computer.
 
 For the standalone ultra-simple guide, read [Preflight in 256 KB](docs/how-preflight-works-256kb.md). For the normal-human version, read [How Preflight works](docs/how-preflight-works.md).

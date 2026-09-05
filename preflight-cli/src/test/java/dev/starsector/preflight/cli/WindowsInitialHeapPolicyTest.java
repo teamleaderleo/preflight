@@ -8,9 +8,35 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.api.parallel.Resources;
 
+@ResourceLock(Resources.SYSTEM_PROPERTIES)
 class WindowsInitialHeapPolicyTest {
     @TempDir Path root;
+
+    @Test void recommendedLaunchDefaultsOnAndHonorsBothOptOuts() throws Exception {
+        LaunchTarget target = fixture();
+        String previous = System.getProperty(WindowsInitialHeapPolicy.PROPERTY);
+        try {
+            System.clearProperty(WindowsInitialHeapPolicy.PROPERTY);
+            assertTrue(WindowsInitialHeapPolicy.resolve(Platform.WINDOWS, target,
+                    OptimizationPreset.RECOMMENDED, Map.of(), WindowsInitialHeapPolicyTest::knownHash).active());
+            for (String disabled : List.of("1", "true", "TRUE")) {
+                assertFalse(WindowsInitialHeapPolicy.resolve(Platform.WINDOWS, target,
+                        OptimizationPreset.RECOMMENDED,
+                        Map.of(WindowsInitialHeapPolicy.DISABLE_ENVIRONMENT, disabled),
+                        path -> { fail("identity read despite opt-out"); return ""; }).active());
+            }
+            System.setProperty(WindowsInitialHeapPolicy.PROPERTY, "false");
+            assertFalse(WindowsInitialHeapPolicy.resolve(Platform.WINDOWS, target,
+                    OptimizationPreset.RECOMMENDED, Map.of(),
+                    path -> { fail("identity read despite property opt-out"); return ""; }).active());
+        } finally {
+            if (previous == null) System.clearProperty(WindowsInitialHeapPolicy.PROPERTY);
+            else System.setProperty(WindowsInitialHeapPolicy.PROPERTY, previous);
+        }
+    }
 
     @Test void knownIdentityChangesOnlyInitialHeapInChildOptions() throws Exception {
         LaunchTarget target = fixture();
@@ -23,7 +49,7 @@ class WindowsInitialHeapPolicyTest {
         assertEquals(true, resolution.toReportValues().get("preservesMaximum"));
     }
 
-    @Test void defaultOtherPlatformsPresetsAndExplicitHeapOptionsRemainUnchanged() throws Exception {
+    @Test void disabledOtherPlatformsPresetsAndExplicitHeapOptionsRemainUnchanged() throws Exception {
         LaunchTarget target = fixture();
         var off = WindowsInitialHeapPolicy.resolve(Platform.WINDOWS, target,
                 OptimizationPreset.RECOMMENDED, Map.of(), false, path -> { fail("read while disabled"); return ""; });
