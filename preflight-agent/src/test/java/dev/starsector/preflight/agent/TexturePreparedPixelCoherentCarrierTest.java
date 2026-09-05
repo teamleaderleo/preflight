@@ -379,29 +379,24 @@ class TexturePreparedPixelCoherentCarrierTest {
     }
 
     @Test
-    void coherentSnapshotIsStandardIndependentAndDoesNotRetainAnUnusedRaster() throws Exception {
-        System.setProperty(TexturePreparedPixelRuntime.COHERENT_ORIGINAL_CONVERT_PROPERTY, "true");
+    void packedConverterImagePreservesPixelsAndDeclinesExposedOrUnknownImages() throws Exception {
+        BufferedImage ordinary = new BufferedImage(2, 3, BufferedImage.TYPE_INT_RGB);
+        org.junit.jupiter.api.Assertions.assertSame(ordinary,
+                TexturePreparedPixelRuntime.packedOriginalConverterImage(ordinary));
         for (int channels : new int[] {3, 4}) {
             configure(fixture(2, 3, channels, sequential(6 * channels)));
             BufferedImage carrier = TexturePreparedPixelRuntime.load("graphics/test.png");
-            java.awt.image.Raster first = carrier.getData();
-            java.awt.image.Raster second = carrier.getData();
-            assertEquals(0L, TexturePreparedPixelRuntime.telemetry().get("carrierRasterMaterializations"));
-            int[] original = first.getPixel(0, 0, (int[]) null);
-            assertArrayEquals(original, second.getPixel(0, 0, (int[]) null));
-            ((java.awt.image.WritableRaster) first).setSample(0, 0, 0, 99);
-            assertArrayEquals(original, second.getPixel(0, 0, (int[]) null));
-            assertArrayEquals(original, carrier.getData().getPixel(0, 0, (int[]) null));
-            carrier.setRGB(0, 0, 0xff123456);
-            java.awt.image.Raster afterMutation = carrier.getData();
-            assertEquals(0x12, afterMutation.getSample(0, 0, 0));
-            assertEquals(0x34, afterMutation.getSample(0, 0, 1));
-            assertEquals(0x56, afterMutation.getSample(0, 0, 2));
-            assertArrayEquals(original, second.getPixel(0, 0, (int[]) null));
-            assertEquals(afterMutation.getClass(), second.getClass());
-            assertEquals(afterMutation.getSampleModel().getClass(), second.getSampleModel().getClass());
-            assertEquals(afterMutation.getDataBuffer().getClass(), second.getDataBuffer().getClass());
-            assertEquals(1L, TexturePreparedPixelRuntime.telemetry().get("carrierRasterMaterializations"));
+            BufferedImage packed = TexturePreparedPixelRuntime.packedOriginalConverterImage(carrier);
+            assertEquals(channels == 4 ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB, packed.getType());
+            for (int y=0; y<3; y++) for (int x=0; x<2; x++) {
+                assertEquals(carrier.getRGB(x, y), packed.getRGB(x, y));
+            }
+            int original = carrier.getRGB(0, 0);
+            packed.setRGB(0, 0, 0xffabcdef);
+            assertEquals(original, carrier.getRGB(0, 0));
+            carrier.getRaster().setSample(0, 0, 0, 77);
+            org.junit.jupiter.api.Assertions.assertSame(carrier,
+                    TexturePreparedPixelRuntime.packedOriginalConverterImage(carrier));
         }
     }
 
