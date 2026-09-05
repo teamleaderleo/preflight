@@ -778,6 +778,10 @@ final class AdapterTransformationRegistry {
     private static byte[] rulesLoaderPlans(ClassSignature signature, byte[] originalBytes) {
         byte[] current = originalBytes;
         boolean changed = false;
+        if (AssetProgressLogRuntime.suppress()) {
+            byte[] quiet = AssetProgressLogPlan.windowsRules(signature, current);
+            if (quiet != null) { current = quiet; changed = true; }
+        }
 
         byte[] optimized = rulesOptimizations(current);
         if (optimized != null) {

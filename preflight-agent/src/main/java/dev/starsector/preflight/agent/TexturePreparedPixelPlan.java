@@ -62,6 +62,10 @@ final class TexturePreparedPixelPlan {
             return null;
         }
 
+        if (AssetProgressLogRuntime.suppress()
+                && TexturePreparedResourceLoaderPlan.WINDOWS_SHA256.equals(signature.sha256())
+                && !TextureProgressLogPlan.apply(signature, owner)) return null;
+
         MethodNode decode = uniqueSupportedMethod(owner, DECODE_METHOD, LINUX_DECODE_METHOD, DECODE_DESCRIPTOR);
         MethodNode convert = uniqueSupportedMethod(owner, CONVERT_METHOD, LINUX_CONVERT_METHOD, CONVERT_DESCRIPTOR);
         MethodNode cleanup = uniqueSupportedMethod(owner, CLEANUP_METHOD, LINUX_CLEANUP_METHOD, CLEANUP_DESCRIPTOR);
