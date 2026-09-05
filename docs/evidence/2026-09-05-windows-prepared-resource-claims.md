@@ -175,5 +175,6 @@ All evidence remains under `/home/leo/Windows-Share/Diagnostics/`:
 Full local `mvn verify` passed for the final executable revision. Three-platform
 [CI 33936238975](https://github.com/teamleaderleo/preflight/actions/runs/33936238975)
 passed Windows/macOS/Linux Java verification and Linux/macOS operator checks. The
-desktop package checks passed on all three platforms. Later documentation-only
-commits do not change the measured executable source or packaged bytes.
+desktop engine, frontend and release-contract checks passed; native desktop packaging
+was skipped by that workflow's scope rules. Later documentation-only commits do not
+change the measured executable source or packaged bytes.
