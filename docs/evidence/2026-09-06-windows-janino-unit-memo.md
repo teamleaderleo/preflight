@@ -17,7 +17,7 @@ Its visited set is local to one call. Thus previously completed units are compil
 next requested class. Candidate: memo successful compileUnit results within the live loader,
 retaining the original discovery loop, complete output map and class-definition protocol.
 
-Phase: validate bytecode and dependency fidelity before live measurements. Private installed
+Initial phase: validate bytecode and dependency fidelity before live measurements. Private installed
 fixtures and bytecode are under Windows-Share/Diagnostics/windows-janino; never commit these assets.
 
 ## First candidate and composition
@@ -42,7 +42,32 @@ policy declines. All 15,002 resource commits completed with zero failures and pe
 44 ceiling-declined images retained coherent fallback. The operation reduction alone did not
 produce a faster launch; composing it with staging produced two sub-20 observations.
 
-Next phase: select the combination through RecommendedWindowsStartupPolicy only with validated
+The final implementation selects the combination through RecommendedWindowsStartupPolicy only with validated
 prepared audio and accepted prestart admission, respecting explicit opt-outs for either component.
-The runtime memo no longer infers policy from logging. Verify the final ordinary launch without
-cohort experiment flags before integration.
+The runtime memo no longer infers policy from logging.
+
+## Final ordinary-launch verification
+
+Selected executable source `73d085d3fe5c5630a2d805f85a0de313860ec53a`, JAR SHA-256
+`369d43b415829c5082c29d1762adb9d8fdb73f6cf73d6406087740bd38534cb9`.
+Full Java verification passed in 47.164 s. The installed test additionally verifies that replacement
+loaders compile their own units and an explicit opt-out retains repeat compilation.
+
+Session `20260906-023405` uses ordinary Recommended with no experiment flags, native graphics,
+1024x720 and the unchanged VM configuration. Graphics: 17.523 / 17.467 s. Interactive menus:
+**19.316 / 19.582 s**, median 19.449 s. All four combined-path observations are sub-20, but these
+small sequential sets do not establish a statistical improvement over the prior baseline median
+19.3295 s or beat the historical 17.620 s result. The work reduction is directly verified; timing
+attribution beyond these observations remains limited by launch variability.
+
+Both final runs compile 261 units with 33,016 memo hits and no declines. Staging serves 14,884 /
+14,763 hits, then stops with zero queued bytes, in-progress images or failures. All 15,002 resources
+commit (14,958 direct, 44 coherent), 15,003 displaced prestart jobs retire as 15,002 taken plus one
+unused, and no claims or direct buffers remain. All 102 late Kaleidoscope images and 2,049 prepared
+audio effects are served. Both shutdowns complete gracefully with zero remaining actors.
+
+No further RAM increase is needed for this slice. A possible later target is repeated ClassFile
+serialization in the retained original loop; it is not changed here.
+
+Three-platform CI `33984410927` passed for the selected executable source. The remaining final
+changes are evidence and installed-test assertions; production bytes remain the measured selection.

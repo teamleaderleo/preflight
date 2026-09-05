@@ -51,6 +51,17 @@ class JaninoUnitMemoInstalledIT {
         }
         assertTrue((long) JaninoUnitMemoRuntime.report().get("hits") > 0);
         System.out.println("installed unit memo: " + JaninoUnitMemoRuntime.report());
+        long compiled = (long) JaninoUnitMemoRuntime.report().get("compiled");
+        generate(jar, commons, transformed);
+        assertEquals(4L, (long) JaninoUnitMemoRuntime.report().get("compiled") - compiled,
+                "a replacement loader must compile its own units");
+        long hits = (long) JaninoUnitMemoRuntime.report().get("hits");
+        compiled = (long) JaninoUnitMemoRuntime.report().get("compiled");
+        System.setProperty(JaninoUnitMemoRuntime.PROPERTY, "false");
+        generate(jar, commons, transformed);
+        assertEquals(hits, JaninoUnitMemoRuntime.report().get("hits"));
+        assertTrue((long) JaninoUnitMemoRuntime.report().get("compiled") - compiled > 4,
+                "the explicit opt-out retains repeat compilation");
     }
 
     private static List<String> callsExceptCompile(byte[] bytes) {
