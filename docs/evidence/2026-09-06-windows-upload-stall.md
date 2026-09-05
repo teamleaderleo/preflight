@@ -103,3 +103,21 @@ state restoration and buffer retirement. This changes packaged bytes and needs a
 A possible follow-up is to pad prepared RGB rows to the actual current unpack alignment, avoiding
 scoped GL state changes. It is not implemented here: the observed timing spread does not isolate
 state changes as a cost, and the additional layout/ownership path needs its own validation.
+
+Final guard full verification passed in 48.352 s; all 23 installed-loader tests ran without skips.
+Executable source `9d1dfb7799d3ca7937b8adfb1da2dfa128505616`, packaged JAR
+`f9866880854c8c6cc50f0a1c2f07c8e88ab022a9f8b49b98c5e3242c6ae9dfdd`.
+Ordinary native cohort `20260906-051606` completed both runs without stalls: menus 28.067 / 20.607 s,
+graphics preload 26.339 / 18.825 s. Both retained 168 changes/restores, 15,002 commits, 44 packed
+converter images, 102 consumed late resources and zero active/pending buffers. These slower results
+are retained; the earlier six-run range must not be presented as the final artifact's timing range.
+An unchanged-artifact pair is checking whether this is persistent before final integration.
+
+Unchanged final-artifact cohort `20260906-051837` completed both ordinary native launches without
+stalls: menus 20.932 / 21.945 s, graphics preload 18.976 / 19.907 s. Three-platform CI `33992517275`
+passed on the final executable source. The final artifact has four ordinary successful runs, with
+20.607–28.067 s menus; the earlier repair had six at 17.165–19.855 s. Do not combine their speed
+ranges or call this consistent sub-18. The narrower-to-complete alignment guard, host/guest activity,
+and run variance have not been isolated as explanations for the timing change. Correctness is the
+accepted result of this slice; performance attribution and a cheaper equivalent row layout remain
+follow-up work. No worker, RAM, heap, renderer, mipmap or sampler change was made in this slice.
