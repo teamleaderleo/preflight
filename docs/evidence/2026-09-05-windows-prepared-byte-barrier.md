@@ -121,3 +121,27 @@ Full Maven verify passed (48.217 s). Operator tests: 120, 115 passed and 5 platf
 Attribution revision three-platform CI 33938844554 passed every Java and operator job.
 
 Attribution archive SHA-256: `de287bdd31aa1d1960ec1e12db5cb37ac23db5fac4d2fd26643b5ac9e1e9c754`.
+
+## Rejected speculative window; exact-entry successor
+
+Executable `1155a17448ab3f73eee39227265531ba935f3b4d`, JAR
+`c1dee122d485e642706965c760b681e94ac7c9bfa9137aa3c543a7abc5def011`.
+Native diagnostic `20260905-103353`: graphics 93.335 s / interactive 95.686 s.
+All 15,002 commits and 102 late resources completed, with zero pack failures/active buffers.
+The speculative window filled 8,794 times and made 8,812 file reads, reading 37,022,388,123 bytes
+for 2,116,618,727 bytes of served prepared pixels. File-read time 38.773 s; CRC 244 ms;
+pack total 48.194 s. This variant is rejected: random/scattered access defeats neighboring-entry
+speculation. It must not be promoted or described as a performance improvement.
+
+The successor retains the independent property but resets scratch to the current exact entry on
+every readTrusted call. Entries up to 4 MiB are fetched once, including their embedded checksum;
+larger entries use the original positioned reads. A monitor spans the parse and CRC so readers
+cannot overwrite each other's range. No neighboring entries are fetched or retained. Per-entry
+CRC and parser bounds remain unchanged, and a repeated entry read observes fresh file bytes.
+Tests assert exact physical bytes read, one syscall for a small range, and fresh rereads after
+same-length mutation, in addition to the earlier corruption/close/interruption cases.
+
+The read-ahead CI run's Java jobs passed, but macOS operator checks again hit an existing real-time
+fixture race, this time first-observed-line versus game-start timing (35.153 ms vs >40 ms).
+The two observed flaky detector tests now use scheduled monotonic clock ticks while preserving
+real log-file I/O and original assertions. Production log-detector code is unchanged.

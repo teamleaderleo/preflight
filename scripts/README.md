@@ -155,13 +155,14 @@ subset of lookup time; totals accumulate across caller threads and must not be a
 wall time. This diagnostic is independent of the byte barrier and retains no per-path inventory.
 
 `--prepared-pack-read-ahead` (guest: `-PreparedPackReadAhead`) enables the independent
-`preflight.texture.packReadAhead` experiment. It places one synchronized 4 MiB heap read window
-in front of an open immutable pack, without changing entry parsing or CRC verification. Larger
-reads bypass the window. Cache hits still reject a closed/interrupted source channel. Closing the
-pack drops the window; reload opens a new pack/window. `--disable-prepared-pack-read-ahead`
+`preflight.texture.packReadAhead` experiment. It uses one synchronized heap scratch buffer, capped at 4 MiB, to read the current exact
+packed entry once before its parser requests metadata, pixels and checksum. It never reads
+neighboring entries. Entries larger than 4 MiB keep ordinary positioned reads. Entry parsing and
+CRC verification are unchanged. Cache hits still reject a closed/interrupted source channel.
+Each entry read resets the range; closing the pack drops the scratch, and reload opens a new pack. `--disable-prepared-pack-read-ahead`
 (`-DisablePreparedPackReadAhead`) explicitly requests false. `packReadAhead` reports window size,
-file reads/bytes/time, cache hits, large-read bypasses and CRC time. This may increase I/O for
-unordered access and remains off by default; compare with the explicit kill switch on the same JAR.
+file reads/bytes/time, cache hits, large-read bypasses and CRC time. An earlier 4 MiB speculative window amplified I/O and was rejected. This exact-entry successor
+remains off by default; compare with the explicit kill switch on the same JAR.
 
 Use `preflight-faction-priority` beside `preflight` for the separate Windows-only faction
 priority-table experiment. Its first exact-profile launch observes the original game's eight table

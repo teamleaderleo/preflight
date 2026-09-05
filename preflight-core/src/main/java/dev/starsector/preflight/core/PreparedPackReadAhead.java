@@ -12,8 +12,8 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.Map;
 
-/** Bounded borrowed read window for an immutable, open prepared pack. Entry CRCs are still
- * verified by the caller. Closing the pack drops this window; it is never shared across packs.
+/** Bounded borrowed read window for one exact entry of an open prepared pack. Entry CRCs are
+ * still verified by the caller. It never speculates into neighboring entries.
  */
 final class PreparedPackReadAhead extends FileChannel {
     static final int WINDOW_BYTES = 4 * 1024 * 1024;
@@ -22,11 +22,29 @@ final class PreparedPackReadAhead extends FileChannel {
     private byte[] window;
     private long start = -1;
     private int length;
+    private long entryEnd;
+    private long entryStart;
+    private boolean largeEntry;
     private long fills, fileReads, fileReadNanos, bytesRead, hits, bypasses, checksumNanos;
 
     PreparedPackReadAhead(FileChannel source, long fileBytes) {
         this.source = source;
         this.fileBytes = fileBytes;
+        this.entryEnd = fileBytes;
+    }
+
+    /** Caller holds this monitor across the complete entry parse/CRC, so concurrent consumers
+     * cannot change each other's range. No pixels returned by parsing alias this scratch.
+     */
+    synchronized void beginEntry(long offset, int bytes) throws IOException {
+        if (offset < 0 || bytes <= 0 || offset > fileBytes - bytes) {
+            throw new IOException("Prepared pack entry range is invalid");
+        }
+        start = -1;
+        length = 0;
+        entryEnd = offset + bytes;
+        entryStart = offset;
+        largeEntry = bytes > WINDOW_BYTES;
     }
 
     @Override
@@ -39,17 +57,21 @@ final class PreparedPackReadAhead extends FileChannel {
         }
         if (position < 0) throw new IllegalArgumentException("Negative pack position");
         if (!destination.hasRemaining()) return 0;
-        if (position >= fileBytes) return -1;
-        if (destination.remaining() > WINDOW_BYTES) {
+        if (position < entryStart) throw new IOException("Prepared pack read escaped its entry");
+        if (position >= entryEnd) return -1;
+        if (largeEntry || destination.remaining() > WINDOW_BYTES) {
             bypasses++;
-            return readSource(destination, position);
+            int limit = destination.limit();
+            destination.limit(destination.position() + (int) Math.min(destination.remaining(), entryEnd - position));
+            try { return readSource(destination, position); }
+            finally { destination.limit(limit); }
         }
         if (position < start || position >= start + length) {
             length = 0;
             start = -1;
             if (window == null) window = new byte[WINDOW_BYTES];
             ByteBuffer target = ByteBuffer.wrap(window, 0,
-                    (int) Math.min(WINDOW_BYTES, fileBytes - position));
+                    (int) Math.min(WINDOW_BYTES, entryEnd - position));
             while (target.hasRemaining()) {
                 int count = readSource(target, position + target.position());
                 if (count < 0) break;

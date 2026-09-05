@@ -50,6 +50,27 @@ class PreparedPackReadAheadTest {
     }
 
     @Test
+    void exactEntryReadsDoNotFetchNeighborsOrReuseAnEarlierEntrySnapshot() throws Exception {
+        Path file = directory.resolve("ranges");
+        Files.write(file, new byte[1024]);
+        try (FileChannel source = FileChannel.open(file, java.nio.file.StandardOpenOption.READ,
+                    java.nio.file.StandardOpenOption.WRITE);
+                PreparedPackReadAhead read = new PreparedPackReadAhead(source, 1024)) {
+            read.beginEntry(100, 20);
+            read.read(ByteBuffer.allocate(4), 100);
+            read.read(ByteBuffer.allocate(16), 104);
+            assertEquals(20L, read.telemetry().get("bytesRead"));
+            assertEquals(1L, read.telemetry().get("fileReads"));
+            source.write(ByteBuffer.wrap(new byte[] {42}), 100);
+            read.beginEntry(100, 20);
+            ByteBuffer changed = ByteBuffer.allocate(1);
+            read.read(changed, 100);
+            assertEquals(42, changed.get(0));
+            assertEquals(40L, read.telemetry().get("bytesRead"));
+        }
+    }
+
+    @Test
     void cachedHitDoesNotHideClosedChannelOrInterruption() throws Exception {
         Path file = directory.resolve("pack");
         Files.write(file, new byte[128]);

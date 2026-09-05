@@ -79,8 +79,15 @@ public final class PreparedTexturePack implements AutoCloseable {
             throw new IOException("Prepared texture pack has no entry for " + normalized);
         }
         long absolute = Math.addExact(payloadOffset, range.offset());
+        if (readAhead != null) {
+            synchronized (readAhead) {
+                readAhead.beginEntry(absolute, range.length());
+                return PreparedTexturePackIntegrity.readTrusted(readAhead, absolute, range.length(),
+                        range.crc32c(), path + "!" + normalized);
+            }
+        }
         return PreparedTexturePackIntegrity.readTrusted(
-                readAhead == null ? channel : readAhead,
+                channel,
                 absolute,
                 range.length(),
                 range.crc32c(),
