@@ -4,7 +4,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.IdentityHashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -45,9 +44,7 @@ public final class JaninoUnitMemoRuntime {
     private JaninoUnitMemoRuntime() { }
 
     static boolean enabled() {
-        return AdapterPlanControl.allows(PLAN_ID) && Boolean.parseBoolean(System.getProperty(PROPERTY,
-                Boolean.toString(System.getProperty("os.name", "").toLowerCase(Locale.ROOT)
-                        .startsWith("windows") && AssetProgressLogRuntime.suppress())));
+        return AdapterPlanControl.allows(PLAN_ID) && Boolean.getBoolean(PROPERTY);
     }
 
     static void beginSession() { COMPILED.set(0); HITS.set(0); DECLINED.set(0); }
