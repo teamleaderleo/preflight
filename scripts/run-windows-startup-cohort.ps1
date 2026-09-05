@@ -363,8 +363,8 @@ log4j.appender.file.layout.ConversionPattern=%-4r [%t] %-5p %c %x - %m%n
 log4j.appender.file.MaxFileSize=50000KB
 log4j.appender.file.MaxBackupIndex=3
 '@ | Set-Content -LiteralPath $logConfiguration -Encoding ASCII
-    $logConfigurationUri = 'file:///' + ($logConfiguration -replace '\\', '/')
-    $quietLogOptions = "-Dlog4j.configuration=$logConfigurationUri -Dpreflight.assetProgressLogs=off"
+    $logConfigurationUri = ([System.Uri]$logConfiguration).AbsoluteUri
+    $quietLogOptions = "-Dlog4j.configuration=$logConfigurationUri"
     $env:_JAVA_OPTIONS = (($savedPrivateJavaOptions, $directLaunchOptions | Where-Object { $_ }) -join ' ').Trim()
     $env:JAVA_TOOL_OPTIONS = $savedJavaToolOptions
     if (-not $usesPreflight) {
