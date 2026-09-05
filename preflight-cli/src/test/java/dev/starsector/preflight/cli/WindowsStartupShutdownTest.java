@@ -71,7 +71,7 @@ final class WindowsStartupShutdownTest {
             String diagnostic = output.get(5, TimeUnit.SECONDS);
             assertTrue(finished, "PS5.1 shutdown fixture exceeded 45 seconds:\n" + diagnostic);
             assertEquals(0, process.exitValue(), diagnostic);
-            assertTrue(diagnostic.contains("PASS: 10 mocked shutdown cases; PowerShell 5.1."), diagnostic);
+            assertTrue(diagnostic.contains("PASS: 13 mocked shutdown cases; PowerShell 5.1."), diagnostic);
         } finally {
             // The fixture mocks all process effects and creates no child processes or files.
             process.destroyForcibly();

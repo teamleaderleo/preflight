@@ -46,7 +46,10 @@ usable-menu clock; see `windows-startup-runtime-state-semantics.md`.
 Each run retains bounded `shutdown.json` checkpoints with close-message results, the 45-second
 wait budget, and survivors recorded before forced cleanup. `gracefulShutdown` still requires
 zero survivors before that cleanup; a sent close message is not proof of exit. Telemetry write
-failures do not prevent cleanup. `test_windows_startup_shutdown.ps1` extracts only the process
+failures do not prevent cleanup. Close requests require the window's native owner PID to match
+the selected process: a shared console must not be closed along with the runner. The report
+records the owner PID and skipped-close reason; unverified windows retain the bounded wait and
+forced process cleanup. `test_windows_startup_shutdown.ps1` extracts only the process
 helpers and checks real client-only CIM objects under Windows PowerShell 5.1 with mocked process,
 clock, sleep, and file effects; it never launches the game. The Windows-only Maven test
 `WindowsStartupShutdownTest` runs this fixture with Windows PowerShell 5.1 in existing Windows CI.

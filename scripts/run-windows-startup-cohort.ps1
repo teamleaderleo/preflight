@@ -119,6 +119,26 @@ function Get-GameProcesses([string]$GamePath) {
     })
 }
 
+function Get-WindowOwnerProcessId([IntPtr]$Handle) {
+    if (-not ('Preflight.StartupWindowOwner' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+namespace Preflight {
+    public static class StartupWindowOwner {
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+        public static uint Get(IntPtr window) {
+            uint processId;
+            return GetWindowThreadProcessId(window, out processId) == 0 ? 0 : processId;
+        }
+    }
+}
+'@
+    }
+    return [Preflight.StartupWindowOwner]::Get($Handle)
+}
+
 function Stop-GameProcesses([string]$GamePath, [string]$RunDirectory = '') {
     $shutdownPath = if ($RunDirectory) { Join-Path $RunDirectory 'shutdown.json' } else { $null }
     $report = [ordered]@{
@@ -159,6 +179,8 @@ function Stop-GameProcesses([string]$GamePath, [string]$RunDirectory = '') {
                 observedAt = (Get-Date).ToString('o')
                 windowHandle = $null
                 windowTitle = $null
+                windowOwnerPid = $null
+                closeSkippedReason = $null
                 closeRequestedAt = $null
                 closeMessageSent = $null
             }
@@ -171,8 +193,21 @@ function Stop-GameProcesses([string]$GamePath, [string]$RunDirectory = '') {
                 $report.closeRequests += $request
             }
             if ($windowProcess -and $windowProcess.MainWindowHandle -ne 0) {
-                $request.closeRequestedAt = (Get-Date).ToString('o')
-                $request.closeMessageSent = $windowProcess.CloseMainWindow()
+                # MainWindowHandle can identify a shared console hosted by conhost.
+                # Closing that window can also terminate this PowerShell runner.
+                try {
+                    $request.windowOwnerPid = Get-WindowOwnerProcessId $windowProcess.MainWindowHandle
+                    if ($request.windowOwnerPid -eq $candidate.ProcessId) {
+                        $request.closeRequestedAt = (Get-Date).ToString('o')
+                        $request.closeMessageSent = $windowProcess.CloseMainWindow()
+                    } else {
+                        $request.closeSkippedReason = 'window-not-owned-by-process'
+                    }
+                } catch {
+                    $request.closeSkippedReason = 'window-close-check-failed'
+                }
+            } else {
+                $request.closeSkippedReason = 'no-window'
             }
         }
         $report.phase = 'waiting'
