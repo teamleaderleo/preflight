@@ -2,7 +2,7 @@
 
 Owner: Leo-authorized active Codex goal to find and verify a Windows startup win.
 Start: main `d301613e713b6819e3322ad754619035d8d6efc2`.
-Phase: validated opt-in Windows improvement; integrated through PR #1227.
+Phase: validated opt-in Windows improvement; integration tracked in PR #1227.
 Finish: measurable matched Windows startup improvement with resource/GL contracts retained,
 verified code integrated into main. Matched results below establish an improvement on the tested fixture.
 
@@ -192,4 +192,5 @@ assigning it a successful-startup time.
 Raw structured confirmation: `windows-pack-io/heap-final-pair-source308.json`. The original
 pack/hint/launcher files are retained; cohort runs performed no preparation. Normal scheduled
 task arguments and host power policy are restored by the harness. The installed final JAR is
-retained for use; temporary transfer JARs, rollback copies and local build output are retired.
+retained for use; temporary transfer JARs, rollback copies and local build output are disposable
+and are removed during task closure.
