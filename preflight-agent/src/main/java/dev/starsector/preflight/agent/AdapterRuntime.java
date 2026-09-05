@@ -42,6 +42,7 @@ final class AdapterRuntime {
                 sibling(options.adapterReport(), "texture-upload-probe.json"));
         TexturePaddingRuntime.beginSession();
         WindowsPcmCopyRuntime.beginSession();
+        JaninoUnitMemoRuntime.beginSession();
         VariantJsonCacheRuntime.beginSession();
         WeaponJsonCacheRuntime.beginSession();
         ProjectileJsonCacheRuntime.beginSession();

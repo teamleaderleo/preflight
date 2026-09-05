@@ -283,6 +283,9 @@ final class AdapterTransformationRegistry {
                             : PreparedAudioPlan.transform(signature, originalBytes))
                     : null;
         }
+        if (JaninoUnitMemoRuntime.PLAN_ID.equals(target.planId())) {
+            return JaninoUnitMemoRuntime.enabled() ? JaninoUnitMemoPlan.transform(signature, originalBytes) : null;
+        }
         if (WindowsPcmCopyRuntime.PLAN_ID.equals(target.planId())) {
             return WindowsPcmCopyRuntime.enabled() ? WindowsPcmCopyPlan.transform(signature, originalBytes) : null;
         }
@@ -976,6 +979,9 @@ final class AdapterTransformationRegistry {
         }
         if (PreparedAudioRuntime.PLAN_ID.equals(planId)) {
             return PreparedAudioRuntime.ready();
+        }
+        if (JaninoUnitMemoRuntime.PLAN_ID.equals(planId)) {
+            return JaninoUnitMemoRuntime.enabled();
         }
         if (WindowsPcmCopyRuntime.PLAN_ID.equals(planId)) {
             return WindowsPcmCopyRuntime.enabled();

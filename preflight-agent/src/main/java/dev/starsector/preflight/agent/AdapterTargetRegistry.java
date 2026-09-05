@@ -652,6 +652,19 @@ final class AdapterTargetRegistry {
                 "app").withAlternativeGroup("vanilla-janino-2.7.8-complete-map-bytecode-cache");
     }
 
+    static AdapterTarget windowsJaninoUnitMemoTarget() {
+        return new AdapterTarget("windows-janino-2.7.8-live-unit-memo",
+                JaninoBytecodeCachePlan.TARGET_CLASS,
+                "6b0eea7994ab4c314f1bc7cdefaa99b66897d500c2cad6fd2d97cd08b134c4b8",
+                JaninoUnitMemoRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(JaninoBytecodeCachePlan.GENERATE_METHOD,
+                        JaninoBytecodeCachePlan.GENERATE_DESCRIPTOR)),
+                "STARSECTOR_CORE", "starsector-core/janino.jar",
+                "60f05562c22b6de06641a1f76148692ef336ad1f6712fe6a76f9e2611f766344",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader", "app")
+                .withAlternativeGroup("vanilla-janino-2.7.8-complete-map-bytecode-cache");
+    }
+
     /** GraphicsLib 1.12.1's exact per-frame insignia renderer and owning mod archive. */
     static AdapterTarget graphicsLibInsigniaManagerCacheTarget() {
         return new AdapterTarget(
@@ -3213,6 +3226,9 @@ final class AdapterTargetRegistry {
                 .withTarget(collisionQuerySetTarget());
         if (!AudioStreamSourceErrorRuntime.disabled()) {
             registry = registry.withTarget(audioStreamSourceErrorTarget());
+        }
+        if (JaninoUnitMemoRuntime.enabled()) {
+            registry = registry.withTarget(windowsJaninoUnitMemoTarget());
         }
         if (WindowsPcmCopyRuntime.enabled()) {
             registry = registry.withTarget(windowsPcmCopyTarget());
