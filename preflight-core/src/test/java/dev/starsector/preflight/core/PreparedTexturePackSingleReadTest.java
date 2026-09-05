@@ -23,6 +23,7 @@ class PreparedTexturePackSingleReadTest {
 
     @Test
     void wholeLz4EntryUsesOneReadAndDoesNotReadNeighbors() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(PreparedTextureIO.singleReadLz4Enabled());
         Fixture fixture = fixture();
         try (CountingChannel channel = fixture.open(Integer.MAX_VALUE)) {
             PreparedTexture result = read(channel, fixture);
@@ -34,6 +35,7 @@ class PreparedTexturePackSingleReadTest {
 
     @Test
     void shortReadsStillCoverEveryByteExactlyOnce() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(PreparedTextureIO.singleReadLz4Enabled());
         Fixture fixture = fixture();
         try (CountingChannel channel = fixture.open(7)) {
             assertArrayEquals(fixture.pixels(), read(channel, fixture).pixels());

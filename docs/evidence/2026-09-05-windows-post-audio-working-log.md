@@ -54,5 +54,10 @@ VM remains 20 GiB / 14 CPUs, native graphics, 1024x720, one resource worker.
   tests. Timing benefit remains unmeasured at this point.
 
 Current phase: full verification and ordinary Windows candidate measurement.
+Full Java verification passed in 56.486 s; all nine installed Windows loader-contract tests pass.
+An explicit `singleReadLz4=false` check exposed an existing test assumption: its wrong-suffix RAW
+fixture expected rejection by the specialized reader even when that reader was disabled. The test
+now checks the general reader's valid RAW result in that mode; production fallback behavior is
+unchanged. The two fast-path read-count tests explicitly require that path to be enabled.
 Finish condition: integrate a verified improvement or document a bounded unsuccessful comparison,
 restore the normal Windows task and retire disposable outputs.
