@@ -297,6 +297,15 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    static AdapterTarget windowsPcmCopyTarget() {
+        return new AdapterTarget("windows-ogg-pcm-buffer-copy-0.98a-rc8",
+                WindowsPcmCopyPlan.TARGET, WindowsPcmCopyPlan.SHA, WindowsPcmCopyRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod("super", WindowsPcmCopyPlan.DESCRIPTOR)),
+                "STARSECTOR_CORE", "fs.sound_obf.jar",
+                "d70e2760c9785770818607edd7be502ac75f7b87f8af5770c178a8d723c96dab",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader", "app");
+    }
+
     /** Starsector 0.98a-RC8's streaming player checks a stale OpenAL error after source creation. */
     static AdapterTarget audioStreamSourceErrorTarget() {
         return new AdapterTarget(
@@ -3179,6 +3188,9 @@ final class AdapterTargetRegistry {
                 .withTarget(collisionQuerySetTarget());
         if (!AudioStreamSourceErrorRuntime.disabled()) {
             registry = registry.withTarget(audioStreamSourceErrorTarget());
+        }
+        if (WindowsPcmCopyRuntime.enabled()) {
+            registry = registry.withTarget(windowsPcmCopyTarget());
         }
         if (AiTweaksSplitArcsPlan.enabled()) {
             registry = registry.withTarget(aiTweaksSplitArcsTarget());

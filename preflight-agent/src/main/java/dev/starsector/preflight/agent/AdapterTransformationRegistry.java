@@ -277,6 +277,9 @@ final class AdapterTransformationRegistry {
                     ? PreparedAudioPlan.transform(signature, originalBytes)
                     : null;
         }
+        if (WindowsPcmCopyRuntime.PLAN_ID.equals(target.planId())) {
+            return WindowsPcmCopyRuntime.enabled() ? WindowsPcmCopyPlan.transform(signature, originalBytes) : null;
+        }
         if (AudioStreamSourceErrorRuntime.PLAN_ID.equals(target.planId())) {
             return AudioStreamSourceErrorPlan.transform(signature, originalBytes);
         }
@@ -964,6 +967,9 @@ final class AdapterTransformationRegistry {
         }
         if (PreparedAudioRuntime.PLAN_ID.equals(planId)) {
             return PreparedAudioRuntime.ready();
+        }
+        if (WindowsPcmCopyRuntime.PLAN_ID.equals(planId)) {
+            return WindowsPcmCopyRuntime.enabled();
         }
         if (AudioStreamSourceErrorRuntime.PLAN_ID.equals(planId)) {
             return true;

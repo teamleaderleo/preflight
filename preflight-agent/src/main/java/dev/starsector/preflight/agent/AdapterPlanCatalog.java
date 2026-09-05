@@ -59,6 +59,7 @@ final class AdapterPlanCatalog {
             NexEconomyInfoTimeRuntime.PLAN_ID,
             NexMarketListScopeRuntime.PLAN_ID,
             PreparedAudioRuntime.PLAN_ID,
+            WindowsPcmCopyRuntime.PLAN_ID,
             ProjectileJsonCacheRuntime.PLAN_ID,
             RatAbyssFactionFlagPlan.PLAN_ID,
             RadarRenderRuntime.PLAN_ID,

@@ -31,6 +31,7 @@ param(
     [switch]$WindowsDisablePreparedResources,
     [switch]$WindowsPreparedByteBarrier,
     [switch]$WindowsPreparedPrestart,
+    [switch]$WindowsPcmCopy,
     [switch]$WindowsDisablePreparedPrestart,
     [switch]$WindowsDisablePreparedByteBarrier,
     [switch]$WindowsPreparedResourceClaims,
@@ -377,6 +378,10 @@ log4j.appender.file.MaxBackupIndex=3
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     "-Dpreflight.texture.windowsPreparedResources=$preparedResourcesValue" |
                     Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($WindowsPcmCopy) {
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.audio.windowsPcmCopy=true' | Where-Object { $_ }) -join ' ').Trim()
             }
             if ($WindowsPreparedPrestart -or $WindowsDisablePreparedPrestart) {
                 $prestartValue = ([bool]$WindowsPreparedPrestart).ToString().ToLowerInvariant()
@@ -817,6 +822,7 @@ $identity = [ordered]@{
     windowsPrefetchBypassProbe = [bool]$WindowsPrefetchBypassProbe
     windowsPreparedResources = [bool]$WindowsPreparedResources
     windowsDisablePreparedResources = [bool]$WindowsDisablePreparedResources
+    windowsPcmCopy = [bool]$WindowsPcmCopy
     windowsPreparedPrestart = [bool]$WindowsPreparedPrestart
     windowsDisablePreparedPrestart = [bool]$WindowsDisablePreparedPrestart
     windowsPreparedByteBarrier = [bool]$WindowsPreparedByteBarrier

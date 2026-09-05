@@ -1453,6 +1453,19 @@ class WindowsPreparedResourcesRunnerTest(unittest.TestCase):
         done = self.host_command("--windows-prepared-byte-barrier", "--condition", "preflight-fast-rendering")
         self.assertEqual(2, done.returncode, done.stderr)
 
+    def test_host_forwards_prestart_and_pcm_copy_and_checks_admission_conflicts(self):
+        for flag, switch in (("--windows-prepared-prestart", "WindowsPreparedPrestart"),
+                             ("--disable-windows-prepared-prestart", "WindowsDisablePreparedPrestart"),
+                             ("--windows-pcm-copy", "WindowsPcmCopy")):
+            done = self.host_command("--condition", "preflight", flag)
+            self.assertEqual(0, done.returncode, done.stderr)
+            self.assertIn(f" -{switch}", done.stdout)
+        for conflict in ("--disable-windows-prepared-prestart", "--disable-windows-prepared-resources",
+                         "--display-thread-texture-probe", "--spec-store-texture-overlap"):
+            done = self.host_command("--windows-prepared-prestart", conflict)
+            self.assertEqual(2, done.returncode, done.stderr)
+            self.assertEqual("", done.stdout)
+
     def test_guest_barrier_requests_preserve_explicit_baseline(self):
         self.require_powershell()
         resolver = self.guest[self.guest.index("    $usesPreflight ="):
