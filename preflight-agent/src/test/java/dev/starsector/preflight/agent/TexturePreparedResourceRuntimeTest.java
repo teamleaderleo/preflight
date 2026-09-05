@@ -271,6 +271,34 @@ class TexturePreparedResourceRuntimeTest {
     }
 
     @Test
+    void claimsWaitForExactWorkerImagePhaseBeforeChangingQueueOwnership() throws Exception {
+        BufferedImage image = carrier(2);
+        enableClaims();
+        activate(Thread.currentThread());
+        field("workerImagePhase").setBoolean(null, false);
+        queue.addAll(List.of(PATH, "tail"));
+        TexturePreparedResourceRuntime.enter(PATH, PATH);
+        Thread.currentThread().interrupt();
+        try { assertNull(TexturePreparedResourceRuntime.take(PATH, null, null)); }
+        finally { Thread.interrupted(); }
+        assertEquals(List.of(PATH, "tail"), queue);
+        assertEquals(0L, telemetry().get("queuedClaims"));
+        assertEquals(1L, telemetry().get("imagePhaseDeferrals"));
+        TexturePreparedResourceRuntime.exit(true);
+        Thread wrongWorker = new Thread(() -> TexturePreparedResourceRuntime.publish("other", image));
+        wrongWorker.start();
+        wrongWorker.join(2_000);
+        assertEquals(false, telemetry().get("workerImagePhaseObserved"));
+        // activate binds the current thread as the exact worker for this isolated fixture.
+        TexturePreparedResourceRuntime.publish("other", image);
+        assertEquals(true, telemetry().get("workerImagePhaseObserved"));
+        TexturePreparedResourceRuntime.enter(PATH, PATH);
+        assertNotNull(TexturePreparedResourceRuntime.take(PATH, null, null));
+        assertEquals(1L, telemetry().get("queuedClaims"));
+        TexturePreparedResourceRuntime.exit(true);
+    }
+
+    @Test
     void unrequestedBeginAndUnadmittedPublicationsAreNoOps() {
         TexturePreparedResourceRuntime.begin(List.of(), getClass());
         BufferedImage image = image();
@@ -882,6 +910,7 @@ class TexturePreparedResourceRuntimeTest {
         field("stockResults").set(null, results);
         field("stockSentinel").set(null, sentinel);
         field("active").setBoolean(null, true);
+        field("workerImagePhase").setBoolean(null, true);
         TexturePreparedResourceRuntime.worker(Thread.currentThread());
         field("mainThread").set(null, main);
     }

@@ -29,13 +29,14 @@ public final class TexturePreparedResourceRuntime {
     private static Object stockSentinel;
     private static Completion claimed;
     private static boolean active;
+    private static boolean workerImagePhase;
     private static long admitted, published, committed, originalConsumed, discarded, failures, declines;
     private static long direct, coherent, inFlight;
     private static long resourceRecords;
     private static String admissionDecline = "none";
     private static long ceilingDeclines, drainMillis, drainTimeouts;
     private static long queuedClaims, claimFallbacks, claimAbandoned, claimErrors, claimReadNanos;
-    private static long lastEntryDeclines, waitPolls, waitNanos;
+    private static long lastEntryDeclines, imagePhaseDeferrals, waitPolls, waitNanos;
 
     private TexturePreparedResourceRuntime() { }
 
@@ -48,6 +49,7 @@ public final class TexturePreparedResourceRuntime {
     static void beginSession() {
         synchronized (LOCK) {
             active = false;
+            workerImagePhase = false;
             mainThread = null;
             workerThread = null;
             stockQueue = null;
@@ -62,7 +64,7 @@ public final class TexturePreparedResourceRuntime {
             admissionDecline = "none";
             ceilingDeclines = drainMillis = drainTimeouts = 0;
             queuedClaims = claimFallbacks = claimAbandoned = claimErrors = claimReadNanos = 0;
-            lastEntryDeclines = waitPolls = waitNanos = 0;
+            lastEntryDeclines = imagePhaseDeferrals = waitPolls = waitNanos = 0;
         }
         SCOPE.remove();
     }
@@ -130,6 +132,7 @@ public final class TexturePreparedResourceRuntime {
                 stockResults = results;
                 stockSentinel = sentinel;
                 SCOPE.remove();
+                workerImagePhase = false;
                 active = true;
             }
         } catch (ThreadDeath | VirtualMachineError fatal) {
@@ -174,6 +177,9 @@ public final class TexturePreparedResourceRuntime {
     public static BufferedImage publish(String path, BufferedImage image) {
         if (image == null) return null;
         synchronized (LOCK) {
+            // The pinned worker drains bytes before images. Its first completed image is the
+            // admission signal for claims: keep startup's original byte-before-upload boundary.
+            if (active && Thread.currentThread() == workerThread) workerImagePhase = true;
             Obligation obligation = active && Thread.currentThread() == workerThread
                     ? OBLIGATIONS.get(path) : null;
             if (obligation != null && !COMPLETIONS.containsKey(path)) {
@@ -233,7 +239,9 @@ public final class TexturePreparedResourceRuntime {
                     // The exact worker removes index zero AND puts its in-flight sentinel under
                     // this monitor. Its preceding isEmpty test is outside the monitor: leave one
                     // entry so a main-thread removal cannot invalidate that test.
-                    synchronized (stockQueue) {
+                    if (!workerImagePhase) {
+                        imagePhaseDeferrals++;
+                    } else synchronized (stockQueue) {
                         if (!stockResults.containsKey(path)
                                 && scope.obligation.preparedIdentity().equals(
                                         TextureCompatibilityRuntime.preparedPrefetchKey(path))) {
@@ -392,6 +400,8 @@ public final class TexturePreparedResourceRuntime {
             values.put("claimErrors", claimErrors);
             values.put("claimReadMillis", claimReadNanos / 1_000_000L);
             values.put("lastEntryDeclines", lastEntryDeclines);
+            values.put("workerImagePhaseObserved", workerImagePhase);
+            values.put("imagePhaseDeferrals", imagePhaseDeferrals);
             values.put("waitPolls", waitPolls);
             values.put("waitMillis", waitNanos / 1_000_000L);
             values.put("published", published);
