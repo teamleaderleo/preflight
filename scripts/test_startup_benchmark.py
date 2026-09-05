@@ -1381,11 +1381,22 @@ class WindowsPreparedResourcesRunnerTest(unittest.TestCase):
                              ("--prepared-pack-read-ahead", "PreparedPackReadAhead"),
                              ("--disable-prepared-pack-read-ahead", "DisablePreparedPackReadAhead"),
                              ("--prepared-load-attribution", "PreparedLoadAttribution"),
+                             ("--jvm-native-memory-summary", "JvmNativeMemorySummary"),
                              ("--texture-upload-checkpoint", "TextureUploadCheckpoint")):
             done = self.host_command(flag)
             self.assertEqual(0, done.returncode, done.stderr)
             self.assertIn(f" -{switch}", done.stdout)
         done = self.host_command("--prepared-pack-read-ahead", "--disable-prepared-pack-read-ahead")
+        self.assertEqual(2, done.returncode, done.stderr)
+        self.assertEqual("", done.stdout)
+
+    def test_host_forwards_initial_heap_probe_and_rejects_conflicts(self):
+        for flag, switch in (("--windows-initial-heap-probe", "WindowsInitialHeapProbe"),
+                             ("--disable-windows-initial-heap-probe", "DisableWindowsInitialHeapProbe")):
+            done = self.host_command(flag)
+            self.assertEqual(0, done.returncode, done.stderr)
+            self.assertIn(f" -{switch}", done.stdout)
+        done = self.host_command("--windows-initial-heap-probe", "--disable-windows-initial-heap-probe")
         self.assertEqual(2, done.returncode, done.stderr)
         self.assertEqual("", done.stdout)
 

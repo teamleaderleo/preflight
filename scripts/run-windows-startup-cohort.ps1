@@ -19,6 +19,9 @@ param(
     [switch]$TextureUploadProbe,
     [switch]$TextureUploadCheckpoint,
     [switch]$PreparedLoadAttribution,
+    [switch]$JvmNativeMemorySummary,
+    [switch]$WindowsInitialHeapProbe,
+    [switch]$DisableWindowsInitialHeapProbe,
     [switch]$PreparedPackReadAhead,
     [switch]$PreparedPackOrderSnapshot,
     [switch]$DisablePreparedPackReadAhead,
@@ -55,6 +58,10 @@ $ProgressPreference = 'SilentlyContinue'
 if ($PreparedPackReadAhead -and $DisablePreparedPackReadAhead) {
     throw 'Pack read-ahead enable and disable requests cannot be combined'
 }
+if ($WindowsInitialHeapProbe -and $DisableWindowsInitialHeapProbe) {
+    throw 'Initial-heap experiment enable/disable requests conflict'
+}
+
 $preparedResourcesRequested = $WindowsPreparedResources -or $WindowsPreparedResourceClaims -or $WindowsPreparedByteBarrier -or
     ($Conditions -contains 'preflight-prepared-resources')
 if ($WindowsPreparedByteBarrier -and $WindowsDisablePreparedByteBarrier) {
@@ -361,6 +368,15 @@ log4j.appender.file.MaxBackupIndex=3
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     "-Dpreflight.texture.packReadAhead=$readAheadValue" | Where-Object { $_ }) -join ' ').Trim()
             }
+            if ($WindowsInitialHeapProbe -or $DisableWindowsInitialHeapProbe) {
+                $heapProbeValue = ([bool]$WindowsInitialHeapProbe).ToString().ToLowerInvariant()
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    "-Dpreflight.windows.initialHeapProbe=$heapProbeValue" | Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($JvmNativeMemorySummary) {
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-XX:NativeMemoryTracking=summary' | Where-Object { $_ }) -join ' ').Trim()
+            }
             if ($PreparedLoadAttribution) {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.texture.preparedLoadAttribution=true' | Where-Object { $_ }) -join ' ').Trim()
@@ -516,7 +532,8 @@ log4j.appender.file.MaxBackupIndex=3
         $graphicsPreloadObserved = $log -match 'VRAM after unload/preload:'
         $running = @(Get-GameProcesses $Game)
         $gameProcesses = @($running | Where-Object {
-            $_.Name -in @('java.exe', 'javaw.exe', 'starsector.exe')
+            $_.Name -in @('java.exe', 'javaw.exe', 'starsector.exe') -and
+                (-not $usesPreflight -or $_.ProcessId -ne $process.Id)
         })
         $gameJvmObserved = $gameJvmObserved -or ($gameProcesses.Count -gt 0)
         if ($usesFastRendering -and -not $fastRenderingObserved) {
@@ -739,6 +756,9 @@ $identity = [ordered]@{
     textureUploadProbe = [bool]($TextureUploadProbe -or $TextureUploadCheckpoint)
     textureUploadCheckpoint = [bool]$TextureUploadCheckpoint
     preparedLoadAttribution = [bool]$PreparedLoadAttribution
+    jvmNativeMemorySummary = [bool]$JvmNativeMemorySummary
+    windowsInitialHeapProbe = [bool]$WindowsInitialHeapProbe
+    disableWindowsInitialHeapProbe = [bool]$DisableWindowsInitialHeapProbe
     preparedPackReadAhead = [bool]$PreparedPackReadAhead
     preparedPackOrderSnapshot = [bool]$PreparedPackOrderSnapshot
     disablePreparedPackReadAhead = [bool]$DisablePreparedPackReadAhead

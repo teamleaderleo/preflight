@@ -30,6 +30,9 @@ startup_phase_probe=false
 startup_texture_cpu_probe=false
 texture_upload_checkpoint=false
 prepared_load_attribution=false
+jvm_native_memory_summary=false
+windows_initial_heap_probe=false
+disable_windows_initial_heap_probe=false
 prepared_pack_read_ahead=false
 disable_prepared_pack_read_ahead=false
 prepared_pack_order_snapshot=false
@@ -65,6 +68,9 @@ Usage: run-big-red-windows-startup-cohort.sh [options]
   --prepared-pack-read-ahead  Read prepared pack through a bounded 4 MiB window
   --disable-prepared-pack-read-ahead  Explicitly disable the pack read window
   --prepared-load-attribution  Measure prepared lookup, pack, layout, and carrier stages
+  --jvm-native-memory-summary  Enable diagnostic JVM native-memory accounting (Preflight arms)
+  --windows-initial-heap-probe Try 2 GiB initial heap on the exact reviewed Windows launcher
+  --disable-windows-initial-heap-probe  Explicitly disable the initial-heap experiment
   --texture-upload-checkpoint  Intrusive per-upload crash breadcrumb (not a timing condition)
   --windows-prepared-byte-barrier  Bypass prepared image jobs after the original byte phase
   --disable-windows-prepared-byte-barrier  Force the stock image-worker baseline
@@ -99,6 +105,9 @@ while (($#)); do
         --prepared-pack-read-ahead) prepared_pack_read_ahead=true; shift ;;
         --disable-prepared-pack-read-ahead) disable_prepared_pack_read_ahead=true; shift ;;
         --prepared-load-attribution) prepared_load_attribution=true; shift ;;
+        --jvm-native-memory-summary) jvm_native_memory_summary=true; shift ;;
+        --windows-initial-heap-probe) windows_initial_heap_probe=true; shift ;;
+        --disable-windows-initial-heap-probe) disable_windows_initial_heap_probe=true; shift ;;
         --texture-upload-checkpoint) texture_upload_checkpoint=true; shift ;;
         --windows-prepared-byte-barrier) windows_prepared_byte_barrier=true; shift ;;
         --disable-windows-prepared-byte-barrier) windows_disable_prepared_byte_barrier=true; shift ;;
@@ -109,6 +118,10 @@ while (($#)); do
         *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
     esac
 done
+
+if [[ "$windows_initial_heap_probe" == true && "$disable_windows_initial_heap_probe" == true ]]; then
+    echo "Initial-heap experiment enable/disable requests conflict" >&2; exit 2
+fi
 
 case "$condition" in
     starsector|preflight|preflight-prepared-resources|preflight-faction-priority|preflight-kaleidoscope|preflight-spec-store-texture-overlap|fast-rendering|preflight-fast-rendering|preflight-fast-rendering-prepared) ;;
@@ -289,6 +302,11 @@ prepared_pack_order_snapshot_arg=""
 prepared_pack_read_ahead_arg=""
 [[ "$prepared_pack_read_ahead" == true ]] && prepared_pack_read_ahead_arg=" -PreparedPackReadAhead"
 [[ "$disable_prepared_pack_read_ahead" == true ]] && prepared_pack_read_ahead_arg=" -DisablePreparedPackReadAhead"
+windows_initial_heap_arg=""
+[[ "$windows_initial_heap_probe" == true ]] && windows_initial_heap_arg=" -WindowsInitialHeapProbe"
+[[ "$disable_windows_initial_heap_probe" == true ]] && windows_initial_heap_arg=" -DisableWindowsInitialHeapProbe"
+jvm_native_memory_summary_arg=""
+[[ "$jvm_native_memory_summary" == true ]] && jvm_native_memory_summary_arg=" -JvmNativeMemorySummary"
 prepared_load_attribution_arg=""
 [[ "$prepared_load_attribution" == true ]] && prepared_load_attribution_arg=" -PreparedLoadAttribution"
 texture_upload_checkpoint_arg=""
@@ -321,7 +339,7 @@ resolution_arg=""
 [[ -n "$resolution" ]] && resolution_arg=" -Resolution $resolution"
 run_ps=$(cat <<EOF
 \$script = "$guest_repo\\scripts\\run-windows-startup-cohort.ps1"
-\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset -GalliumDriver $gallium_driver$resolution_arg$windows_prepared_resources_arg$windows_disable_prepared_resources_arg$windows_prepared_resource_claims_arg$windows_disable_prepared_resource_claims_arg$windows_prepared_byte_barrier_arg$windows_disable_prepared_byte_barrier_arg$texture_upload_checkpoint_arg$prepared_load_attribution_arg$prepared_pack_read_ahead_arg$prepared_pack_order_snapshot_arg$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
+\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset -GalliumDriver $gallium_driver$resolution_arg$windows_prepared_resources_arg$windows_disable_prepared_resources_arg$windows_prepared_resource_claims_arg$windows_disable_prepared_resource_claims_arg$windows_prepared_byte_barrier_arg$windows_disable_prepared_byte_barrier_arg$texture_upload_checkpoint_arg$windows_initial_heap_arg$jvm_native_memory_summary_arg$prepared_load_attribution_arg$prepared_pack_read_ahead_arg$prepared_pack_order_snapshot_arg$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
 Set-ScheduledTask -TaskName "$task" -Action (New-ScheduledTaskAction -Execute 'powershell.exe' -Argument \$args) | Out-Null
 Start-ScheduledTask -TaskName "$task"
 Start-Sleep -Seconds 2
@@ -385,13 +403,13 @@ completion="$(qga_ps "
 \$info = Get-ScheduledTaskInfo -TaskName '$task'
 \$latest = Get-ChildItem '$guest_runs' -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 \$summary = Join-Path \$latest.FullName 'summary.json'
-if (\$info.LastTaskResult -ne 0) { throw 'Scheduled task failed: ' + \$info.LastTaskResult }
+if (\$latest.CreationTime -lt \$info.LastRunTime.AddSeconds(-5)) { throw 'Latest cohort predates this task run' }
 if (-not (Test-Path \$summary)) { throw 'Latest cohort has no summary: ' + \$latest.FullName }
 \$archive = '$guest_share\\' + \$latest.Name + '.zip'
 Compress-Archive -Path \$latest.FullName -DestinationPath \$archive -Force -CompressionLevel Optimal
 \$top = Get-CimInstance Win32_PerfFormattedData_PerfProc_Process | Where-Object { \$_.Name -notin @('_Total','Idle') -and [int64]\$_.PercentProcessorTime -ge 5 } | Sort-Object {[int64]\$_.PercentProcessorTime} -Descending | Select-Object -First 8 Name,IDProcess,PercentProcessorTime,WorkingSetPrivate,IODataBytesPersec
 \$os = Get-CimInstance Win32_OperatingSystem
-[ordered]@{sessionName=\$latest.Name;summary=(Get-Content \$summary -Raw | ConvertFrom-Json);archive=[ordered]@{path=\$archive;bytes=(Get-Item \$archive).Length;sha256=(Get-FileHash \$archive -Algorithm SHA256).Hash.ToLowerInvariant()};guestAfter=[ordered]@{observedAt=(Get-Date).ToString('o');processorCount=[Environment]::ProcessorCount;freePhysicalMemoryKiB=[int64]\$os.FreePhysicalMemory;sysMainStatus=[string](Get-Service SysMain).Status;competingProcesses=@(\$top)}} | ConvertTo-Json -Depth 12
+[ordered]@{taskExitCode=[int64]\$info.LastTaskResult;sessionName=\$latest.Name;summary=(Get-Content \$summary -Raw | ConvertFrom-Json);archive=[ordered]@{path=\$archive;bytes=(Get-Item \$archive).Length;sha256=(Get-FileHash \$archive -Algorithm SHA256).Hash.ToLowerInvariant()};guestAfter=[ordered]@{observedAt=(Get-Date).ToString('o');processorCount=[Environment]::ProcessorCount;freePhysicalMemoryKiB=[int64]\$os.FreePhysicalMemory;sysMainStatus=[string](Get-Service SysMain).Status;competingProcesses=@(\$top)}} | ConvertTo-Json -Depth 12
 ")"
 
 session_name="$(jq -er '.sessionName' <<<"$completion")"
@@ -421,3 +439,6 @@ sudo -n powerprofilesctl set "$host_power_before"
 trap - EXIT
 rm -rf -- "$temp_dir"
 printf 'Cohort: %s\nHost fingerprint: %s\n' "$(jq -c '.summary.conditions' <<<"$completion")" "$host_output"
+
+# Preserve failed-run evidence before returning failure to the caller.
+[[ "$(jq -r '(.taskExitCode == 0) and (.summary.accepted == true)' <<<"$completion")" == true ]] || exit 1
