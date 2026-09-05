@@ -113,3 +113,67 @@ currently awaited path may signal. No worker, queue order or GL owner changes.
 
 Eight native Windows PowerShell 5.1.26100.9168 runner cases passed for enabled and
 explicit-disabled forwarding and incompatible-option rejection.
+
+## Final native observations and decision
+
+Executable source `b7a9b701956717741919127bb4b934bcfabe4763`, Java 17 JAR
+SHA-256 `46b9914d62d555c3cff3277e2da6fd1e0c92ec895ae92a0a9640fdf82a48812a`.
+Both conditions keep typed resources and Recommended Kaleidoscope retention enabled.
+The first-image gate, post-put notification and queued-claim option are enabled only
+in B; A explicitly sets the independent successor property false. No worker count,
+GL policy, heap, pagefile, mod selection or display configuration was changed.
+
+The instrumented enabled observation `20260905-092901` completed at 62.220 seconds
+graphics and 65.557 seconds interactive. The exact worker target was applied with
+zero source-binding rejections or contained failures. It delivered 1,072 matching
+result notifications, made zero queued claims, and accumulated 17.210 seconds of
+wait. All 15,002 commits, 44 coherent ceiling fallbacks and 102 late resources
+completed with zero failures, pending results, active buffers or pack failures.
+
+The subsequent planned A-B-B-A sequence disabled both intrusive probes:
+
+| Leg / session | Successor | Graphics | Interactive | Wait | Signals | Controller result |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| A1 / `20260905-093135` | explicit off | 60.283 s | 63.246 s | 16.286 s | 0 | accepted |
+| B1 / `20260905-093340` | on | 64.127 s | 66.921 s | 16.368 s | 941 | guest accepted; host status failure, recovered |
+| B2 / `20260905-093726` | on | 59.631 s | 62.481 s | 19.855 s | 696 | accepted |
+| A2 / `20260905-093938` | explicit off | 71.193 s | 73.894 s | 19.621 s | 0 | accepted |
+
+Every guest reached the interactive menu and shut down gracefully, retained all 102
+Kaleidoscope resources, and recorded zero pack failures or active buffers. Each scanned
+55,359 records, admitted/published 15,003 completions and made zero queued claims.
+A1/B1/B2 retired those as 15,002 commits plus one original consumer. A2 retired
+15,001 commits, one original consumer and one discarded unused completion; it used
+43 rather than 44 coherent fallbacks and supplied 1,733,598,149 rather than
+1,728,962,069 upload bytes. This variation is disclosed rather than silently
+treated as an identical execution trace.
+
+B1's host wrapper reported scheduled-task result 267009 while the guest continued
+and completed. The exact guest archive was recovered afterward. Its successful guest
+result is retained, but it is not a clean host-controller observation. No second game
+was started during recovery; the task and process state were reconciled first.
+
+**Decision: retain as an opt-in experiment; no performance or default promotion.**
+The control interactive range is 10.648 seconds; the notification mechanism is
+working but its aggregate waits do not consistently fall. The post-byte claim gate
+has no work to claim on this fixture, and bypassing that boundary produced the earlier
+native stall. A favorable median from this small, variable, partly recovered sequence
+would not establish a startup win. The next performance slice should remove proven
+remaining work, with attribution separating prepared reads/materialization, coherent
+conversion and native upload, rather than treating all waiting as avoidable polling.
+
+All evidence remains under `/home/leo/Windows-Share/Diagnostics/`:
+
+| Archive | SHA-256 |
+| --- | --- |
+| `20260905-092901-windows-startup-2x2.zip` | `ef8cd56967d29c6f69eea0f63cffc2580d578dbf1569c5dcd8d9ee96fc8690b5` |
+| `20260905-093135-windows-startup-2x2.zip` | `ab90589ba1f131786abd519b846cd2ec2c5ec1d39382746bc4f12339864fa44b` |
+| `20260905-093340-prepared-claims-recovered.zip` | `43335469b1e9028292b70c444f2dd7094654e270276bf7b84272ea09faad92ee` |
+| `20260905-093726-windows-startup-2x2.zip` | `9026fb074845f16a942fdf70fde5e1352ef6da2d8ebed8b35079559159eefda0` |
+| `20260905-093938-windows-startup-2x2.zip` | `d74084fea6d75389ab8ad1112d26c3100f7657a2eb4ea105e4c21a410f17eaca` |
+
+Full local `mvn verify` passed for the final executable revision. Three-platform
+[CI 33936238975](https://github.com/teamleaderleo/preflight/actions/runs/33936238975)
+passed Windows/macOS/Linux Java verification and Linux/macOS operator checks. The
+desktop package checks passed on all three platforms. Later documentation-only
+commits do not change the measured executable source or packaged bytes.
