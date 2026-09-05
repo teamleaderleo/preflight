@@ -532,7 +532,8 @@ log4j.appender.file.MaxBackupIndex=3
         $graphicsPreloadObserved = $log -match 'VRAM after unload/preload:'
         $running = @(Get-GameProcesses $Game)
         $gameProcesses = @($running | Where-Object {
-            $_.Name -in @('java.exe', 'javaw.exe', 'starsector.exe')
+            $_.Name -in @('java.exe', 'javaw.exe', 'starsector.exe') -and
+                (-not $usesPreflight -or $_.ProcessId -ne $process.Id)
         })
         $gameJvmObserved = $gameJvmObserved -or ($gameProcesses.Count -gt 0)
         if ($usesFastRendering -and -not $fastRenderingObserved) {

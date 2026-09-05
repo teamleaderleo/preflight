@@ -129,6 +129,27 @@ foreach ($case in $cases) {
         Assert ($script:reports.Count -eq 0) 'Optional/failed telemetry cannot alter cleanup'
     }
 }
+# Evaluate only the real monitoring filter, with inert process records. The CLI stays alive
+# after its game exits (for example when a batch pauses), and must not mask that exit.
+$filters = @($ast.FindAll({ param($node)
+    $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+        $node.Left.Extent.Text -eq '$gameProcesses'
+}, $true))
+Assert ($filters.Count -eq 1) 'Expected one game JVM monitoring filter'
+$filter = [scriptblock]::Create($filters[0].Right.Extent.Text)
+$process = [pscustomobject]@{ Id = 100 }
+$usesPreflight = $true
+$launcherRecord = [pscustomobject]@{ Name = 'java.exe'; ProcessId = 100 }
+$gameRecord = [pscustomobject]@{ Name = 'java.exe'; ProcessId = 200 }
+$running = @($launcherRecord, $gameRecord)
+$actual = @(& $filter)
+Assert ($actual.Count -eq 1 -and $actual[0].ProcessId -eq 200) 'Exclude CLI while preserving real game'
+$running = @($launcherRecord)
+Assert (@(& $filter).Count -eq 0) 'A surviving CLI must not mask game exit'
+$usesPreflight = $false
+Assert (@(& $filter).Count -eq 1) 'A directly launched vanilla JVM remains a game'
+'PASS: launcher/game PID classification'
+
 "PASS: $($cases.Count) mocked shutdown cases; PowerShell $($PSVersionTable.PSVersion)"
 
 # Optional diagnosis-only comparison with the exact unchanged runner. Do not assume

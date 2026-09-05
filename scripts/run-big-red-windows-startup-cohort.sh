@@ -403,13 +403,13 @@ completion="$(qga_ps "
 \$info = Get-ScheduledTaskInfo -TaskName '$task'
 \$latest = Get-ChildItem '$guest_runs' -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 \$summary = Join-Path \$latest.FullName 'summary.json'
-if (\$info.LastTaskResult -ne 0) { throw 'Scheduled task failed: ' + \$info.LastTaskResult }
+if (\$latest.CreationTime -lt \$info.LastRunTime.AddSeconds(-5)) { throw 'Latest cohort predates this task run' }
 if (-not (Test-Path \$summary)) { throw 'Latest cohort has no summary: ' + \$latest.FullName }
 \$archive = '$guest_share\\' + \$latest.Name + '.zip'
 Compress-Archive -Path \$latest.FullName -DestinationPath \$archive -Force -CompressionLevel Optimal
 \$top = Get-CimInstance Win32_PerfFormattedData_PerfProc_Process | Where-Object { \$_.Name -notin @('_Total','Idle') -and [int64]\$_.PercentProcessorTime -ge 5 } | Sort-Object {[int64]\$_.PercentProcessorTime} -Descending | Select-Object -First 8 Name,IDProcess,PercentProcessorTime,WorkingSetPrivate,IODataBytesPersec
 \$os = Get-CimInstance Win32_OperatingSystem
-[ordered]@{sessionName=\$latest.Name;summary=(Get-Content \$summary -Raw | ConvertFrom-Json);archive=[ordered]@{path=\$archive;bytes=(Get-Item \$archive).Length;sha256=(Get-FileHash \$archive -Algorithm SHA256).Hash.ToLowerInvariant()};guestAfter=[ordered]@{observedAt=(Get-Date).ToString('o');processorCount=[Environment]::ProcessorCount;freePhysicalMemoryKiB=[int64]\$os.FreePhysicalMemory;sysMainStatus=[string](Get-Service SysMain).Status;competingProcesses=@(\$top)}} | ConvertTo-Json -Depth 12
+[ordered]@{taskExitCode=[int64]\$info.LastTaskResult;sessionName=\$latest.Name;summary=(Get-Content \$summary -Raw | ConvertFrom-Json);archive=[ordered]@{path=\$archive;bytes=(Get-Item \$archive).Length;sha256=(Get-FileHash \$archive -Algorithm SHA256).Hash.ToLowerInvariant()};guestAfter=[ordered]@{observedAt=(Get-Date).ToString('o');processorCount=[Environment]::ProcessorCount;freePhysicalMemoryKiB=[int64]\$os.FreePhysicalMemory;sysMainStatus=[string](Get-Service SysMain).Status;competingProcesses=@(\$top)}} | ConvertTo-Json -Depth 12
 ")"
 
 session_name="$(jq -er '.sessionName' <<<"$completion")"
@@ -439,3 +439,6 @@ sudo -n powerprofilesctl set "$host_power_before"
 trap - EXIT
 rm -rf -- "$temp_dir"
 printf 'Cohort: %s\nHost fingerprint: %s\n' "$(jq -c '.summary.conditions' <<<"$completion")" "$host_output"
+
+# Preserve failed-run evidence before returning failure to the caller.
+[[ "$(jq -r '(.taskExitCode == 0) and (.summary.accepted == true)' <<<"$completion")" == true ]] || exit 1

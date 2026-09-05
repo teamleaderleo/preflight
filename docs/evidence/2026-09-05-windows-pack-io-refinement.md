@@ -93,3 +93,45 @@ original behavior. CLI-JVM heap and persistent launcher files are unchanged.
 Focused policy tests cover admission, preservation of other options/files, default/platform/
 preset declines, environment precedence, changed identities and missing/unreadable files.
 The runtime parser and upload code are unchanged in this candidate.
+
+## Initial-heap candidate: executable identity and first diagnostic
+
+Source `78e9110be9e77ec3e1ac4c5aad9f580bb11e7c5d`; JAR
+`a9d06382e380161cad75b88f1b551e53b72473c029fe067934b48bcbe9769c45`.
+Full Maven verify passed (47.087 s); focused policy tests 3 passed; operator tests 116 passed,
+5 platform skips. Windows dry run admitted exact identities and emitted child `_JAVA_OPTIONS:
+-Xms2048m`. The game's persistent batch/wrapper and 6144 MiB maximum were unchanged.
+
+Diagnostic `20260905-121244`: graphics 40.589 s / interactive 42.454 s, with heap probe, NMT,
+load attribution and periodic JFR dumps. This is not an uninstrumented matched comparison.
+NMT observed Java heap commitments of 2048, 5446, 3178, 4382 MiB, proving growth and release
+below the old fixed floor. Retained `startup-4.jfr` is a periodic snapshot (3,358,155 bytes).
+Module inspection identified system OPENGL32.dll and Intel `igxelpgicd64.dll`; the driver is
+native in this diagnostic. Raw data remains in `windows-pack-io/`.
+Archive SHA-256 `31be9e2680edcb34353c45fde988d405e56cb37dae6cbe3c43168b2fbec84030`.
+
+Matched verification now uses the same JAR, Recommended, one worker, typed prepared resources,
+1024x720, native selection, explicit barrier/claims/entry-reader false. No attribution, NMT or
+JFR probes. A explicitly disables the initial-heap probe; B explicitly enables it.
+Planned order is A/B, B/A, A/B, checking exact admission, fixture identity and resource accounting
+for each run. No default promotion has been made.
+
+The first uninstrumented A attempt (`20260905-121438`, same candidate JAR with heap probe
+explicitly false) stalled before graphics completion. At 260.8 seconds process elapsed, main
+was inside native `GL11.nglTexImage2D` under the existing prepared-resource commit path; the
+stock worker was no longer present. Available memory had recovered to 5724 MB at capture,
+so ongoing paging alone cannot explain that stalled state. This resembles the earlier native
+upload stall and does not establish a new root cause or a fix. Captured process, thread dumps,
+modules and game log under `windows-pack-io/control-stall-*`. Requested window close, then
+force-retired only the exact captured PID after ten seconds if still alive. This failed attempt
+must remain in reliability accounting and is excluded from completed-startup timing pairs.
+The pair will restart only after the cohort settles.
+
+The stalled game's batch paused after forced retirement; its CLI remained alive. The cohort
+wrongly counted that CLI as a game JVM, masking the exit. The host also threw on task failure
+before copying the run's evidence. Monitoring now excludes the exact launched CLI PID from
+the game-JVM predicate (cleanup still includes it). Host completion now archives the current
+failed session, records task exit status, restores state, then returns failure; a creation-time
+check refuses a stale session. Real Windows replay archived the failed run with taskExitCode=1
+and accepted=false: ZIP SHA-256 `4faed23bbdea3b928b4ec470ed9d9108b3364da3d743e45e4da1a9c0df089889`.
+These harness corrections do not change the candidate JAR or healthy game execution.
