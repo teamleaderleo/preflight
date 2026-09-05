@@ -24,6 +24,8 @@ windows_disable_prepared_resources=false
 windows_prepared_resource_claims=false
 windows_disable_prepared_resource_claims=false
 windows_prepared_byte_barrier=false
+windows_prepared_prestart=false
+windows_disable_prepared_prestart=false
 windows_disable_prepared_byte_barrier=false
 faction_priority_cache=false
 startup_phase_probe=false
@@ -63,6 +65,8 @@ Usage: run-big-red-windows-startup-cohort.sh [options]
   --spec-store-texture-overlap  Preload learned textures while Windows main runs SpecStore
   --windows-backslash-merged-read-keys  Cache exact Windows backslash merged-JSON requests
   --disable-windows-backslash-merged-read-keys  Force the Windows path-cache baseline
+  --windows-prepared-prestart  Admit prepared image jobs before the stock worker starts
+  --disable-windows-prepared-prestart  Disable prestart admission
   --windows-prepared-resources  Opt in to Windows prepared resources (workers=1)
   --disable-windows-prepared-resources  Force the same-build prepared-resources baseline
   --prepared-pack-order-snapshot  Persist pack order at the semantic menu boundary
@@ -112,6 +116,8 @@ while (($#)); do
         --disable-windows-prefetch-drain) disable_windows_prefetch_drain=true; shift ;;
         --disable-windows-initial-heap-probe) disable_windows_initial_heap_probe=true; shift ;;
         --texture-upload-checkpoint) texture_upload_checkpoint=true; shift ;;
+        --windows-prepared-prestart) windows_prepared_prestart=true; shift ;;
+        --disable-windows-prepared-prestart) windows_disable_prepared_prestart=true; shift ;;
         --windows-prepared-byte-barrier) windows_prepared_byte_barrier=true; shift ;;
         --disable-windows-prepared-byte-barrier) windows_disable_prepared_byte_barrier=true; shift ;;
         --windows-prepared-resource-claims) windows_prepared_resource_claims=true; shift ;;
@@ -150,13 +156,16 @@ esac
 if [[ "$prepared_pack_read_ahead" == true && "$disable_prepared_pack_read_ahead" == true ]]; then
     echo "Pack read-ahead enable and disable requests cannot be combined" >&2; exit 2;
 fi
+if [[ "$windows_prepared_prestart" == true && "$windows_disable_prepared_prestart" == true ]]; then
+    echo "Prepared prestart enable and disable requests conflict" >&2; exit 2;
+fi
 if [[ "$windows_prepared_byte_barrier" == true && "$windows_disable_prepared_byte_barrier" == true ]]; then
     echo "Prepared byte barrier enable and disable requests cannot be combined" >&2; exit 2;
 fi
 if [[ "$windows_prepared_resource_claims" == true && "$windows_disable_prepared_resource_claims" == true ]]; then
     echo "Prepared resources claim enable and disable requests cannot be combined" >&2; exit 2;
 fi
-if [[ "$windows_prepared_resources" == true || "$windows_prepared_resource_claims" == true || "$windows_prepared_byte_barrier" == true || "$condition" == preflight-prepared-resources ]]; then
+if [[ "$windows_prepared_resources" == true || "$windows_prepared_resource_claims" == true || "$windows_prepared_byte_barrier" == true || "$windows_prepared_prestart" == true || "$condition" == preflight-prepared-resources ]]; then
     [[ "$condition" != *fast-rendering* ]] || {
         echo "Prepared resources cannot be combined with Fast Rendering conditions" >&2; exit 2;
     }
@@ -316,6 +325,9 @@ prepared_load_attribution_arg=""
 [[ "$prepared_load_attribution" == true ]] && prepared_load_attribution_arg=" -PreparedLoadAttribution"
 texture_upload_checkpoint_arg=""
 [[ "$texture_upload_checkpoint" == true ]] && texture_upload_checkpoint_arg=" -TextureUploadProbe -TextureUploadCheckpoint"
+windows_prepared_prestart_arg=""
+[[ "$windows_prepared_prestart" == true ]] && windows_prepared_prestart_arg=" -WindowsPreparedPrestart"
+[[ "$windows_disable_prepared_prestart" == true ]] && windows_prepared_prestart_arg=" -WindowsDisablePreparedPrestart"
 windows_prepared_byte_barrier_arg=""
 [[ "$windows_prepared_byte_barrier" == true ]] && windows_prepared_byte_barrier_arg=" -WindowsPreparedByteBarrier"
 windows_disable_prepared_byte_barrier_arg=""
@@ -344,7 +356,7 @@ resolution_arg=""
 [[ -n "$resolution" ]] && resolution_arg=" -Resolution $resolution"
 run_ps=$(cat <<EOF
 \$script = "$guest_repo\\scripts\\run-windows-startup-cohort.ps1"
-\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset -GalliumDriver $gallium_driver$resolution_arg$windows_prepared_resources_arg$windows_disable_prepared_resources_arg$windows_prepared_resource_claims_arg$windows_disable_prepared_resource_claims_arg$windows_prepared_byte_barrier_arg$windows_disable_prepared_byte_barrier_arg$texture_upload_checkpoint_arg$windows_prefetch_drain_arg$windows_initial_heap_arg$jvm_native_memory_summary_arg$prepared_load_attribution_arg$prepared_pack_read_ahead_arg$prepared_pack_order_snapshot_arg$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
+\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset -GalliumDriver $gallium_driver$resolution_arg$windows_prepared_resources_arg$windows_disable_prepared_resources_arg$windows_prepared_resource_claims_arg$windows_disable_prepared_resource_claims_arg$windows_prepared_byte_barrier_arg$windows_disable_prepared_byte_barrier_arg$windows_prepared_prestart_arg$texture_upload_checkpoint_arg$windows_prefetch_drain_arg$windows_initial_heap_arg$jvm_native_memory_summary_arg$prepared_load_attribution_arg$prepared_pack_read_ahead_arg$prepared_pack_order_snapshot_arg$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
 Set-ScheduledTask -TaskName "$task" -Action (New-ScheduledTaskAction -Execute 'powershell.exe' -Argument \$args) | Out-Null
 Start-ScheduledTask -TaskName "$task"
 Start-Sleep -Seconds 2
