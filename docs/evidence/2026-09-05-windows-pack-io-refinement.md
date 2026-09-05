@@ -194,3 +194,11 @@ pack/hint/launcher files are retained; cohort runs performed no preparation. Nor
 task arguments and host power policy are restored by the harness. The installed final JAR is
 retained for use; temporary transfer JARs, rollback copies and local build output are disposable
 and are removed during task closure.
+
+The desktop release-contract job required the capability source lock to follow `RunCommand`.
+Reviewed the complete boundary diff: the existing child-launch environment receives one
+optional initial-heap argument; admission reads the selected installation identities and
+existing metadata records the decision. Process launch ownership and capability destinations
+are unchanged. The supported `capabilities:review` command refreshed only the `RunCommand`
+digest. All nine capability-receipt tests passed locally; CI must verify the refreshed receipt
+before integration. This receipt change does not alter the tested executable JAR.
