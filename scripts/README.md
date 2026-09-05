@@ -148,6 +148,12 @@ It records exact arguments and buffer bounds without reading pixels or querying 
 an attempted call, not proof of a stall. This synchronous per-upload I/O is intrusive; never use
 its startup duration as performance evidence. Use it only to recover a native-stall breadcrumb.
 
+`--prepared-load-attribution` (guest: `-PreparedLoadAttribution`) enables bounded aggregate
+stage timing via `preflight.texture.preparedLoadAttribution`. `loadAttribution` reports lookup,
+pack read/decode, layout and carrier-construction milliseconds plus load count. Pack time is a
+subset of lookup time; totals accumulate across caller threads and must not be added to startup
+wall time. This diagnostic is independent of the byte barrier and retains no per-path inventory.
+
 Use `preflight-faction-priority` beside `preflight` for the separate Windows-only faction
 priority-table experiment. Its first exact-profile launch observes the original game's eight table
 walks; later launches replay the learned callback IDs. `-WindowsFactionPriorityCacheProbe` enables

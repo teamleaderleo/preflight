@@ -83,7 +83,7 @@ final class TextureUploadProbePlan {
             before.add(new VarInsnNode(Opcodes.ILOAD, format));
             before.add(new VarInsnNode(Opcodes.ILOAD, type));
             before.add(new VarInsnNode(Opcodes.ALOAD, pixels));
-            if (PATH_UPLOAD_DESCRIPTOR.equals(method.desc)) before.add(new VarInsnNode(Opcodes.ALOAD, 2));
+            if (pathUpload(method)) before.add(new VarInsnNode(Opcodes.ALOAD, 2));
             else before.add(new LdcInsnNode("<buffered-image>"));
             before.add(new InsnNode("glTexSubImage2D".equals(upload.name) ? Opcodes.ICONST_1 : Opcodes.ICONST_0));
             before.add(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME, "checkpoint",
@@ -110,7 +110,7 @@ final class TextureUploadProbePlan {
         after.add(new VarInsnNode(Opcodes.ILOAD, format));
         after.add(new VarInsnNode(Opcodes.ILOAD, type));
         after.add(new VarInsnNode(Opcodes.ALOAD, pixels));
-        if (PATH_UPLOAD_DESCRIPTOR.equals(method.desc)) {
+        if (pathUpload(method)) {
             after.add(new VarInsnNode(Opcodes.ALOAD, 2));
         } else {
             after.add(new LdcInsnNode("<buffered-image>"));
@@ -124,5 +124,10 @@ final class TextureUploadProbePlan {
                 "(JIIIILjava/nio/ByteBuffer;Ljava/lang/String;Z)V",
                 false));
         method.instructions.insert(upload, after);
+    }
+
+    private static boolean pathUpload(MethodNode method) {
+        return PATH_UPLOAD_DESCRIPTOR.equals(method.desc)
+                || TexturePreparedResourceLoaderPlan.LOAD_DESCRIPTOR.equals(method.desc);
     }
 }

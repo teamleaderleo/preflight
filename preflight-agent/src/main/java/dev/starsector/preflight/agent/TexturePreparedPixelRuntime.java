@@ -40,6 +40,9 @@ public final class TexturePreparedPixelRuntime {
             "preflight.preparedPixels.coherentDirect";
     public static final String WINDOWS_COLD_PROBE_PROPERTY =
             "preflight.texture.windowsPreparedColdProbe";
+    public static final String ATTRIBUTION_PROPERTY = "preflight.texture.preparedLoadAttribution";
+    private static volatile boolean attributionEnabled;
+    private static long lookupNanos, layoutNanos, carrierNanos, packNanos, attributedLoads;
     static final int MAX_TEXTURE_BYTES = 32 * 1024 * 1024;
     static final long MAX_ACTIVE_DIRECT_BYTES = 64L * 1024 * 1024;
     static final int MAX_ACTIVE_BUFFERS = 1_024;
@@ -84,6 +87,8 @@ public final class TexturePreparedPixelRuntime {
         TexturePreparedResourceRuntime.beginSession();
         selected = false;
         coldProbeEnabled = Boolean.getBoolean(WINDOWS_COLD_PROBE_PROPERTY);
+        attributionEnabled = Boolean.getBoolean(ATTRIBUTION_PROPERTY);
+        synchronized (LOCK) { lookupNanos = layoutNanos = carrierNanos = packNanos = attributedLoads = 0; }
         synchronized (LOCK) {
             ACTIVE.clear();
             IN_FLIGHT.clear();
@@ -540,22 +545,31 @@ public final class TexturePreparedPixelRuntime {
     }
 
     private static long coldNow(ColdProbeSample sample) {
-        return sample == null ? 0L : System.nanoTime();
+        return sample == null && !attributionEnabled ? 0L : System.nanoTime();
     }
 
     private static void coldLookupFinished(ColdProbeSample sample, long started) {
+        if (attributionEnabled && started != 0L) {
+            synchronized (LOCK) { lookupNanos += Math.max(0L, System.nanoTime() - started); attributedLoads++; }
+        }
         if (sample != null) {
             sample.lookupNanos = Math.max(0L, System.nanoTime() - started);
         }
     }
 
     private static void coldLayoutFinished(ColdProbeSample sample, long started) {
+        if (attributionEnabled && started != 0L) {
+            synchronized (LOCK) { layoutNanos += Math.max(0L, System.nanoTime() - started); }
+        }
         if (sample != null) {
             sample.layoutNanos = Math.max(0L, System.nanoTime() - started);
         }
     }
 
     private static void coldCarrierFinished(ColdProbeSample sample, long started) {
+        if (attributionEnabled && started != 0L) {
+            synchronized (LOCK) { carrierNanos += Math.max(0L, System.nanoTime() - started); }
+        }
         if (sample != null && sample.carrierNanos == 0L) {
             sample.carrierNanos = Math.max(0L, System.nanoTime() - started);
         }
@@ -568,12 +582,15 @@ public final class TexturePreparedPixelRuntime {
     }
 
     static long beginColdPackRead() {
-        return coldProbeEnabled && ACTIVE_COLD_PROBE.get() != null ? System.nanoTime() : 0L;
+        return attributionEnabled || (coldProbeEnabled && ACTIVE_COLD_PROBE.get() != null) ? System.nanoTime() : 0L;
     }
 
     static void finishColdPackRead(long started) {
         if (started == 0L) {
             return;
+        }
+        if (attributionEnabled) {
+            synchronized (LOCK) { packNanos += Math.max(0L, System.nanoTime() - started); }
         }
         ColdProbeSample sample = ACTIVE_COLD_PROBE.get();
         if (sample != null) {
@@ -854,6 +871,12 @@ public final class TexturePreparedPixelRuntime {
                 ready()));
         values.putAll(LOAD_CLOCK.snapshot("load"));
         values.putAll(PREPARE_CLOCK.snapshot("prepare"));
+        synchronized (LOCK) {
+            values.put("loadAttribution", Map.of("enabled", attributionEnabled,
+                    "loads", attributedLoads, "lookupMillis", lookupNanos / 1_000_000L,
+                    "packMillis", packNanos / 1_000_000L, "layoutMillis", layoutNanos / 1_000_000L,
+                    "carrierMillis", carrierNanos / 1_000_000L));
+        }
         values.put("prefetchPool", TexturePreparedPrefetchPoolRuntime.report());
         values.put("prefetchStaging", TexturePreparedStagingRuntime.telemetry());
         values.put("preparedResources", TexturePreparedResourceRuntime.telemetry());

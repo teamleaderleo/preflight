@@ -35,6 +35,22 @@ class TextureUploadProbePlanTest {
     }
 
     @Test
+    void windowsPathCheckpointUsesActualPathArgument() throws Exception {
+        System.setProperty(TextureUploadProbeRuntime.CHECKPOINT_PROPERTY, "true");
+        MethodNode method = fixture();
+        method.desc = TexturePreparedResourceLoaderPlan.LOAD_DESCRIPTOR;
+        assertEquals(1, TextureUploadProbePlan.instrument(List.of(method)));
+        int pathLoads = 0;
+        for (AbstractInsnNode n : method.instructions) {
+            if (n instanceof org.objectweb.asm.tree.VarInsnNode load
+                    && load.getOpcode() == Opcodes.ALOAD && load.var == 2) pathLoads++;
+        }
+        assertEquals(2, pathLoads, "checkpoint and completed timing both preserve the Windows path");
+        method.maxStack = 16;
+        new Analyzer<>(new BasicInterpreter()).analyze("example/Owner", method);
+    }
+
+    @Test
     void checkpointRetainsCallAndValidDataflow() throws Exception {
         System.setProperty(TextureUploadProbeRuntime.CHECKPOINT_PROPERTY, "true");
         MethodNode method = fixture();

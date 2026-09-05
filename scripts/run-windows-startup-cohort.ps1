@@ -18,6 +18,7 @@ param(
     [switch]$StartupTextureCpuProbe,
     [switch]$TextureUploadProbe,
     [switch]$TextureUploadCheckpoint,
+    [switch]$PreparedLoadAttribution,
     [switch]$WindowsPrefetchBypassProbe,
     [switch]$WindowsPreparedResources,
     [switch]$WindowsDisablePreparedResources,
@@ -344,6 +345,10 @@ log4j.appender.file.MaxBackupIndex=3
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.texture.fastRenderingPrepared=false' |
                     Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($PreparedLoadAttribution) {
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.texture.preparedLoadAttribution=true' | Where-Object { $_ }) -join ' ').Trim()
             }
             if ($TextureUploadCheckpoint) {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
@@ -718,6 +723,7 @@ $identity = [ordered]@{
     fileOnlyLogging = $true
     textureUploadProbe = [bool]($TextureUploadProbe -or $TextureUploadCheckpoint)
     textureUploadCheckpoint = [bool]$TextureUploadCheckpoint
+    preparedLoadAttribution = [bool]$PreparedLoadAttribution
     windowsPrefetchBypassProbe = [bool]$WindowsPrefetchBypassProbe
     windowsPreparedResources = [bool]$WindowsPreparedResources
     windowsDisablePreparedResources = [bool]$WindowsDisablePreparedResources

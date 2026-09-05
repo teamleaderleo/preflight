@@ -45,3 +45,51 @@ uses actual width and height rather than y-offset and width. Native calls are un
 
 Validation so far: full local Maven verify passed; operator tests 119, 114 passed and 5 skipped
 (PowerShell/platform); focused installed barrier/runtime tests passed before adding wait coverage.
+
+## First native observations
+
+Executable `d746cd5f`, packaged JAR SHA-256
+`86a46618917913492c7d8010b65a2949772a3cc40c1c0779d15257f10fcd4511`.
+Recommended, one worker, native driver selection, 1024x720, same fixture and mod selection.
+
+- `20260905-100940-windows-startup-2x2.zip` SHA-256 `a3e3fca1759a515d04307c84e95be02016544ff85c8c0ff61e0e94dfa305c2a7`
+  Resource accounting: {"active": false, "admissionDecline": "none", "admitted": 15003, "barrierPending": 0, "barrierRemoved": 15003, "barrierTaken": 15002, "barrierUnused": 1, "byteBarrierRequested": true, "bytePhaseComplete": true, "ceilingDeclines": 44, "claimAbandoned": 0, "claimErrors": 0, "claimFallbacks": 0, "claimReadMillis": 18370, "coherent": 44, "committed": 15002, "declines": 0, "direct": 14958, "directDimensionCeiling": 1024, "discarded": 0, "failures": 0, "imagePhaseDeferrals": 0, "inFlight": 0, "lastEntryDeclines": 0, "originalConsumed": 0, "pending": 0, "published": 15002, "queuedClaims": 0, "queuedClaimsRequested": false, "requested": true, "resourceRecords": 55359, "resultSignals": 0, "waitMillis": 9826, "waitPolls": 950, "workerDrainMillis": 0, "workerDrainTimeouts": 0, "workerImagePhaseObserved": true}
+  Kaleidoscope retained/consumed: 102/102; active buffers 0; pack failures 0.
+- `20260905-101246-windows-startup-2x2.zip` SHA-256 `3409182dc27c45589e900714f7b907c1f85e7eb565201dbe31bf51bb5839af59`
+  Resource accounting: {"active": false, "admissionDecline": "none", "admitted": 15003, "barrierPending": 0, "barrierRemoved": 15003, "barrierTaken": 15002, "barrierUnused": 1, "byteBarrierRequested": true, "bytePhaseComplete": true, "ceilingDeclines": 44, "claimAbandoned": 0, "claimErrors": 0, "claimFallbacks": 0, "claimReadMillis": 17763, "coherent": 44, "committed": 15002, "declines": 0, "direct": 14958, "directDimensionCeiling": 1024, "discarded": 0, "failures": 0, "imagePhaseDeferrals": 0, "inFlight": 0, "lastEntryDeclines": 0, "originalConsumed": 0, "pending": 0, "published": 15002, "queuedClaims": 0, "queuedClaimsRequested": false, "requested": true, "resourceRecords": 55359, "resultSignals": 0, "waitMillis": 9650, "waitPolls": 934, "workerDrainMillis": 0, "workerDrainTimeouts": 0, "workerImagePhaseObserved": true}
+  Kaleidoscope retained/consumed: 102/102; active buffers 0; pack failures 0.
+- `20260905-101501-windows-startup-2x2.zip` SHA-256 `10fe88b00d0751d2d0904f3886654567b582d60acd829124bf2091156d773b81`
+  Resource accounting: {"active": false, "admissionDecline": "none", "admitted": 15003, "barrierPending": 0, "barrierRemoved": 0, "barrierTaken": 0, "barrierUnused": 0, "byteBarrierRequested": false, "bytePhaseComplete": false, "ceilingDeclines": 44, "claimAbandoned": 0, "claimErrors": 0, "claimFallbacks": 0, "claimReadMillis": 0, "coherent": 44, "committed": 15002, "declines": 0, "direct": 14958, "directDimensionCeiling": 1024, "discarded": 0, "failures": 0, "imagePhaseDeferrals": 0, "inFlight": 0, "lastEntryDeclines": 0, "originalConsumed": 1, "pending": 0, "published": 15003, "queuedClaims": 0, "queuedClaimsRequested": false, "requested": true, "resourceRecords": 55359, "resultSignals": 0, "waitMillis": 18790, "waitPolls": 1752, "workerDrainMillis": 1859, "workerDrainTimeouts": 0, "workerImagePhaseObserved": true}
+  Kaleidoscope retained/consumed: 102/102; active buffers 0; pack failures 0.
+
+Diagnostic 100940: 71.406 s graphics / 74.136 s interactive. This included phase, CPU and
+per-upload file-write probes and is not timing evidence. All 15,003 admitted image jobs were
+removed at the boundary, 15,002 committed, one unused identity retired. Direct 14,958, coherent
+44; all 102 late resources retained/consumed; no pack failures, active buffers or failed commits.
+Main carrier reads took 18.370 s; byte-boundary wait 9.826 s; direct preparation 1.686 s.
+The first breadcrumb revision mislabeled Windows path uploads as buffered-image because its
+path descriptor had five integer arguments while Windows has four. Its argument/buffer capture
+was valid, but no exact path attribution is claimed for that revision. The descriptor is corrected
+in the next revision. Periodic upload reports are not assumed to contain every final call.
+
+Uninstrumented B 101246: 66.180 s graphics / 69.552 s interactive.
+Uninstrumented A 101501 (same JAR, explicit barrier and claims false):
+60.072 s graphics / 62.903 s interactive. One pair only, but it supplies no positive performance
+case: the bypass worked and was slower in this observation. Keep it opt-in. The next diagnostic
+splits aggregate prepared lookup (including pack), pack read/decode, layout and carrier construction.
+
+Windows sound archive inspection: SHA-256
+`d70e2760c9785770818607edd7be502ac75f7b87f8af5770c178a8d723c96dab`;
+store `sound.C`, decoder `sound.O0oO.super(InputStream):sound.G`. The Windows report confirms
+preparedAudio.enabled=false. Current prepared PCM target/producer expect sound.J/sound.F and a
+different archive. Encoded byte reads cannot be called redundant on this fixture. A Windows PCM
+port would need matching producer, exact decoder-policy identity, result fields, source admission
+and runtime targets before any byte-work removal.
+
+Deferred handle inspection: exact Object.Ø00000 simply binds stored target and ID; it does not
+inspect the deferred flag or invoke a loader. Flipping the existing flag is not a first-use upload
+implementation. A genuine deferred path needs metadata-ready handles and coverage of direct ID
+consumers, binding, replacement and reload; no fake/blank texture substitution was introduced.
+
+All three Java CI jobs passed in workflow 33938272307. macOS operator checks failed in unchanged
+`test_launcher_marker_then_quiet` (expected 2100, observed 2000); retrying that failed job once.
