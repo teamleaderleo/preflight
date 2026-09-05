@@ -100,33 +100,6 @@ public class TexturePreparedResourceLoaderPlanTest {
     }
 
     @Test
-    void snapshotFeedsIdenticalPixelsAndPolicyToInstalledCeilingConverter() throws Exception {
-        for (int channels : new int[] {3, 4}) {
-            int width = 1025, height = 3;
-            byte[] source = new byte[width * height * channels];
-            new java.util.Random(channels).nextBytes(source);
-            PreparedTexture texture = new PreparedTexture("ab".repeat(32),
-                    PreparedTexture.Transformation.IDENTITY, width, height, width, height,
-                    channels, 0, 0, 0, source);
-            var surface = TexturePreparedPixelCarrierSurface.coherent(texture);
-            BufferedImage conventional = new BufferedImage(surface.colorModel(), surface.raster(), false, null);
-            Executable baseline = new Executable(false);
-            baseline.supply("p", conventional, false);
-            List<Object> expectedMetadata = metadata(baseline.register("p", "p"));
-            byte[] expectedPixels = FakeGL.pixels.clone();
-            List<String> expectedCalls = List.copyOf(FakeGL.calls);
-            Executable candidate = new Executable(true);
-            candidate.supply("p", carrier(texture), true);
-            Object handle = candidate.register("p", "p");
-            assertArrayEquals(expectedPixels, FakeGL.pixels);
-            assertEquals(expectedCalls, FakeGL.calls);
-            assertEquals(expectedMetadata, metadata(handle));
-            assertEquals(1L, TexturePreparedResourceRuntime.telemetry().get("coherent"));
-            assertEquals(0L, TexturePreparedResourceRuntime.telemetry().get("direct"));
-        }
-    }
-
-    @Test
     void executableDirectAndCeilingFallbackLinkRealCompletionAndReleaseBuffers() throws Exception {
         Executable baseline = new Executable(false);
         baseline.supply("p", image(), false);

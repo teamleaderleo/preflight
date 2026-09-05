@@ -47,7 +47,7 @@ The composition mechanism works, but phase attribution is needed to explain the 
 variable whole-launch effect before changing defaults. Host observation at 01:09 has about
 8 GiB available memory and load average below 1; there is no evidence for another RAM increase.
 
-Current phase: phase diagnostic on the combined candidate, then same-build comparison.
+Phase diagnostic on the combined candidate:
 Diagnostic `20260906-011245`: resource batches complete in 7.148 s (previous diagnostic 10.228 s),
 but the post-batch ScriptStore call takes 3.325 s rather than 35 ms. Installed bytecode verifies
 that this call sets the completion flag and joins `ScriptStore$3`, then rethrows its stored error.
@@ -88,3 +88,31 @@ handler metadata and GL calls above the 1024 ceiling for both RGB and RGBA.
 
 Finish condition: retain only a justified change, integrate main, restore the ordinary launch task,
 and retire disposable builds while retaining evidence.
+
+## Selection and regression removal
+
+The snapshot candidate `a7935ae0e0e6b639319b362794811b148d262fbe` (JAR SHA-256
+`83692695731469d408355974dbdba5e177e6fcdf6c7cf66495bc6108edafe96a`) passed correctness
+checks but regressed ordinary staging-off launches in session `20260906-015216`: graphics
+26.587 / 27.102 s, menus 28.351 / 27.928 s. It is rejected; its production code and candidate-only
+tests are removed. A subsequent JFR-attached run reached 21.739 s, but is diagnostic only and
+does not overturn the ordinary results. The cause of the regression is not established.
+
+Restoring executable source `6e7d63f1602c3befbb1c62c73c1fdb0d059dc5f4` and its `deeced98…`
+JAR restored ordinary performance in session `20260906-020058`: graphics 18.776 / 17.137 s,
+menus **20.577 / 18.082 s** (two-run median 19.3295 s). Staging remains off. Both runs commit
+15,002 resources (14,958 direct, 44 coherent ceiling fallbacks), retire 15,003 prestart jobs as
+15,002 taken plus one unused, and finish with zero pending claims or resource failures.
+Prepared audio serves 2,049 effects with one stock decode and zero failures. Both shutdowns
+complete gracefully with zero remaining actors.
+
+This restores a sub-20 observation but does not establish a consistent deeper win or beat the
+historical 17.620 s result. Selective script progress suppression remains under the existing
+asset-progress control; its isolated timing benefit is unproven. Three-platform CI run
+`33981221085` passed for the selected executable source. The final production and test sources
+match that selection after the snapshot rollback.
+
+The next larger target is the background Janino compiler. Its existing complete-map cache is
+Mac-only: a Windows port needs installed resource-finder, parent-loader, launch-identity and
+replay-contract verification before changing the platform gate. No compiler-cache gate is changed
+in this slice. Current memory observations do not justify more VM RAM.

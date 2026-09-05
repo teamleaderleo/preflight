@@ -100,7 +100,7 @@ establish a launch-time win without prepared audio. PCM chunk copying remains of
 bounded 64 MiB prepared-image staging experiment before SpecStore. Typed prestart admission can
 consume these carriers without waiting; missing images retain synchronous prepared loading.
 The staging producer performs no GL work and cancels cooperatively to preserve the shared pack
-channel. This remains off by default pending combined-path startup evidence.
+channel. Combined-path trials have not established an overall startup win, so this remains off by default.
 
 Windows can now bake and serve prepared sound effects through the exact installed decoder:
 

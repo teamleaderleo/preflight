@@ -2,7 +2,6 @@ package dev.starsector.preflight.agent;
 
 import dev.starsector.preflight.core.PreparedTexture;
 import java.awt.Transparency;
-import java.awt.Point;
 import java.awt.color.ColorSpace;
 import java.awt.image.ColorModel;
 import java.awt.image.ComponentSampleModel;
@@ -39,7 +38,13 @@ final class TexturePreparedPixelCarrierSurface {
         //
         // Read through a view rather than pixels(): the flip already allocates a second array the
         // size of the texture, and cloning the source to read it once makes that a third.
-        byte[] topDown = topDown(texture, layout);
+        ByteBuffer bottomUp = texture.pixelsView();
+        byte[] topDown = new byte[texture.pixelBytes()];
+        for (int sourceRow = 0; sourceRow < height; sourceRow++) {
+            int targetRow = height - 1 - sourceRow;
+            bottomUp.position(sourceRow * stride);
+            bottomUp.get(topDown, targetRow * stride, stride);
+        }
 
         ColorModel colorModel = colorModel(channels);
         DataBufferByte data = new DataBufferByte(topDown, topDown.length);
@@ -52,50 +57,6 @@ final class TexturePreparedPixelCarrierSurface {
                 bands(channels),
                 null);
         return new Surface(colorModel, raster, topDown.length, true);
-    }
-
-    /** Independent, writable snapshot with a direct RGB(A) implementation of Raster.getPixel. */
-    static Raster snapshot(PreparedTexture texture) {
-        Layout layout = layout(texture);
-        return new PixelSnapshotRaster(layout, topDown(texture, layout));
-    }
-
-    private static byte[] topDown(PreparedTexture texture, Layout layout) {
-        ByteBuffer bottomUp = texture.pixelsView();
-        byte[] pixels = new byte[texture.pixelBytes()];
-        for (int sourceRow = 0; sourceRow < layout.height(); sourceRow++) {
-            int targetRow = layout.height() - 1 - sourceRow;
-            bottomUp.position(sourceRow * layout.stride());
-            bottomUp.get(pixels, targetRow * layout.stride(), layout.stride());
-        }
-        return pixels;
-    }
-
-    private static final class PixelSnapshotRaster extends WritableRaster {
-        private final byte[] pixels;
-        private final int channels;
-
-        private PixelSnapshotRaster(Layout layout, byte[] pixels) {
-            super(new ComponentSampleModel(DataBuffer.TYPE_BYTE, layout.width(), layout.height(),
-                            layout.channels(), layout.stride(), bands(layout.channels())),
-                    new DataBufferByte(pixels, pixels.length), new Point());
-            this.pixels = pixels;
-            this.channels = layout.channels();
-        }
-
-        @Override
-        public int[] getPixel(int x, int y, int[] destination) {
-            if (x < 0 || y < 0 || x >= width || y >= height) {
-                throw new ArrayIndexOutOfBoundsException("Pixel outside snapshot");
-            }
-            int[] result = destination == null ? new int[channels] : destination;
-            int offset = (y * width + x) * channels;
-            result[0] = pixels[offset] & 0xff;
-            result[1] = pixels[offset + 1] & 0xff;
-            result[2] = pixels[offset + 2] & 0xff;
-            if (channels == 4) result[3] = pixels[offset + 3] & 0xff;
-            return result;
-        }
     }
 
     /**

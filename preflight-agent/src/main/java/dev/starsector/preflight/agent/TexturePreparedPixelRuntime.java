@@ -1402,11 +1402,7 @@ public final class TexturePreparedPixelRuntime {
 
         @Override
         public Raster getData() {
-            BufferedImage existing = materialized;
-            if (existing != null) return existing.getData();
-            Raster snapshot = TexturePreparedPixelCarrierSurface.snapshot(texture);
-            TELEMETRY.snapshot(texture.pixelBytes());
-            return snapshot;
+            return materialized().getData();
         }
 
         @Override
@@ -1476,8 +1472,6 @@ public final class TexturePreparedPixelRuntime {
         private long carriers;
         private long carrierRasterBytes;
         private long carrierRasterMaterializations;
-        private long carrierSnapshotCopies;
-        private long carrierSnapshotBytes;
         private long coherentCarriers;
         private long coherentCarrierBytes;
         private long coherentDirectCarriers;
@@ -1532,7 +1526,6 @@ public final class TexturePreparedPixelRuntime {
             carriers = 0;
             carrierRasterBytes = 0;
             carrierRasterMaterializations = 0;
-            carrierSnapshotCopies = carrierSnapshotBytes = 0;
             coherentCarriers = 0;
             coherentCarrierBytes = 0;
             coherentDirectCarriers = 0;
@@ -1594,11 +1587,6 @@ public final class TexturePreparedPixelRuntime {
             if (coherentDirect) {
                 coherentDirectCarriers++;
             }
-        }
-
-        synchronized void snapshot(long bytes) {
-            carrierSnapshotCopies++;
-            carrierSnapshotBytes = saturatedAdd(carrierSnapshotBytes, bytes);
         }
 
         synchronized void materialized(long rasterBytes, boolean coherent) {
@@ -1786,8 +1774,6 @@ public final class TexturePreparedPixelRuntime {
             values.put("maxLayoutObservations", MAX_LAYOUT_OBSERVATIONS);
             values.put("carriers", carriers);
             values.put("carrierRasterMaterializations", carrierRasterMaterializations);
-            values.put("carrierSnapshotCopies", carrierSnapshotCopies);
-            values.put("carrierSnapshotBytes", carrierSnapshotBytes);
             values.put("carrierRasterBytes", carrierRasterBytes);
             values.put("coherentCarriers", coherentCarriers);
             values.put("coherentCarrierBytes", coherentCarrierBytes);
