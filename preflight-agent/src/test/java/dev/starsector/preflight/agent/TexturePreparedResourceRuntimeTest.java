@@ -654,16 +654,6 @@ class TexturePreparedResourceRuntimeTest {
                     assertEquals(width, completion.image().getWidth());
                     assertEquals(height, completion.image().getHeight());
                     assertEquals(0xff000000, completion.image().getRGB(width - 1, height - 1));
-                    System.setProperty(TexturePreparedResourceRuntime.PACKED_CONVERTER_PROPERTY, "false");
-                    try {
-                        assertSame(carrier, completion.converterImage());
-                    } finally {
-                        System.clearProperty(TexturePreparedResourceRuntime.PACKED_CONVERTER_PROPERTY);
-                    }
-                    BufferedImage packed = completion.converterImage();
-                    assertEquals(carrier.getColorModel().hasAlpha()
-                            ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB, packed.getType());
-                    assertEquals(0xff000000, packed.getRGB(width - 1, height - 1));
                     assertFalse(TexturePaddingRuntime.unpadded(), "coherent conversion keeps stock folds");
                     assertEquals(0, TexturePreparedPixelRuntime.telemetry().get("activeBuffers"));
                     assertEquals(hitsBefore, TextureCompatibilityRuntime.telemetry().get("hits"));

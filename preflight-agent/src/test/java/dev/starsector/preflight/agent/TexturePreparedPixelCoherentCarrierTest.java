@@ -378,28 +378,6 @@ class TexturePreparedPixelCoherentCarrierTest {
         TexturePreparedPixelRuntime.select(TextureAdapterMode.PREPARED_PIXELS);
     }
 
-    @Test
-    void packedConverterImagePreservesPixelsAndDeclinesExposedOrUnknownImages() throws Exception {
-        BufferedImage ordinary = new BufferedImage(2, 3, BufferedImage.TYPE_INT_RGB);
-        org.junit.jupiter.api.Assertions.assertSame(ordinary,
-                TexturePreparedPixelRuntime.packedOriginalConverterImage(ordinary));
-        for (int channels : new int[] {3, 4}) {
-            configure(fixture(2, 3, channels, sequential(6 * channels)));
-            BufferedImage carrier = TexturePreparedPixelRuntime.load("graphics/test.png");
-            BufferedImage packed = TexturePreparedPixelRuntime.packedOriginalConverterImage(carrier);
-            assertEquals(channels == 4 ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB, packed.getType());
-            for (int y=0; y<3; y++) for (int x=0; x<2; x++) {
-                assertEquals(carrier.getRGB(x, y), packed.getRGB(x, y));
-            }
-            int original = carrier.getRGB(0, 0);
-            packed.setRGB(0, 0, 0xffabcdef);
-            assertEquals(original, carrier.getRGB(0, 0));
-            carrier.getRaster().setSample(0, 0, 0, 77);
-            org.junit.jupiter.api.Assertions.assertSame(carrier,
-                    TexturePreparedPixelRuntime.packedOriginalConverterImage(carrier));
-        }
-    }
-
     private Fixture fixture(int width, int height, int channels, byte[] pixels) throws Exception {
         Path cache = temporaryDirectory.resolve("cache-" + System.nanoTime());
         Path sourceRoot = temporaryDirectory.resolve("game-" + System.nanoTime());

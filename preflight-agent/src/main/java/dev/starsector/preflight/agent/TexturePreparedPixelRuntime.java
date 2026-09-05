@@ -653,34 +653,6 @@ public final class TexturePreparedPixelRuntime {
         }
     }
 
-    /** Supplies the exact stock converter with standard packed pixels from an untouched carrier. */
-    static BufferedImage packedOriginalConverterImage(BufferedImage image) {
-        if (!(image instanceof CarrierImage carrier)) return image;
-        synchronized (carrier) {
-            // A raster handed to another consumer may already contain mutations. Only immutable,
-            // untouched prepared pixels can be represented independently for this exact converter.
-            if (carrier.materialized != null) return image;
-            PreparedTexture texture = carrier.texture;
-            int width = texture.originalWidth(), height = texture.originalHeight();
-            int channels = texture.channels();
-            BufferedImage packed = new BufferedImage(width, height,
-                    channels == 4 ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
-            int[] pixels = ((java.awt.image.DataBufferInt) packed.getRaster().getDataBuffer()).getData();
-            ByteBuffer source = texture.pixelsView();
-            for (int y = 0; y < height; y++) {
-                int offset = (height - 1 - y) * width * channels;
-                for (int x = 0; x < width; x++) {
-                    int red = source.get(offset++) & 255;
-                    int green = source.get(offset++) & 255;
-                    int blue = source.get(offset++) & 255;
-                    int alpha = channels == 4 ? source.get(offset++) & 255 : 255;
-                    pixels[y * width + x] = alpha << 24 | red << 16 | green << 8 | blue;
-                }
-            }
-            return packed;
-        }
-    }
-
     /** Creates one bounded direct upload buffer and returns stored derived colors. */
     public static PreparedPixel prepare(BufferedImage image) {
         long entry = PREPARE_CLOCK.enter();

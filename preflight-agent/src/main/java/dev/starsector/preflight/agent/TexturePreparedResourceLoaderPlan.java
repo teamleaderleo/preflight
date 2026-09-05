@@ -130,7 +130,7 @@ final class TexturePreparedResourceLoaderPlan {
         c.add(invoke(Opcodes.INVOKEVIRTUAL, COMPLETION, "creditOriginalFallback", "()V"));
         c.add(new VarInsnNode(Opcodes.ALOAD, 0));
         c.add(new VarInsnNode(Opcodes.ALOAD, completion));
-        c.add(invoke(Opcodes.INVOKEVIRTUAL, COMPLETION, "converterImage", "()Ljava/awt/image/BufferedImage;"));
+        c.add(invoke(Opcodes.INVOKEVIRTUAL, COMPLETION, "image", "()Ljava/awt/image/BufferedImage;"));
         c.add(new VarInsnNode(Opcodes.ALOAD, texture));
         c.add(invoke(Opcodes.INVOKESPECIAL, OWNER, "preflight$original$convertPixels", CONVERT));
         c.add(new JumpInsnNode(Opcodes.GOTO, converted));
