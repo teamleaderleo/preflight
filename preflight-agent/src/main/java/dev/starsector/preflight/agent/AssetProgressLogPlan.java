@@ -17,6 +17,8 @@ import org.objectweb.asm.tree.VarInsnNode;
 
 /** Removes only exact, reviewed per-file INFO progress messages from vanilla spec loaders. */
 final class AssetProgressLogPlan {
+    static final String SCRIPT_WORKER = "com/fs/starfarer/loading/scripts/ScriptStore$3";
+    static final String SCRIPT_LOADED_SUFFIX = "] already loaded (perhaps from jar file, or due to a reference from another class), skipping compilation.";
     private static final String LOGGER = "org/apache/log4j/Logger";
     private static final String STRING_BUILDER = "java/lang/StringBuilder";
     private static final String APPEND_DESCRIPTOR =
@@ -58,7 +60,8 @@ final class AssetProgressLogPlan {
                 if (instruction instanceof LdcInsnNode constant
                         && constant.cst instanceof String prefix
                         && expected.prefixes.contains(prefix)) {
-                    Block block = exactBlock(method, constant);
+                    Block block = exactBlock(method, constant,
+                            SCRIPT_WORKER.equals(signature.internalName()) ? SCRIPT_LOADED_SUFFIX : "]");
                     if (block == null) {
                         return false;
                     }
@@ -83,7 +86,7 @@ final class AssetProgressLogPlan {
         return true;
     }
 
-    private static Block exactBlock(MethodNode method, LdcInsnNode prefix) {
+    private static Block exactBlock(MethodNode method, LdcInsnNode prefix, String suffix) {
         List<AbstractInsnNode> sequence = new ArrayList<>();
         AbstractInsnNode cursor = prefix;
         for (int index = 0; index < 3; index++) {
@@ -111,7 +114,7 @@ final class AssetProgressLogPlan {
                 || !(sequence.get(4) instanceof VarInsnNode path)
                 || path.getOpcode() != Opcodes.ALOAD
                 || !append(sequence.get(5))
-                || !(sequence.get(6) instanceof LdcInsnNode close) || !"]".equals(close.cst)
+                || !(sequence.get(6) instanceof LdcInsnNode close) || !suffix.equals(close.cst)
                 || !append(sequence.get(7))
                 || !toStringCall(sequence.get(8))
                 || !infoCall(sequence.get(9))) {
@@ -165,6 +168,9 @@ final class AssetProgressLogPlan {
     }
 
     private static Expected expected(String className) {
+        if (SCRIPT_WORKER.equals(className)) {
+            return new Expected(Set.of("Class ["), 1, Set.of(new MethodKey("run", "()V")));
+        }
         if (WeaponLoaderPhasePlan.TARGET_CLASS.equals(className)) {
             return new Expected(WEAPON_PREFIXES, 4, Set.of(
                     new MethodKey("o00000", "()V"), new MethodKey("new", "()V")));

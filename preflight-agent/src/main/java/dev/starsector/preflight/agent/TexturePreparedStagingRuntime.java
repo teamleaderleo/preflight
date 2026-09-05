@@ -111,9 +111,9 @@ public final class TexturePreparedStagingRuntime {
             loadingBytes = 0L;
             LOCK.notifyAll();
         }
-        if (current != null) {
-            current.interrupt();
-        }
+        // Reads borrow the shared pack channel. Interrupting this producer inside FileChannel.read
+        // would close that channel for every consumer. Cancellation wakes bounded-queue waits;
+        // an active read finishes and its result is discarded cooperatively.
     }
 
     /** Returns a staged carrier when ready; every miss immediately retains the current path. */
@@ -175,6 +175,9 @@ public final class TexturePreparedStagingRuntime {
                 if (Thread.currentThread().isInterrupted()) {
                     break;
                 }
+                synchronized (LOCK) {
+                    if (cancelled || producer != Thread.currentThread()) break;
+                }
                 String key = TextureCompatibilityRuntime.preparedPrefetchKey(path);
                 if (key == null || !claim(key)) {
                     continue;
@@ -185,6 +188,7 @@ public final class TexturePreparedStagingRuntime {
                     image = TexturePreparedPixelRuntime.load(path);
                     bytes = TexturePreparedPixelRuntime.preparedBytes(image);
                     synchronized (LOCK) {
+                        if (producer != Thread.currentThread()) return;
                         loadingBytes = bytes;
                         peakLoadingBytes = Math.max(peakLoadingBytes, bytes);
                     }
@@ -192,15 +196,15 @@ public final class TexturePreparedStagingRuntime {
                     throw fatal;
                 } catch (Throwable ignored) {
                     synchronized (LOCK) {
-                        failures++;
+                        if (producer == Thread.currentThread()) failures++;
                     }
                 }
                 publish(key, image, bytes);
             }
         } finally {
             synchronized (LOCK) {
-                loadingBytes = 0L;
                 if (producer == Thread.currentThread()) {
+                    loadingBytes = 0L;
                     producer = null;
                 }
                 LOCK.notifyAll();
@@ -210,6 +214,7 @@ public final class TexturePreparedStagingRuntime {
 
     private static boolean claim(String key) {
         synchronized (LOCK) {
+            if (producer != Thread.currentThread()) return false;
             if (cancelled || CONSUMED.contains(key) || STAGED.containsKey(key)
                     || !IN_PROGRESS.add(key)) {
                 duplicateDeclines++;
@@ -222,6 +227,7 @@ public final class TexturePreparedStagingRuntime {
 
     private static void publish(String key, BufferedImage image, long bytes) {
         synchronized (LOCK) {
+            if (producer != Thread.currentThread()) return;
             IN_PROGRESS.remove(key);
             loadingBytes = 0L;
             if (image == null || bytes <= 0L) {
@@ -234,15 +240,17 @@ public final class TexturePreparedStagingRuntime {
                 LOCK.notifyAll();
                 return;
             }
-            while (!cancelled && !CONSUMED.contains(key)
+            while (producer == Thread.currentThread() && !cancelled && !CONSUMED.contains(key)
                     && stagedBytes > MAX_STAGED_BYTES - bytes) {
                 try {
                     LOCK.wait();
                 } catch (InterruptedException interrupted) {
                     Thread.currentThread().interrupt();
+                    if (producer != Thread.currentThread()) return;
                     cancelled = true;
                 }
             }
+            if (producer != Thread.currentThread()) return;
             if (cancelled || CONSUMED.contains(key)) {
                 lateDeclines++;
                 LOCK.notifyAll();

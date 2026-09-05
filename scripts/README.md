@@ -96,6 +96,12 @@ Neither option skips Vorbis decoding or enables prepared-audio caching. The
 [initial native prototype results](../docs/evidence/2026-09-05-windows-prestart-and-pcm-copy.md) did not
 establish a launch-time win without prepared audio. PCM chunk copying remains off by default.
 
+`--windows-prepared-staging` (guest: `-WindowsPreparedStagingProbe`) independently enables the
+bounded 64 MiB prepared-image staging experiment before SpecStore. Typed prestart admission can
+consume these carriers without waiting; missing images retain synchronous prepared loading.
+The staging producer performs no GL work and cancels cooperatively to preserve the shared pack
+channel. Combined-path trials have not established an overall startup win, so this remains off by default.
+
 Windows can now bake and serve prepared sound effects through the exact installed decoder:
 
 ```powershell

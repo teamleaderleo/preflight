@@ -103,6 +103,7 @@ final class AdapterPlanCatalog {
         values.add(new Descriptor(
                 AssetProgressLogRuntime.PLAN_ID,
                 Set.of(
+                        AssetProgressLogRuntime.PLAN_ID,
                         HullJsonCacheRuntime.PLAN_ID,
                         ProjectileJsonCacheRuntime.PLAN_ID,
                         SpecStoreQuoteNormalizationPlan.PLAN_ID,

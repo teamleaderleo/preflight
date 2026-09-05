@@ -30,13 +30,73 @@ class AssetProgressLogPlanTest {
     }
 
     @Test
+    void scriptWorkerRemovesOnlyReviewedAlreadyLoadedMessage() throws Exception {
+        byte[] original = singleFixture(AssetProgressLogPlan.SCRIPT_WORKER, "run", "Class [",
+                "Compiling script [example]");
+        ClassNode owner = node(original);
+        for (MethodNode method : owner.methods) {
+            for (AbstractInsnNode instruction : method.instructions) {
+                if (instruction instanceof LdcInsnNode constant && "]".equals(constant.cst)) {
+                    constant.cst = AssetProgressLogPlan.SCRIPT_LOADED_SUFFIX;
+                }
+            }
+        }
+        ClassWriter writer = new ClassWriter(0);
+        owner.accept(writer);
+        original = writer.toByteArray();
+        byte[] rewritten = AssetProgressLogPlan.transform(ClassSignature.parse(original), original);
+        assertNotNull(rewritten);
+        assertEquals(0, constants(rewritten, "Class ["));
+        assertEquals(1, constants(rewritten, "Compiling script [example]"));
+        assertEquals(1, infoCalls(rewritten));
+        byte[] drift = singleFixture(AssetProgressLogPlan.SCRIPT_WORKER, "run", "Class [", "other");
+        assertNull(AssetProgressLogPlan.transform(ClassSignature.parse(drift), drift));
+    }
+
+    @Test
+    void installedScriptWorkerPreservesConstructionCompilationAndErrorCalls() throws Exception {
+        String path = System.getProperty("preflight.starsector.script.worker.class", "");
+        org.junit.jupiter.api.Assumptions.assumeTrue(!path.isBlank());
+        byte[] original = java.nio.file.Files.readAllBytes(java.nio.file.Path.of(path));
+        String hash = java.util.HexFormat.of().formatHex(
+                java.security.MessageDigest.getInstance("SHA-256").digest(original));
+        assertEquals(AdapterTargetRegistry.windowsScriptProgressTarget().sha256(), hash);
+        System.setProperty(AssetProgressLogRuntime.PROPERTY, "off");
+        assertTrue(AdapterTransformationRegistry.hasPlan(AssetProgressLogRuntime.PLAN_ID));
+        byte[] rewritten = AdapterTransformationRegistry.transform(
+                AdapterTargetRegistry.windowsScriptProgressTarget(), ClassSignature.parse(original), original);
+        assertNotNull(rewritten);
+        assertEquals(1, constants(original, "Class ["));
+        assertEquals(0, constants(rewritten, "Class ["));
+        assertEquals(nonProgressCalls(original), nonProgressCalls(rewritten));
+        assertEquals(node(original).methods.stream().mapToInt(m -> m.tryCatchBlocks.size()).sum(),
+                node(rewritten).methods.stream().mapToInt(m -> m.tryCatchBlocks.size()).sum());
+    }
+
+    private static List<String> nonProgressCalls(byte[] bytes) {
+        List<String> calls = new java.util.ArrayList<>();
+        for (MethodNode method : node(bytes).methods) {
+            for (AbstractInsnNode instruction : method.instructions) {
+                if (instruction instanceof MethodInsnNode call
+                        && !"java/lang/StringBuilder".equals(call.owner)
+                        && !(LOGGER.equals(call.owner) && "info".equals(call.name))) {
+                    calls.add(call.owner + "." + call.name + call.desc);
+                }
+            }
+        }
+        return calls;
+    }
+
+    @Test
     void perPlanFilterOverridesTheRequestedSuppression() {
         System.setProperty(AssetProgressLogRuntime.PROPERTY, "off");
         AdapterPlanControl.configure(Set.of());
         assertTrue(AssetProgressLogRuntime.suppress());
+        assertTrue(AdapterTransformationRegistry.hasPlan(AssetProgressLogRuntime.PLAN_ID));
 
         AdapterPlanControl.configure(Set.of(AssetProgressLogRuntime.PLAN_ID));
         assertFalse(AssetProgressLogRuntime.suppress());
+        assertFalse(AdapterTransformationRegistry.hasPlan(AssetProgressLogRuntime.PLAN_ID));
     }
 
     @Test

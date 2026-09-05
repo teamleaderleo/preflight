@@ -48,6 +48,10 @@ final class AdapterTransformationRegistry {
                     ? TexturePreparedPrefetchPlan.transform(signature, originalBytes)
                     : null;
         }
+        if (AssetProgressLogRuntime.PLAN_ID.equals(target.planId())) {
+            return AssetProgressLogRuntime.suppress()
+                    ? AssetProgressLogPlan.transform(signature, originalBytes) : null;
+        }
         if (TexturePreparedStagingRuntime.PLAN_ID.equals(target.planId())) {
             return TexturePreparedPixelRuntime.ready()
                     ? resourceLoaderPlans(signature, originalBytes)
@@ -888,6 +892,9 @@ final class AdapterTransformationRegistry {
     static boolean hasPlan(String planId) {
         if (!AdapterPlanControl.allows(planId)) {
             return false;
+        }
+        if (AssetProgressLogRuntime.PLAN_ID.equals(planId)) {
+            return AssetProgressLogRuntime.suppress();
         }
         if (FastRenderingPreparedTextureRuntime.PLAN_ID.equals(planId)) {
             return FastRenderingPreparedTextureRuntime.ready();

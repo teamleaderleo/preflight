@@ -211,6 +211,16 @@ final class AdapterTargetRegistry {
                 "vanilla-resource-prepared-staging-0.98a-rc8");
     }
 
+    static AdapterTarget windowsScriptProgressTarget() {
+        return windowsCoreTarget(
+                "vanilla-script-progress-windows-0.98a-rc8",
+                AssetProgressLogPlan.SCRIPT_WORKER,
+                "5a3c77574db4dc789609d87baaf281e5f4160649db1a0055a95b860330e05699",
+                AssetProgressLogRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod("run", "()V")),
+                "vanilla-script-progress-0.98a-rc8");
+    }
+
     static AdapterTarget fastRenderingPreparedTextureTarget() {
         return new AdapterTarget(
                 "fast-rendering-0.8.4-prepared-textures",
@@ -3144,6 +3154,9 @@ final class AdapterTargetRegistry {
         if (mode == TextureAdapterMode.PREPARED_PIXELS
                 && Boolean.getBoolean(TexturePreparedStagingRuntime.ENABLED_PROPERTY)) {
             registry = registry.withTarget(windowsTexturePreparedStagingTarget());
+        }
+        if (AssetProgressLogRuntime.suppress()) {
+            registry = registry.withTarget(windowsScriptProgressTarget());
         }
         registry = registry
                 .withTarget(campaignEntityIndexTarget())

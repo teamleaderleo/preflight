@@ -1456,7 +1456,8 @@ class WindowsPreparedResourcesRunnerTest(unittest.TestCase):
     def test_host_forwards_prestart_and_pcm_copy_and_checks_admission_conflicts(self):
         for flag, switch in (("--windows-prepared-prestart", "WindowsPreparedPrestart"),
                              ("--disable-windows-prepared-prestart", "WindowsDisablePreparedPrestart"),
-                             ("--windows-pcm-copy", "WindowsPcmCopy")):
+                             ("--windows-pcm-copy", "WindowsPcmCopy"),
+                             ("--windows-prepared-staging", "WindowsPreparedStagingProbe")):
             done = self.host_command("--condition", "preflight", flag)
             self.assertEqual(0, done.returncode, done.stderr)
             self.assertIn(f" -{switch}", done.stdout)
