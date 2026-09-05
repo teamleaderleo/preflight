@@ -1376,6 +1376,44 @@ class WindowsPreparedResourcesRunnerTest(unittest.TestCase):
                 self.assertNotIn(" -WindowsPreparedPrefetchWorkers", done.stdout)
                 self.assertNotIn(" -WindowsKaleidoscopePrefetchProbe", done.stdout)
 
+    def test_host_forwards_claim_controls_and_rejects_conflicts(self):
+        for flag, switch in (
+                ("--windows-prepared-resource-claims", "WindowsPreparedResourceClaims"),
+                ("--disable-windows-prepared-resource-claims", "WindowsDisablePreparedResourceClaims")):
+            done = self.host_command("--condition", "preflight-prepared-resources", flag)
+            self.assertEqual(0, done.returncode, done.stderr)
+            self.assertIn(f" -{switch}", done.stdout)
+        for conflict in ("--disable-windows-prepared-resource-claims", "--disable-windows-prepared-resources",
+                         "--display-thread-texture-probe", "--spec-store-texture-overlap"):
+            done = self.host_command("--windows-prepared-resource-claims", conflict)
+            self.assertEqual(2, done.returncode, done.stderr)
+            self.assertEqual("", done.stdout)
+        done = self.host_command("--windows-prepared-resource-claims", "--condition", "preflight-fast-rendering")
+        self.assertEqual(2, done.returncode, done.stderr)
+
+    def test_guest_claim_requests_preserve_explicit_baseline(self):
+        self.require_powershell()
+        resolver = self.guest[self.guest.index("    $usesPreflight ="):
+                              self.guest.index("    $usesKaleidoscopePrefetch =")]
+        forwarding = self.guest[self.guest.index("            if ($null -ne $requestedPreparedResources)"):
+                                self.guest.index("            if ($Condition -eq 'preflight-fast-rendering-prepared')")]
+        for flag, expected in (("-WindowsPreparedResourceClaims", True),
+                               ("-WindowsDisablePreparedResourceClaims", False)):
+            body = ("$Condition = 'preflight-prepared-resources'\n$env:JAVA_TOOL_OPTIONS = ''\n" +
+                    resolver + forwarding + "\n@{requested=$requestedPreparedResourceClaims; "
+                    "options=$env:JAVA_TOOL_OPTIONS} | ConvertTo-Json -Compress")
+            done = self.guest_command("-Conditions preflight-prepared-resources " + flag, body)
+            self.assertEqual(0, done.returncode, done.stderr)
+            result = json.loads(done.stdout)
+            self.assertEqual(expected, result["requested"])
+            self.assertEqual("-Dpreflight.texture.windowsPreparedResources=true "
+                             f"-Dpreflight.texture.windowsPreparedResourceClaims={str(expected).lower()}",
+                             result["options"])
+        for conflict in ("-WindowsDisablePreparedResourceClaims", "-WindowsDisablePreparedResources",
+                         "-WindowsPreparedSplitQueueProbe", "-WindowsPreparedPrefetchWorkers 2"):
+            done = self.guest_command("-Conditions preflight -WindowsPreparedResourceClaims " + conflict)
+            self.assertEqual(2, done.returncode, done.stderr)
+
     def test_host_rejects_conflicts_before_host_effects(self):
         cases = []
         for candidate in (["--windows-prepared-resources"],

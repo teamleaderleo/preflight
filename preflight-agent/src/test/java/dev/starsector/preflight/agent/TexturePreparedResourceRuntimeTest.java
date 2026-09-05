@@ -52,6 +52,7 @@ class TexturePreparedResourceRuntimeTest {
         TextureCompatibilityRuntime.beginSession();
         System.clearProperty(TextureCompatibilityRuntime.TRUST_VALIDATED_INDEX_PROPERTY);
         System.clearProperty(TexturePreparedResourceRuntime.PROPERTY);
+        System.clearProperty(TexturePreparedResourceRuntime.CLAIM_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_WORKERS_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_SPLIT_QUEUES_PROPERTY);
     }
@@ -66,6 +67,283 @@ class TexturePreparedResourceRuntimeTest {
         System.setProperty(TexturePreparedPrefetchPlan.WINDOWS_WORKERS_PROPERTY, "1");
         System.setProperty(TexturePreparedPrefetchPlan.WINDOWS_SPLIT_QUEUES_PROPERTY, "true");
         assertFalse(TexturePreparedResourceRuntime.requested());
+    }
+
+    @Test
+    void mainClaimsQueuedPreparedJobAndLeavesWorkerTailUntouched() throws Exception {
+        carrier(2);
+        enableClaims();
+        activate(Thread.currentThread());
+        queue.addAll(List.of(PATH, "graphics/kaleidoscope/late.png"));
+        TexturePreparedResourceRuntime.enter(PATH, PATH);
+        var completion = TexturePreparedResourceRuntime.take(PATH, null, null);
+        assertNotNull(completion);
+        assertEquals(TexturePreparedResourceRuntime.Kind.PREPARED, completion.kind());
+        assertEquals(List.of("graphics/kaleidoscope/late.png"), queue);
+        assertTrue(results.isEmpty(), "main must not manufacture a stock result or sentinel");
+        assertEquals(1L, telemetry().get("queuedClaims"));
+        assertEquals(1L, telemetry().get("published"));
+        var pixel = completion.prepare();
+        assertNotNull(pixel);
+        TexturePreparedPixelRuntime.release(pixel.buffer());
+        TexturePreparedResourceRuntime.exit(true);
+        TexturePreparedResourceRuntime.exit(true);
+        assertEquals(1L, telemetry().get("committed"));
+        assertEquals(0L, telemetry().get("inFlight"));
+        assertEquals(0L, telemetry().get("waitPolls"));
+    }
+
+    @Test
+    void readyCompletionWinsWithoutAnotherPreparedReadOrQueueRemoval() throws Exception {
+        BufferedImage image = carrier(2);
+        enableClaims();
+        activate(Thread.currentThread());
+        queue.addAll(List.of("other", "tail"));
+        TexturePreparedResourceRuntime.publish(PATH, image);
+        results.put(PATH, image);
+        Object loads = TexturePreparedPixelRuntime.telemetry().get("loadCalls");
+        TexturePreparedResourceRuntime.enter(PATH, PATH);
+        assertSame(image, TexturePreparedResourceRuntime.take(PATH, null, null).image());
+        assertEquals(loads, TexturePreparedPixelRuntime.telemetry().get("loadCalls"));
+        assertEquals(List.of("other", "tail"), queue);
+        assertEquals(0L, telemetry().get("queuedClaims"));
+        TexturePreparedResourceRuntime.exit(true);
+    }
+
+    @Test
+    void cacheMissRetiresClaimAndLeavesOriginalGetterFreeToDecode() throws Exception {
+        carrier(2);
+        try (var files = Files.walk(temporaryDirectory)) {
+            for (Path file : files.filter(p -> p.toString().endsWith(".spft")).toList()) Files.delete(file);
+        }
+        enableClaims();
+        activate(Thread.currentThread());
+        queue.addAll(List.of(PATH, "tail"));
+        TexturePreparedResourceRuntime.enter(PATH, PATH);
+        assertNull(TexturePreparedResourceRuntime.take(PATH, null, null));
+        assertEquals(List.of("tail"), queue);
+        assertTrue(results.isEmpty());
+        assertEquals(1L, telemetry().get("queuedClaims"));
+        assertEquals(1L, telemetry().get("claimFallbacks"));
+        assertEquals(0L, telemetry().get("published"));
+        assertEquals(0L, telemetry().get("inFlight"));
+        assertNull(TexturePreparedResourceRuntime.take(PATH, null, null));
+        assertEquals(1L, telemetry().get("queuedClaims"), "a removed job cannot be claimed twice");
+    }
+
+    @Test
+    void claimsDeclineTransformsExistingHandlesAndWrongRegistrationWithoutRemovingJobs() throws Exception {
+        carrier(2);
+        enableClaims();
+        activate(Thread.currentThread());
+        queue.addAll(List.of(PATH, "tail"));
+        TexturePreparedResourceRuntime.enter(PATH, "alias");
+        assertNull(TexturePreparedResourceRuntime.take(PATH, null, null));
+        TexturePreparedResourceRuntime.exit(true);
+        TexturePreparedResourceRuntime.enter(PATH, PATH);
+        assertNull(TexturePreparedResourceRuntime.take(PATH, new Object(), null));
+        assertNull(TexturePreparedResourceRuntime.take(PATH, null, new Object()));
+        assertEquals(List.of(PATH, "tail"), queue);
+        assertEquals(0L, telemetry().get("queuedClaims"));
+    }
+
+    @Test
+    void inFlightWorkerJobIsNeverStolenEvenIfAQueueEntryIsPresent() throws Exception {
+        carrier(2);
+        enableClaims();
+        activate(Thread.currentThread());
+        queue.addAll(List.of(PATH, "tail"));
+        results.put(PATH, sentinel);
+        TexturePreparedResourceRuntime.enter(PATH, PATH);
+        Thread.currentThread().interrupt();
+        try { assertNull(TexturePreparedResourceRuntime.take(PATH, null, null)); }
+        finally { Thread.interrupted(); }
+        assertEquals(List.of(PATH, "tail"), queue);
+        assertSame(sentinel, results.get(PATH));
+        assertEquals(0L, telemetry().get("queuedClaims"));
+    }
+
+    @Test
+    void disablingClaimsOrChangingPreparedIdentityKeepsStockQueueOwnership() throws Exception {
+        carrier(2);
+        enableClaims();
+        activate(Thread.currentThread());
+        queue.addAll(List.of(PATH, "tail"));
+        TexturePreparedResourceRuntime.enter(PATH, PATH);
+        System.setProperty(TexturePreparedResourceRuntime.CLAIM_PROPERTY, "false");
+        Thread.currentThread().interrupt();
+        try { assertNull(TexturePreparedResourceRuntime.take(PATH, null, null)); }
+        finally { Thread.interrupted(); }
+        assertEquals(List.of(PATH, "tail"), queue);
+        System.setProperty(TexturePreparedResourceRuntime.CLAIM_PROPERTY, "true");
+        TextureCompatibilityRuntime.beginSession(); // the admitted key is no longer available
+        Thread.currentThread().interrupt();
+        try { assertNull(TexturePreparedResourceRuntime.take(PATH, null, null)); }
+        finally { Thread.interrupted(); }
+        assertEquals(List.of(PATH, "tail"), queue);
+        assertEquals(0L, telemetry().get("queuedClaims"));
+    }
+
+    @Test
+    void lastEntryRemainsForWorkerThatAlreadyObservedNonemptyQueue() throws Exception {
+        BufferedImage image = carrier(2);
+        enableClaims();
+        activate(Thread.currentThread());
+        queue.addAll(List.of(PATH, "tail"));
+        // Stock worker has observed nonempty before taking its monitor.
+        assertFalse(queue.isEmpty());
+        TexturePreparedResourceRuntime.enter(PATH, PATH);
+        assertNotNull(TexturePreparedResourceRuntime.take(PATH, null, null));
+        TexturePreparedResourceRuntime.exit(true);
+        synchronized (queue) { assertEquals("tail", queue.remove(0)); }
+
+        queue.add(PATH);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Thread worker = new Thread(() -> {
+            try {
+                // Wait for main's singleton decline, without racing test assertions.
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+                while ((long) telemetry().get("lastEntryDeclines") == 0 && System.nanoTime() < deadline)
+                    Thread.sleep(10);
+                synchronized (queue) {
+                    assertEquals(PATH, queue.remove(0));
+                    results.put(PATH, sentinel);
+                }
+                TexturePreparedResourceRuntime.publish(PATH, image);
+                results.put(PATH, image);
+            } catch (Throwable error) { failure.set(error); }
+        });
+        TexturePreparedResourceRuntime.worker(worker);
+        worker.start();
+        TexturePreparedResourceRuntime.enter(PATH, PATH);
+        assertSame(image, TexturePreparedResourceRuntime.take(PATH, null, null).image());
+        worker.join(2_000);
+        assertFalse(worker.isAlive());
+        assertNull(failure.get());
+        assertEquals(1L, telemetry().get("lastEntryDeclines"));
+        assertEquals(1L, telemetry().get("queuedClaims"));
+        TexturePreparedResourceRuntime.exit(true);
+    }
+
+    @Test
+    void workerSentinelWinsClaimRaceAndMainConsumesExactlyOnce() throws Exception {
+        BufferedImage image = carrier(2);
+        enableClaims();
+        for (int attempt = 0; attempt < 30; attempt++) {
+            TexturePreparedResourceRuntime.beginSession();
+            activate(Thread.currentThread());
+            queue.clear();
+            results.clear();
+            queue.addAll(List.of(PATH, "tail"));
+            AtomicReference<Throwable> failure = new AtomicReference<>();
+            CountDownLatch start = new CountDownLatch(1);
+            Thread worker = new Thread(() -> {
+                try {
+                    start.await();
+                    synchronized (queue) {
+                        if (!queue.remove(PATH)) return;
+                        results.put(PATH, sentinel);
+                    }
+                    TexturePreparedResourceRuntime.publish(PATH, image);
+                    results.put(PATH, image);
+                } catch (Throwable error) { failure.set(error); }
+            });
+            TexturePreparedResourceRuntime.worker(worker);
+            worker.start();
+            TexturePreparedResourceRuntime.enter(PATH, PATH);
+            start.countDown();
+            assertNotNull(TexturePreparedResourceRuntime.take(PATH, null, null));
+            TexturePreparedResourceRuntime.exit(true);
+            worker.join(2_000);
+            assertFalse(worker.isAlive());
+            assertNull(failure.get());
+            assertEquals(List.of("tail"), queue);
+            assertTrue(results.isEmpty());
+            assertEquals(1L, telemetry().get("published"));
+            assertEquals(1L, telemetry().get("committed"));
+            assertEquals(0L, telemetry().get("inFlight"));
+        }
+    }
+
+    private static void enableClaims() {
+        System.setProperty(TexturePreparedResourceRuntime.PROPERTY, "true");
+        System.setProperty(TexturePreparedResourceRuntime.CLAIM_PROPERTY, "true");
+    }
+
+    @Test
+    void exactWorkerSignalsWaitingConsumerOnlyAfterItsStockResultIsVisible() throws Exception {
+        BufferedImage image = carrier(2);
+        enableClaims();
+        activate(Thread.currentThread());
+        results.put(PATH, sentinel);
+        Object lock = field("LOCK").get(null);
+        Field waiting = field("waitingPath");
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Thread worker = new Thread(() -> {
+            try {
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+                while (System.nanoTime() < deadline) {
+                    synchronized (lock) {
+                        if (PATH.equals(waiting.get(null))) {
+                            TexturePreparedResourceRuntime.publish(PATH, image);
+                            TexturePreparedResourceRuntime.resultReady(PATH, image);
+                            assertEquals(0L, telemetry().get("resultSignals"), "sentinel is not a result");
+                            results.put(PATH, image);
+                            TexturePreparedResourceRuntime.resultReady("other", image);
+                            assertEquals(0L, telemetry().get("resultSignals"));
+                            TexturePreparedResourceRuntime.resultReady(PATH, image);
+                            return;
+                        }
+                    }
+                    Thread.sleep(1);
+                }
+                throw new AssertionError("consumer never registered its wait");
+            } catch (Throwable error) {
+                failure.set(error);
+                // A failed assertion must not strand the test's consumer.
+                TexturePreparedResourceRuntime.publish(PATH, image);
+                results.put(PATH, image);
+                TexturePreparedResourceRuntime.resultReady(PATH, image);
+            }
+        });
+        TexturePreparedResourceRuntime.worker(worker);
+        worker.start();
+        TexturePreparedResourceRuntime.enter(PATH, PATH);
+        assertSame(image, TexturePreparedResourceRuntime.take(PATH, null, null).image());
+        worker.join(3_000);
+        assertFalse(worker.isAlive());
+        assertNull(failure.get());
+        assertTrue((long) telemetry().get("resultSignals") >= 1);
+        assertEquals(0L, telemetry().get("queuedClaims"));
+        TexturePreparedResourceRuntime.exit(true);
+    }
+
+    @Test
+    void claimsWaitForExactWorkerImagePhaseBeforeChangingQueueOwnership() throws Exception {
+        BufferedImage image = carrier(2);
+        enableClaims();
+        activate(Thread.currentThread());
+        field("workerImagePhase").setBoolean(null, false);
+        queue.addAll(List.of(PATH, "tail"));
+        TexturePreparedResourceRuntime.enter(PATH, PATH);
+        Thread.currentThread().interrupt();
+        try { assertNull(TexturePreparedResourceRuntime.take(PATH, null, null)); }
+        finally { Thread.interrupted(); }
+        assertEquals(List.of(PATH, "tail"), queue);
+        assertEquals(0L, telemetry().get("queuedClaims"));
+        assertEquals(1L, telemetry().get("imagePhaseDeferrals"));
+        TexturePreparedResourceRuntime.exit(true);
+        Thread wrongWorker = new Thread(() -> TexturePreparedResourceRuntime.publish("other", image));
+        wrongWorker.start();
+        wrongWorker.join(2_000);
+        assertEquals(false, telemetry().get("workerImagePhaseObserved"));
+        // activate binds the current thread as the exact worker for this isolated fixture.
+        TexturePreparedResourceRuntime.publish("other", image);
+        assertEquals(true, telemetry().get("workerImagePhaseObserved"));
+        TexturePreparedResourceRuntime.enter(PATH, PATH);
+        assertNotNull(TexturePreparedResourceRuntime.take(PATH, null, null));
+        assertEquals(1L, telemetry().get("queuedClaims"));
+        TexturePreparedResourceRuntime.exit(true);
     }
 
     @Test
@@ -674,12 +952,13 @@ class TexturePreparedResourceRuntimeTest {
         Map<String, TexturePreparedResourceRuntime.Obligation> obligations =
                 (Map<String, TexturePreparedResourceRuntime.Obligation>) field("OBLIGATIONS").get(null);
         obligations.put(PATH, new TexturePreparedResourceRuntime.Obligation(
-                "TEXTURE", PATH, PATH, "prepared-identity", 10));
+                "TEXTURE", PATH, PATH, PATH, 10));
         field("mainThread").set(null, Thread.currentThread());
         field("stockQueue").set(null, queue);
         field("stockResults").set(null, results);
         field("stockSentinel").set(null, sentinel);
         field("active").setBoolean(null, true);
+        field("workerImagePhase").setBoolean(null, true);
         TexturePreparedResourceRuntime.worker(Thread.currentThread());
         field("mainThread").set(null, main);
     }

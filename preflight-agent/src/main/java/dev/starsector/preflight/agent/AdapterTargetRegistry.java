@@ -187,6 +187,18 @@ final class AdapterTargetRegistry {
                 "app").withAlternativeGroup("vanilla-image-prefetcher-0.98a-rc8");
     }
 
+    static AdapterTarget windowsPreparedResourceWorkerTarget() {
+        return new AdapterTarget(
+                "vanilla-image-prefetcher-windows-0.98a-rc8-result-signal",
+                TexturePreparedResourcePlan.WORKER,
+                TexturePreparedResourcePlan.WORKER_SHA256,
+                TexturePreparedPrefetchPlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod("run", "()V")),
+                "STARSECTOR_CORE", "fs.common_obf.jar",
+                "5a26d047baefc6dcd763121a17d170e3b864bfb19a83d11f645ba8be49f1641b",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader", "app");
+    }
+
     static AdapterTarget windowsTexturePreparedStagingTarget() {
         return windowsCoreTarget(
                 "vanilla-resource-loader-windows-0.98a-rc8-prepared-staging",
@@ -3102,6 +3114,10 @@ final class AdapterTargetRegistry {
             registry = registry.withTarget(windowsTexturePrefetchBypassTarget());
         } else if (mode == TextureAdapterMode.PREPARED_PIXELS) {
             registry = registry.withTarget(windowsTexturePreparedPrefetchTarget());
+            if (TexturePreparedResourceRuntime.requested()
+                    && Boolean.getBoolean(TexturePreparedResourceRuntime.CLAIM_PROPERTY)) {
+                registry = registry.withTarget(windowsPreparedResourceWorkerTarget());
+            }
         }
         if (mode == TextureAdapterMode.PREPARED_PIXELS
                 && Boolean.getBoolean(TexturePreparedStagingRuntime.ENABLED_PROPERTY)) {

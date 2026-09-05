@@ -13,6 +13,7 @@ import java.util.Map;
 /** Windows prototype: CPU results travel beside, rather than replace, stock worker results. */
 public final class TexturePreparedResourceRuntime {
     public static final String PROPERTY = "preflight.texture.windowsPreparedResources";
+    public static final String CLAIM_PROPERTY = "preflight.texture.windowsPreparedResourceClaims";
     static final int MAX_OBLIGATIONS = 32_768;
     static final int MAX_RESOURCE_RECORDS = 262_144;
     static final int MAX_DIRECT_DIMENSION = 1_024;
@@ -28,11 +29,16 @@ public final class TexturePreparedResourceRuntime {
     private static Object stockSentinel;
     private static Completion claimed;
     private static boolean active;
+    private static boolean workerImagePhase;
+    private static String waitingPath;
     private static long admitted, published, committed, originalConsumed, discarded, failures, declines;
     private static long direct, coherent, inFlight;
     private static long resourceRecords;
     private static String admissionDecline = "none";
     private static long ceilingDeclines, drainMillis, drainTimeouts;
+    private static long queuedClaims, claimFallbacks, claimAbandoned, claimErrors, claimReadNanos;
+    private static long lastEntryDeclines, imagePhaseDeferrals, waitPolls, waitNanos;
+    private static long resultSignals;
 
     private TexturePreparedResourceRuntime() { }
 
@@ -45,6 +51,8 @@ public final class TexturePreparedResourceRuntime {
     static void beginSession() {
         synchronized (LOCK) {
             active = false;
+            workerImagePhase = false;
+            waitingPath = null;
             mainThread = null;
             workerThread = null;
             stockQueue = null;
@@ -58,6 +66,9 @@ public final class TexturePreparedResourceRuntime {
             resourceRecords = 0;
             admissionDecline = "none";
             ceilingDeclines = drainMillis = drainTimeouts = 0;
+            queuedClaims = claimFallbacks = claimAbandoned = claimErrors = claimReadNanos = 0;
+            lastEntryDeclines = imagePhaseDeferrals = waitPolls = waitNanos = 0;
+            resultSignals = 0;
         }
         SCOPE.remove();
     }
@@ -125,6 +136,7 @@ public final class TexturePreparedResourceRuntime {
                 stockResults = results;
                 stockSentinel = sentinel;
                 SCOPE.remove();
+                workerImagePhase = false;
                 active = true;
             }
         } catch (ThreadDeath | VirtualMachineError fatal) {
@@ -169,6 +181,9 @@ public final class TexturePreparedResourceRuntime {
     public static BufferedImage publish(String path, BufferedImage image) {
         if (image == null) return null;
         synchronized (LOCK) {
+            // The pinned worker drains bytes before images. Its first completed image is the
+            // admission signal for claims: keep startup's original byte-before-upload boundary.
+            if (active && Thread.currentThread() == workerThread) workerImagePhase = true;
             Obligation obligation = active && Thread.currentThread() == workerThread
                     ? OBLIGATIONS.get(path) : null;
             if (obligation != null && !COMPLETIONS.containsKey(path)) {
@@ -187,6 +202,17 @@ public final class TexturePreparedResourceRuntime {
         }
     }
 
+    /** Called only after the exact worker's image Map.put, never at decode-return publication. */
+    public static void resultReady(String path, BufferedImage image) {
+        synchronized (LOCK) {
+            if (active && Thread.currentThread() == workerThread && waitingPath != null
+                    && waitingPath.equals(path) && stockResults.get(path) == image) {
+                resultSignals++;
+                LOCK.notifyAll();
+            }
+        }
+    }
+
     public static void enter(String path, String registrationName) {
         synchronized (LOCK) {
             Scope previous = SCOPE.get();
@@ -202,7 +228,10 @@ public final class TexturePreparedResourceRuntime {
         Scope scope = SCOPE.get();
         if (scope == null || scope.obligation == null || transform != null || existingHandler != null
                 || !scope.obligation.path().equals(path) || scope.completion != null) return null;
+        boolean signaledWait = requested() && Boolean.getBoolean(CLAIM_PROPERTY);
+        boolean considerClaim = signaledWait;
         for (;;) {
+            boolean removed = false;
             synchronized (LOCK) {
                 if (!active || Thread.currentThread() != mainThread) return null;
                 Completion completion = COMPLETIONS.get(path);
@@ -221,15 +250,94 @@ public final class TexturePreparedResourceRuntime {
                     }
                     return null;
                 }
+                if (considerClaim) {
+                    considerClaim = false;
+                    // The exact worker removes index zero AND puts its in-flight sentinel under
+                    // this monitor. Its preceding isEmpty test is outside the monitor: leave one
+                    // entry so a main-thread removal cannot invalidate that test.
+                    if (!workerImagePhase) {
+                        imagePhaseDeferrals++;
+                    } else synchronized (stockQueue) {
+                        if (!stockResults.containsKey(path)
+                                && scope.obligation.preparedIdentity().equals(
+                                        TextureCompatibilityRuntime.preparedPrefetchKey(path))) {
+                            if (stockQueue.size() > 1) {
+                                removed = stockQueue.remove(path);
+                                if (removed) queuedClaims++;
+                            } else if (stockQueue.contains(path)) {
+                                lastEntryDeclines++;
+                            }
+                        }
+                    }
+                }
                 // Match the exact getter's queue/in-flight test and its 10ms polling schedule.
-                if (!stockQueue.contains(path) && !stockResults.containsKey(path)) return null;
+                if (!removed && !stockQueue.contains(path) && !stockResults.containsKey(path)) return null;
+                if (!removed && signaledWait) {
+                    long started = System.nanoTime();
+                    waitingPath = path;
+                    try {
+                        // Checking the result and registering the wait under the same lock as the
+                        // post-put signal prevents a lost wakeup. Keep stock's timeout as fallback
+                        // if the worker hook is unavailable or a result fails to publish.
+                        LOCK.wait(10L);
+                    } catch (InterruptedException interrupted) {
+                        return null;
+                    } finally {
+                        waitingPath = null;
+                        waitPolls++;
+                        waitNanos += Math.max(0L, System.nanoTime() - started);
+                    }
+                    continue;
+                }
             }
+            if (removed) return loadClaimed(scope);
+            long started = System.nanoTime();
             try {
                 Thread.sleep(10L);
             } catch (InterruptedException interrupted) {
                 // Stock getter consumes this interrupt and returns null for original decode.
                 return null;
+            } finally {
+                synchronized (LOCK) {
+                    waitPolls++;
+                    waitNanos += Math.max(0L, System.nanoTime() - started);
+                }
             }
+        }
+    }
+
+    /** The removed stock job is retired even on a cache miss: the original getter now misses
+     * immediately and the original decoder owns fallback. Never requeue or publish into stock maps.
+     */
+    private static Completion loadClaimed(Scope scope) {
+        long started = System.nanoTime();
+        try {
+            BufferedImage image = TexturePreparedPixelRuntime.load(scope.obligation.path());
+            synchronized (LOCK) {
+                if (!active || SCOPE.get() != scope
+                        || OBLIGATIONS.get(scope.obligation.path()) != scope.obligation) {
+                    claimAbandoned++;
+                    return null;
+                }
+                if (image == null) {
+                    claimFallbacks++;
+                    return null;
+                }
+                Completion completion = new Completion(scope.obligation, image, Kind.PREPARED);
+                scope.completion = completion;
+                claimed = completion;
+                published++;
+                inFlight++;
+                return completion;
+            }
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            synchronized (LOCK) { claimErrors++; }
+            throw fatal;
+        } catch (RuntimeException error) {
+            synchronized (LOCK) { claimErrors++; }
+            return null;
+        } finally {
+            synchronized (LOCK) { claimReadNanos += Math.max(0L, System.nanoTime() - started); }
         }
     }
 
@@ -303,6 +411,7 @@ public final class TexturePreparedResourceRuntime {
             stockResults = null;
             stockSentinel = null;
             workerThread = null;
+            LOCK.notifyAll();
         }
     }
 
@@ -318,6 +427,18 @@ public final class TexturePreparedResourceRuntime {
             values.put("ceilingDeclines", ceilingDeclines);
             values.put("workerDrainMillis", drainMillis);
             values.put("workerDrainTimeouts", drainTimeouts);
+            values.put("queuedClaimsRequested", requested() && Boolean.getBoolean(CLAIM_PROPERTY));
+            values.put("queuedClaims", queuedClaims);
+            values.put("claimFallbacks", claimFallbacks);
+            values.put("claimAbandoned", claimAbandoned);
+            values.put("claimErrors", claimErrors);
+            values.put("claimReadMillis", claimReadNanos / 1_000_000L);
+            values.put("lastEntryDeclines", lastEntryDeclines);
+            values.put("workerImagePhaseObserved", workerImagePhase);
+            values.put("imagePhaseDeferrals", imagePhaseDeferrals);
+            values.put("waitPolls", waitPolls);
+            values.put("waitMillis", waitNanos / 1_000_000L);
+            values.put("resultSignals", resultSignals);
             values.put("published", published);
             values.put("committed", committed);
             values.put("originalConsumed", originalConsumed);

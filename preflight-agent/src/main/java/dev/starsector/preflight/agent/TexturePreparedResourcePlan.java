@@ -21,6 +21,8 @@ import org.objectweb.asm.tree.VarInsnNode;
 /** Joins only the reviewed TEXTURE branch to the unchanged Windows producer and repository call. */
 final class TexturePreparedResourcePlan {
     static final String RUNTIME = "dev/starsector/preflight/agent/TexturePreparedResourceRuntime";
+    static final String WORKER = "com/fs/graphics/L$1";
+    static final String WORKER_SHA256 = "ac01b004ecbb323ee81cc2cd969b30fe9803db6b8c2622de4b87800e11ad465f";
     private static final String WRAPPER = "preflight$commitPreparedResource";
     private static final String REGISTER = "(Ljava/lang/String;Ljava/lang/String;)V";
 
@@ -36,6 +38,58 @@ final class TexturePreparedResourcePlan {
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS, true);
         owner.accept(writer);
         return writer.toByteArray();
+    }
+
+    static byte[] transformWorker(ClassSignature signature, byte[] bytes) {
+        if (!TexturePreparedResourceRuntime.requested()
+                || !Boolean.getBoolean(TexturePreparedResourceRuntime.CLAIM_PROPERTY)
+                || !WORKER.equals(signature.internalName()) || !WORKER_SHA256.equals(signature.sha256()))
+            return null;
+        ClassNode owner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(bytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        MethodNode run = method(owner, "run", "()V");
+        if (run == null) return null;
+        MethodInsnNode decode = null;
+        for (AbstractInsnNode instruction : run.instructions) {
+            if (instruction instanceof MethodInsnNode call) {
+                if (RUNTIME.equals(call.owner)) return null;
+                if ("com/fs/graphics/L".equals(call.owner) && "o00000".equals(call.name)
+                        && TexturePreparedPrefetchPlan.DECODE_DESCRIPTOR.equals(call.desc)) {
+                    if (decode != null) return null;
+                    decode = call;
+                }
+            }
+        }
+        if (decode == null) return null;
+        AbstractInsnNode store = nextOpcode(decode);
+        AbstractInsnNode map = nextOpcode(store);
+        AbstractInsnNode path = nextOpcode(map);
+        AbstractInsnNode image = nextOpcode(path);
+        AbstractInsnNode put = nextOpcode(image);
+        AbstractInsnNode pop = nextOpcode(put);
+        if (!(store instanceof VarInsnNode s) || s.getOpcode() != Opcodes.ASTORE || s.var != 2
+                || !(map instanceof FieldInsnNode f) || f.getOpcode() != Opcodes.GETSTATIC
+                || !"com/fs/graphics/L".equals(f.owner) || !"void".equals(f.name)
+                || !"Ljava/util/Map;".equals(f.desc)
+                || !(path instanceof VarInsnNode p) || p.getOpcode() != Opcodes.ALOAD || p.var != 1
+                || !(image instanceof VarInsnNode i) || i.getOpcode() != Opcodes.ALOAD || i.var != 2
+                || !(put instanceof MethodInsnNode m) || m.getOpcode() != Opcodes.INVOKEINTERFACE
+                || !"java/util/Map".equals(m.owner) || !"put".equals(m.name)
+                || !"(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;".equals(m.desc)
+                || pop == null || pop.getOpcode() != Opcodes.POP) return null;
+        InsnList signal = new InsnList();
+        signal.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        signal.add(new VarInsnNode(Opcodes.ALOAD, 2));
+        signal.add(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME, "resultReady",
+                "(Ljava/lang/String;Ljava/awt/image/BufferedImage;)V", false));
+        run.instructions.insert(pop, signal);
+        return write(owner);
+    }
+
+    private static AbstractInsnNode nextOpcode(AbstractInsnNode node) {
+        if (node == null) return null;
+        do { node = node.getNext(); } while (node != null && node.getOpcode() < 0);
+        return node;
     }
 
     static boolean apply(ClassSignature signature, ClassNode owner) {

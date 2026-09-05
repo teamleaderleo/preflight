@@ -40,6 +40,10 @@ final class AdapterTransformationRegistry {
             return overlap == null ? prepared : overlap;
         }
         if (TexturePreparedPrefetchPlan.PLAN_ID.equals(target.planId())) {
+            if (TexturePreparedResourcePlan.WORKER.equals(signature.internalName())) {
+                return TexturePreparedPixelRuntime.ready()
+                        ? TexturePreparedResourcePlan.transformWorker(signature, originalBytes) : null;
+            }
             return TexturePreparedPixelRuntime.ready()
                     ? TexturePreparedPrefetchPlan.transform(signature, originalBytes)
                     : null;
