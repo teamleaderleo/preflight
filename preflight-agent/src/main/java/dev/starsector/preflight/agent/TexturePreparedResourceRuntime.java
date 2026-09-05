@@ -16,6 +16,7 @@ public final class TexturePreparedResourceRuntime {
     public static final String CLAIM_PROPERTY = "preflight.texture.windowsPreparedResourceClaims";
     public static final String BARRIER_PROPERTY = "preflight.texture.windowsPreparedByteBarrier";
     public static final String PRESTART_PROPERTY = "preflight.texture.windowsPreparedPrestart";
+    public static final String PACKED_CONVERTER_PROPERTY = "preflight.texture.packedConverterImage";
     static final int MAX_OBLIGATIONS = 32_768;
     static final int MAX_RESOURCE_RECORDS = 262_144;
     static final int MAX_DIRECT_DIMENSION = 1_024;
@@ -38,6 +39,7 @@ public final class TexturePreparedResourceRuntime {
     private static long resourceRecords;
     private static String admissionDecline = "none";
     private static long ceilingDeclines, drainMillis, drainTimeouts;
+    private static long packedConverterImages, packedConverterBytes;
     private static long queuedClaims, claimFallbacks, claimAbandoned, claimErrors, claimReadNanos;
     private static long lastEntryDeclines, imagePhaseDeferrals, waitPolls, waitNanos;
     private static long resultSignals;
@@ -73,6 +75,7 @@ public final class TexturePreparedResourceRuntime {
             resourceRecords = 0;
             admissionDecline = "none";
             ceilingDeclines = drainMillis = drainTimeouts = 0;
+            packedConverterImages = packedConverterBytes = 0;
             queuedClaims = claimFallbacks = claimAbandoned = claimErrors = claimReadNanos = 0;
             lastEntryDeclines = imagePhaseDeferrals = waitPolls = waitNanos = 0;
             resultSignals = 0;
@@ -515,6 +518,8 @@ public final class TexturePreparedResourceRuntime {
             values.put("admissionDecline", admissionDecline);
             values.put("directDimensionCeiling", MAX_DIRECT_DIMENSION);
             values.put("ceilingDeclines", ceilingDeclines);
+            values.put("packedConverterImages", packedConverterImages);
+            values.put("packedConverterBytes", packedConverterBytes);
             values.put("workerDrainMillis", drainMillis);
             values.put("workerDrainTimeouts", drainTimeouts);
             values.put("queuedClaimsRequested", requested() && Boolean.getBoolean(CLAIM_PROPERTY));
@@ -557,6 +562,21 @@ public final class TexturePreparedResourceRuntime {
             this.kind = kind;
         }
         public BufferedImage image() { return image; }
+        public BufferedImage converterImage() {
+            requireOwner();
+            if (!prepareAttempted) throw new IllegalStateException("Unprepared converter image");
+            if (kind != Kind.PREPARED
+                    || (image.getWidth() <= MAX_DIRECT_DIMENSION && image.getHeight() <= MAX_DIRECT_DIMENSION)
+                    || !Boolean.parseBoolean(System.getProperty(PACKED_CONVERTER_PROPERTY, "true"))) {
+                return image;
+            }
+            BufferedImage packed = TexturePreparedPixelRuntime.packedOriginalConverterImage(image);
+            if (packed != image) synchronized (LOCK) {
+                packedConverterImages++;
+                packedConverterBytes += (long) packed.getWidth() * packed.getHeight() * Integer.BYTES;
+            }
+            return packed;
+        }
         public Kind kind() { return kind; }
         public TexturePreparedPixelRuntime.PreparedPixel prepare() {
             requireOwner();

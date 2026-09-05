@@ -40,6 +40,11 @@ Linux, and Windows `ResourceLoaderState` variants and records the executing thre
 Pair it with `-StartupTextureCpuProbe` only for intrusive discovery: it retains bounded aggregate
 current-thread CPU and inferred off-CPU time for `cursor_blue.png` versus every other TEXTURE call,
 without moving the existing resource wall-clock anchors or retaining per-call CPU data.
+`--texture-upload-checkpoint` on the host wrapper (or `-TextureUploadCheckpoint` in Windows)
+enables a diagnostic pending-upload observer. It retains only metadata in memory and checks every
+ten seconds; an upload still pending for at least ten seconds produces one last-attempt JSON file.
+Successful uploads perform no checkpoint file I/O. The record is an observation of an unfinished
+call, not proof of a permanent hang. The observer is disabled in ordinary launches and never owns GL.
 Runtime-state v1 Mac/Windows `mainMenuInteractiveAt` values measured the later `Preloading...`
 overlay removal, not first menu usability. Do not compare those historical values with the v2
 usable-menu clock; see `windows-startup-runtime-state-semantics.md`.

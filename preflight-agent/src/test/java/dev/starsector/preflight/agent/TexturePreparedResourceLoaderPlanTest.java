@@ -178,20 +178,22 @@ public class TexturePreparedResourceLoaderPlanTest {
         assertEquals(id, handle.getClass().getMethod("ö00000").invoke(handle));
     }
 
-    @Test
-    void executableLargeNpotDeclineUsesOriginalConverterAndSubimageReload() throws Exception {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {3, 4})
+    void executableLargeNpotDeclineUsesOriginalConverterAndSubimageReload(int channels) throws Exception {
         System.clearProperty(TexturePaddingRuntime.UNPADDED_PROPERTY);
-        BufferedImage image = new BufferedImage(1025, 3, BufferedImage.TYPE_INT_ARGB);
-        byte[] sourcePixels = new byte[1025 * 3 * 4];
+        BufferedImage image = new BufferedImage(1025, 3,
+                channels == 4 ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
+        byte[] sourcePixels = new byte[1025 * 3 * channels];
         int offset = 0;
         for (int y = 2; y >= 0; y--) {
             for (int x = 0; x < 1025; x++) {
-                int argb = 0xff204060 | ((x + y) & 15);
+                int argb = ((channels == 4 ? (x + y) & 255 : 255) << 24) | 0x204060 | ((x + y) & 15);
                 image.setRGB(x, y, argb);
                 sourcePixels[offset++] = (byte) (argb >>> 16);
                 sourcePixels[offset++] = (byte) (argb >>> 8);
                 sourcePixels[offset++] = (byte) argb;
-                sourcePixels[offset++] = (byte) 255;
+                if (channels == 4) sourcePixels[offset++] = (byte) (argb >>> 24);
             }
         }
         Executable stock = new Executable(false);
@@ -201,7 +203,7 @@ public class TexturePreparedResourceLoaderPlanTest {
         byte[] expectedPixels = FakeGL.pixels.clone();
         List<Object> expectedMetadata = metadata(original);
         PreparedTexture texture = new PreparedTexture("ab".repeat(32), PreparedTexture.Transformation.IDENTITY,
-                1025, 3, 1025, 3, 4, 0, 0, 0, sourcePixels);
+                1025, 3, 1025, 3, channels, 0, 0, 0, sourcePixels);
         Executable fixture = new Executable(true);
         fixture.supply("p", carrier(texture), true);
         Object handle = fixture.register("p", "p");
@@ -243,7 +245,8 @@ public class TexturePreparedResourceLoaderPlanTest {
         assertEquals(1, calls(load, TexturePreparedResourceLoaderPlan.RUNTIME, "take"));
         assertEquals(1, calls(load, TexturePreparedResourceLoaderPlan.COMPLETION, "prepare"));
         assertEquals(1, calls(load, TexturePreparedResourceLoaderPlan.COMPLETION, "creditOriginalFallback"));
-        assertEquals(2, calls(load, TexturePreparedResourceLoaderPlan.COMPLETION, "image"));
+        assertEquals(1, calls(load, TexturePreparedResourceLoaderPlan.COMPLETION, "image"));
+        assertEquals(1, calls(load, TexturePreparedResourceLoaderPlan.COMPLETION, "converterImage"));
         assertEquals(1, calls(load, after.name, "preflight$original$convertPixels"));
         assertEquals(1, calls(load, after.name, "Ô00000"));
         assertEquals(1, calls(load, after.name, "o00000",
