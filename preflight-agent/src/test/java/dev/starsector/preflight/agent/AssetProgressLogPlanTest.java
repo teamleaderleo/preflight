@@ -61,7 +61,10 @@ class AssetProgressLogPlanTest {
         String hash = java.util.HexFormat.of().formatHex(
                 java.security.MessageDigest.getInstance("SHA-256").digest(original));
         assertEquals(AdapterTargetRegistry.windowsScriptProgressTarget().sha256(), hash);
-        byte[] rewritten = AssetProgressLogPlan.transform(ClassSignature.parse(original), original);
+        System.setProperty(AssetProgressLogRuntime.PROPERTY, "off");
+        assertTrue(AdapterTransformationRegistry.hasPlan(AssetProgressLogRuntime.PLAN_ID));
+        byte[] rewritten = AdapterTransformationRegistry.transform(
+                AdapterTargetRegistry.windowsScriptProgressTarget(), ClassSignature.parse(original), original);
         assertNotNull(rewritten);
         assertEquals(1, constants(original, "Class ["));
         assertEquals(0, constants(rewritten, "Class ["));
@@ -89,9 +92,11 @@ class AssetProgressLogPlanTest {
         System.setProperty(AssetProgressLogRuntime.PROPERTY, "off");
         AdapterPlanControl.configure(Set.of());
         assertTrue(AssetProgressLogRuntime.suppress());
+        assertTrue(AdapterTransformationRegistry.hasPlan(AssetProgressLogRuntime.PLAN_ID));
 
         AdapterPlanControl.configure(Set.of(AssetProgressLogRuntime.PLAN_ID));
         assertFalse(AssetProgressLogRuntime.suppress());
+        assertFalse(AdapterTransformationRegistry.hasPlan(AssetProgressLogRuntime.PLAN_ID));
     }
 
     @Test

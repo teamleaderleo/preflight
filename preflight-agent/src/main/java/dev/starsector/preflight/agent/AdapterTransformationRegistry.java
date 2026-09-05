@@ -893,6 +893,9 @@ final class AdapterTransformationRegistry {
         if (!AdapterPlanControl.allows(planId)) {
             return false;
         }
+        if (AssetProgressLogRuntime.PLAN_ID.equals(planId)) {
+            return AssetProgressLogRuntime.suppress();
+        }
         if (FastRenderingPreparedTextureRuntime.PLAN_ID.equals(planId)) {
             return FastRenderingPreparedTextureRuntime.ready();
         }
