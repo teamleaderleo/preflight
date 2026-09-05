@@ -26,6 +26,7 @@ windows_disable_prepared_resource_claims=false
 windows_prepared_byte_barrier=false
 windows_pcm_copy=false
 windows_prepared_prestart=false
+windows_prepared_staging=false
 windows_disable_prepared_prestart=false
 windows_disable_prepared_byte_barrier=false
 faction_priority_cache=false
@@ -68,6 +69,7 @@ Usage: run-big-red-windows-startup-cohort.sh [options]
   --disable-windows-backslash-merged-read-keys  Force the Windows path-cache baseline
   --windows-pcm-copy         Copy decoded Windows PCM in bounded chunks
   --windows-prepared-prestart  Admit prepared image jobs before the stock worker starts
+  --windows-prepared-staging  Stage bounded prepared images before SpecStore
   --disable-windows-prepared-prestart  Disable prestart admission
   --windows-prepared-resources  Opt in to Windows prepared resources (workers=1)
   --disable-windows-prepared-resources  Force the same-build prepared-resources baseline
@@ -120,6 +122,7 @@ while (($#)); do
         --texture-upload-checkpoint) texture_upload_checkpoint=true; shift ;;
         --windows-pcm-copy) windows_pcm_copy=true; shift ;;
         --windows-prepared-prestart) windows_prepared_prestart=true; shift ;;
+        --windows-prepared-staging) windows_prepared_staging=true; shift ;;
         --disable-windows-prepared-prestart) windows_disable_prepared_prestart=true; shift ;;
         --windows-prepared-byte-barrier) windows_prepared_byte_barrier=true; shift ;;
         --disable-windows-prepared-byte-barrier) windows_disable_prepared_byte_barrier=true; shift ;;
@@ -331,6 +334,8 @@ texture_upload_checkpoint_arg=""
 windows_pcm_copy_arg=""
 [[ "$windows_pcm_copy" == true ]] && windows_pcm_copy_arg=" -WindowsPcmCopy"
 windows_prepared_prestart_arg=""
+windows_prepared_staging_arg=""
+[[ "$windows_prepared_staging" == true ]] && windows_prepared_staging_arg=" -WindowsPreparedStagingProbe"
 [[ "$windows_prepared_prestart" == true ]] && windows_prepared_prestart_arg=" -WindowsPreparedPrestart"
 [[ "$windows_disable_prepared_prestart" == true ]] && windows_prepared_prestart_arg=" -WindowsDisablePreparedPrestart"
 windows_prepared_byte_barrier_arg=""
@@ -361,7 +366,7 @@ resolution_arg=""
 [[ -n "$resolution" ]] && resolution_arg=" -Resolution $resolution"
 run_ps=$(cat <<EOF
 \$script = "$guest_repo\\scripts\\run-windows-startup-cohort.ps1"
-\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset -GalliumDriver $gallium_driver$resolution_arg$windows_prepared_resources_arg$windows_disable_prepared_resources_arg$windows_prepared_resource_claims_arg$windows_disable_prepared_resource_claims_arg$windows_prepared_byte_barrier_arg$windows_disable_prepared_byte_barrier_arg$windows_prepared_prestart_arg$windows_pcm_copy_arg$texture_upload_checkpoint_arg$windows_prefetch_drain_arg$windows_initial_heap_arg$jvm_native_memory_summary_arg$prepared_load_attribution_arg$prepared_pack_read_ahead_arg$prepared_pack_order_snapshot_arg$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
+\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset -GalliumDriver $gallium_driver$resolution_arg$windows_prepared_resources_arg$windows_disable_prepared_resources_arg$windows_prepared_resource_claims_arg$windows_disable_prepared_resource_claims_arg$windows_prepared_byte_barrier_arg$windows_disable_prepared_byte_barrier_arg$windows_prepared_prestart_arg$windows_prepared_staging_arg$windows_pcm_copy_arg$texture_upload_checkpoint_arg$windows_prefetch_drain_arg$windows_initial_heap_arg$jvm_native_memory_summary_arg$prepared_load_attribution_arg$prepared_pack_read_ahead_arg$prepared_pack_order_snapshot_arg$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
 Set-ScheduledTask -TaskName "$task" -Action (New-ScheduledTaskAction -Execute 'powershell.exe' -Argument \$args) | Out-Null
 Start-ScheduledTask -TaskName "$task"
 Start-Sleep -Seconds 2

@@ -384,7 +384,10 @@ public final class TexturePreparedResourceRuntime {
     private static Completion loadClaimed(Scope scope) {
         long started = System.nanoTime();
         try {
-            BufferedImage image = TexturePreparedPixelRuntime.load(scope.obligation.path());
+            BufferedImage image = TexturePreparedStagingRuntime.take(scope.obligation.path());
+            if (image == null) {
+                image = TexturePreparedPixelRuntime.load(scope.obligation.path());
+            }
             synchronized (LOCK) {
                 if (!active || SCOPE.get() != scope
                         || OBLIGATIONS.get(scope.obligation.path()) != scope.obligation) {

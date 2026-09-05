@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.core.PreparedTexture;
 import dev.starsector.preflight.core.PreparedTextureIO;
+import dev.starsector.preflight.core.PreparedTexturePrefetchOrderIO;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import dev.starsector.preflight.core.TextureManifest;
@@ -47,6 +48,8 @@ class TexturePreparedResourceRuntimeTest {
     @BeforeEach
     @AfterEach
     void reset() {
+        TexturePreparedStagingRuntime.beginSession();
+        System.clearProperty(TexturePreparedStagingRuntime.ENABLED_PROPERTY);
         TexturePreparedResourceRuntime.beginSession();
         TexturePreparedPixelRuntime.beginSession();
         TextureCompatibilityRuntime.beginSession();
@@ -57,6 +60,39 @@ class TexturePreparedResourceRuntimeTest {
         System.clearProperty(TexturePreparedResourceRuntime.PRESTART_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_WORKERS_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_SPLIT_QUEUES_PROPERTY);
+    }
+
+    @Test
+    void prestartConsumesStagedCarrierWithoutReadingItsBlobAgain() throws Exception {
+        carrier(2);
+        Path cache = temporaryDirectory.resolve("cache");
+        String profile = "ab".repeat(32);
+        PreparedTexturePrefetchOrderIO.write(PreparedTexturePrefetchOrderIO.path(cache, profile),
+                profile, List.of(PATH));
+        assertTrue(TextureAccessLearningRuntime.configure(cache, profile));
+        System.setProperty(TexturePreparedStagingRuntime.ENABLED_PROPERTY, "true");
+        TexturePreparedStagingRuntime.start();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        while ((int) TexturePreparedStagingRuntime.telemetry().get("queuedEntries") == 0
+                && System.nanoTime() < deadline) Thread.sleep(10);
+        assertEquals(1, TexturePreparedStagingRuntime.telemetry().get("queuedEntries"));
+        // An extra serving read now fails: the admitted immutable carrier must own this completion.
+        Files.delete(cache.resolve("blobs/ab/" + profile + "-identity.spft"));
+        System.setProperty(TexturePreparedResourceRuntime.PROPERTY, "true");
+        System.setProperty(TexturePreparedResourceRuntime.PRESTART_PROPERTY, "true");
+        activate(Thread.currentThread());
+        field("workerThread").set(null, null);
+        queue.add(PATH);
+        TexturePreparedResourceRuntime.worker(new Thread(() -> { }));
+        TexturePreparedResourceRuntime.enter(PATH, PATH);
+        var completion = TexturePreparedResourceRuntime.take(PATH, null, null);
+        assertNotNull(completion);
+        assertEquals(TexturePreparedResourceRuntime.Kind.PREPARED, completion.kind());
+        assertEquals(1L, TexturePreparedStagingRuntime.telemetry().get("stagedHits"));
+        assertEquals(0, TexturePreparedStagingRuntime.telemetry().get("queuedEntries"));
+        assertEquals(0, TexturePreparedPixelRuntime.telemetry().get("activeBuffers"));
+        TexturePreparedResourceRuntime.exit(true);
+        assertEquals(1L, telemetry().get("committed"));
     }
 
     @Test
