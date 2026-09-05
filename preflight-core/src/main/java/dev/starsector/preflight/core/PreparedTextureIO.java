@@ -223,12 +223,15 @@ public final class PreparedTextureIO {
     private static PreparedTexture readTrustedLz4Range(
             FileChannel channel, long offset, long size, String label) throws IOException {
         int contentLength = Math.toIntExact(size - CHECKSUM_BYTES);
-        byte[] content = trustedLz4Scratch(contentLength);
+        // Include the trailer so pack integrity can cover the whole entry in this same read.
+        // Parsing remains limited to the content; the trailer is never treated as pixel data.
+        int entryLength = Math.toIntExact(size);
+        byte[] content = trustedLz4Scratch(entryLength);
         long[] position = {offset};
         readFully(
                 channel,
                 position,
-                ByteBuffer.wrap(content, 0, contentLength),
+                ByteBuffer.wrap(content, 0, entryLength),
                 "Prepared texture ended inside its payload");
         try {
             ByteBuffer input = ByteBuffer.wrap(content, 0, contentLength).order(ByteOrder.BIG_ENDIAN);

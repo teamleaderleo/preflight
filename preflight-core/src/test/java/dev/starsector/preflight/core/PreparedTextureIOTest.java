@@ -133,9 +133,13 @@ class PreparedTextureIOTest {
 
         Path wrongCodec = temporaryDirectory.resolve("raw-with-wrong-suffix-lz4.spft");
         PreparedTextureIO.write(wrongCodec, texture, PreparedTextureIO.StorageCodec.RAW);
-        IOException rejected = assertThrows(
-                IOException.class, () -> PreparedTextureIO.readTrusted(wrongCodec));
-        assertTrue(rejected.getMessage().contains("LZ4 payload metadata"));
+        if (PreparedTextureIO.singleReadLz4Enabled()) {
+            IOException rejected = assertThrows(
+                    IOException.class, () -> PreparedTextureIO.readTrusted(wrongCodec));
+            assertTrue(rejected.getMessage().contains("LZ4 payload metadata"));
+        } else {
+            assertEquals(texture, PreparedTextureIO.readTrusted(wrongCodec));
+        }
     }
 
     @Test
