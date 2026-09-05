@@ -45,13 +45,13 @@ public final class TexturePaddingRuntime {
     public static final String UNPADDED_PROPERTY = "preflight.padding.unpadded";
 
     /**
-     * Optional diagnostic ceiling for true-size uploads. A positive value keeps textures whose
-     * original width or height exceeds the ceiling on Starsector's padded path. Missing, zero, and
-     * negative values preserve the existing all-sizes behavior.
+     * Ceiling for true-size uploads. Windows defaults to 1024; other platforms remain unlimited.
+     * A positive value keeps textures whose original width or height exceeds the ceiling on
+     * Starsector's padded path. Explicit zero or negative values retain the diagnostic opt-out.
      *
-     * <p>This exists for software OpenGL drivers that advertise NPOT support but may have a
-     * size-dependent slow or broken path. It is deliberately a property rather than a preset: a
-     * host must first prove a safe threshold against its exact driver and workload.
+     * <p>NPOT capability alone does not prove that every size is usable: the reviewed Windows
+     * native driver stalled on a 1735x1014 RGB upload. Keep the prepared-resource prototype's
+     * conservative ceiling on ordinary Windows launches as well.
      */
     public static final String MAX_UNPADDED_DIMENSION_PROPERTY =
             "preflight.padding.maxUnpaddedDimension";
@@ -191,7 +191,18 @@ public final class TexturePaddingRuntime {
     }
 
     private static int maxUnpaddedDimension() {
-        return Integer.getInteger(MAX_UNPADDED_DIMENSION_PROPERTY, 0);
+        return Integer.getInteger(MAX_UNPADDED_DIMENSION_PROPERTY, windows() ? 1024 : 0);
+    }
+
+    /** CPU-only admission for a coherent image that the unchanged converter can consume. */
+    static boolean originalConversionForWindowsCeiling(int width, int height) {
+        int ceiling = maxUnpaddedDimension();
+        return windows() && Boolean.getBoolean(UNPADDED_PROPERTY)
+                && ceiling > 0 && (width > ceiling || height > ceiling);
+    }
+
+    private static boolean windows() {
+        return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows");
     }
 
     /**
