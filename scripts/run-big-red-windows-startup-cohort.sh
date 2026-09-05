@@ -81,7 +81,7 @@ Usage: run-big-red-windows-startup-cohort.sh [options]
   --windows-initial-heap-probe Try 2 GiB initial heap on the exact reviewed Windows launcher
   --disable-windows-initial-heap-probe  Explicitly disable the initial-heap policy
   --disable-windows-prefetch-drain  Disable the normal bounded worker shutdown wait
-  --texture-upload-checkpoint  Intrusive per-upload crash breadcrumb (not a timing condition)
+  --texture-upload-checkpoint  Pending native-upload breadcrumb (diagnostic only)
   --windows-prepared-byte-barrier  Bypass prepared image jobs after the original byte phase
   --disable-windows-prepared-byte-barrier  Force the stock image-worker baseline
   --windows-prepared-resource-claims  Let main claim queued prepared resources (implies prototype)

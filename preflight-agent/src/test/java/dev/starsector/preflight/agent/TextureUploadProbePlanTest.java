@@ -68,13 +68,34 @@ class TextureUploadProbePlanTest {
         TextureUploadProbeRuntime.beginSession(dir.resolve("upload.json"));
         ByteBuffer pixels = ByteBuffer.allocateDirect(64);
         pixels.position(4).limit(52);
-        TextureUploadProbeRuntime.checkpoint(3553, 0, 7, 9, 3, 4, 6408, 5121, pixels, "test", true);
+        TextureUploadProbeRuntime.checkpoint(3553, 0, 7, 9, 3, 4, 6408, 5121, pixels, "test", true, 4);
+        org.junit.jupiter.api.Assertions.assertFalse(java.nio.file.Files.exists(dir.resolve("upload.json.last-attempt.json")));
+        TextureUploadProbeRuntime.writePendingCheckpoint(System.nanoTime() + TextureUploadProbeRuntime.PENDING_THRESHOLD_NANOS);
         String saved = java.nio.file.Files.readString(dir.resolve("upload.json.last-attempt.json"));
         org.junit.jupiter.api.Assertions.assertTrue(saved.contains("\"width\":3"));
         org.junit.jupiter.api.Assertions.assertTrue(saved.contains("\"height\":4"));
         org.junit.jupiter.api.Assertions.assertTrue(saved.contains("\"yOffset\":9"));
+        org.junit.jupiter.api.Assertions.assertTrue(saved.contains("\"unpackAlignment\":4"));
         assertEquals(4, pixels.position());
         assertEquals(52, pixels.limit());
+        TextureUploadProbeRuntime.writePendingCheckpoint(System.nanoTime() + 2 * TextureUploadProbeRuntime.PENDING_THRESHOLD_NANOS);
+        assertEquals(saved, java.nio.file.Files.readString(dir.resolve("upload.json.last-attempt.json")));
+    }
+
+    @Test
+    void completedOrPreviousSessionUploadsDoNotPublishStaleBreadcrumbs(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) {
+        System.setProperty(TextureUploadProbeRuntime.CHECKPOINT_PROPERTY, "true");
+        TextureUploadProbeRuntime.beginSession(dir.resolve("completed.json"));
+        ByteBuffer pixels = ByteBuffer.allocateDirect(16);
+        TextureUploadProbeRuntime.checkpoint(3553, 0, 6408, 2, 2, 0, 6408, 5121, pixels, "complete", false);
+        TextureUploadProbeRuntime.finish(System.nanoTime(), 2, 2, 6408, 5121, pixels, "complete", false);
+        TextureUploadProbeRuntime.writePendingCheckpoint(System.nanoTime() + TextureUploadProbeRuntime.PENDING_THRESHOLD_NANOS);
+        org.junit.jupiter.api.Assertions.assertFalse(java.nio.file.Files.exists(dir.resolve("completed.json.last-attempt.json")));
+        TextureUploadProbeRuntime.checkpoint(3553, 0, 6408, 2, 2, 0, 6408, 5121, pixels, "old", false);
+        TextureUploadProbeRuntime.beginSession(dir.resolve("new.json"));
+        TextureUploadProbeRuntime.writePendingCheckpoint(System.nanoTime() + TextureUploadProbeRuntime.PENDING_THRESHOLD_NANOS);
+        org.junit.jupiter.api.Assertions.assertFalse(java.nio.file.Files.exists(dir.resolve("new.json.last-attempt.json")));
     }
 
     @Test

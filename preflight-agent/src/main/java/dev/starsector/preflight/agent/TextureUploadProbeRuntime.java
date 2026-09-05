@@ -34,6 +34,11 @@ public final class TextureUploadProbeRuntime {
     private static long over100Millis;
     private static Path reportPath;
     private static boolean shutdownHookInstalled;
+    static final long PENDING_THRESHOLD_NANOS = 10_000_000_000L;
+    private static PendingUpload pendingUpload;
+    private static PendingUpload reportedUpload;
+    private static Thread checkpointWatchdog;
+    private static final long[] observedUnpackAlignments = new long[4];
 
     private TextureUploadProbeRuntime() {
     }
@@ -47,8 +52,15 @@ public final class TextureUploadProbeRuntime {
     }
 
     static synchronized void beginSession(Path report) {
+        stopCheckpointWatchdog();
         resetCounters();
         reportPath = enabled() ? report : null;
+        if (reportPath != null && Boolean.getBoolean(CHECKPOINT_PROPERTY)) {
+            checkpointWatchdog = new Thread(TextureUploadProbeRuntime::watchPendingUpload,
+                    "Preflight-Pending-Texture-Upload");
+            checkpointWatchdog.setDaemon(true);
+            checkpointWatchdog.start();
+        }
         if (reportPath != null && !shutdownHookInstalled) {
             shutdownHookInstalled = true;
             Runtime.getRuntime().addShutdownHook(new Thread(
@@ -62,39 +74,86 @@ public final class TextureUploadProbeRuntime {
         return System.nanoTime();
     }
 
-    /** Intrusive opt-in crash breadcrumb. One overwritten file, written before entering native
-     * code; it records the last attempted call, not proof that the call stalled or completed.
-     * No GL query, buffer read, buffer mutation or additional worker is introduced.
-     */
+    /** Opt-in pending-call breadcrumb. Retains metadata only, never the native buffer. */
     public static synchronized void checkpoint(int target, int level, int internalFormat,
             int width, int height, int border, int format, int type, ByteBuffer pixels,
             String path, boolean subImage) {
+        checkpoint(target, level, internalFormat, width, height, border, format, type, pixels, path, subImage, -1);
+    }
+
+    public static synchronized void checkpoint(int target, int level, int internalFormat,
+            int width, int height, int border, int format, int type, ByteBuffer pixels,
+            String path, boolean subImage, int unpackAlignment) {
         if (!enabled() || !Boolean.getBoolean(CHECKPOINT_PROPERTY) || reportPath == null) return;
+        if (unpackAlignment == 1 || unpackAlignment == 2 || unpackAlignment == 4 || unpackAlignment == 8) {
+            observedUnpackAlignments[Integer.numberOfTrailingZeros(unpackAlignment)]++;
+        }
+        pendingUpload = new PendingUpload(System.nanoTime(), calls, path,
+                Thread.currentThread().getId(), Thread.currentThread().getName(),
+                target, level, internalFormat, width, height, border, format, type,
+                pixels == null ? -1 : pixels.position(), pixels == null ? -1 : pixels.limit(),
+                pixels == null ? -1 : pixels.capacity(), pixels != null && pixels.isDirect(), subImage, unpackAlignment);
+    }
+
+    private static void watchPendingUpload() {
+        try {
+            while (true) {
+                Thread.sleep(10_000L);
+                synchronized (TextureUploadProbeRuntime.class) {
+                    if (Thread.currentThread() != checkpointWatchdog) return;
+                    writePendingCheckpoint(System.nanoTime());
+                }
+            }
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /** The observer writes once per overdue attempt; a completed call or new session clears it. */
+    static synchronized void writePendingCheckpoint(long now) {
+        PendingUpload attempt = pendingUpload;
+        if (reportPath == null || attempt == null || attempt == reportedUpload
+                || now - attempt.startedNanos() < PENDING_THRESHOLD_NANOS) return;
+        reportedUpload = attempt;
         Map<String, Object> value = new LinkedHashMap<>();
-        value.put("completedCallsBeforeAttempt", calls);
-        value.put("logicalPath", path);
-        value.put("operation", subImage ? "glTexSubImage2D" : "glTexImage2D");
-        value.put("thread", Thread.currentThread().getName());
-        value.put("target", target);
-        value.put("level", level);
-        value.put(subImage ? "xOffset" : "internalFormat", internalFormat);
-        value.put("width", subImage ? height : width);
-        value.put("height", subImage ? border : height);
-        value.put(subImage ? "yOffset" : "border", subImage ? width : border);
-        value.put("format", format);
-        value.put("type", type);
-        value.put("position", pixels == null ? -1 : pixels.position());
-        value.put("limit", pixels == null ? -1 : pixels.limit());
-        value.put("capacity", pixels == null ? -1 : pixels.capacity());
-        value.put("direct", pixels != null && pixels.isDirect());
+        value.put("observedAt", java.time.Instant.now().toString());
+        value.put("observation", "upload-did-not-complete-before-observation");
+        value.put("pendingMillis", Math.max(0L, now - attempt.startedNanos()) / 1_000_000.0);
+        value.put("completedCallsBeforeAttempt", attempt.completedCalls());
+        value.put("logicalPath", attempt.path());
+        value.put("operation", attempt.subImage() ? "glTexSubImage2D" : "glTexImage2D");
+        value.put("thread", attempt.thread());
+        value.put("target", attempt.target());
+        value.put("level", attempt.level());
+        value.put(attempt.subImage() ? "xOffset" : "internalFormat", attempt.internalFormat());
+        value.put("width", attempt.subImage() ? attempt.height() : attempt.width());
+        value.put("height", attempt.subImage() ? attempt.border() : attempt.height());
+        value.put(attempt.subImage() ? "yOffset" : "border", attempt.subImage() ? attempt.width() : attempt.border());
+        value.put("format", attempt.format());
+        value.put("type", attempt.type());
+        value.put("position", attempt.position());
+        value.put("limit", attempt.limit());
+        value.put("capacity", attempt.capacity());
+        value.put("direct", attempt.direct());
+        value.put("unpackAlignment", attempt.unpackAlignment());
         try {
             Path destination = reportPath.resolveSibling(reportPath.getFileName() + ".last-attempt.json");
             if (destination.getParent() != null) Files.createDirectories(destination.getParent());
             Files.writeString(destination, Json.object(value) + System.lineSeparator(), StandardCharsets.UTF_8);
         } catch (IOException | RuntimeException ignored) {
-            // Diagnostic I/O must never suppress an upload.
+            // Diagnostic I/O must never suppress an upload or retry without a bound.
         }
     }
+
+    private static void stopCheckpointWatchdog() {
+        if (checkpointWatchdog != null) checkpointWatchdog.interrupt();
+        checkpointWatchdog = null;
+    }
+
+    private record PendingUpload(long startedNanos, long completedCalls, String path,
+            long threadId, String thread, int target, int level, int internalFormat,
+            int width, int height, int border, int format, int type,
+            int position, int limit, int capacity, boolean direct, boolean subImage, int unpackAlignment) { }
 
     /** Called immediately after the native GL invocation. */
     public static synchronized void finish(
@@ -106,6 +165,9 @@ public final class TextureUploadProbeRuntime {
             ByteBuffer pixels,
             String logicalPath,
             boolean subImage) {
+        if (pendingUpload != null && pendingUpload.threadId() == Thread.currentThread().getId()) {
+            pendingUpload = null;
+        }
         long elapsed = Math.max(0L, System.nanoTime() - startedNanos);
         int bytes = pixels == null ? 0 : Math.max(0, pixels.remaining());
         calls++;
@@ -161,16 +223,23 @@ public final class TextureUploadProbeRuntime {
         values.put("over50Millis", over50Millis);
         values.put("over100Millis", over100Millis);
         values.put("reportPath", reportPath == null ? "" : reportPath.toString());
+        values.put("rgbUnpackAlignmentObservations", Map.of(
+                "1", observedUnpackAlignments[0], "2", observedUnpackAlignments[1],
+                "4", observedUnpackAlignments[2], "8", observedUnpackAlignments[3]));
         values.put("slowest", List.copyOf(slowest));
         return Map.copyOf(values);
     }
 
     static synchronized void resetForTests() {
+        stopCheckpointWatchdog();
         reportPath = null;
         resetCounters();
     }
 
     private static void resetCounters() {
+        pendingUpload = null;
+        reportedUpload = null;
+        java.util.Arrays.fill(observedUnpackAlignments, 0L);
         installedCallSites = 0;
         calls = 0L;
         imageCalls = 0L;

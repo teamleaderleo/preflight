@@ -178,20 +178,22 @@ public class TexturePreparedResourceLoaderPlanTest {
         assertEquals(id, handle.getClass().getMethod("ö00000").invoke(handle));
     }
 
-    @Test
-    void executableLargeNpotDeclineUsesOriginalConverterAndSubimageReload() throws Exception {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {3, 4})
+    void executableLargeNpotDeclineUsesOriginalConverterAndSubimageReload(int channels) throws Exception {
         System.clearProperty(TexturePaddingRuntime.UNPADDED_PROPERTY);
-        BufferedImage image = new BufferedImage(1025, 3, BufferedImage.TYPE_INT_ARGB);
-        byte[] sourcePixels = new byte[1025 * 3 * 4];
+        BufferedImage image = new BufferedImage(1025, 3,
+                channels == 4 ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
+        byte[] sourcePixels = new byte[1025 * 3 * channels];
         int offset = 0;
         for (int y = 2; y >= 0; y--) {
             for (int x = 0; x < 1025; x++) {
-                int argb = 0xff204060 | ((x + y) & 15);
+                int argb = ((channels == 4 ? (x + y) & 255 : 255) << 24) | 0x204060 | ((x + y) & 15);
                 image.setRGB(x, y, argb);
                 sourcePixels[offset++] = (byte) (argb >>> 16);
                 sourcePixels[offset++] = (byte) (argb >>> 8);
                 sourcePixels[offset++] = (byte) argb;
-                sourcePixels[offset++] = (byte) 255;
+                if (channels == 4) sourcePixels[offset++] = (byte) (argb >>> 24);
             }
         }
         Executable stock = new Executable(false);
@@ -201,7 +203,7 @@ public class TexturePreparedResourceLoaderPlanTest {
         byte[] expectedPixels = FakeGL.pixels.clone();
         List<Object> expectedMetadata = metadata(original);
         PreparedTexture texture = new PreparedTexture("ab".repeat(32), PreparedTexture.Transformation.IDENTITY,
-                1025, 3, 1025, 3, 4, 0, 0, 0, sourcePixels);
+                1025, 3, 1025, 3, channels, 0, 0, 0, sourcePixels);
         Executable fixture = new Executable(true);
         fixture.supply("p", carrier(texture), true);
         Object handle = fixture.register("p", "p");
@@ -224,6 +226,48 @@ public class TexturePreparedResourceLoaderPlanTest {
         assertNull(TexturePreparedResourceLoaderPlan.transform(ClassSignature.parse(bytes), bytes));
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"2,1", "2,2", "2,4", "2,8",
+            "4,1", "4,2", "4,4", "4,8", "8,1", "8,2", "8,4", "8,8"})
+    void ownedRgbUploadRestoresUnpackStateAfterSuccessAndFailure(int width, int initialAlignment) throws Exception {
+        byte[] pixels = new byte[width * 2 * 3];
+        for (int i = 0; i < pixels.length; i++) pixels[i] = (byte) (i + 1);
+        for (boolean fail : new boolean[] {false, true}) {
+            Executable fixture = new Executable(true);
+            FakeGL.unpackAlignment = initialAlignment;
+            PreparedTexture texture = new PreparedTexture("ab".repeat(32), PreparedTexture.Transformation.IDENTITY,
+                    width, 2, width, 2, 3, 0, 0, 0, pixels);
+            fixture.supply("p", carrier(texture), true);
+            FakeGL.failUpload = fail;
+            if (fail) {
+                InvocationTargetException error = assertThrows(InvocationTargetException.class,
+                        () -> fixture.register("p", "p"));
+                assertTrue(error.getCause() instanceof IllegalStateException);
+                assertTrue(fixture.cache().isEmpty());
+            } else {
+                Object handle = fixture.register("p", "p");
+                assertSame(handle, fixture.cache().get("p"));
+            }
+            assertArrayEquals(pixels, FakeGL.pixels);
+            boolean changed = TexturePreparedPixelRuntime.rgbAlignmentNeedsOverride(width, initialAlignment);
+            assertEquals(changed ? 1 : initialAlignment, FakeGL.uploadAlignment);
+            assertEquals(initialAlignment, FakeGL.unpackAlignment);
+            assertEquals(changed ? 1L : 0L, TexturePreparedPixelRuntime.telemetry().get("unpackAlignmentChanges"));
+            assertEquals(changed ? 1L : 0L, TexturePreparedPixelRuntime.telemetry().get("unpackAlignmentRestores"));
+            assertEquals(0L, field(TexturePreparedPixelRuntime.class, "activeBytes").get(null));
+        }
+    }
+
+    @Test
+    void originalConverterBufferRetainsOriginalUnpackState() throws Exception {
+        Executable fixture = new Executable(true);
+        fixture.supply("p", new BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB), true);
+        fixture.register("p", "p");
+        assertEquals(4, FakeGL.uploadAlignment);
+        assertEquals(4, FakeGL.unpackAlignment);
+        assertEquals(0L, TexturePreparedPixelRuntime.telemetry().get("unpackAlignmentChanges"));
+    }
+
     @Test
     void installedWindowsCompositionPreservesGlAndUsesTypedFallbacks() throws Exception {
         byte[] original = installed();
@@ -243,7 +287,8 @@ public class TexturePreparedResourceLoaderPlanTest {
         assertEquals(1, calls(load, TexturePreparedResourceLoaderPlan.RUNTIME, "take"));
         assertEquals(1, calls(load, TexturePreparedResourceLoaderPlan.COMPLETION, "prepare"));
         assertEquals(1, calls(load, TexturePreparedResourceLoaderPlan.COMPLETION, "creditOriginalFallback"));
-        assertEquals(2, calls(load, TexturePreparedResourceLoaderPlan.COMPLETION, "image"));
+        assertEquals(1, calls(load, TexturePreparedResourceLoaderPlan.COMPLETION, "image"));
+        assertEquals(1, calls(load, TexturePreparedResourceLoaderPlan.COMPLETION, "converterImage"));
         assertEquals(1, calls(load, after.name, "preflight$original$convertPixels"));
         assertEquals(1, calls(load, after.name, "Ô00000"));
         assertEquals(1, calls(load, after.name, "o00000",
@@ -489,14 +534,18 @@ public class TexturePreparedResourceLoaderPlanTest {
         static byte[] pixels;
         static boolean failUpload;
         static int nextId;
-        static void reset() { calls.clear(); pixels = null; failUpload = false; nextId = 1; }
+        static int unpackAlignment, uploadAlignment;
+        static void reset() { calls.clear(); pixels = null; failUpload = false; nextId = 1; unpackAlignment = 4; uploadAlignment = -1; }
         public static IntBuffer createIntBuffer(int size) { return ByteBuffer.allocateDirect(size * 4).asIntBuffer(); }
         public static ByteBuffer createByteBuffer(int size) { return ByteBuffer.allocateDirect(size); }
         public static void glGenTextures(IntBuffer target) { target.put(0, nextId++); calls.add("gen"); }
         public static void glBindTexture(int target, int id) { calls.add("bind:" + target + ":" + id); }
         public static void glTexParameteri(int target, int name, int value) { calls.add("parameter:" + target + ":" + name + ":" + value); }
+        public static int glGetInteger(int name) { assertEquals(3317, name); return unpackAlignment; }
+        public static void glPixelStorei(int name, int value) { assertEquals(3317, name); unpackAlignment = value; calls.add("unpack:" + value); }
         public static void glTexImage2D(int target, int level, int internal, int width, int height,
                 int border, int format, int type, ByteBuffer bytes) {
+            uploadAlignment = unpackAlignment;
             calls.add("image:" + target + ":" + level + ":" + internal + ":" + width + ":" + height
                     + ":" + border + ":" + format + ":" + type);
             pixels = new byte[bytes.remaining()];

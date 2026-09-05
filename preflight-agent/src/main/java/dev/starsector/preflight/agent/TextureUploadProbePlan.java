@@ -62,6 +62,7 @@ final class TextureUploadProbePlan {
         int pixels = method.maxLocals++;
         int started = method.maxLocals;
         method.maxLocals += 2;
+        int unpackAlignment = method.maxLocals++;
 
         InsnList before = new InsnList();
         before.add(new VarInsnNode(Opcodes.ASTORE, pixels));
@@ -74,6 +75,24 @@ final class TextureUploadProbePlan {
         before.add(new VarInsnNode(Opcodes.ISTORE, level));
         before.add(new VarInsnNode(Opcodes.ISTORE, target));
         if (Boolean.getBoolean(TextureUploadProbeRuntime.CHECKPOINT_PROPERTY)) {
+            // Query only potentially misaligned RGB rows, on the original GL owner thread.
+            // This is diagnostic-only and never changes unpack state.
+            org.objectweb.asm.tree.LabelNode aligned = new org.objectweb.asm.tree.LabelNode();
+            before.add(new InsnNode(Opcodes.ICONST_M1));
+            before.add(new VarInsnNode(Opcodes.ISTORE, unpackAlignment));
+            before.add(new VarInsnNode(Opcodes.ILOAD, format));
+            before.add(new LdcInsnNode(6407));
+            before.add(new org.objectweb.asm.tree.JumpInsnNode(Opcodes.IF_ICMPNE, aligned));
+            before.add(new VarInsnNode(Opcodes.ILOAD, "glTexSubImage2D".equals(upload.name) ? height : width));
+            before.add(new InsnNode(Opcodes.ICONST_3));
+            before.add(new InsnNode(Opcodes.IMUL));
+            before.add(new InsnNode(Opcodes.ICONST_3));
+            before.add(new InsnNode(Opcodes.IAND));
+            before.add(new org.objectweb.asm.tree.JumpInsnNode(Opcodes.IFEQ, aligned));
+            before.add(new LdcInsnNode(3317));
+            before.add(new MethodInsnNode(Opcodes.INVOKESTATIC, GL11, "glGetInteger", "(I)I", false));
+            before.add(new VarInsnNode(Opcodes.ISTORE, unpackAlignment));
+            before.add(aligned);
             before.add(new VarInsnNode(Opcodes.ILOAD, target));
             before.add(new VarInsnNode(Opcodes.ILOAD, level));
             before.add(new VarInsnNode(Opcodes.ILOAD, internalFormat));
@@ -86,8 +105,9 @@ final class TextureUploadProbePlan {
             if (pathUpload(method)) before.add(new VarInsnNode(Opcodes.ALOAD, 2));
             else before.add(new LdcInsnNode("<buffered-image>"));
             before.add(new InsnNode("glTexSubImage2D".equals(upload.name) ? Opcodes.ICONST_1 : Opcodes.ICONST_0));
+            before.add(new VarInsnNode(Opcodes.ILOAD, unpackAlignment));
             before.add(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME, "checkpoint",
-                    "(IIIIIIIILjava/nio/ByteBuffer;Ljava/lang/String;Z)V", false));
+                    "(IIIIIIIILjava/nio/ByteBuffer;Ljava/lang/String;ZI)V", false));
         }
         before.add(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME, "begin", "()J", false));
         before.add(new VarInsnNode(Opcodes.LSTORE, started));
