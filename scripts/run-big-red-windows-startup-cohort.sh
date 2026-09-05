@@ -33,6 +33,7 @@ prepared_load_attribution=false
 jvm_native_memory_summary=false
 windows_initial_heap_probe=false
 disable_windows_initial_heap_probe=false
+disable_windows_prefetch_drain=false
 prepared_pack_read_ahead=false
 disable_prepared_pack_read_ahead=false
 prepared_pack_order_snapshot=false
@@ -70,7 +71,8 @@ Usage: run-big-red-windows-startup-cohort.sh [options]
   --prepared-load-attribution  Measure prepared lookup, pack, layout, and carrier stages
   --jvm-native-memory-summary  Enable diagnostic JVM native-memory accounting (Preflight arms)
   --windows-initial-heap-probe Try 2 GiB initial heap on the exact reviewed Windows launcher
-  --disable-windows-initial-heap-probe  Explicitly disable the initial-heap experiment
+  --disable-windows-initial-heap-probe  Explicitly disable the initial-heap policy
+  --disable-windows-prefetch-drain  Disable the normal bounded worker shutdown wait
   --texture-upload-checkpoint  Intrusive per-upload crash breadcrumb (not a timing condition)
   --windows-prepared-byte-barrier  Bypass prepared image jobs after the original byte phase
   --disable-windows-prepared-byte-barrier  Force the stock image-worker baseline
@@ -107,6 +109,7 @@ while (($#)); do
         --prepared-load-attribution) prepared_load_attribution=true; shift ;;
         --jvm-native-memory-summary) jvm_native_memory_summary=true; shift ;;
         --windows-initial-heap-probe) windows_initial_heap_probe=true; shift ;;
+        --disable-windows-prefetch-drain) disable_windows_prefetch_drain=true; shift ;;
         --disable-windows-initial-heap-probe) disable_windows_initial_heap_probe=true; shift ;;
         --texture-upload-checkpoint) texture_upload_checkpoint=true; shift ;;
         --windows-prepared-byte-barrier) windows_prepared_byte_barrier=true; shift ;;
@@ -302,6 +305,8 @@ prepared_pack_order_snapshot_arg=""
 prepared_pack_read_ahead_arg=""
 [[ "$prepared_pack_read_ahead" == true ]] && prepared_pack_read_ahead_arg=" -PreparedPackReadAhead"
 [[ "$disable_prepared_pack_read_ahead" == true ]] && prepared_pack_read_ahead_arg=" -DisablePreparedPackReadAhead"
+windows_prefetch_drain_arg=""
+[[ "$disable_windows_prefetch_drain" == true ]] && windows_prefetch_drain_arg=" -DisableWindowsPrefetchDrain"
 windows_initial_heap_arg=""
 [[ "$windows_initial_heap_probe" == true ]] && windows_initial_heap_arg=" -WindowsInitialHeapProbe"
 [[ "$disable_windows_initial_heap_probe" == true ]] && windows_initial_heap_arg=" -DisableWindowsInitialHeapProbe"
@@ -339,7 +344,7 @@ resolution_arg=""
 [[ -n "$resolution" ]] && resolution_arg=" -Resolution $resolution"
 run_ps=$(cat <<EOF
 \$script = "$guest_repo\\scripts\\run-windows-startup-cohort.ps1"
-\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset -GalliumDriver $gallium_driver$resolution_arg$windows_prepared_resources_arg$windows_disable_prepared_resources_arg$windows_prepared_resource_claims_arg$windows_disable_prepared_resource_claims_arg$windows_prepared_byte_barrier_arg$windows_disable_prepared_byte_barrier_arg$texture_upload_checkpoint_arg$windows_initial_heap_arg$jvm_native_memory_summary_arg$prepared_load_attribution_arg$prepared_pack_read_ahead_arg$prepared_pack_order_snapshot_arg$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
+\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset -GalliumDriver $gallium_driver$resolution_arg$windows_prepared_resources_arg$windows_disable_prepared_resources_arg$windows_prepared_resource_claims_arg$windows_disable_prepared_resource_claims_arg$windows_prepared_byte_barrier_arg$windows_disable_prepared_byte_barrier_arg$texture_upload_checkpoint_arg$windows_prefetch_drain_arg$windows_initial_heap_arg$jvm_native_memory_summary_arg$prepared_load_attribution_arg$prepared_pack_read_ahead_arg$prepared_pack_order_snapshot_arg$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
 Set-ScheduledTask -TaskName "$task" -Action (New-ScheduledTaskAction -Execute 'powershell.exe' -Argument \$args) | Out-Null
 Start-ScheduledTask -TaskName "$task"
 Start-Sleep -Seconds 2

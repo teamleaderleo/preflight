@@ -141,6 +141,9 @@ class TexturePreparedPrefetchPlanTest {
 
         assertNotNull(transformed);
         ClassNode parsed = parse(transformed);
+        assertEquals(List.of("finish", "interrupt", "retainLearnedKaleidoscopePrefetchResults", "clear"),
+                calls(method(parsed, TexturePreparedPrefetchPlan.STOP_METHOD, "()V"))
+                        .stream().map(call -> call.name).toList());
         assertEquals(
                 List.of("seedLearnedKaleidoscopePrefetches"),
                 calls(method(parsed, TexturePreparedPrefetchPlan.START_METHOD, "()V"))
@@ -241,6 +244,8 @@ class TexturePreparedPrefetchPlanTest {
                 "byteResults", "Ljava/util/Map;", null, null).visitEnd();
         writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
                 "byteMarker", "[B", null, null).visitEnd();
+        writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                "worker", "Ljava/lang/Thread;", null, null).visitEnd();
 
         MethodVisitor init = writer.visitMethod(
                 Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
@@ -382,6 +387,8 @@ class TexturePreparedPrefetchPlanTest {
                 null,
                 null);
         stop.visitCode();
+        stop.visitFieldInsn(Opcodes.GETSTATIC, owner, "worker", "Ljava/lang/Thread;");
+        stop.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Thread", "interrupt", "()V", false);
         stop.visitFieldInsn(Opcodes.GETSTATIC, owner, "imageResults", "Ljava/util/Map;");
         stop.visitMethodInsn(Opcodes.INVOKEINTERFACE, "java/util/Map", "clear", "()V", true);
         stop.visitFieldInsn(Opcodes.GETSTATIC, owner, "byteResults", "Ljava/util/Map;");

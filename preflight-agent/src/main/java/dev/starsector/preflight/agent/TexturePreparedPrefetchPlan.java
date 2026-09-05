@@ -198,9 +198,19 @@ final class TexturePreparedPrefetchPlan {
         }
 
         MethodInsnNode imageClear = null;
+        MethodInsnNode interrupt = null;
         for (AbstractInsnNode instruction = stop.instructions.getFirst();
                 instruction != null;
                 instruction = instruction.getNext()) {
+            if (instruction instanceof MethodInsnNode call
+                    && call.getOpcode() == Opcodes.INVOKEVIRTUAL
+                    && "java/lang/Thread".equals(call.owner)
+                    && "interrupt".equals(call.name) && "()V".equals(call.desc)) {
+                if (interrupt != null || !(previousOpcode(call) instanceof FieldInsnNode field)
+                        || field.getOpcode() != Opcodes.GETSTATIC || !owner.name.equals(field.owner)
+                        || !"Ljava/lang/Thread;".equals(field.desc)) return false;
+                interrupt = call;
+            }
             if (!(instruction instanceof MethodInsnNode call)
                     || call.getOpcode() != Opcodes.INVOKEINTERFACE
                     || !"java/util/Map".equals(call.owner)
@@ -220,9 +230,19 @@ final class TexturePreparedPrefetchPlan {
                 imageClear = call;
             }
         }
-        if (imageClear == null) {
+        if (imageClear == null || interrupt == null) {
             return false;
         }
+
+        // The source-bound Windows worker is finite: byte queue, image queue, return.
+        // Join before interrupt so cancellation cannot close a still-active shared pack read.
+        InsnList drain = new InsnList();
+        drain.add(new InsnNode(Opcodes.DUP));
+        drain.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                "dev/starsector/preflight/agent/TexturePrefetchShutdownRuntime",
+                "finish", "(Ljava/lang/Thread;)V", false));
+        stop.instructions.insertBefore(interrupt, drain);
+        stop.maxStack = Math.max(stop.maxStack, 2);
 
         InsnList seed = new InsnList();
         addField(seed, owner.name, imageQueue, LIST_DESCRIPTOR);

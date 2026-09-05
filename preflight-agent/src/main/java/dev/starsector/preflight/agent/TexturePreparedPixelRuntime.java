@@ -106,6 +106,7 @@ public final class TexturePreparedPixelRuntime {
             pendingBuffers = 0;
         }
         TELEMETRY.reset();
+        TexturePrefetchShutdownRuntime.reset();
         LOAD_CLOCK.reset();
         PREPARE_CLOCK.reset();
         COLD_PROBE_CLAIMS.set(0);
@@ -878,6 +879,7 @@ public final class TexturePreparedPixelRuntime {
                     "carrierMillis", carrierNanos / 1_000_000L));
         }
         values.put("prefetchPool", TexturePreparedPrefetchPoolRuntime.report());
+        values.put("prefetchShutdown", TexturePrefetchShutdownRuntime.report());
         values.put("prefetchStaging", TexturePreparedStagingRuntime.telemetry());
         values.put("preparedResources", TexturePreparedResourceRuntime.telemetry());
         values.put("uploadProbe", TextureUploadProbeRuntime.telemetry());
