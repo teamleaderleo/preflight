@@ -733,7 +733,9 @@ if (-not (Test-Path -LiteralPath $PreflightJar -PathType Leaf)) { throw "Preflig
 $java = (Get-Command java.exe -ErrorAction SilentlyContinue).Source
 if (-not $java) { $java = Join-Path $Game 'jre\bin\java.exe' }
 $vanillaLauncher = Join-Path $Game 'Play-Starsector-VM.cmd'
-if (-not (Test-Path -LiteralPath $vanillaLauncher)) {
+# The VM shortcut forces llvmpipe internally, overriding the caller's environment.
+# Native/other-driver arms must invoke the underlying stock launcher instead.
+if ($GalliumDriver -ne 'llvmpipe' -or -not (Test-Path -LiteralPath $vanillaLauncher)) {
     $vanillaLauncher = Join-Path $Game 'starsector-core\starsector.bat'
 }
 $fastRenderingLauncher = Join-Path $Game 'starsector-core\fr.bat'
