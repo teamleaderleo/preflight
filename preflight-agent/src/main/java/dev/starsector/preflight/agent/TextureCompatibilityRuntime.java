@@ -478,6 +478,7 @@ public final class TextureCompatibilityRuntime {
         values.put("trustedValidatedIndex", state.trustedValidatedIndex || trustValidatedIndex());
         values.put("packedStoreAvailable", state.pack != null);
         values.put("packedStoreActive", state.pack != null && !state.packDisabled.get());
+        values.put("packReadAhead", state.pack == null ? Map.of("enabled", false) : state.pack.readAheadTelemetry());
         // How long the game took over the textures, and how much of that was this seam. The
         // difference is the game's own per-texture work -- the decode this replaces is gone, but the
         // upload, the buffer teardown, and whatever else it does between two textures are not.

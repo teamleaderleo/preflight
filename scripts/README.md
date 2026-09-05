@@ -154,6 +154,15 @@ pack read/decode, layout and carrier-construction milliseconds plus load count. 
 subset of lookup time; totals accumulate across caller threads and must not be added to startup
 wall time. This diagnostic is independent of the byte barrier and retains no per-path inventory.
 
+`--prepared-pack-read-ahead` (guest: `-PreparedPackReadAhead`) enables the independent
+`preflight.texture.packReadAhead` experiment. It places one synchronized 4 MiB heap read window
+in front of an open immutable pack, without changing entry parsing or CRC verification. Larger
+reads bypass the window. Cache hits still reject a closed/interrupted source channel. Closing the
+pack drops the window; reload opens a new pack/window. `--disable-prepared-pack-read-ahead`
+(`-DisablePreparedPackReadAhead`) explicitly requests false. `packReadAhead` reports window size,
+file reads/bytes/time, cache hits, large-read bypasses and CRC time. This may increase I/O for
+unordered access and remains off by default; compare with the explicit kill switch on the same JAR.
+
 Use `preflight-faction-priority` beside `preflight` for the separate Windows-only faction
 priority-table experiment. Its first exact-profile launch observes the original game's eight table
 walks; later launches replay the learned callback IDs. `-WindowsFactionPriorityCacheProbe` enables

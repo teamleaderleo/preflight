@@ -93,3 +93,31 @@ consumers, binding, replacement and reload; no fake/blank texture substitution w
 
 All three Java CI jobs passed in workflow 33938272307. macOS operator checks failed in unchanged
 `test_launcher_marker_then_quiet` (expected 2100, observed 2000); retrying that failed job once.
+
+## Aggregate attribution and bounded read-ahead
+
+Attribution executable `0391355e246a005e4d83221e5cc4db4dd331d720`, JAR
+`9778bc50a971a943c3230437f1d369768831fdbab2949c3a29e414da05c7e115`.
+Native session `20260905-102135` reached graphics 57.344 s / interactive 60.333 s.
+This is a diagnostic observation, not a cross-build speed comparison. All 15,002 typed commits,
+44 coherent fallbacks, and 102 late resources completed; zero pack failures or active buffers.
+Across 15,473 loads: lookup 17.813 s, including pack 17.558 s; layout 7 ms; carrier construction
+124 ms. Direct preparation was 1.373 s. Main claim-read time was 16.480 s and byte wait 7.476 s.
+Totals cover multiple callers and must not be added to wall startup time.
+
+The next independent candidate is `preflight.texture.packReadAhead`, false by default.
+It maintains one synchronized 4 MiB heap window per immutable open pack, serves positional reads
+by copying from that window, and bypasses the window for larger read requests. It preserves the
+existing entry parser and per-entry CRC32C verification; no checksum is skipped. Prepared pixels
+retain their own arrays and cannot alias the reusable window. The window is session data from the
+open pack, never a cross-pack cache; closing the pack clears it and reload creates a fresh reader.
+Closed/interrupted source channels remain failures even for a cache hit. The candidate records
+file-read calls/bytes/time, fills/hits/bypasses and CRC time. Unordered access can amplify I/O;
+measure it before acceptance. No worker count, GL operation or direct upload allocation changes.
+
+Focused core tests: 14 passed, including original raw/LZ4 corruption checks with read-ahead enabled,
+byte-exact reads across window boundaries, large-read bypass, source close and interruption.
+Full Maven verify passed (48.217 s). Operator tests: 120, 115 passed and 5 platform skips.
+Attribution revision three-platform CI 33938844554 passed every Java and operator job.
+
+Attribution archive SHA-256: `de287bdd31aa1d1960ec1e12db5cb37ac23db5fac4d2fd26643b5ac9e1e9c754`.

@@ -1376,6 +1376,18 @@ class WindowsPreparedResourcesRunnerTest(unittest.TestCase):
                 self.assertNotIn(" -WindowsPreparedPrefetchWorkers", done.stdout)
                 self.assertNotIn(" -WindowsKaleidoscopePrefetchProbe", done.stdout)
 
+    def test_host_forwards_read_ahead_and_attribution_controls(self):
+        for flag, switch in (("--prepared-pack-read-ahead", "PreparedPackReadAhead"),
+                             ("--disable-prepared-pack-read-ahead", "DisablePreparedPackReadAhead"),
+                             ("--prepared-load-attribution", "PreparedLoadAttribution"),
+                             ("--texture-upload-checkpoint", "TextureUploadCheckpoint")):
+            done = self.host_command(flag)
+            self.assertEqual(0, done.returncode, done.stderr)
+            self.assertIn(f" -{switch}", done.stdout)
+        done = self.host_command("--prepared-pack-read-ahead", "--disable-prepared-pack-read-ahead")
+        self.assertEqual(2, done.returncode, done.stderr)
+        self.assertEqual("", done.stdout)
+
     def test_host_forwards_claim_controls_and_rejects_conflicts(self):
         for flag, switch in (
                 ("--windows-prepared-resource-claims", "WindowsPreparedResourceClaims"),

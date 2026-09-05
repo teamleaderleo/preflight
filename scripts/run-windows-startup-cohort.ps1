@@ -19,6 +19,8 @@ param(
     [switch]$TextureUploadProbe,
     [switch]$TextureUploadCheckpoint,
     [switch]$PreparedLoadAttribution,
+    [switch]$PreparedPackReadAhead,
+    [switch]$DisablePreparedPackReadAhead,
     [switch]$WindowsPrefetchBypassProbe,
     [switch]$WindowsPreparedResources,
     [switch]$WindowsDisablePreparedResources,
@@ -49,6 +51,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+if ($PreparedPackReadAhead -and $DisablePreparedPackReadAhead) {
+    throw 'Pack read-ahead enable and disable requests cannot be combined'
+}
 $preparedResourcesRequested = $WindowsPreparedResources -or $WindowsPreparedResourceClaims -or $WindowsPreparedByteBarrier -or
     ($Conditions -contains 'preflight-prepared-resources')
 if ($WindowsPreparedByteBarrier -and $WindowsDisablePreparedByteBarrier) {
@@ -345,6 +350,11 @@ log4j.appender.file.MaxBackupIndex=3
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     '-Dpreflight.texture.fastRenderingPrepared=false' |
                     Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($PreparedPackReadAhead -or $DisablePreparedPackReadAhead) {
+                $readAheadValue = ([bool]$PreparedPackReadAhead).ToString().ToLowerInvariant()
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    "-Dpreflight.texture.packReadAhead=$readAheadValue" | Where-Object { $_ }) -join ' ').Trim()
             }
             if ($PreparedLoadAttribution) {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
@@ -724,6 +734,8 @@ $identity = [ordered]@{
     textureUploadProbe = [bool]($TextureUploadProbe -or $TextureUploadCheckpoint)
     textureUploadCheckpoint = [bool]$TextureUploadCheckpoint
     preparedLoadAttribution = [bool]$PreparedLoadAttribution
+    preparedPackReadAhead = [bool]$PreparedPackReadAhead
+    disablePreparedPackReadAhead = [bool]$DisablePreparedPackReadAhead
     windowsPrefetchBypassProbe = [bool]$WindowsPrefetchBypassProbe
     windowsPreparedResources = [bool]$WindowsPreparedResources
     windowsDisablePreparedResources = [bool]$WindowsDisablePreparedResources

@@ -223,7 +223,11 @@ final class PreparedTexturePackIntegrity {
             ByteBuffer bytes = destination.duplicate();
             bytes.position(before);
             bytes.limit(before + read);
+            long started = delegate instanceof PreparedPackReadAhead ? System.nanoTime() : 0L;
             checksum.update(bytes);
+            if (delegate instanceof PreparedPackReadAhead readAhead) {
+                readAhead.checksumTime(Math.max(0L, System.nanoTime() - started));
+            }
             nextPosition = Math.addExact(nextPosition, read);
             return read;
         }

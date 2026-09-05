@@ -15,9 +15,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** One profile's complete SPFT blobs in a single positionally-read file. */
 public final class PreparedTexturePack implements AutoCloseable {
+    public static final String READ_AHEAD_PROPERTY = "preflight.texture.packReadAhead";
     private final Path path;
     private final String profileFingerprint;
     private final FileChannel channel;
+    private final PreparedPackReadAhead readAhead;
     private final long fileBytes;
     private final long payloadOffset;
     private final Map<String, Range> entries;
@@ -33,6 +35,8 @@ public final class PreparedTexturePack implements AutoCloseable {
         this.path = Objects.requireNonNull(path, "path");
         this.profileFingerprint = Objects.requireNonNull(profileFingerprint, "profileFingerprint");
         this.channel = Objects.requireNonNull(channel, "channel");
+        this.readAhead = Boolean.getBoolean(READ_AHEAD_PROPERTY)
+                ? new PreparedPackReadAhead(channel, fileBytes) : null;
         this.fileBytes = fileBytes;
         this.payloadOffset = payloadOffset;
         this.entries = Collections.unmodifiableMap(new LinkedHashMap<>(entries));
@@ -76,7 +80,7 @@ public final class PreparedTexturePack implements AutoCloseable {
         }
         long absolute = Math.addExact(payloadOffset, range.offset());
         return PreparedTexturePackIntegrity.readTrusted(
-                channel,
+                readAhead == null ? channel : readAhead,
                 absolute,
                 range.length(),
                 range.crc32c(),
@@ -110,8 +114,13 @@ public final class PreparedTexturePack implements AutoCloseable {
     @Override
     public void close() throws IOException {
         if (closed.compareAndSet(false, true)) {
-            channel.close();
+            try { if (readAhead != null) readAhead.close(); }
+            finally { channel.close(); }
         }
+    }
+
+    public Map<String, Object> readAheadTelemetry() {
+        return readAhead == null ? Map.of("enabled", false) : readAhead.telemetry();
     }
 
     record Range(long offset, int length, int crc32c) {
