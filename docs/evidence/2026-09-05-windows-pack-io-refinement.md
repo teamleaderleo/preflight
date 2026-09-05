@@ -2,9 +2,9 @@
 
 Owner: Leo-authorized active Codex goal to find and verify a Windows startup win.
 Start: main `d301613e713b6819e3322ad754619035d8d6efc2`.
-Phase: isolate the large idle-versus-in-game pack-read gap before choosing another runtime change.
+Phase: validated opt-in Windows improvement; integrated through PR #1227.
 Finish: measurable matched Windows startup improvement with resource/GL contracts retained,
-verified code integrated into main. No improvement is established yet.
+verified code integrated into main. Matched results below establish an improvement on the tested fixture.
 
 [Prior experiments](2026-09-05-windows-prepared-byte-barrier.md) own rejected barrier, scratch,
 and physical-order results. Existing installed JAR remains d3de6398 executable code,
@@ -135,3 +135,61 @@ failed session, records task exit status, restores state, then returns failure; 
 check refuses a stale session. Real Windows replay archived the failed run with taskExitCode=1
 and accepted=false: ZIP SHA-256 `4faed23bbdea3b928b4ec470ed9d9108b3364da3d743e45e4da1a9c0df089889`.
 These harness corrections do not change the candidate JAR or healthy game execution.
+
+## Three matched completed pairs
+
+All on JAR `a9d06382...`, executable source `78e9110b`, harness source `a2b9f4de`.
+Every run passed the fixture/artifact, explicit gate, one-worker, 1024 ceiling, 15,002-commit,
+102-late-resource, zero-pack-failure and zero-active-buffer checks. Order was A/B, B/A, A/B.
+
+| Pair | A interactive (s) | B interactive (s) | Reduction (s) | Reduction |
+|---|---:|---:|---:|---:|
+| 1 | 59.068 | 43.013 | 16.055 | 27.2% |
+| 2 | 53.856 | 43.798 | 10.058 | 18.7% |
+| 3 | 56.571 | 44.574 | 11.997 | 21.2% |
+
+Median interactive A 56.571 s / B 43.798 s, a 22.6% reduction.
+This is repeated evidence on one fixed Windows fixture, not a cross-hardware guarantee.
+The earlier failed A attempt is retained separately; no native-stall remediation is established.
+Raw structured results: `windows-pack-io/heap-pairs-source78.json`.
+
+- A `20260905-123029-windows-startup-2x2.zip`: graphics 56.691 s; SHA-256 `b8dd1f4b4e1b9376eb67750034d46b3a9e711e5d4254e243998b78fa1d7ab4c5`.
+- B `20260905-123203-windows-startup-2x2.zip`: graphics 41.184 s; SHA-256 `8846c132ddc2ce318b08cfa06bec350da3f338a7660e367435c3001c7a13d6fd`.
+- B `20260905-123314-windows-startup-2x2.zip`: graphics 42.844 s; SHA-256 `749a9d9918ca12290c170cd97345a0d08a14e4ee4e27811876fc90e8a554e23c`.
+- A `20260905-123436-windows-startup-2x2.zip`: graphics 51.334 s; SHA-256 `b546727e4b1dc0c11ec2d6b6a5d6bb162a86ada26d70df195954071089b53df2`.
+- A `20260905-123558-windows-startup-2x2.zip`: graphics 53.680 s; SHA-256 `078efd0a27695462c5288bf806df541353bada9e3132aaccd98603850c8f126b`.
+- B `20260905-123731-windows-startup-2x2.zip`: graphics 42.521 s; SHA-256 `4e216ac3bbe06e27f73e0d721fe6d639bace1ea4125e00854a7da369a6cbe998`.
+
+The final code also declines quoted explicit heap environment options. Its healthy fixture
+behavior is unchanged; a freshly packaged final build will receive a separate same-JAR
+confirmation pair rather than being conflated with these six observations.
+
+## Final executable confirmation and disposition
+
+Executable source `308d23b82a3586836095105f45bfb3ede149f219`; JAR SHA-256
+`7eba6ad258af832316d8400aa74cbfe4a1a291de59a9bcf98386efde290dfbc8`.
+Full local Maven verify passed in 44.850 s; all three Java platforms and both operator jobs
+passed [CI 33944926098](https://github.com/teamleaderleo/preflight/actions/runs/33944926098).
+The real Windows operator fixture passed its 10 shutdown cases and new PID classification
+checks. Scope-excluded native desktop packaging is not claimed as tested.
+
+Final same-JAR confirmation (B/A order, same fixture and explicit flags as above):
+
+| Arm | Graphics (s) | Interactive (s) |
+|---|---:|---:|
+| B | 47.481 | 48.926 |
+| A | 55.835 | 58.325 |
+
+Final confirmation improvement: 9.399 s (16.1%). This is one pair on the final
+artifact, kept separate from the earlier three-pair set. Both runs passed all resource and
+lifecycle checks. The prototype remains opt-in; no heap maximum, texture policy or worker
+change is made. The earlier native upload stall remains unresolved and is not hidden by
+assigning it a successful-startup time.
+
+- `20260905-124252-windows-startup-2x2.zip` SHA-256 `c0deaace0a5bf92123b455a332aa28e4bfc0dae3d0e940492d5091d5eb16f8df`.
+- `20260905-124417-windows-startup-2x2.zip` SHA-256 `3e3baa7757e0bbf49f2c28ebcb1399b6c81f71ab0c7e01024b3a3d89a8cb910d`.
+
+Raw structured confirmation: `windows-pack-io/heap-final-pair-source308.json`. The original
+pack/hint/launcher files are retained; cohort runs performed no preparation. Normal scheduled
+task arguments and host power policy are restored by the harness. The installed final JAR is
+retained for use; temporary transfer JARs, rollback copies and local build output are retired.
