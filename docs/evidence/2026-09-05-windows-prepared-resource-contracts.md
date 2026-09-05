@@ -321,3 +321,97 @@ bounds and timeouts are unchanged. The desktop source lock was also stale at the
 SHA: review of `915a4ba5..6f2b3132` found only the already-accepted Windows upload-policy and
 Kaleidoscope selection/diagnostic changes in `RunCommand`; no new destinations, executables,
 network access, or shell capability. Only its reviewed digest was refreshed.
+
+## Corrected native Windows observations
+
+The following single observations used source
+`8932cc7ae13f7221b1efdb9e3c3de9d471bba2d2` and Java-17-compatible packaged JAR
+SHA-256 `66abbfbafec176b374c80465eca44726b82ff1df051d1e96c59373d66833dc6c`.
+The installed game archives were rechecked against the hashes above. The fixture
+was the existing 89-mod Windows 11 VM, 14 vCPUs/12 GiB RAM, llvmpipe, 1024×720,
+Recommended policy, one stock worker. Only the explicit prototype property differed
+in the disabled observation. These are functional observations, not a paired
+performance campaign or a default-promotion decision.
+
+| Session | Prototype | Graphics-preload clock | Interactive clock | Runner acceptance |
+|---|---|---:|---:|---|
+| `20260905-072857` | on | 68.150 s | 70.584 s | rejected: shutdown |
+| `20260905-073340` | explicit off | 75.687 s | 78.269 s | rejected: shutdown |
+| `20260905-073854` | on | absent | absent | rejected: native allocation failure |
+| `20260905-075723` | on | 56.322 s | 58.684 s | accepted, graceful shutdown |
+
+The two completed enabled runs each scanned 55,359 resource records, admitted and
+published 15,003 completions, committed 15,002, and retired one through the original
+consumer. Of the commits, 14,958 were direct and 44 exceeded the 1024 ceiling and
+used coherent images with the original converter. Discarded, failed, pending,
+in-flight and active upload-buffer counts were all zero. Worker drain took
+1,556/1,442 ms, with no timeout. Both retained and consumed all 102 Kaleidoscope
+late resources and recorded no pack failure.
+
+With the property explicitly off, all typed counters were zero. The existing late
+path consumed three of 102 seeded resources and removed 99 pending entries; the
+bounded pack telemetry recorded one `read-interrupted` failure. This corroborates
+the drain's purpose without attributing a timing difference to it.
+
+The rejected allocation run failed at 65.290 s during GraphicsLib's
+`loadLargeRipple`, with `OutOfMemoryError: Unable to allocate 1048576 bytes` in the
+existing `TexturePreparedPixelRuntime.prepareCarrier` direct allocation. It never
+reached title or wrote a final adapter report. A subsequent unchanged run passed;
+that does not establish the cause or eliminate memory-pressure risk. Fatal VM
+errors remain fatal; no catch-and-continue or heap/pagefile policy change was made.
+
+Raw archives remain under `/home/leo/Windows-Share/Diagnostics/`:
+
+| Archive | SHA-256 |
+|---|---|
+| `20260905-prepared-resource-second.zip` | `ddad6f3419b2e7ca042cba1197d837450084ff6d336926c667b46e5e4935fde3` |
+| `20260905-prepared-resource-disabled.zip` | `f0624933bfa817575ae306e22bca5a8280b7cae33e7e27bd938e06bd3e08ff8e` |
+| `20260905-prepared-resource-observed.zip` | `eea743c5dfe1e725e6a7aa410e125a276616dc478ab3d044ec88c98fc26f9fcf` |
+| `20260905-075723-windows-startup-2x2.zip` | `792c501eb480de29c0b51487bc45d9acd97e71d5787d0ebeb937bf643bc3efd0` |
+
+The later Windows staging fix binds both owner and protected DACL to the current
+user at directory creation. Elevated Windows tokens otherwise default ownership
+to Administrators, which the subsequent staging ACL rewrite would follow. Tests
+independently resolve the native user and verify initial and rewritten ACLs. This
+changes launcher staging, not the measured texture implementation; the native
+observations above remain explicitly bound to their earlier source and JAR.
+
+Read-only memory review found no additional pixel copy in typed publication and
+no post-batch completion/image retention in the new runtime. Installed loader
+bytecode retains its reflective `cleaner().clean()` call. The failed run logged
+15,439 successful cleanups, including the preceding ripple frame, with no
+cleanup-access errors. This weighs against systematic cleanup failure but does
+not reconstruct the native allocation peak. The existing 64 MiB active upload
+budget is not a bound on process/driver memory; the accepted late retention
+budget is separately 192 MiB.
+
+Full local `mvn verify` passed at `4e487281`. Three-platform workflow
+[33931297886](https://github.com/teamleaderleo/preflight/actions/runs/33931297886)
+passed Java verification on Windows, macOS, and Linux, plus Linux/macOS operator
+checks. The earlier candidate's desktop workflow
+[33929571078](https://github.com/teamleaderleo/preflight/actions/runs/33929571078)
+passed frontend, engine, release contracts, and packaging on all three platforms.
+
+## Windows shutdown regression
+
+Both earlier title-success/shutdown-failure observations completed about 3–4 seconds
+after title, shorter than the runner's intended 45-second shutdown wait. Actual
+Windows PowerShell 5.1.26100.9168 comparison with client-only CIM process objects
+and mocked effects reproduced a singleton defect: the old helper waited zero
+seconds and immediately forced one persistent process; the revised helper waited
+45 seconds. Zero and three processes behaved consistently between versions.
+Caller-side `@()` normalization fixes shutdown and the other process-existence
+checks. This proves the defect, not the exact survivor in the older archives.
+
+Each measured run now writes bounded `shutdown.json` checkpoints (32 process
+samples, 256-character window titles) before closing, while waiting, before any
+forced cleanup, and on completion. Close-message success is not graceful-exit
+proof. Telemetry-write failure cannot prevent cleanup. Ten native mocked cases
+cover zero/one/multiple processes, delayed graceful exit, deadline force, sampling
+bounds, unavailable windows, unsuccessful close messages, and telemetry failure.
+All passed, as did 115 Python operator tests (three platform/tool skips). The
+regression runs in existing Windows Maven CI through `WindowsStartupShutdownTest`, which invokes Windows PowerShell 5.1; effects are mocked.
+
+Final candidate source/JAR identities, runs with the revised shutdown helper, and
+final integration checks are recorded on
+[PR #1224](https://github.com/teamleaderleo/preflight/pull/1224).

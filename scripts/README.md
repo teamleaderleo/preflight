@@ -43,6 +43,13 @@ without moving the existing resource wall-clock anchors or retaining per-call CP
 Runtime-state v1 Mac/Windows `mainMenuInteractiveAt` values measured the later `Preloading...`
 overlay removal, not first menu usability. Do not compare those historical values with the v2
 usable-menu clock; see `windows-startup-runtime-state-semantics.md`.
+Each run retains bounded `shutdown.json` checkpoints with close-message results, the 45-second
+wait budget, and survivors recorded before forced cleanup. `gracefulShutdown` still requires
+zero survivors before that cleanup; a sent close message is not proof of exit. Telemetry write
+failures do not prevent cleanup. `test_windows_startup_shutdown.ps1` extracts only the process
+helpers and checks real client-only CIM objects under Windows PowerShell 5.1 with mocked process,
+clock, sleep, and file effects; it never launches the game. The Windows-only Maven test
+`WindowsStartupShutdownTest` runs this fixture with Windows PowerShell 5.1 in existing Windows CI.
 Every arm receives the same file-only Log4j configuration before launch, so Fast Rendering's
 per-resource console logging cannot turn captured stdout into a hidden condition-specific tax.
 The runner keeps `GALLIUM_DRIVER=llvmpipe` as its compatibility-fixture default. On a Windows host

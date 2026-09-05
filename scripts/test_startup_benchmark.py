@@ -1320,6 +1320,33 @@ class WindowsPreparedResourcesRunnerTest(unittest.TestCase):
     host = Path(__file__).with_name("run-big-red-windows-startup-cohort.sh").read_text()
     guest = Path(__file__).with_name("run-windows-startup-cohort.ps1").read_text()
 
+    def test_process_collections_are_wrapped_at_every_call_site(self):
+        calls = [line.strip() for line in self.guest.splitlines()
+                 if "Get-GameProcesses " in line and not line.startswith("function ")]
+        self.assertTrue(calls)
+        for line in calls:
+            with self.subTest(line=line):
+                self.assertIn("@(Get-GameProcesses ", line)
+
+    def test_shutdown_telemetry_is_bound_to_the_measured_run(self):
+        self.assertIn("$gracefulShutdown = Stop-GameProcesses $Game $RunDirectory", self.guest)
+        self.assertIn("$accepted = $graphicsPreloadObserved -and $elapsedMs -ne $null -and $gracefulShutdown",
+                      self.guest)
+
+    @unittest.skipUnless(sys.platform == "win32", "CIM regression requires Windows PowerShell")
+    def test_shutdown_with_real_cim_objects_and_mocked_effects(self):
+        # Prefer Windows PowerShell 5.1: singleton CIM behavior is the regression target.
+        import shutil
+        powershell = shutil.which("powershell.exe")
+        if not powershell:
+            self.skipTest("Windows PowerShell 5.1 is unavailable")
+        done = subprocess.run(
+            [powershell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File",
+             str(Path(__file__).with_name("test_windows_startup_shutdown.ps1"))],
+            capture_output=True, text=True, timeout=30)
+        self.assertEqual(0, done.returncode, done.stdout + done.stderr)
+        self.assertIn("PASS: 10 mocked shutdown cases", done.stdout)
+
     def host_command(self, *args):
         # Retain real parsing/validation and scheduled-task argument construction, but
         # exclude dependency checks, VM access, power changes and task execution.
