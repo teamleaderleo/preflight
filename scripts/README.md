@@ -60,6 +60,13 @@ with a working physical graphics adapter, pass `-GalliumDriver native` (or an em
 that process-local override. The retained identity then records a null effective Gallium driver.
 The environment value is not proof of the loaded renderer: on the reviewed Intel fixture it also
 selects Preflight's padded upload policy while the loaded OpenGL driver remains Intel.
+Normal Windows unpadded uploads now default to a 1024-pixel dimension ceiling. Larger prepared
+NPOT images go through the original converter and padded GL policy without another image decode;
+smaller images remain eligible for true-size uploads. This applies to ordinary Preflight launches,
+including Recommended, without a cohort flag. `preflight.padding.maxUnpaddedDimension` retains its
+explicit diagnostic overrides (zero or negative means unlimited); the default on other platforms
+remains unlimited. [Native Windows validation](../docs/evidence/2026-09-05-windows-native-upload-ceiling.md)
+records the reproduced stall and successful normal launches.
 
 On Big Red, `run-big-red-windows-startup-cohort.sh` is the unattended host wrapper. It starts the
 existing VM if needed, configures and runs the exact interactive Windows scheduled task, waits for
