@@ -271,6 +271,54 @@ class TexturePreparedResourceRuntimeTest {
     }
 
     @Test
+    void exactWorkerSignalsWaitingConsumerOnlyAfterItsStockResultIsVisible() throws Exception {
+        BufferedImage image = carrier(2);
+        enableClaims();
+        activate(Thread.currentThread());
+        results.put(PATH, sentinel);
+        Object lock = field("LOCK").get(null);
+        Field waiting = field("waitingPath");
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Thread worker = new Thread(() -> {
+            try {
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+                while (System.nanoTime() < deadline) {
+                    synchronized (lock) {
+                        if (PATH.equals(waiting.get(null))) {
+                            TexturePreparedResourceRuntime.publish(PATH, image);
+                            TexturePreparedResourceRuntime.resultReady(PATH, image);
+                            assertEquals(0L, telemetry().get("resultSignals"), "sentinel is not a result");
+                            results.put(PATH, image);
+                            TexturePreparedResourceRuntime.resultReady("other", image);
+                            assertEquals(0L, telemetry().get("resultSignals"));
+                            TexturePreparedResourceRuntime.resultReady(PATH, image);
+                            return;
+                        }
+                    }
+                    Thread.sleep(1);
+                }
+                throw new AssertionError("consumer never registered its wait");
+            } catch (Throwable error) {
+                failure.set(error);
+                // A failed assertion must not strand the test's consumer.
+                TexturePreparedResourceRuntime.publish(PATH, image);
+                results.put(PATH, image);
+                TexturePreparedResourceRuntime.resultReady(PATH, image);
+            }
+        });
+        TexturePreparedResourceRuntime.worker(worker);
+        worker.start();
+        TexturePreparedResourceRuntime.enter(PATH, PATH);
+        assertSame(image, TexturePreparedResourceRuntime.take(PATH, null, null).image());
+        worker.join(3_000);
+        assertFalse(worker.isAlive());
+        assertNull(failure.get());
+        assertTrue((long) telemetry().get("resultSignals") >= 1);
+        assertEquals(0L, telemetry().get("queuedClaims"));
+        TexturePreparedResourceRuntime.exit(true);
+    }
+
+    @Test
     void claimsWaitForExactWorkerImagePhaseBeforeChangingQueueOwnership() throws Exception {
         BufferedImage image = carrier(2);
         enableClaims();

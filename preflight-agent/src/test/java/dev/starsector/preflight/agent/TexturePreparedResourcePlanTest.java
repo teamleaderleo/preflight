@@ -47,8 +47,41 @@ class TexturePreparedResourcePlanTest {
     @AfterEach
     void reset() {
         System.clearProperty(TexturePreparedResourceRuntime.PROPERTY);
+        System.clearProperty(TexturePreparedResourceRuntime.CLAIM_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_WORKERS_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_SPLIT_QUEUES_PROPERTY);
+    }
+
+    @Test
+    void installedWorkerSignalsAfterResultPutWithoutChangingStockCallsOrControlFlow() throws Exception {
+        byte[] original = installed("common", TexturePreparedResourcePlan.WORKER);
+        ClassSignature signature = ClassSignature.parse(original);
+        assertNull(TexturePreparedResourcePlan.transformWorker(signature, original));
+        System.setProperty(TexturePreparedResourceRuntime.CLAIM_PROPERTY, "true");
+        byte[] transformed = TexturePreparedResourcePlan.transformWorker(signature, original);
+        assertNotNull(transformed);
+        ClassNode owner = read(transformed);
+        MethodNode run = method(owner, "run", "()V");
+        MethodNode stock = method(read(original), "run", "()V");
+        assertEquals(stockCalls(stock), stockCalls(run));
+        assertEquals(1, calls(run, TexturePreparedResourcePlan.RUNTIME, "resultReady"));
+        for (AbstractInsnNode n : run.instructions) {
+            if (n instanceof MethodInsnNode call && "resultReady".equals(call.name)) {
+                AbstractInsnNode image = previousOpcode(n);
+                AbstractInsnNode path = previousOpcode(image);
+                AbstractInsnNode pop = previousOpcode(path);
+                assertEquals(Opcodes.ALOAD, image.getOpcode());
+                assertEquals(Opcodes.ALOAD, path.getOpcode());
+                assertEquals(Opcodes.POP, pop.getOpcode());
+                assertTrue(previousOpcode(pop) instanceof MethodInsnNode put
+                        && put.owner.equals("java/util/Map") && put.name.equals("put"));
+            }
+        }
+        verifyDataflow(owner);
+        assertNull(TexturePreparedResourcePlan.transformWorker(signature, transformed));
+        assertNull(TexturePreparedResourcePlan.transformWorker(ClassSignature.parse(transformed), original));
+        System.clearProperty(TexturePreparedResourceRuntime.PROPERTY);
+        assertNull(TexturePreparedResourcePlan.transformWorker(signature, original));
     }
 
     @Test

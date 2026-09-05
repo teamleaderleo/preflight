@@ -30,6 +30,7 @@ public final class TexturePreparedResourceRuntime {
     private static Completion claimed;
     private static boolean active;
     private static boolean workerImagePhase;
+    private static String waitingPath;
     private static long admitted, published, committed, originalConsumed, discarded, failures, declines;
     private static long direct, coherent, inFlight;
     private static long resourceRecords;
@@ -37,6 +38,7 @@ public final class TexturePreparedResourceRuntime {
     private static long ceilingDeclines, drainMillis, drainTimeouts;
     private static long queuedClaims, claimFallbacks, claimAbandoned, claimErrors, claimReadNanos;
     private static long lastEntryDeclines, imagePhaseDeferrals, waitPolls, waitNanos;
+    private static long resultSignals;
 
     private TexturePreparedResourceRuntime() { }
 
@@ -50,6 +52,7 @@ public final class TexturePreparedResourceRuntime {
         synchronized (LOCK) {
             active = false;
             workerImagePhase = false;
+            waitingPath = null;
             mainThread = null;
             workerThread = null;
             stockQueue = null;
@@ -65,6 +68,7 @@ public final class TexturePreparedResourceRuntime {
             ceilingDeclines = drainMillis = drainTimeouts = 0;
             queuedClaims = claimFallbacks = claimAbandoned = claimErrors = claimReadNanos = 0;
             lastEntryDeclines = imagePhaseDeferrals = waitPolls = waitNanos = 0;
+            resultSignals = 0;
         }
         SCOPE.remove();
     }
@@ -198,6 +202,17 @@ public final class TexturePreparedResourceRuntime {
         }
     }
 
+    /** Called only after the exact worker's image Map.put, never at decode-return publication. */
+    public static void resultReady(String path, BufferedImage image) {
+        synchronized (LOCK) {
+            if (active && Thread.currentThread() == workerThread && waitingPath != null
+                    && waitingPath.equals(path) && stockResults.get(path) == image) {
+                resultSignals++;
+                LOCK.notifyAll();
+            }
+        }
+    }
+
     public static void enter(String path, String registrationName) {
         synchronized (LOCK) {
             Scope previous = SCOPE.get();
@@ -213,7 +228,8 @@ public final class TexturePreparedResourceRuntime {
         Scope scope = SCOPE.get();
         if (scope == null || scope.obligation == null || transform != null || existingHandler != null
                 || !scope.obligation.path().equals(path) || scope.completion != null) return null;
-        boolean considerClaim = requested() && Boolean.getBoolean(CLAIM_PROPERTY);
+        boolean signaledWait = requested() && Boolean.getBoolean(CLAIM_PROPERTY);
+        boolean considerClaim = signaledWait;
         for (;;) {
             boolean removed = false;
             synchronized (LOCK) {
@@ -256,6 +272,23 @@ public final class TexturePreparedResourceRuntime {
                 }
                 // Match the exact getter's queue/in-flight test and its 10ms polling schedule.
                 if (!removed && !stockQueue.contains(path) && !stockResults.containsKey(path)) return null;
+                if (!removed && signaledWait) {
+                    long started = System.nanoTime();
+                    waitingPath = path;
+                    try {
+                        // Checking the result and registering the wait under the same lock as the
+                        // post-put signal prevents a lost wakeup. Keep stock's timeout as fallback
+                        // if the worker hook is unavailable or a result fails to publish.
+                        LOCK.wait(10L);
+                    } catch (InterruptedException interrupted) {
+                        return null;
+                    } finally {
+                        waitingPath = null;
+                        waitPolls++;
+                        waitNanos += Math.max(0L, System.nanoTime() - started);
+                    }
+                    continue;
+                }
             }
             if (removed) return loadClaimed(scope);
             long started = System.nanoTime();
@@ -378,6 +411,7 @@ public final class TexturePreparedResourceRuntime {
             stockResults = null;
             stockSentinel = null;
             workerThread = null;
+            LOCK.notifyAll();
         }
     }
 
@@ -404,6 +438,7 @@ public final class TexturePreparedResourceRuntime {
             values.put("imagePhaseDeferrals", imagePhaseDeferrals);
             values.put("waitPolls", waitPolls);
             values.put("waitMillis", waitNanos / 1_000_000L);
+            values.put("resultSignals", resultSignals);
             values.put("published", published);
             values.put("committed", committed);
             values.put("originalConsumed", originalConsumed);

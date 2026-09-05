@@ -129,6 +129,9 @@ typed-resource path enabled in both legs. The independent property is
 `preflight.texture.windowsPreparedResourceClaims`; explicit false is the kill switch. Run identity
 retains the request, and `preparedResources` telemetry reports queued claims, cache-miss fallbacks,
 abandoned/error claims, claim-read time, final-entry declines, and polling wait time/count.
+For worker-owned results, the same successor wakes main immediately after the exact worker's
+stock result-map insertion. Result checks and wait registration share the notification lock;
+the stock 10 ms timeout remains the fallback. `resultSignals` counts matching notifications.
 Use `preflight-faction-priority` beside `preflight` for the separate Windows-only faction
 priority-table experiment. Its first exact-profile launch observes the original game's eight table
 walks; later launches replay the learned callback IDs. `-WindowsFactionPriorityCacheProbe` enables

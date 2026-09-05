@@ -79,10 +79,37 @@ forced-stop report is `prepared-claims-c61aecb4-stop/shutdown.json`.
 
 ## Verification
 
-The revised candidate passes 47 focused tests with the installed Windows archives
+The revised candidate passes 49 focused tests with the installed Windows archives
 and shared game libraries. They exercise bytecode verification, real loader/handler/
 repository behavior with fake GL, claim races, ready-result precedence, cache-miss
 retirement, final-entry preservation, worker-phase admission, and the prior ceiling,
 replacement and exceptional-release contracts. Full local verification, three-platform
 CI, and native observations are recorded with the final candidate on
 [PR #1225](https://github.com/teamleaderleo/preflight/pull/1225).
+
+## Image-phase claims and post-publication wakeups
+
+Source `13d47aac24c6efc1a7d11b366550a9ff43c3f825`, JAR SHA-256
+`ee78017f6b1834ff567a4101a74c983c7bff9f0640256b82283862425618ab45`,
+completed the instrumented `20260905-091836` observation at 61.256 seconds graphics
+and 64.424 seconds interactive. All 15,002 commits, 44 ceiling fallbacks and 102 late
+Kaleidoscope results completed with zero failures, pending results, or active buffers.
+However, it made **zero queued claims**. The worker already owned every needed image
+after its byte phase. Main accumulated 19.309 seconds across 1,811 polling waits.
+This is a correct but ineffective claim-only variant on this fixture.
+
+Its archive `20260905-091836-windows-startup-2x2.zip` has SHA-256
+`df512819ca0925eaa44fcedfa7aa7aa08d06fd307ab992b8cfdb097b0330bde8`.
+
+The next revision adds a wakeup immediately after the exact worker's completed-image
+`Map.put` at BCI 167 and its following `POP`. The byte-queue loop, in-flight sentinel,
+decode call, exception handling and stock map operations are unchanged. This worker
+target is registered only for the opt-in successor and is bound to the same archive,
+class hash and app classloader. The notification is deliberately after the stock map
+insertion, not the earlier typed publication at decode return. Main checks the result
+and enters `Object.wait(10)` under the notification lock, preventing lost wakeups while
+retaining the original timeout when no signal arrives. Only the bound worker and the
+currently awaited path may signal. No worker, queue order or GL owner changes.
+
+Eight native Windows PowerShell 5.1.26100.9168 runner cases passed for enabled and
+explicit-disabled forwarding and incompatible-option rejection.
