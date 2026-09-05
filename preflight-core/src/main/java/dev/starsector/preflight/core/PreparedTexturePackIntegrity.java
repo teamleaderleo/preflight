@@ -41,12 +41,14 @@ final class PreparedTexturePackIntegrity {
         PreparedTexture texture = PreparedTextureIO.readTrusted(
                 verifying, offset, length, sourceLabel);
 
-        ByteBuffer checksum = ByteBuffer.allocate(SPFT_CHECKSUM_BYTES);
-        readFully(
-                verifying,
-                end - SPFT_CHECKSUM_BYTES,
-                checksum,
-                "Prepared texture pack ended inside its embedded checksum");
+        if (verifying.nextPosition != end) {
+            ByteBuffer checksum = ByteBuffer.allocate(SPFT_CHECKSUM_BYTES);
+            readFully(
+                    verifying,
+                    end - SPFT_CHECKSUM_BYTES,
+                    checksum,
+                    "Prepared texture pack ended inside its embedded checksum");
+        }
         long actual = verifying.finish();
         long expected = Integer.toUnsignedLong(expectedCrc32c);
         if (actual != expected) {
