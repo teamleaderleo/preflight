@@ -432,6 +432,51 @@ class TexturePreparedPixelCoherentCarrierTest {
         }
     }
 
+    @Test
+    void stagedPackedSurfaceIsBoundedConsumedOnceAndInvalidatedOnExposure() throws Exception {
+        String originalOs = System.getProperty("os.name");
+        try {
+            System.setProperty("os.name", "Windows 11");
+            System.setProperty(TexturePaddingRuntime.UNPADDED_PROPERTY, "true");
+            System.setProperty(TexturePreparedResourceRuntime.PROPERTY, "true");
+            for (int channels : new int[] {3, 4}) {
+                int width = 1025, height = 3;
+                configure(fixture(width, height, channels, sequential(width * height * channels)));
+                BufferedImage carrier = TexturePreparedPixelRuntime.load("graphics/test.png");
+                long raw = (long) width * height * channels;
+                long total = raw + (long) width * height * Integer.BYTES;
+                assertEquals(raw, TexturePreparedPixelRuntime.stageOriginalConverterImage(carrier, total - 1));
+                java.util.concurrent.atomic.AtomicReference<Throwable> failure = new java.util.concurrent.atomic.AtomicReference<>();
+                Thread producer = new Thread(() -> {
+                    try { assertEquals(total, TexturePreparedPixelRuntime.stageOriginalConverterImage(carrier, total)); }
+                    catch (Throwable error) { failure.set(error); }
+                });
+                producer.start();
+                producer.join(5000);
+                assertFalse(producer.isAlive());
+                assertNull(failure.get());
+                assertEquals(total, TexturePreparedPixelRuntime.stageOriginalConverterImage(carrier, total));
+                BufferedImage packed = TexturePreparedPixelRuntime.packedOriginalConverterImage(carrier);
+                for (int y = 0; y < height; y++) for (int x = 0; x < width; x++) {
+                    assertEquals(carrier.getRGB(x, y), packed.getRGB(x, y));
+                }
+                assertEquals(1L, TexturePreparedPixelRuntime.telemetry().get("stagedPackedConverterUses"));
+                org.junit.jupiter.api.Assertions.assertNotSame(packed,
+                        TexturePreparedPixelRuntime.packedOriginalConverterImage(carrier));
+                assertEquals(1L, TexturePreparedPixelRuntime.telemetry().get("stagedPackedConverterUses"));
+                assertEquals(total, TexturePreparedPixelRuntime.stageOriginalConverterImage(carrier, total));
+                carrier.getRaster().setSample(0, 0, 0, 77);
+                org.junit.jupiter.api.Assertions.assertSame(carrier,
+                        TexturePreparedPixelRuntime.packedOriginalConverterImage(carrier));
+                assertEquals(raw, TexturePreparedPixelRuntime.stageOriginalConverterImage(carrier, total));
+                assertEquals(1L, TexturePreparedPixelRuntime.telemetry().get("stagedPackedConverterUses"));
+            }
+        } finally {
+            System.setProperty("os.name", originalOs);
+            System.clearProperty(TexturePreparedResourceRuntime.PROPERTY);
+        }
+    }
+
     private Fixture fixture(int width, int height, int channels, byte[] pixels) throws Exception {
         Path cache = temporaryDirectory.resolve("cache-" + System.nanoTime());
         Path sourceRoot = temporaryDirectory.resolve("game-" + System.nanoTime());

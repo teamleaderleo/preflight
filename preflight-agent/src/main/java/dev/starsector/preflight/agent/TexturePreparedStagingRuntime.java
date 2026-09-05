@@ -186,7 +186,7 @@ public final class TexturePreparedStagingRuntime {
                 long bytes = 0L;
                 try {
                     image = TexturePreparedPixelRuntime.load(path);
-                    bytes = TexturePreparedPixelRuntime.preparedBytes(image);
+                    bytes = TexturePreparedPixelRuntime.stageOriginalConverterImage(image, MAX_STAGED_BYTES);
                     synchronized (LOCK) {
                         if (producer != Thread.currentThread()) return;
                         loadingBytes = bytes;
