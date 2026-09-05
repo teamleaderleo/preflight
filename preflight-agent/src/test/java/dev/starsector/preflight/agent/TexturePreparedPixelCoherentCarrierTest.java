@@ -44,6 +44,20 @@ class TexturePreparedPixelCoherentCarrierTest {
     }
 
     @Test
+    void dataSnapshotsRemainIndependentAndFollowLaterCarrierMutations() throws Exception {
+        configure(fixture(3, 2, 3, new byte[18]));
+        BufferedImage carrier = TexturePreparedPixelRuntime.load("graphics/test.png");
+        var before = carrier.getData();
+        ((java.awt.image.WritableRaster) before).setPixel(0, 0, new int[] {1, 2, 3});
+        assertEquals(0xff000000, carrier.getRGB(0, 0));
+        carrier.setRGB(0, 0, 0xffaabbcc);
+        assertArrayEquals(new int[] {170, 187, 204}, carrier.getData().getPixel(0, 0, (int[]) null));
+        assertArrayEquals(new int[] {1, 2, 3}, before.getPixel(0, 0, (int[]) null));
+        carrier.getRaster().setSample(0, 0, 1, 77);
+        assertArrayEquals(new int[] {170, 77, 204}, carrier.getData().getPixel(0, 0, (int[]) null));
+    }
+
+    @Test
     void ordinaryWindowsCeilingRetainsPreparedPixelsForTheOriginalConverter() throws Exception {
         String originalOs = System.getProperty("os.name");
         try {

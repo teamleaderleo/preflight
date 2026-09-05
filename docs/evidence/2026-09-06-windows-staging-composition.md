@@ -61,5 +61,30 @@ Windows worker SHA-256: `5a3c77574db4dc789609d87baaf281e5f4160649db1a0055a95b860
 installed core JAR SHA-256: `5dd222b9e266d2ac2d63b3dad4983eb05caaf5a247d7dfb82aaeba47ea774cc8`.
 An installed structural test confirms that all non-progress method calls and exception handlers
 are retained. Unknown bytecode or suffix drift declines the rewrite.
+## Second critical-path investigation
+
+The initial script-progress rewrite matched its exact target but was omitted from the runtime
+availability gate. Session `20260906-012715` retained 28,854 already-loaded messages and is not a
+measurement of that rewrite. Commit `6e7d63f1` fixes dispatch and adds an installed test through
+the registry. Its JAR SHA-256 is `deeced98a6c696564c5c6f921167670112403d39daf83db45f3d499a327a3b3d`.
+
+Session `20260906-013217`, staging plus active suppression: menus 22.459 / 20.489 s; no already-
+loaded messages, with all 31 compilation messages retained. Same-build staging-off session
+`20260906-013515`: graphics 17.802 s, menu 19.567 s. Staging has not earned default promotion.
+
+The ten-second JFR in `20260906-013656` is diagnostic only (its 23.854 s menu is not an ordinary
+sample). In that window, 437 of 511 sampled main-thread stacks include the original converter,
+with 240 including Raster.getPixel. Only 59 include glTexImage2D. Thread-3 has 266 samples, many
+inside Janino compilation; GC pauses total only a few milliseconds. The captured window does
+not cover the whole launch, but it identifies a concrete CPU target rather than a RAM shortage.
+
+The next candidate preserves the original converter and supplies an independent top-down byte
+raster snapshot with direct RGB(A) getPixel reads. An untouched carrier needs one array copy
+instead of first materializing retained storage and then copying it. Mutated/materialized carriers
+retain the conventional snapshot path. Snapshot allocations have separate telemetry from retained
+carrier raster storage. Pixel reads, caller-provided arrays, independent snapshot mutation and
+subsequent carrier mutations are tested. The installed converter tests compare exact upload bytes,
+handler metadata and GL calls above the 1024 ceiling for both RGB and RGBA.
+
 Finish condition: retain only a justified change, integrate main, restore the ordinary launch task,
 and retire disposable builds while retaining evidence.
