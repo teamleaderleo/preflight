@@ -178,11 +178,13 @@ public class TexturePreparedResourceLoaderPlanTest {
         assertEquals(id, handle.getClass().getMethod("ö00000").invoke(handle));
     }
 
-    @Test
-    void executableLargeNpotDeclineUsesOriginalConverterAndSubimageReload() throws Exception {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {3, 4})
+    void executableLargeNpotDeclineUsesOriginalConverterAndSubimageReload(int channels) throws Exception {
         System.clearProperty(TexturePaddingRuntime.UNPADDED_PROPERTY);
-        BufferedImage image = new BufferedImage(1025, 3, BufferedImage.TYPE_INT_ARGB);
-        byte[] sourcePixels = new byte[1025 * 3 * 4];
+        BufferedImage image = new BufferedImage(1025, 3,
+                channels == 4 ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
+        byte[] sourcePixels = new byte[1025 * 3 * channels];
         int offset = 0;
         for (int y = 2; y >= 0; y--) {
             for (int x = 0; x < 1025; x++) {
@@ -191,7 +193,7 @@ public class TexturePreparedResourceLoaderPlanTest {
                 sourcePixels[offset++] = (byte) (argb >>> 16);
                 sourcePixels[offset++] = (byte) (argb >>> 8);
                 sourcePixels[offset++] = (byte) argb;
-                sourcePixels[offset++] = (byte) 255;
+                if (channels == 4) sourcePixels[offset++] = (byte) 255;
             }
         }
         Executable stock = new Executable(false);
@@ -201,9 +203,9 @@ public class TexturePreparedResourceLoaderPlanTest {
         byte[] expectedPixels = FakeGL.pixels.clone();
         List<Object> expectedMetadata = metadata(original);
         PreparedTexture texture = new PreparedTexture("ab".repeat(32), PreparedTexture.Transformation.IDENTITY,
-                1025, 3, 1025, 3, 4, 0, 0, 0, sourcePixels);
+                1025, 3, 1025, 3, channels, 0, 0, 0, sourcePixels);
         Executable fixture = new Executable(true);
-        fixture.supply("p", carrier(texture), true);
+        fixture.supply("p", carrier(texture, true), true);
         Object handle = fixture.register("p", "p");
         assertEquals(expectedCalls, FakeGL.calls);
         assertArrayEquals(expectedPixels, FakeGL.pixels);
@@ -211,6 +213,7 @@ public class TexturePreparedResourceLoaderPlanTest {
         assertEquals(expectedMetadata, metadata(handle));
         assertEquals(1L, TexturePreparedResourceRuntime.telemetry().get("coherent"));
         assertEquals(0L, TexturePreparedResourceRuntime.telemetry().get("direct"));
+        assertEquals(0L, TexturePreparedPixelRuntime.telemetry().get("carrierRasterMaterializations"));
         assertEquals(0L, field(TexturePreparedPixelRuntime.class, "activeBytes").get(null));
         fixture.supply("p", image, false);
         fixture.loader.getClass().getMethod("o00000", handle.getClass()).invoke(fixture.loader, handle);
@@ -321,6 +324,10 @@ public class TexturePreparedResourceLoaderPlanTest {
     }
 
     private static BufferedImage carrier(PreparedTexture texture) throws Exception {
+        return carrier(texture, false);
+    }
+
+    private static BufferedImage carrier(PreparedTexture texture, boolean coherent) throws Exception {
         var layoutMethod = TexturePreparedPixelRuntime.class.getDeclaredMethod("uploadLayout", PreparedTexture.class);
         layoutMethod.setAccessible(true);
         Object layout = layoutMethod.invoke(null, texture);
@@ -328,7 +335,7 @@ public class TexturePreparedResourceLoaderPlanTest {
         var constructor = carrier.getDeclaredConstructor(String.class, PreparedTexture.class,
                 layout.getClass(), boolean.class, boolean.class);
         constructor.setAccessible(true);
-        return (BufferedImage) constructor.newInstance("p", texture, layout, false, false);
+        return (BufferedImage) constructor.newInstance("p", texture, layout, coherent, false);
     }
 
     private static Field field(Class<?> owner, String name) throws Exception {

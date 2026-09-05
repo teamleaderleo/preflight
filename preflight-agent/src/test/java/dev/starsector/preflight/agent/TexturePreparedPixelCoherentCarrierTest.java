@@ -378,6 +378,33 @@ class TexturePreparedPixelCoherentCarrierTest {
         TexturePreparedPixelRuntime.select(TextureAdapterMode.PREPARED_PIXELS);
     }
 
+    @Test
+    void coherentSnapshotIsStandardIndependentAndDoesNotRetainAnUnusedRaster() throws Exception {
+        System.setProperty(TexturePreparedPixelRuntime.COHERENT_ORIGINAL_CONVERT_PROPERTY, "true");
+        for (int channels : new int[] {3, 4}) {
+            configure(fixture(2, 3, channels, sequential(6 * channels)));
+            BufferedImage carrier = TexturePreparedPixelRuntime.load("graphics/test.png");
+            java.awt.image.Raster first = carrier.getData();
+            java.awt.image.Raster second = carrier.getData();
+            assertEquals(0L, TexturePreparedPixelRuntime.telemetry().get("carrierRasterMaterializations"));
+            int[] original = first.getPixel(0, 0, (int[]) null);
+            assertArrayEquals(original, second.getPixel(0, 0, (int[]) null));
+            ((java.awt.image.WritableRaster) first).setSample(0, 0, 0, 99);
+            assertArrayEquals(original, second.getPixel(0, 0, (int[]) null));
+            assertArrayEquals(original, carrier.getData().getPixel(0, 0, (int[]) null));
+            carrier.setRGB(0, 0, 0xff123456);
+            java.awt.image.Raster afterMutation = carrier.getData();
+            assertEquals(0x12, afterMutation.getSample(0, 0, 0));
+            assertEquals(0x34, afterMutation.getSample(0, 0, 1));
+            assertEquals(0x56, afterMutation.getSample(0, 0, 2));
+            assertArrayEquals(original, second.getPixel(0, 0, (int[]) null));
+            assertEquals(afterMutation.getClass(), second.getClass());
+            assertEquals(afterMutation.getSampleModel().getClass(), second.getSampleModel().getClass());
+            assertEquals(afterMutation.getDataBuffer().getClass(), second.getDataBuffer().getClass());
+            assertEquals(1L, TexturePreparedPixelRuntime.telemetry().get("carrierRasterMaterializations"));
+        }
+    }
+
     private Fixture fixture(int width, int height, int channels, byte[] pixels) throws Exception {
         Path cache = temporaryDirectory.resolve("cache-" + System.nanoTime());
         Path sourceRoot = temporaryDirectory.resolve("game-" + System.nanoTime());

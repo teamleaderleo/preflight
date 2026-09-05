@@ -1402,7 +1402,15 @@ public final class TexturePreparedPixelRuntime {
 
         @Override
         public Raster getData() {
-            return materialized().getData();
+            synchronized (this) {
+                if (coherentOriginalConvert && materialized == null) {
+                    // getData returns an independent snapshot, not the writable carrier storage.
+                    // Build that standard raster directly from immutable prepared pixels instead
+                    // of retaining a full raster solely to copy it for the stock converter.
+                    return TexturePreparedPixelCarrierSurface.coherent(texture).raster();
+                }
+                return materialized().getData();
+            }
         }
 
         @Override
