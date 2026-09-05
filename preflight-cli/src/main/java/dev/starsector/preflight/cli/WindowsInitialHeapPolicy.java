@@ -15,7 +15,7 @@ final class WindowsInitialHeapPolicy {
     static final String WRAPPER_SHA = "b93bcff1fb4b15d22167c66e75cc5c792e800c9c43266f67cdf92cdf0ac7919e";
     static final String JAVA_SHA = "9a2697956034fa9667c97644c0d2f8a3f7ab5e4cd3866951d56a73d9de4d2a9f";
     private static final Pattern HEAP_OPTION = Pattern.compile(
-            "(?:^|\\s)-(?:Xms\\S*|Xmx\\S*|XX:(?:InitialHeapSize|MinHeapSize|MaxHeapSize)=\\S*)");
+            "(?:^|\\s|[\"'])-(?:Xms\\S*|Xmx\\S*|XX:(?:InitialHeapSize|MinHeapSize|MaxHeapSize)=\\S*)");
 
     private WindowsInitialHeapPolicy() { }
 

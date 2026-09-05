@@ -36,7 +36,7 @@ class WindowsInitialHeapPolicyTest {
         assertFalse(WindowsInitialHeapPolicy.resolve(Platform.WINDOWS, target,
                 OptimizationPreset.CONSERVATIVE, Map.of(), true, WindowsInitialHeapPolicyTest::knownHash).active());
         for (String key : List.of("_JAVA_OPTIONS", "JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS")) {
-            for (String option : List.of("-Xms3g", "-Xmx4g", "-XX:InitialHeapSize=4096m", "-XX:MaxHeapSize=4g")) {
+            for (String option : List.of("-Xms3g", "-Xmx4g", "-XX:InitialHeapSize=4096m", "-XX:MaxHeapSize=4g", "\"-Xms3g\"", "'-Xmx4g'")) {
                 assertFalse(resolve(target, Map.of(key, "-Dfoo=bar " + option), WindowsInitialHeapPolicyTest::knownHash).active());
             }
         }
