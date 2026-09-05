@@ -69,6 +69,10 @@ scripts/run-big-red-windows-startup-cohort.sh \
   --condition preflight-fast-rendering --iterations 1
 ```
 
+If the current guest runner exits without publishing `summary.json`, the host still archives its
+raw session and reports `accepted=false`, `incomplete=true`; it returns failure and invents no
+startup timing. The stale-session guard remains in force.
+
 Use `--gallium-driver native --resolution 1024x720` for a native-GPU Windows run with explicit
 display geometry. Omitting both options preserves the existing llvmpipe/working-area behavior.
 

@@ -409,12 +409,12 @@ completion="$(qga_ps "
 \$latest = Get-ChildItem '$guest_runs' -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 \$summary = Join-Path \$latest.FullName 'summary.json'
 if (\$latest.CreationTime -lt \$info.LastRunTime.AddSeconds(-5)) { throw 'Latest cohort predates this task run' }
-if (-not (Test-Path \$summary)) { throw 'Latest cohort has no summary: ' + \$latest.FullName }
+\$summaryData = if (Test-Path \$summary) { Get-Content \$summary -Raw | ConvertFrom-Json } else { [ordered]@{accepted=\$false;incomplete=\$true;failure='Runner did not publish summary.json';conditions=[ordered]@{}} }
 \$archive = '$guest_share\\' + \$latest.Name + '.zip'
 Compress-Archive -Path \$latest.FullName -DestinationPath \$archive -Force -CompressionLevel Optimal
 \$top = Get-CimInstance Win32_PerfFormattedData_PerfProc_Process | Where-Object { \$_.Name -notin @('_Total','Idle') -and [int64]\$_.PercentProcessorTime -ge 5 } | Sort-Object {[int64]\$_.PercentProcessorTime} -Descending | Select-Object -First 8 Name,IDProcess,PercentProcessorTime,WorkingSetPrivate,IODataBytesPersec
 \$os = Get-CimInstance Win32_OperatingSystem
-[ordered]@{taskExitCode=[int64]\$info.LastTaskResult;sessionName=\$latest.Name;summary=(Get-Content \$summary -Raw | ConvertFrom-Json);archive=[ordered]@{path=\$archive;bytes=(Get-Item \$archive).Length;sha256=(Get-FileHash \$archive -Algorithm SHA256).Hash.ToLowerInvariant()};guestAfter=[ordered]@{observedAt=(Get-Date).ToString('o');processorCount=[Environment]::ProcessorCount;freePhysicalMemoryKiB=[int64]\$os.FreePhysicalMemory;sysMainStatus=[string](Get-Service SysMain).Status;competingProcesses=@(\$top)}} | ConvertTo-Json -Depth 12
+[ordered]@{taskExitCode=[int64]\$info.LastTaskResult;sessionName=\$latest.Name;summary=\$summaryData;archive=[ordered]@{path=\$archive;bytes=(Get-Item \$archive).Length;sha256=(Get-FileHash \$archive -Algorithm SHA256).Hash.ToLowerInvariant()};guestAfter=[ordered]@{observedAt=(Get-Date).ToString('o');processorCount=[Environment]::ProcessorCount;freePhysicalMemoryKiB=[int64]\$os.FreePhysicalMemory;sysMainStatus=[string](Get-Service SysMain).Status;competingProcesses=@(\$top)}} | ConvertTo-Json -Depth 12
 ")"
 
 session_name="$(jq -er '.sessionName' <<<"$completion")"
