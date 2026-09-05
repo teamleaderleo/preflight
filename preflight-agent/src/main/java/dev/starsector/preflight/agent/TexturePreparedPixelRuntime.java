@@ -459,7 +459,9 @@ public final class TexturePreparedPixelRuntime {
             boolean coherentDirect = npot && Boolean.getBoolean(COHERENT_DIRECT_PROPERTY);
             boolean coherentOriginalConvert = npot
                     && !coherentDirect
-                    && Boolean.getBoolean(COHERENT_ORIGINAL_CONVERT_PROPERTY);
+                    && (Boolean.getBoolean(COHERENT_ORIGINAL_CONVERT_PROPERTY)
+                        || TexturePaddingRuntime.originalConversionForWindowsCeiling(
+                                texture.originalWidth(), texture.originalHeight()));
             long carrierStarted = coldNow(coldProbe);
             try {
                 CarrierImage carrier = new CarrierImage(

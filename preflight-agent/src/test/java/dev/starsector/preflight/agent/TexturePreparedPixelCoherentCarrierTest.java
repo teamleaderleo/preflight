@@ -35,11 +35,68 @@ class TexturePreparedPixelCoherentCarrierTest {
         System.clearProperty(TexturePreparedPixelRuntime.COHERENT_ORIGINAL_CONVERT_PROPERTY);
         System.clearProperty(TexturePreparedPixelRuntime.COHERENT_DIRECT_PROPERTY);
         System.clearProperty(TexturePaddingRuntime.UNPADDED_PROPERTY);
+        System.clearProperty(TexturePaddingRuntime.MAX_UNPADDED_DIMENSION_PROPERTY);
         TexturePreparedPixelRuntime.beginSession();
         TexturePaddingRuntime.beginSession();
         TexturePaddingRuntime.reset();
         TextureCompatibilityRuntime.beginSession();
         GLContext.reset();
+    }
+
+    @Test
+    void ordinaryWindowsCeilingRetainsPreparedPixelsForTheOriginalConverter() throws Exception {
+        String originalOs = System.getProperty("os.name");
+        try {
+            System.setProperty("os.name", "Windows 11");
+            System.setProperty(TexturePaddingRuntime.UNPADDED_PROPERTY, "true");
+            int width = 1735;
+            int height = 1014;
+            byte[] pixels = new byte[width * height * 3];
+            pixels[0] = (byte) 255; // bottom-left is red in bottom-up SPFT storage
+            pixels[(height - 1) * width * 3 + 1] = (byte) 255; // top-left is green
+            configure(fixture(width, height, 3, pixels));
+            TexturePaddingRuntime.foldBypassInstalled();
+
+            assertTrue(TexturePaddingRuntime.availableFor(1024, 1024));
+            assertFalse(TexturePaddingRuntime.availableFor(1025, 3));
+            assertFalse(TexturePaddingRuntime.availableFor(3, 1025));
+            BufferedImage carrier = TexturePreparedPixelRuntime.load("graphics/test.png");
+            assertNotNull(carrier);
+            assertEquals(0xffff0000, carrier.getRGB(0, height - 1));
+            assertEquals(0xff00ff00, carrier.getRGB(0, 0));
+            assertNull(TexturePreparedPixelRuntime.prepare(carrier));
+            assertTrue(TexturePreparedPixelRuntime.useCarrierForOriginalFallback(carrier));
+            assertFalse(TexturePaddingRuntime.unpadded());
+            assertEquals(1024, TexturePaddingRuntime.report().get("maxUnpaddedDimension"));
+            assertEquals(0, TexturePreparedPixelRuntime.telemetry().get("activeBuffers"));
+            assertEquals(0L, TexturePreparedPixelRuntime.telemetry().get("conversionCallsBypassed"));
+        } finally {
+            System.setProperty("os.name", originalOs);
+        }
+    }
+
+    @Test
+    void windowsDefaultCeilingDoesNotChangeOtherPlatformsOrExplicitDiagnosticSettings() {
+        String originalOs = System.getProperty("os.name");
+        try {
+            System.setProperty(TexturePaddingRuntime.UNPADDED_PROPERTY, "true");
+            for (String platform : List.of("Linux", "Mac OS X", "Darwin", "unknown")) {
+                System.setProperty("os.name", platform);
+                assertEquals(0, TexturePaddingRuntime.report().get("maxUnpaddedDimension"));
+                assertFalse(TexturePaddingRuntime.originalConversionForWindowsCeiling(1735, 1014));
+            }
+            System.setProperty("os.name", "Windows 11");
+            assertTrue(TexturePaddingRuntime.originalConversionForWindowsCeiling(1735, 1014));
+            System.setProperty(TexturePaddingRuntime.MAX_UNPADDED_DIMENSION_PROPERTY, "512");
+            assertTrue(TexturePaddingRuntime.originalConversionForWindowsCeiling(513, 3));
+            System.setProperty(TexturePaddingRuntime.MAX_UNPADDED_DIMENSION_PROPERTY, "0");
+            assertFalse(TexturePaddingRuntime.originalConversionForWindowsCeiling(1735, 1014));
+            assertEquals(0, TexturePaddingRuntime.report().get("maxUnpaddedDimension"));
+            System.setProperty(TexturePaddingRuntime.MAX_UNPADDED_DIMENSION_PROPERTY, "invalid");
+            assertEquals(1024, TexturePaddingRuntime.report().get("maxUnpaddedDimension"));
+        } finally {
+            System.setProperty("os.name", originalOs);
+        }
     }
 
     @Test
