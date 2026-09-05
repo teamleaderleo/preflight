@@ -84,6 +84,9 @@ final class RunCommand {
         LinuxStartupGcPolicy.Resolution linuxStartupGcPolicy =
                 LinuxStartupGcPolicy.resolve(
                         platform, target, options.optimizationPreset(), System.getenv());
+        WindowsInitialHeapPolicy.Resolution windowsInitialHeapPolicy =
+                WindowsInitialHeapPolicy.resolve(
+                        platform, target, options.optimizationPreset(), System.getenv());
         PreparedTextureUploadPolicy.Resolution textureUploadPolicy =
                 PreparedTextureUploadPolicy.resolve(
                         platform,
@@ -234,6 +237,7 @@ final class RunCommand {
         String javaOptions = MacRosettaGcPolicy.appendOptions(
                 System.getenv("_JAVA_OPTIONS"), macRosettaGcPolicy);
         javaOptions = LinuxStartupGcPolicy.appendOptions(javaOptions, linuxStartupGcPolicy);
+        javaOptions = WindowsInitialHeapPolicy.appendOptions(javaOptions, windowsInitialHeapPolicy);
         javaOptions = CombatJvmSafeguard.appendOptions(javaOptions, combatJvmSafeguard);
 
         List<String> command = new ArrayList<>(target.command());
@@ -253,6 +257,7 @@ final class RunCommand {
                     combatJvmSafeguard,
                     macRosettaGcPolicy,
                     linuxStartupGcPolicy,
+                    windowsInitialHeapPolicy,
                     textureUploadPolicy,
                     javaOptions);
             return new Execution(0, textureContext);
@@ -295,7 +300,7 @@ final class RunCommand {
                     metadata, target, command, runIdentity, launchId, started, null, null, null, null, outcome, null,
                     null, options, directSettings, textureContext, adapterReport, adapterAnalysis, console, null,
                     postprocessingFailures, null, combatJvmSafeguard, macRosettaGcPolicy,
-                    linuxStartupGcPolicy, textureUploadPolicy);
+                    linuxStartupGcPolicy, windowsInitialHeapPolicy, textureUploadPolicy);
 
             ProcessBuilder builder = new ProcessBuilder(command);
             builder.directory(target.workingDirectory().toFile());
@@ -430,7 +435,7 @@ final class RunCommand {
                         options, directSettings, textureContext, adapterReport, adapterAnalysis,
                         console, childOutput, postprocessingFailures, executionFailure,
                     combatJvmSafeguard, macRosettaGcPolicy, linuxStartupGcPolicy,
-                    textureUploadPolicy);
+                    windowsInitialHeapPolicy, textureUploadPolicy);
             } catch (IOException error) {
                 System.err.println("Preflight could not finalize run metadata: " + message(error));
             }
@@ -657,6 +662,7 @@ final class RunCommand {
             CombatJvmSafeguard.Resolution combatJvmSafeguard,
             MacRosettaGcPolicy.Resolution macRosettaGcPolicy,
             LinuxStartupGcPolicy.Resolution linuxStartupGcPolicy,
+            WindowsInitialHeapPolicy.Resolution windowsInitialHeapPolicy,
             PreparedTextureUploadPolicy.Resolution textureUploadPolicy,
             String javaOptions) {
         System.out.println("Preflight selected:");
@@ -700,6 +706,7 @@ final class RunCommand {
         System.out.println("  Linux startup collector: "
                 + (linuxStartupGcPolicy.active() ? "G1 active: " : "launcher default: ")
                 + linuxStartupGcPolicy.reason());
+        System.out.println("  Windows initial heap: " + windowsInitialHeapPolicy.reason());
         System.out.println("  prepared texture upload layout: npotDirect="
                 + textureUploadPolicy.npotDirect()
                 + " unpadded=" + textureUploadPolicy.unpadded()
@@ -856,6 +863,7 @@ final class RunCommand {
             CombatJvmSafeguard.Resolution combatJvmSafeguard,
             MacRosettaGcPolicy.Resolution macRosettaGcPolicy,
             LinuxStartupGcPolicy.Resolution linuxStartupGcPolicy,
+            WindowsInitialHeapPolicy.Resolution windowsInitialHeapPolicy,
             PreparedTextureUploadPolicy.Resolution textureUploadPolicy) throws IOException {
         Map<String, Object> values = new LinkedHashMap<>();
         ProcessHandle wrapper = ProcessHandle.current();
@@ -904,6 +912,7 @@ final class RunCommand {
         values.put("combatJvmSafeguard", combatJvmSafeguard.toReportValues());
         values.put("macRosettaGcPolicy", macRosettaGcPolicy.toReportValues());
         values.put("linuxStartupGcPolicy", linuxStartupGcPolicy.toReportValues());
+        values.put("windowsInitialHeapPolicy", windowsInitialHeapPolicy.toReportValues());
         values.put("preparedTextureUploadPolicy", textureUploadPolicy.toReportValues());
         values.put("quietLogs", options.quietLogs());
         values.put("fileOnlyLogs", options.fileOnlyLogs());

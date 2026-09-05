@@ -20,6 +20,8 @@ param(
     [switch]$TextureUploadCheckpoint,
     [switch]$PreparedLoadAttribution,
     [switch]$JvmNativeMemorySummary,
+    [switch]$WindowsInitialHeapProbe,
+    [switch]$DisableWindowsInitialHeapProbe,
     [switch]$PreparedPackReadAhead,
     [switch]$PreparedPackOrderSnapshot,
     [switch]$DisablePreparedPackReadAhead,
@@ -56,6 +58,10 @@ $ProgressPreference = 'SilentlyContinue'
 if ($PreparedPackReadAhead -and $DisablePreparedPackReadAhead) {
     throw 'Pack read-ahead enable and disable requests cannot be combined'
 }
+if ($WindowsInitialHeapProbe -and $DisableWindowsInitialHeapProbe) {
+    throw 'Initial-heap experiment enable/disable requests conflict'
+}
+
 $preparedResourcesRequested = $WindowsPreparedResources -or $WindowsPreparedResourceClaims -or $WindowsPreparedByteBarrier -or
     ($Conditions -contains 'preflight-prepared-resources')
 if ($WindowsPreparedByteBarrier -and $WindowsDisablePreparedByteBarrier) {
@@ -361,6 +367,11 @@ log4j.appender.file.MaxBackupIndex=3
                 $readAheadValue = ([bool]$PreparedPackReadAhead).ToString().ToLowerInvariant()
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     "-Dpreflight.texture.packReadAhead=$readAheadValue" | Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($WindowsInitialHeapProbe -or $DisableWindowsInitialHeapProbe) {
+                $heapProbeValue = ([bool]$WindowsInitialHeapProbe).ToString().ToLowerInvariant()
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    "-Dpreflight.windows.initialHeapProbe=$heapProbeValue" | Where-Object { $_ }) -join ' ').Trim()
             }
             if ($JvmNativeMemorySummary) {
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
@@ -745,6 +756,8 @@ $identity = [ordered]@{
     textureUploadCheckpoint = [bool]$TextureUploadCheckpoint
     preparedLoadAttribution = [bool]$PreparedLoadAttribution
     jvmNativeMemorySummary = [bool]$JvmNativeMemorySummary
+    windowsInitialHeapProbe = [bool]$WindowsInitialHeapProbe
+    disableWindowsInitialHeapProbe = [bool]$DisableWindowsInitialHeapProbe
     preparedPackReadAhead = [bool]$PreparedPackReadAhead
     preparedPackOrderSnapshot = [bool]$PreparedPackOrderSnapshot
     disablePreparedPackReadAhead = [bool]$DisablePreparedPackReadAhead

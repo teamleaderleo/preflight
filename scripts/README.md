@@ -148,6 +148,16 @@ It records exact arguments and buffer bounds without reading pixels or querying 
 an attempted call, not proof of a stall. This synchronous per-upload I/O is intrusive; never use
 its startup duration as performance evidence. Use it only to recover a native-stall breadcrumb.
 
+`--windows-initial-heap-probe` (guest: `-WindowsInitialHeapProbe`) requests
+`preflight.windows.initialHeapProbe=true`; `--disable-windows-initial-heap-probe`
+(`-DisableWindowsInitialHeapProbe`) requests false. The CLI changes only the game child
+initial heap to 2048 MiB, leaving its 6144 MiB maximum and collector unchanged. Admission
+requires Recommended Windows, exact reviewed batch/runtime (and wrapper when selected),
+and no explicit heap option in JVM environment variables. Unknown identities decline.
+The CLI JVM itself receives no heap override. `windowsInitialHeapPolicy` in `run.json`
+records actual admission; a requested switch alone does not prove it applied. No persistent
+launcher edit or default promotion is performed.
+
 `--jvm-native-memory-summary` (guest: `-JvmNativeMemorySummary`) enables
 `-XX:NativeMemoryTracking=summary` for Preflight arms only, through the existing per-run
 `JAVA_TOOL_OPTIONS` save/restore. This is a diagnostic with runtime overhead, not a timing

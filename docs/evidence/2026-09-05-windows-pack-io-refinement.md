@@ -72,3 +72,24 @@ The reusable isolated diagnostic is now `scripts/diagnostics/PackReadBenchmark.j
 with `javac --release 17`. Arguments are pack path, accepted SPFO path, comma-separated modes
 `heap,direct,mapped,parse,parse-ahead`; parser modes need the tested CLI JAR on the classpath.
 It validates selected entry CRCs in every mode. Its process owns temporary mappings until exit.
+
+## In-game allocation attribution
+
+Session `20260905-115734` used NMT summary, load attribution and periodic JFR dumps. Graphics
+60.134 s / interactive 62.947 s are diagnostic clocks only. The retained 4,268,813-byte
+`startup-3.jfr` is a periodic snapshot, not a complete exit recording. It contains 1,362 slow
+SPFP read events totaling 18.536 s (maximum 187.9 ms), chiefly on Thread-5; 24 GC pauses total
+34 ms. Direct buffer samples peak at 459 MB then fall to about 26 MB. NMT committed total
+stays about 6.4–7.0 GiB while Windows process private commit approaches 27 GB. GPU shared
+usage grows substantially. NMT cannot attribute allocations made independently by native
+libraries; this is not proof that all excess private commit belongs to the graphics driver.
+
+The next independent candidate lowers the initial game heap from 6144 to 2048 MiB while
+preserving the 6144 MiB maximum, collector, resources, GL and scheduling. Property
+`preflight.windows.initialHeapProbe` is opt-in. The child-only override requires exact reviewed
+batch/java.exe/wrapper hashes and Windows Recommended. Explicit heap options in any of
+`_JAVA_OPTIONS`, `JAVA_TOOL_OPTIONS`, `JDK_JAVA_OPTIONS` decline. Unknown identities retain
+original behavior. CLI-JVM heap and persistent launcher files are unchanged.
+Focused policy tests cover admission, preservation of other options/files, default/platform/
+preset declines, environment precedence, changed identities and missing/unreadable files.
+The runtime parser and upload code are unchanged in this candidate.

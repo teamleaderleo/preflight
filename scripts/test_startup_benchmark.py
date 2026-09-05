@@ -1390,6 +1390,16 @@ class WindowsPreparedResourcesRunnerTest(unittest.TestCase):
         self.assertEqual(2, done.returncode, done.stderr)
         self.assertEqual("", done.stdout)
 
+    def test_host_forwards_initial_heap_probe_and_rejects_conflicts(self):
+        for flag, switch in (("--windows-initial-heap-probe", "WindowsInitialHeapProbe"),
+                             ("--disable-windows-initial-heap-probe", "DisableWindowsInitialHeapProbe")):
+            done = self.host_command(flag)
+            self.assertEqual(0, done.returncode, done.stderr)
+            self.assertIn(f" -{switch}", done.stdout)
+        done = self.host_command("--windows-initial-heap-probe", "--disable-windows-initial-heap-probe")
+        self.assertEqual(2, done.returncode, done.stderr)
+        self.assertEqual("", done.stdout)
+
     def test_host_forwards_claim_controls_and_rejects_conflicts(self):
         for flag, switch in (
                 ("--windows-prepared-resource-claims", "WindowsPreparedResourceClaims"),
