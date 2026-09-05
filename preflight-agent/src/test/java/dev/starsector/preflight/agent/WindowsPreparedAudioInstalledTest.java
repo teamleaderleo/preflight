@@ -78,6 +78,15 @@ class WindowsPreparedAudioInstalledTest {
             Throwable after = assertThrows(InvocationTargetException.class, () -> decode(fast, null)).getCause();
             assertEquals(before.getClass(), after.getClass());
             assertEquals(before.getMessage(), after.getMessage());
+            byte[] encoded = Files.readAllBytes(root.resolve("medium.ogg"));
+            // Unknown stream types must reach the original without the cache invoking readAllBytes.
+            java.io.InputStream custom = new ByteArrayInputStream(encoded) {
+                @Override public byte[] readAllBytes() { throw new AssertionError("Custom stream intercepted"); }
+            };
+            assertArrayEquals(decode(stock, new ByteArrayInputStream(encoded)).bytes(), decode(fast, custom).bytes());
+            PreparedAudioRuntime.enable(false);
+            assertArrayEquals(decode(stock, new ByteArrayInputStream(encoded)).bytes(),
+                    decode(fast, new ByteArrayInputStream(encoded)).bytes());
         }
     }
 }

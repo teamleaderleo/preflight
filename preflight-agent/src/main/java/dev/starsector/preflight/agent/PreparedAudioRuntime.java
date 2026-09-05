@@ -168,7 +168,10 @@ public final class PreparedAudioRuntime {
     public static Object decodeWindows(Object decoder, InputStream input, MethodHandle vanilla)
             throws Throwable {
         Class<?> shape = vanilla.type().returnType();
-        if (!ready() || input == null || !WINDOWS_RESULTS.get(shape)) {
+        // The reviewed resource batch supplies complete byte-array streams. Custom streams can
+        // have different read/failure semantics; let the original decoder own those untouched.
+        if (!ready() || input == null || input.getClass() != ByteArrayInputStream.class
+                || !WINDOWS_RESULTS.get(shape)) {
             return vanilla.invoke(decoder, input);
         }
         return decode(decoder, input, vanilla, shape);
