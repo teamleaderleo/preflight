@@ -17,3 +17,28 @@ The record retains no ByteBuffer reference, changes no buffer state, and perform
 Session replacement retires the old observer and clears pending state. Ordinary launches have no
 checkpoint observer. Tests cover delayed publication, single publication, buffer bounds and state,
 completion clearing and session replacement. The stock resource worker count remains one.
+
+Full verification passed in 47.757 s with exact installed common/core and Log4j fixtures.
+Observer + packed lead source `5202e52b491d833ff30491e0018c6b301e7150a2`, JAR
+`c4fadc61da1479356bc1960aab17254d82e6cd674968b784ab5cc469fd00c3ce`.
+Three-platform CI `33990176958` requested. Native reproduction: three Recommended launches,
+1024x720, 20-second cooldowns, pending-upload checkpoint enabled. These are diagnostic observations.
+
+Installed TextureLoader bytecode enables GL_GENERATE_MIPMAP (33169) and trilinear minification
+for source dimensions <=1024, or paths in its special set. Mipmap generation is therefore a
+candidate driver interaction to test after capturing the pending upload, not an established cause.
+
+Diagnostic `20260906-042910`: first two menus 18.695 / 17.666 s (diagnostic only); third stalled.
+The observer recorded `graphics/factions/sotf_dustkeepers_burnouts.png`, 410x256, external RGB
+(6407), internal RGBA (6408), unsigned byte, position 0, limit/capacity 314,880, direct buffer,
+after 5,202 completed uploads. The main-thread dump confirms native `glTexImage2D` at 227.91 s.
+Stopped the task and retired exact PIDs 12756/6584/12432 with creation-time checks. Private pending
+record and `first-thread-dump.txt` / `first-retirement.json` are under `Diagnostics/upload-stall`.
+
+410 RGB pixels occupy 1,230 bytes per row. With unpack alignment four, stride is 1,232 and the
+last row ends at byte 315,390: 510 bytes beyond this buffer. Actual GL unpack state was not yet
+captured, so this is a conditional diagnosis. The installed LWJGL GLChecks helper multiplies
+width, height and components and does not account for this stride. A diagnostic-only glGetInteger
+read now captures GL_UNPACK_ALIGNMENT for potentially misaligned RGB rows on main; successful
+observations are counted by alignment as well. No GL state is changed. The watchdog itself still
+performs no GL calls and retains no buffers.

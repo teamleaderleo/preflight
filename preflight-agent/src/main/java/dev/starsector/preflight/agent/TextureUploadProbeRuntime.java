@@ -38,6 +38,7 @@ public final class TextureUploadProbeRuntime {
     private static PendingUpload pendingUpload;
     private static PendingUpload reportedUpload;
     private static Thread checkpointWatchdog;
+    private static final long[] observedUnpackAlignments = new long[4];
 
     private TextureUploadProbeRuntime() {
     }
@@ -77,12 +78,21 @@ public final class TextureUploadProbeRuntime {
     public static synchronized void checkpoint(int target, int level, int internalFormat,
             int width, int height, int border, int format, int type, ByteBuffer pixels,
             String path, boolean subImage) {
+        checkpoint(target, level, internalFormat, width, height, border, format, type, pixels, path, subImage, -1);
+    }
+
+    public static synchronized void checkpoint(int target, int level, int internalFormat,
+            int width, int height, int border, int format, int type, ByteBuffer pixels,
+            String path, boolean subImage, int unpackAlignment) {
         if (!enabled() || !Boolean.getBoolean(CHECKPOINT_PROPERTY) || reportPath == null) return;
+        if (unpackAlignment == 1 || unpackAlignment == 2 || unpackAlignment == 4 || unpackAlignment == 8) {
+            observedUnpackAlignments[Integer.numberOfTrailingZeros(unpackAlignment)]++;
+        }
         pendingUpload = new PendingUpload(System.nanoTime(), calls, path,
                 Thread.currentThread().getId(), Thread.currentThread().getName(),
                 target, level, internalFormat, width, height, border, format, type,
                 pixels == null ? -1 : pixels.position(), pixels == null ? -1 : pixels.limit(),
-                pixels == null ? -1 : pixels.capacity(), pixels != null && pixels.isDirect(), subImage);
+                pixels == null ? -1 : pixels.capacity(), pixels != null && pixels.isDirect(), subImage, unpackAlignment);
     }
 
     private static void watchPendingUpload() {
@@ -125,6 +135,7 @@ public final class TextureUploadProbeRuntime {
         value.put("limit", attempt.limit());
         value.put("capacity", attempt.capacity());
         value.put("direct", attempt.direct());
+        value.put("unpackAlignment", attempt.unpackAlignment());
         try {
             Path destination = reportPath.resolveSibling(reportPath.getFileName() + ".last-attempt.json");
             if (destination.getParent() != null) Files.createDirectories(destination.getParent());
@@ -142,7 +153,7 @@ public final class TextureUploadProbeRuntime {
     private record PendingUpload(long startedNanos, long completedCalls, String path,
             long threadId, String thread, int target, int level, int internalFormat,
             int width, int height, int border, int format, int type,
-            int position, int limit, int capacity, boolean direct, boolean subImage) { }
+            int position, int limit, int capacity, boolean direct, boolean subImage, int unpackAlignment) { }
 
     /** Called immediately after the native GL invocation. */
     public static synchronized void finish(
@@ -212,6 +223,9 @@ public final class TextureUploadProbeRuntime {
         values.put("over50Millis", over50Millis);
         values.put("over100Millis", over100Millis);
         values.put("reportPath", reportPath == null ? "" : reportPath.toString());
+        values.put("rgbUnpackAlignmentObservations", Map.of(
+                "1", observedUnpackAlignments[0], "2", observedUnpackAlignments[1],
+                "4", observedUnpackAlignments[2], "8", observedUnpackAlignments[3]));
         values.put("slowest", List.copyOf(slowest));
         return Map.copyOf(values);
     }
@@ -225,6 +239,7 @@ public final class TextureUploadProbeRuntime {
     private static void resetCounters() {
         pendingUpload = null;
         reportedUpload = null;
+        java.util.Arrays.fill(observedUnpackAlignments, 0L);
         installedCallSites = 0;
         calls = 0L;
         imageCalls = 0L;
