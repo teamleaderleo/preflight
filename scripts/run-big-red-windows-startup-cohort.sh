@@ -21,6 +21,8 @@ guest_share='Z:\Diagnostics'
 check_only=false
 windows_prepared_resources=false
 windows_disable_prepared_resources=false
+windows_prepared_resource_claims=false
+windows_disable_prepared_resource_claims=false
 faction_priority_cache=false
 startup_phase_probe=false
 startup_texture_cpu_probe=false
@@ -52,6 +54,8 @@ Usage: run-big-red-windows-startup-cohort.sh [options]
   --disable-windows-backslash-merged-read-keys  Force the Windows path-cache baseline
   --windows-prepared-resources  Opt in to Windows prepared resources (workers=1)
   --disable-windows-prepared-resources  Force the same-build prepared-resources baseline
+  --windows-prepared-resource-claims  Let main claim queued prepared resources (implies prototype)
+  --disable-windows-prepared-resource-claims  Force the worker-only prepared-resource baseline
   --check                Verify host, VM, guest agent, and scheduled task without launching
 EOF
 }
@@ -77,6 +81,8 @@ while (($#)); do
         --disable-windows-backslash-merged-read-keys) windows_disable_backslash_merged_read_keys=true; shift ;;
         --windows-prepared-resources) windows_prepared_resources=true; shift ;;
         --disable-windows-prepared-resources) windows_disable_prepared_resources=true; shift ;;
+        --windows-prepared-resource-claims) windows_prepared_resource_claims=true; shift ;;
+        --disable-windows-prepared-resource-claims) windows_disable_prepared_resource_claims=true; shift ;;
         --check) check_only=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -104,7 +110,10 @@ esac
     echo "--startup-texture-cpu-probe requires --startup-phase-probe" >&2
     exit 2
 }
-if [[ "$windows_prepared_resources" == true || "$condition" == preflight-prepared-resources ]]; then
+if [[ "$windows_prepared_resource_claims" == true && "$windows_disable_prepared_resource_claims" == true ]]; then
+    echo "Prepared resources claim enable and disable requests cannot be combined" >&2; exit 2;
+fi
+if [[ "$windows_prepared_resources" == true || "$windows_prepared_resource_claims" == true || "$condition" == preflight-prepared-resources ]]; then
     [[ "$condition" != *fast-rendering* ]] || {
         echo "Prepared resources cannot be combined with Fast Rendering conditions" >&2; exit 2;
     }
@@ -248,6 +257,10 @@ windows_prepared_resources_arg=""
 [[ "$windows_prepared_resources" == true ]] && windows_prepared_resources_arg=" -WindowsPreparedResources"
 windows_disable_prepared_resources_arg=""
 [[ "$windows_disable_prepared_resources" == true ]] && windows_disable_prepared_resources_arg=" -WindowsDisablePreparedResources"
+windows_prepared_resource_claims_arg=""
+[[ "$windows_prepared_resource_claims" == true ]] && windows_prepared_resource_claims_arg=" -WindowsPreparedResourceClaims"
+windows_disable_prepared_resource_claims_arg=""
+[[ "$windows_disable_prepared_resource_claims" == true ]] && windows_disable_prepared_resource_claims_arg=" -WindowsDisablePreparedResourceClaims"
 faction_priority_arg=""
 [[ "$faction_priority_cache" == true ]] && faction_priority_arg=" -WindowsFactionPriorityCacheProbe"
 startup_phase_arg=""
@@ -268,7 +281,7 @@ resolution_arg=""
 [[ -n "$resolution" ]] && resolution_arg=" -Resolution $resolution"
 run_ps=$(cat <<EOF
 \$script = "$guest_repo\\scripts\\run-windows-startup-cohort.ps1"
-\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset -GalliumDriver $gallium_driver$resolution_arg$windows_prepared_resources_arg$windows_disable_prepared_resources_arg$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
+\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset -GalliumDriver $gallium_driver$resolution_arg$windows_prepared_resources_arg$windows_disable_prepared_resources_arg$windows_prepared_resource_claims_arg$windows_disable_prepared_resource_claims_arg$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
 Set-ScheduledTask -TaskName "$task" -Action (New-ScheduledTaskAction -Execute 'powershell.exe' -Argument \$args) | Out-Null
 Start-ScheduledTask -TaskName "$task"
 Start-Sleep -Seconds 2

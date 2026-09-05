@@ -117,6 +117,16 @@ The [installed contracts](../docs/evidence/2026-09-05-windows-prepared-resource-
 the exact Windows gates and cache/reload semantics. Exhaustive original-layout classification now
 requires `-Dpreflight.preparedPixels.originalLayoutProbe=true`; ordinary serving does not scan
 fallback buffers for diagnostic layout matches.
+The queued-claim successor is also opt-in: `-WindowsPreparedResourceClaims` (Big Red:
+`--windows-prepared-resource-claims`) enables the resource prototype and lets main claim a still
+queued admitted texture under the original queue monitor. Ready results take precedence; in-flight
+worker jobs and the final queue entry remain worker-owned. No worker is added. Compare with
+`-Conditions preflight-prepared-resources -WindowsDisablePreparedResourceClaims` (Big Red:
+`--condition preflight-prepared-resources --disable-windows-prepared-resource-claims`) to keep the
+typed-resource path enabled in both legs. The independent property is
+`preflight.texture.windowsPreparedResourceClaims`; explicit false is the kill switch. Run identity
+retains the request, and `preparedResources` telemetry reports queued claims, cache-miss fallbacks,
+abandoned/error claims, claim-read time, final-entry declines, and polling wait time/count.
 Use `preflight-faction-priority` beside `preflight` for the separate Windows-only faction
 priority-table experiment. Its first exact-profile launch observes the original game's eight table
 walks; later launches replay the learned callback IDs. `-WindowsFactionPriorityCacheProbe` enables

@@ -13,6 +13,7 @@ import java.util.Map;
 /** Windows prototype: CPU results travel beside, rather than replace, stock worker results. */
 public final class TexturePreparedResourceRuntime {
     public static final String PROPERTY = "preflight.texture.windowsPreparedResources";
+    public static final String CLAIM_PROPERTY = "preflight.texture.windowsPreparedResourceClaims";
     static final int MAX_OBLIGATIONS = 32_768;
     static final int MAX_RESOURCE_RECORDS = 262_144;
     static final int MAX_DIRECT_DIMENSION = 1_024;
@@ -33,6 +34,8 @@ public final class TexturePreparedResourceRuntime {
     private static long resourceRecords;
     private static String admissionDecline = "none";
     private static long ceilingDeclines, drainMillis, drainTimeouts;
+    private static long queuedClaims, claimFallbacks, claimAbandoned, claimErrors, claimReadNanos;
+    private static long lastEntryDeclines, waitPolls, waitNanos;
 
     private TexturePreparedResourceRuntime() { }
 
@@ -58,6 +61,8 @@ public final class TexturePreparedResourceRuntime {
             resourceRecords = 0;
             admissionDecline = "none";
             ceilingDeclines = drainMillis = drainTimeouts = 0;
+            queuedClaims = claimFallbacks = claimAbandoned = claimErrors = claimReadNanos = 0;
+            lastEntryDeclines = waitPolls = waitNanos = 0;
         }
         SCOPE.remove();
     }
@@ -202,7 +207,9 @@ public final class TexturePreparedResourceRuntime {
         Scope scope = SCOPE.get();
         if (scope == null || scope.obligation == null || transform != null || existingHandler != null
                 || !scope.obligation.path().equals(path) || scope.completion != null) return null;
+        boolean considerClaim = requested() && Boolean.getBoolean(CLAIM_PROPERTY);
         for (;;) {
+            boolean removed = false;
             synchronized (LOCK) {
                 if (!active || Thread.currentThread() != mainThread) return null;
                 Completion completion = COMPLETIONS.get(path);
@@ -221,15 +228,75 @@ public final class TexturePreparedResourceRuntime {
                     }
                     return null;
                 }
+                if (considerClaim) {
+                    considerClaim = false;
+                    // The exact worker removes index zero AND puts its in-flight sentinel under
+                    // this monitor. Its preceding isEmpty test is outside the monitor: leave one
+                    // entry so a main-thread removal cannot invalidate that test.
+                    synchronized (stockQueue) {
+                        if (!stockResults.containsKey(path)
+                                && scope.obligation.preparedIdentity().equals(
+                                        TextureCompatibilityRuntime.preparedPrefetchKey(path))) {
+                            if (stockQueue.size() > 1) {
+                                removed = stockQueue.remove(path);
+                                if (removed) queuedClaims++;
+                            } else if (stockQueue.contains(path)) {
+                                lastEntryDeclines++;
+                            }
+                        }
+                    }
+                }
                 // Match the exact getter's queue/in-flight test and its 10ms polling schedule.
-                if (!stockQueue.contains(path) && !stockResults.containsKey(path)) return null;
+                if (!removed && !stockQueue.contains(path) && !stockResults.containsKey(path)) return null;
             }
+            if (removed) return loadClaimed(scope);
+            long started = System.nanoTime();
             try {
                 Thread.sleep(10L);
             } catch (InterruptedException interrupted) {
                 // Stock getter consumes this interrupt and returns null for original decode.
                 return null;
+            } finally {
+                synchronized (LOCK) {
+                    waitPolls++;
+                    waitNanos += Math.max(0L, System.nanoTime() - started);
+                }
             }
+        }
+    }
+
+    /** The removed stock job is retired even on a cache miss: the original getter now misses
+     * immediately and the original decoder owns fallback. Never requeue or publish into stock maps.
+     */
+    private static Completion loadClaimed(Scope scope) {
+        long started = System.nanoTime();
+        try {
+            BufferedImage image = TexturePreparedPixelRuntime.load(scope.obligation.path());
+            synchronized (LOCK) {
+                if (!active || SCOPE.get() != scope
+                        || OBLIGATIONS.get(scope.obligation.path()) != scope.obligation) {
+                    claimAbandoned++;
+                    return null;
+                }
+                if (image == null) {
+                    claimFallbacks++;
+                    return null;
+                }
+                Completion completion = new Completion(scope.obligation, image, Kind.PREPARED);
+                scope.completion = completion;
+                claimed = completion;
+                published++;
+                inFlight++;
+                return completion;
+            }
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            synchronized (LOCK) { claimErrors++; }
+            throw fatal;
+        } catch (RuntimeException error) {
+            synchronized (LOCK) { claimErrors++; }
+            return null;
+        } finally {
+            synchronized (LOCK) { claimReadNanos += Math.max(0L, System.nanoTime() - started); }
         }
     }
 
@@ -318,6 +385,15 @@ public final class TexturePreparedResourceRuntime {
             values.put("ceilingDeclines", ceilingDeclines);
             values.put("workerDrainMillis", drainMillis);
             values.put("workerDrainTimeouts", drainTimeouts);
+            values.put("queuedClaimsRequested", requested() && Boolean.getBoolean(CLAIM_PROPERTY));
+            values.put("queuedClaims", queuedClaims);
+            values.put("claimFallbacks", claimFallbacks);
+            values.put("claimAbandoned", claimAbandoned);
+            values.put("claimErrors", claimErrors);
+            values.put("claimReadMillis", claimReadNanos / 1_000_000L);
+            values.put("lastEntryDeclines", lastEntryDeclines);
+            values.put("waitPolls", waitPolls);
+            values.put("waitMillis", waitNanos / 1_000_000L);
             values.put("published", published);
             values.put("committed", committed);
             values.put("originalConsumed", originalConsumed);

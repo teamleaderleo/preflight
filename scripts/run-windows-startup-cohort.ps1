@@ -20,6 +20,8 @@ param(
     [switch]$WindowsPrefetchBypassProbe,
     [switch]$WindowsPreparedResources,
     [switch]$WindowsDisablePreparedResources,
+    [switch]$WindowsPreparedResourceClaims,
+    [switch]$WindowsDisablePreparedResourceClaims,
     [switch]$WindowsPreparedPrefetchProbe,
     [switch]$WindowsPreparedStagingProbe,
     [switch]$WindowsKaleidoscopePrefetchProbe,
@@ -43,8 +45,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-$preparedResourcesRequested = $WindowsPreparedResources -or
+$preparedResourcesRequested = $WindowsPreparedResources -or $WindowsPreparedResourceClaims -or
     ($Conditions -contains 'preflight-prepared-resources')
+if ($WindowsPreparedResourceClaims -and $WindowsDisablePreparedResourceClaims) {
+    throw 'Prepared resources claim enable and disable requests cannot be combined'
+}
 if ($preparedResourcesRequested -and $WindowsDisablePreparedResources) {
     throw 'Prepared resources enable and disable requests cannot be combined'
 }
@@ -250,9 +255,18 @@ function Measure-OneRun(
     # Null means the runner leaves the opt-in property to its default; false is explicit.
     $requestedPreparedResources = if (-not $usesPreflight) {
         $null
-    } elseif ($WindowsPreparedResources -or ($Condition -eq 'preflight-prepared-resources')) {
+    } elseif ($WindowsPreparedResources -or $WindowsPreparedResourceClaims -or ($Condition -eq 'preflight-prepared-resources')) {
         $true
     } elseif ($WindowsDisablePreparedResources -or ($Conditions -contains 'preflight-prepared-resources')) {
+        $false
+    } else {
+        $null
+    }
+    $requestedPreparedResourceClaims = if (-not $usesPreflight) {
+        $null
+    } elseif ($WindowsPreparedResourceClaims) {
+        $true
+    } elseif ($WindowsDisablePreparedResourceClaims) {
         $false
     } else {
         $null
@@ -292,6 +306,12 @@ log4j.appender.file.MaxBackupIndex=3
                 $preparedResourcesValue = ([bool]$requestedPreparedResources).ToString().ToLowerInvariant()
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     "-Dpreflight.texture.windowsPreparedResources=$preparedResourcesValue" |
+                    Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($null -ne $requestedPreparedResourceClaims) {
+                $claimValue = ([bool]$requestedPreparedResourceClaims).ToString().ToLowerInvariant()
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    "-Dpreflight.texture.windowsPreparedResourceClaims=$claimValue" |
                     Where-Object { $_ }) -join ' ').Trim()
             }
             if ($Condition -eq 'preflight-fast-rendering-prepared') {
@@ -548,6 +568,7 @@ log4j.appender.file.MaxBackupIndex=3
         usesPreflight = [bool]$usesPreflight
         usesFastRendering = [bool]$usesFastRendering
         windowsPreparedResourcesRequested = $requestedPreparedResources
+        windowsPreparedResourceClaimsRequested = $requestedPreparedResourceClaims
         windowsKaleidoscopePrefetchEnabled = [bool]$usesKaleidoscopePrefetch
         windowsFactionPriorityCacheEnabled = [bool]$usesFactionPriorityCache
         windowsSpecStoreTextureOverlapEnabled = [bool]$usesSpecStoreTextureOverlap
@@ -673,6 +694,8 @@ $identity = [ordered]@{
     windowsPrefetchBypassProbe = [bool]$WindowsPrefetchBypassProbe
     windowsPreparedResources = [bool]$WindowsPreparedResources
     windowsDisablePreparedResources = [bool]$WindowsDisablePreparedResources
+    windowsPreparedResourceClaims = [bool]$WindowsPreparedResourceClaims
+    windowsDisablePreparedResourceClaims = [bool]$WindowsDisablePreparedResourceClaims
     windowsPreparedResourcesCondition = [bool]($Conditions -contains 'preflight-prepared-resources')
     windowsPreparedPrefetchProbe = [bool]$effectivePreparedPrefetchProbe
     windowsPreparedStagingProbe = [bool]$WindowsPreparedStagingProbe
