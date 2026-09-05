@@ -18,12 +18,15 @@ import org.objectweb.asm.tree.VarInsnNode;
 final class TextureUnpackAlignmentPlan {
     private static final String GL = "org/lwjgl/opengl/GL11";
     private static final String RUNTIME = "dev/starsector/preflight/agent/TexturePreparedPixelRuntime";
+    static final String HELPER_PREFIX = "preflight$aligned$";
+    static final String HELPER_DESCRIPTOR = "(IIIIIIIILjava/nio/ByteBuffer;Ljava/lang/String;)V";
     private static final String DESCRIPTOR = "(IIIIIIIILjava/nio/ByteBuffer;)V";
 
     private TextureUnpackAlignmentPlan() { }
 
-    static void apply(ClassSignature signature, List<MethodNode> methods) {
-        if (!TexturePreparedResourceLoaderPlan.WINDOWS_SHA256.equals(signature.sha256())) return;
+    static List<MethodNode> apply(ClassSignature signature, List<MethodNode> methods) {
+        if (!TexturePreparedResourceLoaderPlan.WINDOWS_SHA256.equals(signature.sha256())) return List.of();
+        List<MethodNode> helpers = new ArrayList<>();
         for (MethodNode method : methods) {
             List<MethodInsnNode> calls = new ArrayList<>();
             for (AbstractInsnNode node : method.instructions) {
@@ -31,8 +34,32 @@ final class TextureUnpackAlignmentPlan {
                         && GL.equals(call.owner) && DESCRIPTOR.equals(call.desc)
                         && (call.name.equals("glTexImage2D") || call.name.equals("glTexSubImage2D"))) calls.add(call);
             }
-            for (MethodInsnNode call : calls) instrument(method, call);
+            for (MethodInsnNode call : calls) {
+                String name = HELPER_PREFIX + call.name;
+                if (helpers.stream().noneMatch(helper -> helper.name.equals(name))) {
+                    MethodNode helper = new MethodNode(Opcodes.ASM9,
+                            Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC | Opcodes.ACC_SYNTHETIC,
+                            name, HELPER_DESCRIPTOR, null, null);
+                    helper.maxLocals = 10;
+                    for (int i = 0; i < 9; i++) helper.instructions.add(
+                            new VarInsnNode(i == 8 ? Opcodes.ALOAD : Opcodes.ILOAD, i));
+                    MethodInsnNode nativeCall = new MethodInsnNode(Opcodes.INVOKESTATIC,
+                            GL, call.name, DESCRIPTOR, false);
+                    helper.instructions.add(nativeCall);
+                    helper.instructions.add(new InsnNode(Opcodes.RETURN));
+                    instrument(helper, nativeCall);
+                    helpers.add(helper);
+                }
+                int path = TextureUploadProbePlan.pathLocal(method);
+                method.instructions.insertBefore(call, path >= 0
+                        ? new VarInsnNode(Opcodes.ALOAD, path)
+                        : new InsnNode(Opcodes.ACONST_NULL));
+                call.owner = signature.internalName();
+                call.name = name;
+                call.desc = HELPER_DESCRIPTOR;
+            }
         }
+        return helpers;
     }
 
     private static void instrument(MethodNode method, MethodInsnNode call) {
