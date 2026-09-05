@@ -51,6 +51,28 @@ class TextureUploadProbePlanTest {
     }
 
     @Test
+    void alignedHelperCheckpointUsesForwardedPath() throws Exception {
+        System.setProperty(TextureUploadProbeRuntime.CHECKPOINT_PROPERTY, "true");
+        MethodNode method = fixture();
+        method.name = TextureUnpackAlignmentPlan.HELPER_PREFIX + "glTexImage2D";
+        method.desc = TextureUnpackAlignmentPlan.HELPER_DESCRIPTOR;
+        method.access = Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC;
+        method.maxLocals = 10;
+        method.instructions.remove(method.instructions.getLast());
+        method.instructions.remove(method.instructions.getLast());
+        method.instructions.add(new InsnNode(Opcodes.RETURN));
+        assertEquals(1, TextureUploadProbePlan.instrument(List.of(method)));
+        int pathLoads = 0;
+        for (AbstractInsnNode n : method.instructions) {
+            if (n instanceof org.objectweb.asm.tree.VarInsnNode load
+                    && load.getOpcode() == Opcodes.ALOAD && load.var == 9) pathLoads++;
+        }
+        assertEquals(2, pathLoads);
+        method.maxStack = 16;
+        new Analyzer<>(new BasicInterpreter()).analyze("example/Owner", method);
+    }
+
+    @Test
     void checkpointRetainsCallAndValidDataflow() throws Exception {
         System.setProperty(TextureUploadProbeRuntime.CHECKPOINT_PROPERTY, "true");
         MethodNode method = fixture();

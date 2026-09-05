@@ -102,7 +102,7 @@ final class TextureUploadProbePlan {
             before.add(new VarInsnNode(Opcodes.ILOAD, format));
             before.add(new VarInsnNode(Opcodes.ILOAD, type));
             before.add(new VarInsnNode(Opcodes.ALOAD, pixels));
-            if (pathUpload(method)) before.add(new VarInsnNode(Opcodes.ALOAD, 2));
+            if (pathLocal(method) >= 0) before.add(new VarInsnNode(Opcodes.ALOAD, pathLocal(method)));
             else before.add(new LdcInsnNode("<buffered-image>"));
             before.add(new InsnNode("glTexSubImage2D".equals(upload.name) ? Opcodes.ICONST_1 : Opcodes.ICONST_0));
             before.add(new VarInsnNode(Opcodes.ILOAD, unpackAlignment));
@@ -130,8 +130,8 @@ final class TextureUploadProbePlan {
         after.add(new VarInsnNode(Opcodes.ILOAD, format));
         after.add(new VarInsnNode(Opcodes.ILOAD, type));
         after.add(new VarInsnNode(Opcodes.ALOAD, pixels));
-        if (pathUpload(method)) {
-            after.add(new VarInsnNode(Opcodes.ALOAD, 2));
+        if (pathLocal(method) >= 0) {
+            after.add(new VarInsnNode(Opcodes.ALOAD, pathLocal(method)));
         } else {
             after.add(new LdcInsnNode("<buffered-image>"));
         }
@@ -146,8 +146,10 @@ final class TextureUploadProbePlan {
         method.instructions.insert(upload, after);
     }
 
-    private static boolean pathUpload(MethodNode method) {
+    static int pathLocal(MethodNode method) {
+        if (method.name.startsWith(TextureUnpackAlignmentPlan.HELPER_PREFIX)
+                && TextureUnpackAlignmentPlan.HELPER_DESCRIPTOR.equals(method.desc)) return 9;
         return PATH_UPLOAD_DESCRIPTOR.equals(method.desc)
-                || TexturePreparedResourceLoaderPlan.LOAD_DESCRIPTOR.equals(method.desc);
+                || TexturePreparedResourceLoaderPlan.LOAD_DESCRIPTOR.equals(method.desc) ? 2 : -1;
     }
 }

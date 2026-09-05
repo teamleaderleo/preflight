@@ -103,8 +103,11 @@ final class TexturePreparedPixelPlan {
         owner.methods.add(convertWrapper(owner.name, convertMetadata, convertName, colors, dimensions));
         owner.methods.add(cleanupWrapper(owner.name, cleanupMetadata, cleanupName));
         uploadCallers.forEach(TexturePreparedPixelPlan::addExceptionalRelease);
-        TextureUnpackAlignmentPlan.apply(signature, uploadCallers);
-        TextureUploadProbePlan.instrument(uploadCallers);
+        List<MethodNode> alignedUploads = TextureUnpackAlignmentPlan.apply(signature, uploadCallers);
+        owner.methods.addAll(alignedUploads);
+        List<MethodNode> probedUploads = new ArrayList<>(uploadCallers);
+        probedUploads.addAll(alignedUploads);
+        TextureUploadProbePlan.instrument(probedUploads);
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
