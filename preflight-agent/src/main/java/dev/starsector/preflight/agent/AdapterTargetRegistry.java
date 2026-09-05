@@ -306,6 +306,15 @@ final class AdapterTargetRegistry {
                 "jdk/internal/loader/ClassLoaders$AppClassLoader", "app");
     }
 
+    static AdapterTarget windowsPreparedAudioTarget() {
+        return new AdapterTarget("windows-ogg-decoder-0.98a-rc8-prepared-audio",
+                WindowsPcmCopyPlan.TARGET, WindowsPcmCopyPlan.SHA, PreparedAudioRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod("super", WindowsPcmCopyPlan.DESCRIPTOR)),
+                "STARSECTOR_CORE", "fs.sound_obf.jar",
+                "d70e2760c9785770818607edd7be502ac75f7b87f8af5770c178a8d723c96dab",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader", "app");
+    }
+
     /** Starsector 0.98a-RC8's streaming player checks a stale OpenAL error after source creation. */
     static AdapterTarget audioStreamSourceErrorTarget() {
         return new AdapterTarget(
@@ -2797,7 +2806,10 @@ final class AdapterTargetRegistry {
     }
 
     AdapterTargetRegistry withPreparedAudioTarget() {
-        return withTarget(preparedAudioTarget());
+        // Both Windows plans wrap the same decoder. Prepared PCM takes precedence; misses retain
+        // the original decoder rather than composing the experimental chunk-copy branch.
+        return withoutPlans(Set.of(WindowsPcmCopyRuntime.PLAN_ID))
+                .withTarget(preparedAudioTarget()).withTarget(windowsPreparedAudioTarget());
     }
 
     AdapterTargetRegistry withGraphicsLibCompactReplayTarget() {

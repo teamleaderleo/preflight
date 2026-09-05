@@ -89,12 +89,35 @@ display geometry. Omitting both options preserves the existing llvmpipe/working-
 `--windows-prepared-prestart` (`-WindowsPreparedPrestart` on Windows) opts into exact prepared-image
 admission before the original resource worker starts and implies typed prepared resources.
 `--disable-windows-prepared-prestart` explicitly disables that admission. The runtime property is
-`preflight.texture.windowsPreparedPrestart`; it defaults off and requires typed resources and one
+`preflight.texture.windowsPreparedPrestart`; runtime admission requires typed resources and one
 worker. `--windows-pcm-copy` (`-WindowsPcmCopy`) independently opts into the exact Windows decoded
 PCM chunk-copy branch with `preflight.audio.windowsPcmCopy=true` (also off by default).
 Neither option skips Vorbis decoding or enables prepared-audio caching. The
-[native prototype results](../docs/evidence/2026-09-05-windows-prestart-and-pcm-copy.md) did not
-establish a launch-time win, so neither is enabled in ordinary Recommended launches.
+[initial native prototype results](../docs/evidence/2026-09-05-windows-prestart-and-pcm-copy.md) did not
+establish a launch-time win without prepared audio. PCM chunk copying remains off by default.
+
+Windows can now bake and serve prepared sound effects through the exact installed decoder:
+
+```powershell
+java -jar preflight.jar audio prepare --game 'C:\Games\Starsector'
+```
+
+Use `--cache <directory>` if the installation uses a custom Preflight cache, and `--java <path>`
+to select the game's compatible Java explicitly. Preparation is separate from the startup clock;
+the reviewed profile baked 2,049 effects (1.23 GB PCM) in 45.4 seconds. Music streaming is unchanged.
+Recommended launches use the cache automatically. With a validated audio manifest, Windows
+Recommended also enables exact prestart texture admission and faction priority replay. Without
+that manifest, the earlier startup policy remains. The
+[Windows prepared-audio evidence](../docs/evidence/2026-09-05-windows-prepared-audio.md) records
+native launch measurements, exact contracts and limitations.
+
+`--disable-optimization-domain prepared-audio` disables prepared audio at launch and prevents
+this automatic combination. Explicit `JAVA_TOOL_OPTIONS` values for
+`preflight.texture.windowsPreparedPrestart`, `preflight.texture.windowsPreparedResources` and
+`preflight.startup.windowsFactionPriorityCache` override their respective defaults. Disabling
+prestart admission does not implicitly opt into the older typed-resource path. Conservative and
+other-platform startup policy is unchanged. The cohort's existing explicit experiment switches
+remain available for comparisons.
 
 The fingerprint retains hybrid-core capacities, vCPU topology/pinning, bounded QEMU/temperature/
 memory samples, guest SysMain and memory state, and only competing processes above a CPU threshold.

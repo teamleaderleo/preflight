@@ -44,8 +44,22 @@ final class PreparedAudioPlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        if (!TARGET_CLASS.equals(signature.internalName())
-                || !signature.hasMethod(DECODE_METHOD, DECODE_DESCRIPTOR)) {
+        return transform(signature, originalBytes, TARGET_CLASS, DECODE_METHOD, DECODE_DESCRIPTOR,
+                RESULT_CLASS, "decode");
+    }
+
+    static byte[] transformWindows(ClassSignature signature, byte[] originalBytes) {
+        if (!WindowsPcmCopyPlan.SHA.equals(dev.starsector.preflight.core.Hashes.sha256(originalBytes))) {
+            return null;
+        }
+        return transform(signature, originalBytes, WindowsPcmCopyPlan.TARGET, "super",
+                WindowsPcmCopyPlan.DESCRIPTOR, "sound/G", "decodeWindows");
+    }
+
+    private static byte[] transform(ClassSignature signature, byte[] originalBytes,
+            String target, String methodName, String descriptor, String result, String runtimeMethod) {
+        if (!target.equals(signature.internalName())
+                || !signature.hasMethod(methodName, descriptor)) {
             return null;
         }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
@@ -62,7 +76,7 @@ final class PreparedAudioPlan {
                 // Already rewritten.
                 return null;
             }
-            if (DECODE_METHOD.equals(method.name) && DECODE_DESCRIPTOR.equals(method.desc)) {
+            if (methodName.equals(method.name) && descriptor.equals(method.desc)) {
                 if (vanilla != null) {
                     return null;
                 }
@@ -77,15 +91,15 @@ final class PreparedAudioPlan {
         vanilla.access = (vanilla.access & ~(Opcodes.ACC_PRIVATE | Opcodes.ACC_PROTECTED))
                 | Opcodes.ACC_PUBLIC;
 
-        MethodNode entry = new MethodNode(Opcodes.ASM9, Opcodes.ACC_PUBLIC, DECODE_METHOD,
-                DECODE_DESCRIPTOR, null, new String[] {"java/io/IOException"});
+        MethodNode entry = new MethodNode(Opcodes.ASM9, Opcodes.ACC_PUBLIC, methodName,
+                descriptor, null, new String[] {"java/io/IOException"});
         entry.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
         entry.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
         entry.instructions.add(new LdcInsnNode(new Handle(
-                Opcodes.H_INVOKEVIRTUAL, TARGET_CLASS, VANILLA_METHOD, DECODE_DESCRIPTOR, false)));
+                Opcodes.H_INVOKEVIRTUAL, target, VANILLA_METHOD, descriptor, false)));
         entry.instructions.add(new MethodInsnNode(
-                Opcodes.INVOKESTATIC, RUNTIME, "decode", RUNTIME_DESCRIPTOR, false));
-        entry.instructions.add(new TypeInsnNode(Opcodes.CHECKCAST, RESULT_CLASS));
+                Opcodes.INVOKESTATIC, RUNTIME, runtimeMethod, RUNTIME_DESCRIPTOR, false));
+        entry.instructions.add(new TypeInsnNode(Opcodes.CHECKCAST, result));
         entry.instructions.add(new InsnNode(Opcodes.ARETURN));
         entry.maxStack = 3;
         entry.maxLocals = 2;

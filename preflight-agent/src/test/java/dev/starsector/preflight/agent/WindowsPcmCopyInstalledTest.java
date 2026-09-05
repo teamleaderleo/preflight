@@ -77,7 +77,7 @@ class WindowsPcmCopyInstalledTest {
         }
     }
 
-    private static URLClassLoader loader(URL[] urls, byte[] decoder) {
+    static URLClassLoader loader(URL[] urls, byte[] decoder) {
         return new URLClassLoader(urls, WindowsPcmCopyInstalledTest.class.getClassLoader()) {
             @Override protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
                 if (!name.startsWith("sound.") && !name.startsWith("com.jcraft.")
@@ -98,7 +98,7 @@ class WindowsPcmCopyInstalledTest {
             }
         };
     }
-    private static Pcm decode(ClassLoader loader, InputStream input) throws Exception {
+    static Pcm decode(ClassLoader loader, InputStream input) throws Exception {
         Class<?> type = Class.forName("sound.O0oO", true, loader);
         Object result = type.getMethod("super", InputStream.class).invoke(type.getConstructor().newInstance(), input);
         Class<?> shape = result.getClass();
@@ -109,5 +109,5 @@ class WindowsPcmCopyInstalledTest {
         buffer.duplicate().get(bytes);
         return new Pcm(bytes, shape.getField("o00000").getInt(result), shape.getField("Ò00000").getInt(result), position);
     }
-    private record Pcm(byte[] bytes, int channels, int rate, int position) { }
+    record Pcm(byte[] bytes, int channels, int rate, int position) { }
 }

@@ -368,6 +368,7 @@ public final class PreflightCli {
                 "preflight lint [--game <Starsector directory>] [--mod <mod id>] [--json] [--output <report.json>]",
                 "preflight lint --path <mod directory> [--json] [--output <report.json>]"));
         usage.put("audio", List.of(
+                "preflight audio prepare [--game <Starsector directory>] [--cache <cache directory>] [--java <game-java>] [--output <report.json>]",
                 "preflight audio census [--game <Starsector directory>] [--output <report.json>] [--csv <sounds.csv>]",
                 "preflight audio jorbis-equivalence --jogg <jogg-0.0.7.jar> --jorbis <jorbis-0.0.15.jar> [--output <report.json>]",
                 "preflight audio sound-wrapper-observe --game <Starsector directory> --jogg <jogg-0.0.7.jar> --jorbis <jorbis-0.0.15.jar> [--java <game-java>] [--output <report.json>]"));

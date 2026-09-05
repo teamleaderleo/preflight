@@ -149,7 +149,37 @@ public final class PreparedAudioRuntime {
      */
     public static Object decode(Object decoder, InputStream input, MethodHandle vanilla)
             throws Throwable {
-        if (!ready()) {
+        return decode(decoder, input, vanilla, null);
+    }
+
+    private static final ClassValue<Boolean> WINDOWS_RESULTS = new ClassValue<>() {
+        @Override protected Boolean computeValue(Class<?> type) {
+            if (!type.getName().equals("sound.G")) return false;
+            try (InputStream bytes = type.getResourceAsStream("/sound/G.class")) {
+                return bytes != null && Hashes.sha256(bytes.readNBytes(1_048_577)).equals(
+                        "c7dbba1261cfba676dba014709c68e10563c3d06b0e8b5e664a5c1d2ee5e6616");
+            } catch (java.io.IOException | RuntimeException failure) {
+                return false;
+            }
+        }
+    };
+
+    /** The exact Windows decoder has a different result class, supplied by its original handle. */
+    public static Object decodeWindows(Object decoder, InputStream input, MethodHandle vanilla)
+            throws Throwable {
+        Class<?> shape = vanilla.type().returnType();
+        // The reviewed resource batch supplies complete byte-array streams. Custom streams can
+        // have different read/failure semantics; let the original decoder own those untouched.
+        if (!ready() || input == null || input.getClass() != ByteArrayInputStream.class
+                || !WINDOWS_RESULTS.get(shape)) {
+            return vanilla.invoke(decoder, input);
+        }
+        return decode(decoder, input, vanilla, shape);
+    }
+
+    private static Object decode(Object decoder, InputStream input, MethodHandle vanilla,
+            Class<?> explicitResult) throws Throwable {
+        if (!ready() || input == null) {
             return vanilla.invoke(decoder, input);
         }
         byte[] encoded;
@@ -162,7 +192,7 @@ public final class PreparedAudioRuntime {
         }
         decodes.incrementAndGet();
         try {
-            Object prepared = serve(encoded);
+            Object prepared = serve(encoded, explicitResult);
             if (prepared != null) {
                 return prepared;
             }
@@ -174,11 +204,11 @@ public final class PreparedAudioRuntime {
         return vanilla.invoke(decoder, new ByteArrayInputStream(encoded));
     }
 
-    private static Object serve(byte[] encoded) throws ReflectiveOperationException,
+    private static Object serve(byte[] encoded, Class<?> explicitResult) throws ReflectiveOperationException,
             java.io.IOException {
         byteHashLookups.incrementAndGet();
         String sourceSha256 = Hashes.sha256(encoded);
-        return serve(sourceSha256);
+        return serve(sourceSha256, explicitResult);
     }
 
     /**
@@ -220,6 +250,11 @@ public final class PreparedAudioRuntime {
 
     private static Object serve(String sourceSha256) throws ReflectiveOperationException,
             java.io.IOException {
+        return serve(sourceSha256, null);
+    }
+
+    private static Object serve(String sourceSha256, Class<?> explicitResult) throws ReflectiveOperationException,
+            java.io.IOException {
         Path blob = PreparedAudioCache.blobPath(
                 cacheDirectory,
                 sourceSha256,
@@ -246,7 +281,7 @@ public final class PreparedAudioRuntime {
                 || audio.byteOrder() != PreparedAudio.ByteOrder.LITTLE_ENDIAN) {
             return null;
         }
-        if (!resolveShape()) {
+        if (explicitResult == null && !resolveShape()) {
             return null;
         }
         // alBufferData needs a direct buffer, and the vanilla decoder hands back a direct one with
@@ -255,10 +290,11 @@ public final class PreparedAudioRuntime {
         audio.copyPcmTo(buffer);
         buffer.flip();
 
-        Object result = resultClass.getDeclaredConstructor().newInstance();
-        channelsField.setInt(result, audio.channels());
-        rateField.setInt(result, audio.sampleRateHz());
-        pcmField.set(result, buffer);
+        Class<?> type = explicitResult == null ? resultClass : explicitResult;
+        Object result = type.getDeclaredConstructor().newInstance();
+        (explicitResult == null ? channelsField : type.getField(CHANNELS_FIELD)).setInt(result, audio.channels());
+        (explicitResult == null ? rateField : type.getField(RATE_FIELD)).setInt(result, audio.sampleRateHz());
+        (explicitResult == null ? pcmField : type.getField(PCM_FIELD)).set(result, buffer);
         served.incrementAndGet();
         servedBytes.addAndGet(audio.pcmByteCount());
         return result;

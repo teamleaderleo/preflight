@@ -195,7 +195,8 @@ final class RunCommand {
         javaToolOptions = RecommendedCombatPlanPolicy.appendOptions(
                 javaToolOptions, options.optimizationPreset());
         javaToolOptions = RecommendedWindowsStartupPolicy.appendOptions(
-                javaToolOptions, platform, options.optimizationPreset());
+                javaToolOptions, platform, options.optimizationPreset(),
+                preparedAudio != null && preparedAudio.manifestIdentity() != null);
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }
