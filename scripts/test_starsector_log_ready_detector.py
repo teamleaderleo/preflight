@@ -7,6 +7,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 MODULE_PATH = Path(__file__).with_name("starsector_log_ready_detector.py")
@@ -15,6 +16,31 @@ module = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
 sys.modules[spec.name] = module
 spec.loader.exec_module(module)
+
+
+class ScheduledClock:
+    """Deliver log writes on detector polling ticks, independent of host thread scheduling."""
+    gmtime = staticmethod(time.gmtime)
+    strftime = staticmethod(time.strftime)
+    def __init__(self, append, events):
+        self.append = append
+        self.events = list(events)
+        self.now = 0
+
+    def monotonic(self):
+        return self.now / 1_000_000_000
+
+    def monotonic_ns(self):
+        return self.now
+
+    def time_ns(self):
+        return 1_700_000_000_000_000_000 + self.now
+
+    def sleep(self, seconds):
+        self.now += round(seconds * 1_000_000_000)
+        while self.events and self.events[0][0] * 1_000_000 <= self.now:
+            _, line = self.events.pop(0)
+            self.append(line)
 
 
 class DetectorTest(unittest.TestCase):
@@ -38,27 +64,15 @@ class DetectorTest(unittest.TestCase):
 
     def test_launcher_marker_then_quiet(self):
         output = self.root / "launcher.json"
-        process_start = time.monotonic_ns()
-
-        def writer():
-            time.sleep(0.03)
-            self.append("2000 [Thread-2] INFO loader - graphics/fonts/orbitron12_0.png")
-            time.sleep(0.02)
-            self.append("2100 [Thread-2] INFO loader - final launcher resource")
-
-        thread = threading.Thread(target=writer)
-        thread.start()
-        accepted = module.watch_launcher(
-            self.root,
-            self.snapshot,
-            output,
-            os.getpid(),
-            process_start,
-            timeout_seconds=1.0,
-            quiet_seconds=0.08,
-            sleep_seconds=0.01,
-        )
-        thread.join()
+        clock = ScheduledClock(self.append, [
+            (30, "2000 [Thread-2] INFO loader - graphics/fonts/orbitron12_0.png"),
+            (50, "2100 [Thread-2] INFO loader - final launcher resource"),
+        ])
+        with patch.object(module, "time", clock):
+            accepted = module.watch_launcher(
+                self.root, self.snapshot, output, os.getpid(), clock.monotonic_ns(),
+                timeout_seconds=1.0, quiet_seconds=0.08, sleep_seconds=0.01,
+            )
         self.assertTrue(accepted)
         result = json.loads(output.read_text())
         self.assertTrue(result["detected"])
@@ -333,30 +347,21 @@ class DetectorTest(unittest.TestCase):
         # clock at 'launcher preamble' and swallow the whole early phase.
         output = self.root / "main-menu-anchor.json"
 
-        def writer():
-            time.sleep(0.02)
-            self.append("1000 [Thread-3] INFO com.fs.starfarer.StarfarerLauncher  - "
-                        "Loading mod list, resolution 1440x932")
-            time.sleep(0.06)
-            self.append("9000 [Thread-3] INFO  com.fs.starfarer.StarfarerLauncher  - "
-                        "Running with the following mods (in order of priority):")
-            time.sleep(0.05)
-            self.append(
-                "11000 [Thread-3] INFO com.fs.starfarer.campaign.save.CampaignGameManager  - "
-                "Reading save data from [save/descriptor.xml]"
+        clock = ScheduledClock(self.append, [
+            (20, "1000 [Thread-3] INFO com.fs.starfarer.StarfarerLauncher  - "
+                 "Loading mod list, resolution 1440x932"),
+            (80, "9000 [Thread-3] INFO  com.fs.starfarer.StarfarerLauncher  - "
+                 "Running with the following mods (in order of priority):"),
+            (130, "11000 [Thread-3] INFO com.fs.starfarer.campaign.save.CampaignGameManager  - "
+                  "Reading save data from [save/descriptor.xml]"),
+            (130, "11500 [Thread-3] INFO org.dark.shaders.util.TextureData  - "
+                  "VRAM after unload/preload: 450555 bytes"),
+        ])
+        with patch.object(module, "time", clock):
+            accepted = module.watch_main_menu(
+                self.root, self.snapshot, output, os.getpid(),
+                timeout_seconds=3.0, quiet_seconds=0.10, sleep_seconds=0.01,
             )
-            self.append(
-                "11500 [Thread-3] INFO org.dark.shaders.util.TextureData  - "
-                "VRAM after unload/preload: 450555 bytes"
-            )
-
-        thread = threading.Thread(target=writer)
-        thread.start()
-        accepted = module.watch_main_menu(
-            self.root, self.snapshot, output, os.getpid(),
-            timeout_seconds=3.0, quiet_seconds=0.10, sleep_seconds=0.01,
-        )
-        thread.join()
         self.assertTrue(accepted)
         result = json.loads(output.read_text())
 
