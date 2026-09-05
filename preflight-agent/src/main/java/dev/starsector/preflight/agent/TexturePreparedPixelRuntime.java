@@ -684,45 +684,15 @@ public final class TexturePreparedPixelRuntime {
 
     /** Called only at the exact Windows converter's single read-only raster acquisition. */
     public static Raster originalConverterRaster(BufferedImage image) {
-        if (!(image instanceof PackedConverterImage packed)) return image.getData();
+        if (!(image instanceof PackedConverterImage)) return image.getData();
         TELEMETRY.converterRasterReused((long) image.getWidth() * image.getHeight() * Integer.BYTES);
-        return packed.converterRaster;
+        return image.getRaster();
     }
 
     // A private, independently owned standard packed surface supplied only to the original converter.
     // Public BufferedImage snapshot behavior remains inherited; only the exact converter borrows it.
     private static final class PackedConverterImage extends BufferedImage {
-        private final Raster converterRaster;
-        PackedConverterImage(int width, int height, int type) {
-            super(width, height, type);
-            converterRaster = new PackedConverterRaster(this);
-        }
-    }
-
-    /** The reviewed converter reads individual RGB/ARGB pixels from an independently owned int array. */
-    private static final class PackedConverterRaster extends Raster {
-        private final int[] pixels;
-        private final boolean alpha;
-
-        PackedConverterRaster(PackedConverterImage image) {
-            super(image.getSampleModel(), image.getRaster().getDataBuffer(), new java.awt.Point(0, 0));
-            pixels = ((java.awt.image.DataBufferInt) image.getRaster().getDataBuffer()).getData();
-            alpha = image.getType() == BufferedImage.TYPE_INT_ARGB;
-        }
-
-        @Override
-        public int[] getPixel(int x, int y, int[] destination) {
-            if (x < 0 || y < 0 || x >= width || y >= height) {
-                throw new ArrayIndexOutOfBoundsException("Coordinate out of bounds!");
-            }
-            int[] result = destination == null ? new int[alpha ? 4 : 3] : destination;
-            int pixel = pixels[y * width + x];
-            result[0] = (pixel >>> 16) & 255;
-            result[1] = (pixel >>> 8) & 255;
-            result[2] = pixel & 255;
-            if (alpha) result[3] = pixel >>> 24;
-            return result;
-        }
+        PackedConverterImage(int width, int height, int type) { super(width, height, type); }
     }
 
     /** Creates one bounded direct upload buffer and returns stored derived colors. */

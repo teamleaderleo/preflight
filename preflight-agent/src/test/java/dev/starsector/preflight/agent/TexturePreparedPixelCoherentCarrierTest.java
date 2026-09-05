@@ -418,24 +418,8 @@ class TexturePreparedPixelCoherentCarrierTest {
             for (int y=0; y<3; y++) for (int x=0; x<2; x++) {
                 assertEquals(carrier.getRGB(x, y), packed.getRGB(x, y));
             }
-            java.awt.image.Raster borrowed = TexturePreparedPixelRuntime.originalConverterRaster(packed);
-            org.junit.jupiter.api.Assertions.assertSame(packed.getRaster().getDataBuffer(), borrowed.getDataBuffer());
-            for (int y = 0; y < 3; y++) for (int x = 0; x < 2; x++) {
-                assertArrayEquals(packed.getRaster().getPixel(x, y, (int[]) null),
-                        borrowed.getPixel(x, y, (int[]) null));
-                int[] output = new int[channels + 1];
-                output[channels] = 999;
-                org.junit.jupiter.api.Assertions.assertSame(output, borrowed.getPixel(x, y, output));
-                assertEquals(999, output[channels]);
-                assertArrayEquals(packed.getRaster().getPixel(x, y, (int[]) null),
-                        java.util.Arrays.copyOf(output, channels));
-            }
-            org.junit.jupiter.api.Assertions.assertThrows(ArrayIndexOutOfBoundsException.class,
-                    () -> borrowed.getPixel(-1, 0, (int[]) null));
-            org.junit.jupiter.api.Assertions.assertThrows(ArrayIndexOutOfBoundsException.class,
-                    () -> borrowed.getPixel(0, 3, (int[]) null));
-            org.junit.jupiter.api.Assertions.assertThrows(ArrayIndexOutOfBoundsException.class,
-                    () -> borrowed.getPixel(0, 0, new int[channels - 1]));
+            org.junit.jupiter.api.Assertions.assertSame(packed.getRaster(),
+                    TexturePreparedPixelRuntime.originalConverterRaster(packed));
             org.junit.jupiter.api.Assertions.assertNotSame(packed.getRaster(), packed.getData());
             org.junit.jupiter.api.Assertions.assertNotSame(ordinary.getRaster(),
                     TexturePreparedPixelRuntime.originalConverterRaster(ordinary));
