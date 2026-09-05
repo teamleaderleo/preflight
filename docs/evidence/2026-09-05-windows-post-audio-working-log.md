@@ -53,11 +53,53 @@ VM remains 20 GiB / 14 CPUs, native graphics, 1024x720, one resource worker.
   range exclusion, corrupted trailer rejection, truncation, existing RAW mutation and pack-close
   tests. Timing benefit remains unmeasured at this point.
 
-Current phase: full verification and ordinary Windows candidate measurement.
 Full Java verification passed in 56.486 s; all nine installed Windows loader-contract tests pass.
 An explicit `singleReadLz4=false` check exposed an existing test assumption: its wrong-suffix RAW
 fixture expected rejection by the specialized reader even when that reader was disabled. The test
 now checks the general reader's valid RAW result in that mode; production fallback behavior is
 unchanged. The two fast-path read-count tests explicitly require that path to be enabled.
+
+## Combined-path result
+
+Candidate executable source: `0c46f4d14d340d5919648f26bf5984b88a1d9d23`.
+Candidate JAR SHA-256: `9775ae177b9de16cac81f6841acba3a5ddf22c9fd901a2db85c9bbfd8ce4ff4d`.
+All launches below use ordinary Recommended, native graphics, 1024x720 and the existing prepared
+audio cache. The candidate composes with prestart, faction replay and late Kaleidoscope defaults.
+
+| session / build | graphics (game-log seconds) | interactive menu (game-log seconds) |
+| --- | --- | --- |
+| `20260906-000432` baseline recovery | 19.978 | 21.034 |
+| `20260906-002732` candidate run 1 | 19.727 | 22.437 |
+| `20260906-002732` candidate run 2 | 20.398 | 21.538 |
+| `20260906-003200` baseline reversal | 20.096 | 21.988 |
+
+The candidate median menu is 21.9875 s, essentially the baseline reversal's 21.988 s.
+These sequential observations establish no overall startup improvement or regression; they do
+not supersede the earlier 17.620 / 18.953 s observations as historical measurements. The read-count
+test plus 13,148 optimized LZ4 hits establishes elimination of 13,148 separate trailer reads and
+32-byte buffer allocations per observed candidate launch. This is accepted as a small structural
+efficiency improvement, with no new end-to-end timing claim.
+
+Both candidate runs: 15,470 pack hits, zero pack failures/fallbacks/close failures; 15,003 stock
+jobs removed, 15,002 taken and committed, one unused, zero pending and waits; 14,958 direct and
+44 coherent commits; all 102 late Kaleidoscope results consumed; 2,049 prepared audio hits,
+one original decode and zero audio failures; 944 faction-cache hits. Active direct bytes and
+pending buffers return to zero. Both shutdown receipts are complete and graceful with zero
+remaining actors. Claim-read time is 3.692 / 2.932 s versus recovery's 3.733 s; this varying
+subphase is not itself a launch-time saving.
+
+Three-platform manual CI `33977859241` passed, including both operator jobs. PR checks also pass.
+The explicit general-reader check passes 12 tests, with only the two specialized read-count
+tests skipped as intended when that path is disabled.
+
+The next composition candidate is the existing bounded prepared staging path: inspection found
+that its consumer is in `prefetchLoad`, while typed prestart calls `load` directly. Combining the
+flags alone therefore fails to consume staged images at the new seam. Before trying that path,
+review its producer cancellation: interrupting a shared pack read can close the shared channel,
+and session reset must prevent a previous producer from publishing into a new session. Keep
+staging off until those contracts are handled. The old split-queue experiment also disables
+Kaleidoscope and is not an acceptable direct addition to this stack.
+
+Current phase: integrate the verified one-read change and restore the normal Windows task.
 Finish condition: integrate a verified improvement or document a bounded unsuccessful comparison,
 restore the normal Windows task and retire disposable outputs.
