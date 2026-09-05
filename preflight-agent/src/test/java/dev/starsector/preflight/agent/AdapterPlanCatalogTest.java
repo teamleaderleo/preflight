@@ -101,6 +101,7 @@ class AdapterPlanCatalogTest {
         targets.add(AdapterTargetRegistry.combatListenerRangeSnapshotTarget());
         targets.add(AdapterTargetRegistry.windowsTexturePreparedPrefetchTarget());
         targets.add(AdapterTargetRegistry.windowsTexturePreparedStagingTarget());
+        targets.add(AdapterTargetRegistry.windowsScriptProgressTarget());
         targets.add(AdapterTargetRegistry.windowsPcmCopyTarget());
         targets.addAll(AdapterTargetRegistry.empty()
                 .withTextureTarget(TextureAdapterMode.COMPATIBILITY).targets());

@@ -48,6 +48,10 @@ final class AdapterTransformationRegistry {
                     ? TexturePreparedPrefetchPlan.transform(signature, originalBytes)
                     : null;
         }
+        if (AssetProgressLogRuntime.PLAN_ID.equals(target.planId())) {
+            return AssetProgressLogRuntime.suppress()
+                    ? AssetProgressLogPlan.transform(signature, originalBytes) : null;
+        }
         if (TexturePreparedStagingRuntime.PLAN_ID.equals(target.planId())) {
             return TexturePreparedPixelRuntime.ready()
                     ? resourceLoaderPlans(signature, originalBytes)
