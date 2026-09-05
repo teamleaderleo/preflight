@@ -6,6 +6,8 @@ final class RecommendedWindowsStartupPolicy {
             "preflight.texture.windowsKaleidoscopePrefetch";
     static final String PREPARED_RESOURCES_PROPERTY = "preflight.texture.windowsPreparedResources";
     static final String PRESTART_PROPERTY = "preflight.texture.windowsPreparedPrestart";
+    static final String UNIT_MEMO_PROPERTY = "preflight.janino.unitMemo";
+    static final String STAGING_PROPERTY = "preflight.texture.preparedStaging";
     static final String FACTION_PRIORITY_PROPERTY = "preflight.startup.windowsFactionPriorityCache";
 
     private RecommendedWindowsStartupPolicy() {
@@ -29,6 +31,11 @@ final class RecommendedWindowsStartupPolicy {
             if (allowsTrue(result, PREPARED_RESOURCES_PROPERTY) && allowsTrue(result, PRESTART_PROPERTY)) {
                 result = appendDefault(result, PREPARED_RESOURCES_PROPERTY);
                 result = appendDefault(result, PRESTART_PROPERTY);
+                // Staging earned promotion only with repeated live compilation removed.
+                if (allowsTrue(result, UNIT_MEMO_PROPERTY) && allowsTrue(result, STAGING_PROPERTY)) {
+                    result = appendDefault(result, UNIT_MEMO_PROPERTY);
+                    result = appendDefault(result, STAGING_PROPERTY);
+                }
             }
             result = appendDefault(result, FACTION_PRIORITY_PROPERTY);
         }

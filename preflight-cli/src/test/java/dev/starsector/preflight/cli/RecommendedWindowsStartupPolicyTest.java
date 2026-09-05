@@ -12,7 +12,8 @@ class RecommendedWindowsStartupPolicyTest {
         String options = RecommendedWindowsStartupPolicy.appendOptions(
                 "", Platform.WINDOWS, OptimizationPreset.RECOMMENDED, true);
         for (String property : java.util.List.of("preflight.texture.windowsPreparedResources",
-                "preflight.texture.windowsPreparedPrestart", "preflight.startup.windowsFactionPriorityCache")) {
+                "preflight.texture.windowsPreparedPrestart", "preflight.startup.windowsFactionPriorityCache",
+                "preflight.janino.unitMemo", "preflight.texture.preparedStaging")) {
             assertTrue(options.contains("-D" + property + "=true"));
         }
         assertEquals(options, RecommendedWindowsStartupPolicy.appendOptions(
@@ -40,6 +41,17 @@ class RecommendedWindowsStartupPolicyTest {
             assertTrue(options.contains("-D" + property + "=false"));
         }
     }
+    @Test
+    void eitherCompilerOrStagingOptOutDeclinesAutomaticComposition() {
+        for (String property : java.util.List.of("preflight.janino.unitMemo", "preflight.texture.preparedStaging")) {
+            String options = RecommendedWindowsStartupPolicy.appendOptions("-D" + property + "=false",
+                    Platform.WINDOWS, OptimizationPreset.RECOMMENDED, true);
+            assertFalse(options.contains("unitMemo=true"));
+            assertFalse(options.contains("preparedStaging=true"));
+            assertTrue(options.contains("-D" + property + "=false"));
+        }
+    }
+
     @Test
     void recommendedWindowsEnablesAcceptedKaleidoscopePrefetch() {
         assertEquals(

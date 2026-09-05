@@ -100,7 +100,12 @@ establish a launch-time win without prepared audio. PCM chunk copying remains of
 bounded 64 MiB prepared-image staging experiment before SpecStore. Typed prestart admission can
 consume these carriers without waiting; missing images retain synchronous prepared loading.
 The staging producer performs no GL work and cancels cooperatively to preserve the shared pack
-channel. Combined-path trials have not established an overall startup win, so this remains off by default.
+channel. With validated prepared audio, Windows Recommended now combines staging with exact live Janino
+unit memoization: the combination reached the interactive menu in 17.880 / 18.774 seconds in the
+reviewed native fixture. Set `-Dpreflight.texture.preparedStaging=false` or
+`-Dpreflight.janino.unitMemo=false` in `JAVA_TOOL_OPTIONS` to decline automatic composition.
+The compiler memo retains source discovery and class definition, lives only with the current
+loader, and does not enable persistent bytecode replay.
 
 Windows can now bake and serve prepared sound effects through the exact installed decoder:
 

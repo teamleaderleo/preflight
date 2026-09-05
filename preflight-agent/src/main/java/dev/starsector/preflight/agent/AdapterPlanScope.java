@@ -50,6 +50,7 @@ public enum AdapterPlanScope {
             AssetProgressLogRuntime.PLAN_ID,
             RuleTokenCacheRuntime.PLAN_ID,
             RuleCommandClassCacheRuntime.PLAN_ID,
+            JaninoUnitMemoRuntime.PLAN_ID,
             JaninoBytecodeCacheRuntime.PLAN_ID);
 
     private final String optionValue;

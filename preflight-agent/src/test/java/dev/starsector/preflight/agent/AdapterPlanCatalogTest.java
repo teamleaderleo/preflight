@@ -28,7 +28,7 @@ class AdapterPlanCatalogTest {
                 .map(AdapterPlanCatalog.Descriptor::planId)
                 .collect(Collectors.toSet());
 
-        assertEquals(82, catalogPlans.size(), "adapter plan inventory changed");
+        assertEquals(83, catalogPlans.size(), "adapter plan inventory changed");
         assertTrue(catalogPlans.containsAll(registeredPlans),
                 () -> "uncatalogued registered plans: " + difference(registeredPlans, catalogPlans));
         for (AdapterPlanCatalog.Descriptor descriptor : descriptors) {
@@ -103,6 +103,7 @@ class AdapterPlanCatalogTest {
         targets.add(AdapterTargetRegistry.windowsTexturePreparedStagingTarget());
         targets.add(AdapterTargetRegistry.windowsScriptProgressTarget());
         targets.add(AdapterTargetRegistry.windowsPcmCopyTarget());
+        targets.add(AdapterTargetRegistry.windowsJaninoUnitMemoTarget());
         targets.addAll(AdapterTargetRegistry.empty()
                 .withTextureTarget(TextureAdapterMode.COMPATIBILITY).targets());
         targets.addAll(AdapterTargetRegistry.empty().withFrameTimeTarget().targets());

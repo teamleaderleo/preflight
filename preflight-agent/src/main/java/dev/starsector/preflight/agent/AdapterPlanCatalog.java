@@ -45,6 +45,7 @@ final class AdapterPlanCatalog {
             HullJsonCacheRuntime.PLAN_ID,
             IndEvoSyntheticMarketRuntime.PLAN_ID,
             IndustryDemandSupplyMemoRuntime.PLAN_ID,
+            JaninoUnitMemoRuntime.PLAN_ID,
             JaninoBytecodeCacheRuntime.PLAN_ID,
             LoadJsonMemoRuntime.PLAN_ID,
             LogisticsNotificationsFuelRuntime.PLAN_ID,
