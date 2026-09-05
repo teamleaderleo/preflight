@@ -4,7 +4,7 @@ param(
     [string]$BaselineRunnerSource = ''
 )
 
-# Only import these two functions, never dot-source the operator entry point.
+# Only import the process helpers, never dot-source the operator entry point.
 # All process, time, and output effects below are mocked; CIM instances are client-only.
 $ErrorActionPreference = 'Stop'
 if (-not $RunnerSource) {
@@ -16,7 +16,7 @@ $parseErrors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseInput(
     $RunnerSource, [ref]$tokens, [ref]$parseErrors)
 if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
-foreach ($name in @('Get-GameProcesses', 'Stop-GameProcesses')) {
+foreach ($name in @('Get-GameProcesses', 'Get-WindowOwnerProcessId', 'Stop-GameProcesses')) {
     $functions = @($ast.FindAll({ param($node)
         $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
             $node.Name -eq $name
@@ -27,6 +27,15 @@ foreach ($name in @('Get-GameProcesses', 'Stop-GameProcesses')) {
 
 function Assert($Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
+}
+# Exercise the real user32 binding without sending any window messages.
+Assert ((Get-WindowOwnerProcessId ([IntPtr]::Zero)) -eq 0) 'Invalid window has no owner'
+function Get-WindowOwnerProcessId {
+    param($Handle)
+    if ($script:ownerFails) { throw 'Mock ownership lookup failure' }
+    if ($script:foreignWindow) { return 999 }
+    if ($script:unknownOwner) { return 0 }
+    return $script:windowPid
 }
 function Get-CimInstance { $script:alive }
 function Get-Date { $script:clock }
@@ -39,6 +48,7 @@ function Start-Sleep([int]$Seconds) {
 }
 function Get-Process {
     param($Id, $ErrorAction)
+    $script:windowPid = $Id
     $window = [pscustomobject]@{
         MainWindowHandle = $script:handle
         MainWindowTitle = ('t' * 300)
@@ -76,7 +86,10 @@ $cases = @(
     @{count=1; exitAfter=2; noTelemetry=$true},
     @{count=1; exitAfter=-1; writeFails=$true},
     @{count=1; exitAfter=-1; sendFalse=$true},
-    @{count=1; exitAfter=-1; noWindow=$true}
+    @{count=1; exitAfter=-1; noWindow=$true},
+    @{count=1; exitAfter=-1; foreignWindow=$true},
+    @{count=1; exitAfter=-1; unknownOwner=$true},
+    @{count=1; exitAfter=-1; ownerFails=$true}
 )
 foreach ($case in $cases) {
     $script:clock = [datetime]'2026-09-05T00:00:00Z'
@@ -89,6 +102,9 @@ foreach ($case in $cases) {
     $script:writeFails = [bool]$case.writeFails
     $script:sendResult = -not $case.sendFalse
     $script:handle = if ($case.noWindow) { 0 } else { 123 }
+    $script:foreignWindow = [bool]$case.foreignWindow
+    $script:unknownOwner = [bool]$case.unknownOwner
+    $script:ownerFails = [bool]$case.ownerFails
     $script:alive = @(for ($i = 0; $i -lt $case.count; $i++) {
         New-CimInstance -ClassName Win32_Process -ClientOnly -Property @{
             ProcessId = [uint32](1000 + $i)
@@ -101,6 +117,9 @@ foreach ($case in $cases) {
     Assert (@(Get-GameProcesses 'C:\mock-game').Count -eq $case.count) 'CIM fixture cardinality'
     $directory = if ($script:telemetry) { 'C:\mock-run' } else { '' }
     $output = @(Stop-GameProcesses 'C:\mock-game' $directory 3>$null)
+    $skipClose = $case.noWindow -or $case.foreignWindow -or $case.unknownOwner -or $case.ownerFails
+    $expectedCloseCalls = if ($skipClose) { 0 } else { $case.count }
+    Assert ($script:closeCalls -eq $expectedCloseCalls) 'Only close windows owned by the selected process'
     $expectedGraceful = $case.exitAfter -ge 0
     Assert ($output.Count -eq 1 -and $output[0] -is [bool]) 'Return exactly one boolean'
     Assert ($output[0] -eq $expectedGraceful) 'Preserve graceful semantics'
@@ -108,8 +127,6 @@ foreach ($case in $cases) {
     Assert ($script:slept -eq $expectedWait) 'Wait for singleton/multiple exit or full deadline'
     $expectedKills = if ($expectedGraceful) { 0 } else { $case.count }
     Assert ($script:killed.Count -eq $expectedKills) 'Only force survivors after timeout'
-    $expectedCloses = if ($case.noWindow) { 0 } else { $case.count }
-    Assert ($script:closeCalls -eq $expectedCloses) 'Send close only to available windows'
     if ($script:telemetry -and -not $script:writeFails) {
         $last = $script:reports[-1]
         Assert ($last.phase -eq 'complete') 'Final telemetry checkpoint'
@@ -121,8 +138,11 @@ foreach ($case in $cases) {
         Assert ($script:reports.Count -le 4) 'Bound checkpoint count'
         if ($case.count) {
             Assert ($last.closeRequests[0].windowTitle.Length -eq 256) 'Bound title length'
-            if (-not $case.noWindow) {
+            if (-not $skipClose) {
                 Assert ($last.closeRequests[0].closeMessageSent -eq $script:sendResult) 'Record close result'
+            } else {
+                Assert ($null -eq $last.closeRequests[0].closeMessageSent) 'No close message for unverified window'
+                Assert ($null -ne $last.closeRequests[0].closeSkippedReason) 'Record why close was skipped'
             }
         }
     } else {
@@ -177,6 +197,9 @@ if ($BaselineRunnerSource) {
             $script:telemetry = $false
             $script:sendResult = $true
             $script:handle = 123
+            $script:foreignWindow = $false
+            $script:unknownOwner = $false
+            $script:ownerFails = $false
             $script:alive = @(for ($i = 0; $i -lt $count; $i++) {
                 New-CimInstance -ClassName Win32_Process -ClientOnly -Property @{
                     ProcessId = [uint32](1000 + $i)
