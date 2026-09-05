@@ -43,6 +43,13 @@ without moving the existing resource wall-clock anchors or retaining per-call CP
 Runtime-state v1 Mac/Windows `mainMenuInteractiveAt` values measured the later `Preloading...`
 overlay removal, not first menu usability. Do not compare those historical values with the v2
 usable-menu clock; see `windows-startup-runtime-state-semantics.md`.
+Each run retains bounded `shutdown.json` checkpoints with close-message results, the 45-second
+wait budget, and survivors recorded before forced cleanup. `gracefulShutdown` still requires
+zero survivors before that cleanup; a sent close message is not proof of exit. Telemetry write
+failures do not prevent cleanup. `test_windows_startup_shutdown.ps1` extracts only the process
+helpers and checks real client-only CIM objects under Windows PowerShell 5.1 with mocked process,
+clock, sleep, and file effects; it never launches the game. The Windows-only Maven test
+`WindowsStartupShutdownTest` runs this fixture with Windows PowerShell 5.1 in existing Windows CI.
 Every arm receives the same file-only Log4j configuration before launch, so Fast Rendering's
 per-resource console logging cannot turn captured stdout into a hidden condition-specific tax.
 The runner keeps `GALLIUM_DRIVER=llvmpipe` as its compatibility-fixture default. On a Windows host
@@ -91,6 +98,25 @@ clears leftovers at the semantic menu snapshot. It is bounded to 512 paths / 192
 by the recommended preset on Windows; an explicit false system property remains the kill switch.
 For an unattended shuffled A/B cohort, use conditions `preflight,preflight-kaleidoscope`; the
 second condition enables the same candidate only for its own legs and records the per-run state.
+The prepared-resource prototype is opt-in: use `-WindowsPreparedResources` (Big Red:
+`--windows-prepared-resources`) to request `preflight.texture.windowsPreparedResources=true`, or
+`-WindowsDisablePreparedResources` (`--disable-windows-prepared-resources`) for explicit `false`.
+For a shuffled same-build kill-switch B/A, pass
+`-Conditions preflight-prepared-resources,preflight`; the candidate requests true and the baseline
+explicitly requests false. Big Red accepts one condition per invocation: use
+`--condition preflight-prepared-resources` for B and
+`--condition preflight --disable-windows-prepared-resources` for A.
+Keep the existing one-worker scheduling and recommended Kaleidoscope preset. Candidate requests
+reject worker counts other than one, split queues, prefetch bypass, shared-context, Display-thread,
+and SpecStore overlap options, and all Fast Rendering conditions; simultaneous enable/disable
+requests are also rejected. With `-WindowsPreparedResources`, select `-Conditions preflight`
+explicitly because the default cohort includes Fast Rendering.
+Session identity retains the switches and condition; each run records `windowsPreparedResourcesRequested`
+as true, false, or null (no property request), independently of runtime acceptance.
+The [installed contracts](../docs/evidence/2026-09-05-windows-prepared-resource-contracts.md) own
+the exact Windows gates and cache/reload semantics. Exhaustive original-layout classification now
+requires `-Dpreflight.preparedPixels.originalLayoutProbe=true`; ordinary serving does not scan
+fallback buffers for diagnostic layout matches.
 Use `preflight-faction-priority` beside `preflight` for the separate Windows-only faction
 priority-table experiment. Its first exact-profile launch observes the original game's eight table
 walks; later launches replay the learned callback IDs. `-WindowsFactionPriorityCacheProbe` enables

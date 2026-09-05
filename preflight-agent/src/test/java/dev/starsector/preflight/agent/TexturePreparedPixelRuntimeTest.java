@@ -36,6 +36,7 @@ class TexturePreparedPixelRuntimeTest {
 
     @AfterEach
     void resetRuntime() {
+        System.clearProperty(TexturePreparedPixelRuntime.ORIGINAL_LAYOUT_PROBE_PROPERTY);
         System.clearProperty(TexturePaddingRuntime.UNPADDED_PROPERTY);
         System.clearProperty(TexturePaddingRuntime.MAX_UNPADDED_DIMENSION_PROPERTY);
         TexturePaddingRuntime.reset();
@@ -374,7 +375,19 @@ class TexturePreparedPixelRuntimeTest {
     }
 
     @Test
+    void ordinaryFallbackDoesNotRunExhaustiveLayoutClassification() throws Exception {
+        configure(fixture(3, 3, 4, new byte[3 * 3 * 4]));
+        BufferedImage carrier = TexturePreparedPixelRuntime.load("graphics/test.png");
+        ByteBuffer original = ByteBuffer.allocateDirect(64);
+        TexturePreparedPixelRuntime.observeOriginalFallback(carrier, original);
+        assertEquals(List.of(), TexturePreparedPixelRuntime.telemetry().get("originalLayoutObservations"));
+        assertEquals(0, original.position());
+        assertEquals(64, original.limit());
+    }
+
+    @Test
     void classifiesOriginalUpperPlacementWithoutMutatingBuffer() throws Exception {
+        System.setProperty(TexturePreparedPixelRuntime.ORIGINAL_LAYOUT_PROBE_PROPERTY, "true");
         int width = 3;
         int height = 3;
         int channels = 3;
@@ -410,6 +423,7 @@ class TexturePreparedPixelRuntimeTest {
 
     @Test
     void classifiesTheFailedLowerPlacementCandidate() throws Exception {
+        System.setProperty(TexturePreparedPixelRuntime.ORIGINAL_LAYOUT_PROBE_PROPERTY, "true");
         int width = 3;
         int height = 3;
         int channels = 4;
@@ -437,6 +451,7 @@ class TexturePreparedPixelRuntimeTest {
 
     @Test
     void recordsInsufficientOriginalBufferWithoutChangingFallback() throws Exception {
+        System.setProperty(TexturePreparedPixelRuntime.ORIGINAL_LAYOUT_PROBE_PROPERTY, "true");
         Fixture fixture = fixture(597, 373, 3, new byte[597 * 373 * 3]);
         configure(fixture);
         BufferedImage carrier = TexturePreparedPixelRuntime.load("graphics/test.png");

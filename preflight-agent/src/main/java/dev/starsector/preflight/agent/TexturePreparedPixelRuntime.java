@@ -35,6 +35,7 @@ public final class TexturePreparedPixelRuntime {
     static final String PLAN_ID = "texture-prepared-pixels-v2";
     static final String COHERENT_ORIGINAL_CONVERT_PROPERTY =
             "preflight.preparedPixels.coherentOriginalConvert";
+    static final String ORIGINAL_LAYOUT_PROBE_PROPERTY = "preflight.preparedPixels.originalLayoutProbe";
     public static final String COHERENT_DIRECT_PROPERTY =
             "preflight.preparedPixels.coherentDirect";
     public static final String WINDOWS_COLD_PROBE_PROPERTY =
@@ -80,6 +81,7 @@ public final class TexturePreparedPixelRuntime {
     }
 
     static void beginSession() {
+        TexturePreparedResourceRuntime.beginSession();
         selected = false;
         coldProbeEnabled = Boolean.getBoolean(WINDOWS_COLD_PROBE_PROPERTY);
         synchronized (LOCK) {
@@ -623,6 +625,14 @@ public final class TexturePreparedPixelRuntime {
         return true;
     }
 
+    /** The typed resource path explicitly chooses the coherent image with the installed converter. */
+    static void creditPreparedResourceFallback(BufferedImage image) {
+        if (image instanceof CarrierImage carrier && carrier.creditSharedHit()) {
+            TextureCompatibilityRuntime.hit(carrier.texture.pixelBytes());
+            TELEMETRY.coherentOriginalDecodeBypass();
+        }
+    }
+
     /** Creates one bounded direct upload buffer and returns stored derived colors. */
     public static PreparedPixel prepare(BufferedImage image) {
         long entry = PREPARE_CLOCK.enter();
@@ -736,7 +746,8 @@ public final class TexturePreparedPixelRuntime {
      * original buffer's position, limit, bytes, cleanup, or exception behavior.
      */
     public static void observeOriginalFallback(BufferedImage image, ByteBuffer originalBuffer) {
-        if (!(image instanceof CarrierImage carrier)
+        if (!Boolean.getBoolean(ORIGINAL_LAYOUT_PROBE_PROPERTY)
+                || !(image instanceof CarrierImage carrier)
                 || carrier.layout.paddingBytes() <= 0
                 || originalBuffer == null) {
             return;
@@ -845,6 +856,7 @@ public final class TexturePreparedPixelRuntime {
         values.putAll(PREPARE_CLOCK.snapshot("prepare"));
         values.put("prefetchPool", TexturePreparedPrefetchPoolRuntime.report());
         values.put("prefetchStaging", TexturePreparedStagingRuntime.telemetry());
+        values.put("preparedResources", TexturePreparedResourceRuntime.telemetry());
         values.put("uploadProbe", TextureUploadProbeRuntime.telemetry());
         values.put("coldProbe", coldProbeTelemetry());
         return Map.copyOf(values);

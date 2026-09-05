@@ -19,6 +19,8 @@ guest_jar='C:\Projects\starsector-preflight\preflight-cli\target\preflight.jar'
 guest_runs='C:\Users\Leo\Documents\Starsector Preflight Cohorts'
 guest_share='Z:\Diagnostics'
 check_only=false
+windows_prepared_resources=false
+windows_disable_prepared_resources=false
 faction_priority_cache=false
 startup_phase_probe=false
 startup_texture_cpu_probe=false
@@ -48,6 +50,8 @@ Usage: run-big-red-windows-startup-cohort.sh [options]
   --spec-store-texture-overlap  Preload learned textures while Windows main runs SpecStore
   --windows-backslash-merged-read-keys  Cache exact Windows backslash merged-JSON requests
   --disable-windows-backslash-merged-read-keys  Force the Windows path-cache baseline
+  --windows-prepared-resources  Opt in to Windows prepared resources (workers=1)
+  --disable-windows-prepared-resources  Force the same-build prepared-resources baseline
   --check                Verify host, VM, guest agent, and scheduled task without launching
 EOF
 }
@@ -71,6 +75,8 @@ while (($#)); do
         --spec-store-texture-overlap) spec_store_texture_overlap=true; shift ;;
         --windows-backslash-merged-read-keys) windows_backslash_merged_read_keys=true; shift ;;
         --disable-windows-backslash-merged-read-keys) windows_disable_backslash_merged_read_keys=true; shift ;;
+        --windows-prepared-resources) windows_prepared_resources=true; shift ;;
+        --disable-windows-prepared-resources) windows_disable_prepared_resources=true; shift ;;
         --check) check_only=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -78,7 +84,7 @@ while (($#)); do
 done
 
 case "$condition" in
-    starsector|preflight|preflight-faction-priority|preflight-kaleidoscope|preflight-spec-store-texture-overlap|fast-rendering|preflight-fast-rendering|preflight-fast-rendering-prepared) ;;
+    starsector|preflight|preflight-prepared-resources|preflight-faction-priority|preflight-kaleidoscope|preflight-spec-store-texture-overlap|fast-rendering|preflight-fast-rendering|preflight-fast-rendering-prepared) ;;
     *) echo "Unsupported condition: $condition" >&2; exit 2 ;;
 esac
 [[ "$iterations" =~ ^([1-9]|1[0-9]|20)$ ]] || { echo "Iterations must be 1-20" >&2; exit 2; }
@@ -98,6 +104,18 @@ esac
     echo "--startup-texture-cpu-probe requires --startup-phase-probe" >&2
     exit 2
 }
+if [[ "$windows_prepared_resources" == true || "$condition" == preflight-prepared-resources ]]; then
+    [[ "$condition" != *fast-rendering* ]] || {
+        echo "Prepared resources cannot be combined with Fast Rendering conditions" >&2; exit 2;
+    }
+    [[ "$windows_disable_prepared_resources" != true ]] || {
+        echo "Prepared resources enable and disable requests cannot be combined" >&2; exit 2;
+    }
+    [[ "$display_thread_texture_probe" != true && "$display_thread_spec_store_probe" != true &&
+       "$spec_store_texture_overlap" != true && "$condition" != preflight-spec-store-texture-overlap ]] || {
+        echo "Prepared resources cannot be combined with Display-thread or overlap options" >&2; exit 2;
+    }
+fi
 for command in virsh jq iconv base64 sensors powerprofilesctl; do
     command -v "$command" >/dev/null || { echo "Missing command: $command" >&2; exit 1; }
 done
@@ -226,6 +244,10 @@ average_frequency_for_capacity() {
     ((count > 0)) && awk -v sum="$sum" -v count="$count" 'BEGIN {printf "%.0f", sum / count}' || printf null
 }
 
+windows_prepared_resources_arg=""
+[[ "$windows_prepared_resources" == true ]] && windows_prepared_resources_arg=" -WindowsPreparedResources"
+windows_disable_prepared_resources_arg=""
+[[ "$windows_disable_prepared_resources" == true ]] && windows_disable_prepared_resources_arg=" -WindowsDisablePreparedResources"
 faction_priority_arg=""
 [[ "$faction_priority_cache" == true ]] && faction_priority_arg=" -WindowsFactionPriorityCacheProbe"
 startup_phase_arg=""
@@ -246,7 +268,7 @@ resolution_arg=""
 [[ -n "$resolution" ]] && resolution_arg=" -Resolution $resolution"
 run_ps=$(cat <<EOF
 \$script = "$guest_repo\\scripts\\run-windows-startup-cohort.ps1"
-\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset -GalliumDriver $gallium_driver$resolution_arg$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
+\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset -GalliumDriver $gallium_driver$resolution_arg$windows_prepared_resources_arg$windows_disable_prepared_resources_arg$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
 Set-ScheduledTask -TaskName "$task" -Action (New-ScheduledTaskAction -Execute 'powershell.exe' -Argument \$args) | Out-Null
 Start-ScheduledTask -TaskName "$task"
 Start-Sleep -Seconds 2

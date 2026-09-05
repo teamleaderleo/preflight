@@ -182,14 +182,20 @@ class ResourceIndexPersistencePropertyTest {
     void diskReaderRejectsOversizedFileBeforeWholeFileRead() throws Exception {
         Path oversized = temporaryDirectory.resolve("oversized.spfi");
         try (FileChannel channel = FileChannel.open(
-                oversized, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+                oversized, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE, StandardOpenOption.SPARSE)) {
             channel.position((long) MAX_FILE_BYTES);
             channel.write(ByteBuffer.wrap(new byte[] {1}));
         }
 
-        assertTimeout(
+        assertEquals((long) MAX_FILE_BYTES + 1, Files.size(oversized));
+        // Exercise the same bounded reader without timing 512 MiB of legitimate disk I/O.
+        // The large fixture still catches a regression to reading the whole file first.
+        int readLimit = 4096;
+        IOException error = assertTimeout(
                 Duration.ofSeconds(2),
-                () -> assertThrows(IOException.class, () -> ResourceIndexIO.read(oversized)));
+                () -> assertThrows(IOException.class, () -> ResourceIndexIO.read(oversized, readLimit)));
+        assertEquals("Resource index exceeds the " + readLimit + " byte safety limit: " + oversized,
+                error.getMessage());
     }
 
     private static ResourceIndex randomIndex(Random random, int iteration) {
