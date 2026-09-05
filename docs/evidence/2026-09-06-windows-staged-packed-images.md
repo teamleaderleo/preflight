@@ -44,3 +44,26 @@ source-plus-packed queue capacity. Other platforms and packed/resource opt-outs 
 This tests whether added packed storage reduced the producer's lead, as slower launches had more
 staging misses. No new configuration knob, threads or resource ordering change. The extra
 64 MiB is bounded and small relative to this VM's 20 GiB; performance remains unproven.
+
+
+128 MiB executable 4b26a6a72ba4ec14261e191e36be3b1f690c4aba, JAR
+dec65a0d1364bafc75c4ea526de077684fce4c27425ee47fba7f39d85ef6bd13, passed full installed-fixture
+verify in 47.739 s and three-platform CI 33997719922. Native cohort 20260906-070637 completed
+menus in 19.137 / 19.623 / 18.883 s, graphics 17.376 / 17.928 / 17.224 s. Packed uses 36 / 36 / 39,
+misses 285 / 1015 / 206; all hit the new queue limit. No staging failures, pending/active buffers
+or alignment imbalance. The additional memory did not establish a performance gain: withdraw it
+and return production/tests exactly to the measured 64 MiB implementation at 1cc0c242.
+
+Adjacent profiling lead: the exact Windows title overlay's show() calls
+C.updateContinueButtonState(), which calls CampaignGameManager's no-argument boolean continue
+check. Installed bytecode reads the continue preference, checks the directory, constructs an
+XStream instance via the original factory and parses descriptor.xml (with the stock backup and
+in-progress alternatives on failure). Each 64 MiB trial log records two accesses to the same
+save descriptor, about 364–397 ms apart. These timestamps do not measure either call's cost;
+therefore neither save parsing nor serializer construction is claimed as a bottleneck yet.
+Do not suppress/reuse a Continue verdict without exact freshness and failure semantics.
+
+Current outcome: one ordinary 16.424 s interactive sample beats 16.690; six retained-version
+samples range 16.424–19.443 s, median 18.507 s. Repeatable sub-17 remains unachieved. Keep the
+bounded CPU-work transfer, preserve all measurements, integrate main and restore the measured
+64 MiB artifact. The 128 MiB experiment is rejected.
