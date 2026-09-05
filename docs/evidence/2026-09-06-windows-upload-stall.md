@@ -1,7 +1,7 @@
 # Windows native upload stall investigation
 
 Objective: identify and fix the native upload stall before selecting the packed-raster performance
-lead. Owner: current Codex task. Phase: validating low-overhead pending-upload diagnostics.
+lead. Owner: current Codex task. Phase: validating and integrating the prepared RGB alignment repair.
 Finish: test a justified fix, integrate main, leave the ordinary Windows task Ready with no actors,
 and preserve exact evidence while retiring disposable builds. Do not claim reliability from one fast run.
 
@@ -63,3 +63,43 @@ Sampler/mipmap policy, dimensions, original converter fallbacks, cleanup and GL 
 change. `preflight.texture.scopedUnpackAlignment=false` retains the prior behavior for diagnostics.
 Bounded change/restore counters expose scope lifecycle. Installed tests cover success, upload
 failure, original-buffer decline, exact buffer identity, opt-out and restored state.
+
+Repair full verification passed in 47.262 s. Executable source
+`7ace1ed9eedaf976917f19f5e070808f453b97c5`, JAR
+`3e03fbbd0c344c8bcdce61cb4359adec51239176c97d727a35be419091f8ee0f`.
+Three-platform CI `33991488101` requested. First validate native alignment observations and
+change/restore counters with one checkpoint launch, then run ordinary repeated launches without
+the observer. The packed-raster lead is included; all GL work remains on the original caller.
+
+Native repair diagnostic `20260906-045654` completed: 168 potentially misaligned RGB uploads
+all observed alignment 1, with 168 scoped changes and 168 restores. Before repair, all 168 observed
+alignment 4. The run committed 15,002 resources, retained/consumed all 102 late Kaleidoscope
+resources, used 44 packed converter images, and ended with zero active/pending buffers.
+Its 19.255-second interactive menu is diagnostic only. Six ordinary native Recommended launches
+with 20-second cooldowns are now running on the unchanged `3e03fbbd…` artifact, observer disabled.
+
+Ordinary cohort `20260906-045928` completed all six launches without stalls or remaining actors:
+
+| Run | Process start to interactive menu (s) | Game log start to graphics preload (s) |
+| --- | ---: | ---: |
+| 1 | 19.595 | 17.752 |
+| 2 | 18.425 | 16.791 |
+| 3 | 19.323 | 17.526 |
+| 4 | 19.855 | 17.891 |
+| 5 | 19.391 | 17.325 |
+| 6 | 17.165 | 16.233 |
+
+Every run had 168 alignment changes/restores, 15,002 commits, 44 coherent/packed converter images,
+102 late Kaleidoscope resources retained and consumed, and zero active/pending buffers. The ordinary
+task is Ready; Java, game and launcher actors are absent. Three-platform CI `33991488101` passed.
+These observations support retaining the correctness repair and packed-raster path; they do not
+establish consistent sub-18 startup or elimination of every historical native driver stall.
+
+Final review expanded the ownership guard from rows divisible by four to rows divisible by eight:
+a four-pixel RGB row is safe at alignment four but unsafe at alignment eight. Installed-loader tests
+now cover widths 2/4/8 at every legal unpack alignment, on both success and exception, with exact
+state restoration and buffer retirement. This changes packaged bytes and needs a fresh native check.
+
+A possible follow-up is to pad prepared RGB rows to the actual current unpack alignment, avoiding
+scoped GL state changes. It is not implemented here: the observed timing spread does not isolate
+state changes as a cost, and the additional layout/ownership path needs its own validation.

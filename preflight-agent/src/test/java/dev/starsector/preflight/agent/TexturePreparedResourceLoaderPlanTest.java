@@ -226,13 +226,17 @@ public class TexturePreparedResourceLoaderPlanTest {
         assertNull(TexturePreparedResourceLoaderPlan.transform(ClassSignature.parse(bytes), bytes));
     }
 
-    @Test
-    void ownedRgbUploadRestoresUnpackStateAfterSuccessAndFailure() throws Exception {
-        byte[] pixels = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"2,1", "2,2", "2,4", "2,8",
+            "4,1", "4,2", "4,4", "4,8", "8,1", "8,2", "8,4", "8,8"})
+    void ownedRgbUploadRestoresUnpackStateAfterSuccessAndFailure(int width, int initialAlignment) throws Exception {
+        byte[] pixels = new byte[width * 2 * 3];
+        for (int i = 0; i < pixels.length; i++) pixels[i] = (byte) (i + 1);
         for (boolean fail : new boolean[] {false, true}) {
             Executable fixture = new Executable(true);
+            FakeGL.unpackAlignment = initialAlignment;
             PreparedTexture texture = new PreparedTexture("ab".repeat(32), PreparedTexture.Transformation.IDENTITY,
-                    2, 2, 2, 2, 3, 0, 0, 0, pixels);
+                    width, 2, width, 2, 3, 0, 0, 0, pixels);
             fixture.supply("p", carrier(texture), true);
             FakeGL.failUpload = fail;
             if (fail) {
@@ -245,10 +249,11 @@ public class TexturePreparedResourceLoaderPlanTest {
                 assertSame(handle, fixture.cache().get("p"));
             }
             assertArrayEquals(pixels, FakeGL.pixels);
-            assertEquals(1, FakeGL.uploadAlignment);
-            assertEquals(4, FakeGL.unpackAlignment);
-            assertEquals(1L, TexturePreparedPixelRuntime.telemetry().get("unpackAlignmentChanges"));
-            assertEquals(1L, TexturePreparedPixelRuntime.telemetry().get("unpackAlignmentRestores"));
+            boolean changed = TexturePreparedPixelRuntime.rgbAlignmentNeedsOverride(width, initialAlignment);
+            assertEquals(changed ? 1 : initialAlignment, FakeGL.uploadAlignment);
+            assertEquals(initialAlignment, FakeGL.unpackAlignment);
+            assertEquals(changed ? 1L : 0L, TexturePreparedPixelRuntime.telemetry().get("unpackAlignmentChanges"));
+            assertEquals(changed ? 1L : 0L, TexturePreparedPixelRuntime.telemetry().get("unpackAlignmentRestores"));
             assertEquals(0L, field(TexturePreparedPixelRuntime.class, "activeBytes").get(null));
         }
     }

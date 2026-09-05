@@ -813,7 +813,7 @@ public final class TexturePreparedPixelRuntime {
 
     /** Admits only the current thread's exact, tightly packed prepared RGB buffer. */
     public static boolean requiresTightRgbUnpack(ByteBuffer buffer, int width, int height, int format, int type) {
-        if (format != 6407 || type != 5121 || width <= 0 || height <= 1 || (width & 3) == 0
+        if (format != 6407 || type != 5121 || width <= 0 || height <= 1 || (width & 7) == 0
                 || (long) width * height > MAX_TEXTURE_BYTES / 3 || buffer == null || !buffer.isDirect()
                 || buffer.position() != 0 || buffer.remaining() != width * height * 3
                 || !Boolean.parseBoolean(System.getProperty(SCOPED_UNPACK_PROPERTY, "true"))) return false;
