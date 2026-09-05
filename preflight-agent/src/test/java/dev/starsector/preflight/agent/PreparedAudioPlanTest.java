@@ -18,6 +18,25 @@ class PreparedAudioPlanTest {
     private static final String RUNTIME = "dev/starsector/preflight/agent/PreparedAudioRuntime";
 
     @Test
+    void windowsRequiresExactBytesAndPreparedCacheTakesPrecedenceOverChunkCopy() throws Exception {
+        byte[] unknown = fixture("sound/O0oO");
+        assertNull(PreparedAudioPlan.transformWindows(ClassSignature.parse(unknown), unknown));
+        String saved = System.getProperty(WindowsPcmCopyRuntime.PROPERTY);
+        try {
+            System.setProperty(WindowsPcmCopyRuntime.PROPERTY, "true");
+            var registry = AdapterTargetRegistry.empty()
+                    .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS).withPreparedAudioTarget();
+            assertEquals(0, registry.targets().stream()
+                    .filter(t -> t.planId().equals(WindowsPcmCopyRuntime.PLAN_ID)).count());
+            assertEquals(1, registry.targets().stream()
+                    .filter(t -> t.id().equals("windows-ogg-decoder-0.98a-rc8-prepared-audio")).count());
+        } finally {
+            if (saved == null) System.clearProperty(WindowsPcmCopyRuntime.PROPERTY);
+            else System.setProperty(WindowsPcmCopyRuntime.PROPERTY, saved);
+        }
+    }
+
+    @Test
     void putsTheRuntimeInFrontOfTheDecodeAndKeepsTheOriginal() throws Exception {
         byte[] original = fixture(PreparedAudioPlan.TARGET_CLASS);
         byte[] rewritten = PreparedAudioPlan.transform(ClassSignature.parse(original), original);

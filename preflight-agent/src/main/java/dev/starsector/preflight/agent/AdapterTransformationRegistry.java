@@ -274,7 +274,9 @@ final class AdapterTransformationRegistry {
         }
         if (PreparedAudioRuntime.PLAN_ID.equals(target.planId())) {
             return PreparedAudioRuntime.ready()
-                    ? PreparedAudioPlan.transform(signature, originalBytes)
+                    ? (WindowsPcmCopyPlan.TARGET.equals(signature.internalName())
+                            ? PreparedAudioPlan.transformWindows(signature, originalBytes)
+                            : PreparedAudioPlan.transform(signature, originalBytes))
                     : null;
         }
         if (WindowsPcmCopyRuntime.PLAN_ID.equals(target.planId())) {

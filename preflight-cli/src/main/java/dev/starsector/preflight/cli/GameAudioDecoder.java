@@ -55,14 +55,27 @@ final class GameAudioDecoder {
      *     which is a failure worth reporting rather than a file to skip
      */
     static GameAudioDecoder boundTo(ClassLoader game) throws ReflectiveOperationException {
-        Class<?> decoderClass = Class.forName(DECODER_CLASS, true, game);
-        Class<?> resultClass = Class.forName(RESULT_CLASS, true, game);
+        boolean windows = exactClass(game, "sound/O0oO.class",
+                "4b28c09ee5004a353ea2f0d61611eb4c7e0504abfc7b1f5328d6a7123f7f72b7")
+                && exactClass(game, "sound/G.class",
+                        "c7dbba1261cfba676dba014709c68e10563c3d06b0e8b5e664a5c1d2ee5e6616");
+        Class<?> decoderClass = Class.forName(windows ? "sound.O0oO" : DECODER_CLASS, true, game);
+        Class<?> resultClass = Class.forName(windows ? "sound.G" : RESULT_CLASS, true, game);
         return new GameAudioDecoder(
                 decoderClass,
-                decoderClass.getMethod(DECODE_METHOD, InputStream.class),
+                decoderClass.getMethod(windows ? "super" : DECODE_METHOD, InputStream.class),
                 resultClass.getField(CHANNELS_FIELD),
                 resultClass.getField(PCM_FIELD),
                 resultClass.getField(RATE_FIELD));
+    }
+
+    private static boolean exactClass(ClassLoader game, String resource, String sha256) {
+        try (InputStream input = game.getResourceAsStream(resource)) {
+            return input != null && dev.starsector.preflight.core.Hashes.sha256(
+                    input.readNBytes(1_048_577)).equals(sha256);
+        } catch (java.io.IOException | RuntimeException failure) {
+            return false;
+        }
     }
 
     /**
