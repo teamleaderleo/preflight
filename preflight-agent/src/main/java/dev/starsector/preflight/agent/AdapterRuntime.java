@@ -41,6 +41,7 @@ final class AdapterRuntime {
         TextureUploadProbeRuntime.beginSession(
                 sibling(options.adapterReport(), "texture-upload-probe.json"));
         TexturePaddingRuntime.beginSession();
+        WindowsPcmCopyRuntime.beginSession();
         VariantJsonCacheRuntime.beginSession();
         WeaponJsonCacheRuntime.beginSession();
         ProjectileJsonCacheRuntime.beginSession();

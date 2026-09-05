@@ -54,8 +54,75 @@ class TexturePreparedResourceRuntimeTest {
         System.clearProperty(TexturePreparedResourceRuntime.PROPERTY);
         System.clearProperty(TexturePreparedResourceRuntime.CLAIM_PROPERTY);
         System.clearProperty(TexturePreparedResourceRuntime.BARRIER_PROPERTY);
+        System.clearProperty(TexturePreparedResourceRuntime.PRESTART_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_WORKERS_PROPERTY);
         System.clearProperty(TexturePreparedPrefetchPlan.WINDOWS_SPLIT_QUEUES_PROPERTY);
+    }
+
+    @Test
+    void prestartAdmissionConsumesPreparedImagesBeforeBytePhaseWithoutStartingAnotherWorker() throws Exception {
+        carrier(2);
+        System.setProperty(TexturePreparedResourceRuntime.PROPERTY, "true");
+        System.setProperty(TexturePreparedResourceRuntime.PRESTART_PROPERTY, "true");
+        activate(Thread.currentThread());
+        field("workerThread").set(null, null);
+        field("workerImagePhase").setBoolean(null, false);
+        queue.addAll(List.of(PATH, "unknown", PATH, "graphics/kaleidoscope/late.png"));
+        Thread worker = new Thread(() -> { });
+        TexturePreparedResourceRuntime.worker(worker);
+        assertEquals(Thread.State.NEW, worker.getState());
+        assertEquals(List.of("unknown", "graphics/kaleidoscope/late.png"), queue);
+        assertEquals(2L, telemetry().get("prestartRemoved"));
+        assertEquals(1, telemetry().get("prestartPending"));
+        TexturePreparedResourceRuntime.enter(PATH, PATH);
+        assertNotNull(TexturePreparedResourceRuntime.take(PATH, null, null));
+        TexturePreparedResourceRuntime.exit(true);
+        assertEquals(1L, telemetry().get("prestartTaken"));
+        assertEquals(0L, telemetry().get("waitPolls"));
+        assertTrue(results.isEmpty());
+        TexturePreparedResourceRuntime.end();
+        TexturePreparedResourceRuntime.end();
+        assertEquals(0L, telemetry().get("prestartUnused"));
+        assertEquals(0, telemetry().get("prestartPending"));
+    }
+
+    @Test
+    void prestartAdmissionKeepsConflictingResultsAndRetiresUnusedLastJobOnce() throws Exception {
+        carrier(2);
+        System.setProperty(TexturePreparedResourceRuntime.PROPERTY, "true");
+        System.setProperty(TexturePreparedResourceRuntime.PRESTART_PROPERTY, "true");
+        activate(Thread.currentThread());
+        field("workerThread").set(null, null);
+        queue.add(PATH);
+        results.put(PATH, sentinel);
+        TexturePreparedResourceRuntime.worker(new Thread(() -> { }));
+        assertEquals(List.of(PATH), queue);
+        assertEquals(0L, telemetry().get("prestartRemoved"));
+        results.clear();
+        field("workerThread").set(null, null);
+        TexturePreparedResourceRuntime.worker(new Thread(() -> { }));
+        assertTrue(queue.isEmpty());
+        TexturePreparedResourceRuntime.end();
+        TexturePreparedResourceRuntime.end();
+        assertEquals(1L, telemetry().get("prestartUnused"));
+    }
+
+    @Test
+    void prestartAdmissionDeclinesWithoutOptInOrBeforeAnUnstartedExactWorker() throws Exception {
+        carrier(2);
+        System.setProperty(TexturePreparedResourceRuntime.PROPERTY, "true");
+        activate(Thread.currentThread());
+        field("workerThread").set(null, null);
+        queue.add(PATH);
+        TexturePreparedResourceRuntime.worker(new Thread(() -> { }));
+        assertEquals(List.of(PATH), queue);
+        System.setProperty(TexturePreparedResourceRuntime.PRESTART_PROPERTY, "true");
+        field("workerThread").set(null, null);
+        TexturePreparedResourceRuntime.worker(Thread.currentThread());
+        assertEquals(List.of(PATH), queue);
+        field("workerThread").set(null, null);
+        TexturePreparedResourceRuntime.worker(new Thread() { });
+        assertEquals(List.of(PATH), queue);
     }
 
     @Test

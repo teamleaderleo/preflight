@@ -43,6 +43,7 @@ public enum AdapterPlanScope {
             LoadingUtilsReaderPlan.PLAN_ID,
             SourceHintIsolationRuntime.PLAN_ID,
             PreparedAudioRuntime.PLAN_ID,
+            WindowsPcmCopyRuntime.PLAN_ID,
             AudioStreamSourceErrorRuntime.PLAN_ID,
             AudioMusicTransitionRuntime.PLAN_ID,
             AudioResourceFallbackRuntime.PLAN_ID,

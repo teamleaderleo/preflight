@@ -15,6 +15,7 @@ public final class TexturePreparedResourceRuntime {
     public static final String PROPERTY = "preflight.texture.windowsPreparedResources";
     public static final String CLAIM_PROPERTY = "preflight.texture.windowsPreparedResourceClaims";
     public static final String BARRIER_PROPERTY = "preflight.texture.windowsPreparedByteBarrier";
+    public static final String PRESTART_PROPERTY = "preflight.texture.windowsPreparedPrestart";
     static final int MAX_OBLIGATIONS = 32_768;
     static final int MAX_RESOURCE_RECORDS = 262_144;
     static final int MAX_DIRECT_DIMENSION = 1_024;
@@ -41,6 +42,8 @@ public final class TexturePreparedResourceRuntime {
     private static long lastEntryDeclines, imagePhaseDeferrals, waitPolls, waitNanos;
     private static long resultSignals;
     private static final java.util.Set<String> BYPASSED = new java.util.HashSet<>();
+    private static final java.util.Set<String> PRESTART = new java.util.HashSet<>();
+    private static long prestartRemoved, prestartTaken, prestartUnused;
     private static boolean bytePhaseComplete;
     private static long barrierRemoved, barrierTaken, barrierUnused;
 
@@ -74,6 +77,8 @@ public final class TexturePreparedResourceRuntime {
             lastEntryDeclines = imagePhaseDeferrals = waitPolls = waitNanos = 0;
             resultSignals = 0;
             BYPASSED.clear();
+            PRESTART.clear();
+            prestartRemoved = prestartTaken = prestartUnused = 0;
             bytePhaseComplete = false;
             barrierRemoved = barrierTaken = barrierUnused = 0;
         }
@@ -206,7 +211,31 @@ public final class TexturePreparedResourceRuntime {
     /** Bound before Thread.start(), so a retiring worker cannot publish into a later batch. */
     public static void worker(Thread worker) {
         synchronized (LOCK) {
-            if (active && Thread.currentThread() == mainThread) workerThread = worker;
+            if (active && Thread.currentThread() == mainThread) {
+                if (requested() && Boolean.getBoolean(PRESTART_PROPERTY) && workerThread == null
+                        && worker != null && worker.getClass() == Thread.class
+                        && worker.getState() == Thread.State.NEW) {
+                    // This exact hook precedes Thread.start: neither byte nor image work has
+                    // begun. Remove only admitted image jobs; retain all byte jobs and unknown
+                    // or late images on the unchanged worker. No outside-monitor loop test can
+                    // race with removal here, including removal of the last image job.
+                    synchronized (stockQueue) {
+                        var iterator = stockQueue.iterator();
+                        while (iterator.hasNext()) {
+                            Object item = iterator.next();
+                            Obligation obligation = OBLIGATIONS.get(item);
+                            if (obligation != null && !stockResults.containsKey(item)
+                                    && obligation.preparedIdentity().equals(
+                                            TextureCompatibilityRuntime.preparedPrefetchKey(obligation.path()))) {
+                                iterator.remove();
+                                PRESTART.add(obligation.path());
+                                prestartRemoved++;
+                            }
+                        }
+                    }
+                }
+                workerThread = worker;
+            }
         }
     }
 
@@ -287,6 +316,10 @@ public final class TexturePreparedResourceRuntime {
                 }
                 if (BYPASSED.remove(path)) {
                     barrierTaken++;
+                    removed = true;
+                }
+                if (PRESTART.remove(path)) {
+                    prestartTaken++;
                     removed = true;
                 }
                 if (!removed && considerClaim) {
@@ -441,6 +474,8 @@ public final class TexturePreparedResourceRuntime {
             OBLIGATIONS.clear();
             barrierUnused += BYPASSED.size();
             BYPASSED.clear();
+            prestartUnused += PRESTART.size();
+            PRESTART.clear();
             if (claimed != null) {
                 claimed.retired = true;
                 claimed = null;
@@ -467,6 +502,11 @@ public final class TexturePreparedResourceRuntime {
             values.put("barrierTaken", barrierTaken);
             values.put("barrierUnused", barrierUnused);
             values.put("barrierPending", BYPASSED.size());
+            values.put("prestartRequested", requested() && Boolean.getBoolean(PRESTART_PROPERTY));
+            values.put("prestartRemoved", prestartRemoved);
+            values.put("prestartTaken", prestartTaken);
+            values.put("prestartUnused", prestartUnused);
+            values.put("prestartPending", PRESTART.size());
             values.put("admitted", admitted);
             values.put("resourceRecords", resourceRecords);
             values.put("admissionDecline", admissionDecline);

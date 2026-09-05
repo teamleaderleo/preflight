@@ -30,6 +30,9 @@ param(
     [switch]$WindowsPreparedResources,
     [switch]$WindowsDisablePreparedResources,
     [switch]$WindowsPreparedByteBarrier,
+    [switch]$WindowsPreparedPrestart,
+    [switch]$WindowsPcmCopy,
+    [switch]$WindowsDisablePreparedPrestart,
     [switch]$WindowsDisablePreparedByteBarrier,
     [switch]$WindowsPreparedResourceClaims,
     [switch]$WindowsDisablePreparedResourceClaims,
@@ -63,8 +66,11 @@ if ($WindowsInitialHeapProbe -and $DisableWindowsInitialHeapProbe) {
     throw 'Initial-heap experiment enable/disable requests conflict'
 }
 
-$preparedResourcesRequested = $WindowsPreparedResources -or $WindowsPreparedResourceClaims -or $WindowsPreparedByteBarrier -or
+$preparedResourcesRequested = $WindowsPreparedResources -or $WindowsPreparedResourceClaims -or $WindowsPreparedByteBarrier -or $WindowsPreparedPrestart -or
     ($Conditions -contains 'preflight-prepared-resources')
+if ($WindowsPreparedPrestart -and $WindowsDisablePreparedPrestart) {
+    throw 'Prepared prestart enable/disable requests conflict'
+}
 if ($WindowsPreparedByteBarrier -and $WindowsDisablePreparedByteBarrier) {
     throw 'Prepared byte barrier enable and disable requests cannot be combined'
 }
@@ -311,7 +317,7 @@ function Measure-OneRun(
     # Null means the runner leaves the opt-in property to its default; false is explicit.
     $requestedPreparedResources = if (-not $usesPreflight) {
         $null
-    } elseif ($WindowsPreparedResources -or $WindowsPreparedResourceClaims -or $WindowsPreparedByteBarrier -or ($Condition -eq 'preflight-prepared-resources')) {
+    } elseif ($WindowsPreparedResources -or $WindowsPreparedResourceClaims -or $WindowsPreparedByteBarrier -or $WindowsPreparedPrestart -or ($Condition -eq 'preflight-prepared-resources')) {
         $true
     } elseif ($WindowsDisablePreparedResources -or ($Conditions -contains 'preflight-prepared-resources')) {
         $false
@@ -371,6 +377,16 @@ log4j.appender.file.MaxBackupIndex=3
                 $preparedResourcesValue = ([bool]$requestedPreparedResources).ToString().ToLowerInvariant()
                 $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
                     "-Dpreflight.texture.windowsPreparedResources=$preparedResourcesValue" |
+                    Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($WindowsPcmCopy) {
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    '-Dpreflight.audio.windowsPcmCopy=true' | Where-Object { $_ }) -join ' ').Trim()
+            }
+            if ($WindowsPreparedPrestart -or $WindowsDisablePreparedPrestart) {
+                $prestartValue = ([bool]$WindowsPreparedPrestart).ToString().ToLowerInvariant()
+                $env:JAVA_TOOL_OPTIONS = (($env:JAVA_TOOL_OPTIONS,
+                    "-Dpreflight.texture.windowsPreparedPrestart=$prestartValue" |
                     Where-Object { $_ }) -join ' ').Trim()
             }
             if ($null -ne $requestedPreparedResourceClaims) {
@@ -806,6 +822,9 @@ $identity = [ordered]@{
     windowsPrefetchBypassProbe = [bool]$WindowsPrefetchBypassProbe
     windowsPreparedResources = [bool]$WindowsPreparedResources
     windowsDisablePreparedResources = [bool]$WindowsDisablePreparedResources
+    windowsPcmCopy = [bool]$WindowsPcmCopy
+    windowsPreparedPrestart = [bool]$WindowsPreparedPrestart
+    windowsDisablePreparedPrestart = [bool]$WindowsDisablePreparedPrestart
     windowsPreparedByteBarrier = [bool]$WindowsPreparedByteBarrier
     windowsDisablePreparedByteBarrier = [bool]$WindowsDisablePreparedByteBarrier
     windowsPreparedResourceClaims = [bool]$WindowsPreparedResourceClaims
