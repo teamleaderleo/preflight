@@ -121,8 +121,10 @@ public final class PreparedTexturePack implements AutoCloseable {
     @Override
     public void close() throws IOException {
         if (closed.compareAndSet(false, true)) {
-            try { if (readAhead != null) readAhead.close(); }
-            finally { channel.close(); }
+            // Close the real channel first: a blocked read may hold the scratch monitor, and
+            // waiting for that monitor before closing its source would prevent cancellation.
+            try { channel.close(); }
+            finally { if (readAhead != null) readAhead.close(); }
         }
     }
 
