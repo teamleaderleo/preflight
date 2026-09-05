@@ -2,7 +2,8 @@
 
 Owner: current Codex task, authorized by Leo to pursue the five proposed performance avenues.
 Starting main: `5fe43a80e0715a2957398e787c7c6e7ea3087861`.
-Phase: local implementation verified; Windows diagnostic next. No speed claim yet.
+Phase: executable prototypes verified locally, in three-platform CI, and on native Windows.
+No measured speedup; all new experiments remain opt-in.
 
 ## Contracts and implementation
 
@@ -30,21 +31,26 @@ intrusive and requires separate runs from startup comparisons. An adjacent probe
 subimage dimensions occupy different argument slots from image dimensions; timing telemetry now
 uses actual width and height rather than y-offset and width. Native calls are unchanged.
 
-## Remaining authorized work
+## Outcome and scope
 
-1. Run barrier diagnostic on native Windows, capture/settle any stall, compare same package with
-   explicit barrier false without intrusive probes if healthy.
-2. Investigate bounded upload-buffer reuse/read-directly options. Installed TextureLoader cleanup
-   explicitly attempts reflective cleaner invocation: recycling a buffer after existing cleanup
-   risks reuse of freed memory. Any pool must own allocation and intercept cleanup for its exact
-   buffers; ordinary buffers retain original cleanup. Do not implement naive post-cleanup reuse.
-3. Inspect raw-byte/audio consumers before removing any encoded reads; current prepared-audio
-   path hook is downstream of InputStream acquisition.
-4. Inspect existing deferred handle first-bind/metadata/reload contracts before lazy GPU upload.
-5. Integrate coherent results to main, preserve evidence, restore Windows task, stop game, clean builds.
+The byte barrier safely bypasses 15,003 stock image jobs and commits 15,002 prepared resources
+on main, preserving all 102 learned Kaleidoscope late resources. One unused identity is retired
+at session end. The same-package uninstrumented pair was slower with the barrier enabled;
+there is no case for default promotion. Pack lookup, rather than layout classification or upload
+carrier construction, dominates the measured prepared CPU path.
 
-Validation so far: full local Maven verify passed; operator tests 119, 114 passed and 5 skipped
-(PowerShell/platform); focused installed barrier/runtime tests passed before adding wait coverage.
+All five avenues were investigated. The barrier, bounded upload breadcrumb, load attribution,
+exact-entry reader and pack-order snapshot are implemented behind independent switches.
+Buffer pooling, Windows PCM bypass and deferred GL realization are not implemented: their
+installed ownership/consumer contracts require separate work, detailed below. Existing worker
+count, scheduling, GL ownership, handler behavior and the 1024 ceiling remain in force.
+
+Full local `mvn verify` passed for the final executable d3de6398. Three-platform CI
+[33940991134](https://github.com/teamleaderleo/preflight/actions/runs/33940991134) passed all
+Java and operator jobs; desktop packaging jobs were excluded by scope. Operator verification
+passed 115 of 120 tests, with five PowerShell/platform skips on Linux. Installed bytecode and
+runtime tests cover boundary placement, accounting, wakeup, native argument preservation,
+pack corruption/close/interruption and independent-session order acceptance.
 
 ## First native observations
 
@@ -53,13 +59,13 @@ Executable `d746cd5f`, packaged JAR SHA-256
 Recommended, one worker, native driver selection, 1024x720, same fixture and mod selection.
 
 - `20260905-100940-windows-startup-2x2.zip` SHA-256 `a3e3fca1759a515d04307c84e95be02016544ff85c8c0ff61e0e94dfa305c2a7`
-  Resource accounting: {"active": false, "admissionDecline": "none", "admitted": 15003, "barrierPending": 0, "barrierRemoved": 15003, "barrierTaken": 15002, "barrierUnused": 1, "byteBarrierRequested": true, "bytePhaseComplete": true, "ceilingDeclines": 44, "claimAbandoned": 0, "claimErrors": 0, "claimFallbacks": 0, "claimReadMillis": 18370, "coherent": 44, "committed": 15002, "declines": 0, "direct": 14958, "directDimensionCeiling": 1024, "discarded": 0, "failures": 0, "imagePhaseDeferrals": 0, "inFlight": 0, "lastEntryDeclines": 0, "originalConsumed": 0, "pending": 0, "published": 15002, "queuedClaims": 0, "queuedClaimsRequested": false, "requested": true, "resourceRecords": 55359, "resultSignals": 0, "waitMillis": 9826, "waitPolls": 950, "workerDrainMillis": 0, "workerDrainTimeouts": 0, "workerImagePhaseObserved": true}
+  Resource accounting: barrierRemoved=15003, barrierTaken=15002, barrierUnused=1, committed=15002, direct=14958, coherent=44, failures=0, inFlight=0, pending=0.
   Kaleidoscope retained/consumed: 102/102; active buffers 0; pack failures 0.
 - `20260905-101246-windows-startup-2x2.zip` SHA-256 `3409182dc27c45589e900714f7b907c1f85e7eb565201dbe31bf51bb5839af59`
-  Resource accounting: {"active": false, "admissionDecline": "none", "admitted": 15003, "barrierPending": 0, "barrierRemoved": 15003, "barrierTaken": 15002, "barrierUnused": 1, "byteBarrierRequested": true, "bytePhaseComplete": true, "ceilingDeclines": 44, "claimAbandoned": 0, "claimErrors": 0, "claimFallbacks": 0, "claimReadMillis": 17763, "coherent": 44, "committed": 15002, "declines": 0, "direct": 14958, "directDimensionCeiling": 1024, "discarded": 0, "failures": 0, "imagePhaseDeferrals": 0, "inFlight": 0, "lastEntryDeclines": 0, "originalConsumed": 0, "pending": 0, "published": 15002, "queuedClaims": 0, "queuedClaimsRequested": false, "requested": true, "resourceRecords": 55359, "resultSignals": 0, "waitMillis": 9650, "waitPolls": 934, "workerDrainMillis": 0, "workerDrainTimeouts": 0, "workerImagePhaseObserved": true}
+  Resource accounting: barrierRemoved=15003, barrierTaken=15002, barrierUnused=1, committed=15002, direct=14958, coherent=44, failures=0, inFlight=0, pending=0.
   Kaleidoscope retained/consumed: 102/102; active buffers 0; pack failures 0.
 - `20260905-101501-windows-startup-2x2.zip` SHA-256 `10fe88b00d0751d2d0904f3886654567b582d60acd829124bf2091156d773b81`
-  Resource accounting: {"active": false, "admissionDecline": "none", "admitted": 15003, "barrierPending": 0, "barrierRemoved": 0, "barrierTaken": 0, "barrierUnused": 0, "byteBarrierRequested": false, "bytePhaseComplete": false, "ceilingDeclines": 44, "claimAbandoned": 0, "claimErrors": 0, "claimFallbacks": 0, "claimReadMillis": 0, "coherent": 44, "committed": 15002, "declines": 0, "direct": 14958, "directDimensionCeiling": 1024, "discarded": 0, "failures": 0, "imagePhaseDeferrals": 0, "inFlight": 0, "lastEntryDeclines": 0, "originalConsumed": 1, "pending": 0, "published": 15003, "queuedClaims": 0, "queuedClaimsRequested": false, "requested": true, "resourceRecords": 55359, "resultSignals": 0, "waitMillis": 18790, "waitPolls": 1752, "workerDrainMillis": 1859, "workerDrainTimeouts": 0, "workerImagePhaseObserved": true}
+  Resource accounting: barrierRemoved=0, barrierTaken=0, barrierUnused=0, committed=15002, direct=14958, coherent=44, failures=0, inFlight=0, pending=0.
   Kaleidoscope retained/consumed: 102/102; active buffers 0; pack failures 0.
 
 Diagnostic 100940: 71.406 s graphics / 74.136 s interactive. This included phase, CPU and
@@ -92,7 +98,7 @@ implementation. A genuine deferred path needs metadata-ready handles and coverag
 consumers, binding, replacement and reload; no fake/blank texture substitution was introduced.
 
 All three Java CI jobs passed in workflow 33938272307. macOS operator checks failed in unchanged
-`test_launcher_marker_then_quiet` (expected 2100, observed 2000); retrying that failed job once.
+`test_launcher_marker_then_quiet` (expected 2100, observed 2000); that failed job passed on one retry.
 
 ## Aggregate attribution and bounded read-ahead
 
@@ -171,7 +177,7 @@ reconfiguration or session reset. The existing menu publisher already flushes ot
 orders specifically to survive Windows exits that miss shutdown hooks, but omitted pack order.
 The cohort's cache check reuses a valid cache and does not run optional physical reordering.
 
-The next opt-in `preflight.texture.packOrderSnapshot` saves at the semantic menu snapshot, with
+The final opt-in `preflight.texture.packOrderSnapshot` saves at the semantic menu snapshot, with
 one successful observation per configured session. A new test proves repeated menu saves plus
 session end cannot promote a candidate; the second independent configured session can. Existing
 acceptance still requires two equal orders. The active pack is never rewritten by the runtime;
@@ -184,3 +190,51 @@ any later physical reorder is performed and validated by the existing preparatio
 `20260905-105347-windows-startup-2x2.zip` SHA-256 `40e66bb695d5cf1cbf942b2cfcf6d1442c1d92ab9d4bf281f31981ff3f9fd7ed`.
 
 `20260905-105614-windows-startup-2x2.zip` SHA-256 `15e3fe06c4e3427db806eb4d5517b01e0b610abc7fe084b4845fda6e0187c616`.
+
+## Menu snapshot validation
+
+Executable `d3de639818f0e41ec2aed2a2668cd2f9d488478f`, JAR
+`97660b4e3e801af527da3d96ddd3834c6256a408d276d50ba9c1091f7fd5313d`.
+Both launches used Recommended, one worker, native selection, 1024x720, typed resources,
+pack-order snapshot on and barrier/queued claims/entry reader explicitly off. The fixture
+mod-selection hash remained `76227ce91333c202271e541774f3e86fd8711c2542d63a81cfd18a4dc0a6997f`.
+These learning launches did not change the active pack and are not a pack-order comparison.
+
+- `20260905-111106-windows-startup-2x2.zip`: graphics 55.496 s / interactive 58.511 s; accepted, packOrderPersisted=true. SHA-256 `15a4d6b7811b449b730be22f77a1fbe3914ca7769d39c402fbd6432f1ea0613a`.
+- `20260905-112022-windows-startup-2x2.zip`: graphics 63.968 s / interactive 66.846 s; accepted, packOrderPersisted=true. SHA-256 `a5df2e3fe2d4feef223a8008355cddfb7330ba88399a1e1ab20be2fb48445d5a`.
+
+The first independent session saved a 14,769-entry candidate; the second accepted the exact same
+order. Accepted order digest (UTF-8 paths joined by LF, no trailing LF)
+`3d32121feb13aaebaaaeb2d6c940eddb3ad338487a368855cf62b601ed12eea4`.
+The original hint contained only 589 candidate entries and no accepted order. This establishes
+the lifecycle defect and validates the existing two-session rule without weakening it.
+Private original/first/second SPFO copies are retained under shared Diagnostics as
+`byte-barrier-original.spfo`, `byte-barrier-order-1.spfo`, `byte-barrier-order-2.spfo`.
+
+## Physical pack-order experiment
+
+After independent acceptance, backed up the active pack on the guest, then ran the tested JAR's
+`prepare --game C:\Games\Starsector --cache-dir <active-cache> --deep --verify-lookups`.
+The first operator invocation was interrupted by PowerShell treating native progress stderr as
+a terminating error. The retry restored normal native stderr handling, recovered the interrupted
+preparation owner with zero incomplete temporary files, and completed with exit 0.
+Lookup verification passed. Existing `PreparedTexturePackIO.reorder` copied each entry through
+`copyVerifiedEntry`, preserving the entry CRC/structural checks and atomic publication.
+
+Pack size remained 2,259,086,856 bytes. Original pack SHA-256:
+`a97335bda8c44c9c18e5f8f5969071872ac47f67dc81364c988959b946f73a4d`;
+reordered pack SHA-256:
+`4a58d9bded7f23434f5e01ab0b81b35f8608c0fa4e2ac71a0bc7af3d92b663b1`.
+The original was restored and hash-verified before the control leg. Both legs use d3de6398's
+same JAR and the menu-snapshot flags above; the cohort must report preparationPerformed=false
+so it cannot silently reapply the accepted order.
+
+B (reordered), `20260905-112451-windows-startup-2x2.zip`: graphics 59.300 s / interactive 62.176 s; accepted, no preparation during cohort. SHA-256 `01ccba2b876cef8fe34997309fa0fd814740d525d9320efe50f57869f352f21a`.
+
+A (original restored), `20260905-112748-windows-startup-2x2.zip`: graphics 53.853 s / interactive 57.083 s; accepted, no preparation during cohort. SHA-256 `02ac84e3587013064aab0b3fa18a908e085fc0166893a27f1429d7640cf698f0`.
+
+Both completed 15,002 prepared commits and consumed all 102 late resources, with zero pack
+failures or pending/in-flight typed resources. This single same-JAR pair provides no positive
+performance case; no physical reorder or new switch is promoted. The original pack and original
+learning hint are restored after the experiment. Raw reorder output and pack identity JSON remain
+in shared Diagnostics as `byte-barrier-pack-reorder.log` and `byte-barrier-pack-reorder.json`.
