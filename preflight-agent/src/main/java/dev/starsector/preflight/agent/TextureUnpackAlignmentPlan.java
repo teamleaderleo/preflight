@@ -26,6 +26,7 @@ final class TextureUnpackAlignmentPlan {
 
     static List<MethodNode> apply(ClassSignature signature, List<MethodNode> methods) {
         if (!TexturePreparedResourceLoaderPlan.WINDOWS_SHA256.equals(signature.sha256())
+                && !AdapterTargetRegistry.texturePreparedPixelTarget().sha256().equals(signature.sha256())
                 && !AdapterTargetRegistry.linuxTexturePreparedPixelTarget().sha256().equals(signature.sha256())) {
             return List.of();
         }

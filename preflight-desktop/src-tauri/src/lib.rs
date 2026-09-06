@@ -219,6 +219,7 @@ fn start_game(
         validate_optimization_domains(&disabled_optimization_domains)?;
     let after_launch_behavior = AfterLaunchBehavior::parse(&after_launch_behavior)?;
     let paths = EnginePaths::resolve(&app)?;
+    let launch_settings = get_launch_settings(app.clone(), game.clone())?;
 
     let mut running = tracker
         .0
@@ -241,6 +242,15 @@ fn start_game(
         .arg(optimization_preset)
         .arg("--game")
         .arg(directory);
+    // Use the game's own direct-start path when its saved launch preferences are complete.
+    // An unregistered/new installation still needs the stock launcher to finish setup.
+    if launch_settings
+        .get("directLaunchAvailable")
+        .and_then(serde_json::Value::as_bool)
+        == Some(true)
+    {
+        command.arg("--direct");
+    }
     for domain in disabled_optimization_domains {
         command.arg("--disable-optimization-domain").arg(domain);
     }
