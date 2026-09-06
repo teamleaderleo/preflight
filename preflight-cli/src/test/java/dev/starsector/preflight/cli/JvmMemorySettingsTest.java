@@ -53,6 +53,43 @@ class JvmMemorySettingsTest {
     }
 
     @Test
+    void repeatedBranchReferencesUpdateOnlyTheSelectedLaunchersResponseFile() throws Exception {
+        Path root = temporary.resolve("branched/game");
+        Path launcher = root.resolve("starsector-core/fr.bat");
+        Path parameters = launcher.resolveSibling("fr.vmparams");
+        Path unrelated = root.resolve("vmparams");
+        Files.createDirectories(launcher.getParent());
+        Files.writeString(launcher, "if exist PatchLibAgent.jar (\njava -javaagent:PatchLibAgent.jar @fr.vmparams\n"
+                + ") else (\njava @./fr.vmparams\n)\n");
+        Files.writeString(parameters, "-Xms4g\n-Xmx4g\n");
+        Files.writeString(unrelated, "-Xms2g\n-Xmx2g\n");
+
+        var snapshot = JvmMemorySettings.inspect(root, target(root, launcher));
+        assertTrue(snapshot.editable());
+        assertEquals(4096, snapshot.maxHeapMiB());
+        assertEquals(parameters.toRealPath(), snapshot.source());
+        JvmMemorySettings.update(root, target(root, launcher), 6144, temporary.resolve("branch-backups"));
+        assertEquals(6144, JvmMemorySettings.inspect(root, target(root, launcher)).maxHeapMiB());
+        assertEquals("-Xms2g\n-Xmx2g\n", Files.readString(unrelated));
+    }
+
+    @Test
+    void distinctReferencedHeapsCannotFallBackToOneKnownFilename() throws Exception {
+        Path root = temporary.resolve("conflicting/game");
+        Path launcher = root.resolve("fr.bat");
+        Files.createDirectories(root);
+        Files.writeString(launcher, "java @fr.vmparams @alternate.params\n");
+        Files.writeString(root.resolve("fr.vmparams"), "-Xmx4g\n");
+        Files.writeString(root.resolve("alternate.params"), "-Xmx6g\n");
+        var snapshot = JvmMemorySettings.inspect(root, target(root, launcher));
+        assertFalse(snapshot.editable());
+        assertThrows(IOException.class, () -> JvmMemorySettings.update(
+                root, target(root, launcher), 8192, temporary.resolve("conflict-backups")));
+        assertEquals("-Xmx4g\n", Files.readString(root.resolve("fr.vmparams")));
+        assertEquals("-Xmx6g\n", Files.readString(root.resolve("alternate.params")));
+    }
+
+    @Test
     void rejectsLauncherSymlinkOutsideBeforeReadingTargetBytes() throws Exception {
         Path root = temporary.resolve("launcher-link/game");
         Path launcher = root.resolve("starsector.sh");

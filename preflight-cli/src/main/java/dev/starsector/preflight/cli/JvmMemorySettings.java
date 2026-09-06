@@ -108,6 +108,7 @@ final class JvmMemorySettings {
 
         if (launcherText != null) {
             List<Snapshot> referenced = new ArrayList<>();
+            LinkedHashSet<Path> referencedFiles = new LinkedHashSet<>();
             Matcher references = RESPONSE_FILE.matcher(launcherText);
             while (references.find()) {
                 String name = firstNonNull(references.group(1), references.group(2), references.group(3));
@@ -118,6 +119,7 @@ final class JvmMemorySettings {
                 }
                 Path contained = containedFile(
                         realRoot, candidate, diagnostics, "launcher response file");
+                if (contained != null && !referencedFiles.add(contained)) continue;
                 Snapshot found = contained == null ? null : snapshot(
                         contained,
                         boundedText(contained, diagnostics, reader),
@@ -127,6 +129,10 @@ final class JvmMemorySettings {
             }
             Snapshot selected = unique(referenced, diagnostics, "referenced VM-parameter files");
             if (selected != null) return selected;
+            if (referenced.size() > 1) {
+                return Snapshot.unavailable("Multiple referenced files contain heap settings; choose the launcher explicitly",
+                        diagnostics);
+            }
         }
 
         LinkedHashSet<Path> known = new LinkedHashSet<>();
