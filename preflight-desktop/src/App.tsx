@@ -458,7 +458,7 @@ export default function App() {
         setMaintenanceEpoch((current) => current + 1);
         const pendingCount = countWhenFinished.current;
         countWhenFinished.current = null;
-        if (payload.success && !requestedStop && pendingCount?.pid === payload.pid) {
+        if (payload.success && pendingCount?.pid === payload.pid) {
           countFastLaunch(pendingCount.profileFingerprint);
         }
         const target = launchTargetWhenFinished.current?.pid === payload.pid
