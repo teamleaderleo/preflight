@@ -56,6 +56,7 @@ export type BrowserPreviewScenario =
   | "mod-problems"
   | "profile-mismatch"
   | "frame-pacing"
+  | "compatibility"
   | "benchmark-unavailable"
   | "update-error"
   | "report-error"
@@ -72,6 +73,7 @@ const browserPreviewScenarios = new Set<BrowserPreviewScenario>([
   "mod-problems",
   "profile-mismatch",
   "frame-pacing",
+  "compatibility",
   "benchmark-unavailable",
   "update-error",
   "report-error",
@@ -222,6 +224,27 @@ export function isDesktopHost(): boolean {
 
 export async function getSnapshot(game?: string): Promise<DesktopSnapshot> {
   if (!isDesktopHost()) {
+    if (browserPreviewScenario() === "compatibility") {
+      return {
+        ...previewSnapshot,
+        platform: "linux",
+        lastRun: {
+          ...previewFramePacingRun,
+          adapterHealth: {
+            format: "starsector-preflight-adapter-health-v1",
+            status: "PARTIAL",
+            accelerationsActive: true,
+            originalCodeRetained: true,
+            reviewRecommended: true,
+            transformationsApplied: 31,
+            registryTargets: 32,
+            containedFailures: 0,
+            evidenceKinds: ["VERSION_OR_TARGET_MISMATCH"],
+            suggestedActions: ["Keep playing if the game is otherwise healthy."],
+          },
+        },
+      };
+    }
     if (browserPreviewScenario() === "frame-pacing") {
       return { ...previewSnapshot, lastRun: previewFramePacingRun };
     }

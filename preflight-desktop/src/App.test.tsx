@@ -47,6 +47,23 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+test("Linux fullscreen help leads to the game settings without changing the draft", async () => {
+  const user = userEvent.setup();
+  const initial = await bridge.getBootstrapSnapshot();
+  const snapshot = vi.spyOn(bridge, "getBootstrapSnapshot").mockResolvedValue({ ...initial, platform: "linux" });
+  try {
+    render(<App />);
+    await screen.findByRole("heading", { level: 1, name: "Ready" });
+    await user.click(screen.getByRole("button", { name: "Help" }));
+    expect(await screen.findByText("Fullscreen stays windowed")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Game settings" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Game settings" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Apply changes" })).not.toBeInTheDocument();
+  } finally {
+    snapshot.mockRestore();
+  }
+});
+
 test.each(["before", "after", "failed", "unrelated"] as const)(
   "native exit reconciles the exact stop receipt (%s)", async (order) => {
     const user = userEvent.setup();
@@ -185,7 +202,7 @@ test("latest-run compatibility stays short and treats fallback as a safe result"
     status: "PARTIAL",
     originalCodeRetained: true,
     reviewRecommended: true,
-  })).toBe("Fast launch ready · fallback used");
+  })).toBe("Some optimizations skipped · Details");
   expect(adapterHealthLine({
     ...base,
     status: "SAFE_FALLBACK",
@@ -193,7 +210,7 @@ test("latest-run compatibility stays short and treats fallback as a safe result"
     originalCodeRetained: true,
     reviewRecommended: true,
     transformationsApplied: 0,
-  })).toBe("Last run: original game code used safely");
+  })).toBe("Optimizations unavailable · Details");
 });
 
 test("the default cold-profile action prepares with balanced settings and then launches", async () => {
@@ -536,9 +553,12 @@ test("home surfaces the latest compatibility verdict without exposing the raw re
 
   render(<App />);
 
-  expect(await screen.findByText("Fast launch ready · fallback used"))
+  expect(await screen.findByText("Some optimizations skipped · Details"))
     .toHaveAttribute("title", "Keep playing if the game is otherwise healthy.");
   expect(screen.queryByText("VERSION_OR_TARGET_MISMATCH")).not.toBeInTheDocument();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Some optimizations skipped · Details" }));
+  expect(await screen.findByRole("heading", { name: "Last run compatibility" })).toBeVisible();
+  expect(screen.getByText("Keep playing if the game is otherwise healthy.")).toBeVisible();
   snapshot.mockRestore();
 });
 

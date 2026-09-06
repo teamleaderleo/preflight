@@ -1286,6 +1286,18 @@ h2 {
   color: var(--accent-strong);
 }
 
+button.last-run-health {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.last-run-health:hover {
+  text-decoration: underline;
+}
+
 
 .status-chip {
   display: inline-flex;

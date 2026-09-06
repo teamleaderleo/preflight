@@ -410,7 +410,8 @@
   position: absolute !important;
   z-index: 5 !important;
   right: 24px;
-  bottom: 30px;
+  top: 64px;
+  bottom: auto;
   max-width: 220px;
   text-align: right;
 }
@@ -460,10 +461,9 @@
   }
 
   .launch-console--layout-settled .last-run-health {
-    right: 50%;
-    bottom: 92px;
-    text-align: center;
-    transform: translateX(50%);
+    right: 24px;
+    bottom: auto;
+    text-align: right;
   }
 }
 

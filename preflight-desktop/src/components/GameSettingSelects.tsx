@@ -48,7 +48,9 @@ export function ResolutionSelect({ id, label, value, disabled = false, onChange 
   return (
     <select id={id} aria-label={label} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
       {resolutionChoices(value, maximumWidth, maximumHeight).map((resolution) => (
-        <option value={resolution} key={resolution}>{resolution.replace("x", " × ")}</option>
+        <option value={resolution} key={resolution}>
+          {resolution.replace("x", " × ")}{resolution === `${maximumWidth}x${maximumHeight}` ? " (Display)" : ""}
+        </option>
       ))}
     </select>
   );
