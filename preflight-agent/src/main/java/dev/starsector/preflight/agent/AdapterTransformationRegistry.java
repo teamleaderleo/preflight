@@ -276,10 +276,10 @@ final class AdapterTransformationRegistry {
                 || ResourceProbeRuntime.PLAN_ID.equals(target.planId())) {
             return resourceResolverPlans(signature, originalBytes);
         }
+        if (LinuxAudioBufferFencePlan.PLAN_ID.equals(target.planId())) {
+            return LinuxAudioBufferFencePlan.transform(signature, originalBytes);
+        }
         if (PreparedAudioRuntime.PLAN_ID.equals(target.planId())) {
-            if (LinuxAudioBufferFencePlan.TARGET.equals(signature.internalName())) {
-                return PreparedAudioRuntime.ready() ? LinuxAudioBufferFencePlan.transform(signature, originalBytes) : null;
-            }
             return PreparedAudioRuntime.ready()
                     ? (WindowsPcmCopyPlan.TARGET.equals(signature.internalName())
                             ? PreparedAudioPlan.transformWindows(signature, originalBytes)
@@ -985,6 +985,9 @@ final class AdapterTransformationRegistry {
         }
         if (ResourceProbeRuntime.PLAN_ID.equals(planId)) {
             return ResourceProbeRuntime.ready();
+        }
+        if (LinuxAudioBufferFencePlan.PLAN_ID.equals(planId)) {
+            return true;
         }
         if (PreparedAudioRuntime.PLAN_ID.equals(planId)) {
             return PreparedAudioRuntime.ready();

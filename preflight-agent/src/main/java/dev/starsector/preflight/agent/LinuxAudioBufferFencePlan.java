@@ -5,6 +5,7 @@ import org.objectweb.asm.tree.*;
 
 /** Keeps Linux's PCM buffer reachable until LWJGL's address-only native upload returns. */
 final class LinuxAudioBufferFencePlan {
+    static final String PLAN_ID = "linux-pcm-upload-lifetime-v1";
     static final String TARGET = "sound/Object";
     static final String SHA256 = "3032cfe9e6aa8b1e66fa0fe3c7c6794a0b728bd2dfdccdf30d944ce0c259688e";
     static final String METHOD = "o00000";

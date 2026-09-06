@@ -18,6 +18,15 @@ class PreparedAudioPlanTest {
     private static final String RUNTIME = "dev/starsector/preflight/agent/PreparedAudioRuntime";
 
     @Test
+    void linuxPcmLifetimeGuardDoesNotDependOnPreparedAudio() {
+        var registry = AdapterTargetRegistry.empty().withTextureTarget(TextureAdapterMode.PREPARED_PIXELS)
+                .withoutPlans(java.util.Set.of(PreparedAudioRuntime.PLAN_ID));
+        assertEquals(1, registry.targets().stream()
+                .filter(t -> t.planId().equals(LinuxAudioBufferFencePlan.PLAN_ID)).count());
+        assertEquals(true, AdapterTransformationRegistry.hasPlan(LinuxAudioBufferFencePlan.PLAN_ID));
+    }
+
+    @Test
     void linuxRequiresExactDecoderBytes() throws Exception {
         byte[] unknown = fixture("sound/J");
         assertNull(PreparedAudioPlan.transformLinux(ClassSignature.parse(unknown), unknown));
