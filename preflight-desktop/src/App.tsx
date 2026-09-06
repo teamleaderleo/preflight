@@ -57,6 +57,7 @@ import type {
   NoticeTone,
   OptimizationPreset,
   RunStateEvent,
+  StopGameResult,
 } from "./types";
 
 function pageTitle(page: Page, status: AppStatus, preparing: boolean, isReady: boolean, needsPreparation: boolean): string {
@@ -101,6 +102,7 @@ export default function App() {
   const [choosingInstall, setChoosingInstall] = useState(false);
   const [stoppingGame, setStoppingGame] = useState(false);
   const [forceStopAvailable, setForceStopAvailable] = useState(false);
+  const stopReceipt = useRef<{ pid: number; result: Promise<StopGameResult | null> } | null>(null);
   const [restoringOperation, setRestoringOperation] = useState(() => isDesktopHost());
   const [nativeBenchmarkBlockReason, setNativeBenchmarkBlockReason] = useState<string | null>(null);
   const [nativeRemovalBlockReason, setNativeRemovalBlockReason] = useState<string | null>(null);
@@ -186,6 +188,7 @@ export default function App() {
     const game = snapshot?.selected?.installRoot;
     if (!game) return;
     const launchPreset = presetOverride ?? optimizationPreset;
+    stopReceipt.current = null;
     const launchDisabledDomains = launchPreset === "off" ? [] : disabledOptimizationDomains;
     setStatus("launching");
     setRetryIntent(null);
@@ -227,7 +230,12 @@ export default function App() {
     const force = forceStopAvailable;
     setStoppingGame(true);
     try {
-      const result = await stopGame(force);
+      const request = stopGame(force);
+      const pid = launchTargetWhenFinished.current?.pid;
+      if (pid !== undefined) {
+        stopReceipt.current = { pid, result: request.catch(() => null) };
+      }
+      const result = await request;
       if (result.stillRunning > 0 && !force) {
         setForceStopAvailable(true);
         announceGame("Starsector didn’t respond. Force stop is available.", "warning");
@@ -428,14 +436,23 @@ export default function App() {
 
   useEffect(() => {
     if (!isDesktopHost()) return;
+    let mounted = true;
     let stopReconciliation: () => void = () => undefined;
-    const stopListening = listenWhileMounted<RunStateEvent>("run-state", ({ payload }) => {
+    const stopListening = listenWhileMounted<RunStateEvent>("run-state", async ({ payload }) => {
       if (payload.state === "running") {
         setStatus("running");
         announceGame("Starsector is running.", "success");
         return;
       }
       if (payload.state === "finished") {
+        // Windows reports a non-zero process exit after an intentional stop. The exit event
+        // can arrive before the stop command's receipt; wait for that exact launch's result.
+        const receipt = stopReceipt.current?.pid === payload.pid ? stopReceipt.current : null;
+        const stopped = receipt ? await receipt.result : null;
+        if (!mounted) return;
+        if (stopReceipt.current === receipt) stopReceipt.current = null;
+        const requestedStop = !!stopped && stopped.stopped > 0 && stopped.stillRunning === 0;
+        const successfulOutcome = payload.success || requestedStop;
         setStoppingGame(false);
         setForceStopAvailable(false);
         setMaintenanceEpoch((current) => current + 1);
@@ -449,10 +466,12 @@ export default function App() {
           : null;
         launchTargetWhenFinished.current = null;
         setStatus(snapshot?.ready ? "ready" : "setup");
-        const outcome = payload.success
+        const outcome = requestedStop
+          ? "Starsector stopped. The run report is ready."
+          : payload.success
           ? "Starsector closed normally. The run report is ready."
           : failedRunSummary(payload.detail);
-        setRunFailure(payload.success ? null : {
+        setRunFailure(successfulOutcome ? null : {
           summary: outcome,
           detail: payload.detail,
           installRoot: target?.installRoot,
@@ -460,7 +479,7 @@ export default function App() {
         });
         const game = target?.installRoot ?? snapshot?.selected?.installRoot;
         void Promise.all([refresh(game), refreshCache()]).then(([refreshed]) => {
-          if (refreshed) announceGame(outcome, payload.success ? "success" : "error");
+          if (refreshed) announceGame(outcome, successfulOutcome ? "success" : "error");
         });
       }
     }, (error) => {
@@ -493,6 +512,7 @@ export default function App() {
       });
     });
     return () => {
+      mounted = false;
       stopListening();
       stopReconciliation();
     };
