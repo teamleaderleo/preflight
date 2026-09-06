@@ -53,6 +53,8 @@ interface HullModel {
 }
 
 interface PreparedHull extends HullModel {
+  /** Rotation-independent perspective bound; calculated once with the topology. */
+  projectedRadius: number;
   /** Scale into the normalised frame, and the hull's own middle, so perspective stays even. */
   fit: number;
   centre: HullVertex;
@@ -496,8 +498,11 @@ function prepareHull(hull: WireframeHull, detail: HullDetail): PreparedHull {
   };
   const reach = Math.max(along.high - along.low, across.high - across.low, 1) / 2;
   const fit = REACH / reach;
+  const radius = Math.max(...[...vertices, ...built.deck, ...built.mounts].map((vertex) =>
+    Math.hypot(vertex.x - centre.x, vertex.y - centre.y, vertex.z - centre.z) * fit));
   const prepared: PreparedHull = {
     ...built,
+    projectedRadius: radius * EYE / Math.max(EYE - radius, 0.001),
     fit,
     centre,
     // A hand's width under the keel, so the grid reads as a floor rather than a section cut.
@@ -515,6 +520,11 @@ function prepareHull(hull: WireframeHull, detail: HullDetail): PreparedHull {
   }
   details.set(detail, prepared);
   return prepared;
+}
+
+/** A fixed camera limit across every yaw and pitch, so fitting never makes rotation pulse. */
+export function projectedHullRadius(hull: WireframeHull, detail: HullDetail): number {
+  return prepareHull(hull, detail).projectedRadius;
 }
 
 /**

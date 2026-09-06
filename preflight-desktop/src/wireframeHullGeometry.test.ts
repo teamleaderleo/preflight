@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { WireframeHull } from "./types";
 import type { HullSegment, HullVertex } from "./wireframeHullGeometry";
-import { DEFAULT_WIREFRAME_TUNING, buildHullSegments, projectHull } from "./wireframeHullGeometry";
+import { DEFAULT_WIREFRAME_TUNING, buildHullSegments, projectHull, projectedHullRadius } from "./wireframeHullGeometry";
 
 const hull: WireframeHull = {
   id: "test",
@@ -29,6 +29,27 @@ function ellipse(count: number, from = 0, sweep = Math.PI * 2) {
 }
 
 describe("wireframe hull geometry", () => {
+  it("bounds the complete rotating hull with one fixed camera limit", () => {
+    for (const detail of ["small", "medium", "showcase"] as const) {
+      const radius = projectedHullRadius(hull, detail);
+      expect(radius).toBeGreaterThan(0);
+      for (const pitch of [0.08, 0.62, 1.46]) {
+        for (let step = 0; step < 72; step++) {
+          const projected = projectHull(hull, step * Math.PI / 36, detail, pitch);
+          const points = [
+            ...projected.segments.flatMap((segment) => [segment.from, segment.to]),
+            ...projected.deck,
+            ...projected.mounts,
+          ];
+          for (const point of points) {
+            expect(Math.hypot(point.x, point.y)).toBeLessThanOrEqual(radius);
+          }
+        }
+      }
+      expect(projectedHullRadius(hull, detail)).toBe(radius);
+    }
+  });
+
   it("builds a closed outline, raised deck, structure and engine bell", () => {
     const segments = buildHullSegments(hull, "medium");
     expect(segments.filter((segment) => segment.kind === "outline")).toHaveLength(3);
