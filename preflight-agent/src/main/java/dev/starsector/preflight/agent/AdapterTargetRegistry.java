@@ -316,6 +316,15 @@ final class AdapterTargetRegistry {
                 "jdk/internal/loader/ClassLoaders$AppClassLoader", "app");
     }
 
+    static AdapterTarget linuxPreparedAudioTarget() {
+        return new AdapterTarget("linux-ogg-decoder-0.98a-rc8-prepared-audio",
+                PreparedAudioPlan.TARGET_CLASS, PreparedAudioPlan.LINUX_SHA256, PreparedAudioRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod("super", PreparedAudioPlan.DECODE_DESCRIPTOR)),
+                "STARSECTOR_CORE", "fs.sound_obf.jar",
+                "c2d071f24b84e7227fced0a43d0f531f133b7d979d7c7784f66af11ce436cf21",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader", "app");
+    }
+
     static AdapterTarget windowsPreparedAudioTarget() {
         return new AdapterTarget("windows-ogg-decoder-0.98a-rc8-prepared-audio",
                 WindowsPcmCopyPlan.TARGET, WindowsPcmCopyPlan.SHA, PreparedAudioRuntime.PLAN_ID,
@@ -2832,7 +2841,8 @@ final class AdapterTargetRegistry {
         // Both Windows plans wrap the same decoder. Prepared PCM takes precedence; misses retain
         // the original decoder rather than composing the experimental chunk-copy branch.
         return withoutPlans(Set.of(WindowsPcmCopyRuntime.PLAN_ID))
-                .withTarget(preparedAudioTarget()).withTarget(windowsPreparedAudioTarget());
+                .withTarget(preparedAudioTarget()).withTarget(windowsPreparedAudioTarget())
+                .withTarget(linuxPreparedAudioTarget());
     }
 
     AdapterTargetRegistry withGraphicsLibCompactReplayTarget() {

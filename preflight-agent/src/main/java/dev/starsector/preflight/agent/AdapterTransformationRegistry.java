@@ -280,7 +280,9 @@ final class AdapterTransformationRegistry {
             return PreparedAudioRuntime.ready()
                     ? (WindowsPcmCopyPlan.TARGET.equals(signature.internalName())
                             ? PreparedAudioPlan.transformWindows(signature, originalBytes)
-                            : PreparedAudioPlan.transform(signature, originalBytes))
+                            : PreparedAudioPlan.LINUX_SHA256.equals(signature.sha256())
+                                    ? PreparedAudioPlan.transformLinux(signature, originalBytes)
+                                    : PreparedAudioPlan.transform(signature, originalBytes))
                     : null;
         }
         if (JaninoUnitMemoRuntime.PLAN_ID.equals(target.planId())) {

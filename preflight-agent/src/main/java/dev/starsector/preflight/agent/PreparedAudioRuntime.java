@@ -164,6 +164,29 @@ public final class PreparedAudioRuntime {
         }
     };
 
+    private static final ClassValue<Boolean> LINUX_RESULTS = new ClassValue<>() {
+        @Override protected Boolean computeValue(Class<?> type) {
+            if (!type.getName().equals("sound.F")) return false;
+            try (InputStream bytes = type.getResourceAsStream("/sound/F.class")) {
+                return bytes != null && Hashes.sha256(bytes.readNBytes(1_048_577)).equals(
+                        "5d03d4031ee2b7cac51ec6838730b91824489128fd3b538bcb41d2f6208b13e2");
+            } catch (java.io.IOException | RuntimeException failure) {
+                return false;
+            }
+        }
+    };
+
+    /** Linux's exact decoder result is resolved through its original loader. */
+    public static Object decodeLinux(Object decoder, InputStream input, MethodHandle vanilla)
+            throws Throwable {
+        Class<?> shape = vanilla.type().returnType();
+        if (!ready() || input == null || input.getClass() != ByteArrayInputStream.class
+                || !LINUX_RESULTS.get(shape)) {
+            return vanilla.invoke(decoder, input);
+        }
+        return decode(decoder, input, vanilla, shape);
+    }
+
     /** The exact Windows decoder has a different result class, supplied by its original handle. */
     public static Object decodeWindows(Object decoder, InputStream input, MethodHandle vanilla)
             throws Throwable {

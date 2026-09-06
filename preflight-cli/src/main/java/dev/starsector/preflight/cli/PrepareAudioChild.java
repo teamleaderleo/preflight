@@ -31,7 +31,7 @@ import java.util.TreeMap;
  * to be what the game's decoder would have produced -- not what a decoder would have produced. The
  * only way to be sure of that is to use that decoder, which is why this runs as a child process on
  * the installation's Java with the installation's jars, and calls
- * {@code sound.J.o00000(InputStream)} directly.
+ * the installed decoder through {@link GameAudioDecoder}, with exact Linux/Windows bindings.
  *
  * <p>A file the decoder cannot read is not an error here. The game logs one and carries on with an
  * empty result, and 50 of the 2,099 sounds on the reviewed profile do exactly that. They are
