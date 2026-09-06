@@ -1437,7 +1437,7 @@ mod bounded_request_tests {
     fn a_child_that_never_exits_fails_within_its_budget() {
         let started = Instant::now();
 
-        let error = fake_engine("sleep 600")
+        let error = fake_engine("exec sleep 600")
             .output_within(Duration::from_millis(300))
             .expect_err("a child that never exits must not be waited on forever");
 
@@ -1456,10 +1456,11 @@ mod bounded_request_tests {
         // drained stdout to its end before touching stderr would block here rather than time out.
         let started = Instant::now();
 
-        let error =
-            fake_engine("yes out | head -c 2000000; yes err | head -c 2000000 1>&2; sleep 600")
-                .output_within(Duration::from_secs(2))
-                .expect_err("a stalled child must time out even after filling both pipes");
+        let error = fake_engine(
+            "yes out | head -c 2000000; yes err | head -c 2000000 1>&2; exec sleep 600",
+        )
+        .output_within(Duration::from_secs(2))
+        .expect_err("a stalled child must time out even after filling both pipes");
 
         assert_eq!(error.kind(), ErrorKind::TimedOut);
         assert!(
@@ -1522,7 +1523,7 @@ mod bounded_request_tests {
 
     #[test]
     fn a_later_request_works_after_one_timed_out() {
-        let timed_out = fake_engine("sleep 600").output_within(Duration::from_millis(300));
+        let timed_out = fake_engine("exec sleep 600").output_within(Duration::from_millis(300));
         assert_eq!(
             timed_out.expect_err("first request times out").kind(),
             ErrorKind::TimedOut

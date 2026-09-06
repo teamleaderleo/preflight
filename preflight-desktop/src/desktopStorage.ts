@@ -50,9 +50,9 @@ export const PREFLIGHT_LOCAL_STORAGE_KEYS = Object.freeze([
 
 const MAX_INSTALL_ROOT_CHARACTERS = 32_768;
 
-export function readLastInstallRoot(storage: Pick<Storage, "getItem"> = window.localStorage): string | null {
+export function readLastInstallRoot(storage?: Pick<Storage, "getItem">): string | null {
   try {
-    const value = storage.getItem(LAST_INSTALL_ROOT_STORAGE_KEY);
+    const value = (storage ?? window.localStorage).getItem(LAST_INSTALL_ROOT_STORAGE_KEY);
     return value && value.length <= MAX_INSTALL_ROOT_CHARACTERS ? value : null;
   } catch {
     return null;
@@ -61,13 +61,13 @@ export function readLastInstallRoot(storage: Pick<Storage, "getItem"> = window.l
 
 export function rememberLastInstallRoot(
   installRoot: string | null,
-  storage: Pick<Storage, "setItem" | "removeItem"> = window.localStorage,
+  storage?: Pick<Storage, "setItem" | "removeItem">,
 ): void {
   try {
     if (installRoot && installRoot.length <= MAX_INSTALL_ROOT_CHARACTERS) {
-      storage.setItem(LAST_INSTALL_ROOT_STORAGE_KEY, installRoot);
+      (storage ?? window.localStorage).setItem(LAST_INSTALL_ROOT_STORAGE_KEY, installRoot);
     } else {
-      storage.removeItem(LAST_INSTALL_ROOT_STORAGE_KEY);
+      (storage ?? window.localStorage).removeItem(LAST_INSTALL_ROOT_STORAGE_KEY);
     }
   } catch {
     // A denied WebView store only costs the next launch an automatic discovery pass.
@@ -79,11 +79,11 @@ export interface LocalStorageRemoval {
 }
 
 /** Best-effort cleanup: one denied key must not leave the rest of Preflight's state behind. */
-export function clearPreflightLocalStorage(storage: LocalStorageRemoval = window.localStorage): string[] {
+export function clearPreflightLocalStorage(storage?: LocalStorageRemoval): string[] {
   const failures: string[] = [];
   for (const key of PREFLIGHT_LOCAL_STORAGE_KEYS) {
     try {
-      storage.removeItem(key);
+      (storage ?? window.localStorage).removeItem(key);
     } catch {
       failures.push(key);
     }

@@ -16,6 +16,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   if (matchMediaDescriptor) {
@@ -239,4 +240,67 @@ test("DPR changes redraw at the same CSS size and re-arm the resolution listener
   expect(resolutionQueries[2].removeEventListener)
     .toHaveBeenCalledWith("change", expect.any(Function));
   expect(disconnect).toHaveBeenCalledTimes(2);
+});
+
+test("hidden and disposed displays cancel recovery work and reject already queued callbacks", () => {
+  vi.useFakeTimers();
+  installMatchMediaMock();
+  const context = installCanvasMock();
+  vi.stubGlobal("ResizeObserver", class {
+    observe = vi.fn();
+    disconnect = vi.fn();
+  });
+  const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(false);
+  let nextFrame = 0;
+  const pending = new Map<number, FrameRequestCallback>();
+  const request = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    pending.set(++nextFrame, callback);
+    return nextFrame;
+  });
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => { pending.delete(id); });
+  const { unmount } = render(createElement(FlightInstrument, { variant: "stage" }));
+  fireEvent.focus(window);
+  expect(pending.size).toBe(2);
+  expect(vi.getTimerCount()).toBe(3);
+  fireEvent.focus(window);
+  expect(pending.size).toBe(2);
+  expect(vi.getTimerCount()).toBe(3);
+  const callbacksBeforeHide = [...pending.values()];
+  hidden.mockReturnValue(true);
+  fireEvent(document, new Event("visibilitychange"));
+  expect(pending.size).toBe(0);
+  expect(vi.getTimerCount()).toBe(0);
+  const strokes = vi.mocked(context.stroke).mock.calls.length;
+  const requests = request.mock.calls.length;
+  fireEvent.focus(window);
+  callbacksBeforeHide.forEach((callback) => callback(performance.now()));
+  expect(context.stroke).toHaveBeenCalledTimes(strokes);
+  expect(request).toHaveBeenCalledTimes(requests);
+  hidden.mockReturnValue(false);
+  fireEvent(document, new Event("visibilitychange"));
+  expect(pending.size).toBe(2);
+  expect(vi.mocked(context.stroke).mock.calls.length).toBeGreaterThan(strokes);
+  const callbacksBeforeUnmount = [...pending.values()];
+  unmount();
+  expect(pending.size).toBe(0);
+  expect(vi.getTimerCount()).toBe(0);
+  const finalStrokes = vi.mocked(context.stroke).mock.calls.length;
+  callbacksBeforeUnmount.forEach((callback) => callback(performance.now()));
+  expect(context.stroke).toHaveBeenCalledTimes(finalStrokes);
+  expect(pending.size).toBe(0);
+});
+
+test("a still display first mounted hidden paints when revealed", () => {
+  installMatchMediaMock();
+  const context = installCanvasMock();
+  vi.stubGlobal("ResizeObserver", class {
+    observe = vi.fn();
+    disconnect = vi.fn();
+  });
+  const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+  render(createElement(FlightInstrument, { animate: false }));
+  expect(context.stroke).not.toHaveBeenCalled();
+  hidden.mockReturnValue(false);
+  fireEvent(document, new Event("visibilitychange"));
+  expect(context.stroke).toHaveBeenCalled();
 });

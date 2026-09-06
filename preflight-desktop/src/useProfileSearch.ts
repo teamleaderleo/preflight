@@ -9,10 +9,10 @@ export function validateProfileSearch(value: unknown): string {
 }
 
 export function readProfileSearch(
-  storage: Pick<Storage, "getItem"> = window.localStorage,
+  storage?: Pick<Storage, "getItem">,
 ): string {
   try {
-    return validateProfileSearch(storage.getItem(PROFILE_SEARCH_STORAGE_KEY));
+    return validateProfileSearch((storage ?? window.localStorage).getItem(PROFILE_SEARCH_STORAGE_KEY));
   } catch {
     return "";
   }
@@ -20,11 +20,11 @@ export function readProfileSearch(
 
 function persistProfileSearch(
   value: string,
-  storage: Pick<Storage, "setItem" | "removeItem"> = window.localStorage,
+  storage?: Pick<Storage, "setItem" | "removeItem">,
 ): void {
   try {
-    if (value) storage.setItem(PROFILE_SEARCH_STORAGE_KEY, value);
-    else storage.removeItem(PROFILE_SEARCH_STORAGE_KEY);
+    if (value) (storage ?? window.localStorage).setItem(PROFILE_SEARCH_STORAGE_KEY, value);
+    else (storage ?? window.localStorage).removeItem(PROFILE_SEARCH_STORAGE_KEY);
   } catch {
     // Search remains useful for this session when WebView storage is unavailable.
   }

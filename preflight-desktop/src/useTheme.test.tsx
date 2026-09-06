@@ -19,8 +19,29 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   document.body.classList.remove("theme-changing");
+});
+
+test.each(["getter", "methods"])("unavailable storage (%s) preserves session appearance", (failure) => {
+  const denied = () => { throw new DOMException("Storage denied", "SecurityError"); };
+  if (failure === "getter") {
+    vi.spyOn(window, "localStorage", "get").mockImplementation(denied);
+  } else {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(denied);
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(denied);
+  }
+  const { result, unmount } = renderHook(() => useTheme());
+  expect(result.current.preference).toBe("system");
+  expect(result.current.palette).toBe("blueprint");
+  act(() => result.current.setPreference("light"));
+  act(() => result.current.setPalette("phosphor"));
+  expect(result.current.resolved).toBe("light");
+  expect(document.documentElement.dataset.theme).toBe("light");
+  expect(document.documentElement.dataset.palette).toBe("phosphor");
+  unmount();
+  expect(document.body).not.toHaveClass("theme-changing");
 });
 
 test("follows the system until an explicit theme is saved", async () => {
