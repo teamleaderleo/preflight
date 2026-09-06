@@ -130,6 +130,7 @@ jobs:
           python3 scripts/test_starsector_log_load_times.py
           python3 scripts/test_verify_linux_glibc_floor.py
           # This list is written by hand, so an unreferenced suite reports nothing. Keep this last.
+          python3 scripts/test_check_fast_rendering_port.py
           python3 scripts/test_operator_checks_coverage.py
 
   verify:
