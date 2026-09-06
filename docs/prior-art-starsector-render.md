@@ -288,6 +288,10 @@ Option 3 is the interesting one and is unproven. Option 1 should happen regardle
 
 ## The macOS fork, and what it proves about names
 
+The version-specific findings below describe the earlier review. See the dated follow-up
+[Mac/Linux renderer port review](evidence/2026-09-06-mac-linux-renderer-port-review.md)
+for the newer agent-based port and the distinction between source review and native evidence.
+
 <https://github.com/jontyab/starsector-render> is a fork at v0.7.7 (upstream is past v0.8.0) that
 ports the project to macOS and Linux. It carries one artifact worth more to us than the port itself:
 
