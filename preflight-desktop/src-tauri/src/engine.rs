@@ -468,7 +468,9 @@ pub(crate) fn canonical_game_directory(game: &str) -> Result<PathBuf, String> {
     if !canonical.is_dir() {
         return Err("The selected Starsector location is not a folder.".to_string());
     }
-    Ok(canonical)
+    // Rust canonicalizes Windows folders to verbatim paths. Keep the resolved target,
+    // but use a Java-compatible spelling when it represents the same Windows path.
+    Ok(dunce::simplified(&canonical).to_path_buf())
 }
 
 #[derive(Deserialize)]
@@ -1308,7 +1310,7 @@ pub(crate) fn diagnostic_output_path(output: &str) -> Result<PathBuf, String> {
     if destination.exists() && !destination.is_file() {
         return Err("The selected diagnostics location is not a file.".to_string());
     }
-    Ok(destination)
+    Ok(dunce::simplified(&destination).to_path_buf())
 }
 
 #[tauri::command(async)]
@@ -1366,13 +1368,12 @@ fn configure_child_process(_command: &mut Command) {}
 
 #[cfg(all(test, windows))]
 mod windows_bundled_engine_tests {
-    use super::EnginePaths;
+    use super::{EnginePaths, canonical_game_directory, diagnostic_output_path};
     use std::path::Path;
 
-    #[test]
-    fn canonical_resource_paths_load_the_bundled_java_main_class() {
+    fn bundled_paths() -> EnginePaths {
         let engine = Path::new(env!("CARGO_MANIFEST_DIR")).join("target/engine");
-        let paths = EnginePaths {
+        EnginePaths {
             java: engine
                 .join("runtime/bin/java.exe")
                 .canonicalize()
@@ -1381,8 +1382,12 @@ mod windows_bundled_engine_tests {
                 .join("preflight.jar")
                 .canonicalize()
                 .expect("prepared engine JAR"),
-        };
-        let output = paths
+        }
+    }
+
+    #[test]
+    fn canonical_resource_paths_load_the_bundled_java_main_class() {
+        let output = bundled_paths()
             .command()
             .args(["help", "launch-settings"])
             .read_output()
@@ -1393,6 +1398,42 @@ mod windows_bundled_engine_tests {
             String::from_utf8_lossy(&output.stderr)
         );
         assert!(String::from_utf8_lossy(&output.stdout).contains("preflight launch-settings"));
+    }
+
+    #[test]
+    fn selected_game_directory_reaches_the_bundled_engine() {
+        let temporary = std::env::temp_dir().join(format!(
+            "preflight-selected-game-{}",
+            getrandom::u64().unwrap()
+        ));
+        std::fs::create_dir(&temporary).unwrap();
+        let directory = canonical_game_directory(temporary.to_str().unwrap()).unwrap();
+        let output = bundled_paths()
+            .command()
+            .args(["desktop", "snapshot", "--game"])
+            .arg(&directory)
+            .read_output()
+            .expect("inspect selected folder");
+        std::fs::remove_dir(&temporary).unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let snapshot: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(snapshot["ready"], false);
+        assert!(snapshot["diagnostics"].is_array());
+    }
+
+    #[test]
+    fn diagnostic_destination_uses_the_same_windows_path_without_verbatim_prefix() {
+        let requested = std::env::temp_dir().join("preflight-native-path-check.zip");
+        let destination = diagnostic_output_path(requested.to_str().unwrap()).unwrap();
+        assert!(!destination.to_string_lossy().starts_with(r"\\?\"));
+        assert_eq!(
+            destination.parent().unwrap().canonicalize().unwrap(),
+            requested.parent().unwrap().canonicalize().unwrap()
+        );
     }
 }
 

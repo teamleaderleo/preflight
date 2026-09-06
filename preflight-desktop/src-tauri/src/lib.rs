@@ -1858,7 +1858,10 @@ mod tests {
         let zip = temporary.join("diagnostics.zip");
         assert!(diagnostic_output_path("relative.zip").is_err());
         assert!(diagnostic_output_path(text.to_str().unwrap()).is_err());
-        assert_eq!(zip, diagnostic_output_path(zip.to_str().unwrap()).unwrap());
+        assert_eq!(
+            dunce::simplified(&zip),
+            diagnostic_output_path(zip.to_str().unwrap()).unwrap()
+        );
     }
 
     #[test]
