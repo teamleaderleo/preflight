@@ -114,7 +114,6 @@ export function SettingsPage({
         <div className="preference-block">
           <div>
             <h2>Frame pacing</h2>
-            <p>Starsector shows live FPS while you play. Preflight can keep a local frame-pacing summary after you quit.</p>
           </div>
           <label className="settings-toggle">
             <input
@@ -127,7 +126,7 @@ export function SettingsPage({
               Record frame pacing
               <small>{framePacingPaused
                 ? "Paused while optimizations are Off."
-                : "Recurring stutter, slow-frame burden, FPS lows, and recorder cost. The recorder doesn’t open or change save files."}</small>
+                : "Save a summary after each session."}</small>
             </span>
           </label>
           <label className="settings-toggle">
@@ -141,7 +140,7 @@ export function SettingsPage({
               Smooth frame pacing
               <small>{framePacingPaused
                 ? "Paused while optimizations are Off."
-                : "Experimental. Keeps Starsector’s FPS cap but disables vsync to reduce doubled-frame drops. May show tearing. This display-only change doesn’t open or alter saves."}</small>
+                : "Experimental. Reduces uneven frames; may cause tearing."}</small>
             </span>
           </label>
         </div>

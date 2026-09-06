@@ -1112,10 +1112,6 @@ test("an opted-in session surfaces bounded campaign and combat pacing on Speed",
   expect(within(card).getByRole("group", { name: "Unpaused campaign after 30 seconds" })).toHaveTextContent("1m 3s active");
   expect(within(card).getByRole("group", { name: "Combat" })).toHaveTextContent("54.2 FPS");
   expect(within(card).getByRole("group", { name: "Combat" })).toHaveTextContent("58.5s active");
-  expect(card).toHaveTextContent("come from the same launch");
-  expect(card).toHaveTextContent("They don’t compare optimizations off and on.");
-  expect(card).toHaveTextContent("disjoint active-state windows");
-  expect(card).toHaveTextContent("recorder doesn’t open or change save files");
 });
 
 test("the Hangar keeps the ship central and its compact customization local to that hull", async () => {

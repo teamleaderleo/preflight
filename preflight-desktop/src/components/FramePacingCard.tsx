@@ -80,7 +80,6 @@ export function FramePacingCard({ framePacing }: { framePacing?: FramePacingSumm
           <p className="eyebrow">Latest recorded session</p>
           <h2>Frame pacing</h2>
         </div>
-        <small>Higher FPS and lower frame times are better.</small>
       </div>
       <div className="frame-pacing-card__sessions">
         {initialCampaign && settledCampaign ? <FramePacingRow label="Campaign first 30 seconds" result={initialCampaign} /> : null}
@@ -92,23 +91,11 @@ export function FramePacingCard({ framePacing }: { framePacing?: FramePacingSumm
         ) : campaign ? <FramePacingRow label={campaignLabel} result={campaign} /> : null}
         {combat ? <FramePacingRow label="Combat" result={combat} /> : null}
       </div>
-      <div className="frame-pacing-card__notes">
-        {initialCampaign && settledCampaign ? (
-          <small>These campaign rows come from the same launch: the first 30 seconds, then later play. They don’t compare optimizations off and on.</small>
-        ) : null}
-        {splitCampaign ? (
-          <small>Paused and unpaused rows are disjoint active-state windows. Focus changes and pause-transition frames are excluded.</small>
-        ) : null}
-        {splitCampaign ? (
-          <small>Recurring slow-frame clusters and excess slow-frame time rank ahead of isolated hitches or a single percentile.</small>
-        ) : null}
-        {framePacing?.measurementAverageMicros !== null && framePacing?.measurementAverageMicros !== undefined ? (
-          <small>
-            Recording cost averaged <strong>{microseconds(framePacing.measurementAverageMicros)} μs per frame</strong>. That is the recorder's own work, not a game-speed comparison.
-          </small>
-        ) : null}
-        <small>Recorded locally after you opted in. The recorder doesn’t open or change save files.</small>
-      </div>
+      {framePacing?.measurementAverageMicros != null ? (
+        <small className="frame-pacing-card__notes">
+          Recording cost: <strong>{microseconds(framePacing.measurementAverageMicros)} μs per frame</strong>
+        </small>
+      ) : null}
     </section>
   );
 }

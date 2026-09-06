@@ -106,9 +106,9 @@ export function GameSettingsPage({
               </button>
             ))}
           </div>
-          {(settings.limits.battleSizeMax ?? 0) < battleSizeUpperBound(settings, draft.battleSize) ? <p className="setting-help">Preflight writes the same gameplay preference without changing game files. Opening the vanilla battle-size slider can reset a value above {settings.limits.battleSizeMax}.</p> : null}
+          {settings.limits.battleSizeMax != null && draft.battleSize > settings.limits.battleSizeMax ? <p className="setting-help">The in-game slider can reset battle size to {settings.limits.battleSizeMax}.</p> : null}
           <label className="setting-field" htmlFor={settings.memory.editable ? "launch-memory" : undefined}>
-            <span><strong>Game memory</strong><small>{settings.memory.source ? shortPath(settings.memory.source) : settings.memory.reason ?? "Managed by the selected launcher"}</small></span>
+            <span><strong>Game memory</strong>{!settings.memory.editable && settings.memory.reason ? <small>{settings.memory.reason}</small> : null}</span>
             <GameMemorySelect id="launch-memory" label="Game memory" memory={settings.memory} value={draft.memoryMiB} onChange={(memoryMiB) => onChange({ memoryMiB })} />
           </label>
         </section>

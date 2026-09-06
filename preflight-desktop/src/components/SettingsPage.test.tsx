@@ -81,7 +81,7 @@ test("frame pacing is an explicit local opt-in and explains the Off boundary", a
 
   const toggle = screen.getByRole("checkbox", { name: "Record frame pacing" });
   expect(toggle).not.toBeChecked();
-  expect(screen.getByText(/recorder doesn’t open or change save files/)).toBeInTheDocument();
+  expect(screen.getByText("Save a summary after each session.")).toBeInTheDocument();
   await user.click(toggle);
   expect(onRecordFramePacingChange).toHaveBeenCalledWith(true);
 
@@ -90,16 +90,14 @@ test("frame pacing is an explicit local opt-in and explains the Off boundary", a
     .toHaveTextContent("Paused while optimizations are Off.");
 });
 
-test("smooth frame pacing explains the limiter and tearing tradeoff", async () => {
+test("smooth frame pacing explains the experimental tearing tradeoff", async () => {
   const user = userEvent.setup();
   const onSmoothFramePacingChange = vi.fn();
   render(<SettingsPage {...props({ onSmoothFramePacingChange })} />);
 
   const toggle = screen.getByRole("checkbox", { name: "Smooth frame pacing" });
   expect(toggle).not.toBeChecked();
-  expect(screen.getByText(/Keeps Starsector’s FPS cap but disables vsync/)).toBeInTheDocument();
-  expect(screen.getByText(/May show tearing/)).toBeInTheDocument();
-  expect(screen.getByText(/doesn’t open or alter saves/)).toBeInTheDocument();
+  expect(screen.getByText("Experimental. Reduces uneven frames; may cause tearing.")).toBeInTheDocument();
   await user.click(toggle);
   expect(onSmoothFramePacingChange).toHaveBeenCalledWith(true);
 });

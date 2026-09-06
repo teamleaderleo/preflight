@@ -14,9 +14,12 @@ summary:active {
 
 /* The launch-settings disclosure stays clear of the primary launch/recovery actions. */
 .launch-console--options-open .quick-settings {
-  top: 72px;
-  bottom: 118px;
-  max-height: none;
+  --options-top: 72px;
+  --options-bottom: 118px;
+  top: var(--options-top);
+  bottom: auto;
+  max-height: calc(100% - var(--options-top) - var(--options-bottom));
+  padding: 16px 24px;
 }
 
 /* The drawer and hull picker otherwise occupy the same lower-centre band. Keep the ship itself in
@@ -30,16 +33,12 @@ summary:active {
 
 /* Preparation/recovery moves identity to the top, so options begin below that context. */
 .launch-console--options-open:is(.launch-console--layout-preparation, .launch-console--layout-recovery) .quick-settings {
-  top: 108px;
+  --options-top: 108px;
 }
 
-/*
- * Quick settings is vertically centred when the disclosure has room. On a short/narrow disclosure,
- * ordinary centre alignment creates negative overflow above scrollTop=0, making Resolution and the
- * first controls impossible to reach. Safe centring falls back to the scroll origin when needed.
- */
+/* Fit the controls; overflow starts at the first field when the available space is short. */
 .quick-settings {
-  justify-content: safe center;
+  justify-content: flex-start;
 }
 
 .home-launch-identity {
@@ -210,14 +209,12 @@ summary:active {
 
 @media (max-width: 720px) {
   .launch-console--options-open .quick-settings {
-    top: 58px;
-    bottom: 124px;
-    max-height: none;
+    --options-bottom: 124px;
   }
 
   /* Secondary actions need more room below an open Options drawer at the minimum width. */
   .launch-console--options-open:has(.launch-console__actions .launch-console__stop) .quick-settings {
-    bottom: 200px;
+    --options-bottom: 200px;
   }
 
   .launch-console--ready .last-run-health {
@@ -244,7 +241,7 @@ summary:active {
 
 @media (max-width: 600px) {
   .launch-console--options-open .quick-settings {
-    bottom: 80px;
+    --options-bottom: 80px;
     padding: 6px 14px;
   }
 
