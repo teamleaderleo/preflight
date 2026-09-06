@@ -62,6 +62,24 @@ final class MainMenuInteractivePlanTest {
         assertNotNull(transformed);
         assertEquals(1, calls(showMethod(transformed), RUNTIME, "mainMenuInteractive"));
         assertEquals(0, calls(showMethod(transformed), RUNTIME, "mainMenuOverlayRemoved"));
+        assertEquals(1, calls(advanceMethod(transformed), RUNTIME, "mainMenuOverlayRemoved"));
+        assertEquals(0, calls(advanceMethod(transformed), CONTROL_RUNTIME, "titleAdvance"));
+    }
+
+    @Test
+    void installedLinuxTitleRetainsBothDistinctEndpoints() throws Exception {
+        String configured = System.getProperty("preflight.linux.core.jar", "");
+        org.junit.jupiter.api.Assumptions.assumeFalse(configured.isBlank());
+        byte[] original;
+        try (var jar = new java.util.jar.JarFile(configured)) {
+            original = jar.getInputStream(jar.getJarEntry(MainMenuInteractivePlan.LINUX_TARGET_CLASS + ".class"))
+                    .readAllBytes();
+        }
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+        byte[] transformed = MainMenuInteractivePlan.transform(ClassSignature.parse(original), original);
+        assertNotNull(transformed);
+        assertEquals(1, calls(showMethod(transformed), RUNTIME, "mainMenuInteractive"));
+        assertEquals(1, calls(advanceMethod(transformed), RUNTIME, "mainMenuOverlayRemoved"));
         assertEquals(0, calls(advanceMethod(transformed), CONTROL_RUNTIME, "titleAdvance"));
     }
 

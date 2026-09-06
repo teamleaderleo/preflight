@@ -39,3 +39,12 @@ exposes first-usability timing only for v2.
 
 This semantic repair changes no title timing, rendering, workers, countdown, click/input behavior,
 or performance policy. It also makes no new performance claim.
+
+## Fully shown menu observations
+
+The reviewed Linux title now also publishes `mainMenuOverlayRemovedAt`, immediately after its
+original Preloading label removal. This is distinct from first usability. When an operator asks
+for the fully shown menu without that overlay, report process start to overlay removal explicitly,
+with a visual check; do not relabel the earlier v2 usability timestamp or compare the two clocks.
+The ordinary Windows cohort still uses first usability and is not retroactively a fully shown-menu
+measurement. No title countdown, loading work, input behavior or rendering timing is changed.
