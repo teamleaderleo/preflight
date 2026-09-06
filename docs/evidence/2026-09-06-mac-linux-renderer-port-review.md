@@ -57,3 +57,28 @@ rendering and exit. A performance campaign is a separate decision: use the exist
 and `processStartedAt → mainMenuInteractiveAt` clock, and distinguish startup from gameplay FPS.
 The user's actively used Mac is unsuitable for attributing small timing differences now. Existing
 Mac prepared audio and texture fixes remain useful independently of this optional renderer.
+
+## Pinned release follow-up
+
+The maintainer authorized updating compatibility and tracking the optional project alongside
+Preflight. The selected release is `v0.8.7-port-6a226999`, source
+`6a2269995f284513aa29eee15b03b97e8e229ab5`. Actual `fr-macos.zip` and `fr-linux.zip` were downloaded
+and read in memory without installation or execution. Archive, script and JAR hashes are recorded
+in `docs/fast-rendering-port-lock.json`; the small Python identity checker verifies these local
+archives and reports explicitly that runtime compatibility is not established by that check.
+No dependency, vendored renderer code or automatic updater is added.
+
+Both release TextureLoader classes have SHA-256
+`dee92a93ce9eda6d3facb84e044b28ac09addc55f9fed81e7ce2f6a90a7cb3e0` and classfile major 61.
+The matching release source's `loadTextureData` now calls `Blacklist.doNotModify`, conditionally
+uses `DDSIntegration`, and passes `useVanillaLogic` into `TextureBuilder.readAndAnalyzeImage`.
+The existing 0.8.4 bridge must not simply be renamed to bypass that policy. It remains disabled
+for this release pending a separately verified bridge.
+
+The Linux archive actually ships `starsector-fr.sh`. Discovery already listed that filename but
+did not award it FR priority, so it could tie with stock `starsector` and lose through pathname
+sorting. The fix gives all already-discovered `starsector-fr` script variants FR priority and
+recognizes their owner by name. A regression fixture checks strict priority over stock and an
+explicit stock override. Mac's normal app script already detects the `fr.jar` reference; a focused
+fixture now covers that agent-plus-classpath layout. These are launcher fixtures, not native
+combined-renderer evidence.

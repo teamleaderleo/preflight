@@ -219,7 +219,7 @@ final class StarsectorDiscovery {
         Path normalized = launcher.toAbsolutePath().normalize();
         String name = normalized.getFileName().toString().toLowerCase(Locale.ROOT);
         int score = baseScore;
-        if (name.equals("fr.sh") || name.equals("fr.command") || name.equals("fr.bat")
+        if (LaunchOwnership.isPortLauncherName(name) || name.equals("fr.sh") || name.equals("fr.command") || name.equals("fr.bat")
                 || name.equals("fr.cmd") || name.equals("fr.exe")) {
             score += 130;
         }

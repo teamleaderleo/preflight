@@ -1,0 +1,25 @@
+{
+  "repository": "jontyab/starsector-render",
+  "release": "v0.8.7-port-6a226999",
+  "sourceCommit": "6a2269995f284513aa29eee15b03b97e8e229ab5",
+  "runtimeDependency": false,
+  "preparedTextureBridge": "not-enabled-for-this-release",
+  "assets": {
+    "fr-macos.zip": {
+      "sha256": "84ed4d327f5425b04fe8b2d422bd9c8ab7c265ee1fa75eaa71a4a9a1f61469c2",
+      "entries": {
+        "Contents/MacOS/starsector_mac.sh": "a46f888576de385ccffe7fdcce797c1410c6a79a3e6382b06ed5abae12a2f0f0",
+        "Contents/Resources/Java/fr.agent.jar": "ebfa4dedba3bfc1ffa7c3106b5c1aaafabdd61724879e0acbeb836c559745718",
+        "Contents/Resources/Java/fr.jar": "146898b0581ba0d2682c534d1af59cacc5e18ff0a6515191b6736dffbd65bc8d"
+      }
+    },
+    "fr-linux.zip": {
+      "sha256": "aac51af5f7021ebb7aa6028e990bf7e5cb3b118104b458fb0bd078c4889b663d",
+      "entries": {
+        "fr.agent.jar": "1498b9c74a43d8eaa8b58aa30364d680def684f8480f48a5eca0d3263cfd96a3",
+        "fr.jar": "923b625f7df25424efe74eb552f1f5e86b74845edeec0075a5e0a4db56dbbeec",
+        "starsector-fr.sh": "d70edab31b93c5001e5adf86438d222a49151bb53d6509708c45061d236855b3"
+      }
+    }
+  }
+}

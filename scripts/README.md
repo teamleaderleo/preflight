@@ -5,6 +5,16 @@ Check this index before writing a new script or driving the game by hand.
 For native GUI checks, [Native GUI operator access](../docs/native-gui-operator-access.md) records
 the verified SSH/RDP/Moonlight routes, installation locations, and runtime shared-GPU handover.
 
+## Optional Fast Rendering port identity
+
+`docs/fast-rendering-port-lock.json` pins the reviewed upstream release and Mac/Linux archive,
+launcher and JAR hashes. Fast Rendering is not a build or runtime dependency of Preflight.
+Download the two named archives from the pinned upstream release into a disposable project
+directory, then run `python3 scripts/check_fast_rendering_port.py DIRECTORY`. The checker reads
+archives without extracting or executing them. Matching bytes establish identity only, not native
+compatibility or performance. A mismatch requires review; do not automatically refresh the lock.
+Run its fixtures with `python3 -m unittest discover -s scripts -p test_check_fast_rendering_port.py`.
+
 ## Synchronize repeated project facts
 
 | | |
