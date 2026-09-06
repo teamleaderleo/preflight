@@ -16,8 +16,14 @@ import org.junit.jupiter.api.io.TempDir;
 class LinuxPreparedAudioInstalledTest {
     @TempDir Path cache;
 
-    private static java.net.URLClassLoader loader(URL[] urls, byte[] bytes) {
-        return WindowsPcmCopyInstalledTest.loader(urls, bytes, "sound.J");
+    private static java.net.URLClassLoader loader(URL[] urls, byte[] bytes) throws Exception {
+        byte[] owner;
+        try (JarFile jar = new JarFile(Path.of(urls[0].toURI()).toFile())) {
+            owner = jar.getInputStream(jar.getJarEntry("sound/Object.class")).readAllBytes();
+        }
+        byte[] fenced = LinuxAudioBufferFencePlan.transform(ClassSignature.parse(owner), owner);
+        assertNotNull(fenced);
+        return WindowsPcmCopyInstalledTest.loader(urls, bytes, "sound.J", java.util.Map.of("sound.Object", fenced));
     }
 
     private static WindowsPcmCopyInstalledTest.Pcm decode(ClassLoader loader, java.io.InputStream input)
@@ -78,6 +84,11 @@ class LinuxPreparedAudioInstalledTest {
                 Files.createDirectories(blob.getParent());
                 Files.write(blob, PreparedAudioIO.toBytes(audio));
                 long hits = (long) PreparedAudioRuntime.report().get("servedFromCache");
+                try (var unfenced = WindowsPcmCopyInstalledTest.loader(urls, fastBytes, "sound.J")) {
+                    assertArrayEquals(expected.bytes(), decode(unfenced, new ByteArrayInputStream(encoded)).bytes());
+                    assertEquals(hits, PreparedAudioRuntime.report().get("servedFromCache"),
+                            "cache admission must decline without the upload lifetime guard");
+                }
                 var actual = decode(fast, new ByteArrayInputStream(encoded));
                 assertEquals(hits + 1, PreparedAudioRuntime.report().get("servedFromCache"));
                 assertArrayEquals(expected.bytes(), actual.bytes());

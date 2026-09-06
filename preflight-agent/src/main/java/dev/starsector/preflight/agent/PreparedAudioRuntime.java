@@ -169,12 +169,24 @@ public final class PreparedAudioRuntime {
             if (!type.getName().equals("sound.F")) return false;
             try (InputStream bytes = type.getResourceAsStream("/sound/F.class")) {
                 return bytes != null && Hashes.sha256(bytes.readNBytes(1_048_577)).equals(
-                        "5d03d4031ee2b7cac51ec6838730b91824489128fd3b538bcb41d2f6208b13e2");
+                        "5d03d4031ee2b7cac51ec6838730b91824489128fd3b538bcb41d2f6208b13e2")
+                        && linuxUploadFencePresent(type.getClassLoader());
             } catch (java.io.IOException | RuntimeException failure) {
                 return false;
             }
         }
     };
+
+    private static boolean linuxUploadFencePresent(ClassLoader loader) {
+        try {
+            var method = Class.forName("sound.Object", false, loader).getDeclaredMethod(
+                    LinuxAudioBufferFencePlan.HELPER, int.class, int.class, ByteBuffer.class, int.class);
+            return method.isSynthetic() && java.lang.reflect.Modifier.isStatic(method.getModifiers())
+                    && method.getReturnType() == void.class;
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException unavailable) {
+            return false;
+        }
+    }
 
     /** Linux's exact decoder result is resolved through its original loader. */
     public static Object decodeLinux(Object decoder, InputStream input, MethodHandle vanilla)

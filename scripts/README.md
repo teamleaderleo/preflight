@@ -128,7 +128,9 @@ Use `--cache <directory>` if the installation uses a custom Preflight cache, and
 to select the game's compatible Java explicitly. Preparation is separate from the startup clock;
 the reviewed profile baked 2,049 effects (1.23 GB PCM) in 45.4 seconds. Music streaming is unchanged.
 Recommended launches use the cache automatically. Linux requires the reviewed 0.98a-RC8 sound
-archive and preserves original decoding for unknown streams or unavailable entries. Use
+archive and its PCM upload lifetime guard, and preserves original decoding for unknown streams
+or unavailable entries. Prepared RGB uploads on the exact Linux texture loader now use the same
+scoped row-alignment correction as Windows and restore GL state after each call. Use
 `audio prepare --game /path/to/starsector` on Linux; music streaming and OpenAL registration stay
 in the original game. With a validated audio manifest, Windows
 Recommended also enables exact prestart texture admission and faction priority replay. Without
