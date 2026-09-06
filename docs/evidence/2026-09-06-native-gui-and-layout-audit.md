@@ -96,3 +96,30 @@ were pruned. Its clean checkout was fast-forwarded to layout main `6aa3dbd9` bef
 The Windows VM was shut off before the GPU was rebound to i915; GDM returned active. The saved
 Linux RDP device then connected directly in windowed mode. No persistent GPU boot configuration
 was changed. Moonlight and RDP connections were closed after verification.
+
+## Final Mac package and copy follow-up
+
+PR #1264 merged the preparation wording change as `61469dff`. Its first CI run failed because an
+integration test still requested the old button label; that failed log is retained. Updating the
+expectation passed the full frontend CI run `34054656830` and release-contract checks. Native
+platform jobs were correctly skipped for this text/test-only follow-up; the preceding layout's
+full three-platform run remains separately identified above.
+
+A normal Mac DMG build started at `08145a3e`; subsequent `f514451f` changed only integration-test
+expectations, so its production source matches merged `61469dff`. DMG SHA-256:
+`4b32660de433cd11a9774049dab46e865fd78d12f1a969c8c4eaa8120c5ab552`.
+Package verification passed. The DMG application was installed at `/Applications/Preflight.app`;
+installed verification passed with 109 runtime files / 51,010,342 bytes.
+
+The actual Mac GUI opened as a 1040×700 window and reached Ready with the original 1440×932
+windowed, sound-on, 6 GiB, 100% UI, battle 400 and AA-off values. Native window zoom expanded the
+workspace to the edges with a complete ship visible; zooming back restored the normal window.
+The native picker selected `/Applications/Starsector.app`, returned to Settings, and Home reached
+Ready. Path-entry and clipboard automation had ineffective attempts before selection; they are
+not treated as successful text-entry checks. No new Mac game or settings mutation was needed for
+these presentation changes. Prior native Apply/reopen/lifecycle evidence retains its own package
+identity. The GUI was quit afterward.
+
+The newly shortened Stop label is installed on Mac. Windows and Linux installed packages contain
+the preceding layout fixes; their later text change was not repackaged locally. The recovered
+Windows Stop classification discrepancy is tracked in #1263, independently of playtime retention.
