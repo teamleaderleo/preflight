@@ -181,6 +181,26 @@ class StarsectorDiscoveryTest {
     }
 
     @Test
+    void prefersLinuxPortWithoutRelyingOnLexicographicTiesAndPreservesExplicitStock() throws Exception {
+        Path game = temporaryDirectory.resolve("port-game");
+        Files.createDirectories(game);
+        Path stock = Files.writeString(game.resolve("starsector"), "#!/bin/sh\n");
+        Path port = Files.writeString(game.resolve("starsector-fr.sh"), "#!/bin/sh\n");
+        stock.toFile().setExecutable(true);
+        port.toFile().setExecutable(true);
+        DiscoveryResult automatic = StarsectorDiscovery.discover(Platform.LINUX,
+                temporaryDirectory, temporaryDirectory.resolve("elsewhere"), Map.of(), game, null);
+        assertEquals(port.toAbsolutePath().normalize(), automatic.selected().launcher());
+        assertTrue(automatic.selected().score() > automatic.candidates().get(1).score());
+        assertTrue(LaunchOwnership.detect(automatic.selected()).fastRendering());
+
+        DiscoveryResult explicit = StarsectorDiscovery.discover(Platform.LINUX,
+                temporaryDirectory, temporaryDirectory.resolve("elsewhere"), Map.of(), game, stock);
+        assertEquals(stock.toAbsolutePath().normalize(), explicit.selected().launcher());
+        assertFalse(LaunchOwnership.detect(explicit.selected()).fastRendering());
+    }
+
+    @Test
     @EnabledOnOs({OS.LINUX, OS.MAC})
     void explicitSymlinkWinsWithoutDuplicatingItsDiscoveredTarget() throws Exception {
         Path game = temporaryDirectory.resolve("game");

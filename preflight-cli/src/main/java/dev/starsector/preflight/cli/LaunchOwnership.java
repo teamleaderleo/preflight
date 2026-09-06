@@ -23,7 +23,7 @@ record LaunchOwnership(Owner owner, List<String> evidence) {
     static LaunchOwnership detect(LaunchTarget target) {
         List<String> evidence = new ArrayList<>();
         String name = target.launcher().getFileName().toString().toLowerCase(Locale.ROOT);
-        if (name.equals("fr.bat") || name.equals("fr.cmd") || name.equals("fr.sh")
+        if (isPortLauncherName(name) || name.equals("fr.bat") || name.equals("fr.cmd") || name.equals("fr.sh")
                 || name.equals("fr.command") || name.equals("fr.exe")
                 || name.contains("fast-render") || name.contains("fastrender")) {
             evidence.add("launcher-name=" + name);
@@ -49,6 +49,11 @@ record LaunchOwnership(Owner owner, List<String> evidence) {
 
     boolean fastRendering() {
         return owner == Owner.FAST_RENDERING;
+    }
+
+    static boolean isPortLauncherName(String name) {
+        return name.equals("starsector-fr.sh") || name.equals("starsector-fr.command")
+                || name.equals("starsector-fr.bat") || name.equals("starsector-fr.cmd");
     }
 
     static String boundedText(Path path, long maximumBytes) {

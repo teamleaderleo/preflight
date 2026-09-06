@@ -42,6 +42,23 @@ class LaunchOwnershipTest {
     }
 
     @Test
+    void recognizesMacPortThroughNormalAppScript() throws Exception {
+        Path launcher = temporaryDirectory.resolve("starsector_mac.sh");
+        Files.writeString(launcher, "#!/bin/sh\nexec java -javaagent:../../Resources/Java/fr.agent.jar "
+                + "-cp ../../Resources/Java/fr.jar:starfarer_obf.jar com.fs.starfarer.StarfarerLauncher\n");
+        LaunchOwnership ownership = LaunchOwnership.detect(target(launcher));
+        assertTrue(ownership.fastRendering());
+        assertTrue(ownership.evidence().contains("launcher-references-fast-rendering"));
+    }
+
+    @Test
+    void recognizesLinuxPortLauncherName() throws Exception {
+        Path launcher = temporaryDirectory.resolve("starsector-fr.sh");
+        Files.writeString(launcher, "#!/bin/sh\n");
+        assertTrue(LaunchOwnership.detect(target(launcher)).fastRendering());
+    }
+
+    @Test
     void ordinaryVanillaLaunchersRemainUnownedByFastRendering() throws Exception {
         Path launcher = temporaryDirectory.resolve("starsector_mac.sh");
         Files.writeString(launcher, "#!/bin/sh\nexec java com.fs.starfarer.StarfarerLauncher\n");
