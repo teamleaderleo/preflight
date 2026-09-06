@@ -33,6 +33,22 @@ systemd-run --user --unit=preflight-gui-audit /usr/bin/starsector-preflight-desk
 systemctl --user stop preflight-gui-audit
 ```
 
+On Big Red, the AppImage bundler needs the same environment already used by desktop CI. The
+2026-09-06 local failure first lacked `libfuse.so.2`, then could not resolve the bundled
+`libjvm.so`. Both were resolved without changing system packages:
+
+```sh
+cd /home/leo/Projects/preflight/preflight-desktop
+PATH=/home/leo/.cargo/bin:$PATH \
+APPIMAGE_EXTRACT_AND_RUN=1 \
+LD_LIBRARY_PATH="$PWD/src-tauri/target/engine/runtime/lib/server" \
+./node_modules/.bin/tauri bundle --verbose --bundles appimage
+```
+
+This bundles an already normally built native host. Run the package verifier afterward.
+`APPIMAGE_EXTRACT_AND_RUN=1` also allowed the resulting AppImage to open and launch the game in
+the actual Linux desktop. Keep the initial failed logs alongside the successful receipt.
+
 ## Windows and Moonlight
 
 Discover the existing procedure first at
