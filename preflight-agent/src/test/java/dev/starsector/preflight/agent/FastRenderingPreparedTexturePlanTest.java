@@ -65,13 +65,48 @@ class FastRenderingPreparedTexturePlanTest {
     }
 
     private static byte[] fixture(boolean includeDds) {
+        return fixture(includeDds, false);
+    }
+
+    @Test
+    void portPreservesBlacklistPolicyAndDeclinesShapeDrift() throws Exception {
+        byte[] original = fixture(true, true);
+        byte[] transformed = FastRenderingPreparedTexturePlan.transformPort(ClassSignature.parse(original), original);
+        assertNotNull(transformed);
+        assertEquals(1, calls(transformed, RUNTIME, "loadPort"));
+        assertEquals(1, calls(transformed,
+                "com/genir/renderer/overrides/loading/textures/Blacklist", "doNotModify"));
+        assertNull(FastRenderingPreparedTexturePlan.transformPort(ClassSignature.parse(transformed), transformed));
+        byte[] missingDds = fixture(false, true);
+        assertNull(FastRenderingPreparedTexturePlan.transformPort(ClassSignature.parse(missingDds), missingDds));
+        ClassNode owner = read(transformed);
+        for (var method : owner.methods) {
+            new Analyzer<>(new BasicInterpreter()).analyze(owner.name, method);
+        }
+        ClassNode changed = read(original);
+        for (var method : changed.methods) {
+            for (AbstractInsnNode instruction : method.instructions) {
+                if (instruction instanceof org.objectweb.asm.tree.VarInsnNode store
+                        && store.getOpcode() == Opcodes.ISTORE && store.var == 3) store.var = 4;
+            }
+        }
+        ClassWriter writer = new ClassWriter(0);
+        changed.accept(writer);
+        byte[] drift = writer.toByteArray();
+        assertNull(FastRenderingPreparedTexturePlan.transformPort(ClassSignature.parse(drift), drift));
+    }
+
+    private static byte[] fixture(boolean includeDds, boolean port) {
+        String data = port ? FastRenderingPreparedTexturePlan.PORT_DATA
+                : "com/genir/renderer/overrides/loading/TextureData";
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
-                FastRenderingPreparedTexturePlan.TARGET_CLASS, null, "java/lang/Object", null);
+                port ? FastRenderingPreparedTexturePlan.PORT_CLASS : FastRenderingPreparedTexturePlan.TARGET_CLASS,
+                null, "java/lang/Object", null);
         MethodVisitor method = writer.visitMethod(
                 Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC,
                 FastRenderingPreparedTexturePlan.TARGET_METHOD,
-                FastRenderingPreparedTexturePlan.TARGET_DESCRIPTOR,
+                port ? FastRenderingPreparedTexturePlan.PORT_DESCRIPTOR : FastRenderingPreparedTexturePlan.TARGET_DESCRIPTOR,
                 null,
                 null);
         method.visitCode();
@@ -84,13 +119,21 @@ class FastRenderingPreparedTexturePlanTest {
                 "(Ljava/lang/String;Z)Ljava/io/InputStream;",
                 false);
         method.visitVarInsn(Opcodes.ASTORE, 2);
+        if (port) {
+            method.visitVarInsn(Opcodes.ALOAD, 1);
+            method.visitMethodInsn(Opcodes.INVOKESTATIC,
+                    "com/genir/renderer/overrides/loading/textures/Blacklist", "doNotModify",
+                    "(Ljava/lang/String;)Z", false);
+            method.visitVarInsn(Opcodes.ISTORE, 3);
+        }
         if (includeDds) {
             method.visitInsn(Opcodes.ACONST_NULL);
             method.visitMethodInsn(
                     Opcodes.INVOKESTATIC,
-                    "com/genir/renderer/overrides/loading/DDSCache",
+                    port ? "com/genir/renderer/overrides/loading/textures/DDSIntegration"
+                            : "com/genir/renderer/overrides/loading/DDSCache",
                     "getTexture",
-                    "(Ljava/nio/file/Path;)Lcom/genir/renderer/overrides/loading/TextureData;",
+                    "(Ljava/nio/file/Path;)L" + data + ";",
                     false);
             method.visitInsn(Opcodes.POP);
         }
@@ -109,11 +152,13 @@ class FastRenderingPreparedTexturePlanTest {
                 "read",
                 "(Ljava/io/InputStream;)Ljava/awt/image/BufferedImage;",
                 false);
+        if (port) method.visitVarInsn(Opcodes.ILOAD, 3);
         method.visitMethodInsn(
                 Opcodes.INVOKESTATIC,
-                "com/genir/renderer/overrides/TextureBuilder",
+                port ? "com/genir/renderer/overrides/loading/textures/TextureBuilder"
+                        : "com/genir/renderer/overrides/TextureBuilder",
                 "readAndAnalyzeImage",
-                "(Ljava/awt/image/BufferedImage;)Lcom/genir/renderer/overrides/loading/TextureData;",
+                "(Ljava/awt/image/BufferedImage;" + (port ? "Z" : "") + ")L" + data + ";",
                 false);
         method.visitInsn(Opcodes.ARETURN);
         method.visitMaxs(0, 0);

@@ -3,7 +3,7 @@
   "release": "v0.8.7-port-6a226999",
   "sourceCommit": "6a2269995f284513aa29eee15b03b97e8e229ab5",
   "runtimeDependency": false,
-  "preparedTextureBridge": "not-enabled-for-this-release",
+  "preparedTextureBridge": "experimental-opt-in",
   "assets": {
     "fr-macos.zip": {
       "sha256": "84ed4d327f5425b04fe8b2d422bd9c8ab7c265ee1fa75eaa71a4a9a1f61469c2",
