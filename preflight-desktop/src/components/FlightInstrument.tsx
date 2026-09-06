@@ -11,7 +11,7 @@ import {
 import type { HullSegmentKind } from "../wireframeHullGeometry";
 import type { WireframeHull, WireframePoint } from "../types";
 import { BUNDLED_DEFAULT_HULL } from "../bundledWireframeHulls";
-import { projectHull } from "../wireframeHullGeometry";
+import { projectHull, projectedHullRadius } from "../wireframeHullGeometry";
 
 interface FlightInstrumentProps {
   hull?: WireframeHull;
@@ -200,7 +200,12 @@ function drawHull(
    * pumps the whole picture on every frame. The geometry is already normalised to one frame,
    * which is what makes a constant work here for a stubby Hammerhead and a long Conquest alike.
    */
-  const scale = Math.min(width, height) * (variant === "stage" ? 0.7 : 0.46) * zoom * framing;
+  const preferredScale = Math.min(width, height) * (variant === "stage" ? 0.7 : 0.46) * framing;
+  // Reserve the edge for stroke width and the grid fade. The hull's cached sphere bounds every
+  // orientation, unlike fitting the current projection, which changes size as the ship turns.
+  const fittingScale = Math.min(width, height) * 0.44
+    / (projectedHullRadius(hull, detail) * MAX_INSTRUMENT_ZOOM);
+  const scale = Math.min(preferredScale, fittingScale) * zoom;
   const map = (point: WireframePoint) => ({
     x: width / 2 + point.x * scale,
     y: height / 2 + point.y * scale,
