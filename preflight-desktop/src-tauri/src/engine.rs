@@ -11,6 +11,7 @@ use std::ffi::{OsStr, OsString};
 use std::io::{ErrorKind, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
+use std::sync::{Arc, Mutex, Weak};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 use tauri::path::BaseDirectory;
@@ -33,6 +34,56 @@ const POLL_INTERVAL: Duration = Duration::from_millis(5);
 /// Captured output is capped so a runaway child cannot exhaust the desktop process. Engine
 /// responses are JSON documents measured in kilobytes.
 const MAX_CAPTURED_BYTES: usize = 8 * 1024 * 1024;
+
+#[derive(Default)]
+struct ReadState {
+    closing: bool,
+    children: Vec<Weak<Mutex<Child>>>,
+}
+
+#[derive(Default)]
+struct EngineReads(Mutex<ReadState>);
+
+static ENGINE_READS: EngineReads = EngineReads(Mutex::new(ReadState {
+    closing: false,
+    children: Vec::new(),
+}));
+
+impl EngineReads {
+    fn spawn(&self, command: &mut Command) -> std::io::Result<Arc<Mutex<Child>>> {
+        let mut state = self
+            .0
+            .lock()
+            .map_err(|_| std::io::Error::other("Engine read tracker unavailable"))?;
+        if state.closing {
+            return Err(std::io::Error::new(
+                ErrorKind::Interrupted,
+                "Preflight is closing",
+            ));
+        }
+        // Register under the same lock as shutdown, so a late read cannot escape cancellation.
+        let child = Arc::new(Mutex::new(command.spawn()?));
+        state.children.retain(|child| child.strong_count() > 0);
+        state.children.push(Arc::downgrade(&child));
+        Ok(child)
+    }
+
+    fn cancel(&self) {
+        let mut state = self.0.lock().unwrap_or_else(|error| error.into_inner());
+        state.closing = true;
+        for child in state.children.iter().filter_map(Weak::upgrade) {
+            let mut child = child.lock().unwrap_or_else(|error| error.into_inner());
+            let _ = child.kill();
+            // The request worker reaps it; shutdown must not wait on child I/O on the UI thread.
+        }
+        state.children.clear();
+    }
+}
+
+/// Cancel only read-only engine requests. Ordinary game launches and writes are not registered.
+pub(crate) fn cancel_engine_reads() {
+    ENGINE_READS.cancel();
+}
 
 pub(crate) struct EnginePaths {
     java: PathBuf,
@@ -182,16 +233,45 @@ impl EngineCommand {
     /// concurrency from the runtime; reading one to the end and then the other would deadlock
     /// against a child that fills the pipe being read second.
     pub(crate) fn output_within(&mut self, budget: Duration) -> std::io::Result<Output> {
-        let mut child = self
+        self.output_registered(budget, None)
+    }
+
+    pub(crate) fn read_output(&mut self) -> std::io::Result<Output> {
+        self.output_registered(READ_BUDGET, Some(&ENGINE_READS))
+    }
+
+    fn request_output(&mut self, mutating: bool) -> std::io::Result<Output> {
+        if mutating {
+            self.output_within(MUTATION_BUDGET)
+        } else {
+            // These shared read/write helpers already allowed long plans. Keep that budget;
+            // only their read-only calls become cancellable during shutdown.
+            self.output_registered(MUTATION_BUDGET, Some(&ENGINE_READS))
+        }
+    }
+
+    fn output_registered(
+        &mut self,
+        budget: Duration,
+        reads: Option<&EngineReads>,
+    ) -> std::io::Result<Output> {
+        let command = self
             .prepared()
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
-        let stdout = drain(child.stdout.take());
-        let stderr = drain(child.stderr.take());
+            .stderr(Stdio::piped());
+        let child = match reads {
+            Some(reads) => reads.spawn(command)?,
+            None => Arc::new(Mutex::new(command.spawn()?)),
+        };
+        let (stdout, stderr) = {
+            let mut process = child.lock().unwrap_or_else(|error| error.into_inner());
+            (drain(process.stdout.take()), drain(process.stderr.take()))
+        };
         let deadline = Instant::now() + budget;
         loop {
-            if let Some(status) = child.try_wait()? {
+            let mut process = child.lock().unwrap_or_else(|error| error.into_inner());
+            if let Some(status) = process.try_wait()? {
+                drop(process);
                 return Ok(Output {
                     status,
                     stdout: collect(stdout),
@@ -201,8 +281,8 @@ impl EngineCommand {
             if Instant::now() >= deadline {
                 // Terminate and reap this exact child rather than leaving it to the OS, so a
                 // timed-out request cannot leave a Java process holding the install behind it.
-                let _ = child.kill();
-                let _ = child.wait();
+                let _ = process.kill();
+                let _ = process.wait();
                 // The readers are deliberately not joined. Killing the child closes only the pipe
                 // ends it holds; anything it spawned that inherited them keeps a writer open, and
                 // joining would block on a process this request never owned — which is the wait
@@ -218,6 +298,7 @@ impl EngineCommand {
                     ),
                 ));
             }
+            drop(process);
             std::thread::sleep(POLL_INTERVAL);
         }
     }
@@ -404,7 +485,7 @@ pub(crate) struct LaunchSettingsInput {
     pub(crate) memory_mib: Option<u32>,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn get_launch_settings(app: AppHandle, game: String) -> Result<Value, String> {
     let directory = canonical_game_directory(&game)?;
     launch_settings_json(&app, &directory, None)
@@ -476,7 +557,7 @@ fn launch_settings_json(
     }
     command.arg("--game").arg(directory).arg("--json");
     let output = command
-        .output_within(MUTATION_BUDGET)
+        .request_output(settings.is_some())
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() {
         return Err(child_error(
@@ -521,7 +602,7 @@ pub(crate) fn validate_launch_settings(settings: &LaunchSettingsInput) -> Result
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn get_profiles(app: AppHandle, game: String) -> Result<Value, String> {
     profile_json(&app, &game, &["profile", "list"], false)
 }
@@ -690,7 +771,7 @@ fn profile_json(
         .arg(directory)
         .arg("--json");
     let output = command
-        .output_within(MUTATION_BUDGET)
+        .request_output(arguments != ["profile", "list"])
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() && !(accepts_refusal && output.status.code() == Some(2)) {
         return Err(child_error(
@@ -702,7 +783,7 @@ fn profile_json(
         .map_err(|error| format!("Preflight returned unreadable profile data: {error}"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn get_snapshot(app: AppHandle, game: Option<String>) -> Result<Value, String> {
     let paths = EnginePaths::resolve(&app)?;
     let mut command = paths.command();
@@ -713,7 +794,7 @@ pub(crate) fn get_snapshot(app: AppHandle, game: Option<String>) -> Result<Value
     }
 
     let output = command
-        .output_within(READ_BUDGET)
+        .read_output()
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() {
         return Err(child_error(
@@ -725,7 +806,7 @@ pub(crate) fn get_snapshot(app: AppHandle, game: Option<String>) -> Result<Value
         .map_err(|error| format!("Preflight returned an unreadable desktop snapshot: {error}"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn get_bootstrap(app: AppHandle, game: Option<String>) -> Result<Value, String> {
     let paths = EnginePaths::resolve(&app)?;
     let mut command = paths.command();
@@ -736,7 +817,7 @@ pub(crate) fn get_bootstrap(app: AppHandle, game: Option<String>) -> Result<Valu
     }
 
     let output = command
-        .output_within(READ_BUDGET)
+        .read_output()
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() {
         return Err(child_error(
@@ -748,7 +829,7 @@ pub(crate) fn get_bootstrap(app: AppHandle, game: Option<String>) -> Result<Valu
         .map_err(|error| format!("Preflight returned unreadable bootstrap data: {error}"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn get_home_state(app: AppHandle, game: String) -> Result<Value, String> {
     let directory = canonical_game_directory(&game)?;
     let paths = EnginePaths::resolve(&app)?;
@@ -759,7 +840,7 @@ pub(crate) fn get_home_state(app: AppHandle, game: String) -> Result<Value, Stri
         .arg("--game")
         .arg(directory);
     let output = command
-        .output_within(READ_BUDGET)
+        .read_output()
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() {
         return Err(child_error(
@@ -771,7 +852,7 @@ pub(crate) fn get_home_state(app: AppHandle, game: String) -> Result<Value, Stri
         .map_err(|error| format!("Preflight returned unreadable home-screen data: {error}"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn get_mod_readiness(app: AppHandle, game: String) -> Result<Value, String> {
     let directory = canonical_game_directory(&game)?;
     let paths = EnginePaths::resolve(&app)?;
@@ -782,7 +863,7 @@ pub(crate) fn get_mod_readiness(app: AppHandle, game: String) -> Result<Value, S
         .arg("--game")
         .arg(directory);
     let output = command
-        .output_within(READ_BUDGET)
+        .read_output()
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() {
         return Err(child_error(
@@ -812,7 +893,7 @@ fn check_setup_blocking(app: &AppHandle, game: &str) -> Result<Value, String> {
         .arg(directory)
         .arg("--json");
     let output = command
-        .output_within(READ_BUDGET)
+        .read_output()
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() {
         return Err(child_error(
@@ -824,7 +905,7 @@ fn check_setup_blocking(app: &AppHandle, game: &str) -> Result<Value, String> {
         .map_err(|error| format!("Preflight returned unreadable setup-check data: {error}"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn get_cache(app: AppHandle, game: String) -> Result<Value, String> {
     let directory = canonical_game_directory(&game)?;
     let paths = EnginePaths::resolve(&app)?;
@@ -835,7 +916,7 @@ pub(crate) fn get_cache(app: AppHandle, game: String) -> Result<Value, String> {
         .arg("--game")
         .arg(directory);
     let output = command
-        .output_within(READ_BUDGET)
+        .read_output()
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() {
         return Err(child_error(
@@ -847,7 +928,7 @@ pub(crate) fn get_cache(app: AppHandle, game: String) -> Result<Value, String> {
         .map_err(|error| format!("Preflight returned an unreadable cache snapshot: {error}"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn get_cache_inspection(app: AppHandle, game: String) -> Result<Value, String> {
     let directory = canonical_game_directory(&game)?;
     let paths = EnginePaths::resolve(&app)?;
@@ -859,7 +940,7 @@ pub(crate) fn get_cache_inspection(app: AppHandle, game: String) -> Result<Value
         .arg("--game")
         .arg(directory);
     let output = command
-        .output_within(READ_BUDGET)
+        .read_output()
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() {
         return Err(child_error(
@@ -871,7 +952,7 @@ pub(crate) fn get_cache_inspection(app: AppHandle, game: String) -> Result<Value
         .map_err(|error| format!("Preflight returned an unreadable cache inspection: {error}"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn get_cache_health(
     app: AppHandle,
     tracker: State<'_, OperationCoordinator>,
@@ -929,7 +1010,7 @@ fn cache_health_json(
     let mut command = paths.command();
     configure_cache_health_command(&mut command, &directory, expected_profile);
     let output = command
-        .output_within(READ_BUDGET)
+        .read_output()
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() && output.status.code() != Some(3) {
         return Err(child_error(
@@ -963,7 +1044,7 @@ pub(crate) fn configure_cache_health_command(
     command.arg("--json").arg("--game").arg(directory);
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn get_cache_cleanup(app: AppHandle, game: String) -> Result<Value, String> {
     cache_cleanup_json(&app, &game, false)
 }
@@ -1051,7 +1132,7 @@ fn cache_cleanup_json(app: &AppHandle, game: &str, apply: bool) -> Result<Value,
         command.arg("--yes");
     }
     let output = command
-        .output_within(MUTATION_BUDGET)
+        .request_output(apply)
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() && output.status.code() != Some(3) {
         return Err(child_error(
@@ -1066,7 +1147,7 @@ fn cache_cleanup_json(app: &AppHandle, game: &str, apply: bool) -> Result<Value,
 const RETAINED_RUN_EVIDENCE: &str = "10";
 const RETAINED_BENCHMARK_EVIDENCE: &str = "5";
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn get_evidence_cleanup(app: AppHandle) -> Result<Value, String> {
     evidence_cleanup_json(&app, false)
 }
@@ -1099,7 +1180,7 @@ fn evidence_cleanup_json(app: &AppHandle, apply: bool) -> Result<Value, String> 
     let mut command = paths.command();
     configure_evidence_cleanup_command(&mut command, apply);
     let output = command
-        .output_within(MUTATION_BUDGET)
+        .request_output(apply)
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() {
         return Err(child_error(
@@ -1133,7 +1214,7 @@ pub(crate) fn validate_removal_scope(scope: &str) -> Result<(), String> {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn get_removal_plan(app: AppHandle, scope: String) -> Result<Value, String> {
     removal_json(&app, &scope, false)
 }
@@ -1176,7 +1257,7 @@ fn removal_json(app: &AppHandle, scope: &str, apply: bool) -> Result<Value, Stri
         command.arg("--yes");
     }
     let output = command
-        .output_within(MUTATION_BUDGET)
+        .request_output(apply)
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() {
         return Err(child_error(
@@ -1274,7 +1355,7 @@ fn configure_child_process(_command: &mut Command) {}
 
 #[cfg(all(test, windows))]
 mod windows_bundled_engine_tests {
-    use super::{EnginePaths, READ_BUDGET};
+    use super::EnginePaths;
     use std::path::Path;
 
     #[test]
@@ -1293,7 +1374,7 @@ mod windows_bundled_engine_tests {
         let output = paths
             .command()
             .args(["help", "launch-settings"])
-            .output_within(READ_BUDGET)
+            .read_output()
             .expect("bundled engine response");
         assert!(
             output.status.success(),
@@ -1306,7 +1387,7 @@ mod windows_bundled_engine_tests {
 
 #[cfg(all(test, unix))]
 mod bounded_request_tests {
-    use super::EngineCommand;
+    use super::{EngineCommand, EngineReads};
     use std::io::ErrorKind;
     use std::time::{Duration, Instant};
 
@@ -1317,6 +1398,39 @@ mod bounded_request_tests {
         let mut command = EngineCommand::for_test("sh");
         command.arg("-c").arg(script);
         command
+    }
+
+    #[test]
+    fn closing_cancels_active_reads_and_refuses_late_reads() {
+        let reads = std::sync::Arc::new(EngineReads::default());
+        let worker_reads = reads.clone();
+        let worker = std::thread::spawn(move || {
+            fake_engine("exec sleep 60")
+                .output_registered(Duration::from_secs(60), Some(&worker_reads))
+        });
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if !reads.0.lock().unwrap().children.is_empty() {
+                break;
+            }
+            assert!(Instant::now() < deadline, "read child did not start");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let mut game = fake_engine("exec sleep 60").spawn().unwrap();
+        reads.cancel();
+        let game_survived = game.try_wait().unwrap().is_none();
+        let _ = game.kill();
+        let _ = game.wait();
+        assert!(
+            game_survived,
+            "read cancellation must not stop an ordinary game child"
+        );
+        let output = worker.join().unwrap().unwrap();
+        assert!(!output.status.success());
+        let late = fake_engine("exit 0")
+            .output_registered(Duration::from_secs(60), Some(&reads))
+            .unwrap_err();
+        assert_eq!(late.kind(), ErrorKind::Interrupted);
     }
 
     #[test]

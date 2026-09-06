@@ -1,4 +1,4 @@
-use crate::engine::{EnginePaths, READ_BUDGET, canonical_game_directory};
+use crate::engine::{EnginePaths, canonical_game_directory};
 use crate::operations::{OperationCoordinator, PreparationProcess, refuse_update_install};
 use crate::{RunStarted, child_error, read_tail, take_deferred_exit};
 use serde::{Deserialize, Serialize};
@@ -128,7 +128,7 @@ pub(crate) fn cancel_preparation(
     Ok(true)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn get_preparation_plan(
     app: AppHandle,
     game: String,
@@ -155,7 +155,7 @@ pub(crate) fn get_preparation_plan(
         .args(texture_storage_args(&texture_storage))
         .arg("--workers")
         .arg(workers.to_string())
-        .output_within(READ_BUDGET)
+        .read_output()
         .map_err(|error| format!("Could not calculate preparation storage: {error}"))?;
     if !output.status.success() {
         return Err(child_error(
