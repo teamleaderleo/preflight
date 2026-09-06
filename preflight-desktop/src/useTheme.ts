@@ -8,13 +8,29 @@ export const PALETTES = ["blueprint", "hangar", "ultraviolet", "airglow", "phosp
 export type PalettePreference = (typeof PALETTES)[number];
 type ResolvedTheme = Exclude<ThemePreference, "system">;
 
+function readPreference(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function persistPreference(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Appearance changes still apply for this session when storage is unavailable.
+  }
+}
+
 function savedPreference(): ThemePreference {
-  const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+  const saved = readPreference(THEME_STORAGE_KEY);
   return saved === "light" || saved === "dark" || saved === "system" ? saved : "system";
 }
 
 function savedPalette(): PalettePreference {
-  const saved = window.localStorage.getItem(PALETTE_STORAGE_KEY);
+  const saved = readPreference(PALETTE_STORAGE_KEY);
   return PALETTES.find((palette) => palette === saved) ?? "blueprint";
 }
 
@@ -39,7 +55,7 @@ export function useTheme() {
   // Seeded from the saved preference, not from the system. Reading the system here made a saved
   // "light" on a dark desktop render dark and then correct itself, which is a second flash on top
   // of the one the pre-paint script exists to remove.
-  const [resolved, setResolved] = useState<ResolvedTheme>(() => resolveTheme(savedPreference()));
+  const [resolved, setResolved] = useState<ResolvedTheme>(() => resolveTheme(preference));
   const settled = useRef(false);
 
   useEffect(() => {
@@ -62,7 +78,10 @@ export function useTheme() {
     void document.body.offsetWidth;
     document.body.classList.add("theme-changing");
     const finished = window.setTimeout(() => document.body.classList.remove("theme-changing"), 180);
-    return () => window.clearTimeout(finished);
+    return () => {
+      window.clearTimeout(finished);
+      document.body.classList.remove("theme-changing");
+    };
   }, [resolved]);
 
   useEffect(() => {
@@ -70,12 +89,12 @@ export function useTheme() {
   }, [palette]);
 
   const setPreference = (next: ThemePreference) => {
-    window.localStorage.setItem(THEME_STORAGE_KEY, next);
+    persistPreference(THEME_STORAGE_KEY, next);
     setPreferenceState(next);
   };
 
   const setPalette = (next: PalettePreference) => {
-    window.localStorage.setItem(PALETTE_STORAGE_KEY, next);
+    persistPreference(PALETTE_STORAGE_KEY, next);
     setPaletteState(next);
   };
 

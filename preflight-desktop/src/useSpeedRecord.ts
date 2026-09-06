@@ -73,9 +73,9 @@ function measurementFromLegacy(parsed: Partial<LegacySpeedRecordV2>): SpeedMeasu
   return isMeasurement(candidate) ? candidate : null;
 }
 
-export function readSpeedRecord(storage: Storage = window.localStorage): SpeedRecord | null {
+export function readSpeedRecord(storage?: Storage): SpeedRecord | null {
   try {
-    const raw = storage.getItem(SPEED_RECORD_STORAGE_KEY);
+    const raw = (storage ?? window.localStorage).getItem(SPEED_RECORD_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     if (parsed.version === 3 && isMeasurement(parsed.personalBest) && isMeasurement(parsed.latest)) {
@@ -91,7 +91,7 @@ export function readSpeedRecord(storage: Storage = window.localStorage): SpeedRe
         return { version: 3, personalBest: measurement, latest: measurement };
       }
     }
-    storage.removeItem(SPEED_RECORD_STORAGE_KEY);
+    (storage ?? window.localStorage).removeItem(SPEED_RECORD_STORAGE_KEY);
   } catch {
     // A locked-down or corrupted store costs the local history, nothing else.
   }

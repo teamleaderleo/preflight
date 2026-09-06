@@ -290,6 +290,7 @@ export function FlightInstrument({
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let frame: number | null = null;
     let disposed = false;
+    let focusFrame: number | null = null;
     let nativeFocusUnlisten: (() => void) | null = null;
     const focusPaintTimers = new Set<number>();
     let visible = true;
@@ -313,6 +314,7 @@ export function FlightInstrument({
     );
     let pitch = instrumentView.pitch;
     const drawStill = () => {
+      if (disposed || document.hidden) return;
       if (!dragging && animate && motion === "rotate" && !reducedMotion.matches) {
         yaw = readSharedRotation(performance.now(), directionRef.current, yaw);
       }
@@ -320,14 +322,14 @@ export function FlightInstrument({
       lastPaint = performance.now();
     };
     const schedule = () => {
-      if (frame === null && visible && animate && motion === "rotate" && !reducedMotion.matches) {
+      if (!disposed && !document.hidden && frame === null && visible && animate && motion === "rotate" && !reducedMotion.matches) {
         frame = window.requestAnimationFrame(render);
       }
     };
 
     const render = (time: number) => {
       frame = null;
-      if (!visible || dragging || !animate || motion !== "rotate" || reducedMotion.matches) return;
+      if (disposed || document.hidden || !visible || dragging || !animate || motion !== "rotate" || reducedMotion.matches) return;
       yaw = readSharedRotation(time, directionRef.current, yaw);
       drawHull(canvas, hull, yaw, pitch, palette, variant, zoom, framing);
       lastPaint = performance.now();
@@ -378,7 +380,7 @@ export function FlightInstrument({
     const resumeImmediately = () => {
       // WKWebView may discard a queued frame while its window is inactive. Read the shared
       // wall-time clock and paint it synchronously before returning from the focus event.
-      if (dragging || !animate || motion !== "rotate" || reducedMotion.matches) return;
+      if (disposed || document.hidden || dragging) return;
       const bounds = canvas.getBoundingClientRect();
       visible = (bounds.width > 0 && bounds.height > 0
           && bounds.bottom > 0 && bounds.right > 0
@@ -390,20 +392,40 @@ export function FlightInstrument({
       drawStill();
       schedule();
     };
+    const clearFocusRecovery = () => {
+      if (focusFrame !== null) window.cancelAnimationFrame(focusFrame);
+      focusFrame = null;
+      for (const timer of focusPaintTimers) window.clearTimeout(timer);
+      focusPaintTimers.clear();
+    };
     const resumeAfterFocus = () => {
+      clearFocusRecovery();
+      if (disposed || document.hidden) return;
       /*
        * WKWebView can report focus one turn before it starts presenting canvas frames again.
        * Paint now, on the next frame, and across that short handoff. Each pass reads wall time,
        * so the ship resumes at its current angle rather than replaying the inactive interval.
        */
       resumeImmediately();
-      window.requestAnimationFrame(resumeImmediately);
+      focusFrame = window.requestAnimationFrame(() => {
+        focusFrame = null;
+        resumeImmediately();
+      });
       for (const delay of [0, 32, 96]) {
         const timer = window.setTimeout(() => {
           focusPaintTimers.delete(timer);
           if (!disposed) resumeImmediately();
         }, delay);
         focusPaintTimers.add(timer);
+      }
+    };
+    const visibilityChanged = () => {
+      if (document.hidden) {
+        clearFocusRecovery();
+        if (frame !== null) window.cancelAnimationFrame(frame);
+        frame = null;
+      } else {
+        resumeAfterFocus();
       }
     };
     const repairStaleFrame = () => {
@@ -477,7 +499,7 @@ export function FlightInstrument({
     window.addEventListener("pointercancel", finishDrag);
     window.addEventListener("focus", resumeAfterFocus);
     window.addEventListener("pageshow", resumeAfterFocus);
-    document.addEventListener("visibilitychange", resumeAfterFocus);
+    document.addEventListener("visibilitychange", visibilityChanged);
     if (isDesktopHost()) {
       void getCurrentWindow().onFocusChanged(({ payload }) => {
         if (payload) resumeAfterFocus();
@@ -493,8 +515,7 @@ export function FlightInstrument({
     return () => {
       disposed = true;
       if (frame !== null) window.cancelAnimationFrame(frame);
-      for (const timer of focusPaintTimers) window.clearTimeout(timer);
-      focusPaintTimers.clear();
+      clearFocusRecovery();
       nativeFocusUnlisten?.();
       resize.disconnect();
       clearPixelRatioListener();
@@ -508,7 +529,7 @@ export function FlightInstrument({
       window.removeEventListener("pointercancel", finishDrag);
       window.removeEventListener("focus", resumeAfterFocus);
       window.removeEventListener("pageshow", resumeAfterFocus);
-      document.removeEventListener("visibilitychange", resumeAfterFocus);
+      document.removeEventListener("visibilitychange", visibilityChanged);
       root.removeEventListener("pointerenter", repairStaleFrame);
       window.removeEventListener("pointerdown", repairStaleFrame, true);
       root.removeEventListener("keydown", turnFromKeyboard);

@@ -44,10 +44,10 @@ function decodeInstrumentMotion(raw: string | null): InstrumentMotionPreference 
 }
 
 export function readInstrumentMotion(
-  storage: Pick<Storage, "getItem"> = window.localStorage,
+  storage?: Pick<Storage, "getItem">,
 ): InstrumentMotionPreference {
   try {
-    const saved = decodeInstrumentMotion(storage.getItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY));
+    const saved = decodeInstrumentMotion((storage ?? window.localStorage).getItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY));
     return { motion: "rotate", direction: saved.direction };
   } catch {
     return { ...DEFAULT_INSTRUMENT_MOTION };
@@ -56,12 +56,12 @@ export function readInstrumentMotion(
 
 function persistInstrumentMotion(
   preference: InstrumentMotionPreference,
-  storage: Pick<Storage, "setItem"> = window.localStorage,
+  storage?: Pick<Storage, "setItem">,
 ): void {
   try {
     // Pause is a session control. Reopening Preflight should bring the display back to life while
     // preserving the player's preferred direction.
-    storage.setItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY, JSON.stringify({
+    (storage ?? window.localStorage).setItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY, JSON.stringify({
       motion: "rotate",
       direction: preference.direction,
     }));

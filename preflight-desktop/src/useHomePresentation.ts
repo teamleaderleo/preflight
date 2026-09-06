@@ -16,10 +16,10 @@ export const DEFAULT_HOME_PRESENTATION: HomePresentationPreference = Object.free
 const HOME_PRESENTATION_EVENT = "preflight-home-presentation-change";
 
 export function readHomePresentation(
-  storage: Pick<Storage, "getItem"> = window.localStorage,
+  storage?: Pick<Storage, "getItem">,
 ): HomePresentationPreference {
   try {
-    const raw = storage.getItem(HOME_PRESENTATION_STORAGE_KEY);
+    const raw = (storage ?? window.localStorage).getItem(HOME_PRESENTATION_STORAGE_KEY);
     if (!raw) return DEFAULT_HOME_PRESENTATION;
     const decoded: unknown = JSON.parse(raw);
     if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
