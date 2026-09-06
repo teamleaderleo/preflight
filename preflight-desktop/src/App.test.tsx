@@ -8,7 +8,7 @@ import { adapterHealthLine } from "./adapterHealthText";
 import { HOME_OPTIONS_STORAGE_KEY } from "./desktopStorage";
 import { isCurrentProfilePrepared, preparationModeMatchesStorage } from "./usePreparation";
 import * as bridge from "./bridge";
-import type { CacheHealth, CacheSnapshot, LaunchSettings } from "./types";
+import type { CacheHealth, CacheSnapshot, LaunchSettings, RunStateEvent, StopGameResult } from "./types";
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
@@ -46,6 +46,55 @@ function deferred<T>() {
   });
   return { promise, resolve };
 }
+
+test.each(["before", "after", "failed", "unrelated"] as const)(
+  "native exit reconciles the exact stop receipt (%s)", async (order) => {
+    const user = userEvent.setup();
+    const initialSnapshot = await bridge.getBootstrapSnapshot();
+    const desktopHost = vi.spyOn(bridge, "isDesktopHost").mockReturnValue(true);
+    let onRunState: ((event: { payload: RunStateEvent }) => void) | undefined;
+    const nativeListen = vi.mocked(listen).mockImplementation(async (name, callback) => {
+      if (name === "run-state") onRunState = callback as typeof onRunState;
+      return () => undefined;
+    });
+    const snapshot = vi.spyOn(bridge, "getBootstrapSnapshot").mockResolvedValue(initialSnapshot);
+    const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 812 });
+    const pending = deferred<StopGameResult>();
+    const stop = vi.spyOn(bridge, "stopGame").mockReturnValue(pending.promise);
+    const result: StopGameResult = {
+      inspected: 1,
+      skipped: 0,
+      stopped: order === "failed" ? 0 : 1,
+      stillRunning: order === "failed" ? 1 : 0,
+      forced: false,
+    };
+    try {
+      render(<App />);
+      await user.click(await screen.findByRole("button", { name: "Launch Starsector" }));
+      await act(async () => onRunState?.({ payload: { state: "running", pid: 812 } }));
+      await user.click(await screen.findByRole("button", { name: "Stop Starsector" }));
+      if (order === "before") await act(async () => pending.resolve(result));
+      await act(async () => { onRunState?.({ payload: {
+        state: "finished", pid: order === "unrelated" ? 999 : 812,
+        success: false, detail: "Starsector exited with an error",
+      } }); });
+      if (order !== "before") await act(async () => pending.resolve(result));
+      if (order === "failed" || order === "unrelated") {
+        expect(await screen.findByRole("alert", { name: "Run needs attention" })).toBeInTheDocument();
+      } else {
+        await screen.findByRole("heading", { name: "Ready", level: 1 });
+        expect(screen.queryByRole("alert", { name: "Run needs attention" })).not.toBeInTheDocument();
+        expect(await screen.findByText("Starsector stopped. The run report is ready.")).toBeInTheDocument();
+      }
+    } finally {
+      desktopHost.mockRestore();
+      nativeListen.mockReset();
+      snapshot.mockRestore();
+      game.mockRestore();
+      stop.mockRestore();
+    }
+  },
+);
 
 function elementIsOnCurrentPage(element: HTMLElement): boolean {
   let current: HTMLElement | null = element;
