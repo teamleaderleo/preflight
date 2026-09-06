@@ -155,18 +155,18 @@ export function usePreparation(
           cache,
           health,
         }));
-      if (request === cacheRequest.current) {
+      if (request === cacheRequest.current && gameRef.current === game) {
         setCache(inspection.cache);
         setCacheHealth(inspection.health);
       }
     } catch (error) {
-      if (request === cacheRequest.current) {
+      if (request === cacheRequest.current && gameRef.current === game) {
         setCache(null);
         setCacheHealth(null);
         announce(errorMessage(error), "error");
       }
     } finally {
-      if (request === cacheRequest.current) {
+      if (request === cacheRequest.current && gameRef.current === game) {
         cacheRequestRoot.current = null;
         setCacheInstallRoot(game);
         setCacheLoading(false);

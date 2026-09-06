@@ -1,6 +1,6 @@
 use serde::Serialize;
 use std::path::PathBuf;
-use std::sync::{Mutex, TryLockError, mpsc};
+use std::sync::{Mutex, MutexGuard, TryLockError, mpsc};
 use tokio::sync::watch;
 
 #[derive(Default)]
@@ -14,6 +14,7 @@ pub(crate) struct OperationState {
     pub(crate) update_checking: bool,
     pub(crate) update_installing: bool,
     pub(crate) exit_after_cleanup: bool,
+    pub(crate) foreground_operation: bool,
 }
 
 pub(crate) struct DesktopSmokeProcess {
@@ -75,6 +76,62 @@ impl OperationSnapshot {
 #[derive(Default)]
 pub(crate) struct OperationCoordinator(pub(crate) Mutex<OperationState>);
 
+// A reservation preserves admission rules while child work runs without the coordinator lock.
+// Drop releases ownership on success, refusal, or panic and completes a deferred app exit.
+pub(crate) struct ForegroundReservation<'a> {
+    operations: &'a Mutex<OperationState>,
+    on_exit: Option<Box<dyn FnOnce() + Send + 'a>>,
+}
+
+impl Drop for ForegroundReservation<'_> {
+    fn drop(&mut self) {
+        let should_exit = {
+            let mut state = self
+                .operations
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
+            state.foreground_operation = false;
+            crate::take_deferred_exit(&mut state)
+        };
+        if let (true, Some(on_exit)) = (should_exit, self.on_exit.take()) {
+            on_exit();
+        }
+    }
+}
+
+pub(crate) fn reserve_foreground<'a>(
+    app: &tauri::AppHandle,
+    coordinator: &'a OperationCoordinator,
+    state: MutexGuard<'_, OperationState>,
+) -> Result<ForegroundReservation<'a>, String> {
+    let app = app.clone();
+    reserve_foreground_with_exit(&coordinator.0, state, move || app.exit(0))
+}
+
+fn reserve_foreground_with_exit<'a>(
+    operations: &'a Mutex<OperationState>,
+    mut state: MutexGuard<'_, OperationState>,
+    on_exit: impl FnOnce() + Send + 'a,
+) -> Result<ForegroundReservation<'a>, String> {
+    refuse_update_install(&state)?;
+    state.foreground_operation = true;
+    drop(state);
+    Ok(ForegroundReservation {
+        operations,
+        on_exit: Some(Box::new(on_exit)),
+    })
+}
+
+fn refuse_foreground_operation(state: &OperationState) -> Result<(), String> {
+    if state.exit_after_cleanup {
+        return Err("Preflight is closing. Wait for its current operation to finish.".to_string());
+    }
+    if state.foreground_operation {
+        return Err("Wait for the current Preflight operation to finish.".to_string());
+    }
+    Ok(())
+}
+
 pub(crate) struct UpdateCheckGuard<'a> {
     operations: &'a Mutex<OperationState>,
 }
@@ -118,6 +175,7 @@ pub(crate) fn begin_diagnostics_export(
             return Err("The operation coordinator is unavailable.".to_string());
         }
     };
+    refuse_foreground_operation(&state)?;
     if state.desktop_smoke.is_some() {
         return Err(
             "Wait for the startup benchmark to finish or cancel it before creating a support file."
@@ -173,6 +231,7 @@ pub(crate) fn begin_update_install(
     let mut state = operations
         .lock()
         .map_err(|_| "The operation coordinator is unavailable.".to_string())?;
+    refuse_foreground_operation(&state)?;
     if state.game.is_some() {
         return Err("Close Starsector before installing a Preflight update.".to_string());
     }
@@ -204,6 +263,7 @@ pub(crate) fn begin_update_install(
 }
 
 pub(crate) fn refuse_update_install(state: &OperationState) -> Result<(), String> {
+    refuse_foreground_operation(state)?;
     if state.update_installing {
         Err("Wait for the Preflight update to finish installing.".to_string())
     } else {
@@ -247,6 +307,7 @@ pub(crate) fn refuse_report_upload_for_benchmark(state: &OperationState) -> Resu
 }
 
 pub(crate) fn refuse_benchmark_for_report(state: &OperationState) -> Result<(), String> {
+    refuse_foreground_operation(state)?;
     if state.desktop_smoke.is_some() {
         Err(
             "Wait for the startup benchmark to finish or cancel it before changing run reports."
@@ -260,6 +321,75 @@ pub(crate) fn refuse_benchmark_for_report(state: &OperationState) -> Result<(), 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn foreground_reservation_releases_lock_refuses_conflicts_and_finishes_exit() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+        let operations = Arc::new(Mutex::new(OperationState::default()));
+        let exits = Arc::new(AtomicUsize::new(0));
+        let (started, ready) = mpsc::channel();
+        let (release, finish) = mpsc::channel();
+        let worker_operations = Arc::clone(&operations);
+        let worker_exits = Arc::clone(&exits);
+        let worker = std::thread::spawn(move || {
+            let reservation = reserve_foreground_with_exit(
+                &worker_operations,
+                worker_operations.lock().unwrap(),
+                move || {
+                    worker_exits.fetch_add(1, Ordering::SeqCst);
+                },
+            )
+            .unwrap();
+            started.send(()).unwrap();
+            finish.recv().unwrap();
+            drop(reservation);
+        });
+        ready
+            .recv_timeout(std::time::Duration::from_secs(2))
+            .unwrap();
+        // A delayed child does not own the mutex, but admission remains exclusive.
+        let mut state = operations
+            .try_lock()
+            .expect("UI state and quit must remain responsive");
+        assert!(refuse_update_install(&state).is_err());
+        assert!(
+            reserve_foreground_with_exit(
+                &operations,
+                {
+                    assert!(crate::begin_exit_cleanup(&mut state).unwrap());
+                    assert!(!crate::take_deferred_exit(&mut state));
+                    state
+                },
+                || {}
+            )
+            .is_err()
+        );
+        assert!(begin_update_install(&operations).is_err());
+        assert_eq!(exits.load(Ordering::SeqCst), 0);
+        release.send(()).unwrap();
+        worker.join().unwrap();
+        assert_eq!(exits.load(Ordering::SeqCst), 1);
+        let state = operations.lock().unwrap();
+        assert!(!state.foreground_operation);
+        assert!(!state.exit_after_cleanup);
+        assert!(refuse_update_install(&state).is_ok());
+    }
+
+    #[test]
+    fn foreground_reservation_releases_on_unwind() {
+        let operations = Mutex::new(OperationState::default());
+        let outcome = std::panic::catch_unwind(|| {
+            let _reservation =
+                reserve_foreground_with_exit(&operations, operations.lock().unwrap(), || {})
+                    .unwrap();
+            panic!("synthetic child failure");
+        });
+        assert!(outcome.is_err());
+        assert!(!operations.lock().unwrap().foreground_operation);
+    }
 
     fn state_with_report_upload() -> OperationState {
         let (cancel, _receiver) = watch::channel(false);
@@ -494,6 +624,7 @@ mod tests {
             update_checking: true,
             update_installing: false,
             exit_after_cleanup: false,
+            foreground_operation: false,
         };
 
         let snapshot = OperationSnapshot::from_state(&state);

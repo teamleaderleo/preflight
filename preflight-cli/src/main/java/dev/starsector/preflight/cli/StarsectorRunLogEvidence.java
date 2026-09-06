@@ -180,7 +180,16 @@ final class StarsectorRunLogEvidence {
 
     /** Accepts stop intent only when its PID/start pair matches this run's strict runtime record. */
     static boolean exactControllerStopRequested(Path runDirectory) {
-        Path receipt = runDirectory.resolve(CONTROLLER_STOP_FILE);
+        return exactStopRequested(runDirectory, CONTROLLER_STOP_FILE)
+                || exactUserStopRequested(runDirectory);
+    }
+
+    static boolean exactUserStopRequested(Path runDirectory) {
+        return exactStopRequested(runDirectory, "user-stop.requested");
+    }
+
+    private static boolean exactStopRequested(Path runDirectory, String name) {
+        Path receipt = runDirectory.resolve(name);
         Path runtime = runDirectory.resolve("runtime-process.json");
         try {
             if (!Files.isRegularFile(receipt, LinkOption.NOFOLLOW_LINKS)

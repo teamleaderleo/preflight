@@ -28,6 +28,22 @@ class StopCommandTest {
     @TempDir
     Path runs;
 
+    @Test
+    void explicitUserStopReceiptIsBoundToTheRecordedPidAndStartTime() throws Exception {
+        ProcessHandle self = ProcessHandle.current();
+        Instant start = self.info().startInstant().orElseThrow();
+        writeRecord("user-stop", self.pid(), start, "running");
+        RuntimeProcessIdentity record = StopCommand.recordedRuns(runs).get(0);
+        StopCommand.writeUserStopReceipt(record);
+        assertTrue(StarsectorRunLogEvidence.exactUserStopRequested(runs.resolve("user-stop")));
+        assertTrue(StarsectorRunLogEvidence.exactControllerStopRequested(runs.resolve("user-stop")));
+        writeRecord("user-stop", self.pid(), start.minusSeconds(1), "running");
+        assertFalse(StarsectorRunLogEvidence.exactUserStopRequested(runs.resolve("user-stop")));
+        try (var files = Files.list(runs.resolve("user-stop"))) {
+            assertFalse(files.anyMatch(path -> path.getFileName().toString().endsWith(".tmp")));
+        }
+    }
+
     /**
      * The one that would be unforgivable: an operating system that has recycled a PID.
      *

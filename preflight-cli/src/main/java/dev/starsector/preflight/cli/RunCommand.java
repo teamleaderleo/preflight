@@ -20,6 +20,27 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 
 final class RunCommand {
+    static int requestedStopExitCode(int launcherExitCode, StarsectorRunLogEvidence.Evidence evidence,
+            boolean userStopRequested) {
+        return !evidence.fatalDetected() && expectedUserStop(launcherExitCode, userStopRequested)
+                ? 0 : StarsectorRunLogEvidence.effectiveExitCode(launcherExitCode, evidence);
+    }
+
+    private static boolean expectedUserStop(int launcherExitCode, boolean userStopRequested) {
+        // Keep unexpected nonzero exits as failures even when a Stop request raced with them.
+        return userStopRequested && (launcherExitCode == 0
+                || (Platform.current() == Platform.WINDOWS
+                    ? launcherExitCode == 1
+                    : launcherExitCode == 143 || launcherExitCode == 137));
+    }
+
+    static String runOutcome(int launcherExitCode, StarsectorRunLogEvidence.Evidence evidence,
+            boolean userStopRequested) {
+        return evidence.fatalDetected() ? "FATAL_LOG_EVIDENCE"
+                : expectedUserStop(launcherExitCode, userStopRequested) ? "USER_STOPPED"
+                : launcherExitCode == 0 ? "COMPLETED" : "LAUNCHER_EXIT_NONZERO";
+    }
+
     private static final DateTimeFormatter RUN_ID = DateTimeFormatter.ofPattern("uuuuMMdd-HHmmss-SSS")
             .withZone(ZoneOffset.UTC);
 
@@ -325,10 +346,9 @@ final class RunCommand {
                     StarsectorRunLogEvidence.exactControllerStopRequested(runDirectory);
             lifecycleEvidence = StarsectorRunLogEvidence.inspect(
                     logSnapshot, childOutput, controllerStopRequested);
-            exitCode = StarsectorRunLogEvidence.effectiveExitCode(launcherExitCode, lifecycleEvidence);
-            outcome = lifecycleEvidence.fatalDetected()
-                    ? "FATAL_LOG_EVIDENCE"
-                    : launcherExitCode == 0 ? "COMPLETED" : "LAUNCHER_EXIT_NONZERO";
+            boolean userStopRequested = StarsectorRunLogEvidence.exactUserStopRequested(runDirectory);
+            exitCode = requestedStopExitCode(launcherExitCode, lifecycleEvidence, userStopRequested);
+            outcome = runOutcome(launcherExitCode, lifecycleEvidence, userStopRequested);
             if (lifecycleEvidence.fatalDetected()) {
                 System.err.println("Preflight detected fatal Starsector lifecycle evidence in logs or child console."
                         + " Launcher exit " + launcherExitCode + " is not a clean game exit.");
