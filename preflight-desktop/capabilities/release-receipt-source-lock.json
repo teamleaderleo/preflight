@@ -23,7 +23,7 @@
     "preflight-desktop/src-tauri/src/engine.rs": "8e3f4950b6ebb64ffbcf89017bc1ce637b270d295eba7f1bcc04950b0f0ada01",
     "preflight-desktop/src-tauri/src/hull_sprite_tracer.rs": "1994d50d50f22f766daf9c785be26210a587a413bd701a381947c5a11ebf2e0a",
     "preflight-desktop/src-tauri/src/hulls.rs": "252b0c72dd74b1d87d3b09d6c2bf29a90a798bfb7c9a924dbfa5f878168a0e62",
-    "preflight-desktop/src-tauri/src/lib.rs": "0a68de701655283c47e134b168d95a5bd1a3deab2ea16773b78bebf8ba4997cd",
+    "preflight-desktop/src-tauri/src/lib.rs": "d1df100d2aaf7fe6aac5da49bbd705f8eb2582099a51609a5b853b44e55d1160",
     "preflight-desktop/src-tauri/src/main.rs": "4dccc8d91a37ff733458868370ce624d467475d19ba1eeabc09f50a0afc8e6f5",
     "preflight-desktop/src-tauri/src/operations.rs": "2da4b33036b689e06c40d3c5012e475be6a48d74b1e8fa8d01d58b3384111eaf",
     "preflight-desktop/src-tauri/src/preparation.rs": "85f7a1e326a6bc74982974b09fbb21889311066ee23dc3be379d5fc12ae43bed",
