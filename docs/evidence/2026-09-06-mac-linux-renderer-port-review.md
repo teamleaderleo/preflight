@@ -82,3 +82,14 @@ recognizes their owner by name. A regression fixture checks strict priority over
 explicit stock override. Mac's normal app script already detects the `fr.jar` reference; a focused
 fixture now covers that agent-plus-classpath layout. These are launcher fixtures, not native
 combined-renderer evidence.
+
+Validation: both downloaded archives passed the offline identity check, and its two mutation/
+entry fixtures passed locally. Focused launcher tests passed on Big Red with `./mvnw ... verify`;
+the initial plain `mvn` attempt failed because it was not on PATH. Both logs were retained under
+`benchmark-results/fr-port-087/`. Java `verify` passed on Windows, macOS and Linux for code
+commit `08a87de116066915ca8d4f10a30142dba8ee95a7` in CI run `34056221462`.
+That run's operator checks failed because the new Python test had not been listed in the workflow.
+The follow-up adds that invocation; the identity tests and workflow-coverage guard then passed
+locally. These checks establish launcher behavior and artifact identity, not native rendering
+correctness or a performance improvement. Rebuildable Big Red Maven outputs were retired after
+verification. No game, GUI, VM or renderer installation was started for this slice.
