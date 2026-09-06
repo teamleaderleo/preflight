@@ -14,6 +14,8 @@ Implementation: 5d7c68a6. Follow-up to #1262.
 
 Node 24.19.0: all 503 frontend tests in 86 files and production build passed (local command receipt `eea5ea19f06f82c9`). Focused callback tests passed (`a1618bd693618a7e`); storage and adjacent tests passed (`d5e40afdd6924ff9`). Native tests and packages belong to Desktop CI on the PR.
 
+The initial Desktop CI run 34060607862 failed the capability source lock because the timeout fixtures share the guarded engine.rs file. The complete diff changes only three test fixtures and rustfmt wrapping. After review, the repository tool updated only that file's normalized source digest. The failed log is retained at `benchmark-results/appearance-contracts-failed.log`. No production capability or command changed.
+
 Excluded/failed local attempts are retained in command receipts: an initial test invocation accidentally used system Node 26 (`b1e66acf838e9fee`), which is outside the repository Node range and failed jsdom storage setup. A shell PATH quoting attempt failed (`09e5e9ae0409cd7f`). The first full suite caught the newly added hidden/still-display regression (`1e3ee3b89b201cc8`); the final full suite passed after the resume guard correction. A test-writing helper initially used the wrong working directory and wrote no files.
 
 ## Browser evidence
