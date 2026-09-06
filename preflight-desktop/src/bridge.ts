@@ -281,16 +281,9 @@ export async function getSnapshot(game?: string): Promise<DesktopSnapshot> {
   return invoke<DesktopSnapshot>("get_snapshot", { game: game ?? null });
 }
 
-interface DesktopBootstrap {
-  format: "starsector-preflight-desktop-bootstrap-v1";
-  snapshot: DesktopSnapshot;
-  homeState: DesktopHomeState | null;
-  homeStateError: string | null;
-}
-
 interface BootstrapFlight {
   game: string | null;
-  promise: Promise<DesktopBootstrap>;
+  promise: Promise<DesktopSnapshot>;
 }
 
 interface HomeStateFlight {
@@ -305,21 +298,12 @@ let homeStateFlight: HomeStateFlight | null = null;
 const homeStateBootstrapped = new Set<string>();
 let bootstrapFlight: BootstrapFlight | null = null;
 
-function primeHomeState(state: DesktopHomeState): void {
-  homeStateBootstrapped.delete(state.installRoot);
-  homeStateFlight = {
-    game: state.installRoot,
-    promise: Promise.resolve(state),
-    claimed: new Set(),
-  };
-}
-
-/** Discovers the installation and primes Home's first reads from one engine process. */
+/** Confirm the installation first; Home shares one deferred request for its heavier data. */
 export async function getBootstrapSnapshot(game?: string): Promise<DesktopSnapshot> {
   if (!isDesktopHost()) return getSnapshot(game);
   const expectedGame = game ?? null;
   if (!bootstrapFlight || bootstrapFlight.game !== expectedGame) {
-    const promise = invoke<DesktopBootstrap>("get_bootstrap", { game: expectedGame });
+    const promise = getSnapshot(game);
     bootstrapFlight = { game: expectedGame, promise };
     void promise.catch(() => undefined).finally(() => {
       window.setTimeout(() => {
@@ -327,20 +311,7 @@ export async function getBootstrapSnapshot(game?: string): Promise<DesktopSnapsh
       }, 0);
     });
   }
-  const flight = bootstrapFlight;
-  const bootstrap = await flight.promise;
-  if (bootstrap.format !== "starsector-preflight-desktop-bootstrap-v1") {
-    throw new Error("Preflight returned an unsupported desktop bootstrap document.");
-  }
-  const selectedGame = bootstrap.snapshot.selected?.installRoot;
-  if (
-    bootstrapFlight?.promise === flight.promise
-    && bootstrap.homeState
-    && bootstrap.homeState.installRoot === selectedGame
-  ) {
-    primeHomeState(bootstrap.homeState);
-  }
-  return bootstrap.snapshot;
+  return bootstrapFlight.promise;
 }
 
 function firstHomeStateField<K extends HomeStateField>(

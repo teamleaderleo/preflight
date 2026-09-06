@@ -66,7 +66,7 @@ test("the first home reads share one engine process", async () => {
   expect(invoke).toHaveBeenCalledWith("get_home_state", { game: "/game" });
 });
 
-test("desktop bootstrap primes the first screen without a second engine process", async () => {
+test("installation confirmation does not wait for heavier Home data", async () => {
   const state: DesktopHomeState = {
     format: "starsector-preflight-desktop-home-state-v1",
     installRoot: "/game",
@@ -79,34 +79,30 @@ test("desktop bootstrap primes the first screen without a second engine process"
   const snapshot = {
     selected: { installRoot: "/game" },
   } as DesktopSnapshot;
-  vi.mocked(invoke).mockResolvedValue({
-    format: "starsector-preflight-desktop-bootstrap-v1",
-    snapshot,
-    homeState: state,
-    homeStateError: null,
-  });
+  const pendingHome = deferred<DesktopHomeState>();
+  vi.mocked(invoke).mockImplementation((command) =>
+    (command === "get_snapshot" ? Promise.resolve(snapshot) : pendingHome.promise) as never);
   const bridge = await import("./bridge");
 
   await expect(bridge.getBootstrapSnapshot()).resolves.toBe(snapshot);
-  await expect(Promise.all([
+  expect(invoke).toHaveBeenCalledTimes(1);
+  expect(invoke).toHaveBeenCalledWith("get_snapshot", { game: null });
+  const home = Promise.all([
     bridge.getCacheInspection("/game"),
     bridge.getProfiles("/game"),
     bridge.getLaunchSettings("/game"),
     bridge.getModReadiness("/game"),
-  ])).resolves.toEqual([cacheInspection, profiles, launchSettings, modReadiness]);
+  ]);
+  pendingHome.resolve(state);
+  await expect(home).resolves.toEqual([cacheInspection, profiles, launchSettings, modReadiness]);
 
-  expect(invoke).toHaveBeenCalledTimes(1);
-  expect(invoke).toHaveBeenCalledWith("get_bootstrap", { game: null });
+  expect(invoke).toHaveBeenCalledTimes(2);
+  expect(invoke).toHaveBeenCalledWith("get_home_state", { game: "/game" });
 });
 
 test("concurrent bootstrap reads share one engine process", async () => {
   const snapshot = { selected: null } as DesktopSnapshot;
-  vi.mocked(invoke).mockResolvedValue({
-    format: "starsector-preflight-desktop-bootstrap-v1",
-    snapshot,
-    homeState: null,
-    homeStateError: null,
-  });
+  vi.mocked(invoke).mockResolvedValue(snapshot);
   const bridge = await import("./bridge");
 
   await expect(Promise.all([
@@ -120,7 +116,8 @@ test("concurrent bootstrap reads share one engine process", async () => {
 test("a stale bootstrap cannot replace a newer installation's home state", async () => {
   const older = deferred<unknown>();
   const newer = deferred<unknown>();
-  vi.mocked(invoke).mockImplementation((_command, args) => {
+  vi.mocked(invoke).mockImplementation((command, args) => {
+    if (command === "get_home_state") return Promise.resolve(newerState) as never;
     const game = (args as { game: string }).game;
     return (game === "/older" ? older.promise : newer.promise) as never;
   });
@@ -137,25 +134,15 @@ test("a stale bootstrap cannot replace a newer installation's home state", async
     errors: {},
   };
   const newerSnapshot = { selected: { installRoot: "/newer" } } as DesktopSnapshot;
-  newer.resolve({
-    format: "starsector-preflight-desktop-bootstrap-v1",
-    snapshot: newerSnapshot,
-    homeState: newerState,
-    homeStateError: null,
-  });
+  newer.resolve(newerSnapshot);
   await expect(newRequest).resolves.toBe(newerSnapshot);
 
   const olderSnapshot = { selected: { installRoot: "/older" } } as DesktopSnapshot;
-  older.resolve({
-    format: "starsector-preflight-desktop-bootstrap-v1",
-    snapshot: olderSnapshot,
-    homeState: { ...newerState, installRoot: "/older" },
-    homeStateError: null,
-  });
+  older.resolve(olderSnapshot);
   await expect(oldRequest).resolves.toBe(olderSnapshot);
   await expect(bridge.getProfiles("/newer")).resolves.toBe(profiles);
 
-  expect(invoke).toHaveBeenCalledTimes(2);
+  expect(invoke).toHaveBeenCalledTimes(3);
 });
 
 test("later refreshes keep their narrow read contracts", async () => {

@@ -153,7 +153,7 @@ fn project_link_url(link: &str) -> Result<&'static str, String> {
         .ok_or_else(|| format!("Unknown Preflight link: {link}"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_operation_state(
     app: AppHandle,
     tracker: State<'_, OperationCoordinator>,
@@ -171,7 +171,7 @@ fn get_operation_state(
         command.arg("--pid").arg(pid.to_string());
     }
     let output = command
-        .output_within(engine::READ_BUDGET)
+        .read_output()
         .map_err(|error| format!("Could not inspect a previous Starsector launch: {error}"))?;
     let durable_pid = parse_active_game_pid(&output.stdout).map_err(|error| {
         if output.status.success() {
@@ -733,6 +733,7 @@ pub fn run() {
         let tauri::RunEvent::ExitRequested { code, api, .. } = event else {
             return;
         };
+        engine::cancel_engine_reads();
         if code == Some(tauri::RESTART_EXIT_CODE) {
             return;
         }
