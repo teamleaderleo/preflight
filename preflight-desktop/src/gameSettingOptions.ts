@@ -30,7 +30,10 @@ export function displayPixels(): [number, number] {
 }
 
 export function resolutionChoices(current: string, maximumWidth = 0, maximumHeight = 0): string[] {
-  return Array.from(new Set([...COMMON_RESOLUTIONS, current]))
+  const nativeResolution = Number.isInteger(maximumWidth) && Number.isInteger(maximumHeight)
+    && maximumWidth > 0 && maximumHeight > 0 && maximumWidth <= 65535 && maximumHeight <= 65535
+    ? [`${maximumWidth}x${maximumHeight}`] : [];
+  return Array.from(new Set([...COMMON_RESOLUTIONS, ...nativeResolution, current]))
     .filter((resolution) => /^\d+x\d+$/.test(resolution))
     .filter((resolution) => {
       if (resolution === current || maximumWidth <= 0 || maximumHeight <= 0) return true;
