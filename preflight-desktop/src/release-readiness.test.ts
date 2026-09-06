@@ -63,8 +63,8 @@ test("explicit Home state modifiers own recovery and preparation composition", (
   expect(getComputedStyle(playtime).display).toBe("none");
   expect(getComputedStyle(health).display).toBe("none");
   expect(getComputedStyle(preparationIdentity).top).toBe("64px");
-  expect(getComputedStyle(quickSettings).top).toBe("108px");
-  expect(getComputedStyle(quickSettings).justifyContent).toBe("safe center");
+  expect(getComputedStyle(quickSettings).getPropertyValue("--options-top")).toBe("108px");
+  expect(getComputedStyle(quickSettings).justifyContent).toBe("flex-start");
 
   const settled = document.createElement("section");
   settled.className = "launch-console launch-console--ready launch-console--layout-settled";
@@ -99,11 +99,11 @@ test("narrow exceptional states reserve Options space without inferring note lay
     rule.selectorText === ".launch-console--options-open:has(.launch-console__actions .launch-console__stop) .quick-settings",
   );
   expect(noteRule).toBeUndefined();
-  expect(optionsRule?.style.bottom).toBe("200px");
+  expect(optionsRule?.style.getPropertyValue("--options-bottom")).toBe("200px");
   style.remove();
 });
 
 test("the smallest Home keeps quick settings above launch without a nested drawer", () => {
-  expect(readinessStyles).toMatch(/@media \(max-width: 600px\)[\s\S]*?\.launch-console--options-open \.quick-settings\s*\{[^}]*bottom:\s*80px;[^}]*padding:\s*6px 14px;/);
+  expect(readinessStyles).toMatch(/@media \(max-width: 600px\)[\s\S]*?\.launch-console--options-open \.quick-settings\s*\{[^}]*--options-bottom:\s*80px;[^}]*padding:\s*6px 14px;/);
   expect(readinessStyles).toMatch(/\.launch-console--options-open \.home-ship-picker,\s*\.launch-console--options-open \.home-playtime\s*\{[^}]*visibility:\s*hidden;[^}]*opacity:\s*0;/);
 });

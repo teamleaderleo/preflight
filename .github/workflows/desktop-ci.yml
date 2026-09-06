@@ -353,6 +353,11 @@ jobs:
         working-directory: preflight-desktop
         run: npx tauri build --bundles nsis --config src-tauri/tauri.ci.conf.json
 
+      - name: Verify canonical Windows engine launch
+        if: runner.os == 'Windows'
+        working-directory: preflight-desktop
+        run: cargo test --release --locked --manifest-path src-tauri/Cargo.toml windows_bundled_engine_tests
+
       - name: Reverify frontend distribution after packaging
         shell: bash
         run: |

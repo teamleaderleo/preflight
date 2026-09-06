@@ -45,10 +45,7 @@ test("shows initial, settled, and combat distributions without raw frame details
   const combat = screen.getByRole("group", { name: "Combat" });
   expect(combat).toHaveTextContent("60 FPS");
   expect(combat).toHaveTextContent("1,802 frames · 3m 0s active");
-  expect(screen.getByText(/recording cost averaged/i)).toHaveTextContent("1.78 μs per frame");
-  expect(screen.getByText(/not a game-speed comparison/i)).toBeInTheDocument();
-  expect(screen.getByText(/come from the same launch/i)).toHaveTextContent("They don’t compare optimizations off and on.");
-  expect(screen.getByText(/recorder doesn’t open or change save files/i)).toBeInTheDocument();
+  expect(screen.getByText(/recording cost:/i)).toHaveTextContent("1.78 μs per frame");
 });
 
 test("omits recorder-cost copy when an older summary has no overhead measurement", () => {
@@ -69,7 +66,6 @@ test("omits recorder-cost copy when an older summary has no overhead measurement
   expect(screen.queryByText(/recording cost/i)).not.toBeInTheDocument();
   expect(screen.getByRole("group", { name: "Campaign" })).toHaveTextContent("500 frames");
   expect(screen.getByRole("group", { name: "Campaign" })).not.toHaveTextContent("active");
-  expect(screen.getByText(/recorder doesn’t open or change save files/i)).toBeInTheDocument();
 });
 
 test("prioritizes recurring stutter and separates paused from unpaused play", () => {
@@ -110,8 +106,6 @@ test("prioritizes recurring stutter and separates paused from unpaused play", ()
   expect(pausedRow).toHaveTextContent("24.71 / min");
   const unpausedRow = screen.getByRole("group", { name: "Unpaused campaign after 30 seconds" });
   expect(unpausedRow).toHaveTextContent("41.2 ms/s");
-  expect(screen.getByText(/disjoint active-state windows/i)).toBeInTheDocument();
-  expect(screen.getByText(/rank ahead of isolated hitches/i)).toBeInTheDocument();
 });
 
 test("stays absent until a valid distribution was recorded", () => {
