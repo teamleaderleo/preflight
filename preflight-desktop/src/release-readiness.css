@@ -19,7 +19,7 @@ summary:active {
   top: var(--options-top);
   bottom: auto;
   max-height: calc(100% - var(--options-top) - var(--options-bottom));
-  padding: 16px 24px;
+  padding: 12px 24px;
 }
 
 /* The drawer and hull picker otherwise occupy the same lower-centre band. Keep the ship itself in

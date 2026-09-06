@@ -69,8 +69,11 @@ impl EnginePaths {
     }
 
     pub(crate) fn command(&self) -> EngineCommand {
-        let mut command = Command::new(&self.java);
-        command.arg("-jar").arg(&self.jar);
+        // Tauri resolves resources through canonical paths. Java can open a JAR through a
+        // Windows verbatim path but then fails to load its main class from that same path.
+        // Simplify only when the normal Windows spelling preserves the path's meaning.
+        let mut command = Command::new(dunce::simplified(&self.java));
+        command.arg("-jar").arg(dunce::simplified(&self.jar));
         configure_child_process(&mut command);
         if let Some(locale) = ascii_locale_rescue(|name| std::env::var_os(name)) {
             command.env("LC_ALL", locale);
@@ -1268,6 +1271,38 @@ fn configure_child_process(command: &mut Command) {
 
 #[cfg(not(windows))]
 fn configure_child_process(_command: &mut Command) {}
+
+#[cfg(all(test, windows))]
+mod windows_bundled_engine_tests {
+    use super::{EnginePaths, READ_BUDGET};
+    use std::path::Path;
+
+    #[test]
+    fn canonical_resource_paths_load_the_bundled_java_main_class() {
+        let engine = Path::new(env!("CARGO_MANIFEST_DIR")).join("target/engine");
+        let paths = EnginePaths {
+            java: engine
+                .join("runtime/bin/java.exe")
+                .canonicalize()
+                .expect("prepared Java runtime"),
+            jar: engine
+                .join("preflight.jar")
+                .canonicalize()
+                .expect("prepared engine JAR"),
+        };
+        let output = paths
+            .command()
+            .args(["help", "launch-settings"])
+            .output_within(READ_BUDGET)
+            .expect("bundled engine response");
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(String::from_utf8_lossy(&output.stdout).contains("preflight launch-settings"));
+    }
+}
 
 #[cfg(all(test, unix))]
 mod bounded_request_tests {
